@@ -365,6 +365,14 @@ export class VaultService implements IVaultAccess {
 		this.detachEditorListener();
 
 		if (!view?.file) {
+			// Notify listeners that there is no active markdown view so they
+			// can re-query getActiveNote(). The new active leaf may be a
+			// non-markdown view (ACP panel, canvas, empty state) but another
+			// pane may still have a markdown file that getActiveFile() will
+			// return, or there may be no active note at all. Without this
+			// notification, the context note stays stale until another
+			// active-leaf-change fires with a markdown view. (I32)
+			this.handleSelectionChange(null, null);
 			return;
 		}
 
