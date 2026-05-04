@@ -271,8 +271,26 @@ export class VaultService implements IVaultAccess {
 	 * @returns Promise resolving to active note metadata, or null if no note is active
 	 */
 	getActiveNote(): Promise<NoteMetadata | null> {
-		const activeFile = this.plugin.app.workspace.getActiveFile();
+		const workspace = this.plugin.app.workspace;
+		const activeFile = workspace.getActiveFile();
 		if (!activeFile) return Promise.resolve(null);
+
+		// workspace.getActiveFile() falls back to "most recently active file"
+		// when the current view is not a FileView (e.g. the ACP panel is
+		// focused, or no note is open at all). This means after the last
+		// markdown note is closed, getActiveFile() continues to return the
+		// just-closed file. Guard against that by confirming the file is
+		// still open in at least one markdown leaf. (I32)
+		const activeMarkdownView =
+			workspace.getActiveViewOfType(MarkdownView);
+		if (!activeMarkdownView) {
+			const markdownLeaves = workspace.getLeavesOfType("markdown");
+			const stillOpen = markdownLeaves.some((leaf) => {
+				const view = leaf.view;
+				return view instanceof MarkdownView && view.file === activeFile;
+			});
+			if (!stillOpen) return Promise.resolve(null);
+		}
 
 		const metadata = this.convertToMetadata(activeFile);
 
