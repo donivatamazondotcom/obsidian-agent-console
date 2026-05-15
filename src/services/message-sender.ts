@@ -257,12 +257,23 @@ async function readSelection(
 /**
  * Build auto-mention prefix string for session/load recovery.
  * Format: "@[[note name]]:from-to\n" or "@[[note name]]\n"
+ *
+ * Returns empty string when the user message starts with "/" to avoid
+ * corrupting ACP slash-command recognition at the text-block level.
+ * Agents detect slash commands by matching "/" at character 0 of a
+ * text ContentBlock's text field; the prefix would push "/" off char 0.
+ * The resource-block channel (autoMentionBlocks) still carries the
+ * note context for slash-command turns — see the ACP spec at
+ * https://agentclientprotocol.com/protocol/slash-commands which allows
+ * resource blocks alongside slash-command text blocks.
  */
 function buildAutoMentionPrefix(
 	activeNote: NoteMetadata | null | undefined,
 	isDisabled: boolean | undefined,
+	message: string,
 ): string {
 	if (!activeNote || isDisabled) return "";
+	if (message.startsWith("/")) return "";
 	if (activeNote.selection) {
 		return `@[[${activeNote.name}]]:${activeNote.selection.from.line + 1}-${activeNote.selection.to.line + 1}\n`;
 	}
@@ -302,10 +313,18 @@ function buildAgentMessageText(
 ): string {
 	const userMessage = autoMentionPrefix + message;
 
+	// Skip context blocks on slash-command turns to avoid colliding with
+	// the ACP command-detection rule (agents detect '/' at the start of
+	// a text ContentBlock). This is the fallback path for agents that
+	// don't support embeddedContext resource blocks; agents with
+	// embeddedContext receive note context through the separate resource
+	// ContentBlock path in preparePrompt, which stays spec-compliant
+	// alongside slash commands.
+	const isSlashCommand = message.startsWith("/");
+	const includeContext = !isSlashCommand && contextBlocks && contextBlocks.length > 0;
+
 	return [
-		...(contextBlocks && contextBlocks.length > 0
-			? [contextBlocks.join("\n")]
-			: []),
+		...(includeContext ? [contextBlocks.join("\n")] : []),
 		...(userMessage ? [userMessage] : []),
 	].join("\n\n");
 }
@@ -324,13 +343,20 @@ function buildDisplayContent(input: PreparePromptInput): PromptContent[] {
 }
 
 /**
+/**
  * Build auto-mention context metadata for UI.
+ *
+ * Skipped on slash-command turns so the chat bubble doesn't render an
+ * @[[note]] badge next to a slash command — matches the prefix/resource
+ * skip for consistent "slash commands send no context" semantics.
  */
 function buildAutoMentionContext(
 	activeNote: NoteMetadata | null | undefined,
 	isDisabled: boolean | undefined,
+	message: string,
 ): PreparePromptResult["autoMentionContext"] {
 	if (!activeNote || isDisabled) return undefined;
+	if (message.startsWith("/")) return undefined;
 	return {
 		noteName: activeNote.name,
 		notePath: activeNote.path,
@@ -438,9 +464,17 @@ async function preparePromptWithEmbeddedContext(
 		});
 	}
 
-	// Build auto-mention Resource block
+	// Build auto-mention Resource block. Skipped on slash-command turns
+	// so the agent receives just the slash command without any attached
+	// note context — matches the prefix/UI chip skip for consistent
+	// "slash commands send no context" semantics regardless of agent
+	// embeddedContext capability.
 	const autoMentionBlocks: PromptContent[] = [];
-	if (input.activeNote && !input.isAutoMentionDisabled) {
+	if (
+		input.activeNote &&
+		!input.isAutoMentionDisabled &&
+		!input.message.startsWith("/")
+	) {
 		const autoMentionResource = await buildAutoMentionResource(
 			input.activeNote,
 			input.vaultBasePath,
@@ -454,6 +488,7 @@ async function preparePromptWithEmbeddedContext(
 	const autoMentionPrefix = buildAutoMentionPrefix(
 		input.activeNote,
 		input.isAutoMentionDisabled,
+		input.message,
 	);
 
 	// Build system prompt instructions (first message only)
@@ -485,6 +520,7 @@ async function preparePromptWithEmbeddedContext(
 		autoMentionContext: buildAutoMentionContext(
 			input.activeNote,
 			input.isAutoMentionDisabled,
+			input.message,
 		),
 	};
 }
@@ -549,6 +585,7 @@ async function preparePromptWithTextContext(
 	const autoMentionPrefix = buildAutoMentionPrefix(
 		input.activeNote,
 		input.isAutoMentionDisabled,
+		input.message,
 	);
 
 	const agentMessageText = buildAgentMessageText(
@@ -571,6 +608,7 @@ async function preparePromptWithTextContext(
 		autoMentionContext: buildAutoMentionContext(
 			input.activeNote,
 			input.isAutoMentionDisabled,
+			input.message,
 		),
 	};
 }
