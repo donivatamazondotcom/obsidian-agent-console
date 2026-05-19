@@ -1,125 +1,108 @@
-<h1 align="center">Agent Client Plugin for Obsidian</h1>
+# Agent Console
 
-<p align="center">
-  <img src="https://img.shields.io/github/downloads/RAIT-09/obsidian-agent-client/total" alt="GitHub Downloads">
-  <img src="https://img.shields.io/github/license/RAIT-09/obsidian-agent-client" alt="License">
-  <img src="https://img.shields.io/github/v/release/RAIT-09/obsidian-agent-client" alt="GitHub release">
-  <img src="https://img.shields.io/github/last-commit/RAIT-09/obsidian-agent-client" alt="GitHub last commit">
-  <a href="https://github.com/RAIT-09/obsidian-agent-client/discussions"><img src="https://img.shields.io/github/discussions/RAIT-09/obsidian-agent-client" alt="GitHub Discussions"></a>
-</p>
+> Your Obsidian console for parallel agent work.
 
-<p align="center">
-  <a href="README.ja.md">日本語はこちら</a>
-</p>
 
-<p align="center">
-  <a href="https://community.obsidian.md/plugins/agent-client" target="_blank"><img src="https://img.shields.io/badge/Add%20to%20Obsidian-7c3aed?logo=obsidian&logoColor=white&style=for-the-badge" alt="Add to Obsidian"></a>
-</p>
+## Why Agent Console
 
-<p align="center">
-  <a href="https://www.buymeacoffee.com/rait09" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="180" height="50" ></a>
-</p>
+AI agents can do real work for you. Research a topic. Write code. Draft an email. Plan a meeting. But the work takes time. While the agent works, you wait. Or you switch to another app, lose your place, and have to find it again.
 
-Bring AI agents (Claude Code, Codex, Gemini CLI) directly into Obsidian. Chat with your AI assistant right from your vault.
+Agent Console fixes that. Open a tab. Tell the agent what you want. While it works, open another tab and start something else. Each tab shows whether the agent is still working, waiting on you, or done. Your notes stay in view the whole time. The conversation lives where you already think.
 
-Built on [Agent Client Protocol (ACP)](https://github.com/agentclientprotocol/agent-client-protocol) by Zed.
-
-https://github.com/user-attachments/assets/1c538349-b3fb-44dd-a163-7331cbca7824
+> **The shift in how you work:** Tell the agent *what you want done*, not *how to do it*. With the right [skills](https://agentskills.io/home), the agent figures out the steps. You stay focused on the work itself. With many tabs, you can have several things happening at once, without losing track.
 
 ## Features
 
-- **Note Mentions**: Reference your notes with `@notename` syntax
-- **Image Attachments**: Paste or drag-and-drop images into the chat
-- **Slash Commands**: Use `/` commands provided by your agent
-- **Multi-Agent Support**: Switch between Claude Code, Codex, Gemini CLI, and custom agents
-- **Multi-Session**: Run multiple agents simultaneously in separate views
-- **Floating Chat**: A persistent, collapsible chat window for quick access
-- **Mode & Model Switching**: Change AI models and agent modes from the chat
-- **Session History**: Resume or fork previous conversations
-- **Chat Export**: Save conversations as Markdown notes
-- **Terminal Integration**: Let agents execute commands and return results
-- **MCP Support**: Agents use their configured MCP servers — no extra setup needed in the plugin
+* **Stop waiting on one agent before starting the next** – run several agent chats side by side in one sidebar
+* **See what every agent is doing without clicking around** – status icons show ready, busy, waiting on you, or stuck
+* **Switch tabs without touching the mouse** – assign whatever hotkeys feel right under Obsidian’s hotkey settings
+* **Reorganize on the fly** – right-click to rename or close tabs, drag to reorder
+* **Give the agent context from your vault** – type `@notename` and the agent reads that note. Drag in images. Use slash commands.
 
-## Installation
+<details>
+<summary><strong>More features</strong></summary>
 
-### From Community Plugins (Recommended)
+* **Pick up exactly where you left off** – tabs remember their scroll position when you switch back
+* **Use the agent you’ve already set up** – Kiro, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol)
+* **Pick the right model for each task** – switch modes and models per chat without restarting
+* **Find old chats and continue them** – browse session history and reopen any past conversation in a tab
+* **Your agent’s tools just work** – any MCP tool your agent uses keeps working in Agent Console with no extra setup
 
-1. Open **Settings → Community Plugins → Browse**
-2. Search for **"Agent Client"**
-3. Click **Install**, then **Enable**
+</details>
 
-### Via BRAT (Pre-release Versions)
+## What you can do with it
 
-To try pre-release versions before they are published to Community Plugins:
+* **Do several things at once** – ask one agent to research a topic, another to prep your next meeting, a third to clean up your email. Each one works at its own pace.
+* **Don’t wait on code** – have one agent fix a bug while another writes the tests
+* **Pull in your notes** – type `@` and the name of any note – meeting notes, contact info, project pages – and the agent uses it as context for the task
+* **Make your vault fill itself** – with the right skills, agents write meeting notes, research summaries, and action items straight into your vault. No manual capture.
+* **Compare two agents** – give the same task to two different agents in side-by-side tabs and see which answer you like better
+* **Stay focused** – status icons tell you when an agent is ready or still working, so you don’t break your flow checking on it
 
-1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin
-2. Go to **Settings → BRAT → Add Beta Plugin**
-3. Paste: `https://github.com/RAIT-09/obsidian-agent-client`
-4. Enable **Agent Client** from the plugin list
+The pattern: tell the agent what you want done. Switch tabs. Come back when status says ready.
 
-### Manual Installation
+## Install
 
-1. Download `main.js`, `manifest.json`, `styles.css` from [Releases](https://github.com/RAIT-09/obsidian-agent-client/releases)
-2. Place them in `VaultFolder/.obsidian/plugins/agent-client/`
-3. Enable the plugin in **Settings → Community Plugins**
+### Through BRAT (right now)
 
-## Quick Start
+Agent Console is being reviewed for the Obsidian Community Plugins store. Until it’s available there, you can install it through [BRAT](https://github.com/TfTHacker/obsidian42-brat):
 
-Open a terminal (Terminal on macOS/Linux, PowerShell on Windows) and run the following commands.
+1. Install the BRAT plugin in Obsidian
+2. Open BRAT settings → "Add Beta Plugin"
+3. Paste: `donivatamazondotcom/obsidian-agent-console`
+4. Turn on Agent Console in your Community Plugins list
 
-1. **Install an agent and its ACP adapter** (e.g., Claude Code):
-   ```bash
-   curl -fsSL https://claude.ai/install.sh | bash   # Install Claude Code
-   npm install -g @agentclientprotocol/claude-agent-acp   # Install ACP adapter
-   ```
+BRAT updates the plugin automatically every time a new version is released.
 
-2. **Login** (skip if using API key):
-   ```bash
-   claude
-   ```
-   Follow the prompts to authenticate with your Anthropic account.
+### Through Obsidian Community Plugins (after launch)
 
-3. **Find the paths**:
-   ```bash
-   which node   # macOS/Linux
-   which claude-agent-acp
+Once it’s approved, search for "Agent Console" in the Community Plugins browser inside Obsidian and click Install.
 
-   where.exe node   # Windows
-   where.exe claude-agent-acp
-   ```
+## Quick start
 
-4. **Configure** in **Settings → Agent Client**:
-   - **Node.js path**: e.g., `/usr/local/bin/node`
-   - **Built-in agents → Claude Code → Path**: e.g., `/usr/local/bin/claude-agent-acp` (not `claude`)
-   - **API key**: Add your key, or leave empty if logged in via CLI
+You’ll need an AI agent installed on your computer. Popular choices:
 
-5. **Start chatting**: Click the robot icon in the ribbon
+* [Kiro](https://kiro.dev) – Amazon’s agent
+* [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) – Anthropic’s coding agent
+* [Codex](https://github.com/zed-industries/codex-acp) – Zed’s reference agent
+* [Gemini CLI](https://github.com/google-gemini/gemini-cli) – Google’s command-line agent
+* Custom agents like OpenCode, Qwen Code, Mistral Vibe, and others
 
-### Setup Guides
+Once you’ve set up the agent:
 
-- [Claude Code](https://rait-09.github.io/obsidian-agent-client/agent-setup/claude-code.html)
-- [Codex](https://rait-09.github.io/obsidian-agent-client/agent-setup/codex.html)
-- [Gemini CLI](https://rait-09.github.io/obsidian-agent-client/agent-setup/gemini-cli.html)
-- [Custom Agents](https://rait-09.github.io/obsidian-agent-client/agent-setup/custom-agents.html) (OpenCode, Qwen Code, Kiro, Mistral Vibe, etc.)
+1. Open **Settings → Agent Console**
+2. Enter the path to the agent and any API keys it needs
+3. Click the robot icon in the ribbon to open the chat panel
+4. Click the **+** button to open more tabs as you need them
 
-**[Full Documentation](https://rait-09.github.io/obsidian-agent-client/)**
+## Configuration
 
-## Development
+Customize how each agent behaves under **Settings → Agent Console** – agent paths, modes, models, permissions, and tab behavior. Per-agent setup guides are in the [GitHub repo](https://github.com/donivatamazondotcom/obsidian-agent-console).
 
-```bash
-npm install
-npm run dev
-```
+## Hotkeys
 
-For production builds:
-```bash
-npm run build
-```
+Move between tabs with a keystroke instead of the mouse. Set your preferred bindings under **Settings → Hotkeys**.
 
-## License
+## How it works with your agent
 
-Apache License 2.0 - see [LICENSE](LICENSE) for details.
+Three things come together, and you control all of them:
 
-## Star History
+* **Your notes give the agent context** – it reads notes, mentions, and attachments from your vault, so it works with your knowledge instead of starting from scratch
+* **Your agent stays itself** – task instructions, custom rules, tools – Agent Console doesn’t get in the way of anything your agent already supports
+* **Agent Console keeps everything running** – many tabs, status icons, parallel chats. The piece that lets you do more without losing track.
 
-[![Star History Chart](https://api.star-history.com/svg?repos=RAIT-09/obsidian-agent-client&type=Date)](https://www.star-history.com/#RAIT-09/obsidian-agent-client&Date)
+Whatever your agent can do, Agent Console lets you do many of those at once.
+
+## Contributing
+
+Issues and pull requests are welcome on the [GitHub repo](https://github.com/donivatamazondotcom/obsidian-agent-console).
+
+For a big new feature, please file an issue first so we can talk about scope. Bug fixes can go straight to a pull request.
+
+## License and Attribution
+
+Apache License 2.0 – see [LICENSE](LICENSE).
+
+Agent Console is based on [Agent Client](https://github.com/RAIT-09/obsidian-agent-client) by [@RAIT-09](https://github.com/RAIT-09), originally released under Apache-2.0. Changes are © Vinod Panicker. See [NOTICE](NOTICE) for full credits.
+
+The Agent Client Protocol is developed by [Zed Industries](https://github.com/zed-industries/agent-client-protocol).
