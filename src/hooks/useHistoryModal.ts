@@ -1,7 +1,8 @@
 import { useRef, useCallback, useEffect } from "react";
-import { Notice } from "obsidian";
+import { Notice, Platform } from "obsidian";
 import { SessionHistoryModal } from "../ui/SessionHistoryModal";
 import { getLogger } from "../utils/logger";
+import { convertWslPathToWindows } from "../utils/platform";
 import type AgentClientPlugin from "../plugin";
 import type { UseAgentReturn } from "./useAgent";
 import type { UseSessionHistoryReturn } from "./useSessionHistory";
@@ -72,7 +73,9 @@ export function useHistoryModal(
 				logger.log(`[ChatPanel] Restoring session: ${sessionId}`);
 				agent.clearMessages();
 				await sessionHistory.restoreSession(sessionId, cwd);
-				onAgentCwdChangeRef.current?.(cwd);
+				onAgentCwdChangeRef.current?.(
+					Platform.isWin ? convertWslPathToWindows(cwd) : cwd,
+				);
 				// Update tab label from saved session title
 				const saved = sessionsRef.current.find(
 					(s) => s.sessionId === sessionId,
@@ -95,7 +98,9 @@ export function useHistoryModal(
 				logger.log(`[ChatPanel] Forking session: ${sessionId}`);
 				agent.clearMessages();
 				await sessionHistory.forkSession(sessionId, cwd);
-				onAgentCwdChangeRef.current?.(cwd);
+				onAgentCwdChangeRef.current?.(
+					Platform.isWin ? convertWslPathToWindows(cwd) : cwd,
+				);
 				// Update tab label from the original session's title
 				const saved = sessionsRef.current.find(
 					(s) => s.sessionId === sessionId,
