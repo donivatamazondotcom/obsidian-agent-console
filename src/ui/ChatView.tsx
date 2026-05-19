@@ -153,7 +153,7 @@ function ChatComponent({
 		const maxTabs = plugin.settings.maxSessionTabs ?? 10;
 		if (tabs.length >= maxTabs) {
 			new Notice(
-				`[Agent Client] Maximum ${maxTabs} tabs reached`,
+				`[Agent Console] Maximum ${maxTabs} tabs reached`,
 			);
 			return;
 		}
@@ -208,7 +208,7 @@ function ChatComponent({
 					);
 					if (duplicate) {
 						new Notice(
-							"[Agent Client] A tab with that name already exists",
+							"[Agent Console] A tab with that name already exists",
 						);
 						return;
 					}
@@ -241,7 +241,7 @@ function ChatComponent({
 			const maxTabs = plugin.settings.maxSessionTabs ?? 10;
 			if (tabs.length >= maxTabs) {
 				new Notice(
-					`[Agent Client] Maximum ${maxTabs} tabs reached`,
+					`[Agent Console] Maximum ${maxTabs} tabs reached`,
 				);
 				return;
 			}
@@ -473,7 +473,7 @@ export class ChatView extends ItemView implements IChatViewContainer {
 	}
 
 	getDisplayText() {
-		return "Agent client";
+		return "Agent console";
 	}
 
 	getIcon() {

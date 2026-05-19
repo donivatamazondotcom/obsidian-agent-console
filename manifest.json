@@ -1,11 +1,10 @@
 {
-	"id": "agent-client",
-	"name": "Agent Client",
-	"version": "0.10.3",
+	"id": "agent-console",
+	"name": "Agent Console",
+	"version": "1.0.0",
 	"minAppVersion": "1.11.4",
-	"description": "Chat with AI agents via the Agent Client Protocol directly from your vault.",
-	"author": "RAIT-09",
-	"authorUrl": "https://github.com/RAIT-09",
-	"fundingUrl": "https://www.buymeacoffee.com/rait09",
+	"description": "Obsidian as your console for parallel agent work. Run multiple ACP-compatible agent sessions in tabs (Kiro, Claude Code, Codex, Gemini CLI, custom).",
+	"author": "Vinod Panicker",
+	"authorUrl": "https://github.com/donivatamazondotcom",
 	"isDesktopOnly": true
 }

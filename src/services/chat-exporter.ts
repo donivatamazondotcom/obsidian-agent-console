@@ -41,7 +41,7 @@ export class ChatExporter {
 			messages.length > 0 ? messages[0].timestamp : sessionCreatedAt;
 
 		const baseFileName = this.generateFileName(effectiveTimestamp);
-		const folderPath = settings.defaultFolder || "Agent Client";
+		const folderPath = settings.defaultFolder || "Agent Console";
 
 		// Create folder if it doesn't exist
 		await this.ensureFolderExists(folderPath);
@@ -193,7 +193,7 @@ export class ChatExporter {
 	private generateFileName(timestamp: Date): string {
 		const settings = this.plugin.settings.exportSettings;
 		const template =
-			settings.filenameTemplate || "agent_client_{date}_{time}";
+			settings.filenameTemplate || "agent_console_{date}_{time}";
 
 		// Format date in local timezone: 20251115
 		const year = timestamp.getFullYear();
@@ -480,7 +480,7 @@ session_id: ${sessionId}${tagsLine}
 
 		if (imageLocation === "custom") {
 			// Save to custom folder
-			const folder = imageCustomFolder || "Agent Client";
+			const folder = imageCustomFolder || "Agent Console";
 			await this.ensureFolderExists(folder);
 			attachmentPath = `${folder}/${imageFileName}`;
 

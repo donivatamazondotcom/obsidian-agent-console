@@ -382,8 +382,8 @@ export class AcpClient {
 					terminal: true,
 				},
 				clientInfo: {
-					name: "obsidian-agent-client",
-					title: "Agent Client for Obsidian",
+					name: "agent-console",
+					title: "Agent Console for Obsidian",
 					version: this.plugin.manifest.version,
 				},
 			});

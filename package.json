@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-agent-client",
-	"version": "0.10.3",
-	"description": "Use AI coding agents via the Agent Client Protocol directly inside Obsidian",
+	"name": "obsidian-agent-console",
+	"version": "1.0.0",
+	"description": "Obsidian as your console for parallel agent work. Run multiple ACP-compatible agent sessions in tabs.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",

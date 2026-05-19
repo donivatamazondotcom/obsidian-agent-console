@@ -173,14 +173,14 @@ const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	debugMode: false,
 	nodePath: "",
 	exportSettings: {
-		defaultFolder: "Agent Client",
-		filenameTemplate: "agent_client_{date}_{time}",
+		defaultFolder: "Agent Console",
+		filenameTemplate: "agent_console_{date}_{time}",
 		autoExportOnNewChat: false,
 		autoExportOnCloseChat: false,
 		openFileAfterExport: true,
 		includeImages: true,
 		imageLocation: "obsidian",
-		imageCustomFolder: "Agent Client",
+		imageCustomFolder: "Agent Console",
 		frontmatterTag: "agent-client",
 	},
 	windowsWslMode: false,
@@ -851,7 +851,7 @@ export default class AgentClientPlugin extends Plugin {
 	private broadcastPrompt(): void {
 		const allViews = this.viewRegistry.getAll();
 		if (allViews.length === 0) {
-			new Notice("[Agent Client] No chat views open");
+			new Notice("[Agent Console] No chat views open");
 			return;
 		}
 
@@ -862,14 +862,14 @@ export default class AgentClientPlugin extends Plugin {
 			!inputState ||
 			(inputState.text.trim() === "" && inputState.files.length === 0)
 		) {
-			new Notice("[Agent Client] No prompt to broadcast");
+			new Notice("[Agent Console] No prompt to broadcast");
 			return;
 		}
 
 		const focusedId = this.viewRegistry.getFocusedId();
 		const targetViews = allViews.filter((v) => v.viewId !== focusedId);
 		if (targetViews.length === 0) {
-			new Notice("[Agent Client] No other chat views to broadcast to");
+			new Notice("[Agent Console] No other chat views to broadcast to");
 			return;
 		}
 
@@ -884,13 +884,13 @@ export default class AgentClientPlugin extends Plugin {
 	private async broadcastSend(): Promise<void> {
 		const allViews = this.viewRegistry.getAll();
 		if (allViews.length === 0) {
-			new Notice("[Agent Client] No chat views open");
+			new Notice("[Agent Console] No chat views open");
 			return;
 		}
 
 		const sendableViews = allViews.filter((v) => v.canSend());
 		if (sendableViews.length === 0) {
-			new Notice("[Agent Client] No views ready to send");
+			new Notice("[Agent Console] No views ready to send");
 			return;
 		}
 
@@ -903,12 +903,12 @@ export default class AgentClientPlugin extends Plugin {
 	private async broadcastCancel(): Promise<void> {
 		const allViews = this.viewRegistry.getAll();
 		if (allViews.length === 0) {
-			new Notice("[Agent Client] No chat views open");
+			new Notice("[Agent Console] No chat views open");
 			return;
 		}
 
 		await Promise.allSettled(allViews.map((v) => v.cancelOperation()));
-		new Notice("[Agent Client] Cancel broadcast to all views");
+		new Notice("[Agent Console] Cancel broadcast to all views");
 	}
 
 	async loadSettings() {
@@ -1208,7 +1208,7 @@ export default class AgentClientPlugin extends Plugin {
 			// No collision — create the secret with the preferred ID
 			this.app.secretStorage.setSecret(defaultSecretId, trimmed);
 			new Notice(
-				`[Agent Client] Your ${agentLabel} API key has been migrated to Obsidian's Keychain as "${defaultSecretId}".`,
+				`[Agent Console] Your ${agentLabel} API key has been migrated to Obsidian's Keychain as "${defaultSecretId}".`,
 			);
 			onMigrate();
 			return defaultSecretId;
@@ -1225,7 +1225,7 @@ export default class AgentClientPlugin extends Plugin {
 		// the user's key without overwriting other plugins' secrets.
 		this.app.secretStorage.setSecret(fallbackSecretId, trimmed);
 		new Notice(
-			`[Agent Client] "${defaultSecretId}" was already in use. Your ${agentLabel} API key was migrated to "${fallbackSecretId}". You can rename it in Obsidian's Keychain settings.`,
+			`[Agent Console] "${defaultSecretId}" was already in use. Your ${agentLabel} API key was migrated to "${fallbackSecretId}". You can rename it in Obsidian's Keychain settings.`,
 		);
 		onMigrate();
 		return fallbackSecretId;
@@ -1236,7 +1236,7 @@ export default class AgentClientPlugin extends Plugin {
 	 */
 	private async fetchLatestStable(): Promise<string | null> {
 		const response = await requestUrl({
-			url: "https://api.github.com/repos/RAIT-09/obsidian-agent-client/releases/latest",
+			url: "https://api.github.com/repos/donivatamazondotcom/obsidian-agent-console/releases/latest",
 		});
 		const data = response.json as { tag_name?: string };
 		return data.tag_name ? semver.clean(data.tag_name) : null;
@@ -1247,7 +1247,7 @@ export default class AgentClientPlugin extends Plugin {
 	 */
 	private async fetchLatestPrerelease(): Promise<string | null> {
 		const response = await requestUrl({
-			url: "https://api.github.com/repos/RAIT-09/obsidian-agent-client/releases",
+			url: "https://api.github.com/repos/donivatamazondotcom/obsidian-agent-console/releases",
 		});
 		const releases = response.json as Array<{
 			tag_name: string;
@@ -1289,7 +1289,7 @@ export default class AgentClientPlugin extends Plugin {
 					? latestStable
 					: latestPrerelease;
 				new Notice(
-					`[Agent Client] Update available: v${newestVersion}`,
+					`[Agent Console] Update available: v${newestVersion}`,
 				);
 				return true;
 			}
@@ -1297,7 +1297,7 @@ export default class AgentClientPlugin extends Plugin {
 			// Stable version user: check stable only
 			const latestStable = await this.fetchLatestStable();
 			if (latestStable && semver.gt(latestStable, currentVersion)) {
-				new Notice(`[Agent Client] Update available: v${latestStable}`);
+				new Notice(`[Agent Console] Update available: v${latestStable}`);
 				return true;
 			}
 		}

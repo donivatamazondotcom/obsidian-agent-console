@@ -65,7 +65,7 @@ export function useHistoryModal(
 					onSwitchToTabRef.current?.(existingTab.tabId);
 					historyModalRef.current?.close();
 					new Notice(
-						`[Agent Client] Session already open in tab "${existingTab.label}"`,
+						`[Agent Console] Session already open in tab "${existingTab.label}"`,
 					);
 					return;
 				}
@@ -80,9 +80,9 @@ export function useHistoryModal(
 				if (saved?.title && onLabelChangeRef.current) {
 					onLabelChangeRef.current(saved.title);
 				}
-				new Notice("[Agent Client] Session restored");
+				new Notice("[Agent Console] Session restored");
 			} catch (error) {
-				new Notice("[Agent Client] Failed to restore session");
+				new Notice("[Agent Console] Failed to restore session");
 				logger.error("Session restore error:", error);
 			}
 		},
@@ -103,9 +103,9 @@ export function useHistoryModal(
 				if (saved?.title && onLabelChangeRef.current) {
 					onLabelChangeRef.current(saved.title);
 				}
-				new Notice("[Agent Client] Session forked");
+				new Notice("[Agent Console] Session forked");
 			} catch (error) {
-				new Notice("[Agent Client] Failed to fork session");
+				new Notice("[Agent Console] Failed to fork session");
 				logger.error("Session fork error:", error);
 			}
 		},
@@ -117,9 +117,9 @@ export function useHistoryModal(
 			try {
 				logger.log(`[ChatPanel] Deleting session: ${sessionId}`);
 				await sessionHistory.deleteSession(sessionId);
-				new Notice("[Agent Client] Session deleted");
+				new Notice("[Agent Console] Session deleted");
 			} catch (error) {
-				new Notice("[Agent Client] Failed to delete session");
+				new Notice("[Agent Console] Failed to delete session");
 				logger.error("Session delete error:", error);
 			}
 		},
@@ -141,9 +141,9 @@ export function useHistoryModal(
 				) {
 					onLabelChangeRef.current(newTitle);
 				}
-				new Notice("[Agent Client] Title updated");
+				new Notice("[Agent Console] Title updated");
 			} catch (error) {
-				new Notice("[Agent Client] Failed to update title");
+				new Notice("[Agent Console] Failed to update title");
 				logger.error("Title update error:", error);
 			}
 		},

@@ -122,11 +122,11 @@ export function useChatActions(
 				if (filePath) {
 					const context =
 						trigger === "newChat" ? "new session" : "closing chat";
-					new Notice(`[Agent Client] Chat exported to ${filePath}`);
+					new Notice(`[Agent Console] Chat exported to ${filePath}`);
 					logger.log(`Chat auto-exported before ${context}`);
 				}
 			} catch {
-				new Notice("[Agent Client] Failed to export chat");
+				new Notice("[Agent Console] Failed to export chat");
 			}
 		},
 		[plugin, logger],
@@ -240,7 +240,7 @@ export function useChatActions(
 
 			// Skip if already empty AND not switching agents
 			if (messages.length === 0 && !isAgentSwitch) {
-				new Notice("[Agent Client] Already a new session");
+				new Notice("[Agent Console] Already a new session");
 				return;
 			}
 
@@ -271,7 +271,7 @@ export function useChatActions(
 				sessionHistory.invalidateCache();
 			} catch (error) {
 				logger.error("[ChatPanel] New chat error:", error);
-				new Notice("[Agent Client] Failed to create new session");
+				new Notice("[Agent Console] Failed to create new session");
 			}
 		},
 		[
@@ -290,7 +290,7 @@ export function useChatActions(
 
 	const handleExportChat = useCallback(async () => {
 		if (messages.length === 0) {
-			new Notice("[Agent Client] No messages to export");
+			new Notice("[Agent Console] No messages to export");
 			return;
 		}
 
@@ -305,9 +305,9 @@ export function useChatActions(
 				session.createdAt,
 				openFile,
 			);
-			new Notice(`[Agent Client] Chat exported to ${filePath}`);
+			new Notice(`[Agent Console] Chat exported to ${filePath}`);
 		} catch (error) {
-			new Notice("[Agent Client] Failed to export chat");
+			new Notice("[Agent Console] Failed to export chat");
 			logger.error("Export error:", error);
 		}
 	}, [messages, session, plugin, logger]);
@@ -334,9 +334,9 @@ export function useChatActions(
 
 		try {
 			await agent.forceRestartAgent();
-			new Notice("[Agent Client] Agent restarted");
+			new Notice("[Agent Console] Agent restarted");
 		} catch (error) {
-			new Notice("[Agent Client] Failed to restart agent");
+			new Notice("[Agent Console] Failed to restart agent");
 			logger.error("Restart error:", error);
 		}
 	}, [

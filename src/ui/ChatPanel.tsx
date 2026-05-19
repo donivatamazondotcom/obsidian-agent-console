@@ -368,7 +368,7 @@ export function ChatPanel({
 					onAgentIdChanged?.(requestedAgentId);
 				}
 			} catch (error) {
-				console.error("[Agent Client] New chat error:", error);
+				console.error("[Agent Console] New chat error:", error);
 			}
 		},
 		[handleNewChat, onAgentIdChanged],
@@ -395,7 +395,7 @@ export function ChatPanel({
 				await agent.restartSession(undefined, directory);
 				sessionHistory.invalidateCache();
 			} catch (error) {
-				console.error("[Agent Client] New chat in directory error:", error);
+				console.error("[Agent Console] New chat in directory error:", error);
 			}
 		},
 		[
@@ -756,7 +756,7 @@ export function ChatPanel({
 
 			// System notification on response completion
 			if (settings.enableSystemNotifications && !activeDocument.hasFocus()) {
-				new Notification("Agent Client", {
+				new Notification("Agent Console", {
 					body: `${activeAgentLabel} has completed the response.`,
 				});
 			}
@@ -787,7 +787,7 @@ export function ChatPanel({
 			settings.enableSystemNotifications &&
 			!activeDocument.hasFocus()
 		) {
-			new Notification("Agent Client", {
+			new Notification("Agent Console", {
 				body: `${activeAgentLabel} is requesting permission.`,
 			});
 		}
@@ -931,11 +931,11 @@ export function ChatPanel({
 								await approveActivePermissionRef.current();
 							if (!success) {
 								new Notice(
-									"[Agent Client] No active permission request",
+									"[Agent Console] No active permission request",
 								);
 							}
 						} catch (error) {
-							console.error("[Agent Client] Approve permission error:", error);
+							console.error("[Agent Console] Approve permission error:", error);
 						}
 					})();
 				},
@@ -952,11 +952,11 @@ export function ChatPanel({
 								await rejectActivePermissionRef.current();
 							if (!success) {
 								new Notice(
-									"[Agent Client] No active permission request",
+									"[Agent Console] No active permission request",
 								);
 							}
 						} catch (error) {
-							console.error("[Agent Client] Reject permission error:", error);
+							console.error("[Agent Console] Reject permission error:", error);
 						}
 					})();
 				},
@@ -1078,7 +1078,7 @@ export function ChatPanel({
 				try {
 					await handleSendMessageRef.current(messageToSend, filesToSend);
 				} catch (error) {
-					console.error("[Agent Client] Send message error:", error);
+					console.error("[Agent Console] Send message error:", error);
 				}
 				return true;
 			},
@@ -1087,7 +1087,7 @@ export function ChatPanel({
 					try {
 						await handleStopGenerationRef.current();
 					} catch (error) {
-						console.error("[Agent Client] Cancel operation error:", error);
+						console.error("[Agent Console] Cancel operation error:", error);
 					}
 				}
 			},

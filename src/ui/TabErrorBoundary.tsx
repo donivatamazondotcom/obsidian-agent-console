@@ -25,7 +25,7 @@ export class TabErrorBoundary extends React.Component<Props, State> {
 
 	componentDidCatch(error: Error, info: React.ErrorInfo) {
 		console.error(
-			`[Agent Client] Tab ${this.props.tabId} crashed:`,
+			`[Agent Console] Tab ${this.props.tabId} crashed:`,
 			error,
 			info.componentStack,
 		);

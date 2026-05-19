@@ -49,7 +49,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		docContainer.createSpan({ text: "Need help? Check out the " });
 		docContainer.createEl("a", {
 			text: "documentation",
-			href: "https://rait-09.github.io/obsidian-agent-client/",
+			href: "https://github.com/donivatamazondotcom/obsidian-agent-console#readme",
 			attr: { target: "_blank" },
 		});
 		docContainer.createSpan({ text: "." });
@@ -617,7 +617,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			.setDesc("Folder where chat exports will be saved")
 			.addText((text) =>
 				text
-					.setPlaceholder("Agent Client")
+					.setPlaceholder("Agent Console")
 					.setValue(this.plugin.settings.exportSettings.defaultFolder)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -636,7 +636,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			)
 			.addText((text) =>
 				text
-					.setPlaceholder("agent_client_{date}_{time}")
+					.setPlaceholder("agent_console_{date}_{time}")
 					.setValue(
 						this.plugin.settings.exportSettings.filenameTemplate,
 					)
@@ -730,7 +730,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					)
 					.addText((text) =>
 						text
-							.setPlaceholder("Agent Client")
+							.setPlaceholder("Agent Console")
 							.setValue(
 								this.plugin.settings.exportSettings
 									.imageCustomFolder,
