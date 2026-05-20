@@ -56,7 +56,7 @@ To change the default agent for new chat views, go to **Settings → Agent Conso
 
 Yes. Open multiple chat views using **"Open new chat view"** from the command palette or the **⋮** menu in the chat header. Each view runs an independent agent process.
 
-See [Multi-Session Chat](/usage/multi-session) for details.
+See [Tabbed Sessions](/usage/tabbed-sessions) for details.
 
 ### How do I send the same prompt to multiple agents?
 

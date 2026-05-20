@@ -66,7 +66,7 @@ To change the default agent for new chat views, go to **Settings → Agent Conso
 
 You can open multiple chat views to run independent conversations simultaneously. Each view has its own agent process and session.
 
-See [Multi-Session Chat](/usage/multi-session) for details on:
+See [Tabbed Sessions](/usage/tabbed-sessions) for details on:
 - Opening multiple views
 - Broadcast commands
 - Focus navigation

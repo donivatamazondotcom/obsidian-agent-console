@@ -72,7 +72,7 @@ export default defineConfig({
           { text: "Mode Selection", link: "/usage/mode-selection" },
           { text: "Model Selection", link: "/usage/model-selection" },
           { text: "Session History", link: "/usage/session-history" },
-          { text: "Multi-Session Chat", link: "/usage/multi-session" },
+          { text: "Tabbed Sessions", link: "/usage/tabbed-sessions" },
           { text: "Floating Chat", link: "/usage/floating-chat" },
           { text: "Editing", link: "/usage/editing" },
           { text: "Chat Export", link: "/usage/chat-export" },

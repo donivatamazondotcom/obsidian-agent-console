@@ -23,7 +23,7 @@ Commands operate on the **last focused chat view**. Click on a chat view to focu
 
 ## Broadcast Commands
 
-Control multiple chat views at once. See [Multi-Session Chat](/usage/multi-session) for details.
+Control multiple tabs at once. See [Tabbed Sessions](/usage/tabbed-sessions) for details.
 
 | Command | Description |
 |---------|-------------|

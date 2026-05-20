@@ -2,36 +2,32 @@
 
 ## Install the Plugin
 
-### From Community Plugins (Recommended)
+### Via BRAT (recommended)
 
-1. In Obsidian, open **Settings → Community Plugins → Browse**
-2. Search for **"Agent Console"**
-3. Click **Install**, then **Enable**
+Until Agent Console is approved for the Community Plugins marketplace, [BRAT](https://github.com/TfTHacker/obsidian42-brat) (Beta Reviewer's Auto-update Tester) is the simplest install path. BRAT auto-updates whenever a new version is released.
 
-<p align="center">
-  <a href="obsidian://show-plugin?id=agent-console" style="display:inline-block;padding:10px 24px;background:#7c3aed;color:white;border-radius:8px;text-decoration:none;font-weight:600;">Add to Obsidian</a>
-</p>
-
-### Via BRAT (Pre-release Versions)
-
-To try pre-release versions before they are published to Community Plugins:
-
-1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin from the Community Plugins browser
-2. In Obsidian settings, go to **Community Plugins → BRAT → Add Beta Plugin**
+1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin from Community Plugins → Browse
+2. Open Obsidian settings → **BRAT** → **Add Beta Plugin**
 3. Paste this repo URL:
    ```
    https://github.com/donivatamazondotcom/obsidian-agent-console
    ```
-4. BRAT will download the latest release and keep it auto-updated
-5. Enable **Agent Console** from the plugin list
+4. BRAT downloads the latest release and keeps it auto-updated
+5. Enable **Agent Console** from Community Plugins → Installed plugins
+
+### From Community Plugins (coming soon)
+
+Agent Console will be submitted to the official Obsidian Community Plugins marketplace once v1.0.x has been validated by the BRAT-installed user community. When approved, you'll be able to search for "Agent Console" in **Settings → Community Plugins → Browse**.
 
 ### Manual Installation
+
+For users who prefer not to use BRAT:
 
 1. Download the latest release files from [GitHub Releases](https://github.com/donivatamazondotcom/obsidian-agent-console/releases):
    - `main.js`
    - `manifest.json`
    - `styles.css`
-2. Create the plugin folder: `VaultFolder/.obsidian/plugins/agent-console/`
+2. Create the plugin folder: `<vault>/.obsidian/plugins/agent-console/`
 3. Place the downloaded files in this folder
 4. Enable the plugin in **Obsidian Settings → Community Plugins**
 

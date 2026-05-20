@@ -27,8 +27,10 @@ src/
 ├── types/                       # Type definitions (no logic, no dependencies)
 │   ├── chat.ts                  # ChatMessage, MessageContent, PromptContent, AttachedFile, ActivePermission
 │   ├── session.ts               # ChatSession, SessionUpdate (12-type union), SessionInfo, Capabilities
-│   ├── agent.ts                 # AgentConfig, agent settings (Claude/Codex/Gemini/Custom)
-│   └── errors.ts                # AcpError, ProcessError, ErrorInfo
+│   ├── agent.ts                 # AgentConfig, agent settings (Claude/Codex/Gemini/Kiro/Custom)
+│   ├── errors.ts                # AcpError, ProcessError, ErrorInfo
+│   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref)
+│   └── obsidian-internals.d.ts  # Obsidian API declarations not in @types/obsidian
 ├── acp/                         # ACP protocol (SDK dependency confined here)
 │   ├── acp-client.ts            # Process lifecycle, UI-facing API (AcpClient class)
 │   ├── acp-handler.ts           # SDK event handler + sessionId filter + listener broadcast
@@ -55,7 +57,8 @@ src/
 │   ├── useSessionHistory.ts     # Session list/load/resume/fork
 │   ├── useChatActions.ts        # Business callbacks (send, newChat, export, restart, etc.)
 │   ├── useHistoryModal.ts       # Session history modal lifecycle
-│   └── useSettings.ts           # Settings subscription (useSyncExternalStore)
+│   ├── useSettings.ts           # Settings subscription (useSyncExternalStore)
+│   └── useTabManager.ts         # Per-tab session orchestration (state, focus, lifecycle)
 ├── ui/                          # React components
 │   ├── ChatContext.ts           # React Context (plugin, acpClient, vaultService, settingsService)
 │   ├── ChatPanel.tsx            # Orchestrator: calls hooks, workspace events, rendering
@@ -74,6 +77,7 @@ src/
 │   ├── PermissionBanner.tsx     # Permission request buttons
 │   ├── ErrorBanner.tsx          # Error/notification overlay
 │   ├── SessionHistoryModal.tsx  # Session history modal (list + confirm delete)
+│   ├── ChangeDirectoryModal.ts  # Per-tab cwd change modal (sets working dir for agent process)
 │   ├── FloatingButton.tsx       # Draggable launch button
 │   ├── SettingsTab.ts           # Plugin settings UI
 │   ├── view-host.ts             # IChatViewHost interface
