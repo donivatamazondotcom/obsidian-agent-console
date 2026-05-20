@@ -1,9 +1,24 @@
-# Agent Client Plugin - LLM Developer Guide
+# Agent Console — AI Agent Onboarding Guide
+
+> Read this file before making code changes. It's the authoritative reference for the architecture, data flow, and conventions of this codebase. Applies equally to Copilot, Claude Code, Codex, Gemini, Kiro CLI, or any other AI assistant working on the project.
 
 ## Overview
-Obsidian plugin for AI agent interaction (Claude Code, Codex, Gemini CLI, custom agents) via ACP.
+
+Obsidian plugin for parallel AI agent interaction (Claude Code, Codex, Gemini CLI, Kiro CLI, custom agents) via the Agent Client Protocol (ACP). Optimized for tabbed multi-session UX so users can run several agents at once without losing context.
 
 **Tech**: React 19, TypeScript, Obsidian API, Agent Client Protocol (ACP)
+
+## Repository
+
+| Field        | Value                                                                                                |
+| ------------ | ---------------------------------------------------------------------------------------------------- |
+| Repo         | https://github.com/donivatamazondotcom/obsidian-agent-console                                        |
+| Plugin id    | `agent-console`                                                                                      |
+| License      | Apache-2.0                                                                                           |
+| Maintainer   | Vinod Panicker                                                                                       |
+| Forked from  | [RAIT-09/obsidian-agent-client](https://github.com/RAIT-09/obsidian-agent-client) (Apache-2.0)       |
+
+This is a separately-distributed fork that adds tabbed multi-session UX. The codebase is mostly the upstream's, with a tab layer on top and a rebranded plugin identity. See `NOTICE` for full attribution, `RELEASING.md` for the release process, and `CONTRIBUTING.md` for contribution conventions.
 
 ## Architecture
 
@@ -46,6 +61,8 @@ src/
 │   ├── ChatPanel.tsx            # Orchestrator: calls hooks, workspace events, rendering
 │   ├── ChatView.tsx             # Sidebar view (ItemView wrapper)
 │   ├── FloatingChatView.tsx     # Floating window (position/drag/resize)
+│   ├── TabBar.tsx               # Tab bar UI for parallel agent sessions (drag-reorder, +button, status icons)
+│   ├── TabErrorBoundary.tsx     # Per-tab React error boundary with Retry
 │   ├── ChatHeader.tsx           # Header (sidebar + floating variants)
 │   ├── MessageList.tsx          # Virtualized message list (@tanstack/react-virtual)
 │   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button)
@@ -325,6 +342,20 @@ interface ISettingsAccess {
 - Gemini CLI: `@google/gemini-cli` (GEMINI_API_KEY)
 - Custom: Any ACP-compatible agent
 
+## Keeping This File Current
+
+This file is the source of truth for the codebase architecture and conventions. It should stay in sync with the code. Update it when:
+
+- A new file is added to `src/` that introduces a concept (new hook, service, layer, UI component)
+- An architectural rule changes (new constraint, new pattern, new layer boundary)
+- A new agent type is supported
+- A new ACP protocol method or session-update type is handled
+- A common task is added or changes substantially
+
+The release workflow prompts a review of this file before each version bump. If you're an AI assistant about to ship a release, scan the diff between the last tag and `main` and update the relevant sections here before bumping the version.
+
+If you're touching `src/` and your change introduces or changes any of the above, also propose an update to this file in the same PR. Reviewers should reject PRs that add new architectural concepts without updating AGENTS.md.
+
 ---
 
-**Last Updated**: April 2026 | **Architecture**: useAgent facade + sub-hooks | **Version**: 0.10.0-preview.1
+**Last Updated**: May 2026 | **Architecture**: useAgent facade + sub-hooks + tab layer | **Version**: 1.0.0
