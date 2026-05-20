@@ -1,6 +1,6 @@
-# Contributing to Agent Client Plugin
+# Contributing to Agent Console
 
-Thank you for your interest in contributing to the Agent Client plugin!
+Thank you for your interest in contributing to Agent Console! It's an Obsidian plugin built on the [Agent Client Protocol (ACP)](https://github.com/zed-industries/agent-client-protocol), forked from [RAIT-09/obsidian-agent-client](https://github.com/RAIT-09/obsidian-agent-client) and maintained as a separate plugin focused on tabbed multi-session UX for parallel agent work.
 
 ## Before You Start
 
@@ -23,7 +23,7 @@ This helps ensure alignment with the project direction and saves time for both c
 
 ### Project Scope
 
-This plugin focuses on **ACP client implementation** + **features that make ACP convenient to use in Obsidian**.
+This plugin focuses on **ACP client implementation**, **tabbed multi-session UX for parallel agent work**, and **features that make ACP convenient to use in Obsidian**.
 
 **In scope:**
 
@@ -49,10 +49,10 @@ This plugin focuses on **ACP client implementation** + **features that make ACP 
 # Navigate to your vault's plugins directory
 cd /path/to/your/vault/.obsidian/plugins
 
-# Clone the repository as "agent-client"
+# Clone the repository as "agent-console"
 # The directory name must match the id in manifest.json
-git clone https://github.com/RAIT-09/obsidian-agent-client.git agent-client
-cd agent-client
+git clone https://github.com/donivatamazondotcom/obsidian-agent-console.git agent-console
+cd agent-console
 
 # Install dependencies
 npm install
@@ -63,7 +63,7 @@ npm run dev
 
 ### Testing in Obsidian
 
-1. After cloning to `.obsidian/plugins/agent-client`, run `npm run dev`
+1. After cloning to `.obsidian/plugins/agent-console`, run `npm run dev`
 2. Enable the plugin in Obsidian Settings → Community Plugins
 3. Code changes trigger automatic rebuilds, but you need to reload the plugin (toggle it off/on in Community Plugins) to see changes
 
@@ -154,9 +154,8 @@ We recommend [Conventional Commits](https://www.conventionalcommits.org/) style:
 
 ### Workflow
 
-1. Create a branch from `master`
-   - `master` is the stable branch, `dev` is for development
-   - Feature PRs typically target `dev`, hotfixes target `master`
+1. Create a branch from `main`
+   - `main` is the default branch — both feature work and hotfixes target it
 2. Make your changes and commit
 3. Create a pull request
 4. Ensure CI passes (lint, build)
@@ -210,6 +209,10 @@ For more details, see `ARCHITECTURE.md`.
 - Prioritize implementations that conform to the official (stable) ACP specification
 - If implementing draft/experimental specs, please discuss in an issue first
 - Implementations should work with official ACP-compatible agents (e.g., `@agentclientprotocol/claude-agent-acp`)
+
+## Releasing
+
+For maintainers cutting a new version, see [RELEASING.md](./RELEASING.md). Releases are automated via GitHub Actions on tag push.
 
 ## Questions?
 
