@@ -1,6 +1,6 @@
 # Troubleshooting
 
-This guide covers common issues and solutions for Agent Client.
+This guide covers common issues and solutions for Agent Console.
 
 ## Connection Issues
 
@@ -15,11 +15,11 @@ The plugin is trying to start the agent process but isn't receiving a response.
 
 **Solutions:**
 
-1. **Verify the agent path** in **Settings → Agent Client → [Agent Name] → Path**
+1. **Verify the agent path** in **Settings → Agent Console → [Agent Name] → Path**
    - On macOS/Linux, find the path with: `which claude-agent-acp`
    - On Windows, find the path with: `where claude-agent-acp`
 
-2. **Verify Node.js path** in **Settings → Agent Client → Node.js path**
+2. **Verify Node.js path** in **Settings → Agent Console → Node.js path**
    - Many agents require Node.js
    - Find it with: `which node` (macOS/Linux) or `where node` (Windows)
 
@@ -42,14 +42,14 @@ The agent executable cannot be found at the specified path.
 The agent requires authentication before processing requests.
 
 **For Claude Code:**
-- **API key**: Set in **Settings → Agent Client → Claude Code (ACP) → API key**
+- **API key**: Set in **Settings → Agent Console → Claude Code (ACP) → API key**
 - **Account login**: Run `claude` in Terminal first and complete the login flow
 
 **For Codex:**
-- Set your OpenAI API key in **Settings → Agent Client → Codex → API key**
+- Set your OpenAI API key in **Settings → Agent Console → Codex → API key**
 
 **For Gemini CLI:**
-- Set your Google API key in **Settings → Agent Client → Gemini CLI → API key**
+- Set your Google API key in **Settings → Agent Console → Gemini CLI → API key**
 - Or run `gemini` in Terminal first to authenticate with your Google account
 
 ### "No Authentication Methods" error
@@ -88,7 +88,7 @@ The agent connected but couldn't create a session.
 
 The selected agent ID doesn't exist in settings.
 
-**Solution:** Go to **Settings → Agent Client** and select a valid agent from the **Active agent** dropdown.
+**Solution:** Go to **Settings → Agent Console** and select a valid agent from the **Active agent** dropdown.
 
 ## Message Sending Issues
 
@@ -119,9 +119,9 @@ The conversation couldn't be saved.
 
 **Solutions:**
 
-1. Check that the export folder exists (**Settings → Agent Client → Export → Export folder**)
+1. Check that the export folder exists (**Settings → Agent Console → Export → Export folder**)
 2. Verify the folder name is valid (no special characters that aren't allowed in folder names)
-3. Check the filename template for invalid characters (**Settings → Agent Client → Export → Filename**)
+3. Check the filename template for invalid characters (**Settings → Agent Console → Export → Filename**)
 
 ## Multi-Device Vault Sync
 
@@ -140,7 +140,7 @@ If you sync your vault (e.g., via Nextcloud, Syncthing, or iCloud) across machin
 - A Linux distribution must be installed: Run `wsl --list`
 
 **Settings:**
-- Enable **Settings → Agent Client → Windows Subsystem for Linux → Enable WSL mode**
+- Enable **Settings → Agent Console → Windows Subsystem for Linux → Enable WSL mode**
 - Optionally specify your distribution in **WSL distribution**
 
 ### Agent works in Terminal but not in Obsidian
@@ -182,7 +182,7 @@ Desktop applications on Linux may not inherit PATH settings from `.bashrc`.
 
 If you need more detailed information about an issue, enable Debug mode:
 
-1. Go to **Settings → Agent Client → Developer → Debug mode**
+1. Go to **Settings → Agent Console → Developer → Debug mode**
 2. Enable the toggle
 3. Open DevTools:
    - macOS: `Cmd + Option + I`
@@ -213,7 +213,7 @@ If you need more detailed information about an issue, enable Debug mode:
 If you're still experiencing issues:
 
 1. Enable **Debug mode** and check console logs
-2. Search [GitHub Issues](https://github.com/RAIT-09/obsidian-agent-client/issues)
+2. Search [GitHub Issues](https://github.com/donivatamazondotcom/obsidian-agent-console/issues)
 3. Open a new issue with:
    - Your OS and Obsidian version
    - The agent you're using

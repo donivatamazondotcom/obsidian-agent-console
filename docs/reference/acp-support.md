@@ -1,12 +1,12 @@
 # ACP Protocol Support
 
-This page documents which Agent Client Protocol (ACP) features are supported by this plugin.
+This page documents which Agent Console Protocol (ACP) features are supported by this plugin.
 
 ## What is ACP?
 
-The [Agent Client Protocol (ACP)](https://agentclientprotocol.com/) is an open standard for communication between AI agents and client applications. It defines how clients send prompts, receive responses, handle permissions, and manage sessions.
+The [Agent Console Protocol (ACP)](https://agentclientprotocol.com/) is an open standard for communication between AI agents and client applications. It defines how clients send prompts, receive responses, handle permissions, and manage sessions.
 
-Agent Client implements ACP as a **client**, communicating with ACP-compatible agents like Claude Code, Codex, and Gemini CLI.
+Agent Console implements ACP as a **client**, communicating with ACP-compatible agents like Claude Code, Codex, and Gemini CLI.
 
 ## Methods
 
@@ -106,5 +106,5 @@ The plugin does not implement filesystem operations (`fs/read_text_file`, `fs/wr
 
 ## See Also
 
-- [Agent Client Protocol Specification](https://agentclientprotocol.com/)
+- [Agent Console Protocol Specification](https://agentclientprotocol.com/)
 - [ACP Schema Reference](https://agentclientprotocol.com/protocol/schema)

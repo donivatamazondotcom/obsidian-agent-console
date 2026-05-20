@@ -8,7 +8,7 @@ Run multiple independent agent conversations simultaneously.
 
 ## Overview
 
-Agent Client supports opening multiple chat views, each with its own:
+Agent Console supports opening multiple chat views, each with its own:
 - Independent agent process
 - Separate session and message history
 - Individual agent selection
@@ -32,7 +32,7 @@ This is useful when you want to work with different agents side-by-side, or run 
 
 ## Chat View Location
 
-Configure where new chat views open in **Settings → Agent Client → Display → Chat view location**:
+Configure where new chat views open in **Settings → Agent Console → Display → Chat view location**:
 
 | Location | Description |
 |----------|-------------|

@@ -1,6 +1,6 @@
 # Editing
 
-Agent Client allows AI agents to edit files in your vault and working directory.
+Agent Console allows AI agents to edit files in your vault and working directory.
 
 ## How Editing Works
 
@@ -28,7 +28,7 @@ Permission options vary by agent. Some agents may not request permission at all 
 
 ### Auto-Allow Permissions
 
-In **Settings → Agent Client → Permissions → Auto-allow permissions**, you can automatically allow all permission requests from agents.
+In **Settings → Agent Console → Permissions → Auto-allow permissions**, you can automatically allow all permission requests from agents.
 
 ::: warning
 Use with caution—this gives agents full access to your system without confirmation prompts.
@@ -51,7 +51,7 @@ Large diffs can be automatically collapsed to keep the chat readable. This featu
 | **Auto-collapse long diffs** | Off | Enable automatic collapsing of large diffs |
 | **Collapse threshold** | 10 lines | Diffs exceeding this line count are collapsed |
 
-Configure these in **Settings → Agent Client → Display**.
+Configure these in **Settings → Agent Console → Display**.
 
 Collapsed diffs can be expanded by clicking on them.
 

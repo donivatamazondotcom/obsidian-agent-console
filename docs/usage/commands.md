@@ -1,6 +1,6 @@
 # Commands & Hotkeys
 
-All commands available in Agent Client. Open the command palette (`Cmd/Ctrl + P`) to access them, or assign keyboard shortcuts in **Settings → Hotkeys**.
+All commands available in Agent Console. Open the command palette (`Cmd/Ctrl + P`) to access them, or assign keyboard shortcuts in **Settings → Hotkeys**.
 
 ::: tip
 Commands operate on the **last focused chat view**. Click on a chat view to focus it before running a command.

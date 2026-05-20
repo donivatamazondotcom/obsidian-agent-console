@@ -28,7 +28,7 @@ where.exe gemini
 
 :::
 
-3. Open **Settings → Agent Client**. The default command (`gemini`) works in many cases. If the agent is not found automatically, set the **Gemini CLI path** to the path found above, or click **Auto-detect**.
+3. Open **Settings → Agent Console**. The default command (`gemini`) works in many cases. If the agent is not found automatically, set the **Gemini CLI path** to the path found above, or click **Auto-detect**.
 
 4. Ensure **Arguments** contains `--experimental-acp` (this is set by default).
 
@@ -48,7 +48,7 @@ gemini
 
 2. Follow the browser authentication flow.
 
-3. In **Settings → Agent Client**, leave the **API key field empty**.
+3. In **Settings → Agent Console**, leave the **API key field empty**.
 
 ::: tip
 If you have a Gemini Code Assist License from your organization, add `GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID` in the **Environment variables** field.
@@ -59,13 +59,13 @@ If you have a Gemini Code Assist License from your organization, add `GOOGLE_CLO
 If you prefer to use an API key for authentication:
 
 1. Get your API key from [Google AI Studio](https://aistudio.google.com/apikey)
-2. Enter the API key in **Settings → Agent Client → Gemini CLI → API key**
+2. Enter the API key in **Settings → Agent Console → Gemini CLI → API key**
 
 ### Option C: Vertex AI
 
 If you are using Vertex AI for enterprise workloads:
 
-1. In **Settings → Agent Client → Gemini CLI → Environment variables**, add:
+1. In **Settings → Agent Console → Gemini CLI → Environment variables**, add:
 
 ```
 GOOGLE_API_KEY=YOUR_API_KEY

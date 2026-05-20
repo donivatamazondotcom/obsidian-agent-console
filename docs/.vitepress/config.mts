@@ -1,32 +1,32 @@
 import { defineConfig } from "vitepress";
 
 export default defineConfig({
-  title: "Agent Client",
+  title: "Agent Console",
   description:
-    "Obsidian plugin for AI agent integration - Chat with Claude Code, Codex, Gemini CLI and more",
+    "Obsidian as your console for parallel agent work. Run multiple ACP-compatible agent sessions in tabs.",
 
   // GitHub Pages base path
-  base: "/obsidian-agent-client/",
+  base: "/obsidian-agent-console/",
 
   head: [
-    ["link", { rel: "icon", type: "image/x-icon", href: "/obsidian-agent-client/favicon.ico" }],
-    ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: "/obsidian-agent-client/favicon-32x32.png" }],
-    ["link", { rel: "icon", type: "image/png", sizes: "16x16", href: "/obsidian-agent-client/favicon-16x16.png" }],
-    ["link", { rel: "apple-touch-icon", sizes: "180x180", href: "/obsidian-agent-client/apple-touch-icon.png" }],
+    ["link", { rel: "icon", type: "image/x-icon", href: "/obsidian-agent-console/favicon.ico" }],
+    ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: "/obsidian-agent-console/favicon-32x32.png" }],
+    ["link", { rel: "icon", type: "image/png", sizes: "16x16", href: "/obsidian-agent-console/favicon-16x16.png" }],
+    ["link", { rel: "apple-touch-icon", sizes: "180x180", href: "/obsidian-agent-console/apple-touch-icon.png" }],
     ["meta", { name: "og:type", content: "website" }],
-    ["meta", { name: "og:title", content: "Agent Client for Obsidian" }],
+    ["meta", { name: "og:title", content: "Agent Console for Obsidian" }],
     [
       "meta",
       {
         name: "og:description",
-        content: "Chat with AI agents directly in Obsidian",
+        content: "Your Obsidian console for parallel agent work",
       },
     ],
     [
       "meta",
       {
         name: "og:url",
-        content: "https://rait-09.github.io/obsidian-agent-client/",
+        content: "https://donivatamazondotcom.github.io/obsidian-agent-console/",
       },
     ],
   ],
@@ -37,13 +37,13 @@ export default defineConfig({
       { text: "Getting Started", link: "/getting-started/" },
       { text: "Agent Setup", link: "/agent-setup/" },
       { text: "Usage", link: "/usage/" },
-      { text: "GitHub", link: "https://github.com/RAIT-09/obsidian-agent-client" },
+      { text: "GitHub", link: "https://github.com/donivatamazondotcom/obsidian-agent-console" },
     ],
 
     sidebar: [
       {
         text: "Introduction",
-        items: [{ text: "What is Agent Client?", link: "/" }],
+        items: [{ text: "What is Agent Console?", link: "/" }],
       },
       {
         text: "Getting Started",
@@ -99,13 +99,13 @@ export default defineConfig({
     socialLinks: [
       {
         icon: "github",
-        link: "https://github.com/RAIT-09/obsidian-agent-client",
+        link: "https://github.com/donivatamazondotcom/obsidian-agent-console",
       },
     ],
 
     footer: {
       message: "Released under the Apache 2.0 License.",
-      copyright: "Copyright © 2025-present RAIT-09",
+      copyright: "Copyright © 2026-present Vinod Panicker. Original work © 2025 RAIT-09 (Apache-2.0).",
     },
 
     search: {

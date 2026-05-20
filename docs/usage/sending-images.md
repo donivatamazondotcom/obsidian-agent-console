@@ -59,6 +59,6 @@ Non-image files are sent as file path references. How the agent processes the fi
 
 ::: info
 If you exceed these limits, a notification will inform you:
-- `[Agent Client] Image too large (max 5MB)`
-- `[Agent Client] Maximum 10 attachments allowed`
+- `[Agent Console] Image too large (max 5MB)`
+- `[Agent Console] Maximum 10 attachments allowed`
 :::

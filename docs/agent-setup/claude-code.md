@@ -28,7 +28,7 @@ where.exe claude-agent-acp
 
 :::
 
-3. Open **Settings → Agent Client**. The default command (`claude-agent-acp`) works in many cases. If the agent is not found automatically, set the **Claude Code path** to the path found above, or click **Auto-detect**.
+3. Open **Settings → Agent Console**. The default command (`claude-agent-acp`) works in many cases. If the agent is not found automatically, set the **Claude Code path** to the path found above, or click **Auto-detect**.
 
 ## Authentication
 
@@ -37,7 +37,7 @@ Choose one of the following methods:
 ### Option A: API Key
 
 1. Get your API key from [Anthropic Console](https://console.anthropic.com/)
-2. Enter the API key in **Settings → Agent Client → Claude Code → API key**
+2. Enter the API key in **Settings → Agent Console → Claude Code → API key**
 
 ### Option B: Account Login
 
@@ -69,7 +69,7 @@ claude
 
 Follow the prompts to authenticate with your Anthropic account.
 
-3. In **Settings → Agent Client**, leave the **API key field empty**.
+3. In **Settings → Agent Console**, leave the **API key field empty**.
 
 ::: tip
 The Claude Desktop app uses a different authentication system. Having Claude Desktop running does **not** authenticate the plugin — you must log in via the CLI.

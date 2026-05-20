@@ -12,13 +12,13 @@ Click the **export button** in the chat header to export the current conversatio
 
 ## Export Settings
 
-Configure export options in **Settings → Agent Client → Export**:
+Configure export options in **Settings → Agent Console → Export**:
 
 | Setting | Description |
 |---------|-------------|
-| **Export folder** | Folder where chat exports will be saved (default: `Agent Client`) |
+| **Export folder** | Folder where chat exports will be saved (default: `Agent Console`) |
 | **Filename** | Template for filenames. Use `{date}` and `{time}` as placeholders |
-| **Frontmatter tag** | Tag added to exported notes (default: `agent-client`). Supports nested tags like `projects/agent-client` |
+| **Frontmatter tag** | Tag added to exported notes (default: `agent-console`). Supports nested tags like `projects/agent-console` |
 | **Auto-export on new chat** | Automatically export when starting a new chat |
 | **Auto-export on close chat** | Automatically export when closing the chat view |
 | **Open note after export** | Automatically open the exported note |
@@ -36,14 +36,14 @@ created: 2025-12-13T00:31:12
 agentDisplayName: Claude Code
 agentId: claude-agent-acp
 session_id: f95b4847-cb9c-441a-9f0b-08eb243ff5dd
-tags: [agent-client]  # Customizable in settings
+tags: [agent-console]  # Customizable in settings
 ---
 
 # Claude Code
 
 ## 0:31:12 - User
 
-@[[Agent Client Plugin]]
+@[[Agent Console Plugin]]
 Summarize this, please.
 
 
@@ -53,11 +53,11 @@ Summarize this, please.
 
 ### 🔧 Read File
 
-**Locations**: `/Users/rait09/Documents/dev_vault/Agent Client Plugin.md:0`
+**Locations**: `/Users/rait09/Documents/dev_vault/Agent Console Plugin.md:0`
 
 **Status**: completed
 
-## Summary: Agent Client Plugin for Obsidian
+## Summary: Agent Console Plugin for Obsidian
 
 This is an Obsidian plugin that integrates AI coding agents (Claude Code, Codex, Gemini CLI) directly into your vault.
 ...

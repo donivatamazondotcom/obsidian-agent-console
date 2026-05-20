@@ -6,7 +6,7 @@ Reference your Obsidian notes directly in conversations with AI agents.
 
 When enabled, the plugin automatically includes the currently active note in your message. This is useful when you want to discuss or work on the note you're viewing.
 
-Enable this in **Settings → Agent Client → Mentions → Auto-mention active note**.
+Enable this in **Settings → Agent Console → Mentions → Auto-mention active note**.
 
 ### How Auto-Mention Works
 
@@ -57,7 +57,7 @@ To prevent excessively large messages, the plugin limits the amount of content i
 | **Max note length** | 10,000 characters | Maximum characters per mentioned note |
 | **Max selection length** | 10,000 characters | Maximum characters for text selection in auto-mention |
 
-Configure these in **Settings → Agent Client → Mentions**.
+Configure these in **Settings → Agent Console → Mentions**.
 
 ::: tip
 Content exceeding the limit is truncated with a note indicating the original length.
