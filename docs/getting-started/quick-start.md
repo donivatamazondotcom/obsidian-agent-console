@@ -11,7 +11,8 @@ Agent Console supports multiple AI agents. Choose one to start:
 | **[Claude Code](/agent-setup/claude-code)** | Anthropic | via [ACP adapter](https://github.com/agentclientprotocol/claude-agent-acp) |
 | **[Codex](/agent-setup/codex)** | OpenAI | via [Zed's adapter](https://github.com/zed-industries/codex-acp) |
 | **[Gemini CLI](/agent-setup/gemini-cli)** | Google | with `--experimental-acp` option |
-| **[Custom](/agent-setup/custom-agents)** | Various | [Any ACP-compatible agent](https://agentclientprotocol.com/overview/agents) (e.g., OpenCode, Qwen Code, Kiro) |
+| **[Kiro CLI](/agent-setup/kiro-cli)** | Amazon | Built-in ACP — install from [kiro.dev](https://kiro.dev) |
+| **[Custom](/agent-setup/custom-agents)** | Various | [Any ACP-compatible agent](https://agentclientprotocol.com/overview/agents) (e.g., OpenCode, Qwen Code) |
 
 ## Step 2: Install and Configure the Agent
 

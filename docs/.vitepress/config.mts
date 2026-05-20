@@ -59,6 +59,7 @@ export default defineConfig({
           { text: "Claude Code", link: "/agent-setup/claude-code" },
           { text: "Codex", link: "/agent-setup/codex" },
           { text: "Gemini CLI", link: "/agent-setup/gemini-cli" },
+          { text: "Kiro CLI", link: "/agent-setup/kiro-cli" },
           { text: "Custom Agents", link: "/agent-setup/custom-agents" },
         ],
       },

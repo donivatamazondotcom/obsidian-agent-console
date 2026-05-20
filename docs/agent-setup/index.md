@@ -1,6 +1,6 @@
 # Agent Setup Overview
 
-Agent Console supports multiple AI agents through the [Agent Console Protocol (ACP)](https://github.com/agentclientprotocol/agent-console-protocol). This section covers how to set up each supported agent.
+Agent Console supports multiple AI agents through the [Agent Client Protocol (ACP)](https://github.com/zed-industries/agent-client-protocol). This section covers how to set up each supported agent.
 
 ## Supported Agents
 
@@ -9,6 +9,7 @@ Agent Console supports multiple AI agents through the [Agent Console Protocol (A
 | [Claude Code](./claude-code) | Anthropic | `@agentclientprotocol/claude-agent-acp` |
 | [Codex](./codex) | OpenAI | `@zed-industries/codex-acp` |
 | [Gemini CLI](./gemini-cli) | Google | `@google/gemini-cli` |
+| [Kiro CLI](./kiro-cli) | Amazon | Built-in ACP — install from [kiro.dev](https://kiro.dev) |
 | [Custom Agents](./custom-agents) | Various | Any ACP-compatible agent |
 
 ## Common Setup Steps

@@ -23,7 +23,7 @@ Agent Console fixes that. Open a tab. Tell the agent what you want. While it wor
 <summary><strong>More features</strong></summary>
 
 * **Pick up exactly where you left off** – tabs remember their scroll position when you switch back
-* **Use the agent you’ve already set up** – Kiro, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol)
+* **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol)
 * **Pick the right model for each task** – switch modes and models per chat without restarting
 * **Find old chats and continue them** – browse session history and reopen any past conversation in a tab
 * **Your agent’s tools just work** – any MCP tool your agent uses keeps working in Agent Console with no extra setup
@@ -62,7 +62,7 @@ Once it’s approved, search for "Agent Console" in the Community Plugins browse
 
 You’ll need an AI agent installed on your computer. Popular choices:
 
-* [Kiro](https://kiro.dev) – Amazon’s agent
+* [Kiro CLI](https://kiro.dev) – Amazon's agent
 * [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) – Anthropic’s coding agent
 * [Codex](https://github.com/zed-industries/codex-acp) – Zed’s reference agent
 * [Gemini CLI](https://github.com/google-gemini/gemini-cli) – Google’s command-line agent

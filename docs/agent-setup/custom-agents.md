@@ -1,10 +1,10 @@
 # Custom Agents Setup
 
-You can use any agent that implements the [Agent Console Protocol (ACP)](https://agentclientprotocol.com/get-started/agents).
+You can use any agent that implements the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/get-started/agents).
 
 ## Install and Configure
 
-1. Install your ACP-compatible agent (e.g., [OpenCode](https://github.com/anomalyco/opencode), [Qwen Code](https://github.com/QwenLM/qwen-code), [Kiro](https://kiro.dev/)).
+1. Install your ACP-compatible agent (e.g., [OpenCode](https://github.com/anomalyco/opencode), [Qwen Code](https://github.com/QwenLM/qwen-code)).
 
 2. Open **Settings → Agent Console** and scroll to **Custom Agents** section.
 
@@ -37,16 +37,6 @@ You can use any agent that implements the [Agent Console Protocol (ACP)](https:/
 | **Display name** | `Qwen Code` |
 | **Path** | `qwen` |
 | **Arguments** | `--experimental-acp` |
-| **Environment variables** | (optional) |
-
-### Kiro
-
-| Field | Value |
-|-------|-------|
-| **Agent ID** | `kiro-cli` |
-| **Display name** | `Kiro` |
-| **Path** | `kiro-cli` |
-| **Arguments** | `acp` |
 | **Environment variables** | (optional) |
 
 ## Authentication
