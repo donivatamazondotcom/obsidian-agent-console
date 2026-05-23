@@ -157,20 +157,28 @@ export function TabBar({
 			setIcon(chevronRef.current, "chevron-down");
 	}, []);
 
-	// Scroll active tab into view
+	// Scroll active tab into view — use rAF to ensure DOM class is applied
 	useEffect(() => {
-		const container = scrollRef.current;
-		if (!container) return;
-		const activeEl = container.querySelector(
-			".agent-client-tab-active",
-		);
-		if (activeEl) {
-			activeEl.scrollIntoView({
-				behavior: "smooth",
-				block: "nearest",
-				inline: "nearest",
-			});
-		}
+		requestAnimationFrame(() => {
+			const container = scrollRef.current;
+			if (!container) return;
+			const activeEl = container.querySelector(
+				".agent-client-tab-active",
+			);
+			if (!activeEl) return;
+
+			const containerRect = container.getBoundingClientRect();
+			const tabRect = activeEl.getBoundingClientRect();
+
+			// Only scroll if the tab is outside the visible area
+			if (tabRect.left < containerRect.left) {
+				container.scrollLeft -=
+					containerRect.left - tabRect.left;
+			} else if (tabRect.right > containerRect.right) {
+				container.scrollLeft +=
+					tabRect.right - containerRect.right;
+			}
+		});
 	}, [activeTabId]);
 
 	// Right-click context menu on a tab (Obsidian Menu API)
