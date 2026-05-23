@@ -6,7 +6,7 @@
 
 Obsidian plugin for parallel AI agent interaction (Claude Code, Codex, Gemini CLI, Kiro CLI, custom agents) via the Agent Client Protocol (ACP). Optimized for tabbed multi-session UX so users can run several agents at once without losing context.
 
-**Tech**: React 19, TypeScript, Obsidian API, Agent Client Protocol (ACP)
+**Tech**: React 18, TypeScript, Obsidian API, Agent Client Protocol (ACP)
 
 ## Repository
 
@@ -362,4 +362,4 @@ If you're touching `src/` and your change introduces or changes any of the above
 
 ---
 
-**Last Updated**: May 2026 | **Architecture**: useAgent facade + sub-hooks + tab layer | **Version**: 1.0.0
+**Last Updated**: May 2026 | **Architecture**: useAgent facade + sub-hooks + tab layer | **Version**: 1.0.1
