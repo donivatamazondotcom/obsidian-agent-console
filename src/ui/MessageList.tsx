@@ -208,7 +208,16 @@ export function MessageList({
 				);
 			});
 		}
-	}, [messages, messages.length, isActive]);
+		// Deps intentionally exclude `messages` (the array reference).
+		// During streaming, `messages` gets a new reference on every chunk
+		// (standard `setMessages([...prev.slice(0,-1), {...last, content: last.content + delta}])`
+		// pattern), but `messages.length` does not change. Including `messages`
+		// here would fire this effect on every chunk and call scrollToIndex
+		// continuously, fighting the virtualizer's
+		// shouldAdjustScrollPositionOnItemSizeChange auto-adjust and producing
+		// visible scroll jitter. Streaming-time scroll is handled by
+		// shouldAdjustScrollPositionOnItemSizeChange alone (see top of file).
+	}, [messages.length, isActive]);
 
 	// ============================================================
 	// Render
