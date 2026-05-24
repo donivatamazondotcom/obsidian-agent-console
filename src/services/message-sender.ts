@@ -79,13 +79,6 @@ export interface PreparePromptInput {
 
 	/** Whether this is the first message in the session */
 	isFirstMessage?: boolean;
-
-	/** Prompt injection settings (undefined = disabled) */
-	promptInjection?: {
-		latex?: boolean;
-		wikiLinks?: boolean;
-		tables?: boolean;
-	};
 }
 
 /**
@@ -282,28 +275,17 @@ function buildAutoMentionPrefix(
 
 /**
  * Build system prompt instruction strings for Obsidian-flavored Markdown.
- * Returns an array of instruction strings to inject.
- * Empty array if not first message or no instructions enabled.
+ *
+ * Returns the three Obsidian-formatting hints (wikilinks, table spacing, LaTeX
+ * math delimiters) on the first message of each session, and an empty array
+ * thereafter. Always-on plugin behavior — no settings gate.
+ *
+ * Rationale: the plugin only runs in Obsidian, so all three hints are
+ * universally applicable; the cost is ~150 tokens on message #1 of a session.
  */
 function buildSystemInstructions(input: PreparePromptInput): string[] {
 	if (!input.isFirstMessage) return [];
-	if (!input.promptInjection) return [];
-
-	const instructions: string[] = [];
-
-	if (input.promptInjection.wikiLinks) {
-		instructions.push(WIKI_LINK_INSTRUCTION);
-	}
-
-	if (input.promptInjection.tables) {
-		instructions.push(TABLE_INSTRUCTION);
-	}
-
-	if (input.promptInjection.latex) {
-		instructions.push(LATEX_MATH_INSTRUCTION);
-	}
-
-	return instructions;
+	return [WIKI_LINK_INSTRUCTION, TABLE_INSTRUCTION, LATEX_MATH_INSTRUCTION];
 }
 
 function buildAgentMessageText(
