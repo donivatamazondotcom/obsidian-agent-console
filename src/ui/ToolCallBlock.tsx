@@ -102,17 +102,27 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 	const hasPendingPermission =
 		!!permissionRequest && !permissionRequest.selectedOptionId;
 
-	const [isExpanded, setIsExpanded] = useState(hasPendingPermission);
+	// Failed tool calls auto-expand so errors are visible without a click.
+	// Manual collapse still wins after the user toggles.
+	const isFailed = status === "failed";
 
-	// If a pending permission shows up after initial render (e.g., during
-	// a streaming tool call), open the block. Don't auto-collapse it again
-	// after the user has interacted — manual state wins.
+	const [isExpanded, setIsExpanded] = useState(
+		hasPendingPermission || isFailed,
+	);
+
+	// If a pending permission or failure shows up after initial render
+	// (e.g., during a streaming tool call), open the block. Don't auto-collapse
+	// it again after the user has interacted — manual state wins.
 	const userHasToggledRef = React.useRef(false);
 	React.useEffect(() => {
-		if (hasPendingPermission && !isExpanded && !userHasToggledRef.current) {
+		if (
+			(hasPendingPermission || isFailed) &&
+			!isExpanded &&
+			!userHasToggledRef.current
+		) {
 			setIsExpanded(true);
 		}
-	}, [hasPendingPermission, isExpanded]);
+	}, [hasPendingPermission, isFailed, isExpanded]);
 
 	const toggleExpanded = () => {
 		userHasToggledRef.current = true;
@@ -142,6 +152,12 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 				<span className="agent-client-message-tool-call-summary-title">
 					{title}
 				</span>
+				{status !== "completed" && (
+					<LucideIcon
+						name={status === "failed" ? "x" : "ellipsis"}
+						className={`agent-client-message-tool-call-status-icon agent-client-status-${status}`}
+					/>
+				)}
 				<span className="agent-client-message-tool-call-summary-lines">
 					{lineCount > 0 ? `${lineCount} lines` : ""}
 				</span>

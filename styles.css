@@ -298,6 +298,20 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	color: var(--color-red);
 }
 
+.agent-client-message-tool-call-status-icon.agent-client-status-in_progress svg {
+	color: var(--text-muted);
+	animation: agent-client-tool-call-pulse 1.4s ease-in-out infinite;
+}
+
+.agent-client-message-tool-call-status-icon.agent-client-status-pending svg {
+	color: var(--text-muted);
+}
+
+@keyframes agent-client-tool-call-pulse {
+	0%, 100% { opacity: 0.4; }
+	50% { opacity: 1; }
+}
+
 .agent-client-message-tool-call-locations {
 	color: var(--text-muted);
 	user-select: text;
