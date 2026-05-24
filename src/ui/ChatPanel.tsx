@@ -287,6 +287,40 @@ export function ChatPanel({
 		return custom?.displayName || custom?.id || activeId;
 	}, [session.agentId, plugin.settings]);
 
+	/**
+	 * Header branding segments — see Agent Console Header Branding spec.
+	 *
+	 * Layered as: Plugin → Profile → Runtime → Model.
+	 * - plugin: client-sourced (manifest), shown in literal brackets
+	 * - profile: client-sourced (settings.displayName), the "which configuration" signal
+	 * - runtime: ACP-sourced (session.agentInfo), null while connecting
+	 * - model:   ACP-sourced (session.models), null while connecting
+	 *
+	 * Both ACP segments null = "Connecting…" placeholder rendered by ChatHeader.
+	 */
+	const headerSegments = useMemo(() => {
+		const pluginName = plugin.manifest.name;
+		const profile = activeAgentLabel;
+
+		const info = session.agentInfo;
+		const runtime = info
+			? `${info.title || info.name}${info.version ? ` ${info.version}` : ""}`
+			: null;
+
+		const models = session.models;
+		const currentModel = models?.availableModels.find(
+			(m) => m.modelId === models.currentModelId,
+		);
+		const model = currentModel?.name ?? null;
+
+		return { plugin: pluginName, profile, runtime, model };
+	}, [
+		plugin.manifest.name,
+		activeAgentLabel,
+		session.agentInfo,
+		session.models,
+	]);
+
 	const availableAgents = useMemo(() => {
 		return plugin.getAvailableAgents();
 	}, [plugin]);
@@ -1115,6 +1149,7 @@ export function ChatPanel({
 			<ChatHeader
 				variant="sidebar"
 				agentLabel={activeAgentLabel}
+				headerSegments={headerSegments}
 				isUpdateAvailable={isUpdateAvailable}
 				onNewChat={() => void handleNewChatWithPersist()}
 				onExportChat={() => void handleExportChat()}
@@ -1125,6 +1160,7 @@ export function ChatPanel({
 			<ChatHeader
 				variant="floating"
 				agentLabel={activeAgentLabel}
+				headerSegments={headerSegments}
 				availableAgents={availableAgents}
 				currentAgentId={session.agentId}
 				isUpdateAvailable={isUpdateAvailable}
