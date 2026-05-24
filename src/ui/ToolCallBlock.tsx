@@ -8,6 +8,7 @@ import { TerminalBlock } from "./TerminalBlock";
 import { PermissionBanner } from "./PermissionBanner";
 import { LucideIcon } from "./shared/IconButton";
 import { toRelativePath } from "../utils/paths";
+import { countLines } from "../utils/toolCallSummary";
 import * as Diff from "diff";
 // import { MarkdownRenderer } from "./shared/MarkdownRenderer";
 
@@ -88,11 +89,114 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 		}
 	};
 
+	// ============================================================
+	// Compact tool-call render — the block is collapsed by default
+	// to one summary row. Click expands to the full body. See
+	// 04-initiatives/Agent Console/Agent Console Compact Tool Calls.md
+	// for the full design (C3 lands the click-to-expand baseline; C4
+	// adds status icon, C5 adds live preview line).
+	// ============================================================
+
+	// Pending permission requests force expansion — the user must be
+	// able to see the PermissionBanner to act on the request.
+	const hasPendingPermission =
+		!!permissionRequest && !permissionRequest.selectedOptionId;
+
+	// Failed tool calls auto-expand so errors are visible without a click.
+	// Manual collapse still wins after the user toggles.
+	const isFailed = status === "failed";
+
+	const [isExpanded, setIsExpanded] = useState(
+		hasPendingPermission || isFailed,
+	);
+
+	// If a pending permission or failure shows up after initial render
+	// (e.g., during a streaming tool call), open the block. Don't auto-collapse
+	// it again after the user has interacted — manual state wins.
+	const userHasToggledRef = React.useRef(false);
+	React.useEffect(() => {
+		if (
+			(hasPendingPermission || isFailed) &&
+			!isExpanded &&
+			!userHasToggledRef.current
+		) {
+			setIsExpanded(true);
+		}
+	}, [hasPendingPermission, isFailed, isExpanded]);
+
+	const toggleExpanded = () => {
+		userHasToggledRef.current = true;
+		setIsExpanded((prev) => !prev);
+	};
+
+	const lineCount = useMemo(() => countLines(content), [content]);
+
+	// Stable id for aria-controls so screen readers announce the
+	// toggle as controlling a specific content region.
+	const contentId = `agent-tool-call-content-${content.toolCallId}`;
+	const ariaLabel = `Tool call${kind ? `: ${kind}` : ""}. ${title || ""}. ${
+		isExpanded ? "Expanded." : "Collapsed."
+	}`;
+
+	if (!isExpanded) {
+		return (
+			<button
+				type="button"
+				className="agent-client-message-tool-call agent-client-message-tool-call-summary"
+				aria-expanded={false}
+				aria-controls={contentId}
+				aria-label={ariaLabel}
+				onClick={toggleExpanded}
+			>
+				<LucideIcon
+					name="chevron-right"
+					className="agent-client-message-tool-call-summary-caret"
+				/>
+				{showEmojis && (
+					<LucideIcon
+						name={getKindIconName(kind)}
+						className="agent-client-message-tool-call-icon"
+					/>
+				)}
+				{status !== "completed" && (
+					<LucideIcon
+						name={status === "failed" ? "x" : "ellipsis"}
+						className={`agent-client-message-tool-call-status-icon agent-client-status-${status}`}
+					/>
+				)}
+				<span className="agent-client-message-tool-call-summary-title">
+					{title}
+				</span>
+				<span className="agent-client-message-tool-call-summary-lines">
+					{lineCount > 0 ? `${lineCount} lines` : ""}
+				</span>
+			</button>
+		);
+	}
+
 	return (
 		<div className="agent-client-message-tool-call">
 			{/* Header */}
-			<div className="agent-client-message-tool-call-header">
+			<div
+				className="agent-client-message-tool-call-header agent-client-message-tool-call-header-clickable"
+				onClick={toggleExpanded}
+				role="button"
+				tabIndex={0}
+				aria-expanded={true}
+				aria-controls={contentId}
+				aria-label={ariaLabel}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						toggleExpanded();
+					}
+				}}
+			>
 				<div className="agent-client-message-tool-call-title">
+					<LucideIcon
+						name="chevron-down"
+						className="agent-client-message-tool-call-summary-caret"
+					/>
 					{showEmojis && (
 						<LucideIcon
 							name={getKindIconName(kind)}
@@ -136,6 +240,8 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 				)}
 			</div>
 
+			{/* Expanded body — aria-controls target */}
+			<div id={contentId} role="region" aria-label={`${title || "Tool call"} content`}>
 			{/* Tool call content (diffs, terminal output, etc.) */}
 			{toolContent &&
 				toolContent.map((item, index) => {
@@ -154,14 +260,6 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 								key={index}
 								diff={item}
 								plugin={plugin}
-								autoCollapse={
-									plugin.settings.displaySettings
-										.autoCollapseDiffs
-								}
-								collapseThreshold={
-									plugin.settings.displaySettings
-										.diffCollapseThreshold
-								}
 							/>
 						);
 					}
@@ -179,6 +277,7 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 					onOptionSelected={setSelectedOptionId}
 				/>
 			)}
+			</div>
 		</div>
 	);
 });
@@ -194,8 +293,6 @@ interface DiffRendererProps {
 		newText: string;
 	};
 	plugin: AgentClientPlugin;
-	autoCollapse?: boolean;
-	collapseThreshold?: number;
 }
 
 /**
@@ -284,11 +381,7 @@ function renderWordDiff(
 // Number of context lines to show around changes
 const CONTEXT_LINES = 3;
 
-function DiffRenderer({
-	diff,
-	autoCollapse = false,
-	collapseThreshold = 10,
-}: DiffRendererProps) {
+function DiffRenderer({ diff }: DiffRendererProps) {
 	// Generate diff using the diff library
 	const diffLines = useMemo(() => {
 		if (isNewFile(diff)) {
@@ -413,44 +506,14 @@ function DiffRenderer({
 		);
 	};
 
-	// Determine if collapsing is needed (only when exceeding threshold)
-	const shouldCollapse = autoCollapse && diffLines.length > collapseThreshold;
-
-	// Collapse state (initially collapsed if shouldCollapse is true)
-	const [isCollapsed, setIsCollapsed] = useState(shouldCollapse);
-
-	// Lines to display (threshold lines when collapsed)
-	const visibleLines = isCollapsed
-		? diffLines.slice(0, collapseThreshold)
-		: diffLines;
-
-	// Remaining lines count
-	const remainingLines = diffLines.length - collapseThreshold;
-
 	return (
 		<div className="agent-client-tool-call-diff">
 			{isNewFile(diff) ? (
 				<div className="agent-client-diff-line-info">New file</div>
 			) : null}
 			<div className="agent-client-tool-call-diff-content">
-				{visibleLines.map((line, idx) => renderLine(line, idx))}
+				{diffLines.map((line, idx) => renderLine(line, idx))}
 			</div>
-			{shouldCollapse && (
-				<div
-					className="agent-client-diff-expand-bar"
-					onClick={() => setIsCollapsed(!isCollapsed)}
-				>
-					<span className="agent-client-diff-expand-text">
-						{isCollapsed
-							? `${remainingLines} more lines`
-							: "Collapse"}
-					</span>
-					<LucideIcon
-						name={isCollapsed ? "chevron-right" : "chevron-up"}
-						className="agent-client-diff-expand-icon"
-					/>
-				</div>
-			)}
 		</div>
 	);
 }

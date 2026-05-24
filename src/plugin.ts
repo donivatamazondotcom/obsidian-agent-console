@@ -109,8 +109,6 @@ export interface AgentClientPluginSettings {
 	chatViewLocation: ChatViewLocation;
 	// Display settings
 	displaySettings: {
-		autoCollapseDiffs: boolean;
-		diffCollapseThreshold: number;
 		maxNoteLength: number;
 		maxSelectionLength: number;
 		showEmojis: boolean;
@@ -188,8 +186,6 @@ const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	sendMessageShortcut: "enter",
 	chatViewLocation: "right-tab",
 	displaySettings: {
-		autoCollapseDiffs: false,
-		diffCollapseThreshold: 10,
 		maxNoteLength: 10000,
 		maxSelectionLength: 10000,
 		showEmojis: true,
@@ -1110,15 +1106,6 @@ export default class AgentClientPlugin extends Plugin {
 				D.chatViewLocation,
 			),
 			displaySettings: {
-				autoCollapseDiffs: bool(
-					rd.autoCollapseDiffs,
-					D.displaySettings.autoCollapseDiffs,
-				),
-				diffCollapseThreshold: num(
-					rd.diffCollapseThreshold,
-					D.displaySettings.diffCollapseThreshold,
-					1,
-				),
 				maxNoteLength: num(
 					rd.maxNoteLength,
 					D.displaySettings.maxNoteLength,

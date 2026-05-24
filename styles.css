@@ -196,6 +196,87 @@ If your plugin does not need CSS, delete this file.
 	max-width: 100%;
 }
 
+/*
+ * Cap expanded tool-call height at half the panel so a single big block
+ * (e.g., a 4000-line read) cannot dominate the chat area. Internal scroll
+ * is the safety net; collapsed buttons are excluded via div.* selector.
+ */
+div.agent-client-message-tool-call {
+	max-height: 50vh;
+	overflow-y: auto;
+}
+
+/*
+ * Compact tool-call summary row (collapsed default).
+ * Renders as a single clickable row: [chevron <kind-icon> <title> ………… N lines]
+ * See spec: 04-initiatives/Agent Console/Agent Console Compact Tool Calls.md
+ */
+button.agent-client-message-tool-call-summary {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	padding: 6px 8px;
+	margin-bottom: 12px;
+	font-family: inherit;
+	font-size: 0.85em;
+	font-weight: bold;
+	color: var(--text-normal);
+	background-color: transparent;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	text-align: left;
+	cursor: pointer;
+	user-select: text;
+	overflow: hidden;
+	box-shadow: none;
+}
+
+button.agent-client-message-tool-call-summary:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+button.agent-client-message-tool-call-summary:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 1px;
+}
+
+.agent-client-message-tool-call-summary-caret {
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	color: var(--text-muted);
+}
+
+.agent-client-message-tool-call-summary-caret svg {
+	width: 14px;
+	height: 14px;
+}
+
+.agent-client-message-tool-call-summary-title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-client-message-tool-call-summary-lines {
+	flex-shrink: 0;
+	font-weight: normal;
+	font-size: 0.9em;
+	color: var(--text-muted);
+}
+
+/* When the block is expanded, the header itself becomes the toggle target. */
+.agent-client-message-tool-call-header-clickable {
+	cursor: pointer;
+}
+
+.agent-client-message-tool-call-header-clickable:hover .agent-client-message-tool-call-title-text {
+	color: var(--text-accent);
+}
+
 .agent-client-message-tool-call-title {
 	display: flex;
 	align-items: center;
@@ -225,6 +306,11 @@ If your plugin does not need CSS, delete this file.
 
 .agent-client-message-tool-call-status-icon.agent-client-status-failed svg {
 	color: var(--color-red);
+}
+
+.agent-client-message-tool-call-status-icon.agent-client-status-in_progress svg,
+.agent-client-message-tool-call-status-icon.agent-client-status-pending svg {
+	color: var(--text-muted);
 }
 
 .agent-client-message-tool-call-locations {
@@ -1274,41 +1360,6 @@ If your plugin does not need CSS, delete this file.
 	background-color: rgba(248, 81, 73, 0.4);
 	font-weight: 600;
 	text-decoration: line-through;
-}
-
-/* Diff Expand/Collapse Bar */
-.agent-client-diff-expand-bar {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 3px 12px;
-	background-color: var(--background-secondary-alt);
-	border-top: 1px solid var(--background-modifier-border);
-	cursor: pointer;
-	user-select: none;
-	transition: background-color 0.1s ease;
-}
-
-.agent-client-diff-expand-bar:hover {
-	background-color: var(--background-modifier-hover);
-}
-
-.agent-client-diff-expand-text {
-	font-size: 11px;
-	color: var(--text-muted);
-	font-family: var(--font-monospace);
-}
-
-.agent-client-diff-expand-icon {
-	display: flex;
-	align-items: center;
-	color: var(--text-muted);
-	margin-left: 8px;
-}
-
-.agent-client-diff-expand-icon svg {
-	width: 14px;
-	height: 14px;
 }
 
 /* Tool Call Details */
