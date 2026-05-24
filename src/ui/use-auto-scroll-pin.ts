@@ -1,0 +1,357 @@
+/**
+ * useAutoScrollPin — single owner of MessageList's auto-scroll behavior.
+ *
+ * Encapsulates:
+ * - Pin-state tracking (`pinned` | `unpinned` | `restoring`) with hysteresis
+ * - Scroll listener with hysteresis-driven state transitions
+ * - IntersectionObserver for leaf-vs-pane visibility (Obsidian outer pane
+ *   hidden, e.g. by clicking to a different workspace pane)
+ * - Tab activation/deactivation transitions, including the I37 M1 fix:
+ *   re-arm pin on tab-switch back when the user was pinned before
+ *   deactivation, regardless of whether messageCount changed during
+ *   inactivity (closes the streaming-while-inactive gap)
+ * - Smooth-scroll on user-sent message (preserves previous scrollSmoothRef
+ *   semantics)
+ * - Same-value bail on every transition (per the I31 lesson)
+ *
+ * See 04-initiatives/Agent Console/ACP Scroll Architecture Rework.md for
+ * the full design rationale, transition table, and acceptance criteria
+ * (T100-T131).
+ */
+
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import {
+	NEAR_BOTTOM_FLIP_TO_FALSE_PX,
+	NEAR_BOTTOM_FLIP_TO_TRUE_PX,
+	type PinState,
+	type UseAutoScrollPinParams,
+	type UseAutoScrollPinResult,
+} from "./use-auto-scroll-pin.types";
+
+/**
+ * Compute the gap (in px) between the current scroll position and the bottom
+ * of the scrollable content.
+ *
+ * Returns null when the container is collapsed (clientHeight = 0). A
+ * zero-height container always satisfies a naive "near bottom" check
+ * (0 + 0 >= 0 - threshold), which would corrupt the pinned ref. The hook's
+ * caller treats null as "skip this event, state unchanged" (T122).
+ */
+function computeBottomGap(container: HTMLElement): number | null {
+	if (container.clientHeight === 0) return null;
+	return container.scrollHeight - (container.scrollTop + container.clientHeight);
+}
+
+/**
+ * Apply hysteresis to a candidate pin transition.
+ *
+ * - When `pinned`: stay pinned unless gap > FLIP_TO_FALSE (100 px)
+ * - When `unpinned`: stay unpinned unless gap < FLIP_TO_TRUE (35 px)
+ * - When `restoring`: don't transition on raw scroll events. The restoring
+ *   state is consumed by the explicit-scroll completion path.
+ *
+ * Returns the next state (which may equal `current` if no transition).
+ */
+function applyHysteresis(current: PinState, gap: number): PinState {
+	if (current === "restoring") return "restoring";
+	if (current === "pinned") {
+		return gap > NEAR_BOTTOM_FLIP_TO_FALSE_PX ? "unpinned" : "pinned";
+	}
+	// current === "unpinned"
+	return gap < NEAR_BOTTOM_FLIP_TO_TRUE_PX ? "pinned" : "unpinned";
+}
+
+export function useAutoScrollPin(
+	params: UseAutoScrollPinParams,
+): UseAutoScrollPinResult {
+	const {
+		containerRef,
+		virtualizerRef,
+		messageCount,
+		isActive,
+		isSending,
+		view,
+	} = params;
+
+	// ============================================================
+	// Refs (high-frequency mutations; never trigger re-renders)
+	// ============================================================
+
+	/** Authoritative pin state, mirrored to React state for UI. */
+	const pinStateRef = useRef<PinState>("pinned");
+
+	/** Tracks the most recent isActive value to detect transitions. */
+	const prevIsActiveRef = useRef<boolean>(isActive);
+
+	/**
+	 * Snapshot of pin state captured at the moment of deactivation. Used by
+	 * the reactivation handler to decide whether to restore the bottom pin
+	 * (closes I37 Mechanism 1).
+	 */
+	const wasPinnedBeforeDeactivationRef = useRef<boolean>(true);
+
+	/** Tracks the most recent messageCount to detect "new message" arrivals. */
+	const prevMessageCountRef = useRef<number>(messageCount);
+
+	/** Tracks the most recent isSending to detect the user-sent transition. */
+	const prevIsSendingRef = useRef<boolean>(isSending);
+
+	/**
+	 * When true, the next pin restore (system-initiated) should use smooth
+	 * behavior. Set when isSending flips false→true. Consumed and reset by
+	 * the next message-arrival transition.
+	 */
+	const scrollSmoothRef = useRef<boolean>(false);
+
+	/** Tracks IntersectionObserver visibility (leaf hidden by Obsidian pane). */
+	const wasContainerVisibleRef = useRef<boolean>(true);
+
+	// ============================================================
+	// React state (only for UI-reactive consumers)
+	// ============================================================
+
+	const [pinState, setPinState] = useState<PinState>("pinned");
+
+	/**
+	 * Same-value-bail wrapper around the React state setter. Per the I31
+	 * lesson: scroll events fire at streaming chunk frequency, and the
+	 * dominant case after hysteresis is "no state change". Avoid scheduling
+	 * React work on no-op transitions.
+	 */
+	const setPinStateBoth = useCallback((next: PinState) => {
+		if (pinStateRef.current === next) return;
+		pinStateRef.current = next;
+		setPinState(next);
+	}, []);
+
+	// ============================================================
+	// Imperative scroll-to-bottom (used by pill, restore transitions)
+	// ============================================================
+
+	const scrollToBottom = useCallback(
+		(options?: { behavior?: "smooth" | "auto" }) => {
+			const virtualizer = virtualizerRef.current;
+			if (!virtualizer) return;
+			if (messageCount === 0) {
+				// Empty session — just snap to pinned without a scroll call.
+				setPinStateBoth("pinned");
+				return;
+			}
+			setPinStateBoth("restoring");
+			const behavior = options?.behavior ?? "auto";
+			window.requestAnimationFrame(() => {
+				virtualizer.scrollToIndex(messageCount - 1, {
+					align: "end",
+					behavior,
+				});
+				// After the explicit scroll lands, transition restoring →
+				// pinned. The native `scroll` events generated by scrollToIndex
+				// will hit our handler with gap below threshold and would also
+				// transition to `pinned` via hysteresis, but we set it
+				// explicitly here so the state is correct even if the
+				// virtualizer's scroll target settles within the dead zone.
+				setPinStateBoth("pinned");
+			});
+		},
+		[virtualizerRef, messageCount, setPinStateBoth],
+	);
+
+	// ============================================================
+	// Authority A gate (stable identity across renders)
+	// ============================================================
+
+	// Mirror isActive into a ref so shouldAdjust (stable identity) can read it.
+	const isActiveRef = useRef<boolean>(isActive);
+	useEffect(() => {
+		isActiveRef.current = isActive;
+	}, [isActive]);
+
+	/**
+	 * Returns true when the virtualizer should auto-adjust scroll position
+	 * on item size changes. Wired to the virtualizer's
+	 * `shouldAdjustScrollPositionOnItemSizeChange`.
+	 *
+	 * - Inactive tabs: false (no scroll mutation on hidden containers)
+	 * - Active + pinned: true (auto-follow streaming and tool-call growth)
+	 * - Active + unpinned: false (user is reading older content)
+	 * - Active + restoring: false (don't fight an explicit scroll)
+	 *
+	 * Reads refs (not state) so the gate's identity is stable and the
+	 * virtualizer doesn't see "different gate" each render.
+	 */
+	const shouldAdjust = useCallback((): boolean => {
+		// Use refs not the closure values — this callback is invoked by the
+		// virtualizer at high frequency, possibly even after a stale render.
+		// Refs always reflect the current pin state.
+		if (!isActiveRef.current) return false;
+		return pinStateRef.current === "pinned";
+	}, []);
+
+	// ============================================================
+	// Scroll listener — owns hysteresis-driven state transitions
+	// ============================================================
+
+	const handleScroll = useCallback(() => {
+		const container = containerRef.current;
+		if (!container) return;
+		// Inactive tabs don't fire scroll events because their container is
+		// display:none (no scrollable area). But guard anyway in case the
+		// IntersectionObserver fires a scroll-adjacent event.
+		if (!isActiveRef.current) return;
+		// Don't process scroll events while restoring — Authority A and the
+		// explicit scrollToIndex are mid-flight, and reading scroll values
+		// would race with them.
+		if (pinStateRef.current === "restoring") return;
+
+		const gap = computeBottomGap(container);
+		if (gap === null) return; // Container collapsed (T122)
+
+		const next = applyHysteresis(pinStateRef.current, gap);
+		setPinStateBoth(next);
+	}, [containerRef, setPinStateBoth]);
+
+	// Register scroll listener via the host (Obsidian-managed cleanup).
+	useEffect(() => {
+		const container = containerRef.current;
+		if (!container) return;
+		view.registerDomEvent(container, "scroll", handleScroll);
+		// Initial check — establishes the pin state if the container starts
+		// off-bottom (e.g., session restoration, T125).
+		handleScroll();
+	}, [view, containerRef, handleScroll]);
+
+	// ============================================================
+	// IntersectionObserver — leaf-vs-pane visibility
+	// ============================================================
+
+	useEffect(() => {
+		const container = containerRef.current;
+		if (!container) return;
+
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				const visible = entry.isIntersecting;
+				const wasVisible = wasContainerVisibleRef.current;
+				wasContainerVisibleRef.current = visible;
+
+				// Only respond to false→true transitions (leaf revealed).
+				// And only when the tab is currently active — if we're inactive,
+				// the tab activation handler will fire on its own when the user
+				// switches to this tab.
+				if (!visible || wasVisible || !isActiveRef.current) return;
+				if (messageCount === 0) return;
+
+				// Restore pin only if user was pinned. If they were unpinned,
+				// preserve their scroll position (T120).
+				if (pinStateRef.current === "pinned") {
+					scrollToBottom();
+				}
+			},
+			{ threshold: 0.1 },
+		);
+		observer.observe(container);
+		return () => observer.disconnect();
+	}, [containerRef, messageCount, scrollToBottom]);
+
+	// ============================================================
+	// isActive transitions (tab activate / deactivate)
+	// ============================================================
+
+	useEffect(() => {
+		const wasActive = prevIsActiveRef.current;
+		prevIsActiveRef.current = isActive;
+
+		if (wasActive === isActive) return; // No transition
+
+		if (!isActive) {
+			// Tab just deactivated — capture the pin state for next reactivation.
+			// I37 Mechanism 1 fix: this captures user intent before the tab
+			// goes inactive, NOT when it returns. If the user was pinned,
+			// we'll restore on activation; if they were scrolled up, we'll
+			// preserve their position.
+			wasPinnedBeforeDeactivationRef.current =
+				pinStateRef.current === "pinned";
+			return;
+		}
+
+		// Tab just activated.
+		if (messageCount === 0) {
+			// Empty session — pin to bottom (the loading indicator state).
+			setPinStateBoth("pinned");
+			return;
+		}
+
+		if (wasPinnedBeforeDeactivationRef.current) {
+			// User was pinned before deactivation — restore the pin.
+			// This fires regardless of whether messageCount changed during
+			// inactivity (closes I37 Mechanism 1: streaming-while-inactive
+			// adds tokens to existing messages without changing count).
+			scrollToBottom();
+		}
+		// Else: user was unpinned before deactivation. Preserve their scroll
+		// position (T114). Don't touch state — the next scroll event will
+		// re-establish via hysteresis.
+	}, [isActive, messageCount, scrollToBottom, setPinStateBoth]);
+
+	// ============================================================
+	// Message-count transitions (new message arrived)
+	// ============================================================
+
+	useEffect(() => {
+		const prev = prevMessageCountRef.current;
+		prevMessageCountRef.current = messageCount;
+
+		if (messageCount === 0) {
+			// Cleared / new chat — reset state cleanly (T124).
+			setPinStateBoth("pinned");
+			return;
+		}
+
+		// Only respond to count increases (new message). Decreases are not
+		// a normal flow (would be backend-side rewriting).
+		if (messageCount <= prev) return;
+
+		// Inactive tabs: no auto-scroll. The activation handler will
+		// restore pin if the user was pinned before deactivation.
+		if (!isActive) return;
+
+		// User-sent path: smooth scroll. scrollSmoothRef was set when
+		// isSending flipped false→true; consume it now.
+		if (scrollSmoothRef.current) {
+			scrollSmoothRef.current = false;
+			scrollToBottom({ behavior: "smooth" });
+			return;
+		}
+
+		// Assistant message arrived. Auto-scroll only if user is pinned.
+		// (User scrolled up = preserve their reading position, T107.)
+		if (pinStateRef.current === "pinned") {
+			scrollToBottom();
+		}
+	}, [messageCount, isActive, scrollToBottom, setPinStateBoth]);
+
+	// ============================================================
+	// isSending transitions (user just submitted a message)
+	// ============================================================
+
+	useEffect(() => {
+		if (isSending && !prevIsSendingRef.current) {
+			// User just sent a message — flag the next message-arrival
+			// auto-scroll for smooth behavior.
+			scrollSmoothRef.current = true;
+		}
+		prevIsSendingRef.current = isSending;
+	}, [isSending]);
+
+	// ============================================================
+	// Result
+	// ============================================================
+
+	return {
+		pinState,
+		isPinned: pinState === "pinned",
+		shouldAdjust,
+		scrollToBottom,
+	};
+}
