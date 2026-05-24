@@ -1,5 +1,5 @@
 import * as React from "react";
-const { useRef, useState, useEffect, useCallback } = React;
+const { useRef, useEffect } = React;
 
 import type { ChatMessage } from "../types/chat";
 import type { AcpClient } from "../acp/acp-client";
@@ -8,6 +8,7 @@ import type { IChatViewHost } from "./view-host";
 import { setIcon } from "obsidian";
 import { MessageBubble } from "./MessageBubble";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useAutoScrollPin } from "./use-auto-scroll-pin";
 
 /**
  * Props for MessageList component
@@ -46,11 +47,18 @@ export interface MessageListProps {
  * Uses @tanstack/react-virtual to only render messages visible in the viewport,
  * dramatically improving performance for long conversations.
  *
- * Handles:
- * - Virtualized message list rendering
- * - Auto-scroll behavior (follows new content when at bottom)
- * - Empty state display
- * - Loading indicator
+ * Auto-scroll behavior is owned by the useAutoScrollPin hook — see
+ * 04-initiatives/Agent Console/ACP Scroll Architecture Rework.md for the
+ * design. MessageList provides the DOM handles (containerRef, virtualizerRef)
+ * and renders the appropriate UI affordances (loading indicator, scroll-to-
+ * bottom pill); the hook owns the pin-state machine and all transitions.
+ *
+ * Inactive-tab cost-minimization: when isActive=false, this component
+ * renders only the container <div> (no virtualizer mount, no bubbles, no
+ * markdown parsing). The hook continues tracking pin state via the existing
+ * containerRef but does no DOM-observation work. On reactivation, the
+ * virtualizer mounts fresh against a real-height container — no stale
+ * zero-height measurements to discard.
  */
 export function MessageList({
 	messages,
@@ -66,9 +74,6 @@ export function MessageList({
 	isActive = true,
 }: MessageListProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
-	const [isAtBottom, setIsAtBottom] = useState(true);
-	const isAtBottomRef = useRef(true);
-	const prevIsSendingRef = useRef(false);
 
 	// ============================================================
 	// Virtualizer
@@ -80,150 +85,52 @@ export function MessageList({
 		overscan: 5,
 	});
 
-	// Suppress scroll position correction on hidden tabs and when user
-	// has scrolled up. Without the isActive check, the virtualizer
-	// adjusts its internal offset during measurement of collapsed
-	// containers, corrupting the saved position.
-	virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () =>
-		isActive && isAtBottomRef.current;
-
-	// ============================================================
-	// Scroll management
-	// ============================================================
-
-	/**
-	 * Check if the scroll position is near the bottom.
-	 * Skips when the container is collapsed (display:none) to avoid
-	 * corrupting isAtBottomRef — a zero-height container always
-	 * satisfies the "near bottom" check (0 + 0 >= 0 - threshold).
-	 */
-	const checkIfAtBottom = useCallback(() => {
-		const container = containerRef.current;
-		if (!container) return true;
-
-		const threshold = 35;
-		const isNearBottom =
-			container.scrollTop + container.clientHeight >=
-			container.scrollHeight - threshold;
-		isAtBottomRef.current = isNearBottom;
-		setIsAtBottom(isNearBottom);
-		return isNearBottom;
-	}, []);
-
-	// Reset scroll state when messages are cleared (new chat)
-	useEffect(() => {
-		if (messages.length === 0) {
-			setIsAtBottom(true);
-			isAtBottomRef.current = true;
-		}
-	}, [messages.length]);
-
-	// Track when user just sent a message (for smooth scroll)
-	const scrollSmoothRef = useRef(false);
-	useEffect(() => {
-		if (isSending && !prevIsSendingRef.current) {
-			// User just sent a message — next scroll should be smooth
-			scrollSmoothRef.current = true;
-		}
-		prevIsSendingRef.current = isSending;
-	}, [isSending]);
-
-	// Ref for virtualizer — avoids putting the virtualizer object
-	// (new every render) in effect dependency arrays.
+	// Stable ref for the auto-scroll hook (avoids putting the virtualizer
+	// object — new every render — in the hook's deps).
 	const virtualizerRef = useRef(virtualizer);
 	virtualizerRef.current = virtualizer;
 
-	const prevIsActiveRef = useRef(isActive);
-	useEffect(() => {
-		const container = containerRef.current;
-		if (!container) return;
-		view.registerDomEvent(container, "scroll", checkIfAtBottom);
-		checkIfAtBottom();
-	}, [view, checkIfAtBottom]);
+	// ============================================================
+	// Auto-scroll pin state (single owner)
+	// ============================================================
+	const { isPinned, shouldAdjust, scrollToBottom } = useAutoScrollPin({
+		containerRef,
+		virtualizerRef,
+		messageCount: messages.length,
+		isActive,
+		isSending,
+		view,
+	});
 
-	// Scroll to bottom when the panel becomes visible again (e.g. user
-	// clicked away to another Obsidian pane and came back). The tab-switch
-	// logic (wasInactive) doesn't cover this because isActive tracks which
-	// tab is selected, not whether the leaf is on-screen. (I25)
-	const wasVisibleRef = useRef(true);
-	useEffect(() => {
-		const container = containerRef.current;
-		if (!container) return;
-
-		const observer = new IntersectionObserver(
-			([entry]) => {
-				const visible = entry.isIntersecting;
-				if (visible && !wasVisibleRef.current && isActive && messages.length > 0) {
-					requestAnimationFrame(() => {
-						virtualizerRef.current.scrollToIndex(
-							messages.length - 1,
-							{ align: "end" },
-						);
-					});
-				}
-				wasVisibleRef.current = visible;
-			},
-			{ threshold: 0.1 },
-		);
-		observer.observe(container);
-		return () => observer.disconnect();
-	}, [isActive, messages.length]);
-
-	// Scroll to bottom on new messages and on tab switch.
-	// Streaming scroll is handled by shouldAdjustScrollPositionOnItemSizeChange.
-	useEffect(() => {
-		const wasInactive = !prevIsActiveRef.current;
-		prevIsActiveRef.current = isActive;
-
-		if (!isActive || messages.length === 0) return;
-
-		if (wasInactive) {
-			// Tab became active — always go to bottom
-			window.requestAnimationFrame(() => {
-				virtualizerRef.current.scrollToIndex(
-					messages.length - 1,
-					{ align: "end" },
-				);
-			});
-			return;
-		}
-
-		// New message: auto-scroll if pinned to bottom
-		if (scrollSmoothRef.current) {
-			scrollSmoothRef.current = false;
-			window.requestAnimationFrame(() => {
-				virtualizerRef.current.scrollToIndex(
-					messages.length - 1,
-					{ align: "end", behavior: "smooth" },
-				);
-			});
-			return;
-		}
-
-		if (isAtBottomRef.current) {
-			window.requestAnimationFrame(() => {
-				virtualizerRef.current.scrollToIndex(
-					messages.length - 1,
-					{ align: "end" },
-				);
-			});
-		}
-		// Deps intentionally exclude `messages` (the array reference).
-		// During streaming, `messages` gets a new reference on every chunk
-		// (standard `setMessages([...prev.slice(0,-1), {...last, content: last.content + delta}])`
-		// pattern), but `messages.length` does not change. Including `messages`
-		// here would fire this effect on every chunk and call scrollToIndex
-		// continuously, fighting the virtualizer's
-		// shouldAdjustScrollPositionOnItemSizeChange auto-adjust and producing
-		// visible scroll jitter. Streaming-time scroll is handled by
-		// shouldAdjustScrollPositionOnItemSizeChange alone (see top of file).
-	}, [messages.length, isActive]);
+	// Wire Authority A's gate to the hook. The hook's shouldAdjust has
+	// stable identity across renders (reads from refs), so this assignment
+	// is safe to do every render — the virtualizer sees the same callback.
+	virtualizer.shouldAdjustScrollPositionOnItemSizeChange = shouldAdjust;
 
 	// ============================================================
 	// Render
 	// ============================================================
 
-	// Empty state
+	// Inactive tabs: render only the container (preserves containerRef for
+	// the hook's observers but mounts no virtualizer/bubbles/markdown).
+	// The parent <TabPanel> already applies display:none, so the user sees
+	// nothing different — but the React tree is now negligibly cheap on
+	// inactive tabs. See spec § Inactive-tab cost-minimization (T112, T128).
+	if (!isActive) {
+		return (
+			<div
+				ref={containerRef}
+				className="agent-client-chat-view-messages"
+				aria-hidden="true"
+			/>
+		);
+	}
+
+	// Empty state — same container <div>, different children. Unified into
+	// a single return path (vs. early return) so containerRef is attached
+	// to the same DOM node in both empty and populated states. This
+	// guarantees the scroll listener registered by useAutoScrollPin
+	// survives the empty→populated transition.
 	if (messages.length === 0) {
 		return (
 			<div ref={containerRef} className="agent-client-chat-view-messages">
@@ -300,22 +207,26 @@ export function MessageList({
 			</div>
 
 			{/* Scroll to bottom button */}
-			{!isAtBottom && <ScrollToBottomButton virtualizer={virtualizer} messageCount={messages.length} />}
+			{!isPinned && (
+				<ScrollToBottomButton
+					onClick={() =>
+						scrollToBottom({ behavior: "smooth" })
+					}
+				/>
+			)}
 		</div>
 	);
 }
 
 /**
  * Extracted scroll-to-bottom button with a stable ref for setIcon.
- * Avoids the inline callback ref cycling that swallows click events (same fix as I7).
+ * Avoids the inline callback ref cycling that swallows click events
+ * (same fix as I7).
+ *
+ * Click handler is provided by the parent via the useAutoScrollPin hook's
+ * scrollToBottom callback — keeps scroll concerns in one place.
  */
-function ScrollToBottomButton({
-	virtualizer,
-	messageCount,
-}: {
-	virtualizer: ReturnType<typeof useVirtualizer>;
-	messageCount: number;
-}) {
+function ScrollToBottomButton({ onClick }: { onClick: () => void }) {
 	const btnRef = useRef<HTMLButtonElement>(null);
 
 	useEffect(() => {
@@ -328,12 +239,7 @@ function ScrollToBottomButton({
 		<button
 			ref={btnRef}
 			className="agent-client-scroll-to-bottom"
-			onClick={() => {
-				virtualizer.scrollToIndex(messageCount - 1, {
-					align: "end",
-					behavior: "smooth",
-				});
-			}}
+			onClick={onClick}
 		/>
 	);
 }
