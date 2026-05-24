@@ -247,14 +247,6 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 								key={index}
 								diff={item}
 								plugin={plugin}
-								autoCollapse={
-									plugin.settings.displaySettings
-										.autoCollapseDiffs
-								}
-								collapseThreshold={
-									plugin.settings.displaySettings
-										.diffCollapseThreshold
-								}
 							/>
 						);
 					}
@@ -287,8 +279,6 @@ interface DiffRendererProps {
 		newText: string;
 	};
 	plugin: AgentClientPlugin;
-	autoCollapse?: boolean;
-	collapseThreshold?: number;
 }
 
 /**
@@ -377,11 +367,7 @@ function renderWordDiff(
 // Number of context lines to show around changes
 const CONTEXT_LINES = 3;
 
-function DiffRenderer({
-	diff,
-	autoCollapse = false,
-	collapseThreshold = 10,
-}: DiffRendererProps) {
+function DiffRenderer({ diff }: DiffRendererProps) {
 	// Generate diff using the diff library
 	const diffLines = useMemo(() => {
 		if (isNewFile(diff)) {
@@ -506,44 +492,14 @@ function DiffRenderer({
 		);
 	};
 
-	// Determine if collapsing is needed (only when exceeding threshold)
-	const shouldCollapse = autoCollapse && diffLines.length > collapseThreshold;
-
-	// Collapse state (initially collapsed if shouldCollapse is true)
-	const [isCollapsed, setIsCollapsed] = useState(shouldCollapse);
-
-	// Lines to display (threshold lines when collapsed)
-	const visibleLines = isCollapsed
-		? diffLines.slice(0, collapseThreshold)
-		: diffLines;
-
-	// Remaining lines count
-	const remainingLines = diffLines.length - collapseThreshold;
-
 	return (
 		<div className="agent-client-tool-call-diff">
 			{isNewFile(diff) ? (
 				<div className="agent-client-diff-line-info">New file</div>
 			) : null}
 			<div className="agent-client-tool-call-diff-content">
-				{visibleLines.map((line, idx) => renderLine(line, idx))}
+				{diffLines.map((line, idx) => renderLine(line, idx))}
 			</div>
-			{shouldCollapse && (
-				<div
-					className="agent-client-diff-expand-bar"
-					onClick={() => setIsCollapsed(!isCollapsed)}
-				>
-					<span className="agent-client-diff-expand-text">
-						{isCollapsed
-							? `${remainingLines} more lines`
-							: "Collapse"}
-					</span>
-					<LucideIcon
-						name={isCollapsed ? "chevron-right" : "chevron-up"}
-						className="agent-client-diff-expand-icon"
-					/>
-				</div>
-			)}
 		</div>
 	);
 }

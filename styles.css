@@ -1362,41 +1362,6 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	text-decoration: line-through;
 }
 
-/* Diff Expand/Collapse Bar */
-.agent-client-diff-expand-bar {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 3px 12px;
-	background-color: var(--background-secondary-alt);
-	border-top: 1px solid var(--background-modifier-border);
-	cursor: pointer;
-	user-select: none;
-	transition: background-color 0.1s ease;
-}
-
-.agent-client-diff-expand-bar:hover {
-	background-color: var(--background-modifier-hover);
-}
-
-.agent-client-diff-expand-text {
-	font-size: 11px;
-	color: var(--text-muted);
-	font-family: var(--font-monospace);
-}
-
-.agent-client-diff-expand-icon {
-	display: flex;
-	align-items: center;
-	color: var(--text-muted);
-	margin-left: 8px;
-}
-
-.agent-client-diff-expand-icon svg {
-	width: 14px;
-	height: 14px;
-}
-
 /* Tool Call Details */
 .agent-client-tool-call-read-details,
 .agent-client-tool-call-edit-details,
