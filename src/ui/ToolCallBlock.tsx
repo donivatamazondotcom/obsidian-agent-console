@@ -149,15 +149,15 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 						className="agent-client-message-tool-call-icon"
 					/>
 				)}
-				<span className="agent-client-message-tool-call-summary-title">
-					{title}
-				</span>
 				{status !== "completed" && (
 					<LucideIcon
 						name={status === "failed" ? "x" : "ellipsis"}
 						className={`agent-client-message-tool-call-status-icon agent-client-status-${status}`}
 					/>
 				)}
+				<span className="agent-client-message-tool-call-summary-title">
+					{title}
+				</span>
 				<span className="agent-client-message-tool-call-summary-lines">
 					{lineCount > 0 ? `${lineCount} lines` : ""}
 				</span>
