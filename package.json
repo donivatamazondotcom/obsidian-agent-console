@@ -11,6 +11,8 @@
 		"format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"*.css\"",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
+		"test": "vitest run --passWithNoTests",
+		"test:watch": "vitest",
 		"docs:dev": "vitepress dev docs",
 		"docs:build": "vitepress build docs",
 		"docs:preview": "vitepress preview docs"
@@ -19,7 +21,9 @@
 	"author": "",
 	"license": "Apache-2.0",
 	"devDependencies": {
-		"@types/node": "^16.11.6",
+		"@testing-library/jest-dom": "^6.9.1",
+		"@testing-library/react": "^16.3.2",
+		"@types/node": "^18.19.130",
 		"@types/react": "18.3.29",
 		"@types/react-dom": "18.3.7",
 		"@types/semver": "^7.7.1",
@@ -28,12 +32,14 @@
 		"esbuild": "0.17.3",
 		"eslint": "^9.0.0",
 		"eslint-plugin-obsidianmd": "^0.1.9",
+		"jsdom": "^29.1.1",
 		"obsidian": "latest",
 		"prettier": "^3.4.2",
 		"tslib": "2.4.0",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.0.0",
-		"vitepress": "^1.6.4"
+		"vitepress": "^1.6.4",
+		"vitest": "^2.1.9"
 	},
 	"dependencies": {
 		"@agentclientprotocol/sdk": "^0.14.1",
