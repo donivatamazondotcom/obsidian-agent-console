@@ -1,16 +1,61 @@
 /**
  * Unit tests for useAutoScrollPin.
  *
- * Coverage targets behaviors T100–T131 from the spec at
- * 04-initiatives/Agent Console/ACP Scroll Architecture Rework.md, with
- * each behavior testable at the hook level marked here. Behaviors
- * requiring real Obsidian (tab-switch flicker absence, real virtualizer
- * measurement, real leaf transitions) are noted as `test.todo()` and
- * verified manually via the smoke-test checklist.
+ * ============================================================================
+ * COVERAGE BOUNDARY — read this first
+ * ============================================================================
  *
- * Test approach: render the hook with mock containerRef/virtualizerRef,
- * drive it through transitions (rerender with new props, fire scroll
- * events), and assert on `pinState` / `isPinned` / `shouldAdjust`.
+ * This suite covers what JSDOM can simulate. JSDOM has no real layout engine:
+ * scrollTop / scrollHeight / clientHeight are direct property writes here,
+ * NOT the result of CSS layout. ResizeObserver is stubbed. The virtualizer
+ * is a `vi.fn()` mock with no measurement state. Real React rendering happens
+ * via @testing-library/react, but no actual DOM measurement.
+ *
+ * Bug classes COVERED by this unit suite:
+ *   ✓ State transition logic (pin state machine)
+ *   ✓ Hysteresis threshold values AND architectural intent (property-based)
+ *   ✓ shouldAdjust gate behavior
+ *   ✓ scrollToBottom invocation arguments (full toHaveBeenCalledWith)
+ *   ✓ Same-value bail (no-op transitions; renders not scheduled)
+ *   ✓ Smooth-scroll on user-sent path
+ *   ✓ Tab-activation transitions (pin re-arming, anchor index, alignment)
+ *   ✓ Empty-state and zero-height-container safety
+ *
+ * Bug classes that are JSDOM-IMPOSSIBLE and require manual smoke test:
+ *   ✗ Virtualizer measurement cache staleness after display:none periods
+ *     (e.g., Known Issue I-S3 in the spec)
+ *   ✗ Real ResizeObserver behavior on layout changes
+ *   ✗ User-perceived jitter from rapid scrollTop oscillation
+ *   ✗ Tab activation flicker timing
+ *   ✗ rAF scheduling against real frame timing
+ *   ✗ Interaction between Authority A's adjust and the scroll listener's
+ *     reading of in-flight DOM values
+ *
+ * The smoke-test checklist in the spec at
+ * 04-initiatives/Agent Console/ACP Scroll Architecture Rework.md § Test results
+ * is LOAD-BEARING for the second list. The number of passing unit tests here
+ * is NOT a sufficient signal of coverage on its own.
+ *
+ * ============================================================================
+ * Test design conventions (per spec Decision #13)
+ * ============================================================================
+ *
+ * 1. Property-based tests for thresholds via `it.each` across value ranges.
+ *    Captured-evidence values become a subset of the test surface, not the
+ *    whole surface. See the "hysteresis property tests" describe block below.
+ *
+ * 2. Always full-argument `toHaveBeenCalledWith` for spy assertions. Never
+ *    bare `toHaveBeenCalled` — the arguments are part of the contract. See
+ *    the "tab activation arguments" describe block for the I-S2 regression
+ *    net.
+ *
+ * 3. Architectural-intent tests live alongside implementation tests. When
+ *    they disagree (e.g., the captured-evidence threshold says "stays pinned"
+ *    but the architectural intent says "absorbs streaming bursts"), prefer
+ *    the architectural intent and surface the disagreement as an open issue.
+ *
+ * Coverage targets behaviors T100–T131 from the spec, with each behavior's
+ * Txx ID called out in the test name.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,7 +64,11 @@ import type { Virtualizer } from "@tanstack/react-virtual";
 import type { App } from "obsidian";
 
 import { useAutoScrollPin } from "../use-auto-scroll-pin";
-import type { UseAutoScrollPinParams } from "../use-auto-scroll-pin.types";
+import {
+	NEAR_BOTTOM_FLIP_TO_FALSE_PX,
+	NEAR_BOTTOM_FLIP_TO_TRUE_PX,
+	type UseAutoScrollPinParams,
+} from "../use-auto-scroll-pin.types";
 import type { IChatViewHost } from "../view-host";
 
 // ============================================================================
@@ -218,6 +267,143 @@ describe("initial state", () => {
 
 // ============================================================================
 // T103, T104, T106: Hysteresis (closes I36 partial regression, I37 M2/M3)
+
+// ----------------------------------------------------------------------------
+// Property-based threshold tests (Lesson 1)
+// ----------------------------------------------------------------------------
+//
+// These tests use `it.each` across a value range, NOT point tests at the
+// captured-evidence values (37/60/80/200 px). They test the architectural
+// intent: hysteresis should absorb measurement-race noise BUT respect
+// genuine user scrolls.
+//
+// IMPORTANT: these tests reveal Known Issue I-S1 from the spec. The
+// hysteresis upper threshold (NEAR_BOTTOM_FLIP_TO_FALSE_PX = 100 px) was
+// sized off captured I37 evidence which was bounded at 80 px. Real growth
+// bursts during streaming (code-block mounts ~200 px, table renders, image
+// embeds) can exceed this threshold. The "absorb streaming bursts" promise
+// is NOT met by the current threshold.
+//
+// The property-based tests below are split into two groups:
+//   1. Tests that pass against the CURRENT implementation
+//   2. Tests that document the I-S1 architectural gap as `test.fails`
+//      (Vitest's "this test is expected to fail" marker). When the I-S1
+//      fix lands (adjust-flag wrapper), these tests flip to `it.each`
+//      proper and start asserting the architectural promise.
+
+describe("hysteresis property-based — current implementation", () => {
+	// Current behavior: pinned stays pinned below threshold (gap <= 100),
+	// unpinned re-pins below slack zone (gap < 35).
+	const STAYS_PINNED_GAPS = [0, 10, 20, 30, 35, 40, 50, 60, 70, 80, 90, 100];
+	const UNPINS_GAPS = [101, 110, 150, 200, 300, 500, 1000];
+
+	it.each(STAYS_PINNED_GAPS)(
+		"stays pinned when gap is %i px (within current dead zone)",
+		(gap) => {
+			const { params, container } = makeParams();
+			const { result } = renderHook(() => useAutoScrollPin(params));
+			expect(result.current.pinState).toBe("pinned");
+			simulateScroll(container, {
+				scrollTop: 200 - gap,
+				scrollHeight: 1000,
+				clientHeight: 800,
+			});
+			expect(result.current.pinState).toBe("pinned");
+		},
+	);
+
+	it.each(UNPINS_GAPS)(
+		"un-pins when gap is %i px (above current threshold)",
+		(gap) => {
+			const { params, container } = makeParams();
+			const { result } = renderHook(() => useAutoScrollPin(params));
+			simulateScroll(container, {
+				scrollTop: Math.max(0, 200 - gap),
+				scrollHeight: 1000,
+				clientHeight: 800,
+			});
+			expect(result.current.pinState).toBe("unpinned");
+		},
+	);
+
+	// Verifies that the threshold values from the types module match what
+	// the implementation uses. If a future change adjusts the constants but
+	// forgets the implementation (or vice versa), this catches the drift.
+	it("threshold constants are 100 / 35 px (sanity check)", () => {
+		expect(NEAR_BOTTOM_FLIP_TO_FALSE_PX).toBe(100);
+		expect(NEAR_BOTTOM_FLIP_TO_TRUE_PX).toBe(35);
+	});
+});
+
+describe("hysteresis property-based — architectural intent (I-S1 regression net)", () => {
+	// These tests express the architectural promise: "during streaming, the
+	// pin holds across legitimate growth bursts of any reasonable size."
+	// They are CURRENTLY FAILING — the threshold-based hysteresis can't
+	// distinguish a 200-px code-block-mount from a 200-px user scroll.
+	//
+	// When the I-S1 fix lands (adjust-flag wrapper or rAF debouncer), these
+	// tests should be flipped from `it.fails.each` to `it.each` — they then
+	// become the regression net that prevents I-S1 from coming back.
+
+	const STREAMING_BURST_SIZES = [120, 150, 200, 250, 300, 500];
+
+	it.fails.each(STREAMING_BURST_SIZES)(
+		"INTENT: stays pinned during streaming burst of %i px (I-S1; will fail until adjust-flag fix lands)",
+		(burstSize) => {
+			// Simulate a streaming burst: scrollHeight grows by burstSize
+			// in a single frame, scrollTop hasn't caught up yet (Authority
+			// A's adjust is mid-flight). The scroll event fires with the
+			// in-flight gap.
+			//
+			// Architectural promise: scroll listener should recognize this
+			// as a virtualizer-driven event and bail, not transition to
+			// unpinned.
+			const { params, container } = makeParams();
+			const { result } = renderHook(() => useAutoScrollPin(params));
+			expect(result.current.pinState).toBe("pinned");
+
+			// Initial state: gap=0 (perfectly at bottom)
+			simulateScroll(container, {
+				scrollTop: 200,
+				scrollHeight: 1000,
+				clientHeight: 800,
+			});
+			expect(result.current.pinState).toBe("pinned");
+
+			// Streaming burst: scrollHeight grows but scrollTop hasn't
+			// caught up. Gap = burstSize.
+			simulateScroll(container, {
+				scrollTop: 200,
+				scrollHeight: 1000 + burstSize,
+				clientHeight: 800,
+			});
+
+			// Architectural promise: stays pinned. Currently fails for
+			// burstSize > 100.
+			expect(result.current.pinState).toBe("pinned");
+		},
+	);
+
+	it("INTENT: legitimate user scrolls past the burst threshold still un-pin", () => {
+		// Counter-test: even after the I-S1 fix, a genuine user scroll
+		// (not a virtualizer adjust) should still un-pin. This test
+		// expresses the discriminating constraint that the fix must NOT
+		// break — the fix can't simply "make the threshold infinite."
+		//
+		// Currently passes because scroll events without an in-flight
+		// adjust correctly un-pin at gap > 100.
+		const { params, container } = makeParams();
+		const { result } = renderHook(() => useAutoScrollPin(params));
+
+		// User scrolls up by 200 px (no virtualizer adjust mid-flight)
+		simulateScroll(container, {
+			scrollTop: 0,
+			scrollHeight: 1000,
+			clientHeight: 800,
+		});
+		expect(result.current.pinState).toBe("unpinned");
+	});
+});
 // ============================================================================
 
 describe("hysteresis on scroll events", () => {
@@ -429,7 +615,15 @@ describe("tab-switch back re-arms pin (I37 Mechanism 1)", () => {
 		// Post-fix: re-arms regardless of messageCount.
 		rerender({ isActive: true });
 
-		expect(virtualizer.scrollToIndex).toHaveBeenCalled();
+		// Lesson 2: full-argument assertion. The bare `toHaveBeenCalled()`
+		// would pass even if the activation called `scrollToIndex(0,
+		// { align: "start" })` — which would land the viewport at the TOP
+		// of the message list (visual symptom of I-S2). Asserting the
+		// arguments forces the contract to be verified.
+		expect(virtualizer.scrollToIndex).toHaveBeenCalledWith(
+			9, // messageCount - 1 = 10 - 1
+			expect.objectContaining({ align: "end" }),
+		);
 		// After scrollToIndex completes (rAF), state resolves to pinned.
 		// Test framework runs rAF synchronously enough that we see pinned.
 	});
@@ -457,6 +651,106 @@ describe("tab-switch back re-arms pin (I37 Mechanism 1)", () => {
 
 		// Should NOT have called scrollToIndex (preserves user's position)
 		expect(virtualizer.scrollToIndex).not.toHaveBeenCalled();
+	});
+});
+
+// ============================================================================
+// I-S2 regression net (tab-activation anchor)
+// ============================================================================
+//
+// Smoke test (T117 / I-S2 in the spec) reported that tab activation lands
+// the viewport at "the first message after the most recent user prompt"
+// instead of the bottom. The arg-tightened test in the previous describe
+// block confirms the hook DOES call scrollToIndex(messageCount - 1,
+// { align: "end" }) — i.e., the unit test as far as JSDOM can verify is
+// passing. The actual symptom must be downstream of scrollToIndex (most
+// likely virtualizer measurement-cache staleness, same family as I-S3).
+//
+// This describe block captures the full-arg expectation as a regression
+// net: any future change that "fixes I-S2" by changing the call arguments
+// (rather than fixing the measurement cache) will trigger these tests.
+// They're CURRENTLY PASSING because the hook's current arguments are
+// correct.
+
+describe("I-S2 regression net (tab-activation arg contract)", () => {
+	it("scrollToIndex on activation uses align: end (not align: start)", () => {
+		const { params, virtualizer } = makeParams();
+		const { rerender } = renderHook(
+			({ isActive }: { isActive: boolean }) =>
+				useAutoScrollPin({ ...params, isActive }),
+			{ initialProps: { isActive: true } },
+		);
+		rerender({ isActive: false });
+		rerender({ isActive: true });
+
+		// I-S2 hypothesis #1 in spec: align: "start" would land latest
+		// message at top. This test rejects that hypothesis.
+		expect(virtualizer.scrollToIndex).toHaveBeenCalledWith(
+			expect.any(Number),
+			expect.objectContaining({ align: "end" }),
+		);
+		expect(virtualizer.scrollToIndex).not.toHaveBeenCalledWith(
+			expect.any(Number),
+			expect.objectContaining({ align: "start" }),
+		);
+	});
+
+	it("scrollToIndex on activation targets messageCount - 1 (not lastUserMessageIndex)", () => {
+		const { params, virtualizer } = makeParams({ messageCount: 10 });
+		const { rerender } = renderHook(
+			({ isActive }: { isActive: boolean }) =>
+				useAutoScrollPin({ ...params, isActive }),
+			{ initialProps: { isActive: true } },
+		);
+		rerender({ isActive: false });
+		rerender({ isActive: true });
+
+		// I-S2 hypothesis #2 in spec: targeting `lastUserMessageIndex + 1`
+		// would land at the start of the assistant's response. This test
+		// rejects that hypothesis — we always target the absolute last
+		// message.
+		expect(virtualizer.scrollToIndex).toHaveBeenCalledWith(
+			9, // messageCount - 1
+			expect.anything(),
+		);
+	});
+
+	it("subsequent tab activations after a pill click STILL re-arm pin (consistency check)", () => {
+		// Smoke test observation: "after clicking the pill to recover,
+		// switching to another tab and back AGAIN reverts to the wrong
+		// anchor — pill recovery is NOT sticky across subsequent tab
+		// switches."
+		//
+		// The hook's current behavior: activation always calls
+		// scrollToBottom() if was-pinned-before-deactivation. Even after
+		// the user re-pinned via the pill, the next deactivation captures
+		// "was pinned" → next activation re-fires scrollToIndex.
+		//
+		// This is CORRECT behavior at the unit level — the hook is doing
+		// what we asked. The bug is that scrollToIndex's effect doesn't
+		// land at the visual bottom in real Obsidian (downstream of this
+		// test). When the I-S2 fix lands, this test should still pass —
+		// the fix is in the virtualizer/measurement layer, not in when
+		// the hook calls scrollToIndex.
+		const { params, virtualizer } = makeParams({ messageCount: 10 });
+		const { result, rerender } = renderHook(
+			({ isActive }: { isActive: boolean }) =>
+				useAutoScrollPin({ ...params, isActive }),
+			{ initialProps: { isActive: true } },
+		);
+
+		// Cycle 1: deactivate, reactivate
+		rerender({ isActive: false });
+		rerender({ isActive: true });
+		expect(virtualizer.scrollToIndex).toHaveBeenCalledTimes(1);
+		expect(result.current.pinState).toBe("pinned");
+
+		// Cycle 2: deactivate, reactivate again (after the user has been
+		// using the pinned tab — pin state is still "pinned")
+		rerender({ isActive: false });
+		rerender({ isActive: true });
+		expect(virtualizer.scrollToIndex).toHaveBeenCalledTimes(2);
+		expect(result.current.pinState).toBe("pinned");
 	});
 });
 
