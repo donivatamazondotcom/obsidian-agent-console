@@ -1,10 +1,12 @@
 import {
+	addIcon,
 	Plugin,
 	WorkspaceLeaf,
 	Notice,
 	requestUrl,
 } from "obsidian";
 import * as semver from "semver";
+import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
 import {
 	createFloatingChat,
@@ -213,14 +215,19 @@ export default class AgentClientPlugin extends Plugin {
 		this.app.workspace.detachLeavesOfType(VIEW_TYPE_CHAT);
 		this.registerView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
 
+		// Register the Agent Console brand icon before adding the ribbon button.
+		// addIcon takes inner SVG content (no <svg> wrapper) and Obsidian renders
+		// it inside a 0 0 100 100 viewBox. See src/ui/branding.ts for the geometry.
+		addIcon("agent-console", AGENT_CONSOLE_SVG);
+
 		const ribbonIconEl = this.addRibbonIcon(
-			"bot-message-square",
-			"Open agent client",
+			"agent-console",
+			"Agent Console",
 			(_evt: MouseEvent) => {
 				void this.activateView();
 			},
 		);
-		ribbonIconEl.addClass("agent-client-ribbon-icon");
+		ribbonIconEl.addClass("agent-console-ribbon-icon");
 
 		this.addCommand({
 			id: "open-chat-view",
