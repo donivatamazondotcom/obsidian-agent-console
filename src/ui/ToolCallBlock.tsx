@@ -8,6 +8,7 @@ import { TerminalBlock } from "./TerminalBlock";
 import { PermissionBanner } from "./PermissionBanner";
 import { LucideIcon } from "./shared/IconButton";
 import { toRelativePath } from "../utils/paths";
+import { countLines } from "../utils/toolCallSummary";
 import * as Diff from "diff";
 // import { MarkdownRenderer } from "./shared/MarkdownRenderer";
 
@@ -88,11 +89,87 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 		}
 	};
 
+	// ============================================================
+	// Compact tool-call render — the block is collapsed by default
+	// to one summary row. Click expands to the full body. See
+	// 04-initiatives/Agent Console/Agent Console Compact Tool Calls.md
+	// for the full design (C3 lands the click-to-expand baseline; C4
+	// adds status icon, C5 adds live preview line).
+	// ============================================================
+
+	// Pending permission requests force expansion — the user must be
+	// able to see the PermissionBanner to act on the request.
+	const hasPendingPermission =
+		!!permissionRequest && !permissionRequest.selectedOptionId;
+
+	const [isExpanded, setIsExpanded] = useState(hasPendingPermission);
+
+	// If a pending permission shows up after initial render (e.g., during
+	// a streaming tool call), open the block. Don't auto-collapse it again
+	// after the user has interacted — manual state wins.
+	const userHasToggledRef = React.useRef(false);
+	React.useEffect(() => {
+		if (hasPendingPermission && !isExpanded && !userHasToggledRef.current) {
+			setIsExpanded(true);
+		}
+	}, [hasPendingPermission, isExpanded]);
+
+	const toggleExpanded = () => {
+		userHasToggledRef.current = true;
+		setIsExpanded((prev) => !prev);
+	};
+
+	const lineCount = useMemo(() => countLines(content), [content]);
+
+	if (!isExpanded) {
+		return (
+			<button
+				type="button"
+				className="agent-client-message-tool-call agent-client-message-tool-call-summary"
+				aria-expanded={false}
+				onClick={toggleExpanded}
+			>
+				<LucideIcon
+					name="chevron-right"
+					className="agent-client-message-tool-call-summary-caret"
+				/>
+				{showEmojis && (
+					<LucideIcon
+						name={getKindIconName(kind)}
+						className="agent-client-message-tool-call-icon"
+					/>
+				)}
+				<span className="agent-client-message-tool-call-summary-title">
+					{title}
+				</span>
+				<span className="agent-client-message-tool-call-summary-lines">
+					{lineCount > 0 ? `${lineCount} lines` : ""}
+				</span>
+			</button>
+		);
+	}
+
 	return (
 		<div className="agent-client-message-tool-call">
 			{/* Header */}
-			<div className="agent-client-message-tool-call-header">
+			<div
+				className="agent-client-message-tool-call-header agent-client-message-tool-call-header-clickable"
+				onClick={toggleExpanded}
+				role="button"
+				tabIndex={0}
+				aria-expanded={true}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						toggleExpanded();
+					}
+				}}
+			>
 				<div className="agent-client-message-tool-call-title">
+					<LucideIcon
+						name="chevron-down"
+						className="agent-client-message-tool-call-summary-caret"
+					/>
 					{showEmojis && (
 						<LucideIcon
 							name={getKindIconName(kind)}

@@ -196,6 +196,77 @@ If your plugin does not need CSS, delete this file.
 	max-width: 100%;
 }
 
+/*
+ * Compact tool-call summary row (collapsed default).
+ * Renders as a single clickable row: [chevron <kind-icon> <title> ………… N lines]
+ * See spec: 04-initiatives/Agent Console/Agent Console Compact Tool Calls.md
+ */
+button.agent-client-message-tool-call-summary {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	padding: 6px 8px;
+	margin-bottom: 12px;
+	font-family: inherit;
+	font-size: 0.85em;
+	font-weight: bold;
+	color: var(--text-normal);
+	background-color: transparent;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	text-align: left;
+	cursor: pointer;
+	user-select: text;
+	overflow: hidden;
+	box-shadow: none;
+}
+
+button.agent-client-message-tool-call-summary:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+button.agent-client-message-tool-call-summary:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 1px;
+}
+
+.agent-client-message-tool-call-summary-caret {
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	color: var(--text-muted);
+}
+
+.agent-client-message-tool-call-summary-caret svg {
+	width: 14px;
+	height: 14px;
+}
+
+.agent-client-message-tool-call-summary-title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-client-message-tool-call-summary-lines {
+	flex-shrink: 0;
+	font-weight: normal;
+	font-size: 0.9em;
+	color: var(--text-muted);
+}
+
+/* When the block is expanded, the header itself becomes the toggle target. */
+.agent-client-message-tool-call-header-clickable {
+	cursor: pointer;
+}
+
+.agent-client-message-tool-call-header-clickable:hover .agent-client-message-tool-call-title-text {
+	color: var(--text-accent);
+}
+
 .agent-client-message-tool-call-title {
 	display: flex;
 	align-items: center;
