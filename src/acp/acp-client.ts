@@ -391,6 +391,7 @@ export class AcpClient {
 			this.logger.log(
 				`[AcpClient] ✅ Connected to agent (protocol v${initResult.protocolVersion})`,
 			);
+			this.logger.log("[AcpClient] agentInfo:", initResult.agentInfo);
 
 			this.isInitializedFlag = true;
 			this.currentAgentId = config.id;

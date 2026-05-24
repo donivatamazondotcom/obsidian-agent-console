@@ -523,6 +523,81 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	min-width: 0;
 }
 
+/* ===== Header Branding (BrandedTitle component) =====
+ *
+ * v0 layered three-segment header title shared by sidebar and floating headers.
+ * Layout: [Plugin] Profile · Model
+ *
+ * Visual hierarchy:
+ *   - Primary segments (plugin, profile) use default text color
+ *   - Secondary segment (model, connecting placeholder) uses --text-muted
+ *
+ * Truncation tiers (set as a width-derived class on the inner BrandedTitle
+ * span by `useHeaderWidthTier` in ChatHeader.tsx; the OBSERVED element is
+ * the parent title slot, not this inner span):
+ *   wide   (≥280px): all visible segments shown
+ *   medium (≥180px): plugin prefix hidden
+ *   narrow (≥120px): same as medium; model truncates via ellipsis
+ *   tight  (<120px): model harder-truncated via max-width
+ *
+ * Profile name is never hidden — it's the only signal that distinguishes
+ * one configured profile from another.
+ *
+ * Runtime version (e.g. "Kiro CLI Agent 2.4.0") is NOT in the visible header
+ * for v0 — it's surfaced via the `title` tooltip on the parent title slot.
+ * See spec § Decisions #11.
+ */
+.acp-header-branded {
+	display: inline-flex;
+	flex-wrap: nowrap;
+	align-items: baseline;
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+}
+
+.acp-header-branded-plugin {
+	color: var(--text-normal);
+	flex-shrink: 0;
+	margin-right: 0.4em;
+}
+
+.acp-header-branded-profile {
+	color: var(--text-normal);
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
+.acp-header-branded-sep {
+	color: var(--text-faint);
+	flex-shrink: 0;
+	white-space: pre;
+}
+
+.acp-header-branded-model,
+.acp-header-branded-connecting {
+	color: var(--text-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+/* Model can shrink via ellipsis when the row tightens */
+.acp-header-branded-model {
+	flex-shrink: 1;
+}
+
+.acp-header-branded-connecting {
+	flex-shrink: 0;
+	font-style: italic;
+}
+
+/* Tight tier: extra-aggressive model truncation to keep profile readable */
+.acp-header-branded--tight .acp-header-branded-model {
+	max-width: 8em;
+}
+
 /* ===== Inline Header (Floating/CodeBlock) ===== */
 .agent-client-inline-header {
 	display: flex;
