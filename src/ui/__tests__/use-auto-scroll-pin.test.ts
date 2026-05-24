@@ -15,6 +15,11 @@
  *   ✓ State transition logic (pin state machine)
  *   ✓ Hysteresis threshold values AND architectural intent (property-based)
  *   ✓ shouldAdjust gate behavior
+ *   ✓ Adjust-flag wrapper lifecycle (set on shouldAdjust=true, expires
+ *     after 50ms, cleared on unmount, re-extended by rapid calls; closes
+ *     I-S1)
+ *   ✓ Discrimination between virtualizer-driven scroll events (flag set)
+ *     and user-driven scroll events (flag unset)
  *   ✓ scrollToBottom invocation arguments (full toHaveBeenCalledWith)
  *   ✓ Same-value bail (no-op transitions; renders not scheduled)
  *   ✓ Smooth-scroll on user-sent path
@@ -338,26 +343,32 @@ describe("hysteresis property-based — current implementation", () => {
 describe("hysteresis property-based — architectural intent (I-S1 regression net)", () => {
 	// These tests express the architectural promise: "during streaming, the
 	// pin holds across legitimate growth bursts of any reasonable size."
-	// They are CURRENTLY FAILING — the threshold-based hysteresis can't
-	// distinguish a 200-px code-block-mount from a 200-px user scroll.
 	//
-	// When the I-S1 fix lands (adjust-flag wrapper or rAF debouncer), these
-	// tests should be flipped from `it.fails.each` to `it.each` — they then
-	// become the regression net that prevents I-S1 from coming back.
+	// HOW THIS MODELS REALITY:
+	//   In real Obsidian, a streaming burst follows this sequence:
+	//     1. Virtualizer detects content size change (e.g., code block mounts)
+	//     2. Virtualizer calls `shouldAdjustScrollPositionOnItemSizeChange()`
+	//        — i.e., our hook's `shouldAdjust` callback
+	//     3. Hook returns `true` (active + pinned) AND sets `recentlyAdjustedRef`
+	//        for ADJUST_FLAG_DURATION_MS (50ms)
+	//     4. Virtualizer adjusts `scrollTop` to keep us pinned
+	//     5. Native `scroll` event fires from step 4's mutation
+	//     6. Scroll listener observes the event, sees `recentlyAdjustedRef`
+	//        is set, BAILS (closes I-S1)
+	//
+	//   The test harness models this by calling `result.current.shouldAdjust()`
+	//   BEFORE dispatching the burst scroll event. Without that call, the
+	//   flag is never set and the test would model a user scroll, not an
+	//   adjust-driven scroll. See Category A tests below for the lifecycle
+	//   contract on shouldAdjust → flag setting.
 
-	const STREAMING_BURST_SIZES = [120, 150, 200, 250, 300, 500];
+	// Coverage range: 101 (just past hysteresis threshold) through 2000
+	// (extreme cases like very tall code blocks or rendered tables).
+	const STREAMING_BURST_SIZES = [101, 120, 150, 200, 250, 300, 500, 1000, 2000];
 
-	it.fails.each(STREAMING_BURST_SIZES)(
-		"INTENT: stays pinned during streaming burst of %i px (I-S1; will fail until adjust-flag fix lands)",
+	it.each(STREAMING_BURST_SIZES)(
+		"INTENT: stays pinned during streaming burst of %i px (I-S1 regression net)",
 		(burstSize) => {
-			// Simulate a streaming burst: scrollHeight grows by burstSize
-			// in a single frame, scrollTop hasn't caught up yet (Authority
-			// A's adjust is mid-flight). The scroll event fires with the
-			// in-flight gap.
-			//
-			// Architectural promise: scroll listener should recognize this
-			// as a virtualizer-driven event and bail, not transition to
-			// unpinned.
 			const { params, container } = makeParams();
 			const { result } = renderHook(() => useAutoScrollPin(params));
 			expect(result.current.pinState).toBe("pinned");
@@ -370,38 +381,372 @@ describe("hysteresis property-based — architectural intent (I-S1 regression ne
 			});
 			expect(result.current.pinState).toBe("pinned");
 
-			// Streaming burst: scrollHeight grows but scrollTop hasn't
-			// caught up. Gap = burstSize.
+			// Step 1-3: virtualizer asks "should I adjust?", hook says yes
+			// and sets the adjust-flag for the next 50ms.
+			act(() => {
+				result.current.shouldAdjust();
+			});
+
+			// Step 4-5: virtualizer adjusts scrollTop, native scroll event
+			// fires. Modeled here as a synthetic scroll event with the
+			// in-flight gap (scrollHeight has grown but scrollTop appears
+			// stale because the adjust is still landing).
 			simulateScroll(container, {
 				scrollTop: 200,
 				scrollHeight: 1000 + burstSize,
 				clientHeight: 800,
 			});
 
-			// Architectural promise: stays pinned. Currently fails for
-			// burstSize > 100.
+			// Step 6: scroll listener bails on adjust-flag. Stays pinned.
 			expect(result.current.pinState).toBe("pinned");
 		},
 	);
 
-	it("INTENT: legitimate user scrolls past the burst threshold still un-pin", () => {
-		// Counter-test: even after the I-S1 fix, a genuine user scroll
-		// (not a virtualizer adjust) should still un-pin. This test
-		// expresses the discriminating constraint that the fix must NOT
-		// break — the fix can't simply "make the threshold infinite."
-		//
-		// Currently passes because scroll events without an in-flight
-		// adjust correctly un-pin at gap > 100.
+	it("INTENT: legitimate user scrolls past the burst threshold still un-pin (no adjust-flag set)", () => {
+		// Counter-test: a genuine user scroll (NO `shouldAdjust()` call
+		// preceding) should still un-pin. The fix must NOT simply "make
+		// the threshold infinite" — it must discriminate between
+		// virtualizer-driven and user-driven scrolls.
 		const { params, container } = makeParams();
 		const { result } = renderHook(() => useAutoScrollPin(params));
 
-		// User scrolls up by 200 px (no virtualizer adjust mid-flight)
+		// User scrolls up by 200 px. NO shouldAdjust() call — so
+		// recentlyAdjustedRef stays false; this is a genuine user scroll.
 		simulateScroll(container, {
 			scrollTop: 0,
 			scrollHeight: 1000,
 			clientHeight: 800,
 		});
 		expect(result.current.pinState).toBe("unpinned");
+	});
+});
+
+// ============================================================================
+// Category A: Adjust-flag lifecycle — closes the test-harness gap that
+// previously meant the I-S1 regression net couldn't actually exercise the
+// fix. These tests verify the contract on `shouldAdjust()`:
+//   - Returning true sets recentlyAdjustedRef for 50ms
+//   - The flag expires cleanly
+//   - Repeated calls re-extend the window
+//   - Returning false (inactive or unpinned) does NOT set the flag
+//   - The flag is cleared on unmount (no leaks, no fire-after-unmount)
+// ============================================================================
+
+describe("adjust-flag lifecycle (I-S1 fix contract)", () => {
+	it("A1: shouldAdjust=true causes the next scroll-event to be ignored within 50ms", () => {
+		const { params, container } = makeParams();
+		const { result } = renderHook(() => useAutoScrollPin(params));
+		expect(result.current.pinState).toBe("pinned");
+
+		// Set the flag
+		act(() => {
+			result.current.shouldAdjust();
+		});
+
+		// Burst scroll arrives within the 50ms window
+		simulateScroll(container, {
+			scrollTop: 200,
+			scrollHeight: 1200, // gap=200, way past threshold
+			clientHeight: 800,
+		});
+
+		// Stays pinned because flag was set
+		expect(result.current.pinState).toBe("pinned");
+	});
+
+	it("A2: flag expires after 50ms; subsequent burst-sized scroll un-pins normally", () => {
+		vi.useFakeTimers();
+		try {
+			const { params, container } = makeParams();
+			const { result } = renderHook(() => useAutoScrollPin(params));
+
+			act(() => {
+				result.current.shouldAdjust();
+			});
+
+			// Advance past the 50ms window
+			act(() => {
+				vi.advanceTimersByTime(51);
+			});
+
+			// Now a 200-px scroll should be treated as a user scroll
+			simulateScroll(container, {
+				scrollTop: 0,
+				scrollHeight: 1000,
+				clientHeight: 800,
+			});
+
+			expect(result.current.pinState).toBe("unpinned");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("A3: scroll event WITHOUT a preceding shouldAdjust call is treated as user scroll", () => {
+		const { params, container } = makeParams();
+		const { result } = renderHook(() => useAutoScrollPin(params));
+
+		// No shouldAdjust call — flag stays false
+		simulateScroll(container, {
+			scrollTop: 0,
+			scrollHeight: 1000,
+			clientHeight: 800,
+		});
+
+		expect(result.current.pinState).toBe("unpinned");
+	});
+
+	it("A4: multiple shouldAdjust calls re-extend the window (rAF-spaced adjusts)", () => {
+		vi.useFakeTimers();
+		try {
+			const { params, container } = makeParams();
+			const { result } = renderHook(() => useAutoScrollPin(params));
+
+			// First adjust at t=0
+			act(() => {
+				result.current.shouldAdjust();
+			});
+
+			// 30ms later, second adjust (extends window to t=80)
+			act(() => {
+				vi.advanceTimersByTime(30);
+			});
+			act(() => {
+				result.current.shouldAdjust();
+			});
+
+			// 40ms after first call (10ms after second), scroll event fires.
+			// Total elapsed: 30 + 10 = 40ms (within original window AND
+			// within extended window). Should still be pinned.
+			act(() => {
+				vi.advanceTimersByTime(10);
+			});
+			simulateScroll(container, {
+				scrollTop: 200,
+				scrollHeight: 1200,
+				clientHeight: 800,
+			});
+
+			expect(result.current.pinState).toBe("pinned");
+
+			// Now advance to 81ms after second call (= 111ms after first).
+			// Window from second call expired. Scroll should un-pin.
+			act(() => {
+				vi.advanceTimersByTime(71);
+			});
+			simulateScroll(container, {
+				scrollTop: 0,
+				scrollHeight: 1000,
+				clientHeight: 800,
+			});
+
+			expect(result.current.pinState).toBe("unpinned");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("A5: shouldAdjust returning false (unpinned) does NOT set the flag", () => {
+		const { params, container } = makeParams();
+		const { result } = renderHook(() => useAutoScrollPin(params));
+
+		// First, un-pin via a user scroll
+		simulateScroll(container, {
+			scrollTop: 0,
+			scrollHeight: 1000,
+			clientHeight: 800,
+		});
+		expect(result.current.pinState).toBe("unpinned");
+
+		// shouldAdjust now returns false (unpinned)
+		let returnValue: boolean | undefined;
+		act(() => {
+			returnValue = result.current.shouldAdjust();
+		});
+		expect(returnValue).toBe(false);
+
+		// Re-pin via slack-zone scroll. If the flag had been set by the
+		// false-returning shouldAdjust, this scroll would be incorrectly
+		// bailed — the pin state would NOT update. Verify it does update.
+		simulateScroll(container, {
+			scrollTop: 180,
+			scrollHeight: 1000,
+			clientHeight: 800, // gap = 1000 - (180 + 800) = 20 (within slack)
+		});
+		expect(result.current.pinState).toBe("pinned");
+	});
+
+	it("A6: unmount during the 50ms window clears the timeout (no leaks)", () => {
+		vi.useFakeTimers();
+		try {
+			const { params } = makeParams();
+			const { result, unmount } = renderHook(() =>
+				useAutoScrollPin(params),
+			);
+
+			// Set the flag, then unmount before it expires.
+			act(() => {
+				result.current.shouldAdjust();
+			});
+
+			// Unmount synchronously — the cleanup effect should clear the
+			// pending timeout. If it doesn't, the timer fires post-unmount
+			// and tries to write to a stale ref (no error visible, but a
+			// resource leak).
+			unmount();
+
+			// Advance past 50ms. Vitest tracks pending timers; if any
+			// remain unfired, getTimerCount > 0.
+			act(() => {
+				vi.advanceTimersByTime(100);
+			});
+
+			// All timers should have been cleared by the unmount cleanup.
+			expect(vi.getTimerCount()).toBe(0);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("A7: flag duration must be at least 50ms (catches accidental too-short windows)", () => {
+		// Real-timer test: this catches the class of regression where
+		// someone reduces ADJUST_FLAG_DURATION_MS to a too-small value
+		// (e.g., 5ms) thinking it's safe. Synchronous test sequencing
+		// can't catch sub-frame durations because the setTimeout(0)
+		// callback is queued for the next event loop tick — meaning the
+		// in-window scroll event fires before the timer expires
+		// regardless of the duration value.
+		//
+		// This test fixes that gap by using REAL setTimeout to wait
+		// 30ms (a value that should still be inside the 50ms window).
+		// If someone reduces the duration below 30ms, this test fails.
+		// 30ms is chosen because it's a typical inter-rAF interval at
+		// 30 FPS — covering the worst-case real-world burst pattern.
+		return new Promise<void>((resolve, reject) => {
+			const { params, container } = makeParams();
+			const { result } = renderHook(() => useAutoScrollPin(params));
+
+			act(() => {
+				result.current.shouldAdjust();
+			});
+
+			// Wait 30ms with real timers — modeling a real rAF gap
+			setTimeout(() => {
+				try {
+					simulateScroll(container, {
+						scrollTop: 200,
+						scrollHeight: 1200, // gap=200
+						clientHeight: 800,
+					});
+					expect(result.current.pinState).toBe("pinned");
+					resolve();
+				} catch (e) {
+					reject(e instanceof Error ? e : new Error(String(e)));
+				}
+			}, 30);
+		});
+	});
+});
+
+// ============================================================================
+// Category C: Discriminator tests — ensure the fix doesn't over-match.
+// The hysteresis backstop must still work for true measurement-race noise,
+// and genuine user scrolls (without a preceding shouldAdjust) must still
+// un-pin even past the adjust-flag window.
+// ============================================================================
+
+describe("adjust-flag discriminators", () => {
+	// C1 is covered by the existing "INTENT: legitimate user scrolls past the
+	// burst threshold still un-pin" counter-test in the I-S1 regression net.
+
+	it("C2: shouldAdjust + 51ms wait + 200px scroll = un-pin (window expired)", () => {
+		vi.useFakeTimers();
+		try {
+			const { params, container } = makeParams();
+			const { result } = renderHook(() => useAutoScrollPin(params));
+
+			act(() => {
+				result.current.shouldAdjust();
+			});
+			act(() => {
+				vi.advanceTimersByTime(51);
+			});
+
+			// 200px gap, window expired — this IS a user scroll
+			simulateScroll(container, {
+				scrollTop: 0,
+				scrollHeight: 1000,
+				clientHeight: 800,
+			});
+
+			expect(result.current.pinState).toBe("unpinned");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("C3: multiple scroll events within the 50ms window all bail (rAF-spaced)", () => {
+		const { params, container } = makeParams();
+		const { result } = renderHook(() => useAutoScrollPin(params));
+
+		act(() => {
+			result.current.shouldAdjust();
+		});
+
+		// Three scroll events, each with a different gap, all within 50ms
+		for (const gap of [150, 250, 400]) {
+			simulateScroll(container, {
+				scrollTop: 200,
+				scrollHeight: 1000 + gap,
+				clientHeight: 800,
+			});
+			expect(result.current.pinState).toBe("pinned");
+		}
+	});
+
+	it("C4: hysteresis backstop still works without flag (sequential scrolls)", () => {
+		const { params, container } = makeParams();
+		const { result } = renderHook(() => useAutoScrollPin(params));
+
+		// gap=20 (slack) — stays pinned
+		simulateScroll(container, {
+			scrollTop: 180,
+			scrollHeight: 1000,
+			clientHeight: 800,
+		});
+		expect(result.current.pinState).toBe("pinned");
+
+		// gap=80 (dead zone) — still pinned (hysteresis absorbs)
+		simulateScroll(container, {
+			scrollTop: 120,
+			scrollHeight: 1000,
+			clientHeight: 800,
+		});
+		expect(result.current.pinState).toBe("pinned");
+
+		// gap=200 (above threshold) — un-pins
+		simulateScroll(container, {
+			scrollTop: 0,
+			scrollHeight: 1000,
+			clientHeight: 800,
+		});
+		expect(result.current.pinState).toBe("unpinned");
+	});
+
+	it("C5: dead-zone scroll without flag stays pinned (hysteresis backstop intact)", () => {
+		const { params, container } = makeParams();
+		const { result } = renderHook(() => useAutoScrollPin(params));
+
+		// gap=80 (within 35-100 dead zone) — stays pinned via hysteresis
+		// even though no shouldAdjust was called. This proves the
+		// hysteresis backstop is still load-bearing for true measurement-
+		// race noise (37/60/80px gaps from I37 evidence).
+		simulateScroll(container, {
+			scrollTop: 120,
+			scrollHeight: 1000,
+			clientHeight: 800,
+		});
+		expect(result.current.pinState).toBe("pinned");
 	});
 });
 // ============================================================================
