@@ -277,13 +277,6 @@ export function useAgentMessages(
 					maxSelectionLength:
 						settings.displaySettings.maxSelectionLength,
 					isFirstMessage: options.isFirstMessage,
-					promptInjection: settings.promptInjection.enabled
-						? {
-								latex: settings.promptInjection.latex,
-								wikiLinks: settings.promptInjection.wikiLinks,
-								tables: settings.promptInjection.tables,
-							}
-						: undefined,
 				},
 				vaultAccess,
 				vaultAccess, // IMentionService (same object)
