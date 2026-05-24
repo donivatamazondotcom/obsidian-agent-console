@@ -197,6 +197,16 @@ If your plugin does not need CSS, delete this file.
 }
 
 /*
+ * Cap expanded tool-call height at half the panel so a single big block
+ * (e.g., a 4000-line read) cannot dominate the chat area. Internal scroll
+ * is the safety net; collapsed buttons are excluded via div.* selector.
+ */
+div.agent-client-message-tool-call {
+	max-height: 50vh;
+	overflow-y: auto;
+}
+
+/*
  * Compact tool-call summary row (collapsed default).
  * Renders as a single clickable row: [chevron <kind-icon> <title> ………… N lines]
  * See spec: 04-initiatives/Agent Console/Agent Console Compact Tool Calls.md
