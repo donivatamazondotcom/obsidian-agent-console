@@ -131,12 +131,21 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 
 	const lineCount = useMemo(() => countLines(content), [content]);
 
+	// Stable id for aria-controls so screen readers announce the
+	// toggle as controlling a specific content region.
+	const contentId = `agent-tool-call-content-${content.toolCallId}`;
+	const ariaLabel = `Tool call${kind ? `: ${kind}` : ""}. ${title || ""}. ${
+		isExpanded ? "Expanded." : "Collapsed."
+	}`;
+
 	if (!isExpanded) {
 		return (
 			<button
 				type="button"
 				className="agent-client-message-tool-call agent-client-message-tool-call-summary"
 				aria-expanded={false}
+				aria-controls={contentId}
+				aria-label={ariaLabel}
 				onClick={toggleExpanded}
 			>
 				<LucideIcon
@@ -174,6 +183,8 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 				role="button"
 				tabIndex={0}
 				aria-expanded={true}
+				aria-controls={contentId}
+				aria-label={ariaLabel}
 				onKeyDown={(e) => {
 					if (e.key === "Enter" || e.key === " ") {
 						e.preventDefault();
@@ -229,6 +240,8 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 				)}
 			</div>
 
+			{/* Expanded body — aria-controls target */}
+			<div id={contentId} role="region" aria-label={`${title || "Tool call"} content`}>
 			{/* Tool call content (diffs, terminal output, etc.) */}
 			{toolContent &&
 				toolContent.map((item, index) => {
@@ -264,6 +277,7 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 					onOptionSelected={setSelectedOptionId}
 				/>
 			)}
+			</div>
 		</div>
 	);
 });
