@@ -305,6 +305,29 @@ function fireTouchMove(el: HTMLElement, clientY: number): void {
 
 let originalResizeObserver: typeof globalThis.ResizeObserver | undefined;
 let originalGetSelection: typeof window.getSelection | undefined;
+let originalRAF: typeof globalThis.requestAnimationFrame | undefined;
+let originalCAF: typeof globalThis.cancelAnimationFrame | undefined;
+
+/**
+ * Synchronous-by-explicit-flush rAF mock. Captured callbacks queue; tests
+ * call flushRaf() to run all pending callbacks. This makes tests
+ * deterministic for the I-S9 deferred-anchor path (where the hook
+ * defers work to rAF) without requiring fake timers in every test.
+ *
+ * Tests that don't trigger any rAF work (most of the suite) ignore this
+ * — flushRaf() is a no-op when the queue is empty.
+ */
+const rafQueue: Array<{ id: number; cb: FrameRequestCallback }> = [];
+let nextRafId = 1;
+
+function flushRaf(): void {
+	// Drain the queue. New callbacks queued during flush run on next call,
+	// matching browser rAF semantics (one frame per flush).
+	const toRun = rafQueue.splice(0);
+	for (const { cb } of toRun) {
+		cb(performance.now());
+	}
+}
 
 beforeEach(() => {
 	originalResizeObserver = globalThis.ResizeObserver;
@@ -315,6 +338,20 @@ beforeEach(() => {
 	// Default: no selection. Individual tests override for selection-drag tests.
 	originalGetSelection = window.getSelection;
 	window.getSelection = () => null;
+
+	// rAF mock — captures callbacks for explicit flush.
+	originalRAF = globalThis.requestAnimationFrame;
+	originalCAF = globalThis.cancelAnimationFrame;
+	rafQueue.length = 0;
+	globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
+		const id = nextRafId++;
+		rafQueue.push({ id, cb });
+		return id;
+	};
+	globalThis.cancelAnimationFrame = (id: number) => {
+		const idx = rafQueue.findIndex((q) => q.id === id);
+		if (idx >= 0) rafQueue.splice(idx, 1);
+	};
 });
 
 afterEach(() => {
@@ -325,6 +362,9 @@ afterEach(() => {
 	if (originalGetSelection) {
 		window.getSelection = originalGetSelection;
 	}
+	if (originalRAF) globalThis.requestAnimationFrame = originalRAF;
+	if (originalCAF) globalThis.cancelAnimationFrame = originalCAF;
+	rafQueue.length = 0;
 });
 
 // ============================================================================
@@ -371,6 +411,11 @@ describe("useAutoScrollPin — initial state", () => {
 
 		act(() => {
 			fireResize(contentEl, 1000);
+		});
+
+		// I-S9 fix: initial fire defers to rAF. Flush to land the anchor.
+		act(() => {
+			flushRaf();
 		});
 
 		// First fire = initial anchor → write scrollTop to (1000 - 800 - 1) = 199
@@ -699,6 +744,11 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 				fireResize(h.contentEl, 500);
 			});
 
+			// I-S9 fix: initial fire defers to rAF. Flush to land the anchor.
+			act(() => {
+				flushRaf();
+			});
+
 			// Initial fire writes scrollTop even though height < clientHeight
 			// (Math.max(0, 500-800-1) = 0). Important: that write happens.
 			expect(geom.writes.length).toBeGreaterThan(1);
@@ -726,6 +776,10 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 			// Simulate session-restore: first fire is partial (3/4 height).
 			act(() => {
 				fireResize(h.contentEl, 1000);
+			});
+			// I-S9 fix: initial fire defers to rAF. Flush to land the anchor.
+			act(() => {
+				flushRaf();
 			});
 			// Initial anchor: scrollTop = 1000 - 800 - 1 = 199
 			expect(geom.writes[geom.writes.length - 1]).toBe(199);
@@ -804,6 +858,173 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 		});
 	});
 
+
+	describe("I-S9 regression net (initial RO-grew defers to rAF)", () => {
+		// I-S9 root cause: when the contentRef ResizeObserver's first fire
+		// happens during React's commit-phase microtask flush (i.e., on
+		// tab activation when ~200 bubbles just mounted), reading
+		// scrollHeight inside the callback synchronously forces a layout
+		// pass against the dirty DOM. Trace evidence on a 200-bubble
+		// session: 31 ms forced reflow inside the click handler.
+		//
+		// Fix: defer the initial fire's read to requestAnimationFrame.
+		// The just-mounted DOM gets one frame to finish its layout pass;
+		// the rAF callback then reads scrollHeight against a settled DOM.
+		// Subsequent fires (true grows with previous defined) write
+		// synchronously — only the FIRST fire defers.
+		//
+		// COVERAGE BOUNDARY: this net guards the INVARIANT (read happens
+		// inside an rAF, not synchronously inside the RO callback) but
+		// not the COST (the actual ms of layout work). The cost is
+		// JSDOM-impossible — JSDOM has no real layout engine. Smoke-test
+		// verification: capture a fresh Performance trace post-fix on
+		// the same scenario as Trace-I-S8-NormalCadence-20260524T215526.json
+		// and confirm forced-layout count inside the click handler is 0.
+
+		it("defers initial fire scrollTop write to next rAF", () => {
+			let handle: HarnessHandle | null = null;
+			render(
+				React.createElement(Harness, {
+					isActive: true,
+					isSending: false,
+					view: makeView(),
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+			);
+			// biome-ignore lint/style/noNonNullAssertion: bound by render
+			const h = handle!;
+			const geom = setupScrollGeometry(h.scrollEl, {
+				scrollHeight: 1000,
+				clientHeight: 800,
+			});
+			const writesBeforeFire = geom.writes.length;
+
+			// Initial RO fire — happens during React commit-phase
+			// microtask flush in real Obsidian.
+			act(() => {
+				fireResize(h.contentEl, 1000);
+			});
+
+			// SYNCHRONOUSLY: the hook MUST NOT have written scrollTop.
+			// Reading scrollHeight synchronously here would force
+			// layout against the dirty post-mount DOM.
+			expect(geom.writes.length).toBe(writesBeforeFire);
+
+			// Now flush the rAF queue.
+			act(() => {
+				flushRaf();
+			});
+
+			// AFTER rAF: the deferred callback reads scrollHeight
+			// against the (notionally) settled DOM and writes scrollTop.
+			expect(geom.writes.length).toBe(writesBeforeFire + 1);
+			expect(geom.writes[geom.writes.length - 1]).toBe(199); // 1000-800-1
+		});
+
+		it("subsequent grow fires write scrollTop synchronously (NOT deferred)", () => {
+			// Once the initial fire has set prevContentHeight, every later
+			// grow is a true streaming chunk and must write synchronously
+			// — deferring streaming-chunk writes would visibly lag the
+			// scroll behind the content.
+			let handle: HarnessHandle | null = null;
+			render(
+				React.createElement(Harness, {
+					isActive: true,
+					isSending: false,
+					view: makeView(),
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+			);
+			// biome-ignore lint/style/noNonNullAssertion: bound by render
+			const h = handle!;
+			const geom = setupScrollGeometry(h.scrollEl, {
+				scrollHeight: 1000,
+				clientHeight: 800,
+			});
+
+			// Initial fire — deferred. Flush rAF to land it.
+			act(() => {
+				fireResize(h.contentEl, 1000);
+			});
+			act(() => {
+				flushRaf();
+			});
+			const writesAfterInitial = geom.writes.length;
+
+			// Now a streaming-chunk grow.
+			Object.defineProperty(h.scrollEl, "scrollHeight", {
+				configurable: true,
+				get: () => 1500,
+			});
+			act(() => {
+				fireResize(h.contentEl, 1500);
+			});
+
+			// SYNCHRONOUSLY: write happened, no rAF flush needed.
+			expect(geom.writes.length).toBe(writesAfterInitial + 1);
+			expect(geom.writes[geom.writes.length - 1]).toBe(699); // 1500-800-1
+
+			// And confirm the rAF queue is empty (no spurious deferred
+			// callback queued for the second fire).
+			const writesBeforeFlush = geom.writes.length;
+			act(() => {
+				flushRaf();
+			});
+			expect(geom.writes.length).toBe(writesBeforeFlush);
+		});
+
+		it("deferred initial fire respects state changes between RO callback and rAF", () => {
+			// If the user wheel-ups in the interval between the deferred
+			// RO callback and the rAF flush, the rAF callback must see
+			// the current escapedFromLockRef / isAtBottomRef state and
+			// skip the write. This guards against "we read state at the
+			// wrong moment" regressions in the deferral implementation.
+			let handle: HarnessHandle | null = null;
+			render(
+				React.createElement(Harness, {
+					isActive: true,
+					isSending: false,
+					view: makeView(),
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+			);
+			// biome-ignore lint/style/noNonNullAssertion: bound by render
+			const h = handle!;
+			const geom = setupScrollGeometry(h.scrollEl, {
+				scrollHeight: 1000,
+				clientHeight: 800,
+			});
+			const writesBeforeFire = geom.writes.length;
+
+			// Initial RO fire — deferred to rAF.
+			act(() => {
+				fireResize(h.contentEl, 1000);
+			});
+			expect(geom.writes.length).toBe(writesBeforeFire);
+
+			// User wheel-ups BEFORE the rAF flushes.
+			act(() => {
+				fireWheel(h.scrollEl, -50);
+			});
+			expect(h.getResult().isAtBottom).toBe(false);
+
+			// Now flush rAF. The deferred callback's guards must
+			// see the current isAtBottomRef=false and bail.
+			act(() => {
+				flushRaf();
+			});
+
+			// No write happened. The user's escape was respected.
+			expect(geom.writes.length).toBe(writesBeforeFire);
+		});
+	});
+
 	describe("I-S7 regression net (scroll-event race during async-grow session restore)", () => {
 		// I-S7 root cause: each hook-driven setScrollTopInstant write fires
 		// a scroll event; if scrollHeight has grown between the write and
@@ -841,6 +1062,10 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 			// First RO fire — partial content height
 			act(() => {
 				fireResize(h.contentEl, 1000);
+			});
+			// I-S9 fix: initial fire defers to rAF. Flush to land the anchor.
+			act(() => {
+				flushRaf();
 			});
 			// Initial anchor: scrollTop = 1000 - 800 - 1 = 199
 			expect(geom.writes[geom.writes.length - 1]).toBe(199);

@@ -140,6 +140,13 @@ export function useAutoScrollPin(
 	const escapedFromLockRef = useRef(false);
 	const scrollObserverRef = useRef<ResizeObserver | null>(null);
 	const contentObserverRef = useRef<ResizeObserver | null>(null);
+	/**
+	 * Pending requestAnimationFrame handle for the deferred initial-fire
+	 * anchor (see I-S9 fix in contentRef below). Stored at hook level so
+	 * cleanup paths (contentRef detach, hook unmount) can cancel a
+	 * pending callback to avoid late writes after disconnect.
+	 */
+	const pendingInitialRafRef = useRef<number | null>(null);
 	const lastIsActiveRef = useRef(isActive);
 	const lastIsSendingRef = useRef(isSending);
 	/**
@@ -399,6 +406,12 @@ export function useAutoScrollPin(
 		(el) => {
 			contentObserverRef.current?.disconnect();
 			contentObserverRef.current = null;
+			// Cancel any pending I-S9 deferred-anchor rAF — the contentEl
+			// it would write to may no longer be the current one.
+			if (pendingInitialRafRef.current !== null) {
+				cancelAnimationFrame(pendingInitialRafRef.current);
+				pendingInitialRafRef.current = null;
+			}
 			contentElRef.current = el;
 			if (!el) return;
 
@@ -429,6 +442,37 @@ export function useAutoScrollPin(
 				if (grew) {
 					if (escapedFromLockRef.current) return;
 					if (!isAtBottomRef.current) return;
+
+					// I-S9 fix: the FIRST RO fire happens during React's
+					// commit-phase microtask flush on tab activation,
+					// when ~200 bubbles have just mounted and the DOM is
+					// layout-dirty. A synchronous read of scrollHeight
+					// here forces a partial-layout pass against the dirty
+					// DOM (~31 ms on a 200-bubble session, captured in
+					// _traces/Trace-I-S8-NormalCadence-20260524T215526.json).
+					// Defer the read+write to the next animation frame so
+					// the browser can settle layout once before we read.
+					// Subsequent grows (true streaming chunks with
+					// previous defined) write synchronously — the dirty-
+					// DOM problem is only present on the just-mounted
+					// initial fire.
+					if (previous === undefined) {
+						if (pendingInitialRafRef.current !== null) return;
+						pendingInitialRafRef.current = requestAnimationFrame(() => {
+							pendingInitialRafRef.current = null;
+							const el = scrollElRef.current;
+							if (!el) return;
+							// Re-check guards at rAF time — state may have
+							// changed between the RO callback and the rAF
+							// flush (e.g., user wheel-up).
+							if (escapedFromLockRef.current) return;
+							if (!isAtBottomRef.current) return;
+							ignoreNextScrollEventRef.current = true;
+							setScrollTopInstant(el, bottomScrollTop(el));
+						});
+						return;
+					}
+
 					ignoreNextScrollEventRef.current = true;
 					setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
 				} else if (shrank) {
@@ -484,6 +528,10 @@ export function useAutoScrollPin(
 			contentObserverRef.current?.disconnect();
 			scrollObserverRef.current = null;
 			contentObserverRef.current = null;
+			if (pendingInitialRafRef.current !== null) {
+				cancelAnimationFrame(pendingInitialRafRef.current);
+				pendingInitialRafRef.current = null;
+			}
 			const scrollEl = scrollElRef.current;
 			if (scrollEl) {
 				scrollEl.removeEventListener("scroll", handleScroll);
