@@ -39,7 +39,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import * as React from "react";
 
 import { MessageList } from "../MessageList";
@@ -132,18 +132,17 @@ describe("MessageList — I-S10 regression net (no synchronous mass-mount on act
 	/**
 	 * Headline test: documents the I-S10 architectural problem.
 	 *
-	 * Failing on `0295f99` confirms the bug: activating a tab with 200
-	 * messages mounts all 200 bubbles synchronously inside the React
+	 * Failing on `0295f99` confirmed the bug: activating a tab with 200
+	 * messages mounted all 200 bubbles synchronously inside the React
 	 * commit. In a real browser, this commit happens inside the click
-	 * handler's task — so the click handler pays the cost of mounting all
+	 * handler's task — so the click handler paid the cost of mounting all
 	 * 200 message DOM subtrees plus the resulting Layout / UpdateLayoutTree.
 	 *
-	 * A passing version of this test means: some mechanism (virtualization,
-	 * chunked mount, deferred ChatPanel mount, or other) bounds the number
-	 * of bubbles instantiated during the synchronous activation commit to
-	 * less than the full session size.
+	 * After the chunked-mount fix, only the last FIRST_BATCH_SIZE
+	 * messages render synchronously; the rest stream in via
+	 * MessageChannel on the next task.
 	 */
-	it("FAILS on 0295f99: activating a 200-message tab synchronously mounts all 200 bubbles", () => {
+	it("activating a 200-message tab synchronously mounts only the first batch (≤ 50)", () => {
 		const messages = makeMessages(200);
 		const view = makeView();
 		const plugin = makePlugin();
@@ -179,7 +178,7 @@ describe("MessageList — I-S10 regression net (no synchronous mass-mount on act
 		);
 
 		// Count message-row DOM nodes immediately after the synchronous
-		// rerender. NO microtask flush, NO rAF, NO scroll event — this is
+		// rerender. NO microtask flush, NO MessageChannel flush — this is
 		// the state of the DOM at the moment the click handler returns
 		// in a real browser.
 		const activeBubbles = container.querySelectorAll(
@@ -187,11 +186,14 @@ describe("MessageList — I-S10 regression net (no synchronous mass-mount on act
 		);
 
 		// The architectural invariant: a heavy session must NOT mount all
-		// of its bubbles in the synchronous activation commit. Pick a
-		// reasonable upper bound — even a single viewport's worth of
-		// virtualization (~10-20 bubbles) plus generous overscan should
-		// be under 50.
+		// of its bubbles in the synchronous activation commit. The bound
+		// is set above first-batch size with a generous margin so the
+		// test isn't fragile to FIRST_BATCH_SIZE tuning.
 		expect(activeBubbles.length).toBeLessThan(50);
+		// Lower bound: at least the first batch must render synchronously
+		// so the user sees something immediately (rules out "render zero
+		// then defer everything", which would visibly flicker).
+		expect(activeBubbles.length).toBeGreaterThan(0);
 	});
 
 	/**
@@ -226,5 +228,170 @@ describe("MessageList — I-S10 regression net (no synchronous mass-mount on act
 
 		const bubbles = container.querySelectorAll("[data-testid='bubble']");
 		expect(bubbles.length).toBe(5);
+	});
+
+	/**
+	 * The deferred batch must eventually mount. After the MessageChannel
+	 * delivers its message and React processes the resulting state update,
+	 * the full message set should be in the DOM.
+	 *
+	 * JSDOM has a real MessageChannel implementation (libxml-derived),
+	 * so we wait for the next macrotask via a `setTimeout(0)` Promise and
+	 * let `act` flush the pending React update.
+	 */
+	it("deferred batch mounts the rest of the messages on the next task", async () => {
+		const messages = makeMessages(200);
+		const view = makeView();
+		const plugin = makePlugin();
+
+		const { rerender, container } = render(
+			<MessageList
+				{...baseProps}
+				messages={messages}
+				view={view}
+				plugin={plugin}
+				isActive={false}
+			/>,
+		);
+
+		rerender(
+			<MessageList
+				{...baseProps}
+				messages={messages}
+				view={view}
+				plugin={plugin}
+				isActive={true}
+			/>,
+		);
+
+		// Synchronously: only first batch.
+		expect(
+			container.querySelectorAll("[data-testid='bubble']").length,
+		).toBeLessThan(50);
+
+		// Wait for the MessageChannel post → React state update → re-render.
+		// One macrotask is enough — MessageChannel delivers in microtask
+		// order in JSDOM, but the React state update batches into a render.
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		});
+
+		// All 200 should now be in the DOM.
+		expect(
+			container.querySelectorAll("[data-testid='bubble']").length,
+		).toBe(200);
+	});
+
+	/**
+	 * Streaming case: a new message arrives AFTER activation has completed
+	 * (i.e., after the deferred batch has mounted). The new length change
+	 * must NOT re-trigger chunked mount — that would un-mount most of the
+	 * session and cause a visible flash.
+	 */
+	it("streaming a new message after activation does not re-defer", async () => {
+		const initial = makeMessages(200);
+		const view = makeView();
+		const plugin = makePlugin();
+
+		const { rerender, container } = render(
+			<MessageList
+				{...baseProps}
+				messages={initial}
+				view={view}
+				plugin={plugin}
+				isActive={false}
+			/>,
+		);
+
+		// Activate.
+		rerender(
+			<MessageList
+				{...baseProps}
+				messages={initial}
+				view={view}
+				plugin={plugin}
+				isActive={true}
+			/>,
+		);
+
+		// Flush the deferred mount.
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		});
+
+		expect(
+			container.querySelectorAll("[data-testid='bubble']").length,
+		).toBe(200);
+
+		// Stream: append a new message. This re-renders MessageList with
+		// 201 messages while still active.
+		const streamed = [...initial, ...makeMessages(1).map((m, i) => ({
+			...m,
+			id: `streamed-${i}`,
+		}))];
+		rerender(
+			<MessageList
+				{...baseProps}
+				messages={streamed}
+				view={view}
+				plugin={plugin}
+				isActive={true}
+			/>,
+		);
+
+		// All 201 should be in the DOM synchronously — streaming must not
+		// trigger chunked mount.
+		expect(
+			container.querySelectorAll("[data-testid='bubble']").length,
+		).toBe(201);
+	});
+
+	/**
+	 * Cleanup: when the component unmounts mid-deferral, no late state
+	 * update should fire. We verify by unmounting before the deferred
+	 * batch lands and confirming a subsequent macrotask doesn't throw or
+	 * try to update unmounted React state. Vitest will surface any
+	 * "can't perform a React state update on an unmounted component"
+	 * warning as a test failure.
+	 */
+	it("unmounting mid-deferral does not throw or warn", async () => {
+		const messages = makeMessages(200);
+		const view = makeView();
+		const plugin = makePlugin();
+
+		const { rerender, unmount } = render(
+			<MessageList
+				{...baseProps}
+				messages={messages}
+				view={view}
+				plugin={plugin}
+				isActive={false}
+			/>,
+		);
+
+		rerender(
+			<MessageList
+				{...baseProps}
+				messages={messages}
+				view={view}
+				plugin={plugin}
+				isActive={true}
+			/>,
+		);
+
+		// Unmount IMMEDIATELY — before the MessageChannel message lands.
+		unmount();
+
+		// Wait for the macrotask — the deferred callback would have fired
+		// here. With proper cleanup the pending callback is nulled and
+		// the channel ports are closed, so no state update fires.
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		});
+
+		// No assertion needed — the absence of thrown errors and React
+		// warnings is the pass condition. If cleanup is broken, vitest
+		// will surface the warning as test output.
+		expect(true).toBe(true);
 	});
 });

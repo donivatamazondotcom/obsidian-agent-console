@@ -1,5 +1,5 @@
 import * as React from "react";
-const { useEffect, useRef } = React;
+const { useEffect, useRef, useState } = React;
 
 import type { ChatMessage } from "../types/chat";
 import type { AcpClient } from "../acp/acp-client";
@@ -8,6 +8,18 @@ import type { IChatViewHost } from "./view-host";
 import { setIcon } from "obsidian";
 import { MessageBubble } from "./MessageBubble";
 import { useAutoScrollPin } from "./use-auto-scroll-pin";
+
+/**
+ * Number of messages mounted synchronously on the first commit after a
+ * tab activation. Sized to comfortably cover one viewport plus overscan;
+ * the rest stream in via MessageChannel on the next task. Closes I-S10
+ * (synchronous mass-mount) — see [[ACP Scroll Architecture Rework]] § I-S10.
+ *
+ * Tunable: smaller values reduce the initial click-handler cost but
+ * increase the chance the user sees a brief "content shorter than expected"
+ * frame. 30 is empirically a single-screen-plus-overscan on a 14" laptop.
+ */
+const FIRST_BATCH_SIZE = 30;
 
 /**
  * Props for MessageList component
@@ -78,6 +90,96 @@ export function MessageList({
 		useAutoScrollPin({ isActive, isSending, view });
 
 	// ============================================================
+	// Chunked mount on activation (I-S10)
+	// ============================================================
+	//
+	// Closes I-S10 — synchronous mass-mount of all bubbles inside the
+	// activation click task. See [[ACP Scroll Architecture Rework]] § I-S10
+	// for the trace-evidence root cause and fix-candidates table.
+	//
+	// On the first render after isActive flips false → true with a session
+	// larger than FIRST_BATCH_SIZE, render only the last N messages
+	// synchronously. Schedule a follow-up render via MessageChannel that
+	// mounts the rest. MessageChannel — not rAF — for the same reason as
+	// the I-S9 fix: rAF can be folded into the same task on tab activation
+	// (Chromium frame-update cycle), but a posted MessageChannel message
+	// always queues a fresh task that escapes the click handler.
+	//
+	// When the deferred render lands, contentEl height grows and
+	// useAutoScrollPin's contentRef ResizeObserver fires the `grew` branch
+	// with `previous` defined (the first batch already fired once), which
+	// writes scrollTop synchronously to anchor at the bottom. Net visual:
+	// last ~30 messages visible immediately, the rest "fill in above" over
+	// the next few frames with the scroll position correct throughout.
+	//
+	// Trigger condition: only on the inactive → active transition AND when
+	// messages.length > FIRST_BATCH_SIZE. Subsequent length changes (e.g.
+	// streaming a new message) do NOT re-defer — `mountedAll` stays true
+	// for the duration of this active session. The next inactive → active
+	// transition resets it.
+	const [mountedAll, setMountedAll] = useState(
+		!isActive || messages.length <= FIRST_BATCH_SIZE,
+	);
+	const prevIsActiveRef = useRef(isActive);
+	const deferralChannelRef = useRef<MessageChannel | null>(null);
+	const pendingDeferralRef = useRef<(() => void) | null>(null);
+
+	useEffect(() => {
+		const wasInactive = !prevIsActiveRef.current;
+		prevIsActiveRef.current = isActive;
+
+		// Reset to "all mounted" whenever we transition to inactive — the
+		// next activation gets a fresh chunked-mount cycle.
+		if (!isActive) {
+			setMountedAll(true);
+			return;
+		}
+
+		// Only chunk on the inactive → active transition with a heavy session.
+		if (!wasInactive) return;
+		if (messages.length <= FIRST_BATCH_SIZE) {
+			setMountedAll(true);
+			return;
+		}
+
+		// Stage the deferred mount.
+		setMountedAll(false);
+
+		// Lazy-create the channel; reuse across activations within this
+		// component instance.
+		if (deferralChannelRef.current === null) {
+			const channel = new MessageChannel();
+			channel.port1.onmessage = () => {
+				const cb = pendingDeferralRef.current;
+				pendingDeferralRef.current = null;
+				if (cb) cb();
+			};
+			deferralChannelRef.current = channel;
+		}
+
+		pendingDeferralRef.current = () => {
+			setMountedAll(true);
+		};
+		deferralChannelRef.current.port2.postMessage(null);
+	}, [isActive, messages.length]);
+
+	useEffect(() => {
+		// Cleanup on unmount: cancel any pending deferral, close ports.
+		return () => {
+			pendingDeferralRef.current = null;
+			if (deferralChannelRef.current) {
+				deferralChannelRef.current.port1.close();
+				deferralChannelRef.current.port2.close();
+				deferralChannelRef.current = null;
+			}
+		};
+	}, []);
+
+	const visibleMessages = mountedAll
+		? messages
+		: messages.slice(-FIRST_BATCH_SIZE);
+
+	// ============================================================
 	// Render
 	// ============================================================
 
@@ -117,7 +219,7 @@ export function MessageList({
 	return (
 		<div ref={scrollRef} className="agent-client-chat-view-messages">
 			<div ref={contentRef} className="agent-client-chat-content">
-				{messages.map((message) => (
+				{visibleMessages.map((message) => (
 					<div key={message.id} className="agent-client-message-row">
 						<MessageBubble
 							message={message}
