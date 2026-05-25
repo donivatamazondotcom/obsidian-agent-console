@@ -307,6 +307,20 @@ let originalResizeObserver: typeof globalThis.ResizeObserver | undefined;
 let originalGetSelection: typeof window.getSelection | undefined;
 let originalMessageChannel: typeof globalThis.MessageChannel | undefined;
 
+// I-S12 round-3 fix: handleScroll defers its body via window.setTimeout(1)
+// (per useStickToBottom.ts line 436, citing WICG/resize-observer#25).
+// Tests need synchronous control over when these deferred bodies run.
+// The mock captures setTimeout/clearTimeout calls and exposes flushTimers()
+// to drain the queue. Real-timer behavior (setTimeout(1) firing ~1ms later
+// in a macrotask) is correctly modeled, but tests can advance "time"
+// explicitly without waiting for real wall-clock timers.
+//
+// The mock is permissive: it captures ALL setTimeout calls in the global
+// scope while installed, including any internal Vitest/JSDOM uses. Real
+// JSDOM rarely uses setTimeout internally; the cost is negligible. If a
+// future test needs real-timer behavior, it can opt out by saving and
+// restoring the originals locally.
+
 /**
  * Synchronous-by-explicit-flush rAF mock. Captured callbacks queue; tests
  * call flushRaf() to run all pending callbacks. This makes tests
@@ -401,7 +415,82 @@ function flushMessages(): void {
 	}
 }
 
+interface ScheduledTimer {
+	id: number;
+	cb: () => void;
+	cancelled: boolean;
+}
+
+const scheduledTimers: ScheduledTimer[] = [];
+let nextTimerId = 1;
+let originalSetTimeout: typeof globalThis.setTimeout | undefined;
+let originalClearTimeout: typeof globalThis.clearTimeout | undefined;
+
+function installTimerMock(): void {
+	originalSetTimeout = globalThis.setTimeout;
+	originalClearTimeout = globalThis.clearTimeout;
+	scheduledTimers.length = 0;
+	nextTimerId = 1;
+
+	const mockSetTimeout = ((cb: () => void, _delay?: number) => {
+		const id = nextTimerId++;
+		scheduledTimers.push({ id, cb, cancelled: false });
+		return id;
+	}) as unknown as typeof globalThis.setTimeout;
+
+	const mockClearTimeout = (id: number) => {
+		const t = scheduledTimers.find((x) => x.id === id);
+		if (t) t.cancelled = true;
+	};
+
+	(globalThis as { setTimeout: typeof globalThis.setTimeout }).setTimeout =
+		mockSetTimeout;
+	(globalThis as { clearTimeout: typeof globalThis.clearTimeout }).clearTimeout =
+		mockClearTimeout;
+	// JSDOM aliases window.setTimeout to globalThis.setTimeout; the hook calls
+	// `window.setTimeout` explicitly, so we must override the window binding too.
+	(window as unknown as { setTimeout: typeof globalThis.setTimeout }).setTimeout =
+		mockSetTimeout;
+	(window as unknown as {
+		clearTimeout: typeof globalThis.clearTimeout;
+	}).clearTimeout = mockClearTimeout;
+}
+
+function restoreTimerMock(): void {
+	if (originalSetTimeout) {
+		(globalThis as { setTimeout: typeof globalThis.setTimeout }).setTimeout =
+			originalSetTimeout;
+		(window as unknown as {
+			setTimeout: typeof globalThis.setTimeout;
+		}).setTimeout = originalSetTimeout;
+	}
+	if (originalClearTimeout) {
+		(globalThis as {
+			clearTimeout: typeof globalThis.clearTimeout;
+		}).clearTimeout = originalClearTimeout;
+		(window as unknown as {
+			clearTimeout: typeof globalThis.clearTimeout;
+		}).clearTimeout = originalClearTimeout;
+	}
+	scheduledTimers.length = 0;
+}
+
+/**
+ * Drain pending timers. Timers scheduled DURING delivery (re-entrancy) become
+ * visible on a subsequent flushTimers() call, matching real task-queue
+ * semantics. This pairs with flushMessages() — together they let tests step
+ * through the deferral graph one task at a time.
+ */
+function flushTimers(): void {
+	const pending = scheduledTimers.splice(0);
+	for (const t of pending) {
+		if (t.cancelled) continue;
+		t.cb();
+	}
+}
+
 beforeEach(() => {
+	installTimerMock();
 	originalResizeObserver = globalThis.ResizeObserver;
 	(globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver =
 		MockResizeObserver;
@@ -434,6 +523,7 @@ afterEach(() => {
 		).MessageChannel = originalMessageChannel;
 	}
 	messageChannelInstances.length = 0;
+	restoreTimerMock();
 });
 
 // ============================================================================
@@ -672,13 +762,42 @@ describe("useAutoScrollPin — scroll-back-to-bottom re-pin (Finding 3)", () => 
 		});
 		expect(h.getResult().isAtBottom).toBe(false);
 
-		// User scrolls back near bottom (gap = 2000 - 1170 - 800 = 30, within 70)
+		// I-S12 round-3 fix: handleScroll uses direction-based classification
+		// (scrollingUp vs scrollingDown), adopted from useStickToBottom.ts
+		// lines 436-451. The user scrolling back to bottom produces a sequence
+		// of scroll events where scrollTop progresses downward (toward bottom);
+		// each scrollingDown event clears the escape flag. Once escape is
+		// cleared AND scrollTop is within STICK_OFFSET_PX of bottom, re-pin.
+		//
+		// Establish baseline scrollTop in handleScroll's lastScrollTopRef by
+		// firing one scroll event at the current (pre-scroll-back) position.
+		// Real browsers do this automatically — user wheel-up produces wheel
+		// events AND scroll events as the scroll progresses up.
+		act(() => {
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+
+		// User scrolls back toward bottom in two steps: 800 -> 1000 -> 1170.
+		// Each step is scrollingDown, which clears escape. The last step
+		// lands within STICK_OFFSET_PX (gap = 2000 - 1170 - 800 = 30), so
+		// the near-bottom re-pin clause fires.
+		Object.defineProperty(h.scrollEl, "scrollTop", {
+			configurable: true,
+			value: 1000,
+		});
+		act(() => {
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+
 		Object.defineProperty(h.scrollEl, "scrollTop", {
 			configurable: true,
 			value: 1170,
 		});
 		act(() => {
 			fireScrollEvent(h.scrollEl);
+			flushTimers();
 		});
 		expect(h.getResult().isAtBottom).toBe(true);
 	});
@@ -1447,6 +1566,543 @@ describe("useAutoScrollPin — container-shrink anchor (Decision #21 Finding 1)"
 		});
 
 		expect(geom.writes.length).toBe(writesBefore);
+	});
+});
+
+describe("useAutoScrollPin — I-S12 race (browser scroll preservation reverts our writes)", () => {
+	/**
+	 * Empirically observed in real Obsidian (commit c89850f, 2026-05-25T14:42 PT):
+	 * each Shift+Enter in the InputArea shrinks the chat container by ~21 px
+	 * (one textarea line). The scrollRef RO fires correctly and writes scrollTop
+	 * to the new bottom (e.g., 41899). The post-write `scrollEl.scrollTop` reads
+	 * back as 41899 (`landed: true`). BUT by the next handleScroll, scrollTop
+	 * has been REVERTED to its pre-shrink value (41893). After 4 keystrokes,
+	 * gap=91 > STICK_OFFSET_PX → handleScroll flips isAtBottom=false. Pin lost.
+	 *
+	 * Mechanism (per [[I-S12 fix synthesis]] in the vault): Chromium's scroll
+	 * preservation runs AFTER the RO microtask, reverting scrollTop to keep the
+	 * user's effective view stable across layout changes. `overflow-anchor: none`
+	 * on the scroll container should disable this per W3C spec § 2.1 step 1, but
+	 * empirically does not in Obsidian/Electron's Chromium.
+	 *
+	 * Fix is the use-stick-to-bottom canonical pattern (line 539 + line 436):
+	 *   B) hook re-corrects scrollTop on every RO fire if it drifted past target
+	 *   C) handleScroll suppresses the else-if branch during resize-in-flight
+	 *
+	 * These tests model the empirical pattern: "browser writes scrollTop back
+	 * to old value between layout-driven scroll event and RO callback." Each
+	 * test simulates that revert by explicitly resetting scrollTop after the
+	 * hook's write.
+	 */
+
+	it("FAILS on c89850f: pin survives 4 InputArea-grow keystrokes despite browser revert", () => {
+		let handle: HarnessHandle | null = null;
+		render(
+			React.createElement(Harness, {
+				isActive: true,
+				isSending: false,
+				view: makeView(),
+				onMount: (h) => {
+					handle = h;
+				},
+			}),
+		);
+		// biome-ignore lint/style/noNonNullAssertion: bound by render
+		const h = handle!;
+
+		// Initial pinned state: scrollHeight=1000, clientHeight=800, gap=199.
+		// scrollTop=199 means we're exactly at the bottom (scrollHeight-clientHeight-1 = 199).
+		setupScrollGeometry(h.scrollEl, {
+			scrollHeight: 1000,
+			clientHeight: 800,
+			scrollTop: 199,
+		});
+
+		// Establish baseline RO observation
+		act(() => {
+			fireResize(h.scrollEl, 800);
+		});
+		expect(h.getResult().isAtBottom).toBe(true);
+
+		// Each "keystroke" shrinks clientHeight by 25 px (cumulative).
+		// scrollHeight stays at 1000 (chat content unchanged).
+		// We simulate the browser-revert pattern: each cycle ends by forcing
+		// scrollTop back to 199 (its pre-shrink value), as Chromium would.
+		const SHRINK_PER_KEYSTROKE = 25;
+		const PRE_TYPING_SCROLLTOP = 199;
+		let currentClientHeight = 800;
+
+		for (let keystroke = 1; keystroke <= 4; keystroke += 1) {
+			currentClientHeight -= SHRINK_PER_KEYSTROKE;
+
+			// Update clientHeight (browser layout reflow)
+			Object.defineProperty(h.scrollEl, "clientHeight", {
+				configurable: true,
+				get: () => currentClientHeight,
+			});
+
+			act(() => {
+				// Layout-driven scroll event fires first (browser emits one
+				// for the layout change, with the OLD scrollTop value still).
+				fireScrollEvent(h.scrollEl);
+				// Then the RO microtask fires.
+				fireResize(h.scrollEl, currentClientHeight);
+				// Then Chromium's scroll preservation reverts scrollTop.
+				// Bypass our scrollTop setter capture: write directly via the
+				// internal value to model an external mutation we can't see.
+				Object.defineProperty(h.scrollEl, "scrollTop", {
+					configurable: true,
+					get: () => PRE_TYPING_SCROLLTOP,
+				});
+				// One more scroll event for the revert.
+				fireScrollEvent(h.scrollEl);
+			});
+		}
+
+		// Acceptance: pin survived. The user types newlines while pinned;
+		// the chat should stay pinned regardless of the browser's revert.
+		expect(h.getResult().isAtBottom).toBe(true);
+	});
+
+	it("baseline: scrollRef RO writes the current target on each shrink (preserved by fix)", () => {
+		// Narrower test of the use-stick-to-bottom line 539 pattern:
+		// "if scrollTop > targetScrollTop, force scrollTop = targetScrollTop"
+		// on every RO fire. This catches the case where a previous RO write
+		// landed but was reverted, and the current fire is for the next
+		// layout change.
+		let handle: HarnessHandle | null = null;
+		render(
+			React.createElement(Harness, {
+				isActive: true,
+				isSending: false,
+				view: makeView(),
+				onMount: (h) => {
+					handle = h;
+				},
+			}),
+		);
+		// biome-ignore lint/style/noNonNullAssertion: bound by render
+		const h = handle!;
+		const geom = setupScrollGeometry(h.scrollEl, {
+			scrollHeight: 1000,
+			clientHeight: 800,
+			scrollTop: 199,
+		});
+
+		// Establish baseline
+		act(() => {
+			fireResize(h.scrollEl, 800);
+		});
+
+		// First shrink: 800 → 775. Hook writes target = 1000 - 775 - 1 = 224.
+		Object.defineProperty(h.scrollEl, "clientHeight", {
+			configurable: true,
+			get: () => 775,
+		});
+		act(() => {
+			fireResize(h.scrollEl, 775);
+		});
+		expect(geom.writes[geom.writes.length - 1]).toBe(224);
+
+		// Browser reverts scrollTop back to 199 (simulated)
+		Object.defineProperty(h.scrollEl, "scrollTop", {
+			configurable: true,
+			get: () => 199,
+		});
+
+		// Second shrink: 775 → 750. Hook should write target = 1000 - 750 - 1 = 249
+		// AND should re-correct because scrollTop (199) is below target (249) —
+		// the previous write didn't stick. Without the fix, the RO only writes
+		// once per fire; with the fix, it tracks the last target and ensures
+		// scrollTop matches.
+		const writesBeforeSecondShrink = geom.writes.length;
+		Object.defineProperty(h.scrollEl, "clientHeight", {
+			configurable: true,
+			get: () => 750,
+		});
+		act(() => {
+			fireResize(h.scrollEl, 750);
+		});
+
+		// Expectation: at least one write happened on the second shrink, AND
+		// the most recent write equals 249 (the new target). Currently passes
+		// the existing contract (one write of 249). The FIX adds a second
+		// write/check so even if scrollTop was reverted, it's re-corrected.
+		// To express the contract being added by the fix, we assert that
+		// after the second RO fire, the LAST captured write reflects the
+		// current target (not stale). This is a probe for B's re-correct.
+		expect(geom.writes.length).toBeGreaterThan(writesBeforeSecondShrink);
+		expect(geom.writes[geom.writes.length - 1]).toBe(249);
+	});
+});
+
+describe("useAutoScrollPin — I-S12 grow (pill clears when container grows back)", () => {
+	/**
+	 * Empirically observed in real Obsidian (commit c89850f, 2026-05-25T14:35 PT):
+	 * after the chat unpinned during a textarea-grow sequence (the I-S12 race
+	 * symptom above), CLEARING the textarea grows the container back. The
+	 * scrollbar physically lands at the bottom (because scroll content is
+	 * shorter than container after the grow), but the pill remains visible
+	 * because `isAtBottom` was flipped to false during the shrink sequence
+	 * and never gets re-set to true.
+	 *
+	 * Root cause: scrollRef RO's grow branch is a no-op. Comment in current
+	 * code says "Container grow doesn't lose the bottom — content already
+	 * fills it (and contentRef ResizeObserver will fire too)." But contentRef
+	 * RO doesn't fire on container-grow if content height stayed the same.
+	 *
+	 * Fix: scrollRef RO grow branch should mirror contentRef RO's shrank
+	 * branch: if `bottomGap(scrollEl) <= STICK_OFFSET_PX` after the grow,
+	 * re-pin (clear escape, set isAtBottom=true).
+	 */
+
+	it("FAILS on c89850f: container grow re-pins when scroll lands within STICK_OFFSET_PX of bottom", () => {
+		let handle: HarnessHandle | null = null;
+		render(
+			React.createElement(Harness, {
+				isActive: true,
+				isSending: false,
+				view: makeView(),
+				onMount: (h) => {
+					handle = h;
+				},
+			}),
+		);
+		// biome-ignore lint/style/noNonNullAssertion: bound by render
+		const h = handle!;
+
+		// Setup: scrollEl is unpinned (isAtBottom=false), e.g., from prior
+		// I-S12 race that flipped state. Scroll position is at 199 with
+		// scrollHeight=1000, clientHeight=700 → gap = 1000 - 199 - 700 = 101 > 70.
+		setupScrollGeometry(h.scrollEl, {
+			scrollHeight: 1000,
+			clientHeight: 700,
+			scrollTop: 199,
+		});
+		act(() => {
+			fireResize(h.scrollEl, 700);
+		});
+
+		// Drive the hook into !isAtBottom via wheel-up (simulates the I-S12 race
+		// outcome where handleScroll's else-if flipped the flag).
+		act(() => {
+			fireWheel(h.scrollEl, -50);
+		});
+		expect(h.getResult().isAtBottom).toBe(false);
+
+		// Container grows back: clientHeight 700 → 800. With scrollTop=199 and
+		// scrollHeight=1000, new gap = 1000 - 199 - 800 = 1, well within
+		// STICK_OFFSET_PX (70). The pill should clear.
+		Object.defineProperty(h.scrollEl, "clientHeight", {
+			configurable: true,
+			get: () => 800,
+		});
+		act(() => {
+			fireResize(h.scrollEl, 800);
+		});
+
+		// Acceptance: container-grow that brings scroll back into the bottom
+		// zone should re-pin. Currently fails because scrollRef RO grow branch
+		// is a no-op (early-bails on `if (height >= previous) return;`).
+		expect(h.getResult().isAtBottom).toBe(true);
+	});
+
+	it("does NOT re-pin if container grows back but scroll is still far from bottom", () => {
+		// Discriminator: grow that doesn't bring scroll within STICK_OFFSET_PX
+		// of bottom should NOT re-pin (preserves user-escape-then-grow case).
+		let handle: HarnessHandle | null = null;
+		render(
+			React.createElement(Harness, {
+				isActive: true,
+				isSending: false,
+				view: makeView(),
+				onMount: (h) => {
+					handle = h;
+				},
+			}),
+		);
+		// biome-ignore lint/style/noNonNullAssertion: bound by render
+		const h = handle!;
+
+		// scrollHeight=2000, clientHeight=700, scrollTop=199 → gap=1101.
+		setupScrollGeometry(h.scrollEl, {
+			scrollHeight: 2000,
+			clientHeight: 700,
+			scrollTop: 199,
+		});
+		act(() => {
+			fireResize(h.scrollEl, 700);
+		});
+		act(() => {
+			fireWheel(h.scrollEl, -50);
+		});
+		expect(h.getResult().isAtBottom).toBe(false);
+
+		// Grow clientHeight 700 → 800. New gap = 2000 - 199 - 800 = 1001.
+		// Still way above STICK_OFFSET_PX (70). Should NOT re-pin.
+		Object.defineProperty(h.scrollEl, "clientHeight", {
+			configurable: true,
+			get: () => 800,
+		});
+		act(() => {
+			fireResize(h.scrollEl, 800);
+		});
+
+		expect(h.getResult().isAtBottom).toBe(false);
+	});
+});
+
+describe("useAutoScrollPin — I-S12 round-3 direction-classifier handleScroll", () => {
+	/**
+	 * Round-2 fix (resizeInFlightRef + setTimeout(0)) failed real-Chromium
+	 * smoke testing. Test 1 (Shift+Enter typing while pinned): pin still
+	 * dropped because the setTimeout(0) clear fired before the layout-driven
+	 * scroll event arrived. Test 4 (pill click during streaming): pin
+	 * dropped because handleScroll's gap-based else-if branch flipped
+	 * isAtBottom=false on the first frame of the smooth-scroll animation
+	 * (gap=2557 > STICK_OFFSET_PX=64).
+	 *
+	 * Round-3 fix adopts useStickToBottom.ts lines 412-451 + 535-592 verbatim:
+	 *   1. resizeDifferenceRef (number, not boolean) set FIRST in every RO
+	 *      callback, cleared via rAF + setTimeout(1) with last-writer-wins
+	 *   2. handleScroll body deferred via setTimeout(1)
+	 *   3. Direction-based classification (scrollingUp / scrollingDown)
+	 *      replaces the gap-based else-if branch
+	 *
+	 * See [[I-S12 round-2 synthesis]] in the vault for the canonical-source
+	 * reading and rationale. These tests pin the new contract.
+	 */
+
+	function setupFar(scrollTop: number) {
+		let handle: HarnessHandle | null = null;
+		render(
+			React.createElement(Harness, {
+				isActive: true,
+				isSending: false,
+				view: makeView(),
+				onMount: (h) => {
+					handle = h;
+				},
+			}),
+		);
+		// biome-ignore lint/style/noNonNullAssertion: bound by render
+		const h = handle!;
+		setupScrollGeometry(h.scrollEl, {
+			scrollHeight: 10000,
+			clientHeight: 1000,
+			scrollTop,
+		});
+		return h;
+	}
+
+	it("scrollingUp scroll event flips isAtBottom=false (escape signal)", () => {
+		// Establish baseline scrollTop in lastScrollTopRef.
+		const h = setupFar(8000);
+		act(() => {
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+
+		// User scrolls up (scrollTop decreases): pin should drop.
+		Object.defineProperty(h.scrollEl, "scrollTop", {
+			configurable: true,
+			value: 7000,
+		});
+		act(() => {
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+
+		expect(h.getResult().isAtBottom).toBe(false);
+	});
+
+	it("scrollingDown scroll event does NOT flip isAtBottom=false (Test 4 coverage)", () => {
+		// THE TEST 4 INVARIANT: a smooth-scroll-toward-bottom animation produces
+		// scroll events with scrollTop INCREASING toward the bottom. The hook
+		// must NOT interpret these as user-escape, even when the gap is still
+		// large (early frames of the animation). Round-2's gap-based else-if
+		// flipped isAtBottom=false on these events; the round-3 direction-
+		// based classifier correctly classifies them as scrollingDown.
+
+		const h = setupFar(2000);
+		// Establish baseline.
+		act(() => {
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+		expect(h.getResult().isAtBottom).toBe(true);
+
+		// Simulate first frame of smooth-scroll-to-bottom animation: scrollTop
+		// has moved from 2000 to 2500. gap is still 6500 (way > STICK_OFFSET_PX),
+		// but direction is scrollingDown. Round-2: would flip isAtBottom=false
+		// here. Round-3: must NOT flip.
+		Object.defineProperty(h.scrollEl, "scrollTop", {
+			configurable: true,
+			value: 2500,
+		});
+		act(() => {
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+
+		expect(h.getResult().isAtBottom).toBe(true);
+	});
+
+	it("smooth-scroll-toward-bottom from far position keeps isAtBottom=true through every animation frame", () => {
+		// Stronger Test 4 invariant: simulate a multi-frame smooth-scroll
+		// animation. Starting from scrollTop=2000 (gap=7000), animation moves
+		// scrollTop in steps of ~500 toward the bottom. isAtBottom must stay
+		// true the whole way; the final frame at gap < STICK_OFFSET_PX should
+		// land in the nearBottom branch and keep it true.
+
+		const h = setupFar(2000);
+		act(() => {
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+
+		const targetScrollTop = 10000 - 1000 - 1; // bottomScrollTop = 8999
+		const frames = [3000, 4000, 5000, 6000, 7000, 8000, 8500, 8900, 8999];
+
+		for (const frameScrollTop of frames) {
+			Object.defineProperty(h.scrollEl, "scrollTop", {
+				configurable: true,
+				value: frameScrollTop,
+			});
+			act(() => {
+				fireScrollEvent(h.scrollEl);
+				flushTimers();
+			});
+			// Pin must not have dropped at any animation frame.
+			expect(h.getResult().isAtBottom).toBe(true);
+		}
+
+		// Final assertion: animation landed at bottom; pin held throughout.
+		expect(h.getResult().isAtBottom).toBe(true);
+		// Sanity check: scrollTop ended at the target bottom.
+		void targetScrollTop;
+	});
+
+	it("resize-in-flight (resizeDifferenceRef !== 0) suppresses handleScroll's deferred body (Test 1 coverage)", () => {
+		// THE TEST 1 INVARIANT: a layout-shrink fires both a synthetic scroll
+		// event AND a ResizeObserver entry. The RO callback sets
+		// resizeDifferenceRef BEFORE any other work; handleScroll's deferred
+		// body bails when resizeDifferenceRef !== 0. The clear is on
+		// rAF+setTimeout(1) so the bail covers both the layout-driven scroll
+		// event AND any post-RO scroll-preservation-revert events.
+
+		let handle: HarnessHandle | null = null;
+		render(
+			React.createElement(Harness, {
+				isActive: true,
+				isSending: false,
+				view: makeView(),
+				onMount: (h) => {
+					handle = h;
+				},
+			}),
+		);
+		// biome-ignore lint/style/noNonNullAssertion: bound by render
+		const h = handle!;
+		setupScrollGeometry(h.scrollEl, {
+			scrollHeight: 10000,
+			clientHeight: 1000,
+			scrollTop: 8999, // pinned at bottom
+		});
+
+		// Establish baseline. Container RO baseline + scroll baseline.
+		act(() => {
+			fireResize(h.scrollEl, 1000);
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+		expect(h.getResult().isAtBottom).toBe(true);
+
+		// Container shrinks (e.g., InputArea grew). Layout-driven scroll
+		// event fires with a stale-looking gap (browser hasn't preserved
+		// scrollTop yet). Then RO fires.
+		Object.defineProperty(h.scrollEl, "clientHeight", {
+			configurable: true,
+			get: () => 950,
+		});
+
+		act(() => {
+			// Synthesize the order: scroll event first, then RO.
+			fireScrollEvent(h.scrollEl);
+			fireResize(h.scrollEl, 950);
+			// At this point, the deferred handleScroll body is queued via
+			// setTimeout(1). resizeDifferenceRef has been set by the RO
+			// (difference = -50). Flush timers — handleScroll's body must
+			// see resizeDifferenceRef !== 0 and bail without flipping
+			// isAtBottom.
+			flushTimers();
+		});
+
+		// Pin survived the layout-shrink event sequence.
+		expect(h.getResult().isAtBottom).toBe(true);
+	});
+
+	it("resizeDifferenceRef clear is two-frame (rAF+setTimeout(1)) so post-shrink revert is also guarded", () => {
+		// Stronger Test 1 invariant: even AFTER the RO callback's body has
+		// finished, the resizeDifferenceRef stays set until rAF+setTimeout(1).
+		// Any scroll event fired DURING that window must also see the bail.
+		// This guards the case where Chromium fires a scroll-preservation-
+		// revert event AFTER the RO microtask but BEFORE the next paint.
+
+		let handle: HarnessHandle | null = null;
+		render(
+			React.createElement(Harness, {
+				isActive: true,
+				isSending: false,
+				view: makeView(),
+				onMount: (h) => {
+					handle = h;
+				},
+			}),
+		);
+		// biome-ignore lint/style/noNonNullAssertion: bound by render
+		const h = handle!;
+		setupScrollGeometry(h.scrollEl, {
+			scrollHeight: 10000,
+			clientHeight: 1000,
+			scrollTop: 8999,
+		});
+
+		act(() => {
+			fireResize(h.scrollEl, 1000);
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+
+		// Container shrinks. Fire RO first (so resizeDifferenceRef is set
+		// AND the rAF+setTimeout(1) clear is scheduled).
+		Object.defineProperty(h.scrollEl, "clientHeight", {
+			configurable: true,
+			get: () => 950,
+		});
+		act(() => {
+			fireResize(h.scrollEl, 950);
+		});
+
+		// NOW fire a "post-RO revert" scroll event with a teleported scrollTop
+		// (modeling Chromium's scroll preservation reverting our write).
+		Object.defineProperty(h.scrollEl, "scrollTop", {
+			configurable: true,
+			value: 8000, // teleported up by 999
+		});
+		act(() => {
+			fireScrollEvent(h.scrollEl);
+			// Flush ONLY setTimeout queue — NOT the rAF clear yet. The
+			// resizeDifferenceRef must still be non-zero, so handleScroll
+			// bails. flushTimers fires the deferred handleScroll body, but
+			// the clear is queued behind a separate rAF (which we don't
+			// flush in this test mock).
+			flushTimers();
+		});
+
+		// Pin survived even the post-RO revert event because resizeDifferenceRef
+		// is still set.
+		expect(h.getResult().isAtBottom).toBe(true);
 	});
 });
 

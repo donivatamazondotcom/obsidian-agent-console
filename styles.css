@@ -642,6 +642,25 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .agent-client-chat-content {
 	display: flex;
 	flex-direction: column;
+	/* I-S12 fix A (defense in depth): exclude descendants from scroll-anchoring's
+	 * candidate set per W3C css-scroll-anchoring § 2.1 ("excluded subtree" — N's
+	 * computed value of overflow-anchor is none). The scroll container itself
+	 * already has overflow-anchor: none above, but Chromium's implementation
+	 * empirically still adjusts scrollTop on layout-shrink in our InputArea-grow
+	 * scenario. The hook-side fix B+C handles the scroll preservation
+	 * empirically; this CSS rule reinforces it via the canonical W3C path.
+	 * MDN's recommended pattern: apply overflow-anchor: none broadly when the
+	 * default anchoring algorithm misbehaves. */
+	overflow-anchor: none;
+}
+
+/* Apply overflow-anchor: none to all descendants of the chat content as well —
+ * MDN canonical recipe, since per W3C spec § 2.1 the anchor-node-selection
+ * algorithm walks the DOM tree from S; a single excluded subtree at the root
+ * should be sufficient, but in practice Chromium can pick descendants as anchors
+ * if their own overflow-anchor is auto (default). Belt-and-suspenders. */
+.agent-client-chat-content > * {
+	overflow-anchor: none;
 }
 
 /* Message row spacing.

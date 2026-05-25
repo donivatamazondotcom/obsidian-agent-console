@@ -175,6 +175,38 @@ export function useAutoScrollPin(
 	const ignoreNextScrollEventRef = useRef(false);
 
 	/**
+	 * I-S12 round-3 fix: tracks the most recent ResizeObserver-detected
+	 * height delta (positive on grow, negative on shrink). Set at the
+	 * START of every RO callback (BOTH contentRef AND scrollRef) before
+	 * any re-anchor work. Cleared via rAF + setTimeout(1) with a
+	 * last-writer-wins guard so a NEWER RO fire's clear cannot wipe an
+	 * OLDER fire's set during the clear-defer window.
+	 *
+	 * handleScroll's deferred body bails when this is non-zero, so
+	 * layout-driven scroll events that fire BEFORE the RO microtask
+	 * (per WICG/resize-observer#25) AND any subsequent
+	 * scroll-preservation-revert events fired by Chromium during the
+	 * rendering update are not misinterpreted as user scroll input.
+	 *
+	 * Pattern adopted line-for-line from useStickToBottom.ts lines 539
+	 * + 583–589 (resizeDifference value + rAF+setTimeout(1) clear with
+	 * last-writer-wins guard). See [[I-S12 round-2 synthesis]] in the
+	 * vault for the canonical-source reading and rationale.
+	 */
+	const resizeDifferenceRef = useRef(0);
+
+	/**
+	 * Tracks the previous scrollTop seen by handleScroll. Used by the
+	 * direction-based scroll classifier (scrollingUp vs scrollingDown)
+	 * adopted from useStickToBottom.ts lines 436–451. Direction is the
+	 * canonical user-intent signal — "user scrolled up" = unpin,
+	 * "user scrolled down" = clear escape, "near bottom" = re-pin. The
+	 * absolute gap value alone cannot distinguish a smooth-scroll-toward-
+	 * bottom animation from a stationary far-from-bottom position.
+	 */
+	const lastScrollTopRef = useRef<number | undefined>(undefined);
+
+	/**
 	 * Same-value bail wrapper around setIsAtBottomState (per spec
 	 * Decision #2 / I31 lesson encoded as same-value bail). Streaming
 	 * fires this many times per second; React must not re-render when
@@ -212,6 +244,27 @@ export function useAutoScrollPin(
 			range.commonAncestorContainer.contains(scrollEl) ||
 			scrollEl.contains(range.commonAncestorContainer)
 		);
+	}, []);
+
+	/**
+	 * Helper: schedule the resize-difference clear via rAF + setTimeout(1)
+	 * with a last-writer-wins guard. Adopted from useStickToBottom.ts
+	 * lines 583–589. The two-frame deferral covers (a) the layout-driven
+	 * scroll event that fires BEFORE the RO microtask, and (b) any
+	 * post-RO scroll preservation revert events Chromium fires during the
+	 * rendering update. The last-writer-wins guard ensures that a NEWER
+	 * RO callback's set cannot be wiped by an OLDER callback's pending
+	 * clear — when a clear fires, it only clears if the captured
+	 * difference value is still the current one.
+	 */
+	const scheduleResizeDifferenceClear = useCallback((captured: number) => {
+		requestAnimationFrame(() => {
+			window.setTimeout(() => {
+				if (resizeDifferenceRef.current === captured) {
+					resizeDifferenceRef.current = 0;
+				}
+			}, 1);
+		});
 	}, []);
 
 	/**
@@ -313,43 +366,100 @@ export function useAutoScrollPin(
 
 	/**
 	 * Scroll handler. Fires on every scrollTop change (user-driven AND
-	 * programmatic AND browser-synthesized). Only purpose here is to
-	 * detect "user manually scrolled back near bottom" so the pill can
-	 * disappear without a click — the inverse direction from wheel.
+	 * programmatic AND browser-synthesized).
 	 *
-	 * The wheel handler handles "scrolled away" (escape).
+	 * I-S12 round-3: classification is direction-based, not gap-based,
+	 * adopted from useStickToBottom.ts lines 436–451. The handler body
+	 * defers via setTimeout(1) per use-stick-to-bottom line 436, citing
+	 * WICG/resize-observer#25 — scroll events fire BEFORE the RO
+	 * microtask in Chromium, so the deferral lets the RO callback's
+	 * resizeDifferenceRef set land before this handler reads it.
+	 *
+	 * The deferred body bails on:
+	 *   1. resizeDifferenceRef !== 0 (a resize is in flight)
+	 *   2. ignoreNextScrollEventRef (the hook's own scrollTop write
+	 *      produced this scroll event — see I-S7)
+	 *
+	 * Otherwise it classifies by direction (scrollingUp vs scrollingDown
+	 * vs neither). scrollingUp = user intent to escape. scrollingDown =
+	 * clear escape (user heading toward bottom). "near bottom" = re-pin.
+	 *
+	 * What this handler does NOT do anymore (round-2 design, removed):
+	 * the gap-based else-if branch that flipped isAtBottom to false when
+	 * gap > STICK_OFFSET_PX while pinned. That branch fired during smooth-
+	 * scroll-toward-bottom animations (Test 4 in [[I-S12 round-2 synthesis]])
+	 * and during layout-shrink scroll events (Test 1 in same synthesis).
+	 * Direction-based classification correctly handles both — animations
+	 * are scrollingDown (does not unpin), layout shrinks are guarded by
+	 * resizeDifferenceRef.
 	 */
 	const handleScroll = useCallback(() => {
-		// I-S7: a scroll event fired by the hook's own scrollTop write
-		// must not be misinterpreted as a user scroll. The flag is set
-		// synchronously before each setScrollTopInstant call; consume
-		// and clear here.
+		// I-S7 fast-path: a scroll event fired by the hook's own scrollTop
+		// write must not be misinterpreted as a user scroll. The flag is
+		// set synchronously before each setScrollTopInstant call; consume
+		// and clear here. This check happens BEFORE the setTimeout(1)
+		// deferral so consumption is ordered against subsequent scroll
+		// events. Capture lastScrollTop before the deferral so direction
+		// is computed against the scrollTop AT scroll-event-fire time.
 		if (ignoreNextScrollEventRef.current) {
 			ignoreNextScrollEventRef.current = false;
+			const scrollEl = scrollElRef.current;
+			if (scrollEl) lastScrollTopRef.current = scrollEl.scrollTop;
 			return;
 		}
+
 		const scrollEl = scrollElRef.current;
 		if (!scrollEl) return;
-		const gap = bottomGap(scrollEl);
-		const nearBottom = gap <= STICK_OFFSET_PX;
 
-		if (nearBottom) {
-			// User scrolled back near bottom (or programmatic scroll landed there)
-			// — clear escape and re-pin.
-			setEscapedFromLock(false);
-			setIsAtBottom(true);
-		} else if (
-			!escapedFromLockRef.current &&
-			isAtBottomRef.current &&
-			gap > STICK_OFFSET_PX
-		) {
-			// We thought we were pinned but the browser settled scrollTop
-			// outside the offset (e.g. content shrank). Update the public
-			// boolean so the pill reflects truth, but don't set escape —
-			// that's a user-intent signal only.
-			setIsAtBottom(false);
-		}
-	}, [setEscapedFromLock, setIsAtBottom]);
+		const scrollTop = scrollEl.scrollTop;
+		const lastScrollTop = lastScrollTopRef.current ?? scrollTop;
+		lastScrollTopRef.current = scrollTop;
+
+		// I-S12 round-3: defer the body via setTimeout(1) per
+		// useStickToBottom.ts line 436, citing
+		// WICG/resize-observer#25#issuecomment-248757228 — scroll events
+		// may come before a ResizeObserver event, so we use a timeout to
+		// let any pending resize-difference set land first.
+		window.setTimeout(() => {
+			// Bail if a resize is in flight. resizeDifferenceRef is set at
+			// the START of each RO callback (BOTH contentRef AND scrollRef)
+			// and cleared via rAF+setTimeout(1). Any scroll events fired
+			// during the rendering update — synthesized by Chromium for
+			// the layout shrink, by scroll preservation reverts, or by
+			// our own RO-driven writes — fall through this check.
+			if (resizeDifferenceRef.current !== 0) {
+				return;
+			}
+
+			const currentScrollEl = scrollElRef.current;
+			if (!currentScrollEl) return;
+
+			const isScrollingUp = scrollTop < lastScrollTop;
+			const isScrollingDown = scrollTop > lastScrollTop;
+
+			// User scrolled up → escape (suppressed during text selection).
+			if (isScrollingUp && !isSelecting()) {
+				setEscapedFromLock(true);
+				setIsAtBottom(false);
+			}
+
+			// User scrolled down → clear escape. We don't set isAtBottom
+			// here unconditionally — the near-bottom check below decides.
+			// Without this clear, a user who escaped (wheel-up) and then
+			// manually scrolled back down past the threshold would still
+			// be "escaped" and the near-bottom branch would not re-pin.
+			if (isScrollingDown) {
+				setEscapedFromLock(false);
+			}
+
+			// Re-pin if we're near the bottom and not escaped.
+			const gap = bottomGap(currentScrollEl);
+			const nearBottom = gap <= STICK_OFFSET_PX;
+			if (!escapedFromLockRef.current && nearBottom) {
+				setIsAtBottom(true);
+			}
+		}, 1);
+	}, [isSelecting, setEscapedFromLock, setIsAtBottom]);
 
 	// ------------------------------------------------------------------------
 	// scrollRef — RefCallback that attaches/detaches event listeners and
@@ -388,22 +498,64 @@ export function useAutoScrollPin(
 				const previous = prevContainerHeight;
 				prevContainerHeight = height;
 
-				// Only react to SHRINK while we're supposed to be pinned.
-				// Container grow doesn't lose the bottom — content already
-				// fills it (and contentRef ResizeObserver will fire too).
+				// I-S12 round-3: set resizeDifferenceRef BEFORE any re-anchor
+				// work, so a layout-driven scroll event firing before this RO
+				// microtask (per WICG/resize-observer#25) and any
+				// scroll-preservation-revert event fired by Chromium during
+				// the rendering update both see the guard set. Adopted line-
+				// for-line from useStickToBottom.ts lines 539 + 583–589.
+				const difference = previous === undefined ? 0 : height - previous;
+				if (difference !== 0) {
+					resizeDifferenceRef.current = difference;
+					scheduleResizeDifferenceClear(difference);
+				}
+
 				if (previous === undefined) return;
-				if (height >= previous) return;
-				if (escapedFromLockRef.current) return;
-				if (!isAtBottomRef.current) return;
+
 				const scrollEl = scrollElRef.current;
 				if (!scrollEl) return;
-				ignoreNextScrollEventRef.current = true;
-				setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
+
+				if (height < previous) {
+					// Container shrank (e.g., flex-sibling InputArea grew into our space).
+					// Re-anchor to bottom if pinned. Adopted line-for-line from
+					// useStickToBottom.ts: each RO fire writes the current target,
+					// and resizeDifferenceRef guards subsequent scroll events against
+					// misinterpretation by handleScroll.
+					if (escapedFromLockRef.current) return;
+					if (!isAtBottomRef.current) return;
+					ignoreNextScrollEventRef.current = true;
+					setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
+				} else if (height > previous) {
+					// I-S12 fix for grow symptom: container grew (e.g., textarea cleared).
+					// If the grow brought the bottom back into view (within
+					// STICK_OFFSET_PX), re-pin — even from escaped state. Mirrors the
+					// contentRef RO's shrank branch (no escapedFromLock guard, since
+					// the user's effective scroll position is now at the bottom).
+					//
+					// Pre-fix this branch was a no-op (`if (height >= previous) return;`)
+					// on the assumption that contentRef RO would handle re-pinning,
+					// but contentRef doesn't fire on container-grow if content height
+					// stayed the same. Without this, the scroll-pill stays visible
+					// after the user clears the textarea even though the scroll
+					// physically lands at bottom.
+					if (bottomGap(scrollEl) <= STICK_OFFSET_PX) {
+						setEscapedFromLock(false);
+						setIsAtBottom(true);
+					}
+				}
 			});
 			observer.observe(el);
 			scrollObserverRef.current = observer;
 		},
-		[handleScroll, handleWheel, handleTouchStart, handleTouchMove],
+		[
+			handleScroll,
+			handleWheel,
+			handleTouchStart,
+			handleTouchMove,
+			scheduleResizeDifferenceClear,
+			setEscapedFromLock,
+			setIsAtBottom,
+		],
 	);
 
 	// ------------------------------------------------------------------------
@@ -432,7 +584,18 @@ export function useAutoScrollPin(
 				const scrollEl = scrollElRef.current;
 				if (!scrollEl) return;
 
-				// Initial fire OR positive resize: anchor to bottom if pinned.
+				// I-S12 round-3: set resizeDifferenceRef BEFORE any re-anchor
+				// work. Streaming chunk grows are also "resize in flight" from
+				// handleScroll's perspective — when the hook writes scrollTop to
+				// the new bottom, the scroll event must not be classified as
+				// user input. Adopted line-for-line from useStickToBottom.ts
+				// lines 539 + 583–589.
+				const difference = previous === undefined ? 0 : height - previous;
+				if (difference !== 0) {
+					resizeDifferenceRef.current = difference;
+					scheduleResizeDifferenceClear(difference);
+				}
+
 				// Treating the first fire the same as a subsequent grow is
 				// load-bearing: during session restore, bubbles mount and
 				// then asynchronously grow as markdown parses, syntax
@@ -516,7 +679,7 @@ export function useAutoScrollPin(
 			observer.observe(el);
 			contentObserverRef.current = observer;
 		},
-		[setIsAtBottom],
+		[scheduleResizeDifferenceClear, setEscapedFromLock, setIsAtBottom],
 	);
 
 	// ------------------------------------------------------------------------
