@@ -141,12 +141,20 @@ export function useAutoScrollPin(
 	const scrollObserverRef = useRef<ResizeObserver | null>(null);
 	const contentObserverRef = useRef<ResizeObserver | null>(null);
 	/**
-	 * Pending requestAnimationFrame handle for the deferred initial-fire
-	 * anchor (see I-S9 fix in contentRef below). Stored at hook level so
-	 * cleanup paths (contentRef detach, hook unmount) can cancel a
-	 * pending callback to avoid late writes after disconnect.
+	 * Pending callback for the deferred initial-fire anchor (see I-S9 fix in
+	 * contentRef below). The callback is fired by the MessageChannel on
+	 * `initialDeferralChannelRef`; cleanup paths (contentRef detach, hook
+	 * unmount) null this ref so a posted-but-not-yet-delivered message
+	 * becomes a no-op.
+	 *
+	 * MessageChannel was chosen over `requestAnimationFrame` because rAF is
+	 * folded into the same task when queued during an active frame-update
+	 * cycle (Chromium's tab-activation path). Trace evidence:
+	 * `_traces/Trace-Phase2-Verify-IS9-20260525T093852.json`. MessageChannel
+	 * always queues a fresh task — it cannot be folded into the current one.
 	 */
-	const pendingInitialRafRef = useRef<number | null>(null);
+	const pendingInitialDeferralRef = useRef<(() => void) | null>(null);
+	const initialDeferralChannelRef = useRef<MessageChannel | null>(null);
 	const lastIsActiveRef = useRef(isActive);
 	const lastIsSendingRef = useRef(isSending);
 	/**
@@ -406,12 +414,11 @@ export function useAutoScrollPin(
 		(el) => {
 			contentObserverRef.current?.disconnect();
 			contentObserverRef.current = null;
-			// Cancel any pending I-S9 deferred-anchor rAF — the contentEl
-			// it would write to may no longer be the current one.
-			if (pendingInitialRafRef.current !== null) {
-				cancelAnimationFrame(pendingInitialRafRef.current);
-				pendingInitialRafRef.current = null;
-			}
+			// Drop any pending I-S9 deferred-anchor callback — the contentEl
+			// it would write to may no longer be the current one. The
+			// MessageChannel post may already be in flight; nulling the ref
+			// turns the eventual fire into a no-op.
+			pendingInitialDeferralRef.current = null;
 			contentElRef.current = el;
 			if (!el) return;
 
@@ -443,33 +450,53 @@ export function useAutoScrollPin(
 					if (escapedFromLockRef.current) return;
 					if (!isAtBottomRef.current) return;
 
-					// I-S9 fix: the FIRST RO fire happens during React's
-					// commit-phase microtask flush on tab activation,
-					// when ~200 bubbles have just mounted and the DOM is
-					// layout-dirty. A synchronous read of scrollHeight
-					// here forces a partial-layout pass against the dirty
-					// DOM (~31 ms on a 200-bubble session, captured in
-					// _traces/Trace-I-S8-NormalCadence-20260524T215526.json).
-					// Defer the read+write to the next animation frame so
-					// the browser can settle layout once before we read.
-					// Subsequent grows (true streaming chunks with
-					// previous defined) write synchronously — the dirty-
-					// DOM problem is only present on the just-mounted
+					// I-S9 fix (revised 2026-05-25 after T-IS9-smoke FAILED
+					// against the original rAF-based deferral): the FIRST RO
+					// fire happens during React's commit-phase microtask
+					// flush on tab activation, when ~200 bubbles have just
+					// mounted and the DOM is layout-dirty. A synchronous
+					// read of scrollHeight here forces a partial-layout
+					// pass against the dirty DOM (~31 ms on a 200-bubble
+					// session pre-fix; ~75 ms with the broken rAF deferral
+					// because rAF was folded into the same task). Trace
+					// evidence:
+					// _traces/Trace-Phase2-Verify-IS9-20260525T093852.json.
+					//
+					// Defer the read+write to a fresh task via a per-hook
+					// MessageChannel post. Unlike rAF, MessageChannel cannot
+					// be folded into the current task — the message always
+					// queues a new task, escaping the click handler's task
+					// even when the click was dispatched during an active
+					// frame-update. Subsequent grows (true streaming chunks
+					// with previous defined) write synchronously — the
+					// dirty-DOM problem is only present on the just-mounted
 					// initial fire.
 					if (previous === undefined) {
-						if (pendingInitialRafRef.current !== null) return;
-						pendingInitialRafRef.current = requestAnimationFrame(() => {
-							pendingInitialRafRef.current = null;
+						if (pendingInitialDeferralRef.current !== null) return;
+						pendingInitialDeferralRef.current = () => {
 							const el = scrollElRef.current;
 							if (!el) return;
-							// Re-check guards at rAF time — state may have
-							// changed between the RO callback and the rAF
-							// flush (e.g., user wheel-up).
+							// Re-check guards at fire time — state may have
+							// changed between the RO callback and the
+							// MessageChannel delivery (e.g., user wheel-up).
 							if (escapedFromLockRef.current) return;
 							if (!isAtBottomRef.current) return;
 							ignoreNextScrollEventRef.current = true;
 							setScrollTopInstant(el, bottomScrollTop(el));
-						});
+						};
+						// Lazy-create the channel on first use. Its onmessage
+						// handler reads-and-clears pendingInitialDeferralRef,
+						// so cleanup paths can cancel by nulling the ref.
+						if (initialDeferralChannelRef.current === null) {
+							const channel = new MessageChannel();
+							channel.port1.onmessage = () => {
+								const cb = pendingInitialDeferralRef.current;
+								pendingInitialDeferralRef.current = null;
+								if (cb) cb();
+							};
+							initialDeferralChannelRef.current = channel;
+						}
+						initialDeferralChannelRef.current.port2.postMessage(null);
 						return;
 					}
 
@@ -528,9 +555,13 @@ export function useAutoScrollPin(
 			contentObserverRef.current?.disconnect();
 			scrollObserverRef.current = null;
 			contentObserverRef.current = null;
-			if (pendingInitialRafRef.current !== null) {
-				cancelAnimationFrame(pendingInitialRafRef.current);
-				pendingInitialRafRef.current = null;
+			pendingInitialDeferralRef.current = null;
+			if (initialDeferralChannelRef.current !== null) {
+				// Closing the port stops further deliveries. Any message in
+				// flight when this runs will be dropped by the browser.
+				initialDeferralChannelRef.current.port1.close();
+				initialDeferralChannelRef.current.port2.close();
+				initialDeferralChannelRef.current = null;
 			}
 			const scrollEl = scrollElRef.current;
 			if (scrollEl) {

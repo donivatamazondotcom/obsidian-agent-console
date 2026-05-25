@@ -305,27 +305,99 @@ function fireTouchMove(el: HTMLElement, clientY: number): void {
 
 let originalResizeObserver: typeof globalThis.ResizeObserver | undefined;
 let originalGetSelection: typeof window.getSelection | undefined;
-let originalRAF: typeof globalThis.requestAnimationFrame | undefined;
-let originalCAF: typeof globalThis.cancelAnimationFrame | undefined;
+let originalMessageChannel: typeof globalThis.MessageChannel | undefined;
 
 /**
  * Synchronous-by-explicit-flush rAF mock. Captured callbacks queue; tests
  * call flushRaf() to run all pending callbacks. This makes tests
- * deterministic for the I-S9 deferred-anchor path (where the hook
- * defers work to rAF) without requiring fake timers in every test.
+ * deterministic for any rAF-based deferral without requiring fake timers
+ * in every test.
  *
  * Tests that don't trigger any rAF work (most of the suite) ignore this
  * — flushRaf() is a no-op when the queue is empty.
  */
-const rafQueue: Array<{ id: number; cb: FrameRequestCallback }> = [];
-let nextRafId = 1;
+/**
+ * MessageChannel mock — see definition below. The I-S9 deferral uses
+ * MessageChannel; this exposes synchronous flush control to tests.
+ *
+ * (Note: a previous version of this file installed a per-test rAF mock
+ * because the original I-S9 fix in `d6bcfac` used `requestAnimationFrame`.
+ * That fix was reverted to MessageChannel after T-IS9-smoke surfaced
+ * Chromium folding the rAF callback into the same task as the click
+ * event. See spec § I-S9 for the trace evidence and rationale.)
+ */
 
-function flushRaf(): void {
-	// Drain the queue. New callbacks queued during flush run on next call,
-	// matching browser rAF semantics (one frame per flush).
-	const toRun = rafQueue.splice(0);
-	for (const { cb } of toRun) {
-		cb(performance.now());
+/**
+ * Synchronous-by-explicit-flush MessageChannel mock. The I-S9 fix uses
+ * MessageChannel to defer the initial-fire scrollTop anchor to a fresh
+ * task (instead of the broken rAF approach which Chromium folds into
+ * the current task on tab activation).
+ *
+ * Real JSDOM MessageChannel works asynchronously, but tests want
+ * synchronous control. The mock collects posted messages on a per-channel
+ * queue; flushMessages() drains all queues across all instances. New
+ * channels created mid-test are tracked automatically.
+ *
+ * Tests that don't trigger MessageChannel work ignore this — flushMessages()
+ * is a no-op when no messages are pending.
+ */
+interface MockMessagePort {
+	onmessage: ((ev: MessageEvent) => unknown) | null;
+	postMessage(msg: unknown): void;
+	close(): void;
+	__pair?: MockMessagePort;
+	__queue: Array<unknown>;
+	__closed: boolean;
+}
+
+const messageChannelInstances: Array<{
+	port1: MockMessagePort;
+	port2: MockMessagePort;
+}> = [];
+
+class MockMessageChannel {
+	port1: MockMessagePort;
+	port2: MockMessagePort;
+	constructor() {
+		const makePort = (): MockMessagePort => ({
+			onmessage: null,
+			__queue: [],
+			__closed: false,
+			postMessage(this: MockMessagePort, msg: unknown) {
+				// postMessage on portN delivers to the OTHER port's queue.
+				// biome-ignore lint/style/noNonNullAssertion: __pair set below
+				const other = this.__pair!;
+				if (other.__closed) return;
+				other.__queue.push(msg);
+			},
+			close(this: MockMessagePort) {
+				this.__closed = true;
+				this.__queue.length = 0;
+			},
+		});
+		this.port1 = makePort();
+		this.port2 = makePort();
+		this.port1.__pair = this.port2;
+		this.port2.__pair = this.port1;
+		messageChannelInstances.push({ port1: this.port1, port2: this.port2 });
+	}
+}
+
+function flushMessages(): void {
+	// Drain pending messages on every port across every channel. Messages
+	// posted during delivery (re-entrancy) become visible on a subsequent
+	// flushMessages() call, matching real task-queue semantics.
+	for (const { port1, port2 } of messageChannelInstances) {
+		for (const port of [port1, port2]) {
+			if (port.__closed) continue;
+			const pending = port.__queue.splice(0);
+			for (const data of pending) {
+				const handler = port.onmessage;
+				if (handler) {
+					handler({ data } as MessageEvent);
+				}
+			}
+		}
 	}
 }
 
@@ -339,19 +411,13 @@ beforeEach(() => {
 	originalGetSelection = window.getSelection;
 	window.getSelection = () => null;
 
-	// rAF mock — captures callbacks for explicit flush.
-	originalRAF = globalThis.requestAnimationFrame;
-	originalCAF = globalThis.cancelAnimationFrame;
-	rafQueue.length = 0;
-	globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
-		const id = nextRafId++;
-		rafQueue.push({ id, cb });
-		return id;
-	};
-	globalThis.cancelAnimationFrame = (id: number) => {
-		const idx = rafQueue.findIndex((q) => q.id === id);
-		if (idx >= 0) rafQueue.splice(idx, 1);
-	};
+	// MessageChannel mock — captures postMessages for explicit flush. The
+	// I-S9 deferral uses MessageChannel; this makes its delivery
+	// deterministic from the test's perspective.
+	originalMessageChannel = globalThis.MessageChannel;
+	messageChannelInstances.length = 0;
+	(globalThis as unknown as { MessageChannel: typeof MockMessageChannel }).MessageChannel =
+		MockMessageChannel;
 });
 
 afterEach(() => {
@@ -362,9 +428,12 @@ afterEach(() => {
 	if (originalGetSelection) {
 		window.getSelection = originalGetSelection;
 	}
-	if (originalRAF) globalThis.requestAnimationFrame = originalRAF;
-	if (originalCAF) globalThis.cancelAnimationFrame = originalCAF;
-	rafQueue.length = 0;
+	if (originalMessageChannel) {
+		(
+			globalThis as unknown as { MessageChannel: typeof globalThis.MessageChannel }
+		).MessageChannel = originalMessageChannel;
+	}
+	messageChannelInstances.length = 0;
 });
 
 // ============================================================================
@@ -415,7 +484,7 @@ describe("useAutoScrollPin — initial state", () => {
 
 		// I-S9 fix: initial fire defers to rAF. Flush to land the anchor.
 		act(() => {
-			flushRaf();
+			flushMessages();
 		});
 
 		// First fire = initial anchor → write scrollTop to (1000 - 800 - 1) = 199
@@ -746,7 +815,7 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 
 			// I-S9 fix: initial fire defers to rAF. Flush to land the anchor.
 			act(() => {
-				flushRaf();
+				flushMessages();
 			});
 
 			// Initial fire writes scrollTop even though height < clientHeight
@@ -779,7 +848,7 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 			});
 			// I-S9 fix: initial fire defers to rAF. Flush to land the anchor.
 			act(() => {
-				flushRaf();
+				flushMessages();
 			});
 			// Initial anchor: scrollTop = 1000 - 800 - 1 = 199
 			expect(geom.writes[geom.writes.length - 1]).toBe(199);
@@ -914,7 +983,7 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 
 			// Now flush the rAF queue.
 			act(() => {
-				flushRaf();
+				flushMessages();
 			});
 
 			// AFTER rAF: the deferred callback reads scrollHeight
@@ -951,7 +1020,7 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 				fireResize(h.contentEl, 1000);
 			});
 			act(() => {
-				flushRaf();
+				flushMessages();
 			});
 			const writesAfterInitial = geom.writes.length;
 
@@ -972,7 +1041,7 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 			// callback queued for the second fire).
 			const writesBeforeFlush = geom.writes.length;
 			act(() => {
-				flushRaf();
+				flushMessages();
 			});
 			expect(geom.writes.length).toBe(writesBeforeFlush);
 		});
@@ -1017,7 +1086,7 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 			// Now flush rAF. The deferred callback's guards must
 			// see the current isAtBottomRef=false and bail.
 			act(() => {
-				flushRaf();
+				flushMessages();
 			});
 
 			// No write happened. The user's escape was respected.
@@ -1176,7 +1245,7 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 			});
 			// I-S9 fix: initial fire defers to rAF. Flush to land the anchor.
 			act(() => {
-				flushRaf();
+				flushMessages();
 			});
 			// Initial anchor: scrollTop = 1000 - 800 - 1 = 199
 			expect(geom.writes[geom.writes.length - 1]).toBe(199);
