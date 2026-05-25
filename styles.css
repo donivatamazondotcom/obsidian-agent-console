@@ -644,14 +644,17 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	flex-direction: column;
 }
 
-/* Message row spacing + off-screen render-skip via content-visibility:auto.
- * Replaces the per-bubble cost previously paid by @tanstack/react-virtual
- * measurement. Browser skips paint+layout for rows outside the viewport;
- * containIntrinsicSize prevents scroll-position jumps when rows enter view. */
+/* Message row spacing.
+ * NOTE: content-visibility: auto was tried but causes scrollHeight to
+ * report an inflated/inaccurate value during initial session restore
+ * (placeholder contain-intrinsic-size doesn't match real bubble heights),
+ * which leaves the scroll position at ~3/4 down instead of bottom on
+ * restore. Removed pending a different perf strategy if needed. With
+ * 201-message sessions in Phase 1 traces, virtualizer measurement was
+ * only 2.48 ms total — paint cost without the off-screen skip is in the
+ * same range. Revisit if a future profile shows excessive paint cost. */
 .agent-client-message-row {
 	padding-bottom: 2px;
-	content-visibility: auto;
-	contain-intrinsic-size: 0 80px;
 }
 
 /* Allow horizontal scroll for wide tables within messages */

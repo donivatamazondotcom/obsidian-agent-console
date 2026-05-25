@@ -663,6 +663,142 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 		expect(geom.writes.length).toBe(writesBefore);
 		expect(h.getResult().isAtBottom).toBe(true);
 	});
+
+	// Regression net for I-S6 (session-restore landed scrollbar 3/4 down,
+	// not at bottom). Root cause: initial ResizeObserver fire reports a
+	// PARTIAL height — bubbles are mounted but markdown parse, syntax
+	// highlighter, image load are async/multi-frame. If we anchor once on
+	// initial fire and stop, the scroll lands at a partial-height bottom.
+	// The fix collapses the initial-fire and grew branches: anchor on
+	// every positive resize while pinned, including the first.
+	describe("I-S6 regression net (session-restore partial-height anchor)", () => {
+		it("anchors on initial ResizeObserver fire while pinned", () => {
+			let handle: HarnessHandle | null = null;
+			render(
+				React.createElement(Harness, {
+					isActive: true,
+					isSending: false,
+					view: makeView(),
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+			);
+			// biome-ignore lint/style/noNonNullAssertion: bound by render
+			const h = handle!;
+			const geom = setupScrollGeometry(h.scrollEl, {
+				scrollHeight: 500, // partial first-paint height
+				clientHeight: 800,
+			});
+
+			act(() => {
+				fireResize(h.contentEl, 500);
+			});
+
+			// Initial fire writes scrollTop even though height < clientHeight
+			// (Math.max(0, 500-800-1) = 0). Important: that write happens.
+			expect(geom.writes.length).toBeGreaterThan(1);
+		});
+
+		it("keeps anchoring as height grows after initial fire (the bug)", () => {
+			let handle: HarnessHandle | null = null;
+			render(
+				React.createElement(Harness, {
+					isActive: true,
+					isSending: false,
+					view: makeView(),
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+			);
+			// biome-ignore lint/style/noNonNullAssertion: bound by render
+			const h = handle!;
+			const geom = setupScrollGeometry(h.scrollEl, {
+				scrollHeight: 1000,
+				clientHeight: 800,
+			});
+
+			// Simulate session-restore: first fire is partial (3/4 height).
+			act(() => {
+				fireResize(h.contentEl, 1000);
+			});
+			// Initial anchor: scrollTop = 1000 - 800 - 1 = 199
+			expect(geom.writes[geom.writes.length - 1]).toBe(199);
+
+			// Then bubbles' async measurement completes — height grows.
+			// Each fire must re-anchor to the NEW bottom.
+			Object.defineProperty(h.scrollEl, "scrollHeight", {
+				configurable: true,
+				get: () => 1500,
+			});
+			act(() => {
+				fireResize(h.contentEl, 1500);
+			});
+			expect(geom.writes[geom.writes.length - 1]).toBe(699);
+
+			Object.defineProperty(h.scrollEl, "scrollHeight", {
+				configurable: true,
+				get: () => 2000,
+			});
+			act(() => {
+				fireResize(h.contentEl, 2000);
+			});
+			expect(geom.writes[geom.writes.length - 1]).toBe(1199);
+
+			Object.defineProperty(h.scrollEl, "scrollHeight", {
+				configurable: true,
+				get: () => 3000,
+			});
+			act(() => {
+				fireResize(h.contentEl, 3000);
+			});
+			expect(geom.writes[geom.writes.length - 1]).toBe(2199);
+		});
+
+		it("respects user escape during session-restore async grows", () => {
+			let handle: HarnessHandle | null = null;
+			render(
+				React.createElement(Harness, {
+					isActive: true,
+					isSending: false,
+					view: makeView(),
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+			);
+			// biome-ignore lint/style/noNonNullAssertion: bound by render
+			const h = handle!;
+			const geom = setupScrollGeometry(h.scrollEl, {
+				scrollHeight: 1000,
+				clientHeight: 800,
+			});
+
+			// Initial fire anchors
+			act(() => {
+				fireResize(h.contentEl, 1000);
+			});
+			const writesAfterInitial = geom.writes.length;
+
+			// User wheel-up during async-grow window
+			act(() => {
+				fireWheel(h.scrollEl, -50);
+			});
+
+			// More content grows (e.g., last bubble's syntax highlighter
+			// finished). The hook must NOT yank the user back.
+			Object.defineProperty(h.scrollEl, "scrollHeight", {
+				configurable: true,
+				get: () => 1500,
+			});
+			act(() => {
+				fireResize(h.contentEl, 1500);
+			});
+
+			expect(geom.writes.length).toBe(writesAfterInitial);
+		});
+	});
 });
 
 describe("useAutoScrollPin — container-shrink anchor (Decision #21 Finding 1)", () => {

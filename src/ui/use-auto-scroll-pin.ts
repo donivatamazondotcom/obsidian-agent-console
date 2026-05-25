@@ -386,22 +386,21 @@ export function useAutoScrollPin(
 				const scrollEl = scrollElRef.current;
 				if (!scrollEl) return;
 
-				// Initial fire (no previous height) — anchor to bottom if
-				// we're nominally pinned. Covers session-restoration and
-				// first-paint cases.
-				if (previous === undefined) {
-					if (isAtBottomRef.current && !escapedFromLockRef.current) {
-						setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
-					}
-					return;
-				}
-
-				const grew = height > previous;
-				const shrank = height < previous;
+				// Initial fire OR positive resize: anchor to bottom if pinned.
+				// Treating the first fire the same as a subsequent grow is
+				// load-bearing: during session restore, bubbles mount and
+				// then asynchronously grow as markdown parses, syntax
+				// highlighters finish, and code blocks measure. The first
+				// ResizeObserver fire may report a PARTIAL height. The hook
+				// must anchor on every positive height delta until the
+				// bubbles stabilize. This works in concert with NOT using
+				// content-visibility:auto on bubbles — that property
+				// suppresses RO fires for off-screen growth, which would
+				// silently leave the scroll at a partial position.
+				const grew = previous === undefined || height > previous;
+				const shrank = previous !== undefined && height < previous;
 
 				if (grew) {
-					// Content grew (streaming token, code block mounted, table
-					// rendered, image loaded, etc.). Re-anchor if pinned.
 					if (escapedFromLockRef.current) return;
 					if (!isAtBottomRef.current) return;
 					setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
