@@ -142,6 +142,22 @@ export function useAutoScrollPin(
 	const contentObserverRef = useRef<ResizeObserver | null>(null);
 	const lastIsActiveRef = useRef(isActive);
 	const lastIsSendingRef = useRef(isSending);
+	/**
+	 * Set to true immediately before the hook writes scrollTop itself
+	 * (via setScrollTopInstant). Consumed and reset by the next
+	 * handleScroll invocation. Closes I-S7: without this, the scroll
+	 * event fired by the hook's own write can race with off-screen
+	 * async resize-driven scrollHeight growth and be misinterpreted as
+	 * a user-initiated scroll-up, flipping isAtBottomRef to false and
+	 * preventing subsequent RO fires from re-anchoring.
+	 *
+	 * Each hook-driven scrollTop write produces exactly one scroll
+	 * event (the browser fires once per programmatic write, even when
+	 * the target value equals the current value — which clamps to 0).
+	 * The next scroll event after the flag is set is therefore ours;
+	 * the one after that is the user's.
+	 */
+	const ignoreNextScrollEventRef = useRef(false);
 
 	/**
 	 * Same-value bail wrapper around setIsAtBottomState (per spec
@@ -211,6 +227,7 @@ export function useAutoScrollPin(
 				}
 				scrollEl.scrollTop = target;
 			} else {
+				ignoreNextScrollEventRef.current = true;
 				setScrollTopInstant(scrollEl, target);
 			}
 
@@ -288,6 +305,14 @@ export function useAutoScrollPin(
 	 * The wheel handler handles "scrolled away" (escape).
 	 */
 	const handleScroll = useCallback(() => {
+		// I-S7: a scroll event fired by the hook's own scrollTop write
+		// must not be misinterpreted as a user scroll. The flag is set
+		// synchronously before each setScrollTopInstant call; consume
+		// and clear here.
+		if (ignoreNextScrollEventRef.current) {
+			ignoreNextScrollEventRef.current = false;
+			return;
+		}
 		const scrollEl = scrollElRef.current;
 		if (!scrollEl) return;
 		const gap = bottomGap(scrollEl);
@@ -357,6 +382,7 @@ export function useAutoScrollPin(
 				if (!isAtBottomRef.current) return;
 				const scrollEl = scrollElRef.current;
 				if (!scrollEl) return;
+				ignoreNextScrollEventRef.current = true;
 				setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
 			});
 			observer.observe(el);
@@ -403,6 +429,7 @@ export function useAutoScrollPin(
 				if (grew) {
 					if (escapedFromLockRef.current) return;
 					if (!isAtBottomRef.current) return;
+					ignoreNextScrollEventRef.current = true;
 					setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
 				} else if (shrank) {
 					// Content shrank. If the shrink brought the bottom back
@@ -433,6 +460,7 @@ export function useAutoScrollPin(
 		if (!isAtBottomRef.current) return; // wasn't pinned; preserve
 		const scrollEl = scrollElRef.current;
 		if (!scrollEl) return;
+		ignoreNextScrollEventRef.current = true;
 		setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
 	}, [isActive]);
 

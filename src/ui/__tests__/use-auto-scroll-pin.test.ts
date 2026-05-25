@@ -30,6 +30,10 @@
  *   ✓ Cleanup on unmount (ResizeObservers disconnected, listeners removed)
  *   ✓ Property-based content-grow burst sizes (closes I-S1's bug class
  *     architecturally — not just at one threshold)
+ *   ✓ Scroll-event race during async-grow session restore (closes I-S7 —
+ *     hook-driven scrollTop write fires a scroll event that, if delivered
+ *     after off-screen scrollHeight growth, would otherwise flip
+ *     isAtBottomRef and freeze the scroll at the partial-content bottom)
  *
  * Bug classes that are JSDOM-IMPOSSIBLE and require manual smoke test:
  *   ✗ Real-browser layout settling between programmatic write and next paint
@@ -796,6 +800,169 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 				fireResize(h.contentEl, 1500);
 			});
 
+			expect(geom.writes.length).toBe(writesAfterInitial);
+		});
+	});
+
+	describe("I-S7 regression net (scroll-event race during async-grow session restore)", () => {
+		// I-S7 root cause: each hook-driven setScrollTopInstant write fires
+		// a scroll event; if scrollHeight has grown between the write and
+		// the scroll event delivery (off-screen MarkdownRenderer.render
+		// finishing), handleScroll computes gap > STICK_OFFSET_PX and
+		// flips isAtBottomRef.current to false. Subsequent contentEl RO
+		// fires then bail on the !isAtBottomRef.current guard and never
+		// re-anchor. Final scrollTop stays frozen at the partial-content
+		// bottom (= partialHeight - clientHeight - 1).
+		//
+		// Fix: ignoreNextScrollEventRef set immediately before each
+		// hook-driven write; consumed and reset on the next handleScroll
+		// invocation so the hook's own scroll-event echo doesn't race
+		// the resize-driven scrollHeight growth.
+
+		it("re-anchors after scroll-event fires between RO grow fires (the bug)", () => {
+			let handle: HarnessHandle | null = null;
+			render(
+				React.createElement(Harness, {
+					isActive: true,
+					isSending: false,
+					view: makeView(),
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+			);
+			// biome-ignore lint/style/noNonNullAssertion: bound by render
+			const h = handle!;
+			const geom = setupScrollGeometry(h.scrollEl, {
+				scrollHeight: 1000,
+				clientHeight: 800,
+			});
+
+			// First RO fire — partial content height
+			act(() => {
+				fireResize(h.contentEl, 1000);
+			});
+			// Initial anchor: scrollTop = 1000 - 800 - 1 = 199
+			expect(geom.writes[geom.writes.length - 1]).toBe(199);
+
+			// BEFORE the scroll event fires for that write, async bubble
+			// parsing grows scrollHeight to 4000 (off-screen rows complete
+			// MarkdownRenderer.render). Browser delivers the scroll event
+			// after this growth, so handleScroll sees the new scrollHeight.
+			Object.defineProperty(h.scrollEl, "scrollHeight", {
+				configurable: true,
+				get: () => 4000,
+			});
+			act(() => {
+				fireScrollEvent(h.scrollEl);
+			});
+
+			// Subsequent RO fires for the post-grow heights MUST re-anchor.
+			// Pre-fix: each one bails on !isAtBottomRef.current.
+			// Post-fix: each one writes scrollTop to the new bottom.
+			act(() => {
+				fireResize(h.contentEl, 4000);
+			});
+			expect(geom.writes[geom.writes.length - 1]).toBe(3199); // 4000 - 800 - 1
+		});
+
+		it("keeps re-anchoring across many RO fires interleaved with scroll events", () => {
+			// Models the fuller real-Obsidian timeline: each RO fire
+			// produces a scroll event; the scrollHeight may have grown
+			// further between each pair.
+			let handle: HarnessHandle | null = null;
+			render(
+				React.createElement(Harness, {
+					isActive: true,
+					isSending: false,
+					view: makeView(),
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+			);
+			// biome-ignore lint/style/noNonNullAssertion: bound by render
+			const h = handle!;
+			const geom = setupScrollGeometry(h.scrollEl, {
+				scrollHeight: 1000,
+				clientHeight: 800,
+			});
+
+			const heights = [1000, 2000, 4000, 8000, 12000, 16000];
+			let prevHeight = 0;
+			for (const height of heights) {
+				Object.defineProperty(h.scrollEl, "scrollHeight", {
+					configurable: true,
+					get: () => height,
+				});
+				act(() => {
+					fireResize(h.contentEl, height);
+				});
+				// Interleaved scroll event — hook's own echo. Must not
+				// flip isAtBottomRef even though scrollHeight grew between
+				// the previous RO fire and this scroll event.
+				if (prevHeight > 0) {
+					act(() => {
+						fireScrollEvent(h.scrollEl);
+					});
+				}
+				prevHeight = height;
+			}
+
+			// Final scrollTop must reflect the eventual bottom.
+			const finalHeight = heights[heights.length - 1];
+			expect(geom.writes[geom.writes.length - 1]).toBe(
+				finalHeight - 800 - 1,
+			);
+		});
+
+		it("user wheel-up during async-grow still escapes (flag must not eat real user input)", () => {
+			let handle: HarnessHandle | null = null;
+			render(
+				React.createElement(Harness, {
+					isActive: true,
+					isSending: false,
+					view: makeView(),
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+			);
+			// biome-ignore lint/style/noNonNullAssertion: bound by render
+			const h = handle!;
+			const geom = setupScrollGeometry(h.scrollEl, {
+				scrollHeight: 1000,
+				clientHeight: 800,
+			});
+
+			// Initial RO fire writes scrollTop. Sets ignoreNextScrollEventRef.
+			act(() => {
+				fireResize(h.contentEl, 1000);
+			});
+			const writesAfterInitial = geom.writes.length;
+
+			// The ONE scroll event from the hook's own write is consumed.
+			act(() => {
+				fireScrollEvent(h.scrollEl);
+			});
+
+			// User wheel-up — independent escape signal. Must unpin
+			// regardless of any flag state, because wheel handler doesn't
+			// consult ignoreNextScrollEventRef.
+			act(() => {
+				fireWheel(h.scrollEl, -50);
+			});
+
+			// Subsequent RO fire on async-grow must respect the escape.
+			Object.defineProperty(h.scrollEl, "scrollHeight", {
+				configurable: true,
+				get: () => 1500,
+			});
+			act(() => {
+				fireResize(h.contentEl, 1500);
+			});
+
+			// Hook must NOT have written scrollTop after the wheel-up.
 			expect(geom.writes.length).toBe(writesAfterInitial);
 		});
 	});
