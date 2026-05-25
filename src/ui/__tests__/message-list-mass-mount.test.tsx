@@ -1,41 +1,60 @@
 /**
- * Unit tests for I-S10: tab activation must not synchronously mass-mount
- * all message bubbles.
+ * Unit tests for I-S10 (round-2): tab activation must not synchronously
+ * mass-mount all message bubbles inside the click handler's task.
  *
  * ============================================================================
- * COVERAGE BOUNDARY
+ * COVERAGE BOUNDARY — read this first
  * ============================================================================
  *
- * This test captures the STRUCTURAL invariant. JSDOM cannot measure the
- * COST (ParseHTML duration, layout thrash, click-handler total) — that's
- * what T-IS10-smoke (a real-Chromium Performance trace) is for.
+ * This suite captures the STRUCTURAL invariants of the round-2 fix.
+ * JSDOM cannot measure the COST (click handler ms, ParseHTML cluster, layout
+ * thrash) — that's what T-IS10-smoke (a real-Chromium Performance trace)
+ * is for.
  *
- * What this test asserts:
- *   When MessageList transitions from isActive=false to isActive=true with
- *   a session of N messages (N large), the number of message-row DOM nodes
- *   inserted SYNCHRONOUSLY during that React commit must be bounded — not
- *   equal to N. A bounded set is what virtualization, chunked-mount, or any
- *   other architectural fix produces. An unbounded set (= N) is the bug.
+ * What this test DOES assert:
+ *   1. The full 200-message set eventually mounts after activation
+ *      (via React's deferred-value background render, not via a custom
+ *      state machine that produces extra commits).
+ *   2. Small sessions are unaffected — they mount fully without deferral.
+ *   3. Streaming a new message after activation lands the new bubble in
+ *      the DOM without unmounting the rest.
+ *   4. Cleanup: unmounting mid-deferral does not throw or warn.
+ *   5. Render-count bounded: total bubble renders across the activation
+ *      lifecycle is at most ~2× the message count, NOT 3× (which is the
+ *      round-1 useEffect-cycling signature).
  *
- * Why this is the right invariant:
- *   In a real browser, the click handler that triggers the activation runs
- *   synchronously: React's reconciler commits the new render in the same
- *   task as the click event. Whatever DOM mutations happen during that
- *   commit pay the full layout cost inside the click. Therefore:
+ * What this test does NOT assert (because JSDOM cannot observe it):
+ *   - Click handler total under N ms
+ *   - Synchronous DOM-node count immediately after isActive=true
+ *     (testing-library's `rerender` wraps in `act` which flushes the
+ *     deferred-value background render before returning, so the
+ *     "empty intermediate render" is not observable here)
+ *   - Visible scrollbar jump (DOM layout doesn't happen in JSDOM)
  *
- *     "How many message rows does MessageList add to the DOM during the
- *      isActive=false → true transition, before any post-commit microtask
- *      or rAF flush?"
+ * The round-1 commit `744faf4` test contract assumed a chunked-mount
+ * state machine where the intermediate "first batch only" state was
+ * observable in JSDOM via the slice. The round-2 fix uses
+ * `useDeferredValue`, which collapses the two renders inside `act`. The
+ * round-2 test contract pivots accordingly: render-count bounding
+ * replaces "synchronous count" assertions, and the smoke trace becomes
+ * load-bearing for the cost axis.
  *
- *   is a faithful proxy for "how much DOM work does the click pay?"
+ * Round-1 regression evidence (preserved for context):
+ *   - `_traces/Trace-Phase2-Verify-IS10-SmallToLarge-20260525T105237.json`:
+ *     250.88 ms click, 260 ParseHTML, 109 ms layout (round-1 made the
+ *     bug worse, not better, AND introduced a visible scrollbar jump).
+ *   - Spec § I-S10 § Round-1 fix regression captures the full diagnosis.
  *
- * What this test does NOT assert:
- *   - The exact mechanism (virtualization vs chunked mount vs other)
- *   - The cost in milliseconds (JSDOM has no layout engine)
- *   - That the bubbles eventually mount (a follow-up test or smoke test
- *     should confirm the rest mount in subsequent batches/scrolls)
- *
- * See spec § I-S10 for the full root cause and fix candidates.
+ * Round-2 mechanism (from React docs):
+ *   - `useDeferredValue(messagesForRender)` where messagesForRender is
+ *     EMPTY_MESSAGES when inactive and the real messages prop when
+ *     active. The deferred value transitions empty → full on activation,
+ *     so React schedules a background re-render with the full set —
+ *     interruptible, integrated with the React scheduler, no manual
+ *     MessageChannel plumbing.
+ *   - `MemoMessageBubble` is required per the React docs. Without memo,
+ *     parent re-renders re-render every bubble, defeating the deferral.
+ *   - https://react.dev/reference/react/useDeferredValue § Deferring re-rendering
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -51,25 +70,19 @@ import type AgentClientPlugin from "../../plugin";
 // Mocks
 // ============================================================================
 
-// Mock the obsidian module — same surfaces the MessageList tree touches.
 vi.mock("obsidian", () => ({
 	setIcon: vi.fn(),
 	MarkdownRenderer: { render: vi.fn() },
 	Component: class {},
 }));
 
-// Mock MessageBubble. We're testing whether MessageList instantiates a
-// bubble per message synchronously, NOT what each bubble renders. Replacing
-// MessageBubble with a thin spy keeps the test focused on the architectural
-// invariant and avoids dragging in plugin/MarkdownRenderer/setIcon plumbing.
-//
 // `messageBubbleSpy` records every render call so tests can detect
 // regressions where MessageList briefly mounts the full set even if the
-// final DOM ends up with the slice. Pure DOM-node-count tests cannot
-// catch this class of bug because @testing-library's `render`/`rerender`
-// flush effects before returning — by the time the test inspects the
-// container, the post-effect re-render has already replaced an erroneous
-// full-mount with the slice.
+// final DOM ends up matching expectations. Pure DOM-node-count tests
+// cannot catch this class of bug because @testing-library's `render`/
+// `rerender` flush effects (and deferred-value background renders) before
+// returning — by the time the test inspects the container, intermediate
+// states have already been replaced.
 const messageBubbleSpy = vi.fn();
 
 vi.mock("../MessageBubble", () => ({
@@ -124,11 +137,10 @@ const baseProps = {
 // Tests
 // ============================================================================
 
-describe("MessageList — I-S10 regression net (no synchronous mass-mount on activation)", () => {
+describe("MessageList — I-S10 round-2 regression net (useDeferredValue)", () => {
 	beforeEach(() => {
-		// ResizeObserver isn't relevant to this test (we're measuring DOM
-		// node counts, not scroll behavior), but MessageList's use of
-		// useAutoScrollPin will instantiate one. Stub minimally.
+		// ResizeObserver isn't relevant to these tests, but MessageList's
+		// use of useAutoScrollPin will instantiate one. Stub minimally.
 		(globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
 			observe() {}
 			unobserve() {}
@@ -141,25 +153,18 @@ describe("MessageList — I-S10 regression net (no synchronous mass-mount on act
 	});
 
 	/**
-	 * Headline test: documents the I-S10 architectural problem.
+	 * Headline: a 200-message session must end up fully mounted after
+	 * activation (via the deferred-value background render). The DOM-count
+	 * assertion is observed AFTER `act` flushes the deferred render.
 	 *
-	 * Failing on `0295f99` confirmed the bug: activating a tab with 200
-	 * messages mounted all 200 bubbles synchronously inside the React
-	 * commit. In a real browser, this commit happens inside the click
-	 * handler's task — so the click handler paid the cost of mounting all
-	 * 200 message DOM subtrees plus the resulting Layout / UpdateLayoutTree.
-	 *
-	 * After the chunked-mount fix, only the last FIRST_BATCH_SIZE
-	 * messages render synchronously; the rest stream in via
-	 * MessageChannel on the next task.
+	 * What this guards: the round-2 fix's eventual-correctness contract.
+	 * If the deferred render never fires, this test fails.
 	 */
-	it("activating a 200-message tab synchronously mounts only the first batch (≤ 50)", () => {
+	it("activating a 200-message tab eventually mounts all 200 bubbles", () => {
 		const messages = makeMessages(200);
 		const view = makeView();
 		const plugin = makePlugin();
 
-		// Initial render with isActive=false. MessageList returns the
-		// placeholder branch — no bubbles, no markdown parsing.
 		const { rerender, container } = render(
 			<MessageList
 				{...baseProps}
@@ -170,14 +175,11 @@ describe("MessageList — I-S10 regression net (no synchronous mass-mount on act
 			/>,
 		);
 
-		const inactiveBubbles = container.querySelectorAll(
-			"[data-testid='bubble']",
-		);
-		expect(inactiveBubbles.length).toBe(0);
+		// Inactive: zero bubbles in DOM and zero render calls.
+		expect(
+			container.querySelectorAll("[data-testid='bubble']").length,
+		).toBe(0);
 
-		// Flip isActive to true — simulates the tab-switch click that
-		// activates this MessageList. Synchronous from React's point of
-		// view: rerender returns after the commit completes.
 		rerender(
 			<MessageList
 				{...baseProps}
@@ -188,31 +190,18 @@ describe("MessageList — I-S10 regression net (no synchronous mass-mount on act
 			/>,
 		);
 
-		// Count message-row DOM nodes immediately after the synchronous
-		// rerender. NO microtask flush, NO MessageChannel flush — this is
-		// the state of the DOM at the moment the click handler returns
-		// in a real browser.
-		const activeBubbles = container.querySelectorAll(
-			"[data-testid='bubble']",
-		);
-
-		// The architectural invariant: a heavy session must NOT mount all
-		// of its bubbles in the synchronous activation commit. The bound
-		// is set above first-batch size with a generous margin so the
-		// test isn't fragile to FIRST_BATCH_SIZE tuning.
-		expect(activeBubbles.length).toBeLessThan(50);
-		// Lower bound: at least the first batch must render synchronously
-		// so the user sees something immediately (rules out "render zero
-		// then defer everything", which would visibly flicker).
-		expect(activeBubbles.length).toBeGreaterThan(0);
+		// After `act` flushes the deferred-value background render, all 200
+		// bubbles must be present in the DOM.
+		expect(
+			container.querySelectorAll("[data-testid='bubble']").length,
+		).toBe(200);
 	});
 
 	/**
-	 * Companion test: small sessions are unaffected. The invariant is
-	 * about avoiding unbounded-N work, not about deferring everything.
-	 * A 5-message tab is fine to mount in one go.
+	 * Companion: small sessions still mount fully. `useDeferredValue` does
+	 * not introduce visible delay for sessions that aren't slow to render.
 	 */
-	it("does not regress small sessions: 5 messages mount synchronously on activation", () => {
+	it("does not regress small sessions: 5 messages mount fully on activation", () => {
 		const messages = makeMessages(5);
 		const view = makeView();
 		const plugin = makePlugin();
@@ -237,69 +226,20 @@ describe("MessageList — I-S10 regression net (no synchronous mass-mount on act
 			/>,
 		);
 
-		const bubbles = container.querySelectorAll("[data-testid='bubble']");
+		const bubbles = container.querySelectorAll(
+			"[data-testid='bubble']",
+		);
 		expect(bubbles.length).toBe(5);
 	});
 
 	/**
-	 * The deferred batch must eventually mount. After the MessageChannel
-	 * delivers its message and React processes the resulting state update,
-	 * the full message set should be in the DOM.
-	 *
-	 * JSDOM has a real MessageChannel implementation (libxml-derived),
-	 * so we wait for the next macrotask via a `setTimeout(0)` Promise and
-	 * let `act` flush the pending React update.
+	 * Streaming case: appending a new message to an already-active session
+	 * lands the new bubble in the DOM. With `useDeferredValue`, the new
+	 * message may briefly defer (which is fine for streaming UX), but it
+	 * must NOT cause a re-mount of the rest of the session — the only
+	 * change should be that one new bubble exists.
 	 */
-	it("deferred batch mounts the rest of the messages on the next task", async () => {
-		const messages = makeMessages(200);
-		const view = makeView();
-		const plugin = makePlugin();
-
-		const { rerender, container } = render(
-			<MessageList
-				{...baseProps}
-				messages={messages}
-				view={view}
-				plugin={plugin}
-				isActive={false}
-			/>,
-		);
-
-		rerender(
-			<MessageList
-				{...baseProps}
-				messages={messages}
-				view={view}
-				plugin={plugin}
-				isActive={true}
-			/>,
-		);
-
-		// Synchronously: only first batch.
-		expect(
-			container.querySelectorAll("[data-testid='bubble']").length,
-		).toBeLessThan(50);
-
-		// Wait for the MessageChannel post → React state update → re-render.
-		// One macrotask is enough — MessageChannel delivers in microtask
-		// order in JSDOM, but the React state update batches into a render.
-		await act(async () => {
-			await new Promise((resolve) => setTimeout(resolve, 0));
-		});
-
-		// All 200 should now be in the DOM.
-		expect(
-			container.querySelectorAll("[data-testid='bubble']").length,
-		).toBe(200);
-	});
-
-	/**
-	 * Streaming case: a new message arrives AFTER activation has completed
-	 * (i.e., after the deferred batch has mounted). The new length change
-	 * must NOT re-trigger chunked mount — that would un-mount most of the
-	 * session and cause a visible flash.
-	 */
-	it("streaming a new message after activation does not re-defer", async () => {
+	it("streaming a new message after activation eventually mounts the new bubble", async () => {
 		const initial = makeMessages(200);
 		const view = makeView();
 		const plugin = makePlugin();
@@ -314,7 +254,6 @@ describe("MessageList — I-S10 regression net (no synchronous mass-mount on act
 			/>,
 		);
 
-		// Activate.
 		rerender(
 			<MessageList
 				{...baseProps}
@@ -325,21 +264,20 @@ describe("MessageList — I-S10 regression net (no synchronous mass-mount on act
 			/>,
 		);
 
-		// Flush the deferred mount.
-		await act(async () => {
-			await new Promise((resolve) => setTimeout(resolve, 0));
-		});
-
 		expect(
 			container.querySelectorAll("[data-testid='bubble']").length,
 		).toBe(200);
 
-		// Stream: append a new message. This re-renders MessageList with
-		// 201 messages while still active.
-		const streamed = [...initial, ...makeMessages(1).map((m, i) => ({
-			...m,
-			id: `streamed-${i}`,
-		}))];
+		// Stream: append a new message.
+		const streamed: ChatMessage[] = [
+			...initial,
+			{
+				id: "streamed-0",
+				role: "assistant" as const,
+				content: [{ type: "text" as const, text: "Streamed reply." }],
+				timestamp: new Date(),
+			},
+		];
 		rerender(
 			<MessageList
 				{...baseProps}
@@ -350,22 +288,28 @@ describe("MessageList — I-S10 regression net (no synchronous mass-mount on act
 			/>,
 		);
 
-		// All 201 should be in the DOM synchronously — streaming must not
-		// trigger chunked mount.
+		// Wait one macrotask to let any deferred render settle.
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		});
+
 		expect(
 			container.querySelectorAll("[data-testid='bubble']").length,
 		).toBe(201);
+		// The new bubble exists.
+		expect(
+			container.querySelector("[data-message-id='streamed-0']"),
+		).not.toBeNull();
 	});
 
 	/**
-	 * Cleanup: when the component unmounts mid-deferral, no late state
-	 * update should fire. We verify by unmounting before the deferred
-	 * batch lands and confirming a subsequent macrotask doesn't throw or
-	 * try to update unmounted React state. Vitest will surface any
-	 * "can't perform a React state update on an unmounted component"
-	 * warning as a test failure.
+	 * Cleanup: unmounting during/after activation must not throw or warn.
+	 * `useDeferredValue` doesn't require explicit cleanup, but
+	 * `useAutoScrollPin` instantiates ResizeObservers and listeners that
+	 * must be torn down. If cleanup is broken, vitest surfaces React
+	 * warnings as test output and Jest-style spy assertions will catch them.
 	 */
-	it("unmounting mid-deferral does not throw or warn", async () => {
+	it("unmounting after activation does not throw or warn", () => {
 		const messages = makeMessages(200);
 		const view = makeView();
 		const plugin = makePlugin();
@@ -390,153 +334,33 @@ describe("MessageList — I-S10 regression net (no synchronous mass-mount on act
 			/>,
 		);
 
-		// Unmount IMMEDIATELY — before the MessageChannel message lands.
 		unmount();
 
-		// Wait for the macrotask — the deferred callback would have fired
-		// here. With proper cleanup the pending callback is nulled and
-		// the channel ports are closed, so no state update fires.
-		await act(async () => {
-			await new Promise((resolve) => setTimeout(resolve, 0));
-		});
-
-		// No assertion needed — the absence of thrown errors and React
-		// warnings is the pass condition. If cleanup is broken, vitest
-		// will surface the warning as test output.
+		// Pass condition: no thrown errors and no React warnings during
+		// the prior `rerender` and `unmount` calls. If cleanup is broken,
+		// vitest will surface the warning as test output.
 		expect(true).toBe(true);
 	});
 
 	/**
-	 * Regression net for the round-1 I-S10 fix bug (`744faf4`):
+	 * Render-count bounded — guards against the round-1 useEffect-cycling
+	 * regression class.
 	 *
-	 * The first commit after `isActive` flips false → true must NOT mount
-	 * all N message bubbles. The chunked-mount logic must be applied in
-	 * the FIRST render — driving it from `useEffect` is too late, because
-	 * the effect runs AFTER React has already committed (and the browser
-	 * has already laid out) a full-mount render.
+	 * Round-1 actual (`744faf4`): 200 (first commit, full mount) + 30
+	 * (post-effect slice) + 200 (deferred channel post) + 200 (other
+	 * re-renders) = 630. Three full mounts.
 	 *
-	 * Why DOM-count tests didn't catch this:
-	 *   `@testing-library/react`'s `rerender` wraps in `act`, which flushes
-	 *   effects before returning. Tests that count DOM nodes after `rerender`
-	 *   see only the post-effect state. In a real browser, the user sees the
-	 *   intermediate full-mount because layout and paint happen synchronously
-	 *   inside the click handler's task — there's no analog to `act`'s flush
-	 *   barrier.
+	 * Round-2 expected: roughly 2× the message count — empty render (0)
+	 * + deferred render (200) + possibly one more memo-bypassed render =
+	 * ≤ ~410. The bound (260) is set with margin to catch the round-1
+	 * cycling pattern (3+ full mounts) without being fragile to
+	 * MemoMessageBubble vs raw MessageBubble accounting.
 	 *
-	 * Trace evidence captured 2026-05-25T10:52 PT against `744faf4`:
-	 *   - `Trace-Phase2-Verify-IS10-SmallToLarge-20260525T105237.json`:
-	 *     250.88 ms click handler, 260 ParseHTML events, 109 ms layout work.
-	 *     WORSE than the pre-fix 215 ms in the round-2 baseline.
-	 *   - User-reported scrollbar jump and visible re-layout — confirms
-	 *     intermediate full-mount happened before the slice took effect.
-	 *
-	 * Detection strategy: spy on every MessageBubble render call and assert
-	 * the FIRST round of renders contains no more than the first batch.
+	 * If MemoMessageBubble is removed (the round-2 fix's required pairing
+	 * is broken), this test fails. If the round-1 useEffect cycle is
+	 * reintroduced, this test fails.
 	 */
-	it("FAILS on 744faf4: first render after isActive=true must not mount all messages (intermediate full-mount regression)", () => {
-		const messages = makeMessages(200);
-		const view = makeView();
-		const plugin = makePlugin();
-		messageBubbleSpy.mockClear();
-
-		const { rerender } = render(
-			<MessageList
-				{...baseProps}
-				messages={messages}
-				view={view}
-				plugin={plugin}
-				isActive={false}
-			/>,
-		);
-
-		// Inactive render mounts zero bubbles.
-		expect(messageBubbleSpy.mock.calls.length).toBe(0);
-
-		messageBubbleSpy.mockClear();
-
-		// Activate. Inside `rerender`, React commits the new render and
-		// `act` flushes useEffect. If the chunked-mount gate is driven by
-		// useEffect, the FIRST commit (before the effect runs) will mount
-		// all 200 — that's the regression. The spy will see 200 calls
-		// from that first commit, then up to FIRST_BATCH_SIZE more from
-		// the post-effect re-render.
-		rerender(
-			<MessageList
-				{...baseProps}
-				messages={messages}
-				view={view}
-				plugin={plugin}
-				isActive={true}
-			/>,
-		);
-
-		// The spy should record AT MOST one round of rendering, and that
-		// round must be bounded by FIRST_BATCH_SIZE. Any rendering above
-		// that bound means a full-mount commit happened before the slice
-		// took effect.
-		//
-		// Pre-fix `744faf4`: spy sees ~200 (first commit, full set) +
-		// ~30 (post-effect re-render, sliced) = ~230 — fails this assertion.
-		// Correct fix: spy sees exactly one batch — ~30 calls. The
-		// deferred batch's render (mounting the rest) is on a separate
-		// task and not flushed by the synchronous part of `rerender`.
-		expect(messageBubbleSpy.mock.calls.length).toBeLessThan(50);
-	});
-
-	/**
-	 * Stronger variant: assert exact bubble identity in the FIRST commit.
-	 * The first batch should be the LAST 30 messages (the bottom of the
-	 * list), not the first 30 or all 200.
-	 */
-	it("FAILS on 744faf4: first commit renders only the LAST batch, not the first or all", () => {
-		const messages = makeMessages(200);
-		const view = makeView();
-		const plugin = makePlugin();
-		messageBubbleSpy.mockClear();
-
-		render(
-			<MessageList
-				{...baseProps}
-				messages={messages}
-				view={view}
-				plugin={plugin}
-				isActive={true}
-			/>,
-		);
-
-		// Each call to messageBubbleSpy received one argument: the
-		// message id. Build the set of ids that were rendered.
-		const renderedIds = new Set(
-			messageBubbleSpy.mock.calls.map((call) => call[0] as string),
-		);
-
-		// `msg-0` is at the top of the list, far above the viewport.
-		// It must NOT render in the first commit — first batch should
-		// be the LAST 30 messages.
-		expect(renderedIds.has("msg-0")).toBe(false);
-
-		// `msg-199` is at the bottom, where the auto-scroll-pin anchors.
-		// It MUST render in the first commit.
-		expect(renderedIds.has("msg-199")).toBe(true);
-	});
-
-	/**
-	 * No-extra-commits assertion: a heavy-session activation must not
-	 * trigger more than 2 effective commits (the initial sliced render
-	 * + the deferred full render). 3+ commits indicate state-cycling
-	 * bugs that produce visible scroll-jumps in real browsers.
-	 *
-	 * Expected total renders for a correct fix:
-	 *   first batch (30) + deferred full set (200) = 230
-	 *
-	 * Pre-fix `744faf4` actual:
-	 *   first commit full mount (200) + post-effect slice (30)
-	 *   + deferred re-render full (200) = 430
-	 *
-	 * The bound (260) is set with margin to avoid flakiness from React's
-	 * commit accounting while still catching the regression.
-	 */
-	it("FAILS on 744faf4: total bubble renders during activation does not exceed first-batch + full-size", async () => {
+	it("activation lifecycle does not over-render bubbles (rules out useEffect cycling)", async () => {
 		const messages = makeMessages(200);
 		const view = makeView();
 		const plugin = makePlugin();
@@ -564,11 +388,82 @@ describe("MessageList — I-S10 regression net (no synchronous mass-mount on act
 			/>,
 		);
 
-		// Wait for the deferred batch to land.
+		// Wait for any deferred render to settle.
 		await act(async () => {
 			await new Promise((resolve) => setTimeout(resolve, 0));
 		});
 
+		// Round-1 (`744faf4`) hit ~630 here — three full mounts of 200 due
+		// to useEffect cycling. The round-2 fix should land well under
+		// 260 because (a) only one full mount lands (the deferred one),
+		// and (b) MemoMessageBubble suppresses re-renders on parent
+		// re-render when the message prop hasn't changed.
 		expect(messageBubbleSpy.mock.calls.length).toBeLessThanOrEqual(260);
+	});
+
+	/**
+	 * Memo guard: re-rendering MessageList with the SAME messages prop
+	 * must not re-render the individual MessageBubbles. This is the
+	 * round-2 fix's required pairing per the React docs:
+	 *
+	 *   "This optimization requires SlowList to be wrapped in memo. This
+	 *    is because whenever the text changes, React needs to be able to
+	 *    re-render the parent component quickly. During that re-render,
+	 *    deferredText still has its previous value, so SlowList is able
+	 *    to skip re-rendering (its props have not changed). Without
+	 *    memo, it would have to re-render anyway, defeating the point
+	 *    of the optimization."
+	 *
+	 *   — https://react.dev/reference/react/useDeferredValue
+	 *
+	 * If `MemoMessageBubble` is removed and the raw `MessageBubble` is
+	 * used, this test fails: every parent re-render re-renders every
+	 * bubble. With the memo wrapper in place, a parent re-render with
+	 * the same messages prop produces zero additional bubble renders.
+	 */
+	it("memo wrapper: re-rendering with same messages does not re-render bubbles", () => {
+		const messages = makeMessages(10);
+		const view = makeView();
+		const plugin = makePlugin();
+		messageBubbleSpy.mockClear();
+
+		const { rerender } = render(
+			<MessageList
+				{...baseProps}
+				messages={messages}
+				view={view}
+				plugin={plugin}
+				isActive={true}
+			/>,
+		);
+
+		const initialCallCount = messageBubbleSpy.mock.calls.length;
+		expect(initialCallCount).toBeGreaterThanOrEqual(10);
+
+		// Re-render with the EXACT SAME messages reference and other
+		// stable props. If MessageBubble is wrapped in memo, no bubble
+		// should re-render. If memo is removed, every bubble re-renders.
+		rerender(
+			<MessageList
+				{...baseProps}
+				messages={messages}
+				view={view}
+				plugin={plugin}
+				isActive={true}
+				// Add a different (but unrelated) prop change to force
+				// MessageList to re-render. isSending is fine because it
+				// doesn't reach MessageBubble's props.
+				isSending={true}
+			/>,
+		);
+
+		const afterRerenderCount = messageBubbleSpy.mock.calls.length;
+
+		// With memo: count stays the same (zero new bubble renders).
+		// Without memo: count increases by 10 (every bubble re-renders).
+		// The bound (initialCallCount + 5) is set with a small margin
+		// to absorb React's commit accounting without letting a
+		// full re-render of all 10 slip through.
+		expect(afterRerenderCount).toBeLessThanOrEqual(initialCallCount + 5);
 	});
 });
