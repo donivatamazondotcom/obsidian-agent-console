@@ -11,7 +11,7 @@
  */
 
 import * as React from "react";
-const { useRef, useEffect, useCallback } = React;
+const { useRef, useEffect, useCallback, useTransition } = React;
 import { Menu, setIcon, type MenuItem } from "obsidian";
 import type { TabInfo, TabState } from "../types/tab";
 
@@ -151,6 +151,25 @@ export function TabBar({
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const dragIndexRef = useRef<number>(-1);
 
+	// I-S10 round-3 fix: wrap tab-selection setState in a Transition so the
+	// downstream re-render (including MessageList's heavy bubble mount on
+	// activation of a 100+ message session) is marked low-priority. React
+	// keeps the previously-active tab's already-revealed content painted
+	// until the new tab's render commits — both the display:flex/none swap
+	// AND the new tab's bubble mount commit together. No intermediate
+	// empty-paint frame.
+	//
+	// Per React docs: "Transitions only 'wait' long enough to avoid hiding
+	// *already revealed* content (like the tab container)."
+	// — https://react.dev/reference/react/useTransition § "Preventing
+	// unwanted loading indicators"
+	//
+	// `isPending` is intentionally not surfaced via UI yet — the tab
+	// activation happens fast enough on real Chromium that a "pending"
+	// indicator on the tab itself would flicker. If we ever want one, the
+	// flag is right here ready to consume.
+	const [, startSelectTabTransition] = useTransition();
+
 	useEffect(() => {
 		if (addBtnRef.current) setIcon(addBtnRef.current, "plus");
 		if (chevronRef.current)
@@ -236,7 +255,9 @@ export function TabBar({
 					item.setTitle(tab.label)
 						.setChecked(tab.tabId === activeTabId)
 						.onClick(() => {
-							onSelectTab(tab.tabId);
+							startSelectTabTransition(() => {
+								onSelectTab(tab.tabId);
+							});
 						});
 				});
 			}
@@ -293,7 +314,11 @@ export function TabBar({
 						key={tab.tabId}
 						tab={tab}
 						isActive={tab.tabId === activeTabId}
-						onSelect={() => onSelectTab(tab.tabId)}
+						onSelect={() =>
+							startSelectTabTransition(() => {
+								onSelectTab(tab.tabId);
+							})
+						}
 						onClose={() => onCloseTab(tab.tabId)}
 						onContextMenu={(e) =>
 							handleTabContextMenu(e, tab)

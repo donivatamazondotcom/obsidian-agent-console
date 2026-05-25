@@ -1,5 +1,5 @@
 import * as React from "react";
-const { memo, useDeferredValue, useEffect, useRef } = React;
+const { memo, useEffect, useRef } = React;
 
 import type { ChatMessage } from "../types/chat";
 import type { AcpClient } from "../acp/acp-client";
@@ -10,31 +10,12 @@ import { MessageBubble } from "./MessageBubble";
 import { useAutoScrollPin } from "./use-auto-scroll-pin";
 
 /**
- * Stable empty array used as the deferred-value source when the tab is
- * inactive. Module-level so the reference is stable across renders —
- * required for `useDeferredValue` to detect the inactive → active
- * transition as a value change and schedule a deferred render.
- *
- * See [[ACP Scroll Architecture Rework]] § I-S10 § Round-2 fix.
- */
-const EMPTY_MESSAGES: ChatMessage[] = [];
-
-/**
- * Memoized wrapper around MessageBubble. Required by `useDeferredValue`'s
- * optimization pattern (per the React docs):
- *
- *   "This optimization requires SlowList to be wrapped in memo. This is
- *    because whenever the text changes, React needs to be able to re-render
- *    the parent component quickly. During that re-render, deferredText
- *    still has its previous value, so SlowList is able to skip re-rendering
- *    (its props have not changed). Without memo, it would have to
- *    re-render anyway, defeating the point of the optimization."
- *
- *   — https://react.dev/reference/react/useDeferredValue § "Deferring re-rendering"
- *
- * Default shallow-prop comparison is sufficient: `message`, `plugin`,
- * `terminalClient`, and `onApprovePermission` are all stable references
- * across renders that don't actually change the bubble.
+ * Memoized wrapper around MessageBubble. Skips re-rendering when the
+ * bubble's props are unchanged — important during streaming (a new
+ * message append triggers a parent re-render, but already-rendered
+ * bubbles should not pay the markdown-parse cost again). Default
+ * shallow-prop comparison is sufficient because `message`, `plugin`,
+ * `terminalClient`, and `onApprovePermission` are all stable references.
  */
 const MemoMessageBubble = memo(MessageBubble);
 
@@ -87,26 +68,31 @@ export interface MessageListProps {
  * the scrollRef. No bubbles mount, no markdown parses. The hook detects
  * the deactivation and stops doing work.
  *
- * I-S10 round-2 fix (chunked mount via useDeferredValue):
+ * I-S10 round-3 fix (deferred mount via useTransition at the trigger site):
  *   When `isActive` flips false → true, the click handler must not pay
- *   the cost of synchronously mounting all bubbles. Round 1 attempted this
- *   via a useEffect-driven state machine, which produced three commits
- *   per activation and a visible scrollbar jump (see § I-S10 § Round-1
- *   regression in the spec). Round 2 uses `useDeferredValue` — the
- *   canonical React 18 primitive for "render expensive thing now, lower
- *   priority", per https://react.dev/reference/react/useDeferredValue.
+ *   the cost of synchronously mounting all bubbles. Round-1 attempted this
+ *   via a useEffect-driven state machine (regressed). Round-2 used
+ *   `useDeferredValue` here in MessageList (won the cost-axis but produced
+ *   a visible empty-paint flash, see § I-S10 § Round-2). Round-3 moves the
+ *   deferral up the call chain to TabBar, where the click handler wraps
+ *   `setActiveTabId` in `startTransition`. React then schedules the entire
+ *   downstream re-render (including this MessageList's mount) as a
+ *   low-priority Transition — and per the React docs:
  *
- *   The mechanism: when inactive, the deferred-value source is
- *   EMPTY_MESSAGES. When active, it switches to the real `messages` prop.
- *   On the activation render, `useDeferredValue` returns the PREVIOUS
- *   value (EMPTY_MESSAGES), so the active branch renders zero bubbles
- *   inside the click handler. React schedules a background re-render
- *   that uses the new value (full set), which mounts the bubbles in a
- *   separate task — the click handler is already done.
+ *     "Transitions only 'wait' long enough to avoid hiding *already
+ *      revealed* content (like the tab container)."
  *
- *   `MemoMessageBubble` (above) is required for this to work — without
- *   it, every parent re-render would re-render every bubble, defeating
- *   the deferral.
+ *     — https://react.dev/reference/react/useTransition § "Preventing unwanted loading indicators"
+ *
+ *   So the previously-active tab's content stays painted on screen until
+ *   the new tab's mount completes; both the `display:flex/none` swap AND
+ *   the bubble mount commit together. No empty intermediate paint.
+ *
+ *   This MessageList no longer needs any local deferral mechanism — the
+ *   transition is handled at the trigger. `MemoMessageBubble` (above) is
+ *   retained because it's still the right optimization for streaming:
+ *   when a single new message appends, already-rendered bubbles skip
+ *   re-render via memo equality.
  */
 export function MessageList({
 	messages,
@@ -128,32 +114,10 @@ export function MessageList({
 		useAutoScrollPin({ isActive, isSending, view });
 
 	// ============================================================
-	// Chunked mount on activation (I-S10 round-2)
+	// (I-S10 round-3) No local deferral here — the deferral is at the
+	// TabBar click-handler trigger via useTransition. See JSDoc above
+	// and src/ui/TabBar.tsx § I-S10 round-3 fix.
 	// ============================================================
-	//
-	// useDeferredValue must be called on every render so React tracks the
-	// deferred state across activation transitions. When inactive, the
-	// source is EMPTY_MESSAGES (stable module-level reference); when
-	// active, the source is the real messages prop. The transition from
-	// EMPTY_MESSAGES (when inactive) to messages (when activating) is
-	// what triggers the deferred render.
-	//
-	// On the activation render: deferredMessages returns EMPTY_MESSAGES
-	// (the previous value). The bubble map renders zero bubbles. React
-	// schedules a background render with the full set; that re-render
-	// commits the bubbles in a separate task.
-	//
-	// Per the React docs:
-	//   "There is no fixed delay caused by useDeferredValue itself. As
-	//    soon as React finishes the original re-render, React will
-	//    immediately start working on the background re-render with the
-	//    new deferred value. Any updates caused by events (like typing)
-	//    will interrupt the background re-render and get prioritized
-	//    over it."
-	//
-	// — https://react.dev/reference/react/useDeferredValue
-	const messagesForRender = isActive ? messages : EMPTY_MESSAGES;
-	const deferredMessages = useDeferredValue(messagesForRender);
 
 	// ============================================================
 	// Render
@@ -176,10 +140,6 @@ export function MessageList({
 	// Empty state — same container, different children. Unified into a
 	// single return path (vs. early return) so scrollRef is attached to
 	// the same DOM node in both empty and populated states.
-	//
-	// We check `messages.length` (the actual prop) rather than
-	// `deferredMessages.length` so the empty-state UI shows immediately
-	// on a fresh empty session, not after a deferred-value catch-up.
 	if (messages.length === 0) {
 		return (
 			<div ref={scrollRef} className="agent-client-chat-view-messages">
@@ -199,7 +159,7 @@ export function MessageList({
 	return (
 		<div ref={scrollRef} className="agent-client-chat-view-messages">
 			<div ref={contentRef} className="agent-client-chat-content">
-				{deferredMessages.map((message) => (
+				{messages.map((message) => (
 					<div key={message.id} className="agent-client-message-row">
 						<MemoMessageBubble
 							message={message}
