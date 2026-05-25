@@ -1,7 +1,12 @@
 /**
- * Unit tests for I-S10 (round-3): tab activation does not synchronously
- * mass-mount inside the click handler — the deferral is at the TabBar
- * trigger site (useTransition), not in MessageList.
+ * Unit tests for I-S10 (round-3 + round-4): tab activation does not
+ * synchronously mass-mount inside the click handler — the deferral
+ * EXPERIMENT was at the TabBar trigger site (useTransition), but round-3
+ * verification proved the wrapper introduced a perception-time regression
+ * (scrollbar-pill flicker during the post-commit markdown-render cascade).
+ * Round-4 reverted the wrapper. The in-MessageList simplification (no
+ * useDeferredValue / EMPTY_MESSAGES) stays — that part of round-3 was
+ * correct and durably fixed round-2's empty-paint regression.
  *
  * ============================================================================
  * COVERAGE BOUNDARY — read this first
@@ -9,54 +14,57 @@
  *
  * This suite captures the STRUCTURAL invariants that JSDOM CAN observe.
  * JSDOM cannot measure cost (click-handler ms, ParseHTML cluster, layout
- * thrash) and cannot observe paint sequencing (whether a frame paints
- * the empty intermediate before the heavy mount commits). Those concerns
- * live in:
+ * thrash) and cannot observe paint sequencing. Those concerns live in:
  *
  *   - T-IS10-smoke (real-Chromium Performance trace) — cost-axis gate
- *   - T-IS10-video (real-Chromium screen recording) — empty-paint gate
+ *   - T-IS10-video (real-Chromium screen recording) — UX gate
  *
- * What this test DOES assert (round-3 contract):
- *   1. The full message set mounts when `isActive` becomes true. Round-3
- *      removes round-2's in-component deferral, so the bubbles render
- *      directly from the `messages` prop — there is no internal
- *      empty-then-full pattern to observe in JSDOM.
+ * What this test DOES assert (round-4 contract):
+ *   1. The full message set mounts when `isActive` becomes true.
+ *      MessageList has no internal deferral — bubbles render directly
+ *      from the `messages` prop on the same render that processes the
+ *      isActive prop change.
  *   2. Small sessions are unaffected.
  *   3. Streaming (append a new message after activation) lands the new
  *      bubble without re-mounting the rest.
  *   4. Cleanup: unmounting after activation does not throw or warn.
  *   5. Memo guard: re-rendering with the SAME messages reference does
- *      not re-render bubbles. This is the round-3 fix's ONE remaining
- *      load-bearing optimization in MessageList; if `MemoMessageBubble`
- *      is removed, this test fails by every-bubble re-rendering.
+ *      not re-render bubbles. `MemoMessageBubble` is the load-bearing
+ *      streaming optimization.
  *
  * What this test does NOT assert:
  *   - Click-handler total time (real-Chromium only)
- *   - Empty-paint absence between the previous tab's display:flex
- *     and the new tab's bubble mount (real-Chromium screen recording only)
- *   - The presence/absence of a `useTransition` wrapper at the TabBar
- *     trigger (TabBar's responsibility; verified in real-Chromium)
+ *   - Visual regressions during activation transitions (real-Chromium
+ *     screen recording only)
+ *   - The post-commit-effect cascade mechanism (covered by the
+ *     dedicated test in post-commit-effect-mechanism.test.tsx)
  *
- * Why round-3's contract is simpler than round-2's:
+ * Why round-4's contract is simpler than round-2's:
  *   Round-2 (`1f36847`) kept the deferral inside MessageList via
- *   `useDeferredValue` + `EMPTY_MESSAGES`. Tests had to assert that the
- *   eventual full mount lands AND that the lifecycle doesn't over-render
- *   (rule out the round-1 useEffect-cycling regression). Round-3 moves
- *   the deferral to the trigger site (TabBar) and removes the in-
- *   MessageList machinery entirely — so MessageList's contract collapses
- *   to "renders messages when isActive=true, doesn't when isActive=false."
- *   The empty-paint concern, which was the round-2 UX regression, is
- *   now structurally OUT of MessageList's scope; it's a TabBar +
- *   transition-mechanism concern, verifiable only in real Chromium.
+ *   `useDeferredValue` + `EMPTY_MESSAGES`. That introduced a fully-empty
+ *   intermediate paint. Round-3 removed the in-MessageList deferral and
+ *   moved it to TabBar via `useTransition`. That removed the empty paint
+ *   but introduced a smaller scrollbar-pill flicker during the post-
+ *   commit markdown-render cascade. Round-4 reverts the TabBar wrapper.
+ *   MessageList's contract collapses to "renders messages when
+ *   isActive=true, doesn't when isActive=false."
  *
- * Round-3 mechanism summary (from the React docs):
- *   - TabBar.tsx wraps `setActiveTabId(tabId)` calls in `startTransition`
- *   - React schedules the downstream re-render (including this MessageList's
- *     mount on activation) as a low-priority Transition
- *   - Per "Preventing unwanted loading indicators": React keeps the
- *     previously-revealed content painted until the transition's render
- *     commits, so no empty intermediate paint
- *   - https://react.dev/reference/react/useTransition
+ *   The structural test cases below are the same as round-3's (the
+ *   MessageList behavior they assert is unchanged); only the doc framing
+ *   updates.
+ *
+ * Round-4 mechanism summary:
+ *   - Click handler (TabBar.TabItem.onSelect) calls `onSelectTab(tab.tabId)`
+ *     directly, with NO `startTransition` wrapper
+ *   - The activation re-render runs synchronously inside the click event
+ *     task (matching the hotkey path)
+ *   - All work — render, commit, post-commit markdown effects — happens
+ *     inside the click handler before it returns
+ *   - Browser paints once at the end with the final stable layout
+ *   - Chrome will flag the click handler as a long-task violation; this
+ *     is an expected diagnostic signal, not a UX regression
+ *   - See [[ACP Scroll Architecture Rework]] § I-S10 § Round-3 verification
+ *     and § Lessons Learned § "useTransition doesn't defer post-commit effects"
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -136,7 +144,7 @@ const baseProps = {
 // Tests
 // ============================================================================
 
-describe("MessageList — I-S10 round-3 contract (deferral moved to TabBar)", () => {
+describe("MessageList — I-S10 round-4 contract (no in-component deferral; activation is synchronous)", () => {
 	beforeEach(() => {
 		// ResizeObserver isn't relevant to these tests, but MessageList's
 		// use of useAutoScrollPin will instantiate one. Stub minimally.

@@ -68,31 +68,40 @@ export interface MessageListProps {
  * the scrollRef. No bubbles mount, no markdown parses. The hook detects
  * the deactivation and stops doing work.
  *
- * I-S10 round-3 fix (deferred mount via useTransition at the trigger site):
- *   When `isActive` flips false → true, the click handler must not pay
- *   the cost of synchronously mounting all bubbles. Round-1 attempted this
- *   via a useEffect-driven state machine (regressed). Round-2 used
- *   `useDeferredValue` here in MessageList (won the cost-axis but produced
- *   a visible empty-paint flash, see § I-S10 § Round-2). Round-3 moves the
- *   deferral up the call chain to TabBar, where the click handler wraps
- *   `setActiveTabId` in `startTransition`. React then schedules the entire
- *   downstream re-render (including this MessageList's mount) as a
- *   low-priority Transition — and per the React docs:
+ * I-S10 round-4 (synchronous activation; no in-component deferral):
+ *   When `isActive` flips false → true, all bubbles render synchronously
+ *   from the `messages` prop in the same render. There is no deferral
+ *   mechanism inside this component.
  *
- *     "Transitions only 'wait' long enough to avoid hiding *already
- *      revealed* content (like the tab container)."
+ *   History:
+ *   - Round-1 (regressed): useEffect-driven chunked state machine produced
+ *     three commits per activation and a visible scrollbar jump.
+ *   - Round-2 (regressed): `useDeferredValue` + `EMPTY_MESSAGES` here in
+ *     MessageList won the click-handler cost-axis but produced an
+ *     intermediate empty paint (the chat content area went fully blank
+ *     for one or more frames during activation).
+ *   - Round-3 (regressed differently): removed the in-component deferral
+ *     and moved it to TabBar via `useTransition`. Empty paint went away,
+ *     replaced by a smaller scrollbar-pill flicker during the post-commit
+ *     markdown-render cascade. The flicker is visible because
+ *     `useTransition` lets the click handler return early, opening a
+ *     paint window between React commit and the post-commit `useEffect`
+ *     callbacks that populate each MessageBubble's content via
+ *     Obsidian's MarkdownRenderer.
+ *   - Round-4 (current): reverted the TabBar `useTransition` wrapper.
+ *     Click handler now runs render + commit + effects synchronously
+ *     before returning, blocking the main thread for ~250 ms on a
+ *     200-bubble session but producing a single final paint with no
+ *     flicker (matching the keyboard-hotkey path's behavior, which
+ *     never had the wrapper).
  *
- *     — https://react.dev/reference/react/useTransition § "Preventing unwanted loading indicators"
+ *   `MemoMessageBubble` (above) is retained as the streaming
+ *   optimization: when a new message appends, already-rendered bubbles
+ *   skip re-render via memo equality.
  *
- *   So the previously-active tab's content stays painted on screen until
- *   the new tab's mount completes; both the `display:flex/none` swap AND
- *   the bubble mount commit together. No empty intermediate paint.
- *
- *   This MessageList no longer needs any local deferral mechanism — the
- *   transition is handled at the trigger. `MemoMessageBubble` (above) is
- *   retained because it's still the right optimization for streaming:
- *   when a single new message appends, already-rendered bubbles skip
- *   re-render via memo equality.
+ *   Mechanism proven in src/ui/__tests__/post-commit-effect-mechanism.test.tsx.
+ *   See [[ACP Scroll Architecture Rework]] § I-S10 § Round-3 verification
+ *   for full empirical analysis.
  */
 export function MessageList({
 	messages,
@@ -114,9 +123,8 @@ export function MessageList({
 		useAutoScrollPin({ isActive, isSending, view });
 
 	// ============================================================
-	// (I-S10 round-3) No local deferral here — the deferral is at the
-	// TabBar click-handler trigger via useTransition. See JSDoc above
-	// and src/ui/TabBar.tsx § I-S10 round-3 fix.
+	// (I-S10 round-4) No deferral. Bubbles render synchronously from
+	// the `messages` prop. See JSDoc above for round 1-4 history.
 	// ============================================================
 
 	// ============================================================
