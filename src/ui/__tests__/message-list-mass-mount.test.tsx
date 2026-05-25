@@ -62,15 +62,26 @@ vi.mock("obsidian", () => ({
 // bubble per message synchronously, NOT what each bubble renders. Replacing
 // MessageBubble with a thin spy keeps the test focused on the architectural
 // invariant and avoids dragging in plugin/MarkdownRenderer/setIcon plumbing.
+//
+// `messageBubbleSpy` records every render call so tests can detect
+// regressions where MessageList briefly mounts the full set even if the
+// final DOM ends up with the slice. Pure DOM-node-count tests cannot
+// catch this class of bug because @testing-library's `render`/`rerender`
+// flush effects before returning — by the time the test inspects the
+// container, the post-effect re-render has already replaced an erroneous
+// full-mount with the slice.
+const messageBubbleSpy = vi.fn();
+
 vi.mock("../MessageBubble", () => ({
-	MessageBubble: ({ message }: { message: ChatMessage }) => (
-		<div data-testid="bubble" data-message-id={message.id}>
-			{/* Stub body — real MessageBubble parses markdown via Obsidian's
-			    MarkdownRenderer, which is the dominant cost. The architectural
-			    question this test asks is "how many bubbles get instantiated",
-			    not "how expensive is each bubble". */}
-		</div>
-	),
+	MessageBubble: ({ message }: { message: ChatMessage }) => {
+		messageBubbleSpy(message.id);
+		return (
+			<div data-testid="bubble" data-message-id={message.id}>
+				{/* Stub body — real MessageBubble parses markdown via Obsidian's
+				    MarkdownRenderer, which is the dominant cost. */}
+			</div>
+		);
+	},
 }));
 
 // ============================================================================
@@ -393,5 +404,171 @@ describe("MessageList — I-S10 regression net (no synchronous mass-mount on act
 		// warnings is the pass condition. If cleanup is broken, vitest
 		// will surface the warning as test output.
 		expect(true).toBe(true);
+	});
+
+	/**
+	 * Regression net for the round-1 I-S10 fix bug (`744faf4`):
+	 *
+	 * The first commit after `isActive` flips false → true must NOT mount
+	 * all N message bubbles. The chunked-mount logic must be applied in
+	 * the FIRST render — driving it from `useEffect` is too late, because
+	 * the effect runs AFTER React has already committed (and the browser
+	 * has already laid out) a full-mount render.
+	 *
+	 * Why DOM-count tests didn't catch this:
+	 *   `@testing-library/react`'s `rerender` wraps in `act`, which flushes
+	 *   effects before returning. Tests that count DOM nodes after `rerender`
+	 *   see only the post-effect state. In a real browser, the user sees the
+	 *   intermediate full-mount because layout and paint happen synchronously
+	 *   inside the click handler's task — there's no analog to `act`'s flush
+	 *   barrier.
+	 *
+	 * Trace evidence captured 2026-05-25T10:52 PT against `744faf4`:
+	 *   - `Trace-Phase2-Verify-IS10-SmallToLarge-20260525T105237.json`:
+	 *     250.88 ms click handler, 260 ParseHTML events, 109 ms layout work.
+	 *     WORSE than the pre-fix 215 ms in the round-2 baseline.
+	 *   - User-reported scrollbar jump and visible re-layout — confirms
+	 *     intermediate full-mount happened before the slice took effect.
+	 *
+	 * Detection strategy: spy on every MessageBubble render call and assert
+	 * the FIRST round of renders contains no more than the first batch.
+	 */
+	it("FAILS on 744faf4: first render after isActive=true must not mount all messages (intermediate full-mount regression)", () => {
+		const messages = makeMessages(200);
+		const view = makeView();
+		const plugin = makePlugin();
+		messageBubbleSpy.mockClear();
+
+		const { rerender } = render(
+			<MessageList
+				{...baseProps}
+				messages={messages}
+				view={view}
+				plugin={plugin}
+				isActive={false}
+			/>,
+		);
+
+		// Inactive render mounts zero bubbles.
+		expect(messageBubbleSpy.mock.calls.length).toBe(0);
+
+		messageBubbleSpy.mockClear();
+
+		// Activate. Inside `rerender`, React commits the new render and
+		// `act` flushes useEffect. If the chunked-mount gate is driven by
+		// useEffect, the FIRST commit (before the effect runs) will mount
+		// all 200 — that's the regression. The spy will see 200 calls
+		// from that first commit, then up to FIRST_BATCH_SIZE more from
+		// the post-effect re-render.
+		rerender(
+			<MessageList
+				{...baseProps}
+				messages={messages}
+				view={view}
+				plugin={plugin}
+				isActive={true}
+			/>,
+		);
+
+		// The spy should record AT MOST one round of rendering, and that
+		// round must be bounded by FIRST_BATCH_SIZE. Any rendering above
+		// that bound means a full-mount commit happened before the slice
+		// took effect.
+		//
+		// Pre-fix `744faf4`: spy sees ~200 (first commit, full set) +
+		// ~30 (post-effect re-render, sliced) = ~230 — fails this assertion.
+		// Correct fix: spy sees exactly one batch — ~30 calls. The
+		// deferred batch's render (mounting the rest) is on a separate
+		// task and not flushed by the synchronous part of `rerender`.
+		expect(messageBubbleSpy.mock.calls.length).toBeLessThan(50);
+	});
+
+	/**
+	 * Stronger variant: assert exact bubble identity in the FIRST commit.
+	 * The first batch should be the LAST 30 messages (the bottom of the
+	 * list), not the first 30 or all 200.
+	 */
+	it("FAILS on 744faf4: first commit renders only the LAST batch, not the first or all", () => {
+		const messages = makeMessages(200);
+		const view = makeView();
+		const plugin = makePlugin();
+		messageBubbleSpy.mockClear();
+
+		render(
+			<MessageList
+				{...baseProps}
+				messages={messages}
+				view={view}
+				plugin={plugin}
+				isActive={true}
+			/>,
+		);
+
+		// Each call to messageBubbleSpy received one argument: the
+		// message id. Build the set of ids that were rendered.
+		const renderedIds = new Set(
+			messageBubbleSpy.mock.calls.map((call) => call[0] as string),
+		);
+
+		// `msg-0` is at the top of the list, far above the viewport.
+		// It must NOT render in the first commit — first batch should
+		// be the LAST 30 messages.
+		expect(renderedIds.has("msg-0")).toBe(false);
+
+		// `msg-199` is at the bottom, where the auto-scroll-pin anchors.
+		// It MUST render in the first commit.
+		expect(renderedIds.has("msg-199")).toBe(true);
+	});
+
+	/**
+	 * No-extra-commits assertion: a heavy-session activation must not
+	 * trigger more than 2 effective commits (the initial sliced render
+	 * + the deferred full render). 3+ commits indicate state-cycling
+	 * bugs that produce visible scroll-jumps in real browsers.
+	 *
+	 * Expected total renders for a correct fix:
+	 *   first batch (30) + deferred full set (200) = 230
+	 *
+	 * Pre-fix `744faf4` actual:
+	 *   first commit full mount (200) + post-effect slice (30)
+	 *   + deferred re-render full (200) = 430
+	 *
+	 * The bound (260) is set with margin to avoid flakiness from React's
+	 * commit accounting while still catching the regression.
+	 */
+	it("FAILS on 744faf4: total bubble renders during activation does not exceed first-batch + full-size", async () => {
+		const messages = makeMessages(200);
+		const view = makeView();
+		const plugin = makePlugin();
+		messageBubbleSpy.mockClear();
+
+		const { rerender } = render(
+			<MessageList
+				{...baseProps}
+				messages={messages}
+				view={view}
+				plugin={plugin}
+				isActive={false}
+			/>,
+		);
+
+		messageBubbleSpy.mockClear();
+
+		rerender(
+			<MessageList
+				{...baseProps}
+				messages={messages}
+				view={view}
+				plugin={plugin}
+				isActive={true}
+			/>,
+		);
+
+		// Wait for the deferred batch to land.
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		});
+
+		expect(messageBubbleSpy.mock.calls.length).toBeLessThanOrEqual(260);
 	});
 });
