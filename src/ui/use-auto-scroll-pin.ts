@@ -1,411 +1,476 @@
 /**
- * useAutoScrollPin — single owner of MessageList's auto-scroll behavior.
+ * useAutoScrollPin — Phase 2 native-scroll architecture.
  *
- * Encapsulates:
- * - Pin-state tracking (`pinned` | `unpinned` | `restoring`) with hysteresis
- * - Scroll listener with hysteresis-driven state transitions
- * - IntersectionObserver for leaf-vs-pane visibility (Obsidian outer pane
- *   hidden, e.g. by clicking to a different workspace pane)
- * - Tab activation/deactivation transitions, including the I37 M1 fix:
- *   re-arm pin on tab-switch back when the user was pinned before
- *   deactivation, regardless of whether messageCount changed during
- *   inactivity (closes the streaming-while-inactive gap)
- * - Smooth-scroll on user-sent message (preserves previous scrollSmoothRef
- *   semantics)
- * - Same-value bail on every transition (per the I31 lesson)
+ * The hook owns BOTH pin state and scroll position. There is no virtualizer
+ * and no other authority. See the spec at
+ * 04-initiatives/Agent Console/ACP Scroll Architecture Rework.md
+ * § Phase 2 architecture for the full design rationale.
  *
- * See 04-initiatives/Agent Console/ACP Scroll Architecture Rework.md for
- * the full design rationale, transition table, and acceptance criteria
- * (T100-T131).
+ * Architecture:
+ *   - `wheel` listener on scrollRef → user intent to scroll up = escape
+ *   - `touchstart`/`touchmove` listeners on scrollRef → mobile escape
+ *   - `scroll` listener on scrollRef → user scrolled back near bottom = un-escape
+ *   - `ResizeObserver` on contentRef → content grew, write scrollTop if pinned
+ *   - `ResizeObserver` on scrollRef → container shrank, write scrollTop if pinned
+ *     (per spec Decision #21 Finding 1; closes use-stick-to-bottom Issue #40)
+ *   - Global `mousedown`/`mouseup`/`click` + `getSelection().rangeCount`
+ *     → suppress wheel/scroll-driven escape during text-selection drag
+ *     (per spec Decision #21 Finding 4)
+ *   - Programmatic `scrollTop` writes wrap with `scroll-behavior: auto`
+ *     override (per spec Decision #22)
+ *
+ * Reference: stackblitz-labs/use-stick-to-bottom. The Phase 2 design is
+ * adapted from that hook — see source at /tmp/use-stick-to-bottom for the
+ * canonical algorithm. Deliberate deviations:
+ *   - No spring animation engine (Decision #17). Native CSS smooth-scroll only.
+ *   - No `wait`/`duration`/`ignoreEscapes` options on `scrollToBottom`.
+ *   - No `targetScrollTop` calculation hook. Fixed `scrollHeight - clientHeight`.
+ *   - No `isNearBottom` separate from `isAtBottom`. One boolean.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
-
-import {
-	NEAR_BOTTOM_FLIP_TO_FALSE_PX,
-	NEAR_BOTTOM_FLIP_TO_TRUE_PX,
-	type PinState,
-	type UseAutoScrollPinParams,
-	type UseAutoScrollPinResult,
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type {
+	UseAutoScrollPinParams,
+	UseAutoScrollPinResult,
 } from "./use-auto-scroll-pin.types";
+import { STICK_OFFSET_PX } from "./use-auto-scroll-pin.types";
+
+// ============================================================================
+// Module-level mouse state for selection-vs-scroll discrimination
+// (per spec Decision #21 Finding 4)
+// ============================================================================
 
 /**
- * Compute the gap (in px) between the current scroll position and the bottom
- * of the scrollable content.
+ * Tracks whether the primary mouse button is currently pressed. Set by
+ * global document listeners attached on first hook mount, cleared on
+ * mouseup/click. Used by `isSelecting()` to distinguish text-selection
+ * drag from genuine wheel/scroll user intent.
  *
- * Returns null when the container is collapsed (clientHeight = 0). A
- * zero-height container always satisfies a naive "near bottom" check
- * (0 + 0 >= 0 - threshold), which would corrupt the pinned ref. The hook's
- * caller treats null as "skip this event, state unchanged" (T122).
+ * Mirrors use-stick-to-bottom's module-level `mouseDown` boolean.
+ * Single global state is correct here: the document only has one mouse.
  */
-function computeBottomGap(container: HTMLElement): number | null {
-	if (container.clientHeight === 0) return null;
-	return container.scrollHeight - (container.scrollTop + container.clientHeight);
+let mouseDown = false;
+let globalListenersAttached = false;
+
+function ensureGlobalMouseListeners(): void {
+	if (globalListenersAttached) return;
+	if (typeof document === "undefined") return; // SSR / JSDOM-without-document safety
+
+	document.addEventListener("mousedown", () => {
+		mouseDown = true;
+	});
+	document.addEventListener("mouseup", () => {
+		mouseDown = false;
+	});
+	document.addEventListener("click", () => {
+		mouseDown = false;
+	});
+	globalListenersAttached = true;
 }
 
+// ============================================================================
+// Programmatic scroll write helper (per spec Decision #22)
+// ============================================================================
+
 /**
- * Apply hysteresis to a candidate pin transition.
+ * Set `scrollEl.scrollTop = value` while temporarily forcing
+ * `scroll-behavior: auto` so the browser does not smooth-animate
+ * the programmatic write. Restores the original value after.
  *
- * - When `pinned`: stay pinned unless gap > FLIP_TO_FALSE (100 px)
- * - When `unpinned`: stay unpinned unless gap < FLIP_TO_TRUE (35 px)
- * - When `restoring`: don't transition on raw scroll events. The restoring
- *   state is consumed by the explicit-scroll completion path.
+ * Without this, native CSS `scroll-behavior: smooth` (which is desired
+ * for user-action paths like pill click) creates a feedback loop with
+ * ResizeObserver-driven streaming auto-scroll: write → smooth animation
+ * in flight → next chunk → write again → animation cancels → jitter.
  *
- * Returns the next state (which may equal `current` if no transition).
+ * Pattern adapted from `useStickToBottom.ts` lines 174–188.
  */
-function applyHysteresis(current: PinState, gap: number): PinState {
-	if (current === "restoring") return "restoring";
-	if (current === "pinned") {
-		return gap > NEAR_BOTTOM_FLIP_TO_FALSE_PX ? "unpinned" : "pinned";
+function setScrollTopInstant(scrollEl: HTMLElement, value: number): void {
+	const computed = getComputedStyle(scrollEl);
+	const previousBehavior = computed.scrollBehavior;
+	const needsOverride = previousBehavior !== "auto";
+
+	if (needsOverride) {
+		// Decision #22: temporarily override CSS scroll-behavior on the
+		// element to make the programmatic scrollTop write instant. The
+		// plugin's no-static-styles-assignment rule asks for CSS classes,
+		// but a CSS class can't time-bound the override to one synchronous
+		// write — the helper must restore the previous value immediately.
+		// eslint-disable-next-line obsidianmd/no-static-styles-assignment
+		scrollEl.style.scrollBehavior = "auto";
 	}
-	// current === "unpinned"
-	return gap < NEAR_BOTTOM_FLIP_TO_TRUE_PX ? "pinned" : "unpinned";
+	scrollEl.scrollTop = value;
+	if (needsOverride) {
+		scrollEl.style.scrollBehavior = previousBehavior;
+	}
 }
+
+/**
+ * Compute the scroll-top value that places the viewport at the bottom.
+ * Uses `scrollHeight - clientHeight - 1` (matching use-stick-to-bottom)
+ * — the `-1` provides a 1-px buffer to absorb sub-pixel rounding.
+ */
+function bottomScrollTop(scrollEl: HTMLElement): number {
+	return Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight - 1);
+}
+
+/**
+ * Compute the gap between current scroll position and the bottom.
+ * Returns the distance in pixels. Zero or negative = at bottom.
+ */
+function bottomGap(scrollEl: HTMLElement): number {
+	return scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+}
+
+// ============================================================================
+// Hook
+// ============================================================================
 
 export function useAutoScrollPin(
 	params: UseAutoScrollPinParams,
 ): UseAutoScrollPinResult {
-	const {
-		containerRef,
-		virtualizerRef,
-		messageCount,
-		isActive,
-		isSending,
-		view,
-	} = params;
+	const { isActive, isSending } = params;
 
-	// ============================================================
-	// Refs (high-frequency mutations; never trigger re-renders)
-	// ============================================================
+	// Public state — drives pill visibility and re-render of the consumer.
+	const [isAtBottom, setIsAtBottomState] = useState(true);
 
-	/** Authoritative pin state, mirrored to React state for UI. */
-	const pinStateRef = useRef<PinState>("pinned");
-
-	/** Tracks the most recent isActive value to detect transitions. */
-	const prevIsActiveRef = useRef<boolean>(isActive);
+	// Internal mutable state, kept in refs so they don't trigger re-renders.
+	const scrollElRef = useRef<HTMLDivElement | null>(null);
+	const contentElRef = useRef<HTMLDivElement | null>(null);
+	const isAtBottomRef = useRef(true);
+	const escapedFromLockRef = useRef(false);
+	const scrollObserverRef = useRef<ResizeObserver | null>(null);
+	const contentObserverRef = useRef<ResizeObserver | null>(null);
+	const lastIsActiveRef = useRef(isActive);
+	const lastIsSendingRef = useRef(isSending);
 
 	/**
-	 * Snapshot of pin state captured at the moment of deactivation. Used by
-	 * the reactivation handler to decide whether to restore the bottom pin
-	 * (closes I37 Mechanism 1).
+	 * Same-value bail wrapper around setIsAtBottomState (per spec
+	 * Decision #2 / I31 lesson encoded as same-value bail). Streaming
+	 * fires this many times per second; React must not re-render when
+	 * the value hasn't actually changed.
 	 */
-	const wasPinnedBeforeDeactivationRef = useRef<boolean>(true);
-
-	/** Tracks the most recent messageCount to detect "new message" arrivals. */
-	const prevMessageCountRef = useRef<number>(messageCount);
-
-	/** Tracks the most recent isSending to detect the user-sent transition. */
-	const prevIsSendingRef = useRef<boolean>(isSending);
-
-	/**
-	 * When true, the next pin restore (system-initiated) should use smooth
-	 * behavior. Set when isSending flips false→true. Consumed and reset by
-	 * the next message-arrival transition.
-	 */
-	const scrollSmoothRef = useRef<boolean>(false);
-
-	/** Tracks IntersectionObserver visibility (leaf hidden by Obsidian pane). */
-	const wasContainerVisibleRef = useRef<boolean>(true);
-
-	/**
-	 * Adjust-flag: true for ~50ms after each `shouldAdjust()` call that
-	 * returns true. The scroll listener bails when this flag is set,
-	 * because any scroll event fired in this window was generated by
-	 * Authority A's adjust, not by the user.
-	 *
-	 * Closes I-S1: hysteresis thresholds alone can't distinguish a 200-px
-	 * code-block-mount adjust from a 200-px user scroll. The architectural
-	 * distinction (virtualizer-driven vs user-driven) carries the weight;
-	 * the 100/35-px thresholds remain only as a backstop for true
-	 * measurement-race noise.
-	 *
-	 * The 50-ms window is sized to comfortably cover one rAF cycle plus
-	 * the scroll-event flush; large enough to absorb rAF-spaced adjusts,
-	 * small enough that a user scroll initiated >50ms after the last
-	 * adjust still un-pins normally.
-	 */
-	const recentlyAdjustedRef = useRef<boolean>(false);
-	const recentlyAdjustedTimeoutRef = useRef<number | null>(null);
-
-	/** Duration (ms) of the post-adjust bail window. */
-	const ADJUST_FLAG_DURATION_MS = 50;
-
-	// ============================================================
-	// React state (only for UI-reactive consumers)
-	// ============================================================
-
-	const [pinState, setPinState] = useState<PinState>("pinned");
-
-	/**
-	 * Same-value-bail wrapper around the React state setter. Per the I31
-	 * lesson: scroll events fire at streaming chunk frequency, and the
-	 * dominant case after hysteresis is "no state change". Avoid scheduling
-	 * React work on no-op transitions.
-	 */
-	const setPinStateBoth = useCallback((next: PinState) => {
-		if (pinStateRef.current === next) return;
-		pinStateRef.current = next;
-		setPinState(next);
+	const setIsAtBottom = useCallback((next: boolean) => {
+		if (isAtBottomRef.current === next) return;
+		isAtBottomRef.current = next;
+		setIsAtBottomState(next);
 	}, []);
 
-	// ============================================================
-	// Imperative scroll-to-bottom (used by pill, restore transitions)
-	// ============================================================
+	const setEscapedFromLock = useCallback((next: boolean) => {
+		if (escapedFromLockRef.current === next) return;
+		escapedFromLockRef.current = next;
+	}, []);
 
+	/**
+	 * Selection-vs-scroll discriminator (per spec Decision #21 Finding 4).
+	 * Returns true if the user is currently dragging to select text inside
+	 * the scroll container. Wheel/scroll events fired during selection drag
+	 * are NOT treated as escape signals.
+	 *
+	 * Without this, every text-selection drag in a streaming bubble (copy
+	 * code, quote response — frequent actions) would unpin the chat.
+	 */
+	const isSelecting = useCallback((): boolean => {
+		if (!mouseDown) return false;
+		if (typeof window === "undefined") return false;
+		const selection = window.getSelection();
+		if (!selection || selection.rangeCount === 0) return false;
+		const range = selection.getRangeAt(0);
+		const scrollEl = scrollElRef.current;
+		if (!scrollEl) return false;
+		return (
+			range.commonAncestorContainer.contains(scrollEl) ||
+			scrollEl.contains(range.commonAncestorContainer)
+		);
+	}, []);
+
+	/**
+	 * Scroll the container to the bottom. The default behavior is "smooth"
+	 * (CSS scroll-behavior: smooth), used for user-action paths like the
+	 * pill click. "auto" uses the override pattern from Decision #22 to
+	 * jump instantly even if CSS has a smooth default.
+	 */
 	const scrollToBottom = useCallback(
 		(options?: { behavior?: "smooth" | "auto" }) => {
-			const virtualizer = virtualizerRef.current;
-			if (!virtualizer) return;
-			if (messageCount === 0) {
-				// Empty session — just snap to pinned without a scroll call.
-				setPinStateBoth("pinned");
-				return;
+			const scrollEl = scrollElRef.current;
+			if (!scrollEl) return;
+
+			const behavior = options?.behavior ?? "smooth";
+			const target = bottomScrollTop(scrollEl);
+
+			if (behavior === "smooth") {
+				// User-action path — let native CSS smooth-scroll handle the animation.
+				// Read the computed style once; if it's not already 'smooth', set inline
+				// for the duration of this call.
+				const computed = getComputedStyle(scrollEl);
+				if (computed.scrollBehavior !== "smooth") {
+					// Decision #22: smooth-scroll path sets inline scroll-behavior
+					// for the duration; the rule prefers CSS classes but this is
+					// a per-call user-action override, not a static style.
+					// eslint-disable-next-line obsidianmd/no-static-styles-assignment
+					scrollEl.style.scrollBehavior = "smooth";
+				}
+				scrollEl.scrollTop = target;
+			} else {
+				setScrollTopInstant(scrollEl, target);
 			}
-			setPinStateBoth("restoring");
-			const behavior = options?.behavior ?? "auto";
-			window.requestAnimationFrame(() => {
-				virtualizer.scrollToIndex(messageCount - 1, {
-					align: "end",
-					behavior,
-				});
-				// After the explicit scroll lands, transition restoring →
-				// pinned. The native `scroll` events generated by scrollToIndex
-				// will hit our handler with gap below threshold and would also
-				// transition to `pinned` via hysteresis, but we set it
-				// explicitly here so the state is correct even if the
-				// virtualizer's scroll target settles within the dead zone.
-				setPinStateBoth("pinned");
-			});
+
+			setIsAtBottom(true);
+			setEscapedFromLock(false);
 		},
-		[virtualizerRef, messageCount, setPinStateBoth],
+		[setIsAtBottom, setEscapedFromLock],
 	);
 
-	// ============================================================
-	// Authority A gate (stable identity across renders)
-	// ============================================================
-
-	// Mirror isActive into a ref so shouldAdjust (stable identity) can read it.
-	const isActiveRef = useRef<boolean>(isActive);
-	useEffect(() => {
-		isActiveRef.current = isActive;
-	}, [isActive]);
+	/**
+	 * Wheel handler. `deltaY < 0` (user scrolled up via wheel/trackpad)
+	 * unpins. `deltaY > 0` is a no-op here — the scroll listener handles
+	 * "user scrolled back near bottom" → re-pin.
+	 *
+	 * Suppressed during text-selection drag.
+	 */
+	const handleWheel = useCallback(
+		(event: WheelEvent) => {
+			if (event.deltaY >= 0) return;
+			if (isSelecting()) return;
+			const scrollEl = scrollElRef.current;
+			if (!scrollEl) return;
+			// Only treat as escape if the container actually scrolls (i.e.
+			// content overflows the viewport). Otherwise wheel-up does nothing
+			// visible and shouldn't toggle state.
+			if (scrollEl.scrollHeight <= scrollEl.clientHeight) return;
+			setEscapedFromLock(true);
+			setIsAtBottom(false);
+		},
+		[isSelecting, setEscapedFromLock, setIsAtBottom],
+	);
 
 	/**
-	 * Returns true when the virtualizer should auto-adjust scroll position
-	 * on item size changes. Wired to the virtualizer's
-	 * `shouldAdjustScrollPositionOnItemSizeChange`.
+	 * Touch state for mobile escape detection (per spec Decision #21
+	 * Finding 2; closes use-stick-to-bottom Issue #9 partially — iOS
+	 * momentum scroll is genuinely hard, we accept good-enough).
 	 *
-	 * - Inactive tabs: false (no scroll mutation on hidden containers)
-	 * - Active + pinned: true (auto-follow streaming and tool-call growth)
-	 * - Active + unpinned: false (user is reading older content)
-	 * - Active + restoring: false (don't fight an explicit scroll)
-	 *
-	 * Reads refs (not state) so the gate's identity is stable and the
-	 * virtualizer doesn't see "different gate" each render.
+	 * Mirrors wheel-up: drag-up gesture = escape.
 	 */
-	const shouldAdjust = useCallback((): boolean => {
-		// Use refs not the closure values — this callback is invoked by the
-		// virtualizer at high frequency, possibly even after a stale render.
-		// Refs always reflect the current pin state.
-		if (!isActiveRef.current) return false;
-		const result = pinStateRef.current === "pinned";
-		if (result) {
-			// Authority A is about to adjust scrollTop. Flag the next
-			// ADJUST_FLAG_DURATION_MS so the scroll listener can recognize
-			// the resulting scroll events as virtualizer-driven and bail.
-			// Closes I-S1.
-			recentlyAdjustedRef.current = true;
-			if (recentlyAdjustedTimeoutRef.current !== null) {
-				window.clearTimeout(recentlyAdjustedTimeoutRef.current);
-			}
-			recentlyAdjustedTimeoutRef.current = window.setTimeout(() => {
-				recentlyAdjustedRef.current = false;
-				recentlyAdjustedTimeoutRef.current = null;
-			}, ADJUST_FLAG_DURATION_MS);
-		}
-		return result;
+	const touchStartYRef = useRef<number | null>(null);
+
+	const handleTouchStart = useCallback((event: TouchEvent) => {
+		const touch = event.touches[0];
+		touchStartYRef.current = touch ? touch.clientY : null;
 	}, []);
 
-	// Cleanup the adjust-flag timeout on unmount so we don't leak timers
-	// or fire after the component is gone.
+	const handleTouchMove = useCallback(
+		(event: TouchEvent) => {
+			const startY = touchStartYRef.current;
+			if (startY === null) return;
+			const touch = event.touches[0];
+			if (!touch) return;
+			const deltaY = touch.clientY - startY;
+			// deltaY > 0 means finger dragged DOWN, which scrolls content UP
+			// in standard touch-scroll convention. Threshold of 4 px filters
+			// micro-jitter.
+			if (deltaY <= 4) return;
+			if (isSelecting()) return;
+			const scrollEl = scrollElRef.current;
+			if (!scrollEl) return;
+			if (scrollEl.scrollHeight <= scrollEl.clientHeight) return;
+			setEscapedFromLock(true);
+			setIsAtBottom(false);
+			touchStartYRef.current = null; // single fire per gesture
+		},
+		[isSelecting, setEscapedFromLock, setIsAtBottom],
+	);
+
+	/**
+	 * Scroll handler. Fires on every scrollTop change (user-driven AND
+	 * programmatic AND browser-synthesized). Only purpose here is to
+	 * detect "user manually scrolled back near bottom" so the pill can
+	 * disappear without a click — the inverse direction from wheel.
+	 *
+	 * The wheel handler handles "scrolled away" (escape).
+	 */
+	const handleScroll = useCallback(() => {
+		const scrollEl = scrollElRef.current;
+		if (!scrollEl) return;
+		const gap = bottomGap(scrollEl);
+		const nearBottom = gap <= STICK_OFFSET_PX;
+
+		if (nearBottom) {
+			// User scrolled back near bottom (or programmatic scroll landed there)
+			// — clear escape and re-pin.
+			setEscapedFromLock(false);
+			setIsAtBottom(true);
+		} else if (
+			!escapedFromLockRef.current &&
+			isAtBottomRef.current &&
+			gap > STICK_OFFSET_PX
+		) {
+			// We thought we were pinned but the browser settled scrollTop
+			// outside the offset (e.g. content shrank). Update the public
+			// boolean so the pill reflects truth, but don't set escape —
+			// that's a user-intent signal only.
+			setIsAtBottom(false);
+		}
+	}, [setEscapedFromLock, setIsAtBottom]);
+
+	// ------------------------------------------------------------------------
+	// scrollRef — RefCallback that attaches/detaches event listeners and
+	// the container ResizeObserver (for container-shrink detection).
+	// ------------------------------------------------------------------------
+	const scrollRef: UseAutoScrollPinResult["scrollRef"] = useCallback(
+		(el) => {
+			ensureGlobalMouseListeners();
+
+			// Detach from previous element if any
+			const previous = scrollElRef.current;
+			if (previous) {
+				previous.removeEventListener("scroll", handleScroll);
+				previous.removeEventListener("wheel", handleWheel);
+				previous.removeEventListener("touchstart", handleTouchStart);
+				previous.removeEventListener("touchmove", handleTouchMove);
+				scrollObserverRef.current?.disconnect();
+				scrollObserverRef.current = null;
+			}
+
+			scrollElRef.current = el;
+			if (!el) return;
+
+			// Listeners are passive — we never call preventDefault.
+			el.addEventListener("scroll", handleScroll, { passive: true });
+			el.addEventListener("wheel", handleWheel, { passive: true });
+			el.addEventListener("touchstart", handleTouchStart, { passive: true });
+			el.addEventListener("touchmove", handleTouchMove, { passive: true });
+
+			// Container ResizeObserver — detects flex-sibling shrinks etc.
+			// (per spec Decision #21 Finding 1, closes use-stick-to-bottom Issue #40).
+			let prevContainerHeight: number | undefined;
+			const observer = new ResizeObserver(([entry]) => {
+				if (!entry) return;
+				const { height } = entry.contentRect;
+				const previous = prevContainerHeight;
+				prevContainerHeight = height;
+
+				// Only react to SHRINK while we're supposed to be pinned.
+				// Container grow doesn't lose the bottom — content already
+				// fills it (and contentRef ResizeObserver will fire too).
+				if (previous === undefined) return;
+				if (height >= previous) return;
+				if (escapedFromLockRef.current) return;
+				if (!isAtBottomRef.current) return;
+				const scrollEl = scrollElRef.current;
+				if (!scrollEl) return;
+				setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
+			});
+			observer.observe(el);
+			scrollObserverRef.current = observer;
+		},
+		[handleScroll, handleWheel, handleTouchStart, handleTouchMove],
+	);
+
+	// ------------------------------------------------------------------------
+	// contentRef — RefCallback that attaches/detaches the content
+	// ResizeObserver (the primary "content grew, re-anchor" signal).
+	// ------------------------------------------------------------------------
+	const contentRef: UseAutoScrollPinResult["contentRef"] = useCallback(
+		(el) => {
+			contentObserverRef.current?.disconnect();
+			contentObserverRef.current = null;
+			contentElRef.current = el;
+			if (!el) return;
+
+			let prevContentHeight: number | undefined;
+			const observer = new ResizeObserver(([entry]) => {
+				if (!entry) return;
+				const { height } = entry.contentRect;
+				const previous = prevContentHeight;
+				prevContentHeight = height;
+
+				const scrollEl = scrollElRef.current;
+				if (!scrollEl) return;
+
+				// Initial fire (no previous height) — anchor to bottom if
+				// we're nominally pinned. Covers session-restoration and
+				// first-paint cases.
+				if (previous === undefined) {
+					if (isAtBottomRef.current && !escapedFromLockRef.current) {
+						setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
+					}
+					return;
+				}
+
+				const grew = height > previous;
+				const shrank = height < previous;
+
+				if (grew) {
+					// Content grew (streaming token, code block mounted, table
+					// rendered, image loaded, etc.). Re-anchor if pinned.
+					if (escapedFromLockRef.current) return;
+					if (!isAtBottomRef.current) return;
+					setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
+				} else if (shrank) {
+					// Content shrank. If the shrink brought the bottom back
+					// into view (within STICK_OFFSET_PX), re-pin — even from
+					// escaped state. Mirrors use-stick-to-bottom's negative-
+					// resize branch (no escapedFromLock guard).
+					if (bottomGap(scrollEl) <= STICK_OFFSET_PX) {
+						setEscapedFromLock(false);
+						setIsAtBottom(true);
+					}
+				}
+			});
+			observer.observe(el);
+			contentObserverRef.current = observer;
+		},
+		[setIsAtBottom],
+	);
+
+	// ------------------------------------------------------------------------
+	// isActive false → true: re-anchor if was pinned (closes I-S2/I-S3/I-S4
+	// by architecture — no virtualizer cache to be stale)
+	// ------------------------------------------------------------------------
+	useEffect(() => {
+		const previous = lastIsActiveRef.current;
+		lastIsActiveRef.current = isActive;
+		if (previous || !isActive) return; // only react to false → true
+		if (escapedFromLockRef.current) return; // user was scrolled up; preserve
+		if (!isAtBottomRef.current) return; // wasn't pinned; preserve
+		const scrollEl = scrollElRef.current;
+		if (!scrollEl) return;
+		setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
+	}, [isActive]);
+
+	// ------------------------------------------------------------------------
+	// isSending false → true: user just submitted; smooth-scroll to bottom
+	// ------------------------------------------------------------------------
+	useEffect(() => {
+		const previous = lastIsSendingRef.current;
+		lastIsSendingRef.current = isSending;
+		if (previous || !isSending) return; // only react to false → true
+		setEscapedFromLock(false);
+		scrollToBottom({ behavior: "smooth" });
+	}, [isSending, scrollToBottom, setEscapedFromLock]);
+
+	// ------------------------------------------------------------------------
+	// Cleanup on unmount
+	// ------------------------------------------------------------------------
 	useEffect(() => {
 		return () => {
-			if (recentlyAdjustedTimeoutRef.current !== null) {
-				window.clearTimeout(recentlyAdjustedTimeoutRef.current);
-				recentlyAdjustedTimeoutRef.current = null;
+			scrollObserverRef.current?.disconnect();
+			contentObserverRef.current?.disconnect();
+			scrollObserverRef.current = null;
+			contentObserverRef.current = null;
+			const scrollEl = scrollElRef.current;
+			if (scrollEl) {
+				scrollEl.removeEventListener("scroll", handleScroll);
+				scrollEl.removeEventListener("wheel", handleWheel);
+				scrollEl.removeEventListener("touchstart", handleTouchStart);
+				scrollEl.removeEventListener("touchmove", handleTouchMove);
 			}
 		};
+		// Empty deps: run only on unmount. The scrollRef/contentRef callbacks
+		// already handle re-attachment when the element changes.
 	}, []);
 
-	// ============================================================
-	// Scroll listener — owns hysteresis-driven state transitions
-	// ============================================================
-
-	const handleScroll = useCallback(() => {
-		const container = containerRef.current;
-		if (!container) return;
-		// Inactive tabs don't fire scroll events because their container is
-		// display:none (no scrollable area). But guard anyway in case the
-		// IntersectionObserver fires a scroll-adjacent event.
-		if (!isActiveRef.current) return;
-		// Don't process scroll events while restoring — Authority A and the
-		// explicit scrollToIndex are mid-flight, and reading scroll values
-		// would race with them.
-		if (pinStateRef.current === "restoring") return;
-		// Don't process scroll events fired by Authority A's adjust. The
-		// adjust-flag is set by shouldAdjust() and clears after
-		// ADJUST_FLAG_DURATION_MS; any scroll event in this window was
-		// generated by the virtualizer, not by the user. Closes I-S1.
-		if (recentlyAdjustedRef.current) return;
-
-		const gap = computeBottomGap(container);
-		if (gap === null) return; // Container collapsed (T122)
-
-		const next = applyHysteresis(pinStateRef.current, gap);
-		setPinStateBoth(next);
-	}, [containerRef, setPinStateBoth]);
-
-	// Register scroll listener via the host (Obsidian-managed cleanup).
-	useEffect(() => {
-		const container = containerRef.current;
-		if (!container) return;
-		view.registerDomEvent(container, "scroll", handleScroll);
-		// Initial check — establishes the pin state if the container starts
-		// off-bottom (e.g., session restoration, T125).
-		handleScroll();
-	}, [view, containerRef, handleScroll]);
-
-	// ============================================================
-	// IntersectionObserver — leaf-vs-pane visibility
-	// ============================================================
-
-	useEffect(() => {
-		const container = containerRef.current;
-		if (!container) return;
-
-		const observer = new IntersectionObserver(
-			([entry]) => {
-				const visible = entry.isIntersecting;
-				const wasVisible = wasContainerVisibleRef.current;
-				wasContainerVisibleRef.current = visible;
-
-				// Only respond to false→true transitions (leaf revealed).
-				// And only when the tab is currently active — if we're inactive,
-				// the tab activation handler will fire on its own when the user
-				// switches to this tab.
-				if (!visible || wasVisible || !isActiveRef.current) return;
-				if (messageCount === 0) return;
-
-				// Restore pin only if user was pinned. If they were unpinned,
-				// preserve their scroll position (T120).
-				if (pinStateRef.current === "pinned") {
-					scrollToBottom();
-				}
-			},
-			{ threshold: 0.1 },
-		);
-		observer.observe(container);
-		return () => observer.disconnect();
-	}, [containerRef, messageCount, scrollToBottom]);
-
-	// ============================================================
-	// isActive transitions (tab activate / deactivate)
-	// ============================================================
-
-	useEffect(() => {
-		const wasActive = prevIsActiveRef.current;
-		prevIsActiveRef.current = isActive;
-
-		if (wasActive === isActive) return; // No transition
-
-		if (!isActive) {
-			// Tab just deactivated — capture the pin state for next reactivation.
-			// I37 Mechanism 1 fix: this captures user intent before the tab
-			// goes inactive, NOT when it returns. If the user was pinned,
-			// we'll restore on activation; if they were scrolled up, we'll
-			// preserve their position.
-			wasPinnedBeforeDeactivationRef.current =
-				pinStateRef.current === "pinned";
-			return;
-		}
-
-		// Tab just activated.
-		if (messageCount === 0) {
-			// Empty session — pin to bottom (the loading indicator state).
-			setPinStateBoth("pinned");
-			return;
-		}
-
-		if (wasPinnedBeforeDeactivationRef.current) {
-			// User was pinned before deactivation — restore the pin.
-			// This fires regardless of whether messageCount changed during
-			// inactivity (closes I37 Mechanism 1: streaming-while-inactive
-			// adds tokens to existing messages without changing count).
-			scrollToBottom();
-		}
-		// Else: user was unpinned before deactivation. Preserve their scroll
-		// position (T114). Don't touch state — the next scroll event will
-		// re-establish via hysteresis.
-	}, [isActive, messageCount, scrollToBottom, setPinStateBoth]);
-
-	// ============================================================
-	// Message-count transitions (new message arrived)
-	// ============================================================
-
-	useEffect(() => {
-		const prev = prevMessageCountRef.current;
-		prevMessageCountRef.current = messageCount;
-
-		if (messageCount === 0) {
-			// Cleared / new chat — reset state cleanly (T124).
-			setPinStateBoth("pinned");
-			return;
-		}
-
-		// Only respond to count increases (new message). Decreases are not
-		// a normal flow (would be backend-side rewriting).
-		if (messageCount <= prev) return;
-
-		// Inactive tabs: no auto-scroll. The activation handler will
-		// restore pin if the user was pinned before deactivation.
-		if (!isActive) return;
-
-		// User-sent path: smooth scroll. scrollSmoothRef was set when
-		// isSending flipped false→true; consume it now.
-		if (scrollSmoothRef.current) {
-			scrollSmoothRef.current = false;
-			scrollToBottom({ behavior: "smooth" });
-			return;
-		}
-
-		// Assistant message arrived. Auto-scroll only if user is pinned.
-		// (User scrolled up = preserve their reading position, T107.)
-		if (pinStateRef.current === "pinned") {
-			scrollToBottom();
-		}
-	}, [messageCount, isActive, scrollToBottom, setPinStateBoth]);
-
-	// ============================================================
-	// isSending transitions (user just submitted a message)
-	// ============================================================
-
-	useEffect(() => {
-		if (isSending && !prevIsSendingRef.current) {
-			// User just sent a message — flag the next message-arrival
-			// auto-scroll for smooth behavior.
-			scrollSmoothRef.current = true;
-		}
-		prevIsSendingRef.current = isSending;
-	}, [isSending]);
-
-	// ============================================================
-	// Result
-	// ============================================================
-
-	return {
-		pinState,
-		isPinned: pinState === "pinned",
-		shouldAdjust,
-		scrollToBottom,
-	};
+	return useMemo(
+		() => ({ scrollRef, contentRef, isAtBottom, scrollToBottom }),
+		[scrollRef, contentRef, isAtBottom, scrollToBottom],
+	);
 }

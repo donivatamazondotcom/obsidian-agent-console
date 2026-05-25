@@ -1,105 +1,65 @@
 /**
- * Types for useAutoScrollPin hook.
+ * Types for useAutoScrollPin hook (Phase 2).
  *
- * The hook owns all auto-scroll behavior for MessageList. See the spec at
- * 04-initiatives/Agent Console/ACP Scroll Architecture Rework.md for the
- * full design rationale, transition table, and acceptance criteria
- * (T100-T131).
+ * The hook owns BOTH pin state and scroll position. There is no other
+ * authority. See the spec at
+ * 04-initiatives/Agent Console/ACP Scroll Architecture Rework.md
+ * § Phase 2 architecture for the full design rationale.
  *
- * Design principle: all auto-scroll behavior lives inside the hook;
- * MessageList provides DOM handles and render decisions, never owns
- * scroll state directly.
+ * Phase 1 used a `pinned | unpinned | restoring` discriminated union with
+ * the virtualizer as scroll authority. Phase 2 collapses to two booleans
+ * (`isAtBottom`, `escapedFromLock`) with the hook directly writing
+ * `scrollTop`. The seam between hook state and virtualizer scroll
+ * (the source of I-S2/I-S3/I-S4) no longer exists in the architecture.
+ *
+ * Reference: stackblitz-labs/use-stick-to-bottom (~2.2M weekly downloads,
+ * used by Bolt.new, shadcn AI, Vercel ai-elements). The Phase 2 design is
+ * adapted from that hook, with deliberate omissions (no spring engine
+ * per Decision #17, no `wait`/`duration`/`ignoreEscapes` options) and
+ * deliberate additions per spec Decisions #21 and #22 (dual ResizeObserver,
+ * touch listeners, selection-vs-scroll discrimination, scroll-behavior
+ * override on programmatic writes).
  */
 
-import type { RefObject } from "react";
-import type { Virtualizer } from "@tanstack/react-virtual";
+import type { RefCallback } from "react";
 import type { IChatViewHost } from "./view-host";
 
 // ============================================================================
-// Pin state union
+// Stickiness threshold
 // ============================================================================
 
 /**
- * Discriminated string-literal union for the auto-scroll pin state.
+ * Gap (px) below which the viewport is considered "at the bottom" and
+ * auto-scroll engages. Same value as use-stick-to-bottom's default.
  *
- * Follows the codebase convention of TabState/SessionState (rather than a
- * full FSM with useReducer). Three states are sufficient:
+ * 70 px is generous enough to absorb wheel-event throttling and
+ * momentum-scroll undershoot, while tight enough that the pill appears
+ * promptly when the user genuinely scrolls up. Spec Decision #21
+ * validates this against react-virtuoso (4 px, only works with
+ * pixel-exact virtualizer measurement) and use-stick-to-bottom (70 px,
+ * battle-tested at scale).
  *
- * - `pinned`: Viewport is at the bottom; auto-scroll engaged. Authority A
- *   (virtualizer's `shouldAdjustScrollPositionOnItemSizeChange`) returns
- *   true on this tab. New messages auto-scroll.
- *
- * - `unpinned`: User has scrolled up; auto-scroll suppressed. Scroll-to-
- *   bottom pill is visible. New messages do NOT auto-scroll.
- *
- * - `restoring`: An explicit scroll target is in flight (pill click, tab
- *   activation with prior pin, smooth scroll on user-sent message). Authority
- *   A returns false transiently so it doesn't fight an explicit scroll. The
- *   state resolves back to `pinned` on completion.
+ * Revisit only if smoke-test surfaces flicker around the boundary.
  */
-export type PinState = "pinned" | "unpinned" | "restoring";
-
-// ============================================================================
-// Hysteresis thresholds
-// ============================================================================
-
-/**
- * Gap (px) above which a `pinned` state flips to `unpinned`.
- * Distinguishes "user genuinely scrolled away" from "DOM measurement race
- * during streaming". Roughly one short message's worth of vertical space.
- *
- * Closes I37 Mechanisms 2 & 3 and I36 partial regression — captured
- * evidence showed false-flip gaps of 37/60/80 px during streaming, all
- * below this threshold.
- */
-export const NEAR_BOTTOM_FLIP_TO_FALSE_PX = 100;
-
-/**
- * Gap (px) below which an `unpinned` state flips back to `pinned`.
- * Preserves existing slack-zone semantics from the original 35-px threshold.
- */
-export const NEAR_BOTTOM_FLIP_TO_TRUE_PX = 35;
+export const STICK_OFFSET_PX = 70;
 
 // ============================================================================
 // Hook params and result
 // ============================================================================
 
 /**
- * Inputs to useAutoScrollPin. All refs must be stable across renders.
+ * Inputs to useAutoScrollPin.
  *
- * The hook reads from refs (not state) to avoid re-renders on container/
- * virtualizer object identity changes.
+ * Compared to Phase 1: `containerRef`, `virtualizerRef`, and `messageCount`
+ * are gone. The hook now exposes its own `scrollRef` and `contentRef` as
+ * RefCallbacks (per use-stick-to-bottom's pattern), and content-grow
+ * detection comes from ResizeObserver — message count is irrelevant.
  */
 export interface UseAutoScrollPinParams {
 	/**
-	 * Container element ref (the scroll element). The hook attaches a
-	 * scroll listener and an IntersectionObserver to this element.
-	 *
-	 * The ref must be stable. The hook does not handle container element
-	 * swaps mid-mount; if the consumer needs to swap the container, it
-	 * should remount the component (which will re-run the hook).
-	 */
-	containerRef: RefObject<HTMLDivElement | null>;
-
-	/**
-	 * Virtualizer ref for explicit scroll-to-bottom calls. The hook
-	 * uses `virtualizerRef.current.scrollToIndex(messageCount - 1,
-	 * { align: "end" })` for restore transitions.
-	 */
-	virtualizerRef: RefObject<Virtualizer<HTMLDivElement, Element> | null>;
-
-	/**
-	 * Number of messages currently in the list. Used to detect "new message
-	 * arrived" transitions. Note: this is only the count, not the array
-	 * reference — streaming chunks that grow an existing message do NOT
-	 * change the count, and Authority A handles those (see I36 root cause).
-	 */
-	messageCount: number;
-
-	/**
-	 * Whether this tab is currently active (visible). When false, the
-	 * hook captures the current pin state for the next reactivation
-	 * and stops doing DOM-observation work.
+	 * Whether this tab is currently active (visible). When false, the hook
+	 * stops doing DOM-observation work; on reactivation, if `isAtBottom`
+	 * was true, the hook re-anchors to the bottom once.
 	 */
 	isActive: boolean;
 
@@ -112,44 +72,55 @@ export interface UseAutoScrollPinParams {
 
 	/**
 	 * ChatView host for Obsidian-managed event registration. Listeners
-	 * registered via host.registerDomEvent are auto-cleaned-up on view close.
+	 * registered via `host.registerDomEvent` are auto-cleaned-up on view
+	 * close.
 	 */
 	view: IChatViewHost;
 }
 
 /**
- * Outputs from useAutoScrollPin. Consumers (MessageList) wire these to
- * their virtualizer and pill UI.
+ * Outputs from useAutoScrollPin.
+ *
+ * Compared to Phase 1: `pinState` and `isPinned` collapse to `isAtBottom`.
+ * `shouldAdjust` is gone (no virtualizer to gate). `scrollRef` and
+ * `contentRef` are new — the hook now owns the DOM refs.
  */
 export interface UseAutoScrollPinResult {
 	/**
-	 * Current pin state. Primarily for UI affordances (pill visibility).
-	 * `restoring` is a transient state visible briefly during explicit
-	 * scrolls; consumers that don't need to distinguish it from `unpinned`
-	 * can use `isPinned` instead.
+	 * RefCallback to attach to the scroll container element. The hook
+	 * uses this to:
+	 * - Attach `scroll`, `wheel`, `touchstart`, `touchmove` listeners
+	 * - Attach a ResizeObserver (for container-shrink detection per spec
+	 *   Decision #21 Finding 1)
+	 * - Read scroll position and write `scrollTop` for auto-scroll
 	 */
-	pinState: PinState;
+	scrollRef: RefCallback<HTMLDivElement>;
 
 	/**
-	 * Convenience boolean: `pinState === "pinned"`. The scroll-to-bottom
-	 * pill is typically rendered when `!isPinned`.
+	 * RefCallback to attach to the content element (the inner div whose
+	 * height grows as messages stream in). The hook attaches a
+	 * ResizeObserver to detect content growth.
 	 */
-	isPinned: boolean;
+	contentRef: RefCallback<HTMLDivElement>;
 
 	/**
-	 * Gate function to install on the virtualizer's
-	 * `shouldAdjustScrollPositionOnItemSizeChange`. Returns true when the
-	 * virtualizer should auto-adjust scroll on size changes (active tab AND
-	 * pinned). Stable identity across renders.
+	 * True when the viewport is at or near the bottom (within
+	 * `STICK_OFFSET_PX`). Drives auto-scroll-on-content-grow and pill
+	 * visibility (`!isAtBottom` → show pill).
+	 *
+	 * This is also true while `escapedFromLock` is true if the user has
+	 * scrolled back to within the offset (so the pill disappears).
 	 */
-	shouldAdjust: () => boolean;
+	isAtBottom: boolean;
 
 	/**
 	 * Imperative request to scroll to the bottom and re-pin. Used by the
-	 * pill click handler and any external "restore pin" affordance.
+	 * pill click handler.
 	 *
-	 * - `behavior: "smooth"` for user-initiated actions (pill click)
-	 * - `behavior: "auto"` (default) for system-initiated restores
+	 * - `behavior: "smooth"` (default for pill click) — uses native CSS
+	 *   `scroll-behavior: smooth` for the duration of the scroll.
+	 * - `behavior: "auto"` — instant, uses the override pattern from
+	 *   Decision #22 to bypass any inherited smooth-scroll CSS.
 	 */
 	scrollToBottom: (options?: { behavior?: "smooth" | "auto" }) => void;
 }

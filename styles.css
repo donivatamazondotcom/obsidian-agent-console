@@ -624,20 +624,34 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	flex-shrink: 0;
 }
 
-/* Messages container */
+/* Messages container — Phase 2 native-scroll architecture.
+ * overflow-anchor: none disables browser-side anchoring so it doesn't
+ * fight useAutoScrollPin's explicit programmatic scrolls. */
 .agent-client-chat-view-messages {
 	flex: 1;
 	padding: 16px 8px;
 	overflow-y: auto;
 	overflow-x: hidden;
+	overflow-anchor: none;
 	font-size: var(--ac-chat-font-size);
 	min-height: 0;
 	position: relative;
 }
 
-/* Virtual item spacing (replaces flex gap: 2px) */
-.agent-client-virtual-item {
+/* Inner content wrapper (the element ResizeObserver tracks for content-grow). */
+.agent-client-chat-content {
+	display: flex;
+	flex-direction: column;
+}
+
+/* Message row spacing + off-screen render-skip via content-visibility:auto.
+ * Replaces the per-bubble cost previously paid by @tanstack/react-virtual
+ * measurement. Browser skips paint+layout for rows outside the viewport;
+ * containIntrinsicSize prevents scroll-position jumps when rows enter view. */
+.agent-client-message-row {
 	padding-bottom: 2px;
+	content-visibility: auto;
+	contain-intrinsic-size: 0 80px;
 }
 
 /* Allow horizontal scroll for wide tables within messages */

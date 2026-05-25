@@ -1,5 +1,5 @@
 import * as React from "react";
-const { useRef, useEffect } = React;
+const { useEffect, useRef } = React;
 
 import type { ChatMessage } from "../types/chat";
 import type { AcpClient } from "../acp/acp-client";
@@ -7,7 +7,6 @@ import type AgentClientPlugin from "../plugin";
 import type { IChatViewHost } from "./view-host";
 import { setIcon } from "obsidian";
 import { MessageBubble } from "./MessageBubble";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAutoScrollPin } from "./use-auto-scroll-pin";
 
 /**
@@ -42,23 +41,22 @@ export interface MessageListProps {
 }
 
 /**
- * Messages container component with virtualized rendering.
+ * Messages container component (Phase 2 native-scroll architecture).
  *
- * Uses @tanstack/react-virtual to only render messages visible in the viewport,
- * dramatically improving performance for long conversations.
+ * Auto-scroll behavior is owned entirely by useAutoScrollPin — the hook
+ * owns both pin state and scroll position. There is no virtualizer; all
+ * message bubbles render directly. Off-screen render-skipping is achieved
+ * via CSS `content-visibility: auto` on each bubble (no JavaScript
+ * measurement cost, unlike the prior @tanstack/react-virtual integration).
  *
- * Auto-scroll behavior is owned by the useAutoScrollPin hook — see
- * 04-initiatives/Agent Console/ACP Scroll Architecture Rework.md for the
- * design. MessageList provides the DOM handles (containerRef, virtualizerRef)
- * and renders the appropriate UI affordances (loading indicator, scroll-to-
- * bottom pill); the hook owns the pin-state machine and all transitions.
+ * See 04-initiatives/Agent Console/ACP Scroll Architecture Rework.md
+ * § Phase 2 architecture for the design rationale and § Decisions #16,
+ * #17, #21, #22 for the substantive choices.
  *
- * Inactive-tab cost-minimization: when isActive=false, this component
- * renders only the container <div> (no virtualizer mount, no bubbles, no
- * markdown parsing). The hook continues tracking pin state via the existing
- * containerRef but does no DOM-observation work. On reactivation, the
- * virtualizer mounts fresh against a real-height container — no stale
- * zero-height measurements to discard.
+ * Inactive-tab cost-minimization (preserved from Phase 1): when
+ * isActive=false, this component renders only a placeholder div carrying
+ * the scrollRef. No bubbles mount, no markdown parses. The hook detects
+ * the deactivation and stops doing work.
  */
 export function MessageList({
 	messages,
@@ -73,118 +71,65 @@ export function MessageList({
 	hasActivePermission,
 	isActive = true,
 }: MessageListProps) {
-	const containerRef = useRef<HTMLDivElement>(null);
-
 	// ============================================================
-	// Virtualizer
+	// Auto-scroll (single owner)
 	// ============================================================
-	const virtualizer = useVirtualizer({
-		count: messages.length,
-		getScrollElement: () => containerRef.current,
-		estimateSize: () => 80,
-		overscan: 5,
-	});
-
-	// Stable ref for the auto-scroll hook (avoids putting the virtualizer
-	// object — new every render — in the hook's deps).
-	const virtualizerRef = useRef(virtualizer);
-	virtualizerRef.current = virtualizer;
-
-	// ============================================================
-	// Auto-scroll pin state (single owner)
-	// ============================================================
-	const { isPinned, shouldAdjust, scrollToBottom } = useAutoScrollPin({
-		containerRef,
-		virtualizerRef,
-		messageCount: messages.length,
-		isActive,
-		isSending,
-		view,
-	});
-
-	// Wire Authority A's gate to the hook. The hook's shouldAdjust has
-	// stable identity across renders (reads from refs), so this assignment
-	// is safe to do every render — the virtualizer sees the same callback.
-	virtualizer.shouldAdjustScrollPositionOnItemSizeChange = shouldAdjust;
+	const { scrollRef, contentRef, isAtBottom, scrollToBottom } =
+		useAutoScrollPin({ isActive, isSending, view });
 
 	// ============================================================
 	// Render
 	// ============================================================
 
-	// Inactive tabs: render only the container (preserves containerRef for
-	// the hook's observers but mounts no virtualizer/bubbles/markdown).
-	// The parent <TabPanel> already applies display:none, so the user sees
-	// nothing different — but the React tree is now negligibly cheap on
-	// inactive tabs. See spec § Inactive-tab cost-minimization (T112, T128).
+	// Inactive tabs: placeholder div carrying the scrollRef. The parent
+	// <TabPanel> already applies display:none, so the user sees nothing
+	// different — but the React tree is now negligibly cheap on inactive
+	// tabs. The hook will detect the deactivation via the isActive prop.
 	if (!isActive) {
 		return (
 			<div
-				ref={containerRef}
+				ref={scrollRef}
 				className="agent-client-chat-view-messages"
 				aria-hidden="true"
 			/>
 		);
 	}
 
-	// Empty state — same container <div>, different children. Unified into
-	// a single return path (vs. early return) so containerRef is attached
-	// to the same DOM node in both empty and populated states. This
-	// guarantees the scroll listener registered by useAutoScrollPin
-	// survives the empty→populated transition.
+	// Empty state — same container, different children. Unified into a
+	// single return path (vs. early return) so scrollRef is attached to
+	// the same DOM node in both empty and populated states.
 	if (messages.length === 0) {
 		return (
-			<div ref={containerRef} className="agent-client-chat-view-messages">
-				<div className="agent-client-chat-empty-state">
-					{isRestoringSession
-						? "Restoring session..."
-						: !isSessionReady
-							? `Connecting to ${agentLabel}...`
-							: `Start a conversation with ${agentLabel}...`}
+			<div ref={scrollRef} className="agent-client-chat-view-messages">
+				<div ref={contentRef} className="agent-client-chat-content">
+					<div className="agent-client-chat-empty-state">
+						{isRestoringSession
+							? "Restoring session..."
+							: !isSessionReady
+								? `Connecting to ${agentLabel}...`
+								: `Start a conversation with ${agentLabel}...`}
+					</div>
 				</div>
 			</div>
 		);
 	}
 
-	const virtualItems = virtualizer.getVirtualItems();
-
 	return (
-		<div ref={containerRef} className="agent-client-chat-view-messages">
-			{/* Virtualized message list */}
-			<div
-				className="agent-client-virtual-list-inner"
-				style={{
-					height: virtualizer.getTotalSize(),
-					position: "relative",
-				}}
-			>
-				{virtualItems.map((virtualItem) => {
-					const message = messages[virtualItem.index];
-					return (
-						<div
-							key={message.id}
-							ref={virtualizer.measureElement}
-							data-index={virtualItem.index}
-							className="agent-client-virtual-item"
-							style={{
-								position: "absolute",
-								top: 0,
-								left: 0,
-								width: "100%",
-								transform: `translateY(${virtualItem.start}px)`,
-							}}
-						>
-							<MessageBubble
-								message={message}
-								plugin={plugin}
-								terminalClient={terminalClient}
-								onApprovePermission={onApprovePermission}
-							/>
-						</div>
-					);
-				})}
+		<div ref={scrollRef} className="agent-client-chat-view-messages">
+			<div ref={contentRef} className="agent-client-chat-content">
+				{messages.map((message) => (
+					<div key={message.id} className="agent-client-message-row">
+						<MessageBubble
+							message={message}
+							plugin={plugin}
+							terminalClient={terminalClient}
+							onApprovePermission={onApprovePermission}
+						/>
+					</div>
+				))}
 			</div>
 
-			{/* Loading indicator — outside virtualizer */}
+			{/* Loading indicator */}
 			<div
 				className={`agent-client-loading-indicator ${!isSending ? "agent-client-hidden" : ""}`}
 			>
@@ -207,11 +152,9 @@ export function MessageList({
 			</div>
 
 			{/* Scroll to bottom button */}
-			{!isPinned && (
+			{!isAtBottom && (
 				<ScrollToBottomButton
-					onClick={() =>
-						scrollToBottom({ behavior: "smooth" })
-					}
+					onClick={() => scrollToBottom({ behavior: "smooth" })}
 				/>
 			)}
 		</div>
