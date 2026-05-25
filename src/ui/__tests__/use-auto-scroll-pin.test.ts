@@ -1023,6 +1023,117 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 			// No write happened. The user's escape was respected.
 			expect(geom.writes.length).toBe(writesBeforeFire);
 		});
+
+		it("FAILS on d6bcfac: in-frame synchronous rAF fulfillment defeats the deferral (T-IS9-smoke regression)", () => {
+			// REPRODUCES the production failure surfaced by trace
+			// _traces/Trace-Phase2-Verify-IS9-20260525T093852.json against
+			// commit d6bcfac. Click handler total: 178.34 ms (vs 62.69 ms
+			// pre-fix); forced-layout duration inside click: 75.94 ms (vs
+			// 31.24 ms pre-fix). The deferred-rAF fix did NOT eliminate
+			// the synchronous read in production.
+			//
+			// Why: when the click event is dispatched DURING an active
+			// frame-update task (the common case for tab-activation clicks
+			// because Chromium batches input + frame work), an
+			// `requestAnimationFrame` queued from the click's microtask
+			// flush gets fulfilled IN THE SAME TASK. The trace shows the
+			// rAF queued at +30.80 ms inside the click, with the deferred
+			// `UpdateLayoutTree`/`Layout` firing at +101.70/+144.11 ms —
+			// all inside the same RunTask wrapping the click EventDispatch.
+			//
+			// The other I-S9 tests in this describe block use a CAPTURE
+			// rAF mock (queues callbacks for explicit flush via
+			// `flushRaf()`). That correctly simulates the "rAF runs in a
+			// later task" case but masks the in-frame fulfillment case.
+			// This test installs a SYNCHRONOUS-FULFILLMENT rAF mock that
+			// fires the callback immediately within the same call stack as
+			// the `requestAnimationFrame()` invocation — which is exactly
+			// what Chromium does when the rAF is queued during an
+			// already-active frame-update task.
+			//
+			// EXPECTED on a correct fix: the write does NOT happen
+			// synchronously inside `fireResize`, regardless of whether the
+			// underlying deferral mechanism resolves immediately or later.
+			// The deferral must guarantee the write lands in a fresh
+			// task/frame, not just outside the RO callback's synchronous
+			// stack.
+			//
+			// Candidate mechanisms that would pass this test:
+			//   - setTimeout(fn, 0) — schedules a new task, never folded
+			//     into the current one
+			//   - MessageChannel postMessage — same task-queue semantics
+			//   - Double rAF (rAF inside rAF) — second rAF queues into the
+			//     next frame's batch
+			//   - scheduler.postTask(fn, { priority: "user-blocking" })
+			//
+			// The current `requestAnimationFrame(...)` deferral does NOT
+			// pass — the trace proves it, and this test reproduces it.
+
+			// Override rAF for this test only: synchronous fulfillment.
+			// Mirrors Chromium's behavior when an rAF is queued during an
+			// already-active frame-update task — the callback runs in the
+			// same task as the requestAnimationFrame() call, not a later
+			// frame.
+			const savedRAF = globalThis.requestAnimationFrame;
+			const savedCAF = globalThis.cancelAnimationFrame;
+			let nextSyncRafId = 1;
+			globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
+				const id = nextSyncRafId++;
+				// Fire synchronously inside the requestAnimationFrame call,
+				// reproducing the in-frame-fulfillment behavior.
+				cb(performance.now());
+				return id;
+			};
+			globalThis.cancelAnimationFrame = () => {
+				// No-op: the callback already ran synchronously above. Any
+				// cancel attempt arrives after the fact, just like in the
+				// browser when the rAF was already serviced this frame.
+			};
+
+			try {
+				let handle: HarnessHandle | null = null;
+				render(
+					React.createElement(Harness, {
+						isActive: true,
+						isSending: false,
+						view: makeView(),
+						onMount: (h) => {
+							handle = h;
+						},
+					}),
+				);
+				// biome-ignore lint/style/noNonNullAssertion: bound by render
+				const h = handle!;
+				const geom = setupScrollGeometry(h.scrollEl, {
+					scrollHeight: 1000,
+					clientHeight: 800,
+				});
+				const writesBeforeFire = geom.writes.length;
+
+				// Fire the initial RO event — same as the other I-S9 tests,
+				// but now the rAF the hook queues will fulfill synchronously
+				// inside the RO callback's call stack.
+				act(() => {
+					fireResize(h.contentEl, 1000);
+				});
+
+				// THE FAILING ASSERTION:
+				// On d6bcfac, the hook's `requestAnimationFrame(() => { ... })`
+				// fires synchronously inside fireResize, so the write happens
+				// before fireResize returns. geom.writes.length will be
+				// writesBeforeFire + 1 here, NOT writesBeforeFire.
+				//
+				// On a correct fix using a task-queue-based deferral
+				// (setTimeout, MessageChannel, double rAF, postTask), the
+				// callback will NOT run synchronously and this assertion
+				// will pass.
+				expect(geom.writes.length).toBe(writesBeforeFire);
+			} finally {
+				globalThis.requestAnimationFrame = savedRAF;
+				globalThis.cancelAnimationFrame = savedCAF;
+			}
+		});
+
 	});
 
 	describe("I-S7 regression net (scroll-event race during async-grow session restore)", () => {
