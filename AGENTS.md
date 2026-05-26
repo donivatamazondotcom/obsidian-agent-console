@@ -67,7 +67,7 @@ src/
 │   ├── TabBar.tsx               # Tab bar UI for parallel agent sessions (drag-reorder, +button, status icons)
 │   ├── TabErrorBoundary.tsx     # Per-tab React error boundary with Retry
 │   ├── ChatHeader.tsx           # Header (sidebar + floating variants)
-│   ├── MessageList.tsx          # Virtualized message list (@tanstack/react-virtual)
+│   ├── MessageList.tsx          # Message list (native browser scroll, content-visibility:auto for off-screen render skipping)
 │   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button)
 │   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting)
 │   ├── TerminalBlock.tsx        # Terminal output polling
@@ -81,6 +81,8 @@ src/
 │   ├── FloatingButton.tsx       # Draggable launch button
 │   ├── SettingsTab.ts           # Plugin settings UI
 │   ├── view-host.ts             # IChatViewHost interface
+│   ├── use-auto-scroll-pin.ts   # Auto-scroll-to-bottom hook (pin state + native scroll + ResizeObserver/wheel/touch)
+│   ├── use-auto-scroll-pin.types.ts  # PinState, params, result types for useAutoScrollPin
 │   └── shared/
 │       ├── IconButton.tsx       # Icon button + Lucide icon wrapper
 │       ├── MarkdownRenderer.tsx # Obsidian markdown rendering
@@ -266,7 +268,7 @@ interface ISettingsAccess {
 4. **Workspace event refs**: ChatPanel stores event handler callbacks in refs, keeping useEffect deps minimal
 5. **RAF batching**: useAgentMessages batches streaming updates per animation frame (~60fps) instead of per-chunk
 6. **React.memo**: MessageBubble, ToolCallBlock, TerminalBlock wrapped for skip-render optimization
-7. **Virtual scroll**: MessageList uses @tanstack/react-virtual for large conversations
+7. **Native scroll + content-visibility**: MessageList uses native browser scroll with `content-visibility: auto` on each bubble for off-screen render skipping; auto-scroll-to-bottom logic lives in `useAutoScrollPin` (modeled on `use-stick-to-bottom`)
 8. **O(1) tool call index**: Map<string, number> for tool call upsert without linear scan
 
 ### Obsidian Plugin Review (CRITICAL)

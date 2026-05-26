@@ -624,19 +624,55 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	flex-shrink: 0;
 }
 
-/* Messages container */
+/* Messages container — Phase 2 native-scroll architecture.
+ * overflow-anchor: none disables browser-side anchoring so it doesn't
+ * fight useAutoScrollPin's explicit programmatic scrolls. */
 .agent-client-chat-view-messages {
 	flex: 1;
 	padding: 16px 8px;
 	overflow-y: auto;
 	overflow-x: hidden;
+	overflow-anchor: none;
 	font-size: var(--ac-chat-font-size);
 	min-height: 0;
 	position: relative;
 }
 
-/* Virtual item spacing (replaces flex gap: 2px) */
-.agent-client-virtual-item {
+/* Inner content wrapper (the element ResizeObserver tracks for content-grow). */
+.agent-client-chat-content {
+	display: flex;
+	flex-direction: column;
+	/* I-S12 fix A (defense in depth): exclude descendants from scroll-anchoring's
+	 * candidate set per W3C css-scroll-anchoring § 2.1 ("excluded subtree" — N's
+	 * computed value of overflow-anchor is none). The scroll container itself
+	 * already has overflow-anchor: none above, but Chromium's implementation
+	 * empirically still adjusts scrollTop on layout-shrink in our InputArea-grow
+	 * scenario. The hook-side fix B+C handles the scroll preservation
+	 * empirically; this CSS rule reinforces it via the canonical W3C path.
+	 * MDN's recommended pattern: apply overflow-anchor: none broadly when the
+	 * default anchoring algorithm misbehaves. */
+	overflow-anchor: none;
+}
+
+/* Apply overflow-anchor: none to all descendants of the chat content as well —
+ * MDN canonical recipe, since per W3C spec § 2.1 the anchor-node-selection
+ * algorithm walks the DOM tree from S; a single excluded subtree at the root
+ * should be sufficient, but in practice Chromium can pick descendants as anchors
+ * if their own overflow-anchor is auto (default). Belt-and-suspenders. */
+.agent-client-chat-content > * {
+	overflow-anchor: none;
+}
+
+/* Message row spacing.
+ * NOTE: content-visibility: auto was tried but causes scrollHeight to
+ * report an inflated/inaccurate value during initial session restore
+ * (placeholder contain-intrinsic-size doesn't match real bubble heights),
+ * which leaves the scroll position at ~3/4 down instead of bottom on
+ * restore. Removed pending a different perf strategy if needed. With
+ * 201-message sessions in Phase 1 traces, virtualizer measurement was
+ * only 2.48 ms total — paint cost without the off-screen skip is in the
+ * same range. Revisit if a future profile shows excessive paint cost. */
+.agent-client-message-row {
 	padding-bottom: 2px;
 }
 
