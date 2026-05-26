@@ -27,7 +27,10 @@ export default defineConfig({
 	test: {
 		environment: "jsdom",
 		globals: false,
-		include: ["src/**/__tests__/**/*.test.{ts,tsx}"],
+		include: [
+			"src/**/__tests__/**/*.test.{ts,tsx}",
+			"tools/**/__tests__/**/*.test.{ts,tsx}",
+		],
 		// Each test gets a clean DOM. Vitest defaults to per-file isolation
 		// which is sufficient for our hook-level tests.
 		setupFiles: [],
