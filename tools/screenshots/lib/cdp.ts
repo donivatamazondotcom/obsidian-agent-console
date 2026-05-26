@@ -1,0 +1,256 @@
+/**
+ * Obsidian CDP wrapper.
+ *
+ * Per-call spawn — each method invokes `obsidian dev:cdp` or
+ * `obsidian dev:screenshot` once and parses the stdout JSON. Cold-start
+ * cost is acceptable for ~20 entries × ~5 commands per docs:screenshots
+ * run; persistent CDP sessions were rejected for complexity (Decision in
+ * spec § Phase C planning).
+ *
+ * Stderr noise: `obsidian` prints "sandbox initialization failed:
+ * Operation not permitted" repeatedly on every invocation when run from
+ * inside Obsidian's sandbox (Agent Console plugin's kiro-cli session).
+ * This wrapper IGNORES that pattern entirely — the CLI's actual signal
+ * is on stdout, and exit codes are unreliable. Real errors surface as
+ * either:
+ * - stdout JSON containing `exceptionDetails` (CDP threw an exception)
+ * - stdout plaintext starting with `Error:` (unknown CDP method, etc.)
+ * - empty stdout (something went wrong before producing output)
+ *
+ * `dev:screenshot` is fire-and-forget — exit code is always 0 even on
+ * failure. The wrapper polls for output-file existence with a timeout
+ * and treats absence as failure.
+ *
+ * Spec: [[Agent Console Screenshot Automation]] § Phase C.
+ * Test contract: tools/screenshots/lib/__tests__/cdp.test.ts.
+ */
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+
+export interface CdpOptions {
+	/**
+	 * Path to the obsidian CLI binary. Defaults to "obsidian" (PATH
+	 * lookup). Override for tests or non-default installs.
+	 */
+	binary?: string;
+	/** Timeout in ms for waitForElement polls. Default 5000. */
+	waitTimeout?: number;
+	/** Timeout in ms for screenshot file appearance. Default 5000. */
+	screenshotTimeout?: number;
+	/** Poll interval in ms for both wait operations. Default 50. */
+	pollInterval?: number;
+}
+
+export interface Rect {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+interface CdpResponse {
+	result?: {
+		type: string;
+		value?: unknown;
+		description?: string;
+	};
+	exceptionDetails?: {
+		exception?: { description?: string; className?: string };
+		text?: string;
+	};
+}
+
+interface ChildProcessLike {
+	stdout: { on: (event: "data", listener: (chunk: Buffer) => void) => void };
+	stderr: { on: (event: "data", listener: (chunk: Buffer) => void) => void };
+	on(
+		event: "close",
+		listener: (code: number | null) => void,
+	): ChildProcessLike;
+	on(event: "error", listener: (err: Error) => void): ChildProcessLike;
+}
+
+export class Cdp {
+	private readonly binary: string;
+	private readonly waitTimeout: number;
+	private readonly screenshotTimeout: number;
+	private readonly pollInterval: number;
+
+	constructor(opts: CdpOptions = {}) {
+		this.binary = opts.binary ?? "obsidian";
+		this.waitTimeout = opts.waitTimeout ?? 5000;
+		this.screenshotTimeout = opts.screenshotTimeout ?? 5000;
+		this.pollInterval = opts.pollInterval ?? 50;
+	}
+
+	/**
+	 * Run a JavaScript expression in Obsidian's renderer and return the
+	 * value. Throws on uncaught exceptions or unparseable output.
+	 */
+	async evaluate<T = unknown>(expression: string): Promise<T> {
+		const params = JSON.stringify({ expression, returnByValue: true });
+		const stdout = await this.runRaw([
+			"dev:cdp",
+			"method=Runtime.evaluate",
+			`params=${params}`,
+		]);
+		return parseEvaluateResponse<T>(stdout);
+	}
+
+	/**
+	 * Get `getBoundingClientRect()` for the first element matching the
+	 * selector. Throws if no element matches.
+	 */
+	async getElementBounds(selector: string): Promise<Rect> {
+		// We stringify the rect inside the page so we don't have to deal
+		// with DOMRect serialization quirks across Chromium versions.
+		const expr = `(() => {
+			const el = document.querySelector(${JSON.stringify(selector)});
+			if (!el) return undefined;
+			const r = el.getBoundingClientRect();
+			return JSON.stringify({ x: r.x, y: r.y, width: r.width, height: r.height, top: r.top, right: r.right, bottom: r.bottom, left: r.left });
+		})()`;
+		const stringified = await this.evaluate<string | undefined>(expr);
+		if (typeof stringified !== "string") {
+			throw new Error(
+				`getElementBounds: no element matches selector ${selector}`,
+			);
+		}
+		const parsed = JSON.parse(stringified) as Rect;
+		return {
+			x: parsed.x,
+			y: parsed.y,
+			width: parsed.width,
+			height: parsed.height,
+		};
+	}
+
+	/**
+	 * Synthesize a `.click()` on the first element matching the selector.
+	 * Throws if no element matches.
+	 */
+	async clickElement(selector: string): Promise<void> {
+		const expr = `(() => {
+			const el = document.querySelector(${JSON.stringify(selector)});
+			if (!el) return false;
+			el.click();
+			return true;
+		})()`;
+		const ok = await this.evaluate<boolean>(expr);
+		if (!ok) {
+			throw new Error(
+				`clickElement: no element matches selector ${selector}`,
+			);
+		}
+	}
+
+	/**
+	 * Poll `document.querySelector(selector)` until it returns truthy or
+	 * the timeout elapses. Resolves on success, rejects on timeout.
+	 */
+	async waitForElement(selector: string, timeoutMs?: number): Promise<void> {
+		const timeout = timeoutMs ?? this.waitTimeout;
+		const deadline = Date.now() + timeout;
+		const expr = `!!document.querySelector(${JSON.stringify(selector)})`;
+
+		// First check before sleeping — the element is often already there.
+		while (true) {
+			const exists = await this.evaluate<boolean>(expr);
+			if (exists) return;
+			if (Date.now() >= deadline) {
+				throw new Error(
+					`waitForElement: timeout waiting for ${selector} after ${timeout}ms`,
+				);
+			}
+			await sleep(this.pollInterval);
+		}
+	}
+
+	/**
+	 * Capture a screenshot of the active Obsidian window to the given
+	 * path. Polls for file existence after spawn — `dev:screenshot` is
+	 * fire-and-forget and exit code is unreliable. Throws on timeout.
+	 */
+	async screenshot(outputPath: string): Promise<void> {
+		await this.runRaw(["dev:screenshot", `path=${outputPath}`]);
+		// Poll for file appearance. Obsidian writes async after the CLI
+		// returns; we can't trust exit code or stdout here.
+		const deadline = Date.now() + this.screenshotTimeout;
+		while (!existsSync(outputPath)) {
+			if (Date.now() >= deadline) {
+				throw new Error(
+					`screenshot: file ${outputPath} never appeared within ${this.screenshotTimeout}ms (timeout)`,
+				);
+			}
+			await sleep(this.pollInterval);
+		}
+	}
+
+	/** Toggle `dev:mobile on|off`. */
+	async setMobileEmulation(enabled: boolean): Promise<void> {
+		await this.runRaw(["dev:mobile", enabled ? "on" : "off"]);
+	}
+
+	/**
+	 * Spawn `obsidian` with the given args and resolve with the captured
+	 * stdout. Stderr is read but discarded (it's all sandbox-init noise
+	 * in our environment). Rejects only on spawn-level errors (binary
+	 * missing, EACCES). Exit code is NOT checked because `obsidian` exits
+	 * 0 on most CDP errors.
+	 */
+	private runRaw(args: string[]): Promise<string> {
+		return new Promise<string>((resolve, reject) => {
+			const proc = spawn(
+				this.binary,
+				args,
+			) as unknown as ChildProcessLike;
+			const stdoutChunks: Buffer[] = [];
+			proc.stdout.on("data", (chunk) =>
+				stdoutChunks.push(Buffer.from(chunk)),
+			);
+			// Read stderr to drain the pipe but don't keep the data — it's
+			// all sandbox-init noise.
+			proc.stderr.on("data", () => {
+				/* drain */
+			});
+			proc.on("close", () => {
+				resolve(Buffer.concat(stdoutChunks).toString("utf8"));
+			});
+			proc.on("error", (err) => reject(err));
+		});
+	}
+}
+
+function parseEvaluateResponse<T>(stdout: string): T {
+	const trimmed = stdout.trim();
+	if (trimmed === "") {
+		throw new Error("CDP evaluate: empty output from obsidian");
+	}
+	// Plaintext error (e.g., unknown method) — `obsidian dev:cdp` writes
+	// `Error: '...' wasn't found` to stdout, not a JSON object.
+	if (!trimmed.startsWith("{")) {
+		throw new Error(`CDP evaluate: ${trimmed}`);
+	}
+	let parsed: CdpResponse;
+	try {
+		parsed = JSON.parse(trimmed) as CdpResponse;
+	} catch (err) {
+		const msg = err instanceof Error ? err.message : String(err);
+		throw new Error(`CDP evaluate: failed to parse stdout as JSON: ${msg}`);
+	}
+	if (parsed.exceptionDetails) {
+		const desc =
+			parsed.exceptionDetails.exception?.description ??
+			parsed.exceptionDetails.text ??
+			"unknown error";
+		throw new Error(`CDP evaluate threw: ${desc}`);
+	}
+	if (!parsed.result) {
+		throw new Error("CDP evaluate: response missing result field");
+	}
+	return parsed.result.value as T;
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
