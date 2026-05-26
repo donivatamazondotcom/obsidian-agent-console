@@ -5,7 +5,8 @@
  * each screenshot the docs site needs. The driver reads it, drives a
  * separately-launched Obsidian instance through each entry's UI state,
  * captures via `obsidian dev:screenshot`, crops, encodes to .webp, and
- * writes to `docs/public/images/`.
+ * writes to `docs/public/images/<name>.webp` (output path derived from
+ * `name` via `lib/output.ts`).
  *
  * Spec: [[Agent Console Screenshot Automation]] § Architecture Impact.
  * Test contract: tools/screenshots/lib/__tests__/manifest.test.ts.
@@ -26,26 +27,54 @@ export interface CropRect {
 	height: number;
 }
 
+/**
+ * Declarative UI-state hints. The driver reads these and translates to
+ * `obsidian dev:cdp Runtime.evaluate` calls (open the named note, click
+ * the ribbon icon, open the floating chat view) before capturing. Kept
+ * narrow on purpose: the v0 entries only need these three flags. Add new
+ * fields here when a new entry needs a new UI affordance.
+ */
+export interface InitialState {
+	/**
+	 * Path of a fixture note to open in the active leaf. Resolved against
+	 * `<fixtureRoot>/vault/`. Validated by `validateManifest`.
+	 */
+	openNote?: string;
+	/**
+	 * When true, click the Agent Console ribbon icon to activate the
+	 * plugin's panel. Idempotent — clicking again with the panel already
+	 * open is a no-op.
+	 */
+	clickRibbon?: boolean;
+	/**
+	 * When true, open the plugin's floating chat view via the dedicated
+	 * command. Required for floating-chat-view.webp.
+	 */
+	openChatView?: boolean;
+}
+
 /** One screenshot specification. */
 export interface ManifestEntry {
-	/** Unique identifier within the manifest; used as CLI selector. */
-	name: string;
 	/**
-	 * Output path relative to `docs/public/images/`.
-	 * Convention: `<name>.webp`.
+	 * Unique identifier within the manifest. Used as CLI selector
+	 * (`npm run docs:screenshots -- <name>`) and as the output filename
+	 * (`<name>.webp`) under `docs/public/images/`. Must be filesystem-
+	 * and URL-safe.
 	 */
-	output: string;
+	name: string;
 	/** Final image width in pixels (after crop, before .webp encoding). */
 	width: number;
 	/** Final image height in pixels. */
 	height: number;
 	/** Crop region in the captured screenshot's coordinate space. */
 	crop: CropRect;
+	/** Optional UI-state setup performed before capture. */
+	initialState?: InitialState;
 	/**
 	 * Optional path to a prompt fixture file (relative to
 	 * `tools/screenshots/fixtures/prompts/`). When set, the driver sends
-	 * the file's contents as the user message in the active session before
-	 * capturing.
+	 * the file's contents as the user message in the active session
+	 * before capturing.
 	 */
 	promptFile?: string;
 	/**
@@ -53,6 +82,13 @@ export interface ManifestEntry {
 	 * capturing this entry and back off after. Reserved for F01.
 	 */
 	mobile?: boolean;
+	/**
+	 * Approval-test threshold for `pixelmatch` — fraction of differing
+	 * pixels above which the test fails. Default 0.05 (loose enough for
+	 * real-agent variability per Decision 2; tighten per-entry for
+	 * deterministic UI like ribbon icons via e.g. `0.001`).
+	 */
+	approvalThreshold?: number;
 }
 
 export interface Manifest {
@@ -98,12 +134,13 @@ export function parseManifest(json: string): Manifest {
  * - non-positive `width` or `height`
  * - `promptFile` references a file that doesn't exist under
  *   `<fixtureRoot>/prompts/`
+ * - `initialState.openNote` references a file that doesn't exist under
+ *   `<fixtureRoot>/vault/`
+ * - `approvalThreshold` outside the `[0, 1]` range
  *
  * Notes:
  * - Crop region is NOT validated against (width, height) — they live in
  *   different coordinate spaces. See manifest.test.ts pin.
- * - Output path collisions are caller's responsibility (the driver writes
- *   to `docs/public/images/`; collisions are version-controlled).
  */
 export function validateManifest(
 	manifest: Manifest,
@@ -139,6 +176,28 @@ export function validateManifest(
 			if (!existsSync(promptPath)) {
 				throw new Error(
 					`manifest entry "${entry.name}" references missing prompt file: ${entry.promptFile} (looked under ${path.join(fixtureRoot, "prompts")})`,
+				);
+			}
+		}
+
+		if (entry.initialState?.openNote) {
+			const notePath = path.join(
+				fixtureRoot,
+				"vault",
+				entry.initialState.openNote,
+			);
+			if (!existsSync(notePath)) {
+				throw new Error(
+					`manifest entry "${entry.name}" references missing note: ${entry.initialState.openNote} (looked under ${path.join(fixtureRoot, "vault")})`,
+				);
+			}
+		}
+
+		if (entry.approvalThreshold !== undefined) {
+			const t = entry.approvalThreshold;
+			if (!Number.isFinite(t) || t < 0 || t > 1) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid approvalThreshold: ${t} (must be in [0, 1])`,
 				);
 			}
 		}

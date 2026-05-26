@@ -31,7 +31,6 @@ describe("parseManifest", () => {
 			entries: [
 				{
 					name: "ribbon-icon",
-					output: "ribbon-icon.webp",
 					width: 200,
 					height: 200,
 					crop: { x: 0, y: 40, width: 44, height: 200 },
@@ -63,7 +62,6 @@ describe("validateManifest", () => {
 		const root = makeFixtureRoot();
 		const entry: ManifestEntry = {
 			name: "ribbon-icon",
-			output: "ribbon-icon.webp",
 			width: 200,
 			height: 200,
 			crop: { x: 0, y: 40, width: 44, height: 200 },
@@ -77,7 +75,6 @@ describe("validateManifest", () => {
 		const root = makeFixtureRoot();
 		const entry = {
 			name: "",
-			output: "x.webp",
 			width: 100,
 			height: 100,
 			crop: { x: 0, y: 0, width: 10, height: 10 },
@@ -91,16 +88,12 @@ describe("validateManifest", () => {
 		const root = makeFixtureRoot();
 		const entry: ManifestEntry = {
 			name: "dup",
-			output: "a.webp",
 			width: 100,
 			height: 100,
 			crop: { x: 0, y: 0, width: 10, height: 10 },
 		};
 		expect(() =>
-			validateManifest(
-				{ entries: [entry, { ...entry, output: "b.webp" }] },
-				root,
-			),
+			validateManifest({ entries: [entry, { ...entry }] }, root),
 		).toThrow(/duplicate/i);
 	});
 
@@ -108,7 +101,6 @@ describe("validateManifest", () => {
 		const root = makeFixtureRoot();
 		const entry = {
 			name: "bad",
-			output: "x.webp",
 			width: 0,
 			height: 100,
 			crop: { x: 0, y: 0, width: 10, height: 10 },
@@ -118,7 +110,7 @@ describe("validateManifest", () => {
 		);
 	});
 
-	it("rejects crop region exceeding capture bounds is allowed (capture is upstream of crop)", () => {
+	it("allows crop region exceeding capture bounds (capture is upstream of crop)", () => {
 		// We do NOT validate that crop fits inside (width, height) because the
 		// crop region is in the source-screenshot coordinate space (full
 		// Obsidian window), not the output-image coordinate space. This test
@@ -126,7 +118,6 @@ describe("validateManifest", () => {
 		const root = makeFixtureRoot();
 		const entry: ManifestEntry = {
 			name: "huge-crop",
-			output: "x.webp",
 			width: 200,
 			height: 200,
 			crop: { x: 0, y: 0, width: 9999, height: 9999 },
@@ -140,7 +131,6 @@ describe("validateManifest", () => {
 		const root = makeFixtureRoot();
 		const entry: ManifestEntry = {
 			name: "with-prompt",
-			output: "x.webp",
 			width: 200,
 			height: 200,
 			crop: { x: 0, y: 0, width: 10, height: 10 },
@@ -156,7 +146,6 @@ describe("validateManifest", () => {
 		writeFileSync(path.join(root, "prompts", "real.txt"), "hello");
 		const entry: ManifestEntry = {
 			name: "with-prompt",
-			output: "x.webp",
 			width: 200,
 			height: 200,
 			crop: { x: 0, y: 0, width: 10, height: 10 },
@@ -171,7 +160,6 @@ describe("validateManifest", () => {
 		const root = makeFixtureRoot();
 		const entry: ManifestEntry = {
 			name: "mobile-shot",
-			output: "x.webp",
 			width: 400,
 			height: 800,
 			crop: { x: 0, y: 0, width: 400, height: 800 },
@@ -180,5 +168,81 @@ describe("validateManifest", () => {
 		expect(() =>
 			validateManifest({ entries: [entry] }, root),
 		).not.toThrow();
+	});
+
+	it("accepts initialState with openNote, clickRibbon, openChatView flags", () => {
+		const root = makeFixtureRoot();
+		writeFileSync(path.join(root, "vault", "Welcome.md"), "# Welcome\n");
+		const entry: ManifestEntry = {
+			name: "with-state",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			initialState: {
+				openNote: "Welcome.md",
+				clickRibbon: true,
+				openChatView: true,
+			},
+		};
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
+	});
+
+	it("rejects initialState.openNote that doesn't exist in fixtures vault", () => {
+		const root = makeFixtureRoot();
+		const entry: ManifestEntry = {
+			name: "missing-note",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			initialState: { openNote: "DoesNotExist.md" },
+		};
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/note.*DoesNotExist\.md/,
+		);
+	});
+
+	it("accepts initialState.openNote when the file exists in fixtures vault", () => {
+		const root = makeFixtureRoot();
+		writeFileSync(path.join(root, "vault", "Welcome.md"), "# Welcome\n");
+		const entry: ManifestEntry = {
+			name: "real-note",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			initialState: { openNote: "Welcome.md" },
+		};
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
+	});
+
+	it("accepts approvalThreshold between 0 and 1", () => {
+		const root = makeFixtureRoot();
+		const entry: ManifestEntry = {
+			name: "with-threshold",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			approvalThreshold: 0.05,
+		};
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
+	});
+
+	it("rejects approvalThreshold outside [0, 1]", () => {
+		const root = makeFixtureRoot();
+		const entry: ManifestEntry = {
+			name: "bad-threshold",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			approvalThreshold: 1.5,
+		};
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/approvalThreshold/,
+		);
 	});
 });
