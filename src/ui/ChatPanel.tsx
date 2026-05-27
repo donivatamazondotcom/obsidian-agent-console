@@ -102,6 +102,8 @@ export interface ChatPanelProps {
 	findTabBySessionId?: (sessionId: string) => { tabId: string; label: string } | null;
 	/** Switch to a specific tab by ID (I20) */
 	onSwitchToTab?: (tabId: string) => void;
+	/** Persisted session ID for this tab (from tab persistence). Passed to useLazySession for session/load on first keystroke. */
+	restoredSessionId?: string | null;
 }
 
 // ============================================================================
@@ -148,6 +150,7 @@ export function ChatPanel({
 	isActive,
 	findTabBySessionId,
 	onSwitchToTab,
+	restoredSessionId,
 }: ChatPanelProps) {
 	// ============================================================
 	// Platform Check
@@ -681,9 +684,10 @@ export function ChatPanel({
 	} | null>(null);
 
 	const lazySession = useLazySession({
-		// Restored sessionId is null in Commit A. Commit D wires this
-		// from useTabPersistence (per-leaf restored tab state).
-		restoredSessionId: null,
+		// Restored sessionId from tab persistence. When non-null, the
+		// hook calls loadExistingSession on first keystroke instead of
+		// acquireNewSession.
+		restoredSessionId: restoredSessionId ?? null,
 
 		acquireNewSession: useCallback(async () => {
 			try {

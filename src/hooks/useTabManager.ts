@@ -79,14 +79,23 @@ export function truncateLabel(text: string, max = 100): string {
  * Manages tab state for a single ChatView.
  *
  * @param initialAgentId - Agent ID for the first tab (created on mount)
+ * @param initialTabs - Optional pre-built tabs (used for restoration from persistence)
+ * @param initialActiveTabId - Optional active tab ID (used with initialTabs)
  */
-export function useTabManager(initialAgentId: string): UseTabManagerReturn {
+export function useTabManager(
+	initialAgentId: string,
+	initialTabs?: TabInfo[],
+	initialActiveTabId?: string,
+): UseTabManagerReturn {
 	const [tabs, setTabs] = useState<TabInfo[]>(() => {
+		if (initialTabs && initialTabs.length > 0) {
+			return initialTabs;
+		}
 		const first = createTab(initialAgentId);
 		return [first];
 	});
 	const [activeTabId, setActiveTabId] = useState<string>(
-		() => tabs[0].tabId,
+		() => initialActiveTabId ?? tabs[0].tabId,
 	);
 
 	const addTab = useCallback(

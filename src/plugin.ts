@@ -122,6 +122,8 @@ export interface AgentClientPluginSettings {
 	// Tab settings
 	/** Maximum number of session tabs per view (default: 10) */
 	maxSessionTabs: number;
+	/** Restore open tabs on startup (default: true). See [[ACP Tab Persistence Across Restarts]] § Setting. */
+	restoreTabsOnStartup: boolean;
 
 	/**
 	 * Per-leaf saved tab state for restoration across Obsidian restarts.
@@ -198,6 +200,7 @@ const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	floatingWindowPosition: null,
 	floatingButtonPosition: null,
 	maxSessionTabs: 10,
+	restoreTabsOnStartup: true,
 };
 
 export default class AgentClientPlugin extends Plugin {
@@ -1142,6 +1145,10 @@ export default class AgentClientPlugin extends Plugin {
 				D.maxSessionTabs,
 				1,
 			),
+			restoreTabsOnStartup:
+				typeof raw.restoreTabsOnStartup === "boolean"
+					? raw.restoreTabsOnStartup
+					: D.restoreTabsOnStartup,
 			// Type-level coercion only — record-level validation
 			// happens inside SessionStorage.loadTabState (so the
 			// service can return null on corruption rather than
