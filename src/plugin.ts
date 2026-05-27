@@ -42,6 +42,7 @@ import {
 	CustomAgentSettings,
 } from "./types/agent";
 import type { SavedSessionInfo } from "./types/session";
+import type { PerLeafTabState } from "./types/tab";
 import { initializeLogger, getLogger } from "./utils/logger";
 
 // Re-export for backward compatibility
@@ -121,6 +122,18 @@ export interface AgentClientPluginSettings {
 	// Tab settings
 	/** Maximum number of session tabs per view (default: 10) */
 	maxSessionTabs: number;
+
+	/**
+	 * Per-leaf saved tab state for restoration across Obsidian restarts.
+	 *
+	 * Optional: undefined means no state has been saved yet (first
+	 * launch, or after explicit discard via SessionStorage.discardTabState).
+	 * An explicit empty array `[]` is also a valid persisted state
+	 * (degenerate but lossless under round-trip).
+	 *
+	 * See [[ACP Tab Persistence Across Restarts]] § Save / § Restore.
+	 */
+	perLeafTabStates?: PerLeafTabState[];
 }
 
 const DEFAULT_SETTINGS: AgentClientPluginSettings = {
@@ -1129,6 +1142,13 @@ export default class AgentClientPlugin extends Plugin {
 				D.maxSessionTabs,
 				1,
 			),
+			// Type-level coercion only — record-level validation
+			// happens inside SessionStorage.loadTabState (so the
+			// service can return null on corruption rather than
+			// silently dropping malformed records here).
+			perLeafTabStates: Array.isArray(raw.perLeafTabStates)
+				? (raw.perLeafTabStates as PerLeafTabState[])
+				: undefined,
 		};
 
 		this.ensureDefaultAgentId();
