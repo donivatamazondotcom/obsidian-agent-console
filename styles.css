@@ -853,6 +853,33 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	cursor: text;
 }
 
+/* ============================================================
+   Lossy-Fallback Notice (rendered above first agent response
+   after `session/load` failure → client-side replay).
+
+   Per [[ACP Tab Persistence Across Restarts]] § Decision #11
+   (2026-05-24): callout-style block, info-icon prefixed,
+   bordered styling, non-dismissible. The literal `ℹ️` sigil
+   in the copy serves as the info-icon prefix.
+   ============================================================ */
+
+.agent-client-fallback-notice {
+	margin: 8px 0;
+	padding: 10px 14px;
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-left: 3px solid var(--interactive-accent);
+	border-radius: 6px;
+	color: var(--text-normal);
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.agent-client-fallback-notice strong {
+	color: var(--text-normal);
+	font-weight: 600;
+}
+
 /* Empty state */
 .agent-client-chat-empty-state {
 	color: var(--text-muted);
