@@ -157,8 +157,8 @@ function ChatComponent({
 			);
 			return;
 		}
-		tabManager.addTab(activeTab.agentId);
-	}, [tabManager, activeTab.agentId, tabs.length, plugin.settings]);
+		tabManager.addTab(plugin.settings.defaultAgentId);
+	}, [tabManager, plugin.settings, tabs.length]);
 
 	const handleCloseTab = useCallback(
 		(tabId: string) => {
