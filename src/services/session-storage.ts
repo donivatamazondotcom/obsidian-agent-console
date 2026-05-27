@@ -365,6 +365,56 @@ export class SessionStorage {
 		});
 		await this.tabStateLock;
 	}
+
+	/**
+	 * Save per-leaf tab state atomically — replaces this leaf's slice
+	 * in `perLeafTabStates` while preserving other leaves' slices.
+	 *
+	 * Read-modify-write under `tabStateLock` to prevent torn writes
+	 * when multiple leaves save concurrently. The lock guarantees the
+	 * read-merge-write sequence sees a consistent snapshot.
+	 *
+	 * Used by `useTabPersistence` (Slice 5) — each ChatView leaf saves
+	 * its own slice on tab-state changes; this method ensures leaves
+	 * don't clobber each other's state when they save in parallel.
+	 *
+	 * @param leafId - Leaf identifier
+	 * @param leafState - The leaf's full PerLeafTabState
+	 */
+	async saveTabStateForLeaf(
+		leafId: string,
+		leafState: PerLeafTabState,
+	): Promise<void> {
+		this.tabStateLock = this.tabStateLock.then(async () => {
+			const all =
+				this.settingsAccess.getSnapshot().perLeafTabStates ?? [];
+			const filtered = all.filter((s) => s.leafId !== leafId);
+			const next = [...filtered, leafState];
+			await this.settingsAccess.updateSettings({
+				perLeafTabStates: next,
+			});
+		});
+		await this.tabStateLock;
+	}
+
+	/**
+	 * Convenience wrapper: load just this leaf's PerLeafTabState.
+	 *
+	 * Reuses `loadTabState`'s corruption-tolerant logic — if the
+	 * entire persisted blob is corrupted (returns null), this method
+	 * also returns null. Otherwise it returns this leaf's slice if
+	 * present, or null if no entry matches the requested `leafId`.
+	 *
+	 * @param leafId - Leaf identifier
+	 * @returns The leaf's state, or null if no state / corrupted / not present
+	 */
+	async loadTabStateForLeaf(
+		leafId: string,
+	): Promise<PerLeafTabState | null> {
+		const all = await this.loadTabState();
+		if (all === null) return null;
+		return all.find((s) => s.leafId === leafId) ?? null;
+	}
 }
 
 // ============================================================================
