@@ -7,6 +7,7 @@ import type AgentClientPlugin from "../plugin";
 import type { IChatViewHost } from "./view-host";
 import { setIcon } from "obsidian";
 import { MessageBubble } from "./MessageBubble";
+import { LossyFallbackNotice } from "./LossyFallbackNotice";
 import { useAutoScrollPin } from "./use-auto-scroll-pin";
 
 /**
@@ -48,6 +49,17 @@ export interface MessageListProps {
 	hasActivePermission: boolean;
 	/** Whether this tab is currently active (visible) */
 	isActive?: boolean;
+	/**
+	 * True when the active session was recovered via client-side replay
+	 * (the `session/load` failure → `session/new` fallback path). Drives
+	 * the LossyFallbackNotice rendered above the conversation.
+	 *
+	 * In Commit A of the integration phase the restored-tab path is not
+	 * yet wired, so this flag never goes true in practice — the prop is
+	 * plumbed so Commit D's restored-tab integration can flow through
+	 * without further plumbing changes.
+	 */
+	isFallbackRecovery?: boolean;
 }
 
 /**
@@ -115,6 +127,7 @@ export function MessageList({
 	onApprovePermission,
 	hasActivePermission,
 	isActive = true,
+	isFallbackRecovery = false,
 }: MessageListProps) {
 	// ============================================================
 	// Auto-scroll (single owner)
@@ -167,6 +180,9 @@ export function MessageList({
 	return (
 		<div ref={scrollRef} className="agent-client-chat-view-messages">
 			<div ref={contentRef} className="agent-client-chat-content">
+				<LossyFallbackNotice
+					isFallbackRecovery={isFallbackRecovery}
+				/>
 				{messages.map((message) => (
 					<div key={message.id} className="agent-client-message-row">
 						<MemoMessageBubble

@@ -28,6 +28,7 @@ import { useSettings } from "../hooks/useSettings";
 import { useSuggestions } from "../hooks/useSuggestions";
 import { useAgent } from "../hooks/useAgent";
 import { useSessionHistory } from "../hooks/useSessionHistory";
+import { useLazySession } from "../hooks/useLazySession";
 
 // Domain model imports
 import {
@@ -658,11 +659,132 @@ export function ChatPanel({
 	// ============================================================
 	// Effects - Session Lifecycle
 	// ============================================================
-	// Initialize session on mount
+
+	// Lazy session lifecycle — Decisions #2, #6, #7, #8 of
+	// [[ACP Tab Persistence Across Restarts]]. No eager `session/new`
+	// fires on mount. Agent initialize + session creation defer until
+	// the user signals intent (typing in the composer with 200ms
+	// debounce, or clicking send).
+	//
+	// Decision #10 (eager parallel initialize for composer affordances)
+	// is scheduled for Commit G of the integration phase. In this
+	// commit, both initialize and newSession defer until first intent;
+	// trade-off is that slash-command and model-picker affordances are
+	// unavailable until the first session creation completes.
+
+	// Queued send for the case where the user clicks send while
+	// session acquisition is still in flight. Cleared by the flush
+	// effect below.
+	const [queuedSend, setQueuedSend] = useState<{
+		content: string;
+		attachments?: AttachedFile[];
+	} | null>(null);
+
+	const lazySession = useLazySession({
+		// Restored sessionId is null in Commit A. Commit D wires this
+		// from useTabPersistence (per-leaf restored tab state).
+		restoredSessionId: null,
+
+		acquireNewSession: useCallback(async () => {
+			try {
+				const effectiveAgent = config?.agent || initialAgentId;
+				logger.log(
+					"[Lazy] Acquiring new session for agent:",
+					effectiveAgent,
+				);
+				await agent.createSession(effectiveAgent);
+				// After createSession resolves, agent.session.sessionId
+				// is set. The closure captured `agent` from this render's
+				// value; reading through the `agent` object reference
+				// avoids stale-value bugs.
+				const sid = agent.session.sessionId;
+				if (!sid) {
+					return {
+						ok: false as const,
+						error: new Error(
+							"Session creation produced no sessionId",
+						),
+					};
+				}
+				return { ok: true as const, sessionId: sid };
+			} catch (err) {
+				return {
+					ok: false as const,
+					error:
+						err instanceof Error ? err : new Error(String(err)),
+				};
+			}
+		}, [
+			agent.createSession,
+			agent.session.sessionId,
+			config?.agent,
+			initialAgentId,
+			logger,
+		]),
+
+		loadExistingSession: useCallback(async () => {
+			// Restored-tab path is wired in Commit D once useTabPersistence
+			// surfaces persistedSessionId for restored tabs. In Commit A
+			// there are no restored tabs in flight, so this branch is
+			// unreachable. Kept here so the hook contract is satisfied.
+			return {
+				ok: false as const,
+				error: new Error(
+					"loadExistingSession not yet wired in Commit A",
+				),
+			};
+		}, []),
+
+		sendPrompt: useCallback(async () => {
+			// Queue flush is owned by ChatPanel's `queuedSend` effect
+			// (below) — not by the hook's internal sendPrompt. Owning
+			// the flush at the ChatPanel level lets us read
+			// agent.session.sessionId from a post-render closure when
+			// the user message threads through handleSendMessage.
+		}, []),
+	});
+
+	// Queue-flush effect: fires when the lazy session reaches `ready`
+	// AND agent state has committed the new sessionId. Only then is it
+	// safe to call handleSendMessage, which reads
+	// agent.session.sessionId from its closure.
 	useEffect(() => {
-		logger.log("[Debug] Starting connection setup via useSession...");
-		void agent.createSession(config?.agent || initialAgentId);
-	}, [agent.createSession, config?.agent, initialAgentId]);
+		if (
+			lazySession.state === "ready" &&
+			queuedSend !== null &&
+			agent.session.sessionId
+		) {
+			const { content, attachments } = queuedSend;
+			setQueuedSend(null);
+			void handleSendMessage(content, attachments);
+		}
+	}, [
+		lazySession.state,
+		queuedSend,
+		agent.session.sessionId,
+		handleSendMessage,
+	]);
+
+	// Send wrapper: sticky path → handleSendMessage directly when the
+	// session is already `ready`; non-ready path → queue + trigger lazy
+	// acquisition. The queue-flush effect above runs handleSendMessage
+	// once both lazy state and agent.session.sessionId have settled.
+	const handleSendWithLazyAcquisition = useCallback(
+		async (content: string, attachments?: AttachedFile[]) => {
+			if (lazySession.state === "ready" && agent.session.sessionId) {
+				await handleSendMessage(content, attachments);
+				return;
+			}
+			setQueuedSend({ content, attachments });
+			lazySession.onSendClick(content);
+		},
+		[
+			lazySession.state,
+			lazySession.onSendClick,
+			agent.session.sessionId,
+			handleSendMessage,
+		],
+	);
 
 	// Apply configured model when session is ready
 	useEffect(() => {
@@ -1061,13 +1183,13 @@ export function ChatPanel({
 	const isSessionReadyRef = useRef(isSessionReady);
 	const isSendingRef = useRef(isSending);
 	const sessionHistoryLoadingRef = useRef(sessionHistory.loading);
-	const handleSendMessageRef = useRef(handleSendMessage);
+	const handleSendMessageRef = useRef(handleSendWithLazyAcquisition);
 	inputValueRef.current = inputValue;
 	attachedFilesRef.current = attachedFiles;
 	isSessionReadyRef.current = isSessionReady;
 	isSendingRef.current = isSending;
 	sessionHistoryLoadingRef.current = sessionHistory.loading;
-	handleSendMessageRef.current = handleSendMessage;
+	handleSendMessageRef.current = handleSendWithLazyAcquisition;
 
 	useEffect(() => {
 		onRegisterCallbacks?.({
@@ -1197,6 +1319,7 @@ export function ChatPanel({
 			onApprovePermission={agent.approvePermission}
 			hasActivePermission={agent.hasActivePermission}
 			isActive={isActive}
+			isFallbackRecovery={lazySession.isFallbackRecovery}
 		/>
 	);
 
@@ -1212,7 +1335,7 @@ export function ChatPanel({
 			suggestions={suggestions}
 			plugin={plugin}
 			view={viewHost}
-			onSendMessage={handleSendMessage}
+			onSendMessage={handleSendWithLazyAcquisition}
 			onStopGeneration={handleStopGeneration}
 			onRestoredMessageConsumed={handleRestoredMessageConsumed}
 			modes={session.modes}
@@ -1228,7 +1351,15 @@ export function ChatPanel({
 			agentId={session.agentId}
 			// Controlled component props (for broadcast commands)
 			inputValue={inputValue}
-			onInputChange={setInputValue}
+			onInputChange={(value) => {
+				setInputValue(value);
+				// Typing-as-intent: feed every keystroke to the lazy
+				// session so it can debounce-trigger session acquisition.
+				// The hook short-circuits when sessionId is already set
+				// (sticky session) so this is cheap on the steady-state
+				// path.
+				lazySession.onComposerChange(value);
+			}}
 			attachedFiles={attachedFiles}
 			onAttachedFilesChange={setAttachedFiles}
 			// Error overlay props
