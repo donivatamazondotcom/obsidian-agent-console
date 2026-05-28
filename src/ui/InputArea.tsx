@@ -185,6 +185,8 @@ export interface InputAreaProps {
 	isSessionReady: boolean;
 	/** Whether the tab is in lazy-idle state (no connection attempted yet) */
 	isLazyIdle?: boolean;
+	/** Whether session acquisition is in flight (connecting state) */
+	isLazyConnecting?: boolean;
 	/** Whether a session is being restored (load/resume/fork) */
 	isRestoringSession: boolean;
 	/** Display name of the active agent */
@@ -267,6 +269,7 @@ export function InputArea({
 	isSending,
 	isSessionReady,
 	isLazyIdle = false,
+	isLazyConnecting = false,
 	isRestoringSession,
 	agentLabel,
 	availableCommands,
@@ -832,7 +835,7 @@ export function InputArea({
 	const isButtonDisabled =
 		!isSending &&
 		((inputValue.trim() === "" && attachedFiles.length === 0) ||
-			!isSessionReady ||
+			(!isSessionReady && !isLazyIdle && !isLazyConnecting) ||
 			isRestoringSession);
 
 	/**

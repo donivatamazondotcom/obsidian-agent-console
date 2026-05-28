@@ -1264,9 +1264,14 @@ export function ChatPanel({
 				const hasContent =
 					inputValueRef.current.trim() !== "" ||
 					attachedFilesRef.current.length > 0;
+				const lazyState = lazySession.state;
+				const canAcceptSend =
+					isSessionReadyRef.current ||
+					lazyState === "connecting" ||
+					lazyState === "idle";
 				return (
 					hasContent &&
-					isSessionReadyRef.current &&
+					canAcceptSend &&
 					!sessionHistoryLoadingRef.current &&
 					!isSendingRef.current
 				);
@@ -1387,6 +1392,7 @@ export function ChatPanel({
 			isSending={isSending}
 			isSessionReady={isSessionReady}
 			isLazyIdle={lazySession.state === "idle"}
+			isLazyConnecting={lazySession.state === "connecting"}
 			isRestoringSession={sessionHistory.loading}
 			agentLabel={activeAgentLabel}
 			availableCommands={session.availableCommands || []}
