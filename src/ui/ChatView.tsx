@@ -22,6 +22,7 @@ import { ChatPanel, type ChatPanelCallbacks } from "./ChatPanel";
 import { TabBar } from "./TabBar";
 import { TabErrorBoundary } from "./TabErrorBoundary";
 import { EditTitleModal } from "./SessionHistoryModal";
+import { CorruptionRecoveryModal } from "./CorruptionRecoveryModal";
 
 // Hook imports
 import { useTabManager, truncateLabel } from "../hooks/useTabManager";
@@ -86,7 +87,43 @@ function readPersistedLeafState(
 	if (!plugin.settings.restoreTabsOnStartup) return null;
 	const all = plugin.settings.perLeafTabStates;
 	if (!Array.isArray(all)) return null;
-	return all.find((s) => s.leafId === leafId) ?? null;
+	const entry = all.find((s) => s.leafId === leafId);
+	if (!entry) return null;
+	// Validate the entry has the required shape (tabs array with valid records)
+	if (!Array.isArray(entry.tabs) || typeof entry.activeTabId !== "string") {
+		return null; // Corruption — caller detects via hasCorruptedLeafState
+	}
+	for (const t of entry.tabs) {
+		if (
+			typeof t?.tabId !== "string" ||
+			typeof t?.agentId !== "string" ||
+			typeof t?.label !== "string"
+		) {
+			return null;
+		}
+	}
+	return entry;
+}
+
+/**
+ * Detect if there's a raw entry for this leaf that exists but failed
+ * validation in readPersistedLeafState. Used to trigger the corruption
+ * Notice (T16).
+ */
+function hasCorruptedLeafState(
+	plugin: AgentClientPlugin,
+	leafId: string,
+): boolean {
+	if (!plugin.settings.restoreTabsOnStartup) return false;
+	const all = plugin.settings.perLeafTabStates;
+	if (!Array.isArray(all)) return false;
+	// Check if there's a raw entry with matching leafId
+	const rawEntry = all.find(
+		(s) => typeof s === "object" && s !== null && (s as unknown as Record<string, unknown>).leafId === leafId,
+	);
+	if (!rawEntry) return false;
+	// If readPersistedLeafState would return null for this entry, it's corrupted
+	return readPersistedLeafState(plugin, leafId) === null;
 }
 
 /**
@@ -158,6 +195,52 @@ function ChatComponent({
 			restoredLeaf?.tabs.map((t) => [t.tabId, t.sessionId]) ?? [],
 		),
 	);
+
+	// ============================================================
+	// Corruption detection (T16/T17)
+	// ============================================================
+	useEffect(() => {
+		if (!hasCorruptedLeafState(plugin, viewId)) return;
+		const notice = new Notice(
+			"Could not restore previous tabs — saved state was corrupted.",
+			0, // persistent until dismissed
+		);
+		// Add "View details" link to the notice
+		const fragment = notice.messageEl.createEl("a", {
+			text: " View details",
+			cls: "agent-client-corruption-link",
+		});
+		fragment.addEventListener("click", (e) => {
+			e.preventDefault();
+			notice.hide();
+			const rawState = JSON.stringify(
+				plugin.settings.perLeafTabStates,
+				null,
+				2,
+			);
+			const modal = new CorruptionRecoveryModal(
+				plugin.app,
+				rawState,
+				() => {
+					// Retry: reload the plugin (simplest way to re-attempt restore)
+					const appAny = plugin.app as unknown as {
+						plugins: {
+							disablePlugin: (id: string) => Promise<void>;
+							enablePlugin: (id: string) => Promise<void>;
+						};
+					};
+					void appAny.plugins.disablePlugin(plugin.manifest.id)
+						.then(() => appAny.plugins.enablePlugin(plugin.manifest.id));
+				},
+				async () => {
+					// Discard: clear tab state via settings service
+					await plugin.settingsService.discardTabState();
+					notice.hide();
+				},
+			);
+			modal.open();
+		});
+	}, [plugin, viewId]);
 
 	const getOrCreateClient = useCallback(
 		(tabId: string): AcpClient => {

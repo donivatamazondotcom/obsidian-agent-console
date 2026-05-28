@@ -327,6 +327,10 @@ export class SettingsService implements ISettingsAccess {
 	): Promise<PerLeafTabState | null> {
 		return this.sessionStorage.loadTabStateForLeaf(leafId);
 	}
+
+	async discardTabState(): Promise<void> {
+		return this.sessionStorage.discardTabState();
+	}
 }
 
 /**
