@@ -669,11 +669,41 @@ export function ChatPanel({
 	// the user signals intent (typing in the composer with 200ms
 	// debounce, or clicking send).
 	//
-	// Decision #10 (eager parallel initialize for composer affordances)
-	// is scheduled for Commit G of the integration phase. In this
-	// commit, both initialize and newSession defer until first intent;
-	// trade-off is that slash-command and model-picker affordances are
-	// unavailable until the first session creation completes.
+	// Decision #10: Eager initialize on mount for composer affordances.
+	// Spawns the agent process so that slash commands, model list, and
+	// mode list are available before the user types. The subsequent
+	// createSession call (on first keystroke) sees isInitialized()=true
+	// and skips re-initialization, going straight to newSession.
+	useEffect(() => {
+		if (acpClient.isInitialized()) return;
+		const agentId = config?.agent || initialAgentId;
+		if (!agentId) return;
+
+		void (async () => {
+			try {
+				const { findAgentSettings, buildAgentConfigWithApiKey } =
+					await import("../services/session-helpers");
+				const agentSettings = findAgentSettings(
+					plugin.settings,
+					agentId,
+				);
+				if (!agentSettings) return;
+				const agentConfig = buildAgentConfigWithApiKey(
+					plugin.settings,
+					agentSettings,
+					agentId,
+					vaultPath,
+				);
+				await acpClient.initialize(agentConfig);
+				logger.log("[ChatPanel] Eager initialize complete for:", agentId);
+			} catch (e) {
+				// Non-fatal: lazy path will retry on first keystroke
+				logger.log("[ChatPanel] Eager initialize failed (non-fatal):", e);
+			}
+		})();
+		// Run once on mount only. agentId/vaultPath are stable.
+		// eslint-disable-next-line
+	}, []);
 
 	// Queued send for the case where the user clicks send while
 	// session acquisition is still in flight. Cleared by the flush
