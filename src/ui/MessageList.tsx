@@ -30,6 +30,8 @@ export interface MessageListProps {
 	isSending: boolean;
 	/** Whether the session is ready for user input */
 	isSessionReady: boolean;
+	/** Whether the tab is in lazy-idle state (no connection attempted yet) */
+	isLazyIdle?: boolean;
 	/** Whether a session is being restored (load/resume/fork) */
 	isRestoringSession: boolean;
 	/** Display name of the active agent */
@@ -119,6 +121,7 @@ export function MessageList({
 	messages,
 	isSending,
 	isSessionReady,
+	isLazyIdle = false,
 	isRestoringSession,
 	agentLabel,
 	plugin,
@@ -168,9 +171,11 @@ export function MessageList({
 					<div className="agent-client-chat-empty-state">
 						{isRestoringSession
 							? "Restoring session..."
-							: !isSessionReady
-								? `Connecting to ${agentLabel}...`
-								: `Start a conversation with ${agentLabel}...`}
+							: isLazyIdle
+								? `Send a message to connect to ${agentLabel}...`
+								: !isSessionReady
+									? `Connecting to ${agentLabel}...`
+									: `Start a conversation with ${agentLabel}...`}
 					</div>
 				</div>
 			</div>

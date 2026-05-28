@@ -1329,7 +1329,7 @@ export function ChatPanel({
 			<ChatHeader
 				variant="sidebar"
 				agentLabel={activeAgentLabel}
-				headerSegments={headerSegments}
+				headerSegments={{...headerSegments, isLazyIdle: lazySession.state === "idle"}}
 				isUpdateAvailable={isUpdateAvailable}
 				onNewChat={() => void handleNewChatWithPersist()}
 				onExportChat={() => void handleExportChat()}
@@ -1340,7 +1340,7 @@ export function ChatPanel({
 			<ChatHeader
 				variant="floating"
 				agentLabel={activeAgentLabel}
-				headerSegments={headerSegments}
+				headerSegments={{...headerSegments, isLazyIdle: lazySession.state === "idle"}}
 				availableAgents={availableAgents}
 				currentAgentId={session.agentId}
 				isUpdateAvailable={isUpdateAvailable}
@@ -1369,6 +1369,7 @@ export function ChatPanel({
 			messages={messages}
 			isSending={isSending}
 			isSessionReady={isSessionReady}
+			isLazyIdle={lazySession.state === "idle"}
 			isRestoringSession={sessionHistory.loading}
 			agentLabel={activeAgentLabel}
 			plugin={plugin}
@@ -1385,6 +1386,7 @@ export function ChatPanel({
 		<InputArea
 			isSending={isSending}
 			isSessionReady={isSessionReady}
+			isLazyIdle={lazySession.state === "idle"}
 			isRestoringSession={sessionHistory.loading}
 			agentLabel={activeAgentLabel}
 			availableCommands={session.availableCommands || []}
