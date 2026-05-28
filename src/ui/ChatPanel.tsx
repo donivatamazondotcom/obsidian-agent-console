@@ -962,25 +962,49 @@ export function ChatPanel({
 	// ============================================================
 	// Effects - Tab State & Label Reporting
 	// ============================================================
+	// Drive busy/permission transitions on the lazy session state machine
+	// from agent events. The state machine is the single source of truth
+	// (spec § Tab Session State Machine); these effects keep it in sync
+	// with the agent's response lifecycle.
+	const prevIsSendingForStateRef = useRef(false);
+	useEffect(() => {
+		const was = prevIsSendingForStateRef.current;
+		prevIsSendingForStateRef.current = isSending;
+		if (!was && isSending && lazySession.state === "ready") {
+			lazySession.startBusy();
+		} else if (was && !isSending && lazySession.state === "busy") {
+			lazySession.endBusy();
+		}
+	}, [isSending, lazySession.state, lazySession.startBusy, lazySession.endBusy]);
+
+	const prevHasPermissionForStateRef = useRef(false);
+	useEffect(() => {
+		const was = prevHasPermissionForStateRef.current;
+		prevHasPermissionForStateRef.current = agent.hasActivePermission;
+		if (!was && agent.hasActivePermission) {
+			lazySession.requestPermission();
+		} else if (was && !agent.hasActivePermission && lazySession.state === "permission") {
+			lazySession.resolvePermission();
+		}
+	}, [agent.hasActivePermission, lazySession.state, lazySession.requestPermission, lazySession.resolvePermission]);
+
+	// Report lazySession.state to the parent (tab icon) via onStateChange.
+	// Maps TabSessionState → TabState for the existing TabBar contract.
 	useEffect(() => {
 		if (!onStateChangeRef.current) return;
-		if (errorInfo) {
-			onStateChangeRef.current("error");
-		} else if (agent.hasActivePermission) {
-			onStateChangeRef.current("permission");
-		} else if (isSending) {
-			onStateChangeRef.current("busy");
-		} else if (isSessionReady) {
-			onStateChangeRef.current("ready");
-		} else {
+		const s = lazySession.state;
+		if (s === "idle" || s === "connecting") {
 			onStateChangeRef.current("disconnected");
+		} else if (s === "error") {
+			onStateChangeRef.current("error");
+		} else if (s === "permission") {
+			onStateChangeRef.current("permission");
+		} else if (s === "busy") {
+			onStateChangeRef.current("busy");
+		} else {
+			onStateChangeRef.current("ready");
 		}
-	}, [
-		errorInfo,
-		agent.hasActivePermission,
-		isSending,
-		isSessionReady,
-	]);
+	}, [lazySession.state]);
 
 	// Report label from first user message
 	useEffect(() => {

@@ -140,6 +140,17 @@ export interface UseLazySessionApi {
 
 	/** Reset to `idle`, release sessionId, clear fallback flag. */
 	reset: () => void;
+
+	// State machine transitions for busy/permission — driven by ChatPanel
+	// in response to agent events (isSending, hasActivePermission).
+	/** Agent began processing a prompt. ready → busy. */
+	startBusy: () => void;
+	/** Agent response complete. busy → ready. */
+	endBusy: () => void;
+	/** Permission decision required. ready/busy → permission. */
+	requestPermission: () => void;
+	/** Permission decision made. permission → ready. */
+	resolvePermission: () => void;
 }
 
 // ============================================================================
@@ -341,5 +352,13 @@ export function useLazySession(
 		onComposerChange,
 		onSendClick,
 		reset,
+		// Expose state machine transitions for busy/permission — driven
+		// by ChatPanel in response to agent events (isSending,
+		// hasActivePermission). These are stable references from
+		// useReducer dispatch (per Slice 2 design).
+		startBusy: tabState.startBusy,
+		endBusy: tabState.endBusy,
+		requestPermission: tabState.requestPermission,
+		resolvePermission: tabState.resolvePermission,
 	};
 }
