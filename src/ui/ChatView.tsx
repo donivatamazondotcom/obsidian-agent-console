@@ -603,6 +603,9 @@ function ChatComponent({
 								restoredSessionId={
 									persistedSessionIdsRef.current.get(tab.tabId) ?? null
 								}
+								restoredMessages={
+									tabPersistence.restoredMessages[tab.tabId]
+								}
 							/>
 						</TabPanel>
 					</TabErrorBoundary>

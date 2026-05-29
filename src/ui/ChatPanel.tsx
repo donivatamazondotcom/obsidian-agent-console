@@ -16,6 +16,9 @@ import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
 
 // Service imports
 import { getLogger } from "../utils/logger";
+import { deriveTabLabel } from "../utils/deriveTabLabel";
+import { useRestoredMessages } from "../hooks/useRestoredMessages";
+import { loadExistingSessionFlow } from "../hooks/loadExistingSessionFlow";
 
 // Adapter imports
 import type { AcpClient } from "../acp/acp-client";
@@ -104,6 +107,8 @@ export interface ChatPanelProps {
 	onSwitchToTab?: (tabId: string) => void;
 	/** Persisted session ID for this tab (from tab persistence). Passed to useLazySession for session/load on first keystroke. */
 	restoredSessionId?: string | null;
+	/** Restored message history for this tab (from tab persistence). Seeded into the message list on async arrival while idle (I43). */
+	restoredMessages?: ChatMessage[];
 }
 
 // ============================================================================
@@ -151,6 +156,7 @@ export function ChatPanel({
 	findTabBySessionId,
 	onSwitchToTab,
 	restoredSessionId,
+	restoredMessages,
 }: ChatPanelProps) {
 	// ============================================================
 	// Platform Check
@@ -249,6 +255,15 @@ export function ChatPanel({
 		onMessagesRestore: agent.setMessagesFromLocal,
 		onIgnoreUpdates: agent.setIgnoreUpdates,
 		onClearMessages: agent.clearMessages,
+	});
+
+	// Seed restored history into the message list when the async disk read
+	// resolves, but only while idle (no live session) so it never clobbers
+	// an active conversation (I43, spec Decision #12).
+	useRestoredMessages({
+		restoredMessages,
+		hasSession: !!session.sessionId,
+		apply: agent.setMessagesFromLocal,
 	});
 
 	// ============================================================
@@ -759,18 +774,40 @@ export function ChatPanel({
 			logger,
 		]),
 
-		loadExistingSession: useCallback(async () => {
-			// Restored-tab path is wired in Commit D once useTabPersistence
-			// surfaces persistedSessionId for restored tabs. In Commit A
-			// there are no restored tabs in flight, so this branch is
-			// unreachable. Kept here so the hook contract is satisfied.
-			return {
-				ok: false as const,
-				error: new Error(
-					"loadExistingSession not yet wired in Commit A",
-				),
-			};
-		}, []),
+		loadExistingSession: useCallback(async (sessionId: string) => {
+			logger.log("[Lazy] Loading existing session:", sessionId);
+			const result = await loadExistingSessionFlow({
+				sessionId,
+				cwd: agentCwd,
+				// Suppress the agent's replay only when local history is
+				// already displayed; otherwise let it through (I43 #12).
+				haveLocalHistory:
+					!!restoredMessages && restoredMessages.length > 0,
+				loadSession: (id, cwd) => acpClient.loadSession(id, cwd),
+				onLoaded: (r) =>
+					void agent.updateSessionFromLoad(
+						r.sessionId,
+						r.modes,
+						r.models,
+						r.configOptions,
+					),
+				setIgnoreUpdates: agent.setIgnoreUpdates,
+			});
+			if (!result.ok) {
+				logger.log(
+					"[Lazy] loadSession failed, falling through to new session:",
+					result.error,
+				);
+			}
+			return result;
+		}, [
+			restoredMessages,
+			acpClient,
+			agentCwd,
+			agent.updateSessionFromLoad,
+			agent.setIgnoreUpdates,
+			logger,
+		]),
 
 		sendPrompt: useCallback(async () => {
 			// Queue flush is owned by ChatPanel's `queuedSend` effect
@@ -1050,22 +1087,10 @@ export function ChatPanel({
 	// Report label from first user message
 	useEffect(() => {
 		if (!onLabelChangeRef.current || labelReportedRef.current) return;
-		if (messages.length > 0) {
-			const firstUserMsg = messages.find((m) => m.role === "user");
-			if (firstUserMsg) {
-				// content is MessageContent[] — extract text from the first text/text_with_context block
-				const textBlock = firstUserMsg.content.find(
-					(block) =>
-						block.type === "text" ||
-						block.type === "text_with_context",
-				);
-				const text =
-					textBlock && "text" in textBlock ? textBlock.text : "";
-				if (text.trim()) {
-					onLabelChangeRef.current(text.trim());
-					labelReportedRef.current = true;
-				}
-			}
+		const label = deriveTabLabel(messages);
+		if (label) {
+			onLabelChangeRef.current(label);
+			labelReportedRef.current = true;
 		}
 	}, [messages]);
 
