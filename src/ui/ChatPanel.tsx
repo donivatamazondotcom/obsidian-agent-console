@@ -807,6 +807,18 @@ export function ChatPanel({
 		logger,
 	]);
 
+	// Debounced incremental save so the message tail survives reload/quit
+	// even mid-stream or before a turn ends (I48). The turn-end save above
+	// is kept for the completion notification.
+	useEffect(() => {
+		if (!session.sessionId || messages.length === 0) return;
+		const sessionId = session.sessionId;
+		const timer = window.setTimeout(() => {
+			sessionHistory.saveSessionMessages(sessionId, messages);
+		}, 1000);
+		return () => window.clearTimeout(timer);
+	}, [messages, session.sessionId, sessionHistory.saveSessionMessages]);
+
 	// ============================================================
 	// Effects - System Notification on Permission Request
 	// ============================================================
