@@ -225,10 +225,12 @@ export default class AgentClientPlugin extends Plugin {
 		// Initialize settings store
 		this.settingsService = createSettingsService(this.settings, this);
 
-		// Detach stale leaves from a previous plugin instance to prevent
-		// "Attempting to register an existing view type" when Obsidian's
-		// hot-reload races onunload/onload (e.g. rapid toggle or npm run dev).
-		this.app.workspace.detachLeavesOfType(VIEW_TYPE_CHAT);
+		// Do NOT detach existing chat leaves here. Obsidian restores
+		// chat leaves from workspace.json with their original leaf.id,
+		// and tab state is keyed on leaf.id (I47). Detaching destroys
+		// the restored leaf, so activateView() mints a fresh id and the
+		// saved tab state never matches. Obsidian auto-unregisters view
+		// types on unload, so registerView does not throw on reload.
 		this.registerView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
 
 		// Register the Agent Console brand icon before adding the ribbon button.
