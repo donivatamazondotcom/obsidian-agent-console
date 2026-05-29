@@ -139,6 +139,8 @@ export interface ChatMessage {
 	role: Role;
 	content: MessageContent[];
 	timestamp: Date;
+	/** True when the message is queued but not yet sent (optimistic display). */
+	pending?: boolean;
 }
 
 /**

@@ -9,7 +9,7 @@ import {
 	type MenuItem,
 } from "obsidian";
 
-import type { AttachedFile, ChatInputState } from "../types/chat";
+import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { useHistoryModal } from "../hooks/useHistoryModal";
 import { useChatActions } from "../hooks/useChatActions";
 import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
@@ -713,6 +713,9 @@ export function ChatPanel({
 		attachments?: AttachedFile[];
 	} | null>(null);
 
+	// Optimistic user message shown while session acquisition is in flight.
+	const [pendingMessage, setPendingMessage] = useState<ChatMessage | null>(null);
+
 	const lazySession = useLazySession({
 		// Restored sessionId from tab persistence. When non-null, the
 		// hook calls loadExistingSession on first keystroke instead of
@@ -790,6 +793,7 @@ export function ChatPanel({
 		) {
 			const { content, attachments } = queuedSend;
 			setQueuedSend(null);
+			setPendingMessage(null);
 			void handleSendMessage(content, attachments);
 		}
 	}, [
@@ -810,6 +814,13 @@ export function ChatPanel({
 				return;
 			}
 			setQueuedSend({ content, attachments });
+			setPendingMessage({
+				id: `pending-${Date.now()}`,
+				role: "user",
+				content: [{ type: "text", text: content }],
+				timestamp: new Date(),
+				pending: true,
+			});
 			lazySession.onSendClick(content);
 		},
 		[
@@ -1369,9 +1380,15 @@ export function ChatPanel({
 			</div>
 		) : null;
 
+	// Combine real messages with the optimistic pending message for display.
+	const displayMessages = useMemo(
+		() => pendingMessage ? [...messages, pendingMessage] : messages,
+		[messages, pendingMessage],
+	);
+
 	const messageListElement = (
 		<MessageList
-			messages={messages}
+			messages={displayMessages}
 			isSending={isSending}
 			isSessionReady={isSessionReady}
 			isLazyIdle={lazySession.state === "idle"}

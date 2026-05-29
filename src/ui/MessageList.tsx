@@ -189,13 +189,16 @@ export function MessageList({
 					isFallbackRecovery={isFallbackRecovery}
 				/>
 				{messages.map((message) => (
-					<div key={message.id} className="agent-client-message-row">
+					<div key={message.id} className={`agent-client-message-row${message.pending ? " agent-client-message-pending" : ""}`}>
 						<MemoMessageBubble
 							message={message}
 							plugin={plugin}
 							terminalClient={terminalClient}
 							onApprovePermission={onApprovePermission}
 						/>
+						{message.pending && (
+							<span className="agent-client-pending-label">Sending…</span>
+						)}
 					</div>
 				))}
 			</div>

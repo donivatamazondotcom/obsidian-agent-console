@@ -676,6 +676,18 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	padding-bottom: 2px;
 }
 
+.agent-client-message-pending {
+	opacity: 0.6;
+}
+
+.agent-client-pending-label {
+	display: block;
+	font-size: var(--font-smallest);
+	color: var(--text-muted);
+	padding: 0 var(--size-4-3);
+	margin-top: -2px;
+}
+
 /* Allow horizontal scroll for wide tables within messages */
 .agent-client-chat-view-messages table {
 	display: block;
