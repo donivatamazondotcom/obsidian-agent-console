@@ -10,6 +10,7 @@ export interface UseContextNotesReturn {
 	has: (path: string) => boolean;
 	rename: (oldPath: string, newPath: string) => void;
 	clear: () => void;
+	replace: (notes: ContextNote[]) => void;
 }
 
 /**
@@ -58,8 +59,12 @@ export function useContextNotes(
 		setNotes([]);
 	}, []);
 
+	const replace = useCallback((next: ContextNote[]) => {
+		setNotes(next.slice(0, MAX_CONTEXT_NOTES));
+	}, []);
+
 	return useMemo(
-		() => ({ notes, isFull, add, remove, has, rename, clear }),
-		[notes, isFull, add, remove, has, rename, clear],
+		() => ({ notes, isFull, add, remove, has, rename, clear, replace }),
+		[notes, isFull, add, remove, has, rename, clear, replace],
 	);
 }

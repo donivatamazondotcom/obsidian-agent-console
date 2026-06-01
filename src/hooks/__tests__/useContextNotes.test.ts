@@ -246,4 +246,46 @@ describe("useContextNotes", () => {
 		expect(result.current.notes).toEqual([]);
 		expect(result.current.isFull).toBe(false);
 	});
+
+	// ========================================================================
+	// Replace (session restore — T13 persistence)
+	// ========================================================================
+
+	it("replace sets the entire notes array", () => {
+		const { result } = renderHook(() => useContextNotes());
+		const restored: ContextNote[] = [
+			{ path: "x.md", source: "user", seen: false },
+			{ path: "y.md", source: "mention", seen: false },
+		];
+		act(() => {
+			result.current.add("old.md", "user");
+			result.current.replace(restored);
+		});
+		expect(result.current.notes).toEqual(restored);
+	});
+
+	it("replace caps at MAX_CONTEXT_NOTES", () => {
+		const { result } = renderHook(() => useContextNotes());
+		const tooMany: ContextNote[] = Array.from(
+			{ length: MAX_CONTEXT_NOTES + 3 },
+			(_, i) => ({
+				path: `n${i}.md`,
+				source: "user" as const,
+				seen: false,
+			}),
+		);
+		act(() => {
+			result.current.replace(tooMany);
+		});
+		expect(result.current.notes).toHaveLength(MAX_CONTEXT_NOTES);
+	});
+
+	it("replace with empty array clears the seed (no-context session restore)", () => {
+		const { result } = renderHook(() => useContextNotes());
+		act(() => {
+			result.current.add("seed.md", "auto-default");
+			result.current.replace([]);
+		});
+		expect(result.current.notes).toEqual([]);
+	});
 });

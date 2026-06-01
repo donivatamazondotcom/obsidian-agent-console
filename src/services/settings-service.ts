@@ -13,6 +13,7 @@ import type { ChatMessage } from "../types/chat";
 import type { SavedSessionInfo } from "../types/session";
 import type { PerLeafTabState } from "../types/tab";
 import { SessionStorage } from "./session-storage";
+import type { ContextNote } from "../types/context";
 
 // ============================================================================
 // Port Types (from settings-access.port.ts)
@@ -113,6 +114,7 @@ export interface ISettingsAccess {
 		sessionId: string,
 		agentId: string,
 		messages: ChatMessage[],
+		contextNotes?: ContextNote[],
 	): Promise<void>;
 
 	/**
@@ -125,6 +127,13 @@ export interface ISettingsAccess {
 	 * @returns Promise that resolves with messages or null if not found
 	 */
 	loadSessionMessages(sessionId: string): Promise<ChatMessage[] | null>;
+
+	/**
+	 * Load crystallized context notes for a session.
+	 */
+	loadSessionContextNotes(
+		sessionId: string,
+	): Promise<ContextNote[] | null>;
 
 	/**
 	 * Delete message history file for a session.
@@ -293,11 +302,13 @@ export class SettingsService implements ISettingsAccess {
 		sessionId: string,
 		agentId: string,
 		messages: ChatMessage[],
+		contextNotes?: ContextNote[],
 	): Promise<void> {
 		return this.sessionStorage.saveSessionMessages(
 			sessionId,
 			agentId,
 			messages,
+			contextNotes,
 		);
 	}
 
@@ -305,6 +316,12 @@ export class SettingsService implements ISettingsAccess {
 		sessionId: string,
 	): Promise<ChatMessage[] | null> {
 		return this.sessionStorage.loadSessionMessages(sessionId);
+	}
+
+	async loadSessionContextNotes(
+		sessionId: string,
+	): Promise<ContextNote[] | null> {
+		return this.sessionStorage.loadSessionContextNotes(sessionId);
 	}
 
 	async deleteSessionMessages(sessionId: string): Promise<void> {

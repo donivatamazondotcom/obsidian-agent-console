@@ -305,6 +305,7 @@ export function ChatPanel({
 		onMessagesRestore: agent.setMessagesFromLocal,
 		onIgnoreUpdates: agent.setIgnoreUpdates,
 		onClearMessages: agent.clearMessages,
+		onContextNotesRestore: contextNotes.replace,
 	});
 
 	// Seed restored history into the message list when the async disk read
@@ -890,6 +891,20 @@ export function ChatPanel({
 	autoExportRef.current = autoExportIfEnabled;
 	closeSessionRef.current = agent.closeSession;
 
+	// Persist context notes when they change mid-session (T13 persistence).
+	// Refs keep the dep list to notes only — avoids a write on every
+	// streamed message update.
+	useEffect(() => {
+		const sid = sessionRef.current.sessionId;
+		if (sid && messagesRef.current.length > 0) {
+			sessionHistory.saveSessionMessages(
+				sid,
+				messagesRef.current,
+				contextNotes.notes,
+			);
+		}
+	}, [contextNotes.notes, sessionHistory.saveSessionMessages]);
+
 	// Cleanup on unmount only - auto-export and close session
 	useEffect(() => {
 		return () => {
@@ -954,7 +969,11 @@ export function ChatPanel({
 			session.sessionId &&
 			messages.length > 0
 		) {
-			sessionHistory.saveSessionMessages(session.sessionId, messages);
+			sessionHistory.saveSessionMessages(
+				session.sessionId,
+				messages,
+				contextNotes.notes,
+			);
 			logger.log(
 				`[ChatPanel] Session messages saved: ${session.sessionId}`,
 			);

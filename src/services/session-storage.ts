@@ -11,6 +11,7 @@ import { Platform } from "obsidian";
 import type { AgentClientPluginSettings } from "../plugin";
 import type AgentClientPlugin from "../plugin";
 import type { ChatMessage, MessageContent } from "../types/chat";
+import type { ContextNote } from "../types/context";
 import type { SavedSessionInfo } from "../types/session";
 import type { PerLeafTabState, PersistedTabInfo } from "../types/tab";
 import { convertWindowsPathToWsl } from "../utils/platform";
@@ -33,6 +34,7 @@ interface SessionMessagesFile {
 		content: MessageContent[];
 		timestamp: string;
 	}>;
+	contextNotes?: ContextNote[];
 	savedAt: string;
 }
 
@@ -265,6 +267,7 @@ export class SessionStorage {
 		sessionId: string,
 		agentId: string,
 		messages: ChatMessage[],
+		contextNotes?: ContextNote[],
 	): Promise<void> {
 		await this.ensureSessionsDir();
 
@@ -278,6 +281,7 @@ export class SessionStorage {
 			sessionId,
 			agentId,
 			messages: serialized,
+			contextNotes: contextNotes ?? [],
 			savedAt: new Date().toISOString(),
 		};
 
@@ -331,6 +335,28 @@ export class SessionStorage {
 			getLogger().error(
 				`[SessionStorage] Failed to load session messages: ${error}`,
 			);
+			return null;
+		}
+	}
+
+	/**
+	 * Load crystallized context notes for a session from the same file.
+	 * Returns null if the file does not exist or has no contextNotes.
+	 */
+	async loadSessionContextNotes(
+		sessionId: string,
+	): Promise<ContextNote[] | null> {
+		const filePath = this.getSessionFilePath(sessionId);
+		const adapter = this.plugin.app.vault.adapter;
+		if (!(await adapter.exists(filePath))) return null;
+		try {
+			const data = JSON.parse(
+				await adapter.read(filePath),
+			) as SessionMessagesFile;
+			return Array.isArray(data.contextNotes)
+				? data.contextNotes
+				: null;
+		} catch {
 			return null;
 		}
 	}

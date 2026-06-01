@@ -407,5 +407,73 @@ describe("SessionStorage tab-state methods", () => {
 			expect(loaded).not.toBeNull();
 			expect(loaded).toEqual(input);
 		});
+
+ * Unit tests for SessionStorage context-note persistence (T13).
+ *
+ * Covers the round-trip that makes crystallized pills survive a restart:
+ * saveSessionMessages(..., contextNotes) -> loadSessionContextNotes().
+ */
+import { describe, it, expect, vi } from "vitest";
+import { SessionStorage } from "../session-storage";
+import type { ContextNote } from "../../types/context";
+import type { ChatMessage } from "../../types/chat";
+
+function makeStorage() {
+	const files = new Map<string, string>();
+	const dirs = new Set<string>();
+	const adapter = {
+		exists: vi.fn(async (p: string) => files.has(p) || dirs.has(p)),
+		mkdir: vi.fn(async (p: string) => {
+			dirs.add(p);
+		}),
+		write: vi.fn(async (p: string, data: string) => {
+			files.set(p, data);
+		}),
+		read: vi.fn(async (p: string) => {
+			const v = files.get(p);
+			if (v === undefined) throw new Error(`not found: ${p}`);
+			return v;
+		}),
+		remove: vi.fn(async (p: string) => {
+			files.delete(p);
+		}),
+	};
+	const plugin = {
+		app: { vault: { adapter, configDir: "test-config" } },
+	};
+	const settingsAccess = { getSnapshot: vi.fn(), updateSettings: vi.fn() };
+	return new SessionStorage(
+		plugin as unknown as ConstructorParameters<typeof SessionStorage>[0],
+		settingsAccess,
+	);
+}
+
+const msg: ChatMessage = {
+	id: "1",
+	role: "user",
+	content: [{ type: "text", text: "hi" }],
+	timestamp: new Date(),
+};
+
+describe("SessionStorage context-note persistence", () => {
+	it("round-trips crystallized notes via the session file", async () => {
+		const storage = makeStorage();
+		const notes: ContextNote[] = [
+			{ path: "Design Doc.md", source: "user", seen: false },
+			{ path: "API Spec.md", source: "mention", seen: false },
+		];
+		await storage.saveSessionMessages("sess-1", "agent-1", [msg], notes);
+		expect(await storage.loadSessionContextNotes("sess-1")).toEqual(notes);
+	});
+
+	it("persists an empty array when no notes are supplied", async () => {
+		const storage = makeStorage();
+		await storage.saveSessionMessages("sess-2", "agent-1", [msg]);
+		expect(await storage.loadSessionContextNotes("sess-2")).toEqual([]);
+	});
+
+	it("returns null for a session with no saved file", async () => {
+		const storage = makeStorage();
+		expect(await storage.loadSessionContextNotes("missing")).toBeNull();
 	});
 });
