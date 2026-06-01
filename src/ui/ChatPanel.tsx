@@ -30,6 +30,12 @@ import { useChatContext } from "./ChatContext";
 // Hooks imports
 import { useSettings } from "../hooks/useSettings";
 import { useSuggestions } from "../hooks/useSuggestions";
+import { useContextNotes } from "../hooks/useContextNotes";
+import { useSelectionTracker } from "../hooks/useSelectionTracker";
+import {
+	useContextVaultEvents,
+	type VaultEventSource,
+} from "../hooks/useContextVaultEvents";
 import { useAgent } from "../hooks/useAgent";
 import { useSessionHistory } from "../hooks/useSessionHistory";
 import { useLazySession } from "../hooks/useLazySession";
@@ -52,6 +58,7 @@ const EMPTY_COMMANDS: SlashCommand[] = [];
 import { ChatHeader } from "./ChatHeader";
 import { MessageList } from "./MessageList";
 import { InputArea } from "./InputArea";
+import { ContextStrip } from "./ContextStrip";
 import type { IChatViewHost } from "./view-host";
 
 // ============================================================================
@@ -202,7 +209,64 @@ export function ChatPanel({
 		vaultService,
 		plugin,
 		session.availableCommands || EMPTY_COMMANDS,
-		settings.autoMentionActiveNote,
+		settings.activeNoteAsDefaultContext,
+	);
+
+	// ============================================================
+	// Context Note Lifecycle (crystallized notes + selection)
+	// ============================================================
+	const contextNotes = useContextNotes();
+	const selectionTracker = useSelectionTracker(vaultService);
+
+	const vaultEventSource = useMemo<VaultEventSource>(
+		() => ({
+			onRename: (cb) => {
+				const ref = plugin.app.vault.on("rename", (file, oldPath) =>
+					cb(oldPath, file.path),
+				);
+				return () => plugin.app.vault.offref(ref);
+			},
+			onDelete: (cb) => {
+				const ref = plugin.app.vault.on("delete", (file) =>
+					cb(file.path),
+				);
+				return () => plugin.app.vault.offref(ref);
+			},
+		}),
+		[plugin.app.vault],
+	);
+
+	const crystallizedPaths = useMemo(
+		() => new Set(contextNotes.notes.map((n) => n.path)),
+		[contextNotes.notes],
+	);
+
+	useContextVaultEvents({
+		vault: vaultEventSource,
+		crystallizedPaths,
+		onRename: contextNotes.rename,
+		onRemove: (path) => {
+			contextNotes.remove(path);
+			const name = (path.split("/").pop() ?? path).replace(
+				/\.md$/,
+				"",
+			);
+			new Notice(
+				`[Agent Console] Context note "${name}" was deleted and removed from chat context.`,
+			);
+		},
+	});
+
+	const selectionForSend = useMemo(
+		() =>
+			selectionTracker.activeNotePath && selectionTracker.selection
+				? {
+						path: selectionTracker.activeNotePath,
+						fromLine: selectionTracker.selection.fromLine,
+						toLine: selectionTracker.selection.toLine,
+					}
+				: null,
+		[selectionTracker.activeNotePath, selectionTracker.selection],
 	);
 
 	// Session history hook with callback for session load
@@ -347,6 +411,8 @@ export function ChatPanel({
 		messages,
 		settings,
 		vaultPath,
+		contextNotes,
+		selectionForSend,
 	);
 
 	const {
@@ -366,6 +432,21 @@ export function ChatPanel({
 		setAgentUpdateNotification,
 		autoExportIfEnabled,
 	} = actions;
+
+	const handleContextPillClick = useCallback(
+		(path: string, event: React.MouseEvent) => {
+			let newLeaf: boolean | "tab" | "split" | "window" = false;
+			if (event.metaKey || event.ctrlKey) {
+				newLeaf = event.altKey
+					? "window"
+					: event.shiftKey
+						? "split"
+						: "tab";
+			}
+			void plugin.app.workspace.openLinkText(path, "", newLeaf);
+		},
+		[plugin.app.workspace],
+	);
 
 	// Track whether tab label has been reported (reset on new chat / restore)
 	const labelReportedRef = useRef(false);
@@ -994,27 +1075,17 @@ export function ChatPanel({
 	}, [onSessionIdChange, session.sessionId]);
 
 	// ============================================================
-	// Effects - Auto-mention Active Note Tracking
+	// Effects - Auto-crystallize active note on new chat (Decision #5)
 	// ============================================================
+	const didSeedContextRef = useRef(false);
 	useEffect(() => {
-		let isMounted = true;
-
-		const refreshActiveNote = async () => {
-			if (!isMounted) return;
-			await suggestions.mentions.updateActiveNote();
-		};
-
-		const unsubscribe = vaultService.subscribeSelectionChanges(() => {
-			void refreshActiveNote();
+		if (didSeedContextRef.current) return;
+		didSeedContextRef.current = true;
+		if (!settings.activeNoteAsDefaultContext) return;
+		void vaultService.getActiveNote().then((note) => {
+			if (note) contextNotes.add(note.path, "auto-default");
 		});
-
-		void refreshActiveNote();
-
-		return () => {
-			isMounted = false;
-			unsubscribe();
-		};
-	}, [suggestions.mentions.updateActiveNote, vaultService]);
+	}, [settings.activeNoteAsDefaultContext, vaultService, contextNotes.add]);
 
 	// ============================================================
 	// Effects - Workspace Events (Hotkeys)
@@ -1298,6 +1369,18 @@ export function ChatPanel({
 		/>
 	);
 
+	const contextStripElement = (
+		<ContextStrip
+			notes={contextNotes.notes}
+			isFull={contextNotes.isFull}
+			activeNotePath={selectionTracker.activeNotePath}
+			activeNoteName={selectionTracker.activeNoteName}
+			onAdd={contextNotes.add}
+			onRemove={contextNotes.remove}
+			onPillClick={handleContextPillClick}
+		/>
+	);
+
 	const inputAreaElement = (
 		<InputArea
 			isSending={isSending}
@@ -1307,7 +1390,6 @@ export function ChatPanel({
 			isRestoringSession={sessionHistory.loading}
 			agentLabel={activeAgentLabel}
 			availableCommands={session.availableCommands || []}
-			autoMentionEnabled={settings.autoMentionActiveNote}
 			restoredMessage={restoredMessage}
 			suggestions={suggestions}
 			plugin={plugin}
@@ -1350,6 +1432,7 @@ export function ChatPanel({
 		/>
 	);
 
+
 	return (
 		<div
 			ref={containerRef}
@@ -1359,6 +1442,7 @@ export function ChatPanel({
 			{headerElement}
 			{cwdBanner}
 			{messageListElement}
+			{contextStripElement}
 			{inputAreaElement}
 		</div>
 	);

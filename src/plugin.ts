@@ -62,7 +62,9 @@ export interface AgentClientPluginSettings {
 	/** Default agent ID for new views (renamed from activeAgentId for multi-session) */
 	defaultAgentId: string;
 	autoAllowPermissions: boolean;
-	autoMentionActiveNote: boolean;
+	activeNoteAsDefaultContext: boolean;
+	/** One-shot flag: context-note migration notice has been shown */
+	migrationNoticeShown: boolean;
 	/** Show OS system notifications on response completion and permission requests */
 	enableSystemNotifications: boolean;
 	debugMode: boolean;
@@ -160,7 +162,8 @@ const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	customAgents: [],
 	defaultAgentId: "claude-code-acp",
 	autoAllowPermissions: false,
-	autoMentionActiveNote: true,
+	activeNoteAsDefaultContext: true,
+	migrationNoticeShown: false,
 	enableSystemNotifications: true,
 	debugMode: false,
 	nodePath: "",
@@ -910,9 +913,14 @@ export default class AgentClientPlugin extends Plugin {
 				raw.autoAllowPermissions,
 				D.autoAllowPermissions,
 			),
-			autoMentionActiveNote: bool(
-				raw.autoMentionActiveNote,
-				D.autoMentionActiveNote,
+			// Migration (Decision #20): autoMentionActiveNote → activeNoteAsDefaultContext
+			activeNoteAsDefaultContext: bool(
+				raw.activeNoteAsDefaultContext,
+				bool(raw.autoMentionActiveNote, D.activeNoteAsDefaultContext),
+			),
+			migrationNoticeShown: bool(
+				raw.migrationNoticeShown,
+				D.migrationNoticeShown,
 			),
 			enableSystemNotifications: bool(
 				raw.enableSystemNotifications,
@@ -1009,6 +1017,19 @@ export default class AgentClientPlugin extends Plugin {
 		};
 
 		this.ensureDefaultAgentId();
+
+		// One-shot migration notice (Decision #20)
+		if (
+			raw.autoMentionActiveNote !== undefined &&
+			!this.settings.migrationNoticeShown
+		) {
+			new Notice(
+				"Agent Console: the active note no longer follows the chat. Use the new context strip to lock notes into context.",
+				10000,
+			);
+			this.settings.migrationNoticeShown = true;
+			await this.saveSettings();
+		}
 
 		if (migratedSecrets) {
 			await this.saveSettings();

@@ -12,6 +12,8 @@ import type AgentClientPlugin from "../plugin";
 import type { UseAgentReturn } from "./useAgent";
 import type { UseSessionHistoryReturn } from "./useSessionHistory";
 import type { UseSuggestionsReturn } from "./useSuggestions";
+import type { UseContextNotesReturn } from "./useContextNotes";
+import { extractMentionedPaths } from "./useContextVaultEvents";
 import type { ChatSession } from "../types/session";
 import type {
 	ChatMessage,
@@ -78,6 +80,8 @@ export function useChatActions(
 	messages: ChatMessage[],
 	settings: AgentClientPluginSettings,
 	vaultPath: string,
+	contextNotes: UseContextNotesReturn,
+	selection: { path: string; fromLine: number; toLine: number } | null,
 ): UseChatActionsReturn {
 	const logger = getLogger();
 
@@ -179,15 +183,22 @@ export function useChatActions(
 
 			try {
 				await agent.sendMessage(content, {
-					activeNote: suggestions.mentions.activeNote,
 					vaultBasePath: vaultPath,
-					isAutoMentionDisabled:
-						suggestions.mentions.isAutoMentionDisabled,
+					contextNotes: contextNotes.notes,
+					selection,
 					images: images.length > 0 ? images : undefined,
 					resourceLinks:
 						resourceLinks.length > 0 ? resourceLinks : undefined,
 					isFirstMessage,
 				});
+
+				// Auto-crystallize @[[mentions]] after send (Decision #11)
+				for (const path of extractMentionedPaths(content, (name) =>
+					plugin.app.metadataCache.getFirstLinkpathDest(name, "")
+						?.path ?? null,
+				)) {
+					contextNotes.add(path, "mention");
+				}
 
 				// Save session metadata locally on first message
 				if (isFirstMessage && session.sessionId) {
@@ -210,8 +221,9 @@ export function useChatActions(
 			session.sessionId,
 			sessionHistory.saveSessionLocally,
 			logger,
-			suggestions.mentions.activeNote,
-			suggestions.mentions.isAutoMentionDisabled,
+			plugin,
+			contextNotes,
+			selection,
 			shouldConvertToWsl,
 			vaultPath,
 		],

@@ -120,16 +120,16 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		new Setting(containerEl).setName("Mentions").setHeading();
 
 		new Setting(containerEl)
-			.setName("Auto-mention active note")
+			.setName("Active note as default context")
 			.setDesc(
-				"Include the current note in your messages automatically. The agent will have access to its content without typing @notename.",
+				"Automatically add the active note to a new chat's context strip. You can always crystallize notes manually with the grab button.",
 			)
 			.addToggle((toggle) =>
 				toggle
-					.setValue(this.plugin.settings.autoMentionActiveNote)
+					.setValue(this.plugin.settings.activeNoteAsDefaultContext)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
-							autoMentionActiveNote: value,
+							activeNoteAsDefaultContext: value,
 						});
 					}),
 			);
