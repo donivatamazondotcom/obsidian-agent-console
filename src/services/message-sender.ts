@@ -38,6 +38,7 @@ import {
 } from "../utils/mention-parser";
 import { convertWindowsPathToWsl } from "../utils/platform";
 import { buildFileUri } from "../utils/paths";
+import { buildContextBlocks } from "./context-builder";
 
 // ============================================================================
 // Types
@@ -79,6 +80,20 @@ export interface PreparePromptInput {
 
 	/** Whether this is the first message in the session */
 	isFirstMessage?: boolean;
+
+	// --- Context Note Lifecycle (new system) ---
+	// When contextNotes is provided, buildContextBlocks is used instead of autoMention.
+
+	/** Crystallized context notes for this chat (replaces activeNote when present) */
+	contextNotes?: import("../types/context").ContextNote[];
+
+	/** Current selection from the last active markdown editor */
+	selectionContext?: {
+		path: string;
+		fromLine: number;
+		toLine: number;
+		text: string;
+	} | null;
 }
 
 /**
@@ -389,6 +404,12 @@ export async function preparePrompt(
 	vaultAccess: IVaultAccess,
 	mentionService: IMentionService,
 ): Promise<PreparePromptResult> {
+	// --- New context-notes system (when contextNotes is provided) ---
+	if (input.contextNotes !== undefined) {
+		return preparePromptWithContextNotes(input, vaultAccess, mentionService);
+	}
+
+	// --- Legacy autoMention system (fallback) ---
 	// Step 1: Extract all mentioned notes from the message
 	const mentionedNotes = extractMentionedNotes(input.message, mentionService);
 
@@ -402,6 +423,83 @@ export async function preparePrompt(
 	} else {
 		return preparePromptWithTextContext(input, vaultAccess, mentionedNotes);
 	}
+}
+
+/**
+ * Prepare prompt using the new context-notes system (crystallized notes + selection).
+ * Replaces the autoMention path when contextNotes is provided.
+ */
+async function preparePromptWithContextNotes(
+	input: PreparePromptInput,
+	vaultAccess: IVaultAccess,
+	mentionService: IMentionService,
+): Promise<PreparePromptResult> {
+	const contextBlocks = buildContextBlocks({
+		contextNotes: input.contextNotes ?? [],
+		selection: input.selectionContext ?? null,
+		useEmbeddedContext: input.supportsEmbeddedContext ?? false,
+		vaultPath: input.vaultBasePath,
+	});
+
+	// Mentioned notes (@[[...]]) still inline content per Channel 3 (unchanged)
+	const mentionedNotes = extractMentionedNotes(input.message, mentionService);
+	const mentionBlocks: PromptContent[] = [];
+	const maxNoteLen = input.maxNoteLength ?? DEFAULT_MAX_NOTE_LENGTH;
+
+	for (const { file } of mentionedNotes) {
+		if (!file) continue;
+		const note = await processNote(
+			file,
+			input.vaultBasePath,
+			vaultAccess,
+			input.convertToWsl ?? false,
+			maxNoteLen,
+		);
+		if (!note) continue;
+
+		if (input.supportsEmbeddedContext) {
+			const text = note.wasTruncated
+				? note.content + `\n\n[Note: Truncated from ${note.originalLength} to ${maxNoteLen} characters]`
+				: note.content;
+			mentionBlocks.push({
+				type: "resource",
+				resource: { uri: note.uri, mimeType: "text/markdown", text },
+				annotations: { audience: ["assistant"], priority: 1.0, lastModified: note.lastModified },
+			});
+		} else {
+			const truncationNote = note.wasTruncated
+				? `\n\n[Note: Truncated from ${note.originalLength} to ${maxNoteLen} characters]`
+				: "";
+			mentionBlocks.push({
+				type: "text",
+				text: `<obsidian_mentioned_note ref="${note.uri}">\n${note.content}${truncationNote}\n</obsidian_mentioned_note>`,
+			});
+		}
+	}
+
+	// Build display content (what the user sees in the chat)
+	const displayContent: PromptContent[] = [];
+	if (input.message) {
+		displayContent.push({ type: "text", text: input.message });
+	}
+	if (input.images) {
+		displayContent.push(...input.images);
+	}
+
+	// Build agent content (context blocks + mentions + user message + images + resource links)
+	const agentContent: PromptContent[] = [
+		...contextBlocks,
+		...mentionBlocks,
+		...(input.message ? [{ type: "text" as const, text: input.message }] : []),
+		...(input.images ?? []),
+		...(input.resourceLinks ?? []),
+	];
+
+	return {
+		displayContent,
+		agentContent,
+		// No autoMentionContext in the new system — the ContextStrip handles display
+	};
 }
 
 /**
