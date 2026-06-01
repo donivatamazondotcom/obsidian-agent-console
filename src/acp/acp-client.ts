@@ -81,6 +81,13 @@ export class AcpClient {
 	private currentAgentId: string | null = null;
 	private currentSessionId: string | null = null;
 
+	/**
+	 * In-flight initialize() promise, used to coalesce concurrent
+	 * same-agent calls (I46). Cleared when the call settles.
+	 */
+	private initializePromise: Promise<InitializeResult> | null = null;
+	private initializingAgentId: string | null = null;
+
 	// Callbacks (none — all events flow through onSessionUpdate via AcpHandler)
 
 	// Delegates
@@ -121,6 +128,37 @@ export class AcpClient {
 	 * Spawns the agent process and establishes ACP connection.
 	 */
 	async initialize(config: AgentConfig): Promise<InitializeResult> {
+		// Coalesce concurrent initialize() calls for the SAME agent onto one
+		// in-flight promise (I46). Without this, a second caller (e.g. the
+		// lazy createSession firing on first keystroke during the eager-init
+		// handshake) re-enters doInitialize, whose killProcessTree() kills the
+		// in-flight process and restarts the handshake — the visible
+		// ready→connecting→ready flicker. A different agent id is a genuine
+		// agent switch and is NOT coalesced.
+		if (this.initializePromise && this.initializingAgentId === config.id) {
+			this.logger.log(
+				`[AcpClient] initialize() already in flight for ${config.id}; awaiting existing promise`,
+			);
+			return this.initializePromise;
+		}
+
+		const promise = this.doInitialize(config);
+		this.initializePromise = promise;
+		this.initializingAgentId = config.id;
+		try {
+			return await promise;
+		} finally {
+			// Only clear if a newer initialize() hasn't superseded this one.
+			if (this.initializePromise === promise) {
+				this.initializePromise = null;
+				this.initializingAgentId = null;
+			}
+		}
+	}
+
+	private async doInitialize(
+		config: AgentConfig,
+	): Promise<InitializeResult> {
 		this.logger.log(
 			"[AcpClient] Starting initialization with config:",
 			this.getSafeConfigForLog(config),
