@@ -94,15 +94,22 @@ export async function captureEntry(
 	if (entry.promptFile) {
 		const promptPath = path.join(deps.fixtureRoot, "prompts", entry.promptFile);
 		const content = deps.readFile(promptPath, "utf-8");
-		// Escape for JS string embedding
+		// Escape for JS template-literal embedding
 		const escaped = content.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$/g, "\\$");
+		// Set the textarea via the native value setter so React's controlled
+		// input picks up the change, then dispatch input + click send.
 		await deps.cdp.evaluate(
-			`(() => { const ta = document.querySelector('.agent-console-input textarea, .agent-console-input [contenteditable]'); if (ta) { ta.value = \`${escaped}\`; ta.dispatchEvent(new Event('input', {bubbles:true})); } })()`,
+			`(() => {
+				const ta = document.querySelector('textarea.agent-client-chat-input-textarea');
+				if (!ta) return false;
+				const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+				setter.call(ta, \`${escaped}\`);
+				ta.dispatchEvent(new Event('input', { bubbles: true }));
+				return true;
+			})()`,
 		);
-		// Submit
-		await deps.cdp.evaluate(
-			`(() => { const btn = document.querySelector('.agent-console-input button[type="submit"], .agent-console-send-button'); if (btn) btn.click(); })()`,
-		);
+		await deps.cdp.waitForElement(".agent-client-chat-send-button:not(.agent-client-disabled)");
+		await deps.cdp.clickElement(".agent-client-chat-send-button");
 		// Wait for response to appear
 		await sleep(SETTLE_MS);
 	}

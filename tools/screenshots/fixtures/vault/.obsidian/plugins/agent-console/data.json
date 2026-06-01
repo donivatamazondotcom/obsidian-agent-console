@@ -1,0 +1,14 @@
+{
+  "customAgents": [
+    {
+      "id": "kiro-cli",
+      "displayName": "Kiro",
+      "command": "/Users/doniv/.toolbox/bin/kiro-cli",
+      "args": ["acp"],
+      "env": []
+    }
+  ],
+  "defaultAgentId": "kiro-cli",
+  "nodePath": "/Users/doniv/.local/share/mise/installs/node/24.14.0/bin/node",
+  "autoAllowPermissions": true
+}
