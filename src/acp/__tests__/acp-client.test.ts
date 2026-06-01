@@ -98,3 +98,35 @@ describe("AcpClient.initialize — concurrent-call coalescing (I46)", () => {
 		expect(spy).toHaveBeenCalledTimes(2);
 	});
 });
+
+/**
+ * Unit test for AcpClient capability caching (I47: screenshot paste broken in
+ * restored tabs).
+ *
+ * Root cause: restored tabs acquire their session via `loadSession` (not
+ * `createSession`), and the eager-init-on-mount (Decision #10) discards
+ * `initialize()`'s return value. With no cached InitializeResult on the
+ * client, the agent's advertised `promptCapabilities` (image: true) is
+ * unreachable after init — so `updateSessionFromLoad` leaves
+ * `session.promptCapabilities` undefined and `supportsImages` renders false,
+ * silently disabling paste. The fix caches the result in the `initialize()`
+ * wrapper; `getInitializeResult()` exposes it to the load path.
+ */
+describe("AcpClient.initialize — capability cache (I47)", () => {
+	const RESULT_WITH_CAPS = {
+		protocolVersion: 1,
+		promptCapabilities: { image: true, audio: false, embeddedContext: false },
+	} as unknown as InitializeResult;
+
+	it("exposes promptCapabilities via getInitializeResult() after init", async () => {
+		const client = makeClient();
+		vi.spyOn(
+			client as unknown as DoInitializeSeam,
+			"doInitialize",
+		).mockResolvedValue(RESULT_WITH_CAPS);
+
+		expect(client.getInitializeResult()).toBeNull();
+		await client.initialize(makeConfig("auto-sa"));
+		expect(client.getInitializeResult()?.promptCapabilities?.image).toBe(true);
+	});
+});

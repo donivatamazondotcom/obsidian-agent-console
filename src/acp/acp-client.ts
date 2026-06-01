@@ -87,6 +87,9 @@ export class AcpClient {
 	 */
 	private initializePromise: Promise<InitializeResult> | null = null;
 	private initializingAgentId: string | null = null;
+	/** Cached InitializeResult so capabilities survive past a discarded
+	 * eager-init return value — read by the restored-tab load path (I47). */
+	private cachedInitResult: InitializeResult | null = null;
 
 	// Callbacks (none — all events flow through onSessionUpdate via AcpHandler)
 
@@ -146,7 +149,9 @@ export class AcpClient {
 		this.initializePromise = promise;
 		this.initializingAgentId = config.id;
 		try {
-			return await promise;
+			const result = await promise;
+			this.cachedInitResult = result;
+			return result;
 		} finally {
 			// Only clear if a newer initialize() hasn't superseded this one.
 			if (this.initializePromise === promise) {
@@ -679,6 +684,15 @@ export class AcpClient {
 			this.connection !== null &&
 			this.agentProcess !== null
 		);
+	}
+
+	/**
+	 * The cached InitializeResult from the last successful initialize().
+	 * Lets the restored-tab load path recover promptCapabilities the
+	 * eager-init (Decision #10) discarded. Null before first init (I47).
+	 */
+	getInitializeResult(): InitializeResult | null {
+		return this.cachedInitResult;
 	}
 
 	/**

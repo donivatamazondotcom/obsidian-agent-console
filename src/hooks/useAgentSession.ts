@@ -271,10 +271,14 @@ export function useAgentSession(
 					configOptions: finalConfigOptions,
 					promptCapabilities: initResult
 						? initResult.promptCapabilities
-						: prev.promptCapabilities,
+						: (agentClient.getInitializeResult()
+								?.promptCapabilities ??
+							prev.promptCapabilities),
 					agentCapabilities: initResult
 						? initResult.agentCapabilities
-						: prev.agentCapabilities,
+						: (agentClient.getInitializeResult()
+								?.agentCapabilities ??
+							prev.agentCapabilities),
 					agentInfo: initResult
 						? initResult.agentInfo
 						: prev.agentInfo,
@@ -398,6 +402,15 @@ export function useAgentSession(
 				modes: finalModes ?? prev.modes,
 				models: finalModels ?? prev.models,
 				configOptions: finalConfigOptions ?? prev.configOptions,
+				// LoadSessionResponse carries no capabilities; recover them
+				// from the cached init result so restored tabs match fresh
+				// tabs (I47 — screenshot paste in restored tabs).
+				promptCapabilities:
+					agentClient.getInitializeResult()?.promptCapabilities ??
+					prev.promptCapabilities,
+				agentCapabilities:
+					agentClient.getInitializeResult()?.agentCapabilities ??
+					prev.agentCapabilities,
 				lastActivityAt: new Date(),
 			}));
 		},
