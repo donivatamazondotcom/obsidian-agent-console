@@ -24,17 +24,6 @@
       },
       "promptFile": "multi-session.txt",
       "approvalThreshold": 0.10
-    },
-    {
-      "name": "floating-chat-view",
-      "width": 2528,
-      "height": 2028,
-      "crop": { "x": 0, "y": 0, "width": 1280, "height": 1028 },
-      "initialState": {
-        "openNote": "Welcome.md",
-        "openChatView": true
-      },
-      "approvalThreshold": 0.10
     }
   ]
 }
