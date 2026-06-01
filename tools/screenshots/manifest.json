@@ -1,0 +1,37 @@
+{
+  "entries": [
+    {
+      "name": "ribbon-icon",
+      "width": 233,
+      "height": 149,
+      "crop": { "x": 0, "y": 25, "width": 120, "height": 77 },
+      "initialState": {
+        "openNote": "Welcome.md"
+      },
+      "approvalThreshold": 0.001
+    },
+    {
+      "name": "multi-session",
+      "width": 1697,
+      "height": 1145,
+      "crop": { "x": 0, "y": 0, "width": 900, "height": 608 },
+      "initialState": {
+        "openNote": "Welcome.md",
+        "clickRibbon": true
+      },
+      "promptFile": "multi-session.txt",
+      "approvalThreshold": 0.10
+    },
+    {
+      "name": "floating-chat-view",
+      "width": 2528,
+      "height": 2028,
+      "crop": { "x": 0, "y": 0, "width": 1280, "height": 1028 },
+      "initialState": {
+        "openNote": "Welcome.md",
+        "openChatView": true
+      },
+      "approvalThreshold": 0.10
+    }
+  ]
+}
