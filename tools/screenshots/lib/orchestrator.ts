@@ -24,11 +24,11 @@ export interface CdpLike {
 
 /** sharp factory — matches `import sharp from "sharp"` call signature. */
 export type SharpFactory = (input: string) => {
-	extract(region: { x: number; y: number; width: number; height: number }): SharpPipeline;
+	extract(region: { left: number; top: number; width: number; height: number }): SharpPipeline;
 };
 
 interface SharpPipeline {
-	extract(region: { x: number; y: number; width: number; height: number }): SharpPipeline;
+	extract(region: { left: number; top: number; width: number; height: number }): SharpPipeline;
 	resize(width: number, height: number): SharpPipeline;
 	webp(opts?: { quality?: number }): SharpPipeline;
 	toFile(path: string): Promise<unknown>;
@@ -115,8 +115,8 @@ export async function captureEntry(
 
 	await deps.sharp(tmpPath)
 		.extract({
-			x: scaledCrop.x,
-			y: scaledCrop.y,
+			left: scaledCrop.x,
+			top: scaledCrop.y,
 			width: scaledCrop.width,
 			height: scaledCrop.height,
 		})

@@ -86,7 +86,7 @@ describe("captureEntry", () => {
 		expect(deps.sharp).toHaveBeenCalledTimes(1);
 		const sharpInstance = (deps.sharp as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
 		// Crop is scaled by DPR (2): floor(0*2)=0, ceil((0+1600)*2)-0=3200, etc.
-		expect(sharpInstance.extract).toHaveBeenCalledWith({ x: 0, y: 0, width: 3200, height: 2400 });
+		expect(sharpInstance.extract).toHaveBeenCalledWith({ left: 0, top: 0, width: 3200, height: 2400 });
 		expect(sharpInstance.resize).toHaveBeenCalledWith(entry.width, entry.height);
 		expect(sharpInstance.webp).toHaveBeenCalled();
 		expect(sharpInstance.toFile).toHaveBeenCalledWith(
@@ -168,10 +168,10 @@ describe("captureEntry", () => {
 		await captureEntry(entry, deps);
 
 		const sharpInstance = (deps.sharp as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
-		const extractArg = sharpInstance.extract.mock.calls[0][0] as { x: number; y: number; width: number; height: number };
+		const extractArg = sharpInstance.extract.mock.calls[0][0] as { left: number; top: number; width: number; height: number };
 		// floor(10*2)=20, floor(20*2)=40, ceil((10+100)*2)-20=200, ceil((20+50)*2)-40=100
-		expect(extractArg.x).toBe(20);
-		expect(extractArg.y).toBe(40);
+		expect(extractArg.left).toBe(20);
+		expect(extractArg.top).toBe(40);
 		expect(extractArg.width).toBe(200);
 		expect(extractArg.height).toBe(100);
 	});

@@ -5,7 +5,7 @@
  */
 declare module "sharp" {
 	interface SharpInstance {
-		extract(region: { x: number; y: number; width: number; height: number }): SharpInstance;
+		extract(region: { left: number; top: number; width: number; height: number }): SharpInstance;
 		resize(width: number, height: number): SharpInstance;
 		webp(opts?: { quality?: number }): SharpInstance;
 		toFile(path: string): Promise<unknown>;
