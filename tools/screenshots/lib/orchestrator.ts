@@ -18,6 +18,7 @@ export interface CdpLike {
 	evaluate<T = unknown>(expression: string): Promise<T>;
 	clickElement(selector: string): Promise<void>;
 	waitForElement(selector: string, timeoutMs?: number): Promise<void>;
+	getElementBounds(selector: string): Promise<{ x: number; y: number; width: number; height: number }>;
 	screenshot(outputPath: string): Promise<void>;
 	setMobileEmulation(enabled: boolean): Promise<void>;
 }
@@ -109,8 +110,25 @@ export async function captureEntry(
 	const tmpPath = path.join(deps.tmpDir, `${entry.name}-raw.png`);
 	await deps.cdp.screenshot(tmpPath);
 
-	// 6. Crop, resize, encode to .webp
-	const scaledCrop = scaleRectByDevicePixelRatio(entry.crop, deps.devicePixelRatio);
+	// 6. Determine crop region — auto from selector or static from manifest
+	let cropRect = entry.crop;
+	if (entry.cropSelector) {
+		try {
+			const bounds = await deps.cdp.getElementBounds(entry.cropSelector);
+			const padding = entry.cropPadding ?? 16;
+			cropRect = {
+				x: Math.max(0, bounds.x - padding),
+				y: Math.max(0, bounds.y - padding),
+				width: bounds.width + padding * 2,
+				height: bounds.height + padding * 2,
+			};
+		} catch {
+			// Selector didn't match — fall back to static crop
+		}
+	}
+
+	// 7. Crop, resize, encode to .webp
+	const scaledCrop = scaleRectByDevicePixelRatio(cropRect, deps.devicePixelRatio);
 	const outputPath = deriveOutputPath(entry, deps.repoRoot);
 
 	await deps.sharp(tmpPath)

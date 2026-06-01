@@ -68,6 +68,19 @@ export interface ManifestEntry {
 	height: number;
 	/** Crop region in the captured screenshot's coordinate space. */
 	crop: CropRect;
+	/**
+	 * Optional CSS selector for auto-cropping. When set, the driver
+	 * queries `getBoundingClientRect()` on this element at capture time
+	 * and uses the result (plus `cropPadding`) as the crop region —
+	 * overriding the static `crop` field. Falls back to `crop` if the
+	 * selector matches nothing.
+	 */
+	cropSelector?: string;
+	/**
+	 * Padding in CSS pixels to add around the `cropSelector` bounds on
+	 * all sides. Default 16. Ignored when `cropSelector` is not set.
+	 */
+	cropPadding?: number;
 	/** Optional UI-state setup performed before capture. */
 	initialState?: InitialState;
 	/**

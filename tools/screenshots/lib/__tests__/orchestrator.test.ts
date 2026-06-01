@@ -176,6 +176,48 @@ describe("captureEntry", () => {
 		expect(extractArg.height).toBe(100);
 	});
 
+	it("uses cropSelector bounds when available", async () => {
+		const deps = makeDeps();
+		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockResolvedValue({
+			x: 10, y: 50, width: 30, height: 26,
+		});
+		const entry = makeEntry({
+			cropSelector: ".my-icon",
+			cropPadding: 16,
+			crop: { x: 0, y: 0, width: 999, height: 999 }, // static fallback — should be ignored
+		});
+
+		await captureEntry(entry, deps);
+
+		expect(deps.cdp.getElementBounds).toHaveBeenCalledWith(".my-icon");
+		const sharpInstance = (deps.sharp as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
+		// Bounds: x=10-16=-6→0, y=50-16=34, w=30+32=62, h=26+32=58, scaled by DPR 2
+		const extractArg = sharpInstance.extract.mock.calls[0][0] as { left: number; top: number; width: number; height: number };
+		expect(extractArg.left).toBe(0);    // max(0, (10-16)*2) = 0
+		expect(extractArg.top).toBe(68);    // floor(34*2)
+		expect(extractArg.width).toBe(124); // ceil((0+62)*2) - 0 ... actually let's just check it's not 999*2
+		expect(extractArg.width).not.toBe(1998);
+	});
+
+	it("falls back to static crop when cropSelector matches nothing", async () => {
+		const deps = makeDeps();
+		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockRejectedValue(
+			new Error("no element matches"),
+		);
+		const entry = makeEntry({
+			cropSelector: ".missing",
+			crop: { x: 5, y: 10, width: 100, height: 50 },
+		});
+
+		await captureEntry(entry, deps);
+
+		const sharpInstance = (deps.sharp as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
+		const extractArg = sharpInstance.extract.mock.calls[0][0] as { left: number; top: number };
+		// Should use static crop scaled by DPR: left = floor(5*2) = 10
+		expect(extractArg.left).toBe(10);
+		expect(extractArg.top).toBe(20);
+	});
+
 	it("propagates Cdp errors", async () => {
 		const deps = makeDeps();
 		(deps.cdp.screenshot as ReturnType<typeof vi.fn>).mockRejectedValue(

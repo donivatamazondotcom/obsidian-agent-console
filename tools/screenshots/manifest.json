@@ -5,6 +5,8 @@
       "width": 233,
       "height": 149,
       "crop": { "x": 0, "y": 25, "width": 120, "height": 77 },
+      "cropSelector": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"], .side-dock-ribbon-action[aria-label*=\"agent-console\"]",
+      "cropPadding": 24,
       "initialState": {
         "openNote": "Welcome.md"
       },
@@ -15,6 +17,8 @@
       "width": 1697,
       "height": 1145,
       "crop": { "x": 0, "y": 0, "width": 900, "height": 608 },
+      "cropSelector": ".workspace-split.mod-right-split",
+      "cropPadding": 0,
       "initialState": {
         "openNote": "Welcome.md",
         "clickRibbon": true
