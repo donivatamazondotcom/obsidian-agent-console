@@ -13,7 +13,7 @@ import { describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useContextNotes } from "../useContextNotes";
 import { MAX_CONTEXT_NOTES } from "../../types/context";
-import type { NoteMetadata } from "../../types/context";
+import type { ContextNote } from "../../types/context";
 
 describe("useContextNotes", () => {
 	// ========================================================================
@@ -214,7 +214,7 @@ describe("useContextNotes", () => {
 	// ========================================================================
 
 	it("accepts initial notes via parameter", () => {
-		const initial: NoteMetadata[] = [
+		const initial: ContextNote[] = [
 			{ path: "restored.md", source: "user", seen: false },
 			{ path: "other.md", source: "mention", seen: false },
 		];
@@ -223,7 +223,7 @@ describe("useContextNotes", () => {
 	});
 
 	it("clamps initial notes to cap if persisted state exceeds it", () => {
-		const initial: NoteMetadata[] = Array.from({ length: 12 }, (_, i) => ({
+		const initial: ContextNote[] = Array.from({ length: 12 }, (_, i) => ({
 			path: `note-${i}.md`,
 			source: "user" as const,
 			seen: false,

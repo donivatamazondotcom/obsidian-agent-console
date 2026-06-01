@@ -10,11 +10,14 @@ export type ContextNoteSource = "user" | "mention" | "agent" | "auto-default";
 export const MAX_CONTEXT_NOTES = 8;
 
 /**
- * A single crystallized context note.
+ * A single crystallized context note entry.
  * Identity is `path` (vault-relative). Display name derived from basename at render.
  * Array index encodes insertion order (Decision #17).
+ *
+ * Named `ContextNote` (not `NoteMetadata`) to avoid collision with
+ * vault-service's `NoteMetadata` which represents a vault file's full metadata.
  */
-export interface NoteMetadata {
+export interface ContextNote {
 	/** Vault-relative path; identity key; remapped on vault rename event. */
 	path: string;
 	/** How this note first entered context. Set once, never mutated. */

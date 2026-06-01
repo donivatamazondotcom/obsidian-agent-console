@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo } from "react";
-import type { NoteMetadata, ContextNoteSource } from "../types/context";
+import type { ContextNote, ContextNoteSource } from "../types/context";
 import { MAX_CONTEXT_NOTES } from "../types/context";
 
 export interface UseContextNotesReturn {
-	notes: NoteMetadata[];
+	notes: ContextNote[];
 	isFull: boolean;
 	add: (path: string, source: ContextNoteSource) => boolean;
 	remove: (path: string) => void;
@@ -17,9 +17,9 @@ export interface UseContextNotesReturn {
  * with cap enforcement, deduplication, and vault-event handling.
  */
 export function useContextNotes(
-	initial?: NoteMetadata[],
+	initial?: ContextNote[],
 ): UseContextNotesReturn {
-	const [notes, setNotes] = useState<NoteMetadata[]>(() =>
+	const [notes, setNotes] = useState<ContextNote[]>(() =>
 		initial ? initial.slice(0, MAX_CONTEXT_NOTES) : [],
 	);
 
