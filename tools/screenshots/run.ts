@@ -37,10 +37,13 @@ async function main() {
 	// Detect device pixel ratio (default 2 for retina Mac)
 	const dpr = parseInt(process.env.SCREENSHOT_DPR || "2", 10);
 
+	// Vault name for CDP targeting (the fixtures vault folder is named "vault")
+	const vaultName = process.env.SCREENSHOT_VAULT || "vault";
+
 	// Wire up real deps
 	const sharp = (await import("sharp")).default;
 	const deps: OrchestratorDeps = {
-		cdp: new Cdp(),
+		cdp: new Cdp({ vault: vaultName }),
 		sharp: (input: string) => sharp(input),
 		repoRoot,
 		fixtureRoot,

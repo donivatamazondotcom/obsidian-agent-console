@@ -33,6 +33,13 @@ export interface CdpOptions {
 	 * lookup). Override for tests or non-default installs.
 	 */
 	binary?: string;
+	/**
+	 * Obsidian vault name to target. When set, prepends `vault=<name>`
+	 * to every CLI invocation, ensuring commands hit the correct window
+	 * even when multiple vaults are open. Required for screenshot
+	 * automation (targets the fixtures vault, not the daily-driver).
+	 */
+	vault?: string;
 	/** Timeout in ms for waitForElement polls. Default 5000. */
 	waitTimeout?: number;
 	/** Timeout in ms for screenshot file appearance. Default 5000. */
@@ -72,12 +79,14 @@ interface ChildProcessLike {
 
 export class Cdp {
 	private readonly binary: string;
+	private readonly vault: string | undefined;
 	private readonly waitTimeout: number;
 	private readonly screenshotTimeout: number;
 	private readonly pollInterval: number;
 
 	constructor(opts: CdpOptions = {}) {
 		this.binary = opts.binary ?? "obsidian";
+		this.vault = opts.vault;
 		this.waitTimeout = opts.waitTimeout ?? 5000;
 		this.screenshotTimeout = opts.screenshotTimeout ?? 5000;
 		this.pollInterval = opts.pollInterval ?? 50;
@@ -214,9 +223,10 @@ export class Cdp {
 	 */
 	private runRaw(args: string[]): Promise<string> {
 		return new Promise<string>((resolve, reject) => {
+			const fullArgs = this.vault ? [`vault=${this.vault}`, ...args] : args;
 			const proc = spawn(
 				this.binary,
-				args,
+				fullArgs,
 			) as unknown as ChildProcessLike;
 			const stdoutChunks: Buffer[] = [];
 			proc.stdout.on("data", (chunk) =>
