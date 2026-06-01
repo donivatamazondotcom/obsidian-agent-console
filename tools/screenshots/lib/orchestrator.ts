@@ -19,6 +19,7 @@ export interface CdpLike {
 	clickElement(selector: string): Promise<void>;
 	waitForElement(selector: string, timeoutMs?: number): Promise<void>;
 	getElementBounds(selector: string): Promise<{ x: number; y: number; width: number; height: number }>;
+	hoverElement(selector: string): Promise<void>;
 	screenshot(outputPath: string): Promise<void>;
 	setMobileEmulation(enabled: boolean): Promise<void>;
 }
@@ -84,6 +85,9 @@ export async function captureEntry(
 		await deps.cdp.evaluate(
 			`app.commands.executeCommandById("agent-console:open-chat-view")`,
 		);
+	}
+	if (entry.initialState?.hoverSelector) {
+		await deps.cdp.hoverElement(entry.initialState.hoverSelector);
 	}
 
 	// 3. Send prompt if specified

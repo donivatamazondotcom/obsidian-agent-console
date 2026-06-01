@@ -192,6 +192,20 @@ export class Cdp {
 	}
 
 	/**
+	 * Move the mouse to the center of the element matching the selector,
+	 * triggering native hover/tooltip behavior. Uses CDP
+	 * `Input.dispatchMouseEvent` which works where synthetic MouseEvent
+	 * dispatches don't (Obsidian tooltips require pointer position tracking).
+	 */
+	async hoverElement(selector: string): Promise<void> {
+		const bounds = await this.getElementBounds(selector);
+		const x = Math.round(bounds.x + bounds.width / 2);
+		const y = Math.round(bounds.y + bounds.height / 2);
+		const params = JSON.stringify({ type: "mouseMoved", x, y });
+		await this.runRaw(["dev:cdp", "method=Input.dispatchMouseEvent", `params=${params}`]);
+	}
+
+	/**
 	 * Spawn `obsidian` with the given args and resolve with the captured
 	 * stdout. Stderr is read but discarded (it's all sandbox-init noise
 	 * in our environment). Rejects only on spawn-level errors (binary

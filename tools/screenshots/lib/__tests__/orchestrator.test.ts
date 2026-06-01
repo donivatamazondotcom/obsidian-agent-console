@@ -42,6 +42,7 @@ function makeMockCdp() {
 		evaluate: vi.fn().mockResolvedValue(undefined),
 		clickElement: vi.fn().mockResolvedValue(undefined),
 		waitForElement: vi.fn().mockResolvedValue(undefined),
+		hoverElement: vi.fn().mockResolvedValue(undefined),
 		screenshot: vi.fn().mockResolvedValue(undefined),
 		setMobileEmulation: vi.fn().mockResolvedValue(undefined),
 		getElementBounds: vi.fn().mockResolvedValue({ x: 0, y: 0, width: 100, height: 100 }),
