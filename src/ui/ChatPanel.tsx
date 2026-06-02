@@ -32,6 +32,7 @@ import { useSuggestions } from "../hooks/useSuggestions";
 import { useAgent } from "../hooks/useAgent";
 import { useSessionHistory } from "../hooks/useSessionHistory";
 import { useLazySession } from "../hooks/useLazySession";
+import { useDebouncedSessionSave } from "../hooks/useDebouncedSessionSave";
 
 // Domain model imports
 import {
@@ -1039,16 +1040,14 @@ export function ChatPanel({
 	]);
 
 	// Debounced incremental save so the message tail survives reload/quit
-	// even mid-stream or before a turn ends (I48). The turn-end save above
-	// is kept for the completion notification.
-	useEffect(() => {
-		if (!session.sessionId || messages.length === 0) return;
-		const sessionId = session.sessionId;
-		const timer = window.setTimeout(() => {
-			sessionHistory.saveSessionMessages(sessionId, messages);
-		}, 1000);
-		return () => window.clearTimeout(timer);
-	}, [messages, session.sessionId, sessionHistory.saveSessionMessages]);
+	// even mid-stream or before a turn ends (I48). Extracted to a hook with
+	// an unmount-flush + max-wait so a mid-stream reload does not lose the
+	// in-flight turn. The turn-end save above is kept for the notification.
+	useDebouncedSessionSave(
+		session.sessionId,
+		messages,
+		sessionHistory.saveSessionMessages,
+	);
 
 	// ============================================================
 	// Effects - System Notification on Permission Request
