@@ -30,6 +30,8 @@ export interface TabInfo {
 	agentId: string;
 	/** Short label displayed on the tab (≤25 chars) */
 	label: string;
+	/** True when the user manually renamed this tab; auto-derived labels must not overwrite it (I56). */
+	labelIsCustom?: boolean;
 	/** Current visual state for the tab icon */
 	state: TabState;
 	/** Timestamp when this tab was created */
@@ -58,6 +60,8 @@ export interface PersistedTabInfo {
 	agentId: string;
 	/** Short label displayed on the tab (≤25 chars) */
 	label: string;
+	/** True when the user manually renamed this tab (I56). Persisted so the rename survives restart. */
+	labelIsCustom?: boolean;
 	/**
 	 * ACP session ID for this tab. Explicitly null for tabs that have
 	 * never had a message sent (lazy session lifecycle per spec

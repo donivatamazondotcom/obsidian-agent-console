@@ -17,8 +17,8 @@
  *
  *   Save shape (U31–U33)
  *     U31  Serializes per-leaf shape: { leafId, tabs, activeTabId }
- *     U32  Each tab serializes: tabId, agentId, label, sessionId,
- *          tabOrder, scrollPosition
+ *     U32  Each tab serializes: tabId, agentId, label, labelIsCustom,
+ *          sessionId, tabOrder, scrollPosition
  *     U33  Tab with sessionId: null is saved with explicit null
  *
  *   Restore (U34–U38)
@@ -381,7 +381,7 @@ describe("useTabPersistence — save shape", () => {
 		expect(Array.isArray(stateArg.tabs)).toBe(true);
 	});
 
-	it("U32: each tab serializes tabId, agentId, label, sessionId, tabOrder, scrollPosition", async () => {
+	it("U32: each tab serializes tabId, agentId, label, labelIsCustom, sessionId, tabOrder, scrollPosition", async () => {
 		const storage = makeStorage();
 		const { result } = renderHook(() =>
 			useTabPersistence(
@@ -408,6 +408,7 @@ describe("useTabPersistence — save shape", () => {
 			[
 				"agentId",
 				"label",
+				"labelIsCustom",
 				"scrollPosition",
 				"sessionId",
 				"tabId",

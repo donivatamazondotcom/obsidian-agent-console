@@ -165,6 +165,7 @@ function buildPerLeafState(
 		tabId: tab.tabId,
 		agentId: tab.agentId,
 		label: tab.label,
+		labelIsCustom: tab.labelIsCustom ?? false,
 		sessionId: getSessionId(tab.tabId),
 		tabOrder: index,
 		scrollPosition: getScrollPosition(tab.tabId),
