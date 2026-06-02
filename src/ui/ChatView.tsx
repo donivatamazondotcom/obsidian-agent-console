@@ -4,7 +4,7 @@ import type {
 	ChatViewType,
 } from "../services/view-registry";
 import * as React from "react";
-const { useEffect, useMemo, useCallback, useRef } = React;
+const { useEffect, useMemo, useCallback, useRef, useState } = React;
 import { createRoot, Root } from "react-dom/client";
 
 import type AgentClientPlugin from "../plugin";
@@ -189,6 +189,11 @@ function ChatComponent({
 	// Per-tab session ID tracking (for rename persistence to session history)
 	const tabSessionIdsRef = useRef<Map<string, string | null>>(new Map());
 
+	// Session-ID signature — changes when any tab acquires or loses a session.
+	// Drives useTabPersistence save effect (I57). A ref-only approach misses
+	// the render cycle needed to propagate the change to the hook's effect deps.
+	const [sessionSignature, setSessionSignature] = useState("");
+
 	// Per-tab persisted session IDs (for lazy session restore on first keystroke)
 	const persistedSessionIdsRef = useRef<Map<string, string | null>>(
 		new Map(
@@ -312,6 +317,7 @@ function ChatComponent({
 		getScrollPosition: getScrollPositionForTab,
 		storage: persistenceStorage,
 		restoreEnabled: plugin.settings.restoreTabsOnStartup,
+		sessionSignature,
 	});
 
 	// Expose flushSave to the view class for onClose
@@ -469,6 +475,13 @@ function ChatComponent({
 	const handleSessionIdChange = useCallback(
 		(tabId: string, sessionId: string | null) => {
 			tabSessionIdsRef.current.set(tabId, sessionId);
+			// Trigger a save via useTabPersistence by updating the session
+			// signature (I57 — ensures sessionId is persisted on acquisition).
+			setSessionSignature(
+				Array.from(tabSessionIdsRef.current.entries())
+					.map(([id, sid]) => `${id}:${sid ?? ""}`)
+					.join("||"),
+			);
 		},
 		[],
 	);

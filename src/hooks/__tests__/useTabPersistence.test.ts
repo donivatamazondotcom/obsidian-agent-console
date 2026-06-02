@@ -742,3 +742,111 @@ describe("useTabPersistence — setting + multi-leaf", () => {
 		expect(loadLeafIds).toContain("leaf-B");
 	});
 });
+
+// ============================================================================
+// I57 — Session ID not persisted after acquisition (no structural change)
+// ============================================================================
+
+describe("useTabPersistence — I57 session acquisition persistence gap", () => {
+	/**
+	 * I57 reproducer: after a session is acquired (getSessionId transitions
+	 * from null → value), the hook MUST fire a save that captures the new
+	 * sessionId. Currently the save effect's deps are only
+	 * [leafId, persistenceSignature, restoreEnabled, restoreReady] — and
+	 * persistenceSignature is derived from tabId::agentId::label, which
+	 * does NOT change on session acquisition alone.
+	 *
+	 * This test proves the bug: after the initial save (restore-ready),
+	 * changing getSessionId to return a value without changing any tab
+	 * structural property results in NO subsequent save — meaning on the
+	 * next restart, restoredSessionId will be null and the agent starts
+	 * with an empty context window despite the UI showing full history.
+	 */
+	it("I57: save fires when getSessionId changes from null to a value (session acquired)", async () => {
+		const storage = makeStorage();
+
+		// Start with getSessionId returning null (tab has no session yet)
+		let currentSessionId: string | null = null;
+		const getSessionId = () => currentSessionId;
+
+		const props = makeProps({
+			tabs: [makeRuntimeTab({ tabId: "T1", label: "Chat" })],
+			activeTabId: "T1",
+			getSessionId,
+			storage,
+			sessionSignature: "T1:",
+		});
+
+		const { result, rerender } = renderHook(
+			(p: UseTabPersistenceProps) => useTabPersistence(p),
+			{ initialProps: props },
+		);
+
+		// Wait for the initial restore + first save
+		await waitForRestoreReady(() => result.current);
+		storage.saveTabStateForLeaf.mockClear();
+
+		// Simulate session acquisition: getSessionId now returns a value.
+		// The caller (ChatView) updates sessionSignature when this happens.
+		// NO other tab property changes (no rename, no add, no switch).
+		currentSessionId = "sess-b9215d36";
+
+		// Re-render with updated sessionSignature (mirrors ChatView's
+		// handleSessionIdChange which sets state from the ref).
+		rerender({
+			...props,
+			sessionSignature: "T1:sess-b9215d36",
+		});
+
+		// The hook MUST detect the sessionSignature change and fire a save.
+		await waitFor(() => {
+			expect(storage.saveTabStateForLeaf).toHaveBeenCalled();
+		});
+
+		// And the saved state MUST include the new sessionId
+		const lastCall = saveCalls(storage).at(-1);
+		expect(lastCall).toBeDefined();
+		const savedTab = lastCall![1].tabs[0];
+		expect(savedTab.sessionId).toBe("sess-b9215d36");
+	});
+
+	/**
+	 * Complementary test: verify that on restore, the sessionId from
+	 * the persisted state is available in restoredLeafState so that
+	 * ChatView can thread it through as restoredSessionId.
+	 *
+	 * This test passes today (restore path works); it's here to
+	 * pin the contract and prevent regressions during the I57 fix.
+	 */
+	it("I57-guard: restored state includes sessionId for lazy reconnect", async () => {
+		const storage = makeStorage({
+			loadTabStateForLeaf: vi.fn().mockResolvedValue({
+				leafId: "leaf-1",
+				tabs: [
+					makePersistedTab({
+						tabId: "T1",
+						sessionId: "sess-original",
+					}),
+				],
+				activeTabId: "T1",
+			} satisfies PerLeafTabState),
+			loadSessionMessages: vi.fn().mockResolvedValue([
+				{ role: "user", content: "hello" },
+			]),
+		});
+
+		const { result } = renderHook(
+			(p: UseTabPersistenceProps) => useTabPersistence(p),
+			{
+				initialProps: makeProps({ storage }),
+			},
+		);
+
+		await waitForRestoreReady(() => result.current);
+
+		// The restored leaf state must carry the sessionId
+		expect(result.current.restoredLeafState).not.toBeNull();
+		const tab = result.current.restoredLeafState!.tabs[0];
+		expect(tab.sessionId).toBe("sess-original");
+	});
+});

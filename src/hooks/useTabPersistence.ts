@@ -120,6 +120,13 @@ export interface UseTabPersistenceProps {
 	 * (U39, U40).
 	 */
 	restoreEnabled: boolean;
+	/**
+	 * Opaque signature that changes when any tab's sessionId transitions
+	 * (null → value on acquisition, or value → different value). Triggers
+	 * a save so the sessionId is persisted for lazy reconnect on restart.
+	 * Caller computes this from the live sessionId map. (I57)
+	 */
+	sessionSignature?: string;
 }
 
 export interface UseTabPersistenceReturn {
@@ -191,6 +198,7 @@ export function useTabPersistence(
 		getScrollPosition,
 		storage,
 		restoreEnabled,
+		sessionSignature,
 	} = props;
 
 	const [restoredLeafState, setRestoredLeafState] =
@@ -315,11 +323,10 @@ export function useTabPersistence(
 			getScrollPositionRef.current,
 		);
 		void storageRef.current.saveTabStateForLeaf(leafId, state);
-		// Deps are leafId + persistenceSignature + readiness flags.
-		// tabs / activeTabId are read via refs to ensure save sees the
-		// latest values (not a stale closure capture from when this
-		// effect was scheduled).
-	}, [leafId, persistenceSignature, restoreEnabled, restoreReady]);
+		// Deps are leafId + persistenceSignature + sessionSignature +
+		// readiness flags. tabs / activeTabId are read via refs to
+		// ensure save sees the latest values.
+	}, [leafId, persistenceSignature, sessionSignature, restoreEnabled, restoreReady]);
 
 	// === Manual flush (plugin unload — U30) ===
 	const flushSave = useCallback(async () => {
