@@ -744,6 +744,18 @@ export function ChatPanel({
 					"[Lazy] Acquiring new session for agent:",
 					effectiveAgent,
 				);
+				// I53 guard: if a session already exists (e.g. from a prior
+				// acquisition that completed during a re-render cycle before
+				// the lazy hook's setSessionId propagated), reuse it instead
+				// of creating a duplicate.
+				const existingSid = agent.session.sessionId;
+				if (existingSid) {
+					logger.log(
+						"[Lazy] Session already exists, reusing:",
+						existingSid,
+					);
+					return { ok: true as const, sessionId: existingSid };
+				}
 				await agent.createSession(effectiveAgent);
 				// After createSession resolves, agent.session.sessionId
 				// is set. The closure captured `agent` from this render's
