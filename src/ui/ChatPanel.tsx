@@ -710,6 +710,9 @@ export function ChatPanel({
 					vaultPath,
 				);
 				await acpClient.initialize(agentConfig);
+				// I54: propagate the just-fetched capabilities into session
+				// state so image paste works on a fresh tab before connecting.
+				agent.applyInitCapabilities();
 				logger.log("[ChatPanel] Eager initialize complete for:", agentId);
 			} catch (e) {
 				// Non-fatal: lazy path will retry on first keystroke

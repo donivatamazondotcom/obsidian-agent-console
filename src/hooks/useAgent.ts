@@ -70,6 +70,8 @@ export interface UseAgentReturn {
 		configOptions?: SessionConfigOption[],
 	) => Promise<void>;
 
+	applyInitCapabilities: () => void;
+
 	// Config
 	setMode: (modeId: string) => Promise<void>;
 	setModel: (modelId: string) => Promise<void>;
@@ -196,6 +198,7 @@ export function useAgent(
 			cancelOperation,
 			getAvailableAgents: agentSession.getAvailableAgents,
 			updateSessionFromLoad: agentSession.updateSessionFromLoad,
+			applyInitCapabilities: agentSession.applyInitCapabilities,
 
 			// Config
 			setMode: agentSession.setMode,
@@ -231,6 +234,7 @@ export function useAgent(
 			cancelOperation,
 			agentSession.getAvailableAgents,
 			agentSession.updateSessionFromLoad,
+			agentSession.applyInitCapabilities,
 			agentSession.setMode,
 			agentSession.setModel,
 			agentSession.setConfigOption,

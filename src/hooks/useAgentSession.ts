@@ -62,6 +62,10 @@ export interface UseAgentSessionReturn {
 		configOptions?: SessionConfigOption[],
 	) => Promise<void>;
 
+	/** Propagate cached initialize() capabilities into session state
+	 * without creating a session (I54 — fresh-tab image paste). */
+	applyInitCapabilities: () => void;
+
 	// Config
 	setMode: (modeId: string) => Promise<void>;
 	setModel: (modelId: string) => Promise<void>;
@@ -545,6 +549,22 @@ export function useAgentSession(
 		[agentClient, settingsAccess],
 	);
 
+	// Propagate cached initialize() capabilities into session state
+	// WITHOUT creating a session. Lets a fresh lazy tab enable
+	// capability-gated affordances (image paste) after eager-init
+	// completes but before the user types / connects (I54).
+	const applyInitCapabilities = useCallback(() => {
+		const init = agentClient.getInitializeResult();
+		if (!init) return;
+		setSession((prev) => ({
+			...prev,
+			promptCapabilities:
+				init.promptCapabilities ?? prev.promptCapabilities,
+			agentCapabilities:
+				init.agentCapabilities ?? prev.agentCapabilities,
+		}));
+	}, [agentClient]);
+
 	// ============================================================
 	// Return
 	// ============================================================
@@ -559,6 +579,7 @@ export function useAgentSession(
 		cancelOperation,
 		getAvailableAgents,
 		updateSessionFromLoad,
+		applyInitCapabilities,
 		setMode,
 		setModel,
 		setConfigOption,
