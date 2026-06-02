@@ -281,6 +281,11 @@ export function ChatPanel({
 				plugin.settings.gemini.displayName || plugin.settings.gemini.id
 			);
 		}
+		if (activeId === plugin.settings.kiro.id) {
+			return (
+				plugin.settings.kiro.displayName || plugin.settings.kiro.id
+			);
+		}
 		const custom = plugin.settings.customAgents.find(
 			(agent) => agent.id === activeId,
 		);

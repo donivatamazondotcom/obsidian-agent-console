@@ -96,3 +96,11 @@ export interface CodexAgentSettings extends BaseAgentSettings {
  * any agent that implements the Agent Client Protocol.
  */
 export type CustomAgentSettings = BaseAgentSettings;
+
+/**
+ * Configuration for the Kiro CLI agent (Amazon-internal).
+ *
+ * Kiro authenticates via Midway, not an API key, so it uses the base
+ * settings unchanged (no apiKeySecretId).
+ */
+export type KiroAgentSettings = BaseAgentSettings;

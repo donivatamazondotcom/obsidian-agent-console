@@ -39,8 +39,14 @@ import {
 	GeminiAgentSettings,
 	ClaudeAgentSettings,
 	CodexAgentSettings,
+	KiroAgentSettings,
 	CustomAgentSettings,
 } from "./types/agent";
+import {
+	detectAvailableAgents,
+	pickDefaultAgentId,
+	type AgentProbe,
+} from "./services/agent-detection";
 import type { SavedSessionInfo } from "./types/session";
 import { initializeLogger, getLogger } from "./utils/logger";
 
@@ -71,6 +77,7 @@ export interface AgentClientPluginSettings {
 	gemini: GeminiAgentSettings;
 	claude: ClaudeAgentSettings;
 	codex: CodexAgentSettings;
+	kiro: KiroAgentSettings;
 	customAgents: CustomAgentSettings[];
 	/** Default agent ID for new views (renamed from activeAgentId for multi-session) */
 	defaultAgentId: string;
@@ -148,6 +155,13 @@ const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 		args: ["--experimental-acp"],
 		env: [],
 	},
+	kiro: {
+		id: "kiro",
+		displayName: "Kiro CLI",
+		command: "kiro-cli",
+		args: ["acp"],
+		env: [],
+	},
 	customAgents: [],
 	defaultAgentId: "claude-code-acp",
 	autoAllowPermissions: false,
@@ -200,9 +214,12 @@ export default class AgentClientPlugin extends Plugin {
 	private floatingButton: FloatingButtonContainer | null = null;
 	/** Counter for generating unique floating chat instance IDs */
 	private floatingChatCounter = 0;
+	/** First-launch flag: no explicit defaultAgentId persisted yet. */
+	private shouldDetectDefaultAgent = false;
 
 	async onload() {
 		await this.loadSettings();
+		await this.maybeAutoSelectDefaultAgent();
 
 		initializeLogger(this.settings);
 
@@ -724,6 +741,11 @@ export default class AgentClientPlugin extends Plugin {
 				displayName:
 					this.settings.gemini.displayName || this.settings.gemini.id,
 			},
+			{
+				id: this.settings.kiro.id,
+				displayName:
+					this.settings.kiro.displayName || this.settings.kiro.id,
+			},
 			...this.settings.customAgents.map((agent) => ({
 				id: agent.id,
 				displayName: agent.displayName || agent.id,
@@ -734,6 +756,46 @@ export default class AgentClientPlugin extends Plugin {
 	/**
 	 * Register commands for each configured agent
 	 */
+	/**
+	 * First-launch only: detect which known agents are installed and set the
+	 * default to the first available in priority order (kiro -> claude ->
+	 * codex -> gemini). Skipped when the user already has an explicit default.
+	 * Detection failures are non-fatal.
+	 */
+	private async maybeAutoSelectDefaultAgent(): Promise<void> {
+		if (!this.shouldDetectDefaultAgent) {
+			return;
+		}
+		const probes: AgentProbe[] = [
+			{ id: this.settings.kiro.id, command: this.settings.kiro.command },
+			{
+				id: this.settings.claude.id,
+				command: this.settings.claude.command,
+			},
+			{
+				id: this.settings.codex.id,
+				command: this.settings.codex.command,
+			},
+			{
+				id: this.settings.gemini.id,
+				command: this.settings.gemini.command,
+			},
+		];
+		try {
+			const available = await detectAvailableAgents(probes, {
+				wslMode: this.settings.windowsWslMode,
+				wslDistribution: this.settings.windowsWslDistribution,
+			});
+			const picked = pickDefaultAgentId(probes, available);
+			if (picked && picked !== this.settings.defaultAgentId) {
+				this.settings.defaultAgentId = picked;
+				await this.saveSettings();
+			}
+		} catch (error) {
+			getLogger().warn("Agent auto-detection failed", error);
+		}
+	}
+
 	private registerAgentCommands(): void {
 		const agents = this.getAvailableAgents();
 
@@ -927,6 +989,7 @@ export default class AgentClientPlugin extends Plugin {
 		const rc = obj(raw.claude) ?? {};
 		const rk = obj(raw.codex) ?? {};
 		const rg = obj(raw.gemini) ?? {};
+		const rkiro = obj(raw.kiro) ?? {};
 		const re = obj(raw.exportSettings) ?? {};
 		const rd = obj(raw.displaySettings) ?? {};
 
@@ -944,6 +1007,7 @@ export default class AgentClientPlugin extends Plugin {
 			D.claude.id,
 			D.codex.id,
 			D.gemini.id,
+			D.kiro.id,
 			...customAgents.map((a) => a.id),
 		];
 		const rawDefaultId =
@@ -952,6 +1016,7 @@ export default class AgentClientPlugin extends Plugin {
 			rawDefaultId && availableAgentIds.includes(rawDefaultId)
 				? rawDefaultId
 				: availableAgentIds[0] || D.claude.id;
+		this.shouldDetectDefaultAgent = !rawDefaultId;
 
 		this.settings = {
 			claude: {
@@ -1015,6 +1080,16 @@ export default class AgentClientPlugin extends Plugin {
 						? sanitizeArgs(rg.args)
 						: D.gemini.args,
 				env: normalizeEnvVars(rg.env),
+			},
+			kiro: {
+				id: D.kiro.id,
+				displayName: str(rkiro.displayName, D.kiro.displayName),
+				command: str(rkiro.command, "") || D.kiro.command,
+				args:
+					sanitizeArgs(rkiro.args).length > 0
+						? sanitizeArgs(rkiro.args)
+						: D.kiro.args,
+				env: normalizeEnvVars(rkiro.env),
 			},
 			customAgents,
 			defaultAgentId,
