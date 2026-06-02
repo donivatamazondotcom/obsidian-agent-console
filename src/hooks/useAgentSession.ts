@@ -46,7 +46,7 @@ export interface UseAgentSessionReturn {
 	createSession: (
 		overrideAgentId?: string,
 		overrideCwd?: string,
-	) => Promise<void>;
+	) => Promise<string | null>;
 	restartSession: (
 		newAgentId?: string,
 		overrideCwd?: string,
@@ -208,7 +208,7 @@ export function useAgentSession(
 						suggestion:
 							"Please check your agent configuration in settings.",
 					});
-					return;
+					return null;
 				}
 
 				const agentConfig = buildAgentConfigWithApiKey(
@@ -288,6 +288,8 @@ export function useAgentSession(
 						: prev.agentInfo,
 					lastActivityAt: new Date(),
 				}));
+
+				return sessionResult.sessionId;
 			} catch (error) {
 				setSession((prev) => ({ ...prev, state: "error" }));
 				setErrorInfo({
@@ -296,6 +298,7 @@ export function useAgentSession(
 					suggestion:
 						"Please check the agent configuration and try again.",
 				});
+				return null;
 			}
 		},
 		[agentClient, settingsAccess, workingDirectory, setErrorInfo],

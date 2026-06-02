@@ -54,7 +54,7 @@ export interface UseAgentReturn {
 	createSession: (
 		overrideAgentId?: string,
 		overrideCwd?: string,
-	) => Promise<void>;
+	) => Promise<string | null>;
 	restartSession: (
 		newAgentId?: string,
 		overrideCwd?: string,

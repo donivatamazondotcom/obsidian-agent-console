@@ -759,12 +759,12 @@ export function ChatPanel({
 					);
 					return { ok: true as const, sessionId: existingSid };
 				}
-				await agent.createSession(effectiveAgent);
-				// After createSession resolves, agent.session.sessionId
-				// is set. The closure captured `agent` from this render's
-				// value; reading through the `agent` object reference
-				// avoids stale-value bugs.
-				const sid = agent.session.sessionId;
+				// I55: use the sessionId RETURNED by createSession instead
+				// of reading agent.session.sessionId from a stale closure.
+				// The setState inside createSession has not propagated to
+				// this closure's `agent` reference yet, so the old read
+				// returned null and left the message stuck in "Sending…".
+				const sid = await agent.createSession(effectiveAgent);
 				if (!sid) {
 					return {
 						ok: false as const,
@@ -869,7 +869,19 @@ export function ChatPanel({
 			setPendingMessage({
 				id: `pending-${Date.now()}`,
 				role: "user",
-				content: [{ type: "text", text: content }],
+				content: [
+					{ type: "text", text: content },
+					// I55 Defect B: surface image attachments in the optimistic
+					// "Sending…" bubble so the user can see the screenshot they
+					// queued (previously text-only, implying nothing was attached).
+					...(attachments ?? [])
+						.filter((f) => f.kind === "image" && f.data)
+						.map((f) => ({
+							type: "image" as const,
+							data: f.data as string,
+							mimeType: f.mimeType,
+						})),
+				],
 				timestamp: new Date(),
 				pending: true,
 			});
