@@ -182,6 +182,17 @@ export function useChatActions(
 			}
 
 			try {
+				// Auto-crystallize @[[mentions]] at send time (Decision #11,
+				// I66) so pills appear immediately — not after the turn ends.
+				// State update is async, so this turn's prompt still inlines
+				// the mention via @[[...]]; the pill lands for subsequent turns.
+				for (const path of extractMentionedPaths(content, (name) =>
+					plugin.app.metadataCache.getFirstLinkpathDest(name, "")
+						?.path ?? null,
+				)) {
+					contextNotes.add(path, "mention");
+				}
+
 				await agent.sendMessage(content, {
 					vaultBasePath: vaultPath,
 					contextNotes: contextNotes.notes,
@@ -191,14 +202,6 @@ export function useChatActions(
 						resourceLinks.length > 0 ? resourceLinks : undefined,
 					isFirstMessage,
 				});
-
-				// Auto-crystallize @[[mentions]] after send (Decision #11)
-				for (const path of extractMentionedPaths(content, (name) =>
-					plugin.app.metadataCache.getFirstLinkpathDest(name, "")
-						?.path ?? null,
-				)) {
-					contextNotes.add(path, "mention");
-				}
 
 				// Save session metadata locally on first message
 				if (isFirstMessage && session.sessionId) {
