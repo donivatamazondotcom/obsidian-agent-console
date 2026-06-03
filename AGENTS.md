@@ -63,10 +63,9 @@ src/
 │   ├── ChatContext.ts           # React Context (plugin, acpClient, vaultService, settingsService)
 │   ├── ChatPanel.tsx            # Orchestrator: calls hooks, workspace events, rendering
 │   ├── ChatView.tsx             # Sidebar view (ItemView wrapper)
-│   ├── FloatingChatView.tsx     # Floating window (position/drag/resize)
 │   ├── TabBar.tsx               # Tab bar UI for parallel agent sessions (drag-reorder, +button, status icons)
 │   ├── TabErrorBoundary.tsx     # Per-tab React error boundary with Retry
-│   ├── ChatHeader.tsx           # Header (sidebar + floating variants)
+│   ├── ChatHeader.tsx           # Header (sidebar chat view)
 │   ├── MessageList.tsx          # Message list (native browser scroll, content-visibility:auto for off-screen render skipping)
 │   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button)
 │   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting)
@@ -78,7 +77,6 @@ src/
 │   ├── ErrorBanner.tsx          # Error/notification overlay
 │   ├── SessionHistoryModal.tsx  # Session history modal (list + confirm delete)
 │   ├── ChangeDirectoryModal.ts  # Per-tab cwd change modal (sets working dir for agent process)
-│   ├── FloatingButton.tsx       # Draggable launch button
 │   ├── SettingsTab.ts           # Plugin settings UI
 │   ├── view-host.ts             # IChatViewHost interface
 │   ├── use-auto-scroll-pin.ts   # Auto-scroll-to-bottom hook (pin state + native scroll + ResizeObserver/wheel/touch)
@@ -126,14 +124,12 @@ Central orchestrator component.
 
 ChatPanel does NOT route session updates — that's handled internally by useAgent.
 
-### ChatView / FloatingChatView (`ui/ChatView.tsx`, `ui/FloatingChatView.tsx`)
-Thin wrappers that:
+### ChatView (`ui/ChatView.tsx`)
+Thin wrapper that:
 - Create services (AcpClient, VaultService) in lifecycle methods
 - Provide ChatContext (plugin, acpClient, vaultService, settingsService)
-- Render `<ChatPanel variant="sidebar" | "floating" />`
+- Render `<ChatPanel />`
 - Implement IChatViewContainer for broadcast commands
-
-FloatingChatView uses `onRegisterExpanded` callback (not CustomEvent) for expand/collapse.
 
 ### Hooks (`hooks/`)
 

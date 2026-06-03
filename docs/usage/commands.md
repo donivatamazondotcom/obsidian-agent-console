@@ -31,15 +31,6 @@ Control multiple tabs at once. See [Tabbed Sessions](/usage/tabbed-sessions) for
 | **Broadcast send** | Send messages in all views simultaneously |
 | **Broadcast cancel** | Cancel operations in all views |
 
-## Floating Chat Commands
-
-| Command | Description |
-|---------|-------------|
-| **Open floating chat view** | Open an existing floating window, or create one if none exist |
-| **Open new floating chat view** | Always create a new floating window |
-| **Minimize floating chat view** | Hide the focused floating window (session is preserved) |
-| **Close floating chat view** | Close the focused floating window and end the session |
-
 ## Agent Commands
 
 | Command | Description |

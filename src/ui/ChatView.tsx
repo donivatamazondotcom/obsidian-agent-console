@@ -585,7 +585,6 @@ function ChatComponent({
 							vaultService={vaultService}
 						>
 							<ChatPanel
-								variant="sidebar"
 								viewId={tab.tabId}
 								initialAgentId={tab.agentId}
 								viewHost={view}

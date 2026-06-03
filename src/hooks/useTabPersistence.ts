@@ -94,7 +94,7 @@ export interface TabPersistenceStorage {
 }
 
 export interface UseTabPersistenceProps {
-	/** Stable identifier for this leaf (Obsidian leaf.id or floating shim id) */
+	/** Stable identifier for this leaf (Obsidian leaf.id) */
 	leafId: string;
 	/** Current runtime tabs (from useTabManager) */
 	tabs: TabInfo[];
