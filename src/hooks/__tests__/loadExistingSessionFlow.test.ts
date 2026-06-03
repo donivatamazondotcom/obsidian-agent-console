@@ -13,7 +13,7 @@ import { loadExistingSessionFlow } from "../loadExistingSessionFlow";
 import type { SessionResult } from "../../types/session";
 
 function sessionResult(id: string): SessionResult {
-	return { sessionId: id } as SessionResult;
+	return { sessionId: id };
 }
 
 describe("loadExistingSessionFlow", () => {

@@ -10,7 +10,7 @@
  * the unfixed code (red bar), then pass after the fix (green bar).
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useTabManager } from "../useTabManager";
 

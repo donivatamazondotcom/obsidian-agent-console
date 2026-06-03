@@ -41,7 +41,7 @@ vi.mock("../MessageBubble", () => ({
 	MessageBubble: ({ message }: { message: ChatMessage }) => (
 		<div data-testid="bubble" data-message-id={message.id}>
 			{message.content[0]?.type === "text"
-				? (message.content[0] as { type: "text"; text: string }).text
+				? (message.content[0]).text
 				: ""}
 		</div>
 	),

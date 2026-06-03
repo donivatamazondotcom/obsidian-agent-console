@@ -48,7 +48,7 @@ describe("useDebouncedSessionSave (I48)", () => {
 
 		// FIX: the tail must be flushed on unmount.
 		expect(save).toHaveBeenCalledTimes(1);
-		const [sid, saved] = save.mock.calls[0];
+		const [sid, saved] = save.mock.calls[0] as [string, ChatMessage[]];
 		expect(sid).toBe("sess-1");
 		expect(saved).toHaveLength(2);
 	});
