@@ -2428,3 +2428,118 @@ describe("useAutoScrollPin — cleanup on unmount", () => {
 		expect(afterDisconnect).toBe(0);
 	});
 });
+
+describe("useAutoScrollPin — I39 trackpad momentum scroll pill flicker", () => {
+	/**
+	 * Reproduces I39: aggressive trackpad swipe toward bottom produces
+	 * momentum scroll events where scrollTop oscillates slightly around
+	 * the bottom position. The direction classifier sees the overshoot-
+	 * bounce as scrollingUp → sets escapedFromLock + isAtBottom=false →
+	 * pill renders. Next frame: scrollingDown → clears escape → re-pins
+	 * → pill hides. This rapid flip is the user-visible flicker.
+	 *
+	 * The test models a momentum scroll sequence arriving at the bottom:
+	 * scrollTop progresses downward (scrollingDown), then overshoots
+	 * slightly past the max (clamped by browser), then bounces back by
+	 * a few pixels (scrollingUp). The bounce should NOT unpin because
+	 * the gap is still within STICK_OFFSET_PX.
+	 */
+	it("does NOT unpin when momentum scroll oscillates within STICK_OFFSET_PX of bottom", () => {
+		let handle: HarnessHandle | null = null;
+		render(
+			React.createElement(Harness, {
+				isActive: true,
+				isSending: false,
+				view: makeView(),
+				onMount: (h) => {
+					handle = h;
+				},
+			}),
+		);
+		// biome-ignore lint/style/noNonNullAssertion: bound by render
+		const h = handle!;
+
+		// Container: scrollHeight=2000, clientHeight=800.
+		// Bottom = scrollHeight - clientHeight = 1200.
+		// STICK_OFFSET_PX = 70, so anything with gap <= 70 is "at bottom".
+		setupScrollGeometry(h.scrollEl, {
+			scrollHeight: 2000,
+			clientHeight: 800,
+			scrollTop: 1200, // exactly at bottom
+		});
+
+		// Start pinned at bottom
+		expect(h.getResult().isAtBottom).toBe(true);
+
+		// Establish baseline in lastScrollTopRef
+		act(() => {
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+		expect(h.getResult().isAtBottom).toBe(true);
+
+		// Simulate momentum scroll arriving at bottom: scrollTop goes
+		// from 1200 → 1199 (tiny bounce-back from elastic overscroll).
+		// Gap = 2000 - 1199 - 800 = 1. Still well within STICK_OFFSET_PX.
+		// But direction is scrollingUp (1199 < 1200).
+		Object.defineProperty(h.scrollEl, "scrollTop", {
+			configurable: true,
+			value: 1199,
+		});
+		act(() => {
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+
+		// BUG (I39): isAtBottom flips to false here because the direction
+		// classifier treats ANY scrollingUp as escape, regardless of gap.
+		// EXPECTED: isAtBottom should remain true because gap (1px) is
+		// well within STICK_OFFSET_PX (70px).
+		expect(h.getResult().isAtBottom).toBe(true);
+	});
+
+	it("does NOT unpin on repeated small oscillations near bottom (momentum deceleration)", () => {
+		let handle: HarnessHandle | null = null;
+		render(
+			React.createElement(Harness, {
+				isActive: true,
+				isSending: false,
+				view: makeView(),
+				onMount: (h) => {
+					handle = h;
+				},
+			}),
+		);
+		// biome-ignore lint/style/noNonNullAssertion: bound by render
+		const h = handle!;
+
+		setupScrollGeometry(h.scrollEl, {
+			scrollHeight: 2000,
+			clientHeight: 800,
+			scrollTop: 1195, // gap = 5, within STICK_OFFSET_PX
+		});
+
+		// Establish baseline
+		act(() => {
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+		expect(h.getResult().isAtBottom).toBe(true);
+
+		// Momentum deceleration: oscillates 1195 → 1192 → 1197 → 1190 → 1198
+		// All within STICK_OFFSET_PX of bottom (gap never exceeds 10px).
+		// Each scrollingUp frame should NOT unpin.
+		const oscillation = [1192, 1197, 1190, 1198];
+		for (const scrollTop of oscillation) {
+			Object.defineProperty(h.scrollEl, "scrollTop", {
+				configurable: true,
+				value: scrollTop,
+			});
+			act(() => {
+				fireScrollEvent(h.scrollEl);
+				flushTimers();
+			});
+			expect(h.getResult().isAtBottom).toBe(true);
+		}
+	});
+});
