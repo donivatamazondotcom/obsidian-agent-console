@@ -34,7 +34,7 @@ function makeFile(): TFile {
 	f.path = "folder/note.md";
 	f.basename = "note";
 	f.extension = "md";
-	f.stat = { ctime: 0, mtime: 0 };
+	f.stat = { ctime: 0, mtime: 0, size: 0 };
 	return f;
 }
 
@@ -53,7 +53,7 @@ describe("VaultService selection persistence (T09)", () => {
 			],
 			hasFocus: () => true,
 			// no `cm` — attachToView returns after the initial emitSelection
-		};
+		} as unknown as import("obsidian").Editor;
 		view = new (MarkdownView as unknown as { new (): MarkdownView })();
 		view.file = file;
 		view.editor = editor;
