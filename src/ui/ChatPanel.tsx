@@ -59,7 +59,7 @@ import type { IChatViewHost } from "./view-host";
 
 /**
  * Callbacks that ChatPanel registers with its parent container class.
- * Used by ChatView / FloatingViewContainer to implement IChatViewContainer
+ * Used by ChatView to implement IChatViewContainer
  * by delegating to the React component's state and handlers.
  */
 export interface ChatPanelCallbacks {
@@ -76,7 +76,6 @@ export interface ChatPanelCallbacks {
 // ============================================================================
 
 export interface ChatPanelProps {
-	variant: "sidebar" | "floating";
 	viewId: string;
 	workingDirectory?: string;
 	initialAgentId?: string;
@@ -84,16 +83,8 @@ export interface ChatPanelProps {
 	onRegisterCallbacks?: (callbacks: ChatPanelCallbacks) => void;
 	/** Called when agent ID changes (sidebar only — persists in Obsidian state) */
 	onAgentIdChanged?: (agentId: string) => void;
-	// Floating-specific
-	onMinimize?: () => void;
-	onClose?: () => void;
-	onOpenNewWindow?: () => void;
-	/** Mouse down handler for floating header drag area */
-	onFloatingHeaderMouseDown?: (e: React.MouseEvent) => void;
-	// Sidebar-specific: Obsidian view host for DOM event registration
-	viewHost?: IChatViewHost;
-	/** External container element for focus tracking (floating uses parent's container) */
-	containerEl?: HTMLElement | null;
+	/** Obsidian view host for DOM event registration */
+	viewHost: IChatViewHost;
 	/** Called when session state changes (for tab icon updates) */
 	onStateChange?: (state: import("../types/tab").TabState) => void;
 	/** Called when a suitable tab label is available (session title or first message) */
@@ -132,24 +123,17 @@ interface AppWithSettings {
  * Core chat panel component that encapsulates all chat logic.
  *
  * This is the single source of truth for chat state and behavior,
- * shared between sidebar (ChatView) and floating (FloatingChatView) variants.
- * It is a 1:1 migration of useChatController into a React component,
- * with workspace event handlers moved from ChatComponent/FloatingChatComponent.
+ * for the sidebar chat view. It is a 1:1 migration of useChatController
+ * into a React component.
  */
 export function ChatPanel({
-	variant,
 	viewId,
 	workingDirectory,
 	initialAgentId,
 	config,
 	onRegisterCallbacks,
 	onAgentIdChanged,
-	onMinimize,
-	onClose,
-	onOpenNewWindow,
-	onFloatingHeaderMouseDown,
-	viewHost: viewHostProp,
-	containerEl: containerElProp,
+	viewHost,
 	onStateChange,
 	onLabelChange,
 	onSessionIdChange,
@@ -364,7 +348,6 @@ export function ChatPanel({
 		handleStopGeneration,
 		handleNewChat,
 		handleExportChat,
-		handleSwitchAgent,
 		handleRestartAgent,
 		handleSetMode,
 		handleSetModel,
@@ -541,139 +524,6 @@ export function ChatPanel({
 			handleOpenSettings,
 		],
 	);
-
-	const handleShowFloatingMenu = useCallback(
-		(e: React.MouseEvent<HTMLElement>) => {
-			const menu = new Menu();
-
-			menu.addItem((item: MenuItem) => {
-				item.setTitle("New chat")
-					.setIcon("plus")
-					.onClick(() => {
-						void handleNewChat();
-					});
-			});
-
-			menu.addItem((item: MenuItem) => {
-				item.setTitle("Session history")
-					.setIcon("history")
-					.onClick(() => {
-						void handleOpenHistory();
-					});
-			});
-
-			menu.addItem((item: MenuItem) => {
-				item.setTitle("Export chat to Markdown")
-					.setIcon("save")
-					.onClick(() => {
-						void handleExportChat();
-					});
-			});
-
-			menu.addSeparator();
-
-			if (onOpenNewWindow) {
-				menu.addItem((item: MenuItem) => {
-					item.setTitle("Open new floating chat")
-						.setIcon("copy-plus")
-						.onClick(() => {
-							onOpenNewWindow();
-						});
-				});
-			}
-
-			menu.addItem((item: MenuItem) => {
-				item.setTitle("Restart agent")
-					.setIcon("refresh-cw")
-					.onClick(() => {
-						void handleRestartAgent();
-					});
-			});
-
-			menu.addItem((item: MenuItem) => {
-				item.setTitle("New chat in directory...")
-					.setIcon("folder-open")
-					.onClick(() => {
-						const modal = new ChangeDirectoryModal(
-							plugin.app,
-							agentCwd,
-							(directory) => {
-								void handleNewChatInDirectory(directory);
-							},
-						);
-						modal.open();
-					});
-			});
-
-			menu.addSeparator();
-
-			menu.addItem((item: MenuItem) => {
-				item.setTitle("Plugin settings")
-					.setIcon("settings")
-					.onClick(() => {
-						handleOpenSettings();
-					});
-			});
-
-			menu.showAtMouseEvent(e.nativeEvent);
-		},
-		[
-			handleNewChat,
-			handleOpenHistory,
-			handleExportChat,
-			onOpenNewWindow,
-			handleRestartAgent,
-			agentCwd,
-			handleNewChatInDirectory,
-			handleOpenSettings,
-		],
-	);
-
-	// ============================================================
-	// viewHost creation for child components
-	// ============================================================
-	// Track registered listeners for cleanup (floating variant)
-	const registeredListenersRef = useRef<
-		{
-			target: Window | Document | HTMLElement;
-			type: string;
-			callback: EventListenerOrEventListenerObject;
-		}[]
-	>([]);
-
-	const viewHost: IChatViewHost = useMemo(() => {
-		// Sidebar: use the provided viewHost from the ChatView class
-		if (viewHostProp) {
-			return viewHostProp;
-		}
-		// Floating: create a shim with listener tracking
-		return {
-			app: plugin.app,
-			viewId,
-			registerDomEvent: ((
-				target: Window | Document | HTMLElement,
-				type: string,
-				callback: EventListenerOrEventListenerObject,
-			) => {
-				target.addEventListener(type, callback);
-				registeredListenersRef.current.push({ target, type, callback });
-			}),
-		};
-	}, [viewHostProp, plugin.app]);
-
-	// Cleanup registered listeners on unmount (floating variant)
-	useEffect(() => {
-		return () => {
-			for (const {
-				target,
-				type,
-				callback,
-			} of registeredListenersRef.current) {
-				target.removeEventListener(type, callback);
-			}
-			registeredListenersRef.current = [];
-		};
-	}, []);
 
 	// ============================================================
 	// Effects - Session Lifecycle
@@ -1166,13 +1016,11 @@ export function ChatPanel({
 
 	// Refs for workspace event handlers (avoids re-registering on every render)
 	const handleNewChatWithPersistRef = useRef(handleNewChatWithPersist);
-	const handleNewChatRef = useRef(handleNewChat);
 	const approveActivePermissionRef = useRef(agent.approveActivePermission);
 	const rejectActivePermissionRef = useRef(agent.rejectActivePermission);
 	const handleStopGenerationRef = useRef(handleStopGeneration);
 	const handleExportChatRef = useRef(handleExportChat);
 	handleNewChatWithPersistRef.current = handleNewChatWithPersist;
-	handleNewChatRef.current = handleNewChat;
 	approveActivePermissionRef.current = agent.approveActivePermission;
 	rejectActivePermissionRef.current = agent.rejectActivePermission;
 	handleStopGenerationRef.current = handleStopGeneration;
@@ -1202,11 +1050,7 @@ export function ChatPanel({
 				"agent-client:new-chat-requested",
 				(targetViewId?: string, agentId?: string) => {
 					if (targetViewId && targetViewId !== viewId) return;
-					if (variant === "sidebar") {
-						void handleNewChatWithPersistRef.current(agentId);
-					} else {
-						void handleNewChatRef.current(agentId);
-					}
+					void handleNewChatWithPersistRef.current(agentId);
 				},
 			),
 
@@ -1274,7 +1118,6 @@ export function ChatPanel({
 		plugin.app.workspace,
 		plugin.lastActiveChatViewId,
 		viewId,
-		variant,
 		suggestions.mentions.toggleAutoMention,
 	]);
 
@@ -1284,14 +1127,13 @@ export function ChatPanel({
 	const containerRef = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		const handleFocus = () => {
-			// Use viewHost.viewId (leaf.id for sidebar, floating-chat-N
-			// for floating) — the registry-recognized container ID. Writing
-			// the bare `viewId` prop would be tab.tabId on sidebar tabs and
-			// silently rejected by ViewRegistry.setFocused (I34).
+			// Use viewHost.viewId (the registry-recognized container ID).
+			// Writing the bare `viewId` prop would be tab.tabId on sidebar
+			// tabs and silently rejected by ViewRegistry.setFocused (I34).
 			plugin.setLastActiveChatViewId(viewHost.viewId);
 		};
 
-		const container = containerElProp ?? containerRef.current;
+		const container = containerRef.current;
 		if (!container) return;
 
 		container.addEventListener("focus", handleFocus, true);
@@ -1301,7 +1143,7 @@ export function ChatPanel({
 			container.removeEventListener("focus", handleFocus, true);
 			container.removeEventListener("click", handleFocus);
 		};
-	}, [plugin, viewHost, containerElProp]);
+	}, [plugin, viewHost]);
 
 	// ============================================================
 	// Callback Registration for IChatViewContainer
@@ -1400,32 +1242,17 @@ export function ChatPanel({
 				} as React.CSSProperties)
 			: undefined;
 
-	const headerElement =
-		variant === "sidebar" ? (
-			<ChatHeader
-				variant="sidebar"
-				agentLabel={activeAgentLabel}
-				headerSegments={{...headerSegments, isLazyIdle: lazySession.state === "idle"}}
-				isUpdateAvailable={isUpdateAvailable}
-				onNewChat={() => void handleNewChatWithPersist()}
-				onExportChat={() => void handleExportChat()}
-				onShowMenu={handleShowSidebarMenu}
-				onOpenHistory={handleOpenHistory}
-			/>
-		) : (
-			<ChatHeader
-				variant="floating"
-				agentLabel={activeAgentLabel}
-				headerSegments={{...headerSegments, isLazyIdle: lazySession.state === "idle"}}
-				availableAgents={availableAgents}
-				currentAgentId={session.agentId}
-				isUpdateAvailable={isUpdateAvailable}
-				onAgentChange={(agentId) => void handleSwitchAgent(agentId)}
-				onShowMenu={handleShowFloatingMenu}
-				onMinimize={onMinimize}
-				onClose={onClose}
-			/>
-		);
+	const headerElement = (
+		<ChatHeader
+			agentLabel={activeAgentLabel}
+			headerSegments={{...headerSegments, isLazyIdle: lazySession.state === "idle"}}
+			isUpdateAvailable={isUpdateAvailable}
+			onNewChat={() => void handleNewChatWithPersist()}
+			onExportChat={() => void handleExportChat()}
+			onShowMenu={handleShowSidebarMenu}
+			onOpenHistory={handleOpenHistory}
+		/>
+	);
 
 	const cwdBanner =
 		agentCwd !== vaultPath ? (
@@ -1516,29 +1343,6 @@ export function ChatPanel({
 		/>
 	);
 
-	if (variant === "floating") {
-		// Floating layout: no wrapper div. Parent agent-client-floating-window is the flex container.
-		// Focus tracking uses containerElProp (from FloatingChatView's containerRef).
-		return (
-			<>
-				<div
-					className="agent-client-floating-header"
-					onMouseDown={onFloatingHeaderMouseDown}
-				>
-					{headerElement}
-				</div>
-				{cwdBanner}
-				<div className="agent-client-floating-content">
-					<div className="agent-client-floating-messages-container">
-						{messageListElement}
-					</div>
-					{inputAreaElement}
-				</div>
-			</>
-		);
-	}
-
-	// Sidebar layout
 	return (
 		<div
 			ref={containerRef}

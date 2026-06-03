@@ -117,6 +117,5 @@ Broadcast send is useful for comparing how different agents respond to the same 
 
 ## See also
 
-- [Floating chat](/usage/floating-chat) — alternative single-window UX, kept for users who prefer it
 - [Session history](/usage/session-history) — browse past sessions, restore any in a new tab
 - [Commands & Hotkeys](/usage/commands) — full list of keyboard shortcuts

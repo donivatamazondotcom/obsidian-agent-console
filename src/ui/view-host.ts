@@ -3,8 +3,8 @@
  *
  * This interface extracts the minimal set of methods that ChatMessages,
  * ChatInput, and other components need from a view. By depending on this
- * interface instead of ChatView directly, these components can work with
- * both sidebar ChatView and FloatingChatView.
+ * interface instead of ChatView directly, these components stay decoupled
+ * from the concrete view implementation.
  */
 
 import type { App } from "obsidian";
@@ -27,10 +27,9 @@ export interface IChatViewHost {
 
 	/**
 	 * Registry-recognized container ID. For sidebar (ChatView) this is
-	 * the workspace leaf.id. For floating (FloatingChatView shim) this is
-	 * the floating-chat-N viewId. Used by ChatPanel's focus tracking to
-	 * write the value that ViewRegistry.setFocused() accepts (it rejects
-	 * unknown viewIds, so writing tab.tabId would silently no-op).
+	 * the workspace leaf.id. Used by ChatPanel's focus tracking to write
+	 * the value that ViewRegistry.setFocused() accepts (it rejects unknown
+	 * viewIds, so writing tab.tabId would silently no-op).
 	 */
 	readonly viewId: string;
 
@@ -38,7 +37,6 @@ export interface IChatViewHost {
 	 * Register a DOM event listener that will be cleaned up when the view closes.
 	 *
 	 * In sidebar ChatView, this delegates to Obsidian's Component.registerDomEvent.
-	 * In floating views, this adds the listener and tracks it for cleanup on unmount.
 	 *
 	 * Note: Only Window, Document, and HTMLElement are supported as targets.
 	 * This matches the actual usage in components (document for click-outside,

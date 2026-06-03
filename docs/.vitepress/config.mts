@@ -74,7 +74,6 @@ export default defineConfig({
           { text: "Model Selection", link: "/usage/model-selection" },
           { text: "Session History", link: "/usage/session-history" },
           { text: "Tabbed Sessions", link: "/usage/tabbed-sessions" },
-          { text: "Floating Chat", link: "/usage/floating-chat" },
           { text: "Editing", link: "/usage/editing" },
           { text: "Chat Export", link: "/usage/chat-export" },
           { text: "Commands & Hotkeys", link: "/usage/commands" },

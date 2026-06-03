@@ -2,7 +2,7 @@
  * Registry for managing all chat view containers.
  *
  * Provides unified access to views for:
- * - Focus tracking (replacing _lastActiveChatViewId + floating tracking)
+ * - Focus tracking (replacing _lastActiveChatViewId)
  * - Broadcast commands (extending to all view types)
  * - Multi-view operations (focusNext, toAll, etc.)
  *
@@ -26,7 +26,7 @@ import { getLogger } from "../utils/logger";
  * Type of chat view container.
  * Used for filtering and type-specific behavior.
  */
-export type ChatViewType = "sidebar" | "floating";
+export type ChatViewType = "sidebar";
 
 /**
  * Interface that all chat view containers must implement.
@@ -40,7 +40,7 @@ export interface IChatViewContainer {
 	/** Unique identifier for this view instance */
 	readonly viewId: string;
 
-	/** Type of this view (sidebar, floating, etc.) */
+	/** Type of this view */
 	readonly viewType: ChatViewType;
 
 	/** Human-readable display name for this view (e.g. active agent label). */
