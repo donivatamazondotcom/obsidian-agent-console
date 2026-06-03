@@ -12,6 +12,7 @@ import type { AgentClientPluginSettings } from "../plugin";
 import type AgentClientPlugin from "../plugin";
 import type { ChatMessage, MessageContent } from "../types/chat";
 import type { ContextNote } from "../types/context";
+import { sanitizeContextNotes } from "./context-validator";
 import type { SavedSessionInfo } from "../types/session";
 import type { PerLeafTabState, PersistedTabInfo } from "../types/tab";
 import { convertWindowsPathToWsl } from "../utils/platform";
@@ -353,9 +354,14 @@ export class SessionStorage {
 			const data = JSON.parse(
 				await adapter.read(filePath),
 			) as SessionMessagesFile;
-			return Array.isArray(data.contextNotes)
-				? data.contextNotes
-				: null;
+			if (!Array.isArray(data.contextNotes)) return null;
+			const { notes, dropped } = sanitizeContextNotes(data.contextNotes);
+			if (dropped.length > 0) {
+				getLogger().warn(
+					`[SessionStorage] Dropped ${dropped.length} corrupt context note(s) for ${sessionId}: ${JSON.stringify(dropped)}`,
+				);
+			}
+			return notes;
 		} catch {
 			return null;
 		}

@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import type { ContextNote, ContextNoteSource } from "../types/context";
 import { MAX_CONTEXT_NOTES } from "../types/context";
+import { sanitizeContextNotes } from "../services/context-validator";
 
 export interface UseContextNotesReturn {
 	notes: ContextNote[];
@@ -21,7 +22,7 @@ export function useContextNotes(
 	initial?: ContextNote[],
 ): UseContextNotesReturn {
 	const [notes, setNotes] = useState<ContextNote[]>(() =>
-		initial ? initial.slice(0, MAX_CONTEXT_NOTES) : [],
+		initial ? sanitizeContextNotes(initial).notes : [],
 	);
 
 	const isFull = notes.length >= MAX_CONTEXT_NOTES;
@@ -50,9 +51,16 @@ export function useContextNotes(
 	}, []);
 
 	const rename = useCallback((oldPath: string, newPath: string) => {
-		setNotes((prev) =>
-			prev.map((n) => (n.path === oldPath ? { ...n, path: newPath } : n)),
-		);
+		setNotes((prev) => {
+			if (!prev.some((n) => n.path === oldPath)) return prev;
+			// Target already crystallized — drop the renamed entry to avoid a duplicate.
+			if (prev.some((n) => n.path === newPath)) {
+				return prev.filter((n) => n.path !== oldPath);
+			}
+			return prev.map((n) =>
+				n.path === oldPath ? { ...n, path: newPath } : n,
+			);
+		});
 	}, []);
 
 	const clear = useCallback(() => {
@@ -60,7 +68,7 @@ export function useContextNotes(
 	}, []);
 
 	const replace = useCallback((next: ContextNote[]) => {
-		setNotes(next.slice(0, MAX_CONTEXT_NOTES));
+		setNotes(sanitizeContextNotes(next).notes);
 	}, []);
 
 	return useMemo(

@@ -289,3 +289,31 @@ describe("useContextNotes", () => {
 		expect(result.current.notes).toEqual([]);
 	});
 });
+
+describe("useContextNotes — dedup invariants", () => {
+	it("rename onto an already-crystallized path collapses to one entry", () => {
+		const { result } = renderHook(() => useContextNotes());
+		act(() => {
+			result.current.add("a.md", "user");
+			result.current.add("b.md", "mention");
+		});
+		// Vault renames a.md -> b.md, but b.md is already a pill.
+		act(() => {
+			result.current.rename("a.md", "b.md");
+		});
+		const paths = result.current.notes.map((n) => n.path);
+		expect(paths).toEqual(["b.md"]);
+		expect(new Set(paths).size).toBe(paths.length); // no duplicates
+	});
+
+	it("replace drops duplicate paths from restored data", () => {
+		const { result } = renderHook(() => useContextNotes());
+		act(() => {
+			result.current.replace([
+				{ path: "a.md", source: "user", seen: false },
+				{ path: "a.md", source: "mention", seen: false },
+			]);
+		});
+		expect(result.current.notes.map((n) => n.path)).toEqual(["a.md"]);
+	});
+});

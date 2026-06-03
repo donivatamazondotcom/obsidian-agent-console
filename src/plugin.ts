@@ -1,3 +1,4 @@
+import { migrateContextNoteSettings } from "./services/settings-migration";
 import { addIcon, Plugin, WorkspaceLeaf, Notice, requestUrl } from "obsidian";
 import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
@@ -834,6 +835,8 @@ export default class AgentClientPlugin extends Plugin {
 				? rawDefaultId
 				: availableAgentIds[0] || D.claude.id;
 
+		const ctxMig = migrateContextNoteSettings(raw, D);
+
 		this.settings = {
 			claude: {
 				id: D.claude.id, // Fixed — never from raw
@@ -914,14 +917,8 @@ export default class AgentClientPlugin extends Plugin {
 				D.autoAllowPermissions,
 			),
 			// Migration (Decision #20): autoMentionActiveNote → activeNoteAsDefaultContext
-			activeNoteAsDefaultContext: bool(
-				raw.activeNoteAsDefaultContext,
-				bool(raw.autoMentionActiveNote, D.activeNoteAsDefaultContext),
-			),
-			migrationNoticeShown: bool(
-				raw.migrationNoticeShown,
-				D.migrationNoticeShown,
-			),
+			activeNoteAsDefaultContext: ctxMig.activeNoteAsDefaultContext,
+			migrationNoticeShown: ctxMig.migrationNoticeShown,
 			enableSystemNotifications: bool(
 				raw.enableSystemNotifications,
 				D.enableSystemNotifications,
@@ -1020,8 +1017,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		// One-shot migration notice (Decision #20)
 		if (
-			raw.autoMentionActiveNote !== undefined &&
-			!this.settings.migrationNoticeShown
+			ctxMig.shouldShowNotice
 		) {
 			new Notice(
 				"Agent Console: the active note no longer follows the chat. Use the new context strip to lock notes into context.",

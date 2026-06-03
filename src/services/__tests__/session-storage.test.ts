@@ -477,3 +477,20 @@ describe("SessionStorage context-note persistence", () => {
 		expect(await storage.loadSessionContextNotes("missing")).toBeNull();
 	});
 });
+
+describe("SessionStorage context-note sanitize-on-load (restore boundary)", () => {
+	// Both restore entry points (useSessionHistory.restoreSession + forkSession)
+	// call loadSessionContextNotes, so sanitizing here guards every restore path.
+	it("drops duplicate and malformed entries persisted on disk", async () => {
+		const storage = makeStorage();
+		const corrupt = [
+			{ path: "A.md", source: "user", seen: false },
+			{ path: "A.md", source: "mention", seen: false }, // duplicate path
+			{ path: "", source: "user", seen: false }, // empty path
+			{ path: "B.md", source: "bogus", seen: false }, // bad source
+		] as unknown as ContextNote[];
+		await storage.saveSessionMessages("sess-corrupt", "agent-1", [msg], corrupt);
+		const loaded = await storage.loadSessionContextNotes("sess-corrupt");
+		expect(loaded?.map((n) => n.path)).toEqual(["A.md"]);
+	});
+});
