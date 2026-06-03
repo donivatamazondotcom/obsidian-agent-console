@@ -42,6 +42,7 @@ import {
 	CustomAgentSettings,
 } from "./types/agent";
 import type { SavedSessionInfo } from "./types/session";
+import type { PerLeafTabState } from "./types/tab";
 import { initializeLogger, getLogger } from "./utils/logger";
 
 // Re-export for backward compatibility
@@ -121,6 +122,20 @@ export interface AgentClientPluginSettings {
 	// Tab settings
 	/** Maximum number of session tabs per view (default: 10) */
 	maxSessionTabs: number;
+	/** Restore open tabs on startup (default: true). See [[ACP Tab Persistence Across Restarts]] § Setting. */
+	restoreTabsOnStartup: boolean;
+
+	/**
+	 * Per-leaf saved tab state for restoration across Obsidian restarts.
+	 *
+	 * Optional: undefined means no state has been saved yet (first
+	 * launch, or after explicit discard via SessionStorage.discardTabState).
+	 * An explicit empty array `[]` is also a valid persisted state
+	 * (degenerate but lossless under round-trip).
+	 *
+	 * See [[ACP Tab Persistence Across Restarts]] § Save / § Restore.
+	 */
+	perLeafTabStates?: PerLeafTabState[];
 }
 
 const DEFAULT_SETTINGS: AgentClientPluginSettings = {
@@ -185,6 +200,7 @@ const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	floatingWindowPosition: null,
 	floatingButtonPosition: null,
 	maxSessionTabs: 10,
+	restoreTabsOnStartup: true,
 };
 
 export default class AgentClientPlugin extends Plugin {
@@ -209,10 +225,12 @@ export default class AgentClientPlugin extends Plugin {
 		// Initialize settings store
 		this.settingsService = createSettingsService(this.settings, this);
 
-		// Detach stale leaves from a previous plugin instance to prevent
-		// "Attempting to register an existing view type" when Obsidian's
-		// hot-reload races onunload/onload (e.g. rapid toggle or npm run dev).
-		this.app.workspace.detachLeavesOfType(VIEW_TYPE_CHAT);
+		// Do NOT detach existing chat leaves here. Obsidian restores
+		// chat leaves from workspace.json with their original leaf.id,
+		// and tab state is keyed on leaf.id (I47). Detaching destroys
+		// the restored leaf, so activateView() mints a fresh id and the
+		// saved tab state never matches. Obsidian auto-unregisters view
+		// types on unload, so registerView does not throw on reload.
 		this.registerView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
 
 		// Register the Agent Console brand icon before adding the ribbon button.
@@ -1129,6 +1147,17 @@ export default class AgentClientPlugin extends Plugin {
 				D.maxSessionTabs,
 				1,
 			),
+			restoreTabsOnStartup:
+				typeof raw.restoreTabsOnStartup === "boolean"
+					? raw.restoreTabsOnStartup
+					: D.restoreTabsOnStartup,
+			// Type-level coercion only — record-level validation
+			// happens inside SessionStorage.loadTabState (so the
+			// service can return null on corruption rather than
+			// silently dropping malformed records here).
+			perLeafTabStates: Array.isArray(raw.perLeafTabStates)
+				? (raw.perLeafTabStates as PerLeafTabState[])
+				: undefined,
 		};
 
 		this.ensureDefaultAgentId();

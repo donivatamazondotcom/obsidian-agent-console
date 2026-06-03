@@ -11,6 +11,7 @@ import type AgentClientPlugin from "../plugin";
 import { updateDebugMode } from "../utils/logger";
 import type { ChatMessage } from "../types/chat";
 import type { SavedSessionInfo } from "../types/session";
+import type { PerLeafTabState } from "../types/tab";
 import { SessionStorage } from "./session-storage";
 
 // ============================================================================
@@ -135,6 +136,37 @@ export interface ISettingsAccess {
 	 * @returns Promise that resolves when file is deleted
 	 */
 	deleteSessionMessages(sessionId: string): Promise<void>;
+
+	// ============================================================
+	// Tab State Methods (per-leaf convenience surface)
+	// ============================================================
+
+	/**
+	 * Save per-leaf tab state atomically — replaces this leaf's slice
+	 * in `perLeafTabStates` while preserving other leaves' slices.
+	 *
+	 * Used by useTabPersistence (Slice 5).
+	 *
+	 * @param leafId - Leaf identifier
+	 * @param leafState - The leaf's full PerLeafTabState
+	 */
+	saveTabStateForLeaf(
+		leafId: string,
+		leafState: PerLeafTabState,
+	): Promise<void>;
+
+	/**
+	 * Load just this leaf's saved tab state.
+	 *
+	 * Returns null if no state has been saved, the persisted blob is
+	 * corrupted, or no entry matches `leafId`.
+	 *
+	 * @param leafId - Leaf identifier
+	 * @returns The leaf's state, or null if none / corrupted / not present
+	 */
+	loadTabStateForLeaf(
+		leafId: string,
+	): Promise<PerLeafTabState | null>;
 }
 
 /** Listener callback invoked when settings change */
@@ -277,6 +309,27 @@ export class SettingsService implements ISettingsAccess {
 
 	async deleteSessionMessages(sessionId: string): Promise<void> {
 		return this.sessionStorage.deleteSessionMessages(sessionId);
+	}
+
+	// ============================================================
+	// Tab State (delegated to SessionStorage)
+	// ============================================================
+
+	async saveTabStateForLeaf(
+		leafId: string,
+		leafState: PerLeafTabState,
+	): Promise<void> {
+		return this.sessionStorage.saveTabStateForLeaf(leafId, leafState);
+	}
+
+	async loadTabStateForLeaf(
+		leafId: string,
+	): Promise<PerLeafTabState | null> {
+		return this.sessionStorage.loadTabStateForLeaf(leafId);
+	}
+
+	async discardTabState(): Promise<void> {
+		return this.sessionStorage.discardTabState();
 	}
 }
 

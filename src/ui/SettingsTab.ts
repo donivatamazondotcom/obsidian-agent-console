@@ -378,6 +378,27 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			);
 
 		// ─────────────────────────────────────────────────────────────────────
+		// Tabs
+		// ─────────────────────────────────────────────────────────────────────
+
+		new Setting(containerEl).setName("Tabs").setHeading();
+
+		new Setting(containerEl)
+			.setName("Restore tabs on startup")
+			.setDesc(
+				"Save open tabs when Obsidian quits and restore them on next launch. Each view restores its own tabs independently.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.restoreTabsOnStartup)
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							restoreTabsOnStartup: value,
+						});
+					}),
+			);
+
+		// ─────────────────────────────────────────────────────────────────────
 		// Permissions
 		// ─────────────────────────────────────────────────────────────────────
 

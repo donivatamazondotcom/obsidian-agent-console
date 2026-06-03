@@ -26,6 +26,8 @@ export interface HeaderSegments {
 	runtime: string | null;
 	/** Active model display name (e.g. "claude-opus-4.7"); null while connecting. */
 	model: string | null;
+	/** Whether the tab is in lazy-idle state (no connection attempted yet) */
+	isLazyIdle?: boolean;
 }
 
 // ============================================================================
@@ -222,7 +224,8 @@ function BrandedTitle({
 
 	const showPlugin = tier === "wide";
 	const showModel = !!segments.model;
-	const showConnectingPlaceholder = !segments.model;
+	const showConnectingPlaceholder = !segments.model && !segments.isLazyIdle;
+	const showIdlePlaceholder = !segments.model && !!segments.isLazyIdle;
 
 	const rootClass = `acp-header-branded acp-header-branded--${tier}`;
 
@@ -259,6 +262,19 @@ function BrandedTitle({
 					</span>
 					<span className="acp-header-branded-connecting">
 						Connecting…
+					</span>
+				</>
+			)}
+			{showIdlePlaceholder && (
+				<>
+					<span
+						className="acp-header-branded-sep"
+						aria-hidden="true"
+					>
+						{" · "}
+					</span>
+					<span className="acp-header-branded-connecting">
+						Not connected
 					</span>
 				</>
 			)}

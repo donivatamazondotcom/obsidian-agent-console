@@ -12,6 +12,7 @@ import type { AgentClientPluginSettings } from "../plugin";
 import type AgentClientPlugin from "../plugin";
 import type { ChatMessage, MessageContent } from "../types/chat";
 import type { SavedSessionInfo } from "../types/session";
+import type { PerLeafTabState, PersistedTabInfo } from "../types/tab";
 import { convertWindowsPathToWsl } from "../utils/platform";
 import { getLogger } from "../utils/logger";
 
@@ -57,6 +58,16 @@ export class SessionStorage {
 
 	/** Lock for session operations to prevent race conditions */
 	private sessionLock: Promise<void> = Promise.resolve();
+
+	/**
+	 * Lock for tab-state operations to prevent race conditions.
+	 *
+	 * Separate from `sessionLock` because tab-state and session-metadata
+	 * are independent concerns — serializing them together would create
+	 * unnecessary contention (a tab reorder shouldn't block a session
+	 * save and vice versa).
+	 */
+	private tabStateLock: Promise<void> = Promise.resolve();
 
 	constructor(
 		plugin: AgentClientPlugin,
@@ -265,4 +276,182 @@ export class SessionStorage {
 			await adapter.remove(filePath);
 		}
 	}
+
+	// ============================================================
+	// Tab State Methods (per spec § Persistence — Save / Restore)
+	// ============================================================
+
+	/**
+	 * Save per-leaf tab state to data.json.
+	 *
+	 * Wholesale replaces the current tab-state. Per spec § Save:
+	 * serializes `{ leafId, tabs: PersistedTabInfo[], activeTabId }[]`
+	 * for restoration across Obsidian restarts.
+	 *
+	 * Does not validate the input — callers are responsible for shape.
+	 * Validation happens on load (see `loadTabState`).
+	 *
+	 * Serialized to data.json via the SettingsAccess facade, alongside
+	 * `savedSessions`. Per-session message history is stored separately
+	 * in `sessions/{id}.json` and is not affected by this method.
+	 *
+	 * @param perLeafStates - Per-leaf states; may be empty array
+	 */
+	async saveTabState(perLeafStates: PerLeafTabState[]): Promise<void> {
+		this.tabStateLock = this.tabStateLock.then(async () => {
+			await this.settingsAccess.updateSettings({
+				perLeafTabStates: perLeafStates,
+			});
+		});
+		await this.tabStateLock;
+	}
+
+	/**
+	 * Load per-leaf tab state from data.json.
+	 *
+	 * Corruption-tolerant per spec § Corruption handling:
+	 *   - Returns null when the field is missing (undefined or null)
+	 *   - Returns null when the field is not an array
+	 *   - Returns null when any record is missing required fields, has
+	 *     wrong field types, or contains a malformed nested tab record
+	 *   - Does NOT throw — caller handles null
+	 *   - Does NOT delete the corrupted data on disk. Preservation is
+	 *     the user's recovery path (the corruption-recovery modal can
+	 *     surface the raw state for manual inspection); call
+	 *     `discardTabState()` explicitly to clear it.
+	 *
+	 * Read path is read-only on the snapshot — does not invoke
+	 * updateSettings, so no side-effect persistence happens here.
+	 *
+	 * @returns Array of per-leaf states, or null if none / corrupted
+	 */
+	async loadTabState(): Promise<PerLeafTabState[] | null> {
+		const state = this.settingsAccess.getSnapshot();
+		const raw = state.perLeafTabStates;
+
+		if (raw === undefined || raw === null) {
+			return null;
+		}
+		if (!Array.isArray(raw)) {
+			return null;
+		}
+		if (!raw.every(isValidPerLeafTabState)) {
+			return null;
+		}
+		return raw;
+	}
+
+	/**
+	 * Clear the tab-state portion of data.json.
+	 *
+	 * Per spec § Corruption handling: leaves session-message storage
+	 * and other settings (savedSessions, defaultAgentId, etc.) untouched.
+	 *
+	 * Used by:
+	 *   - The corruption-recovery modal's "Discard saved state" action
+	 *   - The "Restore tabs on startup" setting when the user toggles
+	 *     it OFF after previously saving state
+	 *
+	 * Sets `perLeafTabStates` to undefined; on next `saveSettings()`
+	 * the field is omitted from data.json (JSON.stringify drops
+	 * undefined values), so disk and memory converge to "no saved
+	 * tab state" — matching the U42 first-launch semantics.
+	 */
+	async discardTabState(): Promise<void> {
+		this.tabStateLock = this.tabStateLock.then(async () => {
+			await this.settingsAccess.updateSettings({
+				perLeafTabStates: undefined,
+			});
+		});
+		await this.tabStateLock;
+	}
+
+	/**
+	 * Save per-leaf tab state atomically — replaces this leaf's slice
+	 * in `perLeafTabStates` while preserving other leaves' slices.
+	 *
+	 * Read-modify-write under `tabStateLock` to prevent torn writes
+	 * when multiple leaves save concurrently. The lock guarantees the
+	 * read-merge-write sequence sees a consistent snapshot.
+	 *
+	 * Used by `useTabPersistence` (Slice 5) — each ChatView leaf saves
+	 * its own slice on tab-state changes; this method ensures leaves
+	 * don't clobber each other's state when they save in parallel.
+	 *
+	 * @param leafId - Leaf identifier
+	 * @param leafState - The leaf's full PerLeafTabState
+	 */
+	async saveTabStateForLeaf(
+		leafId: string,
+		leafState: PerLeafTabState,
+	): Promise<void> {
+		this.tabStateLock = this.tabStateLock.then(async () => {
+			const all =
+				this.settingsAccess.getSnapshot().perLeafTabStates ?? [];
+			const filtered = all.filter((s) => s.leafId !== leafId);
+			const next = [...filtered, leafState];
+			await this.settingsAccess.updateSettings({
+				perLeafTabStates: next,
+			});
+		});
+		await this.tabStateLock;
+	}
+
+	/**
+	 * Convenience wrapper: load just this leaf's PerLeafTabState.
+	 *
+	 * Reuses `loadTabState`'s corruption-tolerant logic — if the
+	 * entire persisted blob is corrupted (returns null), this method
+	 * also returns null. Otherwise it returns this leaf's slice if
+	 * present, or null if no entry matches the requested `leafId`.
+	 *
+	 * @param leafId - Leaf identifier
+	 * @returns The leaf's state, or null if no state / corrupted / not present
+	 */
+	async loadTabStateForLeaf(
+		leafId: string,
+	): Promise<PerLeafTabState | null> {
+		const all = await this.loadTabState();
+		if (all === null) return null;
+		return all.find((s) => s.leafId === leafId) ?? null;
+	}
+}
+
+// ============================================================================
+// Helpers (type guards for tab-state validation)
+// ============================================================================
+
+/**
+ * Type guard: validates a `PerLeafTabState` record loaded from disk.
+ *
+ * Hand-rolled per the existing service convention (see
+ * `loadSessionMessages` schema validation). Does not introduce a
+ * runtime validator dependency — keeping the validation surface small
+ * is more important than completeness for the v1 corruption budget.
+ */
+function isValidPerLeafTabState(
+	value: unknown,
+): value is PerLeafTabState {
+	if (typeof value !== "object" || value === null) return false;
+	const v = value as Record<string, unknown>;
+	if (typeof v.leafId !== "string") return false;
+	if (typeof v.activeTabId !== "string") return false;
+	if (!Array.isArray(v.tabs)) return false;
+	return v.tabs.every(isValidPersistedTabInfo);
+}
+
+/** Type guard: validates a `PersistedTabInfo` record loaded from disk. */
+function isValidPersistedTabInfo(
+	value: unknown,
+): value is PersistedTabInfo {
+	if (typeof value !== "object" || value === null) return false;
+	const v = value as Record<string, unknown>;
+	if (typeof v.tabId !== "string") return false;
+	if (typeof v.agentId !== "string") return false;
+	if (typeof v.label !== "string") return false;
+	// sessionId is `string | null` (explicit null preserved per U33).
+	if (v.sessionId !== null && typeof v.sessionId !== "string") return false;
+	if (typeof v.tabOrder !== "number") return false;
+	if (typeof v.scrollPosition !== "number") return false;
+	return true;
 }

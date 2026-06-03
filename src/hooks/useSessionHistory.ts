@@ -570,7 +570,18 @@ export function useSessionHistory(
 						onMessagesRestore(localMessages);
 					}
 				} else {
-					throw new Error("Session restoration is not supported");
+					// Local-only restore: load messages from local storage without
+					// calling the agent. Reconnection happens lazily on first send
+					// via useLazySession's restored-tab path.
+					const localMessages =
+						await settingsAccess.loadSessionMessages(sessionId);
+					if (localMessages && onMessagesRestore) {
+						onMessagesRestore(localMessages);
+					} else {
+						throw new Error(
+							"No local session data available to restore",
+						);
+					}
 				}
 			} catch (err) {
 				const errorMessage =

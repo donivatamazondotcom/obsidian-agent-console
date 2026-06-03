@@ -7,6 +7,7 @@ import type AgentClientPlugin from "../plugin";
 import type { IChatViewHost } from "./view-host";
 import { setIcon } from "obsidian";
 import { MessageBubble } from "./MessageBubble";
+import { LossyFallbackNotice } from "./LossyFallbackNotice";
 import { useAutoScrollPin } from "./use-auto-scroll-pin";
 
 /**
@@ -29,6 +30,8 @@ export interface MessageListProps {
 	isSending: boolean;
 	/** Whether the session is ready for user input */
 	isSessionReady: boolean;
+	/** Whether the tab is in lazy-idle state (no connection attempted yet) */
+	isLazyIdle?: boolean;
 	/** Whether a session is being restored (load/resume/fork) */
 	isRestoringSession: boolean;
 	/** Display name of the active agent */
@@ -48,6 +51,17 @@ export interface MessageListProps {
 	hasActivePermission: boolean;
 	/** Whether this tab is currently active (visible) */
 	isActive?: boolean;
+	/**
+	 * True when the active session was recovered via client-side replay
+	 * (the `session/load` failure → `session/new` fallback path). Drives
+	 * the LossyFallbackNotice rendered above the conversation.
+	 *
+	 * In Commit A of the integration phase the restored-tab path is not
+	 * yet wired, so this flag never goes true in practice — the prop is
+	 * plumbed so Commit D's restored-tab integration can flow through
+	 * without further plumbing changes.
+	 */
+	isFallbackRecovery?: boolean;
 }
 
 /**
@@ -107,6 +121,7 @@ export function MessageList({
 	messages,
 	isSending,
 	isSessionReady,
+	isLazyIdle = false,
 	isRestoringSession,
 	agentLabel,
 	plugin,
@@ -115,6 +130,7 @@ export function MessageList({
 	onApprovePermission,
 	hasActivePermission,
 	isActive = true,
+	isFallbackRecovery = false,
 }: MessageListProps) {
 	// ============================================================
 	// Auto-scroll (single owner)
@@ -155,9 +171,11 @@ export function MessageList({
 					<div className="agent-client-chat-empty-state">
 						{isRestoringSession
 							? "Restoring session..."
-							: !isSessionReady
-								? `Connecting to ${agentLabel}...`
-								: `Start a conversation with ${agentLabel}...`}
+							: isLazyIdle
+								? `Send a message to connect to ${agentLabel}...`
+								: !isSessionReady
+									? `Connecting to ${agentLabel}...`
+									: `Start a conversation with ${agentLabel}...`}
 					</div>
 				</div>
 			</div>
@@ -167,14 +185,20 @@ export function MessageList({
 	return (
 		<div ref={scrollRef} className="agent-client-chat-view-messages">
 			<div ref={contentRef} className="agent-client-chat-content">
+				<LossyFallbackNotice
+					isFallbackRecovery={isFallbackRecovery}
+				/>
 				{messages.map((message) => (
-					<div key={message.id} className="agent-client-message-row">
+					<div key={message.id} className={`agent-client-message-row${message.pending ? " agent-client-message-pending" : ""}`}>
 						<MemoMessageBubble
 							message={message}
 							plugin={plugin}
 							terminalClient={terminalClient}
 							onApprovePermission={onApprovePermission}
 						/>
+						{message.pending && (
+							<span className="agent-client-pending-label">Sending…</span>
+						)}
 					</div>
 				))}
 			</div>

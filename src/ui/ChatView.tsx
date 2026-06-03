@@ -4,12 +4,12 @@ import type {
 	ChatViewType,
 } from "../services/view-registry";
 import * as React from "react";
-const { useEffect, useMemo, useCallback, useRef } = React;
+const { useEffect, useMemo, useCallback, useRef, useState } = React;
 import { createRoot, Root } from "react-dom/client";
 
 import type AgentClientPlugin from "../plugin";
 import type { ChatInputState } from "../types/chat";
-import type { TabState } from "../types/tab";
+import type { TabInfo, TabState, PerLeafTabState, PersistedTabInfo } from "../types/tab";
 
 // Utility imports
 import { getLogger, Logger } from "../utils/logger";
@@ -22,12 +22,15 @@ import { ChatPanel, type ChatPanelCallbacks } from "./ChatPanel";
 import { TabBar } from "./TabBar";
 import { TabErrorBoundary } from "./TabErrorBoundary";
 import { EditTitleModal } from "./SessionHistoryModal";
+import { CorruptionRecoveryModal } from "./CorruptionRecoveryModal";
 
 // Hook imports
 import { useTabManager, truncateLabel } from "../hooks/useTabManager";
+import { useTabPersistence, type TabPersistenceStorage } from "../hooks/useTabPersistence";
 
 // Service imports
 import { VaultService } from "../services/vault-service";
+import { resolveSessionIdForSave } from "../services/session-helpers";
 import type { AcpClient } from "../acp/acp-client";
 
 export const VIEW_TYPE_CHAT = "agent-client-chat-view";
@@ -71,6 +74,75 @@ function TabPanel({
 }
 
 // ============================================================================
+// Helpers — tab persistence
+// ============================================================================
+
+/**
+ * Synchronously read this leaf's persisted tab state from plugin settings.
+ * Returns null if no state exists or the setting is disabled.
+ */
+function readPersistedLeafState(
+	plugin: AgentClientPlugin,
+	leafId: string,
+): PerLeafTabState | null {
+	if (!plugin.settings.restoreTabsOnStartup) return null;
+	const all = plugin.settings.perLeafTabStates;
+	if (!Array.isArray(all)) return null;
+	const entry = all.find((s) => s.leafId === leafId);
+	if (!entry) return null;
+	// Validate the entry has the required shape (tabs array with valid records)
+	if (!Array.isArray(entry.tabs) || typeof entry.activeTabId !== "string") {
+		return null; // Corruption — caller detects via hasCorruptedLeafState
+	}
+	for (const t of entry.tabs) {
+		if (
+			typeof t?.tabId !== "string" ||
+			typeof t?.agentId !== "string" ||
+			typeof t?.label !== "string"
+		) {
+			return null;
+		}
+	}
+	return entry;
+}
+
+/**
+ * Detect if there's a raw entry for this leaf that exists but failed
+ * validation in readPersistedLeafState. Used to trigger the corruption
+ * Notice (T16).
+ */
+function hasCorruptedLeafState(
+	plugin: AgentClientPlugin,
+	leafId: string,
+): boolean {
+	if (!plugin.settings.restoreTabsOnStartup) return false;
+	const all = plugin.settings.perLeafTabStates;
+	if (!Array.isArray(all)) return false;
+	// Check if there's a raw entry with matching leafId
+	const rawEntry = all.find(
+		(s) => typeof s === "object" && s !== null && (s as unknown as Record<string, unknown>).leafId === leafId,
+	);
+	if (!rawEntry) return false;
+	// If readPersistedLeafState would return null for this entry, it's corrupted
+	return readPersistedLeafState(plugin, leafId) === null;
+}
+
+/**
+ * Convert persisted tab records to runtime TabInfo[].
+ * Restored tabs start in "disconnected" state per spec § Restore.
+ */
+function persistedToRuntime(persisted: PersistedTabInfo[]): TabInfo[] {
+	return persisted.map((p) => ({
+		tabId: p.tabId,
+		agentId: p.agentId,
+		label: p.label,
+		labelIsCustom: p.labelIsCustom ?? false,
+		state: "disconnected",
+		createdAt: new Date(),
+	}));
+}
+
+// ============================================================================
 // ChatComponent — React root with tab management
 // ============================================================================
 
@@ -87,7 +159,28 @@ function ChatComponent({
 		view.getInitialAgentId() ??
 		plugin.settings.defaultAgentId;
 
-	const tabManager = useTabManager(initialAgentId);
+	// ============================================================
+	// Tab Persistence — synchronous restore for initial render
+	// ============================================================
+	// Read persisted leaf state synchronously from plugin.settings
+	// (already in memory from loadData). This lets useTabManager
+	// initialize with restored tabs on the first render — no async
+	// two-phase mount needed.
+	const restoredLeaf = useMemo(
+		() => readPersistedLeafState(plugin, viewId),
+		// plugin and viewId are stable across the component's lifetime.
+		[plugin, viewId],
+	);
+	const restoredTabs = useMemo(
+		() => (restoredLeaf ? persistedToRuntime(restoredLeaf.tabs) : undefined),
+		[restoredLeaf],
+	);
+
+	const tabManager = useTabManager(
+		initialAgentId,
+		restoredTabs,
+		restoredLeaf?.activeTabId,
+	);
 	const { tabs, activeTabId, activeTab } = tabManager;
 
 	// ============================================================
@@ -97,6 +190,64 @@ function ChatComponent({
 
 	// Per-tab session ID tracking (for rename persistence to session history)
 	const tabSessionIdsRef = useRef<Map<string, string | null>>(new Map());
+
+	// Session-ID signature — changes when any tab acquires or loses a session.
+	// Drives useTabPersistence save effect (I57). A ref-only approach misses
+	// the render cycle needed to propagate the change to the hook's effect deps.
+	const [sessionSignature, setSessionSignature] = useState("");
+
+	// Per-tab persisted session IDs (for lazy session restore on first keystroke)
+	const persistedSessionIdsRef = useRef<Map<string, string | null>>(
+		new Map(
+			restoredLeaf?.tabs.map((t) => [t.tabId, t.sessionId]) ?? [],
+		),
+	);
+
+	// ============================================================
+	// Corruption detection (T16/T17)
+	// ============================================================
+	useEffect(() => {
+		if (!hasCorruptedLeafState(plugin, viewId)) return;
+		const notice = new Notice(
+			"Could not restore previous tabs — saved state was corrupted.",
+			0, // persistent until dismissed
+		);
+		// Add "View details" link to the notice
+		const fragment = notice.messageEl.createEl("a", {
+			text: " View details",
+			cls: "agent-client-corruption-link",
+		});
+		fragment.addEventListener("click", (e) => {
+			e.preventDefault();
+			notice.hide();
+			const rawState = JSON.stringify(
+				plugin.settings.perLeafTabStates,
+				null,
+				2,
+			);
+			const modal = new CorruptionRecoveryModal(
+				plugin.app,
+				rawState,
+				() => {
+					// Retry: reload the plugin (simplest way to re-attempt restore)
+					const appAny = plugin.app as unknown as {
+						plugins: {
+							disablePlugin: (id: string) => Promise<void>;
+							enablePlugin: (id: string) => Promise<void>;
+						};
+					};
+					void appAny.plugins.disablePlugin(plugin.manifest.id)
+						.then(() => appAny.plugins.enablePlugin(plugin.manifest.id));
+				},
+				async () => {
+					// Discard: clear tab state via settings service
+					await plugin.settingsService.discardTabState();
+					notice.hide();
+				},
+			);
+			modal.open();
+		});
+	}, [plugin, viewId]);
 
 	const getOrCreateClient = useCallback(
 		(tabId: string): AcpClient => {
@@ -136,6 +287,53 @@ function ChatComponent({
 	);
 
 	// ============================================================
+	// Tab Persistence — save side + async message loading
+	// ============================================================
+	const persistenceStorage: TabPersistenceStorage = useMemo(
+		() => ({
+			saveTabStateForLeaf: (leafId: string, state: PerLeafTabState) =>
+				plugin.settingsService.saveTabStateForLeaf(leafId, state),
+			loadTabStateForLeaf: (leafId: string) =>
+				plugin.settingsService.loadTabStateForLeaf(leafId),
+			loadSessionMessages: (sessionId: string) =>
+				plugin.settingsService.loadSessionMessages(sessionId),
+		}),
+		[plugin.settingsService],
+	);
+
+	const getSessionIdForTab = useCallback(
+		(tabId: string) =>
+			resolveSessionIdForSave(
+				tabSessionIdsRef.current.get(tabId) ?? null,
+				persistedSessionIdsRef.current.get(tabId) ?? null,
+			),
+		[],
+	);
+
+	const getScrollPositionForTab = useCallback(
+		(_tabId: string) => 0, // TODO: wire real scroll position in a follow-up commit
+		[],
+	);
+
+	const tabPersistence = useTabPersistence({
+		leafId: viewId,
+		tabs,
+		activeTabId,
+		getSessionId: getSessionIdForTab,
+		getScrollPosition: getScrollPositionForTab,
+		storage: persistenceStorage,
+		restoreEnabled: plugin.settings.restoreTabsOnStartup,
+		sessionSignature,
+	});
+
+	// Expose flushSave to the view class for onClose
+	const flushSaveRef = useRef(tabPersistence.flushSave);
+	flushSaveRef.current = tabPersistence.flushSave;
+	useEffect(() => {
+		view.setFlushSave(() => flushSaveRef.current());
+	}, [view]);
+
+	// ============================================================
 	// Agent ID restoration from Obsidian setState
 	// ============================================================
 	useEffect(() => {
@@ -157,8 +355,8 @@ function ChatComponent({
 			);
 			return;
 		}
-		tabManager.addTab(activeTab.agentId);
-	}, [tabManager, activeTab.agentId, tabs.length, plugin.settings]);
+		tabManager.addTab(plugin.settings.defaultAgentId);
+	}, [tabManager, plugin.settings, tabs.length]);
 
 	const handleCloseTab = useCallback(
 		(tabId: string) => {
@@ -212,7 +410,7 @@ function ChatComponent({
 						);
 						return;
 					}
-					tabManager.setTabLabel(tabId, newTitle);
+					tabManager.setTabLabel(tabId, newTitle, true);
 
 					// Persist to session history if this tab has a session
 					const sessionId = tabSessionIdsRef.current.get(tabId);
@@ -283,6 +481,13 @@ function ChatComponent({
 	const handleSessionIdChange = useCallback(
 		(tabId: string, sessionId: string | null) => {
 			tabSessionIdsRef.current.set(tabId, sessionId);
+			// Trigger a save via useTabPersistence by updating the session
+			// signature (I57 — ensures sessionId is persisted on acquisition).
+			setSessionSignature(
+				Array.from(tabSessionIdsRef.current.entries())
+					.map(([id, sid]) => `${id}:${sid ?? ""}`)
+					.join("||"),
+			);
 		},
 		[],
 	);
@@ -414,6 +619,12 @@ function ChatComponent({
 								}
 								findTabBySessionId={findTabBySessionId}
 								onSwitchToTab={tabManager.setActiveTab}
+								restoredSessionId={
+									persistedSessionIdsRef.current.get(tab.tabId) ?? null
+								}
+								restoredMessages={
+									tabPersistence.restoredMessages[tab.tabId]
+								}
 							/>
 						</TabPanel>
 					</TabErrorBoundary>
@@ -525,6 +736,13 @@ export class ChatView extends ItemView implements IChatViewContainer {
 		manager: ReturnType<typeof useTabManager> | null,
 	): void {
 		this.tabManagerRef = manager;
+	}
+
+	// Tab persistence flush (set by React component)
+	private flushSaveFn: (() => Promise<void>) | null = null;
+
+	setFlushSave(fn: () => Promise<void>): void {
+		this.flushSaveFn = fn;
 	}
 
 	/** Add a new tab (for Obsidian commands) */
@@ -654,6 +872,15 @@ export class ChatView extends ItemView implements IChatViewContainer {
 	async onClose(): Promise<void> {
 		this.logger.log("[ChatView] onClose() called");
 
+		// Flush tab persistence before unmounting React (U30, T07)
+		if (this.flushSaveFn) {
+			try {
+				await this.flushSaveFn();
+			} catch (e) {
+				this.logger.error("[ChatView] flushSave error:", e);
+			}
+		}
+
 		this.plugin.viewRegistry.unregister(this.viewId);
 
 		// React cleanup handles per-tab AcpClient disconnection
@@ -664,5 +891,6 @@ export class ChatView extends ItemView implements IChatViewContainer {
 
 		this.vaultService?.destroy();
 		this.tabManagerRef = null;
+		this.flushSaveFn = null;
 	}
 }

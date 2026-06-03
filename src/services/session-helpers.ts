@@ -187,3 +187,21 @@ export function createInitialSession(
 		workingDirectory,
 	};
 }
+
+// ============================================================================
+// Tab Persistence (I59)
+// ============================================================================
+
+/**
+ * Resolve the sessionId to persist for a tab.
+ *
+ * Prefers the live session id; falls back to the persisted id so a
+ * restored, not-yet-reconnected tab keeps its prior sessionId instead of
+ * being clobbered to null by the post-restore save (I59).
+ */
+export function resolveSessionIdForSave(
+	liveId: string | null,
+	persistedId: string | null,
+): string | null {
+	return liveId ?? persistedId;
+}

@@ -158,6 +158,7 @@ export interface InputToolbarProps {
 	onConfigOptionChange?: (configId: string, value: string) => void;
 	usage?: SessionUsage;
 	isSessionReady: boolean;
+	isLazyIdle?: boolean;
 }
 
 export function InputToolbar({
@@ -173,6 +174,7 @@ export function InputToolbar({
 	onConfigOptionChange,
 	usage,
 	isSessionReady,
+	isLazyIdle = false,
 }: InputToolbarProps) {
 	const sendButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -369,7 +371,9 @@ export function InputToolbar({
 				className={`agent-client-chat-send-button ${isSending ? "sending" : ""} ${isButtonDisabled ? "agent-client-disabled" : ""}`}
 				title={
 					!isSessionReady
-						? "Connecting..."
+						? isLazyIdle
+							? "Send to connect"
+							: "Connecting..."
 						: isSending
 							? "Stop generation"
 							: "Send message"

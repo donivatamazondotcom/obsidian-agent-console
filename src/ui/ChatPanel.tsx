@@ -9,13 +9,16 @@ import {
 	type MenuItem,
 } from "obsidian";
 
-import type { AttachedFile, ChatInputState } from "../types/chat";
+import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { useHistoryModal } from "../hooks/useHistoryModal";
 import { useChatActions } from "../hooks/useChatActions";
 import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
 
 // Service imports
 import { getLogger } from "../utils/logger";
+import { deriveTabLabel } from "../utils/deriveTabLabel";
+import { useRestoredMessages } from "../hooks/useRestoredMessages";
+import { loadExistingSessionFlow } from "../hooks/loadExistingSessionFlow";
 
 // Adapter imports
 import type { AcpClient } from "../acp/acp-client";
@@ -28,6 +31,8 @@ import { useSettings } from "../hooks/useSettings";
 import { useSuggestions } from "../hooks/useSuggestions";
 import { useAgent } from "../hooks/useAgent";
 import { useSessionHistory } from "../hooks/useSessionHistory";
+import { useLazySession } from "../hooks/useLazySession";
+import { useDebouncedSessionSave } from "../hooks/useDebouncedSessionSave";
 
 // Domain model imports
 import {
@@ -101,6 +106,10 @@ export interface ChatPanelProps {
 	findTabBySessionId?: (sessionId: string) => { tabId: string; label: string } | null;
 	/** Switch to a specific tab by ID (I20) */
 	onSwitchToTab?: (tabId: string) => void;
+	/** Persisted session ID for this tab (from tab persistence). Passed to useLazySession for session/load on first keystroke. */
+	restoredSessionId?: string | null;
+	/** Restored message history for this tab (from tab persistence). Seeded into the message list on async arrival while idle (I43). */
+	restoredMessages?: ChatMessage[];
 }
 
 // ============================================================================
@@ -147,6 +156,8 @@ export function ChatPanel({
 	isActive,
 	findTabBySessionId,
 	onSwitchToTab,
+	restoredSessionId,
+	restoredMessages,
 }: ChatPanelProps) {
 	// ============================================================
 	// Platform Check
@@ -245,6 +256,15 @@ export function ChatPanel({
 		onMessagesRestore: agent.setMessagesFromLocal,
 		onIgnoreUpdates: agent.setIgnoreUpdates,
 		onClearMessages: agent.clearMessages,
+	});
+
+	// Seed restored history into the message list when the async disk read
+	// resolves, but only while idle (no live session) so it never clobbers
+	// an active conversation (I43, spec Decision #12).
+	useRestoredMessages({
+		restoredMessages,
+		hasSession: !!session.sessionId,
+		apply: agent.setMessagesFromLocal,
 	});
 
 	// ============================================================
@@ -658,11 +678,223 @@ export function ChatPanel({
 	// ============================================================
 	// Effects - Session Lifecycle
 	// ============================================================
-	// Initialize session on mount
+
+	// Lazy session lifecycle — Decisions #2, #6, #7, #8 of
+	// [[ACP Tab Persistence Across Restarts]]. No eager `session/new`
+	// fires on mount. Agent initialize + session creation defer until
+	// the user signals intent (typing in the composer with 200ms
+	// debounce, or clicking send).
+	//
+	// Decision #10: Eager initialize on mount for composer affordances.
+	// Spawns the agent process so that slash commands, model list, and
+	// mode list are available before the user types. The subsequent
+	// createSession call (on first keystroke) sees isInitialized()=true
+	// and skips re-initialization, going straight to newSession.
 	useEffect(() => {
-		logger.log("[Debug] Starting connection setup via useSession...");
-		void agent.createSession(config?.agent || initialAgentId);
-	}, [agent.createSession, config?.agent, initialAgentId]);
+		if (acpClient.isInitialized()) return;
+		const agentId = config?.agent || initialAgentId;
+		if (!agentId) return;
+
+		void (async () => {
+			try {
+				const { findAgentSettings, buildAgentConfigWithApiKey } =
+					await import("../services/session-helpers");
+				const agentSettings = findAgentSettings(
+					plugin.settings,
+					agentId,
+				);
+				if (!agentSettings) return;
+				const agentConfig = buildAgentConfigWithApiKey(
+					plugin.settings,
+					agentSettings,
+					agentId,
+					vaultPath,
+				);
+				await acpClient.initialize(agentConfig);
+				// I54: propagate the just-fetched capabilities into session
+				// state so image paste works on a fresh tab before connecting.
+				agent.applyInitCapabilities();
+				logger.log("[ChatPanel] Eager initialize complete for:", agentId);
+			} catch (e) {
+				// Non-fatal: lazy path will retry on first keystroke
+				logger.log("[ChatPanel] Eager initialize failed (non-fatal):", e);
+			}
+		})();
+		// Run once on mount only. agentId/vaultPath are stable.
+		// eslint-disable-next-line
+	}, []);
+
+	// Queued send for the case where the user clicks send while
+	// session acquisition is still in flight. Cleared by the flush
+	// effect below.
+	const [queuedSend, setQueuedSend] = useState<{
+		content: string;
+		attachments?: AttachedFile[];
+	} | null>(null);
+
+	// Optimistic user message shown while session acquisition is in flight.
+	const [pendingMessage, setPendingMessage] = useState<ChatMessage | null>(null);
+
+	const lazySession = useLazySession({
+		// Restored sessionId from tab persistence. When non-null, the
+		// hook calls loadExistingSession on first keystroke instead of
+		// acquireNewSession.
+		restoredSessionId: restoredSessionId ?? null,
+
+		acquireNewSession: useCallback(async () => {
+			try {
+				const effectiveAgent = config?.agent || initialAgentId;
+				logger.log(
+					"[Lazy] Acquiring new session for agent:",
+					effectiveAgent,
+				);
+				// I53 guard: if a session already exists (e.g. from a prior
+				// acquisition that completed during a re-render cycle before
+				// the lazy hook's setSessionId propagated), reuse it instead
+				// of creating a duplicate.
+				const existingSid = agent.session.sessionId;
+				if (existingSid) {
+					logger.log(
+						"[Lazy] Session already exists, reusing:",
+						existingSid,
+					);
+					return { ok: true as const, sessionId: existingSid };
+				}
+				// I55: use the sessionId RETURNED by createSession instead
+				// of reading agent.session.sessionId from a stale closure.
+				// The setState inside createSession has not propagated to
+				// this closure's `agent` reference yet, so the old read
+				// returned null and left the message stuck in "Sending…".
+				const sid = await agent.createSession(effectiveAgent);
+				if (!sid) {
+					return {
+						ok: false as const,
+						error: new Error(
+							"Session creation produced no sessionId",
+						),
+					};
+				}
+				return { ok: true as const, sessionId: sid };
+			} catch (err) {
+				return {
+					ok: false as const,
+					error:
+						err instanceof Error ? err : new Error(String(err)),
+				};
+			}
+		}, [
+			agent.createSession,
+			agent.session.sessionId,
+			config?.agent,
+			initialAgentId,
+			logger,
+		]),
+
+		loadExistingSession: useCallback(async (sessionId: string) => {
+			logger.log("[Lazy] Loading existing session:", sessionId);
+			const result = await loadExistingSessionFlow({
+				sessionId,
+				cwd: agentCwd,
+				// Suppress the agent's replay only when local history is
+				// already displayed; otherwise let it through (I43 #12).
+				haveLocalHistory:
+					!!restoredMessages && restoredMessages.length > 0,
+				loadSession: (id, cwd) => acpClient.loadSession(id, cwd),
+				onLoaded: (r) =>
+					void agent.updateSessionFromLoad(
+						r.sessionId,
+						r.modes,
+						r.models,
+						r.configOptions,
+					),
+				setIgnoreUpdates: agent.setIgnoreUpdates,
+			});
+			if (!result.ok) {
+				logger.log(
+					"[Lazy] loadSession failed, falling through to new session:",
+					result.error,
+				);
+			}
+			return result;
+		}, [
+			restoredMessages,
+			acpClient,
+			agentCwd,
+			agent.updateSessionFromLoad,
+			agent.setIgnoreUpdates,
+			logger,
+		]),
+
+		sendPrompt: useCallback(async () => {
+			// Queue flush is owned by ChatPanel's `queuedSend` effect
+			// (below) — not by the hook's internal sendPrompt. Owning
+			// the flush at the ChatPanel level lets us read
+			// agent.session.sessionId from a post-render closure when
+			// the user message threads through handleSendMessage.
+		}, []),
+	});
+
+	// Queue-flush effect: fires when the lazy session reaches `ready`
+	// AND agent state has committed the new sessionId. Only then is it
+	// safe to call handleSendMessage, which reads
+	// agent.session.sessionId from its closure.
+	useEffect(() => {
+		if (
+			lazySession.state === "ready" &&
+			queuedSend !== null &&
+			agent.session.sessionId
+		) {
+			const { content, attachments } = queuedSend;
+			setQueuedSend(null);
+			setPendingMessage(null);
+			void handleSendMessage(content, attachments);
+		}
+	}, [
+		lazySession.state,
+		queuedSend,
+		agent.session.sessionId,
+		handleSendMessage,
+	]);
+
+	// Send wrapper: sticky path → handleSendMessage directly when the
+	// session is already `ready`; non-ready path → queue + trigger lazy
+	// acquisition. The queue-flush effect above runs handleSendMessage
+	// once both lazy state and agent.session.sessionId have settled.
+	const handleSendWithLazyAcquisition = useCallback(
+		async (content: string, attachments?: AttachedFile[]) => {
+			if (lazySession.state === "ready" && agent.session.sessionId) {
+				await handleSendMessage(content, attachments);
+				return;
+			}
+			setQueuedSend({ content, attachments });
+			setPendingMessage({
+				id: `pending-${Date.now()}`,
+				role: "user",
+				content: [
+					{ type: "text", text: content },
+					// I55 Defect B: surface image attachments in the optimistic
+					// "Sending…" bubble so the user can see the screenshot they
+					// queued (previously text-only, implying nothing was attached).
+					...(attachments ?? [])
+						.filter((f) => f.kind === "image" && f.data)
+						.map((f) => ({
+							type: "image" as const,
+							data: f.data as string,
+							mimeType: f.mimeType,
+						})),
+				],
+				timestamp: new Date(),
+				pending: true,
+			});
+			lazySession.onSendClick(content);
+		},
+		[
+			lazySession.state,
+			lazySession.onSendClick,
+			agent.session.sessionId,
+			handleSendMessage,
+		],
+	);
 
 	// Apply configured model when session is ready
 	useEffect(() => {
@@ -807,6 +1039,16 @@ export function ChatPanel({
 		logger,
 	]);
 
+	// Debounced incremental save so the message tail survives reload/quit
+	// even mid-stream or before a turn ends (I48). Extracted to a hook with
+	// an unmount-flush + max-wait so a mid-stream reload does not lose the
+	// in-flight turn. The turn-end save above is kept for the notification.
+	useDebouncedSessionSave(
+		session.sessionId,
+		messages,
+		sessionHistory.saveSessionMessages,
+	);
+
 	// ============================================================
 	// Effects - System Notification on Permission Request
 	// ============================================================
@@ -836,45 +1078,57 @@ export function ChatPanel({
 	// ============================================================
 	// Effects - Tab State & Label Reporting
 	// ============================================================
+	// Drive busy/permission transitions on the lazy session state machine
+	// from agent events. The state machine is the single source of truth
+	// (spec § Tab Session State Machine); these effects keep it in sync
+	// with the agent's response lifecycle.
+	const prevIsSendingForStateRef = useRef(false);
+	useEffect(() => {
+		const was = prevIsSendingForStateRef.current;
+		prevIsSendingForStateRef.current = isSending;
+		if (!was && isSending && lazySession.state === "ready") {
+			lazySession.startBusy();
+		} else if (was && !isSending && lazySession.state === "busy") {
+			lazySession.endBusy();
+		}
+	}, [isSending, lazySession.state, lazySession.startBusy, lazySession.endBusy]);
+
+	const prevHasPermissionForStateRef = useRef(false);
+	useEffect(() => {
+		const was = prevHasPermissionForStateRef.current;
+		prevHasPermissionForStateRef.current = agent.hasActivePermission;
+		if (!was && agent.hasActivePermission) {
+			lazySession.requestPermission();
+		} else if (was && !agent.hasActivePermission && lazySession.state === "permission") {
+			lazySession.resolvePermission();
+		}
+	}, [agent.hasActivePermission, lazySession.state, lazySession.requestPermission, lazySession.resolvePermission]);
+
+	// Report lazySession.state to the parent (tab icon) via onStateChange.
+	// Maps TabSessionState → TabState for the existing TabBar contract.
 	useEffect(() => {
 		if (!onStateChangeRef.current) return;
-		if (errorInfo) {
-			onStateChangeRef.current("error");
-		} else if (agent.hasActivePermission) {
-			onStateChangeRef.current("permission");
-		} else if (isSending) {
-			onStateChangeRef.current("busy");
-		} else if (isSessionReady) {
-			onStateChangeRef.current("ready");
-		} else {
+		const s = lazySession.state;
+		if (s === "idle" || s === "connecting") {
 			onStateChangeRef.current("disconnected");
+		} else if (s === "error") {
+			onStateChangeRef.current("error");
+		} else if (s === "permission") {
+			onStateChangeRef.current("permission");
+		} else if (s === "busy") {
+			onStateChangeRef.current("busy");
+		} else {
+			onStateChangeRef.current("ready");
 		}
-	}, [
-		errorInfo,
-		agent.hasActivePermission,
-		isSending,
-		isSessionReady,
-	]);
+	}, [lazySession.state]);
 
 	// Report label from first user message
 	useEffect(() => {
 		if (!onLabelChangeRef.current || labelReportedRef.current) return;
-		if (messages.length > 0) {
-			const firstUserMsg = messages.find((m) => m.role === "user");
-			if (firstUserMsg) {
-				// content is MessageContent[] — extract text from the first text/text_with_context block
-				const textBlock = firstUserMsg.content.find(
-					(block) =>
-						block.type === "text" ||
-						block.type === "text_with_context",
-				);
-				const text =
-					textBlock && "text" in textBlock ? textBlock.text : "";
-				if (text.trim()) {
-					onLabelChangeRef.current(text.trim());
-					labelReportedRef.current = true;
-				}
-			}
+		const label = deriveTabLabel(messages);
+		if (label) {
+			onLabelChangeRef.current(label);
+			labelReportedRef.current = true;
 		}
 	}, [messages]);
 
@@ -1058,13 +1312,13 @@ export function ChatPanel({
 	const isSessionReadyRef = useRef(isSessionReady);
 	const isSendingRef = useRef(isSending);
 	const sessionHistoryLoadingRef = useRef(sessionHistory.loading);
-	const handleSendMessageRef = useRef(handleSendMessage);
+	const handleSendMessageRef = useRef(handleSendWithLazyAcquisition);
 	inputValueRef.current = inputValue;
 	attachedFilesRef.current = attachedFiles;
 	isSessionReadyRef.current = isSessionReady;
 	isSendingRef.current = isSending;
 	sessionHistoryLoadingRef.current = sessionHistory.loading;
-	handleSendMessageRef.current = handleSendMessage;
+	handleSendMessageRef.current = handleSendWithLazyAcquisition;
 
 	useEffect(() => {
 		onRegisterCallbacks?.({
@@ -1081,9 +1335,14 @@ export function ChatPanel({
 				const hasContent =
 					inputValueRef.current.trim() !== "" ||
 					attachedFilesRef.current.length > 0;
+				const lazyState = lazySession.state;
+				const canAcceptSend =
+					isSessionReadyRef.current ||
+					lazyState === "connecting" ||
+					lazyState === "idle";
 				return (
 					hasContent &&
-					isSessionReadyRef.current &&
+					canAcceptSend &&
 					!sessionHistoryLoadingRef.current &&
 					!isSendingRef.current
 				);
@@ -1146,7 +1405,7 @@ export function ChatPanel({
 			<ChatHeader
 				variant="sidebar"
 				agentLabel={activeAgentLabel}
-				headerSegments={headerSegments}
+				headerSegments={{...headerSegments, isLazyIdle: lazySession.state === "idle"}}
 				isUpdateAvailable={isUpdateAvailable}
 				onNewChat={() => void handleNewChatWithPersist()}
 				onExportChat={() => void handleExportChat()}
@@ -1157,7 +1416,7 @@ export function ChatPanel({
 			<ChatHeader
 				variant="floating"
 				agentLabel={activeAgentLabel}
-				headerSegments={headerSegments}
+				headerSegments={{...headerSegments, isLazyIdle: lazySession.state === "idle"}}
 				availableAgents={availableAgents}
 				currentAgentId={session.agentId}
 				isUpdateAvailable={isUpdateAvailable}
@@ -1181,11 +1440,18 @@ export function ChatPanel({
 			</div>
 		) : null;
 
+	// Combine real messages with the optimistic pending message for display.
+	const displayMessages = useMemo(
+		() => pendingMessage ? [...messages, pendingMessage] : messages,
+		[messages, pendingMessage],
+	);
+
 	const messageListElement = (
 		<MessageList
-			messages={messages}
+			messages={displayMessages}
 			isSending={isSending}
 			isSessionReady={isSessionReady}
+			isLazyIdle={lazySession.state === "idle"}
 			isRestoringSession={sessionHistory.loading}
 			agentLabel={activeAgentLabel}
 			plugin={plugin}
@@ -1194,6 +1460,7 @@ export function ChatPanel({
 			onApprovePermission={agent.approvePermission}
 			hasActivePermission={agent.hasActivePermission}
 			isActive={isActive}
+			isFallbackRecovery={lazySession.isFallbackRecovery}
 		/>
 	);
 
@@ -1201,6 +1468,8 @@ export function ChatPanel({
 		<InputArea
 			isSending={isSending}
 			isSessionReady={isSessionReady}
+			isLazyIdle={lazySession.state === "idle"}
+			isLazyConnecting={lazySession.state === "connecting"}
 			isRestoringSession={sessionHistory.loading}
 			agentLabel={activeAgentLabel}
 			availableCommands={session.availableCommands || []}
@@ -1209,7 +1478,7 @@ export function ChatPanel({
 			suggestions={suggestions}
 			plugin={plugin}
 			view={viewHost}
-			onSendMessage={handleSendMessage}
+			onSendMessage={handleSendWithLazyAcquisition}
 			onStopGeneration={handleStopGeneration}
 			onRestoredMessageConsumed={handleRestoredMessageConsumed}
 			modes={session.modes}
@@ -1225,7 +1494,15 @@ export function ChatPanel({
 			agentId={session.agentId}
 			// Controlled component props (for broadcast commands)
 			inputValue={inputValue}
-			onInputChange={setInputValue}
+			onInputChange={(value) => {
+				setInputValue(value);
+				// Typing-as-intent: feed every keystroke to the lazy
+				// session so it can debounce-trigger session acquisition.
+				// The hook short-circuits when sessionId is already set
+				// (sticky session) so this is cheap on the steady-state
+				// path.
+				lazySession.onComposerChange(value);
+			}}
 			attachedFiles={attachedFiles}
 			onAttachedFilesChange={setAttachedFiles}
 			// Error overlay props
