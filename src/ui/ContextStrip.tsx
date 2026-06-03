@@ -132,7 +132,7 @@ export function ContextStrip({
 				<input
 					ref={inputRef}
 					className="context-strip-input"
-					placeholder="Add context..."
+					placeholder="Add notes with +"
 					onKeyDown={handleKeyDown}
 					onFocus={() => setSelectedIndex(null)}
 				/>

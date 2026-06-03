@@ -37,7 +37,7 @@ describe("ContextStrip", () => {
 
 	it("renders placeholder when no notes crystallized", () => {
 		render(<ContextStrip {...makeProps()} />);
-		expect(screen.getByPlaceholderText("Add context...")).toBeTruthy();
+		expect(screen.getByPlaceholderText("Add notes with +")).toBeTruthy();
 	});
 
 	it("renders pills for each crystallized note", () => {
@@ -171,7 +171,7 @@ describe("ContextStrip", () => {
 		const { container } = render(
 			<ContextStrip {...makeProps({ notes })} />,
 		);
-		const input = screen.getByPlaceholderText("Add context...");
+		const input = screen.getByPlaceholderText("Add notes with +");
 		fireEvent.keyDown(input, { key: "Backspace" });
 		// Last pill should have selected class
 		const pills = container.querySelectorAll(".context-strip-pill");
@@ -189,7 +189,7 @@ describe("ContextStrip", () => {
 			{ path: "b.md", source: "user", seen: false },
 		];
 		render(<ContextStrip {...makeProps({ notes, onRemove })} />);
-		const input = screen.getByPlaceholderText("Add context...");
+		const input = screen.getByPlaceholderText("Add notes with +");
 		// First Backspace selects
 		fireEvent.keyDown(input, { key: "Backspace" });
 		// Second Backspace removes
@@ -199,7 +199,7 @@ describe("ContextStrip", () => {
 
 	it("Escape blurs the strip input", () => {
 		render(<ContextStrip {...makeProps()} />);
-		const input = screen.getByPlaceholderText("Add context...");
+		const input = screen.getByPlaceholderText("Add notes with +");
 		input.focus();
 		fireEvent.keyDown(input, { key: "Escape" });
 		expect(document.activeElement).not.toBe(input);
