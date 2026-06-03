@@ -63,6 +63,11 @@ export function useSelectionTracker(source: SelectionSource): UseSelectionTracke
 		const unsubscribe = source.subscribeSelectionChanges(() => {
 			void handleSelectionChange();
 		});
+		// Prime initial state on mount. The shared VaultService only emits to
+		// the first subscriber (ensureSelectionTracking early-returns after),
+		// so a new chat tab's tracker would otherwise stay null until the next
+		// active-leaf-change — leaving the grab button disabled. (T02/T03)
+		void handleSelectionChange();
 		return unsubscribe;
 	}, [source, handleSelectionChange]);
 

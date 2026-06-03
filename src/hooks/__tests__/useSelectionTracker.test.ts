@@ -115,6 +115,8 @@ describe("useSelectionTracker", () => {
 			return () => {};
 		});
 		const getActiveNote = vi.fn()
+			// Absorb the mount-time priming call (T02/T03 fix).
+			.mockResolvedValueOnce(null)
 			.mockResolvedValueOnce({
 				path: "note.md",
 				name: "note",
@@ -176,6 +178,8 @@ describe("useSelectionTracker", () => {
 			return () => {};
 		});
 		const getActiveNote = vi.fn()
+			// Absorb the mount-time priming call (T02/T03 fix).
+			.mockResolvedValueOnce(null)
 			.mockResolvedValueOnce({
 				path: "first.md",
 				name: "first",
