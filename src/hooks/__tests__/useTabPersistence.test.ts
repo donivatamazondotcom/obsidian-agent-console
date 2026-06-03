@@ -102,6 +102,7 @@ type MockStorage = TabPersistenceStorage & {
 	saveTabStateForLeaf: ReturnType<typeof vi.fn>;
 	loadTabStateForLeaf: ReturnType<typeof vi.fn>;
 	loadSessionMessages: ReturnType<typeof vi.fn>;
+	loadSessionContextNotes: ReturnType<typeof vi.fn>;
 };
 
 function makeStorage(overrides: Partial<MockStorage> = {}): MockStorage {
@@ -109,6 +110,7 @@ function makeStorage(overrides: Partial<MockStorage> = {}): MockStorage {
 		saveTabStateForLeaf: vi.fn().mockResolvedValue(undefined),
 		loadTabStateForLeaf: vi.fn().mockResolvedValue(null),
 		loadSessionMessages: vi.fn().mockResolvedValue(null),
+		loadSessionContextNotes: vi.fn().mockResolvedValue(null),
 		...overrides,
 	};
 }
@@ -849,5 +851,45 @@ describe("useTabPersistence — I57 session acquisition persistence gap", () => 
 		expect(result.current.restoredLeafState).not.toBeNull();
 		const tab = result.current.restoredLeafState!.tabs[0];
 		expect(tab.sessionId).toBe("sess-original");
+	});
+});
+
+// ============================================================================
+// I61 — context-note restore on startup auto-restore
+// ============================================================================
+
+describe("useTabPersistence — context-note restore (I61)", () => {
+	it("loads context notes for tabs with a non-null sessionId", async () => {
+		const notesS1 = [{ path: "A.md", source: "user", seen: false }];
+		const notesS3 = [{ path: "B.md", source: "mention", seen: false }];
+		const storage = makeStorage({
+			loadTabStateForLeaf: vi.fn().mockResolvedValue({
+				leafId: "leaf-1",
+				tabs: [
+					makePersistedTab({ tabId: "T1", sessionId: "S1" }),
+					makePersistedTab({ tabId: "T2", sessionId: null }),
+					makePersistedTab({ tabId: "T3", sessionId: "S3" }),
+				],
+				activeTabId: "T1",
+			}),
+			loadSessionContextNotes: vi
+				.fn()
+				.mockImplementation(async (id: string) => {
+					if (id === "S1") return notesS1;
+					if (id === "S3") return notesS3;
+					return null;
+				}),
+		});
+
+		const { result } = renderHook(() =>
+			useTabPersistence(makeProps({ leafId: "leaf-1", storage })),
+		);
+		await waitForRestoreReady(() => result.current);
+
+		expect(result.current.restoredContextNotes).toEqual({
+			T1: notesS1,
+			T3: notesS3,
+		});
+		expect("T2" in result.current.restoredContextNotes).toBe(false);
 	});
 });

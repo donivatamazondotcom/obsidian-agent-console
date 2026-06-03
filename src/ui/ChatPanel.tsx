@@ -31,6 +31,7 @@ import { useChatContext } from "./ChatContext";
 import { useSettings } from "../hooks/useSettings";
 import { useSuggestions } from "../hooks/useSuggestions";
 import { useContextNotes } from "../hooks/useContextNotes";
+import type { ContextNote } from "../types/context";
 import { useSelectionTracker } from "../hooks/useSelectionTracker";
 import {
 	useContextVaultEvents,
@@ -109,6 +110,8 @@ export interface ChatPanelProps {
 	restoredSessionId?: string | null;
 	/** Restored message history for this tab (from tab persistence). Seeded into the message list on async arrival while idle (I43). */
 	restoredMessages?: ChatMessage[];
+	/** Restored context notes for this tab (from tab persistence). Rehydrates the context strip on async arrival while idle (I61). */
+	restoredContextNotes?: ContextNote[];
 }
 
 // ============================================================================
@@ -150,6 +153,7 @@ export function ChatPanel({
 	onSwitchToTab,
 	restoredSessionId,
 	restoredMessages,
+	restoredContextNotes,
 }: ChatPanelProps) {
 	// ============================================================
 	// Platform Check
@@ -313,8 +317,10 @@ export function ChatPanel({
 	// an active conversation (I43, spec Decision #12).
 	useRestoredMessages({
 		restoredMessages,
+		restoredContextNotes,
 		hasSession: !!session.sessionId,
 		apply: agent.setMessagesFromLocal,
+		applyContextNotes: contextNotes.replace,
 	});
 
 	// ============================================================

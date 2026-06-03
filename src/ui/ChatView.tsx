@@ -298,6 +298,8 @@ function ChatComponent({
 				plugin.settingsService.loadTabStateForLeaf(leafId),
 			loadSessionMessages: (sessionId: string) =>
 				plugin.settingsService.loadSessionMessages(sessionId),
+			loadSessionContextNotes: (sessionId: string) =>
+				plugin.settingsService.loadSessionContextNotes(sessionId),
 		}),
 		[plugin.settingsService],
 	);
@@ -653,6 +655,9 @@ function ChatComponent({
 								}
 								restoredMessages={
 									tabPersistence.restoredMessages[tab.tabId]
+								}
+								restoredContextNotes={
+									tabPersistence.restoredContextNotes[tab.tabId]
 								}
 							/>
 						</TabPanel>
