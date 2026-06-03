@@ -11,6 +11,7 @@ import type {
 	SessionConfigOption,
 	AgentCapabilities,
 } from "../types/session";
+import { resolveSessionMetadataWrite } from "../services/session-metadata";
 import type { ChatMessage } from "../types/chat";
 
 // ============================================================================
@@ -815,22 +816,28 @@ export function useSessionHistory(
 				messages,
 			);
 
-			// Bump updatedAt on session metadata so "last used" ordering
-			// reflects real activity. Read live snapshot (not React state)
-			// to avoid races with rapid fork/rename. Skip if the metadata
-			// entry hasn't landed yet — saveSessionLocally will create it
-			// on the first-message path.
+			// Upsert session metadata. Read the live snapshot (not React
+			// state) to avoid races with rapid fork/rename. If an entry
+			// exists, bump updatedAt so "last used" ordering reflects real
+			// activity. If none exists — e.g. the first-message
+			// saveSessionLocally gate was skipped on the send-before-connect
+			// path — CREATE it here so a session with a transcript on disk is
+			// never orphaned from the history list (I58).
 			const existing = settingsAccess
 				.getSavedSessions()
 				.find((s) => s.sessionId === sessionId);
-			if (existing) {
-				void settingsAccess.saveSession({
-					...existing,
-					updatedAt: new Date().toISOString(),
-				});
+			const metadataWrite = resolveSessionMetadataWrite(existing, {
+				sessionId,
+				agentId: session.agentId,
+				cwd: agentCwd,
+				messages,
+				now: new Date().toISOString(),
+			});
+			if (metadataWrite) {
+				void settingsAccess.saveSession(metadataWrite);
 			}
 		},
-		[session.agentId, settingsAccess],
+		[session.agentId, agentCwd, settingsAccess],
 	);
 
 	return useMemo(
