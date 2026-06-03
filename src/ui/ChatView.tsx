@@ -136,6 +136,7 @@ function persistedToRuntime(persisted: PersistedTabInfo[]): TabInfo[] {
 		tabId: p.tabId,
 		agentId: p.agentId,
 		label: p.label,
+		labelIsCustom: p.labelIsCustom ?? false,
 		state: "disconnected",
 		createdAt: new Date(),
 	}));
@@ -409,7 +410,7 @@ function ChatComponent({
 						);
 						return;
 					}
-					tabManager.setTabLabel(tabId, newTitle);
+					tabManager.setTabLabel(tabId, newTitle, true);
 
 					// Persist to session history if this tab has a session
 					const sessionId = tabSessionIdsRef.current.get(tabId);
