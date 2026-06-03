@@ -5,7 +5,7 @@ import tseslint from "typescript-eslint";
 
 export default defineConfig([
 	{
-		ignores: ["node_modules/", "main.js", "docs/", "vitest.config.ts"],
+		ignores: ["node_modules/", "main.js", "docs/", "vitest.config.ts", ".trees/"],
 	},
 	...obsidianmd.configs.recommended,
 	...tseslint.configs.recommended,
