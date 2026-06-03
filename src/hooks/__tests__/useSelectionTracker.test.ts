@@ -200,4 +200,36 @@ describe("useSelectionTracker", () => {
 		await act(async () => { listener!(); });
 		expect(result.current.activeNotePath).toBe("second.md");
 	});
+
+	// T02/T03 reproduction.
+	// On a new chat tab, VaultService.ensureSelectionTracking() early-returns
+	// for the 2nd+ subscriber (activeLeafRef already set), so the listener
+	// never receives an initial emit. The hook must self-prime from
+	// getActiveNote() on mount; current code only updates when the listener
+	// fires, so activeNotePath stays null until the user clicks into a note
+	// (grab button disabled, tooltip name missing). This test FAILS unfixed.
+	it("primes activeNotePath from getActiveNote() on mount when the source never emits (T02/T03)", async () => {
+		const getActiveNote = vi.fn().mockResolvedValue({
+			path: "folder/Design Doc.md",
+			name: "Design Doc",
+			extension: "md",
+			created: 0,
+			modified: 0,
+		});
+		const source = makeMockSource({
+			getActiveNote,
+			// Returns a no-op unsubscribe and never invokes the listener.
+			subscribeSelectionChanges: vi.fn().mockReturnValue(() => {}),
+		});
+
+		const { result } = renderHook(() => useSelectionTracker(source));
+
+		// Flush any mount-time async priming.
+		await act(async () => {
+			await Promise.resolve();
+		});
+
+		expect(result.current.activeNotePath).toBe("folder/Design Doc.md");
+		expect(result.current.activeNoteName).toBe("Design Doc");
+	});
 });
