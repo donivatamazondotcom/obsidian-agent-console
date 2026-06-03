@@ -1008,6 +1008,7 @@ export function ChatPanel({
 	useDebouncedSessionSave(
 		session.sessionId,
 		messages,
+		contextNotes.notes,
 		sessionHistory.saveSessionMessages,
 	);
 

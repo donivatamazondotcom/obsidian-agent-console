@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { ChatMessage } from "../types/chat";
+import type { ContextNote } from "../types/context";
 
 /**
  * Debounced incremental save of session message history (I48).
@@ -22,12 +23,19 @@ import type { ChatMessage } from "../types/chat";
 export function useDebouncedSessionSave(
 	sessionId: string | null,
 	messages: ChatMessage[],
-	save: (sessionId: string, messages: ChatMessage[]) => void,
+	contextNotes: ContextNote[],
+	save: (
+		sessionId: string,
+		messages: ChatMessage[],
+		contextNotes: ContextNote[],
+	) => void,
 	debounceMs = 1000,
 	maxWaitMs = 1000,
 ): void {
 	const saveRef = useRef(save);
 	saveRef.current = save;
+	const contextNotesRef = useRef(contextNotes);
+	contextNotesRef.current = contextNotes;
 
 	const latestRef = useRef<{
 		sessionId: string;
@@ -48,7 +56,7 @@ export function useDebouncedSessionSave(
 		if (!dirtyRef.current) return;
 		const pending = latestRef.current;
 		if (pending) {
-			saveRef.current(pending.sessionId, pending.messages);
+			saveRef.current(pending.sessionId, pending.messages, contextNotesRef.current);
 			dirtyRef.current = false;
 		}
 	};
