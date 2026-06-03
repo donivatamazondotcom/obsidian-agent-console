@@ -30,6 +30,7 @@ import { useTabPersistence, type TabPersistenceStorage } from "../hooks/useTabPe
 
 // Service imports
 import { VaultService } from "../services/vault-service";
+import { resolveSessionIdForSave } from "../services/session-helpers";
 import type { AcpClient } from "../acp/acp-client";
 
 export const VIEW_TYPE_CHAT = "agent-client-chat-view";
@@ -300,7 +301,11 @@ function ChatComponent({
 	);
 
 	const getSessionIdForTab = useCallback(
-		(tabId: string) => tabSessionIdsRef.current.get(tabId) ?? null,
+		(tabId: string) =>
+			resolveSessionIdForSave(
+				tabSessionIdsRef.current.get(tabId) ?? null,
+				persistedSessionIdsRef.current.get(tabId) ?? null,
+			),
 		[],
 	);
 
