@@ -342,6 +342,7 @@ interface ISettingsAccess {
 - Claude Code: `@agentclientprotocol/claude-agent-acp` (ANTHROPIC_API_KEY)
 - Codex: `@zed-industries/codex-acp` (OPENAI_API_KEY)
 - Gemini CLI: `@google/gemini-cli` (GEMINI_API_KEY)
+- Kiro CLI: `kiro-cli acp` (built-in ACP; Kiro account sign-in, no API key)
 - Custom: Any ACP-compatible agent
 
 ## Keeping This File Current

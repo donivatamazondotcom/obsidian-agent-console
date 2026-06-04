@@ -447,6 +447,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		this.renderClaudeSettings(containerEl);
 		this.renderCodexSettings(containerEl);
 		this.renderGeminiSettings(containerEl);
+		this.renderKiroSettings(containerEl);
 
 		new Setting(containerEl).setName("Custom agents").setHeading();
 
@@ -764,6 +765,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				this.plugin.settings.gemini.displayName ||
 					this.plugin.settings.gemini.id,
 			),
+			toOption(
+				this.plugin.settings.kiro.id,
+				this.plugin.settings.kiro.displayName ||
+					this.plugin.settings.kiro.id,
+			),
 		];
 		for (const agent of this.plugin.settings.customAgents) {
 			if (agent.id && agent.id.length > 0) {
@@ -867,6 +873,84 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						await this.plugin.settingsService.updateSettings({
 							gemini: {
 								...this.plugin.settings.gemini,
+								env: this.parseEnv(value),
+							},
+						});
+					});
+				text.inputEl.rows = 3;
+			});
+	}
+
+	private renderKiroSettings(sectionEl: HTMLElement) {
+		const kiro = this.plugin.settings.kiro;
+
+		new Setting(sectionEl)
+			.setName(kiro.displayName || "Kiro CLI")
+			.setHeading();
+
+		new Setting(sectionEl)
+			.setName("Authentication")
+			.setDesc(
+				'Kiro CLI signs in with your Kiro account, so no API key is needed. Run "kiro-cli" once in a terminal to sign in, then select Kiro CLI here.',
+			);
+
+		const kiroPathSetting = new Setting(sectionEl)
+			.setName("Path")
+			.setDesc(
+				'Command name or path to kiro-cli. Use just "kiro-cli" to let the login shell resolve it, or enter an absolute path (commonly ~/.local/bin/kiro-cli).',
+			)
+			.addText((text) => {
+				text.setPlaceholder("kiro-cli")
+					.setValue(kiro.command)
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							kiro: {
+								...this.plugin.settings.kiro,
+								command: value.trim(),
+							},
+						});
+					});
+			});
+		this.addAutoDetectButton(kiroPathSetting, "kiro-cli", async (path) => {
+			await this.plugin.settingsService.updateSettings({
+				kiro: {
+					...this.plugin.settings.kiro,
+					command: path,
+				},
+			});
+		});
+
+		new Setting(sectionEl)
+			.setName("Arguments")
+			.setDesc(
+				'Enter one argument per line. Kiro CLI requires the "acp" subcommand.',
+			)
+			.addTextArea((text) => {
+				text.setPlaceholder("acp")
+					.setValue(this.formatArgs(kiro.args))
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							kiro: {
+								...this.plugin.settings.kiro,
+								args: this.parseArgs(value),
+							},
+						});
+					});
+				text.inputEl.rows = 3;
+			});
+
+		new Setting(sectionEl)
+			.setName("Environment variables")
+			.setDesc(
+				"Enter KEY=VALUE pairs, one per line. Leave empty unless your setup requires it.",
+			)
+			.addTextArea((text) => {
+				text.setPlaceholder("")
+					.setValue(this.formatEnv(kiro.env))
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							kiro: {
+								...this.plugin.settings.kiro,
 								env: this.parseEnv(value),
 							},
 						});
