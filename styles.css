@@ -940,7 +940,10 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	align-items: center;
 	gap: 4px;
 	flex: 1;
-	min-height: 24px;
+	/* Reserve one pill's rendered height (line-height 1.45 × 14px + 8px padding +
+	   2px border ≈ 30.3px) so adding/removing the first pill doesn't change the
+	   row height. Must be ≥ pill height to avoid a residual jump (I75). */
+	min-height: 31px;
 }
 
 .context-strip-pill {
