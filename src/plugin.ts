@@ -647,7 +647,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "toggle-auto-mention",
-			name: "Toggle active note as default context",
+			name: "Toggle active note in context",
 			callback: () => {
 				this.app.workspace.trigger(
 					"agent-console:toggle-auto-mention",

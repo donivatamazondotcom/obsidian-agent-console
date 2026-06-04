@@ -18,7 +18,7 @@ import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
 // Service imports
 import { getLogger } from "../utils/logger";
 import { deriveTabLabel } from "../utils/deriveTabLabel";
-import { toggleActiveNoteDefault } from "../utils/activeNoteDefaultToggle";
+import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";
 import { loadExistingSessionFlow } from "../hooks/loadExistingSessionFlow";
 
@@ -250,9 +250,6 @@ export function ChatPanel({
 	// Auto-default provisional suppress (Decision #26, I68): `×` on the
 	// provisional pill sets this sticky flag so it won't re-arm for this tab.
 	const [autoDefaultSuppressed, setAutoDefaultSuppressed] = useState(false);
-	// I74: kept current each render so the toggle command reads a fresh value.
-	const autoDefaultSuppressedRef = useRef(autoDefaultSuppressed);
-	autoDefaultSuppressedRef.current = autoDefaultSuppressed;
 
 	useContextVaultEvents({
 		vault: vaultEventSource,
@@ -1121,6 +1118,32 @@ export function ChatPanel({
 	// Effects - Workspace Events (Hotkeys)
 	// ============================================================
 
+	// I74: grab/ungrab the active editor note (active-note-scoped membership toggle).
+	const handleToggleActiveNoteGrab = useCallback(() => {
+		const path = selectionTracker.activeNotePath;
+		const action = decideGrabToggle({
+			activeNotePath: path,
+			activeNoteName: selectionTracker.activeNoteName,
+			isPresent: path ? contextNotes.has(path) : false,
+			isFull: contextNotes.isFull,
+		});
+		if (action.kind === "grab") {
+			contextNotes.add(action.path, "user");
+		} else if (action.kind === "ungrab") {
+			contextNotes.remove(action.path);
+			// Ungrab also suppresses the per-chat auto-default so it sticks.
+			setAutoDefaultSuppressed(true);
+		}
+		new Notice(action.notice);
+	}, [
+		selectionTracker.activeNotePath,
+		selectionTracker.activeNoteName,
+		contextNotes,
+		setAutoDefaultSuppressed,
+	]);
+	const handleToggleActiveNoteGrabRef = useRef(handleToggleActiveNoteGrab);
+	handleToggleActiveNoteGrabRef.current = handleToggleActiveNoteGrab;
+
 	// Refs for workspace event handlers (avoids re-registering on every render)
 	const handleNewChatWithPersistRef = useRef(handleNewChatWithPersist);
 	const approveActivePermissionRef = useRef(agent.approveActivePermission);
@@ -1143,16 +1166,12 @@ export function ChatPanel({
 		};
 
 		const refs = [
-			// Toggle active note as default context (I74)
+			// Toggle active note in context: grab / ungrab (I74)
 			ws.on(
 				"agent-console:toggle-auto-mention",
 				(targetViewId?: string) => {
 					if (targetViewId && targetViewId !== viewId) return;
-					const r = toggleActiveNoteDefault(
-						autoDefaultSuppressedRef.current,
-					);
-					setAutoDefaultSuppressed(r.suppressed);
-					new Notice(r.notice);
+					handleToggleActiveNoteGrabRef.current();
 				},
 			),
 
