@@ -1121,11 +1121,20 @@ export function ChatPanel({
 	// I74: grab/ungrab the active editor note (active-note-scoped membership toggle).
 	const handleToggleActiveNoteGrab = useCallback(() => {
 		const path = selectionTracker.activeNotePath;
+		// Count the provisional auto-default pill as present so a fresh
+		// session's first press removes it instead of committing it (I74).
+		const provisionalPath = computeProvisionalPath({
+			settingOn: settings.activeNoteAsDefaultContext,
+			suppressed: autoDefaultSuppressed,
+			messageCount: messages.length,
+			activeNotePath: path,
+			committed: contextNotes.notes,
+		});
 		const action = decideGrabToggle({
 			activeNotePath: path,
 			activeNoteName: selectionTracker.activeNoteName,
-			isPresent: path ? contextNotes.has(path) : false,
-			isFull: contextNotes.isFull,
+			committed: contextNotes.notes,
+			provisionalPath,
 		});
 		if (action.kind === "grab") {
 			contextNotes.add(action.path, "user");
@@ -1139,6 +1148,9 @@ export function ChatPanel({
 		selectionTracker.activeNotePath,
 		selectionTracker.activeNoteName,
 		contextNotes,
+		settings.activeNoteAsDefaultContext,
+		autoDefaultSuppressed,
+		messages.length,
 		setAutoDefaultSuppressed,
 	]);
 	const handleToggleActiveNoteGrabRef = useRef(handleToggleActiveNoteGrab);
