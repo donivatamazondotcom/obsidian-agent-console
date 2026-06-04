@@ -51,16 +51,10 @@ export type SendMessageShortcut = "enter" | "cmd-enter";
 
 /**
  * Chat view location configuration.
- * - 'right-tab': Open in right pane as tabs (default)
- * - 'right-split': Open in right pane with vertical split
- * - 'editor-tab': Open in editor area as tabs
- * - 'editor-split': Open in editor area with right split
+ * - 'right': Open in the right sidebar (default)
+ * - 'left': Open in the left sidebar
  */
-export type ChatViewLocation =
-	| "right-tab"
-	| "right-split"
-	| "editor-tab"
-	| "editor-split";
+export type ChatViewLocation = "right" | "left";
 
 export interface AgentClientPluginSettings {
 	gemini: GeminiAgentSettings;
@@ -172,7 +166,7 @@ const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	windowsWslMode: false,
 	windowsWslDistribution: undefined,
 	sendMessageShortcut: "enter",
-	chatViewLocation: "right-tab",
+	chatViewLocation: "right",
 	displaySettings: {
 		maxNoteLength: 10000,
 		maxSelectionLength: 10000,
@@ -482,17 +476,14 @@ export default class AgentClientPlugin extends Plugin {
 		const location = this.settings.chatViewLocation;
 
 		switch (location) {
-			case "right-tab":
-				if (isAdditional) {
-					return this.createSidebarTab("right");
-				}
-				return workspace.getRightLeaf(false);
-			case "right-split":
-				return workspace.getRightLeaf(isAdditional);
-			case "editor-tab":
-				return workspace.getLeaf("tab");
-			case "editor-split":
-				return workspace.getLeaf("split");
+			case "left":
+				return isAdditional
+					? this.createSidebarTab("left")
+					: workspace.getLeftLeaf(false);
+			case "right":
+				return isAdditional
+					? this.createSidebarTab("right")
+					: workspace.getRightLeaf(false);
 			default:
 				return workspace.getRightLeaf(false);
 		}
@@ -957,7 +948,7 @@ export default class AgentClientPlugin extends Plugin {
 			),
 			chatViewLocation: enumVal(
 				raw.chatViewLocation,
-				["right-tab", "right-split", "editor-tab", "editor-split"],
+				["right", "left"],
 				D.chatViewLocation,
 			),
 			displaySettings: {
