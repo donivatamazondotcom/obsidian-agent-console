@@ -86,9 +86,8 @@ export function ContextStrip({
 		<div className="context-strip">
 			<button
 				className="context-strip-grab"
-				aria-label="Crystallize active note"
 				disabled={grabDisabled}
-				title={
+				aria-label={
 					grabDisabled
 						? !activeNotePath
 							? "No active note to add"
@@ -149,7 +148,6 @@ export function ContextStrip({
 						<button
 							className="context-strip-pill-remove"
 							aria-label="Don't add the active note as context for this chat"
-							title="Active note — added on send. Click × to skip it for this chat."
 							onClick={onSuppressProvisional}
 						>
 							×

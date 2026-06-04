@@ -73,13 +73,13 @@ describe("ContextStrip", () => {
 				})}
 			/>,
 		);
-		const btn = screen.getByLabelText("Crystallize active note");
+		const btn = screen.getByLabelText("Add: note");
 		expect((btn as HTMLButtonElement).disabled).toBe(false);
 	});
 
 	it("grab button is disabled when no active note", () => {
 		render(<ContextStrip {...makeProps()} />);
-		const btn = screen.getByLabelText("Crystallize active note");
+		const btn = screen.getByLabelText("No active note to add");
 		expect((btn as HTMLButtonElement).disabled).toBe(true);
 	});
 
@@ -96,7 +96,7 @@ describe("ContextStrip", () => {
 				})}
 			/>,
 		);
-		const btn = screen.getByLabelText("Crystallize active note");
+		const btn = screen.getByLabelText("note is already in context");
 		expect((btn as HTMLButtonElement).disabled).toBe(true);
 	});
 
@@ -110,7 +110,7 @@ describe("ContextStrip", () => {
 				})}
 			/>,
 		);
-		const btn = screen.getByLabelText("Crystallize active note");
+		const btn = screen.getByLabelText("Maximum 8 context notes. Remove one to add another.");
 		expect((btn as HTMLButtonElement).disabled).toBe(true);
 	});
 
@@ -125,7 +125,7 @@ describe("ContextStrip", () => {
 				})}
 			/>,
 		);
-		fireEvent.click(screen.getByLabelText("Crystallize active note"));
+		fireEvent.click(screen.getByLabelText("Add: note"));
 		expect(onAdd).toHaveBeenCalledWith("note.md", "user");
 	});
 
