@@ -183,3 +183,46 @@ describe("useChatActions handleSendMessage — auto-default crystallize on first
 		expect(add).not.toHaveBeenCalledWith("B.md", "auto-default");
 	});
 });
+
+describe("useChatActions handleSendMessage — auto-default reaches the send payload (I73)", () => {
+	it("includes the auto-default note in the contextNotes sent to the agent on first send", async () => {
+		const add = vi.fn();
+		const sendMessage = vi.fn(() => new Promise<void>(() => {}));
+		const plugin = deepMock({
+			app: deepMock({
+				metadataCache: deepMock({ getFirstLinkpathDest: () => null }),
+			}),
+		}) as Params[0];
+		const agent = deepMock({ clearError: vi.fn(), sendMessage }) as Params[1];
+		const sessionHistory = deepMock({ saveSessionLocally: vi.fn() }) as Params[2];
+		const suggestions = deepMock() as Params[3];
+		const session = { sessionId: "s1" } as unknown as Params[4];
+		const settings = { activeNoteAsDefaultContext: true } as unknown as Params[6];
+		// New-session semantics: notes empty when the callback is created; add()
+		// does NOT mutate .notes synchronously (mirrors React setState). This is the
+		// stale read that drops the just-crystallized note from the first send.
+		const contextNotes = { notes: [], add } as unknown as Params[8];
+
+		const { result } = renderHook(() =>
+			useChatActions(
+				plugin, agent, sessionHistory, suggestions, session,
+				[], settings, "", contextNotes, null, "B.md", false,
+			),
+		);
+
+		await act(async () => {
+			void result.current.handleSendMessage("hi");
+			await Promise.resolve();
+		});
+
+		expect(sendMessage).toHaveBeenCalledTimes(1);
+		const payload = (sendMessage.mock.calls[0] as unknown[])[1] as {
+			contextNotes?: Array<{ path: string; source: string }>;
+		};
+		expect(payload.contextNotes).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ path: "B.md", source: "auto-default" }),
+			]),
+		);
+	});
+});

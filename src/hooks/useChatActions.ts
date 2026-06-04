@@ -14,6 +14,7 @@ import type { UseSessionHistoryReturn } from "./useSessionHistory";
 import type { UseSuggestionsReturn } from "./useSuggestions";
 import type { UseContextNotesReturn } from "./useContextNotes";
 import { extractMentionedPaths } from "./useContextVaultEvents";
+import { MAX_CONTEXT_NOTES } from "../types/context";
 import type { ChatSession } from "../types/session";
 import type {
 	ChatMessage,
@@ -184,6 +185,13 @@ export function useChatActions(
 			}
 
 			try {
+				// Effective send-set: contextNotes.add() schedules an async
+				// setState, so contextNotes.notes is stale within this
+				// callback (I73). Seed from current notes; the auto-default
+				// note has no inlined representation, so it is added below to
+				// reach the agent on THIS turn.
+				const notesToSend = [...contextNotes.notes];
+
 				// Auto-crystallize @[[mentions]] at send time (Decision #11,
 				// I66) so pills appear immediately — not after the turn ends.
 				// State update is async, so this turn's prompt still inlines
@@ -206,11 +214,23 @@ export function useChatActions(
 					activeNotePath
 				) {
 					contextNotes.add(activeNotePath, "auto-default");
+					// I73: include the just-crystallized auto-default note in
+					// THIS turn's payload (contextNotes.notes is stale here).
+					if (
+						!notesToSend.some((n) => n.path === activeNotePath) &&
+						notesToSend.length < MAX_CONTEXT_NOTES
+					) {
+						notesToSend.push({
+							path: activeNotePath,
+							source: "auto-default",
+							seen: false,
+						});
+					}
 				}
 
 				await agent.sendMessage(content, {
 					vaultBasePath: vaultPath,
-					contextNotes: contextNotes.notes,
+					contextNotes: notesToSend,
 					selection,
 					images: images.length > 0 ? images : undefined,
 					resourceLinks:
