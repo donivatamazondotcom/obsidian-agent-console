@@ -19,11 +19,13 @@ function makeProps(overrides: Partial<Parameters<typeof ContextStrip>[0]> = {}) 
 	return {
 		notes: [] as ContextNote[],
 		isFull: false,
-		activeNotePath: null as string | null,
-		activeNoteName: null as string | null,
+		activeNotePath: null,
+		activeNoteName: null,
 		onAdd: vi.fn(),
 		onRemove: vi.fn(),
 		onPillClick: vi.fn(),
+		provisionalPath: null,
+		onSuppressProvisional: vi.fn(),
 		...overrides,
 	};
 }
@@ -203,5 +205,38 @@ describe("ContextStrip", () => {
 		input.focus();
 		fireEvent.keyDown(input, { key: "Escape" });
 		expect(document.activeElement).not.toBe(input);
+	});
+
+	// ========================================================================
+	// Provisional pill (Decision #26, I68)
+	// ========================================================================
+
+	it("renders a dashed provisional pill; its × calls onSuppressProvisional", () => {
+		const onSuppressProvisional = vi.fn();
+		const { container } = render(
+			<ContextStrip
+				{...makeProps({
+					provisionalPath: "folder/Draft.md",
+					onSuppressProvisional,
+				})}
+			/>,
+		);
+		expect(screen.getByText("Draft")).toBeTruthy();
+		expect(
+			container.querySelector(".context-strip-pill--provisional"),
+		).toBeTruthy();
+		fireEvent.click(
+			screen.getByLabelText(
+				"Don't add the active note as context for this chat",
+			),
+		);
+		expect(onSuppressProvisional).toHaveBeenCalledTimes(1);
+	});
+
+	it("renders no provisional pill when provisionalPath is null", () => {
+		const { container } = render(<ContextStrip {...makeProps()} />);
+		expect(
+			container.querySelector(".context-strip-pill--provisional"),
+		).toBeNull();
 	});
 });

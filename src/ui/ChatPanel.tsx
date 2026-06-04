@@ -60,6 +60,7 @@ import { ChatHeader } from "./ChatHeader";
 import { MessageList } from "./MessageList";
 import { InputArea } from "./InputArea";
 import { ContextStrip } from "./ContextStrip";
+import { computeProvisionalPath } from "../utils/provisional-context";
 import type { IChatViewHost } from "./view-host";
 
 // ============================================================================
@@ -245,6 +246,10 @@ export function ChatPanel({
 		[contextNotes.notes],
 	);
 
+	// Auto-default provisional suppress (Decision #26, I68): `×` on the
+	// provisional pill sets this sticky flag so it won't re-arm for this tab.
+	const [autoDefaultSuppressed, setAutoDefaultSuppressed] = useState(false);
+
 	useContextVaultEvents({
 		vault: vaultEventSource,
 		crystallizedPaths,
@@ -420,6 +425,8 @@ export function ChatPanel({
 		vaultPath,
 		contextNotes,
 		selectionForSend,
+		selectionTracker.activeNotePath,
+		autoDefaultSuppressed,
 	);
 
 	const {
@@ -1101,17 +1108,10 @@ export function ChatPanel({
 	}, [onSessionIdChange, session.sessionId]);
 
 	// ============================================================
-	// Effects - Auto-crystallize active note on new chat (Decision #5)
+	// Auto-default context crystallizes on FIRST SEND in useChatActions
+	// (Decision #26, I68) — not seeded at mount. The provisional dashed pill
+	// is derived in ContextStrip from the live active note.
 	// ============================================================
-	const didSeedContextRef = useRef(false);
-	useEffect(() => {
-		if (didSeedContextRef.current) return;
-		didSeedContextRef.current = true;
-		if (!settings.activeNoteAsDefaultContext) return;
-		void vaultService.getActiveNote().then((note) => {
-			if (note) contextNotes.add(note.path, "auto-default");
-		});
-	}, [settings.activeNoteAsDefaultContext, vaultService, contextNotes.add]);
 
 	// ============================================================
 	// Effects - Workspace Events (Hotkeys)
@@ -1404,6 +1404,14 @@ export function ChatPanel({
 			onAdd={contextNotes.add}
 			onRemove={contextNotes.remove}
 			onPillClick={handleContextPillClick}
+			provisionalPath={computeProvisionalPath({
+				settingOn: settings.activeNoteAsDefaultContext,
+				suppressed: autoDefaultSuppressed,
+				messageCount: messages.length,
+				activeNotePath: selectionTracker.activeNotePath,
+				committed: contextNotes.notes,
+			})}
+			onSuppressProvisional={() => setAutoDefaultSuppressed(true)}
 		/>
 	);
 

@@ -82,6 +82,8 @@ export function useChatActions(
 	vaultPath: string,
 	contextNotes: UseContextNotesReturn,
 	selection: { path: string; fromLine: number; toLine: number } | null,
+	activeNotePath: string | null,
+	autoDefaultSuppressed: boolean,
 ): UseChatActionsReturn {
 	const logger = getLogger();
 
@@ -193,6 +195,19 @@ export function useChatActions(
 					contextNotes.add(path, "mention");
 				}
 
+				// Auto-default (I68, Decision #26): on the first message,
+				// crystallize the then-active note as default context. Capture
+				// happens at send — not tab creation — so navigating before the
+				// first send picks the right note. `add` enforces dedup + cap.
+				if (
+					isFirstMessage &&
+					settings.activeNoteAsDefaultContext &&
+					!autoDefaultSuppressed &&
+					activeNotePath
+				) {
+					contextNotes.add(activeNotePath, "auto-default");
+				}
+
 				await agent.sendMessage(content, {
 					vaultBasePath: vaultPath,
 					contextNotes: contextNotes.notes,
@@ -227,6 +242,9 @@ export function useChatActions(
 			plugin,
 			contextNotes,
 			selection,
+			settings.activeNoteAsDefaultContext,
+			autoDefaultSuppressed,
+			activeNotePath,
 			shouldConvertToWsl,
 			vaultPath,
 		],

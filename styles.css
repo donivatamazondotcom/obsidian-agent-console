@@ -960,6 +960,11 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	box-shadow: 0 0 0 1px var(--interactive-accent);
 }
 
+.context-strip-pill--provisional {
+	border-style: dashed;
+	opacity: 0.7;
+}
+
 .context-strip-pill-name {
 	overflow: hidden;
 	text-overflow: ellipsis;

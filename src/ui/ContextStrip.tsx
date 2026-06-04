@@ -9,6 +9,10 @@ export interface ContextStripProps {
 	onAdd: (path: string, source: ContextNoteSource) => void;
 	onRemove: (path: string) => void;
 	onPillClick: (path: string, event: React.MouseEvent) => void;
+	/** Decision #26: active-note path to show as a dashed provisional pill, or null. */
+	provisionalPath: string | null;
+	/** Called when the provisional pill's × is clicked (sticky-suppress for the tab). */
+	onSuppressProvisional: () => void;
 }
 
 /** Derive display name from vault-relative path (basename without extension). */
@@ -30,6 +34,8 @@ export function ContextStrip({
 	onAdd,
 	onRemove,
 	onPillClick,
+	provisionalPath,
+	onSuppressProvisional,
 }: ContextStripProps) {
 	const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -129,6 +135,27 @@ export function ContextStrip({
 						</button>
 					</span>
 				))}
+				{provisionalPath && (
+					<span
+						key="__provisional__"
+						className="context-strip-pill context-strip-pill--provisional"
+					>
+						<span
+							className="context-strip-pill-name"
+							onClick={(e) => onPillClick(provisionalPath, e)}
+						>
+							{displayName(provisionalPath)}
+						</span>
+						<button
+							className="context-strip-pill-remove"
+							aria-label="Don't add the active note as context for this chat"
+							title="Active note — added on send. Click × to skip it for this chat."
+							onClick={onSuppressProvisional}
+						>
+							×
+						</button>
+					</span>
+				)}
 				<input
 					ref={inputRef}
 					className="context-strip-input"
