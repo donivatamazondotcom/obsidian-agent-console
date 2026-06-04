@@ -719,12 +719,12 @@ export default class AgentClientPlugin extends Plugin {
 	}
 
 	/**
-	 * Copy prompt from active view to all other views
+	 * Copy the focused tab's prompt to all other tabs across all views.
 	 */
 	private broadcastPrompt(): void {
-		const allViews = this.viewRegistry.getAll();
-		if (allViews.length === 0) {
-			new Notice("[Agent Console] No chat views open");
+		const allTabs = this.viewRegistry.getAllTabHandles();
+		if (allTabs.length === 0) {
+			new Notice("[Agent Console] No chat tabs open");
 			return;
 		}
 
@@ -739,49 +739,59 @@ export default class AgentClientPlugin extends Plugin {
 			return;
 		}
 
-		const focusedId = this.viewRegistry.getFocusedId();
-		const targetViews = allViews.filter((v) => v.viewId !== focusedId);
-		if (targetViews.length === 0) {
-			new Notice("[Agent Console] No other chat views to broadcast to");
+		const sourceTabId = this.viewRegistry.toFocused((v) =>
+			v.getActiveTabId(),
+		);
+		const targetTabs = allTabs.filter((t) => t.tabId !== sourceTabId);
+		if (targetTabs.length === 0) {
+			new Notice(
+				"[Agent Console] No other chat tabs to broadcast to",
+			);
 			return;
 		}
 
-		for (const view of targetViews) {
-			view.setInputState(inputState);
+		for (const tab of targetTabs) {
+			tab.setInputState(inputState);
 		}
+		new Notice(
+			`[Agent Console] Prompt broadcast to ${targetTabs.length} tab(s)`,
+		);
 	}
 
 	/**
-	 * Send message in all views that can send
+	 * Send the message in every tab that can send, across all views.
 	 */
 	private async broadcastSend(): Promise<void> {
-		const allViews = this.viewRegistry.getAll();
-		if (allViews.length === 0) {
-			new Notice("[Agent Console] No chat views open");
+		const allTabs = this.viewRegistry.getAllTabHandles();
+		if (allTabs.length === 0) {
+			new Notice("[Agent Console] No chat tabs open");
 			return;
 		}
 
-		const sendableViews = allViews.filter((v) => v.canSend());
-		if (sendableViews.length === 0) {
-			new Notice("[Agent Console] No views ready to send");
+		const sendableTabs = allTabs.filter((t) => t.canSend());
+		if (sendableTabs.length === 0) {
+			new Notice("[Agent Console] No tabs ready to send");
 			return;
 		}
 
-		await Promise.allSettled(sendableViews.map((v) => v.sendMessage()));
+		await Promise.allSettled(sendableTabs.map((t) => t.sendMessage()));
+		new Notice(`[Agent Console] Sent in ${sendableTabs.length} tab(s)`);
 	}
 
 	/**
-	 * Cancel operation in all views
+	 * Cancel the current operation in every tab, across all views.
 	 */
 	private async broadcastCancel(): Promise<void> {
-		const allViews = this.viewRegistry.getAll();
-		if (allViews.length === 0) {
-			new Notice("[Agent Console] No chat views open");
+		const allTabs = this.viewRegistry.getAllTabHandles();
+		if (allTabs.length === 0) {
+			new Notice("[Agent Console] No chat tabs open");
 			return;
 		}
 
-		await Promise.allSettled(allViews.map((v) => v.cancelOperation()));
-		new Notice("[Agent Console] Cancel broadcast to all views");
+		await Promise.allSettled(allTabs.map((t) => t.cancelOperation()));
+		new Notice(
+			`[Agent Console] Cancel broadcast to ${allTabs.length} tab(s)`,
+		);
 	}
 
 	async loadSettings() {

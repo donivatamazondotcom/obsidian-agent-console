@@ -27,9 +27,9 @@ Control multiple tabs at once. See [Tabbed Sessions](/usage/tabbed-sessions) for
 
 | Command | Description |
 |---------|-------------|
-| **Broadcast prompt** | Copy the active view's input to all other views |
-| **Broadcast send** | Send messages in all views simultaneously |
-| **Broadcast cancel** | Cancel operations in all views |
+| **Broadcast prompt** | Copy the active tab's input to all other tabs (every view) |
+| **Broadcast send** | Send messages in all tabs simultaneously |
+| **Broadcast cancel** | Cancel operations in all tabs |
 
 ## Agent Commands
 
