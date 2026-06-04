@@ -171,7 +171,78 @@ export class SessionStorage {
 	// ============================================================
 
 	private getSessionsDir(): string {
-		return `${this.plugin.app.vault.configDir}/plugins/agent-client/sessions`;
+		return `${this.plugin.app.vault.configDir}/plugins/${this.plugin.manifest.id}/sessions`;
+	}
+
+	/**
+	 * One-time migration of session files from the legacy `agent-client`
+	 * plugin dir into this plugin's own dir. See
+	 * [[I68 Session storage dir hardcoded to old agent-client plugin id]].
+	 *
+	 * The fork historically wrote sessions into the upstream plugin's
+	 * directory; getSessionsDir() now resolves to this.plugin.manifest.id,
+	 * so the live `agent-client/sessions` files would otherwise be
+	 * orphaned. Copies each legacy file into the new dir, preferring the
+	 * NEWER file on id collisions — a stale `agent-console` copy from an
+	 * earlier build must never clobber a live `agent-client` session, and
+	 * a re-run must never clobber freshly-written sessions.
+	 *
+	 * Guarded by the `legacySessionsMigrated` settings flag; the
+	 * newer-wins rule is a defense-in-depth second layer that keeps the
+	 * copy idempotent even if the flag is lost. Failures are logged and
+	 * leave the flag unset so the next load retries.
+	 */
+	async migrateLegacySessionsDir(): Promise<void> {
+		if (this.settingsAccess.getSnapshot().legacySessionsMigrated) {
+			return;
+		}
+
+		const adapter = this.plugin.app.vault.adapter;
+		const legacyDir = `${this.plugin.app.vault.configDir}/plugins/agent-client/sessions`;
+		const targetDir = this.getSessionsDir();
+
+		try {
+			// legacyDir === targetDir when the id already matches —
+			// nothing to migrate, just record the flag.
+			if (legacyDir !== targetDir && (await adapter.exists(legacyDir))) {
+				await this.ensureSessionsDir();
+				const { files } = await adapter.list(legacyDir);
+				for (const srcPath of files) {
+					if (!srcPath.endsWith(".json")) continue;
+					const name = srcPath.split("/").pop();
+					if (!name) continue;
+					const destPath = `${targetDir}/${name}`;
+
+					if (await adapter.exists(destPath)) {
+						const [srcStat, destStat] = await Promise.all([
+							adapter.stat(srcPath),
+							adapter.stat(destPath),
+						]);
+						// Newer wins: keep the destination when it is
+						// newer-or-equal (already migrated, or a fresher
+						// write landed in the new dir).
+						if (
+							srcStat &&
+							destStat &&
+							destStat.mtime >= srcStat.mtime
+						) {
+							continue;
+						}
+					}
+
+					await adapter.write(destPath, await adapter.read(srcPath));
+				}
+			}
+		} catch (error) {
+			getLogger().error(
+				`[SessionStorage] Legacy session migration failed: ${error}`,
+			);
+			return; // Leave the flag unset so the next load retries.
+		}
+
+		await this.settingsAccess.updateSettings({
+			legacySessionsMigrated: true,
+		});
 	}
 
 	private async ensureSessionsDir(): Promise<void> {
@@ -408,9 +479,7 @@ export class SessionStorage {
 	 * @param leafId - Leaf identifier
 	 * @returns The leaf's state, or null if no state / corrupted / not present
 	 */
-	async loadTabStateForLeaf(
-		leafId: string,
-	): Promise<PerLeafTabState | null> {
+	async loadTabStateForLeaf(leafId: string): Promise<PerLeafTabState | null> {
 		const all = await this.loadTabState();
 		if (all === null) return null;
 		return all.find((s) => s.leafId === leafId) ?? null;
@@ -429,9 +498,7 @@ export class SessionStorage {
  * runtime validator dependency — keeping the validation surface small
  * is more important than completeness for the v1 corruption budget.
  */
-function isValidPerLeafTabState(
-	value: unknown,
-): value is PerLeafTabState {
+function isValidPerLeafTabState(value: unknown): value is PerLeafTabState {
 	if (typeof value !== "object" || value === null) return false;
 	const v = value as Record<string, unknown>;
 	if (typeof v.leafId !== "string") return false;
@@ -441,9 +508,7 @@ function isValidPerLeafTabState(
 }
 
 /** Type guard: validates a `PersistedTabInfo` record loaded from disk. */
-function isValidPersistedTabInfo(
-	value: unknown,
-): value is PersistedTabInfo {
+function isValidPersistedTabInfo(value: unknown): value is PersistedTabInfo {
 	if (typeof value !== "object" || value === null) return false;
 	const v = value as Record<string, unknown>;
 	if (typeof v.tabId !== "string") return false;

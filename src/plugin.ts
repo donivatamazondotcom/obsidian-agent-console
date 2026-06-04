@@ -1,10 +1,4 @@
-import {
-	addIcon,
-	Plugin,
-	WorkspaceLeaf,
-	Notice,
-	requestUrl,
-} from "obsidian";
+import { addIcon, Plugin, WorkspaceLeaf, Notice, requestUrl } from "obsidian";
 import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
@@ -13,6 +7,7 @@ import {
 	createSettingsService,
 	type SettingsService,
 } from "./services/settings-service";
+import { SessionStorage } from "./services/session-storage";
 import { AgentClientSettingTab } from "./ui/SettingsTab";
 import { AcpClient } from "./acp/acp-client";
 import {
@@ -124,6 +119,13 @@ export interface AgentClientPluginSettings {
 	 * See [[ACP Tab Persistence Across Restarts]] § Save / § Restore.
 	 */
 	perLeafTabStates?: PerLeafTabState[];
+
+	/**
+	 * One-time guard for the legacy `agent-client` → `agent-console`
+	 * session-dir migration. See [[I68 Session storage dir hardcoded to
+	 * old agent-client plugin id]].
+	 */
+	legacySessionsMigrated?: boolean;
 }
 
 const DEFAULT_SETTINGS: AgentClientPluginSettings = {
@@ -203,6 +205,14 @@ export default class AgentClientPlugin extends Plugin {
 
 		// Initialize settings store
 		this.settingsService = createSettingsService(this.settings, this);
+
+		// One-time migration of session files from the legacy
+		// `agent-client` plugin dir into this plugin's own dir (I68).
+		// Must complete before any view reads session history.
+		await new SessionStorage(
+			this,
+			this.settingsService,
+		).migrateLegacySessionsDir();
 
 		// Do NOT detach existing chat leaves here. Obsidian restores
 		// chat leaves from workspace.json with their original leaf.id,
@@ -405,8 +415,9 @@ export default class AgentClientPlugin extends Plugin {
 
 		const chatView = this.app.workspace
 			.getLeavesOfType(VIEW_TYPE_CHAT)
-			.find((l) => (l.view as ChatView)?.viewId === focusedId)
-			?.view as ChatView | undefined;
+			.find((l) => (l.view as ChatView)?.viewId === focusedId)?.view as
+			| ChatView
+			| undefined;
 
 		return chatView?.getActiveTabId() ?? focusedId;
 	}
@@ -979,11 +990,7 @@ export default class AgentClientPlugin extends Plugin {
 				: D.savedSessions,
 			lastUsedModels: strRecord(raw.lastUsedModels),
 			lastUsedModes: strRecord(raw.lastUsedModes),
-			maxSessionTabs: num(
-				raw.maxSessionTabs,
-				D.maxSessionTabs,
-				1,
-			),
+			maxSessionTabs: num(raw.maxSessionTabs, D.maxSessionTabs, 1),
 			restoreTabsOnStartup:
 				typeof raw.restoreTabsOnStartup === "boolean"
 					? raw.restoreTabsOnStartup
@@ -995,6 +1002,7 @@ export default class AgentClientPlugin extends Plugin {
 			perLeafTabStates: Array.isArray(raw.perLeafTabStates)
 				? (raw.perLeafTabStates as PerLeafTabState[])
 				: undefined,
+			legacySessionsMigrated: bool(raw.legacySessionsMigrated, false),
 		};
 
 		this.ensureDefaultAgentId();
@@ -1152,7 +1160,9 @@ export default class AgentClientPlugin extends Plugin {
 			// Stable version user: check stable only
 			const latestStable = await this.fetchLatestStable();
 			if (latestStable && semver.gt(latestStable, currentVersion)) {
-				new Notice(`[Agent Console] Update available: v${latestStable}`);
+				new Notice(
+					`[Agent Console] Update available: v${latestStable}`,
+				);
 				return true;
 			}
 		}
