@@ -2,9 +2,9 @@
   "entries": [
     {
       "name": "ribbon-icon",
-      "width": 233,
-      "height": 149,
-      "crop": { "x": 0, "y": 330, "width": 175, "height": 112 },
+      "width": 160,
+      "height": 56,
+      "crop": { "x": 0, "y": 256, "width": 160, "height": 56 },
       "initialState": {
         "openNote": "Welcome.md",
         "hoverSelector": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"], .side-dock-ribbon-action[aria-label*=\"agent-console\"]"
@@ -13,16 +13,16 @@
     },
     {
       "name": "multi-session",
-      "width": 1697,
-      "height": 1145,
+      "width": 300,
+      "height": 800,
       "crop": { "x": 0, "y": 0, "width": 900, "height": 608 },
-      "cropSelector": ".workspace-split.mod-right-split",
+      "cropSelector": ".workspace",
       "cropPadding": 0,
       "initialState": {
         "openNote": "Welcome.md",
         "clickRibbon": true
       },
-      "promptFile": "multi-session.txt",
+      "prompts": ["multi-session-1.txt", "multi-session-2.txt", "multi-session.txt"],
       "approvalThreshold": 0.10
     }
   ]

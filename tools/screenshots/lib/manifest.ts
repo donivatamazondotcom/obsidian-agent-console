@@ -51,6 +51,11 @@ export interface InitialState {
 	 * command. Required for floating-chat-view.webp.
 	 */
 	openChatView?: boolean;
+	/**
+	 * CSS selector to hover before capture (triggers tooltips).
+	 * The driver dispatches mouseenter + mouseover on the element.
+	 */
+	hoverSelector?: string;
 }
 
 /** One screenshot specification. */
@@ -90,6 +95,13 @@ export interface ManifestEntry {
 	 * before capturing.
 	 */
 	promptFile?: string;
+	/**
+	 * Optional ordered list of prompt fixture files. Takes precedence over
+	 * `promptFile`: the first prompt is sent in the initial tab and each
+	 * subsequent prompt opens a new session tab, producing a multi-session
+	 * tab bar.
+	 */
+	prompts?: string[];
 	/**
 	 * When true, the driver toggles `obsidian dev:mobile on` before
 	 * capturing this entry and back off after. Reserved for F01.

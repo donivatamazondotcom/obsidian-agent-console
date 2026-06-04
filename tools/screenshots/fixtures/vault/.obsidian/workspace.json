@@ -165,13 +165,25 @@
               "icon": "lucide-list",
               "title": "Outline of Welcome"
             }
+          },
+          {
+            "id": "35cb603f3327eb61",
+            "type": "leaf",
+            "state": {
+              "type": "agent-client-chat-view",
+              "state": {
+                "initialAgentId": "kiro-cli"
+              },
+              "icon": "agent-console",
+              "title": "Agent console"
+            }
           }
-        ]
+        ],
+        "currentTab": 5
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 620
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -181,10 +193,11 @@
       "daily-notes:Open today's daily note": false,
       "templates:Insert template": false,
       "command-palette:Open command palette": false,
-      "bases:Create new base": false
+      "bases:Create new base": false,
+      "agent-console:Agent Console": false
     }
   },
-  "active": "leaf-1",
+  "active": "35cb603f3327eb61",
   "lastOpenFiles": [
     "Welcome.md"
   ]

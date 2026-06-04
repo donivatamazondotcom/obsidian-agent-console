@@ -44,6 +44,8 @@ export interface OrchestratorDeps {
 	tmpDir: string;
 	readFile: (path: string, encoding: string) => string;
 	devicePixelRatio: number;
+	/** Optional post-processor run on each written output file (e.g. drop shadow). */
+	postProcess?: (outputPath: string) => Promise<void>;
 }
 
 export interface CaptureResult {
@@ -58,6 +60,10 @@ export interface CaptureAllOptions {
 
 const RIBBON_SELECTOR = '[aria-label*="agent-console"], [aria-label*="Agent Console"]';
 const SETTLE_MS = 500;
+/** Max wait for a live agent response to finish streaming before capture. */
+const RESPONSE_TIMEOUT_MS = 120_000;
+/** Scopes selectors to the visible tab panel (inactive panels are display:none). */
+const ACTIVE_PANEL = '.agent-client-tab-panel:not([style*="none"])';
 
 /**
  * Capture a single manifest entry: drive UI state → screenshot → crop → write.
@@ -90,17 +96,30 @@ export async function captureEntry(
 		await deps.cdp.hoverElement(entry.initialState.hoverSelector);
 	}
 
-	// 3. Send prompt if specified
-	if (entry.promptFile) {
-		const promptPath = path.join(deps.fixtureRoot, "prompts", entry.promptFile);
+	// 3. Send prompt(s). `prompts` (multi-tab) takes precedence over a single
+	// `promptFile`. Each prompt after the first opens a new session tab so the
+	// right panel shows a multi-session tab bar. Selectors are scoped to the
+	// visible tab panel — inactive panels are display:none and carry their own
+	// hidden textarea/buttons that must not be targeted.
+	const promptFiles =
+		entry.prompts ?? (entry.promptFile ? [entry.promptFile] : []);
+	for (let i = 0; i < promptFiles.length; i++) {
+		if (i > 0) {
+			await deps.cdp.evaluate(
+				`app.commands.executeCommandById("agent-console:new-session-tab")`,
+			);
+			await deps.cdp.waitForElement(
+				`${ACTIVE_PANEL} textarea.agent-client-chat-input-textarea`,
+			);
+		}
+		const promptPath = path.join(deps.fixtureRoot, "prompts", promptFiles[i]);
 		const content = deps.readFile(promptPath, "utf-8");
-		// Escape for JS template-literal embedding
 		const escaped = content.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$/g, "\\$");
-		// Set the textarea via the native value setter so React's controlled
-		// input picks up the change, then dispatch input + click send.
+		// Set the active tab's textarea via the native value setter so React's
+		// controlled input picks up the change, then dispatch input.
 		await deps.cdp.evaluate(
 			`(() => {
-				const ta = document.querySelector('textarea.agent-client-chat-input-textarea');
+				const ta = Array.from(document.querySelectorAll('textarea.agent-client-chat-input-textarea')).find((t) => t.offsetParent !== null);
 				if (!ta) return false;
 				const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
 				setter.call(ta, \`${escaped}\`);
@@ -108,14 +127,31 @@ export async function captureEntry(
 				return true;
 			})()`,
 		);
-		await deps.cdp.waitForElement(".agent-client-chat-send-button:not(.agent-client-disabled)");
-		await deps.cdp.clickElement(".agent-client-chat-send-button");
-		// Wait for response to appear
-		await sleep(SETTLE_MS);
+		await deps.cdp.waitForElement(
+			`${ACTIVE_PANEL} .agent-client-chat-send-button:not(.agent-client-disabled)`,
+		);
+		await deps.cdp.clickElement(`${ACTIVE_PANEL} .agent-client-chat-send-button`);
+		// Only await the response on the final (screenshotted) tab; earlier tabs
+		// get their title from the sent message and need not finish streaming.
+		if (i === promptFiles.length - 1) {
+			await deps.cdp.waitForElement(
+				`${ACTIVE_PANEL} .agent-client-loading-indicator.agent-client-hidden`,
+				RESPONSE_TIMEOUT_MS,
+			);
+		}
 	}
 
 	// 4. Brief settle for UI animations
 	await sleep(SETTLE_MS);
+
+	// 4b. For conversations, scroll the active transcript to the top so the
+	// capture shows the question and start of the answer, not the streamed tail.
+	if (promptFiles.length > 0) {
+		await deps.cdp.evaluate(
+			`(() => { const el = document.querySelector('${ACTIVE_PANEL} .agent-client-chat-view-messages'); if (el) el.scrollTop = 0; return !!el; })()`,
+		);
+		await sleep(SETTLE_MS);
+	}
 
 	// 5. Capture screenshot to temp file
 	const tmpPath = path.join(deps.tmpDir, `${entry.name}-raw.png`);
@@ -142,18 +178,23 @@ export async function captureEntry(
 	const scaledCrop = scaleRectByDevicePixelRatio(cropRect, deps.devicePixelRatio);
 	const outputPath = deriveOutputPath(entry, deps.repoRoot);
 
-	await deps.sharp(tmpPath)
-		.extract({
-			left: scaledCrop.x,
-			top: scaledCrop.y,
-			width: scaledCrop.width,
-			height: scaledCrop.height,
-		})
-		.resize(entry.width, entry.height)
-		.webp({ quality: 90 })
-		.toFile(outputPath);
+	const pipeline = deps.sharp(tmpPath).extract({
+		left: scaledCrop.x,
+		top: scaledCrop.y,
+		width: scaledCrop.width,
+		height: scaledCrop.height,
+	});
+	// Static crops resize to the manifest dims; selector crops keep their
+	// native captured size (resizing dynamic element bounds distorts).
+	const encoded = entry.cropSelector
+		? pipeline
+		: pipeline.resize(entry.width, entry.height);
+	await encoded.webp({ quality: 90 }).toFile(outputPath);
 
-	// 7. Restore mobile emulation
+	// 8. Optional post-processing (e.g. drop shadow) on the written file.
+	await deps.postProcess?.(outputPath);
+
+	// 9. Restore mobile emulation
 	if (entry.mobile) {
 		await deps.cdp.setMobileEmulation(false);
 	}

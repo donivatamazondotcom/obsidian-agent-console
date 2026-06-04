@@ -200,6 +200,12 @@ export class Cdp {
 		await this.runRaw(["dev:mobile", enabled ? "on" : "off"]);
 	}
 
+	/** Override the renderer viewport via Emulation.setDeviceMetricsOverride. */
+	async setViewport(width: number, height: number): Promise<void> {
+		const params = JSON.stringify({ width, height, deviceScaleFactor: 1, mobile: false });
+		await this.runRaw(["dev:cdp", "method=Emulation.setDeviceMetricsOverride", `params=${params}`]);
+	}
+
 	/**
 	 * Move the mouse to the center of the element matching the selector,
 	 * triggering native hover/tooltip behavior. Uses CDP

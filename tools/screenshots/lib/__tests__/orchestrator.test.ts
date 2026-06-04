@@ -148,6 +148,64 @@ describe("captureEntry", () => {
 		expect(sendCall).toBeDefined();
 	});
 
+	it("waits for response completion when promptFile is set", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({ promptFile: "hello.txt" });
+
+		await captureEntry(entry, deps);
+
+		const selectors = (deps.cdp.waitForElement as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c: string[]) => c[0] as string,
+		);
+		expect(
+			selectors.some((s) =>
+				s.includes(".agent-client-loading-indicator.agent-client-hidden"),
+			),
+		).toBe(true);
+	});
+
+	it("propagates timeout when the response never completes", async () => {
+		const deps = makeDeps();
+		(deps.cdp.waitForElement as ReturnType<typeof vi.fn>).mockImplementation(
+			(selector: string) =>
+				selector.includes("loading-indicator")
+					? Promise.reject(new Error("waitForElement: timeout"))
+					: Promise.resolve(),
+		);
+		const entry = makeEntry({ promptFile: "hello.txt" });
+
+		await expect(captureEntry(entry, deps)).rejects.toThrow(/timeout/);
+		expect(deps.cdp.screenshot).not.toHaveBeenCalled();
+	});
+
+	it("opens a new tab for each prompt after the first", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({ prompts: ["a.txt", "b.txt", "c.txt"] });
+
+		await captureEntry(entry, deps);
+
+		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c: string[]) => c[0] as string,
+		);
+		const newTabCalls = evals.filter((e) => e.includes("new-session-tab"));
+		expect(newTabCalls).toHaveLength(2); // 3 prompts -> 2 extra tabs
+		expect((deps.readFile as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(3);
+		expect(evals.some((e) => e.includes("scrollTop"))).toBe(true);
+	});
+
+	it("runs postProcess on the output path when provided", async () => {
+		const postProcess = vi.fn().mockResolvedValue(undefined);
+		const deps = makeDeps({ postProcess });
+		const entry = makeEntry({ name: "shot" });
+
+		await captureEntry(entry, deps);
+
+		expect(postProcess).toHaveBeenCalledTimes(1);
+		expect(postProcess).toHaveBeenCalledWith(
+			expect.stringContaining(path.join("docs", "public", "images", "shot.webp")),
+		);
+	});
+
 	it("toggles mobile emulation when mobile is true", async () => {
 		const deps = makeDeps();
 		const entry = makeEntry({ mobile: true });
@@ -198,6 +256,7 @@ describe("captureEntry", () => {
 		expect(extractArg.top).toBe(68);    // floor(34*2)
 		expect(extractArg.width).toBe(124); // ceil((0+62)*2) - 0 ... actually let's just check it's not 999*2
 		expect(extractArg.width).not.toBe(1998);
+		expect(sharpInstance.resize).not.toHaveBeenCalled();
 	});
 
 	it("falls back to static crop when cropSelector matches nothing", async () => {

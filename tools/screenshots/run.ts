@@ -17,6 +17,7 @@ import path from "node:path";
 import { parseManifest, validateManifest } from "./lib/manifest";
 import { captureAll, type OrchestratorDeps } from "./lib/orchestrator";
 import { Cdp } from "./lib/cdp";
+import { addDropShadow } from "./lib/shadow";
 
 async function main() {
 	const repoRoot = path.resolve(__dirname, "../..");
@@ -34,22 +35,32 @@ async function main() {
 	// Create temp dir for raw captures
 	const tmpDir = mkdtempSync(path.join(tmpdir(), "screenshots-"));
 
-	// Detect device pixel ratio (default 2 for retina Mac)
-	const dpr = parseInt(process.env.SCREENSHOT_DPR || "2", 10);
-
 	// Vault name for CDP targeting (the fixtures vault folder is named "vault")
 	const vaultName = process.env.SCREENSHOT_VAULT || "vault";
+	const cdp = new Cdp({ vault: vaultName });
+
+	// Realistic window size so Agent Console branding + multiple tabs show.
+	await cdp.setViewport(1920, 1200);
+
+	// Device pixel ratio: env override, else detect from the live window.
+	// The capture PNG is in device pixels but getBoundingClientRect returns
+	// CSS px; a wrong DPR makes the scaled crop overrun the image (sharp
+	// "bad extract area"). Observed dpr=1 on this display, not the old 2.
+	const dpr = process.env.SCREENSHOT_DPR
+		? parseInt(process.env.SCREENSHOT_DPR, 10)
+		: await cdp.evaluate<number>("window.devicePixelRatio");
 
 	// Wire up real deps
 	const sharp = (await import("sharp")).default;
 	const deps: OrchestratorDeps = {
-		cdp: new Cdp({ vault: vaultName }),
+		cdp,
 		sharp: (input: string) => sharp(input),
 		repoRoot,
 		fixtureRoot,
 		tmpDir,
 		readFile: (p, enc) => readFileSync(p, enc as BufferEncoding),
 		devicePixelRatio: dpr,
+		postProcess: (output) => addDropShadow(output),
 	};
 
 	console.log(
