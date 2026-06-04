@@ -1360,7 +1360,7 @@ export function ChatPanel({
 
 	const cwdBanner =
 		agentCwd !== vaultPath && !isSameDirectory(agentCwd, vaultPath) ? (
-			<div className="agent-client-cwd-banner" title={agentCwd}>
+			<div className="agent-client-cwd-banner" aria-label={agentCwd}>
 				<span
 					className="agent-client-cwd-banner-icon"
 					ref={(el) => {

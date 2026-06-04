@@ -121,6 +121,7 @@ export function ContextStrip({
 					>
 						<span
 							className="context-strip-pill-name"
+							aria-label={displayName(note.path)}
 							onClick={(e) => onPillClick(note.path, e)}
 						>
 							{displayName(note.path)}
@@ -141,6 +142,7 @@ export function ContextStrip({
 					>
 						<span
 							className="context-strip-pill-name"
+							aria-label={displayName(provisionalPath)}
 							onClick={(e) => onPillClick(provisionalPath, e)}
 						>
 							{displayName(provisionalPath)}

@@ -441,7 +441,7 @@ function SessionItem({
 					{session.cwd !== currentCwd && (
 						<span
 							className="agent-client-session-history-item-cwd"
-							title={session.cwd}
+							aria-label={session.cwd}
 						>
 							{session.cwd}
 						</span>

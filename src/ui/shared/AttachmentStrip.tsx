@@ -25,7 +25,7 @@ function RemoveButton({
 			ref={ref}
 			className="agent-client-attachment-preview-remove"
 			onClick={() => onRemove(fileId)}
-			title="Remove attachment"
+			aria-label="Remove attachment"
 			type="button"
 		/>
 	);
