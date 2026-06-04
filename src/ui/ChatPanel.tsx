@@ -18,6 +18,7 @@ import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
 // Service imports
 import { getLogger } from "../utils/logger";
 import { deriveTabLabel } from "../utils/deriveTabLabel";
+import { toggleActiveNoteDefault } from "../utils/activeNoteDefaultToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";
 import { loadExistingSessionFlow } from "../hooks/loadExistingSessionFlow";
 
@@ -249,6 +250,9 @@ export function ChatPanel({
 	// Auto-default provisional suppress (Decision #26, I68): `×` on the
 	// provisional pill sets this sticky flag so it won't re-arm for this tab.
 	const [autoDefaultSuppressed, setAutoDefaultSuppressed] = useState(false);
+	// I74: kept current each render so the toggle command reads a fresh value.
+	const autoDefaultSuppressedRef = useRef(autoDefaultSuppressed);
+	autoDefaultSuppressedRef.current = autoDefaultSuppressed;
 
 	useContextVaultEvents({
 		vault: vaultEventSource,
@@ -1139,18 +1143,22 @@ export function ChatPanel({
 		};
 
 		const refs = [
-			// Toggle auto-mention
+			// Toggle active note as default context (I74)
 			ws.on(
-				"agent-client:toggle-auto-mention",
+				"agent-console:toggle-auto-mention",
 				(targetViewId?: string) => {
 					if (targetViewId && targetViewId !== viewId) return;
-					suggestions.mentions.toggleAutoMention();
+					const r = toggleActiveNoteDefault(
+						autoDefaultSuppressedRef.current,
+					);
+					setAutoDefaultSuppressed(r.suppressed);
+					new Notice(r.notice);
 				},
 			),
 
 			// New chat requested (from "New chat" or "Switch agent to" commands)
 			ws.on(
-				"agent-client:new-chat-requested",
+				"agent-console:new-chat-requested",
 				(targetViewId?: string, agentId?: string) => {
 					if (targetViewId && targetViewId !== viewId) return;
 					void handleNewChatWithPersistRef.current(agentId);
@@ -1159,7 +1167,7 @@ export function ChatPanel({
 
 			// Approve active permission
 			ws.on(
-				"agent-client:approve-active-permission",
+				"agent-console:approve-active-permission",
 				(targetViewId?: string) => {
 					if (targetViewId && targetViewId !== viewId) return;
 					void (async () => {
@@ -1180,7 +1188,7 @@ export function ChatPanel({
 
 			// Reject active permission
 			ws.on(
-				"agent-client:reject-active-permission",
+				"agent-console:reject-active-permission",
 				(targetViewId?: string) => {
 					if (targetViewId && targetViewId !== viewId) return;
 					void (async () => {
@@ -1200,13 +1208,13 @@ export function ChatPanel({
 			),
 
 			// Cancel current message
-			ws.on("agent-client:cancel-message", (targetViewId?: string) => {
+			ws.on("agent-console:cancel-message", (targetViewId?: string) => {
 				if (targetViewId && targetViewId !== viewId) return;
 				void handleStopGenerationRef.current();
 			}),
 
 			// Export chat
-			ws.on("agent-client:export-chat", (targetViewId?: string) => {
+			ws.on("agent-console:export-chat", (targetViewId?: string) => {
 				if (targetViewId && targetViewId !== viewId) return;
 				void handleExportChatRef.current();
 			}),
@@ -1221,7 +1229,6 @@ export function ChatPanel({
 		plugin.app.workspace,
 		plugin.lastActiveChatViewId,
 		viewId,
-		suggestions.mentions.toggleAutoMention,
 	]);
 
 	// ============================================================

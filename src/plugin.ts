@@ -613,7 +613,7 @@ export default class AgentClientPlugin extends Plugin {
 				name: `Switch agent to ${agent.displayName}`,
 				callback: () => {
 					this.app.workspace.trigger(
-						"agent-client:new-chat-requested",
+						"agent-console:new-chat-requested",
 						this.getDispatchTargetId(),
 						agent.id,
 					);
@@ -628,7 +628,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "Approve active permission",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:approve-active-permission",
+					"agent-console:approve-active-permission",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -639,7 +639,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "Reject active permission",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:reject-active-permission",
+					"agent-console:reject-active-permission",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -647,10 +647,10 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "toggle-auto-mention",
-			name: "Toggle auto-mention",
+			name: "Toggle active note as default context",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:toggle-auto-mention",
+					"agent-console:toggle-auto-mention",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -661,7 +661,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "New chat",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:new-chat-requested",
+					"agent-console:new-chat-requested",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -672,7 +672,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "Cancel current message",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:cancel-message",
+					"agent-console:cancel-message",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -683,7 +683,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "Export chat",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:export-chat",
+					"agent-console:export-chat",
 					this.getDispatchTargetId(),
 				);
 			},
