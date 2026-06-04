@@ -29,6 +29,7 @@ import {
 	ClaudeAgentSettings,
 	CodexAgentSettings,
 	CustomAgentSettings,
+	KiroAgentSettings,
 } from "./types/agent";
 import type { SavedSessionInfo } from "./types/session";
 import type { PerLeafTabState } from "./types/tab";
@@ -55,6 +56,7 @@ export interface AgentClientPluginSettings {
 	gemini: GeminiAgentSettings;
 	claude: ClaudeAgentSettings;
 	codex: CodexAgentSettings;
+	kiro: KiroAgentSettings;
 	customAgents: CustomAgentSettings[];
 	/** Default agent ID for new views (renamed from activeAgentId for multi-session) */
 	defaultAgentId: string;
@@ -145,6 +147,13 @@ const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 		apiKeySecretId: "",
 		command: "gemini",
 		args: ["--experimental-acp"],
+		env: [],
+	},
+	kiro: {
+		id: "kiro-cli",
+		displayName: "Kiro CLI",
+		command: "kiro-cli",
+		args: ["acp"],
 		env: [],
 	},
 	customAgents: [],
@@ -803,6 +812,7 @@ export default class AgentClientPlugin extends Plugin {
 		const rc = obj(raw.claude) ?? {};
 		const rk = obj(raw.codex) ?? {};
 		const rg = obj(raw.gemini) ?? {};
+		const rki = obj(raw.kiro) ?? {};
 		const re = obj(raw.exportSettings) ?? {};
 		const rd = obj(raw.displaySettings) ?? {};
 
@@ -820,6 +830,7 @@ export default class AgentClientPlugin extends Plugin {
 			D.claude.id,
 			D.codex.id,
 			D.gemini.id,
+			D.kiro.id,
 			...customAgents.map((a) => a.id),
 		];
 		const rawDefaultId =
@@ -891,6 +902,16 @@ export default class AgentClientPlugin extends Plugin {
 						? sanitizeArgs(rg.args)
 						: D.gemini.args,
 				env: normalizeEnvVars(rg.env),
+			},
+			kiro: {
+				id: D.kiro.id,
+				displayName: str(rki.displayName, D.kiro.displayName),
+				command: str(rki.command, "") || D.kiro.command,
+				args:
+					sanitizeArgs(rki.args).length > 0
+						? sanitizeArgs(rki.args)
+						: D.kiro.args,
+				env: normalizeEnvVars(rki.env),
 			},
 			customAgents,
 			defaultAgentId,

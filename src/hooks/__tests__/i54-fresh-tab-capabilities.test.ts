@@ -28,6 +28,7 @@ function makeSettings() {
 		claude: { id: "auto-sa", displayName: "Auto-SA" },
 		codex: { id: "codex", displayName: "Codex" },
 		gemini: { id: "gemini", displayName: "Gemini" },
+		kiro: { id: "kiro", displayName: "Kiro" },
 		customAgents: [],
 	};
 }
