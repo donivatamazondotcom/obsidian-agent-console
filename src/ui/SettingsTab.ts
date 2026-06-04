@@ -194,14 +194,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		new Setting(containerEl).setName("Display").setHeading();
 
 		new Setting(containerEl)
-			.setName("Chat view location")
-			.setDesc("Where to open new chat views")
+			.setName("Sidebar side")
+			.setDesc("Which sidebar new chat views open in")
 			.addDropdown((dropdown) =>
 				dropdown
-					.addOption("right-tab", "Right pane (tabs)")
-					.addOption("right-split", "Right pane (split)")
-					.addOption("editor-tab", "Editor area (tabs)")
-					.addOption("editor-split", "Editor area (split)")
+					.addOption("right", "Right sidebar")
+					.addOption("left", "Left sidebar")
 					.setValue(this.plugin.settings.chatViewLocation)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
