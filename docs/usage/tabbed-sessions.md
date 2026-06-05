@@ -87,19 +87,11 @@ If a tab crashes (rare; usually due to an agent process error), the tab shows an
 
 Configure in **Settings → Agent Console → Tabs → Maximum tabs**. Default: 10. Past the maximum, new-tab creation is rejected with a notice.
 
-## Multi-session via separate views (alternative)
+## Sidebar placement (left or right)
 
-In addition to tabs in the sidebar, Agent Console supports opening multiple separate chat views (right pane, editor area, split). This is preserved from upstream for users who prefer side-by-side panels.
+Agent Console lives in the sidebar — dockable on the **left or right**. Multiplexing happens through in-panel session tabs, not separate editor panes. Choose the side under **Settings → Agent Console → Display → Sidebar side**.
 
-| Location | Description |
-|----------|-------------|
-| **Right pane (tabs)** (default) | Opens in the right sidebar with tabs |
-| **Editor area (tabs)** | Opens as a tab in the editor area |
-| **Editor area (split)** | Opens in a new split pane |
-
-Configure in **Settings → Agent Console → Display → Chat view location**.
-
-For most users, tabs in the right sidebar is the recommended setup. Multiple separate views are useful for side-by-side comparisons across editor splits.
+Each sidebar pane manages its own tabs independently. Open Agent Console in both the left and right sidebars and each keeps its own set of tabs, restoring them separately across restarts.
 
 ## Broadcast commands
 
