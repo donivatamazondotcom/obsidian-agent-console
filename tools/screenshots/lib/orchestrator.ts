@@ -78,6 +78,8 @@ export interface CaptureAllOptions {
 
 const RIBBON_SELECTOR = '[aria-label*="agent-console"], [aria-label*="Agent Console"]';
 const SETTLE_MS = 500;
+/** Max wait for Obsidian's native tooltip (.tooltip) to render after a hover. */
+const HOVER_TOOLTIP_TIMEOUT_MS = 3000;
 /** Max wait for a live agent response to finish streaming before capture. */
 const RESPONSE_TIMEOUT_MS = 120_000;
 /** Scopes selectors to the visible tab panel (inactive panels are display:none). */
@@ -112,6 +114,11 @@ export async function captureEntry(
 	}
 	if (entry.initialState?.hoverSelector) {
 		await deps.cdp.hoverElement(entry.initialState.hoverSelector);
+		// Obsidian's native tooltip renders after a show-delay; wait for the
+		// real .tooltip element rather than relying on the blind SETTLE_MS,
+		// which races the delay and yields a tooltip-less capture (I06; same
+		// "wait on a signal, not a sleep" lesson as I01).
+		await deps.cdp.waitForElement(".tooltip", HOVER_TOOLTIP_TIMEOUT_MS);
 	}
 
 	// 3. Send prompt(s). `prompts` (multi-tab) takes precedence over a single

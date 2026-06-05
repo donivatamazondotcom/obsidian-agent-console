@@ -141,6 +141,29 @@ describe("captureEntry", () => {
 		expect(chatCall).toBeDefined();
 	});
 
+	it("waits for the tooltip after hoverSelector, before screenshot (I06)", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: { hoverSelector: '[aria-label="Agent Console"]' },
+		});
+
+		await captureEntry(entry, deps);
+
+		expect(deps.cdp.hoverElement).toHaveBeenCalledWith('[aria-label="Agent Console"]');
+		const waitMock = deps.cdp.waitForElement as ReturnType<typeof vi.fn>;
+		const shotMock = deps.cdp.screenshot as ReturnType<typeof vi.fn>;
+		const tooltipIdx = waitMock.mock.calls.findIndex(
+			(c: unknown[]) => c[0] === ".tooltip",
+		);
+		// orchestrator must wait for the real .tooltip element (not the blind
+		// SETTLE_MS) so the capture doesn't race Obsidian's tooltip show-delay.
+		expect(tooltipIdx).toBeGreaterThanOrEqual(0);
+		// and that wait must precede the screenshot
+		expect(waitMock.mock.invocationCallOrder[tooltipIdx]).toBeLessThan(
+			shotMock.mock.invocationCallOrder[0],
+		);
+	});
+
 	it("reads and sends prompt when promptFile is set", async () => {
 		const fixtureRoot = makeFixtureRoot();
 		writeFileSync(path.join(fixtureRoot, "prompts", "hello.txt"), "Say hello");
