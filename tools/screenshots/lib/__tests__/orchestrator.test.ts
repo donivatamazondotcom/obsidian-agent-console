@@ -53,8 +53,19 @@ function makeMockSharp() {
 	const instance = {
 		extract: vi.fn().mockReturnThis(),
 		resize: vi.fn().mockReturnThis(),
+		extend: vi.fn().mockReturnThis(),
+		raw: vi.fn().mockReturnThis(),
 		webp: vi.fn().mockReturnThis(),
 		toFile: vi.fn().mockResolvedValue(undefined),
+		metadata: vi.fn().mockResolvedValue({ width: 1400, height: 760 }),
+		toBuffer: vi.fn().mockImplementation((opts?: { resolveWithObject?: boolean }) =>
+			opts?.resolveWithObject
+				? Promise.resolve({
+						data: Buffer.from([20, 20, 20]),
+						info: { width: 1, height: 1, channels: 3 },
+					})
+				: Promise.resolve(Buffer.from("rawpng")),
+		),
 	};
 	return vi.fn().mockReturnValue(instance);
 }
@@ -385,5 +396,89 @@ describe("captureAll", () => {
 		await expect(captureAll(entries, deps, { filter: "zzz" })).rejects.toThrow(
 			/no manifest entry matches filter/i,
 		);
+	});
+});
+
+describe("captureEntry — group crop (cropSelectors)", () => {
+	it("unions selector bounds and center-pads to target dims via extend", async () => {
+		const deps = makeDeps({ devicePixelRatio: 1 });
+		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockImplementation(
+			(sel: string) =>
+				Promise.resolve(
+					sel === ".a"
+						? { x: 100, y: 80, width: 30, height: 26 }
+						: { x: 160, y: 80, width: 30, height: 26 },
+				),
+		);
+		const entry = makeEntry({
+			name: "group-shot",
+			width: 300,
+			height: 96,
+			cropSelectors: [".a", ".b"],
+			cropPadding: 16,
+		});
+
+		await captureEntry(entry, deps);
+
+		const sharpInstance = (deps.sharp as unknown as ReturnType<typeof vi.fn>).mock
+			.results[0].value;
+		// union of .a/.b = {x:100,y:80,w:90,h:26}; +16 padding -> {x:84,y:64,w:122,h:58}
+		expect(sharpInstance.extract).toHaveBeenCalledWith({
+			left: 84,
+			top: 64,
+			width: 122,
+			height: 58,
+		});
+		// bg sampled from the content's top-left 1x1 pixel
+		expect(sharpInstance.extract).toHaveBeenCalledWith({
+			left: 0,
+			top: 0,
+			width: 1,
+			height: 1,
+		});
+		// center-pad 122x58 content into 300x96: dw=178 -> 89/89, dh=38 -> 19/19
+		expect(sharpInstance.extend).toHaveBeenCalledWith({
+			top: 19,
+			bottom: 19,
+			left: 89,
+			right: 89,
+			background: { r: 20, g: 20, b: 20, alpha: 1 },
+		});
+		// group crops never resize (would distort the framed content)
+		expect(sharpInstance.resize).not.toHaveBeenCalled();
+		expect(sharpInstance.toFile).toHaveBeenCalledWith(
+			path.join("/fake/repo", "docs", "public", "images", "group-shot.webp"),
+		);
+	});
+
+	it("throws when group-crop content exceeds the target dimensions", async () => {
+		const deps = makeDeps({ devicePixelRatio: 1 });
+		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockResolvedValue({
+			x: 0,
+			y: 0,
+			width: 500,
+			height: 400,
+		});
+		const entry = makeEntry({
+			name: "too-big",
+			width: 100,
+			height: 100,
+			cropSelectors: [".big"],
+		});
+
+		await expect(captureEntry(entry, deps)).rejects.toThrow(/exceeds target/);
+	});
+
+	it("fails hard when a group selector matches nothing (no silent fallback)", async () => {
+		const deps = makeDeps({ devicePixelRatio: 1 });
+		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockRejectedValue(
+			new Error("getElementBounds: no element matches selector .missing"),
+		);
+		const entry = makeEntry({
+			name: "missing-member",
+			cropSelectors: [".present", ".missing"],
+		});
+
+		await expect(captureEntry(entry, deps)).rejects.toThrow(/no element matches/);
 	});
 });

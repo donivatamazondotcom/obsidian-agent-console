@@ -86,6 +86,19 @@ export interface ManifestEntry {
 	 * all sides. Default 16. Ignored when `cropSelector` is not set.
 	 */
 	cropPadding?: number;
+	/**
+	 * Optional list of CSS selectors whose union bounding box (plus
+	 * `cropPadding`) defines the crop region — for framing a *group* of
+	 * sibling elements (e.g. the cluster of chat-header action icons) that
+	 * has no single wrapping element. Takes precedence over `cropSelector`
+	 * and `crop`. The captured content is then centered on a canvas of
+	 * `width`×`height`, padded with the background color sampled from the
+	 * content's top-left pixel — reproducing the upstream "icons centered
+	 * with surrounding padding" look even when the icons sit flush at the
+	 * window edge. Unlike `cropSelector`, a missing selector here is a hard
+	 * error (a group crop with a dropped member would be silently wrong).
+	 */
+	cropSelectors?: string[];
 	/** Optional UI-state setup performed before capture. */
 	initialState?: InitialState;
 	/**
@@ -239,6 +252,20 @@ export function validateManifest(
 			if (!Number.isFinite(t) || t < 0 || t > 1) {
 				throw new Error(
 					`manifest entry "${entry.name}" has invalid approvalThreshold: ${t} (must be in [0, 1])`,
+				);
+			}
+		}
+
+		if (entry.cropSelectors !== undefined) {
+			if (
+				!Array.isArray(entry.cropSelectors) ||
+				entry.cropSelectors.length === 0 ||
+				!entry.cropSelectors.every(
+					(s) => typeof s === "string" && s.trim() !== "",
+				)
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid cropSelectors: must be a non-empty array of non-empty strings`,
 				);
 			}
 		}

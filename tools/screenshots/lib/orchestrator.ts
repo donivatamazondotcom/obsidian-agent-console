@@ -10,7 +10,13 @@
  */
 import path from "node:path";
 import type { ManifestEntry } from "./manifest";
-import { scaleRectByDevicePixelRatio } from "./crop";
+import {
+	scaleRectByDevicePixelRatio,
+	unionRects,
+	computeCropRect,
+	computeCenterExtend,
+	type Rect,
+} from "./crop";
 import { deriveOutputPath } from "./output";
 
 /** Subset of Cdp used by the orchestrator (for DI). */
@@ -24,16 +30,28 @@ export interface CdpLike {
 	setMobileEmulation(enabled: boolean): Promise<void>;
 }
 
-/** sharp factory — matches `import sharp from "sharp"` call signature. */
-export type SharpFactory = (input: string) => {
-	extract(region: { left: number; top: number; width: number; height: number }): SharpPipeline;
-};
+/** sharp factory — matches `import sharp from "sharp"`. Accepts a file path or an in-memory buffer (the group-crop does a second pass over the extracted content buffer). */
+export type SharpFactory = (input: string | Buffer) => SharpPipeline;
 
 interface SharpPipeline {
 	extract(region: { left: number; top: number; width: number; height: number }): SharpPipeline;
 	resize(width: number, height: number): SharpPipeline;
+	extend(opts: {
+		top: number;
+		bottom: number;
+		left: number;
+		right: number;
+		background: { r: number; g: number; b: number; alpha: number };
+	}): SharpPipeline;
+	raw(): SharpPipeline;
+	metadata(): Promise<{ width?: number; height?: number }>;
 	webp(opts?: { quality?: number }): SharpPipeline;
 	toFile(path: string): Promise<unknown>;
+	toBuffer(opts?: {
+		resolveWithObject?: boolean;
+	}): Promise<
+		Buffer | { data: Buffer; info: { width: number; height: number; channels: number } }
+	>;
 }
 
 export interface OrchestratorDeps {
@@ -188,39 +206,100 @@ export async function captureEntry(
 	const tmpPath = path.join(deps.tmpDir, `${entry.name}-raw.png`);
 	await deps.cdp.screenshot(tmpPath);
 
-	// 6. Determine crop region — auto from selector or static from manifest
-	let cropRect = entry.crop;
-	if (entry.cropSelector) {
-		try {
-			const bounds = await deps.cdp.getElementBounds(entry.cropSelector);
-			const padding = entry.cropPadding ?? 16;
-			cropRect = {
-				x: Math.max(0, bounds.x - padding),
-				y: Math.max(0, bounds.y - padding),
-				width: bounds.width + padding * 2,
-				height: bounds.height + padding * 2,
-			};
-		} catch {
-			// Selector didn't match — fall back to static crop
-		}
-	}
-
-	// 7. Crop, resize, encode to .webp
-	const scaledCrop = scaleRectByDevicePixelRatio(cropRect, deps.devicePixelRatio);
+	// 6. Determine crop region & encode — precedence: group union >
+	// single selector > static crop.
 	const outputPath = deriveOutputPath(entry, deps.repoRoot);
 
-	const pipeline = deps.sharp(tmpPath).extract({
-		left: scaledCrop.x,
-		top: scaledCrop.y,
-		width: scaledCrop.width,
-		height: scaledCrop.height,
-	});
-	// Static crops resize to the manifest dims; selector crops keep their
-	// native captured size (resizing dynamic element bounds distorts).
-	const encoded = entry.cropSelector
-		? pipeline
-		: pipeline.resize(entry.width, entry.height);
-	await encoded.webp({ quality: 90 }).toFile(outputPath);
+	if (entry.cropSelectors?.length) {
+		// Group crop: union the selectors' bounds (+ cropPadding) into a
+		// content region, then center that content on a width×height canvas
+		// padded with the header background color (sampled from the content's
+		// top-left pixel). Reproduces the upstream "icons centered with
+		// padding" look when the icons sit flush at the window edge. A missing
+		// selector is a hard error — a group crop with a dropped member would
+		// be silently wrong.
+		const rects: Rect[] = [];
+		for (const sel of entry.cropSelectors) {
+			rects.push(await deps.cdp.getElementBounds(sel));
+		}
+		const padding = entry.cropPadding ?? 16;
+		const content = computeCropRect(unionRects(rects), { padding });
+		const scaled = scaleRectByDevicePixelRatio(
+			content,
+			deps.devicePixelRatio,
+		);
+		// Clamp the content region to the captured image bounds — the icon
+		// cluster often sits flush at the window's right edge, so the padded
+		// union can overrun the capture (sharp "bad extract area"). The lost
+		// padding is re-synthesized as canvas fill below, so clamping is
+		// visually lossless.
+		const meta = await deps.sharp(tmpPath).metadata();
+		const imgW = meta.width ?? scaled.x + scaled.width;
+		const imgH = meta.height ?? scaled.y + scaled.height;
+		const cw = Math.min(scaled.width, imgW - scaled.x);
+		const ch = Math.min(scaled.height, imgH - scaled.y);
+		if (cw > entry.width || ch > entry.height) {
+			throw new Error(
+				`group-crop content (${cw}×${ch}) exceeds target (${entry.width}×${entry.height}) for "${entry.name}" — increase width/height or reduce cropPadding`,
+			);
+		}
+		const contentBuf = (await deps
+			.sharp(tmpPath)
+			.extract({ left: scaled.x, top: scaled.y, width: cw, height: ch })
+			.toBuffer()) as Buffer;
+		const sample = (await deps
+			.sharp(contentBuf)
+			.extract({ left: 0, top: 0, width: 1, height: 1 })
+			.raw()
+			.toBuffer({ resolveWithObject: true })) as { data: Buffer };
+		const bg = {
+			r: sample.data[0],
+			g: sample.data[1],
+			b: sample.data[2],
+			alpha: 1,
+		};
+		const ext = computeCenterExtend(cw, ch, entry.width, entry.height);
+		await deps
+			.sharp(contentBuf)
+			.extend({ ...ext, background: bg })
+			.webp({ quality: 90 })
+			.toFile(outputPath);
+	} else {
+		// Single selector (auto-bounds) or static crop.
+		let cropRect = entry.crop;
+		if (entry.cropSelector) {
+			try {
+				const bounds = await deps.cdp.getElementBounds(
+					entry.cropSelector,
+				);
+				const padding = entry.cropPadding ?? 16;
+				cropRect = {
+					x: Math.max(0, bounds.x - padding),
+					y: Math.max(0, bounds.y - padding),
+					width: bounds.width + padding * 2,
+					height: bounds.height + padding * 2,
+				};
+			} catch {
+				// Selector didn't match — fall back to static crop
+			}
+		}
+		const scaledCrop = scaleRectByDevicePixelRatio(
+			cropRect,
+			deps.devicePixelRatio,
+		);
+		const pipeline = deps.sharp(tmpPath).extract({
+			left: scaledCrop.x,
+			top: scaledCrop.y,
+			width: scaledCrop.width,
+			height: scaledCrop.height,
+		});
+		// Static crops resize to the manifest dims; selector crops keep their
+		// native captured size (resizing dynamic element bounds distorts).
+		const encoded = entry.cropSelector
+			? pipeline
+			: pipeline.resize(entry.width, entry.height);
+		await encoded.webp({ quality: 90 }).toFile(outputPath);
+	}
 
 	// 8. Optional post-processing (e.g. drop shadow) on the written file.
 	await deps.postProcess?.(outputPath);

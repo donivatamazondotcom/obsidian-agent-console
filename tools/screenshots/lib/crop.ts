@@ -85,3 +85,49 @@ export function computeCropRect(
 
 	return { x, y, width, height };
 }
+
+/**
+ * Bounding box that contains all input rects. Used for group crops where
+ * several sibling elements (e.g. a cluster of header action icons) must be
+ * framed together but no single wrapping element exists.
+ *
+ * @throws when `rects` is empty — an empty group has no meaningful box.
+ */
+export function unionRects(rects: Rect[]): Rect {
+	if (rects.length === 0) {
+		throw new Error("unionRects: empty rect list");
+	}
+	const left = Math.min(...rects.map((r) => r.x));
+	const top = Math.min(...rects.map((r) => r.y));
+	const right = Math.max(...rects.map((r) => r.x + r.width));
+	const bottom = Math.max(...rects.map((r) => r.y + r.height));
+	return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+/**
+ * Compute symmetric `sharp.extend()` offsets that center a content box of
+ * (contentWidth × contentHeight) inside a target box of
+ * (targetWidth × targetHeight). Used to reproduce the upstream "icons
+ * centered on the header background with generous padding" look when the
+ * captured icons sit flush at the window edge (so surrounding pixels can't
+ * be cropped — the padding is synthesized on a matching-color canvas).
+ *
+ * Odd remainders bias the extra pixel to the right/bottom. If content
+ * meets or exceeds target on an axis, that axis's offsets are 0 — the
+ * caller must guard (sharp.extend cannot shrink), see the orchestrator's
+ * content-exceeds-target check.
+ */
+export function computeCenterExtend(
+	contentWidth: number,
+	contentHeight: number,
+	targetWidth: number,
+	targetHeight: number,
+): { top: number; bottom: number; left: number; right: number } {
+	const dw = Math.max(0, targetWidth - contentWidth);
+	const dh = Math.max(0, targetHeight - contentHeight);
+	const left = Math.floor(dw / 2);
+	const right = dw - left;
+	const top = Math.floor(dh / 2);
+	const bottom = dh - top;
+	return { top, bottom, left, right };
+}

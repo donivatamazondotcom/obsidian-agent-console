@@ -4,7 +4,12 @@
       "name": "ribbon-icon",
       "width": 160,
       "height": 56,
-      "crop": { "x": 0, "y": 256, "width": 160, "height": 56 },
+      "crop": {
+        "x": 0,
+        "y": 256,
+        "width": 160,
+        "height": 56
+      },
       "initialState": {
         "openNote": "Welcome.md",
         "hoverSelector": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"], .side-dock-ribbon-action[aria-label*=\"agent-console\"]"
@@ -15,16 +20,48 @@
       "name": "multi-session",
       "width": 300,
       "height": 800,
-      "crop": { "x": 0, "y": 0, "width": 900, "height": 608 },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 900,
+        "height": 608
+      },
       "cropSelector": ".workspace",
       "cropPadding": 0,
       "initialState": {
         "openNote": "Welcome.md",
         "clickRibbon": true
       },
-      "prompts": ["multi-session-1.txt", "multi-session-2.txt", "multi-session.txt"],
+      "prompts": [
+        "multi-session-1.txt",
+        "multi-session-2.txt",
+        "multi-session.txt"
+      ],
       "draftMessage": "Turn these ideas into a short intro paragraph",
-      "approvalThreshold": 0.10
+      "approvalThreshold": 0.1
+    },
+    {
+      "name": "session-history-button",
+      "width": 298,
+      "height": 96,
+      "initialState": {
+        "openNote": "Welcome.md",
+        "clickRibbon": true
+      },
+      "approvalThreshold": 0.01,
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 298,
+        "height": 96
+      },
+      "cropPadding": 0,
+      "cropSelectors": [
+        ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"New chat\"]",
+        ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Session history\"]",
+        ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Export chat to Markdown\"]",
+        ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"More\"]"
+      ]
     }
   ]
 }

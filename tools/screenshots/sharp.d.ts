@@ -7,11 +7,14 @@ declare module "sharp" {
 	interface SharpInstance {
 		extract(region: { left: number; top: number; width: number; height: number }): SharpInstance;
 		resize(width: number, height: number): SharpInstance;
+		extend(opts: { top: number; bottom: number; left: number; right: number; background: { r: number; g: number; b: number; alpha: number } }): SharpInstance;
+		raw(): SharpInstance;
 		webp(opts?: { quality?: number }): SharpInstance;
 		png(): SharpInstance;
 		blur(sigma?: number): SharpInstance;
 		composite(images: Array<{ input: string | Buffer; left?: number; top?: number }>): SharpInstance;
 		metadata(): Promise<{ width?: number; height?: number; hasAlpha?: boolean }>;
+		toBuffer(opts: { resolveWithObject: true }): Promise<{ data: Buffer; info: { width: number; height: number; channels: number } }>;
 		toBuffer(): Promise<Buffer>;
 		toFile(path: string): Promise<unknown>;
 	}

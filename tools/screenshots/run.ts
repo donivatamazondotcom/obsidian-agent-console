@@ -60,7 +60,7 @@ async function main() {
 	const sharp = (await import("sharp")).default;
 	const deps: OrchestratorDeps = {
 		cdp,
-		sharp: (input: string) => sharp(input),
+		sharp: (input: string | Buffer) => sharp(input),
 		repoRoot,
 		fixtureRoot,
 		tmpDir,

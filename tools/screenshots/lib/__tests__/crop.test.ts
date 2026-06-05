@@ -9,7 +9,12 @@
  * TDD layer 1: pure math, no I/O.
  */
 import { describe, expect, it } from "vitest";
-import { computeCropRect, scaleRectByDevicePixelRatio } from "../crop";
+import {
+	computeCropRect,
+	scaleRectByDevicePixelRatio,
+	unionRects,
+	computeCenterExtend,
+} from "../crop";
 
 describe("scaleRectByDevicePixelRatio", () => {
 	it("scales identity at DPR=1", () => {
@@ -82,5 +87,79 @@ describe("computeCropRect", () => {
 		);
 		// x=70, y=70, but right=70+50+40=160 > 100 so width clamps to 30; same for height
 		expect(result).toEqual({ x: 70, y: 70, width: 30, height: 30 });
+	});
+});
+
+describe("unionRects", () => {
+	it("returns the single rect unchanged for a one-element list", () => {
+		expect(unionRects([{ x: 10, y: 20, width: 30, height: 40 }])).toEqual({
+			x: 10,
+			y: 20,
+			width: 30,
+			height: 40,
+		});
+	});
+
+	it("computes the bounding box of multiple rects", () => {
+		// Four 30×26 icons in a row at x=1266,1298,1330,1362, y=81.
+		const rects = [
+			{ x: 1266, y: 81, width: 30, height: 26 },
+			{ x: 1298, y: 81, width: 30, height: 26 },
+			{ x: 1330, y: 81, width: 30, height: 26 },
+			{ x: 1362, y: 81, width: 30, height: 26 },
+		];
+		expect(unionRects(rects)).toEqual({ x: 1266, y: 81, width: 126, height: 26 });
+	});
+
+	it("handles rects of differing heights/positions", () => {
+		const rects = [
+			{ x: 0, y: 50, width: 10, height: 10 },
+			{ x: 100, y: 0, width: 10, height: 80 },
+		];
+		expect(unionRects(rects)).toEqual({ x: 0, y: 0, width: 110, height: 80 });
+	});
+
+	it("throws on empty input", () => {
+		expect(() => unionRects([])).toThrow(/empty/);
+	});
+});
+
+describe("computeCenterExtend", () => {
+	it("centers content inside a larger target", () => {
+		// 126×26 content in 298×96 target → 86 each side horiz, 35 each vert
+		expect(computeCenterExtend(126, 26, 298, 96)).toEqual({
+			left: 86,
+			right: 86,
+			top: 35,
+			bottom: 35,
+		});
+	});
+
+	it("biases the odd remainder to right/bottom", () => {
+		// dw=3 → left 1, right 2; dh=1 → top 0, bottom 1
+		expect(computeCenterExtend(10, 10, 13, 11)).toEqual({
+			left: 1,
+			right: 2,
+			top: 0,
+			bottom: 1,
+		});
+	});
+
+	it("returns zero offsets when content meets target", () => {
+		expect(computeCenterExtend(100, 50, 100, 50)).toEqual({
+			left: 0,
+			right: 0,
+			top: 0,
+			bottom: 0,
+		});
+	});
+
+	it("clamps to zero when content exceeds target (caller must guard)", () => {
+		expect(computeCenterExtend(400, 300, 100, 100)).toEqual({
+			left: 0,
+			right: 0,
+			top: 0,
+			bottom: 0,
+		});
 	});
 });
