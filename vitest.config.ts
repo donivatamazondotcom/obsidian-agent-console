@@ -30,6 +30,6 @@ export default defineConfig({
 		include: ["src/**/__tests__/**/*.test.{ts,tsx}"],
 		// Each test gets a clean DOM. Vitest defaults to per-file isolation
 		// which is sufficient for our hook-level tests.
-		setupFiles: [],
+		setupFiles: ["src/__test_stubs__/vitest.setup.ts"],
 	},
 });

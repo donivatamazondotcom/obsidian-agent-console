@@ -91,16 +91,14 @@ function setScrollTopInstant(scrollEl: HTMLElement, value: number): void {
 
 	if (needsOverride) {
 		// Decision #22: temporarily override CSS scroll-behavior on the
-		// element to make the programmatic scrollTop write instant. The
-		// plugin's no-static-styles-assignment rule asks for CSS classes,
-		// but a CSS class can't time-bound the override to one synchronous
-		// write — the helper must restore the previous value immediately.
-		// eslint-disable-next-line obsidianmd/no-static-styles-assignment -- per-call override restored immediately; CSS class can't time-bound this
-		scrollEl.style.scrollBehavior = "auto";
+		// element to make the programmatic scrollTop write instant, then
+		// restore it synchronously. setCssProps is the Obsidian-sanctioned
+		// way to write inline styles (obsidianmd/no-static-styles-assignment).
+		scrollEl.setCssProps({ "scroll-behavior": "auto" });
 	}
 	scrollEl.scrollTop = value;
 	if (needsOverride) {
-		scrollEl.style.scrollBehavior = previousBehavior;
+		scrollEl.setCssProps({ "scroll-behavior": previousBehavior });
 	}
 }
 
@@ -288,10 +286,10 @@ export function useAutoScrollPin(
 				const computed = getComputedStyle(scrollEl);
 				if (computed.scrollBehavior !== "smooth") {
 					// Decision #22: smooth-scroll path sets inline scroll-behavior
-					// for the duration; the rule prefers CSS classes but this is
-					// a per-call user-action override, not a static style.
-					// eslint-disable-next-line obsidianmd/no-static-styles-assignment -- per-call user-action override, not a static style; restored after scroll
-					scrollEl.style.scrollBehavior = "smooth";
+					// for the duration; a per-call user-action override, not a
+					// static style. setCssProps is the Obsidian-sanctioned inline
+					// style writer (obsidianmd/no-static-styles-assignment).
+					scrollEl.setCssProps({ "scroll-behavior": "smooth" });
 				}
 				scrollEl.scrollTop = target;
 			} else {
