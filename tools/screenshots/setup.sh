@@ -31,4 +31,13 @@ if d.get("savedSessions"):
 PY
 fi
 
-echo "✓ Plugin symlinks ready in fixtures vault"
+# Reload the plugin in the running fixtures Obsidian so the freshly-built
+# main.js (symlinked above) is what gets screenshotted — the running instance
+# holds the OLD build in memory until reloaded, which silently produces
+# stale screenshots. Scoped to the fixtures vault ONLY; the daily-driver vault
+# is never touched (see learned/skill-rules/agent-console.md "never reload").
+VAULT="${SCREENSHOT_VAULT:-vault}"
+obsidian vault="$VAULT" plugin:reload id=agent-console 2>/dev/null || true
+sleep 3
+
+echo "✓ Plugin symlinks + fixtures reload ready (vault=$VAULT)"
