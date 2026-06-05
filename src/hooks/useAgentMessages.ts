@@ -22,7 +22,11 @@ import type { ContextNote } from "../types/context";
 import type { ISettingsAccess } from "../services/settings-service";
 import type { ErrorInfo } from "../types/errors";
 import type { IMentionService } from "../utils/mention-parser";
-import { preparePrompt, sendPreparedPrompt } from "../services/message-sender";
+import {
+	preparePrompt,
+	sendPreparedPrompt,
+	DEFAULT_MAX_SELECTION_LENGTH,
+} from "../services/message-sender";
 import { extractErrorMessage } from "../utils/error-utils";
 import { Platform } from "obsidian";
 import {
@@ -266,7 +270,6 @@ export function useAgentMessages(
 
 			const currentSessionId = session.sessionId;
 			const generation = ++generationRef.current;
-			const settings = settingsAccess.getSnapshot();
 
 			// Resolve selection text (Channel 2) from raw selection lines.
 			let selectionContext:
@@ -284,7 +287,7 @@ export function useAgentMessages(
 							options.selection.toLine + 1,
 						)
 						.join("\n")
-						.slice(0, settings.displaySettings.maxSelectionLength);
+						.slice(0, DEFAULT_MAX_SELECTION_LENGTH);
 					selectionContext = {
 						path: options.selection.path,
 						fromLine: options.selection.fromLine + 1,
@@ -307,9 +310,6 @@ export function useAgentMessages(
 					convertToWsl: shouldConvertToWsl,
 					supportsEmbeddedContext:
 						session.promptCapabilities?.embeddedContext ?? false,
-					maxNoteLength: settings.displaySettings.maxNoteLength,
-					maxSelectionLength:
-						settings.displaySettings.maxSelectionLength,
 					isFirstMessage: options.isFirstMessage,
 					contextNotes: options.contextNotes,
 					selectionContext,

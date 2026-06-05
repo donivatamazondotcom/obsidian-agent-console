@@ -114,10 +114,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			);
 
 		// ─────────────────────────────────────────────────────────────────────
-		// Mentions
+		// Context
 		// ─────────────────────────────────────────────────────────────────────
 
-		new Setting(containerEl).setName("Mentions").setHeading();
+		new Setting(containerEl).setName("Context").setHeading();
 
 		new Setting(containerEl)
 			.setName("Active note as default context")
@@ -131,59 +131,6 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						await this.plugin.settingsService.updateSettings({
 							activeNoteAsDefaultContext: value,
 						});
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Max note length")
-			.setDesc(
-				"Maximum characters per mentioned note. Notes longer than this will be truncated.",
-			)
-			.addText((text) =>
-				text
-					.setPlaceholder("10000")
-					.setValue(
-						String(
-							this.plugin.settings.displaySettings.maxNoteLength,
-						),
-					)
-					.onChange(async (value) => {
-						const num = parseInt(value, 10);
-						if (!isNaN(num) && num >= 1) {
-							await this.plugin.settingsService.updateSettings({
-								displaySettings: {
-									...this.plugin.settings.displaySettings,
-									maxNoteLength: num,
-								},
-							});
-						}
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Max selection length")
-			.setDesc(
-				"Maximum characters for text selection in auto-mention. Selections longer than this will be truncated.",
-			)
-			.addText((text) =>
-				text
-					.setPlaceholder("10000")
-					.setValue(
-						String(
-							this.plugin.settings.displaySettings
-								.maxSelectionLength,
-						),
-					)
-					.onChange(async (value) => {
-						const num = parseInt(value, 10);
-						if (!isNaN(num) && num >= 1) {
-							await this.plugin.settingsService.updateSettings({
-								displaySettings: {
-									...this.plugin.settings.displaySettings,
-									maxSelectionLength: num,
-								},
-							});
-						}
 					}),
 			);
 

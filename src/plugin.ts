@@ -90,8 +90,6 @@ export interface AgentClientPluginSettings {
 	chatViewLocation: ChatViewLocation;
 	// Display settings
 	displaySettings: {
-		maxNoteLength: number;
-		maxSelectionLength: number;
 		showEmojis: boolean;
 		fontSize: number | null;
 	};
@@ -184,8 +182,6 @@ const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	sendMessageShortcut: "enter",
 	chatViewLocation: "right",
 	displaySettings: {
-		maxNoteLength: 10000,
-		maxSelectionLength: 10000,
 		showEmojis: true,
 		fontSize: null,
 	},
@@ -980,16 +976,6 @@ export default class AgentClientPlugin extends Plugin {
 				D.chatViewLocation,
 			),
 			displaySettings: {
-				maxNoteLength: num(
-					rd.maxNoteLength,
-					D.displaySettings.maxNoteLength,
-					1,
-				),
-				maxSelectionLength: num(
-					rd.maxSelectionLength,
-					D.displaySettings.maxSelectionLength,
-					1,
-				),
 				showEmojis: bool(rd.showEmojis, D.displaySettings.showEmojis),
 				fontSize: parseChatFontSize(rd.fontSize),
 			},

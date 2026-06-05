@@ -162,7 +162,7 @@ export interface SendPromptResult {
 // ============================================================================
 
 const DEFAULT_MAX_NOTE_LENGTH = 10000; // Default maximum characters per note
-const DEFAULT_MAX_SELECTION_LENGTH = 10000; // Default maximum characters for selection
+export const DEFAULT_MAX_SELECTION_LENGTH = 10000; // Default maximum characters for selection
 const LATEX_MATH_INSTRUCTION =
 	"This client uses Obsidian Flavored Markdown. For math, use $...$ for inline and $$...$$ for display (not \\(...\\) or \\[...\\]).";
 const WIKI_LINK_INSTRUCTION =

@@ -55,7 +55,7 @@
  *   slice does not touch those.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { SessionStorage } from "../session-storage";
 import type { AgentClientPluginSettings } from "../../plugin";
 import type AgentClientPlugin from "../../plugin";
@@ -407,14 +407,15 @@ describe("SessionStorage tab-state methods", () => {
 			expect(loaded).not.toBeNull();
 			expect(loaded).toEqual(input);
 		});
+	});
+});
 
+/**
  * Unit tests for SessionStorage context-note persistence (T13).
  *
  * Covers the round-trip that makes crystallized pills survive a restart:
  * saveSessionMessages(..., contextNotes) -> loadSessionContextNotes().
  */
-import { describe, it, expect, vi } from "vitest";
-import { SessionStorage } from "../session-storage";
 import type { ContextNote } from "../../types/context";
 import type { ChatMessage } from "../../types/chat";
 
@@ -440,6 +441,7 @@ function makeStorage() {
 	};
 	const plugin = {
 		app: { vault: { adapter, configDir: "test-config" } },
+		manifest: { id: "agent-console" },
 	};
 	const settingsAccess = { getSnapshot: vi.fn(), updateSettings: vi.fn() };
 	return new SessionStorage(
