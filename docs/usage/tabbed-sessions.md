@@ -115,6 +115,14 @@ Control multiple tabs at once from the command palette:
 Broadcast send is useful for comparing how different agents respond to the same prompt. Pair it with `Broadcast prompt` to set up the same question across tabs.
 :::
 
+## Persistence across restarts
+
+Open tabs survive an Obsidian restart. When you quit and reopen, each sidebar pane brings back its own tabs — same order, same active tab, each tab's conversation visible right away. Turn this off under Settings → Tabs → "Restore tabs on startup" (on by default). Panes restore independently; split views don't merge into one.
+
+## Lazy sessions
+
+Opening a tab no longer starts an agent session immediately. The session connects the moment you start typing, so you can open a tab just to reread an old conversation without starting an agent. A restored tab reconnects to its previous session on your first keystroke. If that session is gone — the agent restarted or it expired — the tab transparently continues from a transcript of the earlier conversation and shows a one-time notice that the agent's internal state from before wasn't recovered.
+
 ## See also
 
 - [Session history](/usage/session-history) — browse past sessions, restore any in a new tab
