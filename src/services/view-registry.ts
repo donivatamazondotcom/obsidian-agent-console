@@ -29,6 +29,20 @@ import { getLogger } from "../utils/logger";
 export type ChatViewType = "sidebar";
 
 /**
+ * Broadcast handle for a single tab within a view. Lets broadcast
+ * commands fan out across every tab, not just each view's active tab.
+ */
+export interface IChatTabHandle {
+	/** Stable identifier for this tab (ChatPanel viewId === tab.tabId). */
+	readonly tabId: string;
+	getInputState(): ChatInputState | null;
+	setInputState(state: ChatInputState): void;
+	canSend(): boolean;
+	sendMessage(): Promise<boolean>;
+	cancelOperation(): Promise<void>;
+}
+
+/**
  * Interface that all chat view containers must implement.
  * Enables the plugin to manage views uniformly regardless of their implementation.
  */
@@ -135,6 +149,21 @@ export interface IChatViewContainer {
 	 * Stops ongoing message generation.
 	 */
 	cancelOperation(): Promise<void>;
+
+	// ============================================================
+	// Tab Enumeration (tab-aware broadcast — F11)
+	// ============================================================
+
+	/**
+	 * Broadcast handles for ALL tabs in this view, not just the active
+	 * one. Powers tab-aware broadcast commands.
+	 */
+	getTabHandles(): IChatTabHandle[];
+
+	/**
+	 * ID of this view's currently active tab (the broadcast source).
+	 */
+	getActiveTabId(): string;
 
 	// ============================================================
 	// Container Access
@@ -318,6 +347,14 @@ export class ChatViewRegistry {
 	 */
 	getAll(): IChatViewContainer[] {
 		return Array.from(this.views.values());
+	}
+
+	/**
+	 * Broadcast handles for every tab across all registered views.
+	 * Flattens per-view tabs into one list for broadcast commands.
+	 */
+	getAllTabHandles(): IChatTabHandle[] {
+		return this.getAll().flatMap((v) => v.getTabHandles());
 	}
 
 	/**

@@ -1,6 +1,7 @@
 import { ItemView, WorkspaceLeaf, Menu, Notice, type MenuItem } from "obsidian";
 import type {
 	IChatViewContainer,
+	IChatTabHandle,
 	ChatViewType,
 } from "../services/view-registry";
 import * as React from "react";
@@ -510,6 +511,9 @@ function ChatComponent({
 	// Register callbacks for IChatViewContainer (active tab only)
 	// ============================================================
 	const activeCallbacksRef = useRef<ChatPanelCallbacks | null>(null);
+	const tabHandlesRef = useRef<Map<string, ChatPanelCallbacks>>(
+		new Map(),
+	);
 
 	useEffect(() => {
 		view.setCallbacks({
@@ -527,6 +531,18 @@ function ChatComponent({
 			cancelOperation: async () =>
 				activeCallbacksRef.current?.cancelOperation(),
 		});
+		view.setTabHandlesAccessor(() =>
+			Array.from(tabHandlesRef.current.entries()).map(
+				([tabId, cb]) => ({
+					tabId,
+					getInputState: cb.getInputState,
+					setInputState: cb.setInputState,
+					canSend: cb.canSend,
+					sendMessage: cb.sendMessage,
+					cancelOperation: cb.cancelOperation,
+				}),
+			),
+		);
 	}, [view]);
 
 	// ============================================================
@@ -540,6 +556,16 @@ function ChatComponent({
 	useEffect(() => {
 		view.setTabManager(tabManager);
 	}, [view, tabManager]);
+
+	// Prune broadcast handles for tabs that have closed (F11)
+	useEffect(() => {
+		const liveIds = new Set(tabs.map((t) => t.tabId));
+		for (const id of tabHandlesRef.current.keys()) {
+			if (!liveIds.has(id)) {
+				tabHandlesRef.current.delete(id);
+			}
+		}
+	}, [tabs]);
 
 	// ============================================================
 	// Render
@@ -590,6 +616,10 @@ function ChatComponent({
 								viewHost={view}
 								isActive={tab.tabId === activeTabId}
 								onRegisterCallbacks={(callbacks) => {
+									tabHandlesRef.current.set(
+										tab.tabId,
+										callbacks,
+									);
 									if (tab.tabId === activeTabId) {
 										activeCallbacksRef.current =
 											callbacks;
@@ -783,6 +813,17 @@ export class ChatView extends ItemView implements IChatViewContainer {
 
 	setCallbacks(callbacks: ChatPanelCallbacks): void {
 		this.callbacks = callbacks;
+	}
+
+	// All-tabs broadcast handle accessor (set by React component, F11)
+	private tabHandlesAccessor: (() => IChatTabHandle[]) | null = null;
+
+	setTabHandlesAccessor(fn: () => IChatTabHandle[]): void {
+		this.tabHandlesAccessor = fn;
+	}
+
+	getTabHandles(): IChatTabHandle[] {
+		return this.tabHandlesAccessor?.() ?? [];
 	}
 
 	getDisplayName(): string {

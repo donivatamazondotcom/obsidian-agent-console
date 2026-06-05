@@ -1202,10 +1202,11 @@ export function ChatPanel({
 				if (!currentInput.trim() && currentFiles.length === 0) {
 					return false;
 				}
-				if (
-					!isSessionReadyRef.current ||
-					sessionHistoryLoadingRef.current
-				) {
+				// Don't require an already-ready session: defer to
+				// handleSendWithLazyAcquisition, which queues the message and
+				// acquires the session for idle/connecting tabs (matches the
+				// send button). Only an in-flight history load blocks. (I70)
+				if (sessionHistoryLoadingRef.current) {
 					return false;
 				}
 				if (isSendingRef.current) {
