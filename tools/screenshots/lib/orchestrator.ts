@@ -141,6 +141,37 @@ export async function captureEntry(
 		}
 	}
 
+	// 3b. Hide chrome that isn't the subject of this shot (e.g. the chat
+	// composer for a transcript-focused capture) so the window can be sized
+	// tight without the hidden element forcing scroll overflow. Done before
+	// the settle/scroll so the layout reflows before the screenshot.
+	if (entry.hideSelectors?.length) {
+		const selectors = JSON.stringify(entry.hideSelectors);
+		await deps.cdp.evaluate(
+			`(() => { for (const s of ${selectors}) { document.querySelectorAll(s).forEach((el) => { el.style.display = "none"; }); } return true; })()`,
+		);
+	}
+
+	// 3c. Type a draft into the active composer WITHOUT sending, so the shot
+	// shows the input box populated with its context-note pill(s) and example
+	// text instead of an empty placeholder.
+	if (entry.draftMessage) {
+		const draft = entry.draftMessage
+			.replace(/\\/g, "\\\\")
+			.replace(/`/g, "\\`")
+			.replace(/\$/g, "\\$");
+		await deps.cdp.evaluate(
+			`(() => {
+				const ta = Array.from(document.querySelectorAll('textarea.agent-client-chat-input-textarea')).find((t) => t.offsetParent !== null);
+				if (!ta) return false;
+				const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+				setter.call(ta, \`${draft}\`);
+				ta.dispatchEvent(new Event('input', { bubbles: true }));
+				return true;
+			})()`,
+		);
+	}
+
 	// 4. Brief settle for UI animations
 	await sleep(SETTLE_MS);
 

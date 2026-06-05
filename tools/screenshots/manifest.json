@@ -23,6 +23,7 @@
         "clickRibbon": true
       },
       "prompts": ["multi-session-1.txt", "multi-session-2.txt", "multi-session.txt"],
+      "draftMessage": "Turn these ideas into a short intro paragraph",
       "approvalThreshold": 0.10
     }
   ]

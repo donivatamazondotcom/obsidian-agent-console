@@ -193,6 +193,40 @@ describe("captureEntry", () => {
 		expect(evals.some((e) => e.includes("scrollTop"))).toBe(true);
 	});
 
+	it("hides hideSelectors via display:none before capturing", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			hideSelectors: [".agent-client-chat-input-container", ".foo"],
+		});
+
+		await captureEntry(entry, deps);
+
+		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c: string[]) => c[0] as string,
+		);
+		const hideCall = evals.find(
+			(e) =>
+				e.includes('style.display = "none"') &&
+				e.includes(".agent-client-chat-input-container"),
+		);
+		expect(hideCall).toBeDefined();
+		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(1);
+	});
+
+	it("types draftMessage into the composer without sending", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({ draftMessage: "Draft this please" });
+
+		await captureEntry(entry, deps);
+
+		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c: string[]) => c[0] as string,
+		);
+		expect(evals.some((e) => e.includes("Draft this please"))).toBe(true);
+		// a draft is never sent (no send-button / ribbon click for this entry)
+		expect(deps.cdp.clickElement).not.toHaveBeenCalled();
+	});
+
 	it("runs postProcess on the output path when provided", async () => {
 		const postProcess = vi.fn().mockResolvedValue(undefined);
 		const deps = makeDeps({ postProcess });

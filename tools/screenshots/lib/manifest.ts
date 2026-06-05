@@ -103,6 +103,22 @@ export interface ManifestEntry {
 	 */
 	prompts?: string[];
 	/**
+	 * CSS selectors to hide (set `display:none`) right before capture.
+	 * Trims chrome that isn't the subject of the shot — e.g. the chat
+	 * composer for a transcript-focused screenshot — so the window can be
+	 * sized tight to the content without the hidden element forcing scroll
+	 * overflow. Applied before the settle + scroll-to-top step so the layout
+	 * reflows before the screenshot is taken.
+	 */
+	hideSelectors?: string[];
+	/**
+	 * Optional text typed into the active session's chat composer right
+	 * before capture, WITHOUT sending. Used to show the input box populated
+	 * with its context-note pill(s) and an example message (rather than an
+	 * empty placeholder). Applied after prompts are sent and responses settle.
+	 */
+	draftMessage?: string;
+	/**
 	 * When true, the driver toggles `obsidian dev:mobile on` before
 	 * capturing this entry and back off after. Reserved for F01.
 	 */

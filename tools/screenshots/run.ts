@@ -39,8 +39,14 @@ async function main() {
 	const vaultName = process.env.SCREENSHOT_VAULT || "vault";
 	const cdp = new Cdp({ vault: vaultName });
 
-	// Realistic window size so Agent Console branding + multiple tabs show.
-	await cdp.setViewport(1920, 1200);
+	// Window sized to fit the tabs + active note + full chat transcript AND
+	// the composer (showing its context-note pill + an example draft message).
+	// Height covers the messages viewport (transcript ~539px) plus the composer
+	// (~149px) and header chrome (~150px). The chat scroll container's ~120px bottom
+	// padding harmlessly overflows behind the composer (scroll-to-bottom button
+	// is hidden), so ~760px shows the full transcript + composer snugly. The drop shadow adds the
+	// surrounding background. Was 1920x1200 — far too large.
+	await cdp.setViewport(1400, 760);
 
 	// Device pixel ratio: env override, else detect from the live window.
 	// The capture PNG is in device pixels but getBoundingClientRect returns

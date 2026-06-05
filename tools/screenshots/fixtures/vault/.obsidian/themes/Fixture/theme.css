@@ -29,3 +29,8 @@
 .markdown-rendered code {
 	border: 1px solid #262838;
 }
+
+/* Screenshot fixtures: hide the transient scroll-to-bottom affordance so a
+   compact capture height doesn't surface it over the transcript. !important
+   persists across React re-renders (an inline display:none does not). */
+.agent-client-scroll-to-bottom { display: none !important; }
