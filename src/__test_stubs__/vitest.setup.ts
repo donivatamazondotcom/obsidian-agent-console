@@ -6,22 +6,23 @@
  *  - `activeDocument` / `activeWindow`: the document/window of the currently
  *    active (possibly popped-out) window. In the single-window jsdom test
  *    environment they alias the test document/window.
- *  - `HTMLElement.prototype.setCssProps`: the sanctioned inline-style writer
- *    (production code uses it instead of `el.style.x =` per
- *    `obsidianmd/no-static-styles-assignment`). jsdom has no such method,
- *    so we shim it to `setProperty` — which keeps `el.style.<prop>` reads
- *    consistent with the write, matching Obsidian's behavior.
+ *  - `HTMLElement.prototype.setCssProps`: an inline-style writer jsdom lacks.
+ *    Shimmed to `setProperty` so `el.style.<prop>` reads stay consistent with
+ *    the write, matching Obsidian's behavior.
  *
  * Production resolves all of these via Obsidian itself; only tests need them.
+ * Uses `window` (not `globalThis`) per obsidianmd/no-global-this — under the
+ * jsdom environment `window` is the global object.
  */
 
-const globals = globalThis as unknown as {
+type ObsidianTestGlobals = {
 	activeDocument: Document;
-	activeWindow: Window & typeof globalThis;
+	activeWindow: Window;
 };
 
-globals.activeDocument = globalThis.document;
-globals.activeWindow = globalThis.window;
+const testGlobals = window as unknown as ObsidianTestGlobals;
+testGlobals.activeDocument = window.document;
+testGlobals.activeWindow = window;
 
 if (
 	typeof HTMLElement !== "undefined" &&
