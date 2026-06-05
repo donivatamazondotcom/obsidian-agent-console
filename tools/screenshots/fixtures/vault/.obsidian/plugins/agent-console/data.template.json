@@ -25,6 +25,15 @@
     ],
     "env": []
   },
+  "kiro": {
+    "id": "kiro-cli",
+    "displayName": "Kiro CLI",
+    "command": "kiro-cli",
+    "args": [
+      "acp"
+    ],
+    "env": []
+  },
   "customAgents": [
     {
       "id": "kiro-cli",
@@ -38,7 +47,8 @@
   ],
   "defaultAgentId": "kiro-cli",
   "autoAllowPermissions": true,
-  "autoMentionActiveNote": true,
+  "activeNoteAsDefaultContext": true,
+  "migrationNoticeShown": true,
   "enableSystemNotifications": true,
   "debugMode": false,
   "nodePath": "/Users/doniv/.local/share/mise/installs/node/24.14.0/bin/node",
@@ -55,10 +65,8 @@
   },
   "windowsWslMode": false,
   "sendMessageShortcut": "enter",
-  "chatViewLocation": "right-tab",
+  "chatViewLocation": "right",
   "displaySettings": {
-    "maxNoteLength": 10000,
-    "maxSelectionLength": 10000,
     "showEmojis": true,
     "fontSize": null
   },
@@ -67,13 +75,8 @@
   "lastUsedModes": {
     "kiro-cli": "screenshot-fixtures"
   },
-  "enableFloatingChat": false,
-  "floatingButtonImage": "",
-  "floatingWindowSize": {
-    "width": 400,
-    "height": 500
-  },
-  "floatingWindowPosition": null,
-  "floatingButtonPosition": null,
-  "maxSessionTabs": 10
+  "maxSessionTabs": 10,
+  "restoreTabsOnStartup": false,
+  "perLeafTabStates": [],
+  "legacySessionsMigrated": true
 }

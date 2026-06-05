@@ -106,15 +106,38 @@ describe("captureEntry", () => {
 		);
 	});
 
-	it("clicks ribbon when initialState.clickRibbon is true", async () => {
+	it("opens the chat panel when initialState.clickRibbon is true", async () => {
 		const deps = makeDeps();
 		const entry = makeEntry({ initialState: { clickRibbon: true } });
 
 		await captureEntry(entry, deps);
 
-		expect(deps.cdp.clickElement).toHaveBeenCalled();
-		const selector = (deps.cdp.clickElement as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-		expect(selector).toContain("agent-console");
+		// clickRibbon opens the panel via the open-chat-view command
+		// (deterministic), not the ribbon toggle — see I08.
+		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c: string[]) => c[0] as string,
+		);
+		expect(evals.some((e) => e.includes("open-chat-view"))).toBe(true);
+	});
+
+	it("detaches existing chat-view leaves then opens the panel via command (I08)", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({ initialState: { clickRibbon: true } });
+
+		await captureEntry(entry, deps);
+
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		const calls = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		const detachIdx = calls.findIndex((sel) => sel.includes("detachLeavesOfType"));
+		const openIdx = calls.findIndex((sel) => sel.includes("open-chat-view"));
+		// v1.1.0 restores the panel on reload and the ribbon is a TOGGLE, so
+		// clicking it is unreliable (closes a restored panel / races restore).
+		// Detach existing leaves, then open via the command (deterministic) (I08).
+		expect(detachIdx).toBeGreaterThanOrEqual(0);
+		expect(openIdx).toBeGreaterThanOrEqual(0);
+		expect(evalMock.mock.invocationCallOrder[detachIdx]).toBeLessThan(
+			evalMock.mock.invocationCallOrder[openIdx],
+		);
 	});
 
 	it("opens a note when initialState.openNote is set", async () => {

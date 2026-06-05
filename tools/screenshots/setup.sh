@@ -15,20 +15,14 @@ ln -sf ../../../../../../../main.js main.js
 ln -sf ../../../../../../../styles.css styles.css
 ln -sf ../../../../../../../manifest.json manifest.json
 
-# Reset accumulated session history so capture runs don't dirty data.json with
-# volatile per-run sessionIds/timestamps. The stable agent/mode config is kept.
-if [ -f "$PLUGIN_DIR/data.json" ]; then
-	python3 - "$PLUGIN_DIR/data.json" <<'PY'
-import json, sys
-p = sys.argv[1]
-with open(p) as f:
-    d = json.load(f)
-if d.get("savedSessions"):
-    d["savedSessions"] = []
-    with open(p, "w") as f:
-        json.dump(d, f, indent=2)
-        f.write("\n")
-PY
+# Restore a deterministic fixtures baseline from the tracked template so every
+# capture run starts identically: empty sessions, no restored tabs (panel
+# starts CLOSED so clickRibbon reliably OPENS it - see I08), and a clean
+# worktree (the live data.json is gitignored; only data.template.json is
+# tracked). The template carries the stable agent/mode config including the
+# hermetic screenshot-fixtures agent pin.
+if [ -f "$PLUGIN_DIR/data.template.json" ]; then
+	cp "$PLUGIN_DIR/data.template.json" "$PLUGIN_DIR/data.json"
 fi
 
 # Reload the plugin in the running fixtures Obsidian so the freshly-built

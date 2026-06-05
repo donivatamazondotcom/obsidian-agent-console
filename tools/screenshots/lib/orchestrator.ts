@@ -76,7 +76,6 @@ export interface CaptureAllOptions {
 	filter?: string;
 }
 
-const RIBBON_SELECTOR = '[aria-label*="agent-console"], [aria-label*="Agent Console"]';
 const SETTLE_MS = 500;
 /** Max wait for Obsidian's native tooltip (.tooltip) to render after a hover. */
 const HOVER_TOOLTIP_TIMEOUT_MS = 3000;
@@ -105,7 +104,18 @@ export async function captureEntry(
 		);
 	}
 	if (entry.initialState?.clickRibbon) {
-		await deps.cdp.clickElement(RIBBON_SELECTOR);
+		// v1.1.0 restores the panel + tabs on plugin reload
+		// (restoreTabsOnStartup), and the ribbon is a TOGGLE: clicking it
+		// when the panel is already open closes it, and a click racing the
+		// restore is unreliable (I08). Detach any existing chat-view leaves,
+		// then open the panel via its command — a deterministic open, not a
+		// toggle.
+		await deps.cdp.evaluate(
+			`app.workspace.detachLeavesOfType("agent-client-chat-view")`,
+		);
+		await deps.cdp.evaluate(
+			`app.commands.executeCommandById("agent-console:open-chat-view")`,
+		);
 	}
 	if (entry.initialState?.openChatView) {
 		await deps.cdp.evaluate(
