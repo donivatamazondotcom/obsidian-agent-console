@@ -8,6 +8,9 @@ export default defineConfig({
   // GitHub Pages base path
   base: "/obsidian-agent-console/",
 
+  // Show each page's last-updated date (per-page docs freshness signal)
+  lastUpdated: true,
+
   head: [
     ["link", { rel: "icon", type: "image/x-icon", href: "/obsidian-agent-console/favicon.ico" }],
     ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: "/obsidian-agent-console/favicon-32x32.png" }],
@@ -68,6 +71,7 @@ export default defineConfig({
         items: [
           { text: "Basic Usage", link: "/usage/" },
           { text: "Note Mentions", link: "/usage/mentions" },
+          { text: "Context Strip", link: "/usage/context-strip" },
           { text: "Sending Images and Files", link: "/usage/sending-images" },
           { text: "Slash Commands", link: "/usage/slash-commands" },
           { text: "Mode Selection", link: "/usage/mode-selection" },
