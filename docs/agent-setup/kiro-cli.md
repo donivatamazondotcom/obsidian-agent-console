@@ -36,7 +36,7 @@ Run Kiro CLI in your terminal to trigger its sign-in flow:
 kiro-cli
 ```
 
-Follow the browser-based login. Once authenticated, leave the **API key field empty** in Agent Console — Kiro CLI reuses the cached credential from your local config.
+Follow the browser-based login. That's all — the Kiro CLI section has **no API key field**; Agent Console reuses the cached credential from your local Kiro config.
 
 ::: tip
 Kiro CLI natively supports ACP, so no additional adapter is required. Just point Agent Console at the `kiro-cli` binary and you're set.

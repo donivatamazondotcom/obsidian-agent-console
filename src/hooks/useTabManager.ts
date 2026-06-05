@@ -32,7 +32,7 @@ export interface UseTabManagerReturn {
 	/** Switch to a tab */
 	setActiveTab: (tabId: string) => void;
 	/** Update a tab's label */
-	setTabLabel: (tabId: string, label: string) => void;
+	setTabLabel: (tabId: string, label: string, custom?: boolean) => void;
 	/** Update a tab's visual state */
 	setTabState: (tabId: string, state: TabState) => void;
 	/** Reset a tab's label and state to defaults (used after error boundary retry) */
@@ -62,6 +62,7 @@ function createTab(agentId: string, label?: string): TabInfo {
 		tabId: generateTabId(),
 		agentId,
 		label: label || defaultLabel(agentId),
+		labelIsCustom: false,
 		state: "disconnected",
 		createdAt: new Date(),
 	};
@@ -79,14 +80,23 @@ export function truncateLabel(text: string, max = 100): string {
  * Manages tab state for a single ChatView.
  *
  * @param initialAgentId - Agent ID for the first tab (created on mount)
+ * @param initialTabs - Optional pre-built tabs (used for restoration from persistence)
+ * @param initialActiveTabId - Optional active tab ID (used with initialTabs)
  */
-export function useTabManager(initialAgentId: string): UseTabManagerReturn {
+export function useTabManager(
+	initialAgentId: string,
+	initialTabs?: TabInfo[],
+	initialActiveTabId?: string,
+): UseTabManagerReturn {
 	const [tabs, setTabs] = useState<TabInfo[]>(() => {
+		if (initialTabs && initialTabs.length > 0) {
+			return initialTabs;
+		}
 		const first = createTab(initialAgentId);
 		return [first];
 	});
 	const [activeTabId, setActiveTabId] = useState<string>(
-		() => tabs[0].tabId,
+		() => initialActiveTabId ?? tabs[0].tabId,
 	);
 
 	const addTab = useCallback(
@@ -149,14 +159,20 @@ export function useTabManager(initialAgentId: string): UseTabManagerReturn {
 	);
 
 	const setTabLabel = useCallback(
-		(tabId: string, label: string) => {
+		(tabId: string, label: string, custom = false) => {
 			const truncated = truncateLabel(label);
 			setTabs((prev) => {
 				const tab = prev.find((t) => t.tabId === tabId);
-				if (!tab || tab.label === truncated) return prev;
+				if (!tab) return prev;
+				// Auto-derived labels (custom=false) must not overwrite a
+				// manual rename (I56).
+				if (!custom && tab.labelIsCustom) return prev;
+				const nextCustom = custom || tab.labelIsCustom === true;
+				if (tab.label === truncated && tab.labelIsCustom === nextCustom)
+					return prev;
 				return prev.map((t) =>
 					t.tabId === tabId
-						? { ...t, label: truncated }
+						? { ...t, label: truncated, labelIsCustom: nextCustom }
 						: t,
 				);
 			});
@@ -181,7 +197,12 @@ export function useTabManager(initialAgentId: string): UseTabManagerReturn {
 		setTabs((prev) =>
 			prev.map((t) =>
 				t.tabId === tabId
-					? { ...t, label: defaultLabel(t.agentId), state: "disconnected" }
+					? {
+							...t,
+							label: defaultLabel(t.agentId),
+							labelIsCustom: false,
+							state: "disconnected",
+					  }
 					: t,
 			),
 		);

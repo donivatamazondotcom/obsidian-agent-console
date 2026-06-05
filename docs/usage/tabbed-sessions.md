@@ -87,19 +87,11 @@ If a tab crashes (rare; usually due to an agent process error), the tab shows an
 
 Configure in **Settings → Agent Console → Tabs → Maximum tabs**. Default: 10. Past the maximum, new-tab creation is rejected with a notice.
 
-## Multi-session via separate views (alternative)
+## Sidebar placement (left or right)
 
-In addition to tabs in the sidebar, Agent Console supports opening multiple separate chat views (right pane, editor area, split). This is preserved from upstream for users who prefer side-by-side panels.
+Agent Console lives in the sidebar — dockable on the **left or right**. Multiplexing happens through in-panel session tabs, not separate editor panes. Choose the side under **Settings → Agent Console → Display → Sidebar side**.
 
-| Location | Description |
-|----------|-------------|
-| **Right pane (tabs)** (default) | Opens in the right sidebar with tabs |
-| **Editor area (tabs)** | Opens as a tab in the editor area |
-| **Editor area (split)** | Opens in a new split pane |
-
-Configure in **Settings → Agent Console → Display → Chat view location**.
-
-For most users, tabs in the right sidebar is the recommended setup. Multiple separate views are useful for side-by-side comparisons across editor splits.
+Each sidebar pane manages its own tabs independently. Open Agent Console in both the left and right sidebars and each keeps its own set of tabs, restoring them separately across restarts.
 
 ## Broadcast commands
 
@@ -115,8 +107,15 @@ Control multiple tabs at once from the command palette:
 Broadcast send is useful for comparing how different agents respond to the same prompt. Pair it with `Broadcast prompt` to set up the same question across tabs.
 :::
 
+## Persistence across restarts
+
+Open tabs survive an Obsidian restart. When you quit and reopen, each sidebar pane brings back its own tabs — same order, same active tab, each tab's conversation visible right away. Turn this off under Settings → Tabs → "Restore tabs on startup" (on by default). Panes restore independently; split views don't merge into one.
+
+## Lazy sessions
+
+Opening a tab no longer starts an agent session immediately. The session connects the moment you start typing, so you can open a tab just to reread an old conversation without starting an agent. A restored tab reconnects to its previous session on your first keystroke. If that session is gone — the agent restarted or it expired — the tab transparently continues from a transcript of the earlier conversation and shows a one-time notice that the agent's internal state from before wasn't recovered.
+
 ## See also
 
-- [Floating chat](/usage/floating-chat) — alternative single-window UX, kept for users who prefer it
 - [Session history](/usage/session-history) — browse past sessions, restore any in a new tab
 - [Commands & Hotkeys](/usage/commands) — full list of keyboard shortcuts

@@ -46,7 +46,7 @@ export const HeaderButton = forwardRef<HTMLButtonElement, HeaderButtonProps>(
 		return (
 			<button
 				ref={buttonRef}
-				title={tooltip}
+				aria-label={tooltip}
 				onClick={onClick}
 				className="clickable-icon agent-client-header-button"
 			/>

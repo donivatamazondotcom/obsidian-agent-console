@@ -18,10 +18,16 @@ import type {
 import type { ChatSession, SessionUpdate } from "../types/session";
 import type { AcpClient } from "../acp/acp-client";
 import type { IVaultAccess, NoteMetadata } from "../services/vault-service";
+import type { ContextNote } from "../types/context";
 import type { ISettingsAccess } from "../services/settings-service";
 import type { ErrorInfo } from "../types/errors";
 import type { IMentionService } from "../utils/mention-parser";
-import { preparePrompt, sendPreparedPrompt } from "../services/message-sender";
+import {
+	preparePrompt,
+	sendPreparedPrompt,
+	DEFAULT_MAX_SELECTION_LENGTH,
+} from "../services/message-sender";
+import { extractErrorMessage } from "../utils/error-utils";
 import { Platform } from "obsidian";
 import {
 	rebuildToolCallIndex,
@@ -38,8 +44,8 @@ import {
  * Options for sending a message.
  */
 export interface SendMessageOptions {
-	/** Currently active note for auto-mention */
-	activeNote: NoteMetadata | null;
+	/** Currently active note for auto-mention (legacy path) */
+	activeNote?: NoteMetadata | null;
 	/** Vault base path for mention resolution */
 	vaultBasePath: string;
 	/** Whether auto-mention is temporarily disabled */
@@ -50,6 +56,10 @@ export interface SendMessageOptions {
 	resourceLinks?: ResourceLinkPromptContent[];
 	/** Whether this is the first message in the session */
 	isFirstMessage?: boolean;
+	/** Crystallized context notes for this chat (activates the context-note path) */
+	contextNotes?: ContextNote[];
+	/** Raw selection from the last active markdown editor (0-based lines) */
+	selection?: { path: string; fromLine: number; toLine: number } | null;
 }
 
 export interface UseAgentMessagesReturn {
@@ -260,7 +270,34 @@ export function useAgentMessages(
 
 			const currentSessionId = session.sessionId;
 			const generation = ++generationRef.current;
-			const settings = settingsAccess.getSnapshot();
+
+			// Resolve selection text (Channel 2) from raw selection lines.
+			let selectionContext:
+				| { path: string; fromLine: number; toLine: number; text: string }
+				| null = null;
+			if (options.selection) {
+				try {
+					const noteContent = await vaultAccess.readNote(
+						options.selection.path,
+					);
+					const text = noteContent
+						.split("\n")
+						.slice(
+							options.selection.fromLine,
+							options.selection.toLine + 1,
+						)
+						.join("\n")
+						.slice(0, DEFAULT_MAX_SELECTION_LENGTH);
+					selectionContext = {
+						path: options.selection.path,
+						fromLine: options.selection.fromLine + 1,
+						toLine: options.selection.toLine + 1,
+						text,
+					};
+				} catch {
+					selectionContext = null;
+				}
+			}
 
 			const prepared = await preparePrompt(
 				{
@@ -273,10 +310,9 @@ export function useAgentMessages(
 					convertToWsl: shouldConvertToWsl,
 					supportsEmbeddedContext:
 						session.promptCapabilities?.embeddedContext ?? false,
-					maxNoteLength: settings.displaySettings.maxNoteLength,
-					maxSelectionLength:
-						settings.displaySettings.maxSelectionLength,
 					isFirstMessage: options.isFirstMessage,
+					contextNotes: options.contextNotes,
+					selectionContext,
 				},
 				vaultAccess,
 				vaultAccess, // IMentionService (same object)
@@ -368,7 +404,7 @@ export function useAgentMessages(
 					setIsSending(false);
 					setErrorInfo({
 						title: "Send Message Failed",
-						message: `Failed to send message: ${error instanceof Error ? error.message : String(error)}`,
+						message: `Failed to send message: ${extractErrorMessage(error)}`,
 					});
 				}
 			})();
@@ -413,7 +449,7 @@ export function useAgentMessages(
 			} catch (error) {
 				setErrorInfo({
 					title: "Permission Error",
-					message: `Failed to respond to permission request: ${error instanceof Error ? error.message : String(error)}`,
+					message: `Failed to respond to permission request: ${extractErrorMessage(error)}`,
 				});
 			}
 		},

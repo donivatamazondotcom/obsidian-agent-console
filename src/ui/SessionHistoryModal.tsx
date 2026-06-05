@@ -441,7 +441,7 @@ function SessionItem({
 					{session.cwd !== currentCwd && (
 						<span
 							className="agent-client-session-history-item-cwd"
-							title={session.cwd}
+							aria-label={session.cwd}
 						>
 							{session.cwd}
 						</span>
@@ -601,7 +601,7 @@ function SessionHistoryContent({
 			)}
 
 			{/* Warning banner for agents that don't support restoration or aren't connected */}
-			{!canPerformAnyOperation && (
+			{!canPerformAnyOperation && !isUsingLocalSessions && (
 				<div className="agent-client-session-history-warning-banner">
 					<p>{!isAgentReady
 						? "Connect to an agent to restore or fork sessions."
@@ -696,7 +696,7 @@ function SessionHistoryContent({
 								<SessionItem
 									key={session.sessionId}
 									session={session}
-									canRestore={isAgentReady && canRestore}
+									canRestore={(isAgentReady && canRestore) || isUsingLocalSessions}
 									canFork={isAgentReady && canFork}
 									currentCwd={currentCwd}
 									onRestoreSession={onRestoreSession}

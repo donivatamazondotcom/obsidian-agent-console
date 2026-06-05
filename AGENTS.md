@@ -39,6 +39,11 @@ src/
 │   └── terminal-handler.ts      # Terminal process create/output/kill
 ├── services/                    # Business logic (non-React, no React imports)
 │   ├── vault-service.ts         # Vault access + fuzzy search + CM6 selection tracking
+│   ├── context-builder.ts       # Builds prompt context from crystallized notes
+│   ├── context-validator.ts     # Context-note data-model invariant enforcement (parse-at-edge)
+│   ├── replayContextBuilder.ts  # Reconstructs replay context for restored sessions
+│   ├── session-metadata.ts      # Session metadata write resolution (history entry on turn-end)
+│   ├── settings-migration.ts    # One-time settings migration (autoMentionActiveNote → activeNoteAsDefaultContext)
 │   ├── settings-service.ts      # Reactive settings store (observer pattern only)
 │   ├── session-storage.ts       # Session metadata + message file I/O (sessions/*.json)
 │   ├── settings-normalizer.ts   # Settings validation helpers (str, bool, num, enumVal, etc.)
@@ -51,6 +56,15 @@ src/
 │   └── update-checker.ts        # Agent/plugin version checking
 ├── hooks/                       # React custom hooks (state + logic)
 │   ├── useAgent.ts              # Facade: composes useAgentSession + useAgentMessages
+│   ├── useLazySession.ts        # Typing-as-intent session lifecycle (debounce + queued send)
+│   ├── useTabPersistence.ts     # Save/restore per-leaf tab state across restarts
+│   ├── useTabSessionState.ts    # Six-state per-tab session state machine
+│   ├── useRestoredMessages.ts   # Replay transcript for restored tabs with no live session
+│   ├── loadExistingSessionFlow.ts # Restored-tab reconnect flow (lazy resume on first keystroke)
+│   ├── useDebouncedSessionSave.ts # Debounced session persistence (messages + context notes)
+│   ├── useContextNotes.ts       # Crystallized context-note state per chat (add/remove/seen)
+│   ├── useContextVaultEvents.ts # Vault rename/delete sync for crystallized context notes
+│   ├── useSelectionTracker.ts   # Editor selection capture for the context strip
 │   ├── useAgentSession.ts       # Session lifecycle, config options, optimistic updates
 │   ├── useAgentMessages.ts      # Message state, streaming (RAF batch), permissions
 │   ├── useSuggestions.ts        # @[[note]] mentions + /command suggestions (unified)
@@ -61,12 +75,15 @@ src/
 │   └── useTabManager.ts         # Per-tab session orchestration (state, focus, lifecycle)
 ├── ui/                          # React components
 │   ├── ChatContext.ts           # React Context (plugin, acpClient, vaultService, settingsService)
+│   ├── ContextStrip.tsx         # Context-note strip (crystallized pills + type-to-add)
+│   ├── LossyFallbackNotice.tsx  # Notice when a restored tab continues from transcript only
+│   ├── CorruptionRecoveryModal.ts # Corrupt persisted-state recovery modal
+│   ├── branding.ts              # Agent Console SVG mark + cross-surface branding
 │   ├── ChatPanel.tsx            # Orchestrator: calls hooks, workspace events, rendering
 │   ├── ChatView.tsx             # Sidebar view (ItemView wrapper)
-│   ├── FloatingChatView.tsx     # Floating window (position/drag/resize)
 │   ├── TabBar.tsx               # Tab bar UI for parallel agent sessions (drag-reorder, +button, status icons)
 │   ├── TabErrorBoundary.tsx     # Per-tab React error boundary with Retry
-│   ├── ChatHeader.tsx           # Header (sidebar + floating variants)
+│   ├── ChatHeader.tsx           # Header (sidebar chat view)
 │   ├── MessageList.tsx          # Message list (native browser scroll, content-visibility:auto for off-screen render skipping)
 │   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button)
 │   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting)
@@ -78,7 +95,6 @@ src/
 │   ├── ErrorBanner.tsx          # Error/notification overlay
 │   ├── SessionHistoryModal.tsx  # Session history modal (list + confirm delete)
 │   ├── ChangeDirectoryModal.ts  # Per-tab cwd change modal (sets working dir for agent process)
-│   ├── FloatingButton.tsx       # Draggable launch button
 │   ├── SettingsTab.ts           # Plugin settings UI
 │   ├── view-host.ts             # IChatViewHost interface
 │   ├── use-auto-scroll-pin.ts   # Auto-scroll-to-bottom hook (pin state + native scroll + ResizeObserver/wheel/touch)
@@ -89,6 +105,10 @@ src/
 │       └── AttachmentStrip.tsx  # Attachment preview strip
 ├── utils/                       # Shared utilities (pure functions)
 │   ├── platform.ts              # Shell, WSL, Windows env, command building
+│   ├── activeNoteGrabToggle.ts  # Grab/ungrab active note in context strip (hotkey)
+│   ├── provisional-context.ts   # Provisional auto-default context pill (crystallize-on-send)
+│   ├── deriveTabLabel.ts        # Derive tab label from session / first message
+│   ├── toolCallSummary.ts       # One-row tool-call summary derivation
 │   ├── paths.ts                 # Path resolution, file:// URI
 │   ├── error-utils.ts           # ACP error conversion
 │   ├── mention-parser.ts        # @[[note]] detection/extraction
@@ -126,14 +146,12 @@ Central orchestrator component.
 
 ChatPanel does NOT route session updates — that's handled internally by useAgent.
 
-### ChatView / FloatingChatView (`ui/ChatView.tsx`, `ui/FloatingChatView.tsx`)
-Thin wrappers that:
+### ChatView (`ui/ChatView.tsx`)
+Thin wrapper that:
 - Create services (AcpClient, VaultService) in lifecycle methods
 - Provide ChatContext (plugin, acpClient, vaultService, settingsService)
-- Render `<ChatPanel variant="sidebar" | "floating" />`
+- Render `<ChatPanel />`
 - Implement IChatViewContainer for broadcast commands
-
-FloatingChatView uses `onRegisterExpanded` callback (not CustomEvent) for expand/collapse.
 
 ### Hooks (`hooks/`)
 
@@ -346,6 +364,7 @@ interface ISettingsAccess {
 - Claude Code: `@agentclientprotocol/claude-agent-acp` (ANTHROPIC_API_KEY)
 - Codex: `@zed-industries/codex-acp` (OPENAI_API_KEY)
 - Gemini CLI: `@google/gemini-cli` (GEMINI_API_KEY)
+- Kiro CLI: `kiro-cli acp` (built-in ACP; Kiro account sign-in, no API key)
 - Custom: Any ACP-compatible agent
 
 ## Keeping This File Current
@@ -364,4 +383,4 @@ If you're touching `src/` and your change introduces or changes any of the above
 
 ---
 
-**Last Updated**: May 2026 | **Architecture**: useAgent facade + sub-hooks + tab layer | **Version**: 1.0.1
+**Last Updated**: June 2026 | **Architecture**: useAgent facade + sub-hooks + tab layer + context-note lifecycle | **Version**: 1.1.0

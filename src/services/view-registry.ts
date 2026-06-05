@@ -2,7 +2,7 @@
  * Registry for managing all chat view containers.
  *
  * Provides unified access to views for:
- * - Focus tracking (replacing _lastActiveChatViewId + floating tracking)
+ * - Focus tracking (replacing _lastActiveChatViewId)
  * - Broadcast commands (extending to all view types)
  * - Multi-view operations (focusNext, toAll, etc.)
  *
@@ -26,7 +26,21 @@ import { getLogger } from "../utils/logger";
  * Type of chat view container.
  * Used for filtering and type-specific behavior.
  */
-export type ChatViewType = "sidebar" | "floating";
+export type ChatViewType = "sidebar";
+
+/**
+ * Broadcast handle for a single tab within a view. Lets broadcast
+ * commands fan out across every tab, not just each view's active tab.
+ */
+export interface IChatTabHandle {
+	/** Stable identifier for this tab (ChatPanel viewId === tab.tabId). */
+	readonly tabId: string;
+	getInputState(): ChatInputState | null;
+	setInputState(state: ChatInputState): void;
+	canSend(): boolean;
+	sendMessage(): Promise<boolean>;
+	cancelOperation(): Promise<void>;
+}
 
 /**
  * Interface that all chat view containers must implement.
@@ -40,7 +54,7 @@ export interface IChatViewContainer {
 	/** Unique identifier for this view instance */
 	readonly viewId: string;
 
-	/** Type of this view (sidebar, floating, etc.) */
+	/** Type of this view */
 	readonly viewType: ChatViewType;
 
 	/** Human-readable display name for this view (e.g. active agent label). */
@@ -135,6 +149,21 @@ export interface IChatViewContainer {
 	 * Stops ongoing message generation.
 	 */
 	cancelOperation(): Promise<void>;
+
+	// ============================================================
+	// Tab Enumeration (tab-aware broadcast — F11)
+	// ============================================================
+
+	/**
+	 * Broadcast handles for ALL tabs in this view, not just the active
+	 * one. Powers tab-aware broadcast commands.
+	 */
+	getTabHandles(): IChatTabHandle[];
+
+	/**
+	 * ID of this view's currently active tab (the broadcast source).
+	 */
+	getActiveTabId(): string;
 
 	// ============================================================
 	// Container Access
@@ -318,6 +347,14 @@ export class ChatViewRegistry {
 	 */
 	getAll(): IChatViewContainer[] {
 		return Array.from(this.views.values());
+	}
+
+	/**
+	 * Broadcast handles for every tab across all registered views.
+	 * Flattens per-view tabs into one list for broadcast commands.
+	 */
+	getAllTabHandles(): IChatTabHandle[] {
+		return this.getAll().flatMap((v) => v.getTabHandles());
 	}
 
 	/**

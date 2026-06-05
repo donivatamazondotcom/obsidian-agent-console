@@ -11,7 +11,10 @@ import type {
 	SessionConfigOption,
 	AgentCapabilities,
 } from "../types/session";
+import { resolveSessionMetadataWrite } from "../services/session-metadata";
 import type { ChatMessage } from "../types/chat";
+import { extractErrorMessage } from "../utils/error-utils";
+import type { ContextNote } from "../types/context";
 
 // ============================================================================
 // Session Capability Helpers (from session-capability-utils.ts)
@@ -99,6 +102,8 @@ export interface UseSessionHistoryOptions {
 	onIgnoreUpdates?: (ignore: boolean) => void;
 	/** Clear messages before restoring from local storage */
 	onClearMessages?: () => void;
+	/** Callback invoked when crystallized context notes should be restored */
+	onContextNotesRestore?: (notes: ContextNote[]) => void;
 }
 
 /**
@@ -197,6 +202,7 @@ export interface UseSessionHistoryReturn {
 	saveSessionMessages: (
 		sessionId: string,
 		messages: import("../types/chat").ChatMessage[],
+		contextNotes?: ContextNote[],
 	) => void;
 
 	/**
@@ -278,6 +284,7 @@ export function useSessionHistory(
 		onMessagesRestore,
 		onIgnoreUpdates,
 		onClearMessages,
+		onContextNotesRestore,
 	} = options;
 
 	// Derive capability flags from session.agentCapabilities
@@ -417,8 +424,7 @@ export function useSessionHistory(
 					timestamp: Date.now(),
 				};
 			} catch (err) {
-				const errorMessage =
-					err instanceof Error ? err.message : String(err);
+				const errorMessage = extractErrorMessage(err);
 				setError(`Failed to fetch sessions: ${errorMessage}`);
 				setSessions([]);
 				setNextCursor(undefined);
@@ -484,8 +490,7 @@ export function useSessionHistory(
 				};
 			}
 		} catch (err) {
-			const errorMessage =
-				err instanceof Error ? err.message : String(err);
+			const errorMessage = extractErrorMessage(err);
 			setError(`Failed to load more sessions: ${errorMessage}`);
 		} finally {
 			setLoading(false);
@@ -511,6 +516,15 @@ export function useSessionHistory(
 				// IMPORTANT: Update session.sessionId BEFORE calling restore
 				// so that session/update notifications are not ignored
 				onSessionLoad(sessionId, undefined, undefined, undefined);
+
+				// Restore crystallized context notes for this session
+				if (onContextNotesRestore) {
+					const savedNotes =
+						await settingsAccess.loadSessionContextNotes(
+							sessionId,
+						);
+					onContextNotesRestore(savedNotes ?? []);
+				}
 
 				if (capabilities.canLoad) {
 					// Check local messages first to decide whether to use them or agent replay
@@ -569,11 +583,21 @@ export function useSessionHistory(
 						onMessagesRestore(localMessages);
 					}
 				} else {
-					throw new Error("Session restoration is not supported");
+					// Local-only restore: load messages from local storage without
+					// calling the agent. Reconnection happens lazily on first send
+					// via useLazySession's restored-tab path.
+					const localMessages =
+						await settingsAccess.loadSessionMessages(sessionId);
+					if (localMessages && onMessagesRestore) {
+						onMessagesRestore(localMessages);
+					} else {
+						throw new Error(
+							"No local session data available to restore",
+						);
+					}
 				}
 			} catch (err) {
-				const errorMessage =
-					err instanceof Error ? err.message : String(err);
+				const errorMessage = extractErrorMessage(err);
 				setError(`Failed to restore session: ${errorMessage}`);
 				throw err; // Re-throw to allow caller to handle
 			} finally {
@@ -589,6 +613,7 @@ export function useSessionHistory(
 			onMessagesRestore,
 			onIgnoreUpdates,
 			onClearMessages,
+			onContextNotesRestore,
 		],
 	);
 
@@ -613,6 +638,13 @@ export function useSessionHistory(
 					result.models,
 					result.configOptions,
 				);
+
+				// Restore crystallized context notes from the original session
+				const savedNotes =
+					await settingsAccess.loadSessionContextNotes(sessionId);
+				if (onContextNotesRestore) {
+					onContextNotesRestore(savedNotes ?? []);
+				}
 
 				// Fork doesn't return history, so restore from original session's local storage
 				const localMessages =
@@ -655,6 +687,7 @@ export function useSessionHistory(
 							result.sessionId,
 							session.agentId,
 							localMessages,
+							savedNotes ?? undefined,
 						);
 					}
 				}
@@ -662,8 +695,7 @@ export function useSessionHistory(
 				// Invalidate cache since a new session was created
 				invalidateCache();
 			} catch (err) {
-				const errorMessage =
-					err instanceof Error ? err.message : String(err);
+				const errorMessage = extractErrorMessage(err);
 				setError(`Failed to fork session: ${errorMessage}`);
 				throw err; // Re-throw to allow caller to handle
 			} finally {
@@ -675,6 +707,7 @@ export function useSessionHistory(
 			onSessionLoad,
 			settingsAccess,
 			onMessagesRestore,
+			onContextNotesRestore,
 			invalidateCache,
 			session.agentId,
 			sessions,
@@ -699,8 +732,7 @@ export function useSessionHistory(
 				// Invalidate cache to ensure consistency
 				invalidateCache();
 			} catch (err) {
-				const errorMessage =
-					err instanceof Error ? err.message : String(err);
+				const errorMessage = extractErrorMessage(err);
 				setError(`Failed to delete session: ${errorMessage}`);
 				throw err; // Re-throw to allow caller to handle
 			}
@@ -758,8 +790,7 @@ export function useSessionHistory(
 							: s,
 					),
 				);
-				const errorMessage =
-					err instanceof Error ? err.message : String(err);
+				const errorMessage = extractErrorMessage(err);
 				setError(`Failed to update title: ${errorMessage}`);
 				throw err;
 			}
@@ -805,32 +836,40 @@ export function useSessionHistory(
 		(
 			sessionId: string,
 			messages: import("../types/chat").ChatMessage[],
+			contextNotes?: ContextNote[],
 		) => {
 			if (!session.agentId || messages.length === 0) return;
 
-			// Persist message content (fire-and-forget)
+			// Persist message content + crystallized context (fire-and-forget)
 			void settingsAccess.saveSessionMessages(
 				sessionId,
 				session.agentId,
 				messages,
+				contextNotes,
 			);
 
-			// Bump updatedAt on session metadata so "last used" ordering
-			// reflects real activity. Read live snapshot (not React state)
-			// to avoid races with rapid fork/rename. Skip if the metadata
-			// entry hasn't landed yet — saveSessionLocally will create it
-			// on the first-message path.
+			// Upsert session metadata. Read the live snapshot (not React
+			// state) to avoid races with rapid fork/rename. If an entry
+			// exists, bump updatedAt so "last used" ordering reflects real
+			// activity. If none exists — e.g. the first-message
+			// saveSessionLocally gate was skipped on the send-before-connect
+			// path — CREATE it here so a session with a transcript on disk is
+			// never orphaned from the history list (I58).
 			const existing = settingsAccess
 				.getSavedSessions()
 				.find((s) => s.sessionId === sessionId);
-			if (existing) {
-				void settingsAccess.saveSession({
-					...existing,
-					updatedAt: new Date().toISOString(),
-				});
+			const metadataWrite = resolveSessionMetadataWrite(existing, {
+				sessionId,
+				agentId: session.agentId,
+				cwd: agentCwd,
+				messages,
+				now: new Date().toISOString(),
+			});
+			if (metadataWrite) {
+				void settingsAccess.saveSession(metadataWrite);
 			}
 		},
-		[session.agentId, settingsAccess],
+		[session.agentId, agentCwd, settingsAccess],
 	);
 
 	return useMemo(

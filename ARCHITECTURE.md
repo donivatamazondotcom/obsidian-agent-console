@@ -48,9 +48,7 @@ src/
 │   ├── ChatContext.ts              # React Context (plugin, acpClient, vaultService, settingsService)
 │   ├── ChatPanel.tsx               # Orchestrator: calls hooks, workspace events, rendering
 │   ├── ChatView.tsx                # Sidebar view (ItemView + Context Provider)
-│   ├── FloatingChatView.tsx        # Floating window (position/drag/resize + Context Provider)
-│   ├── FloatingButton.tsx          # Draggable launch button
-│   ├── ChatHeader.tsx              # Header (sidebar + floating variants)
+│   ├── ChatHeader.tsx              # Header (sidebar chat view)
 │   ├── MessageList.tsx             # Virtualized message list (@tanstack/react-virtual)
 │   ├── MessageBubble.tsx           # Single message (content dispatch, copy button)
 │   ├── ToolCallBlock.tsx           # Tool call display + diff (word-level highlighting)
@@ -171,19 +169,19 @@ interface ChatContextValue {
 - Handles workspace events via ref pattern (stable event registration)
 - Renders ChatHeader, MessageList, InputArea directly
 
-**ChatView** (sidebar) and **FloatingChatView** (floating window) are thin wrappers:
+**ChatView** (sidebar) is a thin wrapper:
 - Create services (AcpClient, VaultService) in lifecycle methods
 - Provide ChatContext
-- Render ChatPanel with `variant` prop
+- Render ChatPanel
 - Implement IChatViewContainer for broadcast commands
 
 #### Component Tree
 
 ```
-ChatView / FloatingChatView
+ChatView
   └── ChatContextProvider
-        └── ChatPanel (variant="sidebar" | "floating")
-              ├── ChatHeader (variant-based rendering)
+        └── ChatPanel
+              ├── ChatHeader
               ├── MessageList (virtualized via @tanstack/react-virtual)
               │     └── MessageBubble (per message, React.memo)
               │           ├── ToolCallBlock (React.memo) → PermissionBanner
@@ -219,7 +217,7 @@ ChatView / FloatingChatView
 ┌─────────────────────────────────────────────────────────────┐
 │                         UI Layer                             │
 │                                                              │
-│  ChatView / FloatingChatView (Context Providers)             │
+│  ChatView (Context Providers)                                │
 │    └── ChatPanel (hook composition + rendering)              │
 │          ├── ChatHeader, MessageList, InputArea              │
 │          └── MessageBubble, ToolCallBlock, etc.              │

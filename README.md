@@ -23,6 +23,8 @@ Agent Console fixes that. Open a tab. Tell the agent what you want. While it wor
 <summary><strong>More features</strong></summary>
 
 * **Pick up exactly where you left off** – tabs remember their scroll position when you switch back
+* **Restart Obsidian without losing your place** – your open tabs and their conversations reopen exactly as you left them; each sidebar pane restores its own tabs independently
+* **Tabs wake up when you start typing** – opening a tab won't start an agent session until you type, so you can reread past chats without spinning one up
 * **Read the conversation, not the logs** – tool calls render as a single tappable summary row by default. Click to expand, click to collapse, errors auto-expand so you don't miss them.
 * **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol)
 * **Pick the right model for each task** – switch modes and models per chat without restarting

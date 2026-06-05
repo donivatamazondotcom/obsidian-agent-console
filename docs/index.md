@@ -16,13 +16,13 @@ hero:
 features:
   - icon: ⚡
     title: Tabbed Multi-Session
-    details: Run several agents side by side in a tabbed sidebar. Each tab keeps its own scroll position, mode, and model. Switch without losing context.
+    details: Run several agents side by side in a tabbed sidebar. Tabs, conversations, and scroll position survive an Obsidian restart — and a tab connects to its agent only when you start typing, so reopening your vault never fires up every agent at once.
   - icon: 🤖
     title: Multi-Agent Support
     details: Claude Code, Codex, Gemini CLI, Kiro CLI, or any custom ACP-compatible agent. Use the one you have set up.
-  - icon: 📝
-    title: Note Mentions
-    details: Type @notename and the agent reads that note as context. Drag in images and files. Slash commands work too.
+  - icon: 📌
+    title: Context You Control
+    details: A context strip shows exactly what the agent sees. Pin the notes you want and they stay put as you move around your vault, instead of silently changing under you. @mentions, dragged-in images, and slash commands still work.
   - icon: 🎛️
     title: Per-Tab Mode and Model
     details: Switch modes and models per chat without restarting. Each tab remembers its choices.

@@ -525,7 +525,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 
 /* ===== Header Branding (BrandedTitle component) =====
  *
- * v0 layered three-segment header title shared by sidebar and floating headers.
+ * v0 layered three-segment header title for the sidebar header.
  * Layout: [Plugin] Profile · Model
  *
  * Visual hierarchy:
@@ -598,7 +598,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	max-width: 8em;
 }
 
-/* ===== Inline Header (Floating/CodeBlock) ===== */
+/* ===== Inline Header (CodeBlock) ===== */
 .agent-client-inline-header {
 	display: flex;
 	align-items: center;
@@ -674,6 +674,18 @@ button.agent-client-message-tool-call-summary:focus-visible {
  * same range. Revisit if a future profile shows excessive paint cost. */
 .agent-client-message-row {
 	padding-bottom: 2px;
+}
+
+.agent-client-message-pending {
+	opacity: 0.6;
+}
+
+.agent-client-pending-label {
+	display: block;
+	font-size: var(--font-smallest);
+	color: var(--text-muted);
+	padding: 0 var(--size-4-3);
+	margin-top: -2px;
 }
 
 /* Allow horizontal scroll for wide tables within messages */
@@ -853,11 +865,157 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	cursor: text;
 }
 
+/* ============================================================
+   Lossy-Fallback Notice (rendered above first agent response
+   after `session/load` failure → client-side replay).
+
+   Per [[ACP Tab Persistence Across Restarts]] § Decision #11
+   (2026-05-24): callout-style block, info-icon prefixed,
+   bordered styling, non-dismissible. The literal `ℹ️` sigil
+   in the copy serves as the info-icon prefix.
+   ============================================================ */
+
+.agent-client-fallback-notice {
+	margin: 8px 0;
+	padding: 10px 14px;
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-left: 3px solid var(--interactive-accent);
+	border-radius: 6px;
+	color: var(--text-normal);
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.agent-client-fallback-notice strong {
+	color: var(--text-normal);
+	font-weight: 600;
+}
+
 /* Empty state */
 .agent-client-chat-empty-state {
 	color: var(--text-muted);
 	text-align: center;
 	margin-top: 20px;
+}
+
+/* Context strip */
+.context-strip {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 8px;
+	min-height: 28px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.context-strip-grab {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 0;
+}
+
+.context-strip-grab:hover:not(:disabled) {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.context-strip-grab:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.context-strip-field {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	flex: 1;
+	/* Reserve one pill's rendered height (line-height 1.45 × 14px + 8px padding +
+	   2px border ≈ 30.3px) so adding/removing the first pill doesn't change the
+	   row height. Must be ≥ pill height to avoid a residual jump (I75). */
+	min-height: 31px;
+}
+
+.context-strip-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 10px;
+	border-radius: 4px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	font-size: 14px;
+	line-height: 1.45;
+	max-width: 200px;
+}
+
+.context-strip-pill--selected {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+
+.context-strip-pill--provisional {
+	border-style: dashed;
+	opacity: 0.7;
+}
+
+.context-strip-pill-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	cursor: pointer;
+	color: var(--text-normal);
+}
+
+.context-strip-pill-name:hover {
+	color: var(--interactive-accent);
+	text-decoration: underline;
+}
+
+.context-strip-pill-remove {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border: none;
+	border-radius: 2px;
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 0;
+	font-size: 16px;
+	line-height: 1;
+}
+
+.context-strip-pill-remove:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.context-strip-input {
+	flex: 1;
+	min-width: 80px;
+	border: none;
+	background: transparent;
+	outline: none;
+	font-size: 14px;
+	color: var(--text-normal);
+	padding: 2px 0;
+}
+
+.context-strip-input::placeholder {
+	color: var(--text-faint);
 }
 
 /* Input area */
@@ -2034,209 +2192,6 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	display: flex;
 	justify-content: flex-end;
 	gap: 8px;
-}
-
-/* ===== Floating Chat Button ===== */
-/* Floating button & menu root — higher z-index, always above windows */
-.agent-client-floating-button-root {
-	position: fixed;
-	z-index: 30;
-	pointer-events: none;
-}
-
-.agent-client-floating-button-root > * {
-	pointer-events: auto;
-}
-
-/* Floating chat window root — lower z-index */
-.agent-client-floating-view-root {
-	position: fixed;
-	z-index: 20;
-	pointer-events: none;
-}
-
-.agent-client-floating-view-root.is-focused {
-	z-index: 21;
-}
-
-.agent-client-floating-view-root > * {
-	pointer-events: auto;
-}
-
-.agent-client-floating-button {
-	position: fixed;
-	bottom: 30px;
-	right: 40px;
-	width: 48px;
-	height: 48px;
-	min-width: 48px;
-	min-height: 48px;
-	border-radius: 50%;
-	background: var(--interactive-accent);
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-	transition:
-		transform 0.2s,
-		box-shadow 0.2s;
-	overflow: hidden;
-	padding: 0;
-}
-
-.agent-client-floating-button.has-custom-image {
-	background: transparent;
-}
-
-.agent-client-floating-button:hover {
-	transform: scale(1.05);
-	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-}
-
-.agent-client-floating-button.is-dragging {
-	cursor: grabbing;
-	transition: none;
-	user-select: none;
-}
-
-.agent-client-floating-button img {
-	width: 48px;
-	height: 48px;
-	min-width: 48px;
-	min-height: 48px;
-	object-fit: cover;
-	object-position: center;
-	border-radius: 50%;
-	display: block;
-}
-
-.agent-client-floating-button-fallback {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: var(--text-on-accent);
-}
-
-.agent-client-floating-button-fallback svg {
-	width: 24px;
-	height: 24px;
-}
-
-/* ===== Floating Chat Window ===== */
-.agent-client-floating-window {
-	position: fixed;
-	background: var(--background-primary);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 12px;
-	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
-	resize: both;
-	min-width: 330px;
-	min-height: 460px;
-}
-
-.agent-client-floating-header {
-	cursor: grab;
-	user-select: none;
-	border-radius: 11px 11px 0 0;
-	overflow: hidden;
-}
-
-.agent-client-floating-header:active {
-	cursor: grabbing;
-}
-
-.agent-client-floating-header .agent-client-inline-header {
-	border-radius: 11px 11px 0 0;
-}
-
-.agent-client-floating-content {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
-	min-height: 0;
-}
-
-.agent-client-floating-window .agent-client-chat-input-container {
-	padding-bottom: 8px;
-}
-
-.agent-client-floating-messages-container {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-	overflow: hidden; /* Let inner .agent-client-chat-view-messages handle scrolling */
-	margin-bottom: 8px;
-	min-height: 0;
-}
-
-/* Floating chat instance selector menu */
-.agent-client-floating-instance-menu {
-	position: fixed;
-	bottom: 100px;
-	right: 20px;
-	min-width: 220px;
-	background: var(--background-primary);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 6px;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-	overflow: hidden;
-}
-
-.agent-client-floating-instance-menu-header {
-	padding: 12px 16px;
-	font-weight: 600;
-	font-size: 13px;
-	color: var(--text-muted);
-	background: var(--background-secondary);
-	border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.agent-client-floating-instance-menu-item {
-	padding: 10px 16px;
-	cursor: pointer;
-	font-size: 13px;
-	color: var(--text-normal);
-	transition: background-color 0.1s;
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.agent-client-floating-instance-menu-label {
-	flex: 1;
-}
-
-.agent-client-floating-instance-menu-item:hover {
-	background: var(--background-modifier-hover);
-}
-
-.agent-client-floating-instance-menu-close {
-	width: 20px;
-	height: 20px;
-	padding: 0 !important;
-	margin: 0 !important;
-	border: none !important;
-	border-radius: 0 !important;
-	background-color: transparent !important;
-	box-shadow: none !important;
-	color: var(--text-muted);
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 16px;
-	outline: none !important;
-	appearance: none;
-}
-
-.agent-client-floating-instance-menu-close:hover {
-	background-color: var(--background-modifier-hover) !important;
-	color: var(--interactive-accent);
 }
 
 /* ===== Code Block Chat View ===== */

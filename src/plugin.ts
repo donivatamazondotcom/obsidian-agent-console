@@ -1,23 +1,14 @@
-import {
-	addIcon,
-	Plugin,
-	WorkspaceLeaf,
-	Notice,
-	requestUrl,
-} from "obsidian";
+import { migrateContextNoteSettings } from "./services/settings-migration";
+import { addIcon, Plugin, WorkspaceLeaf, Notice, requestUrl } from "obsidian";
 import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
-import {
-	createFloatingChat,
-	FloatingViewContainer,
-} from "./ui/FloatingChatView";
-import { FloatingButtonContainer } from "./ui/FloatingButton";
 import { ChatViewRegistry } from "./services/view-registry";
 import {
 	createSettingsService,
 	type SettingsService,
 } from "./services/settings-service";
+import { SessionStorage } from "./services/session-storage";
 import { AgentClientSettingTab } from "./ui/SettingsTab";
 import { AcpClient } from "./acp/acp-client";
 import {
@@ -32,16 +23,18 @@ import {
 	enumVal,
 	obj,
 	strRecord,
-	xyPoint,
 } from "./services/settings-normalizer";
+import { getAvailableAgentsFromSettings } from "./services/session-helpers";
 import {
 	AgentEnvVar,
 	GeminiAgentSettings,
 	ClaudeAgentSettings,
 	CodexAgentSettings,
 	CustomAgentSettings,
+	KiroAgentSettings,
 } from "./types/agent";
 import type { SavedSessionInfo } from "./types/session";
+import type { PerLeafTabState } from "./types/tab";
 import { initializeLogger, getLogger } from "./utils/logger";
 
 // Re-export for backward compatibility
@@ -56,26 +49,23 @@ export type SendMessageShortcut = "enter" | "cmd-enter";
 
 /**
  * Chat view location configuration.
- * - 'right-tab': Open in right pane as tabs (default)
- * - 'right-split': Open in right pane with vertical split
- * - 'editor-tab': Open in editor area as tabs
- * - 'editor-split': Open in editor area with right split
+ * - 'right': Open in the right sidebar (default)
+ * - 'left': Open in the left sidebar
  */
-export type ChatViewLocation =
-	| "right-tab"
-	| "right-split"
-	| "editor-tab"
-	| "editor-split";
+export type ChatViewLocation = "right" | "left";
 
 export interface AgentClientPluginSettings {
 	gemini: GeminiAgentSettings;
 	claude: ClaudeAgentSettings;
 	codex: CodexAgentSettings;
+	kiro: KiroAgentSettings;
 	customAgents: CustomAgentSettings[];
 	/** Default agent ID for new views (renamed from activeAgentId for multi-session) */
 	defaultAgentId: string;
 	autoAllowPermissions: boolean;
-	autoMentionActiveNote: boolean;
+	activeNoteAsDefaultContext: boolean;
+	/** One-shot flag: context-note migration notice has been shown */
+	migrationNoticeShown: boolean;
 	/** Show OS system notifications on response completion and permission requests */
 	enableSystemNotifications: boolean;
 	debugMode: boolean;
@@ -100,8 +90,6 @@ export interface AgentClientPluginSettings {
 	chatViewLocation: ChatViewLocation;
 	// Display settings
 	displaySettings: {
-		maxNoteLength: number;
-		maxSelectionLength: number;
 		showEmojis: boolean;
 		fontSize: number | null;
 	};
@@ -111,16 +99,31 @@ export interface AgentClientPluginSettings {
 	lastUsedModels: Record<string, string>;
 	// Last used mode per agent (agentId → modeId)
 	lastUsedModes: Record<string, string>;
-	// Floating chat settings
-	enableFloatingChat: boolean;
-	floatingButtonImage: string;
-	floatingWindowSize: { width: number; height: number };
-	floatingWindowPosition: { x: number; y: number } | null;
-	floatingButtonPosition: { x: number; y: number } | null;
 
 	// Tab settings
 	/** Maximum number of session tabs per view (default: 10) */
 	maxSessionTabs: number;
+	/** Restore open tabs on startup (default: true). See [[ACP Tab Persistence Across Restarts]] § Setting. */
+	restoreTabsOnStartup: boolean;
+
+	/**
+	 * Per-leaf saved tab state for restoration across Obsidian restarts.
+	 *
+	 * Optional: undefined means no state has been saved yet (first
+	 * launch, or after explicit discard via SessionStorage.discardTabState).
+	 * An explicit empty array `[]` is also a valid persisted state
+	 * (degenerate but lossless under round-trip).
+	 *
+	 * See [[ACP Tab Persistence Across Restarts]] § Save / § Restore.
+	 */
+	perLeafTabStates?: PerLeafTabState[];
+
+	/**
+	 * One-time guard for the legacy `agent-client` → `agent-console`
+	 * session-dir migration. See [[I68 Session storage dir hardcoded to
+	 * old agent-client plugin id]].
+	 */
+	legacySessionsMigrated?: boolean;
 }
 
 const DEFAULT_SETTINGS: AgentClientPluginSettings = {
@@ -148,10 +151,18 @@ const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 		args: ["--experimental-acp"],
 		env: [],
 	},
+	kiro: {
+		id: "kiro-cli",
+		displayName: "Kiro CLI",
+		command: "kiro-cli",
+		args: ["acp"],
+		env: [],
+	},
 	customAgents: [],
 	defaultAgentId: "claude-code-acp",
 	autoAllowPermissions: false,
-	autoMentionActiveNote: true,
+	activeNoteAsDefaultContext: true,
+	migrationNoticeShown: false,
 	enableSystemNotifications: true,
 	debugMode: false,
 	nodePath: "",
@@ -169,37 +180,27 @@ const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	windowsWslMode: false,
 	windowsWslDistribution: undefined,
 	sendMessageShortcut: "enter",
-	chatViewLocation: "right-tab",
+	chatViewLocation: "right",
 	displaySettings: {
-		maxNoteLength: 10000,
-		maxSelectionLength: 10000,
 		showEmojis: true,
 		fontSize: null,
 	},
 	savedSessions: [],
 	lastUsedModels: {},
 	lastUsedModes: {},
-	enableFloatingChat: false,
-	floatingButtonImage: "",
-	floatingWindowSize: { width: 400, height: 500 },
-	floatingWindowPosition: null,
-	floatingButtonPosition: null,
 	maxSessionTabs: 10,
+	restoreTabsOnStartup: true,
 };
 
 export default class AgentClientPlugin extends Plugin {
 	settings: AgentClientPluginSettings;
 	settingsService!: SettingsService;
 
-	/** Registry for all chat view containers (sidebar + floating) */
+	/** Registry for all chat view containers */
 	viewRegistry = new ChatViewRegistry();
 
 	/** Map of viewId to AcpClient for multi-session support */
 	private _acpClients: Map<string, AcpClient> = new Map();
-	/** Floating button container (independent from chat view instances) */
-	private floatingButton: FloatingButtonContainer | null = null;
-	/** Counter for generating unique floating chat instance IDs */
-	private floatingChatCounter = 0;
 
 	async onload() {
 		await this.loadSettings();
@@ -209,10 +210,20 @@ export default class AgentClientPlugin extends Plugin {
 		// Initialize settings store
 		this.settingsService = createSettingsService(this.settings, this);
 
-		// Detach stale leaves from a previous plugin instance to prevent
-		// "Attempting to register an existing view type" when Obsidian's
-		// hot-reload races onunload/onload (e.g. rapid toggle or npm run dev).
-		this.app.workspace.detachLeavesOfType(VIEW_TYPE_CHAT);
+		// One-time migration of session files from the legacy
+		// `agent-client` plugin dir into this plugin's own dir (I68).
+		// Must complete before any view reads session history.
+		await new SessionStorage(
+			this,
+			this.settingsService,
+		).migrateLegacySessionsDir();
+
+		// Do NOT detach existing chat leaves here. Obsidian restores
+		// chat leaves from workspace.json with their original leaf.id,
+		// and tab state is keyed on leaf.id (I47). Detaching destroys
+		// the restored leaf, so activateView() mints a fresh id and the
+		// saved tab state never matches. Obsidian auto-unregisters view
+		// types on unload, so registerView does not throw on reload.
 		this.registerView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
 
 		// Register the Agent Console brand icon before adding the ribbon button.
@@ -301,75 +312,7 @@ export default class AgentClientPlugin extends Plugin {
 		this.registerPermissionCommands();
 		this.registerBroadcastCommands();
 
-		// Floating chat window commands
-		this.addCommand({
-			id: "open-floating-chat-view",
-			name: "Open floating chat view",
-			checkCallback: (checking) => {
-				if (!this.settings.enableFloatingChat) return false;
-				if (checking) return true;
-				const instances = this.getFloatingChatInstances();
-				if (instances.length === 0) {
-					this.openNewFloatingChat(true);
-				} else if (instances.length === 1) {
-					this.expandFloatingChat(instances[0]);
-				} else {
-					const focused = this.viewRegistry.getFocused();
-					if (focused && focused.viewType === "floating") {
-						focused.expand();
-					} else {
-						this.expandFloatingChat(
-							instances[instances.length - 1],
-						);
-					}
-				}
-			},
-		});
-
-		this.addCommand({
-			id: "open-new-floating-chat-view",
-			name: "Open new floating chat view",
-			checkCallback: (checking) => {
-				if (!this.settings.enableFloatingChat) return false;
-				if (checking) return true;
-				this.openNewFloatingChat(true);
-			},
-		});
-
-		this.addCommand({
-			id: "minimize-floating-chat-view",
-			name: "Minimize floating chat view",
-			checkCallback: (checking) => {
-				if (!this.settings.enableFloatingChat) return false;
-				const focused = this.viewRegistry.getFocused();
-				if (!(focused && focused.viewType === "floating")) return false;
-				if (checking) return true;
-				focused.collapse();
-			},
-		});
-
-		this.addCommand({
-			id: "close-floating-chat-view",
-			name: "Close floating chat view",
-			checkCallback: (checking) => {
-				if (!this.settings.enableFloatingChat) return false;
-				const focused = this.viewRegistry.getFocused();
-				if (!(focused && focused.viewType === "floating")) return false;
-				if (checking) return true;
-				this.closeFloatingChat(focused.viewId);
-			},
-		});
-
 		this.addSettingTab(new AgentClientSettingTab(this.app, this));
-
-		// Mount floating button (always present; visibility controlled by settings inside component)
-		this.floatingButton = new FloatingButtonContainer(this);
-		this.floatingButton.mount();
-
-		// Mount initial floating chat instance only if enabled
-		if (this.settings.enableFloatingChat) {
-			this.openNewFloatingChat();
-		}
 
 		// Clean up all ACP sessions when Obsidian quits
 		// Note: We don't wait for disconnect to complete to avoid blocking quit
@@ -390,17 +333,6 @@ export default class AgentClientPlugin extends Plugin {
 	}
 
 	onunload() {
-		// Unmount floating button
-		this.floatingButton?.unmount();
-		this.floatingButton = null;
-
-		// Unmount all floating chat instances via registry
-		for (const container of this.viewRegistry.getByType("floating")) {
-			if (container instanceof FloatingViewContainer) {
-				container.unmount();
-			}
-		}
-
 		// Clear registry (sidebar views are managed by Obsidian workspace)
 		this.viewRegistry.clear();
 
@@ -487,8 +419,9 @@ export default class AgentClientPlugin extends Plugin {
 
 		const chatView = this.app.workspace
 			.getLeavesOfType(VIEW_TYPE_CHAT)
-			.find((l) => (l.view as ChatView)?.viewId === focusedId)
-			?.view as ChatView | undefined;
+			.find((l) => (l.view as ChatView)?.viewId === focusedId)?.view as
+			| ChatView
+			| undefined;
 
 		return chatView?.getActiveTabId() ?? focusedId;
 	}
@@ -564,17 +497,14 @@ export default class AgentClientPlugin extends Plugin {
 		const location = this.settings.chatViewLocation;
 
 		switch (location) {
-			case "right-tab":
-				if (isAdditional) {
-					return this.createSidebarTab("right");
-				}
-				return workspace.getRightLeaf(false);
-			case "right-split":
-				return workspace.getRightLeaf(isAdditional);
-			case "editor-tab":
-				return workspace.getLeaf("tab");
-			case "editor-split":
-				return workspace.getLeaf("split");
+			case "left":
+				return isAdditional
+					? this.createSidebarTab("left")
+					: workspace.getLeftLeaf(false);
+			case "right":
+				return isAdditional
+					? this.createSidebarTab("right")
+					: workspace.getRightLeaf(false);
 			default:
 				return workspace.getRightLeaf(false);
 		}
@@ -645,50 +575,6 @@ export default class AgentClientPlugin extends Plugin {
 	}
 
 	/**
-	 * Open a new floating chat window.
-	 * Each window is independent with its own session.
-	 */
-	openNewFloatingChat(
-		initialExpanded = false,
-		initialPosition?: { x: number; y: number },
-	): void {
-		// instanceId is just the counter (e.g., "0", "1", "2")
-		// FloatingViewContainer will create viewId as "floating-chat-{instanceId}"
-		const instanceId = String(this.floatingChatCounter++);
-		createFloatingChat(this, instanceId, initialExpanded, initialPosition);
-	}
-
-	/**
-	 * Close a specific floating chat window.
-	 * @param viewId - The viewId in "floating-chat-{id}" format (from getFloatingChatInstances())
-	 */
-	closeFloatingChat(viewId: string): void {
-		const container = this.viewRegistry.get(viewId);
-		if (container && container instanceof FloatingViewContainer) {
-			container.unmount();
-		}
-	}
-
-	/**
-	 * Get all floating chat instance viewIds.
-	 * @returns Array of viewIds in "floating-chat-{id}" format
-	 */
-	getFloatingChatInstances(): string[] {
-		return this.viewRegistry.getByType("floating").map((v) => v.viewId);
-	}
-
-	/**
-	 * Expand a specific floating chat window by triggering a custom event.
-	 * @param viewId - The viewId in "floating-chat-{id}" format (from getFloatingChatInstances())
-	 */
-	expandFloatingChat(viewId: string): void {
-		const view = this.viewRegistry.get(viewId);
-		if (view) {
-			view.expand();
-		}
-	}
-
-	/**
 	 * Get the active sidebar ChatView (for tab commands).
 	 */
 	getActiveChatView(): ChatView | null {
@@ -708,27 +594,7 @@ export default class AgentClientPlugin extends Plugin {
 	 * Get all available agents (claude, codex, gemini, custom)
 	 */
 	getAvailableAgents(): Array<{ id: string; displayName: string }> {
-		return [
-			{
-				id: this.settings.claude.id,
-				displayName:
-					this.settings.claude.displayName || this.settings.claude.id,
-			},
-			{
-				id: this.settings.codex.id,
-				displayName:
-					this.settings.codex.displayName || this.settings.codex.id,
-			},
-			{
-				id: this.settings.gemini.id,
-				displayName:
-					this.settings.gemini.displayName || this.settings.gemini.id,
-			},
-			...this.settings.customAgents.map((agent) => ({
-				id: agent.id,
-				displayName: agent.displayName || agent.id,
-			})),
-		];
+		return getAvailableAgentsFromSettings(this.settings);
 	}
 
 	/**
@@ -743,7 +609,7 @@ export default class AgentClientPlugin extends Plugin {
 				name: `Switch agent to ${agent.displayName}`,
 				callback: () => {
 					this.app.workspace.trigger(
-						"agent-client:new-chat-requested",
+						"agent-console:new-chat-requested",
 						this.getDispatchTargetId(),
 						agent.id,
 					);
@@ -758,7 +624,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "Approve active permission",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:approve-active-permission",
+					"agent-console:approve-active-permission",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -769,7 +635,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "Reject active permission",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:reject-active-permission",
+					"agent-console:reject-active-permission",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -777,10 +643,10 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "toggle-auto-mention",
-			name: "Toggle auto-mention",
+			name: "Toggle active note in context",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:toggle-auto-mention",
+					"agent-console:toggle-auto-mention",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -791,7 +657,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "New chat",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:new-chat-requested",
+					"agent-console:new-chat-requested",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -802,7 +668,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "Cancel current message",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:cancel-message",
+					"agent-console:cancel-message",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -813,7 +679,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "Export chat",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:export-chat",
+					"agent-console:export-chat",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -853,12 +719,12 @@ export default class AgentClientPlugin extends Plugin {
 	}
 
 	/**
-	 * Copy prompt from active view to all other views
+	 * Copy the focused tab's prompt to all other tabs across all views.
 	 */
 	private broadcastPrompt(): void {
-		const allViews = this.viewRegistry.getAll();
-		if (allViews.length === 0) {
-			new Notice("[Agent Console] No chat views open");
+		const allTabs = this.viewRegistry.getAllTabHandles();
+		if (allTabs.length === 0) {
+			new Notice("[Agent Console] No chat tabs open");
 			return;
 		}
 
@@ -873,49 +739,59 @@ export default class AgentClientPlugin extends Plugin {
 			return;
 		}
 
-		const focusedId = this.viewRegistry.getFocusedId();
-		const targetViews = allViews.filter((v) => v.viewId !== focusedId);
-		if (targetViews.length === 0) {
-			new Notice("[Agent Console] No other chat views to broadcast to");
+		const sourceTabId = this.viewRegistry.toFocused((v) =>
+			v.getActiveTabId(),
+		);
+		const targetTabs = allTabs.filter((t) => t.tabId !== sourceTabId);
+		if (targetTabs.length === 0) {
+			new Notice(
+				"[Agent Console] No other chat tabs to broadcast to",
+			);
 			return;
 		}
 
-		for (const view of targetViews) {
-			view.setInputState(inputState);
+		for (const tab of targetTabs) {
+			tab.setInputState(inputState);
 		}
+		new Notice(
+			`[Agent Console] Prompt broadcast to ${targetTabs.length} tab(s)`,
+		);
 	}
 
 	/**
-	 * Send message in all views that can send
+	 * Send the message in every tab that can send, across all views.
 	 */
 	private async broadcastSend(): Promise<void> {
-		const allViews = this.viewRegistry.getAll();
-		if (allViews.length === 0) {
-			new Notice("[Agent Console] No chat views open");
+		const allTabs = this.viewRegistry.getAllTabHandles();
+		if (allTabs.length === 0) {
+			new Notice("[Agent Console] No chat tabs open");
 			return;
 		}
 
-		const sendableViews = allViews.filter((v) => v.canSend());
-		if (sendableViews.length === 0) {
-			new Notice("[Agent Console] No views ready to send");
+		const sendableTabs = allTabs.filter((t) => t.canSend());
+		if (sendableTabs.length === 0) {
+			new Notice("[Agent Console] No tabs ready to send");
 			return;
 		}
 
-		await Promise.allSettled(sendableViews.map((v) => v.sendMessage()));
+		await Promise.allSettled(sendableTabs.map((t) => t.sendMessage()));
+		new Notice(`[Agent Console] Sent in ${sendableTabs.length} tab(s)`);
 	}
 
 	/**
-	 * Cancel operation in all views
+	 * Cancel the current operation in every tab, across all views.
 	 */
 	private async broadcastCancel(): Promise<void> {
-		const allViews = this.viewRegistry.getAll();
-		if (allViews.length === 0) {
-			new Notice("[Agent Console] No chat views open");
+		const allTabs = this.viewRegistry.getAllTabHandles();
+		if (allTabs.length === 0) {
+			new Notice("[Agent Console] No chat tabs open");
 			return;
 		}
 
-		await Promise.allSettled(allViews.map((v) => v.cancelOperation()));
-		new Notice("[Agent Console] Cancel broadcast to all views");
+		await Promise.allSettled(allTabs.map((t) => t.cancelOperation()));
+		new Notice(
+			`[Agent Console] Cancel broadcast to ${allTabs.length} tab(s)`,
+		);
 	}
 
 	async loadSettings() {
@@ -927,6 +803,7 @@ export default class AgentClientPlugin extends Plugin {
 		const rc = obj(raw.claude) ?? {};
 		const rk = obj(raw.codex) ?? {};
 		const rg = obj(raw.gemini) ?? {};
+		const rki = obj(raw.kiro) ?? {};
 		const re = obj(raw.exportSettings) ?? {};
 		const rd = obj(raw.displaySettings) ?? {};
 
@@ -944,6 +821,7 @@ export default class AgentClientPlugin extends Plugin {
 			D.claude.id,
 			D.codex.id,
 			D.gemini.id,
+			D.kiro.id,
 			...customAgents.map((a) => a.id),
 		];
 		const rawDefaultId =
@@ -952,6 +830,8 @@ export default class AgentClientPlugin extends Plugin {
 			rawDefaultId && availableAgentIds.includes(rawDefaultId)
 				? rawDefaultId
 				: availableAgentIds[0] || D.claude.id;
+
+		const ctxMig = migrateContextNoteSettings(raw, D);
 
 		this.settings = {
 			claude: {
@@ -1016,16 +896,25 @@ export default class AgentClientPlugin extends Plugin {
 						: D.gemini.args,
 				env: normalizeEnvVars(rg.env),
 			},
+			kiro: {
+				id: D.kiro.id,
+				displayName: str(rki.displayName, D.kiro.displayName),
+				command: str(rki.command, "") || D.kiro.command,
+				args:
+					sanitizeArgs(rki.args).length > 0
+						? sanitizeArgs(rki.args)
+						: D.kiro.args,
+				env: normalizeEnvVars(rki.env),
+			},
 			customAgents,
 			defaultAgentId,
 			autoAllowPermissions: bool(
 				raw.autoAllowPermissions,
 				D.autoAllowPermissions,
 			),
-			autoMentionActiveNote: bool(
-				raw.autoMentionActiveNote,
-				D.autoMentionActiveNote,
-			),
+			// Migration (Decision #20): autoMentionActiveNote → activeNoteAsDefaultContext
+			activeNoteAsDefaultContext: ctxMig.activeNoteAsDefaultContext,
+			migrationNoticeShown: ctxMig.migrationNoticeShown,
 			enableSystemNotifications: bool(
 				raw.enableSystemNotifications,
 				D.enableSystemNotifications,
@@ -1083,20 +972,10 @@ export default class AgentClientPlugin extends Plugin {
 			),
 			chatViewLocation: enumVal(
 				raw.chatViewLocation,
-				["right-tab", "right-split", "editor-tab", "editor-split"],
+				["right", "left"],
 				D.chatViewLocation,
 			),
 			displaySettings: {
-				maxNoteLength: num(
-					rd.maxNoteLength,
-					D.displaySettings.maxNoteLength,
-					1,
-				),
-				maxSelectionLength: num(
-					rd.maxSelectionLength,
-					D.displaySettings.maxSelectionLength,
-					1,
-				),
 				showEmojis: bool(rd.showEmojis, D.displaySettings.showEmojis),
 				fontSize: parseChatFontSize(rd.fontSize),
 			},
@@ -1105,33 +984,34 @@ export default class AgentClientPlugin extends Plugin {
 				: D.savedSessions,
 			lastUsedModels: strRecord(raw.lastUsedModels),
 			lastUsedModes: strRecord(raw.lastUsedModes),
-			// Migration: enableFloatingChat ← showFloatingButton (old name)
-			enableFloatingChat: bool(
-				raw.enableFloatingChat,
-				bool(raw.showFloatingButton, D.enableFloatingChat),
-			),
-			floatingButtonImage: str(
-				raw.floatingButtonImage,
-				D.floatingButtonImage,
-			),
-			floatingWindowSize: (() => {
-				const s = obj(raw.floatingWindowSize);
-				return s &&
-					typeof s.width === "number" &&
-					typeof s.height === "number"
-					? { width: s.width, height: s.height }
-					: D.floatingWindowSize;
-			})(),
-			floatingWindowPosition: xyPoint(raw.floatingWindowPosition),
-			floatingButtonPosition: xyPoint(raw.floatingButtonPosition),
-			maxSessionTabs: num(
-				raw.maxSessionTabs,
-				D.maxSessionTabs,
-				1,
-			),
+			maxSessionTabs: num(raw.maxSessionTabs, D.maxSessionTabs, 1),
+			restoreTabsOnStartup:
+				typeof raw.restoreTabsOnStartup === "boolean"
+					? raw.restoreTabsOnStartup
+					: D.restoreTabsOnStartup,
+			// Type-level coercion only — record-level validation
+			// happens inside SessionStorage.loadTabState (so the
+			// service can return null on corruption rather than
+			// silently dropping malformed records here).
+			perLeafTabStates: Array.isArray(raw.perLeafTabStates)
+				? (raw.perLeafTabStates as PerLeafTabState[])
+				: undefined,
+			legacySessionsMigrated: bool(raw.legacySessionsMigrated, false),
 		};
 
 		this.ensureDefaultAgentId();
+
+		// One-shot migration notice (Decision #20)
+		if (
+			ctxMig.shouldShowNotice
+		) {
+			new Notice(
+				"Agent Console: the active note no longer follows the chat. Use the new context strip to lock notes into context.",
+				10000,
+			);
+			this.settings.migrationNoticeShown = true;
+			await this.saveSettings();
+		}
 
 		if (migratedSecrets) {
 			await this.saveSettings();
@@ -1286,7 +1166,9 @@ export default class AgentClientPlugin extends Plugin {
 			// Stable version user: check stable only
 			const latestStable = await this.fetchLatestStable();
 			if (latestStable && semver.gt(latestStable, currentVersion)) {
-				new Notice(`[Agent Console] Update available: v${latestStable}`);
+				new Notice(
+					`[Agent Console] Update available: v${latestStable}`,
+				);
 				return true;
 			}
 		}
@@ -1310,6 +1192,7 @@ export default class AgentClientPlugin extends Plugin {
 		ids.add(this.settings.claude.id);
 		ids.add(this.settings.codex.id);
 		ids.add(this.settings.gemini.id);
+		ids.add(this.settings.kiro.id);
 		for (const agent of this.settings.customAgents) {
 			if (agent.id && agent.id.length > 0) {
 				ids.add(agent.id);

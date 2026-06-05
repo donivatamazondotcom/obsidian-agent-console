@@ -54,7 +54,7 @@ export interface UseAgentReturn {
 	createSession: (
 		overrideAgentId?: string,
 		overrideCwd?: string,
-	) => Promise<void>;
+	) => Promise<string | null>;
 	restartSession: (
 		newAgentId?: string,
 		overrideCwd?: string,
@@ -69,6 +69,8 @@ export interface UseAgentReturn {
 		models?: SessionModelState,
 		configOptions?: SessionConfigOption[],
 	) => Promise<void>;
+
+	applyInitCapabilities: () => void;
 
 	// Config
 	setMode: (modeId: string) => Promise<void>;
@@ -196,6 +198,7 @@ export function useAgent(
 			cancelOperation,
 			getAvailableAgents: agentSession.getAvailableAgents,
 			updateSessionFromLoad: agentSession.updateSessionFromLoad,
+			applyInitCapabilities: agentSession.applyInitCapabilities,
 
 			// Config
 			setMode: agentSession.setMode,
@@ -231,6 +234,7 @@ export function useAgent(
 			cancelOperation,
 			agentSession.getAvailableAgents,
 			agentSession.updateSessionFromLoad,
+			agentSession.applyInitCapabilities,
 			agentSession.setMode,
 			agentSession.setModel,
 			agentSession.setConfigOption,

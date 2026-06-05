@@ -97,7 +97,7 @@ function ToolbarDropdown({
 			ref={buttonRef}
 			type="button"
 			className={wrapperClass}
-			title={title}
+			aria-label={title}
 			onClick={handleClick}
 		>
 			<span className="agent-client-toolbar-dropdown-label-area">
@@ -158,6 +158,7 @@ export interface InputToolbarProps {
 	onConfigOptionChange?: (configId: string, value: string) => void;
 	usage?: SessionUsage;
 	isSessionReady: boolean;
+	isLazyIdle?: boolean;
 }
 
 export function InputToolbar({
@@ -173,6 +174,7 @@ export function InputToolbar({
 	onConfigOptionChange,
 	usage,
 	isSessionReady,
+	isLazyIdle = false,
 }: InputToolbarProps) {
 	const sendButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -367,9 +369,11 @@ export function InputToolbar({
 				onClick={onSendOrStop}
 				disabled={isButtonDisabled}
 				className={`agent-client-chat-send-button ${isSending ? "sending" : ""} ${isButtonDisabled ? "agent-client-disabled" : ""}`}
-				title={
+				aria-label={
 					!isSessionReady
-						? "Connecting..."
+						? isLazyIdle
+							? "Send to connect"
+							: "Connecting..."
 						: isSending
 							? "Stop generation"
 							: "Send message"

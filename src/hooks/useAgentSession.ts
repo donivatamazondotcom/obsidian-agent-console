@@ -19,6 +19,7 @@ import type { AcpClient } from "../acp/acp-client";
 import type { ISettingsAccess } from "../services/settings-service";
 import type { ErrorInfo } from "../types/errors";
 import { getLogger } from "../utils/logger";
+import { extractErrorMessage } from "../utils/error-utils";
 import {
 	type AgentDisplayInfo,
 	getDefaultAgentId,
@@ -46,7 +47,7 @@ export interface UseAgentSessionReturn {
 	createSession: (
 		overrideAgentId?: string,
 		overrideCwd?: string,
-	) => Promise<void>;
+	) => Promise<string | null>;
 	restartSession: (
 		newAgentId?: string,
 		overrideCwd?: string,
@@ -61,6 +62,10 @@ export interface UseAgentSessionReturn {
 		models?: SessionModelState,
 		configOptions?: SessionConfigOption[],
 	) => Promise<void>;
+
+	/** Propagate cached initialize() capabilities into session state
+	 * without creating a session (I54 — fresh-tab image paste). */
+	applyInitCapabilities: () => void;
 
 	// Config
 	setMode: (modeId: string) => Promise<void>;
@@ -204,7 +209,7 @@ export function useAgentSession(
 						suggestion:
 							"Please check your agent configuration in settings.",
 					});
-					return;
+					return null;
 				}
 
 				const agentConfig = buildAgentConfigWithApiKey(
@@ -271,23 +276,30 @@ export function useAgentSession(
 					configOptions: finalConfigOptions,
 					promptCapabilities: initResult
 						? initResult.promptCapabilities
-						: prev.promptCapabilities,
+						: (agentClient.getInitializeResult()
+								?.promptCapabilities ??
+							prev.promptCapabilities),
 					agentCapabilities: initResult
 						? initResult.agentCapabilities
-						: prev.agentCapabilities,
+						: (agentClient.getInitializeResult()
+								?.agentCapabilities ??
+							prev.agentCapabilities),
 					agentInfo: initResult
 						? initResult.agentInfo
 						: prev.agentInfo,
 					lastActivityAt: new Date(),
 				}));
+
+				return sessionResult.sessionId;
 			} catch (error) {
 				setSession((prev) => ({ ...prev, state: "error" }));
 				setErrorInfo({
 					title: "Session Creation Failed",
-					message: `Failed to create new session: ${error instanceof Error ? error.message : String(error)}`,
+					message: `Failed to create new session: ${extractErrorMessage(error)}`,
 					suggestion:
 						"Please check the agent configuration and try again.",
 				});
+				return null;
 			}
 		},
 		[agentClient, settingsAccess, workingDirectory, setErrorInfo],
@@ -398,6 +410,15 @@ export function useAgentSession(
 				modes: finalModes ?? prev.modes,
 				models: finalModels ?? prev.models,
 				configOptions: finalConfigOptions ?? prev.configOptions,
+				// LoadSessionResponse carries no capabilities; recover them
+				// from the cached init result so restored tabs match fresh
+				// tabs (I47 — screenshot paste in restored tabs).
+				promptCapabilities:
+					agentClient.getInitializeResult()?.promptCapabilities ??
+					prev.promptCapabilities,
+				agentCapabilities:
+					agentClient.getInitializeResult()?.agentCapabilities ??
+					prev.agentCapabilities,
 				lastActivityAt: new Date(),
 			}));
 		},
@@ -532,6 +553,22 @@ export function useAgentSession(
 		[agentClient, settingsAccess],
 	);
 
+	// Propagate cached initialize() capabilities into session state
+	// WITHOUT creating a session. Lets a fresh lazy tab enable
+	// capability-gated affordances (image paste) after eager-init
+	// completes but before the user types / connects (I54).
+	const applyInitCapabilities = useCallback(() => {
+		const init = agentClient.getInitializeResult();
+		if (!init) return;
+		setSession((prev) => ({
+			...prev,
+			promptCapabilities:
+				init.promptCapabilities ?? prev.promptCapabilities,
+			agentCapabilities:
+				init.agentCapabilities ?? prev.agentCapabilities,
+		}));
+	}, [agentClient]);
+
 	// ============================================================
 	// Return
 	// ============================================================
@@ -546,6 +583,7 @@ export function useAgentSession(
 		cancelOperation,
 		getAvailableAgents,
 		updateSessionFromLoad,
+		applyInitCapabilities,
 		setMode,
 		setModel,
 		setConfigOption,

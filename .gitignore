@@ -51,3 +51,4 @@ plan/
 
 # Local dev tooling
 acp-swap.sh
+.trees/

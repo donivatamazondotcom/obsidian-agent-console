@@ -438,7 +438,11 @@ export function useAutoScrollPin(
 			const isScrollingDown = scrollTop > lastScrollTop;
 
 			// User scrolled up → escape (suppressed during text selection).
-			if (isScrollingUp && !isSelecting()) {
+			// I39 fix: only escape if the gap is ALSO beyond the stick zone.
+			// Momentum scroll deceleration produces tiny upward bounces while
+			// still within STICK_OFFSET_PX — these are noise, not user intent.
+			const gap = bottomGap(currentScrollEl);
+			if (isScrollingUp && !isSelecting() && gap > STICK_OFFSET_PX) {
 				setEscapedFromLock(true);
 				setIsAtBottom(false);
 			}
@@ -453,7 +457,6 @@ export function useAutoScrollPin(
 			}
 
 			// Re-pin if we're near the bottom and not escaped.
-			const gap = bottomGap(currentScrollEl);
 			const nearBottom = gap <= STICK_OFFSET_PX;
 			if (!escapedFromLockRef.current && nearBottom) {
 				setIsAtBottom(true);

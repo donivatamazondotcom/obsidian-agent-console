@@ -1,6 +1,6 @@
 import * as React from "react";
 const { useRef, useState, useEffect, useCallback, useMemo } = React;
-import { setIcon, Notice } from "obsidian";
+import { Notice } from "obsidian";
 
 import type AgentClientPlugin from "../plugin";
 import type { IChatViewHost } from "./view-host";
@@ -183,14 +183,16 @@ export interface InputAreaProps {
 	isSending: boolean;
 	/** Whether the session is ready for user input */
 	isSessionReady: boolean;
+	/** Whether the tab is in lazy-idle state (no connection attempted yet) */
+	isLazyIdle?: boolean;
+	/** Whether session acquisition is in flight (connecting state) */
+	isLazyConnecting?: boolean;
 	/** Whether a session is being restored (load/resume/fork) */
 	isRestoringSession: boolean;
 	/** Display name of the active agent */
 	agentLabel: string;
 	/** Available slash commands */
 	availableCommands: SlashCommand[];
-	/** Whether auto-mention setting is enabled */
-	autoMentionEnabled: boolean;
 	/** Message to restore (e.g., after cancellation) */
 	restoredMessage: string | null;
 	/** Input suggestions (mentions + slash commands) */
@@ -264,10 +266,11 @@ export interface InputAreaProps {
 export function InputArea({
 	isSending,
 	isSessionReady,
+	isLazyIdle = false,
+	isLazyConnecting = false,
 	isRestoringSession,
 	agentLabel,
 	availableCommands,
-	autoMentionEnabled,
 	restoredMessage,
 	suggestions,
 	plugin,
@@ -829,7 +832,7 @@ export function InputArea({
 	const isButtonDisabled =
 		!isSending &&
 		((inputValue.trim() === "" && attachedFiles.length === 0) ||
-			!isSessionReady ||
+			(!isSessionReady && !isLazyIdle && !isLazyConnecting) ||
 			isRestoringSession);
 
 	/**
@@ -1033,49 +1036,6 @@ export function InputArea({
 				onDragLeave={handleDragLeave}
 				onDrop={(e) => void handleDrop(e)}
 			>
-				{/* Auto-mention Badge */}
-				{mentions.activeNote && (
-					<button
-						className="agent-client-auto-mention-inline"
-						onClick={() =>
-							mentions.toggleAutoMention(
-								!mentions.isAutoMentionDisabled,
-							)
-						}
-						title={
-							mentions.isAutoMentionDisabled
-								? "Enable auto-mention"
-								: "Temporarily disable auto-mention"
-						}
-					>
-						<span
-							className={`agent-client-mention-badge ${mentions.isAutoMentionDisabled ? "agent-client-disabled" : ""}`}
-						>
-							@{mentions.activeNote.name}
-							{mentions.activeNote.selection && (
-								<span className="agent-client-selection-indicator">
-									{":"}
-									{mentions.activeNote.selection.from.line +
-										1}
-									-{mentions.activeNote.selection.to.line + 1}
-								</span>
-							)}
-						</span>
-						<span
-							className="agent-client-auto-mention-toggle-icon"
-							ref={(el) => {
-								if (el) {
-									const iconName =
-										mentions.isAutoMentionDisabled
-											? "plus"
-											: "x";
-									setIcon(el, iconName);
-								}
-							}}
-						/>
-					</button>
-				)}
-
 				{/* Textarea with Hint Overlay */}
 				<div className="agent-client-textarea-wrapper">
 					<textarea
@@ -1085,7 +1045,7 @@ export function InputArea({
 						onKeyDown={handleKeyDown}
 						onPaste={(e) => void handlePaste(e)}
 						placeholder={placeholder}
-						className={`agent-client-chat-input-textarea ${mentions.activeNote ? "has-auto-mention" : ""}`}
+						className="agent-client-chat-input-textarea"
 						rows={1}
 						spellCheck={obsidianSpellcheck}
 					/>
@@ -1123,6 +1083,7 @@ export function InputArea({
 					onConfigOptionChange={onConfigOptionChange}
 					usage={usage}
 					isSessionReady={isSessionReady}
+					isLazyIdle={isLazyIdle}
 				/>
 			</div>
 		</div>
