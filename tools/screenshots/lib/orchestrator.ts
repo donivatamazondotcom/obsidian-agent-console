@@ -159,6 +159,18 @@ export async function captureEntry(
 		// Only await the response on the final (screenshotted) tab; earlier tabs
 		// get their title from the sent message and need not finish streaming.
 		if (i === promptFiles.length - 1) {
+			// v1.1.0 added a "Connecting…/Sending…" handshake before the
+			// stream begins, during which the loading indicator is still
+			// hidden. Waiting only for the hidden state (I01) resolves
+			// prematurely in that phase and captures an empty transcript
+			// (I07). Two-phase: first wait for the assistant response element
+			// to appear (proves the stream began, past Connecting — and it
+			// persists, so no fast-stream race), then for the loading
+			// indicator to hide (proves streaming finished).
+			await deps.cdp.waitForElement(
+				`${ACTIVE_PANEL} .agent-client-message-renderer.agent-client-message-assistant`,
+				RESPONSE_TIMEOUT_MS,
+			);
 			await deps.cdp.waitForElement(
 				`${ACTIVE_PANEL} .agent-client-loading-indicator.agent-client-hidden`,
 				RESPONSE_TIMEOUT_MS,

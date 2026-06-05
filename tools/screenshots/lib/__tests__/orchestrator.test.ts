@@ -198,6 +198,32 @@ describe("captureEntry", () => {
 		).toBe(true);
 	});
 
+	it("waits for the assistant response to appear before waiting for completion (I07)", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({ promptFile: "hello.txt" });
+
+		await captureEntry(entry, deps);
+
+		const waitMock = deps.cdp.waitForElement as ReturnType<typeof vi.fn>;
+		const calls = waitMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		const beganIdx = calls.findIndex((sel) =>
+			sel.includes("agent-client-message-assistant"),
+		);
+		const doneIdx = calls.findIndex((sel) =>
+			sel.includes("agent-client-loading-indicator.agent-client-hidden"),
+		);
+		// v1.1.0's Connecting/Sending phase keeps the loading indicator hidden,
+		// so the orchestrator must first confirm the response began (assistant
+		// element present) before waiting for the indicator to hide — otherwise
+		// the hidden-wait resolves during Connecting and captures an empty
+		// transcript.
+		expect(beganIdx).toBeGreaterThanOrEqual(0);
+		expect(doneIdx).toBeGreaterThanOrEqual(0);
+		expect(waitMock.mock.invocationCallOrder[beganIdx]).toBeLessThan(
+			waitMock.mock.invocationCallOrder[doneIdx],
+		);
+	});
+
 	it("propagates timeout when the response never completes", async () => {
 		const deps = makeDeps();
 		(deps.cdp.waitForElement as ReturnType<typeof vi.fn>).mockImplementation(
