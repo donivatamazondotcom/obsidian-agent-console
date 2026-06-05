@@ -49,20 +49,26 @@ The pattern: tell the agent what you want done. Switch tabs. Come back when stat
 
 ## Install
 
-### Through BRAT (right now)
+### Through Obsidian Community Plugins (recommended)
 
-Agent Console is being reviewed for the Obsidian Community Plugins store. Until it’s available there, you can install it through [BRAT](https://github.com/TfTHacker/obsidian42-brat):
+Agent Console is in the Obsidian Community Plugins store:
+
+1. Open **Settings → Community plugins** in Obsidian
+2. Click **Browse** and search for "Agent Console"
+3. Click **Install**, then **Enable**
+
+Obsidian updates the plugin automatically when a new version is released.
+
+### Through BRAT (latest beta builds)
+
+Want new releases the moment they ship, before they reach the store? Install through [BRAT](https://github.com/TfTHacker/obsidian42-brat):
 
 1. Install the BRAT plugin in Obsidian
 2. Open BRAT settings → "Add Beta Plugin"
 3. Paste: `donivatamazondotcom/obsidian-agent-console`
 4. Turn on Agent Console in your Community Plugins list
 
-BRAT updates the plugin automatically every time a new version is released.
-
-### Through Obsidian Community Plugins (after launch)
-
-Once it’s approved, search for "Agent Console" in the Community Plugins browser inside Obsidian and click Install.
+BRAT auto-updates on every release.
 
 ## Quick start
 
@@ -83,7 +89,7 @@ Once you’ve set up the agent:
 
 ## Configuration
 
-Customize how each agent behaves under **Settings → Agent Console** – agent paths, modes, models, permissions, and tab behavior. Per-agent setup guides are in the [GitHub repo](https://github.com/donivatamazondotcom/obsidian-agent-console).
+Customize how each agent behaves under **Settings → Agent Console** – agent paths, modes, models, permissions, and tab behavior. Per-agent setup guides are in the [documentation](https://donivatamazondotcom.github.io/obsidian-agent-console/).
 
 ## Hotkeys
 

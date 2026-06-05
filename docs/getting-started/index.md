@@ -2,9 +2,17 @@
 
 ## Install the Plugin
 
-### Via BRAT (recommended)
+### From Community Plugins (recommended)
 
-Until Agent Console is approved for the Community Plugins marketplace, [BRAT](https://github.com/TfTHacker/obsidian42-brat) (Beta Reviewer's Auto-update Tester) is the simplest install path. BRAT auto-updates whenever a new version is released.
+Agent Console is available in the official Obsidian Community Plugins marketplace. This is the simplest install path, and Obsidian keeps it updated automatically.
+
+1. Open **Settings → Community Plugins → Browse**
+2. Search for "Agent Console"
+3. Click **Install**, then **Enable**
+
+### Via BRAT (latest beta builds)
+
+[BRAT](https://github.com/TfTHacker/obsidian42-brat) (Beta Reviewer's Auto-update Tester) installs new releases the moment they ship, before they reach the Community Plugins store. Useful if you want the bleeding edge or are helping test pre-release builds.
 
 1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin from Community Plugins → Browse
 2. Open Obsidian settings → **BRAT** → **Add Beta Plugin**
@@ -14,10 +22,6 @@ Until Agent Console is approved for the Community Plugins marketplace, [BRAT](ht
    ```
 4. BRAT downloads the latest release and keeps it auto-updated
 5. Enable **Agent Console** from Community Plugins → Installed plugins
-
-### From Community Plugins (coming soon)
-
-Agent Console will be submitted to the official Obsidian Community Plugins marketplace once v1.0.x has been validated by the BRAT-installed user community. When approved, you'll be able to search for "Agent Console" in **Settings → Community Plugins → Browse**.
 
 ### Manual Installation
 
