@@ -1,9 +1,9 @@
 {
 	"id": "agent-console",
 	"name": "Agent Console",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"minAppVersion": "1.11.4",
-	"description": "Obsidian as your console for parallel agent work. Run multiple ACP-compatible agent sessions in tabs (Kiro CLI, Claude Code, Codex, Gemini CLI, custom).",
+	"description": "Run multiple ACP-compatible agent sessions in parallel tabs. Connect Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent.",
 	"author": "Vinod Panicker",
 	"authorUrl": "https://github.com/donivatamazondotcom",
 	"isDesktopOnly": true

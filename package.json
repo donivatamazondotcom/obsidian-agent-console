@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-agent-console",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"description": "Obsidian as your console for parallel agent work. Run multiple ACP-compatible agent sessions in tabs.",
 	"main": "main.js",
 	"scripts": {
