@@ -2,6 +2,9 @@
 
 > Your Obsidian console for parallel agent work.
 
+<p align="center">
+  <img src="docs/public/images/multi-session.webp" alt="Agent Console open in the Obsidian sidebar with three agent session tabs, a completed agent response, and a vault note pulled in as context" width="800">
+</p>
 
 ## Why Agent Console
 
