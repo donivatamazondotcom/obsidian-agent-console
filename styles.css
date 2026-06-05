@@ -899,6 +899,125 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	margin-top: 20px;
 }
 
+/* Context strip */
+.context-strip {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 8px;
+	min-height: 28px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.context-strip-grab {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 0;
+}
+
+.context-strip-grab:hover:not(:disabled) {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.context-strip-grab:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.context-strip-field {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	flex: 1;
+	/* Reserve one pill's rendered height (line-height 1.45 × 14px + 8px padding +
+	   2px border ≈ 30.3px) so adding/removing the first pill doesn't change the
+	   row height. Must be ≥ pill height to avoid a residual jump (I75). */
+	min-height: 31px;
+}
+
+.context-strip-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 10px;
+	border-radius: 4px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	font-size: 14px;
+	line-height: 1.45;
+	max-width: 200px;
+}
+
+.context-strip-pill--selected {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+
+.context-strip-pill--provisional {
+	border-style: dashed;
+	opacity: 0.7;
+}
+
+.context-strip-pill-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	cursor: pointer;
+	color: var(--text-normal);
+}
+
+.context-strip-pill-name:hover {
+	color: var(--interactive-accent);
+	text-decoration: underline;
+}
+
+.context-strip-pill-remove {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border: none;
+	border-radius: 2px;
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 0;
+	font-size: 16px;
+	line-height: 1;
+}
+
+.context-strip-pill-remove:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.context-strip-input {
+	flex: 1;
+	min-width: 80px;
+	border: none;
+	background: transparent;
+	outline: none;
+	font-size: 14px;
+	color: var(--text-normal);
+	padding: 2px 0;
+}
+
+.context-strip-input::placeholder {
+	color: var(--text-faint);
+}
+
 /* Input area */
 .agent-client-chat-input-container {
 	flex-shrink: 0;

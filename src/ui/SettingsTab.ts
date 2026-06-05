@@ -114,76 +114,23 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			);
 
 		// ─────────────────────────────────────────────────────────────────────
-		// Mentions
+		// Context
 		// ─────────────────────────────────────────────────────────────────────
 
-		new Setting(containerEl).setName("Mentions").setHeading();
+		new Setting(containerEl).setName("Context").setHeading();
 
 		new Setting(containerEl)
-			.setName("Auto-mention active note")
+			.setName("Active note as default context")
 			.setDesc(
-				"Include the current note in your messages automatically. The agent will have access to its content without typing @notename.",
+				"Automatically add the active note to a new chat's context strip. You can always crystallize notes manually with the grab button.",
 			)
 			.addToggle((toggle) =>
 				toggle
-					.setValue(this.plugin.settings.autoMentionActiveNote)
+					.setValue(this.plugin.settings.activeNoteAsDefaultContext)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
-							autoMentionActiveNote: value,
+							activeNoteAsDefaultContext: value,
 						});
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Max note length")
-			.setDesc(
-				"Maximum characters per mentioned note. Notes longer than this will be truncated.",
-			)
-			.addText((text) =>
-				text
-					.setPlaceholder("10000")
-					.setValue(
-						String(
-							this.plugin.settings.displaySettings.maxNoteLength,
-						),
-					)
-					.onChange(async (value) => {
-						const num = parseInt(value, 10);
-						if (!isNaN(num) && num >= 1) {
-							await this.plugin.settingsService.updateSettings({
-								displaySettings: {
-									...this.plugin.settings.displaySettings,
-									maxNoteLength: num,
-								},
-							});
-						}
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Max selection length")
-			.setDesc(
-				"Maximum characters for text selection in auto-mention. Selections longer than this will be truncated.",
-			)
-			.addText((text) =>
-				text
-					.setPlaceholder("10000")
-					.setValue(
-						String(
-							this.plugin.settings.displaySettings
-								.maxSelectionLength,
-						),
-					)
-					.onChange(async (value) => {
-						const num = parseInt(value, 10);
-						if (!isNaN(num) && num >= 1) {
-							await this.plugin.settingsService.updateSettings({
-								displaySettings: {
-									...this.plugin.settings.displaySettings,
-									maxSelectionLength: num,
-								},
-							});
-						}
 					}),
 			);
 

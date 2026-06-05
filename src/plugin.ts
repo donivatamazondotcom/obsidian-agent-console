@@ -1,3 +1,4 @@
+import { migrateContextNoteSettings } from "./services/settings-migration";
 import { addIcon, Plugin, WorkspaceLeaf, Notice, requestUrl } from "obsidian";
 import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
@@ -62,7 +63,9 @@ export interface AgentClientPluginSettings {
 	/** Default agent ID for new views (renamed from activeAgentId for multi-session) */
 	defaultAgentId: string;
 	autoAllowPermissions: boolean;
-	autoMentionActiveNote: boolean;
+	activeNoteAsDefaultContext: boolean;
+	/** One-shot flag: context-note migration notice has been shown */
+	migrationNoticeShown: boolean;
 	/** Show OS system notifications on response completion and permission requests */
 	enableSystemNotifications: boolean;
 	debugMode: boolean;
@@ -87,8 +90,6 @@ export interface AgentClientPluginSettings {
 	chatViewLocation: ChatViewLocation;
 	// Display settings
 	displaySettings: {
-		maxNoteLength: number;
-		maxSelectionLength: number;
 		showEmojis: boolean;
 		fontSize: number | null;
 	};
@@ -160,7 +161,8 @@ const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	customAgents: [],
 	defaultAgentId: "claude-code-acp",
 	autoAllowPermissions: false,
-	autoMentionActiveNote: true,
+	activeNoteAsDefaultContext: true,
+	migrationNoticeShown: false,
 	enableSystemNotifications: true,
 	debugMode: false,
 	nodePath: "",
@@ -180,8 +182,6 @@ const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	sendMessageShortcut: "enter",
 	chatViewLocation: "right",
 	displaySettings: {
-		maxNoteLength: 10000,
-		maxSelectionLength: 10000,
 		showEmojis: true,
 		fontSize: null,
 	},
@@ -609,7 +609,7 @@ export default class AgentClientPlugin extends Plugin {
 				name: `Switch agent to ${agent.displayName}`,
 				callback: () => {
 					this.app.workspace.trigger(
-						"agent-client:new-chat-requested",
+						"agent-console:new-chat-requested",
 						this.getDispatchTargetId(),
 						agent.id,
 					);
@@ -624,7 +624,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "Approve active permission",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:approve-active-permission",
+					"agent-console:approve-active-permission",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -635,7 +635,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "Reject active permission",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:reject-active-permission",
+					"agent-console:reject-active-permission",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -643,10 +643,10 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "toggle-auto-mention",
-			name: "Toggle auto-mention",
+			name: "Toggle active note in context",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:toggle-auto-mention",
+					"agent-console:toggle-auto-mention",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -657,7 +657,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "New chat",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:new-chat-requested",
+					"agent-console:new-chat-requested",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -668,7 +668,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "Cancel current message",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:cancel-message",
+					"agent-console:cancel-message",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -679,7 +679,7 @@ export default class AgentClientPlugin extends Plugin {
 			name: "Export chat",
 			callback: () => {
 				this.app.workspace.trigger(
-					"agent-client:export-chat",
+					"agent-console:export-chat",
 					this.getDispatchTargetId(),
 				);
 			},
@@ -831,6 +831,8 @@ export default class AgentClientPlugin extends Plugin {
 				? rawDefaultId
 				: availableAgentIds[0] || D.claude.id;
 
+		const ctxMig = migrateContextNoteSettings(raw, D);
+
 		this.settings = {
 			claude: {
 				id: D.claude.id, // Fixed — never from raw
@@ -910,10 +912,9 @@ export default class AgentClientPlugin extends Plugin {
 				raw.autoAllowPermissions,
 				D.autoAllowPermissions,
 			),
-			autoMentionActiveNote: bool(
-				raw.autoMentionActiveNote,
-				D.autoMentionActiveNote,
-			),
+			// Migration (Decision #20): autoMentionActiveNote → activeNoteAsDefaultContext
+			activeNoteAsDefaultContext: ctxMig.activeNoteAsDefaultContext,
+			migrationNoticeShown: ctxMig.migrationNoticeShown,
 			enableSystemNotifications: bool(
 				raw.enableSystemNotifications,
 				D.enableSystemNotifications,
@@ -975,16 +976,6 @@ export default class AgentClientPlugin extends Plugin {
 				D.chatViewLocation,
 			),
 			displaySettings: {
-				maxNoteLength: num(
-					rd.maxNoteLength,
-					D.displaySettings.maxNoteLength,
-					1,
-				),
-				maxSelectionLength: num(
-					rd.maxSelectionLength,
-					D.displaySettings.maxSelectionLength,
-					1,
-				),
 				showEmojis: bool(rd.showEmojis, D.displaySettings.showEmojis),
 				fontSize: parseChatFontSize(rd.fontSize),
 			},
@@ -1009,6 +1000,18 @@ export default class AgentClientPlugin extends Plugin {
 		};
 
 		this.ensureDefaultAgentId();
+
+		// One-shot migration notice (Decision #20)
+		if (
+			ctxMig.shouldShowNotice
+		) {
+			new Notice(
+				"Agent Console: the active note no longer follows the chat. Use the new context strip to lock notes into context.",
+				10000,
+			);
+			this.settings.migrationNoticeShown = true;
+			await this.saveSettings();
+		}
 
 		if (migratedSecrets) {
 			await this.saveSettings();

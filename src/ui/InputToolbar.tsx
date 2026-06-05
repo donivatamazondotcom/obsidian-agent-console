@@ -97,7 +97,7 @@ function ToolbarDropdown({
 			ref={buttonRef}
 			type="button"
 			className={wrapperClass}
-			title={title}
+			aria-label={title}
 			onClick={handleClick}
 		>
 			<span className="agent-client-toolbar-dropdown-label-area">
@@ -369,7 +369,7 @@ export function InputToolbar({
 				onClick={onSendOrStop}
 				disabled={isButtonDisabled}
 				className={`agent-client-chat-send-button ${isSending ? "sending" : ""} ${isButtonDisabled ? "agent-client-disabled" : ""}`}
-				title={
+				aria-label={
 					!isSessionReady
 						? isLazyIdle
 							? "Send to connect"

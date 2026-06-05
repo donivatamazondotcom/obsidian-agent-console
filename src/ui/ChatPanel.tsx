@@ -18,6 +18,7 @@ import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
 // Service imports
 import { getLogger } from "../utils/logger";
 import { deriveTabLabel } from "../utils/deriveTabLabel";
+import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";
 import { loadExistingSessionFlow } from "../hooks/loadExistingSessionFlow";
 
@@ -30,6 +31,13 @@ import { useChatContext } from "./ChatContext";
 // Hooks imports
 import { useSettings } from "../hooks/useSettings";
 import { useSuggestions } from "../hooks/useSuggestions";
+import { useContextNotes } from "../hooks/useContextNotes";
+import type { ContextNote } from "../types/context";
+import { useSelectionTracker } from "../hooks/useSelectionTracker";
+import {
+	useContextVaultEvents,
+	type VaultEventSource,
+} from "../hooks/useContextVaultEvents";
 import { useAgent } from "../hooks/useAgent";
 import { useSessionHistory } from "../hooks/useSessionHistory";
 import { useLazySession } from "../hooks/useLazySession";
@@ -52,6 +60,8 @@ const EMPTY_COMMANDS: SlashCommand[] = [];
 import { ChatHeader } from "./ChatHeader";
 import { MessageList } from "./MessageList";
 import { InputArea } from "./InputArea";
+import { ContextStrip } from "./ContextStrip";
+import { computeProvisionalPath } from "../utils/provisional-context";
 import type { IChatViewHost } from "./view-host";
 
 // ============================================================================
@@ -102,6 +112,8 @@ export interface ChatPanelProps {
 	restoredSessionId?: string | null;
 	/** Restored message history for this tab (from tab persistence). Seeded into the message list on async arrival while idle (I43). */
 	restoredMessages?: ChatMessage[];
+	/** Restored context notes for this tab (from tab persistence). Rehydrates the context strip on async arrival while idle (I61). */
+	restoredContextNotes?: ContextNote[];
 }
 
 // ============================================================================
@@ -143,6 +155,7 @@ export function ChatPanel({
 	onSwitchToTab,
 	restoredSessionId,
 	restoredMessages,
+	restoredContextNotes,
 }: ChatPanelProps) {
 	// ============================================================
 	// Platform Check
@@ -202,7 +215,68 @@ export function ChatPanel({
 		vaultService,
 		plugin,
 		session.availableCommands || EMPTY_COMMANDS,
-		settings.autoMentionActiveNote,
+		settings.activeNoteAsDefaultContext,
+	);
+
+	// ============================================================
+	// Context Note Lifecycle (crystallized notes + selection)
+	// ============================================================
+	const contextNotes = useContextNotes();
+	const selectionTracker = useSelectionTracker(vaultService);
+
+	const vaultEventSource = useMemo<VaultEventSource>(
+		() => ({
+			onRename: (cb) => {
+				const ref = plugin.app.vault.on("rename", (file, oldPath) =>
+					cb(oldPath, file.path),
+				);
+				return () => plugin.app.vault.offref(ref);
+			},
+			onDelete: (cb) => {
+				const ref = plugin.app.vault.on("delete", (file) =>
+					cb(file.path),
+				);
+				return () => plugin.app.vault.offref(ref);
+			},
+		}),
+		[plugin.app.vault],
+	);
+
+	const crystallizedPaths = useMemo(
+		() => new Set(contextNotes.notes.map((n) => n.path)),
+		[contextNotes.notes],
+	);
+
+	// Auto-default provisional suppress (Decision #26, I68): `×` on the
+	// provisional pill sets this sticky flag so it won't re-arm for this tab.
+	const [autoDefaultSuppressed, setAutoDefaultSuppressed] = useState(false);
+
+	useContextVaultEvents({
+		vault: vaultEventSource,
+		crystallizedPaths,
+		onRename: contextNotes.rename,
+		onRemove: (path) => {
+			contextNotes.remove(path);
+			const name = (path.split("/").pop() ?? path).replace(
+				/\.md$/,
+				"",
+			);
+			new Notice(
+				`[Agent Console] Context note "${name}" was deleted and removed from chat context.`,
+			);
+		},
+	});
+
+	const selectionForSend = useMemo(
+		() =>
+			selectionTracker.activeNotePath && selectionTracker.selection
+				? {
+						path: selectionTracker.activeNotePath,
+						fromLine: selectionTracker.selection.fromLine,
+						toLine: selectionTracker.selection.toLine,
+					}
+				: null,
+		[selectionTracker.activeNotePath, selectionTracker.selection],
 	);
 
 	// Session history hook with callback for session load
@@ -241,6 +315,7 @@ export function ChatPanel({
 		onMessagesRestore: agent.setMessagesFromLocal,
 		onIgnoreUpdates: agent.setIgnoreUpdates,
 		onClearMessages: agent.clearMessages,
+		onContextNotesRestore: contextNotes.replace,
 	});
 
 	// Seed restored history into the message list when the async disk read
@@ -248,8 +323,10 @@ export function ChatPanel({
 	// an active conversation (I43, spec Decision #12).
 	useRestoredMessages({
 		restoredMessages,
+		restoredContextNotes,
 		hasSession: !!session.sessionId,
 		apply: agent.setMessagesFromLocal,
+		applyContextNotes: contextNotes.replace,
 	});
 
 	// ============================================================
@@ -347,6 +424,10 @@ export function ChatPanel({
 		messages,
 		settings,
 		vaultPath,
+		contextNotes,
+		selectionForSend,
+		selectionTracker.activeNotePath,
+		autoDefaultSuppressed,
 	);
 
 	const {
@@ -366,6 +447,21 @@ export function ChatPanel({
 		setAgentUpdateNotification,
 		autoExportIfEnabled,
 	} = actions;
+
+	const handleContextPillClick = useCallback(
+		(path: string, event: React.MouseEvent) => {
+			let newLeaf: boolean | "tab" | "split" | "window" = false;
+			if (event.metaKey || event.ctrlKey) {
+				newLeaf = event.altKey
+					? "window"
+					: event.shiftKey
+						? "split"
+						: "tab";
+			}
+			void plugin.app.workspace.openLinkText(path, "", newLeaf);
+		},
+		[plugin.app.workspace],
+	);
 
 	// Track whether tab label has been reported (reset on new chat / restore)
 	const labelReportedRef = useRef(false);
@@ -809,6 +905,20 @@ export function ChatPanel({
 	autoExportRef.current = autoExportIfEnabled;
 	closeSessionRef.current = agent.closeSession;
 
+	// Persist context notes when they change mid-session (T13 persistence).
+	// Refs keep the dep list to notes only — avoids a write on every
+	// streamed message update.
+	useEffect(() => {
+		const sid = sessionRef.current.sessionId;
+		if (sid && messagesRef.current.length > 0) {
+			sessionHistory.saveSessionMessages(
+				sid,
+				messagesRef.current,
+				contextNotes.notes,
+			);
+		}
+	}, [contextNotes.notes, sessionHistory.saveSessionMessages]);
+
 	// Cleanup on unmount only - auto-export and close session
 	useEffect(() => {
 		return () => {
@@ -873,7 +983,11 @@ export function ChatPanel({
 			session.sessionId &&
 			messages.length > 0
 		) {
-			sessionHistory.saveSessionMessages(session.sessionId, messages);
+			sessionHistory.saveSessionMessages(
+				session.sessionId,
+				messages,
+				contextNotes.notes,
+			);
 			logger.log(
 				`[ChatPanel] Session messages saved: ${session.sessionId}`,
 			);
@@ -902,6 +1016,7 @@ export function ChatPanel({
 	useDebouncedSessionSave(
 		session.sessionId,
 		messages,
+		contextNotes.notes,
 		sessionHistory.saveSessionMessages,
 	);
 
@@ -994,31 +1109,52 @@ export function ChatPanel({
 	}, [onSessionIdChange, session.sessionId]);
 
 	// ============================================================
-	// Effects - Auto-mention Active Note Tracking
+	// Auto-default context crystallizes on FIRST SEND in useChatActions
+	// (Decision #26, I68) — not seeded at mount. The provisional dashed pill
+	// is derived in ContextStrip from the live active note.
 	// ============================================================
-	useEffect(() => {
-		let isMounted = true;
-
-		const refreshActiveNote = async () => {
-			if (!isMounted) return;
-			await suggestions.mentions.updateActiveNote();
-		};
-
-		const unsubscribe = vaultService.subscribeSelectionChanges(() => {
-			void refreshActiveNote();
-		});
-
-		void refreshActiveNote();
-
-		return () => {
-			isMounted = false;
-			unsubscribe();
-		};
-	}, [suggestions.mentions.updateActiveNote, vaultService]);
 
 	// ============================================================
 	// Effects - Workspace Events (Hotkeys)
 	// ============================================================
+
+	// I74: grab/ungrab the active editor note (active-note-scoped membership toggle).
+	const handleToggleActiveNoteGrab = useCallback(() => {
+		const path = selectionTracker.activeNotePath;
+		// Count the provisional auto-default pill as present so a fresh
+		// session's first press removes it instead of committing it (I74).
+		const provisionalPath = computeProvisionalPath({
+			settingOn: settings.activeNoteAsDefaultContext,
+			suppressed: autoDefaultSuppressed,
+			messageCount: messages.length,
+			activeNotePath: path,
+			committed: contextNotes.notes,
+		});
+		const action = decideGrabToggle({
+			activeNotePath: path,
+			activeNoteName: selectionTracker.activeNoteName,
+			committed: contextNotes.notes,
+			provisionalPath,
+		});
+		if (action.kind === "grab") {
+			contextNotes.add(action.path, "user");
+		} else if (action.kind === "ungrab") {
+			contextNotes.remove(action.path);
+			// Ungrab also suppresses the per-chat auto-default so it sticks.
+			setAutoDefaultSuppressed(true);
+		}
+		new Notice(action.notice);
+	}, [
+		selectionTracker.activeNotePath,
+		selectionTracker.activeNoteName,
+		contextNotes,
+		settings.activeNoteAsDefaultContext,
+		autoDefaultSuppressed,
+		messages.length,
+		setAutoDefaultSuppressed,
+	]);
+	const handleToggleActiveNoteGrabRef = useRef(handleToggleActiveNoteGrab);
+	handleToggleActiveNoteGrabRef.current = handleToggleActiveNoteGrab;
 
 	// Refs for workspace event handlers (avoids re-registering on every render)
 	const handleNewChatWithPersistRef = useRef(handleNewChatWithPersist);
@@ -1042,18 +1178,18 @@ export function ChatPanel({
 		};
 
 		const refs = [
-			// Toggle auto-mention
+			// Toggle active note in context: grab / ungrab (I74)
 			ws.on(
-				"agent-client:toggle-auto-mention",
+				"agent-console:toggle-auto-mention",
 				(targetViewId?: string) => {
 					if (targetViewId && targetViewId !== viewId) return;
-					suggestions.mentions.toggleAutoMention();
+					handleToggleActiveNoteGrabRef.current();
 				},
 			),
 
 			// New chat requested (from "New chat" or "Switch agent to" commands)
 			ws.on(
-				"agent-client:new-chat-requested",
+				"agent-console:new-chat-requested",
 				(targetViewId?: string, agentId?: string) => {
 					if (targetViewId && targetViewId !== viewId) return;
 					void handleNewChatWithPersistRef.current(agentId);
@@ -1062,7 +1198,7 @@ export function ChatPanel({
 
 			// Approve active permission
 			ws.on(
-				"agent-client:approve-active-permission",
+				"agent-console:approve-active-permission",
 				(targetViewId?: string) => {
 					if (targetViewId && targetViewId !== viewId) return;
 					void (async () => {
@@ -1083,7 +1219,7 @@ export function ChatPanel({
 
 			// Reject active permission
 			ws.on(
-				"agent-client:reject-active-permission",
+				"agent-console:reject-active-permission",
 				(targetViewId?: string) => {
 					if (targetViewId && targetViewId !== viewId) return;
 					void (async () => {
@@ -1103,13 +1239,13 @@ export function ChatPanel({
 			),
 
 			// Cancel current message
-			ws.on("agent-client:cancel-message", (targetViewId?: string) => {
+			ws.on("agent-console:cancel-message", (targetViewId?: string) => {
 				if (targetViewId && targetViewId !== viewId) return;
 				void handleStopGenerationRef.current();
 			}),
 
 			// Export chat
-			ws.on("agent-client:export-chat", (targetViewId?: string) => {
+			ws.on("agent-console:export-chat", (targetViewId?: string) => {
 				if (targetViewId && targetViewId !== viewId) return;
 				void handleExportChatRef.current();
 			}),
@@ -1124,7 +1260,6 @@ export function ChatPanel({
 		plugin.app.workspace,
 		plugin.lastActiveChatViewId,
 		viewId,
-		suggestions.mentions.toggleAutoMention,
 	]);
 
 	// ============================================================
@@ -1263,7 +1398,7 @@ export function ChatPanel({
 
 	const cwdBanner =
 		agentCwd !== vaultPath && !isSameDirectory(agentCwd, vaultPath) ? (
-			<div className="agent-client-cwd-banner" title={agentCwd}>
+			<div className="agent-client-cwd-banner" aria-label={agentCwd}>
 				<span
 					className="agent-client-cwd-banner-icon"
 					ref={(el) => {
@@ -1298,6 +1433,26 @@ export function ChatPanel({
 		/>
 	);
 
+	const contextStripElement = (
+		<ContextStrip
+			notes={contextNotes.notes}
+			isFull={contextNotes.isFull}
+			activeNotePath={selectionTracker.activeNotePath}
+			activeNoteName={selectionTracker.activeNoteName}
+			onAdd={contextNotes.add}
+			onRemove={contextNotes.remove}
+			onPillClick={handleContextPillClick}
+			provisionalPath={computeProvisionalPath({
+				settingOn: settings.activeNoteAsDefaultContext,
+				suppressed: autoDefaultSuppressed,
+				messageCount: messages.length,
+				activeNotePath: selectionTracker.activeNotePath,
+				committed: contextNotes.notes,
+			})}
+			onSuppressProvisional={() => setAutoDefaultSuppressed(true)}
+		/>
+	);
+
 	const inputAreaElement = (
 		<InputArea
 			isSending={isSending}
@@ -1307,7 +1462,6 @@ export function ChatPanel({
 			isRestoringSession={sessionHistory.loading}
 			agentLabel={activeAgentLabel}
 			availableCommands={session.availableCommands || []}
-			autoMentionEnabled={settings.autoMentionActiveNote}
 			restoredMessage={restoredMessage}
 			suggestions={suggestions}
 			plugin={plugin}
@@ -1350,6 +1504,7 @@ export function ChatPanel({
 		/>
 	);
 
+
 	return (
 		<div
 			ref={containerRef}
@@ -1359,6 +1514,7 @@ export function ChatPanel({
 			{headerElement}
 			{cwdBanner}
 			{messageListElement}
+			{contextStripElement}
 			{inputAreaElement}
 		</div>
 	);

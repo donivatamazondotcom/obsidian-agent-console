@@ -146,7 +146,7 @@ describe("I40: idle tab should not show 'Connecting...' text", () => {
 			const sendButton = container.querySelector(
 				".agent-client-chat-send-button",
 			);
-			expect(sendButton?.getAttribute("title")).toBe("Send to connect");
+			expect(sendButton?.getAttribute("aria-label")).toBe("Send to connect");
 		});
 
 		it("shows 'Connecting...' when actually connecting (isLazyIdle=false)", () => {
@@ -165,7 +165,7 @@ describe("I40: idle tab should not show 'Connecting...' text", () => {
 			const sendButton = container.querySelector(
 				".agent-client-chat-send-button",
 			);
-			expect(sendButton?.getAttribute("title")).toBe("Connecting...");
+			expect(sendButton?.getAttribute("aria-label")).toBe("Connecting...");
 		});
 	});
 });

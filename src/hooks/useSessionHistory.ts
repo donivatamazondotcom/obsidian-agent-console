@@ -14,6 +14,7 @@ import type {
 import { resolveSessionMetadataWrite } from "../services/session-metadata";
 import type { ChatMessage } from "../types/chat";
 import { extractErrorMessage } from "../utils/error-utils";
+import type { ContextNote } from "../types/context";
 
 // ============================================================================
 // Session Capability Helpers (from session-capability-utils.ts)
@@ -101,6 +102,8 @@ export interface UseSessionHistoryOptions {
 	onIgnoreUpdates?: (ignore: boolean) => void;
 	/** Clear messages before restoring from local storage */
 	onClearMessages?: () => void;
+	/** Callback invoked when crystallized context notes should be restored */
+	onContextNotesRestore?: (notes: ContextNote[]) => void;
 }
 
 /**
@@ -199,6 +202,7 @@ export interface UseSessionHistoryReturn {
 	saveSessionMessages: (
 		sessionId: string,
 		messages: import("../types/chat").ChatMessage[],
+		contextNotes?: ContextNote[],
 	) => void;
 
 	/**
@@ -280,6 +284,7 @@ export function useSessionHistory(
 		onMessagesRestore,
 		onIgnoreUpdates,
 		onClearMessages,
+		onContextNotesRestore,
 	} = options;
 
 	// Derive capability flags from session.agentCapabilities
@@ -512,6 +517,15 @@ export function useSessionHistory(
 				// so that session/update notifications are not ignored
 				onSessionLoad(sessionId, undefined, undefined, undefined);
 
+				// Restore crystallized context notes for this session
+				if (onContextNotesRestore) {
+					const savedNotes =
+						await settingsAccess.loadSessionContextNotes(
+							sessionId,
+						);
+					onContextNotesRestore(savedNotes ?? []);
+				}
+
 				if (capabilities.canLoad) {
 					// Check local messages first to decide whether to use them or agent replay
 					const localMessages =
@@ -599,6 +613,7 @@ export function useSessionHistory(
 			onMessagesRestore,
 			onIgnoreUpdates,
 			onClearMessages,
+			onContextNotesRestore,
 		],
 	);
 
@@ -623,6 +638,13 @@ export function useSessionHistory(
 					result.models,
 					result.configOptions,
 				);
+
+				// Restore crystallized context notes from the original session
+				const savedNotes =
+					await settingsAccess.loadSessionContextNotes(sessionId);
+				if (onContextNotesRestore) {
+					onContextNotesRestore(savedNotes ?? []);
+				}
 
 				// Fork doesn't return history, so restore from original session's local storage
 				const localMessages =
@@ -665,6 +687,7 @@ export function useSessionHistory(
 							result.sessionId,
 							session.agentId,
 							localMessages,
+							savedNotes ?? undefined,
 						);
 					}
 				}
@@ -684,6 +707,7 @@ export function useSessionHistory(
 			onSessionLoad,
 			settingsAccess,
 			onMessagesRestore,
+			onContextNotesRestore,
 			invalidateCache,
 			session.agentId,
 			sessions,
@@ -812,14 +836,16 @@ export function useSessionHistory(
 		(
 			sessionId: string,
 			messages: import("../types/chat").ChatMessage[],
+			contextNotes?: ContextNote[],
 		) => {
 			if (!session.agentId || messages.length === 0) return;
 
-			// Persist message content (fire-and-forget)
+			// Persist message content + crystallized context (fire-and-forget)
 			void settingsAccess.saveSessionMessages(
 				sessionId,
 				session.agentId,
 				messages,
+				contextNotes,
 			);
 
 			// Upsert session metadata. Read the live snapshot (not React

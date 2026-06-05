@@ -293,7 +293,7 @@ export function ChatHeader({
 				<span
 					ref={titleSlotRef}
 					className="agent-client-chat-view-header-title"
-					title={tooltip}
+					aria-label={tooltip}
 				>
 					<BrandedTitle
 						segments={headerSegments}

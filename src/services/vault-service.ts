@@ -507,8 +507,13 @@ export class VaultService implements IVaultAccess {
 			};
 		} else if (
 			this.currentSelection &&
-			(filePath === null || this.currentSelection.filePath === filePath)
+			filePath !== null &&
+			this.currentSelection.filePath === filePath
 		) {
+			// Only clear on a genuine deselect within the SAME note. Do NOT
+			// clear when filePath is null (focus moved to a non-markdown leaf
+			// such as the chat textarea) — the selection must persist so it
+			// can be sent. (T09)
 			this.currentSelection = null;
 		}
 

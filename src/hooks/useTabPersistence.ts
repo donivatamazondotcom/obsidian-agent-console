@@ -65,6 +65,7 @@ import type {
 	TabInfo,
 } from "../types/tab";
 import type { ChatMessage } from "../types/chat";
+import type { ContextNote } from "../types/context";
 
 // ============================================================================
 // Types
@@ -91,6 +92,9 @@ export interface TabPersistenceStorage {
 	loadSessionMessages(
 		sessionId: string,
 	): Promise<ChatMessage[] | null>;
+	loadSessionContextNotes(
+		sessionId: string,
+	): Promise<ContextNote[] | null>;
 }
 
 export interface UseTabPersistenceProps {
@@ -143,6 +147,12 @@ export interface UseTabPersistenceReturn {
 	 * absent from the map.
 	 */
 	restoredMessages: Record<string, ChatMessage[]>;
+	/**
+	 * Restored context notes per saved tab, keyed by tabId. Populated for
+	 * tabs whose persisted sessionId resolved to crystallized notes — keeps
+	 * the context strip in sync on startup auto-restore (I61).
+	 */
+	restoredContextNotes: Record<string, ContextNote[]>;
 	/**
 	 * Whether the initial restore has completed. Caller should not
 	 * use restoredLeafState until restoreReady is true.
@@ -207,6 +217,9 @@ export function useTabPersistence(
 	const [restoredMessages, setRestoredMessages] = useState<
 		Record<string, ChatMessage[]>
 	>({});
+	const [restoredContextNotes, setRestoredContextNotes] = useState<
+		Record<string, ContextNote[]>
+	>({});
 	const [restoreReady, setRestoreReady] = useState<boolean>(false);
 
 	// Refs — invoked at save-time, not used as effect deps. Keeps the
@@ -239,6 +252,7 @@ export function useTabPersistence(
 				if (!cancelled) {
 					setRestoredLeafState(null);
 					setRestoredMessages({});
+					setRestoredContextNotes({});
 					setRestoreReady(true);
 				}
 				return;
@@ -251,6 +265,7 @@ export function useTabPersistence(
 			if (leafState === null) {
 				setRestoredLeafState(null);
 				setRestoredMessages({});
+				setRestoredContextNotes({});
 				setRestoreReady(true);
 				return;
 			}
@@ -259,6 +274,7 @@ export function useTabPersistence(
 			// sessionId. U38 — Do NOT call session/load; lazy reconnect
 			// on first keystroke per Decision #2.
 			const messages: Record<string, ChatMessage[]> = {};
+			const contextNotes: Record<string, ContextNote[]> = {};
 			for (const tab of leafState.tabs) {
 				if (tab.sessionId !== null) {
 					const msgs =
@@ -269,18 +285,28 @@ export function useTabPersistence(
 					if (msgs !== null) {
 						messages[tab.tabId] = msgs;
 					}
+					const notes =
+						await storageRef.current.loadSessionContextNotes(
+							tab.sessionId,
+						);
+					if (cancelled) return;
+					if (notes !== null && notes.length > 0) {
+						contextNotes[tab.tabId] = notes;
+					}
 				}
 			}
 			if (cancelled) return;
 
 			setRestoredLeafState(leafState);
 			setRestoredMessages(messages);
+			setRestoredContextNotes(contextNotes);
 			setRestoreReady(true);
 		}
 
 		setRestoreReady(false);
 		setRestoredLeafState(null);
 		setRestoredMessages({});
+		setRestoredContextNotes({});
 		void restore();
 
 		return () => {
@@ -345,6 +371,7 @@ export function useTabPersistence(
 	return {
 		restoredLeafState,
 		restoredMessages,
+		restoredContextNotes,
 		restoreReady,
 		flushSave,
 	};

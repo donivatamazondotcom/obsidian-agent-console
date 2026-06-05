@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useRestoredMessages } from "../useRestoredMessages";
 import type { ChatMessage } from "../../types/chat";
+import type { ContextNote } from "../../types/context";
 
 function msg(id: string, text: string): ChatMessage {
 	return {
@@ -117,5 +118,38 @@ describe("useRestoredMessages", () => {
 		// Now the disk read resolves — but a session exists, so skip.
 		rerender({ restoredMessages: RESTORED, hasSession: true });
 		expect(apply).not.toHaveBeenCalled();
+	});
+});
+
+describe("useRestoredMessages — context-note restore (I61)", () => {
+	const NOTES: ContextNote[] = [{ path: "A.md", source: "user", seen: false }];
+
+	it("applies restored context notes when idle", () => {
+		const apply = vi.fn();
+		const applyContextNotes = vi.fn();
+		renderHook(() =>
+			useRestoredMessages({
+				restoredMessages: undefined,
+				restoredContextNotes: NOTES,
+				hasSession: false,
+				apply,
+				applyContextNotes,
+			}),
+		);
+		expect(applyContextNotes).toHaveBeenCalledWith(NOTES);
+	});
+
+	it("does NOT apply context notes when a live session exists", () => {
+		const applyContextNotes = vi.fn();
+		renderHook(() =>
+			useRestoredMessages({
+				restoredMessages: undefined,
+				restoredContextNotes: NOTES,
+				hasSession: true,
+				apply: vi.fn(),
+				applyContextNotes,
+			}),
+		);
+		expect(applyContextNotes).not.toHaveBeenCalled();
 	});
 });
