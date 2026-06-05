@@ -56,13 +56,13 @@ function ensureGlobalMouseListeners(): void {
 	if (globalListenersAttached) return;
 	if (typeof document === "undefined") return; // SSR / JSDOM-without-document safety
 
-	document.addEventListener("mousedown", () => {
+	activeDocument.addEventListener("mousedown", () => {
 		mouseDown = true;
 	});
-	document.addEventListener("mouseup", () => {
+	activeDocument.addEventListener("mouseup", () => {
 		mouseDown = false;
 	});
-	document.addEventListener("click", () => {
+	activeDocument.addEventListener("click", () => {
 		mouseDown = false;
 	});
 	globalListenersAttached = true;
@@ -95,7 +95,7 @@ function setScrollTopInstant(scrollEl: HTMLElement, value: number): void {
 		// plugin's no-static-styles-assignment rule asks for CSS classes,
 		// but a CSS class can't time-bound the override to one synchronous
 		// write — the helper must restore the previous value immediately.
-		// eslint-disable-next-line obsidianmd/no-static-styles-assignment
+		// eslint-disable-next-line obsidianmd/no-static-styles-assignment -- per-call override restored immediately; CSS class can't time-bound this
 		scrollEl.style.scrollBehavior = "auto";
 	}
 	scrollEl.scrollTop = value;
@@ -258,7 +258,7 @@ export function useAutoScrollPin(
 	 * difference value is still the current one.
 	 */
 	const scheduleResizeDifferenceClear = useCallback((captured: number) => {
-		requestAnimationFrame(() => {
+		window.requestAnimationFrame(() => {
 			window.setTimeout(() => {
 				if (resizeDifferenceRef.current === captured) {
 					resizeDifferenceRef.current = 0;
@@ -290,7 +290,7 @@ export function useAutoScrollPin(
 					// Decision #22: smooth-scroll path sets inline scroll-behavior
 					// for the duration; the rule prefers CSS classes but this is
 					// a per-call user-action override, not a static style.
-					// eslint-disable-next-line obsidianmd/no-static-styles-assignment
+					// eslint-disable-next-line obsidianmd/no-static-styles-assignment -- per-call user-action override, not a static style; restored after scroll
 					scrollEl.style.scrollBehavior = "smooth";
 				}
 				scrollEl.scrollTop = target;

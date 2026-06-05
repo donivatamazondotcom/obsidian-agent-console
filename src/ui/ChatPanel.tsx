@@ -673,7 +673,7 @@ export function ChatPanel({
 			}
 		})();
 		// Run once on mount only. agentId/vaultPath are stable.
-		// eslint-disable-next-line
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect; deps are stable refs
 	}, []);
 
 	// Queued send for the case where the user clicks send while

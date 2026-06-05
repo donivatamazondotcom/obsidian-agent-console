@@ -1,7 +1,7 @@
 {
 	"id": "agent-console",
 	"name": "Agent Console",
-	"version": "1.1.1",
+	"version": "1.1.2",
 	"minAppVersion": "1.11.4",
 	"description": "Run multiple ACP-compatible agent sessions in parallel tabs. Connect Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent.",
 	"author": "Vinod Panicker",

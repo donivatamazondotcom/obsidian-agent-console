@@ -171,7 +171,7 @@ export function TabBar({
 
 	// Scroll active tab into view — use rAF to ensure DOM class is applied
 	useEffect(() => {
-		requestAnimationFrame(() => {
+		window.requestAnimationFrame(() => {
 			const container = scrollRef.current;
 			if (!container) return;
 			const activeEl = container.querySelector(
