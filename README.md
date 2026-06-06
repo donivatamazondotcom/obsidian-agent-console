@@ -17,22 +17,22 @@ Agent Console fixes that. Open a tab. Tell the agent what you want. While it wor
 ## Features
 
 * **Stop waiting on one agent before starting the next** – run several agent chats side by side in one sidebar
-* **See what every agent is doing without clicking around** – status icons show ready, busy, waiting on you, or stuck
-* **Switch tabs without touching the mouse** – assign whatever hotkeys feel right under Obsidian’s hotkey settings
-* **Reorganize on the fly** – right-click to rename or close tabs, drag to reorder
+* **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol)
 * **Give the agent context from your vault** – type `@notename` and the agent reads that note. Drag in images. Use slash commands.
+* **Restart Obsidian without losing your place** – your open tabs and their conversations reopen exactly as you left them; each sidebar pane restores its own tabs independently
+* **Scroll up to read while the agent is still typing** – the incoming stream won’t yank you back to the bottom, so you can reread earlier output mid-response; tabs also keep their scroll position when you switch away and back
+* **Tabs don’t spin up until you type** – opening a tab won’t start an agent session, or any of its MCP servers, until you actually type, so rereading past chats stays light
 
 <details>
 <summary><strong>More features</strong></summary>
 
-* **Pick up exactly where you left off** – tabs remember their scroll position when you switch back
-* **Restart Obsidian without losing your place** – your open tabs and their conversations reopen exactly as you left them; each sidebar pane restores its own tabs independently
-* **Tabs wake up when you start typing** – opening a tab won't start an agent session until you type, so you can reread past chats without spinning one up
-* **Read the conversation, not the logs** – tool calls render as a single tappable summary row by default. Click to expand, click to collapse, errors auto-expand so you don't miss them.
-* **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol)
-* **Pick the right model for each task** – switch modes and models per chat without restarting
+* **See what every agent is doing without clicking around** – status icons show ready, busy, waiting on you, or stuck
 * **Find old chats and continue them** – browse session history and reopen any past conversation in a tab
-* **Your agent’s tools just work** – any MCP tool your agent uses keeps working in Agent Console with no extra setup
+* **Rename tabs so you can find them** – give each tab a name that says what it’s for, so a wall of tabs stays searchable and memorable; drag to reorder, right-click to close
+* **Pick the right model for each task** – switch modes and models per chat without restarting
+* **Read the conversation, not the logs** – tool calls render as a single tappable summary row by default. Click to expand, click to collapse, errors auto-expand so you don’t miss them.
+* **Your MCP tools come along** – whatever MCP servers your agent uses keep working in Agent Console with no extra setup
+* **Switch tabs with a hotkey** – bind keys under Settings → Hotkeys
 
 </details>
 
