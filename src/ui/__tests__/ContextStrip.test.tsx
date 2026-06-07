@@ -239,4 +239,45 @@ describe("ContextStrip", () => {
 			container.querySelector(".context-strip-pill--provisional"),
 		).toBeNull();
 	});
+
+	it("Backspace with empty input and no crystallized pills suppresses the provisional pill (one-step)", () => {
+		const onSuppressProvisional = vi.fn();
+		render(
+			<ContextStrip
+				{...makeProps({
+					provisionalPath: "folder/Draft.md",
+					onSuppressProvisional,
+				})}
+			/>,
+		);
+		const input = screen.getByPlaceholderText("Add notes with +");
+		fireEvent.keyDown(input, { key: "Backspace" });
+		expect(onSuppressProvisional).toHaveBeenCalledTimes(1);
+	});
+
+	it("Backspace targets the cursor-adjacent provisional pill before crystallized pills", () => {
+		const onSuppressProvisional = vi.fn();
+		const onRemove = vi.fn();
+		const notes: ContextNote[] = [
+			{ path: "a.md", source: "user", seen: false },
+		];
+		const { container } = render(
+			<ContextStrip
+				{...makeProps({
+					notes,
+					provisionalPath: "folder/Draft.md",
+					onSuppressProvisional,
+					onRemove,
+				})}
+			/>,
+		);
+		const input = screen.getByPlaceholderText("Add notes with +");
+		fireEvent.keyDown(input, { key: "Backspace" });
+		// Provisional suppressed first; crystallized pill untouched and unselected.
+		expect(onSuppressProvisional).toHaveBeenCalledTimes(1);
+		expect(onRemove).not.toHaveBeenCalled();
+		expect(
+			container.querySelector(".context-strip-pill--selected"),
+		).toBeNull();
+	});
 });
