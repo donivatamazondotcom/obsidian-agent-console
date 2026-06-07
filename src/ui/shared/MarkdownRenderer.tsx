@@ -8,6 +8,7 @@ import {
 } from "obsidian";
 import { convertWslPathToWindows } from "../../utils/platform";
 import { isAbsolutePath } from "../../utils/paths";
+import { deriveNewLeaf } from "../../utils/link-leaf";
 import type AgentClientPlugin from "../../plugin";
 
 interface MarkdownRendererProps {
@@ -50,6 +51,10 @@ export function MarkdownRenderer({ text, plugin }: MarkdownRendererProps) {
 			: null;
 
 		const handleInternalLinkClick = (e: MouseEvent) => {
+			// Only act on left-click (0) and middle-click (1). Right-click (2)
+			// arrives via `auxclick`; leave it untouched so the default context
+			// menu still appears (custom link context menu is out of scope here).
+			if (e.button !== 0 && e.button !== 1) return;
 			const target = e.target as HTMLElement;
 			const link = target.closest("a.internal-link");
 			if (link) {
@@ -66,6 +71,10 @@ export function MarkdownRenderer({ text, plugin }: MarkdownRendererProps) {
 					// Normalize for comparison (forward slashes)
 					const normalizedHref = href.replace(/\\/g, "/");
 
+					// Modifier/middle-click → target pane; plain click → false
+					// (honors the global alwaysOpenInNewTab setting).
+					const newLeaf = deriveNewLeaf(e);
+
 					if (
 						normalizedVaultBase &&
 						normalizedHref.startsWith(normalizedVaultBase + "/")
@@ -77,19 +86,28 @@ export function MarkdownRenderer({ text, plugin }: MarkdownRendererProps) {
 						void plugin.app.workspace.openLinkText(
 							relativePath,
 							"",
+							newLeaf,
 						);
 					} else if (!isAbsolutePath(href)) {
 						// Already relative or wiki-link style — pass through
-						void plugin.app.workspace.openLinkText(href, "");
+						void plugin.app.workspace.openLinkText(
+							href,
+							"",
+							newLeaf,
+						);
 					}
 					// Absolute path outside vault — ignore
 				}
 			}
 		};
 		el.addEventListener("click", handleInternalLinkClick);
+		// `auxclick` carries middle-click (and right-click, which the handler
+		// ignores). Required because `click` never fires for the middle button.
+		el.addEventListener("auxclick", handleInternalLinkClick);
 
 		return () => {
 			el.removeEventListener("click", handleInternalLinkClick);
+			el.removeEventListener("auxclick", handleInternalLinkClick);
 			component.unload();
 		};
 	}, [text, plugin]);
