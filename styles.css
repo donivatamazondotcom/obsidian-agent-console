@@ -738,7 +738,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	border: 1px solid var(--color-red);
 	border-radius: 8px;
 	z-index: 10;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	box-shadow: var(--shadow-s);
 }
 
 /* Variant border colors */
@@ -1331,7 +1331,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	background-color: var(--background-secondary);
 	border: 2px solid var(--background-modifier-border);
 	border-radius: 8px;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	box-shadow: var(--shadow-l);
 	overflow-y: auto;
 	font-size: 14px;
 	margin-bottom: 8px;
@@ -1540,11 +1540,11 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 .agent-client-diff-line-added {
-	background-color: rgba(46, 160, 67, 0.15);
+	background-color: rgba(var(--color-green-rgb), 0.15);
 }
 
 .agent-client-diff-line-removed {
-	background-color: rgba(248, 81, 73, 0.15);
+	background-color: rgba(var(--color-red-rgb), 0.15);
 }
 
 .agent-client-diff-line-context {
@@ -1568,12 +1568,12 @@ button.agent-client-message-tool-call-summary:focus-visible {
 
 /* Word-level diff highlighting */
 .agent-client-diff-word-added {
-	background-color: rgba(46, 160, 67, 0.4);
+	background-color: rgba(var(--color-green-rgb), 0.4);
 	font-weight: 600;
 }
 
 .agent-client-diff-word-removed {
-	background-color: rgba(248, 81, 73, 0.4);
+	background-color: rgba(var(--color-red-rgb), 0.4);
 	font-weight: 600;
 	text-decoration: line-through;
 }
