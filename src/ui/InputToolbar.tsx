@@ -90,7 +90,7 @@ function ToolbarDropdown({
 		[items, currentValue, onChange],
 	);
 
-	const wrapperClass = `agent-client-toolbar-dropdown${className ? ` ${className}` : ""}`;
+	const wrapperClass = `clickable-icon agent-client-toolbar-dropdown${className ? ` ${className}` : ""}`;
 
 	return (
 		<button
@@ -368,7 +368,7 @@ export function InputToolbar({
 				ref={sendButtonRef}
 				onClick={onSendOrStop}
 				disabled={isButtonDisabled}
-				className={`agent-client-chat-send-button ${isSending ? "sending" : ""} ${isButtonDisabled ? "agent-client-disabled" : ""}`}
+				className={`clickable-icon agent-client-chat-send-button ${isSending ? "sending" : ""} ${isButtonDisabled ? "agent-client-disabled" : ""}`}
 				aria-label={
 					!isSessionReady
 						? isLazyIdle

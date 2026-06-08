@@ -65,21 +65,9 @@ If your plugin does not need CSS, delete this file.
 	bottom: 4px;
 	left: 50%;
 	transform: translateX(-50%);
-	padding: 6px !important;
-	margin: 0 !important;
-	border: none !important;
+	padding: 6px;
 	border-radius: 50%;
-	background-color: var(--background-primary) !important;
-	color: var(--text-muted);
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	outline: none !important;
-	appearance: none;
-	box-shadow: none !important;
-	min-width: unset !important;
-	min-height: unset !important;
+	background-color: var(--background-primary);
 	z-index: 10;
 }
 
@@ -89,7 +77,7 @@ If your plugin does not need CSS, delete this file.
 }
 
 .agent-client-scroll-to-bottom:hover {
-	background-color: var(--background-primary) !important;
+	background-color: var(--background-primary);
 }
 
 .agent-client-scroll-to-bottom:hover svg {
@@ -404,11 +392,11 @@ button.agent-client-message-tool-call-summary:focus-visible {
 
 /* ===== Permission Request Buttons ===== */
 .agent-client-permission-option {
-	padding: 8px 16px !important;
-	border: 1px solid var(--background-modifier-border) !important;
-	border-radius: 6px !important;
-	background-color: var(--background-primary) !important;
-	color: var(--text-normal) !important;
+	padding: 8px 16px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background-color: var(--background-primary);
+	color: var(--text-normal);
 	cursor: pointer;
 	font-size: 13px;
 	font-weight: 500;
@@ -419,15 +407,15 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 .agent-client-permission-option.agent-client-selected {
-	background-color: var(--interactive-accent) !important;
-	color: white !important;
+	background-color: var(--interactive-accent);
+	color: white;
 	font-weight: 600;
 }
 
 .agent-client-permission-option.agent-client-disabled {
-	background-color: var(--background-modifier-border) !important;
-	color: var(--text-muted) !important;
-	cursor: not-allowed !important;
+	background-color: var(--background-modifier-border);
+	color: var(--text-muted);
+	cursor: not-allowed;
 }
 
 .agent-client-permission-option.agent-client-disabled:not(
@@ -440,25 +428,25 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .agent-client-permission-option.agent-client-permission-kind-allow_always:not(
 		.agent-client-selected
 	):not(.agent-client-disabled) {
-	background-color: var(--color-green) !important;
-	color: white !important;
-	border-color: var(--color-green) !important;
+	background-color: var(--color-green);
+	color: white;
+	border-color: var(--color-green);
 }
 
 .agent-client-permission-option.agent-client-permission-kind-reject_once:not(
 		.agent-client-selected
 	):not(.agent-client-disabled) {
-	background-color: var(--color-red) !important;
-	color: white !important;
-	border-color: var(--color-red) !important;
+	background-color: var(--color-red);
+	color: white;
+	border-color: var(--color-red);
 }
 
 .agent-client-permission-option.agent-client-permission-kind-allow_once:not(
 		.agent-client-selected
 	):not(.agent-client-disabled) {
-	background-color: var(--color-orange) !important;
-	color: white !important;
-	border-color: var(--color-orange) !important;
+	background-color: var(--color-orange);
+	color: white;
+	border-color: var(--color-orange);
 }
 
 /* Normal option button hover (no kind specified) */
@@ -467,7 +455,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	):not(.agent-client-permission-kind-reject_once):not(
 		.agent-client-permission-kind-allow_once
 	):not(.agent-client-disabled):not(.agent-client-selected):hover {
-	background-color: var(--background-modifier-hover) !important;
+	background-color: var(--background-modifier-hover);
 }
 
 /* ===== Chat View Components ===== */
@@ -709,12 +697,12 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 .agent-client-chat-error-title {
-	margin: 0 0 8px 0 !important;
-	color: var(--color-red) !important;
+	margin: 0 0 8px 0;
+	color: var(--color-red);
 }
 
 .agent-client-chat-error-message {
-	margin: 0 !important;
+	margin: 0;
 	color: var(--text-normal);
 	font-size: 14px;
 	line-height: 1.4;
@@ -724,7 +712,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 .agent-client-chat-error-suggestion {
-	margin: 8px 0 0 0 !important;
+	margin: 8px 0 0 0;
 	color: var(--text-muted);
 	font-size: 13px;
 	font-style: italic;
@@ -732,16 +720,6 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	word-wrap: break-word;
 	word-break: break-all;
 	overflow-wrap: anywhere;
-}
-
-.agent-client-chat-error-button {
-	padding: 8px 16px !important;
-	border: 1px solid var(--background-modifier-border) !important;
-	border-radius: 6px !important;
-	background-color: transparent !important;
-	color: var(--text-muted) !important;
-	cursor: pointer;
-	font-size: 14px;
 }
 
 /* ============================================================
@@ -780,36 +758,25 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 .agent-client-error-overlay-title {
-	margin: 0 !important;
-	color: var(--color-red) !important;
+	margin: 0;
+	color: var(--color-red);
 	font-size: 14px;
 	font-weight: 600;
 }
 
 /* Variant title colors */
 .agent-client-error-overlay--error .agent-client-error-overlay-title {
-	color: var(--color-red) !important;
+	color: var(--color-red);
 }
 
 .agent-client-error-overlay--info .agent-client-error-overlay-title {
-	color: var(--text-normal) !important;
+	color: var(--text-normal);
 }
 
 .agent-client-error-overlay-close {
-	display: flex;
-	align-items: center;
-	justify-content: center;
 	width: 14px;
 	height: 14px;
-	background: none !important;
-	background-color: transparent !important;
-	border: none !important;
-	box-shadow: none !important;
-	color: var(--text-muted);
-	cursor: pointer;
-	padding: 0 !important;
-	margin: 0;
-	outline: none !important;
+	padding: 0;
 }
 
 .agent-client-error-overlay-close svg {
@@ -819,20 +786,20 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 .agent-client-error-overlay-close:hover {
-	background: none !important;
-	box-shadow: none !important;
+	background: none;
+	box-shadow: none;
 	color: var(--interactive-accent);
 }
 
 .agent-client-error-overlay-close:active,
 .agent-client-error-overlay-close:focus {
-	background: none !important;
-	box-shadow: none !important;
-	outline: none !important;
+	background: none;
+	box-shadow: none;
+	outline: none;
 }
 
 .agent-client-error-overlay-message {
-	margin: 0 !important;
+	margin: 0;
 	color: var(--text-normal);
 	font-size: 13px;
 	line-height: 1.4;
@@ -842,7 +809,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 .agent-client-error-overlay-suggestion {
-	margin: 8px 0 0 0 !important;
+	margin: 8px 0 0 0;
 	color: var(--text-muted);
 	font-size: 12px;
 	font-style: italic;
@@ -1050,20 +1017,20 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	align-items: center;
 	justify-content: space-between;
 	gap: 4px;
-	padding: 6px 12px !important;
+	padding: 6px 12px;
 	width: 100%;
 	cursor: pointer;
-	background: none !important;
-	background-color: transparent !important;
-	border: none !important;
-	outline: none !important;
+	background: none;
+	background-color: transparent;
+	border: none;
+	outline: none;
 	appearance: none;
-	box-shadow: none !important;
+	box-shadow: none;
 	text-align: left;
 	font: inherit;
 	color: inherit;
-	min-width: unset !important;
-	min-height: unset !important;
+	min-width: unset;
+	min-height: unset;
 }
 
 .agent-client-mention-badge {
@@ -1131,14 +1098,14 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 .agent-client-chat-input-textarea:hover {
-	border: none !important;
-	background-color: transparent !important;
+	border: none;
+	background-color: transparent;
 }
 
 .agent-client-chat-input-textarea:focus {
-	border: none !important;
-	outline: none !important;
-	box-shadow: none !important;
+	border: none;
+	outline: none;
+	box-shadow: none;
 }
 
 /* Dynamic textarea height management */
@@ -1201,30 +1168,22 @@ button.agent-client-message-tool-call-summary:focus-visible {
 
 .agent-client-toolbar-dropdown {
 	display: inline-flex;
-	align-items: center;
-	padding: 0 4px !important;
-	margin: 0 !important;
-	border: none !important;
-	border-radius: 4px !important;
-	background: transparent !important;
-	background-color: transparent !important;
-	box-shadow: none !important;
-	cursor: pointer;
-	transition: background-color 0.1s ease;
+	padding: 0 4px;
 	height: 20px;
 	max-width: 120px;
 	min-width: 0;
 	flex-shrink: 1;
 	overflow: hidden;
+	transition: background-color 0.1s ease;
 }
 
 .agent-client-toolbar-dropdown:hover {
-	background-color: var(--background-modifier-hover) !important;
+	background-color: var(--background-modifier-hover);
 }
 
 .agent-client-toolbar-dropdown:focus {
-	background: transparent !important;
-	box-shadow: none !important;
+	background: transparent;
+	box-shadow: none;
 	outline: none;
 }
 
@@ -1295,24 +1254,12 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .agent-client-chat-send-button {
 	width: 20px;
 	height: 20px;
-	padding: 0 !important;
-	margin: 0 !important;
-	border: none !important;
-	border-radius: 0 !important;
-	background-color: transparent !important;
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 16px;
-	outline: none !important;
-	appearance: none;
-	box-shadow: none !important;
+	padding: 0;
 	transition: all 0.2s ease;
 }
 
 .agent-client-chat-send-button.agent-client-disabled {
-	cursor: not-allowed !important;
+	cursor: not-allowed;
 }
 
 /* Send button icon states */
@@ -1752,17 +1699,10 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	width: 18px;
 	height: 18px;
 	padding: 0;
-	border: none;
 	border-radius: 50%;
-	background-color: var(--background-secondary);
-	color: var(--text-muted);
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	background-color: var(--interactive-normal);
 	opacity: 0;
 	transition: opacity 0.15s ease;
-	box-shadow: none !important;
 }
 
 .agent-client-attachment-preview-remove svg {
@@ -2267,21 +2207,21 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 .agent-client-agent-selector select.dropdown {
-	padding: 0 !important;
-	margin: 0 !important;
-	border: none !important;
-	border-radius: 0 !important;
-	background: none !important;
-	background-color: transparent !important;
-	background-image: none !important;
-	box-shadow: none !important;
-	color: var(--text-normal) !important;
-	font-size: 12px !important;
-	cursor: pointer !important;
-	outline: none !important;
-	appearance: none !important;
-	-webkit-appearance: none !important;
-	-moz-appearance: none !important;
+	padding: 0;
+	margin: 0;
+	border: none;
+	border-radius: 0;
+	background: none;
+	background-color: transparent;
+	background-image: none;
+	box-shadow: none;
+	color: var(--text-normal);
+	font-size: 12px;
+	cursor: pointer;
+	outline: none;
+	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
 	max-width: 140px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -2290,9 +2230,9 @@ button.agent-client-message-tool-call-summary:focus-visible {
 
 .agent-client-agent-selector select.dropdown:hover,
 .agent-client-agent-selector select.dropdown:focus {
-	color: var(--text-normal) !important;
-	background-color: transparent !important;
-	box-shadow: none !important;
+	color: var(--text-normal);
+	background-color: transparent;
+	box-shadow: none;
 }
 
 /* Agent label (single agent) */
