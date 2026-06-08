@@ -43,6 +43,11 @@ function makeMockCdp() {
 		clickElement: vi.fn().mockResolvedValue(undefined),
 		waitForElement: vi.fn().mockResolvedValue(undefined),
 		hoverElement: vi.fn().mockResolvedValue(undefined),
+		clickWithCoords: vi.fn().mockResolvedValue(undefined),
+		getWindowBounds: vi.fn().mockResolvedValue({ x: 100, y: 50, width: 800, height: 600, scaleFactor: 2 }),
+		setWindowBounds: vi.fn().mockResolvedValue(undefined),
+		getWorkArea: vi.fn().mockResolvedValue({ x: 0, y: 30, width: 3200, height: 1770, scaleFactor: 2 }),
+		screenCaptureRegion: vi.fn().mockResolvedValue(undefined),
 		screenshot: vi.fn().mockResolvedValue(undefined),
 		setMobileEmulation: vi.fn().mockResolvedValue(undefined),
 		getElementBounds: vi.fn().mockResolvedValue({ x: 0, y: 0, width: 100, height: 100 }),
@@ -552,5 +557,73 @@ describe("captureEntry — group crop (cropSelectors)", () => {
 		});
 
 		await expect(captureEntry(entry, deps)).rejects.toThrow(/no element matches/);
+	});
+});
+
+
+describe("captureEntry — screen capture mode (popovers)", () => {
+	it("uses screenCaptureRegion (not dev:screenshot) and the window scale factor for screen mode", async () => {
+		const deps = makeDeps();
+		const entry = {
+			name: "mode-selection",
+			width: 200,
+			height: 100,
+			crop: { x: 10, y: 20, width: 100, height: 50 },
+			captureMode: "screen" as const,
+			initialState: {
+				openNote: "Welcome.md",
+				clickRibbon: true,
+				clickSelector: ".agent-client-toolbar-dropdown",
+			},
+		};
+
+		await captureEntry(entry, deps);
+
+		// screen mode must NOT use dev:screenshot
+		expect(deps.cdp.screenshot).not.toHaveBeenCalled();
+		// it must capture the window's screen region from getWindowBounds
+		expect(deps.cdp.getWindowBounds).toHaveBeenCalled();
+		expect(deps.cdp.screenCaptureRegion).toHaveBeenCalledWith(
+			expect.stringContaining("mode-selection-raw.png"),
+			{ x: 100, y: 50, width: 800, height: 600 },
+		);
+		const sharpInstance = (deps.sharp as ReturnType<typeof vi.fn>).mock.results[0]
+			.value;
+		// screen-mode crops are authored in raw px and applied as-is
+		// (effectiveDpr = 1), NOT scaled by the window scaleFactor — so the
+		// crop {x:10,y:20,w:100,h:50} extracts exactly that region.
+		expect(sharpInstance.extract).toHaveBeenCalledWith({
+			left: 10,
+			top: 20,
+			width: 100,
+			height: 50,
+		});
+	});
+
+	it("clicks the dropdown via clickWithCoords and does NOT wait for .menu in screen mode", async () => {
+		const deps = makeDeps();
+		const entry = {
+			name: "model-selection",
+			width: 200,
+			height: 100,
+			crop: { x: 0, y: 0, width: 100, height: 50 },
+			captureMode: "screen" as const,
+			initialState: {
+				clickRibbon: true,
+				clickSelector: ".agent-client-toolbar-dropdown:last-child",
+			},
+		};
+
+		await captureEntry(entry, deps);
+
+		expect(deps.cdp.clickWithCoords).toHaveBeenCalledWith(
+			".agent-client-toolbar-dropdown:last-child",
+		);
+		// .menu never resolves in the DOM for a native popup; screen mode must
+		// not block on it. waitForElement is only used to wait for the click
+		// target to exist (the dropdown), never for ".menu".
+		const waitCalls = (deps.cdp.waitForElement as ReturnType<typeof vi.fn>).mock
+			.calls;
+		expect(waitCalls.every((c: unknown[]) => c[0] !== ".menu")).toBe(true);
 	});
 });

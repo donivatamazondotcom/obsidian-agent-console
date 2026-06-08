@@ -26,6 +26,11 @@ export interface CdpLike {
 	waitForElement(selector: string, timeoutMs?: number): Promise<void>;
 	getElementBounds(selector: string): Promise<{ x: number; y: number; width: number; height: number }>;
 	hoverElement(selector: string): Promise<void>;
+	clickWithCoords(selector: string): Promise<void>;
+	getWindowBounds(): Promise<{ x: number; y: number; width: number; height: number; scaleFactor: number }>;
+	setWindowBounds(bounds: { x: number; y: number; width: number; height: number }): Promise<void>;
+	getWorkArea(): Promise<{ x: number; y: number; width: number; height: number; scaleFactor: number }>;
+	screenCaptureRegion(outputPath: string, region: { x: number; y: number; width: number; height: number }): Promise<void>;
 	screenshot(outputPath: string): Promise<void>;
 	setMobileEmulation(enabled: boolean): Promise<void>;
 }
@@ -83,6 +88,15 @@ const HOVER_TOOLTIP_TIMEOUT_MS = 3000;
 const RESPONSE_TIMEOUT_MS = 120_000;
 /** Scopes selectors to the visible tab panel (inactive panels are display:none). */
 const ACTIVE_PANEL = '.agent-client-tab-panel:not([style*="none"])';
+/**
+ * Fixed window bounds (global logical points) used for captureMode "screen".
+ * Pinned before driving the UI so the screencapture region and the static crop
+ * are reproducible. Width matches the renderer viewport emulation (1400) so the
+ * real-window layout agrees with what dev:screenshot-based shots see; height is
+ * generous to fit header chrome + transcript + composer + an upward-opening
+ * menu. Position is offset from the screen edge so the window isn't clipped.
+ */
+const SCREEN_CAPTURE_WINDOW = { width: 1400, height: 820 };
 
 /**
  * Capture a single manifest entry: drive UI state → screenshot → crop → write.
@@ -91,6 +105,26 @@ export async function captureEntry(
 	entry: ManifestEntry,
 	deps: OrchestratorDeps,
 ): Promise<void> {
+	// 0. Screen-capture mode: pin the real OS window to a fixed size/position
+	// BEFORE driving any UI. screencapture grabs the real window region (the
+	// only way to capture native popup menus), so the window must be a known,
+	// reproducible size — and pinned before the menu opens, since resizing
+	// afterward would dismiss it and reflow the layout.
+	if (entry.captureMode === "screen") {
+		// Bottom-align a fixed-size window within the display work area so
+		// Obsidian flips popover menus UPWARD (over the transcript), keeping the
+		// whole menu inside the captured window region. A top/middle position
+		// leaves room below and the menu opens downward off the window edge.
+		const wa = await deps.cdp.getWorkArea();
+		await deps.cdp.setWindowBounds({
+			x: wa.x + 60,
+			y: wa.y + wa.height - SCREEN_CAPTURE_WINDOW.height - 10,
+			width: SCREEN_CAPTURE_WINDOW.width,
+			height: SCREEN_CAPTURE_WINDOW.height,
+		});
+		await sleep(SETTLE_MS);
+	}
+
 	// 1. Mobile emulation (before any UI driving)
 	if (entry.mobile) {
 		await deps.cdp.setMobileEmulation(true);
@@ -131,6 +165,7 @@ export async function captureEntry(
 		await deps.cdp.waitForElement(".tooltip", HOVER_TOOLTIP_TIMEOUT_MS);
 	}
 
+
 	// 3. Send prompt(s). `prompts` (multi-tab) takes precedence over a single
 	// `promptFile`. Each prompt after the first opens a new session tab so the
 	// right panel shows a multi-session tab bar. Selectors are scoped to the
@@ -168,7 +203,7 @@ export async function captureEntry(
 		await deps.cdp.clickElement(`${ACTIVE_PANEL} .agent-client-chat-send-button`);
 		// Only await the response on the final (screenshotted) tab; earlier tabs
 		// get their title from the sent message and need not finish streaming.
-		if (i === promptFiles.length - 1) {
+		if (i === promptFiles.length - 1 && entry.captureMode !== "screen") {
 			// v1.1.0 added a "Connecting…/Sending…" handshake before the
 			// stream begins, during which the loading indicator is still
 			// hidden. Waiting only for the hidden state (I01) resolves
@@ -186,6 +221,13 @@ export async function captureEntry(
 				RESPONSE_TIMEOUT_MS,
 			);
 		}
+		// captureMode "screen" (popover shots) sends the prompt ONLY to connect
+		// the lazy session — the agent's modes/models populate the toolbar
+		// dropdowns during the ACP handshake ("Connecting…"), before any
+		// inference. We must NOT wait for the assistant response: the inference
+		// may never complete (e.g. Bedrock without creds) and the dropdown —
+		// the actual capture subject — is already present. The clickSelector
+		// step waits for the dropdown to appear before clicking.
 	}
 
 	// 3b. Hide chrome that isn't the subject of this shot (e.g. the chat
@@ -219,6 +261,26 @@ export async function captureEntry(
 		);
 	}
 
+	// 3d. Click a selector to open a popover/menu for capture. Fires AFTER
+	// prompts — the click target often only renders once the agent session is
+	// established (e.g. toolbar dropdowns report modes/models post-handshake).
+	if (entry.initialState?.clickSelector) {
+		await deps.cdp.waitForElement(
+			entry.initialState.clickSelector,
+			RESPONSE_TIMEOUT_MS,
+		);
+		await deps.cdp.clickWithCoords(entry.initialState.clickSelector);
+		if (entry.captureMode === "screen") {
+			// The opened menu is a native popup window, not in the DOM —
+			// waitForElement(".menu") would time out. A brief settle lets the
+			// popup paint before the screen capture grabs it.
+			await sleep(SETTLE_MS);
+		} else {
+			const waitSel = entry.initialState.waitSelector ?? ".menu";
+			await deps.cdp.waitForElement(waitSel, HOVER_TOOLTIP_TIMEOUT_MS);
+		}
+	}
+
 	// 4. Brief settle for UI animations
 	await sleep(SETTLE_MS);
 
@@ -231,9 +293,32 @@ export async function captureEntry(
 		await sleep(SETTLE_MS);
 	}
 
-	// 5. Capture screenshot to temp file
+	// 5. Capture to a temp file. captureMode "screen" uses macOS screencapture
+	// of the window's screen region — the only way to capture native popup
+	// menus, which render outside the renderer dev:screenshot sees. All other
+	// shots use dev:screenshot. effectiveDpr is the display backing scale for
+	// screen captures (their crops are authored in window CSS-px and scaled by
+	// it); window captures keep the detected renderer DPR.
 	const tmpPath = path.join(deps.tmpDir, `${entry.name}-raw.png`);
-	await deps.cdp.screenshot(tmpPath);
+	let effectiveDpr = deps.devicePixelRatio;
+	if (entry.captureMode === "screen") {
+		const bounds = await deps.cdp.getWindowBounds();
+		await deps.cdp.screenCaptureRegion(tmpPath, {
+			x: bounds.x,
+			y: bounds.y,
+			width: bounds.width,
+			height: bounds.height,
+		});
+		// Screen-mode crops are authored directly in raw screencapture pixels
+		// (the window is pinned deterministically, so the menu always lands in
+		// the same place). effectiveDpr = 1 means the static crop is applied
+		// as-is, then resized to the target dims (the 2x→1x downscale gives
+		// retina-sharp output). Authoring in raw px sidesteps the renderer
+		// viewport-emulation vs real-window coordinate mismatch.
+		effectiveDpr = 1;
+	} else {
+		await deps.cdp.screenshot(tmpPath);
+	}
 
 	// 6. Determine crop region & encode — precedence: group union >
 	// single selector > static crop.
@@ -255,7 +340,7 @@ export async function captureEntry(
 		const content = computeCropRect(unionRects(rects), { padding });
 		const scaled = scaleRectByDevicePixelRatio(
 			content,
-			deps.devicePixelRatio,
+			effectiveDpr,
 		);
 		// Clamp the content region to the captured image bounds — the icon
 		// cluster often sits flush at the window's right edge, so the padded
@@ -314,7 +399,7 @@ export async function captureEntry(
 		}
 		const scaledCrop = scaleRectByDevicePixelRatio(
 			cropRect,
-			deps.devicePixelRatio,
+			effectiveDpr,
 		);
 		const pipeline = deps.sharp(tmpPath).extract({
 			left: scaledCrop.x,

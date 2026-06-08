@@ -1,67 +1,124 @@
 {
-  "entries": [
-    {
-      "name": "ribbon-icon",
-      "width": 160,
-      "height": 56,
-      "crop": {
-        "x": 0,
-        "y": 256,
-        "width": 160,
-        "height": 56
-      },
-      "initialState": {
-        "openNote": "Welcome.md",
-        "hoverSelector": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"], .side-dock-ribbon-action[aria-label*=\"agent-console\"]"
-      },
-      "approvalThreshold": 0.01
-    },
-    {
-      "name": "multi-session",
-      "width": 300,
-      "height": 800,
-      "crop": {
-        "x": 0,
-        "y": 0,
-        "width": 900,
-        "height": 608
-      },
-      "cropSelector": ".workspace",
-      "cropPadding": 0,
-      "initialState": {
-        "openNote": "Welcome.md",
-        "clickRibbon": true
-      },
-      "prompts": [
-        "multi-session-1.txt",
-        "multi-session-2.txt",
-        "multi-session.txt"
-      ],
-      "draftMessage": "Turn these ideas into a short intro paragraph",
-      "approvalThreshold": 0.1
-    },
-    {
-      "name": "session-history-button",
-      "width": 298,
-      "height": 96,
-      "initialState": {
-        "openNote": "Welcome.md",
-        "clickRibbon": true
-      },
-      "approvalThreshold": 0.01,
-      "crop": {
-        "x": 0,
-        "y": 0,
-        "width": 298,
-        "height": 96
-      },
-      "cropPadding": 0,
-      "cropSelectors": [
-        ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"New chat\"]",
-        ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Session history\"]",
-        ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Export chat to Markdown\"]",
-        ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"More\"]"
-      ]
-    }
-  ]
+	"entries": [
+		{
+			"name": "ribbon-icon",
+			"width": 160,
+			"height": 56,
+			"crop": {
+				"x": 0,
+				"y": 256,
+				"width": 160,
+				"height": 56
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"hoverSelector": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"], .side-dock-ribbon-action[aria-label*=\"agent-console\"]"
+			},
+			"approvalThreshold": 0.01
+		},
+		{
+			"name": "multi-session",
+			"width": 300,
+			"height": 800,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 900,
+				"height": 608
+			},
+			"cropSelector": ".workspace",
+			"cropPadding": 0,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"prompts": [
+				"multi-session-1.txt",
+				"multi-session-2.txt",
+				"multi-session.txt"
+			],
+			"draftMessage": "Turn these ideas into a short intro paragraph",
+			"approvalThreshold": 0.1
+		},
+		{
+			"name": "session-history-button",
+			"width": 298,
+			"height": 96,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"approvalThreshold": 0.01,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 298,
+				"height": 96
+			},
+			"cropPadding": 0,
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"New chat\"]",
+				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Session history\"]",
+				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Export chat to Markdown\"]",
+				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"More\"]"
+			]
+		},
+		{
+			"name": "mode-selection",
+			"width": 734,
+			"height": 308,
+			"crop": {
+				"x": 1500,
+				"y": 1094,
+				"width": 1300,
+				"height": 546
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-actions .agent-client-toolbar-dropdown:first-child"
+			},
+			"approvalThreshold": 0.01,
+			"promptFile": "connect.txt",
+			"captureMode": "screen"
+		},
+		{
+			"name": "model-selection",
+			"width": 1400,
+			"height": 820,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1400,
+				"height": 820
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-actions .agent-client-toolbar-dropdown:last-child"
+			},
+			"approvalThreshold": 0.01,
+			"promptFile": "connect.txt",
+			"captureMode": "screen"
+		},
+		{
+			"name": "switch-agent",
+			"width": 1400,
+			"height": 820,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1400,
+				"height": 820
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"More\"]"
+			},
+			"approvalThreshold": 0.01,
+			"promptFile": "connect.txt",
+			"captureMode": "screen"
+		}
+	]
 }

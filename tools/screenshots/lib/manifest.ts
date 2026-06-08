@@ -56,6 +56,19 @@ export interface InitialState {
 	 * The driver dispatches mouseenter + mouseover on the element.
 	 */
 	hoverSelector?: string;
+	/**
+	 * CSS selector to click before capture (opens menus/popovers).
+	 * Uses CDP Input.dispatchMouseEvent for a coordinate-aware click
+	 * that triggers React handlers needing mouse position (e.g.
+	 * Obsidian Menu.showAtMouseEvent). The driver focuses the window,
+	 * clicks, then waits for `waitSelector` to appear.
+	 */
+	clickSelector?: string;
+	/**
+	 * CSS selector to wait for after `clickSelector` fires (e.g.
+	 * ".menu" for Obsidian popover menus). Times out after 3s.
+	 */
+	waitSelector?: string;
 }
 
 /** One screenshot specification. */
@@ -136,6 +149,18 @@ export interface ManifestEntry {
 	 * capturing this entry and back off after. Reserved for F01.
 	 */
 	mobile?: boolean;
+	/**
+	 * Capture backend. Default "window" uses `obsidian dev:screenshot`, which
+	 * captures the BrowserWindow renderer — correct for all in-DOM content.
+	 * "screen" uses macOS `screencapture` of the window's screen region; it is
+	 * ONLY needed for shots whose subject is an Obsidian native popup `Menu`
+	 * (e.g. mode/model/agent selectors), which renders in a separate native
+	 * window invisible to dev:screenshot. Screen-mode entries must crop via
+	 * static `crop` (the menu is not in the DOM, so `cropSelector`/
+	 * `cropSelectors` cannot resolve it) and pin the window to a fixed size so
+	 * the crop region is reproducible.
+	 */
+	captureMode?: "window" | "screen";
 	/**
 	 * Approval-test threshold for `pixelmatch` — fraction of differing
 	 * pixels above which the test fails. Default 0.05 (loose enough for

@@ -19,19 +19,26 @@ ln -sf ../../../../../../../manifest.json manifest.json
 # capture run starts identically: empty sessions, no restored tabs (panel
 # starts CLOSED so clickRibbon reliably OPENS it - see I08), and a clean
 # worktree (the live data.json is gitignored; only data.template.json is
-# tracked). The template carries the stable agent/mode config including the
-# hermetic screenshot-fixtures agent pin.
+# tracked). The template carries the stable agent/mode config (Claude Code via
+# Bedrock — its handshake reports the Default/Accept-Edits/... modes and the
+# Default/Sonnet/Haiku models the popover docs shots need).
+#
+# IMPORTANT: the cp must happen while the plugin is DISABLED. The plugin saves
+# its in-memory settings to data.json on unload, so a plain `cp` followed by
+# plugin:reload is clobbered by the unload-save (the reload writes the OLD
+# settings back over the template). Disable (which triggers the save) → cp the
+# template over it → enable (which only reads). This is the only ordering that
+# makes the running plugin actually load the template config.
+VAULT="${SCREENSHOT_VAULT:-vault}"
+obsidian vault="$VAULT" plugin:disable id=agent-console filter=community 2>/dev/null || true
+sleep 1
 if [ -f "$PLUGIN_DIR/data.template.json" ]; then
 	cp "$PLUGIN_DIR/data.template.json" "$PLUGIN_DIR/data.json"
 fi
-
-# Reload the plugin in the running fixtures Obsidian so the freshly-built
-# main.js (symlinked above) is what gets screenshotted — the running instance
-# holds the OLD build in memory until reloaded, which silently produces
-# stale screenshots. Scoped to the fixtures vault ONLY; the daily-driver vault
-# is never touched (see learned/skill-rules/agent-console.md "never reload").
-VAULT="${SCREENSHOT_VAULT:-vault}"
-obsidian vault="$VAULT" plugin:reload id=agent-console 2>/dev/null || true
+# Enable loads the freshly-built main.js (symlinked above) AND the template
+# data.json. Scoped to the fixtures vault ONLY; the daily-driver vault is never
+# touched (see learned/skill-rules/agent-console.md "never reload").
+obsidian vault="$VAULT" plugin:enable id=agent-console filter=community 2>/dev/null || true
 sleep 3
 
 echo "✓ Plugin symlinks + fixtures reload ready (vault=$VAULT)"

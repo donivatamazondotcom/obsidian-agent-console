@@ -3,9 +3,14 @@
     "id": "claude-code-acp",
     "displayName": "Claude Code",
     "apiKeySecretId": "",
-    "command": "claude-agent-acp",
+    "command": "/Users/doniv/.local/share/mise/installs/node/24.14.0/bin/claude-agent-acp",
     "args": [],
-    "env": []
+    "env": [
+      {
+        "key": "CLAUDE_CODE_EXECUTABLE",
+        "value": "/Users/doniv/.toolbox/bin/claude"
+      }
+    ]
   },
   "codex": {
     "id": "codex-acp",
@@ -45,7 +50,7 @@
       "env": []
     }
   ],
-  "defaultAgentId": "kiro-cli",
+  "defaultAgentId": "claude-code-acp",
   "autoAllowPermissions": true,
   "activeNoteAsDefaultContext": true,
   "migrationNoticeShown": true,
@@ -72,9 +77,7 @@
   },
   "savedSessions": [],
   "lastUsedModels": {},
-  "lastUsedModes": {
-    "kiro-cli": "screenshot-fixtures"
-  },
+  "lastUsedModes": {},
   "maxSessionTabs": 10,
   "restoreTabsOnStartup": false,
   "perLeafTabStates": [],

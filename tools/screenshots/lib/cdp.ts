@@ -24,7 +24,7 @@
  * Spec: [[Agent Console Screenshot Automation]] § Phase C.
  * Test contract: tools/screenshots/lib/__tests__/cdp.test.ts.
  */
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
 export interface CdpOptions {
@@ -150,6 +150,190 @@ export class Cdp {
 			throw new Error(
 				`clickElement: no element matches selector ${selector}`,
 			);
+		}
+	}
+
+	/**
+	 * Open a menu/popover by invoking the target element's React onClick
+	 * handler with a synthetic event carrying the element-center coordinates.
+	 *
+	 * Why not el.click() or CDP Input events: Obsidian's themed dropdowns call
+	 * `Menu.showAtMouseEvent(e.nativeEvent)`, positioning the popup from the
+	 * event's clientX/clientY. A bare el.click() fires at (0,0); CDP
+	 * Input.dispatchMouseEvent is silently ignored unless the window is the
+	 * OS-frontmost app (it never reaches the renderer in our headless driver).
+	 * Invoking the React handler directly with real coords reliably opens the
+	 * menu. The menu then renders as a native popup window — invisible to
+	 * dev:screenshot — so pair clickWithCoords with `captureMode: "screen"`.
+	 *
+	 * Brings Obsidian to the OS foreground first (macOS `activate`) so the
+	 * popup renders on top of the screen for the subsequent screencapture.
+	 */
+	async clickWithCoords(selector: string): Promise<void> {
+		try {
+			execSync('osascript -e \'tell application "Obsidian" to activate\'', {
+				timeout: 3000,
+			});
+		} catch {
+			// Non-macOS or osascript unavailable — best-effort in-app focus.
+			await this.evaluate(
+				`(() => { try { require("@electron/remote").getCurrentWindow().focus(); } catch (e) {} })()`,
+			);
+		}
+		await sleep(300); // Let the activation propagate before opening the menu.
+		const expr = `(() => {
+			const el = document.querySelector(${JSON.stringify(selector)});
+			if (!el) return false;
+			const r = el.getBoundingClientRect();
+			const cx = r.x + r.width / 2;
+			const cy = r.y + r.height / 2;
+			const key = Object.keys(el).find((k) => k.startsWith("__reactProps$"));
+			const props = key ? el[key] : null;
+			if (props && typeof props.onClick === "function") {
+				const native = new MouseEvent("click", { bubbles: true, clientX: cx, clientY: cy, view: window });
+				props.onClick({ preventDefault() {}, stopPropagation() {}, nativeEvent: native, currentTarget: el, target: el, clientX: cx, clientY: cy, button: 0 });
+				return true;
+			}
+			el.click();
+			return true;
+		})()`;
+		const ok = await this.evaluate<boolean>(expr);
+		if (!ok) {
+			throw new Error(
+				`clickWithCoords: no element matches selector ${selector}`,
+			);
+		}
+	}
+
+	/**
+	 * Get the Electron window's bounds in global logical-point coordinates,
+	 * plus the backing scale factor of the display it sits on. Used to drive a
+	 * screen-capture region and to scale crops for `captureMode: "screen"`.
+	 */
+	async getWindowBounds(): Promise<{
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+		scaleFactor: number;
+	}> {
+		const expr = `(() => {
+			try {
+				const remote = require("@electron/remote");
+				const win = remote.getCurrentWindow();
+				const b = win.getBounds();
+				const display = remote.screen.getDisplayMatching(b);
+				return JSON.stringify({ x: b.x, y: b.y, width: b.width, height: b.height, scaleFactor: (display && display.scaleFactor) || 1 });
+			} catch (e) { return JSON.stringify({ __error: String(e) }); }
+		})()`;
+		const stringified = await this.evaluate<string>(expr);
+		const parsed = JSON.parse(stringified) as {
+			x?: number;
+			y?: number;
+			width?: number;
+			height?: number;
+			scaleFactor?: number;
+			__error?: string;
+		};
+		if (parsed.__error || parsed.x === undefined) {
+			throw new Error(
+				`getWindowBounds failed: ${parsed.__error ?? "no bounds returned"}`,
+			);
+		}
+		return {
+			x: parsed.x,
+			y: parsed.y as number,
+			width: parsed.width as number,
+			height: parsed.height as number,
+			scaleFactor: parsed.scaleFactor ?? 1,
+		};
+	}
+
+	/**
+	 * Set the Electron window's bounds (global logical-point coords). Used by
+	 * screen-capture mode to pin the window to a fixed, reproducible size and
+	 * position before driving the UI, so the screencapture region and the
+	 * static crop are stable across runs.
+	 */
+	async setWindowBounds(bounds: {
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+	}): Promise<void> {
+		await this.evaluate(
+			`(() => { try { require("@electron/remote").getCurrentWindow().setBounds(${JSON.stringify(bounds)}); return true; } catch (e) { return false; } })()`,
+		);
+	}
+
+	/**
+	 * Get the primary display's work area (screen minus menu bar / dock) in
+	 * logical points, plus its backing scale factor. Used to bottom-align the
+	 * capture window so Obsidian flips popover menus upward (keeping them
+	 * inside the captured window region rather than spilling off-screen).
+	 */
+	async getWorkArea(): Promise<{
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+		scaleFactor: number;
+	}> {
+		const expr = `(() => {
+			try {
+				const d = require("@electron/remote").screen.getPrimaryDisplay();
+				return JSON.stringify({ x: d.workArea.x, y: d.workArea.y, width: d.workArea.width, height: d.workArea.height, scaleFactor: d.scaleFactor });
+			} catch (e) { return JSON.stringify({ __error: String(e) }); }
+		})()`;
+		const stringified = await this.evaluate<string>(expr);
+		const parsed = JSON.parse(stringified) as {
+			x?: number;
+			y?: number;
+			width?: number;
+			height?: number;
+			scaleFactor?: number;
+			__error?: string;
+		};
+		if (parsed.__error || parsed.x === undefined) {
+			throw new Error(
+				`getWorkArea failed: ${parsed.__error ?? "no work area returned"}`,
+			);
+		}
+		return {
+			x: parsed.x,
+			y: parsed.y as number,
+			width: parsed.width as number,
+			height: parsed.height as number,
+			scaleFactor: parsed.scaleFactor ?? 1,
+		};
+	}
+
+	/**
+	 * Capture a screen rectangle (global logical-point coords) to a PNG via
+	 * macOS `screencapture -R`. Unlike `screenshot()` (dev:screenshot, which
+	 * only sees the BrowserWindow renderer), this captures the composited
+	 * screen — including native popup windows like Obsidian's `Menu`, which
+	 * render outside the renderer. Output is at the display backing scale
+	 * (physical px). Polls for file appearance. macOS-only.
+	 */
+	async screenCaptureRegion(
+		outputPath: string,
+		region: { x: number; y: number; width: number; height: number },
+	): Promise<void> {
+		const rectArg = `-R${region.x},${region.y},${region.width},${region.height}`;
+		await new Promise<void>((resolve, reject) => {
+			const proc = spawn("screencapture", ["-x", rectArg, outputPath]);
+			proc.on("close", () => resolve());
+			proc.on("error", (err) => reject(err));
+		});
+		const deadline = Date.now() + this.screenshotTimeout;
+		while (!existsSync(outputPath)) {
+			if (Date.now() >= deadline) {
+				throw new Error(
+					`screenCaptureRegion: file ${outputPath} never appeared within ${this.screenshotTimeout}ms (timeout)`,
+				);
+			}
+			await sleep(this.pollInterval);
 		}
 	}
 
