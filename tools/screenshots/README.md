@@ -8,12 +8,12 @@ Regenerate documentation screenshots reproducibly by driving a live Obsidian ins
 - **Obsidian ≥ 1.12** — `dev:screenshot` requires a recent installer. Download from https://obsidian.md/download
 - **Node.js ≥ 18** with `npx tsx` available
 - **`obsidian` CLI** on PATH (installed via Obsidian settings → General → "Install CLI")
-- **Run from Terminal.app** — not from inside Agent Console's kiro-cli session (the macOS sandbox blocks process spawning)
+- **Runs from inside Agent Console's kiro-cli session _or_ a regular Terminal** — the driver *attaches* to the running Obsidian via the `obsidian` CLI's CDP surface (`dev:cdp` / `dev:screenshot`) and uses macOS `screencapture` for native-popup shots. It does **not** launch a second Obsidian, so the macOS App Sandbox (`__CFBundleIdentifier=md.obsidian`) does not block it (`dev:*` is IPC, `screencapture` is a system binary). The one requirement: the fixtures vault must be open as the Obsidian window targeted by `vault="vault"`.
 
 ## Quick Start
 
 ```bash
-# Regenerate all 3 v0 screenshots
+# Regenerate the v0 screenshots (ribbon-icon, multi-session)
 npm run docs:screenshots
 
 # Regenerate a single screenshot by name
