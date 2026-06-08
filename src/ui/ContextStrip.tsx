@@ -67,6 +67,12 @@ export function ContextStrip({
 					// Second Backspace — remove selected pill
 					onRemove(notes[selectedIndex].path);
 					setSelectedIndex(null);
+				} else if (provisionalPath != null) {
+					// I77: the provisional (dashed) pill is the rightmost,
+					// cursor-adjacent pill. A single Backspace suppresses it —
+					// one-step, since it's a transient draft, not a committed
+					// pill that warrants the two-step select-then-remove guard.
+					onSuppressProvisional();
 				} else if (notes.length > 0) {
 					// First Backspace — select last pill
 					setSelectedIndex(notes.length - 1);
@@ -79,7 +85,7 @@ export function ContextStrip({
 				setSelectedIndex(null);
 			}
 		},
-		[notes, selectedIndex, onRemove],
+		[notes, selectedIndex, onRemove, provisionalPath, onSuppressProvisional],
 	);
 
 	return (

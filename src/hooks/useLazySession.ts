@@ -178,7 +178,7 @@ export function useLazySession(
 	const [isFallbackRecovery, setIsFallbackRecovery] = useState(false);
 
 	// Imperative state (read inside async callbacks; refs avoid stale closures).
-	const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const debounceTimerRef = useRef<number | null>(null);
 	const queueRef = useRef<string | null>(null);
 	const isAcquiringRef = useRef(false);
 	const restoredSessionIdRef = useRef<string | null>(restoredSessionId);
@@ -266,7 +266,7 @@ export function useLazySession(
 			// Full-delete cancels any pending debounce.
 			if (value === "") {
 				if (debounceTimerRef.current !== null) {
-					clearTimeout(debounceTimerRef.current);
+					window.clearTimeout(debounceTimerRef.current);
 					debounceTimerRef.current = null;
 				}
 				return;
@@ -276,7 +276,7 @@ export function useLazySession(
 			// keystrokes within the window do NOT reset or duplicate it.
 			if (debounceTimerRef.current !== null) return;
 
-			debounceTimerRef.current = setTimeout(() => {
+			debounceTimerRef.current = window.setTimeout(() => {
 				debounceTimerRef.current = null;
 				void fireAcquisition();
 			}, debounceMs);
@@ -305,7 +305,7 @@ export function useLazySession(
 			// Idle or error → initiate acquisition and queue. Cancel any
 			// pending typing-debounce timer so we don't double-fire.
 			if (debounceTimerRef.current !== null) {
-				clearTimeout(debounceTimerRef.current);
+				window.clearTimeout(debounceTimerRef.current);
 				debounceTimerRef.current = null;
 			}
 			queueRef.current = message;
@@ -320,7 +320,7 @@ export function useLazySession(
 
 	const reset = useCallback(() => {
 		if (debounceTimerRef.current !== null) {
-			clearTimeout(debounceTimerRef.current);
+			window.clearTimeout(debounceTimerRef.current);
 			debounceTimerRef.current = null;
 		}
 		queueRef.current = null;
@@ -339,7 +339,7 @@ export function useLazySession(
 	useEffect(() => {
 		return () => {
 			if (debounceTimerRef.current !== null) {
-				clearTimeout(debounceTimerRef.current);
+				window.clearTimeout(debounceTimerRef.current);
 				debounceTimerRef.current = null;
 			}
 		};

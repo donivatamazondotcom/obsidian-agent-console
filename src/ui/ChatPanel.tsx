@@ -673,7 +673,6 @@ export function ChatPanel({
 			}
 		})();
 		// Run once on mount only. agentId/vaultPath are stable.
-		// eslint-disable-next-line
 	}, []);
 
 	// Queued send for the case where the user clicks send while

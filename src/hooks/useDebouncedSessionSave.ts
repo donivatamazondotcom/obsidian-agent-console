@@ -42,14 +42,14 @@ export function useDebouncedSessionSave(
 		messages: ChatMessage[];
 	} | null>(null);
 	const dirtyRef = useRef(false);
-	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const timerRef = useRef<number | null>(null);
 	const firstPendingAtRef = useRef<number | null>(null);
 
 	// Stable flush: write the latest pending snapshot iff dirty.
 	const flushRef = useRef<() => void>(() => {});
 	flushRef.current = () => {
 		if (timerRef.current !== null) {
-			clearTimeout(timerRef.current);
+			window.clearTimeout(timerRef.current);
 			timerRef.current = null;
 		}
 		firstPendingAtRef.current = null;
@@ -72,12 +72,12 @@ export function useDebouncedSessionSave(
 		// Clamp so a save fires within maxWaitMs even if chunks keep arriving.
 		const delay = Math.max(0, Math.min(debounceMs, maxWaitMs - waited));
 
-		if (timerRef.current !== null) clearTimeout(timerRef.current);
-		timerRef.current = setTimeout(() => flushRef.current(), delay);
+		if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+		timerRef.current = window.setTimeout(() => flushRef.current(), delay);
 
 		return () => {
 			if (timerRef.current !== null) {
-				clearTimeout(timerRef.current);
+				window.clearTimeout(timerRef.current);
 				timerRef.current = null;
 			}
 		};

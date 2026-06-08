@@ -2,6 +2,9 @@
 
 > Your Obsidian console for parallel agent work.
 
+<p align="center">
+  <img src="docs/public/images/multi-session.webp" alt="Agent Console open in the Obsidian sidebar with three agent session tabs, a completed agent response, and a vault note pulled in as context" width="800">
+</p>
 
 ## Why Agent Console
 
@@ -14,22 +17,22 @@ Agent Console fixes that. Open a tab. Tell the agent what you want. While it wor
 ## Features
 
 * **Stop waiting on one agent before starting the next** – run several agent chats side by side in one sidebar
-* **See what every agent is doing without clicking around** – status icons show ready, busy, waiting on you, or stuck
-* **Switch tabs without touching the mouse** – assign whatever hotkeys feel right under Obsidian’s hotkey settings
-* **Reorganize on the fly** – right-click to rename or close tabs, drag to reorder
+* **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol)
 * **Give the agent context from your vault** – type `@notename` and the agent reads that note. Drag in images. Use slash commands.
+* **Restart Obsidian without losing your place** – your open tabs and their conversations reopen exactly as you left them; each sidebar pane restores its own tabs independently
+* **Scroll up to read while the agent is still typing** – the incoming stream won’t yank you back to the bottom, so you can reread earlier output mid-response; tabs also keep their scroll position when you switch away and back
+* **Tabs don’t spin up until you type** – opening a tab won’t start an agent session, or any of its MCP servers, until you actually type, so rereading past chats stays light
 
 <details>
 <summary><strong>More features</strong></summary>
 
-* **Pick up exactly where you left off** – tabs remember their scroll position when you switch back
-* **Restart Obsidian without losing your place** – your open tabs and their conversations reopen exactly as you left them; each sidebar pane restores its own tabs independently
-* **Tabs wake up when you start typing** – opening a tab won't start an agent session until you type, so you can reread past chats without spinning one up
-* **Read the conversation, not the logs** – tool calls render as a single tappable summary row by default. Click to expand, click to collapse, errors auto-expand so you don't miss them.
-* **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol)
-* **Pick the right model for each task** – switch modes and models per chat without restarting
+* **See what every agent is doing without clicking around** – status icons show ready, busy, waiting on you, or stuck
 * **Find old chats and continue them** – browse session history and reopen any past conversation in a tab
-* **Your agent’s tools just work** – any MCP tool your agent uses keeps working in Agent Console with no extra setup
+* **Rename tabs so you can find them** – give each tab a name that says what it’s for, so a wall of tabs stays searchable and memorable; drag to reorder, right-click to close
+* **Pick the right model for each task** – switch modes and models per chat without restarting
+* **Read the conversation, not the logs** – tool calls render as a single tappable summary row by default. Click to expand, click to collapse, errors auto-expand so you don’t miss them.
+* **Your MCP tools come along** – whatever MCP servers your agent uses keep working in Agent Console with no extra setup
+* **Switch tabs with a hotkey** – bind keys under Settings → Hotkeys
 
 </details>
 
@@ -46,20 +49,26 @@ The pattern: tell the agent what you want done. Switch tabs. Come back when stat
 
 ## Install
 
-### Through BRAT (right now)
+### Through Obsidian Community Plugins (recommended)
 
-Agent Console is being reviewed for the Obsidian Community Plugins store. Until it’s available there, you can install it through [BRAT](https://github.com/TfTHacker/obsidian42-brat):
+Agent Console is in the Obsidian Community Plugins store:
+
+1. Open **Settings → Community plugins** in Obsidian
+2. Click **Browse** and search for "Agent Console"
+3. Click **Install**, then **Enable**
+
+Obsidian updates the plugin automatically when a new version is released.
+
+### Through BRAT (latest beta builds)
+
+Want new releases the moment they ship, before they reach the store? Install through [BRAT](https://github.com/TfTHacker/obsidian42-brat):
 
 1. Install the BRAT plugin in Obsidian
 2. Open BRAT settings → "Add Beta Plugin"
 3. Paste: `donivatamazondotcom/obsidian-agent-console`
 4. Turn on Agent Console in your Community Plugins list
 
-BRAT updates the plugin automatically every time a new version is released.
-
-### Through Obsidian Community Plugins (after launch)
-
-Once it’s approved, search for "Agent Console" in the Community Plugins browser inside Obsidian and click Install.
+BRAT auto-updates on every release.
 
 ## Quick start
 
@@ -80,7 +89,7 @@ Once you’ve set up the agent:
 
 ## Configuration
 
-Customize how each agent behaves under **Settings → Agent Console** – agent paths, modes, models, permissions, and tab behavior. Per-agent setup guides are in the [GitHub repo](https://github.com/donivatamazondotcom/obsidian-agent-console).
+Customize how each agent behaves under **Settings → Agent Console** – agent paths, modes, models, permissions, and tab behavior. Per-agent setup guides are in the [documentation](https://donivatamazondotcom.github.io/obsidian-agent-console/).
 
 ## Hotkeys
 
