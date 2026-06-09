@@ -129,6 +129,11 @@ export function ContextStrip({
 							className="context-strip-pill-name"
 							aria-label={displayName(note.path)}
 							onClick={(e) => onPillClick(note.path, e)}
+							onAuxClick={(e) => {
+								if (e.button !== 1) return;
+								e.preventDefault();
+								onPillClick(note.path, e);
+							}}
 						>
 							{displayName(note.path)}
 						</span>
@@ -150,6 +155,11 @@ export function ContextStrip({
 							className="context-strip-pill-name"
 							aria-label={displayName(provisionalPath)}
 							onClick={(e) => onPillClick(provisionalPath, e)}
+							onAuxClick={(e) => {
+								if (e.button !== 1) return;
+								e.preventDefault();
+								onPillClick(provisionalPath, e);
+							}}
 						>
 							{displayName(provisionalPath)}
 						</span>

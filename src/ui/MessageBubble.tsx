@@ -4,6 +4,7 @@ import { setIcon } from "obsidian";
 import type { ChatMessage, MessageContent } from "../types/chat";
 import type { AcpClient } from "../acp/acp-client";
 import type AgentClientPlugin from "../plugin";
+import { deriveNewLeaf } from "../utils/link-leaf";
 import { MarkdownRenderer } from "./shared/MarkdownRenderer";
 import { TerminalBlock } from "./TerminalBlock";
 import { ToolCallBlock } from "./ToolCallBlock";
@@ -46,10 +47,20 @@ function TextWithMentions({
 			<span
 				key="auto-mention"
 				className="agent-client-text-mention"
-				onClick={() => {
+				onClick={(e) => {
 					void plugin.app.workspace.openLinkText(
 						autoMentionContext.notePath,
 						"",
+						deriveNewLeaf(e.nativeEvent),
+					);
+				}}
+				onAuxClick={(e) => {
+					if (e.button !== 1) return;
+					e.preventDefault();
+					void plugin.app.workspace.openLinkText(
+						autoMentionContext.notePath,
+						"",
+						"tab",
 					);
 				}}
 			>
@@ -82,8 +93,21 @@ function TextWithMentions({
 				<span
 					key={match.index}
 					className="agent-client-text-mention"
-					onClick={() => {
-						void plugin.app.workspace.openLinkText(file.path, "");
+					onClick={(e) => {
+						void plugin.app.workspace.openLinkText(
+							file.path,
+							"",
+							deriveNewLeaf(e.nativeEvent),
+						);
+					}}
+					onAuxClick={(e) => {
+						if (e.button !== 1) return;
+						e.preventDefault();
+						void plugin.app.workspace.openLinkText(
+							file.path,
+							"",
+							"tab",
+						);
 					}}
 				>
 					@{noteName}
