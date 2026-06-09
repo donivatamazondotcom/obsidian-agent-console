@@ -245,4 +245,59 @@ describe("validateManifest", () => {
 			/approvalThreshold/,
 		);
 	});
+
+	it("accepts a non-negative minDistinctColors floor", () => {
+		const root = makeFixtureRoot();
+		const entry: ManifestEntry = {
+			name: "with-floor",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			minDistinctColors: 800,
+		};
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
+	});
+
+	it("accepts an entry with no minDistinctColors (global default applies at runtime)", () => {
+		const root = makeFixtureRoot();
+		const entry: ManifestEntry = {
+			name: "no-floor",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+		};
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
+	});
+
+	it("rejects a negative minDistinctColors", () => {
+		const root = makeFixtureRoot();
+		const entry = {
+			name: "bad-floor",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			minDistinctColors: -1,
+		} as ManifestEntry;
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/minDistinctColors/,
+		);
+	});
+
+	it("rejects a non-finite minDistinctColors", () => {
+		const root = makeFixtureRoot();
+		const entry = {
+			name: "nan-floor",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			minDistinctColors: Number.POSITIVE_INFINITY,
+		} as ManifestEntry;
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/minDistinctColors/,
+		);
+	});
 });

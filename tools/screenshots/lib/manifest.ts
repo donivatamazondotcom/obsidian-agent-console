@@ -168,6 +168,20 @@ export interface ManifestEntry {
 	 * deterministic UI like ribbon icons via e.g. `0.001`).
 	 */
 	approvalThreshold?: number;
+	/**
+	 * Content-guard floor: minimum number of distinct RGB colors the final
+	 * (post-shadow) webp must contain, else the capture is rejected as
+	 * blank/degraded and the file is deleted (I11 follow-up). Counted on RGB
+	 * only (alpha ignored), so the transparent shadow margin doesn't inflate
+	 * the count — the value is directly comparable to the committed-file
+	 * calibration (ribbon-icon ~1713, session-history-button ~520,
+	 * mode-selection ~2794, multi-session ~4800). When omitted, the orchestrator
+	 * applies `DEFAULT_MIN_DISTINCT_COLORS` (a low gross-blank backstop). A
+	 * single global floor cannot separate good from bad across entries (a
+	 * degraded ribbon-icon at 400 colors exceeds a healthy
+	 * session-history-button at 219), so calibrated entries set this per-entry.
+	 */
+	minDistinctColors?: number;
 }
 
 export interface Manifest {
@@ -277,6 +291,15 @@ export function validateManifest(
 			if (!Number.isFinite(t) || t < 0 || t > 1) {
 				throw new Error(
 					`manifest entry "${entry.name}" has invalid approvalThreshold: ${t} (must be in [0, 1])`,
+				);
+			}
+		}
+
+		if (entry.minDistinctColors !== undefined) {
+			const m = entry.minDistinctColors;
+			if (!Number.isFinite(m) || m < 0) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid minDistinctColors: ${m} (must be a finite number >= 0)`,
 				);
 			}
 		}

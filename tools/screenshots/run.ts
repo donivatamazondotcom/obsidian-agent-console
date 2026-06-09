@@ -11,7 +11,7 @@
  *
  * Spec: [[Agent Console Screenshot Automation]] § Architecture Impact.
  */
-import { readFileSync, mkdtempSync } from "node:fs";
+import { readFileSync, mkdtempSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseManifest, validateManifest } from "./lib/manifest";
@@ -80,6 +80,20 @@ async function main() {
 		readFile: (p, enc) => readFileSync(p, enc as BufferEncoding),
 		devicePixelRatio: dpr,
 		postProcess: (output) => addDropShadow(output),
+		// Content guard: decode the final webp to raw RGB(A) pixels so the
+		// orchestrator can count distinct colors and reject blank/degraded
+		// captures (I11 follow-up). Read after postProcess (the shadow margin
+		// collapses to a single color, matching the committed-file calibration).
+		loadRaw: async (p) => {
+			const { data, info } = (await sharp(p)
+				.raw()
+				.toBuffer({ resolveWithObject: true })) as {
+				data: Buffer;
+				info: { channels: number };
+			};
+			return { data, channels: info.channels };
+		},
+		unlink: (p) => unlinkSync(p),
 	};
 
 	console.log(

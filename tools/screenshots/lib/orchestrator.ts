@@ -18,6 +18,10 @@ import {
 	type Rect,
 } from "./crop";
 import { deriveOutputPath } from "./output";
+import {
+	countDistinctColors,
+	DEFAULT_MIN_DISTINCT_COLORS,
+} from "./content-guard";
 
 /** Subset of Cdp used by the orchestrator (for DI). */
 export interface CdpLike {
@@ -69,6 +73,19 @@ export interface OrchestratorDeps {
 	devicePixelRatio: number;
 	/** Optional post-processor run on each written output file (e.g. drop shadow). */
 	postProcess?: (outputPath: string) => Promise<void>;
+	/**
+	 * Decode a written image file to raw pixels for the content guard. Injected
+	 * (rather than reusing `sharp` directly) so the guard's final-file read is
+	 * mockable independently of the crop/bg-sampling sharp pipeline. Returns the
+	 * raw pixel buffer and its channel count (stride). Read AFTER postProcess so
+	 * it measures the exact committed artifact (post-shadow webp), which is what
+	 * the I11 distinct-color calibration was measured against.
+	 */
+	loadRaw: (
+		path: string,
+	) => Promise<{ data: Buffer; channels: number }>;
+	/** Remove a file — used to unlink a degraded capture that fails the content guard. */
+	unlink: (path: string) => void;
 }
 
 export interface CaptureResult {
@@ -433,9 +450,30 @@ export async function captureEntry(
 	// 8. Optional post-processing (e.g. drop shadow) on the written file.
 	await deps.postProcess?.(outputPath);
 
-	// 9. Restore mobile emulation
+	// 9. Restore mobile emulation (before the guard, so a guard failure can't
+	// leave the running Obsidian stuck in mobile mode).
 	if (entry.mobile) {
 		await deps.cdp.setMobileEmulation(false);
+	}
+
+	// 10. Content guard (I11 follow-up). The pipeline otherwise reports success
+	// on exit code + output dimensions alone, so a blank/degraded capture (e.g.
+	// the retina-DPR half-resolution shots that collapsed to ~400 distinct
+	// colors with the tooltip lost) still exited ✓ and was only caught by
+	// eyeballing the image. Decode the FINAL post-shadow webp, count distinct
+	// RGB colors (the calibration surface — alpha ignored so the transparent
+	// shadow margin doesn't inflate it), and reject below the per-entry floor
+	// (manifest `minDistinctColors`, else the global blank-catcher default). On
+	// failure, delete the degraded file (sub-decision b — so it can't be
+	// staged) and throw: captureAll records the ✗ and run.ts exits non-zero.
+	const floor = entry.minDistinctColors ?? DEFAULT_MIN_DISTINCT_COLORS;
+	const { data, channels } = await deps.loadRaw(outputPath);
+	const distinct = countDistinctColors(data, channels);
+	if (distinct < floor) {
+		deps.unlink(outputPath);
+		throw new Error(
+			`content guard: "${entry.name}" has ${distinct} distinct colors, below the floor of ${floor} — capture is blank/degraded; deleted ${outputPath}`,
+		);
 	}
 }
 

@@ -14,7 +14,8 @@
 				"openNote": "Welcome.md",
 				"hoverSelector": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"], .side-dock-ribbon-action[aria-label*=\"agent-console\"]"
 			},
-			"approvalThreshold": 0.01
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 800
 		},
 		{
 			"name": "multi-session",
@@ -38,7 +39,8 @@
 				"multi-session.txt"
 			],
 			"draftMessage": "Turn these ideas into a short intro paragraph",
-			"approvalThreshold": 0.1
+			"approvalThreshold": 0.1,
+			"minDistinctColors": 1500
 		},
 		{
 			"name": "session-history-button",
@@ -61,7 +63,8 @@
 				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Session history\"]",
 				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Export chat to Markdown\"]",
 				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"More\"]"
-			]
+			],
+			"minDistinctColors": 120
 		},
 		{
 			"name": "mode-selection",
@@ -80,7 +83,8 @@
 			},
 			"approvalThreshold": 0.01,
 			"promptFile": "connect.txt",
-			"captureMode": "screen"
+			"captureMode": "screen",
+			"minDistinctColors": 1000
 		},
 		{
 			"name": "model-selection",

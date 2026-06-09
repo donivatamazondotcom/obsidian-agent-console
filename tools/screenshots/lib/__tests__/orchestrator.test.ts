@@ -84,6 +84,18 @@ function makeDeps(overrides: Partial<OrchestratorDeps> = {}): OrchestratorDeps {
 		tmpDir: "/fake/tmp",
 		readFile: vi.fn().mockReturnValue("prompt content"),
 		devicePixelRatio: 2,
+		// Healthy by default: 256 distinct RGB colors (R sweeps 0..255), well
+		// above the global floor — so existing tests pass once the guard wires
+		// in. The content-guard reproduce-first tests override this per case.
+		loadRaw: vi.fn().mockResolvedValue({
+			data: Buffer.from(
+				Array.from({ length: 256 * 4 }, (_, k) =>
+					k % 4 === 0 ? Math.floor(k / 4) : k % 4 === 3 ? 255 : 0,
+				),
+			),
+			channels: 4,
+		}),
+		unlink: vi.fn(),
 		...overrides,
 	};
 }
@@ -670,5 +682,84 @@ describe("captureEntry — screen capture mode (popovers)", () => {
 		expect(
 			calls.some((sel) => sel.includes("agent-client-message-assistant")),
 		).toBe(false);
+	});
+});
+
+describe("captureEntry — content guard (I11 follow-up)", () => {
+	const imagesDir = path.join("/fake/repo", "docs", "public", "images");
+
+	it("throws and unlinks the output when distinct colors fall below the floor", async () => {
+		const deps = makeDeps();
+		// A uniform (blank) capture: 1 distinct color, below the global floor.
+		(deps.loadRaw as ReturnType<typeof vi.fn>).mockResolvedValue({
+			data: Buffer.from([10, 10, 10, 255, 10, 10, 10, 255]),
+			channels: 4,
+		});
+		const entry = makeEntry({ name: "blank-shot" });
+
+		await expect(captureEntry(entry, deps)).rejects.toThrow(
+			/distinct color|content guard|below the floor/i,
+		);
+		// (b): the degraded file is deleted so it can't be staged.
+		expect(deps.unlink).toHaveBeenCalledWith(
+			path.join(imagesDir, "blank-shot.webp"),
+		);
+	});
+
+	it("passes (no throw, no unlink) when distinct colors meet the floor", async () => {
+		const deps = makeDeps(); // healthy default loadRaw = 256 distinct
+		const entry = makeEntry({ name: "ok-shot" });
+
+		await expect(captureEntry(entry, deps)).resolves.toBeUndefined();
+		expect(deps.unlink).not.toHaveBeenCalled();
+	});
+
+	it("honors a per-entry minDistinctColors floor above the global default", async () => {
+		const deps = makeDeps();
+		// 256 distinct (default mock) clears the global default (50) but must
+		// fail an 800 floor — the calibrated ribbon-icon case.
+		const entry = makeEntry({ name: "ribbon-icon", minDistinctColors: 800 });
+
+		await expect(captureEntry(entry, deps)).rejects.toThrow(/800/);
+		expect(deps.unlink).toHaveBeenCalledWith(
+			path.join(imagesDir, "ribbon-icon.webp"),
+		);
+	});
+
+	it("measures the final output file AFTER postProcess (loadRaw on the output path, post-shadow)", async () => {
+		const postProcess = vi.fn().mockResolvedValue(undefined);
+		const deps = makeDeps({ postProcess });
+		const entry = makeEntry({ name: "shot" });
+		const outPath = path.join(imagesDir, "shot.webp");
+
+		await captureEntry(entry, deps);
+
+		expect(deps.loadRaw).toHaveBeenCalledWith(outPath);
+		// The guard reads the post-shadow webp, so loadRaw must run after the
+		// postProcess shadow pass (the calibration was measured post-shadow).
+		const loadOrder = (deps.loadRaw as ReturnType<typeof vi.fn>).mock
+			.invocationCallOrder[0];
+		const ppOrder = postProcess.mock.invocationCallOrder[0];
+		expect(loadOrder).toBeGreaterThan(ppOrder);
+	});
+
+	it("guards screen-mode (popover) captures too", async () => {
+		const deps = makeDeps();
+		(deps.loadRaw as ReturnType<typeof vi.fn>).mockResolvedValue({
+			data: Buffer.from([0, 0, 0, 255, 0, 0, 0, 255]),
+			channels: 4,
+		});
+		const entry = makeEntry({
+			name: "mode-selection",
+			captureMode: "screen",
+			crop: { x: 0, y: 0, width: 100, height: 50 },
+		});
+
+		await expect(captureEntry(entry, deps)).rejects.toThrow(
+			/distinct color|content guard|below the floor/i,
+		);
+		expect(deps.unlink).toHaveBeenCalledWith(
+			path.join(imagesDir, "mode-selection.webp"),
+		);
 	});
 });

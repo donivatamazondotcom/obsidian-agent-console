@@ -74,7 +74,8 @@ tools/screenshots/
      "crop": { "x": 0, "y": 0, "width": 400, "height": 300 },
      "initialState": { "clickRibbon": true },
      "promptFile": "my-feature.txt",
-     "approvalThreshold": 0.05
+     "approvalThreshold": 0.05,
+     "minDistinctColors": 800
    }
    ```
 2. Create the prompt fixture at `fixtures/prompts/my-feature.txt` (if needed)
@@ -87,3 +88,28 @@ tools/screenshots/
 - The orchestrator multiplies by `SCREENSHOT_DPR` before passing to `sharp`
 - On a 2× retina display, a 100px CSS crop becomes a 200px device-pixel extract
 - Use Obsidian's DevTools (Cmd+Opt+I → Elements → inspect element → check `getBoundingClientRect()`) to find crop coordinates for new entries
+
+
+## Content Guard
+
+Every capture is validated before the run reports success. After encoding (and
+the drop-shadow pass), the orchestrator decodes the final `.webp` and counts its
+distinct RGB colors. A blank or degraded capture collapses to a handful of
+colors; a healthy shot has hundreds-to-thousands. If the count falls below the
+entry's floor, the file is **deleted** and the run fails loudly with a non-zero
+exit — instead of silently reporting `✓` on a blank image (the gap that hid the
+I11 retina-DPR regression).
+
+- **`minDistinctColors`** (per-entry, optional) — the floor for that entry.
+  Calibrated from known-good captures (counted on the final post-shadow webp,
+  alpha ignored): `ribbon-icon` 800, `session-history-button` 120,
+  `mode-selection` 1000, `multi-session` 1500.
+- **Global default** (`DEFAULT_MIN_DISTINCT_COLORS`, currently 50) applies when
+  an entry sets no floor — a gross-blank backstop only. Per-entry floors do the
+  real work: a single global floor can't separate good from bad across entries
+  (a degraded `ribbon-icon` at ~400 colors exceeds a healthy
+  `session-history-button` at ~219), so calibrated entries set their own.
+
+To calibrate a new entry, capture it once, count the colors of the good output,
+and set `minDistinctColors` to roughly half that (comfortably below the good
+count, well above any degraded floor).
