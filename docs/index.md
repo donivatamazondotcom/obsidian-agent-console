@@ -35,6 +35,9 @@ features:
   - icon: 🔍
     title: Session History
     details: Browse past chats and reopen any session in a tab. Fork from any point to explore alternatives.
+  - icon: 🎨
+    title: Native & Theme-Friendly
+    details: Agent Console adopts Obsidian’s native styling and theme variables instead of hardcoded colors and chrome, so it looks like part of your Obsidian and adapts to any custom theme.
 ---
 
 ## What is Agent Console?
