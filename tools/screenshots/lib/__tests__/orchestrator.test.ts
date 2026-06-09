@@ -626,4 +626,49 @@ describe("captureEntry — screen capture mode (popovers)", () => {
 			.calls;
 		expect(waitCalls.every((c: unknown[]) => c[0] !== ".menu")).toBe(true);
 	});
+
+	it("waits for the send button to go idle (loading-indicator hidden) before screen capture, without requiring an assistant response (I09)", async () => {
+		const deps = makeDeps();
+		const entry = {
+			name: "mode-selection",
+			width: 200,
+			height: 100,
+			crop: { x: 0, y: 0, width: 100, height: 50 },
+			captureMode: "screen" as const,
+			promptFile: "connect.txt",
+			initialState: {
+				clickRibbon: true,
+				clickSelector:
+					".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-toolbar-dropdown:first-child",
+			},
+		};
+
+		await captureEntry(entry, deps);
+
+		const waitMock = deps.cdp.waitForElement as ReturnType<typeof vi.fn>;
+		const calls = waitMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		const idleIdx = calls.findIndex((sel) =>
+			sel.includes("agent-client-loading-indicator.agent-client-hidden"),
+		);
+		const screenMock = deps.cdp
+			.screenCaptureRegion as ReturnType<typeof vi.fn>;
+
+		// The connect prompt for a popover shot puts a turn in-flight; the
+		// send/stop button shows a red STOP square while isSending is true (the
+		// button and the loading indicator are gated on the same flag). The
+		// capture must wait for the indicator to hide (== button idle) before
+		// the screen capture (I09).
+		expect(idleIdx).toBeGreaterThanOrEqual(0);
+		expect(waitMock.mock.invocationCallOrder[idleIdx]).toBeLessThan(
+			screenMock.mock.invocationCallOrder[0],
+		);
+		// Regression guard: screen mode must NOT wait for an assistant response
+		// element. A popover does not need the response, and the connect turn
+		// may end without ever streaming one — requiring it would hang the
+		// capture (observed: a "Hi" connect turn that finished with zero
+		// assistant messages, send button already idle).
+		expect(
+			calls.some((sel) => sel.includes("agent-client-message-assistant")),
+		).toBe(false);
+	});
 });

@@ -201,8 +201,14 @@ export async function captureEntry(
 			`${ACTIVE_PANEL} .agent-client-chat-send-button:not(.agent-client-disabled)`,
 		);
 		await deps.cdp.clickElement(`${ACTIVE_PANEL} .agent-client-chat-send-button`);
-		// Only await the response on the final (screenshotted) tab; earlier tabs
-		// get their title from the sent message and need not finish streaming.
+		// Await the response only on the final (screenshotted) tab, and only in
+		// WINDOW mode; earlier tabs get their title from the sent message and
+		// need not finish streaming. Screen-mode popover shots handle
+		// send-button idle separately, immediately before the capture (I09):
+		// a popover does not need the assistant response (the dropdown is
+		// populated at the ACP handshake, before inference), and the connect
+		// turn may end WITHOUT ever streaming an assistant message — requiring
+		// the assistant element here would hang the capture.
 		if (i === promptFiles.length - 1 && entry.captureMode !== "screen") {
 			// v1.1.0 added a "Connecting…/Sending…" handshake before the
 			// stream begins, during which the loading indicator is still
@@ -221,13 +227,6 @@ export async function captureEntry(
 				RESPONSE_TIMEOUT_MS,
 			);
 		}
-		// captureMode "screen" (popover shots) sends the prompt ONLY to connect
-		// the lazy session — the agent's modes/models populate the toolbar
-		// dropdowns during the ACP handshake ("Connecting…"), before any
-		// inference. We must NOT wait for the assistant response: the inference
-		// may never complete (e.g. Bedrock without creds) and the dropdown —
-		// the actual capture subject — is already present. The clickSelector
-		// step waits for the dropdown to appear before clicking.
 	}
 
 	// 3b. Hide chrome that isn't the subject of this shot (e.g. the chat
@@ -302,6 +301,22 @@ export async function captureEntry(
 	const tmpPath = path.join(deps.tmpDir, `${entry.name}-raw.png`);
 	let effectiveDpr = deps.devicePixelRatio;
 	if (entry.captureMode === "screen") {
+		// I09: ensure the agent turn is idle so the composer send button shows
+		// its send glyph, not the in-flight red STOP square. The connect prompt
+		// for a popover shot puts a turn in-flight; the send/stop button and the
+		// loading indicator are gated on the SAME isSending flag, so the
+		// indicator's hidden state == the button having returned to idle.
+		// Single-phase (NOT the window-mode two-phase) on purpose: a popover
+		// does not need an assistant response — the dropdown populates at the
+		// ACP handshake — and the connect turn may end WITHOUT ever streaming a
+		// response, so requiring the assistant element would hang the capture.
+		// Placed immediately before the capture to minimize the window in which
+		// a late stream could re-arm the STOP square. Resolves instantly when
+		// already idle (e.g. a connect turn that ended without streaming).
+		await deps.cdp.waitForElement(
+			`${ACTIVE_PANEL} .agent-client-loading-indicator.agent-client-hidden`,
+			RESPONSE_TIMEOUT_MS,
+		);
 		const bounds = await deps.cdp.getWindowBounds();
 		await deps.cdp.screenCaptureRegion(tmpPath, {
 			x: bounds.x,
