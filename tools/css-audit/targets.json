@@ -296,47 +296,5 @@
     ],
     "line": 1748,
     "pseudo": false
-  },
-  {
-    "selector": ".agent-client-agent-selector select.dropdown",
-    "props": [
-      "padding",
-      "margin",
-      "border",
-      "border-radius",
-      "background",
-      "background-color",
-      "background-image",
-      "box-shadow",
-      "color",
-      "font-size",
-      "cursor",
-      "outline",
-      "appearance",
-      "-webkit-appearance",
-      "-moz-appearance"
-    ],
-    "line": 2269,
-    "pseudo": false
-  },
-  {
-    "selector": ".agent-client-agent-selector select.dropdown:hover",
-    "props": [
-      "color",
-      "background-color",
-      "box-shadow"
-    ],
-    "line": 2291,
-    "pseudo": true
-  },
-  {
-    "selector": ".agent-client-agent-selector select.dropdown:focus",
-    "props": [
-      "color",
-      "background-color",
-      "box-shadow"
-    ],
-    "line": 2291,
-    "pseudo": true
   }
 ]
