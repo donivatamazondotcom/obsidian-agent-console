@@ -255,7 +255,7 @@ function ScrollToBottomButton({ onClick }: { onClick: () => void }) {
 	return (
 		<button
 			ref={btnRef}
-			className="agent-client-scroll-to-bottom"
+			className="clickable-icon agent-client-scroll-to-bottom"
 			onClick={onClick}
 		/>
 	);

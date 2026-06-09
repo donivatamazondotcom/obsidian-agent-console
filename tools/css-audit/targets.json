@@ -1,0 +1,300 @@
+[
+  {
+    "selector": ".agent-client-scroll-to-bottom",
+    "props": [
+      "padding",
+      "margin",
+      "border",
+      "background-color",
+      "outline",
+      "box-shadow",
+      "min-width",
+      "min-height"
+    ],
+    "line": 63,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-scroll-to-bottom:hover",
+    "props": [
+      "background-color"
+    ],
+    "line": 91,
+    "pseudo": true
+  },
+  {
+    "selector": ".agent-client-permission-option",
+    "props": [
+      "padding",
+      "border",
+      "border-radius",
+      "background-color",
+      "color"
+    ],
+    "line": 406,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-permission-option.agent-client-selected",
+    "props": [
+      "background-color",
+      "color"
+    ],
+    "line": 421,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-permission-option.agent-client-disabled",
+    "props": [
+      "background-color",
+      "color",
+      "cursor"
+    ],
+    "line": 427,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-permission-option.agent-client-permission-kind-allow_always:not( .agent-client-selected ):not(.agent-client-disabled)",
+    "props": [
+      "background-color",
+      "color",
+      "border-color"
+    ],
+    "line": 440,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-permission-option.agent-client-permission-kind-reject_once:not( .agent-client-selected ):not(.agent-client-disabled)",
+    "props": [
+      "background-color",
+      "color",
+      "border-color"
+    ],
+    "line": 448,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-permission-option.agent-client-permission-kind-allow_once:not( .agent-client-selected ):not(.agent-client-disabled)",
+    "props": [
+      "background-color",
+      "color",
+      "border-color"
+    ],
+    "line": 456,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-permission-option:not( .agent-client-permission-kind-allow_always ):not(.agent-client-permission-kind-reject_once):not( .agent-client-permission-kind-allow_once ):not(.agent-client-disabled):not(.agent-client-selected):hover",
+    "props": [
+      "background-color"
+    ],
+    "line": 465,
+    "pseudo": true
+  },
+  {
+    "selector": ".agent-client-chat-error-title",
+    "props": [
+      "margin",
+      "color"
+    ],
+    "line": 711,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-chat-error-message",
+    "props": [
+      "margin"
+    ],
+    "line": 716,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-chat-error-suggestion",
+    "props": [
+      "margin"
+    ],
+    "line": 726,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-error-overlay-title",
+    "props": [
+      "margin",
+      "color"
+    ],
+    "line": 782,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-error-overlay--error .agent-client-error-overlay-title",
+    "props": [
+      "color"
+    ],
+    "line": 790,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-error-overlay--info .agent-client-error-overlay-title",
+    "props": [
+      "color"
+    ],
+    "line": 794,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-error-overlay-close",
+    "props": [
+      "background",
+      "background-color",
+      "border",
+      "box-shadow",
+      "padding",
+      "outline",
+      "color"
+    ],
+    "line": 798,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-error-overlay-close:hover",
+    "props": [
+      "background",
+      "box-shadow"
+    ],
+    "line": 821,
+    "pseudo": true
+  },
+  {
+    "selector": ".agent-client-error-overlay-close:active",
+    "props": [
+      "background",
+      "box-shadow",
+      "outline"
+    ],
+    "line": 827,
+    "pseudo": true
+  },
+  {
+    "selector": ".agent-client-error-overlay-close:focus",
+    "props": [
+      "background",
+      "box-shadow",
+      "outline"
+    ],
+    "line": 827,
+    "pseudo": true
+  },
+  {
+    "selector": ".agent-client-error-overlay-message",
+    "props": [
+      "margin"
+    ],
+    "line": 834,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-error-overlay-suggestion",
+    "props": [
+      "margin"
+    ],
+    "line": 844,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-auto-mention-inline",
+    "props": [
+      "padding",
+      "background",
+      "background-color",
+      "border",
+      "outline",
+      "box-shadow",
+      "min-width",
+      "min-height"
+    ],
+    "line": 1048,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-chat-input-textarea:hover",
+    "props": [
+      "border",
+      "background-color"
+    ],
+    "line": 1133,
+    "pseudo": true
+  },
+  {
+    "selector": ".agent-client-chat-input-textarea:focus",
+    "props": [
+      "border",
+      "outline",
+      "box-shadow"
+    ],
+    "line": 1138,
+    "pseudo": true
+  },
+  {
+    "selector": ".agent-client-toolbar-dropdown",
+    "props": [
+      "padding",
+      "margin",
+      "border",
+      "border-radius",
+      "background",
+      "background-color",
+      "box-shadow"
+    ],
+    "line": 1202,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-toolbar-dropdown:hover",
+    "props": [
+      "background-color"
+    ],
+    "line": 1221,
+    "pseudo": true
+  },
+  {
+    "selector": ".agent-client-toolbar-dropdown:focus",
+    "props": [
+      "background",
+      "box-shadow"
+    ],
+    "line": 1225,
+    "pseudo": true
+  },
+  {
+    "selector": ".agent-client-chat-send-button",
+    "props": [
+      "padding",
+      "margin",
+      "border",
+      "border-radius",
+      "background-color",
+      "outline",
+      "box-shadow"
+    ],
+    "line": 1295,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-chat-send-button.agent-client-disabled",
+    "props": [
+      "cursor"
+    ],
+    "line": 1314,
+    "pseudo": false
+  },
+  {
+    "selector": ".agent-client-attachment-preview-remove",
+    "props": [
+      "box-shadow",
+      "background-color",
+      "color"
+    ],
+    "line": 1748,
+    "pseudo": false
+  }
+]
