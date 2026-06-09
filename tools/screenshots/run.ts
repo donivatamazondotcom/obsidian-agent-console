@@ -46,15 +46,28 @@ async function main() {
 	// padding harmlessly overflows behind the composer (scroll-to-bottom button
 	// is hidden), so ~760px shows the full transcript + composer snugly. The drop shadow adds the
 	// surrounding background. Was 1920x1200 — far too large.
-	await cdp.setViewport(1400, 760);
+	// Clear any stale device-metrics override left in the running Obsidian by a
+	// prior run — it survives setup.sh's plugin reload and persists across
+	// separate invocations. Without this, the previous run's
+	// deviceScaleFactor:1 override pins window.devicePixelRatio to 1 here, so we
+	// detect the wrong DPR and capture at half resolution on a retina display,
+	// dropping fine detail like tooltip text (I11).
+	await cdp.clearViewport();
 
-	// Device pixel ratio: env override, else detect from the live window.
-	// The capture PNG is in device pixels but getBoundingClientRect returns
-	// CSS px; a wrong DPR makes the scaled crop overrun the image (sharp
-	// "bad extract area"). Observed dpr=1 on this display, not the old 2.
+	// Device pixel ratio: env override, else detect the REAL value from the live
+	// window (now that the stale override is cleared). The capture PNG is in
+	// device pixels but getBoundingClientRect returns CSS px; the crop is scaled
+	// by this DPR, which MUST match the viewport's deviceScaleFactor below.
 	const dpr = process.env.SCREENSHOT_DPR
 		? parseInt(process.env.SCREENSHOT_DPR, 10)
 		: await cdp.evaluate<number>("window.devicePixelRatio");
+
+	// Apply the capture viewport at the REAL device scale factor. Forcing
+	// deviceScaleFactor:1 on a dpr=2 display halved the captured resolution and
+	// dropped fine detail (I11); the crop region (CSS px) is unchanged, only
+	// fidelity improves. Must be set AFTER DPR detection (setting it first with
+	// deviceScaleFactor:1 was the bug — it pinned the detected DPR to 1).
+	await cdp.setViewport(1400, 760, dpr);
 
 	// Wire up real deps
 	const sharp = (await import("sharp")).default;

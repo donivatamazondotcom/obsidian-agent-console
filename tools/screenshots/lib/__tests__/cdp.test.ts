@@ -339,3 +339,60 @@ describe("Cdp.setMobileEmulation", () => {
 		expect(args).toEqual(["dev:mobile", "off"]);
 	});
 });
+
+describe("Cdp.setViewport (I11 — DPR fidelity)", () => {
+	it("emits Emulation.setDeviceMetricsOverride with the given deviceScaleFactor", async () => {
+		spawnMock.mockReturnValueOnce(
+			makeFakeProc({ stdout: "{}", exitCode: 0 }),
+		);
+		const cdp = new Cdp();
+		await cdp.setViewport(1400, 760, 2);
+		const [cmd, args] = spawnMock.mock.calls[0] as [string, string[]];
+		expect(cmd).toBe("obsidian");
+		expect(args[0]).toBe("dev:cdp");
+		expect(args).toContain("method=Emulation.setDeviceMetricsOverride");
+		const paramsArg = args.find((a) => a.startsWith("params="))!;
+		const params = JSON.parse(paramsArg.slice("params=".length)) as {
+			width: number;
+			height: number;
+			deviceScaleFactor: number;
+			mobile: boolean;
+		};
+		// Forcing deviceScaleFactor:1 on a retina (dpr=2) display halved the
+		// captured resolution and dropped fine detail (I11); run.ts now passes
+		// the detected real DPR through.
+		expect(params).toEqual({
+			width: 1400,
+			height: 760,
+			deviceScaleFactor: 2,
+			mobile: false,
+		});
+	});
+
+	it("defaults deviceScaleFactor to 1 when omitted (back-compat)", async () => {
+		spawnMock.mockReturnValueOnce(
+			makeFakeProc({ stdout: "{}", exitCode: 0 }),
+		);
+		const cdp = new Cdp();
+		await cdp.setViewport(800, 600);
+		const [, args] = spawnMock.mock.calls[0] as [string, string[]];
+		const params = JSON.parse(
+			args.find((a) => a.startsWith("params="))!.slice("params=".length),
+		) as { deviceScaleFactor: number };
+		expect(params.deviceScaleFactor).toBe(1);
+	});
+});
+
+describe("Cdp.clearViewport (I11)", () => {
+	it("emits Emulation.clearDeviceMetricsOverride", async () => {
+		spawnMock.mockReturnValueOnce(
+			makeFakeProc({ stdout: "{}", exitCode: 0 }),
+		);
+		const cdp = new Cdp();
+		await cdp.clearViewport();
+		const [cmd, args] = spawnMock.mock.calls[0] as [string, string[]];
+		expect(cmd).toBe("obsidian");
+		expect(args[0]).toBe("dev:cdp");
+		expect(args).toContain("method=Emulation.clearDeviceMetricsOverride");
+	});
+});

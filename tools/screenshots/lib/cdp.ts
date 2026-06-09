@@ -384,10 +384,32 @@ export class Cdp {
 		await this.runRaw(["dev:mobile", enabled ? "on" : "off"]);
 	}
 
-	/** Override the renderer viewport via Emulation.setDeviceMetricsOverride. */
-	async setViewport(width: number, height: number): Promise<void> {
-		const params = JSON.stringify({ width, height, deviceScaleFactor: 1, mobile: false });
+	/**
+	 * Override the renderer viewport via Emulation.setDeviceMetricsOverride.
+	 * `deviceScaleFactor` MUST match the real display DPR for capture fidelity:
+	 * forcing 1 on a retina (dpr=2) display halves the captured resolution and
+	 * drops fine detail such as tooltip text (I11). Defaults to 1 for
+	 * back-compat; run.ts passes the detected real DPR.
+	 */
+	async setViewport(
+		width: number,
+		height: number,
+		deviceScaleFactor = 1,
+	): Promise<void> {
+		const params = JSON.stringify({ width, height, deviceScaleFactor, mobile: false });
 		await this.runRaw(["dev:cdp", "method=Emulation.setDeviceMetricsOverride", `params=${params}`]);
+	}
+
+	/**
+	 * Clear any active device-metrics override. The override persists in the
+	 * running Obsidian's CDP session across separate `npm run docs:screenshots`
+	 * invocations and survives setup.sh's plugin reload, so a prior run's
+	 * override (e.g. deviceScaleFactor:1) otherwise pins window.devicePixelRatio
+	 * to a stale value when the next run detects DPR (I11). Call before DPR
+	 * detection.
+	 */
+	async clearViewport(): Promise<void> {
+		await this.runRaw(["dev:cdp", "method=Emulation.clearDeviceMetricsOverride", "params={}"]);
 	}
 
 	/**
