@@ -408,7 +408,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 
 .agent-client-permission-option.agent-client-selected {
 	background-color: var(--interactive-accent);
-	color: white;
+	color: var(--text-on-accent);
 	font-weight: 600;
 }
 
@@ -429,7 +429,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 		.agent-client-selected
 	):not(.agent-client-disabled) {
 	background-color: var(--color-green);
-	color: white;
+	color: var(--text-on-accent);
 	border-color: var(--color-green);
 }
 
@@ -437,7 +437,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 		.agent-client-selected
 	):not(.agent-client-disabled) {
 	background-color: var(--color-red);
-	color: white;
+	color: var(--text-on-accent);
 	border-color: var(--color-red);
 }
 
@@ -445,7 +445,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 		.agent-client-selected
 	):not(.agent-client-disabled) {
 	background-color: var(--color-orange);
-	color: white;
+	color: var(--text-on-accent);
 	border-color: var(--color-orange);
 }
 
@@ -1385,7 +1385,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .agent-client-terminal-renderer-exit {
 	margin-top: 8px;
 	padding: 4px 8px;
-	color: white;
+	color: var(--text-on-accent);
 	border-radius: var(--radius-s);
 	font-size: 11px;
 	font-family: var(--font-interface);
