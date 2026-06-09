@@ -1,26 +1,20 @@
 /**
- * I35 — chat panel internal links honor Obsidian modifier/leaf semantics.
+ * I35 — deriveNewLeaf delegates to Obsidian's `Keymap.isModEvent`.
  *
- * Exercises the REAL `deriveNewLeaf` helper that both chat render paths
- * (MarkdownRenderer assistant wikilinks, MessageBubble user mentions) call
- * to map a mouse event to a `newLeaf` PaneType. These cases FAIL against the
- * pre-fix code, which never created the helper and passed `""` (→ plain open,
- * modifier discarded) at every call site.
- *
- * `Keymap.isModEvent` is mocked inline to a platform-agnostic contract
- * (mod = metaKey OR ctrlKey) so the matrix is deterministic regardless of the
- * host OS. The helper's own branching — middle-click first, then mod+alt, then
- * mod — is what's under test, not Obsidian's internal isModEvent.
+ * After the parity work landed on `Keymap.isModEvent` (the sanctioned resolver),
+ * `deriveNewLeaf` is a thin passthrough: the modifier→pane mapping
+ * (tab/split/window/middle) is Obsidian's responsibility, not ours, and cannot
+ * be exercised in jsdom (the real `isModEvent` is provided by the Obsidian
+ * runtime). These tests assert the wrapper's actual contract — that it forwards
+ * the event to `isModEvent` and returns its result unchanged — rather than
+ * re-asserting a mapping we no longer own.
  */
 import { describe, it, expect, vi } from "vitest";
 
+const { isModEvent } = vi.hoisted(() => ({ isModEvent: vi.fn() }));
+
 vi.mock("obsidian", () => ({
-	Keymap: {
-		// Mirror Obsidian's documented core purpose: truthy when the
-		// platform mod key (Cmd on macOS, Ctrl elsewhere) is held.
-		isModEvent: (evt: MouseEvent) =>
-			evt.metaKey || evt.ctrlKey ? "tab" : false,
-	},
+	Keymap: { isModEvent },
 }));
 
 import { deriveNewLeaf } from "../link-leaf";
@@ -37,43 +31,17 @@ function mouse(init: Partial<MouseEvent>): MouseEvent {
 }
 
 describe("deriveNewLeaf", () => {
-	it("plain left-click → false (honor alwaysOpenInNewTab)", () => {
-		expect(deriveNewLeaf(mouse({ button: 0 }))).toBe(false);
+	it("returns whatever Keymap.isModEvent returns, unchanged", () => {
+		for (const ret of ["tab", "split", "window", false] as const) {
+			isModEvent.mockReturnValue(ret);
+			expect(deriveNewLeaf(mouse({}))).toBe(ret);
+		}
 	});
 
-	it("Cmd+click (macOS) → new tab", () => {
-		expect(deriveNewLeaf(mouse({ button: 0, metaKey: true }))).toBe("tab");
-	});
-
-	it("Ctrl+click (Windows/Linux) → new tab", () => {
-		expect(deriveNewLeaf(mouse({ button: 0, ctrlKey: true }))).toBe("tab");
-	});
-
-	it("Cmd+Alt+click → split pane", () => {
-		expect(
-			deriveNewLeaf(mouse({ button: 0, metaKey: true, altKey: true })),
-		).toBe("split");
-	});
-
-	it("Ctrl+Alt+click → split pane", () => {
-		expect(
-			deriveNewLeaf(mouse({ button: 0, ctrlKey: true, altKey: true })),
-		).toBe("split");
-	});
-
-	it("middle-click → new tab, regardless of modifiers", () => {
-		expect(deriveNewLeaf(mouse({ button: 1 }))).toBe("tab");
-		expect(deriveNewLeaf(mouse({ button: 1, metaKey: true }))).toBe("tab");
-		expect(
-			deriveNewLeaf(mouse({ button: 1, metaKey: true, altKey: true })),
-		).toBe("tab");
-	});
-
-	it("Alt+click without mod → false (alt alone is not a leaf modifier)", () => {
-		expect(deriveNewLeaf(mouse({ button: 0, altKey: true }))).toBe(false);
-	});
-
-	it("right-click (button 2) → false (handled by caller's guard, not a leaf)", () => {
-		expect(deriveNewLeaf(mouse({ button: 2 }))).toBe(false);
+	it("forwards the exact event to Keymap.isModEvent", () => {
+		isModEvent.mockReturnValue("tab");
+		const evt = mouse({ button: 1, metaKey: true });
+		deriveNewLeaf(evt);
+		expect(isModEvent).toHaveBeenCalledWith(evt);
 	});
 });

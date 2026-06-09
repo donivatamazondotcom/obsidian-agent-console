@@ -59,6 +59,7 @@ Clicking follows the same conventions as links elsewhere in Obsidian:
 | Click | Opens the note (honors your **Always open in new tab** setting) |
 | Cmd/Ctrl + click | Opens in a new tab |
 | Cmd/Ctrl + Alt + click | Opens in a split pane |
+| Cmd/Ctrl + Alt + Shift + click | Opens in a new window |
 | Middle-click | Opens in a new tab |
 
 ## Length Limits

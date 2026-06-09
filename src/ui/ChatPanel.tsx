@@ -11,6 +11,7 @@ import {
 
 import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
+import { deriveNewLeaf } from "../utils/link-leaf";
 import { useHistoryModal } from "../hooks/useHistoryModal";
 import { useChatActions } from "../hooks/useChatActions";
 import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
@@ -450,15 +451,15 @@ export function ChatPanel({
 
 	const handleContextPillClick = useCallback(
 		(path: string, event: React.MouseEvent) => {
-			let newLeaf: boolean | "tab" | "split" | "window" = false;
-			if (event.metaKey || event.ctrlKey) {
-				newLeaf = event.altKey
-					? "window"
-					: event.shiftKey
-						? "split"
-						: "tab";
-			}
-			void plugin.app.workspace.openLinkText(path, "", newLeaf);
+			// Right-click (button 2) arrives via onAuxClick on the pill; ignore
+			// it so the default menu survives. Left-click and middle-click route
+			// through the shared deriveNewLeaf for parity with chat-panel links.
+			if (event.button !== 0 && event.button !== 1) return;
+			void plugin.app.workspace.openLinkText(
+				path,
+				"",
+				deriveNewLeaf(event.nativeEvent),
+			);
 		},
 		[plugin.app.workspace],
 	);
