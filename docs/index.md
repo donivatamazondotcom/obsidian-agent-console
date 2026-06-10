@@ -23,6 +23,9 @@ features:
   - icon: 📌
     title: Context You Control
     details: A context strip shows exactly what the agent sees. Pin the notes you want and they stay put as you move around your vault, instead of silently changing under you. @mentions, dragged-in images, and slash commands still work.
+  - icon: 🪶
+    title: Context Budget Goes Further
+    details: Context notes are referenced, not re-pasted into every message — so a long multi-turn chat uses 65–80% fewer context tokens than re-sending a note's full content each turn. More window left for the actual work.
   - icon: 🎛️
     title: Per-Tab Mode and Model
     details: Switch modes and models per chat without restarting. Each tab remembers its choices.
