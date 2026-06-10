@@ -1387,7 +1387,11 @@ export function ChatPanel({
 	const headerElement = (
 		<ChatHeader
 			agentLabel={activeAgentLabel}
-			headerSegments={{...headerSegments, isLazyIdle: lazySession.state === "idle"}}
+			headerSegments={{
+				...headerSegments,
+				isLazyIdle: lazySession.state === "idle",
+				isConnecting: lazySession.state === "connecting",
+			}}
 			isUpdateAvailable={isUpdateAvailable}
 			onNewChat={() => void handleNewChatWithPersist()}
 			onExportChat={() => void handleExportChat()}

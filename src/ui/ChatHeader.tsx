@@ -12,8 +12,11 @@ import { setIcon } from "obsidian";
  * See `Agent Console Header Branding` spec. Plugin and profile are always
  * present (client-sourced); runtime and model are null while the session is
  * connecting (ACP-sourced, populated after `initialize` and `session/new`
- * respectively). When both are null, the renderer shows a single
- * "Connecting…" placeholder in the secondary slot.
+ * respectively). While the session is genuinely connecting (`isConnecting`),
+ * the secondary slot shows a "Connecting…" placeholder. A `ready` session that
+ * simply never reported a model (e.g. Claude Code, which does not send
+ * `session/models` over ACP) leaves the secondary slot empty rather than
+ * stuck on "Connecting…" (see I80).
  */
 export interface HeaderSegments {
 	/** Plugin name from manifest (e.g. "Agent Console"); rendered in literal brackets. */
@@ -26,6 +29,13 @@ export interface HeaderSegments {
 	model: string | null;
 	/** Whether the tab is in lazy-idle state (no connection attempted yet) */
 	isLazyIdle?: boolean;
+	/**
+	 * Whether session acquisition is genuinely in flight (lazySession.state
+	 * === "connecting"). Gates the "Connecting…" placeholder so a `ready`
+	 * session that never reported a model does NOT render "Connecting…"
+	 * forever. See I80.
+	 */
+	isConnecting?: boolean;
 }
 
 // ============================================================================
@@ -162,8 +172,9 @@ function useHeaderWidthTier(
  * Visual treatment:
  *   - Primary segments (plugin prefix, profile) use default text color
  *   - Secondary segment (model) uses --text-muted
- *   - When `model` is null (session connecting), shows a single "Connecting…"
- *     placeholder in the secondary slot
+ *   - When the session is connecting (`isConnecting`) and no model is known
+ *     yet, shows a single "Connecting…" placeholder in the secondary slot.
+ *     A `ready` session with no model (e.g. Claude Code) shows no placeholder.
  *
  * Truncation: the parent slot (passed via `widthRef`) is observed for width;
  * a CSS class `.acp-header-branded--{tier}` on this element toggles visibility
@@ -191,7 +202,8 @@ function BrandedTitle({
 
 	const showPlugin = tier === "wide";
 	const showModel = !!segments.model;
-	const showConnectingPlaceholder = !segments.model && !segments.isLazyIdle;
+	const showConnectingPlaceholder =
+		!segments.model && !segments.isLazyIdle && !!segments.isConnecting;
 	const showIdlePlaceholder = !segments.model && !!segments.isLazyIdle;
 
 	const rootClass = `acp-header-branded acp-header-branded--${tier}`;
