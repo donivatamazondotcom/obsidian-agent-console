@@ -79,7 +79,7 @@ You’ll need an AI agent installed on your computer. Popular choices:
 * [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) – Anthropic’s coding agent
 * [Codex](https://github.com/zed-industries/codex-acp) – Zed’s reference agent
 * [Gemini CLI](https://github.com/google-gemini/gemini-cli) – Google’s command-line agent
-* Custom agents like OpenCode, Qwen Code, Mistral Vibe, and others
+* Custom agents like OpenCode, Qwen Code, and others
 
 Once you’ve set up the agent:
 

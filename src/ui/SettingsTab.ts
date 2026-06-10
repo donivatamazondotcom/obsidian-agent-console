@@ -122,7 +122,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Active note as default context")
 			.setDesc(
-				"Automatically add the active note to a new chat's context strip. You can always crystallize notes manually with the grab button.",
+				"Automatically add the active note to a new chat's context strip. You can always pin notes manually with the grab button.",
 			)
 			.addToggle((toggle) =>
 				toggle

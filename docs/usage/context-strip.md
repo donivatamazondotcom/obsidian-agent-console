@@ -10,15 +10,15 @@ Without the context strip, the agent's context follows whatever note you happen 
 
 Each note in context shows as a **pill** in the strip. There are two kinds:
 
-- **Pinned pill (solid):** a note you've locked into this chat. It stays until you remove it.
+- **Pinned pill (solid):** a note you've pinned to this chat. It stays until you remove it.
 - **Provisional pill (dashed):** the note you currently have open, riding along as a suggestion. It becomes part of the conversation only when you send your first message.
 
-When you send a message, any provisional pill **locks in** and becomes a pinned pill. From then on, the chat keeps that context no matter which note you open next.
+When you send a message, any provisional pill **pins** and becomes a pinned pill. From then on, the chat keeps that context no matter which note you open next.
 
 ## Pinning and removing notes
 
 - **Grab the active note:** click the grab button in the strip, or run the **"Toggle active note in context"** command (bind it to a hotkey for one-key pinning). Running it again ungrabs the note.
-- **Add more notes:** `@mention` them in your message — mentioned notes lock into pills when you send.
+- **Add more notes:** `@mention` them in your message — mentioned notes pin into pills when you send.
 - **Remove a note:** click the ✕ on its pill, or — with the text field empty — press **Backspace** to remove the rightmost pill. A provisional (dashed) pill goes in a single press; a pinned pill highlights on the first Backspace and clears on the second.
 
 ## Default context
