@@ -1,14 +1,18 @@
 {
-	"updated": "2026-06-10T05:45:14.600Z",
+	"updated": "2026-06-10T05:55:30.954Z",
 	"thresholdPct": 15,
 	"benchmarks": {
 		"8 notes, reference-only, no selection": {
-			"hz": 6636911.0442857,
-			"mean": 0.0001506725031158867
+			"hz": 6666661.880002783,
+			"mean": 0.00015000010770001472
 		},
 		"8 notes, embedded, with selection": {
-			"hz": 1038187.5847249497,
-			"mean": 0.0009632170666584624
+			"hz": 981904.4859035033,
+			"mean": 0.001018428996258069
+		},
+		"8 valid + 4 malformed (restore validation path)": {
+			"hz": 1770826.8985457018,
+			"mean": 0.0005647079343674155
 		}
 	}
 }
