@@ -24,6 +24,12 @@ import {
 	DEFAULT_MIN_DISTINCT_COLORS,
 } from "./content-guard";
 import { checkLegibility } from "./legibility";
+import {
+	resolveCleanlinessConfig,
+	buildCleanlinessProbeExpression,
+	evaluateCleanliness,
+	type CleanlinessProbeResult,
+} from "./cleanliness";
 
 /** Subset of Cdp used by the orchestrator (for DI). */
 export interface CdpLike {
@@ -332,6 +338,29 @@ export async function captureEntry(
 					`(${mustShowBounds.x},${mustShowBounds.y},${mustShowBounds.width},${mustShowBounds.height}) ` +
 					`is outside the crop region ` +
 					`(${cropCss.x},${cropCss.y},${cropCss.width},${cropCss.height})`,
+			);
+		}
+	}
+	// 4d. Tier-2 cleanliness assert (rubric P7). The renderer DOM is queryable
+	// regardless of capture backend, so this runs for BOTH window and screen
+	// mode (unlike the 4c mustShow assert, which needs renderer crop coords).
+	// Fail before capturing if a forbidden element is VISIBLE (error overlay,
+	// tab/session-history error, stray notice) or a forbidden internal-name
+	// string appears in the visible text (guards an internal-agent-name leak
+	// regression — the fixtures run Claude Code/Bedrock). Per-entry
+	// forbiddenSelectors/forbiddenText merge with the verified global defaults.
+	{
+		const cfg = resolveCleanlinessConfig(
+			entry.forbiddenSelectors,
+			entry.forbiddenText,
+		);
+		const probe = await deps.cdp.evaluate<CleanlinessProbeResult>(
+			buildCleanlinessProbeExpression(cfg),
+		);
+		const { ok, violations } = evaluateCleanliness(probe);
+		if (!ok) {
+			throw new Error(
+				`cleanliness assert: "${entry.name}" — ${violations.join("; ")}`,
 			);
 		}
 	}

@@ -453,3 +453,66 @@ describe("validateManifest — minLegibilityScale (rubric P5)", () => {
 		);
 	});
 });
+
+describe("validateManifest — forbidden* cleanliness fields (rubric P7)", () => {
+	const base = (over: Partial<ManifestEntry>): ManifestEntry => ({
+		name: "clean-entry",
+		width: 200,
+		height: 200,
+		crop: { x: 0, y: 0, width: 400, height: 400 },
+		...over,
+	});
+
+	it("accepts arrays of non-empty selector/text strings", () => {
+		const root = makeFixtureRoot();
+		expect(() =>
+			validateManifest(
+				{
+					entries: [
+						base({
+							forbiddenSelectors: [".agent-client-unrelated-leaf"],
+							forbiddenText: ["SecretCodename"],
+						}),
+					],
+				},
+				root,
+			),
+		).not.toThrow();
+	});
+
+	it("accepts an empty array (adds nothing to the defaults)", () => {
+		const root = makeFixtureRoot();
+		expect(() =>
+			validateManifest(
+				{ entries: [base({ forbiddenSelectors: [] })] },
+				root,
+			),
+		).not.toThrow();
+	});
+
+	it("rejects a non-array forbiddenSelectors", () => {
+		const root = makeFixtureRoot();
+		const entry = base({
+			forbiddenSelectors: ".not-an-array" as unknown as string[],
+		});
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/forbiddenSelectors/,
+		);
+	});
+
+	it("rejects empty/blank strings in forbiddenSelectors", () => {
+		const root = makeFixtureRoot();
+		const entry = base({ forbiddenSelectors: [".ok", "  "] });
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/forbiddenSelectors/,
+		);
+	});
+
+	it("rejects empty/blank strings in forbiddenText", () => {
+		const root = makeFixtureRoot();
+		const entry = base({ forbiddenText: ["Auto-SA", ""] });
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/forbiddenText/,
+		);
+	});
+});

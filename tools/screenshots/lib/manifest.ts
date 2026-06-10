@@ -197,6 +197,21 @@ export interface ManifestEntry {
 	minLegibilityScale?: number;
 
 	/**
+	 * Tier-2 cleanliness (rubric P7): extra CSS selectors that must NOT be
+	 * VISIBLE in the frame at capture time, MERGED with the verified global
+	 * `DEFAULT_FORBIDDEN_SELECTORS` (error overlay, tab/session-history error,
+	 * stray notice). Use for shot-specific exclusions (e.g. an unrelated leaf).
+	 * A visible match fails the run before capture.
+	 */
+	forbiddenSelectors?: string[];
+	/**
+	 * Tier-2 cleanliness (rubric P7): extra case-insensitive substrings that
+	 * must NOT appear in the visible text, MERGED with `DEFAULT_FORBIDDEN_TEXT`
+	 * (internal agent-fleet leak markers). Use for shot-specific internal names.
+	 */
+	forbiddenText?: string[];
+
+	/**
 	 * Tier-1 editorial intent (screenshot quality rubric P1/P2/P4/P9). A
 	 * one-line statement of what this shot communicates. Required when
 	 * `placement` is "hero" or "feature".
@@ -362,6 +377,30 @@ export function validateManifest(
 			}
 		}
 
+		if (entry.forbiddenSelectors !== undefined) {
+			if (
+				!Array.isArray(entry.forbiddenSelectors) ||
+				!entry.forbiddenSelectors.every(
+					(s) => typeof s === "string" && s.trim() !== "",
+				)
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid forbiddenSelectors: must be an array of non-empty strings`,
+				);
+			}
+		}
+		if (entry.forbiddenText !== undefined) {
+			if (
+				!Array.isArray(entry.forbiddenText) ||
+				!entry.forbiddenText.every(
+					(s) => typeof s === "string" && s.trim() !== "",
+				)
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid forbiddenText: must be an array of non-empty strings`,
+				);
+			}
+		}
 		if (entry.cropSelectors !== undefined) {
 			if (
 				!Array.isArray(entry.cropSelectors) ||

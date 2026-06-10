@@ -893,3 +893,74 @@ describe("captureEntry — legibility floor (rubric P5)", () => {
 		await expect(captureEntry(entry, deps)).resolves.toBeUndefined();
 	});
 });
+
+describe("captureEntry — cleanliness assert (rubric P7)", () => {
+	function cdpWithProbe(probe: {
+		selectors: string[];
+		text: string[];
+	}) {
+		const cdp = makeMockCdp();
+		cdp.evaluate = vi.fn().mockImplementation((expr: string) =>
+			typeof expr === "string" && expr.includes("__cleanliness_probe__")
+				? Promise.resolve(probe)
+				: Promise.resolve(undefined),
+		);
+		return cdp;
+	}
+
+	it("throws when a forbidden element is visible (error overlay), before capture", async () => {
+		const cdp = cdpWithProbe({
+			selectors: [".agent-client-error-overlay"],
+			text: [],
+		});
+		const deps = makeDeps({ cdp: cdp as unknown as OrchestratorDeps["cdp"] });
+		const entry = makeEntry({ name: "dirty-error" });
+
+		await expect(captureEntry(entry, deps)).rejects.toThrow(/cleanliness/i);
+		// fails before the capture (no wasted screenshot) and before the guard
+		expect(cdp.screenshot).not.toHaveBeenCalled();
+		expect(deps.unlink).not.toHaveBeenCalled();
+	});
+
+	it("throws when a forbidden internal-name string is present (leak guard)", async () => {
+		const cdp = cdpWithProbe({ selectors: [], text: ["Auto-SA"] });
+		const deps = makeDeps({ cdp: cdp as unknown as OrchestratorDeps["cdp"] });
+		const entry = makeEntry({ name: "leaky" });
+
+		await expect(captureEntry(entry, deps)).rejects.toThrow(
+			/cleanliness|forbidden text/i,
+		);
+		expect(cdp.screenshot).not.toHaveBeenCalled();
+	});
+
+	it("runs the probe and captures when the frame is clean", async () => {
+		const cdp = cdpWithProbe({ selectors: [], text: [] });
+		const deps = makeDeps({ cdp: cdp as unknown as OrchestratorDeps["cdp"] });
+		const entry = makeEntry({ name: "clean" });
+
+		await expect(captureEntry(entry, deps)).resolves.toBeUndefined();
+		const exprs = (cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c: unknown[]) => c[0] as string,
+		);
+		expect(exprs.some((e) => e.includes("__cleanliness_probe__"))).toBe(true);
+		expect(cdp.screenshot).toHaveBeenCalledTimes(1);
+	});
+
+	it("runs the cleanliness probe for screen-mode entries too", async () => {
+		const cdp = cdpWithProbe({
+			selectors: [".agent-client-tab-error"],
+			text: [],
+		});
+		const deps = makeDeps({ cdp: cdp as unknown as OrchestratorDeps["cdp"] });
+		const entry = makeEntry({
+			name: "screen-dirty",
+			captureMode: "screen",
+			crop: { x: 0, y: 0, width: 100, height: 50 },
+			width: 100,
+			height: 50,
+		});
+
+		await expect(captureEntry(entry, deps)).rejects.toThrow(/cleanliness/i);
+		expect(cdp.screenCaptureRegion).not.toHaveBeenCalled();
+	});
+});
