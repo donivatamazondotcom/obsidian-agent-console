@@ -23,3 +23,13 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # Gate B-v1 (perf) — phase 1: warn-only / observe.
+      # Surfaces benchmark numbers so we can learn the noise floor (spec QG4).
+      # Does NOT diff against the committed perf-baseline.json: that baseline is
+      # seeded on the maintainer's hardware, and ubuntu runners differ enough that
+      # a cross-hardware diff would be noise. Same-runner base-vs-PR comparison
+      # and the flip to blocking are phase 2.
+      - name: Perf benchmarks (warn-only)
+        continue-on-error: true
+        run: npm run bench

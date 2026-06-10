@@ -22,7 +22,7 @@ Depending on the agent's capabilities, you can perform the following actions:
 |--------|-------------|
 | **Edit title** | Rename the session from the history modal |
 | **Restore** | Resume the session where you left off |
-| **Fork** | Create a new branch from that point in the conversation |
+| **Fork** *(experimental)* | Create a new branch from that point — only shown for agents that advertise the experimental session-fork capability |
 | **Delete** | Remove the session from history |
 
 ::: tip
@@ -64,6 +64,10 @@ Forking creates a new session branching from a previous point:
 3. New messages go to the forked session
 
 Use fork when you want to **explore a different direction** without affecting the original conversation.
+
+::: warning
+Forking relies on an **experimental** agent capability (`session/fork`). The Fork action only appears when your agent advertises support — most agents currently do not, so you may never see it.
+:::
 
 ## Deleting Sessions
 

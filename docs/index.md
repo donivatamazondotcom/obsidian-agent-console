@@ -23,28 +23,31 @@ features:
   - icon: 📌
     title: Context You Control
     details: A context strip shows exactly what the agent sees. Pin the notes you want and they stay put as you move around your vault, instead of silently changing under you. @mentions, dragged-in images, and slash commands still work.
+  - icon: 🪶
+    title: Context Budget Goes Further
+    details: Context notes are referenced, not re-pasted into every message — so a long multi-turn chat uses 65–80% fewer context tokens than re-sending a note's full content each turn. More window left for the actual work.
   - icon: 🎛️
-    title: Per-Tab Mode and Model
-    details: Switch modes and models per chat without restarting. Each tab remembers its choices.
+    title: A Model for Every Task
+    details: Run a fast model in one tab and a heavyweight one in another. Switch model or mode mid-conversation — each tab keeps its own choice, so the right tool is always one tab away.
   - icon: 💻
-    title: Terminal Integration
-    details: Agents execute shell commands and show output inline in chat. Permission-controlled.
-  - icon: 💾
-    title: Chat Export
-    details: Save sessions as markdown into your vault for future reference and search.
+    title: See and Approve What Runs
+    details: When an agent runs a command, you see it and its output right in the chat — and anything that touches your system waits for your approval first. No black-box actions.
   - icon: 🔍
     title: Session History
-    details: Browse past chats and reopen any session in a tab. Fork from any point to explore alternatives.
+    details: Browse past chats and reopen any session in a tab — pick up a previous conversation right where it left off.
   - icon: 🎨
     title: Native & Theme-Friendly
     details: Agent Console adopts Obsidian’s native styling and theme variables instead of hardcoded colors and chrome, so it looks like part of your Obsidian and adapts to any custom theme.
+  - icon: 🛡️
+    title: Built to Be Reliable
+    details: 330+ automated tests, lint and build checks on every change, a token-efficiency benchmark you can run yourself, and performance tracked against a baseline — so updates stay solid as the plugin grows.
 ---
 
 ## What is Agent Console?
 
 Agent Console is an Obsidian plugin built on the [Agent Client Protocol (ACP)](https://github.com/zed-industries/agent-client-protocol). It connects your vault to AI coding agents — Claude Code, Codex, Gemini CLI, Kiro CLI, and custom ACP-compatible agents — and lets you run several at once in a tabbed sidebar, so you can keep working while agents work.
 
-It is a fork of [RAIT-09/obsidian-agent-client](https://github.com/RAIT-09/obsidian-agent-client) (Apache-2.0) that adds tabbed multi-session UX and ships as a separately-distributed plugin. See [NOTICE](https://github.com/donivatamazondotcom/obsidian-agent-console/blob/main/NOTICE) for full attribution.
+Agent Console is based on [Agent Client](https://github.com/RAIT-09/obsidian-agent-client) by [@RAIT-09](https://github.com/RAIT-09), originally released under Apache-2.0. See [NOTICE](https://github.com/donivatamazondotcom/obsidian-agent-console/blob/main/NOTICE) for full attribution.
 
 ### Supported Agents
 

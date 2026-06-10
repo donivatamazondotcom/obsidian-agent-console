@@ -19,6 +19,7 @@ Agent Console fixes that. Open a tab. Tell the agent what you want. While it wor
 * **Stop waiting on one agent before starting the next** – run several agent chats side by side in one sidebar
 * **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol)
 * **Give the agent context from your vault** – type `@notename` and the agent reads that note. Drag in images. Use slash commands.
+* **Your context budget goes further** – context notes are referenced, not re-pasted into every message, so a long chat uses 65–80% fewer context tokens than re-sending the full note each turn
 * **Restart Obsidian without losing your place** – your open tabs and their conversations reopen exactly as you left them; each sidebar pane restores its own tabs independently
 * **Scroll up to read while the agent is still typing** – the incoming stream won’t yank you back to the bottom, so you can reread earlier output mid-response; tabs also keep their scroll position when you switch away and back
 * **Tabs don’t spin up until you type** – opening a tab won’t start an agent session, or any of its MCP servers, until you actually type, so rereading past chats stays light
@@ -105,6 +106,15 @@ Three things come together, and you control all of them:
 * **Agent Console keeps everything running** – many tabs, status icons, parallel chats. The piece that lets you do more without losing track.
 
 Whatever your agent can do, Agent Console lets you do many of those at once.
+
+## Built to be reliable
+
+A plugin that runs live agent sessions in your vault has to be dependable. A few things keep it that way:
+
+* **Bugs come back with a test** – when something breaks, the fix ships with an automated test that reproduces the bug first, so it stays fixed. There are 330+ tests across the plugin’s core logic.
+* **Every change is checked before it lands** – each pull request runs linting, type-checking, and a full build before it can merge.
+* **The efficiency claim is measured, not asserted** – the “65–80% fewer context tokens” figure comes from a benchmark you can run yourself (`npm run bench:tokens`), with a test that keeps it honest against the shipped code.
+* **Performance is tracked against a baseline** – rendering and context-handling are benchmarked against a saved baseline on every change, so a slowdown gets flagged before it ships.
 
 ## Contributing
 

@@ -9,6 +9,10 @@ The release pipeline is automated via [`.github/workflows/release.yaml`](./.gith
 git checkout main
 git pull --ff-only
 
+# 1b. Perf gate (Gate B-v1, warn-only): surface any perf regression vs the
+#     committed baseline before releasing. Phase 1 warns, does not block.
+npm run gate
+
 # 2. Bump version. Auto-updates manifest.json + package.json + versions.json
 #    via version-bump.mjs. Use: patch | minor | major
 npm version patch -m "chore: release v%s"
