@@ -44,6 +44,8 @@ function makeMockCdp() {
 		waitForElement: vi.fn().mockResolvedValue(undefined),
 		hoverElement: vi.fn().mockResolvedValue(undefined),
 		clickWithCoords: vi.fn().mockResolvedValue(undefined),
+		focusWindow: vi.fn().mockResolvedValue(undefined),
+		openNativeSelect: vi.fn().mockResolvedValue(undefined),
 		getWindowBounds: vi.fn().mockResolvedValue({ x: 100, y: 50, width: 800, height: 600, scaleFactor: 2 }),
 		setWindowBounds: vi.fn().mockResolvedValue(undefined),
 		setWindowAlwaysOnTop: vi.fn().mockResolvedValue(undefined),
@@ -1028,5 +1030,78 @@ describe("captureEntry — cleanliness assert (rubric P7)", () => {
 
 		await expect(captureEntry(entry, deps)).rejects.toThrow(/cleanliness/i);
 		expect(cdp.screenCaptureRegion).not.toHaveBeenCalled();
+	});
+});
+
+
+describe("captureEntry — settings / native select (switch-default-agent)", () => {
+	it("opens the settings tab when initialState.openSettings is set", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: { openSettings: "agent-console" },
+		});
+
+		await captureEntry(entry, deps);
+
+		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c: unknown[]) => c[0] as string,
+		);
+		expect(
+			evals.some(
+				(e) =>
+					e.includes("app.setting.open()") &&
+					e.includes('openTabById("agent-console")'),
+			),
+		).toBe(true);
+	});
+
+	it("opens the native select via focusWindow then openNativeSelect, before screen capture", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			captureMode: "screen",
+			initialState: {
+				openSettings: "agent-console",
+				openNativeSelect: ".vertical-tab-content select",
+			},
+		});
+
+		await captureEntry(entry, deps);
+
+		expect(deps.cdp.focusWindow).toHaveBeenCalled();
+		expect(deps.cdp.openNativeSelect).toHaveBeenCalledWith(
+			".vertical-tab-content select",
+		);
+		const focusOrder = (deps.cdp.focusWindow as ReturnType<typeof vi.fn>).mock
+			.invocationCallOrder[0];
+		const openOrder = (deps.cdp.openNativeSelect as ReturnType<typeof vi.fn>)
+			.mock.invocationCallOrder[0];
+		const capOrder = (deps.cdp.screenCaptureRegion as ReturnType<typeof vi.fn>)
+			.mock.invocationCallOrder[0];
+		// focus must precede the showPicker open, which must precede the capture.
+		expect(focusOrder).toBeLessThan(openOrder);
+		expect(openOrder).toBeLessThan(capOrder);
+	});
+
+	it("does not idle-wait on the loading indicator for a no-prompt screen-mode settings shot", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			captureMode: "screen",
+			initialState: {
+				openSettings: "agent-console",
+				openNativeSelect: ".vertical-tab-content select",
+			},
+		});
+
+		await captureEntry(entry, deps);
+
+		// With no prompt there is no chat panel / loading indicator; the I09
+		// idle-wait must be skipped or it would hang to timeout.
+		const waitCalls = (
+			deps.cdp.waitForElement as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(waitCalls.some((sel) => sel.includes("loading-indicator"))).toBe(
+			false,
+		);
+		expect(deps.cdp.screenCaptureRegion).toHaveBeenCalledTimes(1);
 	});
 });

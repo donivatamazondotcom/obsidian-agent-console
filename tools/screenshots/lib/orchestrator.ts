@@ -39,6 +39,8 @@ export interface CdpLike {
 	getElementBounds(selector: string): Promise<{ x: number; y: number; width: number; height: number }>;
 	hoverElement(selector: string): Promise<void>;
 	clickWithCoords(selector: string): Promise<void>;
+	focusWindow(): Promise<void>;
+	openNativeSelect(selector: string): Promise<void>;
 	getWindowBounds(): Promise<{ x: number; y: number; width: number; height: number; scaleFactor: number }>;
 	setWindowBounds(bounds: { x: number; y: number; width: number; height: number }): Promise<void>;
 	setWindowAlwaysOnTop(enabled: boolean): Promise<void>;
@@ -171,6 +173,25 @@ export async function captureEntry(
 		await deps.cdp.evaluate(
 			`app.workspace.openLinkText("${notePath}", "", false)`,
 		);
+	}
+	if (entry.initialState?.openSettings) {
+		// Settings-surface shots (e.g. the Default-agent dropdown): open the
+		// settings modal on the named plugin tab. No chat panel is involved.
+		const tabId = entry.initialState.openSettings;
+		await deps.cdp.evaluate(
+			`(() => { app.setting.open(); app.setting.openTabById(${JSON.stringify(
+				tabId,
+			)}); return true; })()`,
+		);
+		await sleep(SETTLE_MS);
+		// The tab content paints async — wait for the target <select> to exist
+		// before driving it (if this shot opens one).
+		if (entry.initialState.openNativeSelect) {
+			await deps.cdp.waitForElement(
+				entry.initialState.openNativeSelect,
+				HOVER_TOOLTIP_TIMEOUT_MS,
+			);
+		}
 	}
 	if (entry.initialState?.clickRibbon) {
 		// v1.1.0 restores the panel + tabs on plugin reload
@@ -315,6 +336,20 @@ export async function captureEntry(
 		}
 	}
 
+	// 3e. Open a native <select>'s option popup for capture (screen-mode
+	// settings shots, e.g. the Default-agent dropdown). The popup is an OS
+	// window invisible to the renderer and undrivable by synthetic click/CDP
+	// input when the fixtures window isn't OS-frontmost (I13/I15). Focus the
+	// (already-floated, step 0) fixtures window so the popup surfaces, then
+	// open it via the sanctioned showPicker() API (openNativeSelect). Done
+	// late so the popup is freshly open when the capture fires.
+	if (entry.initialState?.openNativeSelect) {
+		await deps.cdp.focusWindow();
+		await sleep(SETTLE_MS);
+		await deps.cdp.openNativeSelect(entry.initialState.openNativeSelect);
+		await sleep(SETTLE_MS);
+	}
+
 	// 4. Brief settle for UI animations
 	await sleep(SETTLE_MS);
 
@@ -396,10 +431,15 @@ export async function captureEntry(
 		// Placed immediately before the capture to minimize the window in which
 		// a late stream could re-arm the STOP square. Resolves instantly when
 		// already idle (e.g. a connect turn that ended without streaming).
-		await deps.cdp.waitForElement(
-			`${ACTIVE_PANEL} .agent-client-loading-indicator.agent-client-hidden`,
-			RESPONSE_TIMEOUT_MS,
-		);
+		// Skip for settings/no-prompt shots: with no chat panel there is no
+		// loading indicator, so the wait would hang to timeout. Only prompt-
+		// driven popover shots put a turn in-flight that needs to go idle.
+		if (promptFiles.length > 0) {
+			await deps.cdp.waitForElement(
+				`${ACTIVE_PANEL} .agent-client-loading-indicator.agent-client-hidden`,
+				RESPONSE_TIMEOUT_MS,
+			);
+		}
 		const bounds = await deps.cdp.getWindowBounds();
 		await deps.cdp.screenCaptureRegion(tmpPath, {
 			x: bounds.x,

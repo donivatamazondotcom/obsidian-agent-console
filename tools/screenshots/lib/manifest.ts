@@ -69,6 +69,21 @@ export interface InitialState {
 	 * ".menu" for Obsidian popover menus). Times out after 3s.
 	 */
 	waitSelector?: string;
+	/**
+	 * Settings tab id to open before capture (e.g. "agent-console"). The
+	 * driver calls `app.setting.open()` then `app.setting.openTabById(id)`,
+	 * rendering that plugin's settings pane. Used for settings-surface shots
+	 * (e.g. the Default-agent dropdown) that have no chat panel.
+	 */
+	openSettings?: string;
+	/**
+	 * CSS selector for a native `<select>` whose option popup to open via
+	 * `HTMLSelectElement.showPicker()` (screen-mode only). A native select
+	 * popup is an OS window invisible to dev:screenshot and undrivable by
+	 * synthetic click/CDP input when the fixtures window isn't OS-frontmost
+	 * (I13/I15), so it needs `captureMode: "screen"` + the float + showPicker.
+	 */
+	openNativeSelect?: string;
 }
 
 /** One screenshot specification. */
@@ -411,6 +426,21 @@ export function validateManifest(
 			) {
 				throw new Error(
 					`manifest entry "${entry.name}" has invalid cropSelectors: must be a non-empty array of non-empty strings`,
+				);
+			}
+		}
+
+		const selectorStrings: Array<[string, string | undefined]> = [
+			["openSettings", entry.initialState?.openSettings],
+			["openNativeSelect", entry.initialState?.openNativeSelect],
+		];
+		for (const [label, value] of selectorStrings) {
+			if (
+				value !== undefined &&
+				(typeof value !== "string" || value.trim() === "")
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid initialState.${label}: must be a non-empty string`,
 				);
 			}
 		}

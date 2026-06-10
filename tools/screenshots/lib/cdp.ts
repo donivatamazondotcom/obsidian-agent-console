@@ -107,6 +107,28 @@ export class Cdp {
 	}
 
 	/**
+	 * Like {@link evaluate} but with CDP transient activation
+	 * (`userGesture: true`). Required for renderer APIs that demand a user
+	 * gesture — notably `HTMLSelectElement.showPicker()`, which throws
+	 * `NotAllowedError` without one (used by {@link openNativeSelect}).
+	 */
+	private async evaluateWithUserGesture<T = unknown>(
+		expression: string,
+	): Promise<T> {
+		const params = JSON.stringify({
+			expression,
+			returnByValue: true,
+			userGesture: true,
+		});
+		const stdout = await this.runRaw([
+			"dev:cdp",
+			"method=Runtime.evaluate",
+			`params=${params}`,
+		]);
+		return parseEvaluateResponse<T>(stdout);
+	}
+
+	/**
 	 * Get `getBoundingClientRect()` for the first element matching the
 	 * selector. Throws if no element matches.
 	 */
@@ -461,6 +483,55 @@ export class Cdp {
 		const ok = await this.evaluate<boolean>(expr);
 		if (!ok) {
 			throw new Error(`hoverElement: no element matches selector ${selector}`);
+		}
+	}
+
+	/**
+	 * Focus THIS (fixtures) window, best-effort. Fire-and-forget: a window
+	 * `focus()` raises the window to OS-key state so a subsequently-opened
+	 * native `<select>` popup surfaces for screen capture — but the focus
+	 * shift disrupts the `obsidian dev:cdp` IPC response delivery, so this
+	 * call frequently returns empty stdout. We therefore route it through
+	 * `runRaw` and ignore the output entirely (NOT `evaluate`, which would
+	 * throw on the empty response). Pair with {@link setWindowAlwaysOnTop}
+	 * (z-order) — focus alone loses the z-order race to the daily-driver.
+	 */
+	async focusWindow(): Promise<void> {
+		const params = JSON.stringify({
+			expression: `(() => { try { require("@electron/remote").getCurrentWindow().focus(); return true; } catch (e) { return false; } })()`,
+			returnByValue: true,
+		});
+		await this.runRaw([
+			"dev:cdp",
+			"method=Runtime.evaluate",
+			`params=${params}`,
+		]);
+	}
+
+	/**
+	 * Open a native `<select>`'s option popup via the sanctioned
+	 * `HTMLSelectElement.showPicker()` API. A native `<select>` popup is an
+	 * OS-level window (not in the renderer DOM), and neither `el.click()` nor
+	 * CDP `Input.dispatchMouseEvent` opens it when the fixtures window isn't
+	 * OS-frontmost (the I13/I15 root cause — input is dropped). `showPicker()`
+	 * is the documented programmatic opener; it requires transient activation,
+	 * supplied here via `evaluateWithUserGesture`. Focus the window first
+	 * ({@link focusWindow}) so the popup surfaces, and float it
+	 * ({@link setWindowAlwaysOnTop}) so the popup composites above the
+	 * daily-driver for `screenCaptureRegion`. Throws if no element matches or
+	 * the element has no `showPicker`.
+	 */
+	async openNativeSelect(selector: string): Promise<void> {
+		const expr = `(() => {
+			const el = document.querySelector(${JSON.stringify(selector)});
+			if (!el) return "no-element";
+			if (typeof el.showPicker !== "function") return "no-showpicker";
+			try { el.focus(); el.showPicker(); return "ok"; }
+			catch (e) { return "err:" + (e && e.name) + ":" + (e && e.message); }
+		})()`;
+		const result = await this.evaluateWithUserGesture<string>(expr);
+		if (result !== "ok") {
+			throw new Error(`openNativeSelect(${selector}): ${result}`);
 		}
 	}
 

@@ -458,3 +458,53 @@ describe("Cdp.hoverElement (I15 — JS-dispatch hover, reliable when not OS-fron
 		);
 	});
 });
+
+
+describe("Cdp.openNativeSelect (switch-default-agent — showPicker via userGesture)", () => {
+	function strProc(value: string) {
+		return makeFakeProc({
+			stdout: JSON.stringify({ result: { type: "string", value } }),
+		});
+	}
+
+	it("opens via showPicker() with userGesture transient activation", async () => {
+		spawnMock.mockImplementationOnce(() => strProc("ok"));
+		const cdp = new Cdp();
+		await cdp.openNativeSelect(".vertical-tab-content select");
+		const args = spawnMock.mock.calls[0][1] as string[];
+		expect(args).toContain("method=Runtime.evaluate");
+		const params = args.find((a) => a.startsWith("params="))!;
+		const parsed = JSON.parse(params.slice("params=".length)) as {
+			expression: string;
+			userGesture?: boolean;
+		};
+		// userGesture is required — showPicker() throws NotAllowedError without it.
+		expect(parsed.userGesture).toBe(true);
+		expect(parsed.expression).toContain("showPicker");
+		// Must NOT use CDP Input (silently dropped when not OS-frontmost — I13/I15).
+		expect(args.some((a) => a.includes("Input.dispatchMouseEvent"))).toBe(false);
+	});
+
+	it("throws when the element is missing or lacks showPicker", async () => {
+		spawnMock.mockImplementationOnce(() => strProc("no-element"));
+		const cdp = new Cdp();
+		await expect(cdp.openNativeSelect(".missing")).rejects.toThrow(
+			/openNativeSelect/,
+		);
+	});
+});
+
+describe("Cdp.focusWindow (fire-and-forget; focus disrupts the IPC response)", () => {
+	it("invokes Runtime.evaluate focus() and tolerates empty stdout", async () => {
+		// A window focus() shifts OS focus and the dev:cdp response frequently
+		// comes back empty; focusWindow must NOT throw on that (it routes through
+		// runRaw, not the parsing evaluate, which would throw on empty output).
+		spawnMock.mockImplementationOnce(() => makeFakeProc({ stdout: "" }));
+		const cdp = new Cdp();
+		await expect(cdp.focusWindow()).resolves.toBeUndefined();
+		const args = spawnMock.mock.calls[0][1] as string[];
+		expect(args).toContain("method=Runtime.evaluate");
+		const params = args.find((a) => a.startsWith("params="))!;
+		expect(params).toContain("focus()");
+	});
+});
