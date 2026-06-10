@@ -56,6 +56,16 @@ export interface UseAgentSessionReturn {
 	forceRestartAgent: () => Promise<void>;
 	cancelOperation: () => Promise<void>;
 	getAvailableAgents: () => AgentDisplayInfo[];
+
+	/**
+	 * Switch the tab's agent WITHOUT creating a session. Used when the user
+	 * switches agent on an idle, no-session tab: updates session.agentId (the
+	 * source of truth the lazy acquisition reads) and resets stale session
+	 * fields, but defers actual connection to the lazy path's first-send
+	 * acquisition. Avoids the eager createSession that desyncs the lazy state
+	 * machine and clobbers the switch on first message.
+	 */
+	setAgentWithoutSession: (agentId: string) => void;
 	updateSessionFromLoad: (
 		sessionId: string,
 		modes?: SessionModeState,
@@ -356,6 +366,37 @@ export function useAgentSession(
 		return getAvailableAgentsFromSettings(settings);
 	}, [settingsAccess]);
 
+	// Switch the tab's agent without creating a session (idle-switch path).
+	// Updates session.agentId — the source of truth the lazy acquisition
+	// reads via selectAcquisitionAgent — and clears stale per-agent session
+	// fields so the previous agent's modes/models/capabilities don't leak.
+	// No ACP call; the lazy path connects to this agent on first send.
+	const setAgentWithoutSession = useCallback(
+		(agentId: string) => {
+			const settings = settingsAccess.getSnapshot();
+			const nextAgent = getCurrentAgent(settings, agentId);
+			setSession((prev) => ({
+				...prev,
+				agentId,
+				agentDisplayName: nextAgent.displayName,
+				sessionId: null,
+				state: "disconnected",
+				authMethods: [],
+				availableCommands: undefined,
+				modes: undefined,
+				models: undefined,
+				configOptions: undefined,
+				usage: undefined,
+				promptCapabilities: undefined,
+				agentCapabilities: undefined,
+				agentInfo: undefined,
+				lastActivityAt: new Date(),
+			}));
+			setErrorInfo(null);
+		},
+		[settingsAccess, setErrorInfo],
+	);
+
 	const updateSessionFromLoad = useCallback(
 		async (
 			sessionId: string,
@@ -582,6 +623,7 @@ export function useAgentSession(
 		forceRestartAgent,
 		cancelOperation,
 		getAvailableAgents,
+		setAgentWithoutSession,
 		updateSessionFromLoad,
 		applyInitCapabilities,
 		setMode,

@@ -63,6 +63,7 @@ export interface UseAgentReturn {
 	forceRestartAgent: () => Promise<void>;
 	cancelOperation: () => Promise<void>;
 	getAvailableAgents: () => AgentDisplayInfo[];
+	setAgentWithoutSession: (agentId: string) => void;
 	updateSessionFromLoad: (
 		sessionId: string,
 		modes?: SessionModeState,
@@ -197,6 +198,7 @@ export function useAgent(
 			forceRestartAgent: agentSession.forceRestartAgent,
 			cancelOperation,
 			getAvailableAgents: agentSession.getAvailableAgents,
+			setAgentWithoutSession: agentSession.setAgentWithoutSession,
 			updateSessionFromLoad: agentSession.updateSessionFromLoad,
 			applyInitCapabilities: agentSession.applyInitCapabilities,
 
@@ -233,6 +235,7 @@ export function useAgent(
 			agentSession.forceRestartAgent,
 			cancelOperation,
 			agentSession.getAvailableAgents,
+			agentSession.setAgentWithoutSession,
 			agentSession.updateSessionFromLoad,
 			agentSession.applyInitCapabilities,
 			agentSession.setMode,

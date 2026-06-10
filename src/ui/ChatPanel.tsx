@@ -12,6 +12,7 @@ import {
 import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
 import { deriveNewLeaf } from "../utils/link-leaf";
+import { decideAgentSwitch, selectAcquisitionAgent } from "../utils/agent-switch";
 import { useHistoryModal } from "../hooks/useHistoryModal";
 import { useChatActions } from "../hooks/useChatActions";
 import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
@@ -501,6 +502,30 @@ export function ChatPanel({
 	const handleNewChatWithPersist = useCallback(
 		async (requestedAgentId?: string) => {
 			try {
+				// Stopgap for the "switch agent on a new tab, then type,
+				// connects to the OLD agent" bug. Switching agent on an idle,
+				// no-session, no-message tab must NOT eagerly create a session
+				// (handleNewChat → createSession): that leaves the lazy state
+				// machine at idle, so the first send re-acquires with the
+				// stale mount-time agent and clobbers the switch. Instead,
+				// swap the tab's agent in place and let the lazy path acquire
+				// the correct agent (via session.agentId) on first send.
+				// See [[Tab Agent Identity and Session Acquisition Unification]].
+				if (requestedAgentId) {
+					const decision = decideAgentSwitch({
+						requestedAgentId,
+						currentAgentId: session.agentId,
+						hasSession: !!session.sessionId,
+						messageCount: messages.length,
+					});
+					if (decision.kind === "swap-idle") {
+						agent.setAgentWithoutSession(requestedAgentId);
+						labelReportedRef.current = false;
+						onLabelChangeRef.current?.("");
+						onAgentIdChanged?.(requestedAgentId);
+						return;
+					}
+				}
 				await handleNewChat(requestedAgentId);
 				labelReportedRef.current = false;
 				onLabelChangeRef.current?.("");
@@ -512,7 +537,14 @@ export function ChatPanel({
 				console.error("[Agent Console] New chat error:", error);
 			}
 		},
-		[handleNewChat, onAgentIdChanged],
+		[
+			handleNewChat,
+			onAgentIdChanged,
+			session.agentId,
+			session.sessionId,
+			messages.length,
+			agent.setAgentWithoutSession,
+		],
 	);
 
 	// ============================================================
@@ -695,7 +727,10 @@ export function ChatPanel({
 
 		acquireNewSession: useCallback(async () => {
 			try {
-				const effectiveAgent = config?.agent || initialAgentId;
+				const effectiveAgent = selectAcquisitionAgent(
+					agent.session.agentId,
+					config?.agent || initialAgentId,
+				);
 				logger.log(
 					"[Lazy] Acquiring new session for agent:",
 					effectiveAgent,
@@ -737,6 +772,7 @@ export function ChatPanel({
 		}, [
 			agent.createSession,
 			agent.session.sessionId,
+			agent.session.agentId,
 			config?.agent,
 			initialAgentId,
 			logger,
