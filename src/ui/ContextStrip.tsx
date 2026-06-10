@@ -96,11 +96,11 @@ export function ContextStrip({
 				aria-label={
 					grabDisabled
 						? !activeNotePath
-							? "No active note to add"
+							? "No active note to pin"
 							: isAlreadyCrystallized
 								? `${activeNoteName} is already in context`
 								: "Maximum 8 context notes. Remove one to add another."
-						: `Add: ${activeNoteName}`
+						: `Pin: ${activeNoteName}`
 				}
 				onClick={handleGrabClick}
 			>
@@ -175,7 +175,7 @@ export function ContextStrip({
 				<input
 					ref={inputRef}
 					className="context-strip-input"
-					placeholder="Add notes with +"
+					placeholder="Pin notes with +"
 					onKeyDown={handleKeyDown}
 					onFocus={() => setSelectedIndex(null)}
 				/>
