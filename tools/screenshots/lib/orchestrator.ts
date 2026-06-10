@@ -274,14 +274,28 @@ export async function captureEntry(
 			// to appear (proves the stream began, past Connecting — and it
 			// persists, so no fast-stream race), then for the loading
 			// indicator to hide (proves streaming finished).
-			await deps.cdp.waitForElement(
-				`${ACTIVE_PANEL} .agent-client-message-renderer.agent-client-message-assistant`,
-				RESPONSE_TIMEOUT_MS,
-			);
-			await deps.cdp.waitForElement(
-				`${ACTIVE_PANEL} .agent-client-loading-indicator.agent-client-hidden`,
-				RESPONSE_TIMEOUT_MS,
-			);
+			if (entry.awaitSelector) {
+				// Mid-turn PAUSED-state shots (e.g. a file-edit permission
+				// card): the turn blocks on user input and never reaches
+				// "response complete", so the two-phase completion wait below
+				// would hang on the loading indicator that stays visible while
+				// paused. Wait for the awaited element (scoped to the active
+				// panel) instead — it is the subject of the shot, and the
+				// mustShow assert re-checks it is inside the crop.
+				await deps.cdp.waitForElement(
+					`${ACTIVE_PANEL} ${entry.awaitSelector}`,
+					RESPONSE_TIMEOUT_MS,
+				);
+			} else {
+				await deps.cdp.waitForElement(
+					`${ACTIVE_PANEL} .agent-client-message-renderer.agent-client-message-assistant`,
+					RESPONSE_TIMEOUT_MS,
+				);
+				await deps.cdp.waitForElement(
+					`${ACTIVE_PANEL} .agent-client-loading-indicator.agent-client-hidden`,
+					RESPONSE_TIMEOUT_MS,
+				);
+			}
 		}
 	}
 
@@ -356,9 +370,19 @@ export async function captureEntry(
 	// 4b. For conversations, scroll the active transcript to the top so the
 	// capture shows the question and start of the answer, not the streamed tail.
 	if (promptFiles.length > 0) {
-		await deps.cdp.evaluate(
-			`(() => { const el = document.querySelector('${ACTIVE_PANEL} .agent-client-chat-view-messages'); if (el) el.scrollTop = 0; return !!el; })()`,
-		);
+		if (entry.awaitSelector) {
+			// Paused-state shots: the subject (e.g. the permission card) is
+			// at the BOTTOM of the transcript — scroll it into view rather
+			// than to the top (which would push it off-screen).
+			const sel = `${ACTIVE_PANEL} ${entry.awaitSelector}`;
+			await deps.cdp.evaluate(
+				`(() => { const el = document.querySelector('${sel}'); if (el) el.scrollIntoView({ block: "center" }); return !!el; })()`,
+			);
+		} else {
+			await deps.cdp.evaluate(
+				`(() => { const el = document.querySelector('${ACTIVE_PANEL} .agent-client-chat-view-messages'); if (el) el.scrollTop = 0; return !!el; })()`,
+			);
+		}
 		await sleep(SETTLE_MS);
 	}
 

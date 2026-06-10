@@ -160,6 +160,17 @@ export interface ManifestEntry {
 	 */
 	draftMessage?: string;
 	/**
+	 * After sending the FINAL prompt (window mode only), wait for THIS
+	 * selector (scoped to the active panel) instead of the two-phase
+	 * completion wait. For shots whose subject is a mid-turn PAUSED state
+	 * — e.g. a file-edit permission card — where the turn blocks on user
+	 * input and never reaches "response complete" (so the
+	 * loading-indicator-hidden wait would hang). Also drives the
+	 * pre-capture scroll: the awaited element is scrolled INTO VIEW rather
+	 * than scrolling the transcript to the top. Ignored in screen mode.
+	 */
+	awaitSelector?: string;
+	/**
 	 * When true, the driver toggles `obsidian dev:mobile on` before
 	 * capturing this entry and back off after. Reserved for F01.
 	 */
@@ -392,6 +403,16 @@ export function validateManifest(
 			}
 		}
 
+		if (entry.awaitSelector !== undefined) {
+			if (
+				typeof entry.awaitSelector !== "string" ||
+				entry.awaitSelector.trim() === ""
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid awaitSelector: must be a non-empty string`,
+				);
+			}
+		}
 		if (entry.forbiddenSelectors !== undefined) {
 			if (
 				!Array.isArray(entry.forbiddenSelectors) ||

@@ -1105,3 +1105,57 @@ describe("captureEntry — settings / native select (switch-default-agent)", () 
 		expect(deps.cdp.screenCaptureRegion).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe("captureEntry — awaitSelector (paused-state shots, e.g. edit permission card)", () => {
+	it("waits for awaitSelector (active-panel scoped) and SKIPS the two-phase completion wait (window mode)", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			promptFile: "editing.txt",
+			awaitSelector: ".agent-client-message-permission-request",
+		});
+
+		await captureEntry(entry, deps);
+
+		const waitMock = deps.cdp.waitForElement as ReturnType<typeof vi.fn>;
+		const calls = waitMock.mock.calls.map((cc: unknown[]) => cc[0] as string);
+		// Waits for the awaited element (the subject of the shot).
+		expect(
+			calls.some((s) => s.includes(".agent-client-message-permission-request")),
+		).toBe(true);
+		// The turn pauses at the permission card and never completes, so the
+		// two-phase wait (assistant element + indicator-hidden) must be SKIPPED
+		// — the indicator-hidden wait would hang on a paused turn.
+		expect(
+			calls.some((s) => s.includes("agent-client-message-assistant")),
+		).toBe(false);
+		expect(
+			calls.some((s) =>
+				s.includes("agent-client-loading-indicator.agent-client-hidden"),
+			),
+		).toBe(false);
+	});
+
+	it("scrolls the awaited element into view (not transcript-to-top) before capture", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			promptFile: "editing.txt",
+			awaitSelector: ".agent-client-message-permission-request",
+		});
+
+		await captureEntry(entry, deps);
+
+		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
+			(cc: unknown[]) => cc[0] as string,
+		);
+		// The paused-state subject is at the transcript bottom — scrollIntoView
+		// it, never scrollTop = 0 (which would push it off-screen).
+		expect(
+			evals.some(
+				(e) =>
+					e.includes("scrollIntoView") &&
+					e.includes(".agent-client-message-permission-request"),
+			),
+		).toBe(true);
+		expect(evals.some((e) => e.includes("scrollTop = 0"))).toBe(false);
+	});
+});

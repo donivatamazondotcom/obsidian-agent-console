@@ -516,3 +516,31 @@ describe("validateManifest — forbidden* cleanliness fields (rubric P7)", () =>
 		);
 	});
 });
+
+describe("validateManifest — awaitSelector", () => {
+	it("rejects an empty/whitespace awaitSelector", () => {
+		const root = makeFixtureRoot();
+		const entry = {
+			name: "paused",
+			width: 100,
+			height: 100,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			awaitSelector: "  ",
+		} as ManifestEntry;
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/awaitSelector/,
+		);
+	});
+
+	it("accepts a non-empty awaitSelector", () => {
+		const root = makeFixtureRoot();
+		const entry: ManifestEntry = {
+			name: "paused-ok",
+			width: 100,
+			height: 100,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			awaitSelector: ".agent-client-message-permission-request",
+		};
+		expect(() => validateManifest({ entries: [entry] }, root)).not.toThrow();
+	});
+});

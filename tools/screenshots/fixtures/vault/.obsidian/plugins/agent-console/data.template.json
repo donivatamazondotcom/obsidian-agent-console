@@ -51,10 +51,10 @@
     }
   ],
   "defaultAgentId": "claude-code-acp",
-  "autoAllowPermissions": true,
+  "autoAllowPermissions": false,
   "activeNoteAsDefaultContext": true,
   "migrationNoticeShown": true,
-  "enableSystemNotifications": true,
+  "enableSystemNotifications": false,
   "debugMode": false,
   "nodePath": "/Users/doniv/.local/share/mise/installs/node/24.14.0/bin/node",
   "exportSettings": {

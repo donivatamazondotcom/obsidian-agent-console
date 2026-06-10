@@ -235,6 +235,31 @@
 			"mustShow": ".vertical-tab-content select",
 			"caption": "Set your default agent",
 			"altText": "Agent Console settings with the Default agent dropdown open, listing the available agents"
+		},
+		{
+			"name": "editing",
+			"width": 1240,
+			"height": 910,
+			"crop": {
+				"x": 780,
+				"y": 115,
+				"width": 620,
+				"height": 455
+			},
+			"initialState": {
+				"openNote": "Draft.md",
+				"clickRibbon": true
+			},
+			"promptFile": "editing.txt",
+			"awaitSelector": ".agent-client-message-permission-request",
+			"approvalThreshold": 0.1,
+			"minDistinctColors": 2000,
+			"placement": "feature",
+			"purpose": "Approve or reject a file edit the agent proposes, with a full diff.",
+			"differentiator": "Edit approval / permission control",
+			"mustShow": ".agent-client-message-permission-request",
+			"caption": "Approve edits before they happen",
+			"altText": "Agent Console permission card showing a proposed file edit diff with Allow and Reject buttons"
 		}
 	]
 }
