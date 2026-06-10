@@ -24,8 +24,8 @@ import type { ISettingsAccess } from "../../services/settings-service";
 
 function makeSettings() {
 	return {
-		defaultAgentId: "auto-sa",
-		claude: { id: "auto-sa", displayName: "Auto-SA" },
+		defaultAgentId: "test-agent",
+		claude: { id: "test-agent", displayName: "Test Agent" },
 		codex: { id: "codex", displayName: "Codex" },
 		gemini: { id: "gemini", displayName: "Gemini" },
 		kiro: { id: "kiro", displayName: "Kiro" },
@@ -47,7 +47,7 @@ describe("I54: fresh-tab capability propagation", () => {
 		} as unknown as ISettingsAccess;
 
 		const { result } = renderHook(() =>
-			useAgentSession(agentClient, settingsAccess, "/cwd", () => {}, "auto-sa"),
+			useAgentSession(agentClient, settingsAccess, "/cwd", () => {}, "test-agent"),
 		);
 
 		// Fresh tab, no createSession yet → capabilities absent (the bug).
@@ -75,7 +75,7 @@ describe("I54: fresh-tab capability propagation", () => {
 		} as unknown as ISettingsAccess;
 
 		const { result } = renderHook(() =>
-			useAgentSession(agentClient, settingsAccess, "/cwd", () => {}, "auto-sa"),
+			useAgentSession(agentClient, settingsAccess, "/cwd", () => {}, "test-agent"),
 		);
 
 		act(() => result.current.applyInitCapabilities());

@@ -36,7 +36,7 @@ describe("resolveSessionMetadataWrite (I58)", () => {
 	it("bumps updatedAt and preserves identity for an existing entry", () => {
 		const existing: SavedSessionInfo = {
 			sessionId: "s1",
-			agentId: "auto-sa",
+			agentId: "test-agent",
 			cwd: "/work",
 			title: "Old title",
 			createdAt: "2026-06-01T00:00:00.000Z",
@@ -45,7 +45,7 @@ describe("resolveSessionMetadataWrite (I58)", () => {
 
 		const w = resolveSessionMetadataWrite(existing, {
 			sessionId: "s1",
-			agentId: "auto-sa",
+			agentId: "test-agent",
 			cwd: "/work",
 			messages: [userMsg("hi")],
 			now: NOW,
@@ -62,7 +62,7 @@ describe("resolveSessionMetadataWrite (I58)", () => {
 		// was never created (first-message gate skipped on send-before-connect).
 		const w = resolveSessionMetadataWrite(undefined, {
 			sessionId: "s2",
-			agentId: "auto-sa",
+			agentId: "test-agent",
 			cwd: "/work",
 			messages: [userMsg("Reconcile the TCOM doc comments")],
 			now: NOW,
@@ -70,7 +70,7 @@ describe("resolveSessionMetadataWrite (I58)", () => {
 
 		expect(w).not.toBeNull();
 		expect(w!.sessionId).toBe("s2");
-		expect(w!.agentId).toBe("auto-sa");
+		expect(w!.agentId).toBe("test-agent");
 		expect(w!.cwd).toBe("/work");
 		expect(w!.title).toBe("Reconcile the TCOM doc comments");
 		expect(w!.createdAt).toBe(NOW);
