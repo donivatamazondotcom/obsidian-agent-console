@@ -48,6 +48,20 @@ When you send a message with manual mentions:
 2. The note content is included in the message sent to the agent
 3. The agent can then reference, analyze, or modify the note content
 
+## Opening Linked Notes
+
+Note references in the chat panel are clickable. This includes the mention chips you send (manual `@[[...]]` mentions and the auto-mention badge) and any `[[wikilinks]]` an agent writes back in its replies.
+
+Clicking follows the same conventions as links elsewhere in Obsidian:
+
+| Action | Result |
+|--------|--------|
+| Click | Opens the note (honors your **Always open in new tab** setting) |
+| Cmd/Ctrl + click | Opens in a new tab |
+| Cmd/Ctrl + Alt + click | Opens in a split pane |
+| Cmd/Ctrl + Alt + Shift + click | Opens in a new window |
+| Middle-click | Opens in a new tab |
+
 ## Length Limits
 
 To prevent excessively large messages, the plugin limits the amount of content included:

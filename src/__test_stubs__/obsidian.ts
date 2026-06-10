@@ -44,3 +44,9 @@ export const Platform = {
 	isMobile: false,
 	isDesktop: true,
 };
+
+export class FileSystemAdapter {
+	getBasePath() {
+		return "";
+	}
+}

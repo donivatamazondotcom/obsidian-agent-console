@@ -33,6 +33,7 @@ Agent Console fixes that. Open a tab. Tell the agent what you want. While it wor
 * **Read the conversation, not the logs** – tool calls render as a single tappable summary row by default. Click to expand, click to collapse, errors auto-expand so you don’t miss them.
 * **Your MCP tools come along** – whatever MCP servers your agent uses keep working in Agent Console with no extra setup
 * **Switch tabs with a hotkey** – bind keys under Settings → Hotkeys
+* **Looks like part of your Obsidian** – it adopts Obsidian’s own styling and your theme’s variables instead of hardcoded colors and chrome, so any custom theme restyles it like a built-in panel
 
 </details>
 
@@ -78,7 +79,7 @@ You’ll need an AI agent installed on your computer. Popular choices:
 * [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) – Anthropic’s coding agent
 * [Codex](https://github.com/zed-industries/codex-acp) – Zed’s reference agent
 * [Gemini CLI](https://github.com/google-gemini/gemini-cli) – Google’s command-line agent
-* Custom agents like OpenCode, Qwen Code, Mistral Vibe, and others
+* Custom agents like OpenCode, Qwen Code, and others
 
 Once you’ve set up the agent:
 

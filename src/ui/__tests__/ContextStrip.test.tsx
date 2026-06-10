@@ -39,7 +39,7 @@ describe("ContextStrip", () => {
 
 	it("renders placeholder when no notes crystallized", () => {
 		render(<ContextStrip {...makeProps()} />);
-		expect(screen.getByPlaceholderText("Add notes with +")).toBeTruthy();
+		expect(screen.getByPlaceholderText("Pin notes with +")).toBeTruthy();
 	});
 
 	it("renders pills for each crystallized note", () => {
@@ -73,13 +73,13 @@ describe("ContextStrip", () => {
 				})}
 			/>,
 		);
-		const btn = screen.getByLabelText("Add: note");
+		const btn = screen.getByLabelText("Pin: note");
 		expect((btn as HTMLButtonElement).disabled).toBe(false);
 	});
 
 	it("grab button is disabled when no active note", () => {
 		render(<ContextStrip {...makeProps()} />);
-		const btn = screen.getByLabelText("No active note to add");
+		const btn = screen.getByLabelText("No active note to pin");
 		expect((btn as HTMLButtonElement).disabled).toBe(true);
 	});
 
@@ -125,7 +125,7 @@ describe("ContextStrip", () => {
 				})}
 			/>,
 		);
-		fireEvent.click(screen.getByLabelText("Add: note"));
+		fireEvent.click(screen.getByLabelText("Pin: note"));
 		expect(onAdd).toHaveBeenCalledWith("note.md", "user");
 	});
 
@@ -173,7 +173,7 @@ describe("ContextStrip", () => {
 		const { container } = render(
 			<ContextStrip {...makeProps({ notes })} />,
 		);
-		const input = screen.getByPlaceholderText("Add notes with +");
+		const input = screen.getByPlaceholderText("Pin notes with +");
 		fireEvent.keyDown(input, { key: "Backspace" });
 		// Last pill should have selected class
 		const pills = container.querySelectorAll(".context-strip-pill");
@@ -191,7 +191,7 @@ describe("ContextStrip", () => {
 			{ path: "b.md", source: "user", seen: false },
 		];
 		render(<ContextStrip {...makeProps({ notes, onRemove })} />);
-		const input = screen.getByPlaceholderText("Add notes with +");
+		const input = screen.getByPlaceholderText("Pin notes with +");
 		// First Backspace selects
 		fireEvent.keyDown(input, { key: "Backspace" });
 		// Second Backspace removes
@@ -201,7 +201,7 @@ describe("ContextStrip", () => {
 
 	it("Escape blurs the strip input", () => {
 		render(<ContextStrip {...makeProps()} />);
-		const input = screen.getByPlaceholderText("Add notes with +");
+		const input = screen.getByPlaceholderText("Pin notes with +");
 		input.focus();
 		fireEvent.keyDown(input, { key: "Escape" });
 		expect(document.activeElement).not.toBe(input);
@@ -250,7 +250,7 @@ describe("ContextStrip", () => {
 				})}
 			/>,
 		);
-		const input = screen.getByPlaceholderText("Add notes with +");
+		const input = screen.getByPlaceholderText("Pin notes with +");
 		fireEvent.keyDown(input, { key: "Backspace" });
 		expect(onSuppressProvisional).toHaveBeenCalledTimes(1);
 	});
@@ -271,7 +271,7 @@ describe("ContextStrip", () => {
 				})}
 			/>,
 		);
-		const input = screen.getByPlaceholderText("Add notes with +");
+		const input = screen.getByPlaceholderText("Pin notes with +");
 		fireEvent.keyDown(input, { key: "Backspace" });
 		// Provisional suppressed first; crystallized pill untouched and unselected.
 		expect(onSuppressProvisional).toHaveBeenCalledTimes(1);

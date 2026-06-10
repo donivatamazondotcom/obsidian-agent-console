@@ -96,11 +96,11 @@ export function ContextStrip({
 				aria-label={
 					grabDisabled
 						? !activeNotePath
-							? "No active note to add"
+							? "No active note to pin"
 							: isAlreadyCrystallized
 								? `${activeNoteName} is already in context`
 								: "Maximum 8 context notes. Remove one to add another."
-						: `Add: ${activeNoteName}`
+						: `Pin: ${activeNoteName}`
 				}
 				onClick={handleGrabClick}
 			>
@@ -129,6 +129,11 @@ export function ContextStrip({
 							className="context-strip-pill-name"
 							aria-label={displayName(note.path)}
 							onClick={(e) => onPillClick(note.path, e)}
+							onAuxClick={(e) => {
+								if (e.button !== 1) return;
+								e.preventDefault();
+								onPillClick(note.path, e);
+							}}
 						>
 							{displayName(note.path)}
 						</span>
@@ -150,6 +155,11 @@ export function ContextStrip({
 							className="context-strip-pill-name"
 							aria-label={displayName(provisionalPath)}
 							onClick={(e) => onPillClick(provisionalPath, e)}
+							onAuxClick={(e) => {
+								if (e.button !== 1) return;
+								e.preventDefault();
+								onPillClick(provisionalPath, e);
+							}}
 						>
 							{displayName(provisionalPath)}
 						</span>
@@ -165,7 +175,7 @@ export function ContextStrip({
 				<input
 					ref={inputRef}
 					className="context-strip-input"
-					placeholder="Add notes with +"
+					placeholder="Pin notes with +"
 					onKeyDown={handleKeyDown}
 					onFocus={() => setSelectedIndex(null)}
 				/>

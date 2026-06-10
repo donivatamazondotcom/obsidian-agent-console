@@ -58,7 +58,7 @@ export function ErrorBanner({
 					{errorInfo.title}
 				</h4>
 				<button
-					className="agent-client-error-overlay-close"
+					className="clickable-icon agent-client-error-overlay-close"
 					onClick={onClose}
 					aria-label="Close"
 					type="button"

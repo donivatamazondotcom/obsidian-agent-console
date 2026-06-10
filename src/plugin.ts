@@ -1006,7 +1006,7 @@ export default class AgentClientPlugin extends Plugin {
 			ctxMig.shouldShowNotice
 		) {
 			new Notice(
-				"Agent Console: the active note no longer follows the chat. Use the new context strip to lock notes into context.",
+				"Agent Console: the active note no longer follows the chat. Use the new context strip to pin notes into context.",
 				10000,
 			);
 			this.settings.migrationNoticeShown = true;

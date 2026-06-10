@@ -23,7 +23,7 @@ function RemoveButton({
 	return (
 		<button
 			ref={ref}
-			className="agent-client-attachment-preview-remove"
+			className="clickable-icon agent-client-attachment-preview-remove"
 			onClick={() => onRemove(fileId)}
 			aria-label="Remove attachment"
 			type="button"

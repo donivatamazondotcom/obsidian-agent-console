@@ -1,0 +1,9 @@
+# transient working artifacts (regenerated each run)
+*.generated.js
+before.json
+after.json
+baseline.json
+*.png
+# pristine-original working copy used as the Phase-1 'before' swap source;
+# later phases derive 'before' from git, so this is local-only
+styles.baseline.css
