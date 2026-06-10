@@ -25,15 +25,15 @@ import type { ISettingsAccess } from "../../services/settings-service";
 
 function makeSettings() {
 	return {
-		defaultAgentId: "auto-sa",
+		defaultAgentId: "test-agent",
 		claude: { id: "claude", displayName: "Claude" },
 		codex: { id: "codex", displayName: "Codex" },
 		gemini: { id: "gemini", displayName: "Gemini" },
 		kiro: { id: "kiro", displayName: "Kiro" },
 		customAgents: [
 			{
-				id: "auto-sa",
-				displayName: "Auto-SA",
+				id: "test-agent",
+				displayName: "Test Agent",
 				command: "kiro-cli",
 				args: ["acp"],
 				env: [],
@@ -48,7 +48,7 @@ describe("I55: createSession returns the created sessionId", () => {
 	it("returns the sessionId from newSession so callers don't depend on stale session state", async () => {
 		const agentClient = {
 			isInitialized: () => true,
-			getCurrentAgentId: () => "auto-sa",
+			getCurrentAgentId: () => "test-agent",
 			initialize: vi.fn(),
 			newSession: vi.fn(async () => ({
 				sessionId: "sess-created-1",
@@ -65,12 +65,12 @@ describe("I55: createSession returns the created sessionId", () => {
 		} as unknown as ISettingsAccess;
 
 		const { result } = renderHook(() =>
-			useAgentSession(agentClient, settingsAccess, "/cwd", () => {}, "auto-sa"),
+			useAgentSession(agentClient, settingsAccess, "/cwd", () => {}, "test-agent"),
 		);
 
 		let returned: unknown;
 		await act(async () => {
-			returned = await result.current.createSession("auto-sa");
+			returned = await result.current.createSession("test-agent");
 		});
 
 		// The fix: createSession returns the created sessionId.

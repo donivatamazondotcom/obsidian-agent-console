@@ -21,7 +21,7 @@ import { setIcon } from "obsidian";
 export interface HeaderSegments {
 	/** Plugin name from manifest (e.g. "Agent Console"); rendered in literal brackets. */
 	plugin: string;
-	/** Profile display name (e.g. "Auto-SA"); the which-configuration signal. */
+	/** Profile display name (e.g. "Test Agent"); the which-configuration signal. */
 	profile: string;
 	/** Runtime title + version (e.g. "Kiro CLI Agent 2.4.0"); null while connecting. */
 	runtime: string | null;

@@ -59,7 +59,7 @@ describe("AcpClient.initialize — concurrent-call coalescing (I46)", () => {
 					),
 			);
 
-		const cfg = makeConfig("auto-sa");
+		const cfg = makeConfig("test-agent");
 		// Second call fires synchronously while the first is still in flight.
 		const p1 = client.initialize(cfg);
 		const p2 = client.initialize(cfg);
@@ -91,7 +91,7 @@ describe("AcpClient.initialize — concurrent-call coalescing (I46)", () => {
 			.spyOn(client as unknown as DoInitializeSeam, "doInitialize")
 			.mockResolvedValue(RESULT);
 
-		const cfg = makeConfig("auto-sa");
+		const cfg = makeConfig("test-agent");
 		await client.initialize(cfg);
 		await client.initialize(cfg);
 
@@ -126,7 +126,7 @@ describe("AcpClient.initialize — capability cache (I47)", () => {
 		).mockResolvedValue(RESULT_WITH_CAPS);
 
 		expect(client.getInitializeResult()).toBeNull();
-		await client.initialize(makeConfig("auto-sa"));
+		await client.initialize(makeConfig("test-agent"));
 		expect(client.getInitializeResult()?.promptCapabilities?.image).toBe(true);
 	});
 });
