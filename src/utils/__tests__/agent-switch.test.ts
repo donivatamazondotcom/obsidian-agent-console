@@ -25,7 +25,7 @@ describe("decideAgentSwitch", () => {
 		expect(
 			decideAgentSwitch({
 				requestedAgentId: "claude-code",
-				currentAgentId: "auto-sa",
+				currentAgentId: "test-agent",
 				hasSession: false,
 				messageCount: 0,
 			}),
@@ -35,8 +35,8 @@ describe("decideAgentSwitch", () => {
 	it("same agent → noop", () => {
 		expect(
 			decideAgentSwitch({
-				requestedAgentId: "auto-sa",
-				currentAgentId: "auto-sa",
+				requestedAgentId: "test-agent",
+				currentAgentId: "test-agent",
 				hasSession: false,
 				messageCount: 0,
 			}),
@@ -47,7 +47,7 @@ describe("decideAgentSwitch", () => {
 		expect(
 			decideAgentSwitch({
 				requestedAgentId: "claude-code",
-				currentAgentId: "auto-sa",
+				currentAgentId: "test-agent",
 				hasSession: true,
 				messageCount: 3,
 			}),
@@ -58,7 +58,7 @@ describe("decideAgentSwitch", () => {
 		expect(
 			decideAgentSwitch({
 				requestedAgentId: "claude-code",
-				currentAgentId: "auto-sa",
+				currentAgentId: "test-agent",
 				hasSession: false,
 				messageCount: 2,
 			}),
@@ -70,14 +70,14 @@ describe("selectAcquisitionAgent", () => {
 	it("prefers the live session agent over the mount-time fallback — the clobber fix", () => {
 		// After a swap-idle, session.agentId is the switched agent; the lazy
 		// path must acquire THAT, not the original mount-time prop.
-		expect(selectAcquisitionAgent("claude-code", "auto-sa")).toBe(
+		expect(selectAcquisitionAgent("claude-code", "test-agent")).toBe(
 			"claude-code",
 		);
 	});
 
 	it("falls back to the mount-time agent when no session agent is set", () => {
-		expect(selectAcquisitionAgent(null, "auto-sa")).toBe("auto-sa");
-		expect(selectAcquisitionAgent(undefined, "auto-sa")).toBe("auto-sa");
+		expect(selectAcquisitionAgent(null, "test-agent")).toBe("test-agent");
+		expect(selectAcquisitionAgent(undefined, "test-agent")).toBe("test-agent");
 	});
 
 	it("returns undefined when neither is available", () => {

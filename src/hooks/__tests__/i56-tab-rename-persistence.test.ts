@@ -16,7 +16,7 @@ import { useTabManager } from "../useTabManager";
 
 describe("I56 — manual rename survives auto-derive", () => {
 	it("auto-derive does NOT overwrite a manually-renamed label", () => {
-		const { result } = renderHook(() => useTabManager("auto-sa"));
+		const { result } = renderHook(() => useTabManager("test-agent"));
 		const tabId = result.current.activeTab.tabId;
 
 		// User manually renames the tab (custom = true).
@@ -37,7 +37,7 @@ describe("I56 — manual rename survives auto-derive", () => {
 	});
 
 	it("auto-derive still sets the label when the tab was never manually renamed", () => {
-		const { result } = renderHook(() => useTabManager("auto-sa"));
+		const { result } = renderHook(() => useTabManager("test-agent"));
 		const tabId = result.current.activeTab.tabId;
 
 		act(() => result.current.setTabLabel(tabId, "Derived from first message"));
