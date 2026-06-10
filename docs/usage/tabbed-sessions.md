@@ -62,10 +62,6 @@ Right-click a tab → **Rename**. Names must be unique within the session (dupli
 
 You can't close the last tab — at least one tab always remains. The chat sidebar always has an active session.
 
-## Forking from a tab
-
-Right-click → **Fork From Here** creates a new tab branched from the current session's history at this point. Useful for "what if I asked the same question differently" without losing the original conversation.
-
 ## Per-tab state
 
 Each tab independently tracks:

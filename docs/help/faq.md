@@ -129,7 +129,7 @@ See [Session History](/usage/session-history) for details.
 
 ### What's the difference between Restore and Fork?
 
-**Restore** continues the existing session—new messages are added to the same conversation. **Fork** creates a new session branching from that point, leaving the original session unchanged.
+**Restore** continues the existing session—new messages are added to the same conversation. **Fork** creates a new session branching from that point, leaving the original session unchanged. Fork relies on an experimental agent capability and only appears when your agent supports it — many agents do not, so you may not see a Fork action at all.
 
 ### The modal says "This agent does not support session restoration"
 
