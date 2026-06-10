@@ -184,6 +184,19 @@ export interface ManifestEntry {
 	minDistinctColors?: number;
 
 	/**
+	 * Legibility floor (rubric P5): minimum source/target scale for the RESIZE
+	 * path. The cropped source region (device px) must be at least
+	 * `minLegibilityScale ×` the output dimensions, else the emit upscales and
+	 * blurs — illegible when the docs site renders the shot small. Default
+	 * `DEFAULT_MIN_LEGIBILITY_SCALE` (1.0 = no upscaling). Only applies to
+	 * static-crop entries (window + screen mode); `cropSelector` (native size)
+	 * and group `cropSelectors` (center-padded) entries never resize, so the
+	 * orchestrator skips the floor for them. Tighten for a hero (e.g. 2.0 for
+	 * retina headroom); relax below 1.0 only for a tolerant reference shot.
+	 */
+	minLegibilityScale?: number;
+
+	/**
 	 * Tier-1 editorial intent (screenshot quality rubric P1/P2/P4/P9). A
 	 * one-line statement of what this shot communicates. Required when
 	 * `placement` is "hero" or "feature".
@@ -337,6 +350,14 @@ export function validateManifest(
 			if (!Number.isFinite(m) || m < 0) {
 				throw new Error(
 					`manifest entry "${entry.name}" has invalid minDistinctColors: ${m} (must be a finite number >= 0)`,
+				);
+			}
+		}
+		if (entry.minLegibilityScale !== undefined) {
+			const s = entry.minLegibilityScale;
+			if (!Number.isFinite(s) || s <= 0) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid minLegibilityScale: ${s} (must be a finite number > 0)`,
 				);
 			}
 		}

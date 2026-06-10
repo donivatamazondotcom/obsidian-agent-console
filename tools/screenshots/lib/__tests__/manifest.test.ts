@@ -382,3 +382,74 @@ describe("validateManifest — Tier-1 editorial fields (rubric)", () => {
 		expect(() => validateManifest({ entries: [e] }, root)).not.toThrow();
 	});
 });
+
+describe("validateManifest — minLegibilityScale (rubric P5)", () => {
+	it("accepts a positive minLegibilityScale", () => {
+		const root = makeFixtureRoot();
+		const entry: ManifestEntry = {
+			name: "with-legibility",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 400, height: 400 },
+			minLegibilityScale: 2,
+		};
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
+	});
+
+	it("accepts an entry with no minLegibilityScale (global default applies at runtime)", () => {
+		const root = makeFixtureRoot();
+		const entry: ManifestEntry = {
+			name: "no-legibility",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 400, height: 400 },
+		};
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
+	});
+
+	it("rejects a zero minLegibilityScale (meaningless — disables the floor)", () => {
+		const root = makeFixtureRoot();
+		const entry = {
+			name: "zero-legibility",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 400, height: 400 },
+			minLegibilityScale: 0,
+		} as ManifestEntry;
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/minLegibilityScale/,
+		);
+	});
+
+	it("rejects a negative minLegibilityScale", () => {
+		const root = makeFixtureRoot();
+		const entry = {
+			name: "neg-legibility",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 400, height: 400 },
+			minLegibilityScale: -1,
+		} as ManifestEntry;
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/minLegibilityScale/,
+		);
+	});
+
+	it("rejects a non-finite minLegibilityScale", () => {
+		const root = makeFixtureRoot();
+		const entry = {
+			name: "nan-legibility",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 400, height: 400 },
+			minLegibilityScale: Number.NaN,
+		} as ManifestEntry;
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/minLegibilityScale/,
+		);
+	});
+});

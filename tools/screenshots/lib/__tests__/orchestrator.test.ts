@@ -356,7 +356,7 @@ describe("captureEntry", () => {
 
 	it("scales crop by devicePixelRatio", async () => {
 		const deps = makeDeps({ devicePixelRatio: 2 });
-		const entry = makeEntry({ crop: { x: 10, y: 20, width: 100, height: 50 } });
+		const entry = makeEntry({ crop: { x: 10, y: 20, width: 100, height: 50 }, width: 200, height: 100 });
 
 		await captureEntry(entry, deps);
 
@@ -578,8 +578,8 @@ describe("captureEntry — screen capture mode (popovers)", () => {
 		const deps = makeDeps();
 		const entry = {
 			name: "mode-selection",
-			width: 200,
-			height: 100,
+			width: 100,
+			height: 50,
 			crop: { x: 10, y: 20, width: 100, height: 50 },
 			captureMode: "screen" as const,
 			initialState: {
@@ -616,8 +616,8 @@ describe("captureEntry — screen capture mode (popovers)", () => {
 		const deps = makeDeps();
 		const entry = {
 			name: "model-selection",
-			width: 200,
-			height: 100,
+			width: 100,
+			height: 50,
 			crop: { x: 0, y: 0, width: 100, height: 50 },
 			captureMode: "screen" as const,
 			initialState: {
@@ -643,8 +643,8 @@ describe("captureEntry — screen capture mode (popovers)", () => {
 		const deps = makeDeps();
 		const entry = {
 			name: "mode-selection",
-			width: 200,
-			height: 100,
+			width: 100,
+			height: 50,
 			crop: { x: 0, y: 0, width: 100, height: 50 },
 			captureMode: "screen" as const,
 			promptFile: "connect.txt",
@@ -753,6 +753,8 @@ describe("captureEntry — content guard (I11 follow-up)", () => {
 			name: "mode-selection",
 			captureMode: "screen",
 			crop: { x: 0, y: 0, width: 100, height: 50 },
+			width: 100,
+			height: 50,
 		});
 
 		await expect(captureEntry(entry, deps)).rejects.toThrow(
@@ -823,5 +825,71 @@ describe("captureEntry — mustShow assertion (rubric P2)", () => {
 		expect(cdp.getElementBounds).not.toHaveBeenCalledWith(
 			".agent-client-tab-state-icon",
 		);
+	});
+});
+
+describe("captureEntry — legibility floor (rubric P5)", () => {
+	it("throws when a static crop would upscale (source < target)", async () => {
+		const deps = makeDeps({ devicePixelRatio: 2 });
+		// crop 100×100 @ dpr2 = 200×200 source; target 800×600 → 0.25× upscale.
+		const entry = makeEntry({
+			name: "tiny-crop",
+			width: 800,
+			height: 600,
+			crop: { x: 0, y: 0, width: 100, height: 100 },
+		});
+
+		await expect(captureEntry(entry, deps)).rejects.toThrow(/legibility/i);
+		// It throws before encoding the output, so the content guard never runs.
+		expect(deps.unlink).not.toHaveBeenCalled();
+	});
+
+	it("passes when the static crop source meets/exceeds the target (downscale)", async () => {
+		const deps = makeDeps({ devicePixelRatio: 2 });
+		// crop 800×600 @ dpr2 = 1600×1200 source; target 800×600 → 2× downscale.
+		const entry = makeEntry({
+			name: "ample-crop",
+			width: 800,
+			height: 600,
+			crop: { x: 0, y: 0, width: 800, height: 600 },
+		});
+
+		await expect(captureEntry(entry, deps)).resolves.toBeUndefined();
+	});
+
+	it("honors a tighter per-entry minLegibilityScale (hero retina headroom)", async () => {
+		const deps = makeDeps({ devicePixelRatio: 2 });
+		// crop 600×450 @ dpr2 = 1200×900 source; target 800×600 → 1.5× — clears
+		// the default floor (1) but must fail a 2.0 per-entry floor.
+		const entry = makeEntry({
+			name: "needs-retina",
+			width: 800,
+			height: 600,
+			crop: { x: 0, y: 0, width: 600, height: 450 },
+			minLegibilityScale: 2,
+		});
+
+		await expect(captureEntry(entry, deps)).rejects.toThrow(/legibility/i);
+	});
+
+	it("skips the floor for cropSelector entries (native size, no resize)", async () => {
+		const deps = makeDeps({ devicePixelRatio: 2 });
+		// A tiny selector region would "upscale" if resized — but cropSelector
+		// entries emit at native captured size and never resize, so the floor
+		// must not fire.
+		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockResolvedValue({
+			x: 0,
+			y: 0,
+			width: 20,
+			height: 20,
+		});
+		const entry = makeEntry({
+			name: "selector-shot",
+			width: 800,
+			height: 600,
+			cropSelector: ".tiny",
+		});
+
+		await expect(captureEntry(entry, deps)).resolves.toBeUndefined();
 	});
 });

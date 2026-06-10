@@ -23,6 +23,7 @@ import {
 	countDistinctColors,
 	DEFAULT_MIN_DISTINCT_COLORS,
 } from "./content-guard";
+import { checkLegibility } from "./legibility";
 
 /** Subset of Cdp used by the orchestrator (for DI). */
 export interface CdpLike {
@@ -459,6 +460,29 @@ export async function captureEntry(
 			cropRect,
 			effectiveDpr,
 		);
+		// Tier-2 legibility floor (rubric P5). Only the static-crop path resizes
+		// to (entry.width, entry.height); an undersized source there upscales and
+		// blurs — illegible when the docs site renders the shot small. Gate on the
+		// same condition as the resize decision below: cropSelector entries emit
+		// at native captured size (no resize), so the floor doesn't apply to them.
+		// Uses the exact scaledCrop the encode extracts; throws before any write.
+		if (!entry.cropSelector) {
+			const leg = checkLegibility({
+				sourceWidth: scaledCrop.width,
+				sourceHeight: scaledCrop.height,
+				targetWidth: entry.width,
+				targetHeight: entry.height,
+				minScale: entry.minLegibilityScale,
+			});
+			if (!leg.ok) {
+				throw new Error(
+					`legibility floor: "${entry.name}" — source ${scaledCrop.width}×${scaledCrop.height} ` +
+						`resized to ${entry.width}×${entry.height} is a ${leg.scale.toFixed(2)}× ` +
+						`${leg.limitingAxis}-limited ${leg.scale < 1 ? "upscale" : "downscale"}, below ` +
+						`the ${leg.minScale}× floor — would blur at display size`,
+				);
+			}
+		}
 		const pipeline = deps.sharp(tmpPath).extract({
 			left: scaledCrop.x,
 			top: scaledCrop.y,
