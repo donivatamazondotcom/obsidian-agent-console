@@ -15,6 +15,7 @@ import {
 	unionRects,
 	computeCropRect,
 	computeCenterExtend,
+	rectIntersects,
 	type Rect,
 } from "./crop";
 import { deriveOutputPath } from "./output";
@@ -309,6 +310,31 @@ export async function captureEntry(
 		await sleep(SETTLE_MS);
 	}
 
+	// 4c. Tier-2 mustShow assertion (rubric P2). Window-mode only: screen-mode
+	// popovers render in a native popup window outside the renderer DOM, so
+	// their bounds aren't queryable here. Assert the single delightful element
+	// this shot exists to showcase is (a) present in the DOM and (b) inside the
+	// crop region — so a regenerated shot can't silently drop what it sells.
+	if (entry.mustShow && entry.captureMode !== "screen") {
+		let mustShowBounds: Rect;
+		try {
+			mustShowBounds = await deps.cdp.getElementBounds(entry.mustShow);
+		} catch {
+			throw new Error(
+				`mustShow assert: "${entry.name}" — required element not found in DOM: ${entry.mustShow}`,
+			);
+		}
+		const cropCss = await resolveCropRectCss(entry, deps.cdp);
+		if (!rectIntersects(cropCss, mustShowBounds)) {
+			throw new Error(
+				`mustShow assert: "${entry.name}" — element ${entry.mustShow} at ` +
+					`(${mustShowBounds.x},${mustShowBounds.y},${mustShowBounds.width},${mustShowBounds.height}) ` +
+					`is outside the crop region ` +
+					`(${cropCss.x},${cropCss.y},${cropCss.width},${cropCss.height})`,
+			);
+		}
+	}
+
 	// 5. Capture to a temp file. captureMode "screen" uses macOS screencapture
 	// of the window's screen region — the only way to capture native popup
 	// menus, which render outside the renderer dev:screenshot sees. All other
@@ -507,6 +533,42 @@ export async function captureAll(
 		}
 	}
 	return results;
+}
+
+/**
+ * Resolve an entry's crop region in CSS-pixel space (pre-DPR-scaling) — the
+ * same space getElementBounds reports in. Mirrors the capture-path crop
+ * precedence (group union > single selector > static) so the mustShow assert
+ * checks against exactly the region that will be cropped. Window-mode only.
+ */
+async function resolveCropRectCss(
+	entry: ManifestEntry,
+	cdp: CdpLike,
+): Promise<Rect> {
+	if (entry.cropSelectors?.length) {
+		const rects: Rect[] = [];
+		for (const sel of entry.cropSelectors) {
+			rects.push(await cdp.getElementBounds(sel));
+		}
+		return computeCropRect(unionRects(rects), {
+			padding: entry.cropPadding ?? 16,
+		});
+	}
+	if (entry.cropSelector) {
+		try {
+			const b = await cdp.getElementBounds(entry.cropSelector);
+			const padding = entry.cropPadding ?? 16;
+			return {
+				x: Math.max(0, b.x - padding),
+				y: Math.max(0, b.y - padding),
+				width: b.width + padding * 2,
+				height: b.height + padding * 2,
+			};
+		} catch {
+			return entry.crop;
+		}
+	}
+	return entry.crop;
 }
 
 function sleep(ms: number): Promise<void> {

@@ -131,3 +131,20 @@ export function computeCenterExtend(
 	const bottom = dh - top;
 	return { top, bottom, left, right };
 }
+
+/**
+ * True when two rects share any positive area. Strict overlap: edge-only
+ * touching (one rect's right edge exactly at the other's left edge) does NOT
+ * count — an element flush against the crop boundary with no area inside is
+ * not "visible in" the crop. Used by the orchestrator's Tier-2 `mustShow`
+ * assertion (rubric P2) to verify the delightful element falls inside the
+ * crop region.
+ */
+export function rectIntersects(a: Rect, b: Rect): boolean {
+	return (
+		a.x < b.x + b.width &&
+		b.x < a.x + a.width &&
+		a.y < b.y + b.height &&
+		b.y < a.y + a.height
+	);
+}

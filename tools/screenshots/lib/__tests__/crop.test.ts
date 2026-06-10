@@ -14,6 +14,7 @@ import {
 	scaleRectByDevicePixelRatio,
 	unionRects,
 	computeCenterExtend,
+	rectIntersects,
 } from "../crop";
 
 describe("scaleRectByDevicePixelRatio", () => {
@@ -161,5 +162,53 @@ describe("computeCenterExtend", () => {
 			top: 0,
 			bottom: 0,
 		});
+	});
+});
+
+describe("rectIntersects", () => {
+	it("returns true for overlapping rects", () => {
+		expect(
+			rectIntersects(
+				{ x: 0, y: 0, width: 100, height: 100 },
+				{ x: 50, y: 50, width: 100, height: 100 },
+			),
+		).toBe(true);
+	});
+
+	it("returns true when one rect contains the other", () => {
+		expect(
+			rectIntersects(
+				{ x: 0, y: 0, width: 1000, height: 1000 },
+				{ x: 100, y: 100, width: 10, height: 10 },
+			),
+		).toBe(true);
+	});
+
+	it("returns false for fully disjoint rects", () => {
+		expect(
+			rectIntersects(
+				{ x: 0, y: 0, width: 100, height: 100 },
+				{ x: 500, y: 500, width: 50, height: 50 },
+			),
+		).toBe(false);
+	});
+
+	it("returns false for edge-only touching (strict overlap)", () => {
+		// a's right edge (x=100) exactly meets b's left edge (x=100): no area.
+		expect(
+			rectIntersects(
+				{ x: 0, y: 0, width: 100, height: 100 },
+				{ x: 100, y: 0, width: 100, height: 100 },
+			),
+		).toBe(false);
+	});
+
+	it("returns true for a small overlap past the edge", () => {
+		expect(
+			rectIntersects(
+				{ x: 0, y: 0, width: 100, height: 100 },
+				{ x: 99, y: 0, width: 100, height: 100 },
+			),
+		).toBe(true);
 	});
 });

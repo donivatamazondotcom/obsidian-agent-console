@@ -763,3 +763,65 @@ describe("captureEntry — content guard (I11 follow-up)", () => {
 		);
 	});
 });
+
+describe("captureEntry — mustShow assertion (rubric P2)", () => {
+	it("throws when the mustShow element is not in the DOM (window mode)", async () => {
+		const cdp = makeMockCdp();
+		cdp.getElementBounds = vi.fn().mockRejectedValue(new Error("not found"));
+		const deps = makeDeps({
+			cdp: cdp as unknown as OrchestratorDeps["cdp"],
+		});
+		const entry = makeEntry({ mustShow: ".agent-client-tab-state-icon" });
+		await expect(captureEntry(entry, deps)).rejects.toThrow(
+			/mustShow assert.*not found/,
+		);
+	});
+
+	it("throws when the mustShow element is outside the crop region", async () => {
+		const cdp = makeMockCdp();
+		// Default entry crop is {0,0,1600,1200}; place the element far outside.
+		cdp.getElementBounds = vi
+			.fn()
+			.mockResolvedValue({ x: 5000, y: 5000, width: 10, height: 10 });
+		const deps = makeDeps({
+			cdp: cdp as unknown as OrchestratorDeps["cdp"],
+		});
+		const entry = makeEntry({ mustShow: ".agent-client-tab-state-icon" });
+		await expect(captureEntry(entry, deps)).rejects.toThrow(
+			/outside the crop region/,
+		);
+	});
+
+	it("passes when the mustShow element is inside the crop region", async () => {
+		const cdp = makeMockCdp();
+		cdp.getElementBounds = vi
+			.fn()
+			.mockResolvedValue({ x: 10, y: 10, width: 50, height: 50 });
+		const deps = makeDeps({
+			cdp: cdp as unknown as OrchestratorDeps["cdp"],
+		});
+		const entry = makeEntry({ mustShow: ".agent-client-tab-state-icon" });
+		await expect(captureEntry(entry, deps)).resolves.toBeUndefined();
+		expect(cdp.getElementBounds).toHaveBeenCalledWith(
+			".agent-client-tab-state-icon",
+		);
+	});
+
+	it("skips the assert for screen-mode entries (popover not in DOM)", async () => {
+		const cdp = makeMockCdp();
+		// Would fail the assert if it ran — proves screen mode skips it.
+		cdp.getElementBounds = vi.fn().mockRejectedValue(new Error("not found"));
+		const deps = makeDeps({
+			cdp: cdp as unknown as OrchestratorDeps["cdp"],
+		});
+		const entry = makeEntry({
+			mustShow: ".agent-client-tab-state-icon",
+			captureMode: "screen",
+			crop: { x: 0, y: 0, width: 800, height: 600 },
+		});
+		await expect(captureEntry(entry, deps)).resolves.toBeUndefined();
+		expect(cdp.getElementBounds).not.toHaveBeenCalledWith(
+			".agent-client-tab-state-icon",
+		);
+	});
+});
