@@ -1,0 +1,14 @@
+{
+	"updated": "2026-06-10T05:45:14.600Z",
+	"thresholdPct": 15,
+	"benchmarks": {
+		"8 notes, reference-only, no selection": {
+			"hz": 6636911.0442857,
+			"mean": 0.0001506725031158867
+		},
+		"8 notes, embedded, with selection": {
+			"hz": 1038187.5847249497,
+			"mean": 0.0009632170666584624
+		}
+	}
+}

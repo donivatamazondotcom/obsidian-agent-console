@@ -13,6 +13,8 @@
 		"lint:fix": "eslint . --fix",
 		"test": "vitest run --passWithNoTests",
 		"test:watch": "vitest",
+		"bench": "vitest bench --run",
+		"perf:gate": "node tools/quality-gates/run-perf-gate.mjs",
 		"docs:dev": "vitepress dev docs",
 		"docs:build": "vitepress build docs",
 		"docs:preview": "vitepress preview docs"
