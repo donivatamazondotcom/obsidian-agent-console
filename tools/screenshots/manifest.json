@@ -17,7 +17,7 @@
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 800,
 			"placement": "feature",
-			"purpose": "Shows where Agent Console lives — the ribbon entry point.",
+			"purpose": "Shows where Agent Console lives \u2014 the ribbon entry point.",
 			"differentiator": "Ribbon icon / one-click access",
 			"mustShow": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"]",
 			"caption": "Open the agent from the ribbon",
@@ -91,41 +91,53 @@
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true,
-				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-actions .agent-client-toolbar-dropdown:first-child"
+				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-config-selector-mode"
 			},
 			"approvalThreshold": 0.01,
 			"promptFile": "connect.txt",
 			"captureMode": "screen",
-			"minDistinctColors": 1000
+			"minDistinctColors": 1000,
+			"placement": "reference",
+			"purpose": "Pick how much autonomy the agent gets, per session.",
+			"differentiator": "Per-session permission modes",
+			"mustShow": ".agent-client-config-selector-mode",
+			"caption": "Control what the agent can do",
+			"altText": "Agent Console permission-mode menu showing Default, Accept Edits, Plan Mode, Don't Ask, and Bypass Permissions"
 		},
 		{
 			"name": "model-selection",
-			"width": 1400,
-			"height": 820,
+			"width": 734,
+			"height": 308,
 			"crop": {
-				"x": 0,
-				"y": 0,
-				"width": 1400,
-				"height": 820
+				"x": 1500,
+				"y": 1094,
+				"width": 1300,
+				"height": 546
 			},
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true,
-				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-actions .agent-client-toolbar-dropdown:last-child"
+				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-config-selector-model"
 			},
 			"approvalThreshold": 0.01,
 			"promptFile": "connect.txt",
-			"captureMode": "screen"
+			"captureMode": "screen",
+			"placement": "reference",
+			"purpose": "Switch the model the agent runs on.",
+			"differentiator": "Model selection",
+			"mustShow": ".agent-client-config-selector-model",
+			"caption": "Choose your model",
+			"altText": "Agent Console model menu listing the available models for the session"
 		},
 		{
 			"name": "switch-agent",
-			"width": 1400,
-			"height": 820,
+			"width": 660,
+			"height": 414,
 			"crop": {
-				"x": 0,
-				"y": 0,
-				"width": 1400,
-				"height": 820
+				"x": 1620,
+				"y": 90,
+				"width": 1180,
+				"height": 740
 			},
 			"initialState": {
 				"openNote": "Welcome.md",
@@ -134,7 +146,13 @@
 			},
 			"approvalThreshold": 0.01,
 			"promptFile": "connect.txt",
-			"captureMode": "screen"
+			"captureMode": "screen",
+			"placement": "reference",
+			"purpose": "Switch the active session to a different agent.",
+			"differentiator": "Multiple agents",
+			"mustShow": "[aria-label=\"More\"]",
+			"caption": "Switch between agents",
+			"altText": "Agent Console More menu open with the Switch agent option"
 		}
 	]
 }

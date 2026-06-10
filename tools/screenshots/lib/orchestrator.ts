@@ -41,6 +41,7 @@ export interface CdpLike {
 	clickWithCoords(selector: string): Promise<void>;
 	getWindowBounds(): Promise<{ x: number; y: number; width: number; height: number; scaleFactor: number }>;
 	setWindowBounds(bounds: { x: number; y: number; width: number; height: number }): Promise<void>;
+	setWindowAlwaysOnTop(enabled: boolean): Promise<void>;
 	getWorkArea(): Promise<{ x: number; y: number; width: number; height: number; scaleFactor: number }>;
 	screenCaptureRegion(outputPath: string, region: { x: number; y: number; width: number; height: number }): Promise<void>;
 	screenshot(outputPath: string): Promise<void>;
@@ -148,7 +149,16 @@ export async function captureEntry(
 			height: SCREEN_CAPTURE_WINDOW.height,
 		});
 		await sleep(SETTLE_MS);
+		// I13: float the fixtures window above the daily-driver for the whole
+		// capture (restored in the finally below). screencapture composites the
+		// topmost window at the region; the daily-driver window hosting this
+		// agent session stays OS-focused, so a focus()/raise loses the z-order
+		// race — only alwaysOnTop wins it. The native Menu popup renders above
+		// the floated window (verified), so popover shots capture correctly.
+		await deps.cdp.setWindowAlwaysOnTop(true);
 	}
+
+	try {
 
 	// 1. Mobile emulation (before any UI driving)
 	if (entry.mobile) {
@@ -553,6 +563,13 @@ export async function captureEntry(
 		throw new Error(
 			`content guard: "${entry.name}" has ${distinct} distinct colors, below the floor of ${floor} — capture is blank/degraded; deleted ${outputPath}`,
 		);
+	}
+	} finally {
+		// I13: always un-float the fixtures window so it never lingers over the
+		// user's daily vault — even if an assert or the content guard threw.
+		if (entry.captureMode === "screen") {
+			await deps.cdp.setWindowAlwaysOnTop(false);
+		}
 	}
 }
 

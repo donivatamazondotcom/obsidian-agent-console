@@ -1,4 +1,5 @@
 import { ItemView, WorkspaceLeaf, Menu, Notice, type MenuItem } from "obsidian";
+import { registerOpenMenu } from "../utils/menu-registry";
 import type {
 	IChatViewContainer,
 	IChatTabHandle,
@@ -447,6 +448,7 @@ function ChatComponent({
 				return;
 			}
 			const menu = new Menu();
+			registerOpenMenu(menu);
 			const agents = plugin.getAvailableAgents();
 			for (const agent of agents) {
 				menu.addItem((item: MenuItem) => {

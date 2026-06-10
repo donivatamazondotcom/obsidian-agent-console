@@ -2,6 +2,7 @@ import * as React from "react";
 const { useRef, useEffect, useCallback, useMemo } = React;
 import { setIcon, Menu } from "obsidian";
 
+import { registerOpenMenu } from "../utils/menu-registry";
 import {
 	flattenConfigSelectOptions,
 	type SessionModeState,
@@ -58,6 +59,8 @@ function ToolbarDropdown({
 			e.stopPropagation();
 
 			const menu = new Menu();
+
+			registerOpenMenu(menu);
 
 			menu.addItem((menuItem) => {
 				menuItem.setTitle(title).setIsLabel(true);

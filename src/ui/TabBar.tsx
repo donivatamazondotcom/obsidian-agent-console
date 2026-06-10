@@ -13,6 +13,7 @@
 import * as React from "react";
 const { useRef, useEffect, useCallback } = React;
 import { Menu, setIcon, type MenuItem } from "obsidian";
+import { registerOpenMenu } from "../utils/menu-registry";
 import type { TabInfo, TabState } from "../types/tab";
 
 // ============================================================================
@@ -198,6 +199,7 @@ export function TabBar({
 		(e: React.MouseEvent, tab: TabInfo) => {
 			e.preventDefault();
 			const menu = new Menu();
+			registerOpenMenu(menu);
 
 			menu.addItem((item: MenuItem) => {
 				item.setTitle("Rename").setIcon("pencil").onClick(() => {
@@ -243,6 +245,7 @@ export function TabBar({
 	const handleChevronClick = useCallback(
 		(e: React.MouseEvent) => {
 			const menu = new Menu();
+			registerOpenMenu(menu);
 			for (const tab of tabs) {
 				menu.addItem((item: MenuItem) => {
 					item.setTitle(tab.label)

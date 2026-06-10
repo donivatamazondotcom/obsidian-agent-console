@@ -396,3 +396,35 @@ describe("Cdp.clearViewport (I11)", () => {
 		expect(args).toContain("method=Emulation.clearDeviceMetricsOverride");
 	});
 });
+
+describe("Cdp.setWindowAlwaysOnTop (I13 — float the fixtures window for screen capture)", () => {
+	function proc() {
+		return makeFakeProc({
+			stdout: JSON.stringify({ result: { type: "boolean", value: true } }),
+		});
+	}
+
+	it("floats at the 'floating' level and raises when enabled", async () => {
+		spawnMock.mockImplementationOnce(() => proc());
+		const cdp = new Cdp();
+		await cdp.setWindowAlwaysOnTop(true);
+		const params = (spawnMock.mock.calls[0][1] as string[]).find((a) =>
+			a.startsWith("params="),
+		)!;
+		expect(params).toContain("setAlwaysOnTop(true");
+		expect(params).toContain("floating");
+		expect(params).toContain("moveTop");
+	});
+
+	it("clears alwaysOnTop when disabled", async () => {
+		spawnMock.mockImplementationOnce(() => proc());
+		const cdp = new Cdp();
+		await cdp.setWindowAlwaysOnTop(false);
+		const params = (spawnMock.mock.calls[0][1] as string[]).find((a) =>
+			a.startsWith("params="),
+		)!;
+		expect(params).toContain("setAlwaysOnTop(false)");
+		expect(params).not.toContain("floating");
+	});
+});
+

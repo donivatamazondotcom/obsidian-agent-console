@@ -36,6 +36,7 @@ import {
 import type { SavedSessionInfo } from "./types/session";
 import type { PerLeafTabState } from "./types/tab";
 import { initializeLogger, getLogger } from "./utils/logger";
+import { closeOpenMenus } from "./utils/menu-registry";
 
 // Re-export for backward compatibility
 export type { AgentEnvVar, CustomAgentSettings };
@@ -333,6 +334,12 @@ export default class AgentClientPlugin extends Plugin {
 	}
 
 	onunload() {
+		// I14: close any open dropdown menu so a reload (BRAT update,
+		// disable/enable, or the screenshot setup.sh) doesn't leave an orphaned
+		// native popup on screen — it would otherwise survive unload, and the
+		// next screenshot run would capture it.
+		closeOpenMenus();
+
 		// Clear registry (sidebar views are managed by Obsidian workspace)
 		this.viewRegistry.clear();
 

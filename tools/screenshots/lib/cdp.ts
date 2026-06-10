@@ -267,6 +267,26 @@ export class Cdp {
 	}
 
 	/**
+	 * Float (or un-float) THIS window above all others. Screen-mode captures
+	 * use `screencapture -R`, which composites whatever window is topmost at
+	 * the region — and the user's daily-driver Obsidian window (which hosts the
+	 * agent session driving this capture) stays OS-focused, so a focus()/raise
+	 * loses the z-order race and the capture grabs the wrong window's pixels
+	 * while the DOM-based asserts (which target the vault="vault" renderer)
+	 * still pass. Setting the fixtures window alwaysOnTop at the "floating"
+	 * level lifts it — and its native Menu popup, which renders above it
+	 * (verified) — over the daily-driver regardless of focus, so the capture
+	 * always grabs the fixtures window. Restored to false after the capture so
+	 * the window doesn't linger over the user's daily vault (I13).
+	 */
+	async setWindowAlwaysOnTop(enabled: boolean): Promise<void> {
+		const expr = enabled
+			? `(() => { try { const w = require("@electron/remote").getCurrentWindow(); w.setAlwaysOnTop(true, "floating"); w.moveTop(); return true; } catch (e) { return false; } })()`
+			: `(() => { try { require("@electron/remote").getCurrentWindow().setAlwaysOnTop(false); return true; } catch (e) { return false; } })()`;
+		await this.evaluate(expr);
+	}
+
+	/**
 	 * Get the primary display's work area (screen minus menu bar / dock) in
 	 * logical points, plus its backing scale factor. Used to bottom-align the
 	 * capture window so Obsidian flips popover menus upward (keeping them

@@ -46,6 +46,7 @@ function makeMockCdp() {
 		clickWithCoords: vi.fn().mockResolvedValue(undefined),
 		getWindowBounds: vi.fn().mockResolvedValue({ x: 100, y: 50, width: 800, height: 600, scaleFactor: 2 }),
 		setWindowBounds: vi.fn().mockResolvedValue(undefined),
+		setWindowAlwaysOnTop: vi.fn().mockResolvedValue(undefined),
 		getWorkArea: vi.fn().mockResolvedValue({ x: 0, y: 30, width: 3200, height: 1770, scaleFactor: 2 }),
 		screenCaptureRegion: vi.fn().mockResolvedValue(undefined),
 		screenshot: vi.fn().mockResolvedValue(undefined),
@@ -572,7 +573,6 @@ describe("captureEntry — group crop (cropSelectors)", () => {
 	});
 });
 
-
 describe("captureEntry — screen capture mode (popovers)", () => {
 	it("uses screenCaptureRegion (not dev:screenshot) and the window scale factor for screen mode", async () => {
 		const deps = makeDeps();
@@ -612,6 +612,72 @@ describe("captureEntry — screen capture mode (popovers)", () => {
 		});
 	});
 
+	it("floats the fixtures window before screen capture and restores it after (I13)", async () => {
+		const deps = makeDeps();
+		const entry = {
+			name: "mode-selection",
+			width: 100,
+			height: 50,
+			crop: { x: 0, y: 0, width: 100, height: 50 },
+			captureMode: "screen" as const,
+			promptFile: "connect.txt",
+			initialState: { clickRibbon: true, clickSelector: ".x" },
+		};
+
+		await captureEntry(entry, deps);
+
+		const aot = deps.cdp.setWindowAlwaysOnTop as ReturnType<typeof vi.fn>;
+		// Floated on (true) and restored off (false).
+		expect(aot).toHaveBeenCalledWith(true);
+		expect(aot).toHaveBeenCalledWith(false);
+		// The float must precede the screencapture; the restore must follow it.
+		const order = aot.mock.invocationCallOrder;
+		const capOrder = (deps.cdp.screenCaptureRegion as ReturnType<typeof vi.fn>)
+			.mock.invocationCallOrder[0];
+		expect(order[0]).toBeLessThan(capOrder); // setTrue before capture
+		expect(order[order.length - 1]).toBeGreaterThan(capOrder); // setFalse after
+	});
+
+	it("restores alwaysOnTop even when the capture throws — the window never lingers over the daily vault (I13)", async () => {
+		const deps = makeDeps();
+		(
+			deps.cdp.screenCaptureRegion as ReturnType<typeof vi.fn>
+		).mockRejectedValue(new Error("screencapture boom"));
+		const entry = {
+			name: "mode-selection",
+			width: 100,
+			height: 50,
+			crop: { x: 0, y: 0, width: 100, height: 50 },
+			captureMode: "screen" as const,
+			promptFile: "connect.txt",
+			initialState: { clickRibbon: true, clickSelector: ".x" },
+		};
+
+		await expect(captureEntry(entry, deps)).rejects.toThrow(/boom/);
+		// Finally restored the float despite the throw.
+		expect(deps.cdp.setWindowAlwaysOnTop).toHaveBeenCalledWith(false);
+	});
+
+	it("does NOT float the window for window-mode (dev:screenshot) entries (I13)", async () => {
+		const deps = makeDeps();
+		const entry = {
+			name: "ribbon-icon",
+			width: 100,
+			height: 50,
+			crop: { x: 0, y: 0, width: 100, height: 50 },
+			initialState: { openNote: "Welcome.md" },
+		};
+
+		await captureEntry(entry, deps);
+
+		// Window mode uses dev:screenshot (renderer capture) — immune to
+		// z-order — so no float/restore is needed.
+		expect(deps.cdp.setWindowAlwaysOnTop).not.toHaveBeenCalled();
+		expect(deps.cdp.screenshot).toHaveBeenCalled();
+	});
+
+	
+	
 	it("clicks the dropdown via clickWithCoords and does NOT wait for .menu in screen mode", async () => {
 		const deps = makeDeps();
 		const entry = {

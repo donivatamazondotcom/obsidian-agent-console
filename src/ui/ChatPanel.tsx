@@ -9,6 +9,7 @@ import {
 	type MenuItem,
 } from "obsidian";
 
+import { registerOpenMenu } from "../utils/menu-registry";
 import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
 import { deriveNewLeaf } from "../utils/link-leaf";
@@ -584,6 +585,7 @@ export function ChatPanel({
 	const handleShowSidebarMenu = useCallback(
 		(e: React.MouseEvent<HTMLDivElement>) => {
 			const menu = new Menu();
+			registerOpenMenu(menu);
 
 			// -- Switch agent section --
 			menu.addItem((item: MenuItem) => {
