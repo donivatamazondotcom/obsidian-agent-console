@@ -15,7 +15,13 @@
 				"hoverSelector": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"], .side-dock-ribbon-action[aria-label*=\"agent-console\"]"
 			},
 			"approvalThreshold": 0.01,
-			"minDistinctColors": 800
+			"minDistinctColors": 800,
+			"placement": "feature",
+			"purpose": "Shows where Agent Console lives — the ribbon entry point.",
+			"differentiator": "Ribbon icon / one-click access",
+			"mustShow": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"]",
+			"caption": "Open the agent from the ribbon",
+			"altText": "Agent Console ribbon icon with its tooltip in the Obsidian left sidebar"
 		},
 		{
 			"name": "multi-session",
@@ -40,7 +46,13 @@
 			],
 			"draftMessage": "Turn these ideas into a short intro paragraph",
 			"approvalThreshold": 0.1,
-			"minDistinctColors": 1500
+			"minDistinctColors": 1500,
+			"placement": "hero",
+			"purpose": "Run several agent sessions side by side, each tab showing its own live status.",
+			"differentiator": "Tabbed sessions with per-tab status",
+			"mustShow": ".agent-client-tab-state-icon",
+			"caption": "See every agent at a glance",
+			"altText": "Agent Console sidebar with multiple session tabs, each showing a per-tab status icon, beside an open note"
 		},
 		{
 			"name": "session-history-button",

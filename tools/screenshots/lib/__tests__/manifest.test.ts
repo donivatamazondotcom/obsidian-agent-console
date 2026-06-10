@@ -301,3 +301,84 @@ describe("validateManifest", () => {
 		);
 	});
 });
+
+describe("validateManifest — Tier-1 editorial fields (rubric)", () => {
+	function mk(extra: Partial<ManifestEntry>): ManifestEntry {
+		return {
+			name: "tier1",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			...extra,
+		};
+	}
+
+	it("accepts a full set of valid Tier-1 fields", () => {
+		const root = makeFixtureRoot();
+		const e = mk({
+			placement: "reference",
+			purpose: "Shows the export action",
+			differentiator: "Markdown export",
+			mustShow: ".agent-client-export",
+			caption: "Export the chat",
+			altText: "The export action in the chat header",
+		});
+		expect(() => validateManifest({ entries: [e] }, root)).not.toThrow();
+	});
+
+	it("rejects an invalid placement value", () => {
+		const root = makeFixtureRoot();
+		const e = mk({ placement: "banner" as unknown as "hero" });
+		expect(() => validateManifest({ entries: [e] }, root)).toThrow(
+			/placement/,
+		);
+	});
+
+	it("rejects an empty (whitespace-only) purpose", () => {
+		const root = makeFixtureRoot();
+		const e = mk({ purpose: "   " });
+		expect(() => validateManifest({ entries: [e] }, root)).toThrow(
+			/purpose/,
+		);
+	});
+
+	it("rejects altText longer than 140 chars", () => {
+		const root = makeFixtureRoot();
+		const e = mk({ altText: "x".repeat(141) });
+		expect(() => validateManifest({ entries: [e] }, root)).toThrow(/140/);
+	});
+
+	it('rejects altText starting with "image of"', () => {
+		const root = makeFixtureRoot();
+		const e = mk({ altText: "Image of the ribbon icon" });
+		expect(() => validateManifest({ entries: [e] }, root)).toThrow(
+			/image of/i,
+		);
+	});
+
+	it("requires mustShow when placement is hero", () => {
+		const root = makeFixtureRoot();
+		const e = mk({ placement: "hero", purpose: "Hero shot" });
+		expect(() => validateManifest({ entries: [e] }, root)).toThrow(
+			/mustShow/,
+		);
+	});
+
+	it("requires purpose when placement is feature", () => {
+		const root = makeFixtureRoot();
+		const e = mk({ placement: "feature", mustShow: ".x" });
+		expect(() => validateManifest({ entries: [e] }, root)).toThrow(
+			/purpose/,
+		);
+	});
+
+	it("accepts hero placement with both purpose and mustShow", () => {
+		const root = makeFixtureRoot();
+		const e = mk({
+			placement: "hero",
+			purpose: "Tabbed sessions",
+			mustShow: ".agent-client-tab-state-icon",
+		});
+		expect(() => validateManifest({ entries: [e] }, root)).not.toThrow();
+	});
+});

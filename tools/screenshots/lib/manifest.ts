@@ -182,6 +182,43 @@ export interface ManifestEntry {
 	 * session-history-button at 219), so calibrated entries set this per-entry.
 	 */
 	minDistinctColors?: number;
+
+	/**
+	 * Tier-1 editorial intent (screenshot quality rubric P1/P2/P4/P9). A
+	 * one-line statement of what this shot communicates. Required when
+	 * `placement` is "hero" or "feature".
+	 */
+	purpose?: string;
+	/**
+	 * Which product differentiator this shot sells (ties to the Pre-Launch
+	 * Differentiator Set). Free text.
+	 */
+	differentiator?: string;
+	/**
+	 * Scrutiny tier. "hero" = the lead shot answering "what is this?"
+	 * (strictest); "feature" = a single-capability shot; "reference" = a
+	 * plain supporting image. Hero/feature entries must also set `purpose`
+	 * and `mustShow`.
+	 */
+	placement?: "hero" | "feature" | "reference";
+	/**
+	 * CSS selector for the single delightful element that MUST be visible in
+	 * the crop (rubric P2). The Tier-2 capture assert (window-mode only,
+	 * added in a later phase) checks the element exists in the DOM and its
+	 * bounds intersect the crop region. The human-readable intent lives in
+	 * `purpose`.
+	 */
+	mustShow?: string;
+	/**
+	 * Benefit-led caption (rubric P9): 3-7 words, no hype/superlatives/CTAs.
+	 */
+	caption?: string;
+	/**
+	 * Docs `alt=` text (rubric P9, Google Play alt rule): <=140 chars, and
+	 * must not begin with "image of"/"photo of". Validated by
+	 * `validateManifest`.
+	 */
+	altText?: string;
 }
 
 export interface Manifest {
@@ -316,6 +353,64 @@ export function validateManifest(
 					`manifest entry "${entry.name}" has invalid cropSelectors: must be a non-empty array of non-empty strings`,
 				);
 			}
+		}
+
+		if (
+			entry.placement !== undefined &&
+			entry.placement !== "hero" &&
+			entry.placement !== "feature" &&
+			entry.placement !== "reference"
+		) {
+			throw new Error(
+				`manifest entry "${entry.name}" has invalid placement: ${entry.placement} (must be "hero", "feature", or "reference")`,
+			);
+		}
+
+		const editorialStrings: Array<[string, string | undefined]> = [
+			["purpose", entry.purpose],
+			["differentiator", entry.differentiator],
+			["mustShow", entry.mustShow],
+			["caption", entry.caption],
+		];
+		for (const [label, value] of editorialStrings) {
+			if (
+				value !== undefined &&
+				(typeof value !== "string" || value.trim() === "")
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid ${label}: must be a non-empty string`,
+				);
+			}
+		}
+
+		if (entry.altText !== undefined) {
+			if (
+				typeof entry.altText !== "string" ||
+				entry.altText.trim() === ""
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid altText: must be a non-empty string`,
+				);
+			}
+			if (entry.altText.length > 140) {
+				throw new Error(
+					`manifest entry "${entry.name}" has altText longer than 140 chars (${entry.altText.length})`,
+				);
+			}
+			if (/^\s*(image|photo) of\b/i.test(entry.altText)) {
+				throw new Error(
+					`manifest entry "${entry.name}" altText must not start with "image of"/"photo of" (screen readers already announce this)`,
+				);
+			}
+		}
+
+		if (
+			(entry.placement === "hero" || entry.placement === "feature") &&
+			(!entry.purpose || !entry.mustShow)
+		) {
+			throw new Error(
+				`manifest entry "${entry.name}" has placement "${entry.placement}" but is missing required purpose and/or mustShow`,
+			);
 		}
 	}
 }
