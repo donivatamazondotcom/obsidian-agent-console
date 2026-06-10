@@ -428,3 +428,33 @@ describe("Cdp.setWindowAlwaysOnTop (I13 — float the fixtures window for screen
 	});
 });
 
+
+describe("Cdp.hoverElement (I15 — JS-dispatch hover, reliable when not OS-frontmost)", () => {
+	function boolProc(value: boolean) {
+		return makeFakeProc({
+			stdout: JSON.stringify({ result: { type: "boolean", value } }),
+		});
+	}
+
+	it("dispatches hover via Runtime.evaluate (mouseenter/over/move), not CDP Input", async () => {
+		spawnMock.mockImplementationOnce(() => boolProc(true));
+		const cdp = new Cdp();
+		await cdp.hoverElement(".some-button");
+		expect(spawnMock).toHaveBeenCalledTimes(1);
+		const args = spawnMock.mock.calls[0][1] as string[];
+		expect(args).toContain("method=Runtime.evaluate");
+		// must NOT use CDP Input.dispatchMouseEvent (dropped when not frontmost)
+		expect(args.some((a) => a.includes("Input.dispatchMouseEvent"))).toBe(false);
+		const params = args.find((a) => a.startsWith("params="))!;
+		expect(params).toContain("mouseenter");
+		expect(params).toContain("mouseover");
+	});
+
+	it("throws when the element is missing", async () => {
+		spawnMock.mockImplementationOnce(() => boolProc(false));
+		const cdp = new Cdp();
+		await expect(cdp.hoverElement(".missing")).rejects.toThrow(
+			/no element matches/i,
+		);
+	});
+});

@@ -439,11 +439,29 @@ export class Cdp {
 	 * dispatches don't (Obsidian tooltips require pointer position tracking).
 	 */
 	async hoverElement(selector: string): Promise<void> {
-		const bounds = await this.getElementBounds(selector);
-		const x = Math.round(bounds.x + bounds.width / 2);
-		const y = Math.round(bounds.y + bounds.height / 2);
-		const params = JSON.stringify({ type: "mouseMoved", x, y });
-		await this.runRaw(["dev:cdp", "method=Input.dispatchMouseEvent", `params=${params}`]);
+		// Dispatch the hover in-renderer (JS), NOT via CDP
+		// Input.dispatchMouseEvent: CDP input is silently dropped unless the
+		// window is OS-frontmost, and the fixtures window never is (the
+		// daily-driver hosts the agent session driving the capture). JS-
+		// dispatched mouseenter/mouseover/mousemove reliably fire Obsidian's
+		// setTooltip handler regardless of focus (verified) — without it,
+		// hover-tooltip shots (ribbon-icon, export) intermittently miss the
+		// tooltip and the I06 `.tooltip` wait times out (I15).
+		const expr = `(() => {
+			const el = document.querySelector(${JSON.stringify(selector)});
+			if (!el) return false;
+			const r = el.getBoundingClientRect();
+			const cx = r.x + r.width / 2;
+			const cy = r.y + r.height / 2;
+			for (const type of ["mouseenter", "mouseover", "mousemove"]) {
+				el.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: cx, clientY: cy, view: window }));
+			}
+			return true;
+		})()`;
+		const ok = await this.evaluate<boolean>(expr);
+		if (!ok) {
+			throw new Error(`hoverElement: no element matches selector ${selector}`);
+		}
 	}
 
 	/**

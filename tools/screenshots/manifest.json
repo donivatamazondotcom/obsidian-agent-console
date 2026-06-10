@@ -153,6 +153,63 @@
 			"mustShow": "[aria-label=\"More\"]",
 			"caption": "Switch between agents",
 			"altText": "Agent Console More menu open with the Switch agent option"
+		},
+		{
+			"name": "export",
+			"width": 390,
+			"height": 196,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 390,
+				"height": 196
+			},
+			"cropPadding": 14,
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Export chat to Markdown\"]",
+				".tooltip"
+			],
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"hoverSelector": ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Export chat to Markdown\"]"
+			},
+			"approvalThreshold": 0.01,
+			"placement": "reference",
+			"purpose": "Export a chat to a Markdown note.",
+			"differentiator": "Chat export",
+			"mustShow": "[aria-label=\"Export chat to Markdown\"]",
+			"caption": "Save any chat as a note",
+			"altText": "Export chat to Markdown button in the Agent Console chat header, with its tooltip"
+		},
+		{
+			"name": "sending-messages",
+			"width": 1300,
+			"height": 380,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1300,
+				"height": 380
+			},
+			"cropPadding": 12,
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) .context-strip",
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-container"
+			],
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"draftMessage": "What can Agent Console do with my notes?"
+			},
+			"approvalThreshold": 0.05,
+			"placement": "feature",
+			"purpose": "Chat with an agent about the note you're in.",
+			"differentiator": "Context strip / @-mention notes",
+			"mustShow": ".context-strip",
+			"caption": "Pin notes into the chat",
+			"altText": "Agent Console composer with the Welcome note pinned in the context strip, ready to chat",
+			"promptFile": "connect.txt"
 		}
 	]
 }
