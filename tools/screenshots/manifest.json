@@ -45,6 +45,7 @@
 				"multi-session.txt"
 			],
 			"draftMessage": "Turn these ideas into a short intro paragraph",
+			"hideSelectors": [".tooltip"],
 			"approvalThreshold": 0.1,
 			"minDistinctColors": 1500,
 			"placement": "hero",
