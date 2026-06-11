@@ -61,17 +61,6 @@ Agent Console is in the Obsidian Community Plugins store:
 
 Obsidian updates the plugin automatically when a new version is released.
 
-### Through BRAT (latest beta builds)
-
-Want new releases the moment they ship, before they reach the store? Install through [BRAT](https://github.com/TfTHacker/obsidian42-brat):
-
-1. Install the BRAT plugin in Obsidian
-2. Open BRAT settings → "Add Beta Plugin"
-3. Paste: `donivatamazondotcom/obsidian-agent-console`
-4. Turn on Agent Console in your Community Plugins list
-
-BRAT auto-updates on every release.
-
 ## Quick start
 
 You’ll need an AI agent installed on your computer. Popular choices:
