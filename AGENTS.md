@@ -53,7 +53,10 @@ src/
 │   ├── message-sender.ts        # Prompt preparation + sending (pure functions)
 │   ├── chat-exporter.ts         # Markdown export with frontmatter
 │   ├── view-registry.ts         # Multi-view management, focus, broadcast
-│   └── update-checker.ts        # Agent/plugin version checking
+│   ├── update-checker.ts        # Agent/plugin version checking
+│   └── __benchmarks__/          # Perf-gate (Gate B-v1) throughput benchmarks
+│       ├── context-builder.bench.ts    # context-builder throughput benchmark
+│       └── context-validator.bench.ts  # context-validator throughput benchmark
 ├── hooks/                       # React custom hooks (state + logic)
 │   ├── useAgent.ts              # Facade: composes useAgentSession + useAgentMessages
 │   ├── useLazySession.ts        # Typing-as-intent session lifecycle (debounce + queued send)
@@ -112,6 +115,9 @@ src/
 │   ├── paths.ts                 # Path resolution, file:// URI
 │   ├── error-utils.ts           # ACP error conversion
 │   ├── mention-parser.ts        # @[[note]] detection/extraction
+│   ├── link-leaf.ts             # Resolve click modifiers → Obsidian leaf/pane (Keymap.isModEvent) for internal links
+│   ├── menu-registry.ts         # Tracks open Menu popups; closes them on plugin unload (reload-safety)
+│   ├── agent-switch.ts          # Switch a lazy tab's agent so the first message connects to the switched agent
 │   └── logger.ts                # Debug-mode logger
 ├── plugin.ts                    # Obsidian plugin lifecycle, settings persistence
 └── main.ts                      # Entry point
@@ -383,4 +389,4 @@ If you're touching `src/` and your change introduces or changes any of the above
 
 ---
 
-**Last Updated**: June 2026 | **Architecture**: useAgent facade + sub-hooks + tab layer + context-note lifecycle | **Version**: 1.1.0
+**Last Updated**: June 2026 | **Architecture**: useAgent facade + sub-hooks + tab layer + context-note lifecycle | **Version**: 1.1.5

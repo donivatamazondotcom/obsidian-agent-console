@@ -6,7 +6,7 @@ import { join } from "node:path";
  * PR-time tripwire: test fixtures may only use PUBLIC or NEUTRAL agent ids.
  *
  * This catches an Amazon-internal agent name introduced as a test fixture —
- * the vector that leaked "Auto-SA" before the PR #44 scrub — at PR time, in
+ * the vector that leaked an internal name before the PR #44 scrub — at PR time, in
  * CI, WITHOUT this repo ever enumerating internal names. It lists only the
  * ALLOWED ids; anything else fails. Runs via the normal `npm test` CI step.
  *
