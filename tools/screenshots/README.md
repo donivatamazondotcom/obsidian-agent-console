@@ -113,3 +113,49 @@ I11 retina-DPR regression).
 To calibrate a new entry, capture it once, count the colors of the good output,
 and set `minDistinctColors` to roughly half that (comfortably below the good
 count, well above any degraded floor).
+
+## Animated GIFs (v2)
+
+Some behaviors a still can't convey (parallel tabs, pinning/unpinning context) ship as short, stepped GIFs. An entry becomes animated by adding an `animation` block:
+
+```jsonc
+{
+  "name": "temporary-disable",
+  "width": 628, "height": 184,
+  "crop": { "x": 772, "y": 548, "width": 628, "height": 184 },
+  "initialState": { "openNote": "Welcome.md", "clickRibbon": true },
+  "animation": {
+    "fps": 5,
+    "maxBytes": 1500000,
+    "frames": [
+      { "holdMs": 900 },
+      { "actions": [{ "type": "click", "selector": ".some-button" }], "holdMs": 1000 }
+    ]
+  }
+}
+```
+
+- **Window-mode only.** The animation path captures the renderer (`dev:screenshot`) per frame, crops each to the **same static `crop`** (no jitter), runs the per-frame content guard, and encodes with ffmpeg (`palettegen`/`paletteuse`). No drop shadow (GIFs ship flat). Native popup menus are NOT supported (use a still + `captureMode: "screen"`).
+- **Frame actions** (focus-independent — never CDP Input):
+  - `{ "type": "click", "selector": "...", "waitFor": "..." }` — fires the element's React onClick; optional post-click wait.
+  - `{ "type": "draft", "text": "..." }` — types into the composer via `execCommand("insertText")` (fires onChange, so `@`/`/` menus open).
+  - `{ "type": "wait", "selector": "..." }` — poll for an element before the next action (e.g. the send button enabling after a lazy session connects).
+- **Hold** is realized at the constant `fps` by repeating each frame `round(holdMs/1000 × fps)` times (min 1). Output is `<name>.gif`; `maxBytes` is a hard ceiling.
+- **ffmpeg** must be on `PATH`.
+
+## Consistency check (v3)
+
+A static gate — no Obsidian, no agents, no Xvfb — that keeps the manifest, the committed images, and the docs references in sync:
+
+```bash
+npm run docs:screenshots:check
+```
+
+It fails (non-zero) if:
+
+- a manifest entry has no committed image (`<name>.webp`, or `<name>.gif` for animation entries);
+- a committed image is an **orphan** (referenced by neither a manifest entry nor a docs page);
+- a docs page references an image that isn't on disk;
+- an animation gif's dimensions don't match its manifest `width`/`height` (gifs carry no shadow and never resize, so this is exact — webp sizes are left to the manual T05 check because of the drop-shadow margin / `cropSelector` native sizing).
+
+It does **not** regenerate screenshots: most shots are driven by a real agent and are non-deterministic by design (Decision 2), so a content-hash compare is infeasible — true visual-regression is deferred to F02 (Percy/Chromatic, loose thresholds). CI runs this check (plus the unit tests) on every PR — see `.github/workflows/ci.yaml`.

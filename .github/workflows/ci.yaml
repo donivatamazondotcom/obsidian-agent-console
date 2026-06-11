@@ -27,6 +27,12 @@ jobs:
       - name: Type-check benchmark
         run: npm run typecheck:bench
 
+      - name: Test
+        run: npm test
+
+      - name: Screenshot consistency
+        run: npm run docs:screenshots:check
+
       # Gate B-v1 (perf) — phase 1: warn-only / observe.
       # Surfaces benchmark numbers so we can learn the noise floor (spec QG4).
       # Does NOT diff against the committed perf-baseline.json: that baseline is
