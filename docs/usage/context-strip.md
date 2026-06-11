@@ -21,6 +21,10 @@ When you send a message, any provisional pill **pins** and becomes a pinned pill
 - **Add more notes:** `@mention` them in your message — mentioned notes pin into pills when you send.
 - **Remove a note:** click the ✕ on its pill, or — with the text field empty — press **Backspace** to remove the rightmost pill. A provisional (dashed) pill goes in a single press; a pinned pill highlights on the first Backspace and clears on the second.
 
+<p align="center">
+  <img src="/images/temporary-disable.gif" alt="Removing the auto-pinned active note from the context strip with its remove button, then pinning it back with the grab button" />
+</p>
+
 ## Default context
 
 On a fresh chat, the note you have open is offered as a provisional pill automatically. Prefer to start every chat with an empty strip and pin notes by hand? Turn this off under **Settings → Agent Console → Context → "Active note as default context"**.

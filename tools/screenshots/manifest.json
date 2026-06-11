@@ -1,0 +1,552 @@
+{
+	"entries": [
+		{
+			"name": "ribbon-icon",
+			"width": 160,
+			"height": 56,
+			"crop": {
+				"x": 0,
+				"y": 256,
+				"width": 160,
+				"height": 56
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"hoverSelector": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"], .side-dock-ribbon-action[aria-label*=\"agent-console\"]"
+			},
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 800,
+			"placement": "feature",
+			"purpose": "Shows where Agent Console lives \u2014 the ribbon entry point.",
+			"differentiator": "Ribbon icon / one-click access",
+			"mustShow": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"]",
+			"caption": "Open the agent from the ribbon",
+			"altText": "Agent Console ribbon icon with its tooltip in the Obsidian left sidebar"
+		},
+		{
+			"name": "multi-session",
+			"width": 300,
+			"height": 800,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 900,
+				"height": 608
+			},
+			"cropSelector": ".workspace",
+			"cropPadding": 0,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"prompts": [
+				"multi-session-1.txt",
+				"multi-session-2.txt",
+				"multi-session.txt"
+			],
+			"draftMessage": "Turn these ideas into a short intro paragraph",
+			"hideSelectors": [".tooltip"],
+			"approvalThreshold": 0.1,
+			"minDistinctColors": 1500,
+			"placement": "hero",
+			"purpose": "Run several agent sessions side by side, each tab showing its own live status.",
+			"differentiator": "Tabbed sessions with per-tab status",
+			"mustShow": ".agent-client-tab-state-icon",
+			"caption": "See every agent at a glance",
+			"altText": "Agent Console sidebar with multiple session tabs, each showing a per-tab status icon, beside an open note"
+		},
+		{
+			"name": "session-history-button",
+			"width": 298,
+			"height": 96,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"approvalThreshold": 0.01,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 298,
+				"height": 96
+			},
+			"cropPadding": 0,
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"New chat\"]",
+				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Session history\"]",
+				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Export chat to Markdown\"]",
+				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"More\"]"
+			],
+			"minDistinctColors": 120
+		},
+		{
+			"name": "mode-selection",
+			"width": 734,
+			"height": 308,
+			"crop": {
+				"x": 1500,
+				"y": 1094,
+				"width": 1300,
+				"height": 546
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-config-selector-mode"
+			},
+			"approvalThreshold": 0.01,
+			"promptFile": "connect.txt",
+			"captureMode": "screen",
+			"minDistinctColors": 1000,
+			"placement": "reference",
+			"purpose": "Pick how much autonomy the agent gets, per session.",
+			"differentiator": "Per-session permission modes",
+			"mustShow": ".agent-client-config-selector-mode",
+			"caption": "Control what the agent can do",
+			"altText": "Agent Console permission-mode menu showing Default, Accept Edits, Plan Mode, Don't Ask, and Bypass Permissions"
+		},
+		{
+			"name": "model-selection",
+			"width": 734,
+			"height": 308,
+			"crop": {
+				"x": 1500,
+				"y": 1094,
+				"width": 1300,
+				"height": 546
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-config-selector-model"
+			},
+			"approvalThreshold": 0.01,
+			"promptFile": "connect.txt",
+			"captureMode": "screen",
+			"placement": "reference",
+			"purpose": "Switch the model the agent runs on.",
+			"differentiator": "Model selection",
+			"mustShow": ".agent-client-config-selector-model",
+			"caption": "Choose your model",
+			"altText": "Agent Console model menu listing the available models for the session"
+		},
+		{
+			"name": "thought-level-selection",
+			"width": 734,
+			"height": 308,
+			"crop": {
+				"x": 1500,
+				"y": 1094,
+				"width": 1300,
+				"height": 546
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-config-selector-thought_level"
+			},
+			"approvalThreshold": 0.01,
+			"promptFile": "connect.txt",
+			"captureMode": "screen",
+			"minDistinctColors": 1000,
+			"placement": "reference",
+			"purpose": "Tune how much reasoning effort the agent spends per session.",
+			"differentiator": "Per-session reasoning effort",
+			"mustShow": ".agent-client-config-selector-thought_level",
+			"caption": "Dial the agent\u2019s effort up or down",
+			"altText": "Agent Console effort-level menu showing Default, Low, Medium, High, and Max"
+		},
+		{
+			"name": "switch-agent",
+			"width": 660,
+			"height": 414,
+			"crop": {
+				"x": 1620,
+				"y": 90,
+				"width": 1180,
+				"height": 740
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"More\"]"
+			},
+			"approvalThreshold": 0.01,
+			"promptFile": "connect.txt",
+			"captureMode": "screen",
+			"placement": "reference",
+			"purpose": "Switch the active session to a different agent.",
+			"differentiator": "Multiple agents",
+			"mustShow": "[aria-label=\"More\"]",
+			"caption": "Switch between agents",
+			"altText": "Agent Console More menu open with the Switch agent option"
+		},
+		{
+			"name": "export",
+			"width": 390,
+			"height": 196,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 390,
+				"height": 196
+			},
+			"cropPadding": 14,
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Export chat to Markdown\"]",
+				".tooltip"
+			],
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"hoverSelector": ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Export chat to Markdown\"]"
+			},
+			"approvalThreshold": 0.01,
+			"placement": "reference",
+			"purpose": "Export a chat to a Markdown note.",
+			"differentiator": "Chat export",
+			"mustShow": "[aria-label=\"Export chat to Markdown\"]",
+			"caption": "Save any chat as a note",
+			"altText": "Export chat to Markdown button in the Agent Console chat header, with its tooltip"
+		},
+		{
+			"name": "sending-messages",
+			"width": 1300,
+			"height": 380,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1300,
+				"height": 380
+			},
+			"cropPadding": 12,
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) .context-strip",
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-container"
+			],
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"draftMessage": "What can Agent Console do with my notes?",
+			"approvalThreshold": 0.05,
+			"placement": "feature",
+			"purpose": "Chat with an agent about the note you're in.",
+			"differentiator": "Context strip / @-mention notes",
+			"mustShow": ".context-strip",
+			"caption": "Pin notes into the chat",
+			"altText": "Agent Console composer with the Welcome note pinned in the context strip, ready to chat",
+			"promptFile": "connect.txt"
+		},
+		{
+			"name": "switch-default-agent",
+			"width": 1540,
+			"height": 214,
+			"crop": {
+				"x": 860,
+				"y": 320,
+				"width": 1540,
+				"height": 214
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"openSettings": "agent-console",
+				"openNativeSelect": ".vertical-tab-content select"
+			},
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 2500,
+			"captureMode": "screen",
+			"placement": "reference",
+			"purpose": "Pick the agent every new chat opens with.",
+			"differentiator": "Multiple agents / default selection",
+			"mustShow": ".vertical-tab-content select",
+			"caption": "Set your default agent",
+			"altText": "Agent Console settings with the Default agent dropdown open, listing the available agents"
+		},
+		{
+			"name": "editing",
+			"width": 1240,
+			"height": 910,
+			"crop": {
+				"x": 780,
+				"y": 115,
+				"width": 620,
+				"height": 455
+			},
+			"initialState": {
+				"openNote": "Draft.md",
+				"clickRibbon": true
+			},
+			"promptFile": "editing.txt",
+			"awaitSelector": ".agent-client-message-permission-request",
+			"approvalThreshold": 0.1,
+			"minDistinctColors": 2000,
+			"placement": "feature",
+			"purpose": "Approve or reject a file edit the agent proposes, with a full diff.",
+			"differentiator": "Edit approval / permission control",
+			"mustShow": ".agent-client-message-permission-request",
+			"caption": "Approve edits before they happen",
+			"altText": "Agent Console permission card showing a proposed file edit diff with Allow and Reject buttons"
+		},
+		{
+			"name": "slash-commands-1",
+			"width": 742,
+			"height": 876,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 100,
+				"height": 100
+			},
+			"cropSelector": ".agent-client-mention-dropdown",
+			"cropPadding": 0,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"promptFile": "connect.txt",
+			"agentId": "gemini-cli",
+			"draftMessage": "/",
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 800,
+			"placement": "feature",
+			"purpose": "Discover and run agent slash commands from the composer.",
+			"differentiator": "Slash commands",
+			"mustShow": ".agent-client-mention-dropdown",
+			"caption": "Run slash commands inline",
+			"altText": "Agent Console composer slash-command menu listing the available commands"
+		},
+		{
+			"name": "slash-commands-2",
+			"width": 730,
+			"height": 326,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 100,
+				"height": 100
+			},
+			"cropSelector": ".agent-client-mention-dropdown",
+			"cropPadding": 0,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"agentId": "gemini-cli",
+			"promptFile": "connect.txt",
+			"draftMessage": "/ext",
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 800,
+			"placement": "reference",
+			"purpose": "Filter slash commands as you type.",
+			"differentiator": "Slash commands",
+			"mustShow": ".agent-client-mention-dropdown",
+			"caption": "Filter commands as you type",
+			"altText": "Agent Console slash-command menu filtered to the extensions commands as the user types"
+		},
+		{
+			"name": "sending-images",
+			"width": 1340,
+			"height": 560,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1340,
+				"height": 560
+			},
+			"cropPadding": 12,
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) .context-strip",
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-container"
+			],
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"promptFile": "connect.txt",
+			"attachImage": "sample-diagram.png",
+			"approvalThreshold": 0.05,
+			"minDistinctColors": 800,
+			"placement": "feature",
+			"purpose": "Attach an image to the chat and send it to the agent.",
+			"differentiator": "Image & file attachments",
+			"mustShow": ".agent-client-attachment-preview-thumbnail",
+			"caption": "Drop in images and files",
+			"altText": "Agent Console composer with an image thumbnail attached below the message box, ready to send"
+		},
+		{
+			"name": "remove-image",
+			"width": 240,
+			"height": 240,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 240,
+				"height": 240
+			},
+			"cropPadding": 12,
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-attachment-preview-item"
+			],
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"promptFile": "connect.txt",
+			"attachImage": "sample-diagram.png",
+			"approvalThreshold": 0.05,
+			"minDistinctColors": 150,
+			"placement": "reference",
+			"purpose": "Remove an attached image before sending.",
+			"differentiator": "Image & file attachments",
+			"mustShow": ".agent-client-attachment-preview-remove",
+			"caption": "Remove an attachment in one click",
+			"altText": "Close-up of an attached image thumbnail with its remove button in the composer",
+			"revealSelectors": [
+				".agent-client-attachment-preview-remove"
+			]
+		},
+		{
+			"name": "temporary-disable",
+			"width": 628,
+			"height": 184,
+			"crop": {
+				"x": 772,
+				"y": 548,
+				"width": 628,
+				"height": 184
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"minDistinctColors": 300,
+			"placement": "feature",
+			"purpose": "Pin or unpin the active note as chat context.",
+			"differentiator": "Context strip / crystallized context",
+			"mustShow": ".context-strip-grab",
+			"caption": "Control what the agent sees",
+			"altText": "Removing the auto-pinned active note from the context strip, then pinning it back with the grab button",
+			"animation": {
+				"fps": 5,
+				"maxBytes": 1500000,
+				"frames": [
+					{ "holdMs": 900 },
+					{
+						"actions": [
+							{ "type": "click", "selector": ".context-strip-pill--provisional .context-strip-pill-remove" }
+						],
+						"holdMs": 1000
+					},
+					{
+						"actions": [
+							{ "type": "click", "selector": ".context-strip-grab", "waitFor": ".context-strip-pill:not(.context-strip-pill--provisional)" }
+						],
+						"holdMs": 1200
+					}
+				]
+			}
+		},
+		{
+			"name": "mention-context",
+			"width": 628,
+			"height": 192,
+			"crop": {
+				"x": 772,
+				"y": 540,
+				"width": 628,
+				"height": 192
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"minDistinctColors": 300,
+			"placement": "feature",
+			"purpose": "Mention notes with @ to build the chat's context.",
+			"differentiator": "Context strip / @-mention notes",
+			"mustShow": ".context-strip",
+			"caption": "Pull notes into context with @",
+			"altText": "Typing an @ note mention, choosing a note, and sending — the mentioned notes appear as pills in the context strip",
+			"animation": {
+				"fps": 5,
+				"maxBytes": 1500000,
+				"frames": [
+					{ "holdMs": 900 },
+					{
+						"actions": [
+							{ "type": "draft", "text": "@Project" }
+						],
+						"holdMs": 1100
+					},
+					{
+						"actions": [
+							{ "type": "click", "selector": ".agent-client-mention-dropdown-item", "waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button:not(.agent-client-disabled)" }
+						],
+						"holdMs": 1100
+					},
+					{
+						"actions": [
+							{ "type": "click", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button", "waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) .context-strip-pill:not(.context-strip-pill--provisional)" }
+						],
+						"holdMs": 1600
+					}
+				]
+			}
+		},
+		{
+			"name": "parallel-sessions",
+			"width": 628,
+			"height": 576,
+			"crop": {
+				"x": 772,
+				"y": 34,
+				"width": 628,
+				"height": 576
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"minDistinctColors": 1500,
+			"placement": "feature",
+			"purpose": "Run multiple agent sessions in parallel tabs, each with its own status.",
+			"differentiator": "Tabbed sessions with per-tab status",
+			"mustShow": ".agent-client-tab-state-icon",
+			"caption": "Run agents in parallel tabs",
+			"altText": "Sending a prompt in one session tab, opening a second tab, and sending another — each tab keeps its own conversation and status icon",
+			"animation": {
+				"fps": 5,
+				"maxBytes": 2500000,
+				"frames": [
+					{
+						"actions": [
+							{ "type": "draft", "text": "Give me a one-line tip for organizing notes." },
+							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button:not(.agent-client-disabled)" },
+							{ "type": "click", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button" },
+							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-message-renderer.agent-client-message-assistant" },
+							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-loading-indicator.agent-client-hidden" }
+						],
+						"holdMs": 1500
+					},
+					{
+						"actions": [
+							{ "type": "click", "selector": ".agent-client-tab-bar-add", "waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) textarea.agent-client-chat-input-textarea" }
+						],
+						"holdMs": 1000
+					},
+					{
+						"actions": [
+							{ "type": "draft", "text": "Suggest a short name for a personal wiki." },
+							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button:not(.agent-client-disabled)" },
+							{ "type": "click", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button" },
+							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-message-renderer.agent-client-message-assistant" },
+							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-loading-indicator.agent-client-hidden" }
+						],
+						"holdMs": 1800
+					}
+				]
+			}
+		}
+	]
+}

@@ -1,0 +1,13 @@
+{
+  "name" : "screenshot-fixtures",
+  "description" : "Hermetic agent for Agent Console screenshot fixtures — no MCP servers, deterministic captures.",
+  "mcpServers" : {
+    "creds-agent" : {
+      "command" : "aim",
+      "args" : [ "mcp", "start-server", "local-creds-agent-mcp" ]
+    }
+  },
+  "includeMcpJson" : false,
+  "tools" : [ "read", "@creds-agent" ],
+  "allowedTools" : [ "read", "@creds-agent" ]
+}

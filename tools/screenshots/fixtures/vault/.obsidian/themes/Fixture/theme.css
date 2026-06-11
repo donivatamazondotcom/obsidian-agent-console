@@ -1,0 +1,36 @@
+/* Fixture — clean dark palette for Agent Console documentation screenshots. */
+.theme-dark {
+	--accent-h: 248;
+	--accent-s: 85%;
+	--accent-l: 68%;
+	--background-primary: #1b1d29;
+	--background-primary-alt: #181a24;
+	--background-secondary: #15161f;
+	--background-secondary-alt: #111219;
+	--text-normal: #d6dae6;
+	--text-muted: #8b90a3;
+	--text-faint: #5a5e70;
+	--interactive-accent: #7c83ff;
+	--interactive-accent-hover: #9197ff;
+	--h1-color: #c8ccf6;
+	--h2-color: #bcc1f0;
+	--code-background: #111219;
+	--code-normal: #b8c0ff;
+	--hr-color: #2a2d3a;
+	--tab-text-color-focused-active: #d6dae6;
+}
+
+/* Chat text a touch smaller than note text, so more fits in the sidebar. */
+.agent-client-chat-view-container {
+	--ac-chat-font-size: calc(var(--font-text-size) * 0.85);
+}
+
+.markdown-rendered pre,
+.markdown-rendered code {
+	border: 1px solid #262838;
+}
+
+/* Screenshot fixtures: hide the transient scroll-to-bottom affordance so a
+   compact capture height doesn't surface it over the transcript. !important
+   persists across React re-renders (an inline display:none does not). */
+.agent-client-scroll-to-bottom { display: none !important; }

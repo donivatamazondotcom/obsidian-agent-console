@@ -25,6 +25,7 @@ main.js
 
 # obsidian
 data.json
+workspace.json
 sessions/
 
 # Exclude macOS Finder (System Explorer) View States
