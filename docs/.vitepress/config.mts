@@ -76,6 +76,7 @@ export default defineConfig({
           { text: "Slash Commands", link: "/usage/slash-commands" },
           { text: "Mode Selection", link: "/usage/mode-selection" },
           { text: "Model Selection", link: "/usage/model-selection" },
+          { text: "Effort Level Selection", link: "/usage/thought-level-selection" },
           { text: "Session History", link: "/usage/session-history" },
           { text: "Tabbed Sessions", link: "/usage/tabbed-sessions" },
           { text: "Editing", link: "/usage/editing" },

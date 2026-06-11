@@ -131,6 +131,32 @@
 			"altText": "Agent Console model menu listing the available models for the session"
 		},
 		{
+			"name": "thought-level-selection",
+			"width": 734,
+			"height": 308,
+			"crop": {
+				"x": 1500,
+				"y": 1094,
+				"width": 1300,
+				"height": 546
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-config-selector-thought_level"
+			},
+			"approvalThreshold": 0.01,
+			"promptFile": "connect.txt",
+			"captureMode": "screen",
+			"minDistinctColors": 1000,
+			"placement": "reference",
+			"purpose": "Tune how much reasoning effort the agent spends per session.",
+			"differentiator": "Per-session reasoning effort",
+			"mustShow": ".agent-client-config-selector-thought_level",
+			"caption": "Dial the agent\u2019s effort up or down",
+			"altText": "Agent Console effort-level menu showing Default, Low, Medium, High, and Max"
+		},
+		{
 			"name": "switch-agent",
 			"width": 660,
 			"height": 414,
