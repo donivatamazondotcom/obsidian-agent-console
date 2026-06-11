@@ -9,7 +9,12 @@
  * Test contract: tools/screenshots/lib/__tests__/orchestrator.test.ts.
  */
 import path from "node:path";
-import type { ManifestEntry } from "./manifest";
+import type { ManifestEntry, AnimationAction } from "./manifest";
+import type {
+	AnimationFrameInput,
+	EncodeGifOptions,
+	EncodeGifResult,
+} from "./encode-gif";
 import {
 	scaleRectByDevicePixelRatio,
 	unionRects,
@@ -64,6 +69,7 @@ interface SharpPipeline {
 		background: { r: number; g: number; b: number; alpha: number };
 	}): SharpPipeline;
 	raw(): SharpPipeline;
+	png(): SharpPipeline;
 	metadata(): Promise<{ width?: number; height?: number }>;
 	webp(opts?: { quality?: number }): SharpPipeline;
 	toFile(path: string): Promise<unknown>;
@@ -97,6 +103,12 @@ export interface OrchestratorDeps {
 	) => Promise<{ data: Buffer; channels: number }>;
 	/** Remove a file — used to unlink a degraded capture that fails the content guard. */
 	unlink: (path: string) => void;
+	/**
+	 * Encode an ordered set of cropped PNG frames into a looping GIF (v2
+	 * animation path). Injected so the orchestrator stays free of ffmpeg/fs
+	 * spawning; run.ts binds the real `encodeGif` with its exec/fs deps.
+	 */
+	encodeGif: (opts: EncodeGifOptions) => Promise<EncodeGifResult>;
 }
 
 export interface CaptureResult {
@@ -133,6 +145,12 @@ export async function captureEntry(
 	entry: ManifestEntry,
 	deps: OrchestratorDeps,
 ): Promise<void> {
+	// v2: animation entries take a dedicated multi-frame capture+encode path.
+	if (entry.animation) {
+		await captureAnimationEntry(entry, deps);
+		return;
+	}
+
 	// 0. Screen-capture mode: pin the real OS window to a fixed size/position
 	// BEFORE driving any UI. screencapture grabs the real window region (the
 	// only way to capture native popup menus), so the window must be a known,
@@ -787,4 +805,146 @@ async function resolveCropRectCss(
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Animation capture path (v2): drive each frame, capture window-mode, crop each
+ * to the SAME static crop (no jitter), then encode to `<name>.gif`. Window-mode
+ * only — both target GIFs are in-renderer DOM (context strip / editor / chat),
+ * so no screen-mode/native-popup handling is needed. The drop shadow is NOT
+ * applied (the upstream GIFs are flat).
+ */
+async function captureAnimationEntry(
+	entry: ManifestEntry,
+	deps: OrchestratorDeps,
+): Promise<void> {
+	const spec = entry.animation;
+	if (!spec) return;
+
+	// Initial state — the subset the GIF entries need (mirrors captureEntry's
+	// step 1b/2 without the still-only popover/prompt machinery).
+	if (entry.agentId) {
+		await deps.cdp.evaluate(
+			`(() => { const s = app.plugins.plugins["agent-console"].settings; s.defaultAgentId = ${JSON.stringify(entry.agentId)}; return s.defaultAgentId; })()`,
+		);
+	}
+	if (entry.initialState?.openNote) {
+		await deps.cdp.evaluate(
+			`app.workspace.openLinkText("${entry.initialState.openNote}", "", false)`,
+		);
+	}
+	if (entry.initialState?.clickRibbon) {
+		await deps.cdp.evaluate(
+			`app.workspace.detachLeavesOfType("agent-client-chat-view")`,
+		);
+		await deps.cdp.evaluate(
+			`app.commands.executeCommandById("agent-console:open-chat-view")`,
+		);
+	}
+	if (entry.initialState?.openChatView) {
+		await deps.cdp.evaluate(
+			`app.commands.executeCommandById("agent-console:open-chat-view")`,
+		);
+	}
+	await sleep(SETTLE_MS);
+
+	// Static crop resolved ONCE (CSS px → device px), reused for every frame so
+	// the GIF doesn't jitter; clamped to the captured image bounds per frame.
+	const scaledCrop = scaleRectByDevicePixelRatio(
+		entry.crop,
+		deps.devicePixelRatio,
+	);
+	const floor = entry.minDistinctColors ?? DEFAULT_MIN_DISTINCT_COLORS;
+	const frames: AnimationFrameInput[] = [];
+
+	for (let fi = 0; fi < spec.frames.length; fi++) {
+		const frame = spec.frames[fi];
+		for (const action of frame.actions ?? []) {
+			await applyAnimationAction(action, deps);
+		}
+		await sleep(SETTLE_MS);
+
+		const tmpPath = path.join(deps.tmpDir, `${entry.name}-frame-${fi}.png`);
+		await deps.cdp.screenshot(tmpPath);
+
+		const meta = await deps.sharp(tmpPath).metadata();
+		const imgW = meta.width ?? scaledCrop.x + scaledCrop.width;
+		const imgH = meta.height ?? scaledCrop.y + scaledCrop.height;
+		const cw = Math.min(scaledCrop.width, imgW - scaledCrop.x);
+		const ch = Math.min(scaledCrop.height, imgH - scaledCrop.y);
+		const framePng = (await deps
+			.sharp(tmpPath)
+			.extract({ left: scaledCrop.x, top: scaledCrop.y, width: cw, height: ch })
+			.resize(entry.width, entry.height)
+			.png()
+			.toBuffer()) as Buffer;
+
+		// Per-frame content guard (I12 pattern) — a blank/degraded frame (a
+		// mis-driven step, an empty panel) collapses to a handful of colors.
+		// Decode the cropped frame to raw RGB and fail the run below the floor,
+		// before any GIF is written.
+		const { data, info } = (await deps
+			.sharp(framePng)
+			.raw()
+			.toBuffer({ resolveWithObject: true })) as {
+			data: Buffer;
+			info: { channels: number };
+		};
+		const distinct = countDistinctColors(data, info.channels);
+		if (distinct < floor) {
+			throw new Error(
+				`content guard: "${entry.name}" frame ${fi} has ${distinct} distinct colors, below the floor of ${floor} — blank/degraded frame`,
+			);
+		}
+
+		frames.push({ buffer: framePng, holdMs: frame.holdMs });
+	}
+
+	const outputPath = deriveOutputPath(entry, deps.repoRoot, "gif");
+	await deps.encodeGif({
+		frames,
+		fps: spec.fps,
+		outPath: outputPath,
+		maxBytes: spec.maxBytes,
+	});
+}
+
+/**
+ * Apply one animation drive action via a focus-independent primitive (NEVER
+ * CDP Input — dropped off-frontmost, the I13/I15 wall).
+ */
+async function applyAnimationAction(
+	action: AnimationAction,
+	deps: OrchestratorDeps,
+): Promise<void> {
+	switch (action.type) {
+		case "click":
+			await deps.cdp.clickElement(action.selector);
+			if (action.waitFor) {
+				await deps.cdp.waitForElement(action.waitFor, RESPONSE_TIMEOUT_MS);
+			}
+			break;
+		case "wait":
+			await deps.cdp.waitForElement(action.selector, RESPONSE_TIMEOUT_MS);
+			break;
+		case "draft": {
+			const draft = action.text
+				.replace(/\\/g, "\\\\")
+				.replace(/`/g, "\\`")
+				.replace(/\$/g, "\\$");
+			await deps.cdp.evaluate(
+				`(() => {
+					const ta = Array.from(document.querySelectorAll('textarea.agent-client-chat-input-textarea')).find((t) => t.offsetParent !== null);
+					if (!ta) return false;
+					ta.focus();
+					const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+					setter.call(ta, "");
+					ta.dispatchEvent(new Event('input', { bubbles: true }));
+					document.execCommand('insertText', false, \`${draft}\`);
+					return true;
+				})()`,
+			);
+			break;
+		}
+	}
 }

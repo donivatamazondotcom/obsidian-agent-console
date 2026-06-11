@@ -36,6 +36,7 @@ const DOCS_IMAGES_REL = path.join("docs", "public", "images");
 export function deriveOutputPath(
 	entry: NameOnlyEntry,
 	repoRoot: string,
+	ext = "webp",
 ): string {
 	const name = entry.name;
 
@@ -62,6 +63,6 @@ export function deriveOutputPath(
 	}
 
 	const baseDir = path.join(repoRoot, DOCS_IMAGES_REL);
-	const filename = `${name}.webp`;
+	const filename = `${name}.${ext}`;
 	return path.join(baseDir, filename);
 }

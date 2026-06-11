@@ -64,6 +64,7 @@ function makeMockSharp() {
 		resize: vi.fn().mockReturnThis(),
 		extend: vi.fn().mockReturnThis(),
 		raw: vi.fn().mockReturnThis(),
+		png: vi.fn().mockReturnThis(),
 		webp: vi.fn().mockReturnThis(),
 		toFile: vi.fn().mockResolvedValue(undefined),
 		metadata: vi.fn().mockResolvedValue({ width: 1400, height: 760 }),
@@ -100,6 +101,7 @@ function makeDeps(overrides: Partial<OrchestratorDeps> = {}): OrchestratorDeps {
 			channels: 4,
 		}),
 		unlink: vi.fn(),
+		encodeGif: vi.fn().mockResolvedValue({ frameCount: 1, bytes: 1000 }),
 		...overrides,
 	};
 }
@@ -1293,5 +1295,124 @@ describe("captureEntry — agentId override + execCommand draft", () => {
 		expect(
 			evals.some((e) => e.includes("execCommand") && e.includes("insertText")),
 		).toBe(true);
+	});
+});
+
+describe("captureEntry — animation (v2)", () => {
+	// A sharp mock whose raw decode yields 256 distinct RGB colors, so the
+	// per-frame content guard passes; `.png().toBuffer()` returns frame bytes.
+	function makeHealthySharp() {
+		const healthyRaw = {
+			data: Buffer.from(
+				Array.from({ length: 256 * 3 }, (_, k) =>
+					k % 3 === 0 ? Math.floor(k / 3) : 0,
+				),
+			),
+			info: { width: 16, height: 16, channels: 3 },
+		};
+		const instance = {
+			extract: vi.fn().mockReturnThis(),
+			resize: vi.fn().mockReturnThis(),
+			extend: vi.fn().mockReturnThis(),
+			raw: vi.fn().mockReturnThis(),
+			png: vi.fn().mockReturnThis(),
+			webp: vi.fn().mockReturnThis(),
+			toFile: vi.fn().mockResolvedValue(undefined),
+			metadata: vi.fn().mockResolvedValue({ width: 1400, height: 760 }),
+			toBuffer: vi
+				.fn()
+				.mockImplementation((opts?: { resolveWithObject?: boolean }) =>
+					opts?.resolveWithObject
+						? Promise.resolve(healthyRaw)
+						: Promise.resolve(Buffer.from("framepng")),
+				),
+		};
+		return vi.fn().mockReturnValue(instance);
+	}
+
+	function animEntry(overrides: Partial<ManifestEntry> = {}): ManifestEntry {
+		return makeEntry({
+			name: "temporary-disable",
+			width: 400,
+			height: 300,
+			crop: { x: 0, y: 0, width: 800, height: 600 },
+			initialState: { openNote: undefined, clickRibbon: true },
+			animation: {
+				fps: 4,
+				maxBytes: 2_000_000,
+				frames: [
+					{ holdMs: 600 },
+					{ actions: [{ type: "click", selector: ".x-remove" }], holdMs: 600 },
+					{
+						actions: [{ type: "click", selector: ".grab", waitFor: ".pill" }],
+						holdMs: 600,
+					},
+				],
+			},
+			...overrides,
+		});
+	}
+
+	it("captures one frame per spec frame and encodes to <name>.gif", async () => {
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+		await captureEntry(animEntry(), deps);
+
+		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(3);
+		expect(deps.encodeGif).toHaveBeenCalledTimes(1);
+		const opts = (deps.encodeGif as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		expect(opts.frames.length).toBe(3);
+		expect(opts.fps).toBe(4);
+		expect(String(opts.outPath).endsWith("temporary-disable.gif")).toBe(true);
+	});
+
+	it("drives click actions via clickElement and honors waitFor", async () => {
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+		await captureEntry(animEntry(), deps);
+
+		expect(deps.cdp.clickElement).toHaveBeenCalledWith(".x-remove");
+		expect(deps.cdp.clickElement).toHaveBeenCalledWith(".grab");
+		expect(deps.cdp.waitForElement).toHaveBeenCalledWith(
+			".pill",
+			expect.any(Number),
+		);
+	});
+
+	it("draft types via execCommand insertText; wait polls for a selector", async () => {
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+		const entry = animEntry({
+			animation: {
+				fps: 4,
+				maxBytes: 2_000_000,
+				frames: [
+					{ actions: [{ type: "draft", text: "What changed here?" }], holdMs: 400 },
+					{ actions: [{ type: "wait", selector: ".ready" }], holdMs: 400 },
+				],
+			},
+		});
+		await captureEntry(entry, deps);
+
+		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c: unknown[]) => c[0] as string,
+		);
+		expect(evals.some((e) => e.includes("execCommand"))).toBe(true);
+		expect(deps.cdp.waitForElement).toHaveBeenCalledWith(
+			".ready",
+			expect.any(Number),
+		);
+	});
+
+	it("rejects a blank/degraded frame via the per-frame content guard (no encode)", async () => {
+		// Default makeDeps sharp returns a 1-color raw decode — below the floor.
+		const deps = makeDeps();
+		await expect(captureEntry(animEntry(), deps)).rejects.toThrow(
+			/content guard/,
+		);
+		expect(deps.encodeGif).not.toHaveBeenCalled();
 	});
 });

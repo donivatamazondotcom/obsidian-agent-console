@@ -12,6 +12,10 @@ AI agents work asynchronously. Tell one to research a topic, another to fix a bu
 
 Status icons on each tab tell you at a glance which agent needs attention.
 
+<p align="center">
+  <img src="/images/parallel-sessions.gif" alt="Sending a prompt in one session tab, opening a second tab, and sending another — each tab keeps its own conversation and status icon" />
+</p>
+
 ## The tab bar
 
 The tab bar appears at the top of the chat sidebar. Each tab shows:
@@ -34,7 +38,7 @@ Three ways:
 2. **Right-click the +** to pick a different agent for the new tab (agent picker)
 3. **Command palette** → "New tab" — same as the + button
 
-Each new tab starts a fresh agent process. The tab inherits the active note as context if `Auto-mention active note` is enabled.
+Each new tab starts a fresh agent process. The tab inherits the active note as context if `Active note as default context` is enabled.
 
 ## Switching tabs
 

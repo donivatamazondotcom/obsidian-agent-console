@@ -11,13 +11,21 @@
  *
  * Spec: [[Agent Console Screenshot Automation]] § Architecture Impact.
  */
-import { readFileSync, mkdtempSync, unlinkSync } from "node:fs";
+import {
+	readFileSync,
+	mkdtempSync,
+	unlinkSync,
+	writeFileSync,
+	statSync,
+} from "node:fs";
+import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseManifest, validateManifest } from "./lib/manifest";
 import { captureAll, type OrchestratorDeps } from "./lib/orchestrator";
 import { Cdp } from "./lib/cdp";
 import { addDropShadow } from "./lib/shadow";
+import { encodeGif, frameFileName } from "./lib/encode-gif";
 
 async function main() {
 	const repoRoot = path.resolve(__dirname, "../..");
@@ -94,6 +102,26 @@ async function main() {
 			return { data, channels: info.channels };
 		},
 		unlink: (p) => unlinkSync(p),
+		// v2 animation path: encode cropped PNG frames into a looping GIF via
+		// ffmpeg (palettegen/paletteuse). Frames are written to a temp dir, two
+		// ffmpeg passes run, and the output size is asserted against maxBytes.
+		encodeGif: (opts) =>
+			encodeGif(opts, {
+				makeWorkDir: () => mkdtempSync(path.join(tmpdir(), "gif-frames-")),
+				writeFrame: (dir, index, buffer) =>
+					writeFileSync(path.join(dir, frameFileName(index)), buffer),
+				runFfmpeg: (args) =>
+					new Promise<void>((resolve, reject) => {
+						const proc = spawn("ffmpeg", args, { stdio: "ignore" });
+						proc.on("close", (code) =>
+							code === 0
+								? resolve()
+								: reject(new Error(`ffmpeg exited with code ${code}`)),
+						);
+						proc.on("error", reject);
+					}),
+				statBytes: (p) => statSync(p).size,
+			}),
 	};
 
 	console.log(

@@ -644,3 +644,118 @@ describe("validateManifest — agentId", () => {
 		expect(() => validateManifest({ entries: [entry] }, root)).not.toThrow();
 	});
 });
+
+describe("validateManifest — animation (v2)", () => {
+	function withAnimation(animation: unknown): ManifestEntry {
+		return {
+			name: "anim",
+			width: 100,
+			height: 100,
+			crop: { x: 0, y: 0, width: 100, height: 100 },
+			animation,
+		} as unknown as ManifestEntry;
+	}
+
+	it("accepts a valid animation entry", () => {
+		const root = makeFixtureRoot();
+		const entry = withAnimation({
+			fps: 4,
+			maxBytes: 2_000_000,
+			frames: [
+				{ holdMs: 600 },
+				{
+					actions: [
+						{ type: "click", selector: ".x", waitFor: ".y" },
+						{ type: "draft", text: "hello" },
+						{ type: "wait", selector: ".z" },
+					],
+					holdMs: 600,
+				},
+			],
+		});
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
+	});
+
+	it("rejects empty frames", () => {
+		const root = makeFixtureRoot();
+		const entry = withAnimation({ fps: 4, maxBytes: 1000, frames: [] });
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/frames must be a non-empty array/,
+		);
+	});
+
+	it("rejects non-positive fps", () => {
+		const root = makeFixtureRoot();
+		const entry = withAnimation({
+			fps: 0,
+			maxBytes: 1000,
+			frames: [{ holdMs: 100 }],
+		});
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/animation\.fps/,
+		);
+	});
+
+	it("rejects non-positive maxBytes", () => {
+		const root = makeFixtureRoot();
+		const entry = withAnimation({
+			fps: 4,
+			maxBytes: 0,
+			frames: [{ holdMs: 100 }],
+		});
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/animation\.maxBytes/,
+		);
+	});
+
+	it("rejects a non-positive holdMs", () => {
+		const root = makeFixtureRoot();
+		const entry = withAnimation({
+			fps: 4,
+			maxBytes: 1000,
+			frames: [{ holdMs: 0 }],
+		});
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/invalid holdMs/,
+		);
+	});
+
+	it("rejects a click action without a selector", () => {
+		const root = makeFixtureRoot();
+		const entry = withAnimation({
+			fps: 4,
+			maxBytes: 1000,
+			frames: [{ actions: [{ type: "click" }], holdMs: 100 }],
+		});
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/click action needs a non-empty selector/,
+		);
+	});
+
+	it("rejects a draft action without text", () => {
+		const root = makeFixtureRoot();
+		const entry = withAnimation({
+			fps: 4,
+			maxBytes: 1000,
+			frames: [{ actions: [{ type: "draft", text: "" }], holdMs: 100 }],
+		});
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/draft action needs non-empty text/,
+		);
+	});
+
+
+	it("rejects an unknown action type", () => {
+		const root = makeFixtureRoot();
+		const entry = withAnimation({
+			fps: 4,
+			maxBytes: 1000,
+			frames: [{ actions: [{ type: "teleport" }], holdMs: 100 }],
+		});
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/unknown action type/,
+		);
+	});
+});

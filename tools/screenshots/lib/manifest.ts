@@ -86,6 +86,54 @@ export interface InitialState {
 	openNativeSelect?: string;
 }
 
+/**
+ * One driving action in an animation frame (v2). The orchestrator translates
+ * each to a focus-INDEPENDENT primitive — NEVER CDP Input, which is silently
+ * dropped when the fixtures window isn't OS-frontmost (the I13/I15 wall, since
+ * the daily-driver window hosts the agent session driving the capture):
+ * - "click": `el.click()` in-renderer, firing React's onClick (the context
+ *   strip's grab "+" / pill "×", the send button); optional `waitFor` selector
+ *   is polled after the click.
+ * - "draft": focus the composer + `execCommand("insertText", …)`, which fires
+ *   React's onChange (slash/mention filtering, send-enable) where the
+ *   native-value-setter hack does not.
+ * - "wait": poll for a selector before the next action (e.g. the send button
+ *   enabling once a lazy session connects).
+ */
+export type AnimationAction =
+	| { type: "click"; selector: string; waitFor?: string }
+	| { type: "draft"; text: string }
+	| { type: "wait"; selector: string };
+
+/** One step of an animation: drive into a state, then hold it for the GIF. */
+export interface AnimationFrame {
+	/**
+	 * Actions performed to transition INTO this frame's state, in order.
+	 * Omit/empty for the initial frame (capture the as-set-up state).
+	 */
+	actions?: AnimationAction[];
+	/** How long this state is shown in the GIF, ms (> 0). */
+	holdMs: number;
+}
+
+/**
+ * Animated-GIF spec (v2). When set on an entry, the orchestrator takes the
+ * multi-frame path: drive each frame, capture (window mode), crop each to the
+ * SAME static `crop` (so the GIF doesn't jitter), content-guard each frame,
+ * then encode to `<name>.gif`. The entry's `width`/`height`/`crop` apply per
+ * frame; `cropSelector`/`cropSelectors`/`captureMode:"screen"` are NOT used by
+ * the animation path (both target GIFs are in-renderer DOM, window mode). The
+ * drop shadow is NOT applied (the upstream GIFs are flat 856×480).
+ */
+export interface AnimationSpec {
+	/** Ordered frames; the first is usually the initial state (no actions). */
+	frames: AnimationFrame[];
+	/** Constant encode frame rate (fps, > 0). Each frame's holdMs is realized by repetition. */
+	fps: number;
+	/** Hard output file-size ceiling (bytes, > 0); exceed → run fails. */
+	maxBytes: number;
+}
+
 /** One screenshot specification. */
 export interface ManifestEntry {
 	/**
@@ -305,6 +353,15 @@ export interface ManifestEntry {
 	 * `validateManifest`.
 	 */
 	altText?: string;
+
+	/**
+	 * Animated-GIF spec (v2). When present, the entry is captured as a
+	 * multi-frame `.gif` (output `<name>.gif`, not `.webp`): the orchestrator
+	 * drives each frame, captures window-mode, crops each to the static `crop`,
+	 * content-guards each frame, and encodes via ffmpeg. For behaviors a still
+	 * can't convey (rubric P10).
+	 */
+	animation?: AnimationSpec;
 }
 
 export interface Manifest {
@@ -597,5 +654,94 @@ export function validateManifest(
 				`manifest entry "${entry.name}" has placement "${entry.placement}" but is missing required purpose and/or mustShow`,
 			);
 		}
+
+		if (entry.animation !== undefined) {
+			const a = entry.animation;
+			if (
+				typeof a !== "object" ||
+				a === null ||
+				!Array.isArray(a.frames) ||
+				a.frames.length === 0
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid animation: frames must be a non-empty array`,
+				);
+			}
+			if (!Number.isFinite(a.fps) || a.fps <= 0) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid animation.fps: ${a.fps} (must be a finite number > 0)`,
+				);
+			}
+			if (!Number.isFinite(a.maxBytes) || a.maxBytes <= 0) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid animation.maxBytes: ${a.maxBytes} (must be a finite number > 0)`,
+				);
+			}
+			a.frames.forEach((frame, fi) => {
+				if (!Number.isFinite(frame.holdMs) || frame.holdMs <= 0) {
+					throw new Error(
+						`manifest entry "${entry.name}" animation frame ${fi} has invalid holdMs: ${frame.holdMs} (must be a finite number > 0)`,
+					);
+				}
+				if (frame.actions !== undefined) {
+					if (!Array.isArray(frame.actions)) {
+						throw new Error(
+							`manifest entry "${entry.name}" animation frame ${fi}: actions must be an array`,
+						);
+					}
+					for (const action of frame.actions) {
+						validateAnimationAction(entry.name, fi, action);
+					}
+				}
+			});
+		}
+	}
+}
+
+/**
+ * Validate one animation action's shape (the manifest is untyped JSON at the
+ * trust boundary). Each `type` requires different fields; an unknown type is a
+ * hard error so a typo can't silently no-op a frame.
+ */
+function validateAnimationAction(
+	entryName: string,
+	frameIndex: number,
+	action: AnimationAction,
+): void {
+	const where = `manifest entry "${entryName}" animation frame ${frameIndex}`;
+	switch (action.type) {
+		case "click":
+			if (
+				typeof action.selector !== "string" ||
+				action.selector.trim() === ""
+			) {
+				throw new Error(`${where}: click action needs a non-empty selector`);
+			}
+			if (
+				action.waitFor !== undefined &&
+				(typeof action.waitFor !== "string" || action.waitFor.trim() === "")
+			) {
+				throw new Error(
+					`${where}: click action waitFor must be a non-empty string`,
+				);
+			}
+			break;
+		case "wait":
+			if (
+				typeof action.selector !== "string" ||
+				action.selector.trim() === ""
+			) {
+				throw new Error(`${where}: wait action needs a non-empty selector`);
+			}
+			break;
+		case "draft":
+			if (typeof action.text !== "string" || action.text === "") {
+				throw new Error(`${where}: draft action needs non-empty text`);
+			}
+			break;
+		default:
+			throw new Error(
+				`${where}: unknown action type "${(action as { type?: string }).type}"`,
+			);
 	}
 }

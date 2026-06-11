@@ -405,6 +405,148 @@
 			"revealSelectors": [
 				".agent-client-attachment-preview-remove"
 			]
+		},
+		{
+			"name": "temporary-disable",
+			"width": 628,
+			"height": 184,
+			"crop": {
+				"x": 772,
+				"y": 548,
+				"width": 628,
+				"height": 184
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"minDistinctColors": 300,
+			"placement": "feature",
+			"purpose": "Pin or unpin the active note as chat context.",
+			"differentiator": "Context strip / crystallized context",
+			"mustShow": ".context-strip-grab",
+			"caption": "Control what the agent sees",
+			"altText": "Removing the auto-pinned active note from the context strip, then pinning it back with the grab button",
+			"animation": {
+				"fps": 5,
+				"maxBytes": 1500000,
+				"frames": [
+					{ "holdMs": 900 },
+					{
+						"actions": [
+							{ "type": "click", "selector": ".context-strip-pill--provisional .context-strip-pill-remove" }
+						],
+						"holdMs": 1000
+					},
+					{
+						"actions": [
+							{ "type": "click", "selector": ".context-strip-grab", "waitFor": ".context-strip-pill:not(.context-strip-pill--provisional)" }
+						],
+						"holdMs": 1200
+					}
+				]
+			}
+		},
+		{
+			"name": "mention-context",
+			"width": 628,
+			"height": 192,
+			"crop": {
+				"x": 772,
+				"y": 540,
+				"width": 628,
+				"height": 192
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"minDistinctColors": 300,
+			"placement": "feature",
+			"purpose": "Mention notes with @ to build the chat's context.",
+			"differentiator": "Context strip / @-mention notes",
+			"mustShow": ".context-strip",
+			"caption": "Pull notes into context with @",
+			"altText": "Typing an @ note mention, choosing a note, and sending — the mentioned notes appear as pills in the context strip",
+			"animation": {
+				"fps": 5,
+				"maxBytes": 1500000,
+				"frames": [
+					{ "holdMs": 900 },
+					{
+						"actions": [
+							{ "type": "draft", "text": "@Project" }
+						],
+						"holdMs": 1100
+					},
+					{
+						"actions": [
+							{ "type": "click", "selector": ".agent-client-mention-dropdown-item", "waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button:not(.agent-client-disabled)" }
+						],
+						"holdMs": 1100
+					},
+					{
+						"actions": [
+							{ "type": "click", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button", "waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) .context-strip-pill:not(.context-strip-pill--provisional)" }
+						],
+						"holdMs": 1600
+					}
+				]
+			}
+		},
+		{
+			"name": "parallel-sessions",
+			"width": 628,
+			"height": 576,
+			"crop": {
+				"x": 772,
+				"y": 34,
+				"width": 628,
+				"height": 576
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"minDistinctColors": 1500,
+			"placement": "feature",
+			"purpose": "Run multiple agent sessions in parallel tabs, each with its own status.",
+			"differentiator": "Tabbed sessions with per-tab status",
+			"mustShow": ".agent-client-tab-state-icon",
+			"caption": "Run agents in parallel tabs",
+			"altText": "Sending a prompt in one session tab, opening a second tab, and sending another — each tab keeps its own conversation and status icon",
+			"animation": {
+				"fps": 5,
+				"maxBytes": 2500000,
+				"frames": [
+					{
+						"actions": [
+							{ "type": "draft", "text": "Give me a one-line tip for organizing notes." },
+							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button:not(.agent-client-disabled)" },
+							{ "type": "click", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button" },
+							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-message-renderer.agent-client-message-assistant" },
+							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-loading-indicator.agent-client-hidden" }
+						],
+						"holdMs": 1500
+					},
+					{
+						"actions": [
+							{ "type": "click", "selector": ".agent-client-tab-bar-add", "waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) textarea.agent-client-chat-input-textarea" }
+						],
+						"holdMs": 1000
+					},
+					{
+						"actions": [
+							{ "type": "draft", "text": "Suggest a short name for a personal wiki." },
+							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button:not(.agent-client-disabled)" },
+							{ "type": "click", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button" },
+							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-message-renderer.agent-client-message-assistant" },
+							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-loading-indicator.agent-client-hidden" }
+						],
+						"holdMs": 1800
+					}
+				]
+			}
 		}
 	]
 }
