@@ -450,6 +450,19 @@ describe("Cdp.hoverElement (I15 — JS-dispatch hover, reliable when not OS-fron
 		expect(params).toContain("mouseover");
 	});
 
+	it("also dispatches pointer events (pointerover/pointerenter) so pointer-gated tooltips fire (I17 — ribbon-icon)", async () => {
+		spawnMock.mockImplementationOnce(() => boolProc(true));
+		const cdp = new Cdp();
+		await cdp.hoverElement(".side-dock-ribbon-action");
+		const args = spawnMock.mock.calls[0][1] as string[];
+		const params = args.find((a) => a.startsWith("params="))!;
+		// Obsidian's ribbon tooltip (1.1.4) is pointer-event-gated; the mouse-only
+		// dispatch (I15) never fires it, so the .tooltip wait times out. The hover
+		// must also dispatch pointer events.
+		expect(params).toContain("pointerover");
+		expect(params).toContain("pointerenter");
+	});
+
 	it("throws when the element is missing", async () => {
 		spawnMock.mockImplementationOnce(() => boolProc(false));
 		const cdp = new Cdp();
