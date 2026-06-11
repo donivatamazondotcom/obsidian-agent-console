@@ -1159,3 +1159,41 @@ describe("captureEntry — awaitSelector (paused-state shots, e.g. edit permissi
 		expect(evals.some((e) => e.includes("scrollTop = 0"))).toBe(false);
 	});
 });
+
+describe("captureEntry — agentId override + execCommand draft", () => {
+	it("sets defaultAgentId to the entry agentId BEFORE opening the session", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			agentId: "gemini-cli",
+			initialState: { clickRibbon: true },
+		});
+		await captureEntry(entry, deps);
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		const evals = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		const setIdx = evals.findIndex(
+			(e) => e.includes("defaultAgentId") && e.includes("gemini-cli"),
+		);
+		const openIdx = evals.findIndex((e) => e.includes("open-chat-view"));
+		expect(setIdx).toBeGreaterThanOrEqual(0);
+		expect(openIdx).toBeGreaterThanOrEqual(0);
+		// the agent must be set before the session opens, else the new session
+		// connects with the wrong (default) agent.
+		expect(evalMock.mock.invocationCallOrder[setIdx]).toBeLessThan(
+			evalMock.mock.invocationCallOrder[openIdx],
+		);
+	});
+
+	it("types draftMessage via execCommand insertText (so input-driven menus like slash open)", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({ draftMessage: "/" });
+		await captureEntry(entry, deps);
+		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c: unknown[]) => c[0] as string,
+		);
+		// The native-setter+input path does NOT fire React onChange’s slash/mention
+		// filter; execCommand insertText delivers a real InputEvent that does.
+		expect(
+			evals.some((e) => e.includes("execCommand") && e.includes("insertText")),
+		).toBe(true);
+	});
+});

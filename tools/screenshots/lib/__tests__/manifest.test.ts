@@ -544,3 +544,31 @@ describe("validateManifest — awaitSelector", () => {
 		expect(() => validateManifest({ entries: [entry] }, root)).not.toThrow();
 	});
 });
+
+describe("validateManifest — agentId", () => {
+	it("rejects an empty/whitespace agentId", () => {
+		const root = makeFixtureRoot();
+		const entry = {
+			name: "a",
+			width: 100,
+			height: 100,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			agentId: "  ",
+		} as ManifestEntry;
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/agentId/,
+		);
+	});
+
+	it("accepts a non-empty agentId", () => {
+		const root = makeFixtureRoot();
+		const entry: ManifestEntry = {
+			name: "b",
+			width: 100,
+			height: 100,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			agentId: "gemini-cli",
+		};
+		expect(() => validateManifest({ entries: [entry] }, root)).not.toThrow();
+	});
+});

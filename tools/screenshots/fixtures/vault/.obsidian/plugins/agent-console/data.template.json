@@ -23,8 +23,8 @@
   "gemini": {
     "id": "gemini-cli",
     "displayName": "Gemini CLI",
-    "apiKeySecretId": "",
-    "command": "gemini",
+    "apiKeySecretId": "gemini-obsidian",
+    "command": "/Users/doniv/.local/share/mise/installs/node/24.14.0/bin/gemini",
     "args": [
       "--experimental-acp"
     ],

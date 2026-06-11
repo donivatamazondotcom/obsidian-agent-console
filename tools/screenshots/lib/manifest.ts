@@ -176,6 +176,14 @@ export interface ManifestEntry {
 	 */
 	mobile?: boolean;
 	/**
+	 * Per-entry agent override. When set, the orchestrator sets the plugin's
+	 * defaultAgentId to this id before opening the session, so the captured
+	 * session connects with THIS agent rather than the fixtures default. Used
+	 * by the slash-command shots, which need Gemini CLI's public command set
+	 * (the internal Claude Code toolbox build leaks internal slash commands).
+	 */
+	agentId?: string;
+	/**
 	 * Capture backend. Default "window" uses `obsidian dev:screenshot`, which
 	 * captures the BrowserWindow renderer — correct for all in-DOM content.
 	 * "screen" uses macOS `screencapture` of the window's screen region; it is
@@ -410,6 +418,16 @@ export function validateManifest(
 			) {
 				throw new Error(
 					`manifest entry "${entry.name}" has invalid awaitSelector: must be a non-empty string`,
+				);
+			}
+		}
+		if (entry.agentId !== undefined) {
+			if (
+				typeof entry.agentId !== "string" ||
+				entry.agentId.trim() === ""
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid agentId: must be a non-empty string`,
 				);
 			}
 		}

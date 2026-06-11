@@ -260,6 +260,62 @@
 			"mustShow": ".agent-client-message-permission-request",
 			"caption": "Approve edits before they happen",
 			"altText": "Agent Console permission card showing a proposed file edit diff with Allow and Reject buttons"
+		},
+		{
+			"name": "slash-commands-1",
+			"width": 742,
+			"height": 876,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 100,
+				"height": 100
+			},
+			"cropSelector": ".agent-client-mention-dropdown",
+			"cropPadding": 0,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"promptFile": "connect.txt",
+			"agentId": "gemini-cli",
+			"draftMessage": "/",
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 800,
+			"placement": "feature",
+			"purpose": "Discover and run agent slash commands from the composer.",
+			"differentiator": "Slash commands",
+			"mustShow": ".agent-client-mention-dropdown",
+			"caption": "Run slash commands inline",
+			"altText": "Agent Console composer slash-command menu listing the available commands"
+		},
+		{
+			"name": "slash-commands-2",
+			"width": 730,
+			"height": 326,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 100,
+				"height": 100
+			},
+			"cropSelector": ".agent-client-mention-dropdown",
+			"cropPadding": 0,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"agentId": "gemini-cli",
+			"promptFile": "connect.txt",
+			"draftMessage": "/ext",
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 800,
+			"placement": "reference",
+			"purpose": "Filter slash commands as you type.",
+			"differentiator": "Slash commands",
+			"mustShow": ".agent-client-mention-dropdown",
+			"caption": "Filter commands as you type",
+			"altText": "Agent Console slash-command menu filtered to the extensions commands as the user types"
 		}
 	]
 }

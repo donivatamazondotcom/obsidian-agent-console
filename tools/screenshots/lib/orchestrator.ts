@@ -167,6 +167,18 @@ export async function captureEntry(
 		await deps.cdp.setMobileEmulation(true);
 	}
 
+	// 1b. Per-entry agent override: set the default agent so the session
+	// opened below (clickRibbon/openChatView) connects with it. The
+	// slash-command shots use Gemini CLI (its public command set) rather than
+	// the default Claude Code, whose internal toolbox build leaks internal
+	// slash commands. Set live on the settings object; setup.sh restores the
+	// template next run.
+	if (entry.agentId) {
+		await deps.cdp.evaluate(
+			`(() => { const s = app.plugins.plugins["agent-console"].settings; s.defaultAgentId = ${JSON.stringify(entry.agentId)}; return s.defaultAgentId; })()`,
+		);
+	}
+
 	// 2. Initial state
 	if (entry.initialState?.openNote) {
 		const notePath = entry.initialState.openNote;
@@ -322,9 +334,11 @@ export async function captureEntry(
 			`(() => {
 				const ta = Array.from(document.querySelectorAll('textarea.agent-client-chat-input-textarea')).find((t) => t.offsetParent !== null);
 				if (!ta) return false;
+				ta.focus();
 				const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-				setter.call(ta, \`${draft}\`);
+				setter.call(ta, "");
 				ta.dispatchEvent(new Event('input', { bubbles: true }));
+				document.execCommand('insertText', false, \`${draft}\`);
 				return true;
 			})()`,
 		);
