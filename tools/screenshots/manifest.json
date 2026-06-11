@@ -199,9 +199,9 @@
 			],
 			"initialState": {
 				"openNote": "Welcome.md",
-				"clickRibbon": true,
-				"draftMessage": "What can Agent Console do with my notes?"
+				"clickRibbon": true
 			},
+			"draftMessage": "What can Agent Console do with my notes?",
 			"approvalThreshold": 0.05,
 			"placement": "feature",
 			"purpose": "Chat with an agent about the note you're in.",
