@@ -316,6 +316,68 @@
 			"mustShow": ".agent-client-mention-dropdown",
 			"caption": "Filter commands as you type",
 			"altText": "Agent Console slash-command menu filtered to the extensions commands as the user types"
+		},
+		{
+			"name": "sending-images",
+			"width": 1340,
+			"height": 560,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1340,
+				"height": 560
+			},
+			"cropPadding": 12,
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) .context-strip",
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-container"
+			],
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"promptFile": "connect.txt",
+			"attachImage": "sample-diagram.png",
+			"approvalThreshold": 0.05,
+			"minDistinctColors": 800,
+			"placement": "feature",
+			"purpose": "Attach an image to the chat and send it to the agent.",
+			"differentiator": "Image & file attachments",
+			"mustShow": ".agent-client-attachment-preview-thumbnail",
+			"caption": "Drop in images and files",
+			"altText": "Agent Console composer with an image thumbnail attached below the message box, ready to send"
+		},
+		{
+			"name": "remove-image",
+			"width": 240,
+			"height": 240,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 240,
+				"height": 240
+			},
+			"cropPadding": 12,
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-attachment-preview-item"
+			],
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"promptFile": "connect.txt",
+			"attachImage": "sample-diagram.png",
+			"approvalThreshold": 0.05,
+			"minDistinctColors": 150,
+			"placement": "reference",
+			"purpose": "Remove an attached image before sending.",
+			"differentiator": "Image & file attachments",
+			"mustShow": ".agent-client-attachment-preview-remove",
+			"caption": "Remove an attachment in one click",
+			"altText": "Close-up of an attached image thumbnail with its remove button in the composer",
+			"revealSelectors": [
+				".agent-client-attachment-preview-remove"
+			]
 		}
 	]
 }

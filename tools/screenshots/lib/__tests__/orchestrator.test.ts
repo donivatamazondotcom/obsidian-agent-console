@@ -330,6 +330,56 @@ describe("captureEntry", () => {
 		expect(deps.cdp.clickElement).not.toHaveBeenCalled();
 	});
 
+	it("attaches a fixture image via a synthetic drop and waits for the thumbnail", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({ attachImage: "sample-diagram.png" });
+
+		await captureEntry(entry, deps);
+
+		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c: string[]) => c[0] as string,
+		);
+		// A drop event carrying a DataTransfer File built from the named asset
+		// is dispatched on the input box (the only JS-dispatchable attach path).
+		const dropEval = evals.find(
+			(e) =>
+				e.includes("DataTransfer") &&
+				e.includes("DragEvent") &&
+				e.includes("'drop'") &&
+				e.includes("sample-diagram.png"),
+		);
+		expect(dropEval).toBeDefined();
+		expect(dropEval).toContain(".agent-client-chat-input-box");
+		// The thumbnail renders async (FileReader); the orchestrator waits for
+		// the strip's image element before the assert/capture.
+		expect(deps.cdp.waitForElement).toHaveBeenCalledWith(
+			expect.stringContaining(".agent-client-attachment-preview-thumbnail"),
+			expect.any(Number),
+		);
+	});
+
+	it("force-reveals revealSelectors (opacity:1) before capture", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			revealSelectors: [".agent-client-attachment-preview-remove"],
+		});
+
+		await captureEntry(entry, deps);
+
+		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c: string[]) => c[0] as string,
+		);
+		// A hover-gated control (opacity:0 until :hover) is surfaced
+		// declaratively since JS mouseover can't trigger CSS :hover.
+		expect(
+			evals.some(
+				(e) =>
+					e.includes('opacity') &&
+					e.includes(".agent-client-attachment-preview-remove"),
+			),
+		).toBe(true);
+	});
+
 	it("runs postProcess on the output path when provided", async () => {
 		const postProcess = vi.fn().mockResolvedValue(undefined);
 		const deps = makeDeps({ postProcess });

@@ -156,6 +156,78 @@ describe("validateManifest", () => {
 		).not.toThrow();
 	});
 
+	it("rejects missing attachImage asset file", () => {
+		const root = makeFixtureRoot();
+		const entry: ManifestEntry = {
+			name: "with-image",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			attachImage: "nope.png",
+		};
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/attachImage.*nope\.png/,
+		);
+	});
+
+	it("accepts existing attachImage asset file", () => {
+		const root = makeFixtureRoot();
+		mkdirSync(path.join(root, "assets"), { recursive: true });
+		writeFileSync(path.join(root, "assets", "diagram.png"), "png-bytes");
+		const entry: ManifestEntry = {
+			name: "with-image",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			attachImage: "diagram.png",
+		};
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
+	});
+
+	it("rejects empty attachImage string", () => {
+		const root = makeFixtureRoot();
+		const entry = {
+			name: "with-image",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			attachImage: "   ",
+		} as ManifestEntry;
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/attachImage.*non-empty string/,
+		);
+	});
+
+	it("rejects revealSelectors with an empty member", () => {
+		const root = makeFixtureRoot();
+		const entry = {
+			name: "reveal",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			revealSelectors: [""],
+		} as ManifestEntry;
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/revealSelectors.*non-empty strings/,
+		);
+	});
+
+	it("accepts revealSelectors of non-empty strings", () => {
+		const root = makeFixtureRoot();
+		const entry: ManifestEntry = {
+			name: "reveal",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			revealSelectors: [".a", ".b"],
+		};
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
+	});
+
 	it("accepts mobile flag", () => {
 		const root = makeFixtureRoot();
 		const entry: ManifestEntry = {

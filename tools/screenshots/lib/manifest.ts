@@ -153,12 +153,36 @@ export interface ManifestEntry {
 	 */
 	hideSelectors?: string[];
 	/**
+	 * CSS selectors to force VISIBLE (`opacity:1; visibility:visible`) right
+	 * before capture — the mirror of `hideSelectors`. For surfacing controls
+	 * that the real UI only reveals on CSS `:hover` (e.g. an attachment's
+	 * remove "x" button, `opacity:0` until `:item:hover`). A JS-dispatched
+	 * mouseover can't trigger CSS `:hover`, and CDP Input is dropped when the
+	 * fixtures window isn't OS-frontmost (I13/I15) — so the hover state is
+	 * surfaced declaratively instead. Applied after `attachImage` (the target
+	 * may only exist once an attachment is present). Same capture-time-CSS
+	 * precedent as the I05 scroll-chevron hide.
+	 */
+	revealSelectors?: string[];
+	/**
 	 * Optional text typed into the active session's chat composer right
 	 * before capture, WITHOUT sending. Used to show the input box populated
 	 * with its context-note pill(s) and an example message (rather than an
 	 * empty placeholder). Applied after prompts are sent and responses settle.
 	 */
 	draftMessage?: string;
+	/**
+	 * Filename of a committed fixture image (under
+	 * `tools/screenshots/fixtures/assets/`) to attach to the active composer
+	 * before capture. The orchestrator reads the file in-renderer, builds a
+	 * `File`, and dispatches a synthetic `drop` on the input box — there is no
+	 * attach button (entry is paste/drop only), and a JS-dispatched DragEvent
+	 * reaches React's onDrop regardless of window focus (CDP Input is dropped
+	 * when the fixtures window isn't OS-frontmost — I13/I15). Fires after the
+	 * connect prompt so the agent's `promptCapabilities.image` is known and the
+	 * AttachmentStrip renders an image thumbnail rather than a file-link.
+	 */
+	attachImage?: string;
 	/**
 	 * After sending the FINAL prompt (window mode only), wait for THIS
 	 * selector (scoped to the active panel) instead of the two-phase
@@ -431,6 +455,26 @@ export function validateManifest(
 				);
 			}
 		}
+		if (entry.attachImage !== undefined) {
+			if (
+				typeof entry.attachImage !== "string" ||
+				entry.attachImage.trim() === ""
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid attachImage: must be a non-empty string`,
+				);
+			}
+			const assetPath = path.join(
+				fixtureRoot,
+				"assets",
+				entry.attachImage,
+			);
+			if (!existsSync(assetPath)) {
+				throw new Error(
+					`manifest entry "${entry.name}" references missing attachImage asset: ${entry.attachImage} (looked under ${path.join(fixtureRoot, "assets")})`,
+				);
+			}
+		}
 		if (entry.forbiddenSelectors !== undefined) {
 			if (
 				!Array.isArray(entry.forbiddenSelectors) ||
@@ -452,6 +496,18 @@ export function validateManifest(
 			) {
 				throw new Error(
 					`manifest entry "${entry.name}" has invalid forbiddenText: must be an array of non-empty strings`,
+				);
+			}
+		}
+		if (entry.revealSelectors !== undefined) {
+			if (
+				!Array.isArray(entry.revealSelectors) ||
+				!entry.revealSelectors.every(
+					(s) => typeof s === "string" && s.trim() !== "",
+				)
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid revealSelectors: must be an array of non-empty strings`,
 				);
 			}
 		}

@@ -378,6 +378,55 @@ export async function captureEntry(
 		await sleep(SETTLE_MS);
 	}
 
+	// 3f. Attach a committed fixture image to the active composer. There is no
+	// attach button (entry is paste/drop only), so build a File from the asset
+	// and dispatch a synthetic `drop` on the input box. Read the bytes
+	// IN-RENDERER (require fs) — passing them through the evaluate expression
+	// would exceed the dev:cdp params size limit (L1). A JS-dispatched DragEvent
+	// reaches React's onDrop regardless of window focus, unlike CDP Input which
+	// is dropped when the fixtures window isn't OS-frontmost (I13/I15). Fires
+	// AFTER the connect prompt so the agent's promptCapabilities.image is known
+	// and the AttachmentStrip renders an image thumbnail (not a file-link).
+	if (entry.attachImage) {
+		const imgPath = path.join(deps.fixtureRoot, "assets", entry.attachImage);
+		await deps.cdp.evaluate(
+			`(() => {
+				const fs = require('fs');
+				const buf = fs.readFileSync(${JSON.stringify(imgPath)});
+				const arr = new Uint8Array(buf);
+				const file = new File([arr], ${JSON.stringify(entry.attachImage)}, { type: 'image/png' });
+				const dt = new DataTransfer();
+				dt.items.add(file);
+				const box = document.querySelector('${ACTIVE_PANEL} .agent-client-chat-input-box')
+					|| document.querySelector('.agent-client-chat-input-box');
+				if (!box) return false;
+				for (const type of ['dragenter', 'dragover', 'drop']) {
+					box.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt }));
+				}
+				return true;
+			})()`,
+		);
+		// The thumbnail renders after FileReader.readAsDataURL resolves (async);
+		// wait for the strip's image element before the assert/capture.
+		await deps.cdp.waitForElement(
+			`${ACTIVE_PANEL} .agent-client-attachment-preview-thumbnail`,
+			HOVER_TOOLTIP_TIMEOUT_MS,
+		);
+	}
+
+	// 3g. Force-reveal controls the real UI only shows on CSS :hover (e.g. an
+	// attachment's remove "x", opacity:0 until item:hover). A JS-dispatched
+	// mouseover can't trigger CSS :hover and CDP Input is dropped when the
+	// fixtures window isn't OS-frontmost (I13/I15), so the hover state is
+	// surfaced declaratively. Runs after attachImage — the target may only
+	// exist once an attachment is present.
+	if (entry.revealSelectors?.length) {
+		const selectors = JSON.stringify(entry.revealSelectors);
+		await deps.cdp.evaluate(
+			`(() => { for (const s of ${selectors}) { document.querySelectorAll(s).forEach((el) => { el.style.opacity = "1"; el.style.visibility = "visible"; }); } return true; })()`,
+		);
+	}
+
 	// 4. Brief settle for UI animations
 	await sleep(SETTLE_MS);
 
