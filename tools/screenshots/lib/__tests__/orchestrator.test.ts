@@ -17,6 +17,7 @@ import {
 	captureAll,
 	type OrchestratorDeps,
 } from "../orchestrator";
+import { scaleRectByDevicePixelRatio } from "../crop";
 
 // --- Helpers ---
 
@@ -622,6 +623,53 @@ describe("captureEntry — group crop (cropSelectors)", () => {
 		});
 
 		await expect(captureEntry(entry, deps)).rejects.toThrow(/no element matches/);
+	});
+});
+
+describe("captureEntry — single cropSelector clamp (bad-extract-area hardening)", () => {
+	it("clamps a single cropSelector crop to the captured image bounds (prevents sharp 'bad extract area')", async () => {
+		const deps = makeDeps(); // metadata 1400×760, devicePixelRatio 2
+		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockResolvedValue({
+			x: 660, y: 100, width: 120, height: 60,
+		});
+		const entry = makeEntry({ cropSelector: ".edge-el", cropPadding: 12 });
+
+		await captureEntry(entry, deps);
+
+		const sharpInstance = (deps.sharp as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
+		const arg = sharpInstance.extract.mock.calls[0][0] as {
+			left: number; top: number; width: number; height: number;
+		};
+		const imgW = 1400;
+		const imgH = 760;
+		// The element + padding overruns the right edge; the crop must stay inside
+		// the image — the invariant a real sharp.extract enforces.
+		expect(arg.left + arg.width).toBeLessThanOrEqual(imgW);
+		expect(arg.top + arg.height).toBeLessThanOrEqual(imgH);
+		// Clamped to the right edge, not zeroed/negative.
+		expect(arg.width).toBe(imgW - arg.left);
+		expect(arg.width).toBeGreaterThan(0);
+	});
+
+	it("leaves a single cropSelector crop unchanged when it fits within the image", async () => {
+		const deps = makeDeps();
+		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockResolvedValue({
+			x: 100, y: 100, width: 120, height: 60,
+		});
+		const entry = makeEntry({ cropSelector: ".inner-el", cropPadding: 12 });
+
+		await captureEntry(entry, deps);
+
+		const sharpInstance = (deps.sharp as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
+		const arg = sharpInstance.extract.mock.calls[0][0] as {
+			left: number; top: number; width: number; height: number;
+		};
+		// Well within 1400×760 → clamp is a no-op; width/height equal the full
+		// padded crop scaled by DPR (cropRect {88,88,144,84} × 2).
+		const expected = scaleRectByDevicePixelRatio({ x: 88, y: 88, width: 144, height: 84 }, 2);
+		expect(arg.width).toBe(expected.width);
+		expect(arg.height).toBe(expected.height);
+		expect(arg.left + arg.width).toBeLessThanOrEqual(1400);
 	});
 });
 

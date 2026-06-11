@@ -622,10 +622,27 @@ export async function captureEntry(
 				// Selector didn't match — fall back to static crop
 			}
 		}
-		const scaledCrop = scaleRectByDevicePixelRatio(
+		let scaledCrop = scaleRectByDevicePixelRatio(
 			cropRect,
 			effectiveDpr,
 		);
+		// Clamp a single cropSelector crop to the captured image bounds. The
+		// group-crop path already clamps (it re-synthesizes the lost padding as
+		// canvas fill); a single selector emits at native size, so an element
+		// flush at the window edge + cropPadding can push the scaled crop past
+		// the image → sharp "bad extract area" (paid for twice; worked around
+		// with cropPadding 0). Clamping drops only off-image padding (empty
+		// edge), so it is visually lossless.
+		if (entry.cropSelector) {
+			const meta = await deps.sharp(tmpPath).metadata();
+			const imgW = meta.width ?? scaledCrop.x + scaledCrop.width;
+			const imgH = meta.height ?? scaledCrop.y + scaledCrop.height;
+			scaledCrop = {
+				...scaledCrop,
+				width: Math.min(scaledCrop.width, imgW - scaledCrop.x),
+				height: Math.min(scaledCrop.height, imgH - scaledCrop.y),
+			};
+		}
 		// Tier-2 legibility floor (rubric P5). Only the static-crop path resizes
 		// to (entry.width, entry.height); an undersized source there upscales and
 		// blurs — illegible when the docs site renders the shot small. Gate on the
