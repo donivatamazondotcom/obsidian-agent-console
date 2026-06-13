@@ -239,6 +239,7 @@ export async function captureEntry(
 	if (entry.initialState?.openChatView) {
 		await deps.cdp.executeCommand("agent-console:open-chat-view");
 	}
+	await applyLayoutOverrides(entry, deps);
 	if (entry.initialState?.hoverSelector) {
 		await deps.cdp.hoverElement(entry.initialState.hoverSelector);
 		// Obsidian's native tooltip renders after a show-delay; wait for the
@@ -809,6 +810,30 @@ function sleep(ms: number): Promise<void> {
  * so no screen-mode/native-popup handling is needed. The drop shadow is NOT
  * applied (the upstream GIFs are flat).
  */
+/**
+ * Apply per-entry layout overrides once before capture: collapse the left
+ * sidebar (file explorer) and/or force the Agent Console right-sidebar width
+ * so the multi-session tab bar is the focal point (hero composition). Both are
+ * fixtures-window-only tweaks; the right-split width persists across the
+ * animation's tab opens. Placed after the panel opens + settles.
+ */
+async function applyLayoutOverrides(
+	entry: ManifestEntry,
+	deps: OrchestratorDeps,
+): Promise<void> {
+	if (entry.collapseLeftSidebar) {
+		await deps.cdp.evaluate(
+			`(() => { app.workspace.leftSplit.collapse(); return true; })()`,
+		);
+	}
+	if (entry.rightSplitWidth) {
+		const w = `${entry.rightSplitWidth}px`;
+		await deps.cdp.evaluate(
+			`(() => { const rs = document.querySelector(".workspace-split.mod-right-split"); if (rs) rs.style.width = ${JSON.stringify(w)}; return !!rs; })()`,
+		);
+	}
+}
+
 async function captureAnimationEntry(
 	entry: ManifestEntry,
 	deps: OrchestratorDeps,
@@ -838,6 +863,7 @@ async function captureAnimationEntry(
 		await deps.cdp.executeCommand("agent-console:open-chat-view");
 	}
 	await sleep(SETTLE_MS);
+	await applyLayoutOverrides(entry, deps);
 
 	// Static crop resolved ONCE (CSS px → device px), reused for every frame so
 	// the GIF doesn't jitter; clamped to the captured image bounds per frame.

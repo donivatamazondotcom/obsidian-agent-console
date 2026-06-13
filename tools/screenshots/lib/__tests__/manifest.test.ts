@@ -759,3 +759,31 @@ describe("validateManifest — animation (v2)", () => {
 		);
 	});
 });
+
+describe("validateManifest — rightSplitWidth", () => {
+	it("accepts a positive rightSplitWidth", () => {
+		const root = makeFixtureRoot();
+		const entry: ManifestEntry = {
+			name: "with-rsw",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 400, height: 400 },
+			rightSplitWidth: 680,
+		};
+		expect(() => validateManifest({ entries: [entry] }, root)).not.toThrow();
+	});
+
+	it("rejects a zero rightSplitWidth", () => {
+		const root = makeFixtureRoot();
+		const entry = {
+			name: "zero-rsw",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 400, height: 400 },
+			rightSplitWidth: 0,
+		} as ManifestEntry;
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/rightSplitWidth/,
+		);
+	});
+});
