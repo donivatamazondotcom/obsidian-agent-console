@@ -316,7 +316,7 @@ export class Cdp {
 	 * the region — and the user's daily-driver Obsidian window (which hosts the
 	 * agent session driving this capture) stays OS-focused, so a focus()/raise
 	 * loses the z-order race and the capture grabs the wrong window's pixels
-	 * while the DOM-based asserts (which target the vault="vault" renderer)
+	 * while the DOM-based asserts (which target the vault="studio" renderer)
 	 * still pass. Setting the fixtures window alwaysOnTop at the "floating"
 	 * level lifts it — and its native Menu popup, which renders above it
 	 * (verified) — over the daily-driver regardless of focus, so the capture

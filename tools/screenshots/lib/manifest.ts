@@ -201,6 +201,20 @@ export interface ManifestEntry {
 	 */
 	hideSelectors?: string[];
 	/**
+	 * Collapse Obsidian's left sidebar (file explorer) before capture, so the
+	 * composition is the note editor + the Agent Console panel without the
+	 * file tree. Uses `app.workspace.leftSplit.collapse()`; the left ribbon
+	 * strip stays. Applied once after the panel opens. (hero composition)
+	 */
+	collapseLeftSidebar?: boolean;
+	/**
+	 * Force the Agent Console right-sidebar width (px) before capture so the
+	 * multi-session tab bar is prominent. Sets the inline width on
+	 * `.workspace-split.mod-right-split` (default is ~300px); it persists
+	 * across the animation's tab opens. Applied once after the panel opens.
+	 */
+	rightSplitWidth?: number;
+	/**
 	 * CSS selectors to force VISIBLE (`opacity:1; visibility:visible`) right
 	 * before capture — the mirror of `hideSelectors`. For surfacing controls
 	 * that the real UI only reveals on CSS `:hover` (e.g. an attachment's
@@ -456,12 +470,12 @@ export function validateManifest(
 		if (entry.initialState?.openNote) {
 			const notePath = path.join(
 				fixtureRoot,
-				"vault",
+				"studio",
 				entry.initialState.openNote,
 			);
 			if (!existsSync(notePath)) {
 				throw new Error(
-					`manifest entry "${entry.name}" references missing note: ${entry.initialState.openNote} (looked under ${path.join(fixtureRoot, "vault")})`,
+					`manifest entry "${entry.name}" references missing note: ${entry.initialState.openNote} (looked under ${path.join(fixtureRoot, "studio")})`,
 				);
 			}
 		}
@@ -488,6 +502,15 @@ export function validateManifest(
 			if (!Number.isFinite(s) || s <= 0) {
 				throw new Error(
 					`manifest entry "${entry.name}" has invalid minLegibilityScale: ${s} (must be a finite number > 0)`,
+				);
+			}
+		}
+
+		if (entry.rightSplitWidth !== undefined) {
+			const w = entry.rightSplitWidth;
+			if (!Number.isFinite(w) || w <= 0) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid rightSplitWidth: ${w} (must be a finite number > 0)`,
 				);
 			}
 		}

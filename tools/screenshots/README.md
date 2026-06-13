@@ -8,7 +8,7 @@ Regenerate documentation screenshots reproducibly by driving a live Obsidian ins
 - **Obsidian ≥ 1.12** — `dev:screenshot` requires a recent installer. Download from https://obsidian.md/download
 - **Node.js ≥ 18** with `npx tsx` available
 - **`obsidian` CLI** on PATH (installed via Obsidian settings → General → "Install CLI")
-- **Runs from inside Agent Console's kiro-cli session _or_ a regular Terminal** — the driver *attaches* to the running Obsidian via the `obsidian` CLI's CDP surface (`dev:cdp` / `dev:screenshot`) and uses macOS `screencapture` for native-popup shots. It does **not** launch a second Obsidian, so the macOS App Sandbox (`__CFBundleIdentifier=md.obsidian`) does not block it (`dev:*` is IPC, `screencapture` is a system binary). The one requirement: the fixtures vault must be open as the Obsidian window targeted by `vault="vault"`.
+- **Runs from inside Agent Console's kiro-cli session _or_ a regular Terminal** — the driver *attaches* to the running Obsidian via the `obsidian` CLI's CDP surface (`dev:cdp` / `dev:screenshot`) and uses macOS `screencapture` for native-popup shots. It does **not** launch a second Obsidian, so the macOS App Sandbox (`__CFBundleIdentifier=md.obsidian`) does not block it (`dev:*` is IPC, `screencapture` is a system binary). The one requirement: the fixtures vault must be open as the Obsidian window targeted by `vault="studio"`.
 
 ## Quick Start
 
@@ -46,7 +46,7 @@ tools/screenshots/
 ├── run.ts                 # CLI entry point
 ├── sharp.d.ts             # Type stub (until sharp is installed)
 ├── fixtures/
-│   ├── vault/             # Minimal Obsidian vault for consistent captures
+│   ├── studio/             # Minimal Obsidian vault for consistent captures
 │   │   ├── .obsidian/     # Pinned theme, window size, plugin config
 │   │   ├── Welcome.md     # Fixture note
 │   │   └── Project Notes.md

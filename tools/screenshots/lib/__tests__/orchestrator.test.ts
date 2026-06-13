@@ -23,7 +23,7 @@ import { scaleRectByDevicePixelRatio } from "../crop";
 
 function makeFixtureRoot(): string {
 	const root = mkdtempSync(path.join(tmpdir(), "orch-test-"));
-	mkdirSync(path.join(root, "vault"), { recursive: true });
+	mkdirSync(path.join(root, "studio"), { recursive: true });
 	mkdirSync(path.join(root, "prompts"), { recursive: true });
 	return root;
 }
@@ -1444,5 +1444,35 @@ describe("captureEntry — animation (v2)", () => {
 			/content guard/,
 		);
 		expect(deps.encodeGif).not.toHaveBeenCalled();
+	});
+});
+
+describe("captureEntry — layout overrides (collapseLeftSidebar / rightSplitWidth)", () => {
+	it("collapses the left sidebar and forces the right-split width when set", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: { clickRibbon: true },
+			collapseLeftSidebar: true,
+			rightSplitWidth: 680,
+		});
+		await captureEntry(entry, deps);
+		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c: unknown[]) => c[0] as string,
+		);
+		expect(evals.some((e) => e.includes("leftSplit.collapse"))).toBe(true);
+		expect(
+			evals.some((e) => e.includes("mod-right-split") && e.includes("680px")),
+		).toBe(true);
+	});
+
+	it("skips layout overrides when the knobs are unset", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({ initialState: { clickRibbon: true } });
+		await captureEntry(entry, deps);
+		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c: unknown[]) => c[0] as string,
+		);
+		expect(evals.some((e) => e.includes("leftSplit.collapse"))).toBe(false);
+		expect(evals.some((e) => e.includes("mod-right-split"))).toBe(false);
 	});
 });

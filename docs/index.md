@@ -5,6 +5,9 @@ hero:
   name: "Agent Console"
   text: "Your Obsidian console for parallel agent work"
   tagline: Run multiple AI agents in parallel chat sessions inside your vault. Stop waiting on one agent before starting the next.
+  image:
+    src: /images/multi-session-animated.gif
+    alt: Three agent sessions in parallel tabs beside an open note in Obsidian — each tab keeps its own conversation and status icon
   actions:
     - theme: brand
       text: Get Started

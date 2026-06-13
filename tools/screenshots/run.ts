@@ -43,8 +43,8 @@ async function main() {
 	// Create temp dir for raw captures
 	const tmpDir = mkdtempSync(path.join(tmpdir(), "screenshots-"));
 
-	// Vault name for CDP targeting (the fixtures vault folder is named "vault")
-	const vaultName = process.env.SCREENSHOT_VAULT || "vault";
+	// Vault name for CDP targeting (the fixtures vault folder is named "studio")
+	const vaultName = process.env.SCREENSHOT_VAULT || "studio";
 	const cdp = new Cdp({ vault: vaultName });
 
 	// Window sized to fit the tabs + active note + full chat transcript AND

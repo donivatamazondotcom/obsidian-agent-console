@@ -20,7 +20,7 @@ import {
 
 function makeFixtureRoot(): string {
 	const root = mkdtempSync(path.join(tmpdir(), "screenshot-manifest-test-"));
-	mkdirSync(path.join(root, "vault"), { recursive: true });
+	mkdirSync(path.join(root, "studio"), { recursive: true });
 	mkdirSync(path.join(root, "prompts"), { recursive: true });
 	return root;
 }
@@ -244,7 +244,7 @@ describe("validateManifest", () => {
 
 	it("accepts initialState with openNote, clickRibbon, openChatView flags", () => {
 		const root = makeFixtureRoot();
-		writeFileSync(path.join(root, "vault", "Welcome.md"), "# Welcome\n");
+		writeFileSync(path.join(root, "studio", "Welcome.md"), "# Welcome\n");
 		const entry: ManifestEntry = {
 			name: "with-state",
 			width: 200,
@@ -277,7 +277,7 @@ describe("validateManifest", () => {
 
 	it("accepts initialState.openNote when the file exists in fixtures vault", () => {
 		const root = makeFixtureRoot();
-		writeFileSync(path.join(root, "vault", "Welcome.md"), "# Welcome\n");
+		writeFileSync(path.join(root, "studio", "Welcome.md"), "# Welcome\n");
 		const entry: ManifestEntry = {
 			name: "real-note",
 			width: 200,
@@ -756,6 +756,34 @@ describe("validateManifest — animation (v2)", () => {
 		});
 		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
 			/unknown action type/,
+		);
+	});
+});
+
+describe("validateManifest — rightSplitWidth", () => {
+	it("accepts a positive rightSplitWidth", () => {
+		const root = makeFixtureRoot();
+		const entry: ManifestEntry = {
+			name: "with-rsw",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 400, height: 400 },
+			rightSplitWidth: 680,
+		};
+		expect(() => validateManifest({ entries: [entry] }, root)).not.toThrow();
+	});
+
+	it("rejects a zero rightSplitWidth", () => {
+		const root = makeFixtureRoot();
+		const entry = {
+			name: "zero-rsw",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 400, height: 400 },
+			rightSplitWidth: 0,
+		} as ManifestEntry;
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/rightSplitWidth/,
 		);
 	});
 });
