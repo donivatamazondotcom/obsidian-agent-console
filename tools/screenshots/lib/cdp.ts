@@ -107,6 +107,28 @@ export class Cdp {
 	}
 
 	/**
+	 * Execute an Obsidian command by id as a fire-and-forget side effect.
+	 * Routes through {@link runRaw} and IGNORES the output — unlike
+	 * {@link evaluate}, which throws on empty stdout. Opening a chat view
+	 * (`agent-console:open-chat-view`) triggers a fresh ACP agent connection
+	 * whose load can drop the CDP `Runtime.evaluate` response, yielding empty
+	 * stdout; the command's side effect still lands and we don't need its
+	 * boolean return. Readiness is gated by a subsequent `waitForElement`, not
+	 * this call's response. (I18 — mirrors {@link focusWindow}'s tolerant pattern.)
+	 */
+	async executeCommand(commandId: string): Promise<void> {
+		const params = JSON.stringify({
+			expression: `app.commands.executeCommandById(${JSON.stringify(commandId)})`,
+			returnByValue: true,
+		});
+		await this.runRaw([
+			"dev:cdp",
+			"method=Runtime.evaluate",
+			`params=${params}`,
+		]);
+	}
+
+	/**
 	 * Like {@link evaluate} but with CDP transient activation
 	 * (`userGesture: true`). Required for renderer APIs that demand a user
 	 * gesture — notably `HTMLSelectElement.showPicker()`, which throws
