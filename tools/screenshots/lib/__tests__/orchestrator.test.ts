@@ -23,7 +23,7 @@ import { scaleRectByDevicePixelRatio } from "../crop";
 
 function makeFixtureRoot(): string {
 	const root = mkdtempSync(path.join(tmpdir(), "orch-test-"));
-	mkdirSync(path.join(root, "vault"), { recursive: true });
+	mkdirSync(path.join(root, "studio"), { recursive: true });
 	mkdirSync(path.join(root, "prompts"), { recursive: true });
 	return root;
 }

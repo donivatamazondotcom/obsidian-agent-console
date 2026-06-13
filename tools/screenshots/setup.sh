@@ -5,7 +5,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-PLUGIN_DIR="$SCRIPT_DIR/fixtures/vault/.obsidian/plugins/agent-console"
+PLUGIN_DIR="$SCRIPT_DIR/fixtures/studio/.obsidian/plugins/agent-console"
 
 mkdir -p "$PLUGIN_DIR"
 
@@ -29,7 +29,7 @@ ln -sf ../../../../../../../manifest.json manifest.json
 # settings back over the template). Disable (which triggers the save) → cp the
 # template over it → enable (which only reads). This is the only ordering that
 # makes the running plugin actually load the template config.
-VAULT="${SCREENSHOT_VAULT:-vault}"
+VAULT="${SCREENSHOT_VAULT:-studio}"
 obsidian vault="$VAULT" plugin:disable id=agent-console filter=community 2>/dev/null || true
 sleep 1
 if [ -f "$PLUGIN_DIR/data.template.json" ]; then

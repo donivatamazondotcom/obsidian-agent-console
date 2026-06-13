@@ -456,12 +456,12 @@ export function validateManifest(
 		if (entry.initialState?.openNote) {
 			const notePath = path.join(
 				fixtureRoot,
-				"vault",
+				"studio",
 				entry.initialState.openNote,
 			);
 			if (!existsSync(notePath)) {
 				throw new Error(
-					`manifest entry "${entry.name}" references missing note: ${entry.initialState.openNote} (looked under ${path.join(fixtureRoot, "vault")})`,
+					`manifest entry "${entry.name}" references missing note: ${entry.initialState.openNote} (looked under ${path.join(fixtureRoot, "studio")})`,
 				);
 			}
 		}

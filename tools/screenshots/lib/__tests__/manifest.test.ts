@@ -20,7 +20,7 @@ import {
 
 function makeFixtureRoot(): string {
 	const root = mkdtempSync(path.join(tmpdir(), "screenshot-manifest-test-"));
-	mkdirSync(path.join(root, "vault"), { recursive: true });
+	mkdirSync(path.join(root, "studio"), { recursive: true });
 	mkdirSync(path.join(root, "prompts"), { recursive: true });
 	return root;
 }
@@ -244,7 +244,7 @@ describe("validateManifest", () => {
 
 	it("accepts initialState with openNote, clickRibbon, openChatView flags", () => {
 		const root = makeFixtureRoot();
-		writeFileSync(path.join(root, "vault", "Welcome.md"), "# Welcome\n");
+		writeFileSync(path.join(root, "studio", "Welcome.md"), "# Welcome\n");
 		const entry: ManifestEntry = {
 			name: "with-state",
 			width: 200,
@@ -277,7 +277,7 @@ describe("validateManifest", () => {
 
 	it("accepts initialState.openNote when the file exists in fixtures vault", () => {
 		const root = makeFixtureRoot();
-		writeFileSync(path.join(root, "vault", "Welcome.md"), "# Welcome\n");
+		writeFileSync(path.join(root, "studio", "Welcome.md"), "# Welcome\n");
 		const entry: ManifestEntry = {
 			name: "real-note",
 			width: 200,
