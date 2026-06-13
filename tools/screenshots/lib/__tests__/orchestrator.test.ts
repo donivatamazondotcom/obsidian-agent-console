@@ -41,6 +41,7 @@ function makeEntry(overrides: Partial<ManifestEntry> = {}): ManifestEntry {
 function makeMockCdp() {
 	return {
 		evaluate: vi.fn().mockResolvedValue(undefined),
+		executeCommand: vi.fn().mockResolvedValue(undefined),
 		clickElement: vi.fn().mockResolvedValue(undefined),
 		waitForElement: vi.fn().mockResolvedValue(undefined),
 		hoverElement: vi.fn().mockResolvedValue(undefined),
@@ -137,10 +138,10 @@ describe("captureEntry", () => {
 
 		// clickRibbon opens the panel via the open-chat-view command
 		// (deterministic), not the ribbon toggle — see I08.
-		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c: string[]) => c[0] as string,
+		// The command is issued via the fire-and-forget executeCommand path (I18).
+		expect(deps.cdp.executeCommand).toHaveBeenCalledWith(
+			"agent-console:open-chat-view",
 		);
-		expect(evals.some((e) => e.includes("open-chat-view"))).toBe(true);
 	});
 
 	it("detaches existing chat-view leaves then opens the panel via command (I08)", async () => {
@@ -150,16 +151,41 @@ describe("captureEntry", () => {
 		await captureEntry(entry, deps);
 
 		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
-		const calls = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
-		const detachIdx = calls.findIndex((sel) => sel.includes("detachLeavesOfType"));
-		const openIdx = calls.findIndex((sel) => sel.includes("open-chat-view"));
+		const execMock = deps.cdp.executeCommand as ReturnType<typeof vi.fn>;
+		const evalCalls = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		const detachIdx = evalCalls.findIndex((sel) => sel.includes("detachLeavesOfType"));
+		const openIdx = execMock.mock.calls.findIndex(
+			(c: unknown[]) => (c[0] as string).includes("open-chat-view"),
+		);
 		// v1.1.0 restores the panel on reload and the ribbon is a TOGGLE, so
 		// clicking it is unreliable (closes a restored panel / races restore).
 		// Detach existing leaves, then open via the command (deterministic) (I08).
 		expect(detachIdx).toBeGreaterThanOrEqual(0);
 		expect(openIdx).toBeGreaterThanOrEqual(0);
 		expect(evalMock.mock.invocationCallOrder[detachIdx]).toBeLessThan(
-			evalMock.mock.invocationCallOrder[openIdx],
+			execMock.mock.invocationCallOrder[openIdx],
+		);
+	});
+
+	it("tolerates empty CDP output from the open-chat-view command (I18)", async () => {
+		const deps = makeDeps();
+		// Reproduce I18: opening the chat view triggers a fresh ACP agent
+		// connection whose load drops the CDP Runtime.evaluate response, so the
+		// open-chat-view command evaluate returns empty stdout and cdp.evaluate
+		// throws. The command's side effect still lands; the capture must NOT fail.
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) =>
+				expr.includes("open-chat-view")
+					? Promise.reject(new Error("CDP evaluate: empty output from obsidian"))
+					: Promise.resolve(undefined),
+		);
+		const entry = makeEntry({ initialState: { clickRibbon: true } });
+
+		// The fix routes open-chat-view through the fire-and-forget executeCommand
+		// path (tolerates empty stdout), not the throwing evaluate path.
+		await expect(captureEntry(entry, deps)).resolves.toBeUndefined();
+		expect(deps.cdp.executeCommand).toHaveBeenCalledWith(
+			"agent-console:open-chat-view",
 		);
 	});
 
@@ -181,10 +207,9 @@ describe("captureEntry", () => {
 
 		await captureEntry(entry, deps);
 
-		expect(deps.cdp.evaluate).toHaveBeenCalled();
-		const calls = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls;
-		const chatCall = calls.find((c: string[]) => (c[0] as string).includes("agent-console"));
-		expect(chatCall).toBeDefined();
+		expect(deps.cdp.executeCommand).toHaveBeenCalledWith(
+			"agent-console:open-chat-view",
+		);
 	});
 
 	it("waits for the tooltip after hoverSelector, before screenshot (I06)", async () => {
@@ -293,7 +318,9 @@ describe("captureEntry", () => {
 		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
 			(c: string[]) => c[0] as string,
 		);
-		const newTabCalls = evals.filter((e) => e.includes("new-session-tab"));
+		const newTabCalls = (deps.cdp.executeCommand as ReturnType<typeof vi.fn>).mock.calls.filter(
+			(c: unknown[]) => (c[0] as string).includes("new-session-tab"),
+		);
 		expect(newTabCalls).toHaveLength(2); // 3 prompts -> 2 extra tabs
 		expect((deps.readFile as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(3);
 		expect(evals.some((e) => e.includes("scrollTop"))).toBe(true);
@@ -1273,13 +1300,16 @@ describe("captureEntry — agentId override + execCommand draft", () => {
 		const setIdx = evals.findIndex(
 			(e) => e.includes("defaultAgentId") && e.includes("gemini-cli"),
 		);
-		const openIdx = evals.findIndex((e) => e.includes("open-chat-view"));
+		const execMock = deps.cdp.executeCommand as ReturnType<typeof vi.fn>;
+		const openIdx = execMock.mock.calls.findIndex(
+			(c: unknown[]) => (c[0] as string).includes("open-chat-view"),
+		);
 		expect(setIdx).toBeGreaterThanOrEqual(0);
 		expect(openIdx).toBeGreaterThanOrEqual(0);
 		// the agent must be set before the session opens, else the new session
 		// connects with the wrong (default) agent.
 		expect(evalMock.mock.invocationCallOrder[setIdx]).toBeLessThan(
-			evalMock.mock.invocationCallOrder[openIdx],
+			execMock.mock.invocationCallOrder[openIdx],
 		);
 	});
 
