@@ -39,6 +39,7 @@ import {
 /** Subset of Cdp used by the orchestrator (for DI). */
 export interface CdpLike {
 	evaluate<T = unknown>(expression: string): Promise<T>;
+	executeCommand(commandId: string): Promise<void>;
 	clickElement(selector: string): Promise<void>;
 	waitForElement(selector: string, timeoutMs?: number): Promise<void>;
 	getElementBounds(selector: string): Promise<{ x: number; y: number; width: number; height: number }>;
@@ -233,14 +234,10 @@ export async function captureEntry(
 		await deps.cdp.evaluate(
 			`app.workspace.detachLeavesOfType("agent-client-chat-view")`,
 		);
-		await deps.cdp.evaluate(
-			`app.commands.executeCommandById("agent-console:open-chat-view")`,
-		);
+		await deps.cdp.executeCommand("agent-console:open-chat-view");
 	}
 	if (entry.initialState?.openChatView) {
-		await deps.cdp.evaluate(
-			`app.commands.executeCommandById("agent-console:open-chat-view")`,
-		);
+		await deps.cdp.executeCommand("agent-console:open-chat-view");
 	}
 	if (entry.initialState?.hoverSelector) {
 		await deps.cdp.hoverElement(entry.initialState.hoverSelector);
@@ -261,9 +258,7 @@ export async function captureEntry(
 		entry.prompts ?? (entry.promptFile ? [entry.promptFile] : []);
 	for (let i = 0; i < promptFiles.length; i++) {
 		if (i > 0) {
-			await deps.cdp.evaluate(
-				`app.commands.executeCommandById("agent-console:new-session-tab")`,
-			);
+			await deps.cdp.executeCommand("agent-console:new-session-tab");
 			await deps.cdp.waitForElement(
 				`${ACTIVE_PANEL} textarea.agent-client-chat-input-textarea`,
 			);
@@ -837,14 +832,10 @@ async function captureAnimationEntry(
 		await deps.cdp.evaluate(
 			`app.workspace.detachLeavesOfType("agent-client-chat-view")`,
 		);
-		await deps.cdp.evaluate(
-			`app.commands.executeCommandById("agent-console:open-chat-view")`,
-		);
+		await deps.cdp.executeCommand("agent-console:open-chat-view");
 	}
 	if (entry.initialState?.openChatView) {
-		await deps.cdp.evaluate(
-			`app.commands.executeCommandById("agent-console:open-chat-view")`,
-		);
+		await deps.cdp.executeCommand("agent-console:open-chat-view");
 	}
 	await sleep(SETTLE_MS);
 
