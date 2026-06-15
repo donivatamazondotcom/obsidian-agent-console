@@ -62,6 +62,16 @@
   -webkit-text-fill-color: transparent;
 }
 
+/* Hero image: let the wide animated GIF (1050x570) fill its column instead of
+   the default square-logo cap (192/256/320px), which renders it tiny.
+   .VPHero .image-src (0,2,0) outranks VitePress's :deep(.image-src) (0,1,0)
+   at every breakpoint, so no !important is needed. The image column maxes at
+   ~530px wide, below the GIF's 1050px native width, so it never upscales. */
+.VPHero .image-src {
+  max-width: 100%;
+  max-height: none;
+}
+
 /* Button styling */
 .VPButton.brand {
   background-color: var(--vp-c-brand-1);
