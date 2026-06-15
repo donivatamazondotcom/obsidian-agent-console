@@ -62,14 +62,34 @@
   -webkit-text-fill-color: transparent;
 }
 
-/* Hero image: let the wide animated GIF (1050x570) fill its column instead of
-   the default square-logo cap (192/256/320px), which renders it tiny.
-   .VPHero .image-src (0,2,0) outranks VitePress's :deep(.image-src) (0,1,0)
-   at every breakpoint, so no !important is needed. The image column maxes at
-   ~530px wide, below the GIF's 1050px native width, so it never upscales. */
+/* Hero image — render the wide landscape GIF (1050x570) in normal flow, sized
+   to its column. VitePress's default treats hero.image as a square logo:
+   absolutely centered (left:50% + translate) inside a column-filling box with
+   a 320px cap. Simply uncapping that (I83) let the absolutely-positioned image
+   grow to full column width and overflow left, overlapping the hero text (I84).
+   Opting into normal flow bounds it by the column at every breakpoint; the
+   520px cap leaves a gutter beside the text and stays below the GIF's 1050px
+   native width, so it never blurs. */
+.VPHero .image {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.VPHero .image-container {
+  position: static;
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  transform: none;
+}
+
 .VPHero .image-src {
+  position: static;
+  width: 100%;
   max-width: 100%;
   max-height: none;
+  transform: none;
 }
 
 /* Button styling */
