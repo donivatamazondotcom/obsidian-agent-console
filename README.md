@@ -1,10 +1,22 @@
+<div align="center">
+
+<img src="docs/public/images/logo.svg" alt="Agent Console logo" width="88">
+
 # Agent Console
 
-> Your Obsidian console for parallel agent work.
+**Your Obsidian console for parallel agent work.**
 
-<p align="center">
-  <img src="docs/public/images/multi-session-animated.gif" alt="Three agent sessions in parallel tabs beside an open note in Obsidian — each tab keeps its own conversation and status icon" width="800">
-</p>
+[![Version](https://img.shields.io/github/v/release/donivatamazondotcom/obsidian-agent-console?label=version&color=8b5cf6)](https://github.com/donivatamazondotcom/obsidian-agent-console/releases)
+[![Obsidian downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&query=%24%5B%22agent-console%22%5D.downloads&label=downloads&color=8b5cf6)](https://community.obsidian.md/plugins/agent-console)
+[![License](https://img.shields.io/badge/license-Apache--2.0-8b5cf6)](LICENSE)
+[![Build](https://img.shields.io/github/actions/workflow/status/donivatamazondotcom/obsidian-agent-console/ci.yaml?branch=main&label=build&color=8b5cf6)](https://github.com/donivatamazondotcom/obsidian-agent-console/actions/workflows/ci.yaml)
+[![Docs](https://img.shields.io/badge/docs-online-8b5cf6)](https://donivatamazondotcom.github.io/obsidian-agent-console/)
+
+<img src="docs/public/images/multi-session-animated.gif" alt="Three agent sessions in parallel tabs beside an open note in Obsidian — each tab keeps its own conversation and status icon" width="800">
+
+**[📦 Install from Obsidian](https://community.obsidian.md/plugins/agent-console) &nbsp;·&nbsp; [📖 Documentation](https://donivatamazondotcom.github.io/obsidian-agent-console/) &nbsp;·&nbsp; [💬 Discussions](https://github.com/donivatamazondotcom/obsidian-agent-console/discussions)**
+
+</div>
 
 ## Why Agent Console
 
@@ -13,6 +25,35 @@ AI agents can do real work for you. Research a topic. Write code. Draft an email
 Agent Console fixes that. Open a tab. Tell the agent what you want. While it works, open another tab and start something else. Each tab shows whether the agent is still working, waiting on you, or done. Your notes stay in view the whole time. The conversation lives where you already think.
 
 > **The shift in how you work:** Tell the agent *what you want done*, not *how to do it*. With the right [skills](https://agentskills.io/home), the agent figures out the steps. You stay focused on the work itself. With many tabs, you can have several things happening at once, without losing track.
+
+## See it in action
+
+<table>
+<tr>
+<td width="50%" align="center">
+<img src="docs/public/images/sending-messages.webp" alt="The composer with a vault note pinned in the context strip" width="380"><br>
+<b>Bring your notes in as context</b><br>
+<sub>Pin notes in the context strip, or @-mention any note.</sub>
+</td>
+<td width="50%" align="center">
+<img src="docs/public/images/slash-commands-1.webp" alt="The slash-command menu open in the composer" width="380"><br>
+<b>Slash commands, built in</b><br>
+<sub>Type / to run your agent's commands.</sub>
+</td>
+</tr>
+<tr>
+<td width="50%" align="center">
+<img src="docs/public/images/model-selection.webp" alt="The model picker open in a chat tab" width="380"><br>
+<b>A model for every task</b><br>
+<sub>Switch model or mode per tab, mid-chat.</sub>
+</td>
+<td width="50%" align="center">
+<img src="docs/public/images/editing.webp" alt="A file-edit permission card showing a diff with Allow and Reject buttons" width="380"><br>
+<b>See and approve what runs</b><br>
+<sub>Edits and commands wait for your OK.</sub>
+</td>
+</tr>
+</table>
 
 ## Features
 
@@ -53,7 +94,7 @@ The pattern: tell the agent what you want done. Switch tabs. Come back when stat
 
 ### Through Obsidian Community Plugins (recommended)
 
-Agent Console is in the Obsidian Community Plugins store:
+Agent Console is in the [Obsidian Community Plugins store](https://community.obsidian.md/plugins/agent-console):
 
 1. Open **Settings → Community plugins** in Obsidian
 2. Click **Browse** and search for "Agent Console"
