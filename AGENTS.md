@@ -102,6 +102,7 @@ src/
 │   ├── ErrorBanner.tsx          # Error/notification overlay
 │   ├── SessionHistoryModal.tsx  # Session history modal (list + confirm delete)
 │   ├── ChangeDirectoryModal.ts  # Per-tab cwd change modal (sets working dir for agent process)
+│   ├── ImportSettingsModal.ts  # Cross-plugin settings-import preview + apply dialog
 │   ├── SettingsTab.ts           # Plugin settings UI
 │   ├── view-host.ts             # IChatViewHost interface
 │   ├── use-auto-scroll-pin.ts   # Auto-scroll-to-bottom hook (pin state + native scroll + ResizeObserver/wheel/touch)

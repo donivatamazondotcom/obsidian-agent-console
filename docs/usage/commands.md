@@ -21,6 +21,12 @@ Commands operate on the **last focused chat view**. Click on a chat view to focu
 | **Focus next chat view** | Move focus to the next chat view |
 | **Focus previous chat view** | Move focus to the previous chat view |
 
+## Settings Commands
+
+| Command | Description |
+|---------|-------------|
+| **Import settings from another agent plugin** | Import agent definitions, defaults, and API keys from another plugin (e.g. Agent Client). Shows a preview first. See [Importing Settings](/usage/importing-settings). |
+
 ## Broadcast Commands
 
 Control multiple tabs at once. See [Tabbed Sessions](/usage/tabbed-sessions) for details.

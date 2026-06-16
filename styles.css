@@ -261,7 +261,8 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	cursor: pointer;
 }
 
-.agent-client-message-tool-call-header-clickable:hover .agent-client-message-tool-call-title-text {
+.agent-client-message-tool-call-header-clickable:hover
+	.agent-client-message-tool-call-title-text {
 	color: var(--text-accent);
 }
 
@@ -2311,13 +2312,22 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 @keyframes agent-client-spin {
-	from { transform: rotate(0deg); }
-	to { transform: rotate(360deg); }
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 @keyframes agent-client-pulse {
-	0%, 100% { opacity: 1; }
-	50% { opacity: 0.4; }
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.4;
+	}
 }
 
 /* Drag feedback */
@@ -2359,4 +2369,22 @@ button.agent-client-message-tool-call-summary:focus-visible {
 
 .agent-client-tab-error-retry {
 	margin-top: 8px;
+}
+
+/* Settings-import (cross-plugin migration) */
+.agent-client-import-notice {
+	cursor: pointer;
+}
+.agent-client-import-agents {
+	margin: 0.5em 0;
+	padding-left: 1.2em;
+}
+.agent-client-import-relink {
+	color: var(--text-warning);
+}
+.agent-client-import-buttons {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	margin-top: 1em;
 }

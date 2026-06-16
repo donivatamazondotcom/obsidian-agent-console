@@ -568,5 +568,6 @@ export function normalizeRawSettings(
 			? (raw.perLeafTabStates as PerLeafTabState[])
 			: undefined,
 		legacySessionsMigrated: bool(raw.legacySessionsMigrated, false),
+		settingsImportOfferShown: bool(raw.settingsImportOfferShown, false),
 	};
 }

@@ -39,6 +39,7 @@ describe("normalizeRawSettings — defaults", () => {
 		expect(s.restoreTabsOnStartup).toBe(true);
 		expect(s.perLeafTabStates).toBeUndefined();
 		expect(s.legacySessionsMigrated).toBe(false);
+		expect(s.settingsImportOfferShown).toBe(false);
 		expect(s.savedSessions).toEqual([]);
 		expect(s.lastUsedModels).toEqual({});
 		expect(s.lastUsedModes).toEqual({});

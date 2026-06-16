@@ -54,6 +54,17 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		});
 		docContainer.createSpan({ text: "." });
 
+		new Setting(containerEl)
+			.setName("Import settings from another plugin")
+			.setDesc(
+				"Bring over agent definitions, defaults, and API keys from another agent plugin (e.g. Agent Client). Shows a preview before applying.",
+			)
+			.addButton((btn) =>
+				btn.setButtonText("Import…").onClick(() => {
+					this.plugin.openImportSettingsModal();
+				}),
+			);
+
 		// ─────────────────────────────────────────────────────────────────────
 		// Top-level settings (no header)
 		// ─────────────────────────────────────────────────────────────────────
@@ -106,9 +117,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.sendMessageShortcut)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
-							sendMessageShortcut: value as
-								| "enter"
-								| "cmd-enter",
+							sendMessageShortcut: value as "enter" | "cmd-enter",
 						});
 					}),
 			);

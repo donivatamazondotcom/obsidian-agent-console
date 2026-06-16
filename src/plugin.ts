@@ -28,6 +28,12 @@ import type { SavedSessionInfo } from "./types/session";
 import type { PerLeafTabState } from "./types/tab";
 import { initializeLogger, getLogger } from "./utils/logger";
 import { closeOpenMenus } from "./utils/menu-registry";
+import { ImportSettingsModal } from "./ui/ImportSettingsModal";
+import {
+	createImportSources,
+	firstDetectedSource,
+} from "./services/import/registry";
+import type { ImportSource } from "./services/import/ImportSource";
 
 // Re-export for backward compatibility
 export type { AgentEnvVar, CustomAgentSettings };
@@ -116,6 +122,9 @@ export interface AgentClientPluginSettings {
 	 * old agent-client plugin id]].
 	 */
 	legacySessionsMigrated?: boolean;
+
+	/** One-shot guard for the first-run settings-import offer. */
+	settingsImportOfferShown?: boolean;
 }
 
 export default class AgentClientPlugin extends Plugin {
@@ -233,12 +242,23 @@ export default class AgentClientPlugin extends Plugin {
 			},
 		});
 
+		this.addCommand({
+			id: "import-settings",
+			name: "Import settings from another agent plugin",
+			callback: () => {
+				this.openImportSettingsModal();
+			},
+		});
+
 		// Register agent-specific commands
 		this.registerAgentCommands();
 		this.registerPermissionCommands();
 		this.registerBroadcastCommands();
 
 		this.addSettingTab(new AgentClientSettingTab(this.app, this));
+
+		// First-run, one-shot offer to import settings from another agent plugin.
+		void this.maybeOfferSettingsImport();
 
 		// Clean up all ACP sessions when Obsidian quits
 		// Note: We don't wait for disconnect to complete to avoid blocking quit
@@ -780,6 +800,72 @@ export default class AgentClientPlugin extends Plugin {
 
 	async saveSettingsAndNotify(nextSettings: AgentClientPluginSettings) {
 		await this.settingsService.updateSettings(nextSettings);
+	}
+
+	/** Build the available settings-import sources with this plugin's deps. */
+	private createImportSources(): ImportSource[] {
+		return createImportSources({
+			app: this.app,
+			migrateKey: (
+				defaultSecretId,
+				fallbackSecretId,
+				currentSecretId,
+				legacyApiKey,
+				agentLabel,
+			) =>
+				this.migrateLegacyApiKey(
+					defaultSecretId,
+					fallbackSecretId,
+					currentSecretId,
+					legacyApiKey,
+					agentLabel,
+					() => {
+						/* import persists via updateSettings; no flag needed */
+					},
+				),
+		});
+	}
+
+	/** Open the import-settings dialog (used by the command + settings button). */
+	openImportSettingsModal(): void {
+		new ImportSettingsModal(
+			this.app,
+			this.createImportSources(),
+			async (slice) => {
+				await this.settingsService.updateSettings(slice);
+			},
+		).open();
+	}
+
+	/**
+	 * First-run, one-shot offer to import settings from another agent plugin.
+	 * Fail-soft; shows a sticky, dismissible Notice only when a source is
+	 * detected, and sets the one-shot guard so it is never shown twice.
+	 */
+	private async maybeOfferSettingsImport(): Promise<void> {
+		if (this.settings.settingsImportOfferShown) return;
+		try {
+			const detected = await firstDetectedSource(
+				this.createImportSources(),
+			);
+			if (!detected) return; // nothing to offer; re-check on a later launch
+			const notice = new Notice(
+				`Agent Console: found ${detected.displayName} settings — click to import them.`,
+				0,
+			);
+			notice.containerEl.addClass("agent-client-import-notice");
+			notice.containerEl.addEventListener("click", () => {
+				notice.hide();
+				this.openImportSettingsModal();
+			});
+			this.settings.settingsImportOfferShown = true;
+			await this.saveSettings();
+		} catch (error) {
+			getLogger().warn(
+				"[AgentClient] settings-import offer failed:",
+				error,
+			);
+		}
 	}
 
 	/**

@@ -14,3 +14,16 @@ export function createImportSources(
 ): ImportSource[] {
 	return [createAgentClientAdapter(deps)];
 }
+
+/**
+ * First source whose config is detected, or null if none. Used by the
+ * first-run auto-offer and the import command to pick what to show.
+ */
+export async function firstDetectedSource(
+	sources: ImportSource[],
+): Promise<ImportSource | null> {
+	for (const source of sources) {
+		if (await source.detect()) return source;
+	}
+	return null;
+}
