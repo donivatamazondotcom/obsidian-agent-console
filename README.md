@@ -12,7 +12,7 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/donivatamazondotcom/obsidian-agent-console/ci.yaml?branch=main&label=build&color=8b5cf6)](https://github.com/donivatamazondotcom/obsidian-agent-console/actions/workflows/ci.yaml)
 [![Docs](https://img.shields.io/badge/docs-online-8b5cf6)](https://donivatamazondotcom.github.io/obsidian-agent-console/)
 
-<img src="docs/public/images/multi-session-animated.gif" alt="Three agent sessions in parallel tabs beside an open note in Obsidian — each tab keeps its own conversation and status icon" width="800">
+<img src="docs/public/images/multi-session-animated.gif" alt="Three agent sessions in parallel tabs beside an open note in Obsidian – each tab keeps its own conversation and status icon" width="800">
 
 **[📦 Install from Obsidian](https://community.obsidian.md/plugins/agent-console) &nbsp;·&nbsp; [📖 Documentation](https://donivatamazondotcom.github.io/obsidian-agent-console/) &nbsp;·&nbsp; [💬 Discussions](https://github.com/donivatamazondotcom/obsidian-agent-console/discussions)**
 
@@ -20,9 +20,9 @@
 
 ## Why Agent Console
 
-AI agents can do real work for you. Research a topic. Write code. Draft an email. Plan a meeting. But the work takes time. While the agent works, you wait. Or you switch to another app, lose your place, and have to find it again.
+Most AI agents start every chat from zero – they know nothing about you until you paste it in. Agent Console brings agents into your Obsidian vault instead, so they work from the notes you’ve already written. @mention a note and the agent reads it – and the notes it links to – for context. Ask it to write back – capture a decision, draft a note, link an idea – and your second brain grows as you work, without the tedious upkeep.
 
-Agent Console fixes that. Open a tab. Tell the agent what you want. While it works, open another tab and start something else. Each tab shows whether the agent is still working, waiting on you, or done. Your notes stay in view the whole time. The conversation lives where you already think.
+Because the agents live in your vault, you stay in control: you pin what they see, and you approve anything that runs. And since they work asynchronously, you can run several at once – one researching, one drafting, one vibe-coding a script – each in its own tab, each showing whether it’s ready, busy, or waiting on you. Stop waiting on one before starting the next.
 
 > **The shift in how you work:** Tell the agent *what you want done*, not *how to do it*. With the right [skills](https://agentskills.io/home), the agent figures out the steps. You stay focused on the work itself. With many tabs, you can have several things happening at once, without losing track.
 
@@ -57,9 +57,10 @@ Agent Console fixes that. Open a tab. Tell the agent what you want. While it wor
 
 ## Features
 
+* **Work from the notes you’ve already written** – @mention a note and the agent reads it, and the notes it links to, as context. Drag in images, run slash commands – it starts from your knowledge, not a blank slate
+* **Let your second brain grow itself** – ask an agent to write back: capture decisions, draft notes, and link ideas straight into your vault, without the manual upkeep
 * **Stop waiting on one agent before starting the next** – run several agent chats side by side in one sidebar
 * **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol)
-* **Give the agent context from your vault** – type `@notename` and the agent reads that note. Drag in images. Use slash commands.
 * **Your context budget goes further** – context notes are referenced, not re-pasted into every message, so a long chat uses 65–80% fewer context tokens than re-sending the full note each turn
 * **Restart Obsidian without losing your place** – your open tabs and their conversations reopen exactly as you left them; each sidebar pane restores its own tabs independently
 * **Scroll up to read while the agent is still typing** – the incoming stream won’t yank you back to the bottom, so you can reread earlier output mid-response; tabs also keep their scroll position when you switch away and back
@@ -82,7 +83,7 @@ Agent Console fixes that. Open a tab. Tell the agent what you want. While it wor
 ## What you can do with it
 
 * **Do several things at once** – ask one agent to research a topic, another to prep your next meeting, a third to clean up your email. Each one works at its own pace.
-* **Don’t wait on code** – have one agent fix a bug while another writes the tests
+* **Vibe-code a script or tool** – describe what you want, get working code back, and review the diff
 * **Pull in your notes** – type `@` and the name of any note – meeting notes, contact info, project pages – and the agent uses it as context for the task
 * **Make your vault fill itself** – with the right skills, agents write meeting notes, research summaries, and action items straight into your vault. No manual capture.
 * **Compare two agents** – give the same task to two different agents in side-by-side tabs and see which answer you like better
@@ -137,7 +138,7 @@ Three things come together, and you control all of them:
 
 Whatever your agent can do, Agent Console lets you do many of those at once.
 
-## Built to be reliable
+## Enterprise-grade quality
 
 A plugin that runs live agent sessions in your vault has to be dependable. A few things keep it that way:
 
