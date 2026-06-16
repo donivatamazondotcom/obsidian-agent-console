@@ -46,7 +46,7 @@ src/
 │   ├── settings-migration.ts    # One-time settings migration (autoMentionActiveNote → activeNoteAsDefaultContext)
 │   ├── settings-service.ts      # Reactive settings store (observer pattern only)
 │   ├── session-storage.ts       # Session metadata + message file I/O (sessions/*.json)
-│   ├── settings-normalizer.ts   # Settings validation helpers (str, bool, num, enumVal, etc.)
+│   ├── settings-normalizer.ts   # Validation helpers + DEFAULT_SETTINGS + normalizeRawSettings (raw→typed mapping)
 │   ├── session-helpers.ts       # Agent config building, API key injection (pure functions)
 │   ├── session-state.ts         # Session state updates (legacy mode/model, config restore)
 │   ├── message-state.ts         # Message array transforms (upsert, merge, streaming apply)
@@ -54,6 +54,10 @@ src/
 │   ├── chat-exporter.ts         # Markdown export with frontmatter
 │   ├── view-registry.ts         # Multi-view management, focus, broadcast
 │   ├── update-checker.ts        # Agent/plugin version checking
+│   ├── import/                   # Cross-plugin settings-import adapters
+│   │   ├── ImportSource.ts       # ImportSource interface + preview types
+│   │   ├── agentClientAdapter.ts # Reads agent-client data.json → normalizeRawSettings → slice
+│   │   └── registry.ts           # createImportSources(deps) — available sources (agent-client)
 │   └── __benchmarks__/          # Perf-gate (Gate B-v1) throughput benchmarks
 │       ├── context-builder.bench.ts    # context-builder throughput benchmark
 │       └── context-validator.bench.ts  # context-validator throughput benchmark
@@ -222,7 +226,8 @@ Thin wrapper that:
 **VaultService**: Vault access + file index + fuzzy search + CM6 selection tracking
 **SettingsService**: Reactive settings store (observer pattern for useSyncExternalStore). Session storage delegated to SessionStorage.
 **SessionStorage**: Session metadata CRUD (in plugin settings) + message file I/O (sessions/*.json)
-**settings-normalizer**: Validation helpers (str, bool, num, enumVal, obj, strRecord, xyPoint) + toAgentConfig + parseChatFontSize
+**settings-normalizer**: Validation helpers (str, bool, num, enumVal, obj, strRecord, xyPoint) + toAgentConfig + parseChatFontSize + DEFAULT_SETTINGS + normalizeRawSettings (the single raw→typed settings mapping, shared by loadSettings and the import adapter)
+**import/**: Cross-plugin settings migration. ImportSource interface + agentClientAdapter (reads the upstream agent-client data.json, reuses normalizeRawSettings, ports API keys by reference or migrates legacy plaintext) + registry (createImportSources).
 **session-helpers**: Pure functions — buildAgentConfigWithApiKey, findAgentSettings, getAvailableAgents
 **session-state**: Pure functions — applyLegacyValue, tryRestoreConfigOption, restoreLegacyConfig
 **message-state**: Pure functions — applySingleUpdate, applyUpsertToolCall, mergeToolCallContent, findActivePermission, selectOption
