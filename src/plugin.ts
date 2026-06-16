@@ -19,7 +19,6 @@ import {
 	parseChatFontSize,
 	str,
 	bool,
-	num,
 	enumVal,
 	obj,
 	strRecord,
@@ -102,8 +101,6 @@ export interface AgentClientPluginSettings {
 	lastUsedModes: Record<string, string>;
 
 	// Tab settings
-	/** Maximum number of session tabs per view (default: 10) */
-	maxSessionTabs: number;
 	/** Restore open tabs on startup (default: true). See [[ACP Tab Persistence Across Restarts]] § Setting. */
 	restoreTabsOnStartup: boolean;
 
@@ -189,7 +186,6 @@ const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	savedSessions: [],
 	lastUsedModels: {},
 	lastUsedModes: {},
-	maxSessionTabs: 10,
 	restoreTabsOnStartup: true,
 };
 
@@ -991,7 +987,6 @@ export default class AgentClientPlugin extends Plugin {
 				: D.savedSessions,
 			lastUsedModels: strRecord(raw.lastUsedModels),
 			lastUsedModes: strRecord(raw.lastUsedModes),
-			maxSessionTabs: num(raw.maxSessionTabs, D.maxSessionTabs, 1),
 			restoreTabsOnStartup:
 				typeof raw.restoreTabsOnStartup === "boolean"
 					? raw.restoreTabsOnStartup
