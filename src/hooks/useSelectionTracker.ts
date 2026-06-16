@@ -1,5 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
+/** Basename without the final extension (matches Obsidian's TFile.basename). (I85) */
+function basename(path: string): string {
+	const base = path.split("/").pop() ?? path;
+	const dot = base.lastIndexOf(".");
+	return dot > 0 ? base.slice(0, dot) : base;
+}
+
 /**
  * Narrow port interface for selection tracking.
  * Satisfied by VaultServiceAdapter without importing the full class.
@@ -11,6 +18,8 @@ export interface SelectionSource {
 		selection?: { from: { line: number; ch: number }; to: { line: number; ch: number } };
 	} | null>;
 	subscribeSelectionChanges(listener: () => void): () => void;
+	/** Subscribe to vault rename/move events. Returns an unsubscribe fn. (I85) */
+	onRename(cb: (oldPath: string, newPath: string) => void): () => void;
 }
 
 export interface SelectionState {
@@ -40,6 +49,10 @@ export function useSelectionTracker(source: SelectionSource): UseSelectionTracke
 	const [selection, setSelection] = useState<SelectionState | null>(null);
 	const sourceRef = useRef(source);
 	sourceRef.current = source;
+	// Keep the latest path readable inside the rename callback without
+	// re-subscribing on every path change. (I85)
+	const activeNotePathRef = useRef(activeNotePath);
+	activeNotePathRef.current = activeNotePath;
 
 	const handleSelectionChange = useCallback(async () => {
 		const note = await sourceRef.current.getActiveNote();
@@ -63,12 +76,24 @@ export function useSelectionTracker(source: SelectionSource): UseSelectionTracke
 		const unsubscribe = source.subscribeSelectionChanges(() => {
 			void handleSelectionChange();
 		});
+		// I85: a vault rename/move of the currently-tracked active note does not
+		// fire active-leaf-change, so refresh path+name from the rename event
+		// directly. Mirrors contextNotes.rename for crystallized pills.
+		const unsubscribeRename = source.onRename((oldPath, newPath) => {
+			if (activeNotePathRef.current === oldPath) {
+				setActiveNotePath(newPath);
+				setActiveNoteName(basename(newPath));
+			}
+		});
 		// Prime initial state on mount. The shared VaultService only emits to
 		// the first subscriber (ensureSelectionTracking early-returns after),
 		// so a new chat tab's tracker would otherwise stay null until the next
 		// active-leaf-change — leaving the grab button disabled. (T02/T03)
 		void handleSelectionChange();
-		return unsubscribe;
+		return () => {
+			unsubscribe();
+			unsubscribeRename();
+		};
 	}, [source, handleSelectionChange]);
 
 	return { activeNotePath, activeNoteName, selection };
