@@ -20,6 +20,7 @@ afterEach(cleanup);
 function makeMockSource(overrides: Partial<SelectionSource> = {}): SelectionSource {
 	return {
 		getActiveNote: vi.fn().mockResolvedValue(null),
+		onRename: vi.fn().mockReturnValue(() => {}),
 		subscribeSelectionChanges: vi.fn().mockReturnValue(() => {}),
 		...overrides,
 	};
@@ -235,5 +236,127 @@ describe("useSelectionTracker", () => {
 
 		expect(result.current.activeNotePath).toBe("folder/Design Doc.md");
 		expect(result.current.activeNoteName).toBe("Design Doc");
+	});
+});
+
+// ============================================================================
+// I85: tracker must refresh on vault rename of the currently-active note.
+// Without this, the active-note path/name go stale after a rename until the
+// next selection/leaf change — the "Toggle active note in context" hotkey
+// then announces the OLD name (and pins the stale OLD path). Reproduce-first:
+// these FAIL against unfixed code (the hook never subscribes to onRename).
+// ============================================================================
+describe("useSelectionTracker — I85 rename handling", () => {
+	function captureRename() {
+		let cb: ((oldPath: string, newPath: string) => void) | null = null;
+		const dispose = vi.fn();
+		const onRename = vi.fn((listener: (o: string, n: string) => void) => {
+			cb = listener;
+			return dispose;
+		});
+		return { onRename, dispose, getCb: () => cb };
+	}
+
+	async function flushMount() {
+		await act(async () => {
+			await Promise.resolve();
+		});
+	}
+
+	it("T-A: renaming the active note updates path and name without a selection change", async () => {
+		const { onRename, getCb } = captureRename();
+		const getActiveNote = vi.fn().mockResolvedValue({
+			path: "A.md",
+			name: "A",
+			extension: "md",
+			created: 0,
+			modified: 0,
+		});
+		const source = makeMockSource({ getActiveNote, onRename });
+
+		const { result } = renderHook(() => useSelectionTracker(source));
+		await flushMount();
+		expect(result.current.activeNotePath).toBe("A.md");
+
+		expect(onRename).toHaveBeenCalledTimes(1);
+		await act(async () => {
+			getCb()!("A.md", "B.md");
+		});
+
+		expect(result.current.activeNotePath).toBe("B.md");
+		expect(result.current.activeNoteName).toBe("B");
+	});
+
+	it("T-B: renaming a different (non-active) note leaves the tracker unchanged", async () => {
+		const { onRename, getCb } = captureRename();
+		const getActiveNote = vi.fn().mockResolvedValue({
+			path: "A.md",
+			name: "A",
+			extension: "md",
+			created: 0,
+			modified: 0,
+		});
+		const source = makeMockSource({ getActiveNote, onRename });
+
+		const { result } = renderHook(() => useSelectionTracker(source));
+		await flushMount();
+
+		await act(async () => {
+			getCb()!("Other.md", "Renamed.md");
+		});
+
+		expect(result.current.activeNotePath).toBe("A.md");
+		expect(result.current.activeNoteName).toBe("A");
+	});
+
+	it("T-C: moving the active note (basename unchanged) updates the path, keeps the name", async () => {
+		const { onRename, getCb } = captureRename();
+		const getActiveNote = vi.fn().mockResolvedValue({
+			path: "A.md",
+			name: "A",
+			extension: "md",
+			created: 0,
+			modified: 0,
+		});
+		const source = makeMockSource({ getActiveNote, onRename });
+
+		const { result } = renderHook(() => useSelectionTracker(source));
+		await flushMount();
+
+		await act(async () => {
+			getCb()!("A.md", "folder/A.md");
+		});
+
+		expect(result.current.activeNotePath).toBe("folder/A.md");
+		expect(result.current.activeNoteName).toBe("A");
+	});
+
+	it("T-D: a rename with no active note tracked is a no-op (no crash, stays null)", async () => {
+		const { onRename, getCb } = captureRename();
+		const source = makeMockSource({
+			getActiveNote: vi.fn().mockResolvedValue(null),
+			onRename,
+		});
+
+		const { result } = renderHook(() => useSelectionTracker(source));
+		await flushMount();
+
+		await act(async () => {
+			getCb()!("X.md", "Y.md");
+		});
+
+		expect(result.current.activeNotePath).toBeNull();
+		expect(result.current.activeNoteName).toBeNull();
+	});
+
+	it("T-E: disposes the rename subscription on unmount", async () => {
+		const { onRename, dispose } = captureRename();
+		const source = makeMockSource({ onRename });
+
+		const { unmount } = renderHook(() => useSelectionTracker(source));
+		await flushMount();
+		unmount();
+
+		expect(dispose).toHaveBeenCalledTimes(1);
 	});
 });
