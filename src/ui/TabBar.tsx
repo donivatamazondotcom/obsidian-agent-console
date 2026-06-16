@@ -39,24 +39,34 @@ export interface TabBarProps {
 // ============================================================================
 
 /**
+ * Maps a tab state to its colorblind-safe glyph.
+ *
+ * Single source of truth shared by the strip's {@link TabStateIcon} and the
+ * chevron dropdown (handleChevronClick), so the two surfaces can never drift.
+ * Shape is the primary signal by design — see `types/tab.ts`.
+ */
+export function stateGlyph(state: TabState): string {
+	switch (state) {
+		case "ready":
+			return "●";
+		case "busy":
+			return "◐";
+		case "permission":
+			return "△";
+		case "error":
+			return "✕";
+		case "disconnected":
+			return "○";
+	}
+}
+
+/**
  * Renders a tab state icon using shape + color + animation.
  * No red/green contrast dependency.
  */
 function TabStateIcon({ state }: { state: TabState }) {
 	const className = `agent-client-tab-state-icon agent-client-tab-state-${state}`;
-
-	switch (state) {
-		case "ready":
-			return <span className={className}>●</span>;
-		case "busy":
-			return <span className={className}>◐</span>;
-		case "permission":
-			return <span className={className}>△</span>;
-		case "error":
-			return <span className={className}>✕</span>;
-		case "disconnected":
-			return <span className={className}>○</span>;
-	}
+	return <span className={className}>{stateGlyph(state)}</span>;
 }
 
 // ============================================================================
@@ -248,7 +258,7 @@ export function TabBar({
 			registerOpenMenu(menu);
 			for (const tab of tabs) {
 				menu.addItem((item: MenuItem) => {
-					item.setTitle(tab.label)
+					item.setTitle(`${stateGlyph(tab.state)}  ${tab.label}`)
 						.setChecked(tab.tabId === activeTabId)
 						.onClick(() => {
 							onSelectTab(tab.tabId);

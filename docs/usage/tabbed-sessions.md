@@ -30,6 +30,8 @@ The tab bar appears at the top of the chat sidebar. Each tab shows:
 
 A `+` button on the right of the tab bar opens a new tab.
 
+A `˅` chevron beside it opens a dropdown listing **every** tab — including any scrolled out of view. Each entry is prefixed with the tab's status glyph (`●` ready, `◐` busy, `△` permission needed, `✕` error, `○` disconnected), with a checkmark on the active tab. Because it shows all sessions at once, it's the quickest way to spot which one is stuck or done when many tabs are open.
+
 ## Creating tabs
 
 Three ways:
