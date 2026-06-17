@@ -38,6 +38,9 @@ features:
   - icon: 🔍
     title: Session History
     details: Browse past chats and reopen any session in a tab – pick up a previous conversation right where it left off.
+  - icon: 📥
+    title: Bring Your Setup With You
+    details: Switching from another agent plugin? Import its agent definitions, defaults, and API keys in one click. Agent Console offers it on first run and keeps your keys where they already live.
   - icon: 🎨
     title: Native & Theme-Friendly
     details: Agent Console adopts Obsidian’s native styling and theme variables instead of hardcoded colors and chrome, so it looks like part of your Obsidian and adapts to any custom theme.

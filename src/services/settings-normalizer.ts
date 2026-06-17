@@ -5,7 +5,14 @@
  * Used by plugin.ts (loadSettings) and SettingsTab.ts.
  */
 
-import type { AgentEnvVar, CustomAgentSettings } from "../plugin";
+import type {
+	AgentEnvVar,
+	CustomAgentSettings,
+	AgentClientPluginSettings,
+} from "../plugin";
+import type { SavedSessionInfo } from "../types/session";
+import type { PerLeafTabState } from "../types/tab";
+import { migrateContextNoteSettings } from "./settings-migration";
 import type { BaseAgentSettings } from "../types/agent";
 import type { AgentConfig } from "../acp/acp-client";
 
@@ -252,4 +259,315 @@ export function xyPoint(raw: unknown): { x: number; y: number } | null {
 	const o = obj(raw);
 	if (!o || typeof o.x !== "number" || typeof o.y !== "number") return null;
 	return { x: o.x, y: o.y };
+}
+
+// ============================================================================
+// Full settings normalization
+// ============================================================================
+
+/**
+ * Canonical default plugin settings.
+ *
+ * Relocated here from plugin.ts so that normalizeRawSettings (and the
+ * settings-import adapter that reuses it) can obtain defaults without
+ * importing the plugin entry module — which would create a circular
+ * dependency (plugin.ts registers the import adapter) and pull the entire
+ * plugin module graph into unit tests.
+ */
+export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
+	claude: {
+		id: "claude-code-acp",
+		displayName: "Claude Code",
+		apiKeySecretId: "",
+		command: "claude-agent-acp",
+		args: [],
+		env: [],
+	},
+	codex: {
+		id: "codex-acp",
+		displayName: "Codex",
+		apiKeySecretId: "",
+		command: "codex-acp",
+		args: [],
+		env: [],
+	},
+	gemini: {
+		id: "gemini-cli",
+		displayName: "Gemini CLI",
+		apiKeySecretId: "",
+		command: "gemini",
+		args: ["--experimental-acp"],
+		env: [],
+	},
+	kiro: {
+		id: "kiro-cli",
+		displayName: "Kiro CLI",
+		command: "kiro-cli",
+		args: ["acp"],
+		env: [],
+	},
+	customAgents: [],
+	defaultAgentId: "claude-code-acp",
+	autoAllowPermissions: false,
+	activeNoteAsDefaultContext: true,
+	migrationNoticeShown: false,
+	enableSystemNotifications: true,
+	debugMode: false,
+	nodePath: "",
+	exportSettings: {
+		defaultFolder: "Agent Console",
+		filenameTemplate: "agent_console_{date}_{time}",
+		autoExportOnNewChat: false,
+		autoExportOnCloseChat: false,
+		openFileAfterExport: true,
+		includeImages: true,
+		imageLocation: "obsidian",
+		imageCustomFolder: "Agent Console",
+		frontmatterTag: "agent-client",
+	},
+	windowsWslMode: false,
+	windowsWslDistribution: undefined,
+	sendMessageShortcut: "enter",
+	chatViewLocation: "right",
+	displaySettings: {
+		showEmojis: true,
+		fontSize: null,
+	},
+	savedSessions: [],
+	lastUsedModels: {},
+	lastUsedModes: {},
+	maxSessionTabs: 10,
+	restoreTabsOnStartup: true,
+};
+
+/**
+ * Callback that resolves an agent's API-key secret id, isolating secret
+ * side-effects (reading/writing app.secretStorage, showing Notices) from the
+ * otherwise-pure mapping below.
+ *
+ * - loadSettings injects the plugin's migrateLegacyApiKey (migrates legacy
+ *   plaintext apiKey → secretStorage, collision-safe).
+ * - The settings-import adapter injects its own (copy a secret id by
+ *   reference, or migrate a source plaintext apiKey), per
+ *   [[Agent Console Settings Migration]].
+ *
+ * Signature mirrors migrateLegacyApiKey minus its onMigrate callback (the
+ * caller owns the "did a migration happen?" flag).
+ */
+export type MigrateKeyFn = (
+	defaultSecretId: string,
+	fallbackSecretId: string,
+	currentSecretId: string,
+	legacyApiKey: string,
+	agentLabel: string,
+) => string;
+
+/**
+ * Normalize a raw (untyped) data.json-shaped object into typed plugin
+ * settings, applying every known legacy-field migration.
+ *
+ * This is the single source of truth for the raw → typed mapping, shared by
+ * plugin.ts loadSettings (its own data.json) and the settings-import adapter
+ * (a source plugin's data.json). It is pure: no I/O, no this, no Notices —
+ * secret resolution is delegated to migrateKey.
+ *
+ * Behavior is identical to the former inline loadSettings body; see
+ * [[Agent Console Settings Migration]] § "the normalizer IS the migration
+ * logic".
+ */
+export function normalizeRawSettings(
+	raw: Record<string, unknown>,
+	D: AgentClientPluginSettings,
+	migrateKey: MigrateKeyFn,
+): AgentClientPluginSettings {
+	// Extract agent sub-objects
+	const rc = obj(raw.claude) ?? {};
+	const rk = obj(raw.codex) ?? {};
+	const rg = obj(raw.gemini) ?? {};
+	const rki = obj(raw.kiro) ?? {};
+	const re = obj(raw.exportSettings) ?? {};
+	const rd = obj(raw.displaySettings) ?? {};
+
+	// Normalize custom agents
+	const customAgents = Array.isArray(raw.customAgents)
+		? ensureUniqueCustomAgentIds(
+				raw.customAgents.map((a: unknown) =>
+					normalizeCustomAgent(obj(a) ?? {}),
+				),
+			)
+		: [];
+
+	// Migration: defaultAgentId ← activeAgentId (old name)
+	const availableAgentIds = [
+		D.claude.id,
+		D.codex.id,
+		D.gemini.id,
+		D.kiro.id,
+		...customAgents.map((a) => a.id),
+	];
+	const rawDefaultId =
+		str(raw.defaultAgentId, "") || str(raw.activeAgentId, "");
+	const defaultAgentId =
+		rawDefaultId && availableAgentIds.includes(rawDefaultId)
+			? rawDefaultId
+			: availableAgentIds[0] || D.claude.id;
+
+	const ctxMig = migrateContextNoteSettings(raw, D);
+
+	return {
+		claude: {
+			id: D.claude.id, // Fixed — never from raw
+			displayName: str(rc.displayName, D.claude.displayName),
+			apiKeySecretId: migrateKey(
+				"claude-api-key",
+				"agent-client-claude-api-key",
+				str(rc.apiKeySecretId, D.claude.apiKeySecretId),
+				str(rc.apiKey, ""),
+				"Claude",
+			),
+			// Migration: claude.command ← claudeCodeAcpCommandPath (old name)
+			command:
+				str(rc.command, "") ||
+				str(raw.claudeCodeAcpCommandPath, "") ||
+				D.claude.command,
+			args: sanitizeArgs(rc.args),
+			env: normalizeEnvVars(rc.env),
+		},
+		codex: {
+			id: D.codex.id,
+			displayName: str(rk.displayName, D.codex.displayName),
+			apiKeySecretId: migrateKey(
+				"openai-api-key",
+				"agent-client-openai-api-key",
+				str(rk.apiKeySecretId, D.codex.apiKeySecretId),
+				str(rk.apiKey, ""),
+				"Codex",
+			),
+			command: str(rk.command, "") || D.codex.command,
+			args: sanitizeArgs(rk.args),
+			env: normalizeEnvVars(rk.env),
+		},
+		gemini: {
+			id: D.gemini.id,
+			displayName: str(rg.displayName, D.gemini.displayName),
+			apiKeySecretId: migrateKey(
+				"gemini-api-key",
+				"agent-client-gemini-api-key",
+				str(rg.apiKeySecretId, D.gemini.apiKeySecretId),
+				str(rg.apiKey, ""),
+				"Gemini",
+			),
+			// Migration: gemini.command ← geminiCommandPath (old name)
+			command:
+				str(rg.command, "") ||
+				str(raw.geminiCommandPath, "") ||
+				D.gemini.command,
+			args:
+				sanitizeArgs(rg.args).length > 0
+					? sanitizeArgs(rg.args)
+					: D.gemini.args,
+			env: normalizeEnvVars(rg.env),
+		},
+		kiro: {
+			id: D.kiro.id,
+			displayName: str(rki.displayName, D.kiro.displayName),
+			command: str(rki.command, "") || D.kiro.command,
+			args:
+				sanitizeArgs(rki.args).length > 0
+					? sanitizeArgs(rki.args)
+					: D.kiro.args,
+			env: normalizeEnvVars(rki.env),
+		},
+		customAgents,
+		defaultAgentId,
+		autoAllowPermissions: bool(
+			raw.autoAllowPermissions,
+			D.autoAllowPermissions,
+		),
+		// Migration (Decision #20): autoMentionActiveNote → activeNoteAsDefaultContext
+		activeNoteAsDefaultContext: ctxMig.activeNoteAsDefaultContext,
+		migrationNoticeShown: ctxMig.migrationNoticeShown,
+		enableSystemNotifications: bool(
+			raw.enableSystemNotifications,
+			D.enableSystemNotifications,
+		),
+		debugMode: bool(raw.debugMode, D.debugMode),
+		nodePath: str(raw.nodePath, D.nodePath),
+		exportSettings: {
+			defaultFolder: str(
+				re.defaultFolder,
+				D.exportSettings.defaultFolder,
+			),
+			filenameTemplate: str(
+				re.filenameTemplate,
+				D.exportSettings.filenameTemplate,
+			),
+			autoExportOnNewChat: bool(
+				re.autoExportOnNewChat,
+				D.exportSettings.autoExportOnNewChat,
+			),
+			autoExportOnCloseChat: bool(
+				re.autoExportOnCloseChat,
+				D.exportSettings.autoExportOnCloseChat,
+			),
+			openFileAfterExport: bool(
+				re.openFileAfterExport,
+				D.exportSettings.openFileAfterExport,
+			),
+			includeImages: bool(
+				re.includeImages,
+				D.exportSettings.includeImages,
+			),
+			imageLocation: enumVal(
+				re.imageLocation,
+				["obsidian", "custom", "base64"],
+				D.exportSettings.imageLocation,
+			),
+			imageCustomFolder: str(
+				re.imageCustomFolder,
+				D.exportSettings.imageCustomFolder,
+			),
+			frontmatterTag: str(
+				re.frontmatterTag,
+				D.exportSettings.frontmatterTag,
+			),
+		},
+		windowsWslMode: bool(raw.windowsWslMode, D.windowsWslMode),
+		windowsWslDistribution: str(
+			raw.windowsWslDistribution,
+			D.windowsWslDistribution as string,
+		),
+		sendMessageShortcut: enumVal(
+			raw.sendMessageShortcut,
+			["enter", "cmd-enter"],
+			D.sendMessageShortcut,
+		),
+		chatViewLocation: enumVal(
+			raw.chatViewLocation,
+			["right", "left"],
+			D.chatViewLocation,
+		),
+		displaySettings: {
+			showEmojis: bool(rd.showEmojis, D.displaySettings.showEmojis),
+			fontSize: parseChatFontSize(rd.fontSize),
+		},
+		savedSessions: Array.isArray(raw.savedSessions)
+			? (raw.savedSessions as SavedSessionInfo[])
+			: D.savedSessions,
+		lastUsedModels: strRecord(raw.lastUsedModels),
+		lastUsedModes: strRecord(raw.lastUsedModes),
+		maxSessionTabs: num(raw.maxSessionTabs, D.maxSessionTabs, 1),
+		restoreTabsOnStartup:
+			typeof raw.restoreTabsOnStartup === "boolean"
+				? raw.restoreTabsOnStartup
+				: D.restoreTabsOnStartup,
+		// Type-level coercion only — record-level validation happens inside
+		// SessionStorage.loadTabState (so the service can return null on
+		// corruption rather than silently dropping malformed records here).
+		perLeafTabStates: Array.isArray(raw.perLeafTabStates)
+			? (raw.perLeafTabStates as PerLeafTabState[])
+			: undefined,
+		legacySessionsMigrated: bool(raw.legacySessionsMigrated, false),
+		settingsImportOfferShown: bool(raw.settingsImportOfferShown, false),
+	};
 }
