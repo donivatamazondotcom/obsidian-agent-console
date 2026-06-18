@@ -35,7 +35,6 @@ describe("normalizeRawSettings — defaults", () => {
 
 	it("leaves fork-only fields at defaults regardless of source", () => {
 		const s = normalizeRawSettings({}, DEFAULT_SETTINGS, idKey);
-		expect(s.maxSessionTabs).toBe(10);
 		expect(s.restoreTabsOnStartup).toBe(true);
 		expect(s.perLeafTabStates).toBeUndefined();
 		expect(s.legacySessionsMigrated).toBe(false);

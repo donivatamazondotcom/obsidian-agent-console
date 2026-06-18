@@ -92,7 +92,7 @@ export function createAgentClientAdapter(
 
 	/**
 	 * Importable agent-config slice. Excludes fork-only fields (kiro,
-	 * maxSessionTabs, restoreTabsOnStartup, perLeafTabStates, savedSessions,
+	 * restoreTabsOnStartup, perLeafTabStates, savedSessions,
 	 * lastUsedModels/Modes, migrationNoticeShown, legacySessionsMigrated) so
 	 * the caller's `{ ...current, ...slice }` merge preserves them.
 	 */

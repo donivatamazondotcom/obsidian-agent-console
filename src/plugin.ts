@@ -99,8 +99,6 @@ export interface AgentClientPluginSettings {
 	lastUsedModes: Record<string, string>;
 
 	// Tab settings
-	/** Maximum number of session tabs per view (default: 10) */
-	maxSessionTabs: number;
 	/** Restore open tabs on startup (default: true). See [[ACP Tab Persistence Across Restarts]] § Setting. */
 	restoreTabsOnStartup: boolean;
 

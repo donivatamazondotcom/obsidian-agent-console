@@ -184,7 +184,6 @@ describe("agentClientAdapter — apply: fork-only fields untouched (T5)", () => 
 		const { adapter } = makeAdapter(
 			JSON.stringify({
 				claude: { command: "/c" },
-				maxSessionTabs: 99,
 				kiro: { command: "/k" },
 				savedSessions: [{ junk: true }],
 				perLeafTabStates: [{ junk: true }],
@@ -193,7 +192,6 @@ describe("agentClientAdapter — apply: fork-only fields untouched (T5)", () => 
 		const slice = await adapter.apply((await adapter.preview())!);
 		for (const forkOnly of [
 			"kiro",
-			"maxSessionTabs",
 			"restoreTabsOnStartup",
 			"perLeafTabStates",
 			"savedSessions",

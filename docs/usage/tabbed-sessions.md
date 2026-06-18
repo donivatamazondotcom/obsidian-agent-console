@@ -85,10 +85,6 @@ Switching tabs preserves all of this.
 
 If a tab crashes (rare; usually due to an agent process error), the tab shows an error boundary with a **Retry** button. Click Retry to reset just that tab without affecting others.
 
-## Maximum tabs
-
-Configure in **Settings → Agent Console → Tabs → Maximum tabs**. Default: 10. Past the maximum, new-tab creation is rejected with a notice.
-
 ## Sidebar placement (left or right)
 
 Agent Console lives in the sidebar — dockable on the **left or right**. Multiplexing happens through in-panel session tabs, not separate editor panes. Choose the side under **Settings → Agent Console → Display → Sidebar side**.

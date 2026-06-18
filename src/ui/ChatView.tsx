@@ -352,15 +352,8 @@ function ChatComponent({
 	// Tab callbacks
 	// ============================================================
 	const handleAddTab = useCallback(() => {
-		const maxTabs = plugin.settings.maxSessionTabs ?? 10;
-		if (tabs.length >= maxTabs) {
-			new Notice(
-				`[Agent Console] Maximum ${maxTabs} tabs reached`,
-			);
-			return;
-		}
 		tabManager.addTab(plugin.settings.defaultAgentId);
-	}, [tabManager, plugin.settings, tabs.length]);
+	}, [tabManager, plugin.settings.defaultAgentId]);
 
 	const handleCloseTab = useCallback(
 		(tabId: string) => {
@@ -440,13 +433,6 @@ function ChatComponent({
 	const handleAddTabWithAgent = useCallback(
 		(e: React.MouseEvent) => {
 			e.preventDefault();
-			const maxTabs = plugin.settings.maxSessionTabs ?? 10;
-			if (tabs.length >= maxTabs) {
-				new Notice(
-					`[Agent Console] Maximum ${maxTabs} tabs reached`,
-				);
-				return;
-			}
 			const menu = new Menu();
 			registerOpenMenu(menu);
 			const agents = plugin.getAvailableAgents();
@@ -459,7 +445,7 @@ function ChatComponent({
 			}
 			menu.showAtMouseEvent(e.nativeEvent);
 		},
-		[plugin, tabs.length, tabManager],
+		[plugin, tabManager],
 	);
 
 	// ============================================================

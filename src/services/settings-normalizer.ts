@@ -336,7 +336,6 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	savedSessions: [],
 	lastUsedModels: {},
 	lastUsedModes: {},
-	maxSessionTabs: 10,
 	restoreTabsOnStartup: true,
 };
 
@@ -556,7 +555,6 @@ export function normalizeRawSettings(
 			: D.savedSessions,
 		lastUsedModels: strRecord(raw.lastUsedModels),
 		lastUsedModes: strRecord(raw.lastUsedModes),
-		maxSessionTabs: num(raw.maxSessionTabs, D.maxSessionTabs, 1),
 		restoreTabsOnStartup:
 			typeof raw.restoreTabsOnStartup === "boolean"
 				? raw.restoreTabsOnStartup
