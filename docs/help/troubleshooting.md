@@ -80,7 +80,7 @@ The agent connected but couldn't create a session.
 
 **Solutions:**
 
-1. Click **New Chat** (+ button in header) to create a fresh session
+1. Click **+** in the tab bar to open a fresh session (or **Shift-click** the **↻ Reload** button to restart the agent with a fresh session)
 2. Check if your vault path contains special characters that might cause issues
 3. Reload the plugin
 
@@ -99,7 +99,7 @@ No active session available.
 **Solutions:**
 
 1. Wait for the connection to complete (status shows agent name, not "Connecting...")
-2. Click **New Chat** to create a fresh session
+2. Click **+** in the tab bar to create a fresh session (or run **New chat** from the command palette)
 
 ### "Send Message Failed" error
 

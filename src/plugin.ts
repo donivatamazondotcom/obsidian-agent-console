@@ -634,6 +634,28 @@ export default class AgentClientPlugin extends Plugin {
 				);
 			},
 		});
+
+		this.addCommand({
+			id: "reload-session",
+			name: "Reload session",
+			callback: () => {
+				this.app.workspace.trigger(
+					"agent-console:reload-session",
+					this.getDispatchTargetId(),
+				);
+			},
+		});
+
+		this.addCommand({
+			id: "hard-reload-session",
+			name: "Hard reload session (fresh)",
+			callback: () => {
+				this.app.workspace.trigger(
+					"agent-console:hard-reload-session",
+					this.getDispatchTargetId(),
+				);
+			},
+		});
 	}
 
 	/**

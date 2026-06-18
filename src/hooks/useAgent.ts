@@ -61,6 +61,7 @@ export interface UseAgentReturn {
 	) => Promise<void>;
 	closeSession: () => Promise<void>;
 	forceRestartAgent: () => Promise<void>;
+	reloadSession: () => Promise<{ resumed: boolean }>;
 	cancelOperation: () => Promise<void>;
 	getAvailableAgents: () => AgentDisplayInfo[];
 	setAgentWithoutSession: (agentId: string) => void;
@@ -196,6 +197,7 @@ export function useAgent(
 			restartSession: agentSession.restartSession,
 			closeSession: agentSession.closeSession,
 			forceRestartAgent: agentSession.forceRestartAgent,
+			reloadSession: agentSession.reloadSession,
 			cancelOperation,
 			getAvailableAgents: agentSession.getAvailableAgents,
 			setAgentWithoutSession: agentSession.setAgentWithoutSession,
@@ -233,6 +235,7 @@ export function useAgent(
 			agentSession.restartSession,
 			agentSession.closeSession,
 			agentSession.forceRestartAgent,
+			agentSession.reloadSession,
 			cancelOperation,
 			agentSession.getAvailableAgents,
 			agentSession.setAgentWithoutSession,

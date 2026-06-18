@@ -68,6 +68,7 @@ src/
 │   ├── useTabSessionState.ts    # Six-state per-tab session state machine
 │   ├── useRestoredMessages.ts   # Replay transcript for restored tabs with no live session
 │   ├── loadExistingSessionFlow.ts # Restored-tab reconnect flow (lazy resume on first keystroke)
+│   ├── reloadSessionFlow.ts     # Pure soft-reload orchestration (resume same session / fresh fallback)
 │   ├── useDebouncedSessionSave.ts # Debounced session persistence (messages + context notes)
 │   ├── useContextNotes.ts       # Crystallized context-note state per chat (add/remove/seen)
 │   ├── useContextVaultEvents.ts # Vault rename/delete sync for crystallized context notes

@@ -52,8 +52,8 @@ export interface ChatHeaderProps {
 	headerSegments: HeaderSegments;
 	/** Whether a plugin update is available */
 	isUpdateAvailable: boolean;
-	/** Callback to create a new chat session */
-	onNewChat: () => void;
+	/** Callback to reload the session. `hard` = fresh restart (Shift-click). */
+	onReload: (hard: boolean) => void;
 	/** Callback to export the chat */
 	onExportChat: () => void;
 	/** Callback to show the header menu at the click position */
@@ -292,7 +292,7 @@ function buildHeaderTooltip(segments: HeaderSegments): string {
 export function ChatHeader({
 	headerSegments,
 	isUpdateAvailable,
-	onNewChat,
+	onReload,
 	onExportChat,
 	onShowMenu,
 	onOpenHistory,
@@ -319,8 +319,8 @@ export function ChatHeader({
 				)}
 				<NavActionButton
 					icon="refresh-cw"
-					label="New chat"
-					onClick={onNewChat}
+					label="Reload session (Shift-click: fresh restart)"
+					onClick={(e) => onReload(e.shiftKey)}
 				/>
 				{onOpenHistory && (
 					<NavActionButton

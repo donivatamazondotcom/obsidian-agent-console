@@ -13,6 +13,8 @@ Commands operate on the **last focused chat view**. Click on a chat view to focu
 | **Open chat view** | Open the chat panel |
 | **Open new chat view** | Open an additional chat view |
 | **New chat** | Start a fresh conversation |
+| **Reload session** | Reload the current session under a fresh harness, resuming the same conversation (agent process respawned, MCP servers reloaded) |
+| **Hard reload session (fresh)** | Restart the agent and start a brand-new session (clears the transcript) |
 | **Cancel current message** | Stop the agent's current response |
 | **Export chat** | Export the current conversation to a note |
 | **Toggle auto-mention** | Toggle auto-mention of the active note |

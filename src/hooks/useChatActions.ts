@@ -44,6 +44,13 @@ export interface UseChatActionsReturn {
 	handleExportChat: () => Promise<void>;
 	handleSwitchAgent: (agentId: string) => Promise<void>;
 	handleRestartAgent: () => Promise<void>;
+	/**
+	 * Reload the current session (header ↻ button / commands). `hard === false`
+	 * = soft reload (resume same session under a fresh harness, transcript
+	 * preserved); `hard === true` = hard reload (fresh session, transcript
+	 * cleared). See `Agent Console Reload Control` spec.
+	 */
+	handleReload: (hard: boolean) => Promise<void>;
 
 	// Config actions
 	handleSetMode: (modeId: string) => Promise<void>;
@@ -398,6 +405,57 @@ export function useChatActions(
 		agent.forceRestartAgent,
 	]);
 
+	const handleReload = useCallback(
+		async (hard: boolean) => {
+			try {
+				// Cancel any in-flight generation first (mirrors handleNewChat).
+				if (agent.isSending) {
+					await agent.cancelOperation();
+				}
+
+				if (hard) {
+					// Hard reload (⌘⇧R analog): fresh session under a fresh
+					// harness. Auto-export, restart the agent, clear transcript.
+					if (messages.length > 0) {
+						await autoExportIfEnabled("newChat", messages, session);
+					}
+					agent.clearMessages();
+					await agent.forceRestartAgent();
+					sessionHistory.invalidateCache();
+					new Notice("[Agent Console] Session restarted (fresh)");
+					return;
+				}
+
+				// Soft reload (⌘R analog): resume the same session under a
+				// fresh harness. Transcript is never cleared.
+				const { resumed } = await agent.reloadSession();
+				if (resumed) {
+					new Notice("[Agent Console] Session reloaded");
+				} else {
+					sessionHistory.invalidateCache();
+					new Notice(
+						"[Agent Console] This agent can't resume — reloaded as a fresh session (history shown is local)",
+					);
+				}
+			} catch (error) {
+				logger.error("[ChatPanel] Reload error:", error);
+				new Notice("[Agent Console] Failed to reload session");
+			}
+		},
+		[
+			agent.isSending,
+			agent.cancelOperation,
+			agent.clearMessages,
+			agent.forceRestartAgent,
+			agent.reloadSession,
+			messages,
+			session,
+			autoExportIfEnabled,
+			sessionHistory.invalidateCache,
+			logger,
+		],
+	);
+
 	// ============================================================
 	// Config Actions
 	// ============================================================
@@ -450,6 +508,7 @@ export function useChatActions(
 		handleExportChat,
 		handleSwitchAgent,
 		handleRestartAgent,
+		handleReload,
 		handleSetMode,
 		handleSetModel,
 		handleSetConfigOption,
