@@ -32,6 +32,15 @@ export interface ReloadSessionFlowArgs {
 	 * attempt throws. The on-screen transcript stays visible (local history).
 	 */
 	freshSession: () => Promise<void>;
+	/**
+	 * Suppress the agent's history replay while resuming. Set `true` before the
+	 * resume (which calls `loadSession`, emitting the conversation as
+	 * `session/update` events) and `false` after, so the replay does not
+	 * duplicate the preserved on-screen transcript. Optional — mirrors the
+	 * `setIgnoreUpdates` suppress/release pattern in `loadExistingSessionFlow`.
+	 * (I86)
+	 */
+	setIgnoreUpdates?: (ignore: boolean) => void;
 }
 
 export interface ReloadSessionFlowResult {
@@ -46,10 +55,16 @@ export interface ReloadSessionFlowResult {
 export async function reloadSessionFlow(
 	args: ReloadSessionFlowArgs,
 ): Promise<ReloadSessionFlowResult> {
-	const { sessionId, canResume, resumeSameSession, freshSession } = args;
+	const { sessionId, canResume, resumeSameSession, freshSession, setIgnoreUpdates } =
+		args;
 
 	// Resume only when there is a session AND the agent can load it.
 	if (sessionId && canResume) {
+		// Suppress the agent's history replay (the `session/update` events
+		// emitted by `loadSession`) for the duration of the resume so it does
+		// not duplicate the transcript that is intentionally kept on screen.
+		// Release in `finally`, mirroring `loadExistingSessionFlow`. (I86)
+		setIgnoreUpdates?.(true);
 		try {
 			await resumeSameSession(sessionId);
 			return { resumed: true };
@@ -58,6 +73,8 @@ export async function reloadSessionFlow(
 			// the transcript on screen (mirrors the lazy loadSession fallback).
 			await freshSession();
 			return { resumed: false };
+		} finally {
+			setIgnoreUpdates?.(false);
 		}
 	}
 

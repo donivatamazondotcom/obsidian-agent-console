@@ -61,7 +61,9 @@ export interface UseAgentSessionReturn {
 	 * `loadSession`. Falls back to a fresh session otherwise. Never clears the
 	 * transcript. Returns `{ resumed }` so the caller can pick the notice.
 	 */
-	reloadSession: () => Promise<{ resumed: boolean }>;
+	reloadSession: (
+		setIgnoreUpdates?: (ignore: boolean) => void,
+	) => Promise<{ resumed: boolean }>;
 	cancelOperation: () => Promise<void>;
 	getAvailableAgents: () => AgentDisplayInfo[];
 
@@ -474,7 +476,9 @@ export function useAgentSession(
 		[agentClient, settingsAccess],
 	);
 
-	const reloadSession = useCallback(async (): Promise<{
+	const reloadSession = useCallback(async (
+		setIgnoreUpdates?: (ignore: boolean) => void,
+	): Promise<{
 		resumed: boolean;
 	}> => {
 		const prev = sessionRef.current;
@@ -486,6 +490,7 @@ export function useAgentSession(
 		return reloadSessionFlow({
 			sessionId,
 			canResume,
+			setIgnoreUpdates,
 			// Soft reload: disconnect → re-init (fresh harness) → resume same id.
 			resumeSameSession: async (sid: string) => {
 				setSession((p) => ({ ...p, state: "initializing" }));
