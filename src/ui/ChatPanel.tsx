@@ -142,6 +142,31 @@ interface AppWithSettings {
  * for the sidebar chat view. It is a 1:1 migration of useChatController
  * into a React component.
  */
+/**
+ * Raise the Obsidian window that owns this renderer to the OS foreground.
+ *
+ * Used by the system-notification onclick handlers (I52). DOM `window.focus()`
+ * is a no-op for cross-window foregrounding in Electron
+ * (electron/electron#25578), so a click landed on the most-recently-active
+ * window — the wrong vault in a multi-vault setup. The native
+ * `BrowserWindow.focus()` does raise the window, and `remote.getCurrentWindow()`
+ * returns the window owning this renderer. Obsidian exposes no public API to
+ * foreground an OS window, so we use the Electron `remote` bridge — the same
+ * runtime-require pattern as ChangeDirectoryModal.
+ */
+function focusOwningWindow(): void {
+	try {
+		// eslint-disable-next-line @typescript-eslint/no-require-imports -- electron is a runtime-only module provided by Obsidian's host environment
+		const { remote } = require("electron") as {
+			remote: { getCurrentWindow: () => { focus: () => void } };
+		};
+		remote.getCurrentWindow().focus();
+	} catch {
+		// Non-Electron host (e.g. mobile) — best-effort DOM focus.
+		window.focus();
+	}
+}
+
 export function ChatPanel({
 	viewId,
 	workingDirectory,
@@ -1032,9 +1057,13 @@ export function ChatPanel({
 
 			// System notification on response completion
 			if (settings.enableSystemNotifications && !activeDocument.hasFocus()) {
-				new Notification("Agent Console", {
+				// I52: bind onclick so a click focuses the vault window that owns
+				// this panel, not Electron's most-recently-active window (which is
+				// the wrong vault entirely in a multi-vault setup).
+				const completionNotification = new Notification("Agent Console", {
 					body: `${activeAgentLabel} has completed the response.`,
 				});
+				completionNotification.onclick = () => focusOwningWindow();
 			}
 		}
 	}, [
@@ -1074,9 +1103,12 @@ export function ChatPanel({
 			settings.enableSystemNotifications &&
 			!activeDocument.hasFocus()
 		) {
-			new Notification("Agent Console", {
+			// I52: bind onclick so a click focuses the vault window that owns
+			// this panel, not Electron's most-recently-active window.
+			const permissionNotification = new Notification("Agent Console", {
 				body: `${activeAgentLabel} is requesting permission.`,
 			});
+			permissionNotification.onclick = () => focusOwningWindow();
 		}
 	}, [
 		agent.hasActivePermission,
