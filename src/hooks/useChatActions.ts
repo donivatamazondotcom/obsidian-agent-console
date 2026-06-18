@@ -51,6 +51,8 @@ export interface UseChatActionsReturn {
 	 * cleared). See `Agent Console Reload Control` spec.
 	 */
 	handleReload: (hard: boolean) => Promise<void>;
+	/** True while a reload (soft or hard) is in progress — drives the header ↻ spinner. */
+	isReloading: boolean;
 
 	// Config actions
 	handleSetMode: (modeId: string) => Promise<void>;
@@ -102,6 +104,9 @@ export function useChatActions(
 	const [restoredMessage, setRestoredMessage] = useState<string | null>(null);
 	const [agentUpdateNotification, setAgentUpdateNotification] =
 		useState<AgentUpdateNotification | null>(null);
+	// Drives the header ↻ spinner while a reload runs (soft reload can take a
+	// few seconds to respawn the subprocess). See `Agent Console Reload Control`.
+	const [isReloading, setIsReloading] = useState(false);
 
 	// ============================================================
 	// Auto-export
@@ -407,6 +412,9 @@ export function useChatActions(
 
 	const handleReload = useCallback(
 		async (hard: boolean) => {
+			// Spinner on for the whole reload so the user sees the click
+			// registered even when the resume takes a few seconds.
+			setIsReloading(true);
 			try {
 				// Cancel any in-flight generation first (mirrors handleNewChat).
 				if (agent.isSending) {
@@ -427,7 +435,10 @@ export function useChatActions(
 				}
 
 				// Soft reload (⌘R analog): resume the same session under a
-				// fresh harness. Transcript is never cleared.
+				// fresh harness. Transcript is never cleared. Announce up front
+				// because the resume is async (subprocess respawn) and otherwise
+				// gives no feedback until it completes.
+				new Notice("[Agent Console] Reloading session…");
 				const { resumed } = await agent.reloadSession();
 				if (resumed) {
 					new Notice("[Agent Console] Session reloaded");
@@ -440,6 +451,8 @@ export function useChatActions(
 			} catch (error) {
 				logger.error("[ChatPanel] Reload error:", error);
 				new Notice("[Agent Console] Failed to reload session");
+			} finally {
+				setIsReloading(false);
 			}
 		},
 		[
@@ -509,6 +522,7 @@ export function useChatActions(
 		handleSwitchAgent,
 		handleRestartAgent,
 		handleReload,
+		isReloading,
 		handleSetMode,
 		handleSetModel,
 		handleSetConfigOption,

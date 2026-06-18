@@ -54,4 +54,33 @@ describe("ChatHeader reload button (T5)", () => {
 
 		expect(onReload).toHaveBeenCalledTimes(2);
 	});
+
+	it("(b) spins the reload icon only while isReloading is true", () => {
+		const renderWith = (isReloading: boolean) =>
+			render(
+				<ChatHeader
+					agentLabel="Test Agent"
+					headerSegments={segments()}
+					isUpdateAvailable={false}
+					onReload={vi.fn()}
+					isReloading={isReloading}
+					onExportChat={vi.fn()}
+					onShowMenu={vi.fn()}
+				/>,
+			);
+
+		const spinning = renderWith(true).container.querySelector(
+			'[aria-label^="Reload session"]',
+		) as HTMLElement;
+		expect(
+			spinning.classList.contains("agent-client-reload-spinning"),
+		).toBe(true);
+
+		const idle = renderWith(false).container.querySelector(
+			'[aria-label^="Reload session"]',
+		) as HTMLElement;
+		expect(idle.classList.contains("agent-client-reload-spinning")).toBe(
+			false,
+		);
+	});
 });

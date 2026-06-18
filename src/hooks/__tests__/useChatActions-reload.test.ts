@@ -4,9 +4,26 @@
  * plus soft-reload resumed vs degraded routing).
  */
 import { describe, it, expect, vi } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { renderHook, act } from "@testing-library/react";
 import { useChatActions } from "../useChatActions";
 import type { ChatMessage } from "../../types/chat";
+
+// Capture Notice messages while preserving the rest of the obsidian stub
+// (Platform, setIcon, etc.) so unrelated imports keep working.
+const { noticeMessages } = vi.hoisted(() => ({
+	noticeMessages: [] as string[],
+}));
+vi.mock("obsidian", async (importOriginal) => {
+	const actual = await importOriginal<Record<string, unknown>>();
+	return {
+		...actual,
+		Notice: class {
+			constructor(message: string) {
+				noticeMessages.push(message);
+			}
+		},
+	};
+});
 
 type Params = Parameters<typeof useChatActions>;
 
@@ -141,5 +158,50 @@ describe("useChatActions handleReload", () => {
 
 		expect(cancelOperation).toHaveBeenCalledTimes(1);
 		expect(reloadSession).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("useChatActions handleReload — reload feedback (b)", () => {
+	it("soft reload emits an immediate 'Reloading session…' notice before the completion notice", async () => {
+		noticeMessages.length = 0;
+		const { result } = setup(
+			{ reloadSession: vi.fn().mockResolvedValue({ resumed: true }) },
+			[msg()],
+		);
+
+		await result.current.handleReload(false);
+
+		const leading = noticeMessages.indexOf(
+			"[Agent Console] Reloading session…",
+		);
+		const done = noticeMessages.indexOf("[Agent Console] Session reloaded");
+		expect(leading).toBe(0);
+		expect(done).toBeGreaterThan(leading);
+	});
+
+	it("sets isReloading true while the resume is in flight and false after it settles", async () => {
+		let resolveReload!: (v: { resumed: boolean }) => void;
+		const reloadSession = vi.fn(
+			() =>
+				new Promise<{ resumed: boolean }>((res) => {
+					resolveReload = res;
+				}),
+		);
+		const { result } = setup({ reloadSession }, [msg()]);
+
+		expect(result.current.isReloading).toBe(false);
+
+		let pending: Promise<void>;
+		act(() => {
+			pending = result.current.handleReload(false);
+		});
+		// Spinner is on while the resume promise is pending.
+		expect(result.current.isReloading).toBe(true);
+
+		await act(async () => {
+			resolveReload({ resumed: true });
+			await pending;
+		});
+		expect(result.current.isReloading).toBe(false);
 	});
 });

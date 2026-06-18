@@ -465,6 +465,7 @@ export function ChatPanel({
 		handleExportChat,
 		handleRestartAgent,
 		handleReload,
+		isReloading,
 		handleSetMode,
 		handleSetModel,
 		handleSetConfigOption,
@@ -1482,6 +1483,7 @@ export function ChatPanel({
 			}}
 			isUpdateAvailable={isUpdateAvailable}
 			onReload={(hard) => void handleReload(hard)}
+			isReloading={isReloading}
 			onExportChat={() => void handleExportChat()}
 			onShowMenu={handleShowSidebarMenu}
 			onOpenHistory={handleOpenHistory}

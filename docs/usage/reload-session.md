@@ -14,6 +14,8 @@ Click the **↻** button for a soft reload. Agent Console:
 
 This is the everyday reload. Reach for it when a tool connection went bad or you just want the agent to start fresh without throwing away the chat.
 
+While the reload runs, the **↻** icon spins and a "Reloading session…" notice appears, so you always know it's working. A "Session reloaded" notice confirms when it's done.
+
 ::: tip
 Resuming the same conversation needs an agent that supports session resume. If your agent can't resume, Agent Console keeps the transcript visible and starts a fresh session underneath, then tells you the shown history is local only.
 :::
