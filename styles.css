@@ -2388,3 +2388,9 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	justify-content: flex-end;
 	margin-top: 1em;
 }
+
+/* Header ↻ Reload button: spin the icon while a reload is in progress
+   (Agent Console Reload Control — reuses the agent-client-spin keyframes). */
+.agent-client-reload-spinning svg {
+	animation: agent-client-spin 1s linear infinite;
+}

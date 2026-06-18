@@ -34,6 +34,7 @@ import {
 	tryRestoreConfigOption,
 	restoreLegacyConfig,
 } from "../services/session-state";
+import { reloadSessionFlow } from "./reloadSessionFlow";
 
 // ============================================================================
 // Types
@@ -54,6 +55,15 @@ export interface UseAgentSessionReturn {
 	) => Promise<void>;
 	closeSession: () => Promise<void>;
 	forceRestartAgent: () => Promise<void>;
+	/**
+	 * Soft reload: disconnect the subprocess, re-initialize (fresh harness,
+	 * MCP reloaded), and resume the SAME session when the agent supports
+	 * `loadSession`. Falls back to a fresh session otherwise. Never clears the
+	 * transcript. Returns `{ resumed }` so the caller can pick the notice.
+	 */
+	reloadSession: (
+		setIgnoreUpdates?: (ignore: boolean) => void,
+	) => Promise<{ resumed: boolean }>;
 	cancelOperation: () => Promise<void>;
 	getAvailableAgents: () => AgentDisplayInfo[];
 
@@ -466,6 +476,65 @@ export function useAgentSession(
 		[agentClient, settingsAccess],
 	);
 
+	const reloadSession = useCallback(async (
+		setIgnoreUpdates?: (ignore: boolean) => void,
+	): Promise<{
+		resumed: boolean;
+	}> => {
+		const prev = sessionRef.current;
+		const sessionId = prev.sessionId;
+		const agentId = prev.agentId;
+		const canResume = prev.agentCapabilities?.loadSession === true;
+		const effectiveCwd = workingDirectory;
+
+		return reloadSessionFlow({
+			sessionId,
+			canResume,
+			setIgnoreUpdates,
+			// Soft reload: disconnect → re-init (fresh harness) → resume same id.
+			resumeSameSession: async (sid: string) => {
+				setSession((p) => ({ ...p, state: "initializing" }));
+				setErrorInfo(null);
+				await agentClient.disconnect();
+
+				const settings = settingsAccess.getSnapshot();
+				const agentSettings = findAgentSettings(settings, agentId);
+				if (!agentSettings) {
+					throw new Error(
+						`Agent with ID "${agentId}" not found in settings`,
+					);
+				}
+				const agentConfig = buildAgentConfigWithApiKey(
+					settings,
+					agentSettings,
+					agentId,
+					effectiveCwd,
+				);
+				await agentClient.initialize(agentConfig);
+				const result = await agentClient.loadSession(sid, effectiveCwd);
+				await updateSessionFromLoad(
+					result.sessionId,
+					result.modes,
+					result.models,
+					result.configOptions,
+				);
+			},
+			// Fresh session under a fresh harness. Transcript stays on screen
+			// (local history); the caller never clears it on a soft reload.
+			freshSession: async () => {
+				await agentClient.disconnect();
+				await createSession(agentId, effectiveCwd);
+			},
+		});
+	}, [
+		agentClient,
+		settingsAccess,
+		workingDirectory,
+		createSession,
+		updateSessionFromLoad,
+		setErrorInfo,
+	]);
+
 	// ============================================================
 	// Config (including legacy)
 	// ============================================================
@@ -621,6 +690,7 @@ export function useAgentSession(
 		restartSession,
 		closeSession,
 		forceRestartAgent,
+		reloadSession,
 		cancelOperation,
 		getAvailableAgents,
 		setAgentWithoutSession,

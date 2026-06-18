@@ -61,6 +61,7 @@ export interface UseAgentReturn {
 	) => Promise<void>;
 	closeSession: () => Promise<void>;
 	forceRestartAgent: () => Promise<void>;
+	reloadSession: () => Promise<{ resumed: boolean }>;
 	cancelOperation: () => Promise<void>;
 	getAvailableAgents: () => AgentDisplayInfo[];
 	setAgentWithoutSession: (agentId: string) => void;
@@ -167,6 +168,15 @@ export function useAgent(
 		agentMessages.clearPendingUpdates();
 	}, [agentSession.cancelOperation, agentMessages.clearPendingUpdates]);
 
+	// Soft reload with history-replay suppression: inject the message-level
+	// setIgnoreUpdates so the agent's loadSession replay does not duplicate the
+	// preserved transcript (I86). setIgnoreUpdates lives on agentMessages, which
+	// is constructed after agentSession, so it is wired here at the facade.
+	const reloadSession = useCallback(
+		() => agentSession.reloadSession(agentMessages.setIgnoreUpdates),
+		[agentSession.reloadSession, agentMessages.setIgnoreUpdates],
+	);
+
 	// Subscribe to all updates from agent
 	useEffect(() => {
 		const unsubscribe = agentClient.onSessionUpdate(handleSessionUpdate);
@@ -196,6 +206,7 @@ export function useAgent(
 			restartSession: agentSession.restartSession,
 			closeSession: agentSession.closeSession,
 			forceRestartAgent: agentSession.forceRestartAgent,
+			reloadSession,
 			cancelOperation,
 			getAvailableAgents: agentSession.getAvailableAgents,
 			setAgentWithoutSession: agentSession.setAgentWithoutSession,
@@ -233,6 +244,7 @@ export function useAgent(
 			agentSession.restartSession,
 			agentSession.closeSession,
 			agentSession.forceRestartAgent,
+			reloadSession,
 			cancelOperation,
 			agentSession.getAvailableAgents,
 			agentSession.setAgentWithoutSession,

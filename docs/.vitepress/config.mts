@@ -79,6 +79,7 @@ export default defineConfig({
           { text: "Model Selection", link: "/usage/model-selection" },
           { text: "Effort Level Selection", link: "/usage/thought-level-selection" },
           { text: "Session History", link: "/usage/session-history" },
+          { text: "Reloading a Session", link: "/usage/reload-session" },
           { text: "Tabbed Sessions", link: "/usage/tabbed-sessions" },
           { text: "Editing", link: "/usage/editing" },
           { text: "Chat Export", link: "/usage/chat-export" },

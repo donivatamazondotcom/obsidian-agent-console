@@ -464,6 +464,8 @@ export function ChatPanel({
 		handleNewChat,
 		handleExportChat,
 		handleRestartAgent,
+		handleReload,
+		isReloading,
 		handleSetMode,
 		handleSetModel,
 		handleSetConfigOption,
@@ -1232,11 +1234,13 @@ export function ChatPanel({
 	const rejectActivePermissionRef = useRef(agent.rejectActivePermission);
 	const handleStopGenerationRef = useRef(handleStopGeneration);
 	const handleExportChatRef = useRef(handleExportChat);
+	const handleReloadRef = useRef(handleReload);
 	handleNewChatWithPersistRef.current = handleNewChatWithPersist;
 	approveActivePermissionRef.current = agent.approveActivePermission;
 	rejectActivePermissionRef.current = agent.rejectActivePermission;
 	handleStopGenerationRef.current = handleStopGeneration;
 	handleExportChatRef.current = handleExportChat;
+	handleReloadRef.current = handleReload;
 
 	useEffect(() => {
 		const workspace = plugin.app.workspace;
@@ -1319,6 +1323,21 @@ export function ChatPanel({
 				if (targetViewId && targetViewId !== viewId) return;
 				void handleExportChatRef.current();
 			}),
+
+			// Reload session (soft — resume same session under fresh harness)
+			ws.on("agent-console:reload-session", (targetViewId?: string) => {
+				if (targetViewId && targetViewId !== viewId) return;
+				void handleReloadRef.current(false);
+			}),
+
+			// Hard reload session (fresh session under fresh harness)
+			ws.on(
+				"agent-console:hard-reload-session",
+				(targetViewId?: string) => {
+					if (targetViewId && targetViewId !== viewId) return;
+					void handleReloadRef.current(true);
+				},
+			),
 		];
 
 		return () => {
@@ -1463,7 +1482,8 @@ export function ChatPanel({
 				isConnecting: lazySession.state === "connecting",
 			}}
 			isUpdateAvailable={isUpdateAvailable}
-			onNewChat={() => void handleNewChatWithPersist()}
+			onReload={(hard) => void handleReload(hard)}
+			isReloading={isReloading}
 			onExportChat={() => void handleExportChat()}
 			onShowMenu={handleShowSidebarMenu}
 			onOpenHistory={handleOpenHistory}

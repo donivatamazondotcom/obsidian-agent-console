@@ -84,7 +84,11 @@ Available models and modes depend on the active agent.
 
 ## Starting a New Chat
 
-Click the **New Chat** button in the header to start a fresh conversation. The previous chat can optionally be exported (see Settings).
+Click the **+** button in the tab bar to open a new tab with a fresh conversation, or run **New chat** from the command palette. The previous chat can optionally be exported (see Settings).
+
+## Reloading a Session
+
+The header **↻ Reload** button reloads the current session under a fresh agent process — the agent restarts and its MCP servers reload, mirroring a browser's refresh. See [Reloading a session](/usage/reload-session) for soft vs. hard reload.
 
 ## Stopping Generation
 
