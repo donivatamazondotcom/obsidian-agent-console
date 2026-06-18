@@ -83,6 +83,7 @@ export default defineConfig({
           { text: "Editing", link: "/usage/editing" },
           { text: "Chat Export", link: "/usage/chat-export" },
           { text: "Commands & Hotkeys", link: "/usage/commands" },
+          { text: "Importing Settings", link: "/usage/importing-settings" },
           { text: "Context Files", link: "/usage/context-files" },
           { text: "MCP Tools", link: "/usage/mcp-tools" },
         ],

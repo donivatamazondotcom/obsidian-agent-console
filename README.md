@@ -75,6 +75,7 @@ Because the agents live in your vault, you stay in control: you pin what they se
 * **Pick the right model for each task** – switch modes and models per chat without restarting
 * **Read the conversation, not the logs** – tool calls render as a single tappable summary row by default. Click to expand, click to collapse, errors auto-expand so you don’t miss them.
 * **Your MCP tools come along** – whatever MCP servers your agent uses keep working in Agent Console with no extra setup
+* **Switching from another agent plugin? Bring your setup** – import agent definitions, defaults, and API keys from another plugin (like Agent Client) in one click
 * **Switch tabs with a hotkey** – bind keys under Settings → Hotkeys
 * **Looks like part of your Obsidian** – it adopts Obsidian’s own styling and your theme’s variables instead of hardcoded colors and chrome, so any custom theme restyles it like a built-in panel
 

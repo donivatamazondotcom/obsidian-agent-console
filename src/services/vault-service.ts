@@ -339,6 +339,21 @@ export class VaultService implements IVaultAccess {
 		};
 	}
 
+	/**
+	 * Subscribe to vault rename/move events, normalized to (oldPath, newPath).
+	 * Used by useSelectionTracker to refresh the active note after a rename —
+	 * active-leaf-change does not fire on rename, so the tracker would
+	 * otherwise go stale. (I85)
+	 */
+	onRename(cb: (oldPath: string, newPath: string) => void): () => void {
+		const ref = this.plugin.app.vault.on("rename", (file, oldPath) => {
+			if (file instanceof TFile && file.extension === "md") {
+				cb(oldPath, file.path);
+			}
+		});
+		return () => this.plugin.app.vault.offref(ref);
+	}
+
 	private ensureSelectionTracking(): void {
 		if (this.activeLeafRef) {
 			return;
