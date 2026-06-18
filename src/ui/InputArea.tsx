@@ -22,6 +22,11 @@ import { getLogger } from "../utils/logger";
 import type { ErrorInfo } from "../types/errors";
 import type { AgentUpdateNotification } from "../services/update-checker";
 import { useSettings } from "../hooks/useSettings";
+import {
+	classifyImagePaste,
+	IMAGE_PASTE_CONNECTING_NOTICE,
+	IMAGE_PASTE_UNSUPPORTED_NOTICE,
+} from "../utils/image-paste";
 
 // ============================================================================
 // Image Constants
@@ -226,6 +231,11 @@ export interface InputAreaProps {
 	usage?: SessionUsage;
 	/** Whether the agent supports image attachments */
 	supportsImages?: boolean;
+	/**
+	 * Whether the agent's image capability is known yet. False during the
+	 * fresh-tab init window before promptCapabilities resolves (I72).
+	 */
+	imageCapabilityKnown?: boolean;
 	/** Current agent ID (used to clear images on agent switch) */
 	agentId: string;
 	// Controlled component props (for broadcast commands)
@@ -286,6 +296,7 @@ export function InputArea({
 	onConfigOptionChange,
 	usage,
 	supportsImages = false,
+	imageCapabilityKnown = false,
 	agentId,
 	// Controlled component props
 	inputValue,
@@ -484,19 +495,28 @@ export function InputArea({
 			const newAttachments: AttachedFile[] = [];
 
 			if (imageFiles.length > 0) {
-				if (supportsImages) {
+				const imageOutcome = classifyImagePaste({
+					supportsImages,
+					imageCapabilityKnown,
+				});
+				if (imageOutcome === "attach-as-image") {
 					newAttachments.push(
 						...(await convertImagesToAttachments(imageFiles)),
 					);
+				} else if (imageOutcome === "connecting") {
+					// I72: capabilities not loaded yet — show an accurate
+					// transient notice and skip these images (avoids the
+					// spurious "Could not determine file path" fallback).
+					new Notice(IMAGE_PASTE_CONNECTING_NOTICE);
 				} else {
-					// Try resource_link fallback (works for files copied from Finder, not for screenshots)
+					// Caps known, images unsupported: try resource_link
+					// fallback (works for files copied from Finder, not for
+					// clipboard screenshots).
 					const converted = convertFilesToAttachments(imageFiles);
 					if (converted.length > 0) {
 						newAttachments.push(...converted);
 					} else {
-						new Notice(
-							"[Agent Console] This agent does not support image paste. Try drag & drop instead.",
-						);
+						new Notice(IMAGE_PASTE_UNSUPPORTED_NOTICE);
 					}
 				}
 			}
@@ -511,6 +531,7 @@ export function InputArea({
 		},
 		[
 			supportsImages,
+			imageCapabilityKnown,
 			convertImagesToAttachments,
 			convertFilesToAttachments,
 			addAttachments,
@@ -586,11 +607,20 @@ export function InputArea({
 			const newAttachments: AttachedFile[] = [];
 
 			if (imageFiles.length > 0) {
-				if (supportsImages) {
+				const imageOutcome = classifyImagePaste({
+					supportsImages,
+					imageCapabilityKnown,
+				});
+				if (imageOutcome === "attach-as-image") {
 					newAttachments.push(
 						...(await convertImagesToAttachments(imageFiles)),
 					);
+				} else if (imageOutcome === "connecting") {
+					// I72: capabilities not loaded yet — transient notice.
+					new Notice(IMAGE_PASTE_CONNECTING_NOTICE);
 				} else {
+					// Dropped files have paths, so resource_link works even
+					// for no-image agents.
 					newAttachments.push(
 						...convertFilesToAttachments(imageFiles),
 					);
@@ -607,6 +637,7 @@ export function InputArea({
 		},
 		[
 			supportsImages,
+			imageCapabilityKnown,
 			convertImagesToAttachments,
 			convertFilesToAttachments,
 			addAttachments,

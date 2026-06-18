@@ -1553,6 +1553,7 @@ export function ChatPanel({
 			}
 			usage={session.usage}
 			supportsImages={session.promptCapabilities?.image ?? false}
+			imageCapabilityKnown={session.promptCapabilities !== undefined}
 			agentId={session.agentId}
 			// Controlled component props (for broadcast commands)
 			inputValue={inputValue}
