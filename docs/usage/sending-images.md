@@ -20,6 +20,10 @@ Attach images and files to your messages to provide context to the AI agent.
   <img src="/images/sending-images.webp" alt="Sending Images and Files" width="400" />
 </p>
 
+::: info
+On a brand-new chat, image paste becomes available once the agent finishes connecting (usually a second or two). If you paste a screenshot before then, you'll see `[Agent Console] Still connecting to the agent – paste the image again in a moment.` – just paste again once it connects.
+:::
+
 ::: tip
 Embedding images in messages requires agent support. If the agent doesn't support images, image files are sent as file references instead (via drag and drop or paste from Finder/Explorer).
 :::
