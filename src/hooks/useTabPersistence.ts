@@ -154,6 +154,14 @@ export interface UseTabPersistenceReturn {
 	 */
 	restoredContextNotes: Record<string, ContextNote[]>;
 	/**
+	 * Tab IDs whose persisted sessionId is non-null but whose local message
+	 * file was missing on restore (loadSessionMessages → null). Without this,
+	 * such tabs fall out of restoredMessages and render a silent blank panel;
+	 * the UI surfaces a labeled "history not stored locally — reload from
+	 * agent" affordance for them instead (I72). Keyed set of tabIds.
+	 */
+	recoverableTabs: Record<string, true>;
+	/**
 	 * Whether the initial restore has completed. Caller should not
 	 * use restoredLeafState until restoreReady is true.
 	 */
@@ -220,6 +228,9 @@ export function useTabPersistence(
 	const [restoredContextNotes, setRestoredContextNotes] = useState<
 		Record<string, ContextNote[]>
 	>({});
+	const [restoredRecoverable, setRestoredRecoverable] = useState<
+		Record<string, true>
+	>({});
 	const [restoreReady, setRestoreReady] = useState<boolean>(false);
 
 	// Refs — invoked at save-time, not used as effect deps. Keeps the
@@ -253,6 +264,7 @@ export function useTabPersistence(
 					setRestoredLeafState(null);
 					setRestoredMessages({});
 					setRestoredContextNotes({});
+					setRestoredRecoverable({});
 					setRestoreReady(true);
 				}
 				return;
@@ -266,6 +278,7 @@ export function useTabPersistence(
 				setRestoredLeafState(null);
 				setRestoredMessages({});
 				setRestoredContextNotes({});
+				setRestoredRecoverable({});
 				setRestoreReady(true);
 				return;
 			}
@@ -275,6 +288,10 @@ export function useTabPersistence(
 			// on first keystroke per Decision #2.
 			const messages: Record<string, ChatMessage[]> = {};
 			const contextNotes: Record<string, ContextNote[]> = {};
+			// I72 — tabs with a persisted sessionId but no local message
+			// file land here so the UI can offer on-demand recovery instead
+			// of rendering a silent blank panel.
+			const recoverable: Record<string, true> = {};
 			for (const tab of leafState.tabs) {
 				if (tab.sessionId !== null) {
 					const msgs =
@@ -284,6 +301,9 @@ export function useTabPersistence(
 					if (cancelled) return;
 					if (msgs !== null) {
 						messages[tab.tabId] = msgs;
+					} else {
+						// sessionId present but no local file (I72).
+						recoverable[tab.tabId] = true;
 					}
 					const notes =
 						await storageRef.current.loadSessionContextNotes(
@@ -300,6 +320,7 @@ export function useTabPersistence(
 			setRestoredLeafState(leafState);
 			setRestoredMessages(messages);
 			setRestoredContextNotes(contextNotes);
+			setRestoredRecoverable(recoverable);
 			setRestoreReady(true);
 		}
 
@@ -307,6 +328,7 @@ export function useTabPersistence(
 		setRestoredLeafState(null);
 		setRestoredMessages({});
 		setRestoredContextNotes({});
+		setRestoredRecoverable({});
 		void restore();
 
 		return () => {
@@ -372,6 +394,7 @@ export function useTabPersistence(
 		restoredLeafState,
 		restoredMessages,
 		restoredContextNotes,
+		recoverableTabs: restoredRecoverable,
 		restoreReady,
 		flushSave,
 	};

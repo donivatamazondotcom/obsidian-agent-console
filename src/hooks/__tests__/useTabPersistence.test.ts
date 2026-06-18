@@ -893,3 +893,80 @@ describe("useTabPersistence — context-note restore (I61)", () => {
 		expect("T2" in result.current.restoredContextNotes).toBe(false);
 	});
 });
+
+// ============================================================================
+// I72 — restore-time resilience for tabs whose local message file is missing
+//
+// A restored tab with a persisted (non-null) sessionId but NO local message
+// file (loadSessionMessages → null) must NOT silently fall out of the restore
+// maps and render a blank panel. The hook surfaces it in `recoverableTabs` so
+// the UI can show a labeled "history not stored locally — reload from agent"
+// affordance instead of a silent blank.
+// ============================================================================
+
+describe("useTabPersistence — recoverable tabs (I72)", () => {
+	it("marks a tab recoverable when sessionId is present but the local message file is missing", async () => {
+		const storage = makeStorage();
+		storage.loadTabStateForLeaf.mockResolvedValue({
+			leafId: "leaf-1",
+			tabs: [
+				makePersistedTab({ tabId: "T1", sessionId: "S1" }), // has file
+				makePersistedTab({ tabId: "T2", sessionId: "S2" }), // file MISSING
+				makePersistedTab({ tabId: "T3", sessionId: null }), // never sent
+			],
+			activeTabId: "T1",
+		});
+		const t1Messages = [
+			{
+				id: "m1",
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "hi" }],
+				timestamp: new Date("2026-05-26T10:00:00Z"),
+			},
+		];
+		storage.loadSessionMessages.mockImplementation(async (id: string) => {
+			if (id === "S1") return t1Messages;
+			return null; // S2 → file missing (the I72 case); S* default null
+		});
+
+		const { result } = renderHook(() =>
+			useTabPersistence(makeProps({ leafId: "leaf-1", storage })),
+		);
+
+		await waitForRestoreReady(() => result.current);
+
+		// T2: sessionId present but no local file → recoverable, NOT a silent blank.
+		expect(result.current.recoverableTabs).toEqual({ T2: true });
+
+		// T1 has history → present in restoredMessages, NOT recoverable.
+		expect(result.current.restoredMessages).toEqual({ T1: t1Messages });
+		expect("T1" in result.current.recoverableTabs).toBe(false);
+
+		// T3 never had a session → nothing to recover.
+		expect("T3" in result.current.recoverableTabs).toBe(false);
+	});
+
+	it("has no recoverable tabs when every persisted session has a local file", async () => {
+		const storage = makeStorage();
+		storage.loadTabStateForLeaf.mockResolvedValue({
+			leafId: "leaf-1",
+			tabs: [makePersistedTab({ tabId: "T1", sessionId: "S1" })],
+			activeTabId: "T1",
+		});
+		storage.loadSessionMessages.mockResolvedValue([
+			{
+				id: "m1",
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "hi" }],
+				timestamp: new Date("2026-05-26T10:00:00Z"),
+			},
+		]);
+
+		const { result } = renderHook(() =>
+			useTabPersistence(makeProps({ leafId: "leaf-1", storage })),
+		);
+
+		await waitForRestoreReady(() => result.current);
+		expect(result.current.recoverableTabs).toEqual({});
+	});
+});

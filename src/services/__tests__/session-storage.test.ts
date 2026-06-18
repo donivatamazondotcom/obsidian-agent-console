@@ -496,3 +496,89 @@ describe("SessionStorage context-note sanitize-on-load (restore boundary)", () =
 		expect(loaded?.map((n) => n.path)).toEqual(["A.md"]);
 	});
 });
+
+// ============================================================================
+// I72 — saveSessionMessages write durability
+//
+// Today saveSessionMessages calls adapter.write exactly once with no
+// try/catch, and every caller invokes it via `void`, so a rejected write is
+// swallowed silently with no trace — the most likely cause of the missing
+// session files behind I72. The write must retry on transient failure and,
+// when it ultimately fails, surface the loss to the log rather than swallow it.
+// ============================================================================
+
+describe("SessionStorage saveSessionMessages write durability (I72)", () => {
+	function makeStorageWithWrite(write: ReturnType<typeof vi.fn>) {
+		const files = new Map<string, string>();
+		const dirs = new Set<string>();
+		const adapter = {
+			exists: vi.fn(async (p: string) => files.has(p) || dirs.has(p)),
+			mkdir: vi.fn(async (p: string) => {
+				dirs.add(p);
+			}),
+			write,
+			read: vi.fn(async (p: string) => {
+				const v = files.get(p);
+				if (v === undefined) throw new Error(`not found: ${p}`);
+				return v;
+			}),
+			remove: vi.fn(async (p: string) => {
+				files.delete(p);
+			}),
+		};
+		const plugin = {
+			app: { vault: { adapter, configDir: "test-config" } },
+			manifest: { id: "agent-console" },
+		};
+		const settingsAccess = { getSnapshot: vi.fn(), updateSettings: vi.fn() };
+		return new SessionStorage(
+			plugin as unknown as ConstructorParameters<typeof SessionStorage>[0],
+			settingsAccess,
+		);
+	}
+
+	it("retries and succeeds when the first write fails transiently", async () => {
+		let calls = 0;
+		const write = vi.fn(async () => {
+			calls += 1;
+			if (calls === 1) throw new Error("EAGAIN transient");
+		});
+		const errorSpy = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
+		const storage = makeStorageWithWrite(write);
+
+		await expect(
+			storage.saveSessionMessages("sess-retry", "agent-1", [msg]),
+		).resolves.toBeUndefined();
+
+		// Failed once, retried, succeeded — no error-level log for a
+		// recovered transient failure.
+		expect(write).toHaveBeenCalledTimes(2);
+		expect(errorSpy).not.toHaveBeenCalled();
+		errorSpy.mockRestore();
+	});
+
+	it("logs an error (not silently swallowed) when every write attempt fails", async () => {
+		const write = vi.fn(async () => {
+			throw new Error("EROFS persistent");
+		});
+		const errorSpy = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
+		const storage = makeStorageWithWrite(write);
+
+		// Does not throw into the void-calling caller…
+		await expect(
+			storage.saveSessionMessages("sess-fail", "agent-1", [msg]),
+		).resolves.toBeUndefined();
+
+		// …but the failure is surfaced to the log, with the sessionId, not
+		// swallowed without a trace.
+		expect(write).toHaveBeenCalledTimes(2);
+		expect(errorSpy).toHaveBeenCalled();
+		const logged = errorSpy.mock.calls.flat().join(" ");
+		expect(logged).toContain("sess-fail");
+		errorSpy.mockRestore();
+	});
+});

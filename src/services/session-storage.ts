@@ -287,9 +287,33 @@ export class SessionStorage {
 		};
 
 		const filePath = this.getSessionFilePath(sessionId);
-		await this.plugin.app.vault.adapter.write(
-			filePath,
-			JSON.stringify(data, null, 2),
+		const payload = JSON.stringify(data, null, 2);
+
+		// Write durability (I72). The original code wrote once with no
+		// try/catch, and every caller invokes saveSessionMessages via
+		// `void`, so a rejected write was swallowed silently with no trace —
+		// the most likely cause of the missing session files that surface as
+		// blank restored tabs on reload. Retry once on a transient failure;
+		// if the write still fails, surface the loss to the log (with the
+		// sessionId) rather than swallow it. We do not rethrow: callers void
+		// the promise, so rethrowing would only produce an unhandled
+		// rejection — the logged error is the durable trace.
+		const adapter = this.plugin.app.vault.adapter;
+		const MAX_ATTEMPTS = 2;
+		let lastError: unknown;
+		for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+			try {
+				await adapter.write(filePath, payload);
+				return;
+			} catch (error) {
+				lastError = error;
+				getLogger().warn(
+					`[SessionStorage] saveSessionMessages write failed for ${sessionId} (attempt ${attempt}/${MAX_ATTEMPTS}): ${error}`,
+				);
+			}
+		}
+		getLogger().error(
+			`[SessionStorage] saveSessionMessages failed after ${MAX_ATTEMPTS} attempts for ${sessionId}; message history may be lost: ${String(lastError)}`,
 		);
 	}
 

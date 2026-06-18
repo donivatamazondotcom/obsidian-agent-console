@@ -2388,3 +2388,35 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	justify-content: flex-end;
 	margin-top: 1em;
 }
+
+/* I72 — recoverable-history affordance: shown when a restored tab has a
+   persisted sessionId but its local message file is missing. Lets the user
+   reload the conversation from the agent (replay) instead of seeing a silent
+   blank panel. Theme-variable colors only — no fixed red/green. */
+.agent-client-recoverable-history {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin: 8px 12px;
+	padding: 8px 12px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}
+
+.agent-client-recoverable-history-text {
+	flex: 1 1 auto;
+}
+
+.agent-client-recoverable-history-button {
+	flex: 0 0 auto;
+	cursor: pointer;
+}
+
+.agent-client-recoverable-history-button:disabled {
+	cursor: default;
+	opacity: 0.6;
+}

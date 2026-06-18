@@ -647,6 +647,9 @@ function ChatComponent({
 								restoredContextNotes={
 									tabPersistence.restoredContextNotes[tab.tabId]
 								}
+								historyRecoverable={
+									!!tabPersistence.recoverableTabs[tab.tabId]
+								}
 							/>
 						</TabPanel>
 					</TabErrorBoundary>

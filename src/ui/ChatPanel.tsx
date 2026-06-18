@@ -117,6 +117,13 @@ export interface ChatPanelProps {
 	restoredMessages?: ChatMessage[];
 	/** Restored context notes for this tab (from tab persistence). Rehydrates the context strip on async arrival while idle (I61). */
 	restoredContextNotes?: ContextNote[];
+	/**
+	 * True when this restored tab has a persisted sessionId but no local
+	 * message file (I72). Drives the "history not stored locally — reload
+	 * from agent" affordance so the tab shows a recoverable state instead of
+	 * a silent blank panel.
+	 */
+	historyRecoverable?: boolean;
 }
 
 // ============================================================================
@@ -184,6 +191,7 @@ export function ChatPanel({
 	restoredSessionId,
 	restoredMessages,
 	restoredContextNotes,
+	historyRecoverable,
 }: ChatPanelProps) {
 	// ============================================================
 	// Platform Check
@@ -1527,6 +1535,33 @@ export function ChatPanel({
 		/>
 	);
 
+	// I72 — restored tab whose local message file was missing. Offer
+	// on-demand history recovery (agent replay) instead of a silent blank.
+	// Auto-hides once a session goes live or any message is shown (recovery
+	// succeeded, or the user started typing a fresh conversation).
+	const showRecoverableHistory =
+		!!historyRecoverable &&
+		messages.length === 0 &&
+		lazySession.sessionId === null;
+
+	const recoverableHistoryBanner = showRecoverableHistory ? (
+		<div className="agent-client-recoverable-history" role="status">
+			<span className="agent-client-recoverable-history-text">
+				History for this tab is not stored locally.
+			</span>
+			<button
+				type="button"
+				className="agent-client-recoverable-history-button"
+				onClick={() => lazySession.recoverHistory()}
+				disabled={lazySession.state === "connecting"}
+			>
+				{lazySession.state === "connecting"
+					? "Reloading…"
+					: "Reload from agent"}
+			</button>
+		</div>
+	) : null;
+
 	const inputAreaElement = (
 		<InputArea
 			isSending={isSending}
@@ -1587,6 +1622,7 @@ export function ChatPanel({
 		>
 			{headerElement}
 			{cwdBanner}
+			{recoverableHistoryBanner}
 			{messageListElement}
 			{contextStripElement}
 			{inputAreaElement}
