@@ -109,6 +109,10 @@ Broadcast send is useful for comparing how different agents respond to the same 
 
 Open tabs survive an Obsidian restart. When you quit and reopen, each sidebar pane brings back its own tabs — same order, same active tab, each tab's conversation visible right away. Turn this off under Settings → Tabs → "Restore tabs on startup" (on by default). Panes restore independently; split views don't merge into one.
 
+### Reload history that wasn't saved locally
+
+Once in a while a restored tab can't find its saved messages on disk – rare, but it can happen if a write was interrupted while Obsidian was closing. When that happens the tab no longer comes back blank. It shows a short note, **"History for this tab is not stored locally,"** with a **Reload from agent** button. Click it and the agent replays the earlier conversation, so your history comes back. Nothing reconnects on its own – the reload happens only when you ask for it.
+
 ## Lazy sessions
 
 Opening a tab no longer starts an agent session immediately. The session connects the moment you start typing, so you can open a tab just to reread an old conversation without starting an agent. A restored tab reconnects to its previous session on your first keystroke. If that session is gone — the agent restarted or it expired — the tab transparently continues from a transcript of the earlier conversation and shows a one-time notice that the agent's internal state from before wasn't recovered.

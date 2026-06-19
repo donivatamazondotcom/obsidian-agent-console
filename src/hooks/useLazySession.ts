@@ -138,6 +138,15 @@ export interface UseLazySessionApi {
 	 */
 	onSendClick: (message: string) => void;
 
+	/**
+	 * Explicitly acquire the restored session on demand (I72). Backs the
+	 * "history not stored locally — reload from agent" affordance for a
+	 * restored tab whose local message file was missing: triggers
+	 * loadExistingSession so the agent replays the transcript. No-op when a
+	 * session is already live or acquisition is in flight. Does not change
+	 * the lazy default — fires only on the user's click.
+	 */
+	recoverHistory: () => void;
 	/** Reset to `idle`, release sessionId, clear fallback flag. */
 	reset: () => void;
 
@@ -315,6 +324,27 @@ export function useLazySession(
 	);
 
 	// ============================================================================
+	// recoverHistory — explicit on-demand load of the restored session (I72)
+	// ============================================================================
+
+	const recoverHistory = useCallback(() => {
+		// Already live, or acquisition in flight — nothing to recover.
+		if (sessionId !== null) return;
+		if (isAcquiringRef.current) return;
+		// Cancel any pending typing debounce so we don't double-fire.
+		if (debounceTimerRef.current !== null) {
+			window.clearTimeout(debounceTimerRef.current);
+			debounceTimerRef.current = null;
+		}
+		// fireAcquisition takes the restored-session path when a
+		// restoredSessionId is present (loadExistingSession → replay, since
+		// the consumer reports haveLocalHistory=false for fileless tabs).
+		// Nothing auto-connects; this fires only on the user's click,
+		// preserving the lazy default (Decision #2).
+		void fireAcquisition();
+	}, [sessionId, fireAcquisition]);
+
+	// ============================================================================
 	// reset — back to idle
 	// ============================================================================
 
@@ -351,6 +381,7 @@ export function useLazySession(
 		isFallbackRecovery,
 		onComposerChange,
 		onSendClick,
+		recoverHistory,
 		reset,
 		// Expose state machine transitions for busy/permission — driven
 		// by ChatPanel in response to agent events (isSending,

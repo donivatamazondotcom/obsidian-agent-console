@@ -514,3 +514,64 @@ describe("useLazySession — error retry", () => {
 		);
 	});
 });
+
+// ============================================================================
+// useLazySession — recoverHistory (I72 on-demand restored-session load)
+// ============================================================================
+
+describe("useLazySession — recoverHistory (I72)", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("loads the restored session on demand (loadExistingSession, not new)", async () => {
+		const options = makeOptions();
+		const { result } = renderHook(() =>
+			useLazySession({
+				...options,
+				restoredSessionId: "session-recover-1",
+			}),
+		);
+
+		act(() => result.current.recoverHistory());
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(0);
+		});
+
+		expect(options.loadExistingSession).toHaveBeenCalledTimes(1);
+		expect(options.loadExistingSession).toHaveBeenCalledWith(
+			"session-recover-1",
+		);
+		expect(options.acquireNewSession).not.toHaveBeenCalled();
+		expect(result.current.state).toBe("ready");
+		expect(result.current.sessionId).toBe("session-loaded-1");
+	});
+
+	it("is a no-op once a session is already live", async () => {
+		const options = makeOptions();
+		const { result } = renderHook(() =>
+			useLazySession({
+				...options,
+				restoredSessionId: "session-recover-2",
+			}),
+		);
+
+		// First recovery → session goes live.
+		act(() => result.current.recoverHistory());
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(0);
+		});
+		expect(options.loadExistingSession).toHaveBeenCalledTimes(1);
+
+		// Second call must not re-acquire — session is sticky.
+		act(() => result.current.recoverHistory());
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(0);
+		});
+		expect(options.loadExistingSession).toHaveBeenCalledTimes(1);
+		expect(options.acquireNewSession).not.toHaveBeenCalled();
+	});
+});
