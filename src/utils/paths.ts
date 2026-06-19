@@ -3,7 +3,16 @@ import { Platform } from "obsidian";
 import { access, stat } from "fs/promises";
 import { constants } from "fs";
 import { join } from "path";
+import { homedir } from "os";
 import { buildWslShellWrapper, getLoginShell } from "./platform";
+
+/**
+ * Sentinel markers wrapping the resolved path emitted by the interactive
+ * login-shell probe in resolveCommandPath. They isolate the result from
+ * interactive-shell rc chatter (instant-prompt banners, history-save lines).
+ */
+export const PATH_PROBE_START = "__ACP_PATH_START__";
+export const PATH_PROBE_END = "__ACP_PATH_END__";
 
 /**
  * Check whether a path string is an absolute path (Unix or Windows).
@@ -19,12 +28,14 @@ export function isAbsolutePath(path: string): boolean {
  * directories directly (PATH-independent), returning only an executable regular
  * file so the result matches what `which` would have returned.
  *
- * Best-effort and intentionally narrow: version-manager installs
- * (nvm/fnm/asdf/volta) and ~/.local/bin live in per-version directories a static
- * list cannot enumerate and are out of scope — those users get an honest
- * "Not found". (Windows solves the same reduced-PATH problem authoritatively via
- * the registry; see getFullWindowsPath in platform.ts. macOS has no such
- * side-channel, so this static last-resort list is a deliberate trade-off.)
+ * Probes the standard system dirs plus the common user-local agent homes
+ * ~/.local/bin (the Kiro CLI.app symlink) and ~/.toolbox/bin (Amazon toolbox).
+ * Still intentionally narrow: per-version version-manager shims
+ * (nvm/fnm/asdf/volta/mise) cannot be enumerated by a static list and are out
+ * of scope here — those are covered by the interactive login-shell probe in
+ * resolveCommandPath, which sources .zshrc/.bashrc. (Windows solves the same
+ * reduced-PATH problem authoritatively via the registry; see getFullWindowsPath
+ * in platform.ts.)
  *
  * @param command - Bare command name (e.g. "node", "codex-acp")
  * @returns Absolute path to an executable file, or null if not found
@@ -34,9 +45,11 @@ async function findInKnownPaths(command: string): Promise<string | null> {
 	// escape via join() (defensive — current callers pass hardcoded names).
 	if (command.includes("/") || command.includes("\\")) return null;
 
+	const home = homedir();
+	const userDirs = [join(home, ".local", "bin"), join(home, ".toolbox", "bin")];
 	const dirs = Platform.isMacOS
-		? ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
-		: ["/usr/local/bin", "/usr/bin", "/bin"];
+		? ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", ...userDirs]
+		: ["/usr/local/bin", "/usr/bin", "/bin", ...userDirs];
 
 	for (const dir of dirs) {
 		const candidate = join(dir, command);
@@ -88,10 +101,13 @@ export function resolveCommandPath(command: string): Promise<string | null> {
 		} else {
 			const shell = getLoginShell();
 			const escaped = trimmed.replace(/'/g, "'\\''");
-			execFile(
+			const probe =
+				`printf '${PATH_PROBE_START}%s${PATH_PROBE_END}' ` +
+				`"$(command -v '${escaped}' 2>/dev/null)"`;
+			const child = execFile(
 				shell,
-				["-l", "-c", `which '${escaped}'`],
-				{ timeout: 5000 },
+				["-i", "-l", "-c", probe],
+				{ timeout: 8000 },
 				(err, stdout) => {
 					const fallback = () => {
 						findInKnownPaths(trimmed).then(resolve, () =>
@@ -102,7 +118,14 @@ export function resolveCommandPath(command: string): Promise<string | null> {
 						fallback();
 						return;
 					}
-					const resolved = stdout.split("\n")[0].trim();
+					const start = stdout.indexOf(PATH_PROBE_START);
+					const end = stdout.indexOf(PATH_PROBE_END);
+					const resolved =
+						start !== -1 && end !== -1 && end > start
+							? stdout
+									.slice(start + PATH_PROBE_START.length, end)
+									.trim()
+							: "";
 					if (resolved.length > 0) {
 						resolve(resolved);
 					} else {
@@ -110,6 +133,9 @@ export function resolveCommandPath(command: string): Promise<string | null> {
 					}
 				},
 			);
+			// Close stdin so an interactive startup file (compinit / p10k
+			// prompt) reads EOF instead of blocking on the inherited pipe.
+			child?.stdin?.end();
 		}
 	});
 }
