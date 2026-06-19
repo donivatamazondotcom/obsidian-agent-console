@@ -59,6 +59,7 @@ function renderHeader(segments: HeaderSegments) {
 			agentLabel="Claude Code"
 			headerSegments={segments}
 			isUpdateAvailable={false}
+			onUpdateClick={vi.fn()}
 			onReload={vi.fn()}
 			onExportChat={vi.fn()}
 			onShowMenu={vi.fn()}

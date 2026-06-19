@@ -1,6 +1,6 @@
 import * as React from "react";
 const { useRef, useEffect, useState } = React;
-import { setIcon } from "obsidian";
+import { setIcon, setTooltip } from "obsidian";
 
 // ============================================================================
 // Types
@@ -52,6 +52,8 @@ export interface ChatHeaderProps {
 	headerSegments: HeaderSegments;
 	/** Whether a plugin update is available */
 	isUpdateAvailable: boolean;
+	/** Callback invoked when the "update available" pill is clicked. */
+	onUpdateClick: () => void;
 	/** Callback to reload the session. `hard` = fresh restart (Shift-click). */
 	onReload: (hard: boolean) => void;
 	/** True while a reload is in progress — spins the ↻ icon for feedback. */
@@ -101,6 +103,40 @@ function NavActionButton({
 			aria-label={label}
 			onClick={onClick}
 		/>
+	);
+}
+
+/**
+ * The "Plugin update available!" pill. Rendered as a real <button> so it gets
+ * native focus and Enter/Space activation for free, and deep-links the user
+ * into Obsidian's own updater (Settings → Community plugins) on click. We do
+ * NOT self-update — see the `Agent Console Update Pill Click-Through` spec
+ * § Why not self-update (reloading tears down every live ACP session).
+ *
+ * Tooltip uses Obsidian's setTooltip() for mechanism consistency with the rest
+ * of the header (spec § Sanctioned-approach grounding; [[Agent Console]] I72).
+ */
+function UpdatePill({ onClick }: { onClick: () => void }) {
+	const ref = useRef<HTMLButtonElement>(null);
+
+	useEffect(() => {
+		if (ref.current) {
+			setTooltip(
+				ref.current,
+				"Open Community plugins to update Agent Console",
+			);
+		}
+	}, []);
+
+	return (
+		<button
+			ref={ref}
+			type="button"
+			className="agent-client-chat-view-header-update"
+			onClick={onClick}
+		>
+			Plugin update available!
+		</button>
 	);
 }
 
@@ -299,6 +335,7 @@ function buildHeaderTooltip(segments: HeaderSegments): string {
 export function ChatHeader({
 	headerSegments,
 	isUpdateAvailable,
+	onUpdateClick,
 	onReload,
 	isReloading,
 	onExportChat,
@@ -321,9 +358,7 @@ export function ChatHeader({
 					/>
 				</span>
 				{isUpdateAvailable && (
-					<span className="agent-client-chat-view-header-update">
-						Plugin update available!
-					</span>
+					<UpdatePill onClick={onUpdateClick} />
 				)}
 				<NavActionButton
 					icon="refresh-cw"

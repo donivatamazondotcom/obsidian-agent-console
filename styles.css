@@ -502,14 +502,30 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	flex: 0 1 auto;
 	padding: 2px 8px;
 	font-size: 11px;
+	font-family: inherit;
 	color: var(--text-muted);
 	background-color: var(--background-modifier-hover);
+	border: none;
 	border-radius: var(--radius-s);
+	box-shadow: none;
 	font-weight: 500;
+	height: auto;
+	line-height: inherit;
+	cursor: pointer;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	min-width: 0;
+}
+
+.agent-client-chat-view-header-update:hover {
+	color: var(--text-normal);
+	background-color: var(--background-modifier-active-hover);
+}
+
+.agent-client-chat-view-header-update:focus-visible {
+	outline: var(--border-width) solid var(--background-modifier-border-focus);
+	outline-offset: 1px;
 }
 
 /* ===== Header Branding (BrandedTitle component) =====

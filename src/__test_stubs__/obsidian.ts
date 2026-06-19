@@ -17,6 +17,8 @@ import { vi } from "vitest";
 
 export const setIcon = vi.fn();
 
+export const setTooltip = vi.fn();
+
 export const MarkdownRenderer = {
 	render: vi.fn(),
 	renderMarkdown: vi.fn(),
