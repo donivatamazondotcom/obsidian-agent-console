@@ -49,7 +49,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		docContainer.createSpan({ text: "Need help? Check out the " });
 		docContainer.createEl("a", {
 			text: "documentation",
-			href: "https://github.com/donivatamazondotcom/obsidian-agent-console#readme",
+			href: "https://donivatamazondotcom.github.io/obsidian-agent-console/",
 			attr: { target: "_blank" },
 		});
 		docContainer.createSpan({ text: "." });
