@@ -1,10 +1,10 @@
 {
-	"id": "agent-console",
-	"name": "Agent Console",
-	"version": "1.1.5",
-	"minAppVersion": "1.11.4",
-	"description": "Run multiple ACP-compatible agent sessions in parallel tabs. Connect Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent.",
-	"author": "Vinod Panicker",
-	"authorUrl": "https://github.com/donivatamazondotcom",
-	"isDesktopOnly": true
+  "id": "agent-console",
+  "name": "Agent Console",
+  "version": "1.1.5",
+  "minAppVersion": "1.11.4",
+  "description": "Finally put your second brain to work. Connect your vault to the best AI models and build alongside them \u2013 docs, slides, projects, even code. Each project leaves your notes richer for the next.",
+  "author": "Vinod Panicker",
+  "authorUrl": "https://github.com/donivatamazondotcom",
+  "isDesktopOnly": true
 }

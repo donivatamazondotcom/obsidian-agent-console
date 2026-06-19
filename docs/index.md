@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: "Agent Console"
-  text: "Collaborate with agents on your second brain"
-  tagline: "Agent Console brings AI agents into your Obsidian vault. They draw on the notes you've already written – your research, drafts, and plans – and write new ones back, tirelessly capturing and linking what matters. Pin the notes that count, run several in parallel, and let your second brain grow effortlessly."
+  text: "Finally put your second brain to work."
+  tagline: "Agent Console connects your vault to the best AI models. Point them at the notes that matter – they follow the links to see the full picture, then help you build: docs, slides, projects, even code. Everything you work out gets saved back to your notes – so each new project starts further ahead than the last."
   image:
     src: /images/multi-session-animated.gif
     alt: Three agent sessions in parallel tabs beside an open note in Obsidian – each tab keeps its own conversation and status icon
@@ -48,6 +48,8 @@ features:
     title: Enterprise-Grade Quality
     details: "Built with the rigor you'd expect from enterprise software: 330+ automated tests, lint and build checks on every change, a token-efficiency benchmark you can run yourself, and performance tracked against a baseline – so updates stay solid as the plugin grows."
 ---
+
+<p align="center"><em>Agent Console was built start to finish this way – the plugin is its own proof.</em></p>
 
 ## What is Agent Console?
 
