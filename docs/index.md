@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: "Agent Console"
-  text: "Collaborate with agents on your second brain"
-  tagline: "Agent Console brings AI agents into your Obsidian vault. They draw on the notes you've already written – your research, drafts, and plans – and write new ones back, tirelessly capturing and linking what matters. Pin the notes that count, run several in parallel, and let your second brain grow effortlessly."
+  text: "Finally put your second brain to work."
+  tagline: "Agent Console connects your vault to the best AI models. Point them at the notes that matter – they follow the links to see the full picture, then help you build: docs, slides, projects, even code. Everything you work out gets saved back to your notes – so each new project starts further ahead than the last."
   image:
     src: /images/multi-session-animated.gif
     alt: Three agent sessions in parallel tabs beside an open note in Obsidian – each tab keeps its own conversation and status icon
@@ -19,10 +19,10 @@ hero:
 features:
   - icon: 🧠
     title: Grounded in Your Notes
-    details: Agents draw on the notes you've already written. @mention a note and the agent reads it – plus the notes it links to – so answers fit your world, not generic advice off the internet. You pin what it sees, so nothing changes under you.
+    details: Agents work from the notes you've already written. @mention a note and they read it – plus the notes it links to – so the answers fit your world, not generic advice off the internet. Your own knowledge is the starting point, never a blank chat.
   - icon: 🌱
-    title: Grows Your Second Brain
-    details: Agents don't just read – they write back. Let one capture decisions, draft notes, and link ideas as you work, so your second brain keeps growing without the tedious upkeep.
+    title: Your Second Brain Pays You Back
+    details: Agents don't just read – they write back. Let one capture decisions and draft notes as you work, so what you figure out lands back in your vault. Each project leaves your notes richer for the next.
   - icon: 🤖
     title: Any Agent, Several at Once
     details: Claude Code, Codex, Gemini CLI, Kiro CLI, or any custom ACP-compatible agent. Run several side by side in a tabbed sidebar – each tab its own session, surviving an Obsidian restart and connecting to its agent only when you start typing.
@@ -48,6 +48,8 @@ features:
     title: Enterprise-Grade Quality
     details: "Built with the rigor you'd expect from enterprise software: 330+ automated tests, lint and build checks on every change, a token-efficiency benchmark you can run yourself, and performance tracked against a baseline – so updates stay solid as the plugin grows."
 ---
+
+<p align="center"><em>Agent Console was built start to finish this way – the plugin is its own proof.</em></p>
 
 ## What is Agent Console?
 

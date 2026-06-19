@@ -52,8 +52,10 @@ export interface ChatHeaderProps {
 	headerSegments: HeaderSegments;
 	/** Whether a plugin update is available */
 	isUpdateAvailable: boolean;
-	/** Callback to create a new chat session */
-	onNewChat: () => void;
+	/** Callback to reload the session. `hard` = fresh restart (Shift-click). */
+	onReload: (hard: boolean) => void;
+	/** True while a reload is in progress — spins the ↻ icon for feedback. */
+	isReloading?: boolean;
 	/** Callback to export the chat */
 	onExportChat: () => void;
 	/** Callback to show the header menu at the click position */
@@ -74,10 +76,12 @@ function NavActionButton({
 	icon,
 	label,
 	onClick,
+	spinning,
 }: {
 	icon: string;
 	label: string;
 	onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
+	spinning?: boolean;
 }) {
 	const ref = useRef<HTMLDivElement>(null);
 
@@ -90,7 +94,10 @@ function NavActionButton({
 	return (
 		<div
 			ref={ref}
-			className="clickable-icon nav-action-button"
+			className={
+				"clickable-icon nav-action-button" +
+				(spinning ? " agent-client-reload-spinning" : "")
+			}
 			aria-label={label}
 			onClick={onClick}
 		/>
@@ -292,7 +299,8 @@ function buildHeaderTooltip(segments: HeaderSegments): string {
 export function ChatHeader({
 	headerSegments,
 	isUpdateAvailable,
-	onNewChat,
+	onReload,
+	isReloading,
 	onExportChat,
 	onShowMenu,
 	onOpenHistory,
@@ -319,8 +327,9 @@ export function ChatHeader({
 				)}
 				<NavActionButton
 					icon="refresh-cw"
-					label="New chat"
-					onClick={onNewChat}
+					label="Reload session (Shift-click: fresh restart)"
+					onClick={(e) => onReload(e.shiftKey)}
+					spinning={isReloading}
 				/>
 				{onOpenHistory && (
 					<NavActionButton
