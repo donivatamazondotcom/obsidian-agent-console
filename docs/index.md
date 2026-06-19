@@ -19,10 +19,10 @@ hero:
 features:
   - icon: 🧠
     title: Grounded in Your Notes
-    details: Agents draw on the notes you've already written. @mention a note and the agent reads it – plus the notes it links to – so answers fit your world, not generic advice off the internet. You pin what it sees, so nothing changes under you.
+    details: Agents work from the notes you've already written. @mention a note and they read it – plus the notes it links to – so the answers fit your world, not generic advice off the internet. Your own knowledge is the starting point, never a blank chat.
   - icon: 🌱
-    title: Grows Your Second Brain
-    details: Agents don't just read – they write back. Let one capture decisions, draft notes, and link ideas as you work, so your second brain keeps growing without the tedious upkeep.
+    title: Your Second Brain Pays You Back
+    details: Agents don't just read – they write back. Let one capture decisions and draft notes as you work, so what you figure out lands back in your vault. Each project leaves your notes richer for the next.
   - icon: 🤖
     title: Any Agent, Several at Once
     details: Claude Code, Codex, Gemini CLI, Kiro CLI, or any custom ACP-compatible agent. Run several side by side in a tabbed sidebar – each tab its own session, surviving an Obsidian restart and connecting to its agent only when you start typing.
