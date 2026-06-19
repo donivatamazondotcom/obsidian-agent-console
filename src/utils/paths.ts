@@ -104,7 +104,7 @@ export function resolveCommandPath(command: string): Promise<string | null> {
 			const probe =
 				`printf '${PATH_PROBE_START}%s${PATH_PROBE_END}' ` +
 				`"$(command -v '${escaped}' 2>/dev/null)"`;
-			execFile(
+			const child = execFile(
 				shell,
 				["-i", "-l", "-c", probe],
 				{ timeout: 8000 },
@@ -133,6 +133,9 @@ export function resolveCommandPath(command: string): Promise<string | null> {
 					}
 				},
 			);
+			// Close stdin so an interactive startup file (compinit / p10k
+			// prompt) reads EOF instead of blocking on the inherited pipe.
+			child?.stdin?.end();
 		}
 	});
 }

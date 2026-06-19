@@ -25,10 +25,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { vi } from "vitest";
 
-const { execFileMock, statMock, accessMock } = vi.hoisted(() => ({
+const { execFileMock, statMock, accessMock, stdinEndMock } = vi.hoisted(() => ({
 	execFileMock: vi.fn(),
 	statMock: vi.fn(),
 	accessMock: vi.fn(),
+	stdinEndMock: vi.fn(),
 }));
 
 vi.mock("obsidian", () => {
@@ -77,6 +78,7 @@ function execFileYields(err: Error | null, stdout: string, stderr = "") {
 				stdout,
 				stderr,
 			);
+			return { stdin: { end: stdinEndMock } };
 		},
 	);
 }
@@ -86,6 +88,7 @@ describe("I01: resolveCommandPath sources interactive-login PATH", () => {
 		execFileMock.mockReset();
 		statMock.mockReset();
 		accessMock.mockReset();
+		stdinEndMock.mockReset();
 	});
 
 	// Fix (b): the probe must run an INTERACTIVE login shell so .zshrc/.bashrc
@@ -120,6 +123,20 @@ describe("I01: resolveCommandPath sources interactive-login PATH", () => {
 		await expect(resolveCommandPath("kiro-cli")).resolves.toBe(
 			"/Users/tengli/.local/bin/kiro-cli",
 		);
+	});
+
+	// Hardening: close child stdin so an interactive startup file
+	// (compinit / powerlevel10k) reads EOF instead of blocking on the
+	// inherited stdin pipe.
+	it("closes child stdin after spawning the probe", async () => {
+		execFileYields(
+			null,
+			`${PATH_PROBE_START}/Users/tengli/.local/bin/kiro-cli${PATH_PROBE_END}`,
+		);
+
+		await resolveCommandPath("kiro-cli");
+
+		expect(stdinEndMock).toHaveBeenCalledTimes(1);
 	});
 });
 
