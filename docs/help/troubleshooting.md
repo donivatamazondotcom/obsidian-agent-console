@@ -35,6 +35,8 @@ The agent executable cannot be found at the specified path.
 2. Try the **Auto-detect** button in the agent's path setting, or use the full absolute path
 3. On Windows, include the `.cmd` extension if needed
 
+Agent Console captures your interactive login shell's `PATH` (the same one your terminal uses, including entries added in `.zshrc`/`.bashrc` such as version-manager shims or `~/.toolbox/bin`) and uses it when launching agents, so a bare command name usually resolves without any path configuration. If it still can't be found, set the full absolute path.
+
 ## Authentication Issues
 
 ### "Authentication Required" error
@@ -157,7 +159,7 @@ The PATH environment may differ between Terminal and Obsidian.
 
 ### Agent installed via Homebrew not found
 
-Homebrew binaries may not be in Obsidian's PATH.
+Agent Console captures your login shell's `PATH`, so Homebrew binaries (and version-manager shims) are normally found automatically. If one still isn't:
 
 **Solution:** Try the **Auto-detect** button, or use the full path (find it with `which <agent-name>` in Terminal).
 

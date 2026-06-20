@@ -141,6 +141,91 @@ export function resolveCommandPath(command: string): Promise<string | null> {
 }
 
 /**
+ * Extract the PATH value emitted between the sentinels by the interactive
+ * login-shell probe in {@link resolveShellPath}. Returns null when the markers
+ * are absent or the value is empty, so callers keep the inherited env PATH.
+ */
+export function parseShellPathOutput(stdout: string): string | null {
+	const start = stdout.indexOf(PATH_PROBE_START);
+	const end = stdout.indexOf(PATH_PROBE_END);
+	if (start === -1 || end === -1 || end <= start) return null;
+	const value = stdout.slice(start + PATH_PROBE_START.length, end).trim();
+	return value.length > 0 ? value : null;
+}
+
+/**
+ * Prepend the entries of `addition` (the captured shell PATH) ahead of
+ * `existing` (the inherited env PATH), de-duplicating so the shell's
+ * resolution order wins and dropping empty segments. Used to enrich the agent
+ * spawn env on GUI-launched (reduced-PATH) macOS/Linux.
+ */
+export function prependPath(
+	existing: string | undefined,
+	addition: string,
+): string {
+	const sep = ":";
+	const seen = new Set<string>();
+	const out: string[] = [];
+	for (const part of [
+		...addition.split(sep),
+		...(existing ?? "").split(sep),
+	]) {
+		if (part.length === 0 || seen.has(part)) continue;
+		seen.add(part);
+		out.push(part);
+	}
+	return out.join(sep);
+}
+
+/**
+ * Capture the user's full PATH from an interactive login shell (which sources
+ * .zshrc/.bashrc), so GUI-launched Obsidian — which inherits a reduced PATH
+ * that omits interactive-rc PATH entries (Amazon toolbox ~/.toolbox/bin,
+ * version-manager shims) — can still find agent CLIs at spawn time. Mirrors the
+ * {@link resolveCommandPath} probe (interactive `-i -l -c` + sentinels + stdin
+ * EOF so an interactive startup file reads EOF instead of blocking).
+ *
+ * Pattern per fix-path / shell-env / VS Code's resolveShellEnv: capture the
+ * login-shell PATH once, then reuse it for child spawns. macOS/Linux only;
+ * returns null on Windows (the registry path is used there) or on any failure
+ * (the caller then keeps the inherited PATH).
+ */
+export function resolveShellPath(): Promise<string | null> {
+	if (Platform.isWin) return Promise.resolve(null);
+
+	return new Promise((resolve) => {
+		const shell = getLoginShell();
+		const probe = `printf '${PATH_PROBE_START}%s${PATH_PROBE_END}' "$PATH"`;
+		const child = execFile(
+			shell,
+			["-i", "-l", "-c", probe],
+			{ timeout: 8000 },
+			(err, stdout) => {
+				if (err) {
+					resolve(null);
+					return;
+				}
+				resolve(parseShellPathOutput(stdout));
+			},
+		);
+		child?.stdin?.end();
+	});
+}
+
+/**
+ * Cached {@link resolveShellPath}. The capture costs one interactive-shell
+ * spawn (sources rc files, can be slow), so it is memoized for the session;
+ * repeated agent connects reuse the result.
+ */
+let cachedShellPath: Promise<string | null> | null = null;
+export function getShellPath(): Promise<string | null> {
+	if (!cachedShellPath) {
+		cachedShellPath = resolveShellPath();
+	}
+	return cachedShellPath;
+}
+
+/**
  * Resolve the absolute path of a command inside WSL.
  * Uses the WSL shell wrapper (buildWslShellWrapper) to resolve within the Linux environment.
  *

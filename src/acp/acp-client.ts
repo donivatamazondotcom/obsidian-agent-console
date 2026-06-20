@@ -22,7 +22,11 @@ import {
 	getEnhancedWindowsEnv,
 	prepareShellCommand,
 } from "../utils/platform";
-import { resolveNodeDirectory } from "../utils/paths";
+import {
+	resolveNodeDirectory,
+	getShellPath,
+	prependPath,
+} from "../utils/paths";
 import {
 	extractStderrErrorHint,
 	getSpawnErrorInfo,
@@ -220,6 +224,19 @@ export class AcpClient {
 		// which causes executables like python, node, etc. to not be found.
 		if (Platform.isWin && !this.plugin.settings.windowsWslMode) {
 			baseEnv = getEnhancedWindowsEnv(baseEnv);
+		}
+
+		// On macOS/Linux, GUI-launched Obsidian inherits a reduced PATH that
+		// omits interactive-rc PATH entries (~/.toolbox/bin, version-manager
+		// shims), so a bare agent command can fail to spawn even when it
+		// resolves in the user's terminal. Capture the login-shell PATH once
+		// (cached) and prepend it. Mirrors fix-path / VS Code resolveShellEnv;
+		// Windows uses getEnhancedWindowsEnv above. (I-FRO1)
+		if (!Platform.isWin && !this.plugin.settings.windowsWslMode) {
+			const shellPath = await getShellPath();
+			if (shellPath) {
+				baseEnv.PATH = prependPath(baseEnv.PATH, shellPath);
+			}
 		}
 
 		// Add Node.js directory to PATH only when nodePath is an explicit absolute path.
