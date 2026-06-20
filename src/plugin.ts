@@ -17,6 +17,11 @@ import {
 } from "./services/settings-normalizer";
 import { getAvailableAgentsFromSettings } from "./services/session-helpers";
 import {
+	detectAvailableAgents,
+	chooseFirstRunDefault,
+	type AgentCandidate,
+} from "./services/agent-detection";
+import {
 	AgentEnvVar,
 	GeminiAgentSettings,
 	ClaudeAgentSettings,
@@ -134,6 +139,21 @@ export default class AgentClientPlugin extends Plugin {
 
 	/** Map of viewId to AcpClient for multi-session support */
 	private _acpClients: Map<string, AcpClient> = new Map();
+
+	/**
+	 * True only on a genuine fresh install (no data.json yet). Gates the
+	 * one-time first-run onboarding (Phase B default-selection + Layer 3
+	 * auto-open). Self-clears once onboarding saves settings.
+	 */
+	private isFirstRun = false;
+
+	/**
+	 * Session-cached agent-detection result. Detection costs a login-shell
+	 * spawn per agent, so it runs at most once per session and is shared by
+	 * first-run onboarding and the getting-started empty state. Lazy: never
+	 * started in onload.
+	 */
+	private _detectedAgentsPromise: Promise<Set<string>> | null = null;
 
 	async onload() {
 		await this.loadSettings();
@@ -257,6 +277,13 @@ export default class AgentClientPlugin extends Plugin {
 
 		// First-run, one-shot offer to import settings from another agent plugin.
 		void this.maybeOfferSettingsImport();
+
+		// First-run onboarding (Phase B default-selection + Layer 3 auto-open),
+		// deferred to onLayoutReady so the login-shell agent probes never run on
+		// the critical load path. Runs once; self-clears by saving settings.
+		this.app.workspace.onLayoutReady(() => {
+			void this.maybeFirstRunOnboarding();
+		});
 
 		// Clean up all ACP sessions when Obsidian quits
 		// Note: We don't wait for disconnect to complete to avoid blocking quit
@@ -765,7 +792,16 @@ export default class AgentClientPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		const raw = ((await this.loadData()) ?? {}) as Record<string, unknown>;
+		// A genuine fresh install has no data.json yet → loadData() returns
+		// null. This is the trigger for one-time first-run onboarding (Phase B
+		// + Layer 3); existing users always have a data.json, so they are never
+		// re-onboarded and their default agent is never overridden.
+		const loaded = (await this.loadData()) as Record<
+			string,
+			unknown
+		> | null;
+		this.isFirstRun = loaded == null;
+		const raw = loaded ?? {};
 		let migratedSecrets = false;
 
 		// The raw → typed mapping (incl. all legacy-field migrations) lives in
@@ -883,6 +919,79 @@ export default class AgentClientPlugin extends Plugin {
 		} catch (error) {
 			getLogger().warn(
 				"[AgentClient] settings-import offer failed:",
+				error,
+			);
+		}
+	}
+
+	/**
+	 * Detect which known built-in agents are installed, login-shell aware
+	 * (inherits the I01 shim-resolution fix). Memoized for the session so
+	 * the shell spawns happen at most once and onboarding + the
+	 * getting-started empty state share one probe. Fail-soft: a probe error
+	 * yields an empty set rather than rejecting.
+	 */
+	detectAgents(): Promise<Set<string>> {
+		if (!this._detectedAgentsPromise) {
+			const candidates: AgentCandidate[] = [
+				{
+					id: this.settings.kiro.id,
+					command: this.settings.kiro.command,
+				},
+				{
+					id: this.settings.claude.id,
+					command: this.settings.claude.command,
+				},
+				{
+					id: this.settings.codex.id,
+					command: this.settings.codex.command,
+				},
+				{
+					id: this.settings.gemini.id,
+					command: this.settings.gemini.command,
+				},
+			];
+			this._detectedAgentsPromise = detectAvailableAgents(
+				candidates,
+			).catch(() => new Set<string>());
+		}
+		return this._detectedAgentsPromise;
+	}
+
+	/**
+	 * First-run onboarding, run once on a true fresh install (no data.json
+	 * yet), deferred to onLayoutReady so the login-shell agent probes stay
+	 * off the critical load path.
+	 *
+	 *  - Phase B: detect which known agents are installed and set the default
+	 *    to the highest-priority one that resolves
+	 *    (kiro → claude → codex → gemini); keep claude-code-acp when none
+	 *    resolve.
+	 *  - Layer 3: auto-open the chat panel exactly once so a new user lands
+	 *    in the UI without hunting for the ribbon icon.
+	 *
+	 * Fail-soft and self-clearing: persists settings so isFirstRun is false
+	 * on every later launch. Existing users have a data.json, so isFirstRun
+	 * is false for them — their default agent is never overridden and the
+	 * panel is never force-opened.
+	 */
+	private async maybeFirstRunOnboarding(): Promise<void> {
+		if (!this.isFirstRun) return;
+		this.isFirstRun = false; // re-entrancy guard within a session
+
+		try {
+			const available = await this.detectAgents();
+			this.settings.defaultAgentId = chooseFirstRunDefault(
+				available,
+				this.settings.defaultAgentId,
+			);
+			await this.saveSettings();
+
+			// Layer 3 — land the new user in the UI exactly once.
+			await this.activateView();
+		} catch (error) {
+			getLogger().warn(
+				"[AgentClient] first-run onboarding failed:",
 				error,
 			);
 		}

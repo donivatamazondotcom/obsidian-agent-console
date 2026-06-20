@@ -60,7 +60,7 @@ Because the agents live in your vault, you stay in control: you pin what they se
 * **Work from the notes you’ve already written** – @mention a note and the agent reads it, and the notes it links to, as context. Drag in images, run slash commands – it starts from your knowledge, not a blank slate
 * **Let your second brain grow itself** – ask an agent to write back: capture decisions, draft notes, and link ideas straight into your vault, without the manual upkeep
 * **Stop waiting on one agent before starting the next** – run several agent chats side by side in one sidebar
-* **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol)
+* **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol); on a fresh install Agent Console defaults to one it finds installed and opens the panel for you
 * **Your context budget goes further** – context notes are referenced, not re-pasted into every message, so a long chat uses 65–80% fewer context tokens than re-sending the full note each turn
 * **Restart Obsidian without losing your place** – your open tabs and their conversations reopen exactly as you left them; each sidebar pane restores its own tabs independently
 * **Scroll up to read while the agent is still typing** – the incoming stream won’t yank you back to the bottom, so you can reread earlier output mid-response; tabs also keep their scroll position when you switch away and back
@@ -120,6 +120,8 @@ Once you’ve set up the agent:
 2. Enter the path to the agent and any API keys it needs
 3. Click the robot icon in the ribbon to open the chat panel
 4. Click the **+** button to open more tabs as you need them
+
+> On a brand-new install, Agent Console detects an agent you already have, makes it the default, and opens the chat panel once — so steps 1–3 are often already done for you.
 
 ## Configuration
 

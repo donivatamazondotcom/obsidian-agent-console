@@ -32,6 +32,10 @@ Each guide covers installation, path configuration, and authentication.
 
 The chat panel opens in the right sidebar. Type a message and press Enter!
 
+::: tip
+On a brand-new install, Agent Console opens this panel for you once and defaults to an agent it finds installed — see [First Run](/getting-started/first-run).
+:::
+
 ## What's Next?
 
 - Learn about [Note Mentions](/usage/mentions) to reference your notes in conversations
