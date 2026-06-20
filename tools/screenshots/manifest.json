@@ -675,6 +675,7 @@
 		},
 		{
 			"name": "tab-status-dropdown",
+			"pending": true,
 			"width": 360,
 			"height": 360,
 			"crop": {
@@ -704,6 +705,7 @@
 		},
 		{
 			"name": "getting-started",
+			"pending": true,
 			"width": 628,
 			"height": 380,
 			"crop": {
@@ -732,6 +734,7 @@
 		},
 		{
 			"name": "command-palette",
+			"pending": true,
 			"width": 760,
 			"height": 280,
 			"crop": {
@@ -761,6 +764,7 @@
 		},
 		{
 			"name": "new-chat-agent-picker",
+			"pending": true,
 			"width": 620,
 			"height": 300,
 			"crop": {
@@ -790,6 +794,7 @@
 		},
 		{
 			"name": "settings-import",
+			"pending": true,
 			"width": 760,
 			"height": 520,
 			"crop": {
@@ -818,6 +823,7 @@
 		},
 		{
 			"name": "update-pill",
+			"pending": true,
 			"width": 360,
 			"height": 120,
 			"crop": {
