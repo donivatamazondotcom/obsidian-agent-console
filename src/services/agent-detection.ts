@@ -113,3 +113,33 @@ export function chooseFirstRunDefault(
 ): string {
 	return pickDefaultAgentId(availableIds, priorityOrder) ?? currentDefault;
 }
+
+/**
+ * Decide whether the Layer 2 getting-started "dead end" empty state should
+ * show for the current chat panel.
+ *
+ * It shows only when the chat is empty AND the current agent is a **built-in**
+ * that detection did not find installed — i.e. a genuine "no working agent"
+ * situation for a fresh install. It must NOT show for:
+ *  - a chat that already has messages,
+ *  - a **custom** agent the user configured deliberately (custom agents are
+ *    never in the built-in detected set, so membership alone would wrongly
+ *    flag every custom-agent default as a dead end — the I-FRO2 bug), or
+ *  - while detection is still pending (`detectedIds === null`).
+ *
+ * A custom agent with a broken command still surfaces the normal inline
+ * connection error, exactly as before onboarding — it is not a dead end the
+ * getting-started picks can resolve.
+ */
+export function shouldShowGettingStarted(params: {
+	messageCount: number;
+	currentAgentId: string;
+	builtInIds: ReadonlySet<string>;
+	detectedIds: ReadonlySet<string> | null;
+}): boolean {
+	const { messageCount, currentAgentId, builtInIds, detectedIds } = params;
+	if (messageCount > 0) return false;
+	if (detectedIds === null) return false; // detection pending
+	if (!builtInIds.has(currentAgentId)) return false; // custom agent → not a dead end
+	return !detectedIds.has(currentAgentId); // built-in not detected → dead end
+}

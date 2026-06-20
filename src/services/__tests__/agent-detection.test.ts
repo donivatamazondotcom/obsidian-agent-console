@@ -3,6 +3,7 @@ import {
 	detectAvailableAgents,
 	pickDefaultAgentId,
 	chooseFirstRunDefault,
+	shouldShowGettingStarted,
 	DEFAULT_AGENT_PRIORITY,
 	type AgentCandidate,
 } from "../agent-detection";
@@ -108,5 +109,71 @@ describe("Phase B: chooseFirstRunDefault (first-run default selection)", () => {
 			"claude-code-acp",
 		);
 		expect(chosen).toBe("gemini-cli");
+	});
+});
+
+describe("I-FRO2: shouldShowGettingStarted", () => {
+	const builtInIds = new Set([
+		"claude-code-acp",
+		"codex-acp",
+		"gemini-cli",
+		"kiro-cli",
+	]);
+
+	it("does NOT show for a custom-agent default (the I-FRO2 bug)", () => {
+		// Custom agents are never in the built-in detected set; they must not
+		// be treated as a dead end (regression: custom-agent default / new tabs).
+		expect(
+			shouldShowGettingStarted({
+				messageCount: 0,
+				currentAgentId: "test-custom-agent",
+				builtInIds,
+				detectedIds: new Set(["claude-code-acp", "kiro-cli"]),
+			}),
+		).toBe(false);
+	});
+
+	it("does NOT show for a built-in that is detected", () => {
+		expect(
+			shouldShowGettingStarted({
+				messageCount: 0,
+				currentAgentId: "kiro-cli",
+				builtInIds,
+				detectedIds: new Set(["kiro-cli"]),
+			}),
+		).toBe(false);
+	});
+
+	it("shows for a built-in default that is NOT detected (fresh install, nothing installed)", () => {
+		expect(
+			shouldShowGettingStarted({
+				messageCount: 0,
+				currentAgentId: "claude-code-acp",
+				builtInIds,
+				detectedIds: new Set(),
+			}),
+		).toBe(true);
+	});
+
+	it("does NOT show once the chat has messages", () => {
+		expect(
+			shouldShowGettingStarted({
+				messageCount: 3,
+				currentAgentId: "claude-code-acp",
+				builtInIds,
+				detectedIds: new Set(),
+			}),
+		).toBe(false);
+	});
+
+	it("does NOT show while detection is still pending (null)", () => {
+		expect(
+			shouldShowGettingStarted({
+				messageCount: 0,
+				currentAgentId: "claude-code-acp",
+				builtInIds,
+				detectedIds: null,
+			}),
+		).toBe(false);
 	});
 });

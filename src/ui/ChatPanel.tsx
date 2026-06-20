@@ -62,6 +62,7 @@ const EMPTY_COMMANDS: SlashCommand[] = [];
 // Component imports
 import { ChatHeader } from "./ChatHeader";
 import { MessageList, type GettingStartedInfo } from "./MessageList";
+import { shouldShowGettingStarted } from "../services/agent-detection";
 import { InputArea } from "./InputArea";
 import { ContextStrip } from "./ContextStrip";
 import { computeProvisionalPath } from "../utils/provisional-context";
@@ -1547,14 +1548,32 @@ export function ChatPanel({
 	}, [isEmptyAndIdle, detectedAgentIds, plugin]);
 
 	const gettingStarted = useMemo<GettingStartedInfo | undefined>(() => {
-		if (messages.length > 0 || detectedAgentIds === null) return undefined;
 		const currentAgentId =
 			session.agentId || plugin.settings.defaultAgentId;
-		// Agent resolves → not a dead end; let the normal empty state show.
-		if (detectedAgentIds.has(currentAgentId)) return undefined;
+		// Only built-in agents drive the getting-started dead-end state.
+		// A custom agent the user configured is never treated as a dead end
+		// (I-FRO2): detection covers only the built-ins, so membership alone
+		// would wrongly flag every custom-agent default.
+		const builtInIds = new Set([
+			plugin.settings.claude.id,
+			plugin.settings.codex.id,
+			plugin.settings.gemini.id,
+			plugin.settings.kiro.id,
+		]);
+		if (
+			!shouldShowGettingStarted({
+				messageCount: messages.length,
+				currentAgentId,
+				builtInIds,
+				detectedIds: detectedAgentIds,
+			})
+		) {
+			return undefined;
+		}
+		const installed = detectedAgentIds ?? new Set<string>();
 		return {
 			detectedAgents: availableAgents.filter((a) =>
-				detectedAgentIds.has(a.id),
+				installed.has(a.id),
 			),
 			onPickAgent: (agentId: string) => {
 				void handleNewChatWithPersist(agentId);
