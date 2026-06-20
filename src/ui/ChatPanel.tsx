@@ -592,6 +592,17 @@ export function ChatPanel({
 		appWithSettings.setting.openTabById(plugin.manifest.id);
 	}, [plugin]);
 
+	// Deep-link into Obsidian's own updater (Settings → Community plugins) when
+	// the "update available" pill is clicked. We hand off to the sanctioned
+	// updater rather than self-updating — see the `Agent Console Update Pill
+	// Click-Through` spec. The "community-plugins" core tab id was verified
+	// against the running Obsidian (app.setting.settingTabs).
+	const handleOpenCommunityPlugins = useCallback(() => {
+		const appWithSettings = plugin.app as unknown as AppWithSettings;
+		appWithSettings.setting.open();
+		appWithSettings.setting.openTabById("community-plugins");
+	}, [plugin]);
+
 	const handleNewChatInDirectory = useCallback(
 		async (directory: string) => {
 			try {
@@ -1490,6 +1501,7 @@ export function ChatPanel({
 				isConnecting: lazySession.state === "connecting",
 			}}
 			isUpdateAvailable={isUpdateAvailable}
+			onUpdateClick={handleOpenCommunityPlugins}
 			onReload={(hard) => void handleReload(hard)}
 			isReloading={isReloading}
 			onExportChat={() => void handleExportChat()}

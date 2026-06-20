@@ -208,6 +208,12 @@ If you need more detailed information about an issue, enable Debug mode:
 | Cannot Send Message | No active session | Wait for connection or click New Chat |
 | Send Message Failed | Agent returned an error | Check error details |
 
+## Updating Agent Console
+
+Obsidian updates community plugins for you when a new version is released. When an update is waiting, the chat header shows a **Plugin update available!** pill. Click it to open **Settings → Community plugins**, then update Agent Console from there.
+
+The pill is a shortcut into Obsidian's own updater — it doesn't update in place, so your open conversations stay connected until you choose to update and reload.
+
 ## Getting Help
 
 If you're still experiencing issues:

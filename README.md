@@ -102,7 +102,7 @@ Agent Console is in the [Obsidian Community Plugins store](https://community.obs
 2. Click **Browse** and search for "Agent Console"
 3. Click **Install**, then **Enable**
 
-Obsidian updates the plugin automatically when a new version is released.
+Obsidian updates the plugin automatically when a new version is released. When an update is waiting, the chat header shows a **Plugin update available!** pill — click it to jump straight to **Settings → Community plugins**, where you can update with one more click.
 
 ## Quick start
 
