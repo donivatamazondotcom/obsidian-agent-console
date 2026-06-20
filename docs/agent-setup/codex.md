@@ -69,7 +69,7 @@ The ChatGPT app and Codex app use a different authentication system. Having Chat
 
 ## Verify Setup
 
-1. Click the robot icon in the ribbon or use the command palette: **"Open chat view"**
+1. Click the robot icon in the ribbon or use the command palette: **"Open chat"**
 2. Switch to Codex from the agent dropdown in the chat header
 3. Try sending a message to verify the connection
 

@@ -50,7 +50,7 @@ Refer to your agent's documentation for specific authentication instructions.
 
 ## Verify Setup
 
-1. Click the robot icon in the ribbon or use the command palette: **"Open chat view"**
+1. Click the robot icon in the ribbon or use the command palette: **"Open chat"**
 2. Select your custom agent from the agent dropdown in the chat header
 3. Try sending a message to verify the connection
 
