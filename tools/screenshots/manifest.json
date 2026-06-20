@@ -672,6 +672,177 @@
 					}
 				]
 			}
+		},
+		{
+			"name": "tab-status-dropdown",
+			"width": 360,
+			"height": 360,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 360,
+				"height": 360
+			},
+			"cropSelector": ".menu",
+			"cropPadding": 8,
+			"captureMode": "screen",
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"clickSelector": ".agent-client-tab-bar-chevron"
+			},
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 200,
+			"placement": "feature",
+			"purpose": "Jump to any session from the tab-list dropdown, each entry prefixed with its status glyph.",
+			"differentiator": "Per-tab status in the tab-list dropdown",
+			"mustShow": ".menu",
+			"caption": "Spot the stuck or finished session at a glance",
+			"altText": "The tab-list chevron dropdown open, each entry prefixed with its status glyph and a checkmark on the active tab",
+			"docPage": "docs/usage/tabbed-sessions.md",
+			"captureNote": "Seed >=2 tabs in differing states so the glyph variety shows (like parallel-sessions), then click the chevron."
+		},
+		{
+			"name": "getting-started",
+			"width": 628,
+			"height": 380,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 628,
+				"height": 380
+			},
+			"cropSelector": ".agent-client-getting-started",
+			"cropPadding": 16,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"approvalThreshold": 0.05,
+			"minDistinctColors": 300,
+			"placement": "feature",
+			"purpose": "First-run panel that lists detected agents to pick from instead of leaving a dead end.",
+			"differentiator": "Bulletproof first-run / getting-started state",
+			"mustShow": ".agent-client-getting-started",
+			"caption": "Start in one click on a detected agent",
+			"altText": "Agent Console getting-started panel showing detected agents as one-click picks and an Open settings button",
+			"docPage": "docs/getting-started/quick-start.md",
+			"manualCapture": true,
+			"captureNote": "Requires a no-connectable-agent state (default a built-in not on PATH); fixtures vault has agents configured, so needs a temporary mis-config or dedicated fixture profile."
+		},
+		{
+			"name": "command-palette",
+			"width": 760,
+			"height": 280,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 760,
+				"height": 280
+			},
+			"cropSelector": ".prompt",
+			"cropPadding": 0,
+			"captureMode": "screen",
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 300,
+			"placement": "feature",
+			"purpose": "The rationalized cold-start palette: only Open chat / New chat / New chat with agent.",
+			"differentiator": "Command-palette rationalization (v1.2.0)",
+			"mustShow": ".prompt",
+			"caption": "A palette you can actually scan",
+			"altText": "Obsidian command palette filtered to Agent Console, showing Open chat, New chat, and New chat with agent",
+			"docPage": "docs/usage/commands.md",
+			"manualCapture": true,
+			"captureNote": "Native command palette (Cmd/Ctrl+P, type 'Agent Console'); pipeline has no palette-open action yet -- capture manually or extend the driver."
+		},
+		{
+			"name": "new-chat-agent-picker",
+			"width": 620,
+			"height": 300,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 620,
+				"height": 300
+			},
+			"cropSelector": ".prompt",
+			"cropPadding": 0,
+			"captureMode": "screen",
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 300,
+			"placement": "reference",
+			"purpose": "The single New chat with agent picker that replaced the per-agent commands.",
+			"differentiator": "Command-palette rationalization (v1.2.0)",
+			"mustShow": ".prompt",
+			"caption": "Pick an agent for a fresh chat",
+			"altText": "Agent Console New chat with agent fuzzy picker listing the configured agents",
+			"docPage": "docs/usage/commands.md",
+			"manualCapture": true,
+			"captureNote": "FuzzySuggestModal launched by running the 'New chat with agent' command; needs command execution the pipeline can't drive yet -- capture manually."
+		},
+		{
+			"name": "settings-import",
+			"width": 760,
+			"height": 520,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 760,
+				"height": 520
+			},
+			"cropSelector": ".agent-client-import-agents",
+			"cropPadding": 16,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"openSettings": "agent-console"
+			},
+			"approvalThreshold": 0.02,
+			"minDistinctColors": 400,
+			"placement": "reference",
+			"purpose": "Import agent definitions, defaults, and keys from another agent plugin on first run.",
+			"differentiator": "Cross-plugin settings migration (v1.2.0)",
+			"mustShow": ".agent-client-import-agents",
+			"caption": "Bring your config over in one step",
+			"altText": "Agent Console settings-import preview modal listing the agents and keys that would be imported",
+			"docPage": "docs/usage/importing-settings.md",
+			"manualCapture": true,
+			"captureNote": "Requires a second agent plugin (e.g. Agent Client) installed so there is something to import; trigger the import modal from settings."
+		},
+		{
+			"name": "update-pill",
+			"width": 360,
+			"height": 120,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 360,
+				"height": 120
+			},
+			"cropSelector": ".agent-client-chat-view-header-update",
+			"cropPadding": 12,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 120,
+			"placement": "reference",
+			"purpose": "The header pill that opens Community plugins when an update is available.",
+			"differentiator": "Update-pill click-through (v1.2.0)",
+			"mustShow": ".agent-client-chat-view-header-update",
+			"caption": "One click to update",
+			"altText": "The update-available pill in the Agent Console chat header",
+			"docPage": "docs/usage/commands.md",
+			"manualCapture": true,
+			"captureNote": "Pill only renders when an update is available; needs a mocked update-available state to capture."
 		}
 	]
 }
