@@ -32,7 +32,7 @@ import { useTabPersistence, type TabPersistenceStorage } from "../hooks/useTabPe
 
 // Service imports
 import { VaultService } from "../services/vault-service";
-import { resolveSessionIdForSave } from "../services/session-helpers";
+import { resolveSessionIdForSave, resolveRenamedSessionWrite } from "../services/session-helpers";
 import type { AcpClient } from "../acp/acp-client";
 
 export const VIEW_TYPE_CHAT = "agent-client-chat-view";
@@ -409,19 +409,20 @@ function ChatComponent({
 					}
 					tabManager.setTabLabel(tabId, newTitle, true);
 
-					// Persist to session history if this tab has a session
-					const sessionId = tabSessionIdsRef.current.get(tabId);
-					if (sessionId) {
-						const saved = plugin.settingsService
-							.getSavedSessions()
-							.find((s) => s.sessionId === sessionId);
-						if (saved) {
-							await plugin.settingsService.saveSession({
-								...saved,
-								title: newTitle,
-								updatedAt: new Date().toISOString(),
-							});
-						}
+					// Persist to session history. Resolve the session id with
+					// the persisted fallback (I73) — a restored tab that has
+					// not reconnected yet has no entry in the live map, only
+					// in persistedSessionIdsRef. Mirrors resolveSessionIdForSave
+					// (I59); without it the rename is lost from history.
+					const updated = resolveRenamedSessionWrite(
+						tabSessionIdsRef.current.get(tabId) ?? null,
+						persistedSessionIdsRef.current.get(tabId) ?? null,
+						plugin.settingsService.getSavedSessions(),
+						newTitle,
+						new Date().toISOString(),
+					);
+					if (updated) {
+						await plugin.settingsService.saveSession(updated);
 					}
 				},
 			);

@@ -10,7 +10,7 @@ import type {
 	GeminiAgentSettings,
 	CodexAgentSettings,
 } from "../types/agent";
-import type { ChatSession } from "../types/session";
+import type { ChatSession, SavedSessionInfo } from "../types/session";
 import { toAgentConfig } from "./settings-normalizer";
 
 // ============================================================================
@@ -211,4 +211,32 @@ export function resolveSessionIdForSave(
 	persistedId: string | null,
 ): string | null {
 	return liveId ?? persistedId;
+}
+
+/**
+ * Decide the saved-session record to rewrite when a tab is renamed (I73).
+ *
+ * Resolves the tab's sessionId (live, falling back to persisted — same
+ * contract as {@link resolveSessionIdForSave}). If a saved session exists
+ * for that id, returns the record with the new title and a bumped
+ * updatedAt; otherwise returns null (no resolvable session, or a tab whose
+ * session is not in history — nothing to sync).
+ *
+ * I73: handleRenameTab previously read the live sessionId map only, so a
+ * restored-but-not-reconnected tab (live id null, persisted id present)
+ * skipped the history-title write and the rename was lost from session
+ * history on the next reload.
+ */
+export function resolveRenamedSessionWrite(
+	liveId: string | null,
+	persistedId: string | null,
+	savedSessions: SavedSessionInfo[],
+	newTitle: string,
+	now: string,
+): SavedSessionInfo | null {
+	const sessionId = resolveSessionIdForSave(liveId, persistedId);
+	if (!sessionId) return null;
+	const saved = savedSessions.find((s) => s.sessionId === sessionId);
+	if (!saved) return null;
+	return { ...saved, title: newTitle, updatedAt: now };
 }
