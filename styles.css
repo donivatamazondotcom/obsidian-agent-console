@@ -1011,6 +1011,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	flex-shrink: 0;
 	width: 18px;
 	height: 18px;
 	border: none;
