@@ -51,7 +51,14 @@ export function checkConsistency(input: ConsistencyInput): ConsistencyReport {
 	const derived = new Set(input.entries.map(derivedImageName));
 	const refs = new Set(input.docRefs);
 
-	const missing = [...derived].filter((d) => !present.has(d)).sort();
+	// Pending entries are registered capture specs whose image isn't captured
+	// yet — exempt them from the missing-image rule. They still claim their
+	// derived name (via `derived` above), so a later-committed image with that
+	// name isn't mistaken for an orphan.
+	const requiredDerived = input.entries
+		.filter((e) => !e.pending)
+		.map(derivedImageName);
+	const missing = requiredDerived.filter((d) => !present.has(d)).sort();
 	const orphans = input.presentImages
 		.filter((p) => !derived.has(p) && !refs.has(p))
 		.sort();

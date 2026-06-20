@@ -143,6 +143,13 @@ export interface ManifestEntry {
 	 * and URL-safe.
 	 */
 	name: string;
+	/**
+	 * When true, this entry is a registered capture spec whose image has not
+	 * been captured yet. The consistency check exempts it from the
+	 * "missing committed image" rule (orphan and broken-ref checks still
+	 * apply). Drop the flag and commit the image once captured.
+	 */
+	pending?: boolean;
 	/** Final image width in pixels (after crop, before .webp encoding). */
 	width: number;
 	/** Final image height in pixels. */

@@ -78,6 +78,26 @@ describe("checkConsistency", () => {
 		});
 		expect(r.brokenDocRefs).toEqual(["gone.gif"]);
 	});
+
+	it("does NOT flag a pending entry that has no committed image", () => {
+		const pending = { ...entry("planned"), pending: true } as ManifestEntry;
+		const r = checkConsistency({
+			entries: [entry("a"), pending],
+			presentImages: ["a.webp"],
+			docRefs: [],
+		});
+		expect(r.missing).toEqual([]);
+	});
+
+	it("does not flag a pending entry's later-committed image as an orphan", () => {
+		const pending = { ...entry("planned"), pending: true } as ManifestEntry;
+		const r = checkConsistency({
+			entries: [pending],
+			presentImages: ["planned.webp"],
+			docRefs: [],
+		});
+		expect(r.orphans).toEqual([]);
+	});
 });
 
 describe("findGifDimMismatches", () => {
