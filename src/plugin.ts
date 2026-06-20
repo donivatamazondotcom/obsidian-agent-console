@@ -34,6 +34,11 @@ import type { PerLeafTabState } from "./types/tab";
 import { initializeLogger, getLogger } from "./utils/logger";
 import { closeOpenMenus } from "./utils/menu-registry";
 import { ImportSettingsModal } from "./ui/ImportSettingsModal";
+import { AgentPickerModal } from "./ui/AgentPickerModal";
+import {
+	computeStartChat,
+	isChatCommandAvailable,
+} from "./utils/command-palette";
 import {
 	createImportSources,
 	firstDetectedSource,
@@ -195,7 +200,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "open-chat-view",
-			name: "Open chat view",
+			name: "Open chat",
 			callback: () => {
 				void this.activateView();
 			},
@@ -204,59 +209,61 @@ export default class AgentClientPlugin extends Plugin {
 		this.addCommand({
 			id: "focus-next-chat-view",
 			name: "Focus next chat view",
-			callback: () => {
-				this.focusChatView("next");
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.focusChatView("next");
+				}
+				return true;
 			},
 		});
 
 		this.addCommand({
 			id: "focus-previous-chat-view",
 			name: "Focus previous chat view",
-			callback: () => {
-				this.focusChatView("previous");
-			},
-		});
-
-		this.addCommand({
-			id: "open-new-chat-view",
-			name: "Open new chat view",
-			callback: () => {
-				void this.openNewChatViewWithAgent(
-					this.settings.defaultAgentId,
-				);
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.focusChatView("previous");
+				}
+				return true;
 			},
 		});
 
 		// Tab commands
 		this.addCommand({
-			id: "new-session-tab",
-			name: "New session tab",
-			callback: () => {
-				this.getActiveChatView()?.addTab();
-			},
-		});
-
-		this.addCommand({
 			id: "close-session-tab",
 			name: "Close session tab",
-			callback: () => {
-				this.getActiveChatView()?.closeActiveTab();
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.getActiveChatView()?.closeActiveTab();
+				}
+				return true;
 			},
 		});
 
 		this.addCommand({
 			id: "next-session-tab",
 			name: "Next session tab",
-			callback: () => {
-				this.getActiveChatView()?.nextTab();
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.getActiveChatView()?.nextTab();
+				}
+				return true;
 			},
 		});
 
 		this.addCommand({
 			id: "previous-session-tab",
 			name: "Previous session tab",
-			callback: () => {
-				this.getActiveChatView()?.prevTab();
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.getActiveChatView()?.prevTab();
+				}
+				return true;
 			},
 		});
 
@@ -401,6 +408,63 @@ export default class AgentClientPlugin extends Plugin {
 			| undefined;
 
 		return chatView?.getActiveTabId() ?? focusedId;
+	}
+
+	/**
+	 * True when at least one chat view leaf is open (any location, incl.
+	 * floating). Used to context-gate navigate / act-on-chat / broadcast
+	 * commands so a cold-start palette surfaces only Open chat / New chat /
+	 * New chat with agent…. See command-palette rationalization spec (C3).
+	 */
+	private hasOpenChatView(): boolean {
+		return isChatCommandAvailable(
+			this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT).length,
+		);
+	}
+
+	/**
+	 * Find an open chat-view leaf to target, preferring the focus-tracked one
+	 * and falling back to the first open leaf. Returns null only when no chat
+	 * view is open at all. Keyed on existence (not focus) so "New chat" routes
+	 * to the right panel even when focus tracking hasn't registered one.
+	 */
+	private getTargetChatLeaf(): WorkspaceLeaf | null {
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+		if (leaves.length === 0) return null;
+		const focusedId = this.lastActiveChatViewId;
+		const focused = focusedId
+			? leaves.find((l) => (l.view as ChatView)?.viewId === focusedId)
+			: undefined;
+		return focused ?? leaves[0];
+	}
+
+	/**
+	 * Start a chat from any state (browser-tab model). When a chat view is
+	 * open, open a NEW tab (optionally on a specific agent) in it; when none
+	 * is open, open a panel. Either branch always produces a visible chat, so
+	 * no start-a-chat command can silently no-op (kills the I82 class). The
+	 * decision is existence-based, so it never spawns a duplicate tab from a
+	 * null focus target.
+	 */
+	async startChat(agentId?: string): Promise<void> {
+		const leaf = this.getTargetChatLeaf();
+		const action = computeStartChat(leaf !== null, agentId);
+		if (action.kind === "open-panel") {
+			// No chat view open — open one (on a specific agent, else default).
+			if (action.agentId) {
+				await this.openNewChatViewWithAgent(action.agentId);
+			} else {
+				await this.activateView();
+			}
+			return;
+		}
+		// add-tab: open a new tab on the chosen agent in the existing panel.
+		const view = leaf?.view;
+		if (view instanceof ChatView) {
+			view.addTab(action.agentId);
+			await this.app.workspace.revealLeaf(leaf as WorkspaceLeaf);
+			this.focusTextarea(leaf as WorkspaceLeaf);
+		}
 	}
 
 	async activateView() {
@@ -578,54 +642,64 @@ export default class AgentClientPlugin extends Plugin {
 	 * Register commands for each configured agent
 	 */
 	private registerAgentCommands(): void {
-		const agents = this.getAvailableAgents();
-
-		for (const agent of agents) {
-			this.addCommand({
-				id: `switch-agent-to-${agent.id}`,
-				name: `Switch agent to ${agent.displayName}`,
-				callback: () => {
-					this.app.workspace.trigger(
-						"agent-console:new-chat-requested",
-						this.getDispatchTargetId(),
-						agent.id,
-					);
-				},
-			});
-		}
+		this.addCommand({
+			id: "new-chat-with-agent",
+			name: "New chat with agent…",
+			callback: () => {
+				new AgentPickerModal(
+					this.app,
+					this.getAvailableAgents(),
+					(agentId) => {
+						void this.startChat(agentId);
+					},
+				).open();
+			},
+		});
 	}
 
 	private registerPermissionCommands(): void {
 		this.addCommand({
 			id: "approve-active-permission",
 			name: "Approve active permission",
-			callback: () => {
-				this.app.workspace.trigger(
-					"agent-console:approve-active-permission",
-					this.getDispatchTargetId(),
-				);
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.app.workspace.trigger(
+						"agent-console:approve-active-permission",
+						this.getDispatchTargetId(),
+					);
+				}
+				return true;
 			},
 		});
 
 		this.addCommand({
 			id: "reject-active-permission",
 			name: "Reject active permission",
-			callback: () => {
-				this.app.workspace.trigger(
-					"agent-console:reject-active-permission",
-					this.getDispatchTargetId(),
-				);
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.app.workspace.trigger(
+						"agent-console:reject-active-permission",
+						this.getDispatchTargetId(),
+					);
+				}
+				return true;
 			},
 		});
 
 		this.addCommand({
 			id: "toggle-auto-mention",
 			name: "Toggle active note in context",
-			callback: () => {
-				this.app.workspace.trigger(
-					"agent-console:toggle-auto-mention",
-					this.getDispatchTargetId(),
-				);
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.app.workspace.trigger(
+						"agent-console:toggle-auto-mention",
+						this.getDispatchTargetId(),
+					);
+				}
+				return true;
 			},
 		});
 
@@ -633,54 +707,67 @@ export default class AgentClientPlugin extends Plugin {
 			id: "new-chat",
 			name: "New chat",
 			callback: () => {
-				this.app.workspace.trigger(
-					"agent-console:new-chat-requested",
-					this.getDispatchTargetId(),
-				);
+				void this.startChat();
 			},
 		});
 
 		this.addCommand({
 			id: "cancel-current-message",
 			name: "Cancel current message",
-			callback: () => {
-				this.app.workspace.trigger(
-					"agent-console:cancel-message",
-					this.getDispatchTargetId(),
-				);
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.app.workspace.trigger(
+						"agent-console:cancel-message",
+						this.getDispatchTargetId(),
+					);
+				}
+				return true;
 			},
 		});
 
 		this.addCommand({
 			id: "export-chat",
 			name: "Export chat",
-			callback: () => {
-				this.app.workspace.trigger(
-					"agent-console:export-chat",
-					this.getDispatchTargetId(),
-				);
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.app.workspace.trigger(
+						"agent-console:export-chat",
+						this.getDispatchTargetId(),
+					);
+				}
+				return true;
 			},
 		});
 
 		this.addCommand({
 			id: "reload-session",
 			name: "Reload session",
-			callback: () => {
-				this.app.workspace.trigger(
-					"agent-console:reload-session",
-					this.getDispatchTargetId(),
-				);
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.app.workspace.trigger(
+						"agent-console:reload-session",
+						this.getDispatchTargetId(),
+					);
+				}
+				return true;
 			},
 		});
 
 		this.addCommand({
 			id: "hard-reload-session",
 			name: "Hard reload session (fresh)",
-			callback: () => {
-				this.app.workspace.trigger(
-					"agent-console:hard-reload-session",
-					this.getDispatchTargetId(),
-				);
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.app.workspace.trigger(
+						"agent-console:hard-reload-session",
+						this.getDispatchTargetId(),
+					);
+				}
+				return true;
 			},
 		});
 	}
@@ -693,8 +780,12 @@ export default class AgentClientPlugin extends Plugin {
 		this.addCommand({
 			id: "broadcast-prompt",
 			name: "Broadcast prompt",
-			callback: () => {
-				this.broadcastPrompt();
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.broadcastPrompt();
+				}
+				return true;
 			},
 		});
 
@@ -702,8 +793,12 @@ export default class AgentClientPlugin extends Plugin {
 		this.addCommand({
 			id: "broadcast-send",
 			name: "Broadcast send",
-			callback: () => {
-				void this.broadcastSend();
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					void this.broadcastSend();
+				}
+				return true;
 			},
 		});
 
@@ -711,8 +806,12 @@ export default class AgentClientPlugin extends Plugin {
 		this.addCommand({
 			id: "broadcast-cancel",
 			name: "Broadcast cancel",
-			callback: () => {
-				void this.broadcastCancel();
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					void this.broadcastCancel();
+				}
+				return true;
 			},
 		});
 	}

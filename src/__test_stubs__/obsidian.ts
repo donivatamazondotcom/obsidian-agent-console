@@ -38,6 +38,25 @@ export class Modal {
 	close() {}
 }
 
+export class App {}
+
+export class FuzzySuggestModal<T> {
+	app: App;
+	constructor(app: App) {
+		this.app = app;
+	}
+	setPlaceholder(_placeholder: string): void {}
+	getItems(): T[] {
+		return [];
+	}
+	getItemText(_item: T): string {
+		return "";
+	}
+	onChooseItem(_item: T, _evt?: MouseEvent | KeyboardEvent): void {}
+	open() {}
+	close() {}
+}
+
 export class Notice {
 	constructor(_message: string) {}
 }

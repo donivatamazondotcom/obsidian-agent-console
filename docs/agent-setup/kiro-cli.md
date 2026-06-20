@@ -44,7 +44,7 @@ Kiro CLI natively supports ACP, so no additional adapter is required. Just point
 
 ## Verify Setup
 
-1. Click the robot icon in the ribbon or use the command palette: **"Open chat view"**
+1. Click the robot icon in the ribbon or use the command palette: **"Open chat"**
 2. Switch to Kiro CLI from the agent dropdown in the chat header
 3. Try sending a message to verify the connection
 

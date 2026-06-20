@@ -105,6 +105,7 @@ src/
 │   ├── SessionHistoryModal.tsx  # Session history modal (list + confirm delete)
 │   ├── ChangeDirectoryModal.ts  # Per-tab cwd change modal (sets working dir for agent process)
 │   ├── ImportSettingsModal.ts  # Cross-plugin settings-import preview + apply dialog
+│   ├── AgentPickerModal.ts      # FuzzySuggestModal agent picker for "New chat with agent…"
 │   ├── SettingsTab.ts           # Plugin settings UI
 │   ├── view-host.ts             # IChatViewHost interface
 │   ├── use-auto-scroll-pin.ts   # Auto-scroll-to-bottom hook (pin state + native scroll + ResizeObserver/wheel/touch)
@@ -125,6 +126,7 @@ src/
 │   ├── link-leaf.ts             # Resolve click modifiers → Obsidian leaf/pane (Keymap.isModEvent) for internal links
 │   ├── menu-registry.ts         # Tracks open Menu popups; closes them on plugin unload (reload-safety)
 │   ├── agent-switch.ts          # Switch a lazy tab's agent so the first message connects to the switched agent
+│   ├── command-palette.ts       # Pure start-a-chat + context-gating decisions (computeStartChat, isChatCommandAvailable)
 │   └── logger.ts                # Debug-mode logger
 ├── plugin.ts                    # Obsidian plugin lifecycle, settings persistence
 └── main.ts                      # Entry point

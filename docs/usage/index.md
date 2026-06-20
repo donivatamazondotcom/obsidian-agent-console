@@ -10,7 +10,7 @@ You can open the Agent Console chat panel in two ways:
   <img src="/images/ribbon-icon.webp" alt="Ribbon Icon" />
 </p>
 
-- **Command Palette**: Open the command palette (`Cmd/Ctrl + P`) and search for **"Open chat view"**
+- **Command Palette**: Open the command palette (`Cmd/Ctrl + P`) and search for **"Open chat"**
 
 The chat panel opens in the right sidebar.
 
