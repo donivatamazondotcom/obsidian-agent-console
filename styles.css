@@ -975,7 +975,12 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	padding: 4px 10px;
+	/* Asymmetric horizontal padding: text needs more breathing room than the
+	   trailing × button. 6px right shifts the button right so the glyph sits
+	   ~11px from the right border, matching the name's ~11px from the left
+	   border (the 18px button's centered glyph adds ~4px internal slack that a
+	   symmetric 10px would compound into visible excess space). See I91. */
+	padding: 4px 6px 4px 10px;
 	border-radius: var(--radius-s);
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
