@@ -21,6 +21,71 @@ import { useAutoScrollPin } from "./use-auto-scroll-pin";
 const MemoMessageBubble = memo(MessageBubble);
 
 /**
+ * Data for the Layer 2 getting-started empty state — shown when the chat is
+ * empty and the current agent is not connectable (fresh install or
+ * misconfiguration), so the panel is never a dead end. See
+ * [[Agent Console Command Palette Rationalization]] § First-run / onboarding.
+ */
+export interface GettingStartedInfo {
+	/** Agents detected as installed on the machine, shown as one-click picks. */
+	detectedAgents: { id: string; displayName: string }[];
+	/** Switch the panel to the chosen agent and start a fresh chat. */
+	onPickAgent: (agentId: string) => void;
+	/** Open the plugin settings tab. */
+	onOpenSettings: () => void;
+}
+
+/**
+ * Getting-started panel content: a heading, detected-agent one-click picks
+ * (or an honest "none detected" line), an always-present open-settings escape
+ * hatch, and a manual-path hint. Built from elements + CSS classes only
+ * (no inline styles), sentence case per Obsidian plugin guidelines.
+ */
+function GettingStarted({ info }: { info: GettingStartedInfo }) {
+	const { detectedAgents, onPickAgent, onOpenSettings } = info;
+	return (
+		<div className="agent-client-chat-empty-state agent-client-getting-started">
+			<div className="agent-client-getting-started-heading">
+				Pick an agent to get started
+			</div>
+			{detectedAgents.length > 0 ? (
+				<>
+					<div className="agent-client-getting-started-subtext">
+						Detected on your machine:
+					</div>
+					<div className="agent-client-getting-started-picks">
+						{detectedAgents.map((agent) => (
+							<button
+								key={agent.id}
+								type="button"
+								className="agent-client-getting-started-pick"
+								onClick={() => onPickAgent(agent.id)}
+							>
+								{agent.displayName}
+							</button>
+						))}
+					</div>
+				</>
+			) : (
+				<div className="agent-client-getting-started-subtext">
+					No agent CLI detected on your machine yet.
+				</div>
+			)}
+			<button
+				type="button"
+				className="agent-client-getting-started-settings"
+				onClick={onOpenSettings}
+			>
+				Open settings
+			</button>
+			<div className="agent-client-getting-started-hint">
+				Already have a CLI installed elsewhere? Set its path in settings.
+			</div>
+		</div>
+	);
+}
+
+/**
  * Props for MessageList component
  */
 export interface MessageListProps {
@@ -62,6 +127,12 @@ export interface MessageListProps {
 	 * without further plumbing changes.
 	 */
 	isFallbackRecovery?: boolean;
+	/**
+	 * When present, the empty state renders the Layer 2 getting-started block
+	 * (detected-agent picks + open-settings) instead of the plain connecting
+	 * text — used when the current agent is not connectable.
+	 */
+	gettingStarted?: GettingStartedInfo;
 }
 
 /**
@@ -131,6 +202,7 @@ export function MessageList({
 	hasActivePermission,
 	isActive = true,
 	isFallbackRecovery = false,
+	gettingStarted,
 }: MessageListProps) {
 	// ============================================================
 	// Auto-scroll (single owner)
@@ -168,15 +240,19 @@ export function MessageList({
 		return (
 			<div ref={scrollRef} className="agent-client-chat-view-messages">
 				<div ref={contentRef} className="agent-client-chat-content">
-					<div className="agent-client-chat-empty-state">
-						{isRestoringSession
-							? "Restoring session..."
-							: isLazyIdle
-								? `Send a message to connect to ${agentLabel}...`
-								: !isSessionReady
-									? `Connecting to ${agentLabel}...`
-									: `Start a conversation with ${agentLabel}...`}
-					</div>
+					{gettingStarted ? (
+						<GettingStarted info={gettingStarted} />
+					) : (
+						<div className="agent-client-chat-empty-state">
+							{isRestoringSession
+								? "Restoring session..."
+								: isLazyIdle
+									? `Send a message to connect to ${agentLabel}...`
+									: !isSessionReady
+										? `Connecting to ${agentLabel}...`
+										: `Start a conversation with ${agentLabel}...`}
+						</div>
+					)}
 				</div>
 			</div>
 		);

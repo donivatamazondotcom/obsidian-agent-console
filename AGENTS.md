@@ -48,6 +48,7 @@ src/
 │   ├── session-storage.ts       # Session metadata + message file I/O (sessions/*.json)
 │   ├── settings-normalizer.ts   # Validation helpers + DEFAULT_SETTINGS + normalizeRawSettings (raw→typed mapping)
 │   ├── session-helpers.ts       # Agent config building, API key injection (pure functions)
+│   ├── agent-detection.ts       # First-run agent detection (probe commands) + default-by-priority selection (pure)
 │   ├── session-state.ts         # Session state updates (legacy mode/model, config restore)
 │   ├── message-state.ts         # Message array transforms (upsert, merge, streaming apply)
 │   ├── message-sender.ts        # Prompt preparation + sending (pure functions)
@@ -231,6 +232,7 @@ Thin wrapper that:
 **settings-normalizer**: Validation helpers (str, bool, num, enumVal, obj, strRecord, xyPoint) + toAgentConfig + parseChatFontSize + DEFAULT_SETTINGS + normalizeRawSettings (the single raw→typed settings mapping, shared by loadSettings and the import adapter)
 **import/**: Cross-plugin settings migration. ImportSource interface + agentClientAdapter (reads the upstream agent-client data.json, reuses normalizeRawSettings, ports API keys by reference or migrates legacy plaintext) + registry (createImportSources).
 **session-helpers**: Pure functions — buildAgentConfigWithApiKey, findAgentSettings, getAvailableAgents
+**agent-detection**: Pure functions — detectAvailableAgents (parallel command probes via injected resolver), pickDefaultAgentId / chooseFirstRunDefault (priority-ordered first-run default). Used by plugin.detectAgents() (session-cached) for first-run default selection and the getting-started empty state.
 **session-state**: Pure functions — applyLegacyValue, tryRestoreConfigOption, restoreLegacyConfig
 **message-state**: Pure functions — applySingleUpdate, applyUpsertToolCall, mergeToolCallContent, findActivePermission, selectOption
 **message-sender**: Pure functions — preparePrompt (embedded context vs XML text, shared helpers), sendPreparedPrompt (auth retry)

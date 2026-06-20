@@ -61,7 +61,7 @@ const EMPTY_COMMANDS: SlashCommand[] = [];
 
 // Component imports
 import { ChatHeader } from "./ChatHeader";
-import { MessageList } from "./MessageList";
+import { MessageList, type GettingStartedInfo } from "./MessageList";
 import { InputArea } from "./InputArea";
 import { ContextStrip } from "./ContextStrip";
 import { computeProvisionalPath } from "../utils/provisional-context";
@@ -1523,6 +1523,54 @@ export function ChatPanel({
 			</div>
 		) : null;
 
+	// Layer 2 — getting-started empty state. Lazily detect installed agents
+	// the first time an empty, not-yet-ready panel renders; if the current
+	// agent is not among them, surface one-click picks + open-settings instead
+	// of a dead-end "Connecting..." that never resolves. Detection is the
+	// session-cached, login-shell-aware plugin probe (never on the load path).
+	const [detectedAgentIds, setDetectedAgentIds] = useState<
+		Set<string> | null
+	>(null);
+
+	const isEmptyAndIdle =
+		messages.length === 0 && !isSessionReady && !sessionHistory.loading;
+
+	useEffect(() => {
+		if (!isEmptyAndIdle || detectedAgentIds !== null) return;
+		let cancelled = false;
+		void plugin.detectAgents().then((ids) => {
+			if (!cancelled) setDetectedAgentIds(ids);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [isEmptyAndIdle, detectedAgentIds, plugin]);
+
+	const gettingStarted = useMemo<GettingStartedInfo | undefined>(() => {
+		if (messages.length > 0 || detectedAgentIds === null) return undefined;
+		const currentAgentId =
+			session.agentId || plugin.settings.defaultAgentId;
+		// Agent resolves → not a dead end; let the normal empty state show.
+		if (detectedAgentIds.has(currentAgentId)) return undefined;
+		return {
+			detectedAgents: availableAgents.filter((a) =>
+				detectedAgentIds.has(a.id),
+			),
+			onPickAgent: (agentId: string) => {
+				void handleNewChatWithPersist(agentId);
+			},
+			onOpenSettings: handleOpenSettings,
+		};
+	}, [
+		messages.length,
+		detectedAgentIds,
+		session.agentId,
+		plugin,
+		availableAgents,
+		handleNewChatWithPersist,
+		handleOpenSettings,
+	]);
+
 	// Combine real messages with the optimistic pending message for display.
 	const displayMessages = useMemo(
 		() => pendingMessage ? [...messages, pendingMessage] : messages,
@@ -1544,6 +1592,7 @@ export function ChatPanel({
 			hasActivePermission={agent.hasActivePermission}
 			isActive={isActive}
 			isFallbackRecovery={lazySession.isFallbackRecovery}
+			gettingStarted={gettingStarted}
 		/>
 	);
 

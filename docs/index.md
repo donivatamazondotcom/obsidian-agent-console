@@ -25,7 +25,7 @@ features:
     details: Agents don't just read – they write back. Let one capture decisions and draft notes as you work, so what you figure out lands back in your vault. Each project leaves your notes richer for the next.
   - icon: 🤖
     title: Any Agent, Several at Once
-    details: Claude Code, Codex, Gemini CLI, Kiro CLI, or any custom ACP-compatible agent. Run several side by side in a tabbed sidebar – each tab its own session, surviving an Obsidian restart and connecting to its agent only when you start typing.
+    details: Claude Code, Codex, Gemini CLI, Kiro CLI, or any custom ACP-compatible agent. Run several side by side in a tabbed sidebar – each tab its own session, surviving an Obsidian restart and connecting to its agent only when you start typing. On a fresh install it defaults to an agent you already have installed, so your first chat just works.
   - icon: 💻
     title: See and Approve What Runs
     details: When an agent runs a command, you see it and its output right in the chat – and anything that touches your system waits for your approval first. No black-box actions.

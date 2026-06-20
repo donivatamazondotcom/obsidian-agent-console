@@ -883,6 +883,47 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	margin-top: 20px;
 }
 
+/* Getting-started empty state (Layer 2: never a dead end) */
+.agent-client-getting-started {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 10px;
+	padding: 0 16px;
+}
+
+.agent-client-getting-started-heading {
+	color: var(--text-normal);
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
+}
+
+.agent-client-getting-started-subtext {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.agent-client-getting-started-picks {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 8px;
+}
+
+.agent-client-getting-started-pick {
+	cursor: pointer;
+}
+
+.agent-client-getting-started-settings {
+	cursor: pointer;
+}
+
+.agent-client-getting-started-hint {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	max-width: 280px;
+}
+
 /* Context strip */
 .context-strip {
 	display: flex;
