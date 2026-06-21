@@ -275,6 +275,18 @@ export default class AgentClientPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "reopen-closed-session",
+			name: "Reopen closed session tab",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.getActiveChatView()?.reopenClosedTab();
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
 			id: "import-settings",
 			name: "Import settings from another agent plugin",
 			callback: () => {

@@ -54,6 +54,7 @@ src/
 │   ├── message-sender.ts        # Prompt preparation + sending (pure functions)
 │   ├── chat-exporter.ts         # Markdown export with frontmatter
 │   ├── view-registry.ts         # Multi-view management, focus, broadcast
+│   ├── recently-closed-stack.ts # F13 undo-close: closed-tab record + LIFO push/pop/build (pure)
 │   ├── update-checker.ts        # Agent/plugin version checking
 │   ├── import/                   # Cross-plugin settings-import adapters
 │   │   ├── ImportSource.ts       # ImportSource interface + preview types
@@ -81,6 +82,7 @@ src/
 │   ├── useChatActions.ts        # Business callbacks (send, newChat, export, restart, etc.)
 │   ├── useHistoryModal.ts       # Session history modal lifecycle
 │   ├── useSettings.ts           # Settings subscription (useSyncExternalStore)
+│   ├── useRecentlyClosedTabs.ts # F13 undo-close: per-leaf in-memory recently-closed stack
 │   └── useTabManager.ts         # Per-tab session orchestration (state, focus, lifecycle)
 ├── ui/                          # React components
 │   ├── ChatContext.ts           # React Context (plugin, acpClient, vaultService, settingsService)
