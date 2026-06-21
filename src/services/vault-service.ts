@@ -151,7 +151,7 @@ export class VaultService implements IVaultAccess {
 		this.files = this.plugin.app.vault.getMarkdownFiles();
 		this.lastBuild = Date.now();
 		this.logger.log(
-			`[VaultService] Rebuilt index with ${this.files.length} files`,
+			`Rebuilt index with ${this.files.length} files`,
 		);
 	}
 
@@ -456,7 +456,7 @@ export class VaultService implements IVaultAccess {
 			// 2. A future Obsidian version removes the 'cm' property
 			// 3. The editor is in a different mode (e.g., legacy editor)
 			getLogger().debug(
-				"[VaultService] CodeMirror 6 API not available. " +
+				"CodeMirror 6 API not available. " +
 					"Selection change tracking will not work. " +
 					"This may be due to an Obsidian version change.",
 			);
@@ -540,7 +540,7 @@ export class VaultService implements IVaultAccess {
 			try {
 				listener();
 			} catch (error) {
-				getLogger().error("[VaultService] Selection listener error", error);
+				getLogger().error("Selection listener error", error);
 			}
 		}
 	}

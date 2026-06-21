@@ -144,7 +144,7 @@ export class AcpClient {
 		// agent switch and is NOT coalesced.
 		if (this.initializePromise && this.initializingAgentId === config.id) {
 			this.logger.log(
-				`[AcpClient] initialize() already in flight for ${config.id}; awaiting existing promise`,
+				`initialize() already in flight for ${config.id}; awaiting existing promise`,
 			);
 			return this.initializePromise;
 		}
@@ -169,11 +169,11 @@ export class AcpClient {
 		config: AgentConfig,
 	): Promise<InitializeResult> {
 		this.logger.log(
-			"[AcpClient] Starting initialization with config:",
+			"Starting initialization with config:",
 			this.getSafeConfigForLog(config),
 		);
 		this.logger.log(
-			`[AcpClient] Current state - process: ${!!this.agentProcess}, PID: ${this.agentProcess?.pid}`,
+			`Current state - process: ${!!this.agentProcess}, PID: ${this.agentProcess?.pid}`,
 		);
 
 		// Clean up existing process if any (e.g., when switching agents)
@@ -183,7 +183,7 @@ export class AcpClient {
 
 		// Clean up existing connection
 		if (this.connection) {
-			this.logger.log("[AcpClient] Cleaning up existing connection");
+			this.logger.log("Cleaning up existing connection");
 			this.connection = null;
 		}
 
@@ -205,11 +205,11 @@ export class AcpClient {
 		const args = config.args.length > 0 ? [...config.args] : [];
 
 		this.logger.log(
-			`[AcpClient] Active agent: ${config.displayName} (${config.id})`,
+			`Active agent: ${config.displayName} (${config.id})`,
 		);
-		this.logger.log("[AcpClient] Command:", command);
+		this.logger.log("Command:", command);
 		this.logger.log(
-			"[AcpClient] Args:",
+			"Args:",
 			args.length > 0 ? args.join(" ") : "(none)",
 		);
 
@@ -248,7 +248,7 @@ export class AcpClient {
 				? `${nodeDir}${separator}${baseEnv.PATH}`
 				: nodeDir;
 			this.logger.log(
-				"[AcpClient] Node.js directory added to PATH:",
+				"Node.js directory added to PATH:",
 				nodeDir,
 			);
 		}
@@ -264,7 +264,7 @@ export class AcpClient {
 		}
 
 		this.logger.log(
-			"[AcpClient] Starting agent process in directory:",
+			"Starting agent process in directory:",
 			config.workingDirectory,
 		);
 
@@ -285,7 +285,7 @@ export class AcpClient {
 		const needsShell = prepared.needsShell;
 
 		this.logger.log(
-			"[AcpClient] Prepared spawn command:",
+			"Prepared spawn command:",
 			spawnCommand,
 			spawnArgs,
 		);
@@ -309,14 +309,14 @@ export class AcpClient {
 		// Set up process event handlers
 		agentProcess.on("spawn", () => {
 			this.logger.log(
-				`[AcpClient] ${agentLabel} process spawned successfully, PID:`,
+				`${agentLabel} process spawned successfully, PID:`,
 				agentProcess.pid,
 			);
 		});
 
 		agentProcess.on("error", (error) => {
 			this.logger.error(
-				`[AcpClient] ${agentLabel} process error:`,
+				`${agentLabel} process error:`,
 				error,
 			);
 
@@ -342,14 +342,14 @@ export class AcpClient {
 
 		agentProcess.on("exit", (code, signal) => {
 			this.logger.log(
-				`[AcpClient] ${agentLabel} process exited with code:`,
+				`${agentLabel} process exited with code:`,
 				code,
 				"signal:",
 				signal,
 			);
 
 			if (code === 127) {
-				this.logger.error(`[AcpClient] Command not found: ${command}`);
+				this.logger.error(`Command not found: ${command}`);
 
 				const processError: ProcessError = {
 					type: "command_not_found",
@@ -373,7 +373,7 @@ export class AcpClient {
 
 		agentProcess.on("close", (code, signal) => {
 			this.logger.log(
-				`[AcpClient] ${agentLabel} process closed with code:`,
+				`${agentLabel} process closed with code:`,
 				code,
 				"signal:",
 				signal,
@@ -382,7 +382,7 @@ export class AcpClient {
 
 		agentProcess.stderr?.setEncoding("utf8");
 		agentProcess.stderr?.on("data", (data) => {
-			this.logger.log(`[AcpClient] ${agentLabel} stderr:`, data);
+			this.logger.log(`${agentLabel} stderr:`, data);
 			// Keep a rolling window of recent stderr for error diagnostics
 			this.recentStderr += data;
 			if (this.recentStderr.length > 8192) {
@@ -419,7 +419,7 @@ export class AcpClient {
 		});
 
 		this.logger.log(
-			"[AcpClient] Using working directory:",
+			"Using working directory:",
 			config.workingDirectory,
 		);
 
@@ -430,7 +430,7 @@ export class AcpClient {
 		);
 
 		try {
-			this.logger.log("[AcpClient] Starting ACP initialization...");
+			this.logger.log("Starting ACP initialization...");
 
 			const initResult = await this.connection.initialize({
 				protocolVersion: acp.PROTOCOL_VERSION,
@@ -449,16 +449,16 @@ export class AcpClient {
 			});
 
 			this.logger.log(
-				`[AcpClient] ✅ Connected to agent (protocol v${initResult.protocolVersion})`,
+				`✅ Connected to agent (protocol v${initResult.protocolVersion})`,
 			);
-			this.logger.log("[AcpClient] agentInfo:", initResult.agentInfo);
+			this.logger.log("agentInfo:", initResult.agentInfo);
 
 			this.isInitializedFlag = true;
 			this.currentAgentId = config.id;
 
 			return AcpTypeConverter.toInitializeResult(initResult);
 		} catch (error) {
-			this.logger.error("[AcpClient] Initialization Error:", error);
+			this.logger.error("Initialization Error:", error);
 
 			// Reset flags on failure
 			this.isInitializedFlag = false;
@@ -504,7 +504,7 @@ export class AcpClient {
 		const connection = this.requireConnection();
 
 		try {
-			this.logger.log("[AcpClient] Creating new session...");
+			this.logger.log("Creating new session...");
 
 			const response = await connection.newSession({
 				cwd: this.toSessionCwd(workingDirectory),
@@ -512,7 +512,7 @@ export class AcpClient {
 			});
 
 			this.logger.log(
-				`[AcpClient] Created session: ${response.sessionId}`,
+				`Created session: ${response.sessionId}`,
 			);
 			const result = AcpTypeConverter.toSessionResult(
 				response.sessionId,
@@ -521,7 +521,7 @@ export class AcpClient {
 			this.currentSessionId = result.sessionId;
 			return result;
 		} catch (error) {
-			this.logger.error("[AcpClient] New Session Error:", error);
+			this.logger.error("New Session Error:", error);
 			throw error;
 		}
 	}
@@ -534,10 +534,10 @@ export class AcpClient {
 
 		try {
 			await connection.authenticate({ methodId });
-			this.logger.log("[AcpClient] ✅ authenticate ok:", methodId);
+			this.logger.log("✅ authenticate ok:", methodId);
 			return true;
 		} catch (error: unknown) {
-			this.logger.error("[AcpClient] Authentication Error:", error);
+			this.logger.error("Authentication Error:", error);
 			return false;
 		}
 	}
@@ -561,7 +561,7 @@ export class AcpClient {
 			);
 
 			this.logger.log(
-				`[AcpClient] Sending prompt with ${content.length} content blocks`,
+				`Sending prompt with ${content.length} content blocks`,
 			);
 
 			const promptResult = await connection.prompt({
@@ -570,7 +570,7 @@ export class AcpClient {
 			});
 
 			this.logger.log(
-				`[AcpClient] Agent completed with: ${promptResult.stopReason}`,
+				`Agent completed with: ${promptResult.stopReason}`,
 			);
 
 			// Detect silent failures: agent returned end_turn but sent no content.
@@ -587,14 +587,14 @@ export class AcpClient {
 				const stderrHint = extractStderrErrorHint(this.recentStderr);
 				if (stderrHint) {
 					this.logger.warn(
-						"[AcpClient] Agent returned end_turn with no session updates — detected error in stderr",
+						"Agent returned end_turn with no session updates — detected error in stderr",
 					);
 					throw new Error(
 						`The agent returned an empty response. ${stderrHint}`,
 					);
 				} else {
 					this.logger.log(
-						"[AcpClient] Agent returned end_turn with no session updates (may be expected for some commands)",
+						"Agent returned end_turn with no session updates (may be expected for some commands)",
 					);
 				}
 			}
@@ -602,7 +602,7 @@ export class AcpClient {
 			if (isEmptyResponseError(error) || isUserAbortedError(error)) {
 				return;
 			}
-			this.logger.error("[AcpClient] Prompt Error:", error);
+			this.logger.error("Prompt Error:", error);
 			throw error;
 		}
 	}
@@ -617,14 +617,14 @@ export class AcpClient {
 		}
 		try {
 			this.logger.log(
-				"[AcpClient] Sending session/cancel notification...",
+				"Sending session/cancel notification...",
 			);
 			await this.connection.cancel({ sessionId });
 			this.logger.log(
-				"[AcpClient] Cancellation request sent successfully",
+				"Cancellation request sent successfully",
 			);
 		} catch (error) {
-			this.logger.warn("[AcpClient] Failed to send cancellation:", error);
+			this.logger.warn("Failed to send cancellation:", error);
 		} finally {
 			this.cancelAllOperations();
 		}
@@ -640,7 +640,7 @@ export class AcpClient {
 		if (!this.agentProcess) return;
 
 		const pid = this.agentProcess.pid;
-		this.logger.log(`[AcpClient] Killing process tree (PID: ${pid})`);
+		this.logger.log(`Killing process tree (PID: ${pid})`);
 
 		try {
 			if (Platform.isWin && pid) {
@@ -671,7 +671,7 @@ export class AcpClient {
 	 * Disconnect from the agent and clean up resources.
 	 */
 	disconnect(): Promise<void> {
-		this.logger.log("[AcpClient] Disconnecting...");
+		this.logger.log("Disconnecting...");
 
 		// Cancel all pending operations
 		this.cancelAllOperations();
@@ -688,7 +688,7 @@ export class AcpClient {
 		this.currentAgentId = null;
 		this.currentSessionId = null;
 
-		this.logger.log("[AcpClient] Disconnected");
+		this.logger.log("Disconnected");
 		return Promise.resolve();
 	}
 
@@ -726,7 +726,7 @@ export class AcpClient {
 		const connection = this.requireConnection();
 
 		this.logger.log(
-			`[AcpClient] Setting session mode to: ${modeId} for session: ${sessionId}`,
+			`Setting session mode to: ${modeId} for session: ${sessionId}`,
 		);
 
 		try {
@@ -734,9 +734,9 @@ export class AcpClient {
 				sessionId,
 				modeId,
 			});
-			this.logger.log(`[AcpClient] Session mode set to: ${modeId}`);
+			this.logger.log(`Session mode set to: ${modeId}`);
 		} catch (error) {
-			this.logger.error("[AcpClient] Failed to set session mode:", error);
+			this.logger.error("Failed to set session mode:", error);
 			throw error;
 		}
 	}
@@ -748,7 +748,7 @@ export class AcpClient {
 		const connection = this.requireConnection();
 
 		this.logger.log(
-			`[AcpClient] Setting session model to: ${modelId} for session: ${sessionId}`,
+			`Setting session model to: ${modelId} for session: ${sessionId}`,
 		);
 
 		try {
@@ -756,10 +756,10 @@ export class AcpClient {
 				sessionId,
 				modelId,
 			});
-			this.logger.log(`[AcpClient] Session model set to: ${modelId}`);
+			this.logger.log(`Session model set to: ${modelId}`);
 		} catch (error) {
 			this.logger.error(
-				"[AcpClient] Failed to set session model:",
+				"Failed to set session model:",
 				error,
 			);
 			throw error;
@@ -781,7 +781,7 @@ export class AcpClient {
 		const connection = this.requireConnection();
 
 		this.logger.log(
-			`[AcpClient] Setting config option: ${configId}=${value} for session: ${sessionId}`,
+			`Setting config option: ${configId}=${value} for session: ${sessionId}`,
 		);
 
 		try {
@@ -791,7 +791,7 @@ export class AcpClient {
 				value,
 			});
 			this.logger.log(
-				`[AcpClient] Config option set. Updated options:`,
+				`Config option set. Updated options:`,
 				response.configOptions,
 			);
 			return AcpTypeConverter.toSessionConfigOptions(
@@ -799,7 +799,7 @@ export class AcpClient {
 			);
 		} catch (error) {
 			this.logger.error(
-				"[AcpClient] Failed to set config option:",
+				"Failed to set config option:",
 				error,
 			);
 			throw error;
@@ -829,7 +829,7 @@ export class AcpClient {
 		this.requireConnection();
 
 		this.logger.log(
-			"[AcpClient] Responding to permission request:",
+			"Responding to permission request:",
 			requestId,
 			"with option:",
 			optionId,
@@ -899,7 +899,7 @@ export class AcpClient {
 		const connection = this.requireConnection();
 
 		try {
-			this.logger.log("[AcpClient] Listing sessions...");
+			this.logger.log("Listing sessions...");
 
 			const filterCwd = cwd ? this.toSessionCwd(cwd) : undefined;
 
@@ -909,7 +909,7 @@ export class AcpClient {
 			});
 
 			this.logger.log(
-				`[AcpClient] Found ${response.sessions.length} sessions`,
+				`Found ${response.sessions.length} sessions`,
 			);
 
 			return {
@@ -922,7 +922,7 @@ export class AcpClient {
 				nextCursor: response.nextCursor ?? undefined,
 			};
 		} catch (error) {
-			this.logger.error("[AcpClient] List Sessions Error:", error);
+			this.logger.error("List Sessions Error:", error);
 			throw error;
 		}
 	}
@@ -944,7 +944,7 @@ export class AcpClient {
 		this.currentSessionId = sessionId;
 
 		try {
-			this.logger.log(`[AcpClient] Loading session: ${sessionId}...`);
+			this.logger.log(`Loading session: ${sessionId}...`);
 
 			const response = await connection.loadSession({
 				sessionId,
@@ -952,7 +952,7 @@ export class AcpClient {
 				mcpServers: [],
 			});
 
-			this.logger.log(`[AcpClient] Session loaded: ${sessionId}`);
+			this.logger.log(`Session loaded: ${sessionId}`);
 			const result = AcpTypeConverter.toSessionResult(
 				sessionId,
 				response,
@@ -960,7 +960,7 @@ export class AcpClient {
 			this.currentSessionId = result.sessionId;
 			return result;
 		} catch (error) {
-			this.logger.error("[AcpClient] Load Session Error:", error);
+			this.logger.error("Load Session Error:", error);
 			throw error;
 		}
 	}
@@ -984,7 +984,7 @@ export class AcpClient {
 		this.currentSessionId = sessionId;
 
 		try {
-			this.logger.log(`[AcpClient] Resuming session: ${sessionId}...`);
+			this.logger.log(`Resuming session: ${sessionId}...`);
 
 			const response = await connection.unstable_resumeSession({
 				sessionId,
@@ -992,7 +992,7 @@ export class AcpClient {
 				mcpServers: [],
 			});
 
-			this.logger.log(`[AcpClient] Session resumed: ${sessionId}`);
+			this.logger.log(`Session resumed: ${sessionId}`);
 			const result = AcpTypeConverter.toSessionResult(
 				sessionId,
 				response,
@@ -1000,7 +1000,7 @@ export class AcpClient {
 			this.currentSessionId = result.sessionId;
 			return result;
 		} catch (error) {
-			this.logger.error("[AcpClient] Resume Session Error:", error);
+			this.logger.error("Resume Session Error:", error);
 			throw error;
 		}
 	}
@@ -1018,7 +1018,7 @@ export class AcpClient {
 		const connection = this.requireConnection();
 
 		try {
-			this.logger.log(`[AcpClient] Forking session: ${sessionId}...`);
+			this.logger.log(`Forking session: ${sessionId}...`);
 
 			const response = await connection.unstable_forkSession({
 				sessionId,
@@ -1027,7 +1027,7 @@ export class AcpClient {
 			});
 
 			this.logger.log(
-				`[AcpClient] Session forked: ${sessionId} -> ${response.sessionId}`,
+				`Session forked: ${sessionId} -> ${response.sessionId}`,
 			);
 			const result = AcpTypeConverter.toSessionResult(
 				response.sessionId,
@@ -1036,7 +1036,7 @@ export class AcpClient {
 			this.currentSessionId = result.sessionId;
 			return result;
 		} catch (error) {
-			this.logger.error("[AcpClient] Fork Session Error:", error);
+			this.logger.error("Fork Session Error:", error);
 			throw error;
 		}
 	}

@@ -300,7 +300,7 @@ export default class AgentClientPlugin extends Plugin {
 				for (const [viewId, client] of this._acpClients) {
 					client.disconnect().catch((error) => {
 						getLogger().warn(
-							`[AgentClient] Quit cleanup error for view ${viewId}:`,
+							`Quit cleanup error for view ${viewId}:`,
 							error,
 						);
 					});
@@ -361,7 +361,7 @@ export default class AgentClientPlugin extends Plugin {
 				await client.disconnect();
 			} catch (error) {
 				getLogger().warn(
-					`[AgentClient] Failed to disconnect client for view ${viewId}:`,
+					`Failed to disconnect client for view ${viewId}:`,
 					error,
 				);
 			}
@@ -589,7 +589,7 @@ export default class AgentClientPlugin extends Plugin {
 	async openNewChatViewWithAgent(agentId: string): Promise<void> {
 		const leaf = this.createNewChatLeaf(true);
 		if (!leaf) {
-			getLogger().warn("[AgentClient] Failed to create new leaf");
+			getLogger().warn("Failed to create new leaf");
 			return;
 		}
 
@@ -1017,7 +1017,7 @@ export default class AgentClientPlugin extends Plugin {
 			await this.saveSettings();
 		} catch (error) {
 			getLogger().warn(
-				"[AgentClient] settings-import offer failed:",
+				"settings-import offer failed:",
 				error,
 			);
 		}
@@ -1090,7 +1090,7 @@ export default class AgentClientPlugin extends Plugin {
 			await this.activateView();
 		} catch (error) {
 			getLogger().warn(
-				"[AgentClient] first-run onboarding failed:",
+				"first-run onboarding failed:",
 				error,
 			);
 		}

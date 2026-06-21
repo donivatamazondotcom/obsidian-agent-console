@@ -68,7 +68,7 @@ export class AcpHandler {
 		const update = params.update;
 		const sessionId = params.sessionId;
 		this.promptSessionUpdateCount++;
-		this.logger.log("[AcpHandler] sessionUpdate:", {
+		this.logger.log("sessionUpdate:", {
 			sessionId,
 			type: update.sessionUpdate,
 		});
@@ -176,7 +176,7 @@ export class AcpHandler {
 		params: Record<string, unknown>,
 	): Promise<void> {
 		this.logger.log(
-			`[AcpHandler] Extension notification received: ${method}`,
+			`Extension notification received: ${method}`,
 			params,
 		);
 	}
@@ -201,7 +201,7 @@ export class AcpHandler {
 		params: acp.CreateTerminalRequest,
 	): Promise<acp.CreateTerminalResponse> {
 		this.logger.log(
-			"[AcpHandler] createTerminal called with params:",
+			"createTerminal called with params:",
 			params,
 		);
 
@@ -247,7 +247,7 @@ export class AcpHandler {
 		const success = this.terminalManager.releaseTerminal(params.terminalId);
 		if (!success) {
 			this.logger.log(
-				`[AcpHandler] releaseTerminal: Terminal ${params.terminalId} not found (may have been already cleaned up)`,
+				`releaseTerminal: Terminal ${params.terminalId} not found (may have been already cleaned up)`,
 			);
 		}
 		return Promise.resolve({});

@@ -852,11 +852,11 @@ export class ChatView extends ItemView implements IChatViewContainer {
 	// ============================================================
 
 	onActivate(): void {
-		this.logger.log(`[ChatView] Activated: ${this.viewId}`);
+		this.logger.log(`Activated: ${this.viewId}`);
 	}
 
 	onDeactivate(): void {
-		this.logger.log(`[ChatView] Deactivated: ${this.viewId}`);
+		this.logger.log(`Deactivated: ${this.viewId}`);
 	}
 
 	focus(): void {
@@ -907,14 +907,14 @@ export class ChatView extends ItemView implements IChatViewContainer {
 	}
 
 	async onClose(): Promise<void> {
-		this.logger.log("[ChatView] onClose() called");
+		this.logger.log("onClose() called");
 
 		// Flush tab persistence before unmounting React (U30, T07)
 		if (this.flushSaveFn) {
 			try {
 				await this.flushSaveFn();
 			} catch (e) {
-				this.logger.error("[ChatView] flushSave error:", e);
+				this.logger.error("flushSave error:", e);
 			}
 		}
 
