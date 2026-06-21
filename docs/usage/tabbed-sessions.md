@@ -72,6 +72,23 @@ Right-click a tab → **Rename**. Names must be unique within the session (dupli
 
 You can't close the last tab — at least one tab always remains. The chat sidebar always has an active session.
 
+## Confirm before closing the whole panel
+
+Closing a single tab is easy to undo, but closing the **whole panel** — `Cmd/Ctrl + W` while the panel is focused — tears down every open chat at once, including any agents still running. To prevent losing several sessions to one accidental keystroke, Agent Console asks first:
+
+> **Close Agent Console?**
+> You have 3 open chats. Closing this panel will close all of them.
+>
+> [Cancel] [Close panel]
+
+The prompt appears only when the panel has **2 or more** open chats. With a single chat, `Cmd/Ctrl + W` closes immediately — there's nothing ambiguous to confirm.
+
+Turn it off under **Settings → Tabs → "Confirm before closing multiple chats"** (on by default).
+
+::: tip Scope
+This guards the keyboard close (`Cmd/Ctrl + W`) — the path that most often fires by accident. Closing the panel from the pane menu still closes immediately; reopen recently closed chats from [Session history](/usage/session-history).
+:::
+
 ## Per-tab state
 
 Each tab independently tracks:

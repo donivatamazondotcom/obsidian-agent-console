@@ -113,6 +113,12 @@ export interface AgentClientPluginSettings {
 	restoreTabsOnStartup: boolean;
 
 	/**
+	 * Confirm before closing the panel (focused Cmd+W) when it has 2+ open
+	 * chats (default: true). See [[ACP Confirm Close With Multiple Tabs]].
+	 */
+	confirmCloseWithMultipleTabs: boolean;
+
+	/**
 	 * Per-leaf saved tab state for restoration across Obsidian restarts.
 	 *
 	 * Optional: undefined means no state has been saved yet (first

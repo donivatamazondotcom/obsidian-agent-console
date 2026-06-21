@@ -63,6 +63,7 @@ Because the agents live in your vault, you stay in control: you pin what they se
 * **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol); on a fresh install Agent Console defaults to one it finds installed and opens the panel for you
 * **Your context budget goes further** – context notes are referenced, not re-pasted into every message, so a long chat uses 65–80% fewer context tokens than re-sending the full note each turn
 * **Restart Obsidian without losing your place** – your open tabs and their conversations reopen exactly as you left them; each sidebar pane restores its own tabs independently
+* **Don’t lose a panel full of agents to one keystroke** – closing the panel with Cmd+W checks first when you have two or more chats open
 * **Scroll up to read while the agent is still typing** – the incoming stream won’t yank you back to the bottom, so you can reread earlier output mid-response; tabs also keep their scroll position when you switch away and back
 * **Tabs don’t spin up until you type** – opening a tab won’t start an agent session, or any of its MCP servers, until you actually type, so rereading past chats stays light
 

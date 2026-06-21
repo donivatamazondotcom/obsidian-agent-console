@@ -337,6 +337,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	lastUsedModels: {},
 	lastUsedModes: {},
 	restoreTabsOnStartup: true,
+	confirmCloseWithMultipleTabs: true,
 };
 
 /**
@@ -559,6 +560,10 @@ export function normalizeRawSettings(
 			typeof raw.restoreTabsOnStartup === "boolean"
 				? raw.restoreTabsOnStartup
 				: D.restoreTabsOnStartup,
+		confirmCloseWithMultipleTabs:
+			typeof raw.confirmCloseWithMultipleTabs === "boolean"
+				? raw.confirmCloseWithMultipleTabs
+				: D.confirmCloseWithMultipleTabs,
 		// Type-level coercion only — record-level validation happens inside
 		// SessionStorage.loadTabState (so the service can return null on
 		// corruption rather than silently dropping malformed records here).
