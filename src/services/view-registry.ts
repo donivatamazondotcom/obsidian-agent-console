@@ -191,7 +191,7 @@ export class ChatViewRegistry {
 	 */
 	register(view: IChatViewContainer): void {
 		this.logger.log(
-			`[ChatViewRegistry] Registering view: ${view.viewId} (${view.viewType})`,
+			`Registering view: ${view.viewId} (${view.viewType})`,
 		);
 		this.views.set(view.viewId, view);
 
@@ -206,7 +206,7 @@ export class ChatViewRegistry {
 	 * If the focused view is unregistered, focus moves to another view.
 	 */
 	unregister(viewId: string): void {
-		this.logger.log(`[ChatViewRegistry] Unregistering view: ${viewId}`);
+		this.logger.log(`Unregistering view: ${viewId}`);
 		const view = this.views.get(viewId);
 		if (view) {
 			view.onDeactivate();
@@ -229,7 +229,7 @@ export class ChatViewRegistry {
 	 * Note: This does NOT call unmount() on views - that should be done separately.
 	 */
 	clear(): void {
-		this.logger.log("[ChatViewRegistry] Clearing all views");
+		this.logger.log("Clearing all views");
 		for (const view of this.views.values()) {
 			view.onDeactivate();
 		}
@@ -272,7 +272,7 @@ export class ChatViewRegistry {
 		// Activate new
 		this.focusedViewId = viewId;
 		this.views.get(viewId)?.onActivate();
-		this.logger.log(`[ChatViewRegistry] Focus changed to: ${viewId}`);
+		this.logger.log(`Focus changed to: ${viewId}`);
 	}
 
 	/**

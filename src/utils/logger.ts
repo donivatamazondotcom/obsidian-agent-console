@@ -2,6 +2,14 @@ export interface LoggerConfig {
 	debugMode: boolean;
 }
 
+/**
+ * Product-name prefix applied to every console message emitted by the plugin,
+ * so Agent Console output is recognizable in Obsidian devtools (especially
+ * alongside other plugins). Centralized here so call sites do not hardcode
+ * their own (internal class-name) prefix. See I90.
+ */
+const LOG_PREFIX = "[Agent Console]";
+
 let globalLogger: Logger | null = null;
 
 export function initializeLogger(config: LoggerConfig): void {
@@ -38,27 +46,27 @@ export class Logger {
 
 	log(...args: unknown[]): void {
 		if (this.debugMode) {
-			console.debug("[Debug]", ...args);
+			console.debug(LOG_PREFIX, ...args);
 		}
 	}
 
 	debug(...args: unknown[]): void {
 		if (this.debugMode) {
-			console.debug("[Debug]", ...args);
+			console.debug(LOG_PREFIX, ...args);
 		}
 	}
 
 	info(...args: unknown[]): void {
 		if (this.debugMode) {
-			console.debug("[Debug]", ...args);
+			console.debug(LOG_PREFIX, ...args);
 		}
 	}
 
 	error(...args: unknown[]): void {
-		console.error(...args);
+		console.error(LOG_PREFIX, ...args);
 	}
 
 	warn(...args: unknown[]): void {
-		console.warn(...args);
+		console.warn(LOG_PREFIX, ...args);
 	}
 }

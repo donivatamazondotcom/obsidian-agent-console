@@ -313,7 +313,7 @@ export function useChatActions(
 				}
 
 				logger.log(
-					`[Debug] Creating new session${isAgentSwitch ? ` with agent: ${requestedAgentId}` : ""}...`,
+					`Creating new session${isAgentSwitch ? ` with agent: ${requestedAgentId}` : ""}...`,
 				);
 
 				// Auto-export current chat before starting new one (if has messages)
