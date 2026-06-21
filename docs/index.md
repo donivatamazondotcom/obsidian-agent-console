@@ -46,7 +46,7 @@ features:
     details: Agent Console adopts Obsidian’s native styling and theme variables instead of hardcoded colors and chrome, so it looks like part of your Obsidian and adapts to any custom theme.
   - icon: 🛡️
     title: Enterprise-Grade Quality
-    details: "Built with the rigor you'd expect from enterprise software: 330+ automated tests, lint and build checks on every change, a token-efficiency benchmark you can run yourself, and performance tracked against a baseline – so updates stay solid as the plugin grows."
+    details: "Built with the rigor you'd expect from enterprise software: 700+ automated tests, lint and build checks on every change, a token-efficiency benchmark you can run yourself, and performance tracked against a baseline – so updates stay solid as the plugin grows."
 ---
 
 <p align="center"><em>Agent Console was built start to finish this way – the plugin is its own proof.</em></p>
