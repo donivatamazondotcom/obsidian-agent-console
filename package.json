@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"preversion": "npm run docs:screenshots:check:strict",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"format": "prettier --write \"src/**/*.{ts,tsx}\" \"*.css\"",
 		"format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"*.css\"",
@@ -22,7 +23,8 @@
 		"docs:build": "vitepress build docs",
 		"docs:preview": "vitepress preview docs",
 		"docs:screenshots": "npm run build && bash tools/screenshots/setup.sh && npx tsx tools/screenshots/run.ts",
-		"docs:screenshots:check": "npx tsx tools/screenshots/check.ts"
+		"docs:screenshots:check": "npx tsx tools/screenshots/check.ts",
+		"docs:screenshots:check:strict": "npx tsx tools/screenshots/check.ts --strict"
 	},
 	"keywords": [],
 	"author": "",

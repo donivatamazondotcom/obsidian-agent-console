@@ -9,6 +9,7 @@ import {
 	checkConsistency,
 	findGifDimMismatches,
 	formatProblems,
+	pendingEntryNames,
 } from "../check";
 import type { ManifestEntry } from "../manifest";
 
@@ -30,6 +31,19 @@ describe("derivedImageName", () => {
 		expect(derivedImageName(entry("parallel-sessions", true))).toBe(
 			"parallel-sessions.gif",
 		);
+	});
+});
+
+describe("pendingEntryNames", () => {
+	it("returns only pending entry names, sorted", () => {
+		const a = { ...entry("zebra"), pending: true } as ManifestEntry;
+		const b = entry("captured");
+		const c = { ...entry("alpha"), pending: true } as ManifestEntry;
+		expect(pendingEntryNames([a, b, c])).toEqual(["alpha", "zebra"]);
+	});
+
+	it("is empty when nothing is pending (release gate passes)", () => {
+		expect(pendingEntryNames([entry("a"), entry("b", true)])).toEqual([]);
 	});
 });
 
