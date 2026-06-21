@@ -16,6 +16,14 @@ Always available, including from a cold start with no chat view open. **New chat
 | **New chat** | Open a new tab with a fresh chat — opens a panel first if none is open |
 | **New chat with agent…** | Pick an agent from a list, then open a new tab with a fresh chat on it |
 
+<p align="center">
+  <img src="/images/command-palette.webp" alt="Obsidian command palette filtered to Agent Console, showing Open chat, New chat, and New chat with agent" width="560" />
+</p>
+
+<p align="center">
+  <img src="/images/new-chat-agent-picker.webp" alt="Agent Console New chat with agent picker listing the configured agents" width="460" />
+</p>
+
 ## Act on the current chat
 
 These appear only when a chat view is open.

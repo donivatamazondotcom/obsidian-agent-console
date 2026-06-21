@@ -24,6 +24,10 @@ All three open the same preview, so you always see what will change before anyth
 
 The preview lists the agents it found, the default agent, how many custom agents will come across, and the status of each API key. Nothing changes until you click **Import**.
 
+<p align="center">
+  <img src="/images/settings-import.webp" alt="Agent Console settings-import preview modal listing the agents and keys that would be imported" width="520" />
+</p>
+
 ## About your API keys
 
 Obsidian keeps secrets in a shared keychain, so in most cases your keys port across **by reference** – Agent Console points at the same stored key and you never re-enter it. The key's value is never shown or copied.

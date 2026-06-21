@@ -319,7 +319,9 @@ describe("captureEntry", () => {
 			(c: string[]) => c[0] as string,
 		);
 		const newTabCalls = (deps.cdp.executeCommand as ReturnType<typeof vi.fn>).mock.calls.filter(
-			(c: unknown[]) => (c[0] as string).includes("new-session-tab"),
+			// v1.2.0 rationalization removed `new-session-tab`; new tabs now
+			// open via the surviving `new-chat` command (browser-tab model).
+			(c: unknown[]) => (c[0] as string).includes("agent-console:new-chat"),
 		);
 		expect(newTabCalls).toHaveLength(2); // 3 prompts -> 2 extra tabs
 		expect((deps.readFile as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(3);
@@ -519,6 +521,82 @@ describe("captureEntry", () => {
 
 		await expect(captureEntry(entry, deps)).rejects.toThrow("disk full");
 	});
+
+	it("seeds labeled tabs and forces their states for forceTabStates (tab-status-dropdown)", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) => {
+				if (expr.includes("tabs[0].agentId"))
+					return Promise.resolve("claude-code-acp");
+				if (expr.includes("tabs[0].tabId"))
+					return Promise.resolve("tab-initial");
+				if (expr.includes("tabs.map"))
+					return Promise.resolve(
+						JSON.stringify(["id0", "id1", "id2", "id3", "id4"]),
+					);
+				return Promise.resolve(undefined);
+			},
+		);
+		const labels = [
+			"Draft newsletter",
+			"Summarize meeting notes",
+			"Reorganize vault notes",
+			"Import reading list",
+			"Plan Japan itinerary",
+		];
+		const states = [
+			"ready",
+			"busy",
+			"permission",
+			"error",
+			"disconnected",
+		] as const;
+		const entry = makeEntry({
+			cropSelector: ".menu",
+			initialState: {
+				clickRibbon: true,
+				forceTabStates: labels.map((label, i) => ({
+					label,
+					state: states[i],
+				})),
+			},
+		});
+
+		await captureEntry(entry, deps);
+
+		const evalCalls = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c) => c[0] as string);
+		// Native menus disabled so the chevron dropdown is a DOM .menu.
+		expect(
+			evalCalls.some((e) =>
+				e.includes('setConfig("nativeMenus", false)'),
+			),
+		).toBe(true);
+		// One labeled addTab per spec.
+		for (const label of labels) {
+			expect(
+				evalCalls.some(
+					(e) => e.includes("addTab(") && e.includes(label),
+				),
+			).toBe(true);
+		}
+		// The initial auto-labeled tab is dropped.
+		expect(
+			evalCalls.some((e) => e.includes('removeTab("tab-initial")')),
+		).toBe(true);
+		// Each seeded tab is forced into its declared state, in order.
+		states.forEach((state, i) => {
+			expect(
+				evalCalls.some(
+					(e) =>
+						e.includes("setTabState(") &&
+						e.includes(`"id${i}"`) &&
+						e.includes(state),
+				),
+			).toBe(true);
+		});
+	}, 15000);
 });
 
 describe("captureAll", () => {

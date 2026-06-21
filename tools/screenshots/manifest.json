@@ -17,7 +17,7 @@
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 800,
 			"placement": "feature",
-			"purpose": "Shows where Agent Console lives \u2014 the ribbon entry point.",
+			"purpose": "Shows where Agent Console lives — the ribbon entry point.",
 			"differentiator": "Ribbon icon / one-click access",
 			"mustShow": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"]",
 			"caption": "Open the agent from the ribbon",
@@ -45,7 +45,9 @@
 				"multi-session.txt"
 			],
 			"draftMessage": "Turn these ideas into a short intro paragraph",
-			"hideSelectors": [".tooltip"],
+			"hideSelectors": [
+				".tooltip"
+			],
 			"approvalThreshold": 0.1,
 			"minDistinctColors": 1500,
 			"placement": "hero",
@@ -153,7 +155,7 @@
 			"purpose": "Tune how much reasoning effort the agent spends per session.",
 			"differentiator": "Per-session reasoning effort",
 			"mustShow": ".agent-client-config-selector-thought_level",
-			"caption": "Dial the agent\u2019s effort up or down",
+			"caption": "Dial the agent’s effort up or down",
 			"altText": "Agent Console effort-level menu showing Default, Low, Medium, High, and Max"
 		},
 		{
@@ -431,16 +433,25 @@
 				"fps": 5,
 				"maxBytes": 1500000,
 				"frames": [
-					{ "holdMs": 900 },
+					{
+						"holdMs": 900
+					},
 					{
 						"actions": [
-							{ "type": "click", "selector": ".context-strip-pill--provisional .context-strip-pill-remove" }
+							{
+								"type": "click",
+								"selector": ".context-strip-pill--provisional .context-strip-pill-remove"
+							}
 						],
 						"holdMs": 1000
 					},
 					{
 						"actions": [
-							{ "type": "click", "selector": ".context-strip-grab", "waitFor": ".context-strip-pill:not(.context-strip-pill--provisional)" }
+							{
+								"type": "click",
+								"selector": ".context-strip-grab",
+								"waitFor": ".context-strip-pill:not(.context-strip-pill--provisional)"
+							}
 						],
 						"holdMs": 1200
 					}
@@ -472,22 +483,35 @@
 				"fps": 5,
 				"maxBytes": 1500000,
 				"frames": [
-					{ "holdMs": 900 },
+					{
+						"holdMs": 900
+					},
 					{
 						"actions": [
-							{ "type": "draft", "text": "@Project" }
+							{
+								"type": "draft",
+								"text": "@Project"
+							}
 						],
 						"holdMs": 1100
 					},
 					{
 						"actions": [
-							{ "type": "click", "selector": ".agent-client-mention-dropdown-item", "waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button:not(.agent-client-disabled)" }
+							{
+								"type": "click",
+								"selector": ".agent-client-mention-dropdown-item",
+								"waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button:not(.agent-client-disabled)"
+							}
 						],
 						"holdMs": 1100
 					},
 					{
 						"actions": [
-							{ "type": "click", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button", "waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) .context-strip-pill:not(.context-strip-pill--provisional)" }
+							{
+								"type": "click",
+								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button",
+								"waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) .context-strip-pill:not(.context-strip-pill--provisional)"
+							}
 						],
 						"holdMs": 1600
 					}
@@ -521,27 +545,61 @@
 				"frames": [
 					{
 						"actions": [
-							{ "type": "draft", "text": "Give me a one-line tip for organizing notes." },
-							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button:not(.agent-client-disabled)" },
-							{ "type": "click", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button" },
-							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-message-renderer.agent-client-message-assistant" },
-							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-loading-indicator.agent-client-hidden" }
+							{
+								"type": "draft",
+								"text": "Give me a one-line tip for organizing notes."
+							},
+							{
+								"type": "wait",
+								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button:not(.agent-client-disabled)"
+							},
+							{
+								"type": "click",
+								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button"
+							},
+							{
+								"type": "wait",
+								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-message-renderer.agent-client-message-assistant"
+							},
+							{
+								"type": "wait",
+								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-loading-indicator.agent-client-hidden"
+							}
 						],
 						"holdMs": 1500
 					},
 					{
 						"actions": [
-							{ "type": "click", "selector": ".agent-client-tab-bar-add", "waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) textarea.agent-client-chat-input-textarea" }
+							{
+								"type": "click",
+								"selector": ".agent-client-tab-bar-add",
+								"waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) textarea.agent-client-chat-input-textarea"
+							}
 						],
 						"holdMs": 1000
 					},
 					{
 						"actions": [
-							{ "type": "draft", "text": "Suggest a short name for a personal wiki." },
-							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button:not(.agent-client-disabled)" },
-							{ "type": "click", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button" },
-							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-message-renderer.agent-client-message-assistant" },
-							{ "type": "wait", "selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-loading-indicator.agent-client-hidden" }
+							{
+								"type": "draft",
+								"text": "Suggest a short name for a personal wiki."
+							},
+							{
+								"type": "wait",
+								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button:not(.agent-client-disabled)"
+							},
+							{
+								"type": "click",
+								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button"
+							},
+							{
+								"type": "wait",
+								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-message-renderer.agent-client-message-assistant"
+							},
+							{
+								"type": "wait",
+								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-loading-indicator.agent-client-hidden"
+							}
 						],
 						"holdMs": 1800
 					}
@@ -675,37 +733,61 @@
 		},
 		{
 			"name": "tab-status-dropdown",
-			"pending": true,
-			"width": 360,
-			"height": 360,
+			"pending": false,
+			"width": 550,
+			"height": 405,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 360,
-				"height": 360
+				"width": 550,
+				"height": 405
 			},
-			"cropSelector": ".menu",
-			"cropPadding": 8,
-			"captureMode": "screen",
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true,
-				"clickSelector": ".agent-client-tab-bar-chevron"
+				"forceTabStates": [
+					{
+						"label": "Draft newsletter",
+						"state": "ready"
+					},
+					{
+						"label": "Summarize meeting notes",
+						"state": "busy"
+					},
+					{
+						"label": "Reorganize vault notes",
+						"state": "permission"
+					},
+					{
+						"label": "Import reading list",
+						"state": "error"
+					},
+					{
+						"label": "Plan Japan itinerary",
+						"state": "disconnected"
+					}
+				],
+				"clickSelector": ".agent-client-tab-bar-chevron",
+				"waitSelector": ".menu"
 			},
+			"cropSelector": ".menu",
+			"cropPadding": 12,
 			"approvalThreshold": 0.01,
-			"minDistinctColors": 200,
+			"minDistinctColors": 40,
 			"placement": "feature",
-			"purpose": "Jump to any session from the tab-list dropdown, each entry prefixed with its status glyph.",
-			"differentiator": "Per-tab status in the tab-list dropdown",
-			"mustShow": ".menu",
-			"caption": "Spot the stuck or finished session at a glance",
-			"altText": "The tab-list chevron dropdown open, each entry prefixed with its status glyph and a checkmark on the active tab",
+			"purpose": "Per-tab status glyphs in the tab bar — spot the active, idle, or stuck session at a glance.",
+			"differentiator": "Per-tab status glyphs in the tab-list dropdown",
+			"mustShow": ".menu-item",
+			"caption": "See every session's status at a glance",
+			"altText": "Agent Console tab-list dropdown: five sessions, each with a status glyph for ready, busy, awaiting permission, errored, and disconnected.",
 			"docPage": "docs/usage/tabbed-sessions.md",
-			"captureNote": "Seed >=2 tabs in differing states so the glyph variety shows (like parallel-sessions), then click the chevron."
+			"captureNote": "Driven by initialState.forceTabStates: seeds 5 nicely-labeled tabs forced into the five visual states with nativeMenus off (so the chevron opens a DOM .menu), then clickSelector opens the chevron. Window-mode, dpr-independent — no screen-mode crop.",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 680
 		},
 		{
 			"name": "getting-started",
-			"pending": true,
+			"pending": false,
 			"width": 628,
 			"height": 380,
 			"crop": {
@@ -718,7 +800,14 @@
 			"cropPadding": 16,
 			"initialState": {
 				"openNote": "Welcome.md",
-				"clickRibbon": true
+				"clickRibbon": true,
+				"forceGettingStarted": {
+					"defaultAgentId": "kiro-cli",
+					"detectedAgentIds": [
+						"claude-code-acp",
+						"codex-acp"
+					]
+				}
 			},
 			"approvalThreshold": 0.05,
 			"minDistinctColors": 300,
@@ -734,7 +823,7 @@
 		},
 		{
 			"name": "command-palette",
-			"pending": true,
+			"pending": false,
 			"width": 760,
 			"height": 280,
 			"crop": {
@@ -745,10 +834,12 @@
 			},
 			"cropSelector": ".prompt",
 			"cropPadding": 0,
-			"captureMode": "screen",
 			"initialState": {
 				"openNote": "Welcome.md",
-				"clickRibbon": true
+				"runCommands": [
+					"command-palette:open"
+				],
+				"typeQuery": "Agent Console"
 			},
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 300,
@@ -764,7 +855,7 @@
 		},
 		{
 			"name": "new-chat-agent-picker",
-			"pending": true,
+			"pending": false,
 			"width": 620,
 			"height": 300,
 			"crop": {
@@ -775,10 +866,11 @@
 			},
 			"cropSelector": ".prompt",
 			"cropPadding": 0,
-			"captureMode": "screen",
 			"initialState": {
 				"openNote": "Welcome.md",
-				"clickRibbon": true
+				"runCommands": [
+					"agent-console:new-chat-with-agent"
+				]
 			},
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 300,
@@ -794,7 +886,7 @@
 		},
 		{
 			"name": "settings-import",
-			"pending": true,
+			"pending": false,
 			"width": 760,
 			"height": 520,
 			"crop": {
@@ -803,11 +895,13 @@
 				"width": 760,
 				"height": 520
 			},
-			"cropSelector": ".agent-client-import-agents",
+			"cropSelector": ".modal",
 			"cropPadding": 16,
 			"initialState": {
 				"openNote": "Welcome.md",
-				"openSettings": "agent-console"
+				"runCommands": [
+					"agent-console:import-settings"
+				]
 			},
 			"approvalThreshold": 0.02,
 			"minDistinctColors": 400,
@@ -823,20 +917,21 @@
 		},
 		{
 			"name": "update-pill",
-			"pending": true,
-			"width": 360,
-			"height": 120,
+			"pending": false,
+			"width": 720,
+			"height": 150,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 360,
-				"height": 120
+				"width": 720,
+				"height": 150
 			},
-			"cropSelector": ".agent-client-chat-view-header-update",
-			"cropPadding": 12,
+			"cropSelector": ".agent-client-chat-view-header",
+			"cropPadding": 10,
 			"initialState": {
 				"openNote": "Welcome.md",
-				"clickRibbon": true
+				"clickRibbon": true,
+				"forceUpdateAvailable": true
 			},
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 120,
@@ -845,10 +940,12 @@
 			"differentiator": "Update-pill click-through (v1.2.0)",
 			"mustShow": ".agent-client-chat-view-header-update",
 			"caption": "One click to update",
-			"altText": "The update-available pill in the Agent Console chat header",
-			"docPage": "docs/usage/commands.md",
+			"altText": "The Agent Console chat header with the Plugin update available pill",
+			"docPage": "docs/help/troubleshooting.md",
 			"manualCapture": true,
-			"captureNote": "Pill only renders when an update is available; needs a mocked update-available state to capture."
+			"captureNote": "Pill only renders when an update is available; needs a mocked update-available state to capture.",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 720
 		}
 	]
 }

@@ -224,6 +224,26 @@ export async function captureEntry(
 			);
 		}
 	}
+	// Stub plugin runtime state for shots that depend on a condition we can't
+	// reproduce hermetically (an available update / a no-working-agent machine).
+	// MUST run BEFORE clickRibbon/openChatView so the freshly-mounted ChatPanel
+	// reads the stub on its first effect pass.
+	if (entry.initialState?.forceUpdateAvailable) {
+		await deps.cdp.evaluate(
+			`(() => { app.plugins.plugins["agent-console"].checkForUpdates = async () => true; return true; })()`,
+		);
+	}
+	if (entry.initialState?.forceGettingStarted) {
+		const { defaultAgentId, detectedAgentIds } =
+			entry.initialState.forceGettingStarted;
+		await deps.cdp.evaluate(
+			`(() => { const p = app.plugins.plugins["agent-console"]; const det = new Set(${JSON.stringify(
+				detectedAgentIds,
+			)}); p._detectedAgentsPromise = Promise.resolve(det); p.detectAgents = async () => det; p.settings.defaultAgentId = ${JSON.stringify(
+				defaultAgentId,
+			)}; return true; })()`,
+		);
+	}
 	if (entry.initialState?.clickRibbon) {
 		// v1.1.0 restores the panel + tabs on plugin reload
 		// (restoreTabsOnStartup), and the ribbon is a TOGGLE: clicking it
@@ -259,7 +279,7 @@ export async function captureEntry(
 		entry.prompts ?? (entry.promptFile ? [entry.promptFile] : []);
 	for (let i = 0; i < promptFiles.length; i++) {
 		if (i > 0) {
-			await deps.cdp.executeCommand("agent-console:new-session-tab");
+			await deps.cdp.executeCommand("agent-console:new-chat");
 			await deps.cdp.waitForElement(
 				`${ACTIVE_PANEL} textarea.agent-client-chat-input-textarea`,
 			);
@@ -356,6 +376,134 @@ export async function captureEntry(
 				return true;
 			})()`,
 		);
+	}
+
+	// 3c-bis. Run arbitrary Obsidian commands to open command-driven UI the
+	// pipeline can't otherwise reach: the native command palette
+	// (command-palette:open), the New-chat-with-agent picker
+	// (agent-console:new-chat-with-agent), or extra new-chat tabs
+	// (agent-console:new-chat) to populate the tab-list dropdown. BEFORE
+	// clickSelector so seeded tabs exist when the chevron is clicked.
+	if (entry.initialState?.runCommands?.length) {
+		// When a panel was opened, wait for its tab bar to mount before running
+		// commands.
+		if (
+			entry.initialState.clickRibbon ||
+			entry.initialState.openChatView
+		) {
+			await deps.cdp
+				.waitForElement(
+					`${ACTIVE_PANEL} .agent-client-tab`,
+					HOVER_TOOLTIP_TIMEOUT_MS,
+				)
+				.catch(() => {});
+		}
+		const TAB_SELECTOR = ".agent-client-tab";
+		for (const cmd of entry.initialState.runCommands) {
+			if (cmd === "agent-console:new-chat") {
+				// Seeding (tab-status-dropdown): new-chat silently no-ops when
+				// fired against a freshly-opened, not-yet-ready panel, leaving a
+				// single tab. Re-fire until the tab count actually increases
+				// (signal-based, not a blind settle) — the panel becomes ready
+				// within ~3s and the first effective fire adds the tab.
+				const before = await deps.cdp
+					.evaluate<number>(
+						`document.querySelectorAll(${JSON.stringify(TAB_SELECTOR)}).length`,
+					)
+					.catch(() => 0);
+				for (let attempt = 0; attempt < 8; attempt++) {
+					await deps.cdp.executeCommand(cmd);
+					await sleep(SETTLE_MS);
+					const now = await deps.cdp
+						.evaluate<number>(
+							`document.querySelectorAll(${JSON.stringify(TAB_SELECTOR)}).length`,
+						)
+						.catch(() => before);
+					if (now > before) break;
+				}
+			} else {
+				await deps.cdp.executeCommand(cmd);
+				await sleep(SETTLE_MS);
+			}
+		}
+	}
+	// 3c-quater. Seed an exact labeled tab set with forced visual states so the
+	// tab-list dropdown shows the full glyph legend (● ◐ △ ✕ ○). Real ACP
+	// sessions can't be coerced into all five states at once, so disable native
+	// menus — making the chevron dropdown a DOM `.menu` that window capture sees
+	// and that opens regardless of OS focus (sidesteps the I13/I15 native-popup
+	// wall) — then drive the view's tabManagerRef directly. Runs after the panel
+	// is open and BEFORE clickSelector opens the chevron.
+	if (entry.initialState?.forceTabStates?.length) {
+		const specs = entry.initialState.forceTabStates;
+		const VIEW =
+			'app.workspace.getLeavesOfType("agent-client-chat-view")[0]?.view';
+		// Wait for the panel's initial tab to mount.
+		await deps.cdp
+			.waitForElement(
+				`${ACTIVE_PANEL} .agent-client-tab`,
+				HOVER_TOOLTIP_TIMEOUT_MS,
+			)
+			.catch(() => {});
+		// DOM menu (not OS popup) so the dropdown is window-capturable.
+		await deps.cdp.evaluate(`app.vault.setConfig("nativeMenus", false)`);
+		// Agent id to clone for the seeded tabs + the initial auto-labeled tab
+		// to drop once the seeded set exists.
+		const agentId = await deps.cdp
+			.evaluate<string>(`${VIEW}.tabManagerRef.tabs[0].agentId`)
+			.catch(() => null);
+		const initialTabId = await deps.cdp
+			.evaluate<string>(`${VIEW}.tabManagerRef.tabs[0].tabId`)
+			.catch(() => null);
+		if (agentId && initialTabId) {
+			// addTab appends one labeled tab per spec; React flushes between
+			// awaited evaluate calls.
+			for (const s of specs) {
+				await deps.cdp.evaluate(
+					`${VIEW}.tabManagerRef.addTab(${JSON.stringify(agentId)}, ${JSON.stringify(s.label)})`,
+				);
+				await sleep(SETTLE_MS);
+			}
+			// Drop the initial auto-labeled tab; active reassigns to the first
+			// seeded tab, so its checkmark sits on the leading (ready) entry.
+			await deps.cdp.evaluate(
+				`${VIEW}.tabManagerRef.removeTab(${JSON.stringify(initialTabId)})`,
+			);
+			await sleep(SETTLE_MS);
+			// Force each seeded tab's visual state, in declared order.
+			const ids = JSON.parse(
+				(await deps.cdp.evaluate<string>(
+					`JSON.stringify(${VIEW}.tabManagerRef.tabs.map((t) => t.tabId))`,
+				)) ?? "[]",
+			) as string[];
+			for (let i = 0; i < specs.length && i < ids.length; i++) {
+				await deps.cdp.evaluate(
+					`${VIEW}.tabManagerRef.setTabState(${JSON.stringify(ids[i])}, ${JSON.stringify(specs[i].state)})`,
+				);
+				await sleep(SETTLE_MS / 2);
+			}
+			// Activate the first (ready) tab so the dropdown checkmark sits on a
+			// coherent active session rather than the disconnected one (addTab
+			// activates each new tab, leaving the last-added one active).
+			if (ids.length) {
+				await deps.cdp.evaluate(
+					`${VIEW}.tabManagerRef.setActiveTab(${JSON.stringify(ids[0])})`,
+				);
+				await sleep(SETTLE_MS / 2);
+			}
+		}
+	}
+	// 3c-ter. Type a filter into the open prompt/suggest input (e.g. narrow the
+	// command palette to the Agent Console commands).
+	if (entry.initialState?.typeQuery) {
+		const q = entry.initialState.typeQuery
+			.replace(/\\/g, "\\\\")
+			.replace(/`/g, "\\`")
+			.replace(/\$/g, "\\$");
+		await deps.cdp.evaluate(
+			`(() => { const i = document.querySelector('.prompt-input'); if (!i) return false; const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; setter.call(i, \`${q}\`); i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`,
+		);
+		await sleep(SETTLE_MS);
 	}
 
 	// 3d. Click a selector to open a popover/menu for capture. Fires AFTER

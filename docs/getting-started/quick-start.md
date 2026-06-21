@@ -36,6 +36,10 @@ The chat panel opens in the right sidebar. Type a message and press Enter!
 On a brand-new install, Agent Console opens this panel for you once and defaults to an agent it finds installed — see [First Run](/getting-started/first-run).
 :::
 
+<p align="center">
+  <img src="/images/getting-started.webp" alt="Agent Console getting-started panel showing detected agents as one-click picks and an Open settings button" width="340" />
+</p>
+
 ## What's Next?
 
 - Learn about [Note Mentions](/usage/mentions) to reference your notes in conversations

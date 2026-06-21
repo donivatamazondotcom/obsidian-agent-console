@@ -1,0 +1,30 @@
+{
+	"claude": {
+		"id": "claude-code-acp",
+		"displayName": "Claude Code",
+		"command": "claude-agent-acp",
+		"apiKey": "example-not-a-real-key",
+		"args": [],
+		"env": []
+	},
+	"codex": {
+		"id": "codex-acp",
+		"displayName": "Codex",
+		"command": "codex-acp",
+		"apiKey": "example-not-a-real-key",
+		"args": [],
+		"env": []
+	},
+	"gemini": {
+		"id": "gemini-cli",
+		"displayName": "Gemini CLI",
+		"command": "gemini",
+		"apiKeySecretId": "",
+		"args": ["--experimental-acp"],
+		"env": []
+	},
+	"customAgents": [
+		{ "id": "local-llm", "displayName": "Local LLM", "command": "local-llm-acp", "args": [], "env": [] }
+	],
+	"defaultAgentId": "claude-code-acp"
+}
