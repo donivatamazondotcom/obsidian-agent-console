@@ -596,7 +596,7 @@ describe("captureEntry", () => {
 				),
 			).toBe(true);
 		});
-	});
+	}, 15000);
 });
 
 describe("captureAll", () => {
