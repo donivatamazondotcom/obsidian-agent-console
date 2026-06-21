@@ -13,8 +13,17 @@ git pull --ff-only
 #     committed baseline before releasing. Phase 1 warns, does not block.
 npm run gate
 
+# 1c. Screenshot gate (blocking): the `preversion` hook runs
+#     `docs:screenshots:check:strict`, which FAILS the bump if any manifest
+#     entry is still flagged `pending` (a shipped feature whose docs
+#     screenshot hasn't been captured). Capture it (drop `pending` + commit
+#     the image) or remove the entry to clear the gate. Run it early to see
+#     what's outstanding:
+npm run docs:screenshots:check:strict
+
 # 2. Bump version. Auto-updates manifest.json + package.json + versions.json
 #    via version-bump.mjs. Use: patch | minor | major
+#    (preversion runs the screenshot gate above — the bump aborts if pending.)
 npm version patch -m "chore: release v%s"
 
 # 3. Push commit + tag together

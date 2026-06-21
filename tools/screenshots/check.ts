@@ -20,6 +20,7 @@ import {
 	findGifDimMismatches,
 	formatProblems,
 	derivedImageName,
+	pendingEntryNames,
 } from "./lib/check";
 
 const IMAGE_EXT = /\.(webp|gif)$/;
@@ -91,8 +92,25 @@ async function main() {
 		for (const p of problems) console.error(`  - ${p}`);
 		process.exit(1);
 	}
+
+	// Release gate: `--strict` (wired to the `preversion` npm hook) refuses to
+	// pass while any entry is still pending capture, so a tag can't ship a
+	// feature whose docs screenshot is missing. Drop the `pending` flag and
+	// commit the image (or remove the entry) to clear it.
+	const strict = process.argv.includes("--strict");
+	const pending = pendingEntryNames(manifest.entries);
+	if (strict && pending.length > 0) {
+		console.error(
+			`❌ Release gate: ${pending.length} screenshot(s) still pending capture — capture them (drop "pending" + commit the image) or remove the entry before tagging:`,
+		);
+		for (const n of pending) console.error(`  - ${n}`);
+		process.exit(1);
+	}
+
+	const pendingNote =
+		pending.length > 0 ? ` (${pending.length} pending capture)` : "";
 	console.log(
-		`✅ Screenshot consistency OK — ${manifest.entries.length} manifest entries, ${presentImages.length} committed images, ${docRefs.length} docs references.`,
+		`✅ Screenshot consistency OK — ${manifest.entries.length} manifest entries, ${presentImages.length} committed images, ${docRefs.length} docs references${pendingNote}.`,
 	);
 }
 

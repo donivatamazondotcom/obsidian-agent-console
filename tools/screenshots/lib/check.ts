@@ -29,6 +29,20 @@ export function derivedImageName(entry: ManifestEntry): string {
 	return `${entry.name}.${entry.animation ? "gif" : "webp"}`;
 }
 
+/**
+ * Names of entries flagged `pending` (a registered capture spec whose image
+ * has not been committed yet), sorted. Day-to-day CI tolerates these; the
+ * release gate (`check.ts --strict`, wired to the `preversion` npm hook)
+ * treats a non-empty list as a hard failure so a version can't be tagged
+ * while a shipped feature still lacks its docs screenshot.
+ */
+export function pendingEntryNames(entries: ManifestEntry[]): string[] {
+	return entries
+		.filter((e) => e.pending)
+		.map((e) => e.name)
+		.sort();
+}
+
 export interface ConsistencyInput {
 	entries: ManifestEntry[];
 	/** Image filenames present in docs/public/images (webp + gif only). */
