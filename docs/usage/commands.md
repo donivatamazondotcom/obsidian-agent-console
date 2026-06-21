@@ -49,6 +49,7 @@ These appear only when a chat view is open.
 | **Next session tab** | Switch to the next tab in the active panel |
 | **Previous session tab** | Switch to the previous tab in the active panel |
 | **Close session tab** | Close the active tab |
+| **Reopen closed session tab** | Reopen the most-recently-closed tab and restore its conversation — transcript, agent, label, and pinned context. Repeat to walk further back (browser-style Cmd+Shift+T). Closed tabs are remembered for the current session only |
 
 ## Settings Commands
 

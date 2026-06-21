@@ -10,7 +10,8 @@ const { useEffect, useMemo, useCallback, useRef, useState } = React;
 import { createRoot, Root } from "react-dom/client";
 
 import type AgentClientPlugin from "../plugin";
-import type { ChatInputState } from "../types/chat";
+import type { ChatInputState, ChatMessage } from "../types/chat";
+import type { ContextNote } from "../types/context";
 import type { TabInfo, TabState, PerLeafTabState, PersistedTabInfo } from "../types/tab";
 
 // Utility imports
@@ -31,10 +32,12 @@ import { ConfirmCloseModal } from "./ConfirmCloseModal";
 // Hook imports
 import { useTabManager, truncateLabel } from "../hooks/useTabManager";
 import { useTabPersistence, type TabPersistenceStorage } from "../hooks/useTabPersistence";
+import { useRecentlyClosedTabs } from "../hooks/useRecentlyClosedTabs";
 
 // Service imports
 import { VaultService } from "../services/vault-service";
 import { resolveSessionIdForSave, resolveRenamedSessionWrite } from "../services/session-helpers";
+import { buildClosedTabRecord } from "../services/recently-closed-stack";
 import type { AcpClient } from "../acp/acp-client";
 
 export const VIEW_TYPE_CHAT = "agent-client-chat-view";
@@ -186,6 +189,30 @@ function ChatComponent({
 		restoredLeaf?.activeTabId,
 	);
 	const { tabs, activeTabId, activeTab } = tabManager;
+
+	// ============================================================
+	// Recently-closed-tab stack (F13 — Undo Close Tab)
+	// ============================================================
+	// Per-leaf, in-memory LIFO stack of closed tabs. reopenClosed() pops the
+	// head, loads its transcript + context from disk, and recreates a tab that
+	// reuses the existing restore-by-sessionId path (see reopenPayload below).
+	const recentlyClosed = useRecentlyClosedTabs();
+
+	// Restore payload for tabs recreated by reopenClosed(), keyed by the new
+	// tabId. Feeds the same ChatPanel restore props the mount-time persistence
+	// path uses (restoredSessionId / restoredMessages / restoredContextNotes),
+	// so a reopened tab rehydrates its conversation identically to a tab
+	// restored on startup. The render prefers this over the mount-time maps.
+	const [reopenPayload, setReopenPayload] = useState<
+		Record<
+			string,
+			{
+				sessionId: string;
+				messages: ChatMessage[];
+				contextNotes: ContextNote[];
+			}
+		>
+	>({});
 
 	// ============================================================
 	// Per-tab AcpClient management
@@ -360,34 +387,108 @@ function ChatComponent({
 	const handleCloseTab = useCallback(
 		(tabId: string) => {
 			if (tabs.length <= 1) return; // Don't close last tab
+			const idx = tabs.findIndex((t) => t.tabId === tabId);
+			const tab = tabs[idx];
+			if (tab) {
+				recentlyClosed.capture(
+					buildClosedTabRecord({
+						tab,
+						sessionId: getSessionIdForTab(tabId),
+						position: idx,
+					}),
+				);
+			}
 			void removeClient(tabId);
 			tabManager.removeTab(tabId);
 		},
-		[tabs.length, removeClient, tabManager],
+		[tabs, removeClient, tabManager, recentlyClosed, getSessionIdForTab],
 	);
 
 	const handleCloseOtherTabs = useCallback(
 		(tabId: string) => {
-			for (const tab of tabs) {
+			tabs.forEach((tab, idx) => {
 				if (tab.tabId !== tabId) {
+					recentlyClosed.capture(
+						buildClosedTabRecord({
+							tab,
+							sessionId: getSessionIdForTab(tab.tabId),
+							position: idx,
+						}),
+					);
 					void removeClient(tab.tabId);
 				}
-			}
+			});
 			tabManager.removeOtherTabs(tabId);
 		},
-		[tabs, removeClient, tabManager],
+		[tabs, removeClient, tabManager, recentlyClosed, getSessionIdForTab],
 	);
 
 	const handleCloseTabsToRight = useCallback(
 		(tabId: string) => {
 			const idx = tabs.findIndex((t) => t.tabId === tabId);
 			for (let i = idx + 1; i < tabs.length; i++) {
+				recentlyClosed.capture(
+					buildClosedTabRecord({
+						tab: tabs[i],
+						sessionId: getSessionIdForTab(tabs[i].tabId),
+						position: i,
+					}),
+				);
 				void removeClient(tabs[i].tabId);
 			}
 			tabManager.removeTabsToRight(tabId);
 		},
-		[tabs, removeClient, tabManager],
+		[tabs, removeClient, tabManager, recentlyClosed, getSessionIdForTab],
 	);
+
+	// Reopen the most-recently-closed tab and restore its conversation (F13).
+	const reopenClosed = useCallback(async () => {
+		const record = recentlyClosed.reopenLast();
+		if (!record) {
+			new Notice("No recently closed session to reopen");
+			return;
+		}
+
+		// Load the closed session's transcript + context notes from disk —
+		// the same storage calls the mount-time restore path uses (U37/I61).
+		const [messages, contextNotes] = await Promise.all([
+			persistenceStorage.loadSessionMessages(record.sessionId),
+			persistenceStorage.loadSessionContextNotes(record.sessionId),
+		]);
+
+		// Recreate the tab. addTab appends and activates it; capture the
+		// pre-add length so we can best-effort reinsert at the prior index.
+		const priorLength = tabs.length;
+		const newTabId = tabManager.addTab(record.agentId, record.label);
+		if (record.labelIsCustom) {
+			tabManager.setTabLabel(newTabId, record.label, true);
+		}
+
+		// Seed the restore payload so the new tab's ChatPanel rehydrates via
+		// the existing restoredSessionId / restoredMessages / restoredContextNotes
+		// props — idle-seed of the transcript on arrival (I43/I61) and reconnect
+		// on first keystroke (useLazySession). Identical to startup auto-restore.
+		setReopenPayload((prev) => ({
+			...prev,
+			[newTabId]: {
+				sessionId: record.sessionId,
+				messages: messages ?? [],
+				contextNotes: contextNotes ?? [],
+			},
+		}));
+
+		// Persist the sessionId for the reopened tab so it survives a later
+		// restart and resolves on save (getSessionIdForTab falls back to this
+		// ref). Set synchronously so the addTab-driven save effect captures it.
+		persistedSessionIdsRef.current.set(newTabId, record.sessionId);
+
+		// Best-effort: move the reopened tab to its prior bar position. The
+		// new tab sits at index `priorLength`; only reinsert when that index
+		// still exists (later tabs may have shifted things).
+		if (record.position < priorLength) {
+			tabManager.moveTab(priorLength, record.position);
+		}
+	}, [recentlyClosed, persistenceStorage, tabManager, tabs.length]);
 
 	const handleRenameTab = useCallback(
 		(tabId: string) => {
@@ -550,6 +651,19 @@ function ChatComponent({
 		view.setTabManager(tabManager);
 	}, [view, tabManager]);
 
+	// Expose F13 reopen + a capture-aware active-tab close to the view class.
+	// The close-session-tab COMMAND must route through handleCloseTab (which
+	// captures the closed record + removes the client) rather than calling
+	// tabManager.removeTab directly, so undo-close works after a command close.
+	useEffect(() => {
+		view.setReopenClosedTab(() => {
+			void reopenClosed();
+		});
+		view.setCloseActiveTab(() => {
+			handleCloseTab(activeTabId);
+		});
+	}, [view, reopenClosed, handleCloseTab, activeTabId]);
+
 	// Prune broadcast handles for tabs that have closed (F11)
 	useEffect(() => {
 		const liveIds = new Set(tabs.map((t) => t.tabId));
@@ -642,12 +756,16 @@ function ChatComponent({
 								findTabBySessionId={findTabBySessionId}
 								onSwitchToTab={tabManager.setActiveTab}
 								restoredSessionId={
-									persistedSessionIdsRef.current.get(tab.tabId) ?? null
+									reopenPayload[tab.tabId]?.sessionId ??
+									persistedSessionIdsRef.current.get(tab.tabId) ??
+									null
 								}
 								restoredMessages={
+									reopenPayload[tab.tabId]?.messages ??
 									tabPersistence.restoredMessages[tab.tabId]
 								}
 								restoredContextNotes={
+									reopenPayload[tab.tabId]?.contextNotes ??
 									tabPersistence.restoredContextNotes[tab.tabId]
 								}
 								historyRecoverable={
@@ -802,8 +920,34 @@ export class ChatView extends ItemView implements IChatViewContainer {
 		return this.tabManagerRef?.activeTabId ?? this.viewId;
 	}
 
+	// F13: reopen-closed + capture-aware close, registered by the React
+	// component (ChatComponent) via the effect that also calls setTabManager.
+	private reopenClosedTabFn: (() => void) | null = null;
+	private closeActiveTabFn: (() => void) | null = null;
+
+	setReopenClosedTab(fn: () => void): void {
+		this.reopenClosedTabFn = fn;
+	}
+
+	setCloseActiveTab(fn: () => void): void {
+		this.closeActiveTabFn = fn;
+	}
+
+	/** Reopen the most-recently-closed tab and restore its conversation (F13). */
+	reopenClosedTab(): void {
+		this.reopenClosedTabFn?.();
+	}
+
 	/** Close the active tab (for Obsidian commands) */
 	closeActiveTab(): void {
+		// Prefer the React-registered handler so a command-driven close
+		// captures a recently-closed record (F13) and removes the ACP client,
+		// matching the UI close path. Fall back to the direct tabManager path
+		// only before registration completes.
+		if (this.closeActiveTabFn) {
+			this.closeActiveTabFn();
+			return;
+		}
 		if (this.tabManagerRef) {
 			this.tabManagerRef.removeTab(
 				this.tabManagerRef.activeTabId,
