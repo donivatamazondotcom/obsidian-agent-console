@@ -144,8 +144,8 @@ export interface CleanlinessVerdict {
 export function evaluateCleanliness(
 	result: CleanlinessProbeResult | null | undefined,
 ): CleanlinessVerdict {
-	const selectors = Array.isArray(result?.selectors) ? result!.selectors : [];
-	const text = Array.isArray(result?.text) ? result!.text : [];
+	const selectors = Array.isArray(result?.selectors) ? result.selectors : [];
+	const text = Array.isArray(result?.text) ? result.text : [];
 	const violations = [
 		...selectors.map((s) => `forbidden element visible: ${s}`),
 		...text.map((t) => `forbidden text present: "${t}"`),

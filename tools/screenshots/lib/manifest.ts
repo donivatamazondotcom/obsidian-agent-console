@@ -677,7 +677,7 @@ export function validateManifest(
 			entry.placement !== "reference"
 		) {
 			throw new Error(
-				`manifest entry "${entry.name}" has invalid placement: ${entry.placement} (must be "hero", "feature", or "reference")`,
+				`manifest entry "${entry.name}" has invalid placement: ${String(entry.placement)} (must be "hero", "feature", or "reference")`,
 			);
 		}
 
