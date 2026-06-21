@@ -112,6 +112,21 @@ export interface InitialState {
 		defaultAgentId: string;
 		detectedAgentIds: string[];
 	};
+	/**
+	 * Seed the tab bar with an exact set of labeled tabs, each forced into a
+	 * specific visual state, so the tab-list dropdown shows the full glyph
+	 * legend (● ready / ◐ busy / △ permission / ✕ error / ○ disconnected)
+	 * deterministically. Real ACP sessions can't be coerced into all five
+	 * states at once, so the driver sets `nativeMenus=false` (making the
+	 * chevron dropdown a DOM `.menu`, window-capturable and focus-independent)
+	 * then drives the view's `tabManagerRef.setTabState`. Runs after
+	 * clickRibbon/openChatView and BEFORE clickSelector (which opens the
+	 * chevron). The seeded tabs replace the panel's initial auto-labeled tab.
+	 */
+	forceTabStates?: {
+		label: string;
+		state: "ready" | "busy" | "permission" | "error" | "disconnected";
+	}[];
 }
 
 /**

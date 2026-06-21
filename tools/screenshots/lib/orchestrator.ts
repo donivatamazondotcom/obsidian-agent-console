@@ -427,6 +427,72 @@ export async function captureEntry(
 			}
 		}
 	}
+	// 3c-quater. Seed an exact labeled tab set with forced visual states so the
+	// tab-list dropdown shows the full glyph legend (● ◐ △ ✕ ○). Real ACP
+	// sessions can't be coerced into all five states at once, so disable native
+	// menus — making the chevron dropdown a DOM `.menu` that window capture sees
+	// and that opens regardless of OS focus (sidesteps the I13/I15 native-popup
+	// wall) — then drive the view's tabManagerRef directly. Runs after the panel
+	// is open and BEFORE clickSelector opens the chevron.
+	if (entry.initialState?.forceTabStates?.length) {
+		const specs = entry.initialState.forceTabStates;
+		const VIEW =
+			'app.workspace.getLeavesOfType("agent-client-chat-view")[0]?.view';
+		// Wait for the panel's initial tab to mount.
+		await deps.cdp
+			.waitForElement(
+				`${ACTIVE_PANEL} .agent-client-tab`,
+				HOVER_TOOLTIP_TIMEOUT_MS,
+			)
+			.catch(() => {});
+		// DOM menu (not OS popup) so the dropdown is window-capturable.
+		await deps.cdp.evaluate(`app.vault.setConfig("nativeMenus", false)`);
+		// Agent id to clone for the seeded tabs + the initial auto-labeled tab
+		// to drop once the seeded set exists.
+		const agentId = await deps.cdp
+			.evaluate<string>(`${VIEW}.tabManagerRef.tabs[0].agentId`)
+			.catch(() => null);
+		const initialTabId = await deps.cdp
+			.evaluate<string>(`${VIEW}.tabManagerRef.tabs[0].tabId`)
+			.catch(() => null);
+		if (agentId && initialTabId) {
+			// addTab appends one labeled tab per spec; React flushes between
+			// awaited evaluate calls.
+			for (const s of specs) {
+				await deps.cdp.evaluate(
+					`${VIEW}.tabManagerRef.addTab(${JSON.stringify(agentId)}, ${JSON.stringify(s.label)})`,
+				);
+				await sleep(SETTLE_MS);
+			}
+			// Drop the initial auto-labeled tab; active reassigns to the first
+			// seeded tab, so its checkmark sits on the leading (ready) entry.
+			await deps.cdp.evaluate(
+				`${VIEW}.tabManagerRef.removeTab(${JSON.stringify(initialTabId)})`,
+			);
+			await sleep(SETTLE_MS);
+			// Force each seeded tab's visual state, in declared order.
+			const ids = JSON.parse(
+				(await deps.cdp.evaluate<string>(
+					`JSON.stringify(${VIEW}.tabManagerRef.tabs.map((t) => t.tabId))`,
+				)) ?? "[]",
+			) as string[];
+			for (let i = 0; i < specs.length && i < ids.length; i++) {
+				await deps.cdp.evaluate(
+					`${VIEW}.tabManagerRef.setTabState(${JSON.stringify(ids[i])}, ${JSON.stringify(specs[i].state)})`,
+				);
+				await sleep(SETTLE_MS / 2);
+			}
+			// Activate the first (ready) tab so the dropdown checkmark sits on a
+			// coherent active session rather than the disconnected one (addTab
+			// activates each new tab, leaving the last-added one active).
+			if (ids.length) {
+				await deps.cdp.evaluate(
+					`${VIEW}.tabManagerRef.setActiveTab(${JSON.stringify(ids[0])})`,
+				);
+				await sleep(SETTLE_MS / 2);
+			}
+		}
+	}
 	// 3c-ter. Type a filter into the open prompt/suggest input (e.g. narrow the
 	// command palette to the Agent Console commands).
 	if (entry.initialState?.typeQuery) {

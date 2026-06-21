@@ -734,39 +734,56 @@
 		{
 			"name": "tab-status-dropdown",
 			"pending": false,
-			"width": 720,
-			"height": 120,
+			"width": 550,
+			"height": 405,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 720,
-				"height": 120
+				"width": 550,
+				"height": 405
 			},
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true,
-				"runCommands": [
-					"agent-console:new-chat"
-				]
+				"forceTabStates": [
+					{
+						"label": "Draft newsletter",
+						"state": "ready"
+					},
+					{
+						"label": "Summarize meeting notes",
+						"state": "busy"
+					},
+					{
+						"label": "Reorganize vault notes",
+						"state": "permission"
+					},
+					{
+						"label": "Import reading list",
+						"state": "error"
+					},
+					{
+						"label": "Plan Japan itinerary",
+						"state": "disconnected"
+					}
+				],
+				"clickSelector": ".agent-client-tab-bar-chevron",
+				"waitSelector": ".menu"
 			},
+			"cropSelector": ".menu",
+			"cropPadding": 12,
 			"approvalThreshold": 0.01,
-			"minDistinctColors": 60,
+			"minDistinctColors": 40,
 			"placement": "feature",
 			"purpose": "Per-tab status glyphs in the tab bar — spot the active, idle, or stuck session at a glance.",
-			"differentiator": "Per-tab status indicators in the tab bar",
-			"mustShow": ".agent-client-tab-state-icon",
+			"differentiator": "Per-tab status glyphs in the tab-list dropdown",
+			"mustShow": ".menu-item",
 			"caption": "See every session's status at a glance",
-			"altText": "Multiple Agent Console session tabs in the tab bar, each prefixed with its own status glyph",
+			"altText": "Agent Console tab-list dropdown: five sessions, each with a status glyph for ready, busy, awaiting permission, errored, and disconnected.",
 			"docPage": "docs/usage/tabbed-sessions.md",
-			"captureNote": "Seed >=2 tabs in differing states so the glyph variety shows (like parallel-sessions), then click the chevron.",
+			"captureNote": "Driven by initialState.forceTabStates: seeds 5 nicely-labeled tabs forced into the five visual states with nativeMenus off (so the chevron opens a DOM .menu), then clickSelector opens the chevron. Window-mode, dpr-independent — no screen-mode crop.",
 			"collapseLeftSidebar": true,
-			"rightSplitWidth": 680,
-			"cropSelector": ".agent-client-tab-bar",
-			"cropPadding": 10,
-			"prompts": [
-				"tab-status-a.txt",
-				"tab-status-b.txt"
-			]
+			"rightSplitWidth": 680
 		},
 		{
 			"name": "getting-started",
