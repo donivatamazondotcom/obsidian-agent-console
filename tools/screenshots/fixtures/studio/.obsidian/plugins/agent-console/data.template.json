@@ -81,5 +81,6 @@
   "maxSessionTabs": 10,
   "restoreTabsOnStartup": false,
   "perLeafTabStates": [],
-  "legacySessionsMigrated": true
+  "legacySessionsMigrated": true,
+  "settingsImportOfferShown": true
 }

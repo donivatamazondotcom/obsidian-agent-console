@@ -84,6 +84,34 @@ export interface InitialState {
 	 * (I13/I15), so it needs `captureMode: "screen"` + the float + showPicker.
 	 */
 	openNativeSelect?: string;
+	/**
+	 * Obsidian command ids to execute in order before capture — opens
+	 * command-driven UI the pipeline can't otherwise reach (command palette,
+	 * the New-chat-with-agent picker, or extra `agent-console:new-chat` tabs to
+	 * populate the tab-list dropdown). Runs after clickRibbon/openChatView and
+	 * BEFORE clickSelector.
+	 */
+	runCommands?: string[];
+	/**
+	 * Text typed into the active `.prompt-input` after runCommands (filters the
+	 * command palette to the Agent Console commands).
+	 */
+	typeQuery?: string;
+	/**
+	 * Force the chat header "update available" pill by stubbing the plugin's
+	 * checkForUpdates() to resolve true before the panel mounts. Deterministic
+	 * substitute for a real newer GitHub release.
+	 */
+	forceUpdateAvailable?: boolean;
+	/**
+	 * Force the Layer-2 getting-started empty state: stub detectAgents() to
+	 * resolve `detectedAgentIds` and set the default agent to `defaultAgentId`
+	 * (a built-in NOT in that set) before the panel mounts.
+	 */
+	forceGettingStarted?: {
+		defaultAgentId: string;
+		detectedAgentIds: string[];
+	};
 }
 
 /**

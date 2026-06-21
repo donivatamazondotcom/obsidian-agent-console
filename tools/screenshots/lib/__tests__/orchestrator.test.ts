@@ -319,7 +319,9 @@ describe("captureEntry", () => {
 			(c: string[]) => c[0] as string,
 		);
 		const newTabCalls = (deps.cdp.executeCommand as ReturnType<typeof vi.fn>).mock.calls.filter(
-			(c: unknown[]) => (c[0] as string).includes("new-session-tab"),
+			// v1.2.0 rationalization removed `new-session-tab`; new tabs now
+			// open via the surviving `new-chat` command (browser-tab model).
+			(c: unknown[]) => (c[0] as string).includes("agent-console:new-chat"),
 		);
 		expect(newTabCalls).toHaveLength(2); // 3 prompts -> 2 extra tabs
 		expect((deps.readFile as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(3);

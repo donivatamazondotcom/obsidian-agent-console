@@ -224,6 +224,26 @@ export async function captureEntry(
 			);
 		}
 	}
+	// Stub plugin runtime state for shots that depend on a condition we can't
+	// reproduce hermetically (an available update / a no-working-agent machine).
+	// MUST run BEFORE clickRibbon/openChatView so the freshly-mounted ChatPanel
+	// reads the stub on its first effect pass.
+	if (entry.initialState?.forceUpdateAvailable) {
+		await deps.cdp.evaluate(
+			`(() => { app.plugins.plugins["agent-console"].checkForUpdates = async () => true; return true; })()`,
+		);
+	}
+	if (entry.initialState?.forceGettingStarted) {
+		const { defaultAgentId, detectedAgentIds } =
+			entry.initialState.forceGettingStarted;
+		await deps.cdp.evaluate(
+			`(() => { const p = app.plugins.plugins["agent-console"]; const det = new Set(${JSON.stringify(
+				detectedAgentIds,
+			)}); p._detectedAgentsPromise = Promise.resolve(det); p.detectAgents = async () => det; p.settings.defaultAgentId = ${JSON.stringify(
+				defaultAgentId,
+			)}; return true; })()`,
+		);
+	}
 	if (entry.initialState?.clickRibbon) {
 		// v1.1.0 restores the panel + tabs on plugin reload
 		// (restoreTabsOnStartup), and the ribbon is a TOGGLE: clicking it
@@ -259,7 +279,7 @@ export async function captureEntry(
 		entry.prompts ?? (entry.promptFile ? [entry.promptFile] : []);
 	for (let i = 0; i < promptFiles.length; i++) {
 		if (i > 0) {
-			await deps.cdp.executeCommand("agent-console:new-session-tab");
+			await deps.cdp.executeCommand("agent-console:new-chat");
 			await deps.cdp.waitForElement(
 				`${ACTIVE_PANEL} textarea.agent-client-chat-input-textarea`,
 			);
@@ -356,6 +376,68 @@ export async function captureEntry(
 				return true;
 			})()`,
 		);
+	}
+
+	// 3c-bis. Run arbitrary Obsidian commands to open command-driven UI the
+	// pipeline can't otherwise reach: the native command palette
+	// (command-palette:open), the New-chat-with-agent picker
+	// (agent-console:new-chat-with-agent), or extra new-chat tabs
+	// (agent-console:new-chat) to populate the tab-list dropdown. BEFORE
+	// clickSelector so seeded tabs exist when the chevron is clicked.
+	if (entry.initialState?.runCommands?.length) {
+		// When a panel was opened, wait for its tab bar to mount before running
+		// commands.
+		if (
+			entry.initialState.clickRibbon ||
+			entry.initialState.openChatView
+		) {
+			await deps.cdp
+				.waitForElement(
+					`${ACTIVE_PANEL} .agent-client-tab`,
+					HOVER_TOOLTIP_TIMEOUT_MS,
+				)
+				.catch(() => {});
+		}
+		const TAB_SELECTOR = ".agent-client-tab";
+		for (const cmd of entry.initialState.runCommands) {
+			if (cmd === "agent-console:new-chat") {
+				// Seeding (tab-status-dropdown): new-chat silently no-ops when
+				// fired against a freshly-opened, not-yet-ready panel, leaving a
+				// single tab. Re-fire until the tab count actually increases
+				// (signal-based, not a blind settle) — the panel becomes ready
+				// within ~3s and the first effective fire adds the tab.
+				const before = await deps.cdp
+					.evaluate<number>(
+						`document.querySelectorAll(${JSON.stringify(TAB_SELECTOR)}).length`,
+					)
+					.catch(() => 0);
+				for (let attempt = 0; attempt < 8; attempt++) {
+					await deps.cdp.executeCommand(cmd);
+					await sleep(SETTLE_MS);
+					const now = await deps.cdp
+						.evaluate<number>(
+							`document.querySelectorAll(${JSON.stringify(TAB_SELECTOR)}).length`,
+						)
+						.catch(() => before);
+					if (now > before) break;
+				}
+			} else {
+				await deps.cdp.executeCommand(cmd);
+				await sleep(SETTLE_MS);
+			}
+		}
+	}
+	// 3c-ter. Type a filter into the open prompt/suggest input (e.g. narrow the
+	// command palette to the Agent Console commands).
+	if (entry.initialState?.typeQuery) {
+		const q = entry.initialState.typeQuery
+			.replace(/\\/g, "\\\\")
+			.replace(/`/g, "\\`")
+			.replace(/\$/g, "\\$");
+		await deps.cdp.evaluate(
+			`(() => { const i = document.querySelector('.prompt-input'); if (!i) return false; const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; setter.call(i, \`${q}\`); i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`,
+		);
+		await sleep(SETTLE_MS);
 	}
 
 	// 3d. Click a selector to open a popover/menu for capture. Fires AFTER

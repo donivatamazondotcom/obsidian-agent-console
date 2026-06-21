@@ -32,6 +32,10 @@ A `+` button on the right of the tab bar opens a new tab.
 
 A `˅` chevron beside it opens a dropdown listing **every** tab — including any scrolled out of view. Each entry is prefixed with the tab's status glyph (`●` ready, `◐` busy, `△` permission needed, `✕` error, `○` disconnected), with a checkmark on the active tab. Because it shows all sessions at once, it's the quickest way to spot which one is stuck or done when many tabs are open.
 
+<p align="center">
+  <img src="/images/tab-status-dropdown.webp" alt="Multiple Agent Console session tabs in the tab bar, each prefixed with its own status glyph" width="600" />
+</p>
+
 ## Creating tabs
 
 Three ways:
