@@ -183,6 +183,22 @@ function ChatComponent({
 		[restoredLeaf],
 	);
 
+	// Per-tab restored drafts, keyed by tabId, read synchronously from the
+	// persisted leaf state. Seeds each ChatPanel's composer at first mount so a
+	// half-typed prompt survives panel close/reopen and restart. Synchronous
+	// (not the async useTabPersistence restore) because initial input state
+	// must be seeded at mount — unlike message history, applied post-mount.
+	// See [[ACP Preserve Unsent Draft Text Per Tab]].
+	const restoredDraftByTabId = useMemo(() => {
+		const map: Record<string, string> = {};
+		for (const t of restoredLeaf?.tabs ?? []) {
+			if (typeof t.draftText === "string" && t.draftText !== "") {
+				map[t.tabId] = t.draftText;
+			}
+		}
+		return map;
+	}, [restoredLeaf]);
+
 	const tabManager = useTabManager(
 		initialAgentId,
 		restoredTabs,
@@ -348,12 +364,30 @@ function ChatComponent({
 		[],
 	);
 
+	// Per-tab callback handles, registered by each ChatPanel. Declared here —
+	// ahead of useTabPersistence — so getDraftForTab can read live composer
+	// text from them at save-time. Also consumed by the IChatViewContainer
+	// delegation and the F11 broadcast wiring further down.
+	const activeCallbacksRef = useRef<ChatPanelCallbacks | null>(null);
+	const tabHandlesRef = useRef<Map<string, ChatPanelCallbacks>>(new Map());
+
+	// Resolves a tab's current unsent draft for persistence. Reads the live
+	// composer value via the already-registered per-tab callbacks
+	// (getInputState().text) — no extra plumbing. Read at save-time via the
+	// hook's ref, so this closure does not itself trigger extra saves.
+	const getDraftForTab = useCallback(
+		(tabId: string) =>
+			tabHandlesRef.current.get(tabId)?.getInputState()?.text ?? "",
+		[],
+	);
+
 	const tabPersistence = useTabPersistence({
 		leafId: viewId,
 		tabs,
 		activeTabId,
 		getSessionId: getSessionIdForTab,
 		getScrollPosition: getScrollPositionForTab,
+		getDraft: getDraftForTab,
 		storage: persistenceStorage,
 		restoreEnabled: plugin.settings.restoreTabsOnStartup,
 		sessionSignature,
@@ -603,12 +637,9 @@ function ChatComponent({
 
 	// ============================================================
 	// Register callbacks for IChatViewContainer (active tab only)
+	// (activeCallbacksRef / tabHandlesRef are declared earlier so
+	// getDraftForTab can read live composer text at save-time.)
 	// ============================================================
-	const activeCallbacksRef = useRef<ChatPanelCallbacks | null>(null);
-	const tabHandlesRef = useRef<Map<string, ChatPanelCallbacks>>(
-		new Map(),
-	);
-
 	useEffect(() => {
 		view.setCallbacks({
 			getDisplayName: () =>
@@ -771,6 +802,9 @@ function ChatComponent({
 								}
 								historyRecoverable={
 									!!tabPersistence.recoverableTabs[tab.tabId]
+								}
+								restoredDraft={
+									restoredDraftByTabId[tab.tabId]
 								}
 							/>
 						</TabPanel>

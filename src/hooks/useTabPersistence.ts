@@ -116,6 +116,13 @@ export interface UseTabPersistenceProps {
 	 * Read at save-time via ref.
 	 */
 	getScrollPosition: (tabId: string) => number;
+	/**
+	 * Resolves the current unsent draft text for a tab's composer. Read at
+	 * save-time via ref (like getScrollPosition), so the caller can pass a
+	 * fresh closure every render without causing extra saves. Returns "" when
+	 * the composer is empty. (Draft persistence — close/reopen + restart.)
+	 */
+	getDraft: (tabId: string) => string;
 	/** Storage adapter (tab-state + session-messages) */
 	storage: TabPersistenceStorage;
 	/**
@@ -185,6 +192,7 @@ function buildPerLeafState(
 	activeTabId: string,
 	getSessionId: (tabId: string) => string | null,
 	getScrollPosition: (tabId: string) => number,
+	getDraft: (tabId: string) => string,
 ): PerLeafTabState {
 	const persistedTabs: PersistedTabInfo[] = tabs.map((tab, index) => ({
 		tabId: tab.tabId,
@@ -194,6 +202,7 @@ function buildPerLeafState(
 		sessionId: getSessionId(tab.tabId),
 		tabOrder: index,
 		scrollPosition: getScrollPosition(tab.tabId),
+		draftText: getDraft(tab.tabId),
 	}));
 	return {
 		leafId,
@@ -215,6 +224,7 @@ export function useTabPersistence(
 		activeTabId,
 		getSessionId,
 		getScrollPosition,
+		getDraft,
 		storage,
 		restoreEnabled,
 		sessionSignature,
@@ -238,6 +248,7 @@ export function useTabPersistence(
 	// closures or new storage references.
 	const getSessionIdRef = useRef(getSessionId);
 	const getScrollPositionRef = useRef(getScrollPosition);
+	const getDraftRef = useRef(getDraft);
 	const storageRef = useRef(storage);
 	const tabsRef = useRef(tabs);
 	const activeTabIdRef = useRef(activeTabId);
@@ -246,6 +257,7 @@ export function useTabPersistence(
 	useEffect(() => {
 		getSessionIdRef.current = getSessionId;
 		getScrollPositionRef.current = getScrollPosition;
+		getDraftRef.current = getDraft;
 		storageRef.current = storage;
 		tabsRef.current = tabs;
 		activeTabIdRef.current = activeTabId;
@@ -370,6 +382,7 @@ export function useTabPersistence(
 			activeTabIdRef.current,
 			getSessionIdRef.current,
 			getScrollPositionRef.current,
+			getDraftRef.current,
 		);
 		void storageRef.current.saveTabStateForLeaf(leafId, state);
 		// Deps are leafId + persistenceSignature + sessionSignature +
@@ -386,6 +399,7 @@ export function useTabPersistence(
 			activeTabIdRef.current,
 			getSessionIdRef.current,
 			getScrollPositionRef.current,
+			getDraftRef.current,
 		);
 		await storageRef.current.saveTabStateForLeaf(leafId, state);
 	}, [leafId]);

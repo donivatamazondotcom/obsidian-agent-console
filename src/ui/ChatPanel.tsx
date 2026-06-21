@@ -127,6 +127,13 @@ export interface ChatPanelProps {
 	 * a silent blank panel.
 	 */
 	historyRecoverable?: boolean;
+	/**
+	 * Restored unsent draft text for this tab (from tab persistence). Seeds the
+	 * composer's initial value at mount so a half-typed prompt survives panel
+	 * close/reopen and restart. Undefined / "" means no draft.
+	 * See [[ACP Preserve Unsent Draft Text Per Tab]].
+	 */
+	restoredDraft?: string;
 }
 
 // ============================================================================
@@ -196,6 +203,7 @@ export function ChatPanel({
 	restoredMessages,
 	restoredContextNotes,
 	historyRecoverable,
+	restoredDraft,
 }: ChatPanelProps) {
 	// ============================================================
 	// Platform Check
@@ -374,8 +382,11 @@ export function ChatPanel({
 	// ============================================================
 	const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
 
-	// Input state (for broadcast commands)
-	const [inputValue, setInputValue] = useState("");
+	// Input state (for broadcast commands). Seeded from the restored draft so a
+	// half-typed prompt survives panel close/reopen and restart (initializer
+	// runs once at mount; later draft changes never re-seed, so live typing is
+	// never clobbered). See [[ACP Preserve Unsent Draft Text Per Tab]].
+	const [inputValue, setInputValue] = useState(restoredDraft ?? "");
 	const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
 
 	// ============================================================
