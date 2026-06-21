@@ -901,16 +901,16 @@
 		{
 			"name": "update-pill",
 			"pending": false,
-			"width": 360,
-			"height": 120,
+			"width": 720,
+			"height": 150,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 360,
-				"height": 120
+				"width": 720,
+				"height": 150
 			},
-			"cropSelector": ".agent-client-chat-view-header-update",
-			"cropPadding": 12,
+			"cropSelector": ".agent-client-chat-view-header",
+			"cropPadding": 10,
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true,
@@ -923,10 +923,12 @@
 			"differentiator": "Update-pill click-through (v1.2.0)",
 			"mustShow": ".agent-client-chat-view-header-update",
 			"caption": "One click to update",
-			"altText": "The update-available pill in the Agent Console chat header",
+			"altText": "The Agent Console chat header with the Plugin update available pill",
 			"docPage": "docs/help/troubleshooting.md",
 			"manualCapture": true,
-			"captureNote": "Pill only renders when an update is available; needs a mocked update-available state to capture."
+			"captureNote": "Pill only renders when an update is available; needs a mocked update-available state to capture.",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 720
 		}
 	]
 }
