@@ -112,6 +112,18 @@ We use `eslint-plugin-obsidianmd` for Obsidian-specific rules and `typescript-es
 - **Components**: `PascalCase.tsx` in `ui/`
 - **Utilities**: `kebab-case.ts` in `utils/`
 
+## Network Egress Policy
+
+Agent Console's only outbound network calls are **best-effort version checks** — the plugin self-update check (GitHub Releases API) and the built-in agent npm version check (npm registry). None of these carry vault or conversation data. Everything else flows to the agent process you configure over a local stdio pipe (ACP), never to a third party.
+
+To keep that guarantee auditable, **all network egress is centralised in `src/services/net.ts`** and enforced in CI:
+
+1. **`net.ts` is the only module allowed to make network calls.** It exposes `fetchJson()` and a fixed `ALLOWED_HOSTS` list. A new endpoint means extending `ALLOWED_HOSTS` here and documenting why in this section.
+2. **A tripwire test** (`src/__tests__/no-unsanctioned-network.test.ts`, run via `npm test`) fails the PR if `fetch`, `XMLHttpRequest`, `WebSocket`, `navigator.sendBeacon`, Obsidian's `requestUrl`, or a node `http`/`https`/`net`/`tls`/`dgram` import appears anywhere under `src/` outside `net.ts`.
+3. **`CODEOWNERS` + the `dependency-review` CI job** require maintainer review on every PR and surface new/changed dependencies, covering the human-approval and transitive-dependency vectors that a source-only scan can't.
+
+This is defense-in-depth, not an absolute control — it catches accidental introductions and makes the "only two GETs" claim enforceable. **If your change needs to reach the network, route it through `net.ts` and open an issue first** so the new endpoint can be reviewed.
+
 ## Branch Naming
 
 ```
@@ -170,6 +182,7 @@ Before submitting, please verify:
 - [ ] Tested in Obsidian
 - [ ] Existing functionality still works
 - [ ] Documentation updated if needed
+- [ ] No new network egress outside `src/services/net.ts` (`npm test` passes the egress tripwire)
 
 ### CI
 
@@ -177,6 +190,8 @@ Pull requests automatically run:
 
 - ESLint (`npx eslint src/`)
 - Build (`npm run build`)
+- Test (`npm test`) — includes the network-egress tripwire
+- Dependency review (pull requests only)
 
 Please ensure these pass locally before submitting.
 

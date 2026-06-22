@@ -1,0 +1,10 @@
+# Every change requires review from a maintainer (the Amazonian fork owner).
+#
+# Paired with branch protection ("Require review from Code Owners"), this
+# ensures no PR — including one that touches network egress or dependencies —
+# merges without maintainer approval. This is the human-review half of the
+# supply-chain controls described in CONTRIBUTING.md § Network egress policy;
+# the no-unsanctioned-network tripwire test and the dependency-review CI job
+# are the automated halves.
+
+* @donivatamazondotcom

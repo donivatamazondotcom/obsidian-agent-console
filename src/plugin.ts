@@ -1,8 +1,9 @@
 import { migrateContextNoteSettings } from "./services/settings-migration";
-import { addIcon, Plugin, WorkspaceLeaf, Notice, requestUrl } from "obsidian";
+import { addIcon, Plugin, WorkspaceLeaf, Notice } from "obsidian";
 import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
+import { fetchJson } from "./services/net";
 import { ChatViewRegistry } from "./services/view-registry";
 import {
 	createSettingsService,
@@ -1174,10 +1175,9 @@ export default class AgentClientPlugin extends Plugin {
 	 * Fetch the latest stable release version from GitHub.
 	 */
 	private async fetchLatestStable(): Promise<string | null> {
-		const response = await requestUrl({
-			url: "https://api.github.com/repos/donivatamazondotcom/obsidian-agent-console/releases/latest",
-		});
-		const data = response.json as { tag_name?: string };
+		const data = await fetchJson<{ tag_name?: string }>(
+			"https://api.github.com/repos/donivatamazondotcom/obsidian-agent-console/releases/latest",
+		);
 		return data.tag_name ? semver.clean(data.tag_name) : null;
 	}
 
@@ -1185,13 +1185,14 @@ export default class AgentClientPlugin extends Plugin {
 	 * Fetch the latest prerelease version from GitHub.
 	 */
 	private async fetchLatestPrerelease(): Promise<string | null> {
-		const response = await requestUrl({
-			url: "https://api.github.com/repos/donivatamazondotcom/obsidian-agent-console/releases",
-		});
-		const releases = response.json as Array<{
-			tag_name: string;
-			prerelease: boolean;
-		}>;
+		const releases = await fetchJson<
+			Array<{
+				tag_name: string;
+				prerelease: boolean;
+			}>
+		>(
+			"https://api.github.com/repos/donivatamazondotcom/obsidian-agent-console/releases",
+		);
 
 		// Find the first prerelease (releases are sorted by date descending)
 		const latestPrerelease = releases.find((r) => r.prerelease);
