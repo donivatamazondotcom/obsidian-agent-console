@@ -5,10 +5,10 @@
  * 1. Package migration — deprecated packages that have been renamed
  * 2. Version updates — newer versions available on npm
  *
- * Pure functions (non-React). Uses Obsidian's requestUrl for network access.
+ * Pure functions (non-React). Network access is routed through net.ts.
  */
 
-import { requestUrl } from "obsidian";
+import { fetchJson } from "./net";
 import * as semver from "semver";
 import type { OverlayVariant } from "../types/errors";
 
@@ -118,9 +118,8 @@ export async function checkAgentUpdate(agentInfo: {
  * Fetch the latest version of an npm package from the registry.
  */
 async function fetchLatestVersion(packageName: string): Promise<string | null> {
-	const response = await requestUrl({
-		url: `https://registry.npmjs.org/${packageName}/latest`,
-	});
-	const data = response.json as { version?: string };
+	const data = await fetchJson<{ version?: string }>(
+		`https://registry.npmjs.org/${packageName}/latest`,
+	);
 	return data.version ? (semver.clean(data.version) ?? null) : null;
 }

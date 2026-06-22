@@ -44,3 +44,17 @@ jobs:
       - name: Perf benchmarks (warn-only)
         continue-on-error: true
         run: npm run bench
+
+  dependency-review:
+    runs-on: ubuntu-latest
+    # Surfaces new/changed dependencies in the PR diff and fails on
+    # known-vulnerable packages — covers the supply-chain egress vector the
+    # source-only no-unsanctioned-network tripwire cannot see. PR-only; no-ops
+    # on push to main.
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependency review
+        uses: actions/dependency-review-action@v4
+        with:
+          comment-summary-in-pr: on-failure
