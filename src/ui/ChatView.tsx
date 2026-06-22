@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Menu, Notice, type MenuItem } from "obsidian";
+import { ItemView, WorkspaceLeaf, Menu, Notice, Scope, type MenuItem } from "obsidian";
 import { registerOpenMenu } from "../utils/menu-registry";
 import type {
 	IChatViewContainer,
@@ -15,6 +15,7 @@ import type { TabInfo, TabState, PerLeafTabState, PersistedTabInfo } from "../ty
 
 // Utility imports
 import { getLogger, Logger } from "../utils/logger";
+import { shouldConfirmClose } from "../utils/close-confirm";
 
 // Context imports
 import { ChatContextProvider } from "./ChatContext";
@@ -25,6 +26,7 @@ import { TabBar } from "./TabBar";
 import { TabErrorBoundary } from "./TabErrorBoundary";
 import { EditTitleModal } from "./SessionHistoryModal";
 import { CorruptionRecoveryModal } from "./CorruptionRecoveryModal";
+import { ConfirmCloseModal } from "./ConfirmCloseModal";
 
 // Hook imports
 import { useTabManager, truncateLabel } from "../hooks/useTabManager";
@@ -703,6 +705,21 @@ export class ChatView extends ItemView implements IChatViewContainer {
 		this.logger = getLogger();
 		this.navigation = false;
 		this.viewId = (leaf as { id?: string }).id ?? crypto.randomUUID();
+
+		// Focus-scoped Cmd+W interception. Obsidian activates this scope only
+		// while this view is focused, so it does not affect Cmd+W elsewhere.
+		// We always preventDefault (return false) and own the close decision —
+		// no reliance on scope fall-through to the global workspace:close.
+		// This is the only sanctioned close-interception path: there is no
+		// Obsidian API hook to gate WorkspaceLeaf.detach() (pane-menu Close,
+		// "Close all", and programmatic detach are not catchable here — undo
+		// close tab covers post-hoc recovery for those).
+		// See [[ACP Confirm Close With Multiple Tabs]].
+		this.scope = new Scope(this.plugin.app.scope);
+		this.scope.register(["Mod"], "w", () => {
+			this.handleCloseRequest();
+			return false;
+		});
 	}
 
 	getViewType() {
@@ -792,6 +809,24 @@ export class ChatView extends ItemView implements IChatViewContainer {
 				this.tabManagerRef.activeTabId,
 			);
 		}
+	}
+
+	/**
+	 * Handle a focused Cmd+W on this panel. If the panel has multiple chats
+	 * and the setting is on, confirm before tearing them all down; otherwise
+	 * close immediately (faithful replication of Cmd+W-closes-this-leaf).
+	 * Fails open: if tab state is not yet available, close normally.
+	 */
+	private handleCloseRequest(): void {
+		const tabCount = this.tabManagerRef?.tabs.length ?? 0;
+		const enabled = this.plugin.settings.confirmCloseWithMultipleTabs;
+		if (!shouldConfirmClose(tabCount, enabled)) {
+			this.leaf.detach();
+			return;
+		}
+		new ConfirmCloseModal(this.plugin.app, tabCount, () => {
+			this.leaf.detach();
+		}).open();
 	}
 
 	/** Switch to next tab (for Obsidian commands) */

@@ -300,6 +300,23 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		new Setting(containerEl)
+			.setName("Confirm before closing multiple chats")
+			.setDesc(
+				"Warn before closing the panel with Cmd+W when it has 2 or more open chats, so you don't lose several running agents at once.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(
+						this.plugin.settings.confirmCloseWithMultipleTabs,
+					)
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							confirmCloseWithMultipleTabs: value,
+						});
+					}),
+			);
+
 		// ─────────────────────────────────────────────────────────────────────
 		// Permissions
 		// ─────────────────────────────────────────────────────────────────────

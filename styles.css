@@ -2138,6 +2138,23 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	gap: 8px;
 }
 
+/* Confirm close (multiple tabs) modal */
+.agent-client-confirm-close-message {
+	margin-bottom: 8px;
+}
+
+.agent-client-confirm-close-warning {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	margin-bottom: 16px;
+}
+
+.agent-client-confirm-close-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
 /* Edit title modal */
 .agent-client-edit-title-input {
 	width: 100%;

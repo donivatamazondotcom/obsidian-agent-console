@@ -87,6 +87,7 @@ src/
 │   ├── ContextStrip.tsx         # Context-note strip (crystallized pills + type-to-add)
 │   ├── LossyFallbackNotice.tsx  # Notice when a restored tab continues from transcript only
 │   ├── CorruptionRecoveryModal.ts # Corrupt persisted-state recovery modal
+│   ├── ConfirmCloseModal.ts     # Confirm-before-closing-panel modal (focused Cmd+W with 2+ tabs)
 │   ├── branding.ts              # Agent Console SVG mark + cross-surface branding
 │   ├── ChatPanel.tsx            # Orchestrator: calls hooks, workspace events, rendering
 │   ├── ChatView.tsx             # Sidebar view (ItemView wrapper)
@@ -116,6 +117,7 @@ src/
 │       └── AttachmentStrip.tsx  # Attachment preview strip
 ├── utils/                       # Shared utilities (pure functions)
 │   ├── platform.ts              # Shell, WSL, Windows env, command building
+│   ├── close-confirm.ts         # Pure shouldConfirmClose predicate for the multi-tab close gate
 │   ├── activeNoteGrabToggle.ts  # Grab/ungrab active note in context strip (hotkey)
 │   ├── provisional-context.ts   # Provisional auto-default context pill (crystallize-on-send)
 │   ├── deriveTabLabel.ts        # Derive tab label from session / first message
