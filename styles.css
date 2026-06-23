@@ -2506,3 +2506,43 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .agent-client-reload-spinning svg {
 	animation: agent-client-spin 1s linear infinite;
 }
+
+/* ===== Session History Search ===== */
+.agent-client-session-history-search {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.agent-client-session-history-search-input {
+	flex: 1;
+	padding: 6px 10px;
+	font-size: 14px;
+	border-radius: var(--radius-s);
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.agent-client-session-history-search-status {
+	font-size: 12px;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.agent-client-session-history-item-snippet {
+	margin-top: 4px;
+	font-size: 12px;
+	line-height: 1.4;
+	color: var(--text-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.agent-client-session-history-item-snippet-match {
+	background: var(--text-highlight-bg);
+	color: var(--text-normal);
+	border-radius: var(--radius-s);
+	padding: 0 2px;
+}
