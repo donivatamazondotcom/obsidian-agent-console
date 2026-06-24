@@ -127,8 +127,16 @@ export function ContextStrip({
 					>
 						<span
 							className="context-strip-pill-name"
+							role="link"
+							tabIndex={0}
 							aria-label={displayName(note.path)}
 							onClick={(e) => onPillClick(note.path, e)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									onPillClick(note.path, e as unknown as React.MouseEvent);
+								}
+							}}
 							onAuxClick={(e) => {
 								if (e.button !== 1) return;
 								e.preventDefault();
@@ -153,8 +161,16 @@ export function ContextStrip({
 					>
 						<span
 							className="context-strip-pill-name"
+							role="link"
+							tabIndex={0}
 							aria-label={displayName(provisionalPath)}
 							onClick={(e) => onPillClick(provisionalPath, e)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									onPillClick(provisionalPath, e as unknown as React.MouseEvent);
+								}
+							}}
 							onAuxClick={(e) => {
 								if (e.button !== 1) return;
 								e.preventDefault();

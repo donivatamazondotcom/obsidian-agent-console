@@ -61,7 +61,7 @@ export interface ChatHeaderProps {
 	/** Callback to export the chat */
 	onExportChat: () => void;
 	/** Callback to show the header menu at the click position */
-	onShowMenu: (e: React.MouseEvent<HTMLDivElement>) => void;
+	onShowMenu: (e: React.MouseEvent<HTMLElement>) => void;
 	/** Callback to open session history */
 	onOpenHistory?: () => void;
 }
@@ -82,10 +82,10 @@ function NavActionButton({
 }: {
 	icon: string;
 	label: string;
-	onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
+	onClick: (e: React.MouseEvent<HTMLElement>) => void;
 	spinning?: boolean;
 }) {
-	const ref = useRef<HTMLDivElement>(null);
+	const ref = useRef<HTMLButtonElement>(null);
 
 	useEffect(() => {
 		if (ref.current) {
@@ -94,8 +94,9 @@ function NavActionButton({
 	}, [icon]);
 
 	return (
-		<div
+		<button
 			ref={ref}
+			type="button"
 			className={
 				"clickable-icon nav-action-button" +
 				(spinning ? " agent-client-reload-spinning" : "")

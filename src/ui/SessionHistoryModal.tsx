@@ -250,7 +250,7 @@ function IconButton({
 	className: string;
 	onClick: () => void;
 }) {
-	const iconRef = React.useRef<HTMLDivElement>(null);
+	const iconRef = React.useRef<HTMLButtonElement>(null);
 
 	React.useEffect(() => {
 		if (iconRef.current) {
@@ -259,8 +259,9 @@ function IconButton({
 	}, [iconName]);
 
 	return (
-		<div
+		<button
 			ref={iconRef}
+			type="button"
 			className={className}
 			aria-label={label}
 			onClick={onClick}

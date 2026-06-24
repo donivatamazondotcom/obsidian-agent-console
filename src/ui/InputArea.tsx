@@ -1062,6 +1062,7 @@ export function InputArea({
 			{/* Input Box - flexbox container with border */}
 			<div
 				className={`agent-client-chat-input-box ${isDraggingOver ? "agent-client-dragging-over" : ""}`}
+				role="presentation"
 				onDragOver={handleDragOver}
 				onDragEnter={handleDragEnter}
 				onDragLeave={handleDragLeave}
