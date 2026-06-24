@@ -35,15 +35,60 @@ export type ComposerEnterAction = "send" | "queue" | "none";
  */
 export function decideComposerEnterAction(params: {
 	isStreaming: boolean;
+	isSessionReady: boolean;
 	isButtonDisabled: boolean;
 	isQueued: boolean;
 	hasContent: boolean;
 }): ComposerEnterAction {
-	if (!params.isStreaming && !params.isButtonDisabled) return "send";
-	if (params.isStreaming && !params.isQueued && params.hasContent) {
-		return "queue";
-	}
-	return "none";
+	if (params.isQueued || !params.hasContent) return "none";
+	// Queue when a turn is streaming OR the session isn't ready yet
+	// (connecting/idle acquisition) — both are "the message can't dispatch
+	// right now, hold it as the one pending message" (#82 Decision 9). The
+	// composer locks; the message flushes on turn-end or on connect.
+	if (params.isStreaming || !params.isSessionReady) return "queue";
+	if (params.isButtonDisabled) return "none";
+	return "send";
+}
+
+/**
+ * Queued-banner text. The pending message is waiting on different things in
+ * the two states (#82 Decision 9):
+ * - streaming (session ready, turn in flight) → sends when the turn ends.
+ * - pre-ready (connecting/idle acquisition) → sends when the session connects.
+ */
+export function buildQueuedBanner(params: {
+	agentLabel: string;
+	isSessionReady: boolean;
+}): string {
+	return params.isSessionReady
+		? `Queued — sends when ${params.agentLabel} is done`
+		: "Queued — sends when ready";
+}
+
+/** Lazy-session states relevant to the connect-flush transition. */
+export type LazyFlushState = string;
+
+/**
+ * Whether to flush the queued message because session acquisition just
+ * completed (#82 Decision 9).
+ *
+ * Keyed on the **(connecting|idle)→ready** transition, NOT "ready && !sending":
+ * a turn ending is `busy→ready`, which the gated turn-end flush owns. Gating on
+ * the acquisition edge keeps the two flush paths disjoint, so the connect-flush
+ * can't double-fire with — or bypass the hold-on-error/cancel gate of — the
+ * turn-end flush. Acquisition failure (`connecting→error`) never reaches
+ * `ready`, so the message holds.
+ */
+export function shouldFlushOnReady(params: {
+	prevState: string;
+	state: string;
+	hasSessionId: boolean;
+	isQueued: boolean;
+}): boolean {
+	const acquisitionJustCompleted =
+		(params.prevState === "connecting" || params.prevState === "idle") &&
+		params.state === "ready";
+	return acquisitionJustCompleted && params.hasSessionId && params.isQueued;
 }
 
 /**

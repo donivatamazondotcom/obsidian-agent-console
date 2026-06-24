@@ -13,6 +13,8 @@ import {
 	shouldFlushQueue,
 	decideComposerEnterAction,
 	buildComposerPlaceholder,
+	buildQueuedBanner,
+	shouldFlushOnReady,
 	isQueuedSendBlocked,
 	executeFlush,
 	selectBroadcastSendTargets,
@@ -61,21 +63,31 @@ describe("executeFlush — clear-before-dispatch ordering (T3, T4)", () => {
 
 // --- T1 / T13: composer Enter-key action -----------------------------------
 
-describe("decideComposerEnterAction (T1, T13)", () => {
+describe("decideComposerEnterAction (T1, T13, Q2)", () => {
 	const base = {
 		isStreaming: false,
+		isSessionReady: true,
 		isButtonDisabled: false,
 		isQueued: false,
 		hasContent: true,
 	};
 
-	it("sends when idle with the button enabled", () => {
+	it("sends when ready+idle with the button enabled", () => {
 		expect(decideComposerEnterAction(base)).toBe("send");
 	});
 
 	it("T1 — queues while streaming with content and nothing queued yet", () => {
 		expect(
 			decideComposerEnterAction({ ...base, isStreaming: true }),
+		).toBe("queue");
+	});
+
+	it("Q2 (reproduce) — queues (not sends) when the session is NOT ready", () => {
+		// The connecting-multi-send bug: a not-ready send used to dispatch
+		// (clear + overwrite the prior pending one). It must queue instead, so
+		// the queue-of-one cap blocks the 2nd and nothing is silently lost.
+		expect(
+			decideComposerEnterAction({ ...base, isSessionReady: false }),
 		).toBe("queue");
 	});
 
@@ -89,7 +101,7 @@ describe("decideComposerEnterAction (T1, T13)", () => {
 		).toBe("none");
 	});
 
-	it("does nothing while streaming with an empty composer", () => {
+	it("does nothing with an empty composer", () => {
 		expect(
 			decideComposerEnterAction({
 				...base,
@@ -99,10 +111,60 @@ describe("decideComposerEnterAction (T1, T13)", () => {
 		).toBe("none");
 	});
 
-	it("does nothing when the button is disabled (connecting/restoring)", () => {
+	it("does nothing when ready+idle but the button is disabled (restoring)", () => {
 		expect(
 			decideComposerEnterAction({ ...base, isButtonDisabled: true }),
 		).toBe("none");
+	});
+});
+
+describe("buildQueuedBanner (Q2)", () => {
+	it("streaming (ready): sends when the agent is done", () => {
+		expect(
+			buildQueuedBanner({ agentLabel: "Auto SA", isSessionReady: true }),
+		).toBe("Queued — sends when Auto SA is done");
+	});
+
+	it("pre-ready (connecting): sends when ready", () => {
+		expect(
+			buildQueuedBanner({ agentLabel: "Auto SA", isSessionReady: false }),
+		).toBe("Queued — sends when ready");
+	});
+});
+
+describe("shouldFlushOnReady — acquisition-edge gating (Q2)", () => {
+	const base = {
+		prevState: "connecting" as const,
+		state: "ready" as const,
+		hasSessionId: true,
+		isQueued: true,
+	};
+
+	it("flushes on connecting→ready with a queued message + sessionId", () => {
+		expect(shouldFlushOnReady(base)).toBe(true);
+	});
+
+	it("flushes on idle→ready too", () => {
+		expect(shouldFlushOnReady({ ...base, prevState: "idle" })).toBe(true);
+	});
+
+	it("does NOT flush on busy→ready (turn end is owned by the gated flush)", () => {
+		// This is the guard that prevents double-fire AND the hold-on-error
+		// bypass: a turn ending is busy→ready, handled elsewhere with the
+		// error/cancel gate.
+		expect(shouldFlushOnReady({ ...base, prevState: "busy" })).toBe(false);
+	});
+
+	it("does not flush before sessionId is committed (I69 guard)", () => {
+		expect(shouldFlushOnReady({ ...base, hasSessionId: false })).toBe(false);
+	});
+
+	it("does not flush when nothing is queued", () => {
+		expect(shouldFlushOnReady({ ...base, isQueued: false })).toBe(false);
+	});
+
+	it("does not flush when acquisition failed (connecting→error)", () => {
+		expect(shouldFlushOnReady({ ...base, state: "error" })).toBe(false);
 	});
 });
 

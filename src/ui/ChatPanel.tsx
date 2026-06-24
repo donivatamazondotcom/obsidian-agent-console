@@ -48,6 +48,7 @@ import { useDebouncedSessionSave } from "../hooks/useDebouncedSessionSave";
 import { useMessageQueue } from "../hooks/useMessageQueue";
 import {
 	shouldFlushQueue,
+	shouldFlushOnReady,
 	executeFlush,
 } from "../services/message-queue-logic";
 
@@ -801,16 +802,18 @@ export function ChatPanel({
 		// Run once on mount only. agentId/vaultPath are stable.
 	}, []);
 
-	// Queued send for the case where the user clicks send while
-	// session acquisition is still in flight. Cleared by the flush
-	// effect below.
-	const [queuedSend, setQueuedSend] = useState<{
-		content: string;
-		attachments?: AttachedFile[];
-	} | null>(null);
+	// Queue-next-message (#82). Runtime-only queue-of-one shared by BOTH the
+	// streaming case (send while a turn runs) and the pre-ready case (send
+	// while session acquisition is in flight — Decision 9). The composer text
+	// is the single source of truth; `isQueued` is never persisted. Declared
+	// here (above lazySession + the flush effect + the send wrapper) so those
+	// can reference it.
+	const messageQueue = useMessageQueue();
 
-	// Optimistic user message shown while session acquisition is in flight.
-	const [pendingMessage, setPendingMessage] = useState<ChatMessage | null>(null);
+	// Tracks whether the in-flight turn was cancelled by the user so the
+	// turn-end flush HOLDS (does not auto-fire) per Decision 5. Reset at turn
+	// start.
+	const cancelledRef = useRef(false);
 
 	const lazySession = useLazySession({
 		// Restored sessionId from tab persistence. When non-null, the
@@ -907,7 +910,7 @@ export function ChatPanel({
 		]),
 
 		sendPrompt: useCallback(async () => {
-			// Queue flush is owned by ChatPanel's `queuedSend` effect
+			// Queue flush is owned by ChatPanel's connect-flush effect
 			// (below) — not by the hook's internal sendPrompt. Owning
 			// the flush at the ChatPanel level lets us read
 			// agent.session.sessionId from a post-render closure when
@@ -915,92 +918,88 @@ export function ChatPanel({
 		}, []),
 	});
 
-	// Queue-flush effect: fires when the lazy session reaches `ready`
-	// AND agent state has committed the new sessionId. Only then is it
-	// safe to call handleSendMessage, which reads
-	// agent.session.sessionId from its closure.
+	// Connect-flush effect (#82 Decision 9): when session acquisition completes
+	// — the (connecting|idle)→ready transition — flush the pending queued
+	// message through the normal send path. Keyed on the transition (not
+	// "ready && !sending") so it stays disjoint from the turn-end flush: a turn
+	// ending is busy→ready, owned by the gated turn-end flush, so this never
+	// double-fires nor bypasses the hold-on-error/cancel gate. The
+	// ready+sessionId guard is the I69 invariant (sessionId must be committed
+	// before handleSendMessage reads it).
+	const prevLazyStateRef = useRef<string>(lazySession.state);
 	useEffect(() => {
+		const prevState = prevLazyStateRef.current;
+		prevLazyStateRef.current = lazySession.state;
 		if (
-			lazySession.state === "ready" &&
-			queuedSend !== null &&
-			agent.session.sessionId
+			shouldFlushOnReady({
+				prevState,
+				state: lazySession.state,
+				hasSessionId: !!agent.session.sessionId,
+				isQueued: messageQueue.isQueued,
+			})
 		) {
-			const { content, attachments } = queuedSend;
-			setQueuedSend(null);
-			setPendingMessage(null);
-			void handleSendMessage(content, attachments);
+			const payload = messageQueue.consume();
+			if (payload) {
+				setInputValue("");
+				setAttachedFiles([]);
+				void handleSendMessage(payload.content, payload.attachments);
+			}
 		}
 	}, [
 		lazySession.state,
-		queuedSend,
 		agent.session.sessionId,
+		messageQueue,
 		handleSendMessage,
 	]);
 
-	// Send wrapper: sticky path → handleSendMessage directly when the
-	// session is already `ready`; non-ready path → queue + trigger lazy
-	// acquisition. The queue-flush effect above runs handleSendMessage
-	// once both lazy state and agent.session.sessionId have settled.
+	// Send wrapper: ready → handleSendMessage directly. Not-ready → enqueue the
+	// message (queue-of-one) and trigger lazy acquisition; the connect-flush
+	// effect above sends it once the session is ready. The normal UI routes
+	// not-ready sends through handleQueueMessage (no composer clear); this
+	// branch is the safety net for direct/broadcast callers.
 	const handleSendWithLazyAcquisition = useCallback(
 		async (content: string, attachments?: AttachedFile[]) => {
 			if (lazySession.state === "ready" && agent.session.sessionId) {
 				await handleSendMessage(content, attachments);
 				return;
 			}
-			setQueuedSend({ content, attachments });
-			setPendingMessage({
-				id: `pending-${Date.now()}`,
-				role: "user",
-				content: [
-					{ type: "text", text: content },
-					// I55 Defect B: surface image attachments in the optimistic
-					// "Sending…" bubble so the user can see the screenshot they
-					// queued (previously text-only, implying nothing was attached).
-					...(attachments ?? [])
-						.filter((f) => f.kind === "image" && f.data)
-						.map((f) => ({
-							type: "image" as const,
-							data: f.data as string,
-							mimeType: f.mimeType,
-						})),
-				],
-				timestamp: new Date(),
-				pending: true,
-			});
-			lazySession.onSendClick(content);
+			if (messageQueue.enqueue({ content, attachments })) {
+				lazySession.onSendClick(content);
+			}
 		},
 		[
 			lazySession.state,
 			lazySession.onSendClick,
 			agent.session.sessionId,
 			handleSendMessage,
+			messageQueue,
 		],
 	);
 
 	// ============================================================
-	// Queue Next Message (#82)
+	// Queue Next Message (#82) — handlers
 	// ============================================================
-	// Runtime-only queue-of-one. The composer text is the single source of
-	// truth (persisted for free by per-tab draft-preservation); `isQueued` is
-	// never persisted, so a pending message degrades to a plain draft across
-	// any turn-destroying boundary (close/reopen, restart). See
-	// [[Agent Console Queue Next Message]].
-	const messageQueue = useMessageQueue();
+	// (messageQueue + cancelledRef are declared earlier, above lazySession.)
 
-	// Tracks whether the in-flight turn was cancelled by the user so the flush
-	// effect HOLDS (does not auto-fire) per Decision 5. Reset at turn start.
-	const cancelledRef = useRef(false);
-
-	// Queue the composer's current content while a turn is streaming. The text
-	// stays in the composer (locked by InputArea via isQueued) — it remains the
-	// single source of truth, so nothing is permanently copied out of it.
+	// Queue the composer's current content. Used for BOTH streaming (flushes on
+	// turn-end) and pre-ready/connecting (flushes on connect — Decision 9). The
+	// composer text stays put (locked by InputArea via isQueued) — it remains
+	// the single source of truth. enqueue returning false (queue full) is the
+	// queue-of-one guard that blocks a silent 2nd-message overwrite.
 	const handleQueueMessage = useCallback(
 		(content: string, attachments?: AttachedFile[]) => {
 			const trimmed = content.trim();
 			if (!trimmed && (attachments?.length ?? 0) === 0) return;
-			messageQueue.enqueue({ content: trimmed, attachments });
+			const accepted = messageQueue.enqueue({ content: trimmed, attachments });
+			if (!accepted) return; // queue-of-one — already holding one
+			// Pre-ready: kick off session acquisition so the queued message
+			// flushes when the session connects. (Streaming: the turn-end flush
+			// handles it; no acquisition needed.)
+			if (lazySession.state !== "ready") {
+				lazySession.onSendClick(trimmed);
+			}
 		},
-		[messageQueue],
+		[messageQueue, lazySession.state, lazySession.onSendClick],
 	);
 
 	// Edit: unlock the composer (clear the queued flag) but KEEP the text so
@@ -1514,9 +1513,9 @@ export function ChatPanel({
 	// Queue refs (#82) — read latest queue state from the once-registered
 	// broadcast/send callbacks (same ref pattern as the values above).
 	const isQueuedRef = useRef(messageQueue.isQueued);
-	const enqueueRef = useRef(messageQueue.enqueue);
+	const handleQueueMessageRef = useRef(handleQueueMessage);
 	isQueuedRef.current = messageQueue.isQueued;
-	enqueueRef.current = messageQueue.enqueue;
+	handleQueueMessageRef.current = handleQueueMessage;
 
 	// ============================================================
 	// Effects - Flush queued message on turn completion (#82)
@@ -1609,21 +1608,21 @@ export function ChatPanel({
 				const filesToSend =
 					currentFiles.length > 0 ? [...currentFiles] : undefined;
 
-				// Streaming → QUEUE instead of dispatching (#82). Broadcast-send
-				// into a busy tab inherits this for free. Keep the composer text
-				// in place (it is the queued message's source of truth, locked
-				// by InputArea). A tab already holding a queued message is
-				// skipped upstream by broadcast; the queue-of-one cap is the
-				// defensive backstop here.
-				if (isSendingRef.current) {
+				// QUEUE instead of dispatching when a turn is streaming OR the
+				// session isn't ready yet (#82 Decision 9 — one pending message
+				// for both states). Broadcast-send inherits this for free. Keep
+				// the composer text in place (it's the queued message, locked by
+				// InputArea); handleQueueMessage enqueues and, when pre-ready,
+				// triggers acquisition so it flushes on connect. A tab already
+				// holding a queued message is skipped upstream by broadcast; the
+				// queue-of-one cap is the defensive backstop here.
+				if (isSendingRef.current || !isSessionReadyRef.current) {
 					if (isQueuedRef.current) return false;
-					return enqueueRef.current({
-						content: messageToSend,
-						attachments: filesToSend,
-					});
+					handleQueueMessageRef.current(messageToSend, filesToSend);
+					return true;
 				}
 
-				// Idle/ready → normal dispatch (clears the composer).
+				// Ready + idle → normal dispatch (clears the composer).
 				setInputValue("");
 				setAttachedFiles([]);
 
@@ -1754,11 +1753,10 @@ export function ChatPanel({
 		handleOpenSettings,
 	]);
 
-	// Combine real messages with the optimistic pending message for display.
-	const displayMessages = useMemo(
-		() => pendingMessage ? [...messages, pendingMessage] : messages,
-		[messages, pendingMessage],
-	);
+	// The optimistic pre-ready "Sending…" bubble (pendingMessage) was retired in
+	// #82 Decision 9 — a pre-ready message now shows in the locked composer, not
+	// the transcript. The transcript is just the real messages.
+	const displayMessages = messages;
 
 	const messageListElement = (
 		<MessageList

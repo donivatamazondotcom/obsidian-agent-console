@@ -19,7 +19,7 @@ import { ErrorBanner } from "./ErrorBanner";
 import { AttachmentStrip } from "./shared/AttachmentStrip";
 import { InputToolbar } from "./InputToolbar";
 import { getLogger } from "../utils/logger";
-import { decideComposerEnterAction, buildComposerPlaceholder, isQueuedSendBlocked } from "../services/message-queue-logic";
+import { decideComposerEnterAction, buildComposerPlaceholder, buildQueuedBanner, isQueuedSendBlocked } from "../services/message-queue-logic";
 import type { ErrorInfo } from "../types/errors";
 import type { AgentUpdateNotification } from "../services/update-checker";
 import { useSettings } from "../hooks/useSettings";
@@ -921,6 +921,7 @@ export function InputArea({
 					e.preventDefault();
 					const action = decideComposerEnterAction({
 						isStreaming,
+						isSessionReady,
 						isButtonDisabled,
 						isQueued,
 						hasContent:
@@ -950,6 +951,7 @@ export function InputArea({
 			handleSendOrStop,
 			settings.sendMessageShortcut,
 			isStreaming,
+			isSessionReady,
 			isQueued,
 			onQueueMessage,
 			inputValue,
@@ -1155,7 +1157,7 @@ export function InputArea({
 							}}
 						/>
 						<span className="agent-client-queued-banner-text">
-							Queued — sends when {agentLabel} finishes
+							{buildQueuedBanner({ agentLabel, isSessionReady })}
 						</span>
 						<div className="agent-client-queued-banner-actions">
 							<button
