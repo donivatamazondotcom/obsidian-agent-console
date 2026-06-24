@@ -102,6 +102,8 @@ export interface AgentClientPluginSettings {
 	enableSystemNotifications: boolean;
 	debugMode: boolean;
 	nodePath: string;
+	/** Directory new chats launch in; blank = vault root. See Configurable Working Directory spec. */
+	defaultWorkingDirectory: string;
 	exportSettings: {
 		defaultFolder: string;
 		filenameTemplate: string;

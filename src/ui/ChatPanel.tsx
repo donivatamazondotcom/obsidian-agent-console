@@ -13,6 +13,7 @@ import {
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
+import { resolveDefaultWorkingDirectory } from "../utils/working-directory";
 import { deriveNewLeaf } from "../utils/link-leaf";
 import { deriveSendAffordance, isSessionLive } from "../utils/send-affordance";
 import { extractLinks, type SharedLink } from "../utils/link-extract";
@@ -303,16 +304,32 @@ export function ChatPanel({
 	// ============================================================
 	const logger = getLogger();
 
+	// One-time guard so an invalid default-cwd Notice fires at most once per view.
+	const cwdFallbackNoticed = useRef(false);
+
 	const vaultPath = useMemo(() => {
 		if (workingDirectory) {
 			return workingDirectory;
 		}
 		const adapter = plugin.app.vault.adapter;
-		if (adapter instanceof FileSystemAdapter) {
-			return adapter.getBasePath();
+		const vaultRoot =
+			adapter instanceof FileSystemAdapter
+				? adapter.getBasePath()
+				: process.cwd(); // Fallback for non-FileSystemAdapter (e.g., mobile)
+		// New chats launch in the configured default working directory. A blank
+		// value means vault root (unchanged default); an invalid value (non-absolute
+		// or missing) falls back to vault root with a one-time Notice.
+		const resolved = resolveDefaultWorkingDirectory(
+			plugin.settings.defaultWorkingDirectory,
+			vaultRoot,
+		);
+		if (resolved.fellBack && !cwdFallbackNoticed.current) {
+			cwdFallbackNoticed.current = true;
+			new Notice(
+				`Agent Console: default working directory "${plugin.settings.defaultWorkingDirectory}" is not a valid absolute directory. Using the vault root instead.`,
+			);
 		}
-		// Fallback for non-FileSystemAdapter (e.g., mobile)
-		return process.cwd();
+		return resolved.dir;
 	}, [plugin, workingDirectory]);
 
 	// Agent working directory — defaults to vault path.
