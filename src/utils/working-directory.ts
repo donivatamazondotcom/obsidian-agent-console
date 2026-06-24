@@ -51,3 +51,55 @@ export function resolveDefaultWorkingDirectory(
 	}
 	return { dir: value, fellBack: false };
 }
+
+export interface ResolvedAgentWorkingDirectory {
+	/** The directory a new chat with this agent should launch in. */
+	dir: string;
+	/** Which configured level supplied the directory. */
+	source: "agent" | "global" | "vault";
+	/**
+	 * True when a non-empty configured value (agent and/or global) was invalid
+	 * and was skipped on the way to the resolved directory. Callers surface a
+	 * Notice. An empty value at any level is NOT a fallback — it just defers to
+	 * the next level.
+	 */
+	fellBack: boolean;
+}
+
+/**
+ * Resolve the working directory for a NEW chat with a specific agent, applying
+ * precedence: per-agent default → global default → vault root.
+ *
+ * At each level an empty value defers to the next; a non-empty but invalid
+ * value (non-absolute or missing) is skipped AND flags `fellBack` so the caller
+ * can warn. Never throws; always returns a valid directory.
+ *
+ * @param agentDir     The agent's configured default working directory (may be "").
+ * @param globalDir    The global default working directory (may be "").
+ * @param vaultRoot    The vault base path — the final fallback.
+ * @param dirExists    Existence predicate (injectable for tests).
+ */
+export function resolveAgentWorkingDirectory(
+	agentDir: string,
+	globalDir: string,
+	vaultRoot: string,
+	dirExists: (p: string) => boolean = directoryExists,
+): ResolvedAgentWorkingDirectory {
+	const agent = (agentDir ?? "").trim();
+	const global = (globalDir ?? "").trim();
+	let fellBack = false;
+
+	if (agent) {
+		if (isAbsolute(agent) && dirExists(agent)) {
+			return { dir: agent, source: "agent", fellBack: false };
+		}
+		fellBack = true;
+	}
+	if (global) {
+		if (isAbsolute(global) && dirExists(global)) {
+			return { dir: global, source: "global", fellBack };
+		}
+		fellBack = true;
+	}
+	return { dir: vaultRoot, source: "vault", fellBack };
+}

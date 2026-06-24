@@ -51,6 +51,13 @@ export interface BaseAgentSettings {
 
 	/** Environment variables for the agent process */
 	env: AgentEnvVar[];
+
+	/**
+	 * Per-agent default working directory new chats with this agent launch in.
+	 * Blank/undefined → fall through to the global default working directory,
+	 * then the vault root. See Configurable Working Directory spec (granularity C).
+	 */
+	defaultWorkingDirectory?: string;
 }
 
 /**
