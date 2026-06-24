@@ -8,9 +8,21 @@ import { TerminalBlock } from "./TerminalBlock";
 import { PermissionBanner } from "./PermissionBanner";
 import { LucideIcon } from "./shared/IconButton";
 import { toRelativePath } from "../utils/paths";
-import { countLines } from "../utils/toolCallSummary";
-import * as Diff from "diff";
+import {
+	countLines,
+	formatRawPayload,
+	hasRenderableContent,
+} from "../utils/toolCallSummary";
+import {
+	computeDiffLines,
+	isNewFile,
+	type DiffLine,
+} from "../utils/toolCallDiff";
 // import { MarkdownRenderer } from "./shared/MarkdownRenderer";
+
+// Re-exported so existing importers (e.g. the I78 word-diff test) keep their
+// `../ToolCallBlock` import path after computeDiffLines moved to utils.
+export { computeDiffLines };
 
 interface ToolCallBlockProps {
 	content: Extract<MessageContent, { type: "tool_call" }>;
@@ -266,6 +278,16 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 					return null;
 				})}
 
+			{/* Fallback for generic tool calls (no diff / terminal block):
+			    surface the raw input/output payload so the expanded body is
+			    never empty when the line-count badge promises content (I03). */}
+			{!hasRenderableContent(content) && (
+				<RawPayloadBlock
+					rawInput={rawInput}
+					rawOutput={content.rawOutput}
+				/>
+			)}
+
 			{/* Permission request section */}
 			{permissionRequest && (
 				<PermissionBanner
@@ -296,41 +318,10 @@ interface DiffRendererProps {
 }
 
 /**
- * Represents a single line in a diff view
- * @property type - The type of change: added, removed, or unchanged context
- * @property oldLineNumber - Line number in the old file (undefined for added lines)
- * @property newLineNumber - Line number in the new file (undefined for removed lines)
- * @property content - The text content of the line
- * @property wordDiff - Optional word-level diff for lines that were modified (adjacent removed+added pairs)
+ * Represents a single line in a diff view.
+ * (Type + computeDiffLines moved to `../utils/toolCallDiff`; see the re-export
+ * near the top of this file for the I78 test's import path.)
  */
-export interface DiffLine {
-	type: "added" | "removed" | "context";
-	oldLineNumber?: number;
-	newLineNumber?: number;
-	content: string;
-	wordDiff?: { type: "added" | "removed" | "context"; value: string }[];
-}
-
-/**
- * Check if the diff represents a new file (no old content)
- */
-function isNewFile(diff: DiffRendererProps["diff"]): boolean {
-	return (
-		diff.oldText === null ||
-		diff.oldText === undefined ||
-		diff.oldText === ""
-	);
-}
-
-// Helper function to map diff parts to our internal format
-function mapDiffParts(
-	parts: Diff.Change[],
-): { type: "added" | "removed" | "context"; value: string }[] {
-	return parts.map((part) => ({
-		type: part.added ? "added" : part.removed ? "removed" : "context",
-		value: part.value,
-	}));
-}
 
 // Helper function to render word-level diffs
 function renderWordDiff(
@@ -379,111 +370,6 @@ function renderWordDiff(
 }
 
 // Number of context lines to show around changes
-const CONTEXT_LINES = 3;
-
-/**
- * Compute the unified diff lines (with optional word-level diffs) for a file edit.
- * Extracted from DiffRenderer's memo so the diff-pairing logic can be unit-tested
- * directly (see I78 — word-level diff skipped when the payload lacks a trailing newline).
- */
-export function computeDiffLines(diff: DiffRendererProps["diff"]): DiffLine[] {
-	if (isNewFile(diff)) {
-		// New file - all lines are added
-		const lines = diff.newText.split("\n");
-		return lines.map(
-			(line, idx): DiffLine => ({
-				type: "added",
-				newLineNumber: idx + 1,
-				content: line,
-			}),
-		);
-	}
-
-	// Use structuredPatch to get a proper unified diff
-	// At this point, oldText is guaranteed to be a non-empty string (checked by isNewFile)
-	const oldText = diff.oldText || "";
-	const patch = Diff.structuredPatch(
-		"old",
-		"new",
-		oldText,
-		diff.newText,
-		"",
-		"",
-		{ context: CONTEXT_LINES },
-	);
-
-	const result: DiffLine[] = [];
-	let oldLineNum = 0;
-	let newLineNum = 0;
-
-	// Process hunks
-	for (const hunk of patch.hunks) {
-		// Add hunk header only if there are multiple hunks
-		// (helps users see gaps between different sections of changes)
-		if (patch.hunks.length > 1) {
-			result.push({
-				type: "context",
-				content: `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`,
-			});
-		}
-
-		oldLineNum = hunk.oldStart;
-		newLineNum = hunk.newStart;
-
-		for (const line of hunk.lines) {
-			const marker = line[0];
-			const content = line.substring(1);
-
-			// `structuredPatch` emits a "No newline at end of file" marker
-			// line (its marker char is a backslash) whenever a payload lacks
-			// a trailing newline. The marker carries no display value here,
-			// and left in `result` it sits between a removed and an added
-			// line — breaking the removed→added adjacency the word-diff
-			// pairing below relies on (see I78). Drop it.
-			if (marker === "\\") {
-				continue;
-			}
-
-			if (marker === "+") {
-				result.push({
-					type: "added",
-					newLineNumber: newLineNum++,
-					content,
-				});
-			} else if (marker === "-") {
-				result.push({
-					type: "removed",
-					oldLineNumber: oldLineNum++,
-					content,
-				});
-			} else {
-				// Context line (unchanged)
-				result.push({
-					type: "context",
-					oldLineNumber: oldLineNum++,
-					newLineNumber: newLineNum++,
-					content,
-				});
-			}
-		}
-	}
-
-	// Add word-level diff for modified lines that are adjacent
-	for (let i = 0; i < result.length - 1; i++) {
-		const current = result[i];
-		const next = result[i + 1];
-
-		// If we have a removed line followed by an added line, compute word diff
-		if (current.type === "removed" && next.type === "added") {
-			const wordDiff = Diff.diffWords(current.content, next.content);
-			const mappedDiff = mapDiffParts(wordDiff);
-			current.wordDiff = mappedDiff;
-			next.wordDiff = mappedDiff;
-		}
-	}
-
-	return result;
-}
 
 function DiffRenderer({ diff }: DiffRendererProps) {
 	const diffLines = useMemo(
@@ -533,6 +419,53 @@ function DiffRenderer({ diff }: DiffRendererProps) {
 			<div className="agent-client-tool-call-diff-content">
 				{diffLines.map((line, idx) => renderLine(line, idx))}
 			</div>
+		</div>
+	);
+}
+
+// ============================================================
+// Raw payload renderer — fallback for generic tool calls
+// ============================================================
+interface RawPayloadBlockProps {
+	rawInput?: { [k: string]: unknown };
+	rawOutput?: { [k: string]: unknown };
+}
+
+/**
+ * Renders a generic tool call's raw input/output payload as pretty-printed
+ * JSON. Used by the expanded body when there is no diff or terminal block to
+ * show (e.g. an MCP tool or a subagent "spawn" call), so the body is never
+ * empty while the summary badge advertises a line count (I03 phantom body).
+ * The same `formatRawPayload` drives `countLines`, keeping badge and body in sync.
+ */
+function RawPayloadBlock({ rawInput, rawOutput }: RawPayloadBlockProps) {
+	const input = formatRawPayload(rawInput);
+	const output = formatRawPayload(rawOutput);
+
+	if (!input && !output) return null;
+
+	return (
+		<div className="agent-client-tool-call-raw-payload">
+			{input && (
+				<div className="agent-client-tool-call-raw-section">
+					<div className="agent-client-tool-call-raw-label">
+						Input
+					</div>
+					<pre className="agent-client-tool-call-raw-content">
+						{input}
+					</pre>
+				</div>
+			)}
+			{output && (
+				<div className="agent-client-tool-call-raw-section">
+					<div className="agent-client-tool-call-raw-label">
+						Output
+					</div>
+					<pre className="agent-client-tool-call-raw-content">
+						{output}
+					</pre>
+				</div>
+			)}
 		</div>
 	);
 }
