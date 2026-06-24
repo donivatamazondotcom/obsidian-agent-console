@@ -150,6 +150,10 @@ export const normalizeCustomAgent = (
 				: "",
 		args: sanitizeArgs(agent?.args),
 		env: normalizeEnvVars(agent?.env),
+		defaultWorkingDirectory:
+			agent && typeof agent.defaultWorkingDirectory === "string"
+				? agent.defaultWorkingDirectory.trim()
+				: "",
 	};
 };
 
@@ -441,6 +445,7 @@ export function normalizeRawSettings(
 				D.claude.command,
 			args: sanitizeArgs(rc.args),
 			env: normalizeEnvVars(rc.env),
+			defaultWorkingDirectory: str(rc.defaultWorkingDirectory, ""),
 		},
 		codex: {
 			id: D.codex.id,
@@ -455,6 +460,7 @@ export function normalizeRawSettings(
 			command: str(rk.command, "") || D.codex.command,
 			args: sanitizeArgs(rk.args),
 			env: normalizeEnvVars(rk.env),
+			defaultWorkingDirectory: str(rk.defaultWorkingDirectory, ""),
 		},
 		gemini: {
 			id: D.gemini.id,
@@ -476,6 +482,7 @@ export function normalizeRawSettings(
 					? sanitizeArgs(rg.args)
 					: D.gemini.args,
 			env: normalizeEnvVars(rg.env),
+			defaultWorkingDirectory: str(rg.defaultWorkingDirectory, ""),
 		},
 		kiro: {
 			id: D.kiro.id,
@@ -486,6 +493,7 @@ export function normalizeRawSettings(
 					? sanitizeArgs(rki.args)
 					: D.kiro.args,
 			env: normalizeEnvVars(rki.env),
+			defaultWorkingDirectory: str(rki.defaultWorkingDirectory, ""),
 		},
 		customAgents,
 		defaultAgentId,

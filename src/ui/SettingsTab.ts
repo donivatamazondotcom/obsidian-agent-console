@@ -16,7 +16,10 @@ import type {
 } from "../plugin";
 import { resolveCommandPath, resolveCommandPathInWsl } from "../utils/paths";
 import { pickFolder } from "../utils/folder-picker";
-import { resolveDefaultWorkingDirectory } from "../utils/working-directory";
+import {
+	resolveDefaultWorkingDirectory,
+	resolveAgentWorkingDirectory,
+} from "../utils/working-directory";
 import {
 	TITLE_STRATEGY_OPTIONS,
 	type TitleStrategy,
@@ -946,6 +949,19 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					});
 				text.inputEl.rows = 3;
 			});
+
+		this.addAgentWorkingDirectoryRow(
+			sectionEl,
+			() => this.plugin.settings.gemini.defaultWorkingDirectory ?? "",
+			async (value) => {
+				await this.plugin.settingsService.updateSettings({
+					gemini: {
+						...this.plugin.settings.gemini,
+						defaultWorkingDirectory: value,
+					},
+				});
+			},
+		);
 	}
 
 	private renderKiroSettings(sectionEl: HTMLElement) {
@@ -1024,6 +1040,19 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					});
 				text.inputEl.rows = 3;
 			});
+
+		this.addAgentWorkingDirectoryRow(
+			sectionEl,
+			() => this.plugin.settings.kiro.defaultWorkingDirectory ?? "",
+			async (value) => {
+				await this.plugin.settingsService.updateSettings({
+					kiro: {
+						...this.plugin.settings.kiro,
+						defaultWorkingDirectory: value,
+					},
+				});
+			},
+		);
 	}
 
 	private renderClaudeSettings(sectionEl: HTMLElement) {
@@ -1119,6 +1148,19 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					});
 				text.inputEl.rows = 3;
 			});
+
+		this.addAgentWorkingDirectoryRow(
+			sectionEl,
+			() => this.plugin.settings.claude.defaultWorkingDirectory ?? "",
+			async (value) => {
+				await this.plugin.settingsService.updateSettings({
+					claude: {
+						...this.plugin.settings.claude,
+						defaultWorkingDirectory: value,
+					},
+				});
+			},
+		);
 	}
 
 	private renderCodexSettings(sectionEl: HTMLElement) {
@@ -1214,6 +1256,19 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					});
 				text.inputEl.rows = 3;
 			});
+
+		this.addAgentWorkingDirectoryRow(
+			sectionEl,
+			() => this.plugin.settings.codex.defaultWorkingDirectory ?? "",
+			async (value) => {
+				await this.plugin.settingsService.updateSettings({
+					codex: {
+						...this.plugin.settings.codex,
+						defaultWorkingDirectory: value,
+					},
+				});
+			},
+		);
 	}
 
 	private renderCustomAgents(containerEl: HTMLElement) {
@@ -1397,6 +1452,18 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					});
 				text.inputEl.rows = 3;
 			});
+
+		this.addAgentWorkingDirectoryRow(
+			blockEl,
+			() =>
+				this.plugin.settings.customAgents[index]
+					.defaultWorkingDirectory ?? "",
+			async (value) => {
+				this.plugin.settings.customAgents[index].defaultWorkingDirectory =
+					value;
+				await this.flushSettings();
+			},
+		);
 	}
 
 	/**
@@ -1532,6 +1599,71 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}
 				});
 		});
+	}
+
+	/**
+	 * Add a per-agent "Working directory" row (text + Browse + resolved-path desc).
+	 * Resolution shown: per-agent value → global default → vault root.
+	 */
+	private addAgentWorkingDirectoryRow(
+		sectionEl: HTMLElement,
+		read: () => string,
+		write: (value: string) => Promise<void>,
+	): void {
+		const adapter = this.plugin.app.vault.adapter;
+		const vaultRoot =
+			adapter instanceof FileSystemAdapter ? adapter.getBasePath() : "";
+		const describe = (value: string): string => {
+			const globalDefault = this.plugin.settings.defaultWorkingDirectory;
+			const base =
+				"Folder new chats with this agent start in. Leave blank to use the global default working directory, then the vault root.";
+			const resolved = resolveAgentWorkingDirectory(
+				value,
+				globalDefault,
+				vaultRoot,
+			);
+			if (!value.trim()) {
+				const label =
+					resolved.source === "global"
+						? " (global default)"
+						: " (vault root)";
+				return `${base} Currently: ${resolved.dir}${label}.`;
+			}
+			if (resolved.source !== "agent") {
+				return `${base} ⚠ "${value}" is not a valid absolute directory — falling back to ${resolved.dir}.`;
+			}
+			return `${base} Resolved: ${resolved.dir}.`;
+		};
+		const setting = new Setting(sectionEl)
+			.setName("Working directory")
+			.setDesc(describe(read()));
+		setting.addText((text) =>
+			text
+				.setPlaceholder("Leave blank for the global default")
+				.setValue(read())
+				.onChange(async (value) => {
+					await write(value.trim());
+					setting.setDesc(describe(value));
+				}),
+		);
+		setting.addButton((btn) =>
+			btn
+				.setButtonText("Browse…")
+				.setTooltip("Choose a folder")
+				.onClick(async () => {
+					const picked = await pickFolder({
+						title: "Select working directory",
+						defaultPath:
+							read() ||
+							this.plugin.settings.defaultWorkingDirectory ||
+							vaultRoot,
+					});
+					if (picked) {
+						await write(picked);
+						this.display();
+					}
+				}),
+		);
 	}
 
 	private formatArgs(args: string[]): string {

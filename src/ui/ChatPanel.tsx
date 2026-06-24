@@ -13,7 +13,11 @@ import {
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
-import { resolveDefaultWorkingDirectory } from "../utils/working-directory";
+import {
+	resolveDefaultWorkingDirectory,
+	resolveAgentWorkingDirectory,
+} from "../utils/working-directory";
+import { findAgentSettings } from "../services/session-helpers";
 import { deriveNewLeaf } from "../utils/link-leaf";
 import { deriveSendAffordance, isSessionLive } from "../utils/send-affordance";
 import { extractLinks, type SharedLink } from "../utils/link-extract";
@@ -300,37 +304,71 @@ export function ChatPanel({
 	// ============================================================
 	const logger = getLogger();
 
-	// One-time guard so an invalid default-cwd Notice fires at most once per view.
-	const cwdFallbackNoticed = useRef(false);
+	// Vault root (true base path) — the final fallback for all cwd resolution
+	// and the reference for the "different directory" banner / launch toast.
+	const vaultRoot = useMemo(() => {
+		const adapter = plugin.app.vault.adapter;
+		return adapter instanceof FileSystemAdapter
+			? adapter.getBasePath()
+			: process.cwd(); // Fallback for non-FileSystemAdapter (e.g., mobile)
+	}, [plugin]);
 
+	// Global-default baseline, used as the banner reference. Blank → vault root;
+	// invalid → vault root. (Transparency Notice is fired once in the effect below.)
 	const vaultPath = useMemo(() => {
 		if (workingDirectory) {
 			return workingDirectory;
 		}
-		const adapter = plugin.app.vault.adapter;
-		const vaultRoot =
-			adapter instanceof FileSystemAdapter
-				? adapter.getBasePath()
-				: process.cwd(); // Fallback for non-FileSystemAdapter (e.g., mobile)
-		// New chats launch in the configured default working directory. A blank
-		// value means vault root (unchanged default); an invalid value (non-absolute
-		// or missing) falls back to vault root with a one-time Notice.
-		const resolved = resolveDefaultWorkingDirectory(
+		return resolveDefaultWorkingDirectory(
+			plugin.settings.defaultWorkingDirectory,
+			vaultRoot,
+		).dir;
+	}, [plugin, workingDirectory, vaultRoot]);
+
+	// Launch directory for THIS chat's agent: per-agent default → global default
+	// → vault root. Only brand-new chats resolve from the agent; restored/forked
+	// sessions keep their persisted cwd (workingDirectory).
+	const initialCwdResolution = useMemo(() => {
+		if (workingDirectory) {
+			return {
+				dir: workingDirectory,
+				source: "agent" as const,
+				fellBack: false,
+			};
+		}
+		const agentSettings = findAgentSettings(
+			plugin.settings,
+			initialAgentId ?? plugin.settings.defaultAgentId,
+		);
+		return resolveAgentWorkingDirectory(
+			agentSettings?.defaultWorkingDirectory ?? "",
 			plugin.settings.defaultWorkingDirectory,
 			vaultRoot,
 		);
-		if (resolved.fellBack && !cwdFallbackNoticed.current) {
-			cwdFallbackNoticed.current = true;
-			new Notice(
-				`Agent Console: default working directory "${plugin.settings.defaultWorkingDirectory}" is not a valid absolute directory. Using the vault root instead.`,
-			);
-		}
-		return resolved.dir;
-	}, [plugin, workingDirectory]);
+	}, [plugin, workingDirectory, initialAgentId, vaultRoot]);
 
-	// Agent working directory — defaults to vault path.
-	// Can be changed independently via "New chat in directory..." action.
-	const [agentCwd, setAgentCwd] = useState(vaultPath);
+	// Agent working directory — initialized to the resolved per-agent default.
+	// Can be changed via "New chat in directory..." (setAgentCwd).
+	const [agentCwd, setAgentCwd] = useState(initialCwdResolution.dir);
+
+	// One-time launch transparency. For a brand-new chat: warn if a configured
+	// directory was invalid, otherwise announce when the chat starts outside the
+	// vault root. Restored sessions stay silent — the banner already shows their cwd.
+	const cwdLaunchNoticed = useRef(false);
+	useEffect(() => {
+		if (cwdLaunchNoticed.current || workingDirectory) {
+			return;
+		}
+		cwdLaunchNoticed.current = true;
+		const { dir, fellBack } = initialCwdResolution;
+		if (fellBack) {
+			new Notice(
+				`Agent Console: a configured working directory is not a valid absolute directory. New chat started in ${dir}.`,
+			);
+		} else if (!isSameDirectory(dir, vaultRoot)) {
+			new Notice(`Agent Console: new chat started in ${dir}`);
+		}
+	}, []);
 
 	// ============================================================
 	// Custom Hooks
