@@ -1,6 +1,6 @@
 import * as React from "react";
 const { useRef, useState, useEffect, useCallback, useMemo } = React;
-import { Notice } from "obsidian";
+import { Notice, setIcon } from "obsidian";
 
 import type AgentClientPlugin from "../plugin";
 import type { IChatViewHost } from "./view-host";
@@ -19,6 +19,7 @@ import { ErrorBanner } from "./ErrorBanner";
 import { AttachmentStrip } from "./shared/AttachmentStrip";
 import { InputToolbar } from "./InputToolbar";
 import { getLogger } from "../utils/logger";
+import { decideComposerEnterAction, buildComposerPlaceholder, buildQueuedBanner, isQueuedSendBlocked } from "../services/message-queue-logic";
 import type { ErrorInfo } from "../types/errors";
 import type { AgentUpdateNotification } from "../services/update-checker";
 import { useSettings } from "../hooks/useSettings";
@@ -215,6 +216,17 @@ export interface InputAreaProps {
 	onStopGeneration: () => Promise<void>;
 	/** Callback when restored message has been consumed */
 	onRestoredMessageConsumed: () => void;
+	// Queue Next Message (#82)
+	/** Whether the agent is currently streaming a reply (queue affordance window). */
+	isStreaming?: boolean;
+	/** Whether a message is queued (locks the composer + shows the queued banner). */
+	isQueued?: boolean;
+	/** Queue the composer's current content (Enter while streaming). */
+	onQueueMessage?: (content: string, attachments?: AttachedFile[]) => void;
+	/** Unlock the composer to edit the queued message (keeps the text). */
+	onEditQueued?: () => void;
+	/** Delete the queued message and empty the composer. */
+	onDeleteQueued?: () => void;
 	/** Session mode state (available modes and current mode) */
 	modes?: SessionModeState;
 	/** Callback when mode is changed */
@@ -288,6 +300,11 @@ export function InputArea({
 	onSendMessage,
 	onStopGeneration,
 	onRestoredMessageConsumed,
+	isStreaming = false,
+	isQueued = false,
+	onQueueMessage,
+	onEditQueued,
+	onDeleteQueued,
 	modes,
 	onModeChange,
 	models,
@@ -760,6 +777,12 @@ export function InputArea({
 			return;
 		}
 
+		// #82 issue 3: a held queued message locks the composer — the Send
+		// button must not fire the locked text (Edit/Delete are the actions).
+		// (During streaming this is unreachable: isSending short-circuits above
+		// to Stop, which stays live for cancel.)
+		if (isQueuedSendBlocked({ isQueued, isSending })) return;
+
 		// Allow sending if there's text OR attachments
 		if (!inputValue.trim() && attachedFiles.length === 0) return;
 
@@ -778,6 +801,7 @@ export function InputArea({
 		await onSendMessage(messageToSend, filesToSend);
 	}, [
 		isSending,
+		isQueued,
 		inputValue,
 		attachedFiles,
 		onSendMessage,
@@ -862,7 +886,8 @@ export function InputArea({
 	// Button disabled state - also allow sending if files are attached
 	const isButtonDisabled =
 		!isSending &&
-		((inputValue.trim() === "" && attachedFiles.length === 0) ||
+		(isQueuedSendBlocked({ isQueued, isSending }) ||
+			(inputValue.trim() === "" && attachedFiles.length === 0) ||
 			(!isSessionReady && !isLazyIdle && !isLazyConnecting) ||
 			isRestoringSession);
 
@@ -894,8 +919,25 @@ export function InputArea({
 
 				if (shouldSend) {
 					e.preventDefault();
-					if (!isButtonDisabled && !isSending) {
+					const action = decideComposerEnterAction({
+						isStreaming,
+						isSessionReady,
+						isButtonDisabled,
+						isQueued,
+						hasContent:
+							inputValue.trim() !== "" ||
+							attachedFiles.length > 0,
+					});
+					if (action === "send") {
 						void handleSendOrStop();
+					} else if (action === "queue") {
+						// Queue Next Message (#82): while the agent is
+						// streaming, the send key queues the next message
+						// instead of being a no-op. The composer text stays in
+						// place (it becomes the locked queued message). The
+						// toolbar button remains Stop so cancelling the live
+						// turn stays reachable.
+						onQueueMessage?.(inputValue.trim(), attachedFiles);
 					}
 				}
 				// If not shouldSend, allow default behavior (newline)
@@ -908,6 +950,12 @@ export function InputArea({
 			isButtonDisabled,
 			handleSendOrStop,
 			settings.sendMessageShortcut,
+			isStreaming,
+			isSessionReady,
+			isQueued,
+			onQueueMessage,
+			inputValue,
+			attachedFiles,
 		],
 	);
 
@@ -952,6 +1000,25 @@ export function InputArea({
 			}
 		}, 0);
 	}, []);
+
+	// #82 issue 1: when a queued message is unlocked (Edit) or discarded
+	// (Delete), return focus to the composer with the cursor at the end so the
+	// user can keep typing immediately — without this, Edit unlocks the text
+	// but leaves focus nowhere.
+	const prevIsQueuedRef = useRef(isQueued);
+	useEffect(() => {
+		const wasQueued = prevIsQueuedRef.current;
+		prevIsQueuedRef.current = isQueued;
+		if (wasQueued && !isQueued) {
+			window.setTimeout(() => {
+				const el = textareaRef.current;
+				if (!el) return;
+				el.focus();
+				const end = el.value.length;
+				el.setSelectionRange(end, end);
+			}, 0);
+		}
+	}, [isQueued]);
 
 	// Focus textarea when this tab becomes active (I19)
 	// Tabs are kept mounted and hidden via display:none; without this, hotkey-
@@ -1011,8 +1078,13 @@ export function InputArea({
 		}
 	}, [restoredMessage, onRestoredMessageConsumed, inputValue, onInputChange]);
 
-	// Placeholder text
-	const placeholder = `Message ${agentLabel} - @ to mention notes${availableCommands.length > 0 ? ", / for commands" : ""}`;
+	// Placeholder text — while streaming, teach the queue keybinding (#82).
+	const placeholder = buildComposerPlaceholder({
+		agentLabel,
+		hasCommands: availableCommands.length > 0,
+		isStreaming,
+		isQueued,
+	});
 
 	return (
 		<div className="agent-client-chat-input-container">
@@ -1061,13 +1133,51 @@ export function InputArea({
 
 			{/* Input Box - flexbox container with border */}
 			<div
-				className={`agent-client-chat-input-box ${isDraggingOver ? "agent-client-dragging-over" : ""}`}
+				className={`agent-client-chat-input-box ${isDraggingOver ? "agent-client-dragging-over" : ""} ${isQueued ? "agent-client-queued" : ""}`}
 				role="presentation"
 				onDragOver={handleDragOver}
 				onDragEnter={handleDragEnter}
 				onDragLeave={handleDragLeave}
 				onDrop={(e) => void handleDrop(e)}
 			>
+				{/* Queued banner (#82) — distinct from connecting/streaming
+				    disabled states. Shown when a message is queued; the
+				    composer below is locked (read-only) showing the queued text. */}
+				{isQueued && (
+					<div
+						className="agent-client-queued-banner"
+						role="status"
+						aria-live="polite"
+					>
+						<span
+							className="agent-client-queued-banner-icon"
+							aria-hidden="true"
+							ref={(el) => {
+								if (el) setIcon(el, "clock");
+							}}
+						/>
+						<span className="agent-client-queued-banner-text">
+							{buildQueuedBanner({ agentLabel, isSessionReady })}
+						</span>
+						<div className="agent-client-queued-banner-actions">
+							<button
+								type="button"
+								className="agent-client-queued-edit"
+								onClick={() => onEditQueued?.()}
+							>
+								Edit
+							</button>
+							<button
+								type="button"
+								className="agent-client-queued-delete"
+								onClick={() => onDeleteQueued?.()}
+							>
+								Delete
+							</button>
+						</div>
+					</div>
+				)}
+
 				{/* Textarea with Hint Overlay */}
 				<div className="agent-client-textarea-wrapper">
 					<textarea
@@ -1080,6 +1190,12 @@ export function InputArea({
 						className="agent-client-chat-input-textarea"
 						rows={1}
 						spellCheck={obsidianSpellcheck}
+						readOnly={isQueued}
+						aria-label={
+							isQueued
+								? "Queued message (locked) — use Edit to change it"
+								: undefined
+						}
 					/>
 					{hintText && (
 						<div

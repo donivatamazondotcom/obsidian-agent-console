@@ -74,6 +74,7 @@ Agent Console is based on [Agent Client](https://github.com/RAIT-09/obsidian-age
 - **Vibe-code a script or tool** – describe what you want, get working code back, and review the diff.
 - **Keep a working log** – let an agent capture decisions and action items as you talk a problem through.
 - **Run parallel trains of thought** – keep one tab digging into research while another drafts the summary.
+- **Line up your next message while the agent works** – type your follow-up and press Enter; it queues and sends the moment the current reply finishes, so you never wait on the cursor.
 
 ### Why parallel?
 

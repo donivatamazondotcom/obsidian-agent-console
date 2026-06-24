@@ -259,6 +259,24 @@ export interface ChatInputState {
 	/** Attached files (images and non-image files) */
 	files: AttachedFile[];
 }
+
+/**
+ * A message queued to auto-send when the current streaming turn completes
+ * (queue-next-message feature, GitHub #82).
+ *
+ * Runtime-only — never persisted. The composer text remains the single
+ * source of truth and is persisted for free by the per-tab draft-preservation
+ * feature ({@link ChatInputState}). A queued message therefore degrades to a
+ * plain preserved draft across any boundary that destroys the turn it was
+ * waiting on (close/reopen, restart). v1 scope is text + already-staged
+ * attachments captured at queue time.
+ */
+export interface QueuedMessage {
+	/** Trimmed message text captured at queue time. */
+	content: string;
+	/** Attachments staged at queue time (in-memory; not persisted). */
+	attachments?: AttachedFile[];
+}
 /**
  * Prompt Content Types
  *

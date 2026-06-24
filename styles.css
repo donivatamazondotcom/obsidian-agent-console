@@ -1075,6 +1075,86 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	background-color: var(--background-secondary);
 }
 
+/* ============================================================
+ * Queue Next Message (#82) — queued (locked) input state.
+ * Must be visually DISTINCT from the connecting and streaming
+ * disabled states. Uses the accent (interactive/blue) hue + a left
+ * accent bar + a labelled banner — not red/green (color-vision safe).
+ * ============================================================ */
+.agent-client-chat-input-box.agent-client-queued {
+	border-color: var(--interactive-accent);
+	box-shadow: inset 3px 0 0 0 var(--interactive-accent);
+	background-color: var(--background-secondary);
+}
+
+/* The locked composer reads as committed-but-paused, not broken. */
+.agent-client-chat-input-box.agent-client-queued
+	.agent-client-chat-input-textarea {
+	opacity: 0.85;
+	cursor: default;
+}
+
+.agent-client-queued-banner {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-accent);
+	background-color: var(--background-modifier-hover);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.agent-client-queued-banner-icon {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.agent-client-queued-banner-icon svg {
+	width: var(--icon-s);
+	height: var(--icon-s);
+}
+
+.agent-client-queued-banner-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.agent-client-queued-banner-actions {
+	display: flex;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.agent-client-queued-edit,
+.agent-client-queued-delete {
+	padding: 2px 10px;
+	font-size: var(--font-ui-smaller);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+
+.agent-client-queued-edit {
+	color: var(--text-on-accent);
+	background-color: var(--interactive-accent);
+}
+
+.agent-client-queued-edit:hover {
+	background-color: var(--interactive-accent-hover);
+}
+
+.agent-client-queued-delete {
+	color: var(--text-normal);
+	background-color: var(--background-modifier-border);
+}
+
+.agent-client-queued-edit:focus-visible,
+.agent-client-queued-delete:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 1px;
+}
+
 /* Auto-mention inline display */
 .agent-client-auto-mention-inline {
 	display: flex;
