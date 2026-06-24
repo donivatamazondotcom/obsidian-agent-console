@@ -4,6 +4,7 @@ import {
 	Component,
 	FileSystemAdapter,
 	MarkdownRenderer as ObsidianMarkdownRenderer,
+	Notice,
 	Platform,
 } from "obsidian";
 import { convertWslPathToWindows } from "../../utils/platform";
@@ -59,6 +60,21 @@ export function MarkdownRenderer({ text, plugin }: MarkdownRendererProps) {
 			const link = target.closest("a.internal-link");
 			if (link) {
 				e.preventDefault();
+				// Dead link: Obsidian tags an internal link whose target does
+				// not exist with `.is-unresolved`. Don't silently create a
+				// stray note via openLinkText (its default for a missing
+				// target) — surface a notice and bail.
+				if (link.classList.contains("is-unresolved")) {
+					const missing = link.getAttribute("data-href");
+					new Notice(
+						`Note not found: ${
+							missing
+								? decodeURIComponent(missing)
+								: "unknown"
+						}`,
+					);
+					return;
+				}
 				const rawHref = link.getAttribute("data-href");
 				if (rawHref) {
 					let href = decodeURIComponent(rawHref);
