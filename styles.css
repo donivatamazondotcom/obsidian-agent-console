@@ -1888,6 +1888,10 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
+	/* Fixed-height scroll region so the modal frame stays anchored as the
+	   result count changes during search (I96). */
+	height: clamp(280px, 50vh, 460px);
+	overflow-y: auto;
 }
 
 .agent-client-session-history-item {
@@ -1981,7 +1985,13 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .agent-client-session-history-loading,
 .agent-client-session-history-empty,
 .agent-client-session-history-error {
-	padding: 32px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	/* Match the list's fixed height so the frame doesn't jump between the
+	   list, empty, loading, and error states (I96). */
+	height: clamp(280px, 50vh, 460px);
 	text-align: center;
 	color: var(--text-muted);
 }
@@ -2545,4 +2555,11 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	color: var(--text-normal);
 	border-radius: var(--radius-s);
 	padding: 0 2px;
+}
+
+/* I96: pin the session-history modal size so it doesn't resize/re-center
+   as search filters the results. */
+.agent-client-session-history-modal {
+	width: 600px;
+	max-width: 90vw;
 }

@@ -879,6 +879,9 @@ export class SessionHistoryModal extends Modal {
 	onOpen() {
 		const { contentEl } = this;
 		contentEl.empty();
+		// Stable-size class so the frame doesn't resize/re-center as search
+		// filters the result count (I96).
+		this.modalEl.addClass("agent-client-session-history-modal");
 
 		// Add modal title
 		contentEl.createEl("h2", { text: "Session history" });
