@@ -178,4 +178,4 @@ The plugin itself is free and open source. However, using AI agents may incur co
 - Your OS and Obsidian version
 - The agent you're using
 - Steps to reproduce
-- Error messages (enable **Debug Mode** in **Settings → Agent Console → Developer**)
+- Error messages (enable **Debug Mode** in **Settings → Agent Console**)

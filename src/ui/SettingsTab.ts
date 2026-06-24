@@ -122,6 +122,36 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		new Setting(containerEl)
+			.setName("Debug mode")
+			.setDesc(
+				"Enable debug logging to console. Useful for development and troubleshooting.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.debugMode)
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							debugMode: value,
+						});
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("System notifications")
+			.setDesc(
+				"Show OS notifications when the agent completes a response or requests permission. Notifications are suppressed while Obsidian is focused.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.enableSystemNotifications)
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							enableSystemNotifications: value,
+						});
+					}),
+			);
+
 		// ─────────────────────────────────────────────────────────────────────
 		// Context
 		// ─────────────────────────────────────────────────────────────────────
@@ -337,27 +367,6 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						});
 						// Propagate to all live AcpClient instances
 						this.plugin.updateAllAutoAllow(value);
-					}),
-			);
-
-		// ─────────────────────────────────────────────────────────────────────
-		// Notifications
-		// ─────────────────────────────────────────────────────────────────────
-
-		new Setting(containerEl).setName("Notifications").setHeading();
-
-		new Setting(containerEl)
-			.setName("System notifications")
-			.setDesc(
-				"Show OS notifications when the agent completes a response or requests permission. Notifications are suppressed while Obsidian is focused.",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.enableSystemNotifications)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							enableSystemNotifications: value,
-						});
 					}),
 			);
 
@@ -625,27 +634,6 @@ export class AgentClientSettingTab extends PluginSettingTab {
 								...this.plugin.settings.exportSettings,
 								openFileAfterExport: value,
 							},
-						});
-					}),
-			);
-
-		// ─────────────────────────────────────────────────────────────────────
-		// Developer
-		// ─────────────────────────────────────────────────────────────────────
-
-		new Setting(containerEl).setName("Developer").setHeading();
-
-		new Setting(containerEl)
-			.setName("Debug mode")
-			.setDesc(
-				"Enable debug logging to console. Useful for development and troubleshooting.",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.debugMode)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							debugMode: value,
 						});
 					}),
 			);
