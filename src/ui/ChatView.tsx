@@ -42,6 +42,15 @@ import type { AcpClient } from "../acp/acp-client";
 
 export const VIEW_TYPE_CHAT = "agent-client-chat-view";
 
+/**
+ * Debounce for persisting unsent draft text. Long enough to avoid a save per
+ * keystroke, short enough that a draft reaches disk well before a typical
+ * quit/close. The active tab's draft has no other reliable save trigger (tab
+ * events save tabs you leave; flushSave at quit races with app exit), so this
+ * is what makes "type → restart → draft restored" work. (Draft persistence.)
+ */
+const DRAFT_SAVE_DEBOUNCE_MS = 800;
+
 // ============================================================================
 // TabPanel — per-tab wrapper that memoizes context value
 // ============================================================================
@@ -183,6 +192,22 @@ function ChatComponent({
 		[restoredLeaf],
 	);
 
+	// Per-tab restored drafts, keyed by tabId, read synchronously from the
+	// persisted leaf state. Seeds each ChatPanel's composer at first mount so a
+	// half-typed prompt survives panel close/reopen and restart. Synchronous
+	// (not the async useTabPersistence restore) because initial input state
+	// must be seeded at mount — unlike message history, applied post-mount.
+	// See [[ACP Preserve Unsent Draft Text Per Tab]].
+	const restoredDraftByTabId = useMemo(() => {
+		const map: Record<string, string> = {};
+		for (const t of restoredLeaf?.tabs ?? []) {
+			if (typeof t.draftText === "string" && t.draftText !== "") {
+				map[t.tabId] = t.draftText;
+			}
+		}
+		return map;
+	}, [restoredLeaf]);
+
 	const tabManager = useTabManager(
 		initialAgentId,
 		restoredTabs,
@@ -226,6 +251,11 @@ function ChatComponent({
 	// Drives useTabPersistence save effect (I57). A ref-only approach misses
 	// the render cycle needed to propagate the change to the hook's effect deps.
 	const [sessionSignature, setSessionSignature] = useState("");
+
+	// Draft signature — bumped (debounced) when any tab's composer text
+	// changes, so useTabPersistence saves the draft shortly after typing.
+	// (Draft persistence — restart fix.)
+	const [draftSignature, setDraftSignature] = useState("");
 
 	// Per-tab persisted session IDs (for lazy session restore on first keystroke)
 	const persistedSessionIdsRef = useRef<Map<string, string | null>>(
@@ -348,15 +378,59 @@ function ChatComponent({
 		[],
 	);
 
+	// Per-tab callback handles, registered by each ChatPanel. Declared here —
+	// ahead of useTabPersistence — so getDraftForTab can read live composer
+	// text from them at save-time. Also consumed by the IChatViewContainer
+	// delegation and the F11 broadcast wiring further down.
+	const activeCallbacksRef = useRef<ChatPanelCallbacks | null>(null);
+	const tabHandlesRef = useRef<Map<string, ChatPanelCallbacks>>(new Map());
+
+	// Resolves a tab's current unsent draft for persistence. Reads the live
+	// composer value via the already-registered per-tab callbacks
+	// (getInputState().text) — no extra plumbing. Read at save-time via the
+	// hook's ref, so this closure does not itself trigger extra saves.
+	const getDraftForTab = useCallback(
+		(tabId: string) =>
+			tabHandlesRef.current.get(tabId)?.getInputState()?.text ?? "",
+		[],
+	);
+
+	// Debounced draft-save trigger. Each ChatPanel calls this on composer
+	// change; after the debounce we recompute a signature from all tabs' live
+	// drafts and bump state, which fires useTabPersistence's save effect. Using
+	// window.setTimeout (popout-window compat); timer ref typed as number.
+	const draftDebounceRef = useRef<number | null>(null);
+	const bumpDraftSignature = useCallback(() => {
+		if (draftDebounceRef.current !== null) {
+			window.clearTimeout(draftDebounceRef.current);
+		}
+		draftDebounceRef.current = window.setTimeout(() => {
+			draftDebounceRef.current = null;
+			const sig = Array.from(tabHandlesRef.current.entries())
+				.map(([id, cb]) => `${id}:${cb.getInputState()?.text ?? ""}`)
+				.join("||");
+			setDraftSignature(sig);
+		}, DRAFT_SAVE_DEBOUNCE_MS);
+	}, []);
+	useEffect(() => {
+		return () => {
+			if (draftDebounceRef.current !== null) {
+				window.clearTimeout(draftDebounceRef.current);
+			}
+		};
+	}, []);
+
 	const tabPersistence = useTabPersistence({
 		leafId: viewId,
 		tabs,
 		activeTabId,
 		getSessionId: getSessionIdForTab,
 		getScrollPosition: getScrollPositionForTab,
+		getDraft: getDraftForTab,
 		storage: persistenceStorage,
 		restoreEnabled: plugin.settings.restoreTabsOnStartup,
 		sessionSignature,
+		draftSignature,
 	});
 
 	// Expose flushSave to the view class for onClose
@@ -603,12 +677,9 @@ function ChatComponent({
 
 	// ============================================================
 	// Register callbacks for IChatViewContainer (active tab only)
+	// (activeCallbacksRef / tabHandlesRef are declared earlier so
+	// getDraftForTab can read live composer text at save-time.)
 	// ============================================================
-	const activeCallbacksRef = useRef<ChatPanelCallbacks | null>(null);
-	const tabHandlesRef = useRef<Map<string, ChatPanelCallbacks>>(
-		new Map(),
-	);
-
 	useEffect(() => {
 		view.setCallbacks({
 			getDisplayName: () =>
@@ -772,6 +843,10 @@ function ChatComponent({
 								historyRecoverable={
 									!!tabPersistence.recoverableTabs[tab.tabId]
 								}
+								restoredDraft={
+									restoredDraftByTabId[tab.tabId]
+								}
+								onDraftChange={bumpDraftSignature}
 							/>
 						</TabPanel>
 					</TabErrorBoundary>

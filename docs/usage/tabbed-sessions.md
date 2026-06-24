@@ -96,7 +96,7 @@ Each tab independently tracks:
 - Agent process and session ID
 - Mode and model
 - Scroll position
-- Input text (switching away doesn't lose what you were typing)
+- Input text — a half-typed prompt you haven't sent survives switching tabs, closing and reopening the panel, and restarting Obsidian
 - Attached files (images, notes)
 - Permission queue (pending tool-call approvals)
 
@@ -129,6 +129,10 @@ Broadcast send is useful for comparing how different agents respond to the same 
 ## Persistence across restarts
 
 Open tabs survive an Obsidian restart. When you quit and reopen, each sidebar pane brings back its own tabs — same order, same active tab, each tab's conversation visible right away. Turn this off under Settings → Tabs → "Restore tabs on startup" (on by default). Panes restore independently; split views don't merge into one.
+
+### Unsent drafts come back too
+
+A half-typed prompt you never sent is restored with its tab. Whether you switch to another tab, close and reopen the panel, or restart Obsidian, the text you were composing is waiting in the composer when you come back — re-typing a long prompt from scratch is exactly the kind of rework this avoids. The draft clears the moment you send it. (Staged image attachments aren't part of the draft yet — text only.)
 
 ### Reload history that wasn't saved locally
 

@@ -127,6 +127,19 @@ export interface ChatPanelProps {
 	 * a silent blank panel.
 	 */
 	historyRecoverable?: boolean;
+	/**
+	 * Restored unsent draft text for this tab (from tab persistence). Seeds the
+	 * composer's initial value at mount so a half-typed prompt survives panel
+	 * close/reopen and restart. Undefined / "" means no draft.
+	 * See [[ACP Preserve Unsent Draft Text Per Tab]].
+	 */
+	restoredDraft?: string;
+	/**
+	 * Called (after mount) whenever the composer's text changes, so the parent
+	 * can debounce-persist the draft. Fires on user typing and on send-clear;
+	 * not on the initial restore-seed. (Draft persistence — restart fix.)
+	 */
+	onDraftChange?: () => void;
 }
 
 // ============================================================================
@@ -196,6 +209,8 @@ export function ChatPanel({
 	restoredMessages,
 	restoredContextNotes,
 	historyRecoverable,
+	restoredDraft,
+	onDraftChange,
 }: ChatPanelProps) {
 	// ============================================================
 	// Platform Check
@@ -374,9 +389,27 @@ export function ChatPanel({
 	// ============================================================
 	const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
 
-	// Input state (for broadcast commands)
-	const [inputValue, setInputValue] = useState("");
+	// Input state (for broadcast commands). Seeded from the restored draft so a
+	// half-typed prompt survives panel close/reopen and restart (initializer
+	// runs once at mount; later draft changes never re-seed, so live typing is
+	// never clobbered). See [[ACP Preserve Unsent Draft Text Per Tab]].
+	const [inputValue, setInputValue] = useState(restoredDraft ?? "");
 	const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+
+	// Notify the parent (which debounces) whenever the composer text changes,
+	// so the draft is persisted shortly after typing. The active tab's draft
+	// has no other reliable save trigger before quit/restart. Skip the initial
+	// mount so the restore-seed doesn't spuriously trigger a save.
+	const onDraftChangeRef = useRef(onDraftChange);
+	onDraftChangeRef.current = onDraftChange;
+	const draftChangeMountedRef = useRef(false);
+	useEffect(() => {
+		if (!draftChangeMountedRef.current) {
+			draftChangeMountedRef.current = true;
+			return;
+		}
+		onDraftChangeRef.current?.();
+	}, [inputValue]);
 
 	// ============================================================
 	// Refs

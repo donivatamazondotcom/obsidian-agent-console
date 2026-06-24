@@ -116,6 +116,13 @@ export interface UseTabPersistenceProps {
 	 * Read at save-time via ref.
 	 */
 	getScrollPosition: (tabId: string) => number;
+	/**
+	 * Resolves the current unsent draft text for a tab's composer. Read at
+	 * save-time via ref (like getScrollPosition), so the caller can pass a
+	 * fresh closure every render without causing extra saves. Returns "" when
+	 * the composer is empty. (Draft persistence — close/reopen + restart.)
+	 */
+	getDraft: (tabId: string) => string;
 	/** Storage adapter (tab-state + session-messages) */
 	storage: TabPersistenceStorage;
 	/**
@@ -131,6 +138,15 @@ export interface UseTabPersistenceProps {
 	 * Caller computes this from the live sessionId map. (I57)
 	 */
 	sessionSignature?: string;
+	/**
+	 * Opaque signature that changes (debounced) when any tab's unsent draft
+	 * text changes. Triggers a save so the active tab's draft is persisted to
+	 * disk shortly after typing — without it, a draft typed and never
+	 * switched-away-from only reaches disk via flushSave at quit, which races
+	 * with app exit on restart and is lost. Caller debounces this from the live
+	 * draft map. (Draft persistence — restart fix.)
+	 */
+	draftSignature?: string;
 }
 
 export interface UseTabPersistenceReturn {
@@ -185,6 +201,7 @@ function buildPerLeafState(
 	activeTabId: string,
 	getSessionId: (tabId: string) => string | null,
 	getScrollPosition: (tabId: string) => number,
+	getDraft: (tabId: string) => string,
 ): PerLeafTabState {
 	const persistedTabs: PersistedTabInfo[] = tabs.map((tab, index) => ({
 		tabId: tab.tabId,
@@ -194,6 +211,7 @@ function buildPerLeafState(
 		sessionId: getSessionId(tab.tabId),
 		tabOrder: index,
 		scrollPosition: getScrollPosition(tab.tabId),
+		draftText: getDraft(tab.tabId),
 	}));
 	return {
 		leafId,
@@ -215,9 +233,11 @@ export function useTabPersistence(
 		activeTabId,
 		getSessionId,
 		getScrollPosition,
+		getDraft,
 		storage,
 		restoreEnabled,
 		sessionSignature,
+		draftSignature,
 	} = props;
 
 	const [restoredLeafState, setRestoredLeafState] =
@@ -238,6 +258,7 @@ export function useTabPersistence(
 	// closures or new storage references.
 	const getSessionIdRef = useRef(getSessionId);
 	const getScrollPositionRef = useRef(getScrollPosition);
+	const getDraftRef = useRef(getDraft);
 	const storageRef = useRef(storage);
 	const tabsRef = useRef(tabs);
 	const activeTabIdRef = useRef(activeTabId);
@@ -246,6 +267,7 @@ export function useTabPersistence(
 	useEffect(() => {
 		getSessionIdRef.current = getSessionId;
 		getScrollPositionRef.current = getScrollPosition;
+		getDraftRef.current = getDraft;
 		storageRef.current = storage;
 		tabsRef.current = tabs;
 		activeTabIdRef.current = activeTabId;
@@ -370,12 +392,13 @@ export function useTabPersistence(
 			activeTabIdRef.current,
 			getSessionIdRef.current,
 			getScrollPositionRef.current,
+			getDraftRef.current,
 		);
 		void storageRef.current.saveTabStateForLeaf(leafId, state);
 		// Deps are leafId + persistenceSignature + sessionSignature +
-		// readiness flags. tabs / activeTabId are read via refs to
-		// ensure save sees the latest values.
-	}, [leafId, persistenceSignature, sessionSignature, restoreEnabled, restoreReady]);
+		// draftSignature + readiness flags. tabs / activeTabId / drafts are
+		// read via refs to ensure save sees the latest values.
+	}, [leafId, persistenceSignature, sessionSignature, draftSignature, restoreEnabled, restoreReady]);
 
 	// === Manual flush (plugin unload — U30) ===
 	const flushSave = useCallback(async () => {
@@ -386,6 +409,7 @@ export function useTabPersistence(
 			activeTabIdRef.current,
 			getSessionIdRef.current,
 			getScrollPositionRef.current,
+			getDraftRef.current,
 		);
 		await storageRef.current.saveTabStateForLeaf(leafId, state);
 	}, [leafId]);

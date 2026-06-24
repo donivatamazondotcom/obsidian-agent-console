@@ -124,6 +124,7 @@ function makeProps(
 		activeTabId: "T1",
 		getSessionId: () => null,
 		getScrollPosition: () => 0,
+		getDraft: () => "",
 		storage: makeStorage(),
 		restoreEnabled: true,
 		...overrides,
@@ -409,6 +410,7 @@ describe("useTabPersistence — save shape", () => {
 		expect(Object.keys(tab).sort()).toEqual(
 			[
 				"agentId",
+				"draftText",
 				"label",
 				"labelIsCustom",
 				"scrollPosition",
@@ -968,5 +970,172 @@ describe("useTabPersistence — recoverable tabs (I72)", () => {
 
 		await waitForRestoreReady(() => result.current);
 		expect(result.current.recoverableTabs).toEqual({});
+	});
+});
+
+// ============================================================================
+// Draft persistence (write side) — see [[ACP Preserve Unsent Draft Text Per Tab]]
+//
+// The hook persists each tab's unsent composer draft via the getDraft
+// resolver (read at save-time via ref, like getScrollPosition). The READ
+// side is synchronous in ChatView (restoredLeaf → restoredDraft prop) so it
+// is not exercised here; these tests pin the WRITE side only.
+// ============================================================================
+
+describe("useTabPersistence — draft persistence (write side)", () => {
+	it("captures getDraft output into the persisted draftText", async () => {
+		const storage = makeStorage();
+		const drafts: Record<string, string> = {
+			T1: "half-typed prompt I have not sent",
+		};
+		const { result } = renderHook(
+			(props: UseTabPersistenceProps) => useTabPersistence(props),
+			{
+				initialProps: makeProps({
+					tabs: [makeRuntimeTab({ tabId: "T1" })],
+					getDraft: (tabId: string) => drafts[tabId] ?? "",
+					storage,
+				}),
+			},
+		);
+		await waitForRestoreReady(() => result.current);
+
+		// The initial save (fired on restoreReady) captures the live draft.
+		await waitFor(() =>
+			expect(saveCalls(storage).length).toBeGreaterThan(0),
+		);
+		const [, leafState] = saveCalls(storage).at(-1)!;
+		const t1 = leafState.tabs.find((t) => t.tabId === "T1");
+		expect(t1?.draftText).toBe("half-typed prompt I have not sent");
+	});
+
+	it("U30 path: flushSave persists the current draft (panel close / restart)", async () => {
+		const storage = makeStorage();
+		const { result } = renderHook(
+			(props: UseTabPersistenceProps) => useTabPersistence(props),
+			{
+				initialProps: makeProps({
+					tabs: [makeRuntimeTab({ tabId: "T1" })],
+					getDraft: () => "draft captured at flush",
+					storage,
+				}),
+			},
+		);
+		await waitForRestoreReady(() => result.current);
+		storage.saveTabStateForLeaf.mockClear();
+
+		await act(async () => {
+			await result.current.flushSave();
+		});
+
+		const [, leafState] = saveCalls(storage).at(-1)!;
+		expect(
+			leafState.tabs.find((t) => t.tabId === "T1")?.draftText,
+		).toBe("draft captured at flush");
+	});
+
+	it("persists an empty draft as '' (e.g., after a send clears the composer)", async () => {
+		const storage = makeStorage();
+		const { result } = renderHook(
+			(props: UseTabPersistenceProps) => useTabPersistence(props),
+			{
+				initialProps: makeProps({
+					tabs: [makeRuntimeTab({ tabId: "T1" })],
+					getDraft: () => "",
+					storage,
+				}),
+			},
+		);
+		await waitForRestoreReady(() => result.current);
+		storage.saveTabStateForLeaf.mockClear();
+
+		await act(async () => {
+			await result.current.flushSave();
+		});
+
+		const [, leafState] = saveCalls(storage).at(-1)!;
+		expect(
+			leafState.tabs.find((t) => t.tabId === "T1")?.draftText,
+		).toBe("");
+	});
+
+	it("captures distinct drafts per tab (no cross-contamination)", async () => {
+		const storage = makeStorage();
+		const drafts: Record<string, string> = {
+			T1: "draft for tab one",
+			T2: "different draft for tab two",
+		};
+		const { result } = renderHook(
+			(props: UseTabPersistenceProps) => useTabPersistence(props),
+			{
+				initialProps: makeProps({
+					tabs: [
+						makeRuntimeTab({ tabId: "T1" }),
+						makeRuntimeTab({ tabId: "T2", label: "Tab 2" }),
+					],
+					getDraft: (tabId: string) => drafts[tabId] ?? "",
+					storage,
+				}),
+			},
+		);
+		await waitForRestoreReady(() => result.current);
+		storage.saveTabStateForLeaf.mockClear();
+
+		await act(async () => {
+			await result.current.flushSave();
+		});
+
+		const [, leafState] = saveCalls(storage).at(-1)!;
+		expect(
+			leafState.tabs.find((t) => t.tabId === "T1")?.draftText,
+		).toBe("draft for tab one");
+		expect(
+			leafState.tabs.find((t) => t.tabId === "T2")?.draftText,
+		).toBe("different draft for tab two");
+	});
+});
+
+// ============================================================================
+// Draft persistence — restart fix (reproduce-first)
+//
+// Bug: a draft typed into the active tab with NO tab add/close/rename/switch
+// only reaches disk via flushSave at quit, which races with app exit on
+// restart → the draft is lost. Fix: a debounced `draftSignature` change must
+// trigger a save so the draft is persisted shortly after typing.
+// ============================================================================
+
+describe("useTabPersistence — draft change triggers a save (restart fix)", () => {
+	it("a draftSignature change persists the active tab's draft without any tab event", async () => {
+		const storage = makeStorage();
+		let draft = "";
+		const base = makeProps({
+			tabs: [makeRuntimeTab({ tabId: "T1" })],
+			getDraft: () => draft,
+			storage,
+			draftSignature: "",
+		});
+		const { result, rerender } = renderHook(
+			(props: UseTabPersistenceProps) => useTabPersistence(props),
+			{ initialProps: base },
+		);
+		await waitForRestoreReady(() => result.current);
+		storage.saveTabStateForLeaf.mockClear();
+
+		// User types — NO tab add/close/rename/switch. Only the draft changes,
+		// and the caller bumps draftSignature (debounced) to reflect it.
+		draft = "typed but never switched away";
+		rerender({
+			...base,
+			getDraft: () => draft,
+			draftSignature: "T1:typed but never switched away",
+		});
+
+		await waitFor(() =>
+			expect(saveCalls(storage).length).toBeGreaterThan(0),
+		);
+		expect(
+			saveCalls(storage).at(-1)![1].tabs.find((t) => t.tabId === "T1")
+				?.draftText,
+		).toBe("typed but never switched away");
 	});
 });

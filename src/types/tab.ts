@@ -72,6 +72,17 @@ export interface PersistedTabInfo {
 	tabOrder: number;
 	/** Last known scroll position in pixels (per I8 sticky-bottom logic) */
 	scrollPosition: number;
+	/**
+	 * Unsent draft text in this tab's composer at save-time. Preserved so a
+	 * half-typed prompt survives panel close/reopen and restart (it already
+	 * survives tab switch in-memory, since inactive tabs stay mounted).
+	 * Empty string when the composer is empty or after a send clears it.
+	 * Optional for back-compat: pre-draft persisted state omits it and is
+	 * read as "" (no draft).
+	 *
+	 * See [[ACP Preserve Unsent Draft Text Per Tab]].
+	 */
+	draftText?: string;
 }
 
 /**
