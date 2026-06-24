@@ -32,8 +32,10 @@ export function useHistoryModal(
 	currentSessionId?: string,
 	findTabBySessionId?: (sessionId: string) => { tabId: string; label: string } | null,
 	onSwitchToTab?: (tabId: string) => void,
+	onCloseTab?: (tabId: string) => void,
 ): {
 	handleOpenHistory: () => void;
+	handleDeleteSession: (sessionId: string) => Promise<void>;
 } {
 	const logger = getLogger();
 	const historyModalRef = useRef<SessionHistoryModal | null>(null);
@@ -56,6 +58,8 @@ export function useHistoryModal(
 	findTabBySessionIdRef.current = findTabBySessionId;
 	const onSwitchToTabRef = useRef(onSwitchToTab);
 	onSwitchToTabRef.current = onSwitchToTab;
+	const onCloseTabRef = useRef(onCloseTab);
+	onCloseTabRef.current = onCloseTab;
 
 	const handleRestoreSession = useCallback(
 		async (sessionId: string, cwd: string) => {
@@ -122,6 +126,13 @@ export function useHistoryModal(
 			try {
 				logger.log(`[ChatPanel] Deleting session: ${sessionId}`);
 				await sessionHistory.deleteSession(sessionId);
+				// If the deleted session is open in a tab, close that tab so the
+				// UI doesn't keep an orphaned tab for a session that no longer
+				// exists in history. Mirrors the I20 restore-switch wiring.
+				const openTab = findTabBySessionIdRef.current?.(sessionId);
+				if (openTab) {
+					onCloseTabRef.current?.(openTab.tabId);
+				}
 				new Notice("[Agent Console] Session deleted");
 			} catch (error) {
 				new Notice("[Agent Console] Failed to delete session");
@@ -263,5 +274,5 @@ export function useHistoryModal(
 		handleFetchSessions,
 	]);
 
-	return { handleOpenHistory };
+	return { handleOpenHistory, handleDeleteSession };
 }
