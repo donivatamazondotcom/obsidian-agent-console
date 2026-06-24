@@ -37,6 +37,8 @@ Note references in the chat panel are clickable — both the mention chips you s
 | Cmd/Ctrl + Alt + Shift + click | Opens in a new window |
 | Middle-click | Opens in a new tab |
 
+If a link points to a note that doesn't exist (for example, an agent referenced a file that was since renamed or deleted), clicking it shows a **"Note not found"** notice instead of creating an empty note.
+
 ## See also
 
 - [Context Strip](/usage/context-strip) — pin, show, and control what the agent sees
