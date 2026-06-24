@@ -17,10 +17,10 @@ describe("queued input visual distinctness (T15)", () => {
 		expect(css).toContain(".agent-client-chat-input-box.agent-client-queued");
 	});
 
-	it("defines the queued banner + Edit/Cancel controls", () => {
+	it("defines the queued banner + Edit/Delete controls", () => {
 		expect(css).toContain(".agent-client-queued-banner");
 		expect(css).toContain(".agent-client-queued-edit");
-		expect(css).toContain(".agent-client-queued-cancel");
+		expect(css).toContain(".agent-client-queued-delete");
 	});
 
 	it("uses the accent hue (not red/green) for the queued state", () => {
@@ -36,5 +36,6 @@ describe("queued input visual distinctness (T15)", () => {
 
 	it("keeps a visible focus outline on the queued controls (keyboard a11y)", () => {
 		expect(css).toContain(".agent-client-queued-edit:focus-visible");
+		expect(css).toContain(".agent-client-queued-delete:focus-visible");
 	});
 });

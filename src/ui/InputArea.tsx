@@ -19,7 +19,7 @@ import { ErrorBanner } from "./ErrorBanner";
 import { AttachmentStrip } from "./shared/AttachmentStrip";
 import { InputToolbar } from "./InputToolbar";
 import { getLogger } from "../utils/logger";
-import { decideComposerEnterAction } from "../services/message-queue-logic";
+import { decideComposerEnterAction, buildComposerPlaceholder } from "../services/message-queue-logic";
 import type { ErrorInfo } from "../types/errors";
 import type { AgentUpdateNotification } from "../services/update-checker";
 import { useSettings } from "../hooks/useSettings";
@@ -225,8 +225,8 @@ export interface InputAreaProps {
 	onQueueMessage?: (content: string, attachments?: AttachedFile[]) => void;
 	/** Unlock the composer to edit the queued message (keeps the text). */
 	onEditQueued?: () => void;
-	/** Clear the queued message and empty the composer. */
-	onCancelQueued?: () => void;
+	/** Delete the queued message and empty the composer. */
+	onDeleteQueued?: () => void;
 	/** Session mode state (available modes and current mode) */
 	modes?: SessionModeState;
 	/** Callback when mode is changed */
@@ -304,7 +304,7 @@ export function InputArea({
 	isQueued = false,
 	onQueueMessage,
 	onEditQueued,
-	onCancelQueued,
+	onDeleteQueued,
 	modes,
 	onModeChange,
 	models,
@@ -1049,8 +1049,13 @@ export function InputArea({
 		}
 	}, [restoredMessage, onRestoredMessageConsumed, inputValue, onInputChange]);
 
-	// Placeholder text
-	const placeholder = `Message ${agentLabel} - @ to mention notes${availableCommands.length > 0 ? ", / for commands" : ""}`;
+	// Placeholder text — while streaming, teach the queue keybinding (#82).
+	const placeholder = buildComposerPlaceholder({
+		agentLabel,
+		hasCommands: availableCommands.length > 0,
+		isStreaming,
+		isQueued,
+	});
 
 	return (
 		<div className="agent-client-chat-input-container">
@@ -1135,10 +1140,10 @@ export function InputArea({
 							</button>
 							<button
 								type="button"
-								className="agent-client-queued-cancel"
-								onClick={() => onCancelQueued?.()}
+								className="agent-client-queued-delete"
+								onClick={() => onDeleteQueued?.()}
 							>
-								Cancel
+								Delete
 							</button>
 						</div>
 					</div>

@@ -46,6 +46,30 @@ export function decideComposerEnterAction(params: {
 	return "none";
 }
 
+/**
+ * Composer placeholder text (#82 affordance — option A, discovery-only).
+ *
+ * While the agent is streaming (and nothing is queued yet), the empty-composer
+ * placeholder teaches the queue keybinding — the same way the idle placeholder
+ * teaches "@ to mention / for commands." It's discovery-only: it shows when the
+ * composer is empty and vanishes once the user types (placeholders only render
+ * when empty), which is acceptable because the binding is learned once.
+ *
+ * Queue-only wording for now; the steering keybinding ([[Agent Console
+ * Mid-Stream Steering]] #81) gets added here when that ships.
+ */
+export function buildComposerPlaceholder(params: {
+	agentLabel: string;
+	hasCommands: boolean;
+	isStreaming: boolean;
+	isQueued: boolean;
+}): string {
+	if (params.isStreaming && !params.isQueued) {
+		return `Press Enter to queue your next message — sends when ${params.agentLabel} finishes`;
+	}
+	return `Message ${params.agentLabel} - @ to mention notes${params.hasCommands ? ", / for commands" : ""}`;
+}
+
 export interface FlushDecisionParams {
 	/** The turn ended this tick: isSending went true -> false. */
 	turnEnded: boolean;

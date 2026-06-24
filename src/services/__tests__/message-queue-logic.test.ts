@@ -12,6 +12,7 @@ import {
 	shouldQueueOnSend,
 	shouldFlushQueue,
 	decideComposerEnterAction,
+	buildComposerPlaceholder,
 	executeFlush,
 	selectBroadcastSendTargets,
 	selectBroadcastPromptTargets,
@@ -101,6 +102,40 @@ describe("decideComposerEnterAction (T1, T13)", () => {
 		expect(
 			decideComposerEnterAction({ ...base, isButtonDisabled: true }),
 		).toBe("none");
+	});
+});
+
+// --- composer placeholder affordance (option A, queue-only) -----------------
+
+describe("buildComposerPlaceholder (streaming hint)", () => {
+	const base = { agentLabel: "Auto SA", hasCommands: true, isStreaming: false, isQueued: false };
+
+	it("idle: teaches mention/command affordances", () => {
+		expect(buildComposerPlaceholder(base)).toBe(
+			"Message Auto SA - @ to mention notes, / for commands",
+		);
+	});
+
+	it("streaming: teaches the Enter-to-queue keybinding", () => {
+		const p = buildComposerPlaceholder({ ...base, isStreaming: true });
+		expect(p).toContain("Press Enter to queue");
+		expect(p).toContain("Auto SA finishes");
+	});
+
+	it("queue-only wording for now (no steering mention yet)", () => {
+		const p = buildComposerPlaceholder({ ...base, isStreaming: true });
+		expect(p.toLowerCase()).not.toContain("steer");
+	});
+
+	it("streaming but already queued: falls back to the normal placeholder", () => {
+		// (Moot in practice — the textarea is non-empty when queued — but the
+		// builder shouldn't advertise queueing when the slot is full.)
+		const p = buildComposerPlaceholder({
+			...base,
+			isStreaming: true,
+			isQueued: true,
+		});
+		expect(p).not.toContain("Press Enter to queue");
 	});
 });
 

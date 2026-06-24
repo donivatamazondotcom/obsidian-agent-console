@@ -1128,7 +1128,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 .agent-client-queued-edit,
-.agent-client-queued-cancel {
+.agent-client-queued-delete {
 	padding: 2px 10px;
 	font-size: var(--font-ui-smaller);
 	border-radius: var(--radius-s);
@@ -1144,13 +1144,13 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	background-color: var(--interactive-accent-hover);
 }
 
-.agent-client-queued-cancel {
+.agent-client-queued-delete {
 	color: var(--text-normal);
 	background-color: var(--background-modifier-border);
 }
 
 .agent-client-queued-edit:focus-visible,
-.agent-client-queued-cancel:focus-visible {
+.agent-client-queued-delete:focus-visible {
 	outline: 2px solid var(--interactive-accent);
 	outline-offset: 1px;
 }

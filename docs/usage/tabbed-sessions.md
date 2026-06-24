@@ -104,9 +104,9 @@ Switching tabs preserves all of this.
 
 ## Queue your next message
 
-You don't have to wait for the agent to finish before lining up your next message. **While a tab is streaming a reply, type your next message and press Enter — it gets queued and sends automatically the moment the turn finishes.** Keep your train of thought moving instead of waiting for the cursor.
+You don't have to wait for the agent to finish before lining up your next message. **While a tab is streaming a reply, type your next message and press Enter — it gets queued and sends automatically the moment the turn finishes.** Keep your train of thought moving instead of waiting for the cursor. While the agent is working, the empty composer hints this: *"Press Enter to queue your next message."*
 
-- **One at a time.** You can queue exactly one message per tab. While a message is queued the composer locks and shows a **Queued — sends when the agent finishes** banner with **Edit** and **Cancel** buttons. To change the queued message, click **Edit** (it unlocks the text so you can adjust it and queue again); **Cancel** clears it and gives you an empty composer back.
+- **One at a time.** You can queue exactly one message per tab. While a message is queued the composer locks and shows a **Queued — sends when the agent finishes** banner with **Edit** and **Delete** buttons. **Edit** brings the message back into the composer so you can adjust it and queue again; **Delete** discards it and gives you an empty composer. (Edit recovers, Delete removes — the message is never lost just by editing.)
 - **It waits for a clean finish.** If the turn ends in an error, or you stop it, the queued message **holds** — it is not fired into a turn that didn't complete. It stays ready so you can edit, cancel, or let it go on the next successful turn.
 - **It's safe to lose your place.** A queued message is really just your composer text with a "send this next" flag. If you close and reopen the panel, or restart Obsidian, the text comes back as a normal editable draft (the auto-send flag doesn't survive, because the turn it was waiting on is gone). Nothing sends behind your back after a restart.
 - **Stop still works.** The **Stop** button keeps cancelling the live turn while a message is queued — queuing never takes away your ability to interrupt the agent.

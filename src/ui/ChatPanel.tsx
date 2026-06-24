@@ -1009,8 +1009,10 @@ export function ChatPanel({
 		messageQueue.clear();
 	}, [messageQueue]);
 
-	// Cancel: clear the slot AND empty the composer → normal editable input.
-	const handleCancelQueued = useCallback(() => {
+	// Delete: clear the slot AND empty the composer (discard the message).
+	// (Edit keeps the text; Delete removes it — the label distinction the user
+	// flagged: "Cancel" wrongly implied the text returns to the composer.)
+	const handleDeleteQueued = useCallback(() => {
 		messageQueue.clear();
 		setInputValue("");
 		setAttachedFiles([]);
@@ -1845,7 +1847,7 @@ export function ChatPanel({
 			isQueued={messageQueue.isQueued}
 			onQueueMessage={handleQueueMessage}
 			onEditQueued={handleEditQueued}
-			onCancelQueued={handleCancelQueued}
+			onDeleteQueued={handleDeleteQueued}
 			modes={session.modes}
 			onModeChange={(modeId) => void handleSetMode(modeId)}
 			models={session.models}
