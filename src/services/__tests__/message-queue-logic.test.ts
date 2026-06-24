@@ -143,8 +143,7 @@ describe("buildComposerPlaceholder (streaming hint)", () => {
 
 	it("streaming: teaches the Enter-to-queue keybinding", () => {
 		const p = buildComposerPlaceholder({ ...base, isStreaming: true });
-		expect(p).toContain("Press Enter to queue");
-		expect(p).toContain("Auto SA finishes");
+		expect(p).toBe("Queue a message – hit Enter to send when Auto SA is done");
 	});
 
 	it("queue-only wording for now (no steering mention yet)", () => {
@@ -160,7 +159,7 @@ describe("buildComposerPlaceholder (streaming hint)", () => {
 			isStreaming: true,
 			isQueued: true,
 		});
-		expect(p).not.toContain("Press Enter to queue");
+		expect(p).not.toContain("Queue a message");
 	});
 });
 
