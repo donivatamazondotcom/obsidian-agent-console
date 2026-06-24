@@ -10,6 +10,8 @@ import * as React from "react";
 const { useState, useCallback } = React;
 import { createRoot, Root } from "react-dom/client";
 import type { SessionInfo } from "../types/session";
+import { useSessionSearch } from "../hooks/useSessionSearch";
+import type { SearchSnippet } from "../services/session-search";
 
 // ============================================================
 // ConfirmDeleteModal (internal)
@@ -189,6 +191,10 @@ interface SessionHistoryContentProps {
 	hasMore: boolean;
 	/** Current working directory for filtering */
 	currentCwd: string;
+	/** Loads a session's persisted messages for full-text search indexing. */
+	loadSessionMessages: (
+		sessionId: string,
+	) => Promise<import("../types/chat").ChatMessage[] | null>;
 
 	// Capability flags (from useSessionHistory)
 	/** Whether session/list is supported (unstable) */
@@ -383,10 +389,50 @@ function DebugForm({
 }
 
 /**
+ * Render text with all case-insensitive occurrences of `query` wrapped in
+ * <mark> for highlighting. Empty query → plain text.
+ */
+function HighlightedText({
+	text,
+	query,
+}: {
+	text: string;
+	query: string;
+}) {
+	const q = query.trim();
+	if (!q) return <>{text}</>;
+	const lower = text.toLowerCase();
+	const qLower = q.toLowerCase();
+	const parts: React.ReactNode[] = [];
+	let i = 0;
+	let key = 0;
+	while (i < text.length) {
+		const idx = lower.indexOf(qLower, i);
+		if (idx === -1) {
+			parts.push(text.slice(i));
+			break;
+		}
+		if (idx > i) parts.push(text.slice(i, idx));
+		parts.push(
+			<mark
+				key={key++}
+				className="agent-client-session-history-match"
+			>
+				{text.slice(idx, idx + q.length)}
+			</mark>,
+		);
+		i = idx + q.length;
+	}
+	return <>{parts}</>;
+}
+
+/**
  * Session list item component.
  */
 function SessionItem({
 	session,
+	snippet,
+	query,
 	canRestore,
 	canFork,
 	currentCwd,
@@ -397,6 +443,8 @@ function SessionItem({
 	onClose,
 }: {
 	session: SessionInfo;
+	snippet?: SearchSnippet;
+	query: string;
 	canRestore: boolean;
 	canFork: boolean;
 	currentCwd: string;
@@ -429,7 +477,12 @@ function SessionItem({
 			<div className="agent-client-session-history-item-content">
 				<div className="agent-client-session-history-item-title">
 					<span>
-						{truncateTitle(session.title ?? "Untitled Session")}
+						<HighlightedText
+							text={truncateTitle(
+								session.title ?? "Untitled Session",
+							)}
+							query={query}
+						/>
 					</span>
 				</div>
 				<div className="agent-client-session-history-item-metadata">
@@ -447,6 +500,20 @@ function SessionItem({
 						</span>
 					)}
 				</div>
+				{snippet && (
+					<div className="agent-client-session-history-item-snippet">
+						{snippet.text.slice(0, snippet.matchStart)}
+						<mark className="agent-client-session-history-item-snippet-match">
+							{snippet.text.slice(
+								snippet.matchStart,
+								snippet.matchStart + snippet.matchLength,
+							)}
+						</mark>
+						{snippet.text.slice(
+							snippet.matchStart + snippet.matchLength,
+						)}
+					</div>
+				)}
 			</div>
 
 			<div className="agent-client-session-history-item-actions">
@@ -493,13 +560,14 @@ function SessionItem({
  * - Session list with load/resume/fork actions
  * - Pagination
  */
-function SessionHistoryContent({
+export function SessionHistoryContent({
 	app,
 	sessions,
 	loading,
 	error,
 	hasMore,
 	currentCwd,
+	loadSessionMessages,
 	canList,
 	canRestore,
 	canFork,
@@ -517,6 +585,45 @@ function SessionHistoryContent({
 }: SessionHistoryContentProps) {
 	const [filterByCurrentVault, setFilterByCurrentVault] = useState(true);
 	const [hideNonLocalSessions, setHideNonLocalSessions] = useState(false);
+
+	// Full-text search over the local session library (titles + content).
+	const {
+		query,
+		setQuery,
+		results: searchResults,
+		indexState,
+		ensureIndex,
+		invalidate: invalidateSearch,
+	} = useSessionSearch({ sessions, loadSessionMessages });
+
+	const sessionById = React.useMemo(
+		() => new Map(sessions.map((s) => [s.sessionId, s])),
+		[sessions],
+	);
+
+	// I94: focus the search box when the modal opens so the user can type
+	// immediately. Index build is NOT triggered here — it fires on first
+	// keystroke (below), keeping the open path cheap and avoiding a hint flash.
+	const searchInputRef = React.useRef<HTMLInputElement>(null);
+	React.useEffect(() => {
+		searchInputRef.current?.focus();
+	}, []);
+
+	// I95: only surface the "Searching transcripts…" hint if the build runs
+	// long enough to matter (>250ms). Fast builds (small libraries) never
+	// flash it.
+	const [showBuildingHint, setShowBuildingHint] = useState(false);
+	React.useEffect(() => {
+		if (indexState !== "building") {
+			setShowBuildingHint(false);
+			return;
+		}
+		const handle = window.setTimeout(
+			() => setShowBuildingHint(true),
+			250,
+		);
+		return () => window.clearTimeout(handle);
+	}, [indexState]);
 
 	const handleFilterChange = useCallback(
 		(e: React.ChangeEvent<HTMLInputElement>) => {
@@ -546,11 +653,12 @@ function SessionHistoryContent({
 				sessionTitle,
 				() => {
 					void onDeleteSession(sessionId);
+					invalidateSearch(sessionId);
 				},
 			);
 			confirmModal.open();
 		},
-		[app, sessions, onDeleteSession],
+		[app, sessions, onDeleteSession, invalidateSearch],
 	);
 
 	// Open edit title modal for a session
@@ -570,14 +678,31 @@ function SessionHistoryContent({
 		[app, sessions, currentCwd, onEditTitle],
 	);
 
-	// Filter sessions based on hideNonLocalSessions setting
-	// Only applies to agent session/list (not local sessions which are already filtered)
-	const filteredSessions = React.useMemo(() => {
-		if (isUsingLocalSessions || !hideNonLocalSessions) {
-			return sessions;
+	// Display list = search results, then the hide-non-local filter applied on
+	// top. Empty query → searchResults is the full list (title matches), so
+	// behavior matches the pre-search modal when nothing is typed.
+	const displayItems = React.useMemo(() => {
+		const items: { session: SessionInfo; snippet?: SearchSnippet }[] = [];
+		for (const match of searchResults) {
+			const s = sessionById.get(match.sessionId);
+			if (!s) continue;
+			if (
+				!isUsingLocalSessions &&
+				hideNonLocalSessions &&
+				!localSessionIds.has(s.sessionId)
+			) {
+				continue;
+			}
+			items.push({ session: s, snippet: match.snippet });
 		}
-		return sessions.filter((s) => localSessionIds.has(s.sessionId));
-	}, [sessions, isUsingLocalSessions, hideNonLocalSessions, localSessionIds]);
+		return items;
+	}, [
+		searchResults,
+		sessionById,
+		isUsingLocalSessions,
+		hideNonLocalSessions,
+		localSessionIds,
+	]);
 
 	// Check if any session operation is available (requires agent connection)
 	const canPerformAnyOperation = isAgentReady && (canRestore || canFork);
@@ -632,6 +757,27 @@ function SessionHistoryContent({
 
 			{canShowList && (
 				<>
+					{/* Full-text search */}
+					<div className="agent-client-session-history-search">
+						<input
+							ref={searchInputRef}
+							type="text"
+							className="agent-client-session-history-search-input"
+							placeholder="Search sessions…"
+							value={query}
+							aria-label="Search sessions"
+							onChange={(e) => {
+								ensureIndex();
+								setQuery(e.target.value);
+							}}
+						/>
+						{showBuildingHint && (
+							<span className="agent-client-session-history-search-status">
+								Searching transcripts…
+							</span>
+						)}
+					</div>
+
 					{/* Filter toggles - only for agent session/list */}
 					{canList && !isUsingLocalSessions && (
 						<div className="agent-client-session-history-filter">
@@ -674,28 +820,32 @@ function SessionHistoryContent({
 					)}
 
 					{/* Loading state */}
-					{!error && loading && filteredSessions.length === 0 && (
+					{!error && loading && displayItems.length === 0 && (
 						<div className="agent-client-session-history-loading">
 							<p>Loading sessions...</p>
 						</div>
 					)}
 
 					{/* Empty state */}
-					{!error && !loading && filteredSessions.length === 0 && (
+					{!error && !loading && displayItems.length === 0 && (
 						<div className="agent-client-session-history-empty">
 							<p className="agent-client-session-history-empty-text">
-								No previous sessions
+								{query.trim()
+									? "No sessions match your search"
+									: "No previous sessions"}
 							</p>
 						</div>
 					)}
 
 					{/* Session list */}
-					{!error && filteredSessions.length > 0 && (
+					{!error && displayItems.length > 0 && (
 						<div className="agent-client-session-history-list">
-							{filteredSessions.map((session) => (
+							{displayItems.map(({ session, snippet }) => (
 								<SessionItem
 									key={session.sessionId}
 									session={session}
+									snippet={snippet}
+									query={query}
 									canRestore={(isAgentReady && canRestore) || isUsingLocalSessions}
 									canFork={isAgentReady && canFork}
 									currentCwd={currentCwd}
@@ -775,6 +925,9 @@ export class SessionHistoryModal extends Modal {
 	onOpen() {
 		const { contentEl } = this;
 		contentEl.empty();
+		// Stable-size class so the frame doesn't resize/re-center as search
+		// filters the result count (I96).
+		this.modalEl.addClass("agent-client-session-history-modal");
 
 		// Add modal title
 		contentEl.createEl("h2", { text: "Session history" });

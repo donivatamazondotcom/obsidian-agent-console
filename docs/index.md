@@ -36,8 +36,8 @@ features:
     title: A Model for Every Task
     details: Run a fast model in one tab and a heavyweight one in another. Switch model or mode mid-conversation – each tab keeps its own choice, so the right tool is always one tab away.
   - icon: 🔍
-    title: Session History
-    details: Browse past chats and reopen any session in a tab – pick up a previous conversation right where it left off.
+    title: Search Your History
+    details: Find that conversation you half-remember. Search across every past chat by title or by what was actually said inside it, then reopen any session in a tab and pick up right where it left off.
   - icon: 📥
     title: Bring Your Setup With You
     details: Switching from another agent plugin? Import its agent definitions, defaults, and API keys in one click. Agent Console offers it on first run and keeps your keys where they already live.

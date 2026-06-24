@@ -210,6 +210,14 @@ export interface UseSessionHistoryReturn {
 	 * Call this when creating a new session to refresh the list.
 	 */
 	invalidateCache: () => void;
+
+	/**
+	 * Load a session's persisted messages from local storage.
+	 * Exposed for full-text search indexing (see session-search service).
+	 */
+	loadSessionMessages: (
+		sessionId: string,
+	) => Promise<import("../types/chat").ChatMessage[] | null>;
 }
 
 /**
@@ -872,6 +880,15 @@ export function useSessionHistory(
 		[session.agentId, agentCwd, settingsAccess],
 	);
 
+	/**
+	 * Load a session's persisted messages (passthrough to settings access).
+	 * Used by the search engine to build its content index.
+	 */
+	const loadSessionMessages = useCallback(
+		(sessionId: string) => settingsAccess.loadSessionMessages(sessionId),
+		[settingsAccess],
+	);
+
 	return useMemo(
 		() => ({
 			sessions,
@@ -896,6 +913,7 @@ export function useSessionHistory(
 			updateSessionTitle,
 			saveSessionLocally,
 			saveSessionMessages,
+			loadSessionMessages,
 			invalidateCache,
 		}),
 		[
@@ -916,6 +934,7 @@ export function useSessionHistory(
 			updateSessionTitle,
 			saveSessionLocally,
 			saveSessionMessages,
+			loadSessionMessages,
 			invalidateCache,
 		],
 	);

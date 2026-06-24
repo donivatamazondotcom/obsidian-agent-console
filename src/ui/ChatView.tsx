@@ -757,6 +757,7 @@ function ChatComponent({
 								}
 								findTabBySessionId={findTabBySessionId}
 								onSwitchToTab={tabManager.setActiveTab}
+								onCloseTab={tabManager.removeTab}
 								restoredSessionId={
 									reopenPayload[tab.tabId]?.sessionId ??
 									persistedSessionIdsRef.current.get(
