@@ -1,6 +1,6 @@
 import * as React from "react";
 const { useRef, useState, useEffect, useCallback, useMemo } = React;
-import { Notice } from "obsidian";
+import { Notice, setIcon } from "obsidian";
 
 import type AgentClientPlugin from "../plugin";
 import type { IChatViewHost } from "./view-host";
@@ -19,6 +19,7 @@ import { ErrorBanner } from "./ErrorBanner";
 import { AttachmentStrip } from "./shared/AttachmentStrip";
 import { InputToolbar } from "./InputToolbar";
 import { getLogger } from "../utils/logger";
+import { decideComposerEnterAction } from "../services/message-queue-logic";
 import type { ErrorInfo } from "../types/errors";
 import type { AgentUpdateNotification } from "../services/update-checker";
 import { useSettings } from "../hooks/useSettings";
@@ -215,6 +216,17 @@ export interface InputAreaProps {
 	onStopGeneration: () => Promise<void>;
 	/** Callback when restored message has been consumed */
 	onRestoredMessageConsumed: () => void;
+	// Queue Next Message (#82)
+	/** Whether the agent is currently streaming a reply (queue affordance window). */
+	isStreaming?: boolean;
+	/** Whether a message is queued (locks the composer + shows the queued banner). */
+	isQueued?: boolean;
+	/** Queue the composer's current content (Enter while streaming). */
+	onQueueMessage?: (content: string, attachments?: AttachedFile[]) => void;
+	/** Unlock the composer to edit the queued message (keeps the text). */
+	onEditQueued?: () => void;
+	/** Clear the queued message and empty the composer. */
+	onCancelQueued?: () => void;
 	/** Session mode state (available modes and current mode) */
 	modes?: SessionModeState;
 	/** Callback when mode is changed */
@@ -288,6 +300,11 @@ export function InputArea({
 	onSendMessage,
 	onStopGeneration,
 	onRestoredMessageConsumed,
+	isStreaming = false,
+	isQueued = false,
+	onQueueMessage,
+	onEditQueued,
+	onCancelQueued,
 	modes,
 	onModeChange,
 	models,
@@ -894,8 +911,24 @@ export function InputArea({
 
 				if (shouldSend) {
 					e.preventDefault();
-					if (!isButtonDisabled && !isSending) {
+					const action = decideComposerEnterAction({
+						isStreaming,
+						isButtonDisabled,
+						isQueued,
+						hasContent:
+							inputValue.trim() !== "" ||
+							attachedFiles.length > 0,
+					});
+					if (action === "send") {
 						void handleSendOrStop();
+					} else if (action === "queue") {
+						// Queue Next Message (#82): while the agent is
+						// streaming, the send key queues the next message
+						// instead of being a no-op. The composer text stays in
+						// place (it becomes the locked queued message). The
+						// toolbar button remains Stop so cancelling the live
+						// turn stays reachable.
+						onQueueMessage?.(inputValue.trim(), attachedFiles);
 					}
 				}
 				// If not shouldSend, allow default behavior (newline)
@@ -908,6 +941,11 @@ export function InputArea({
 			isButtonDisabled,
 			handleSendOrStop,
 			settings.sendMessageShortcut,
+			isStreaming,
+			isQueued,
+			onQueueMessage,
+			inputValue,
+			attachedFiles,
 		],
 	);
 
@@ -1061,13 +1099,51 @@ export function InputArea({
 
 			{/* Input Box - flexbox container with border */}
 			<div
-				className={`agent-client-chat-input-box ${isDraggingOver ? "agent-client-dragging-over" : ""}`}
+				className={`agent-client-chat-input-box ${isDraggingOver ? "agent-client-dragging-over" : ""} ${isQueued ? "agent-client-queued" : ""}`}
 				role="presentation"
 				onDragOver={handleDragOver}
 				onDragEnter={handleDragEnter}
 				onDragLeave={handleDragLeave}
 				onDrop={(e) => void handleDrop(e)}
 			>
+				{/* Queued banner (#82) — distinct from connecting/streaming
+				    disabled states. Shown when a message is queued; the
+				    composer below is locked (read-only) showing the queued text. */}
+				{isQueued && (
+					<div
+						className="agent-client-queued-banner"
+						role="status"
+						aria-live="polite"
+					>
+						<span
+							className="agent-client-queued-banner-icon"
+							aria-hidden="true"
+							ref={(el) => {
+								if (el) setIcon(el, "clock");
+							}}
+						/>
+						<span className="agent-client-queued-banner-text">
+							Queued — sends when {agentLabel} finishes
+						</span>
+						<div className="agent-client-queued-banner-actions">
+							<button
+								type="button"
+								className="agent-client-queued-edit"
+								onClick={() => onEditQueued?.()}
+							>
+								Edit
+							</button>
+							<button
+								type="button"
+								className="agent-client-queued-cancel"
+								onClick={() => onCancelQueued?.()}
+							>
+								Cancel
+							</button>
+						</div>
+					</div>
+				)}
+
 				{/* Textarea with Hint Overlay */}
 				<div className="agent-client-textarea-wrapper">
 					<textarea
@@ -1080,6 +1156,12 @@ export function InputArea({
 						className="agent-client-chat-input-textarea"
 						rows={1}
 						spellCheck={obsidianSpellcheck}
+						readOnly={isQueued}
+						aria-label={
+							isQueued
+								? "Queued message (locked) — use Edit to change it"
+								: undefined
+						}
 					/>
 					{hintText && (
 						<div

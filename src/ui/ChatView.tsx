@@ -695,6 +695,8 @@ function ChatComponent({
 				false,
 			cancelOperation: async () =>
 				activeCallbacksRef.current?.cancelOperation(),
+			hasPendingQueue: () =>
+				activeCallbacksRef.current?.hasPendingQueue() ?? false,
 		});
 		view.setTabHandlesAccessor(() =>
 			Array.from(tabHandlesRef.current.entries()).map(
@@ -705,6 +707,7 @@ function ChatComponent({
 					canSend: cb.canSend,
 					sendMessage: cb.sendMessage,
 					cancelOperation: cb.cancelOperation,
+					hasPendingQueue: cb.hasPendingQueue,
 				}),
 			),
 		);

@@ -7,6 +7,10 @@ import { HOVER_LINK_SOURCE } from "./utils/link-leaf";
 import { fetchJson } from "./services/net";
 import { ChatViewRegistry } from "./services/view-registry";
 import {
+	selectBroadcastPromptTargets,
+	selectBroadcastSendTargets,
+} from "./services/message-queue-logic";
+import {
 	createSettingsService,
 	type SettingsService,
 } from "./services/settings-service";
@@ -871,8 +875,9 @@ export default class AgentClientPlugin extends Plugin {
 		const sourceTabId = this.viewRegistry.toFocused((v) =>
 			v.getActiveTabId(),
 		);
-		const targetTabs = allTabs.filter((t) => t.tabId !== sourceTabId);
-		if (targetTabs.length === 0) {
+		const { targets: targetTabs, skippedQueued } =
+			selectBroadcastPromptTargets(allTabs, sourceTabId ?? "");
+		if (targetTabs.length === 0 && skippedQueued.length === 0) {
 			new Notice("[Agent Console] No other chat tabs to broadcast to");
 			return;
 		}
@@ -880,8 +885,15 @@ export default class AgentClientPlugin extends Plugin {
 		for (const tab of targetTabs) {
 			tab.setInputState(inputState);
 		}
+		// #82: report tabs skipped because they hold a committed queued message
+		// (overwriting their composer would be data loss — narrowly overrides
+		// F11 decision #4 for queued, not loose-draft, messages).
+		const promptSkipNote =
+			skippedQueued.length > 0
+				? ` (${skippedQueued.length} skipped — pending queued message)`
+				: "";
 		new Notice(
-			`[Agent Console] Prompt broadcast to ${targetTabs.length} tab(s)`,
+			`[Agent Console] Prompt broadcast to ${targetTabs.length} tab(s)${promptSkipNote}`,
 		);
 	}
 
@@ -895,14 +907,23 @@ export default class AgentClientPlugin extends Plugin {
 			return;
 		}
 
-		const sendableTabs = allTabs.filter((t) => t.canSend());
-		if (sendableTabs.length === 0) {
+		const { targets: sendableTabs, skippedQueued } =
+			selectBroadcastSendTargets(allTabs);
+		if (sendableTabs.length === 0 && skippedQueued.length === 0) {
 			new Notice("[Agent Console] No tabs ready to send");
 			return;
 		}
 
 		await Promise.allSettled(sendableTabs.map((t) => t.sendMessage()));
-		new Notice(`[Agent Console] Sent in ${sendableTabs.length} tab(s)`);
+		// #82: a tab already holding a queued message is skipped (queue-of-one —
+		// can't add a second), reported in the summary.
+		const sendSkipNote =
+			skippedQueued.length > 0
+				? ` (${skippedQueued.length} skipped — pending queued message)`
+				: "";
+		new Notice(
+			`[Agent Console] Sent in ${sendableTabs.length} tab(s)${sendSkipNote}`,
+		);
 	}
 
 	/**

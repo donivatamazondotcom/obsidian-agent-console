@@ -40,6 +40,8 @@ export interface IChatTabHandle {
 	canSend(): boolean;
 	sendMessage(): Promise<boolean>;
 	cancelOperation(): Promise<void>;
+	/** True when this tab holds a pending queued message (#82 broadcast skip-guard). */
+	hasPendingQueue(): boolean;
 }
 
 /**

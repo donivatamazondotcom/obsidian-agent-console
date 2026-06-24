@@ -45,6 +45,11 @@ import { useAgent } from "../hooks/useAgent";
 import { useSessionHistory } from "../hooks/useSessionHistory";
 import { useLazySession } from "../hooks/useLazySession";
 import { useDebouncedSessionSave } from "../hooks/useDebouncedSessionSave";
+import { useMessageQueue } from "../hooks/useMessageQueue";
+import {
+	shouldFlushQueue,
+	executeFlush,
+} from "../services/message-queue-logic";
 
 // Domain model imports
 import {
@@ -84,6 +89,8 @@ export interface ChatPanelCallbacks {
 	canSend: () => boolean;
 	sendMessage: () => Promise<boolean>;
 	cancelOperation: () => Promise<void>;
+	/** True when this tab holds a pending queued message (#82 broadcast skip-guard). */
+	hasPendingQueue: () => boolean;
 }
 
 // ============================================================================
@@ -970,6 +977,54 @@ export function ChatPanel({
 		],
 	);
 
+	// ============================================================
+	// Queue Next Message (#82)
+	// ============================================================
+	// Runtime-only queue-of-one. The composer text is the single source of
+	// truth (persisted for free by per-tab draft-preservation); `isQueued` is
+	// never persisted, so a pending message degrades to a plain draft across
+	// any turn-destroying boundary (close/reopen, restart). See
+	// [[Agent Console Queue Next Message]].
+	const messageQueue = useMessageQueue();
+
+	// Tracks whether the in-flight turn was cancelled by the user so the flush
+	// effect HOLDS (does not auto-fire) per Decision 5. Reset at turn start.
+	const cancelledRef = useRef(false);
+
+	// Queue the composer's current content while a turn is streaming. The text
+	// stays in the composer (locked by InputArea via isQueued) — it remains the
+	// single source of truth, so nothing is permanently copied out of it.
+	const handleQueueMessage = useCallback(
+		(content: string, attachments?: AttachedFile[]) => {
+			const trimmed = content.trim();
+			if (!trimmed && (attachments?.length ?? 0) === 0) return;
+			messageQueue.enqueue({ content: trimmed, attachments });
+		},
+		[messageQueue],
+	);
+
+	// Edit: unlock the composer (clear the queued flag) but KEEP the text so
+	// the user can modify it and re-queue on the next send.
+	const handleEditQueued = useCallback(() => {
+		messageQueue.clear();
+	}, [messageQueue]);
+
+	// Cancel: clear the slot AND empty the composer → normal editable input.
+	const handleCancelQueued = useCallback(() => {
+		messageQueue.clear();
+		setInputValue("");
+		setAttachedFiles([]);
+	}, [messageQueue]);
+
+	// Stop wrapper: mark the in-flight turn as user-cancelled so the flush
+	// effect HOLDS any queued message (Decision 5) instead of firing it into
+	// the cancelled turn. Used by every stop entry point (button, hotkey,
+	// broadcast-cancel) via handleStopGenerationRef.
+	const handleStopWithCancelFlag = useCallback(async () => {
+		cancelledRef.current = true;
+		await handleStopGeneration();
+	}, [handleStopGeneration]);
+
 	// Apply configured model when session is ready
 	useEffect(() => {
 		if (!config?.model || !isSessionReady) return;
@@ -1294,13 +1349,13 @@ export function ChatPanel({
 	const handleNewChatWithPersistRef = useRef(handleNewChatWithPersist);
 	const approveActivePermissionRef = useRef(agent.approveActivePermission);
 	const rejectActivePermissionRef = useRef(agent.rejectActivePermission);
-	const handleStopGenerationRef = useRef(handleStopGeneration);
+	const handleStopGenerationRef = useRef(handleStopWithCancelFlag);
 	const handleExportChatRef = useRef(handleExportChat);
 	const handleReloadRef = useRef(handleReload);
 	handleNewChatWithPersistRef.current = handleNewChatWithPersist;
 	approveActivePermissionRef.current = agent.approveActivePermission;
 	rejectActivePermissionRef.current = agent.rejectActivePermission;
-	handleStopGenerationRef.current = handleStopGeneration;
+	handleStopGenerationRef.current = handleStopWithCancelFlag;
 	handleExportChatRef.current = handleExportChat;
 	handleReloadRef.current = handleReload;
 
@@ -1454,6 +1509,58 @@ export function ChatPanel({
 	sessionHistoryLoadingRef.current = sessionHistory.loading;
 	handleSendMessageRef.current = handleSendWithLazyAcquisition;
 
+	// Queue refs (#82) — read latest queue state from the once-registered
+	// broadcast/send callbacks (same ref pattern as the values above).
+	const isQueuedRef = useRef(messageQueue.isQueued);
+	const enqueueRef = useRef(messageQueue.enqueue);
+	isQueuedRef.current = messageQueue.isQueued;
+	enqueueRef.current = messageQueue.enqueue;
+
+	// ============================================================
+	// Effects - Flush queued message on turn completion (#82)
+	// ============================================================
+	// Auto-send the queued message ONLY when the turn it was queued behind
+	// completed normally. Reset the cancel flag at turn start; on turn end
+	// (isSending true -> false) consult shouldFlushQueue, which holds on
+	// error/cancel (Decision 5). The flush routes through the normal send path
+	// (handleSendWithLazyAcquisition) AFTER clearing the composer, so
+	// draft-preservation observes the emptied composer and persists "" — no
+	// stale-draft resurrection.
+	const prevIsSendingForQueueRef = useRef(false);
+	useEffect(() => {
+		const wasSending = prevIsSendingForQueueRef.current;
+		prevIsSendingForQueueRef.current = isSending;
+
+		// Turn start: clear the cancel flag for the new turn.
+		if (!wasSending && isSending) {
+			cancelledRef.current = false;
+			return;
+		}
+
+		// Turn end: decide flush vs hold.
+		const turnEnded = wasSending && !isSending;
+		if (
+			shouldFlushQueue({
+				turnEnded,
+				isQueued: messageQueue.isQueued,
+				hadError: errorInfo !== null,
+				wasCancelled: cancelledRef.current,
+			})
+		) {
+			executeFlush({
+				consume: messageQueue.consume,
+				clearComposer: () => {
+					// Clear first so the cleared value persists (mirrors a
+					// normal send, which clears on dispatch).
+					setInputValue("");
+					setAttachedFiles([]);
+				},
+				dispatch: (content, attachments) =>
+					void handleSendMessageRef.current(content, attachments),
+			});
+		}
+	}, [isSending, errorInfo, messageQueue]);
+
 	useEffect(() => {
 		onRegisterCallbacks?.({
 			getDisplayName: () => activeAgentLabel,
@@ -1495,14 +1602,26 @@ export function ChatPanel({
 				if (sessionHistoryLoadingRef.current) {
 					return false;
 				}
-				if (isSendingRef.current) {
-					return false;
-				}
 
-				// Clear input before sending
 				const messageToSend = currentInput.trim();
 				const filesToSend =
 					currentFiles.length > 0 ? [...currentFiles] : undefined;
+
+				// Streaming → QUEUE instead of dispatching (#82). Broadcast-send
+				// into a busy tab inherits this for free. Keep the composer text
+				// in place (it is the queued message's source of truth, locked
+				// by InputArea). A tab already holding a queued message is
+				// skipped upstream by broadcast; the queue-of-one cap is the
+				// defensive backstop here.
+				if (isSendingRef.current) {
+					if (isQueuedRef.current) return false;
+					return enqueueRef.current({
+						content: messageToSend,
+						attachments: filesToSend,
+					});
+				}
+
+				// Idle/ready → normal dispatch (clears the composer).
 				setInputValue("");
 				setAttachedFiles([]);
 
@@ -1522,6 +1641,7 @@ export function ChatPanel({
 					}
 				}
 			},
+			hasPendingQueue: () => isQueuedRef.current,
 		});
 	}, [onRegisterCallbacks, activeAgentLabel]);
 
@@ -1718,8 +1838,14 @@ export function ChatPanel({
 			plugin={plugin}
 			view={viewHost}
 			onSendMessage={handleSendWithLazyAcquisition}
-			onStopGeneration={handleStopGeneration}
+			onStopGeneration={handleStopWithCancelFlag}
 			onRestoredMessageConsumed={handleRestoredMessageConsumed}
+			// Queue Next Message (#82)
+			isStreaming={isSending}
+			isQueued={messageQueue.isQueued}
+			onQueueMessage={handleQueueMessage}
+			onEditQueued={handleEditQueued}
+			onCancelQueued={handleCancelQueued}
 			modes={session.modes}
 			onModeChange={(modeId) => void handleSetMode(modeId)}
 			models={session.models}

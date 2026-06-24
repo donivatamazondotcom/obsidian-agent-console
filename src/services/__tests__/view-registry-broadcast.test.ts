@@ -22,7 +22,7 @@ import type { ChatInputState } from "../../types/chat";
 
 function makeHandle(
 	tabId: string,
-	opts: { canSend?: boolean } = {},
+	opts: { canSend?: boolean; pending?: boolean } = {},
 ): IChatTabHandle {
 	return {
 		tabId,
@@ -31,6 +31,7 @@ function makeHandle(
 		canSend: () => opts.canSend ?? true,
 		sendMessage: vi.fn(async () => true),
 		cancelOperation: vi.fn(async () => {}),
+		hasPendingQueue: () => opts.pending ?? false,
 	};
 }
 
