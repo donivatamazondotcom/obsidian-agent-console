@@ -2968,3 +2968,75 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	width: var(--icon-xs);
 	height: var(--icon-xs);
 }
+
+/* ============================================================
+ * Collapsible agent sections (settings pane)
+ * Each built-in / custom agent's settings live in a <details>;
+ * the <summary> is the always-visible, clickable header.
+ * Native <details> gives keyboard toggle + aria-expanded for free.
+ * See spec: Agent Console Collapsible Agent Sections.
+ * ============================================================ */
+.agent-client-agent-section {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	margin: 6px 0;
+}
+
+.agent-client-agent-section > .agent-client-agent-section-summary {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 10px;
+	font-weight: var(--font-semibold, 600);
+	color: var(--text-normal);
+	cursor: pointer;
+	user-select: none;
+	list-style: none; /* Firefox: remove default disclosure marker */
+}
+
+/* Remove the default disclosure triangle (WebKit/Blink) — we draw our own. */
+.agent-client-agent-section
+	> .agent-client-agent-section-summary::-webkit-details-marker {
+	display: none;
+}
+
+/* Custom caret (CSS triangle) that rotates when the section is open. */
+.agent-client-agent-section > .agent-client-agent-section-summary::before {
+	content: "";
+	flex-shrink: 0;
+	width: 0;
+	height: 0;
+	border-style: solid;
+	border-width: 5px 0 5px 7px;
+	border-color: transparent transparent transparent var(--text-muted);
+	transition: transform 0.15s ease;
+}
+
+.agent-client-agent-section[open]
+	> .agent-client-agent-section-summary::before {
+	transform: rotate(90deg);
+}
+
+.agent-client-agent-section > .agent-client-agent-section-summary:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.agent-client-agent-section
+	> .agent-client-agent-section-summary:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -2px;
+}
+
+.agent-client-agent-section-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Nest the body settings slightly under the header. */
+.agent-client-agent-section > .setting-item {
+	padding-left: 10px;
+	padding-right: 10px;
+}

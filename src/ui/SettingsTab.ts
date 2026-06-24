@@ -25,6 +25,12 @@ import {
 	type TitleStrategy,
 } from "../types/title-strategy";
 import {
+	AgentExpansionState,
+	freshAgentExpansion,
+	syncAgentExpansion,
+	toggleAgentExpansion,
+} from "../utils/agent-expansion";
+import {
 	normalizeEnvVars,
 	CHAT_FONT_SIZE_MAX,
 	CHAT_FONT_SIZE_MIN,
@@ -39,6 +45,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	plugin: AgentClientPlugin;
 	private agentSelector: DropdownComponent | null = null;
 	private unsubscribe: (() => void) | null = null;
+	private agentExpansion: AgentExpansionState = freshAgentExpansion();
 
 	constructor(app: App, plugin: AgentClientPlugin) {
 		super(app, plugin);
@@ -535,10 +542,34 @@ export class AgentClientSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl).setName("Built-in agents").setHeading();
 
-		this.renderClaudeSettings(containerEl);
-		this.renderCodexSettings(containerEl);
-		this.renderGeminiSettings(containerEl);
-		this.renderKiroSettings(containerEl);
+		this.agentExpansion = syncAgentExpansion(
+			this.agentExpansion,
+			this.plugin.settings.defaultAgentId,
+		);
+		this.renderCollapsibleAgentSection(
+			containerEl,
+			this.plugin.settings.claude.id,
+			this.plugin.settings.claude.displayName || "Claude Code",
+			(el) => this.renderClaudeSettings(el),
+		);
+		this.renderCollapsibleAgentSection(
+			containerEl,
+			this.plugin.settings.codex.id,
+			this.plugin.settings.codex.displayName || "Codex",
+			(el) => this.renderCodexSettings(el),
+		);
+		this.renderCollapsibleAgentSection(
+			containerEl,
+			this.plugin.settings.gemini.id,
+			this.plugin.settings.gemini.displayName || "Gemini CLI",
+			(el) => this.renderGeminiSettings(el),
+		);
+		this.renderCollapsibleAgentSection(
+			containerEl,
+			this.plugin.settings.kiro.id,
+			this.plugin.settings.kiro.displayName || "Kiro CLI",
+			(el) => this.renderKiroSettings(el),
+		);
 
 		new Setting(containerEl).setName("Custom agents").setHeading();
 
@@ -772,6 +803,9 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	 * Clean up subscriptions to prevent memory leaks.
 	 */
 	hide(): void {
+		// Reset per-session expansion so reopening the tab shows only the
+		// default agent expanded (Collapsible Agent Sections, T04 / Decision 3).
+		this.agentExpansion = freshAgentExpansion();
 		if (this.unsubscribe) {
 			this.unsubscribe();
 			this.unsubscribe = null;
@@ -795,6 +829,9 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					};
 					this.plugin.ensureDefaultAgentId();
 					await this.plugin.saveSettingsAndNotify(nextSettings);
+					// Re-render so the collapsible auto-expand follows the new
+					// default agent (Collapsible Agent Sections, T03).
+					this.display();
 				});
 			});
 	}
@@ -862,10 +899,6 @@ export class AgentClientSettingTab extends PluginSettingTab {
 
 	private renderGeminiSettings(sectionEl: HTMLElement) {
 		const gemini = this.plugin.settings.gemini;
-
-		new Setting(sectionEl)
-			.setName(gemini.displayName || "Gemini CLI")
-			.setHeading();
 
 		new Setting(sectionEl)
 			.setName("API key")
@@ -968,10 +1001,6 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		const kiro = this.plugin.settings.kiro;
 
 		new Setting(sectionEl)
-			.setName(kiro.displayName || "Kiro CLI")
-			.setHeading();
-
-		new Setting(sectionEl)
 			.setName("Authentication")
 			.setDesc(
 				'Kiro CLI signs in with your Kiro account, so no API key is needed. Run "kiro-cli" once in a terminal to sign in, then select Kiro CLI here.',
@@ -1057,10 +1086,6 @@ export class AgentClientSettingTab extends PluginSettingTab {
 
 	private renderClaudeSettings(sectionEl: HTMLElement) {
 		const claude = this.plugin.settings.claude;
-
-		new Setting(sectionEl)
-			.setName(claude.displayName || "Claude Code (ACP)")
-			.setHeading();
 
 		new Setting(sectionEl)
 			.setName("API key")
@@ -1165,10 +1190,6 @@ export class AgentClientSettingTab extends PluginSettingTab {
 
 	private renderCodexSettings(sectionEl: HTMLElement) {
 		const codex = this.plugin.settings.codex;
-
-		new Setting(sectionEl)
-			.setName(codex.displayName || "Codex")
-			.setHeading();
 
 		new Setting(sectionEl)
 			.setName("API key")
@@ -1278,7 +1299,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			});
 		} else {
 			this.plugin.settings.customAgents.forEach((agent, index) => {
-				this.renderCustomAgent(containerEl, agent, index);
+				this.renderCollapsibleAgentSection(
+					containerEl,
+					agent.id,
+					agent.displayName || agent.id,
+					(el) => this.renderCustomAgent(el, agent, index),
+				);
 			});
 		}
 
@@ -1599,6 +1625,40 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}
 				});
 		});
+	}
+
+	/**
+	 * Wrap an agent's settings block in a native <details>/<summary> disclosure.
+	 * The summary shows the display name (always visible); the body holds the
+	 * detail settings. Open/closed is per-session UI state in `agentExpansion`
+	 * (see Collapsible Agent Sections spec). Native <details> gives keyboard
+	 * toggle + aria-expanded for free.
+	 */
+	private renderCollapsibleAgentSection(
+		parentEl: HTMLElement,
+		agentId: string,
+		displayName: string,
+		renderBody: (bodyEl: HTMLElement) => void,
+	): void {
+		const details = parentEl.createEl("details", {
+			cls: "agent-client-agent-section",
+		});
+		details.open = this.agentExpansion.expanded.has(agentId);
+		const summary = details.createEl("summary", {
+			cls: "agent-client-agent-section-summary",
+		});
+		summary.createSpan({
+			cls: "agent-client-agent-section-name",
+			text: displayName,
+		});
+		details.addEventListener("toggle", () => {
+			this.agentExpansion = toggleAgentExpansion(
+				this.agentExpansion,
+				agentId,
+				details.open,
+			);
+		});
+		renderBody(details);
 	}
 
 	/**
