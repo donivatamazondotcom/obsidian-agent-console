@@ -389,11 +389,50 @@ function DebugForm({
 }
 
 /**
+ * Render text with all case-insensitive occurrences of `query` wrapped in
+ * <mark> for highlighting. Empty query → plain text.
+ */
+function HighlightedText({
+	text,
+	query,
+}: {
+	text: string;
+	query: string;
+}) {
+	const q = query.trim();
+	if (!q) return <>{text}</>;
+	const lower = text.toLowerCase();
+	const qLower = q.toLowerCase();
+	const parts: React.ReactNode[] = [];
+	let i = 0;
+	let key = 0;
+	while (i < text.length) {
+		const idx = lower.indexOf(qLower, i);
+		if (idx === -1) {
+			parts.push(text.slice(i));
+			break;
+		}
+		if (idx > i) parts.push(text.slice(i, idx));
+		parts.push(
+			<mark
+				key={key++}
+				className="agent-client-session-history-match"
+			>
+				{text.slice(idx, idx + q.length)}
+			</mark>,
+		);
+		i = idx + q.length;
+	}
+	return <>{parts}</>;
+}
+
+/**
  * Session list item component.
  */
 function SessionItem({
 	session,
 	snippet,
+	query,
 	canRestore,
 	canFork,
 	currentCwd,
@@ -405,6 +444,7 @@ function SessionItem({
 }: {
 	session: SessionInfo;
 	snippet?: SearchSnippet;
+	query: string;
 	canRestore: boolean;
 	canFork: boolean;
 	currentCwd: string;
@@ -437,7 +477,12 @@ function SessionItem({
 			<div className="agent-client-session-history-item-content">
 				<div className="agent-client-session-history-item-title">
 					<span>
-						{truncateTitle(session.title ?? "Untitled Session")}
+						<HighlightedText
+							text={truncateTitle(
+								session.title ?? "Untitled Session",
+							)}
+							query={query}
+						/>
 					</span>
 				</div>
 				<div className="agent-client-session-history-item-metadata">
@@ -800,6 +845,7 @@ export function SessionHistoryContent({
 									key={session.sessionId}
 									session={session}
 									snippet={snippet}
+									query={query}
 									canRestore={(isAgentReady && canRestore) || isUsingLocalSessions}
 									canFork={isAgentReady && canFork}
 									currentCwd={currentCwd}

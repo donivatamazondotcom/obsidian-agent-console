@@ -79,7 +79,15 @@ describe("SessionHistoryContent — search", () => {
 		await waitFor(() => {
 			expect(screen.queryByText("travel planning")).toBeNull();
 		});
-		expect(screen.getByText("wikilink debugging")).toBeTruthy();
+		// Title is split by the highlight <mark>, so match on the row text.
+		expect(
+			screen.getByText(
+				(_c, el) =>
+					el?.classList.contains(
+						"agent-client-session-history-item-title",
+					) === true && el?.textContent === "wikilink debugging",
+			),
+		).toBeTruthy();
 
 		// Clear → both return.
 		fireEvent.change(input, { target: { value: "" } });
@@ -161,5 +169,28 @@ describe("SessionHistoryContent — search", () => {
 		expect(document.activeElement).toBe(
 			screen.getByLabelText("Search sessions"),
 		);
+	});
+
+	it("T13: highlights the query within a matching title", async () => {
+		render(
+			<SessionHistoryContent
+				{...makeProps({
+					sessions: [session("a", "obsidian skill notes")],
+				})}
+			/>,
+		);
+		fireEvent.change(screen.getByLabelText("Search sessions"), {
+			target: { value: "obsidian" },
+		});
+		const mark = await waitFor(() =>
+			screen.getByText(
+				(_c, el) =>
+					el?.tagName.toLowerCase() === "mark" &&
+					el.textContent?.toLowerCase() === "obsidian",
+			),
+		);
+		expect(
+			mark.classList.contains("agent-client-session-history-match"),
+		).toBe(true);
 	});
 });

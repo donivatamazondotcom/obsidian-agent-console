@@ -2563,3 +2563,11 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	width: 600px;
 	max-width: 90vw;
 }
+
+/* Shared search-term highlight (title + snippet). */
+.agent-client-session-history-match {
+	background: var(--text-highlight-bg);
+	color: var(--text-normal);
+	border-radius: var(--radius-s);
+	padding: 0 2px;
+}
