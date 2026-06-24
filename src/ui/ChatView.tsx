@@ -42,6 +42,15 @@ import type { AcpClient } from "../acp/acp-client";
 
 export const VIEW_TYPE_CHAT = "agent-client-chat-view";
 
+/**
+ * Debounce for persisting unsent draft text. Long enough to avoid a save per
+ * keystroke, short enough that a draft reaches disk well before a typical
+ * quit/close. The active tab's draft has no other reliable save trigger (tab
+ * events save tabs you leave; flushSave at quit races with app exit), so this
+ * is what makes "type → restart → draft restored" work. (Draft persistence.)
+ */
+const DRAFT_SAVE_DEBOUNCE_MS = 800;
+
 // ============================================================================
 // TabPanel — per-tab wrapper that memoizes context value
 // ============================================================================
@@ -243,6 +252,11 @@ function ChatComponent({
 	// the render cycle needed to propagate the change to the hook's effect deps.
 	const [sessionSignature, setSessionSignature] = useState("");
 
+	// Draft signature — bumped (debounced) when any tab's composer text
+	// changes, so useTabPersistence saves the draft shortly after typing.
+	// (Draft persistence — restart fix.)
+	const [draftSignature, setDraftSignature] = useState("");
+
 	// Per-tab persisted session IDs (for lazy session restore on first keystroke)
 	const persistedSessionIdsRef = useRef<Map<string, string | null>>(
 		new Map(
@@ -381,6 +395,31 @@ function ChatComponent({
 		[],
 	);
 
+	// Debounced draft-save trigger. Each ChatPanel calls this on composer
+	// change; after the debounce we recompute a signature from all tabs' live
+	// drafts and bump state, which fires useTabPersistence's save effect. Using
+	// window.setTimeout (popout-window compat); timer ref typed as number.
+	const draftDebounceRef = useRef<number | null>(null);
+	const bumpDraftSignature = useCallback(() => {
+		if (draftDebounceRef.current !== null) {
+			window.clearTimeout(draftDebounceRef.current);
+		}
+		draftDebounceRef.current = window.setTimeout(() => {
+			draftDebounceRef.current = null;
+			const sig = Array.from(tabHandlesRef.current.entries())
+				.map(([id, cb]) => `${id}:${cb.getInputState()?.text ?? ""}`)
+				.join("||");
+			setDraftSignature(sig);
+		}, DRAFT_SAVE_DEBOUNCE_MS);
+	}, []);
+	useEffect(() => {
+		return () => {
+			if (draftDebounceRef.current !== null) {
+				window.clearTimeout(draftDebounceRef.current);
+			}
+		};
+	}, []);
+
 	const tabPersistence = useTabPersistence({
 		leafId: viewId,
 		tabs,
@@ -391,6 +430,7 @@ function ChatComponent({
 		storage: persistenceStorage,
 		restoreEnabled: plugin.settings.restoreTabsOnStartup,
 		sessionSignature,
+		draftSignature,
 	});
 
 	// Expose flushSave to the view class for onClose
@@ -806,6 +846,7 @@ function ChatComponent({
 								restoredDraft={
 									restoredDraftByTabId[tab.tabId]
 								}
+								onDraftChange={bumpDraftSignature}
 							/>
 						</TabPanel>
 					</TabErrorBoundary>

@@ -138,6 +138,15 @@ export interface UseTabPersistenceProps {
 	 * Caller computes this from the live sessionId map. (I57)
 	 */
 	sessionSignature?: string;
+	/**
+	 * Opaque signature that changes (debounced) when any tab's unsent draft
+	 * text changes. Triggers a save so the active tab's draft is persisted to
+	 * disk shortly after typing — without it, a draft typed and never
+	 * switched-away-from only reaches disk via flushSave at quit, which races
+	 * with app exit on restart and is lost. Caller debounces this from the live
+	 * draft map. (Draft persistence — restart fix.)
+	 */
+	draftSignature?: string;
 }
 
 export interface UseTabPersistenceReturn {
@@ -228,6 +237,7 @@ export function useTabPersistence(
 		storage,
 		restoreEnabled,
 		sessionSignature,
+		draftSignature,
 	} = props;
 
 	const [restoredLeafState, setRestoredLeafState] =
@@ -386,9 +396,9 @@ export function useTabPersistence(
 		);
 		void storageRef.current.saveTabStateForLeaf(leafId, state);
 		// Deps are leafId + persistenceSignature + sessionSignature +
-		// readiness flags. tabs / activeTabId are read via refs to
-		// ensure save sees the latest values.
-	}, [leafId, persistenceSignature, sessionSignature, restoreEnabled, restoreReady]);
+		// draftSignature + readiness flags. tabs / activeTabId / drafts are
+		// read via refs to ensure save sees the latest values.
+	}, [leafId, persistenceSignature, sessionSignature, draftSignature, restoreEnabled, restoreReady]);
 
 	// === Manual flush (plugin unload — U30) ===
 	const flushSave = useCallback(async () => {

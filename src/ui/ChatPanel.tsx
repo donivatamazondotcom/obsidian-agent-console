@@ -134,6 +134,12 @@ export interface ChatPanelProps {
 	 * See [[ACP Preserve Unsent Draft Text Per Tab]].
 	 */
 	restoredDraft?: string;
+	/**
+	 * Called (after mount) whenever the composer's text changes, so the parent
+	 * can debounce-persist the draft. Fires on user typing and on send-clear;
+	 * not on the initial restore-seed. (Draft persistence — restart fix.)
+	 */
+	onDraftChange?: () => void;
 }
 
 // ============================================================================
@@ -204,6 +210,7 @@ export function ChatPanel({
 	restoredContextNotes,
 	historyRecoverable,
 	restoredDraft,
+	onDraftChange,
 }: ChatPanelProps) {
 	// ============================================================
 	// Platform Check
@@ -388,6 +395,21 @@ export function ChatPanel({
 	// never clobbered). See [[ACP Preserve Unsent Draft Text Per Tab]].
 	const [inputValue, setInputValue] = useState(restoredDraft ?? "");
 	const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+
+	// Notify the parent (which debounces) whenever the composer text changes,
+	// so the draft is persisted shortly after typing. The active tab's draft
+	// has no other reliable save trigger before quit/restart. Skip the initial
+	// mount so the restore-seed doesn't spuriously trigger a save.
+	const onDraftChangeRef = useRef(onDraftChange);
+	onDraftChangeRef.current = onDraftChange;
+	const draftChangeMountedRef = useRef(false);
+	useEffect(() => {
+		if (!draftChangeMountedRef.current) {
+			draftChangeMountedRef.current = true;
+			return;
+		}
+		onDraftChangeRef.current?.();
+	}, [inputValue]);
 
 	// ============================================================
 	// Refs

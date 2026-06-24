@@ -1094,3 +1094,48 @@ describe("useTabPersistence — draft persistence (write side)", () => {
 		).toBe("different draft for tab two");
 	});
 });
+
+// ============================================================================
+// Draft persistence — restart fix (reproduce-first)
+//
+// Bug: a draft typed into the active tab with NO tab add/close/rename/switch
+// only reaches disk via flushSave at quit, which races with app exit on
+// restart → the draft is lost. Fix: a debounced `draftSignature` change must
+// trigger a save so the draft is persisted shortly after typing.
+// ============================================================================
+
+describe("useTabPersistence — draft change triggers a save (restart fix)", () => {
+	it("a draftSignature change persists the active tab's draft without any tab event", async () => {
+		const storage = makeStorage();
+		let draft = "";
+		const base = makeProps({
+			tabs: [makeRuntimeTab({ tabId: "T1" })],
+			getDraft: () => draft,
+			storage,
+			draftSignature: "",
+		});
+		const { result, rerender } = renderHook(
+			(props: UseTabPersistenceProps) => useTabPersistence(props),
+			{ initialProps: base },
+		);
+		await waitForRestoreReady(() => result.current);
+		storage.saveTabStateForLeaf.mockClear();
+
+		// User types — NO tab add/close/rename/switch. Only the draft changes,
+		// and the caller bumps draftSignature (debounced) to reflect it.
+		draft = "typed but never switched away";
+		rerender({
+			...base,
+			getDraft: () => draft,
+			draftSignature: "T1:typed but never switched away",
+		});
+
+		await waitFor(() =>
+			expect(saveCalls(storage).length).toBeGreaterThan(0),
+		);
+		expect(
+			saveCalls(storage).at(-1)![1].tabs.find((t) => t.tabId === "T1")
+				?.draftText,
+		).toBe("typed but never switched away");
+	});
+});
