@@ -193,4 +193,24 @@ describe("SessionHistoryContent — search", () => {
 			mark.classList.contains("agent-client-session-history-match"),
 		).toBe(true);
 	});
+
+	it("T14: action icons use clickable-icon (regression: blank buttons after div→button)", () => {
+		render(
+			<SessionHistoryContent
+				{...makeProps({ sessions: [session("a", "anything")] })}
+			/>,
+		);
+		// Each action button must carry `clickable-icon` so Obsidian resets the
+		// native button chrome (background/border/padding) and the setIcon SVG
+		// is visible. Without it the buttons render as blank grey squares.
+		for (const label of [
+			"Edit session title",
+			"Restore session",
+			"Delete session",
+		]) {
+			const btn = screen.getByLabelText(label);
+			expect(btn.tagName.toLowerCase()).toBe("button");
+			expect(btn.classList.contains("clickable-icon")).toBe(true);
+		}
+	});
 });

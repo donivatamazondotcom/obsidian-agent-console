@@ -262,7 +262,7 @@ function IconButton({
 		<button
 			ref={iconRef}
 			type="button"
-			className={className}
+			className={`clickable-icon ${className}`}
 			aria-label={label}
 			onClick={onClick}
 		/>
