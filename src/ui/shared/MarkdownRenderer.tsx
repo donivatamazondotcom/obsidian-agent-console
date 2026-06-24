@@ -9,7 +9,7 @@ import {
 } from "obsidian";
 import { convertWslPathToWindows } from "../../utils/platform";
 import { isAbsolutePath } from "../../utils/paths";
-import { deriveNewLeaf } from "../../utils/link-leaf";
+import { deriveNewLeaf, HOVER_LINK_SOURCE } from "../../utils/link-leaf";
 import type AgentClientPlugin from "../../plugin";
 
 interface MarkdownRendererProps {
@@ -30,12 +30,17 @@ export function MarkdownRenderer({ text, plugin }: MarkdownRendererProps) {
 		const component = new Component();
 		component.load();
 
+		// Resolve links relative to the active file so an ambiguous basename
+		// resolves the same way it would from that note (C). Chat has no
+		// backing file of its own; the active file is the natural source.
+		const sourcePath = plugin.app.workspace.getActiveFile()?.path ?? "";
+
 		// Render markdown
 		void ObsidianMarkdownRenderer.render(
 			plugin.app,
 			text,
 			el,
-			"",
+			sourcePath,
 			component,
 		);
 
@@ -101,14 +106,14 @@ export function MarkdownRenderer({ text, plugin }: MarkdownRendererProps) {
 						);
 						void plugin.app.workspace.openLinkText(
 							relativePath,
-							"",
+							sourcePath,
 							newLeaf,
 						);
 					} else if (!isAbsolutePath(href)) {
 						// Already relative or wiki-link style — pass through
 						void plugin.app.workspace.openLinkText(
 							href,
-							"",
+							sourcePath,
 							newLeaf,
 						);
 					}
@@ -116,14 +121,37 @@ export function MarkdownRenderer({ text, plugin }: MarkdownRendererProps) {
 				}
 			}
 		};
+		// Page Preview integration (A): dispatch `hover-link` so the core
+		// Page Preview plugin shows the file popover (and the "hold Mod to
+		// open" hint) for chat links, matching native editor behavior. The
+		// view registers as a hover source under HOVER_LINK_SOURCE in
+		// plugin.ts; the `source` here must match that id.
+		const handleInternalLinkHover = (e: MouseEvent) => {
+			const target = e.target as HTMLElement;
+			const link = target.closest("a.internal-link");
+			if (!link) return;
+			const linktext = link.getAttribute("data-href");
+			if (!linktext) return;
+			plugin.app.workspace.trigger("hover-link", {
+				event: e,
+				source: HOVER_LINK_SOURCE,
+				hoverParent: { hoverPopover: null },
+				targetEl: link,
+				linktext: decodeURIComponent(linktext),
+				sourcePath,
+			});
+		};
+
 		el.addEventListener("click", handleInternalLinkClick);
 		// `auxclick` carries middle-click (and right-click, which the handler
 		// ignores). Required because `click` never fires for the middle button.
 		el.addEventListener("auxclick", handleInternalLinkClick);
+		el.addEventListener("mouseover", handleInternalLinkHover);
 
 		return () => {
 			el.removeEventListener("click", handleInternalLinkClick);
 			el.removeEventListener("auxclick", handleInternalLinkClick);
+			el.removeEventListener("mouseover", handleInternalLinkHover);
 			component.unload();
 		};
 	}, [text, plugin]);

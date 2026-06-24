@@ -3,6 +3,7 @@ import { addIcon, Plugin, WorkspaceLeaf, Notice } from "obsidian";
 import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
+import { HOVER_LINK_SOURCE } from "./utils/link-leaf";
 import { fetchJson } from "./services/net";
 import { ChatViewRegistry } from "./services/view-registry";
 import {
@@ -190,6 +191,17 @@ export default class AgentClientPlugin extends Plugin {
 		// saved tab state never matches. Obsidian auto-unregisters view
 		// types on unload, so registerView does not throw on reload.
 		this.registerView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
+
+		// Register chat link surfaces with the Page Preview core plugin so
+		// hovering an internal link in a reply shows the file popover and the
+		// modifier hint (I94 part A). `defaultMod: true` requires Cmd/Ctrl,
+		// matching Obsidian's editor default; users can change it in the Page
+		// Preview plugin settings. The dispatched `hover-link` event in
+		// MarkdownRenderer uses this same HOVER_LINK_SOURCE id.
+		this.registerHoverLinkSource(HOVER_LINK_SOURCE, {
+			display: "Agent Console",
+			defaultMod: true,
+		});
 
 		// Register the Agent Console brand icon before adding the ribbon button.
 		// addIcon takes inner SVG content (no <svg> wrapper) and Obsidian renders

@@ -30,3 +30,11 @@ import { Keymap, type PaneType } from "obsidian";
 export function deriveNewLeaf(evt: MouseEvent): PaneType | boolean {
 	return Keymap.isModEvent(evt);
 }
+
+/**
+ * Source id shared between `Plugin.registerHoverLinkSource` (in plugin.ts) and
+ * the `hover-link` event dispatched from chat link surfaces. Both must use the
+ * same id for the Page Preview core plugin to associate the popover with this
+ * plugin and honor its per-source modifier setting.
+ */
+export const HOVER_LINK_SOURCE = "agent-console";

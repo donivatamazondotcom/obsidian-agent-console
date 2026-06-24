@@ -169,6 +169,7 @@ function makePlugin(): AgentClientPlugin {
 			},
 			workspace: {
 				openLinkText: vi.fn(),
+				getActiveFile: () => null,
 			},
 		},
 		settings: {
