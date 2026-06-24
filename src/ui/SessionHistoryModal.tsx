@@ -556,6 +556,30 @@ export function SessionHistoryContent({
 		[sessions],
 	);
 
+	// I94: focus the search box when the modal opens so the user can type
+	// immediately. Index build is NOT triggered here — it fires on first
+	// keystroke (below), keeping the open path cheap and avoiding a hint flash.
+	const searchInputRef = React.useRef<HTMLInputElement>(null);
+	React.useEffect(() => {
+		searchInputRef.current?.focus();
+	}, []);
+
+	// I95: only surface the "Searching transcripts…" hint if the build runs
+	// long enough to matter (>250ms). Fast builds (small libraries) never
+	// flash it.
+	const [showBuildingHint, setShowBuildingHint] = useState(false);
+	React.useEffect(() => {
+		if (indexState !== "building") {
+			setShowBuildingHint(false);
+			return;
+		}
+		const handle = window.setTimeout(
+			() => setShowBuildingHint(true),
+			250,
+		);
+		return () => window.clearTimeout(handle);
+	}, [indexState]);
+
 	const handleFilterChange = useCallback(
 		(e: React.ChangeEvent<HTMLInputElement>) => {
 			const checked = e.target.checked;
@@ -691,15 +715,18 @@ export function SessionHistoryContent({
 					{/* Full-text search */}
 					<div className="agent-client-session-history-search">
 						<input
+							ref={searchInputRef}
 							type="text"
 							className="agent-client-session-history-search-input"
 							placeholder="Search sessions…"
 							value={query}
 							aria-label="Search sessions"
-							onFocus={ensureIndex}
-							onChange={(e) => setQuery(e.target.value)}
+							onChange={(e) => {
+								ensureIndex();
+								setQuery(e.target.value);
+							}}
 						/>
-						{indexState === "building" && (
+						{showBuildingHint && (
 							<span className="agent-client-session-history-search-status">
 								Searching transcripts…
 							</span>

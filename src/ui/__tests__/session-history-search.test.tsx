@@ -130,13 +130,11 @@ describe("SessionHistoryContent — search", () => {
 		);
 
 		const input = screen.getByLabelText("Search sessions");
-		// Focus builds the content index.
-		fireEvent.focus(input);
+		// First keystroke builds the content index and sets the query.
+		fireEvent.change(input, { target: { value: "kubernetes" } });
 		await waitFor(() =>
 			expect(loadSessionMessages).toHaveBeenCalled(),
 		);
-
-		fireEvent.change(input, { target: { value: "kubernetes" } });
 
 		// Snippet appears with the term highlighted in a <mark>.
 		const mark = await waitFor(() =>
@@ -152,5 +150,16 @@ describe("SessionHistoryContent — search", () => {
 				"agent-client-session-history-item-snippet-match",
 			),
 		).toBe(true);
+	});
+
+	it("T12: auto-focuses the search box when the modal opens (I94)", () => {
+		render(
+			<SessionHistoryContent
+				{...makeProps({ sessions: [session("a", "anything")] })}
+			/>,
+		);
+		expect(document.activeElement).toBe(
+			screen.getByLabelText("Search sessions"),
+		);
 	});
 });
