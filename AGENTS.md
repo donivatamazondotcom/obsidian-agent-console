@@ -126,6 +126,7 @@ src/
 │   ├── provisional-context.ts   # Provisional auto-default context pill (crystallize-on-send)
 │   ├── deriveTabLabel.ts        # Derive tab label from session / first message
 │   ├── toolCallSummary.ts       # One-row tool-call summary derivation
+│   ├── toolCallDiff.ts          # Pure unified-diff computation shared by ToolCallBlock + the line-count badge
 │   ├── paths.ts                 # Path resolution, file:// URI
 │   ├── error-utils.ts           # ACP error conversion
 │   ├── mention-parser.ts        # @[[note]] detection/extraction

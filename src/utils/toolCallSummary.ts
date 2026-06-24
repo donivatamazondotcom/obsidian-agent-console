@@ -23,86 +23,145 @@
  */
 
 import type { MessageContent } from "../types/chat";
+import { computeDiffLines } from "./toolCallDiff";
 
 type ToolCallContent = Extract<MessageContent, { type: "tool_call" }>;
 
 const PREVIEW_MAX_CHARS = 120;
 
 /**
- * Count the total rendered lines for a tool-call message.
+ * Does this tool call have content blocks the expanded body actually renders?
  *
- * Includes:
- *   - rawInput body (e.g., command string + args, or script source)
- *   - Each diff block (max of old/new line count, plus a couple lines of chrome)
- *   - Each terminal block (1 line for the placeholder; live stream count
- *     is added by the renderer at expansion time)
- *   - rawOutput structured result, JSON-flattened
+ * `ToolCallBlock` only renders `diff` and `terminal` blocks (plus the permission
+ * banner and, for `execute` calls, a command strip). When a tool call has neither
+ * a diff nor a terminal block, the body falls back to rendering the raw
+ * input/output payload — see `formatRawPayload`.
+ */
+export function hasRenderableContent(content: ToolCallContent): boolean {
+	return (
+		!!content.content &&
+		content.content.some(
+			(block) => block.type === "diff" || block.type === "terminal",
+		)
+	);
+}
+
+/**
+ * Format a rawInput / rawOutput object into the text the expanded body shows
+ * for a generic (non-diff, non-terminal) tool call.
  *
- * The number is a rough proxy for "how tall would the expanded block be?"
- * and drives the [N lines] badge in the summary row.
+ * Pretty-printed JSON is faithful to the payload and gives the renderer and the
+ * line-count badge a single shared representation, so the badge can never again
+ * promise lines the body doesn't render (the I03 "phantom body" bug). Returns an
+ * empty string for absent or empty payloads so the caller can skip the block.
+ */
+export function formatRawPayload(
+	obj: { [k: string]: unknown } | undefined,
+): string {
+	if (!obj || Object.keys(obj).length === 0) return "";
+	try {
+		return JSON.stringify(obj, null, 2);
+	} catch {
+		// Circular or otherwise non-serializable payload — degrade gracefully.
+		return "[unserializable payload]";
+	}
+}
+
+/**
+ * Number of lines `JSON.stringify(value, null, 2)` would render, computed
+ * structurally WITHOUT building the serialized string.
+ *
+ * The collapsed line-count badge recomputes on every streaming content update,
+ * so serializing the whole payload there (and again in the body) would be an
+ * O(size) string allocation per chunk. This walks the value and counts lines
+ * instead — staying exactly consistent with what RawPayloadBlock renders on
+ * expand, while paying no string-building cost. Strings keep their internal
+ * newlines escaped as `\n` in JSON, so each occupies a single line (matching
+ * the renderer).
+ */
+export function countJsonLines(value: unknown): number {
+	if (value === null || typeof value !== "object") {
+		return 1;
+	}
+	if (Array.isArray(value)) {
+		if (value.length === 0) return 1; // "[]"
+		let lines = 2; // "[" and "]"
+		for (const item of value) {
+			// undefined / function / symbol array elements serialize as `null`.
+			lines +=
+				item === undefined ||
+				typeof item === "function" ||
+				typeof item === "symbol"
+					? 1
+					: countJsonLines(item);
+		}
+		return lines;
+	}
+	// Plain object: keys whose value is undefined / function / symbol are omitted.
+	const rendered = Object.values(value as { [k: string]: unknown }).filter(
+		(v) =>
+			v !== undefined && typeof v !== "function" && typeof v !== "symbol",
+	);
+	if (rendered.length === 0) return 1; // "{}"
+	let lines = 2; // "{" and "}"
+	for (const v of rendered) {
+		lines += countJsonLines(v);
+	}
+	return lines;
+}
+
+/**
+ * Count the lines the expanded body will actually render.
+ *
+ * The count is derived from the SAME inputs the renderer uses, so the
+ * `N lines` badge always matches what expansion reveals (see I03 / I79):
+ *   - diff blocks → exact `computeDiffLines(block).length`
+ *   - terminal blocks → 1 (the placeholder; the live stream length is not
+ *     known statically)
+ *   - `execute` command strip → 1 when a command is present
+ *   - generic tool calls with no diff/terminal block → the rendered
+ *     `rawInput` + `rawOutput` payload (via `formatRawPayload`)
+ *
+ * `rawInput` / `rawOutput` are NOT counted when a diff or terminal renders,
+ * because the body does not show them in that case.
  */
 export function countLines(content: ToolCallContent): number {
 	let total = 0;
 
-	// rawInput — count newlines in the most likely "body" fields, fall back
-	// to JSON serialization for unstructured payloads.
-	if (content.rawInput) {
-		total += countRawObjectLines(content.rawInput);
+	// Command strip — rendered in the expanded header for execute calls.
+	if (
+		content.kind === "execute" &&
+		content.rawInput &&
+		typeof content.rawInput.command === "string"
+	) {
+		total += 1;
 	}
 
-	// Per-content-block contribution
-	if (content.content) {
-		for (const block of content.content) {
+	if (hasRenderableContent(content)) {
+		// Count exactly what the diff / terminal renderers will show.
+		for (const block of content.content || []) {
 			if (block.type === "diff") {
-				const oldLines = block.oldText
-					? block.oldText.split("\n").length
-					: 0;
-				const newLines = block.newText
-					? block.newText.split("\n").length
-					: 0;
-				// Rendered diff is roughly max(old, new) + chrome (header,
-				// hunk markers). The DiffRenderer adds context lines but
-				// we don't model that precisely — close enough for a badge.
-				total += Math.max(oldLines, newLines) + 2;
+				total += computeDiffLines(block).length;
 			} else if (block.type === "terminal") {
 				// In-message placeholder; live stream length comes later.
 				total += 1;
 			}
 		}
-	}
-
-	// rawOutput — same heuristic as rawInput
-	if (content.rawOutput) {
-		total += countRawObjectLines(content.rawOutput);
+	} else {
+		// Generic tool call (e.g. an MCP tool or a subagent "spawn"): the body
+		// renders the raw input/output payload as pretty-printed JSON. Count the
+		// lines structurally (countJsonLines) rather than serializing here — the
+		// badge recomputes on every streaming update, and the full JSON.stringify
+		// is deferred to RawPayloadBlock, which only mounts when the user expands.
+		if (content.rawInput && Object.keys(content.rawInput).length > 0) {
+			total += countJsonLines(content.rawInput);
+		}
+		if (content.rawOutput && Object.keys(content.rawOutput).length > 0) {
+			total += countJsonLines(content.rawOutput);
+		}
 	}
 
 	return total;
-}
-
-/**
- * Heuristic line count for a rawInput / rawOutput object.
- *
- * Walks string-valued keys (the most common heredoc/script/command payload
- * shape) and adds their newline count. Falls back to a single line for
- * scalar / non-string values; nested objects contribute via recursion.
- */
-function countRawObjectLines(obj: { [k: string]: unknown }): number {
-	let lines = 0;
-	for (const value of Object.values(obj)) {
-		if (typeof value === "string") {
-			// Most common shape: command body / script source / stdout.
-			lines += value.split("\n").length;
-		} else if (Array.isArray(value)) {
-			// e.g., args: ["-c", "echo hi"] — 1 line per item is overcount,
-			// but matches how the args strip is typically rendered.
-			lines += value.length;
-		} else if (value && typeof value === "object") {
-			lines += countRawObjectLines(value as { [k: string]: unknown });
-		} else if (value !== undefined && value !== null) {
-			lines += 1;
-		}
-	}
-	return lines;
 }
 
 /**

@@ -21,10 +21,16 @@ When an agent uses an MCP tool:
 
 ## Viewing Tool Calls
 
-Tool calls are displayed in the chat with:
+Tool calls are displayed in the chat as a single collapsed row with:
 
 - **Tool name**: What tool was used
 - **Status**: Running, completed, or failed
+- **Line count**: How many lines the call contains
+
+Click the row to expand it and see the full detail — a file diff, terminal
+output, or, for other tools (such as MCP tools and subagent calls), the tool's
+raw input and output. The line count always matches what the expanded view
+shows. Failed calls and pending permission requests expand automatically.
 
 ## Permissions
 

@@ -2571,3 +2571,35 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	border-radius: var(--radius-s);
 	padding: 0 2px;
 }
+
+/* Raw payload fallback for generic tool calls (no diff / terminal block) */
+.agent-client-tool-call-raw-payload {
+	margin-top: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.agent-client-tool-call-raw-label {
+	font-size: 11px;
+	font-weight: var(--font-semibold);
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	margin-bottom: 2px;
+}
+
+.agent-client-tool-call-raw-content {
+	margin: 0;
+	padding: 8px 12px;
+	background-color: var(--background-primary-alt);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	font-family: var(--font-monospace);
+	font-size: 12px;
+	line-height: 1.5;
+	white-space: pre-wrap;
+	word-break: break-word;
+	overflow-x: auto;
+	user-select: text;
+}
