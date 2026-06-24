@@ -112,6 +112,8 @@ export interface ChatPanelProps {
 	findTabBySessionId?: (sessionId: string) => { tabId: string; label: string } | null;
 	/** Switch to a specific tab by ID (I20) */
 	onSwitchToTab?: (tabId: string) => void;
+	/** Close a specific tab by ID (used when its session is deleted) */
+	onCloseTab?: (tabId: string) => void;
 	/** Persisted session ID for this tab (from tab persistence). Passed to useLazySession for session/load on first keystroke. */
 	restoredSessionId?: string | null;
 	/** Restored message history for this tab (from tab persistence). Seeded into the message list on async arrival while idle (I43). */
@@ -189,6 +191,7 @@ export function ChatPanel({
 	isActive,
 	findTabBySessionId,
 	onSwitchToTab,
+	onCloseTab,
 	restoredSessionId,
 	restoredMessages,
 	restoredContextNotes,
@@ -531,6 +534,7 @@ export function ChatPanel({
 		session.sessionId ?? undefined,
 		findTabBySessionId,
 		onSwitchToTab,
+		onCloseTab,
 	);
 
 	// ============================================================
