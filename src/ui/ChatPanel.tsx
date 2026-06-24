@@ -531,7 +531,7 @@ export function ChatPanel({
 			if (event.button !== 0 && event.button !== 1) return;
 			void plugin.app.workspace.openLinkText(
 				path,
-				"",
+				plugin.app.workspace.getActiveFile()?.path ?? "",
 				deriveNewLeaf(event.nativeEvent),
 			);
 		},

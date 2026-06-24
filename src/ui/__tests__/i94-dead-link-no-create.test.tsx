@@ -60,7 +60,7 @@ function makePlugin(openLinkText: ReturnType<typeof vi.fn>): AgentClientPlugin {
 			vault: {
 				adapter: { getBasePath: () => "/mock/vault" },
 			},
-			workspace: { openLinkText },
+			workspace: { openLinkText, getActiveFile: () => null },
 		},
 		settings: { windowsWslMode: false },
 	} as unknown as AgentClientPlugin;

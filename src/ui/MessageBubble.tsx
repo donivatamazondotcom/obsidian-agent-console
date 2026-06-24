@@ -37,6 +37,11 @@ function TextWithMentions({
 	const mentionRegex = /@\[\[([^\]]+)\]\]/g;
 	const parts: React.ReactNode[] = [];
 
+	// Resolve mentions relative to the active file so an ambiguous
+	// basename resolves deterministically, and pass it through as the
+	// link source for opening (C).
+	const sourcePath = plugin.app.workspace.getActiveFile()?.path ?? "";
+
 	// Add auto-mention badge first if provided
 	if (autoMentionContext) {
 		const displayText = autoMentionContext.selection
@@ -52,7 +57,7 @@ function TextWithMentions({
 				onClick={(e) => {
 					void plugin.app.workspace.openLinkText(
 						autoMentionContext.notePath,
-						"",
+						sourcePath,
 						deriveNewLeaf(e.nativeEvent),
 					);
 				}}
@@ -61,7 +66,7 @@ function TextWithMentions({
 						e.preventDefault();
 						void plugin.app.workspace.openLinkText(
 							autoMentionContext.notePath,
-							"",
+							sourcePath,
 							"tab",
 						);
 					}
@@ -71,7 +76,7 @@ function TextWithMentions({
 					e.preventDefault();
 					void plugin.app.workspace.openLinkText(
 						autoMentionContext.notePath,
-						"",
+						sourcePath,
 						"tab",
 					);
 				}}
@@ -94,10 +99,12 @@ function TextWithMentions({
 		// Extract filename from [[brackets]]
 		const noteName = match[1];
 
-		// Check if file actually exists
-		const file = plugin.app.vault
-			.getMarkdownFiles()
-			.find((f) => f.basename === noteName);
+		// Resolve via Obsidian's link resolver (handles ambiguous
+		// basenames relative to the active file) instead of first-match.
+		const file = plugin.app.metadataCache.getFirstLinkpathDest(
+			noteName,
+			sourcePath,
+		);
 
 		if (file) {
 			// File exists - render as clickable mention
@@ -110,7 +117,7 @@ function TextWithMentions({
 					onClick={(e) => {
 						void plugin.app.workspace.openLinkText(
 							file.path,
-							"",
+							sourcePath,
 							deriveNewLeaf(e.nativeEvent),
 						);
 					}}
@@ -119,7 +126,7 @@ function TextWithMentions({
 							e.preventDefault();
 							void plugin.app.workspace.openLinkText(
 								file.path,
-								"",
+								sourcePath,
 								"tab",
 							);
 						}
@@ -129,7 +136,7 @@ function TextWithMentions({
 						e.preventDefault();
 						void plugin.app.workspace.openLinkText(
 							file.path,
-							"",
+							sourcePath,
 							"tab",
 						);
 					}}
