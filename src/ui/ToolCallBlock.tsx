@@ -439,8 +439,12 @@ interface RawPayloadBlockProps {
  * The same `formatRawPayload` drives `countLines`, keeping badge and body in sync.
  */
 function RawPayloadBlock({ rawInput, rawOutput }: RawPayloadBlockProps) {
-	const input = formatRawPayload(rawInput);
-	const output = formatRawPayload(rawOutput);
+	// This component only mounts when the tool call is expanded, so the full
+	// JSON.stringify is paid on expand — not while collapsed (the badge uses the
+	// cheap countJsonLines). Memoize per payload identity so re-renders while
+	// expanded don't re-serialize.
+	const input = useMemo(() => formatRawPayload(rawInput), [rawInput]);
+	const output = useMemo(() => formatRawPayload(rawOutput), [rawOutput]);
 
 	if (!input && !output) return null;
 

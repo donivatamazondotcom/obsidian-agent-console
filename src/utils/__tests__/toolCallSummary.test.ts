@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
 	countLines,
+	countJsonLines,
 	formatRawPayload,
 	hasRenderableContent,
 } from "../toolCallSummary";
@@ -28,6 +29,46 @@ describe("toolCallSummary.formatRawPayload", () => {
 	it("pretty-prints a payload object as JSON", () => {
 		const out = formatRawPayload({ a: 1, b: "x" });
 		expect(out).toBe('{\n  "a": 1,\n  "b": "x"\n}');
+	});
+});
+
+describe("toolCallSummary.countJsonLines", () => {
+	// The badge uses this cheap structural counter instead of serializing the
+	// payload on every render; it MUST equal what JSON.stringify(_, null, 2)
+	// renders, or the collapsed badge would drift from the expanded body.
+	const cases: { label: string; value: unknown }[] = [
+		{ label: "string", value: "hi" },
+		{ label: "number", value: 42 },
+		{ label: "boolean", value: true },
+		{ label: "null", value: null },
+		{ label: "empty object", value: {} },
+		{ label: "empty array", value: [] },
+		{ label: "flat object", value: { a: 1, b: "x" } },
+		{ label: "flat array", value: [1, 2, 3] },
+		{
+			label: "spawn-like payload",
+			value: {
+				task: "audit",
+				stages: [{ name: "audit", prompt: "look\nthen do" }],
+			},
+		},
+		{
+			label: "nested with empty list",
+			value: { nested: { deep: { x: [1, { y: 2 }] } }, list: [] },
+		},
+	];
+
+	it("equals JSON.stringify(_, null, 2) line count without serializing", () => {
+		for (const { label, value } of cases) {
+			expect(countJsonLines(value), label).toBe(
+				JSON.stringify(value, null, 2).split("\n").length,
+			);
+		}
+	});
+
+	it("counts a multi-line string value as one line (JSON escapes \\n)", () => {
+		// { , "prompt": "a\nb\nc" , } → 3 lines
+		expect(countJsonLines({ prompt: "a\nb\nc" })).toBe(3);
 	});
 });
 

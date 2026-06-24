@@ -68,6 +68,49 @@ export function formatRawPayload(
 }
 
 /**
+ * Number of lines `JSON.stringify(value, null, 2)` would render, computed
+ * structurally WITHOUT building the serialized string.
+ *
+ * The collapsed line-count badge recomputes on every streaming content update,
+ * so serializing the whole payload there (and again in the body) would be an
+ * O(size) string allocation per chunk. This walks the value and counts lines
+ * instead — staying exactly consistent with what RawPayloadBlock renders on
+ * expand, while paying no string-building cost. Strings keep their internal
+ * newlines escaped as `\n` in JSON, so each occupies a single line (matching
+ * the renderer).
+ */
+export function countJsonLines(value: unknown): number {
+	if (value === null || typeof value !== "object") {
+		return 1;
+	}
+	if (Array.isArray(value)) {
+		if (value.length === 0) return 1; // "[]"
+		let lines = 2; // "[" and "]"
+		for (const item of value) {
+			// undefined / function / symbol array elements serialize as `null`.
+			lines +=
+				item === undefined ||
+				typeof item === "function" ||
+				typeof item === "symbol"
+					? 1
+					: countJsonLines(item);
+		}
+		return lines;
+	}
+	// Plain object: keys whose value is undefined / function / symbol are omitted.
+	const rendered = Object.values(value as { [k: string]: unknown }).filter(
+		(v) =>
+			v !== undefined && typeof v !== "function" && typeof v !== "symbol",
+	);
+	if (rendered.length === 0) return 1; // "{}"
+	let lines = 2; // "{" and "}"
+	for (const v of rendered) {
+		lines += countJsonLines(v);
+	}
+	return lines;
+}
+
+/**
  * Count the lines the expanded body will actually render.
  *
  * The count is derived from the SAME inputs the renderer uses, so the
@@ -106,11 +149,16 @@ export function countLines(content: ToolCallContent): number {
 		}
 	} else {
 		// Generic tool call (e.g. an MCP tool or a subagent "spawn"): the body
-		// falls back to rendering the raw input/output payload, so count that.
-		const input = formatRawPayload(content.rawInput);
-		const output = formatRawPayload(content.rawOutput);
-		if (input) total += input.split("\n").length;
-		if (output) total += output.split("\n").length;
+		// renders the raw input/output payload as pretty-printed JSON. Count the
+		// lines structurally (countJsonLines) rather than serializing here — the
+		// badge recomputes on every streaming update, and the full JSON.stringify
+		// is deferred to RawPayloadBlock, which only mounts when the user expands.
+		if (content.rawInput && Object.keys(content.rawInput).length > 0) {
+			total += countJsonLines(content.rawInput);
+		}
+		if (content.rawOutput && Object.keys(content.rawOutput).length > 0) {
+			total += countJsonLines(content.rawOutput);
+		}
 	}
 
 	return total;
