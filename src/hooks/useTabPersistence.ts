@@ -147,6 +147,16 @@ export interface UseTabPersistenceProps {
 	 * draft map. (Draft persistence — restart fix.)
 	 */
 	draftSignature?: string;
+	/**
+	 * Optional resolved restore source. When provided (even as null), the hook
+	 * restores from THIS snapshot instead of reading tab state by leafId — used
+	 * by the reopen-restore path, where a fresh leaf adopts a recently-closed
+	 * snapshot whose own leafId matches nothing on disk. Message history is
+	 * loaded by the snapshot's tab sessionIds. When `undefined` (the default),
+	 * the hook reads `loadTabStateForLeaf(leafId)` exactly as before (the
+	 * restart path is unchanged). See [[ACP Restore Tabs on View Reopen]].
+	 */
+	restoreSource?: PerLeafTabState | null;
 }
 
 export interface UseTabPersistenceReturn {
@@ -238,6 +248,7 @@ export function useTabPersistence(
 		restoreEnabled,
 		sessionSignature,
 		draftSignature,
+		restoreSource,
 	} = props;
 
 	const [restoredLeafState, setRestoredLeafState] =
@@ -263,6 +274,7 @@ export function useTabPersistence(
 	const tabsRef = useRef(tabs);
 	const activeTabIdRef = useRef(activeTabId);
 	const restoreEnabledRef = useRef(restoreEnabled);
+	const restoreSourceRef = useRef(restoreSource);
 
 	useEffect(() => {
 		getSessionIdRef.current = getSessionId;
@@ -272,6 +284,7 @@ export function useTabPersistence(
 		tabsRef.current = tabs;
 		activeTabIdRef.current = activeTabId;
 		restoreEnabledRef.current = restoreEnabled;
+		restoreSourceRef.current = restoreSource;
 	});
 
 	// === Restore on mount (and on leafId / restoreEnabled change) ===
@@ -292,8 +305,15 @@ export function useTabPersistence(
 				return;
 			}
 
-			const leafState =
-				await storageRef.current.loadTabStateForLeaf(leafId);
+			// Reopen-restore: when the caller resolved a restore source
+			// (an adopted recently-closed snapshot), use it directly — its
+			// own leafId matches nothing under THIS leaf, so a disk read by
+			// leafId would return null. `undefined` means "no override"; fall
+			// back to the by-leafId disk read (restart path, unchanged).
+			const hasOverride = restoreSourceRef.current !== undefined;
+			const leafState = hasOverride
+				? restoreSourceRef.current ?? null
+				: await storageRef.current.loadTabStateForLeaf(leafId);
 			if (cancelled) return;
 
 			if (leafState === null) {

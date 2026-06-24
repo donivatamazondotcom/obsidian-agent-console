@@ -726,3 +726,49 @@ describe("SessionStorage loadSessionContextNotes restore-time false-negative (TP
 		).toBeNull();
 	});
 });
+
+// ============================================================================
+// removeTabStateForLeaf — prune one leaf's slice
+// ([[ACP Restore Tabs on View Reopen]]). When a fresh leaf adopts a
+// recently-closed snapshot, the old leafId's entry becomes an orphan that no
+// future leaf will ever match. Pruning it on adopt prevents unbounded
+// data.json growth across reopens.
+// ============================================================================
+
+describe("SessionStorage removeTabStateForLeaf — prune orphaned slice", () => {
+	it("removes the target leaf's slice and preserves the others", async () => {
+		const settings = makeFakeSettings({
+			perLeafTabStates: [
+				makeValidPerLeafState({ leafId: "leaf-1" }),
+				makeValidPerLeafState({ leafId: "leaf-2" }),
+			],
+		});
+		const storage = new SessionStorage(fakePlugin, settings);
+
+		await storage.removeTabStateForLeaf("leaf-1");
+
+		const after = settings._get().perLeafTabStates;
+		expect(after?.map((s) => s.leafId)).toEqual(["leaf-2"]);
+	});
+
+	it("is a no-op when the leafId is not present (other entries preserved)", async () => {
+		const settings = makeFakeSettings({
+			perLeafTabStates: [makeValidPerLeafState({ leafId: "leaf-2" })],
+		});
+		const storage = new SessionStorage(fakePlugin, settings);
+
+		await storage.removeTabStateForLeaf("leaf-absent");
+
+		const after = settings._get().perLeafTabStates;
+		expect(after?.map((s) => s.leafId)).toEqual(["leaf-2"]);
+	});
+
+	it("does not throw when perLeafTabStates is undefined", async () => {
+		const settings = makeFakeSettings();
+		const storage = new SessionStorage(fakePlugin, settings);
+
+		await expect(
+			storage.removeTabStateForLeaf("leaf-1"),
+		).resolves.toBeUndefined();
+	});
+});

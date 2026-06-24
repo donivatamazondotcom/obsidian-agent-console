@@ -143,6 +143,10 @@ A tab that already holds a [queued message](#queue-your-next-message) is **skipp
 
 Open tabs survive an Obsidian restart. When you quit and reopen, each sidebar pane brings back its own tabs — same order, same active tab, each tab's conversation visible right away. Turn this off under Settings → Tabs → "Restore tabs on startup" (on by default). Panes restore independently; split views don't merge into one.
 
+### Reopen the panel and pick up where you left off
+
+You don't have to restart Obsidian to get your tabs back. Close the Agent Console panel and open it again in the same session — from the ribbon icon or the *Open Agent Console* command — and your last tab set comes back: every tab, the one you had active, each conversation, and any half-typed draft. It works like reopening a closed browser window (Cmd/Ctrl + Shift + T), so closing the panel by accident is no longer a way to lose your work. The same "Restore tabs on startup" setting controls this — turn it off and a reopened panel starts with one fresh tab.
+
 ### Unsent drafts come back too
 
 A half-typed prompt you never sent is restored with its tab. Whether you switch to another tab, close and reopen the panel, or restart Obsidian, the text you were composing is waiting in the composer when you come back — re-typing a long prompt from scratch is exactly the kind of rework this avoids. The draft clears the moment you send it. (Staged image attachments aren't part of the draft yet — text only.)

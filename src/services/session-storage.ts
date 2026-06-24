@@ -579,6 +579,32 @@ export class SessionStorage {
 		if (all === null) return null;
 		return all.find((s) => s.leafId === leafId) ?? null;
 	}
+
+	/**
+	 * Remove a single leaf's slice from `perLeafTabStates`, preserving the
+	 * others. No-op when the leaf isn't present or no state is saved.
+	 *
+	 * Used by the reopen-restore path ([[ACP Restore Tabs on View Reopen]]):
+	 * when a fresh leaf adopts a recently-closed snapshot, the old leafId's
+	 * entry is an orphan no future leaf will ever match. Pruning it on adopt
+	 * prevents unbounded `data.json` growth across reopens. Read-modify-write
+	 * under `tabStateLock` so it cannot clobber a concurrent leaf save.
+	 *
+	 * @param leafId - Leaf identifier whose slice to remove
+	 */
+	async removeTabStateForLeaf(leafId: string): Promise<void> {
+		this.tabStateLock = this.tabStateLock.then(async () => {
+			const all =
+				this.settingsAccess.getSnapshot().perLeafTabStates;
+			if (!Array.isArray(all)) return;
+			const next = all.filter((s) => s.leafId !== leafId);
+			if (next.length === all.length) return; // nothing removed
+			await this.settingsAccess.updateSettings({
+				perLeafTabStates: next,
+			});
+		});
+		await this.tabStateLock;
+	}
 }
 
 // ============================================================================

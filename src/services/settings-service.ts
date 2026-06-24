@@ -348,6 +348,14 @@ export class SettingsService implements ISettingsAccess {
 	async discardTabState(): Promise<void> {
 		return this.sessionStorage.discardTabState();
 	}
+
+	/**
+	 * Remove a single leaf's saved tab-state slice (reopen-restore prune).
+	 * See [[ACP Restore Tabs on View Reopen]].
+	 */
+	async removeTabStateForLeaf(leafId: string): Promise<void> {
+		return this.sessionStorage.removeTabStateForLeaf(leafId);
+	}
 }
 
 /**
