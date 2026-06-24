@@ -2603,3 +2603,46 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	overflow-x: auto;
 	user-select: text;
 }
+
+/* ===== Shared Links Bubble (header link aggregator) =====
+ *
+ * Icon button left of the reload button that aggregates every link the agent
+ * shared in the active tab. Always visible; greyed/disabled when there are no
+ * links (spec D3). The unique-link count is shown as a macOS-app-icon-style
+ * corner badge; the badge gets the accent color when >=1 link points at a file
+ * the agent created this session. The new/old distinction in the popover is
+ * conveyed by grouping + section labels, never color alone — colorblind-safe
+ * per user-profile. See [[Shared Links Bubble]] spec.
+ */
+.acp-shared-links-button {
+	position: relative;
+}
+
+.acp-shared-links-button--disabled {
+	opacity: 0.4;
+	cursor: default;
+	pointer-events: none;
+}
+
+.acp-shared-links-badge {
+	position: absolute;
+	top: -2px;
+	right: -2px;
+	min-width: 14px;
+	height: 14px;
+	padding: 0 4px;
+	box-sizing: border-box;
+	border-radius: 7px;
+	font-size: 9px;
+	font-weight: 700;
+	line-height: 14px;
+	text-align: center;
+	color: var(--text-muted);
+	background-color: var(--background-modifier-border);
+	pointer-events: none;
+}
+
+.acp-shared-links-badge--accent {
+	color: var(--text-on-accent);
+	background-color: var(--interactive-accent);
+}

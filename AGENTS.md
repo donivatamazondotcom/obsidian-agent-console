@@ -112,6 +112,7 @@ src/
 │   ├── ImportSettingsModal.ts  # Cross-plugin settings-import preview + apply dialog
 │   ├── AgentPickerModal.ts      # FuzzySuggestModal agent picker for "New chat with agent…"
 │   ├── SettingsTab.ts           # Plugin settings UI
+│   ├── SharedLinksButton.tsx    # Header shared-links indicator (count badge + grouped New/Earlier popover)
 │   ├── view-host.ts             # IChatViewHost interface
 │   ├── use-auto-scroll-pin.ts   # Auto-scroll-to-bottom hook (pin state + native scroll + ResizeObserver/wheel/touch)
 │   ├── use-auto-scroll-pin.types.ts  # PinState, params, result types for useAutoScrollPin
@@ -131,6 +132,7 @@ src/
 │   ├── error-utils.ts           # ACP error conversion
 │   ├── mention-parser.ts        # @[[note]] detection/extraction
 │   ├── link-leaf.ts             # Resolve click modifiers → Obsidian leaf/pane (Keymap.isModEvent) for internal links
+│   ├── link-extract.ts          # Derive per-tab shared-link set from messages (Shared Links Bubble) + new/old classification
 │   ├── menu-registry.ts         # Tracks open Menu popups; closes them on plugin unload (reload-safety)
 │   ├── agent-switch.ts          # Switch a lazy tab's agent so the first message connects to the switched agent
 │   ├── command-palette.ts       # Pure start-a-chat + context-gating decisions (computeStartChat, isChatCommandAvailable)
