@@ -1201,8 +1201,13 @@ export function ChatPanel({
 
 	// Report session ID changes to parent (for tab rename persistence)
 	useEffect(() => {
-		onSessionIdChange?.(session.sessionId);
-	}, [onSessionIdChange, session.sessionId]);
+		// Report the live session id, or fall back to the restored (persisted)
+		// id for an inert tab that hasn't lazily connected yet — so history
+		// operations (I20 restore-switch, TS-I01 delete-close) can match the tab
+		// before connection. Without this, a restored-but-unconnected tab is
+		// absent from the tab→session map and delete/restore can't find it.
+		onSessionIdChange?.(session.sessionId ?? restoredSessionId ?? null);
+	}, [onSessionIdChange, session.sessionId, restoredSessionId]);
 
 	// ============================================================
 	// Auto-default context crystallizes on FIRST SEND in useChatActions
