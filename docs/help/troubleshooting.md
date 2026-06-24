@@ -184,7 +184,7 @@ Desktop applications on Linux may not inherit PATH settings from `.bashrc`.
 
 If you need more detailed information about an issue, enable Debug mode:
 
-1. Go to **Settings → Agent Console → Developer → Debug mode**
+1. Go to **Settings → Agent Console → Debug mode**
 2. Enable the toggle
 3. Open DevTools:
    - macOS: `Cmd + Option + I`
