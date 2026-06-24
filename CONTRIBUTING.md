@@ -93,7 +93,7 @@ npm run dev
 
 ### ESLint
 
-We use `eslint-plugin-obsidianmd` for Obsidian-specific rules and `typescript-eslint` for TypeScript.
+We use `eslint-plugin-obsidianmd` for Obsidian-specific rules, `typescript-eslint` for TypeScript, and `eslint-plugin-jsx-a11y` for keyboard-accessibility rules on React components (`.tsx`). Every interactive element must be operable by keyboard alone — an `onClick` needs a keyboard handler, and custom (non-`<button>`) controls need `role` + `tabIndex`. See AGENTS.md -> Development Rules -> Accessibility.
 
 ### Obsidian Plugin Guidelines
 
@@ -178,6 +178,7 @@ We recommend [Conventional Commits](https://www.conventionalcommits.org/) style:
 Before submitting, please verify:
 
 - [ ] `npm run lint` passes
+- [ ] New interactive UI is keyboard-accessible (passes `jsx-a11y` rules)
 - [ ] `npm run build` passes
 - [ ] Tested in Obsidian
 - [ ] Existing functionality still works

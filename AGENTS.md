@@ -319,6 +319,25 @@ interface ISettingsAccess {
 4. Use Platform interface - not process.platform
 5. Minimize `any` - use proper types
 
+### Accessibility — keyboard-first (enforced)
+
+Every interactive element must be operable by keyboard alone. This is a design principle, not just a lint checkbox — the keyboard is a first-class input device in Agent Console (alongside "mirror the browser").
+
+`eslint-plugin-jsx-a11y` enforces this on all `**/*.tsx` files (added in #92). Four rules, all errors — a PR that adds interactive UI fails CI if it trips them:
+
+- `jsx-a11y/click-events-have-key-events` — an `onClick` needs a matching `onKeyDown`/`onKeyUp`/`onKeyPress`.
+- `jsx-a11y/no-static-element-interactions` — a non-interactive element (`<div>`, `<span>`) with a handler needs a `role`.
+- `jsx-a11y/no-noninteractive-element-interactions` — same for elements with a non-interactive ARIA role.
+- `jsx-a11y/interactive-supports-focus` — an element with an interaction handler must be focusable (`tabIndex`).
+
+Satisfy them (preferred -> fallback):
+
+1. Use a native `<button>`/`<a>`/`<input>` — keyboard activation and focus are free.
+2. If a `<div>`/`<span>` must be the control, add `role="button"` (or the right role), `tabIndex={0}`, and an `onKeyDown` firing the same action on Enter/Space.
+3. Keep a visible `:focus-visible` indicator — never suppress it without an equivalent cue.
+
+Scope: `.tsx` (React components) only. Node tooling under `tools/` and non-component `.ts` are out of scope.
+
 ### Naming Conventions
 - Types: `kebab-case.ts` in `types/`
 - ACP: `kebab-case.ts` in `acp/`
@@ -406,4 +425,4 @@ If you're touching `src/` and your change introduces or changes any of the above
 
 ---
 
-**Last Updated**: June 2026 | **Architecture**: useAgent facade + sub-hooks + tab layer + context-note lifecycle | **Version**: 1.1.5
+**Last Updated**: June 2026 | **Architecture**: useAgent facade + sub-hooks + tab layer + context-note lifecycle + jsx-a11y keyboard-accessibility lint | **Version**: 1.2.0
