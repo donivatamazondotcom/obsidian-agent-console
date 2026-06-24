@@ -82,6 +82,7 @@ export default defineConfig({
           { text: "Session History", link: "/usage/session-history" },
           { text: "Reloading a Session", link: "/usage/reload-session" },
           { text: "Tabbed Sessions", link: "/usage/tabbed-sessions" },
+          { text: "Prompt Library", link: "/usage/prompt-library" },
           { text: "Editing", link: "/usage/editing" },
           { text: "Chat Export", link: "/usage/chat-export" },
           { text: "Commands & Hotkeys", link: "/usage/commands" },

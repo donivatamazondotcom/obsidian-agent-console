@@ -28,6 +28,7 @@ src/
 │   ├── chat.ts                  # ChatMessage, MessageContent, PromptContent, AttachedFile, ActivePermission
 │   ├── session.ts               # ChatSession, SessionUpdate (12-type union), SessionInfo, Capabilities
 │   ├── agent.ts                 # AgentConfig, agent settings (Claude/Codex/Gemini/Kiro/Custom)
+│   ├── prompt.ts                # PromptDefinition, PromptParseResult (prompt-library files)
 │   ├── errors.ts                # AcpError, ProcessError, ErrorInfo
 │   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref)
 │   └── obsidian-internals.d.ts  # Obsidian API declarations not in @types/obsidian
@@ -52,6 +53,8 @@ src/
 │   ├── session-state.ts         # Session state updates (legacy mode/model, config restore)
 │   ├── message-state.ts         # Message array transforms (upsert, merge, streaming apply)
 │   ├── message-sender.ts        # Prompt preparation + sending (pure functions)
+│   ├── prompt-parser.ts         # Pure parse/validate of a prompt file (frontmatter + body) → PromptDefinition
+│   ├── prompt-library.ts        # Scans the prompt folder, caches PromptDefinitions, watches vault events
 │   ├── chat-exporter.ts         # Markdown export with frontmatter
 │   ├── view-registry.ts         # Multi-view management, focus, broadcast
 │   ├── recently-closed-stack.ts # F13 undo-close: closed-tab record + LIFO push/pop/build (pure)
@@ -72,6 +75,7 @@ src/
 │   ├── loadExistingSessionFlow.ts # Restored-tab reconnect flow (lazy resume on first keystroke)
 │   ├── reloadSessionFlow.ts     # Pure soft-reload orchestration (resume same session / fresh fallback)
 │   ├── useDebouncedSessionSave.ts # Debounced session persistence (messages + context notes)
+│   ├── usePromptLibrary.ts      # Subscribe to PromptLibraryService + match prompts to active-note tags
 │   ├── useContextNotes.ts       # Crystallized context-note state per chat (add/remove/seen)
 │   ├── useContextVaultEvents.ts # Vault rename/delete sync for crystallized context notes
 │   ├── useSelectionTracker.ts   # Editor selection capture for the context strip
@@ -87,6 +91,7 @@ src/
 ├── ui/                          # React components
 │   ├── ChatContext.ts           # React Context (plugin, acpClient, vaultService, settingsService)
 │   ├── ContextStrip.tsx         # Context-note strip (crystallized pills + type-to-add)
+│   ├── PromptButtonRow.tsx      # Prompt-library buttons above the input (gated by active-note tags)
 │   ├── LossyFallbackNotice.tsx  # Notice when a restored tab continues from transcript only
 │   ├── CorruptionRecoveryModal.ts # Corrupt persisted-state recovery modal
 │   ├── ConfirmCloseModal.ts     # Confirm-before-closing-panel modal (focused Cmd+W with 2+ tabs)
@@ -131,6 +136,7 @@ src/
 │   ├── menu-registry.ts         # Tracks open Menu popups; closes them on plugin unload (reload-safety)
 │   ├── agent-switch.ts          # Switch a lazy tab's agent so the first message connects to the switched agent
 │   ├── command-palette.ts       # Pure start-a-chat + context-gating decisions (computeStartChat, isChatCommandAvailable)
+│   ├── prompt-matching.ts       # Pure prompt↔note tag matching (OR match; untagged = global)
 │   └── logger.ts                # Debug-mode logger
 ├── plugin.ts                    # Obsidian plugin lifecycle, settings persistence
 └── main.ts                      # Entry point
@@ -153,6 +159,27 @@ All events flow through a single `onSessionUpdate` channel. No special paths for
 Agent requestPermission → PermissionManager.request() → onSessionUpdate (tool_call)
 User clicks approve/reject → PermissionManager.respond() → onSessionUpdate (tool_call_update)
 ```
+
+### Prompt-Library Launch Flow (in-panel buttons)
+```
+plugin.onload → PromptLibraryService.start() (onLayoutReady)
+  → scan promptLibraryFolder → parsePromptFile per .md → cache PromptDefinition[]
+  → re-scan on vault create/modify/delete/rename within the folder
+ChatPanel → usePromptLibrary(app, service, activeNotePath)
+  → useSyncExternalStore(service) + readNoteTags(activeNote) → matchingPrompts (OR tag-match)
+  → PromptButtonRow renders matching prompts above the context strip
+Click → launchPrompt(prompt)  [in the CURRENT tab]
+  → setAgentWithoutSession(prompt.agent) if it differs (idle/empty tab only)
+  → contextNotes.add(activeNote,"user")   (same as the ContextStrip "+")
+  → setLaunchModel / setLaunchMode (applied on session ready via setConfigOption/setMode)
+  → auto-send prompt once the pinned note has crystallized (rides the first turn)
+```
+A prompt is a markdown file in the configured `promptLibraryFolder`: frontmatter
+declares the launch metadata, the body is the prompt text. Buttons render in the
+chat panel (not in notes), gated by the active note's tags (untagged = global).
+`agent` selects the **tool** (kiro-cli, claude-code-acp, …); `mode` selects a
+**tool-internal agent/persona** (e.g. a Kiro agent), which ACP exposes as a
+session mode and is applied via the same channel as the toolbar dropdown.
 
 ## Key Components
 

@@ -2506,3 +2506,48 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .agent-client-reload-spinning svg {
 	animation: agent-client-spin 1s linear infinite;
 }
+
+/* ===== Prompt Library Buttons (in-panel) ===== */
+/* A wrapping row of buttons above the context strip. Each launches a prompt
+   from the configured prompt-library folder, gated by the active note's tags. */
+.agent-console-prompt-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 6px 8px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.agent-console-prompt-button {
+	display: inline-flex;
+	align-items: center;
+	max-width: 100%;
+	padding: 4px 12px;
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-medium);
+	color: var(--text-on-accent);
+	background-color: var(--interactive-accent);
+	border: none;
+	border-radius: var(--radius-m);
+	cursor: pointer;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	box-shadow: var(--shadow-s);
+	transition: filter 0.1s ease-in-out;
+}
+
+.agent-console-prompt-button:hover {
+	background-color: var(--interactive-accent-hover);
+	filter: brightness(1.05);
+}
+
+.agent-console-prompt-button:focus-visible {
+	outline: 2px solid var(--background-modifier-border-focus);
+	outline-offset: 2px;
+}
+
+.agent-console-prompt-button:disabled {
+	opacity: 0.5;
+	cursor: default;
+}

@@ -336,6 +336,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	savedSessions: [],
 	lastUsedModels: {},
 	lastUsedModes: {},
+	promptLibraryFolder: "",
 	restoreTabsOnStartup: true,
 	confirmCloseWithMultipleTabs: true,
 };
@@ -556,6 +557,10 @@ export function normalizeRawSettings(
 			: D.savedSessions,
 		lastUsedModels: strRecord(raw.lastUsedModels),
 		lastUsedModes: strRecord(raw.lastUsedModes),
+		promptLibraryFolder: str(
+			raw.promptLibraryFolder,
+			D.promptLibraryFolder,
+		),
 		restoreTabsOnStartup:
 			typeof raw.restoreTabsOnStartup === "boolean"
 				? raw.restoreTabsOnStartup

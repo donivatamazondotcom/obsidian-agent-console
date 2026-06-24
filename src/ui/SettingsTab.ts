@@ -144,6 +144,31 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			);
 
 		// ─────────────────────────────────────────────────────────────────────
+		// Prompt library
+		// ─────────────────────────────────────────────────────────────────────
+
+		new Setting(containerEl).setName("Prompt library").setHeading();
+
+		new Setting(containerEl)
+			.setName("Prompt library folder")
+			.setDesc(
+				"Vault folder holding prompt files. Each prompt becomes a button in the chat panel, shown when the active note's tags match the prompt's tags. Leave empty to disable.",
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("Prompts")
+					.setValue(this.plugin.settings.promptLibraryFolder)
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							promptLibraryFolder: value.trim(),
+						});
+						// Re-scan immediately so the button row reflects the new
+						// folder without waiting for a vault event.
+						void this.plugin.promptLibrary?.refresh();
+					}),
+			);
+
+		// ─────────────────────────────────────────────────────────────────────
 		// Display
 		// ─────────────────────────────────────────────────────────────────────
 
@@ -307,9 +332,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			)
 			.addToggle((toggle) =>
 				toggle
-					.setValue(
-						this.plugin.settings.confirmCloseWithMultipleTabs,
-					)
+					.setValue(this.plugin.settings.confirmCloseWithMultipleTabs)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
 							confirmCloseWithMultipleTabs: value,

@@ -13,7 +13,10 @@ import { registerOpenMenu } from "../utils/menu-registry";
 import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
 import { deriveNewLeaf } from "../utils/link-leaf";
-import { decideAgentSwitch, selectAcquisitionAgent } from "../utils/agent-switch";
+import {
+	decideAgentSwitch,
+	selectAcquisitionAgent,
+} from "../utils/agent-switch";
 import { useHistoryModal } from "../hooks/useHistoryModal";
 import { useChatActions } from "../hooks/useChatActions";
 import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
@@ -45,6 +48,7 @@ import { useAgent } from "../hooks/useAgent";
 import { useSessionHistory } from "../hooks/useSessionHistory";
 import { useLazySession } from "../hooks/useLazySession";
 import { useDebouncedSessionSave } from "../hooks/useDebouncedSessionSave";
+import { usePromptLibrary } from "../hooks/usePromptLibrary";
 
 // Domain model imports
 import {
@@ -65,6 +69,7 @@ import { MessageList, type GettingStartedInfo } from "./MessageList";
 import { shouldShowGettingStarted } from "../services/agent-detection";
 import { InputArea } from "./InputArea";
 import { ContextStrip } from "./ContextStrip";
+import { PromptButtonRow } from "./PromptButtonRow";
 import { computeProvisionalPath } from "../utils/provisional-context";
 import type { IChatViewHost } from "./view-host";
 
@@ -109,7 +114,9 @@ export interface ChatPanelProps {
 	/** Whether this tab is the currently active tab (controls focus on activation) */
 	isActive?: boolean;
 	/** Look up whether a session is already open in another tab (I20) */
-	findTabBySessionId?: (sessionId: string) => { tabId: string; label: string } | null;
+	findTabBySessionId?: (
+		sessionId: string,
+	) => { tabId: string; label: string } | null;
 	/** Switch to a specific tab by ID (I20) */
 	onSwitchToTab?: (tabId: string) => void;
 	/** Persisted session ID for this tab (from tab persistence). Passed to useLazySession for session/load on first keystroke. */
@@ -294,10 +301,7 @@ export function ChatPanel({
 		onRename: contextNotes.rename,
 		onRemove: (path) => {
 			contextNotes.remove(path);
-			const name = (path.split("/").pop() ?? path).replace(
-				/\.md$/,
-				"",
-			);
+			const name = (path.split("/").pop() ?? path).replace(/\.md$/, "");
 			new Notice(
 				`[Agent Console] Context note "${name}" was deleted and removed from chat context.`,
 			);
@@ -375,6 +379,20 @@ export function ChatPanel({
 	const [inputValue, setInputValue] = useState("");
 	const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
 
+	// Prompt-library launch. Clicking a prompt button pins the active note,
+	// selects the prompt's model/mode, and schedules the prompt text. The
+	// prompt is held in `pendingLaunchPrompt` until every pinned note has
+	// crystallized — then auto-sent through the normal lazy-acquisition path so
+	// the notes ride along on the first turn (matching the manual send flow).
+	// `launchModel`/`launchMode` feed apply-on-ready effects (mode = e.g. a Kiro
+	// persona, which ACP exposes as a session mode).
+	const [launchModel, setLaunchModel] = useState<string | null>(null);
+	const [launchMode, setLaunchMode] = useState<string | null>(null);
+	const [pendingLaunchPrompt, setPendingLaunchPrompt] = useState<
+		string | null
+	>(null);
+	const pendingLaunchPathsRef = useRef<string[]>([]);
+
 	// ============================================================
 	// Refs
 	// ============================================================
@@ -401,9 +419,7 @@ export function ChatPanel({
 			);
 		}
 		if (activeId === plugin.settings.kiro.id) {
-			return (
-				plugin.settings.kiro.displayName || plugin.settings.kiro.id
-			);
+			return plugin.settings.kiro.displayName || plugin.settings.kiro.id;
 		}
 		const custom = plugin.settings.customAgents.find(
 			(agent) => agent.id === activeId,
@@ -511,13 +527,10 @@ export function ChatPanel({
 	const onLabelChangeRef = useRef(onLabelChange);
 	onLabelChangeRef.current = onLabelChange;
 
-	const handleLabelChangeFromRestore = useCallback(
-		(label: string) => {
-			onLabelChangeRef.current?.(label);
-			labelReportedRef.current = true;
-		},
-		[],
-	);
+	const handleLabelChangeFromRestore = useCallback((label: string) => {
+		onLabelChangeRef.current?.(label);
+		labelReportedRef.current = true;
+	}, []);
 
 	const { handleOpenHistory } = useHistoryModal(
 		plugin,
@@ -616,7 +629,10 @@ export function ChatPanel({
 				await agent.restartSession(undefined, directory);
 				sessionHistory.invalidateCache();
 			} catch (error) {
-				console.error("[Agent Console] New chat in directory error:", error);
+				console.error(
+					"[Agent Console] New chat in directory error:",
+					error,
+				);
 			}
 		},
 		[
@@ -748,10 +764,16 @@ export function ChatPanel({
 				// I54: propagate the just-fetched capabilities into session
 				// state so image paste works on a fresh tab before connecting.
 				agent.applyInitCapabilities();
-				logger.log("[ChatPanel] Eager initialize complete for:", agentId);
+				logger.log(
+					"[ChatPanel] Eager initialize complete for:",
+					agentId,
+				);
 			} catch (e) {
 				// Non-fatal: lazy path will retry on first keystroke
-				logger.log("[ChatPanel] Eager initialize failed (non-fatal):", e);
+				logger.log(
+					"[ChatPanel] Eager initialize failed (non-fatal):",
+					e,
+				);
 			}
 		})();
 		// Run once on mount only. agentId/vaultPath are stable.
@@ -766,7 +788,9 @@ export function ChatPanel({
 	} | null>(null);
 
 	// Optimistic user message shown while session acquisition is in flight.
-	const [pendingMessage, setPendingMessage] = useState<ChatMessage | null>(null);
+	const [pendingMessage, setPendingMessage] = useState<ChatMessage | null>(
+		null,
+	);
 
 	const lazySession = useLazySession({
 		// Restored sessionId from tab persistence. When non-null, the
@@ -814,8 +838,7 @@ export function ChatPanel({
 			} catch (err) {
 				return {
 					ok: false as const,
-					error:
-						err instanceof Error ? err : new Error(String(err)),
+					error: err instanceof Error ? err : new Error(String(err)),
 				};
 			}
 		}, [
@@ -827,40 +850,43 @@ export function ChatPanel({
 			logger,
 		]),
 
-		loadExistingSession: useCallback(async (sessionId: string) => {
-			logger.log("[Lazy] Loading existing session:", sessionId);
-			const result = await loadExistingSessionFlow({
-				sessionId,
-				cwd: agentCwd,
-				// Suppress the agent's replay only when local history is
-				// already displayed; otherwise let it through (I43 #12).
-				haveLocalHistory:
-					!!restoredMessages && restoredMessages.length > 0,
-				loadSession: (id, cwd) => acpClient.loadSession(id, cwd),
-				onLoaded: (r) =>
-					void agent.updateSessionFromLoad(
-						r.sessionId,
-						r.modes,
-						r.models,
-						r.configOptions,
-					),
-				setIgnoreUpdates: agent.setIgnoreUpdates,
-			});
-			if (!result.ok) {
-				logger.log(
-					"[Lazy] loadSession failed, falling through to new session:",
-					result.error,
-				);
-			}
-			return result;
-		}, [
-			restoredMessages,
-			acpClient,
-			agentCwd,
-			agent.updateSessionFromLoad,
-			agent.setIgnoreUpdates,
-			logger,
-		]),
+		loadExistingSession: useCallback(
+			async (sessionId: string) => {
+				logger.log("[Lazy] Loading existing session:", sessionId);
+				const result = await loadExistingSessionFlow({
+					sessionId,
+					cwd: agentCwd,
+					// Suppress the agent's replay only when local history is
+					// already displayed; otherwise let it through (I43 #12).
+					haveLocalHistory:
+						!!restoredMessages && restoredMessages.length > 0,
+					loadSession: (id, cwd) => acpClient.loadSession(id, cwd),
+					onLoaded: (r) =>
+						void agent.updateSessionFromLoad(
+							r.sessionId,
+							r.modes,
+							r.models,
+							r.configOptions,
+						),
+					setIgnoreUpdates: agent.setIgnoreUpdates,
+				});
+				if (!result.ok) {
+					logger.log(
+						"[Lazy] loadSession failed, falling through to new session:",
+						result.error,
+					);
+				}
+				return result;
+			},
+			[
+				restoredMessages,
+				acpClient,
+				agentCwd,
+				agent.updateSessionFromLoad,
+				agent.setIgnoreUpdates,
+				logger,
+			],
+		),
 
 		sendPrompt: useCallback(async () => {
 			// Queue flush is owned by ChatPanel's `queuedSend` effect
@@ -933,25 +959,101 @@ export function ChatPanel({
 		],
 	);
 
-	// Apply configured model when session is ready
+	// ============================================================
+	// Prompt-library launch + auto-send
+	// ============================================================
+	// Launch a prompt-library entry in THIS tab: pin the active note, select
+	// the prompt's model/mode, and schedule the prompt text. Switching the
+	// agent (when the prompt names a different one than the tab is on) reuses
+	// the idle-swap path so the first send connects to the right agent.
+	const launchPrompt = useCallback(
+		(prompt: import("../types/prompt").PromptDefinition) => {
+			// Switch agent in place if needed (no eager session — the lazy path
+			// connects to the swapped agent on first send). Mirrors the
+			// switch-agent-on-idle handling in handleNewChatWithPersist.
+			if (
+				prompt.agent &&
+				prompt.agent !== session.agentId &&
+				!session.sessionId &&
+				messages.length === 0
+			) {
+				agent.setAgentWithoutSession(prompt.agent);
+				onAgentIdChanged?.(prompt.agent);
+			}
+
+			// Pin the active note (if any) so the prompt has its context, same
+			// as a manual send with the active note grabbed.
+			const pinned: string[] = [];
+			if (selectionTracker.activeNotePath) {
+				contextNotes.add(selectionTracker.activeNotePath, "user");
+				pinned.push(selectionTracker.activeNotePath);
+			}
+			pendingLaunchPathsRef.current = pinned;
+
+			setLaunchModel(prompt.model ?? null);
+			setLaunchMode(prompt.mode ?? null);
+			setPendingLaunchPrompt(prompt.prompt);
+		},
+		[
+			contextNotes,
+			selectionTracker.activeNotePath,
+			session.agentId,
+			session.sessionId,
+			messages.length,
+			agent.setAgentWithoutSession,
+			onAgentIdChanged,
+		],
+	);
+
+	// Matching prompts for the active note (gated by tags). Drives the button row.
+	const matchingPromptList = usePromptLibrary(
+		plugin.app,
+		plugin.promptLibrary,
+		selectionTracker.activeNotePath,
+	);
+
+	// Auto-send the launch prompt once all pinned notes have crystallized.
+	// Sending before they land would omit them from the first turn's payload.
+	const handleSendWithLazyAcquisitionRefForLaunch = useRef(
+		handleSendWithLazyAcquisition,
+	);
+	handleSendWithLazyAcquisitionRefForLaunch.current =
+		handleSendWithLazyAcquisition;
 	useEffect(() => {
-		if (!config?.model || !isSessionReady) return;
+		if (pendingLaunchPrompt === null) return;
+		const crystallized = new Set(contextNotes.notes.map((n) => n.path));
+		const allPinned = pendingLaunchPathsRef.current.every((p) =>
+			crystallized.has(p),
+		);
+		if (!allPinned) return;
+		const prompt = pendingLaunchPrompt;
+		setPendingLaunchPrompt(null);
+		pendingLaunchPathsRef.current = [];
+		void handleSendWithLazyAcquisitionRefForLaunch.current(prompt);
+	}, [pendingLaunchPrompt, contextNotes.notes]);
+
+	// Apply configured model when session is ready. The effective model is the
+	// prompt-library launch model (if a launch is in flight) or the static
+	// `config.model` prop — both flow through the same apply-on-ready logic.
+	const effectiveModel = launchModel ?? config?.model;
+	useEffect(() => {
+		if (!effectiveModel || !isSessionReady) return;
 
 		// Prefer configOptions if available
 		if (session.configOptions) {
 			const modelOption = session.configOptions.find(
 				(o) => o.category === "model",
 			);
-			if (modelOption && modelOption.currentValue !== config.model) {
+			if (modelOption && modelOption.currentValue !== effectiveModel) {
 				const valueExists = flattenConfigSelectOptions(
 					modelOption.options,
-				).some((o) => o.value === config.model);
+				).some((o) => o.value === effectiveModel);
 				if (valueExists) {
 					logger.log(
 						"[ChatPanel] Applying configured model via configOptions:",
-						config.model,
+						effectiveModel,
 					);
-					void agent.setConfigOption(modelOption.id, config.model);
+					void agent.setConfigOption(modelOption.id, effectiveModel);
 				}
 			}
 			return;
@@ -960,23 +1062,72 @@ export function ChatPanel({
 		// Fallback to legacy models
 		if (session.models) {
 			const modelExists = session.models.availableModels.some(
-				(m) => m.modelId === config.model,
+				(m) => m.modelId === effectiveModel,
 			);
-			if (modelExists && session.models.currentModelId !== config.model) {
+			if (
+				modelExists &&
+				session.models.currentModelId !== effectiveModel
+			) {
 				logger.log(
 					"[ChatPanel] Applying configured model:",
-					config.model,
+					effectiveModel,
 				);
-				void agent.setModel(config.model);
+				void agent.setModel(effectiveModel);
 			}
 		}
 	}, [
-		config?.model,
+		effectiveModel,
 		isSessionReady,
 		session.configOptions,
 		session.models,
 		agent.setConfigOption,
 		agent.setModel,
+		logger,
+	]);
+
+	// Apply a prompt-library launch mode (e.g. a Kiro persona) when the session is
+	// ready. Mirrors the model effect: prefer the configOptions "mode" channel,
+	// fall back to legacy modes. Only fires for a launch (launchMode set); the
+	// user's toolbar dropdown is untouched otherwise.
+	useEffect(() => {
+		if (!launchMode || !isSessionReady) return;
+
+		if (session.configOptions) {
+			const modeOption = session.configOptions.find(
+				(o) => o.category === "mode",
+			);
+			if (modeOption && modeOption.currentValue !== launchMode) {
+				const valueExists = flattenConfigSelectOptions(
+					modeOption.options,
+				).some((o) => o.value === launchMode);
+				if (valueExists) {
+					logger.log(
+						"[ChatPanel] Applying launch mode via configOptions:",
+						launchMode,
+					);
+					void agent.setConfigOption(modeOption.id, launchMode);
+				}
+			}
+			return;
+		}
+
+		// Fallback to legacy modes (the channel Kiro personas use today).
+		if (session.modes) {
+			const modeExists = session.modes.availableModes.some(
+				(m) => m.id === launchMode,
+			);
+			if (modeExists && session.modes.currentModeId !== launchMode) {
+				logger.log("[ChatPanel] Applying launch mode:", launchMode);
+				void agent.setMode(launchMode);
+			}
+		}
+	}, [
+		launchMode,
+		isSessionReady,
+		session.configOptions,
+		session.modes,
+		agent.setConfigOption,
+		agent.setMode,
 		logger,
 	]);
 
@@ -1078,13 +1229,19 @@ export function ChatPanel({
 			);
 
 			// System notification on response completion
-			if (settings.enableSystemNotifications && !activeDocument.hasFocus()) {
+			if (
+				settings.enableSystemNotifications &&
+				!activeDocument.hasFocus()
+			) {
 				// I52: bind onclick so a click focuses the vault window that owns
 				// this panel, not Electron's most-recently-active window (which is
 				// the wrong vault entirely in a multi-vault setup).
-				const completionNotification = new Notification("Agent Console", {
-					body: `${activeAgentLabel} has completed the response.`,
-				});
+				const completionNotification = new Notification(
+					"Agent Console",
+					{
+						body: `${activeAgentLabel} has completed the response.`,
+					},
+				);
 				completionNotification.onclick = () => focusOwningWindow();
 			}
 		}
@@ -1154,7 +1311,12 @@ export function ChatPanel({
 		} else if (was && !isSending && lazySession.state === "busy") {
 			lazySession.endBusy();
 		}
-	}, [isSending, lazySession.state, lazySession.startBusy, lazySession.endBusy]);
+	}, [
+		isSending,
+		lazySession.state,
+		lazySession.startBusy,
+		lazySession.endBusy,
+	]);
 
 	const prevHasPermissionForStateRef = useRef(false);
 	useEffect(() => {
@@ -1162,10 +1324,19 @@ export function ChatPanel({
 		prevHasPermissionForStateRef.current = agent.hasActivePermission;
 		if (!was && agent.hasActivePermission) {
 			lazySession.requestPermission();
-		} else if (was && !agent.hasActivePermission && lazySession.state === "permission") {
+		} else if (
+			was &&
+			!agent.hasActivePermission &&
+			lazySession.state === "permission"
+		) {
 			lazySession.resolvePermission();
 		}
-	}, [agent.hasActivePermission, lazySession.state, lazySession.requestPermission, lazySession.resolvePermission]);
+	}, [
+		agent.hasActivePermission,
+		lazySession.state,
+		lazySession.requestPermission,
+		lazySession.resolvePermission,
+	]);
 
 	// Report lazySession.state to the parent (tab icon) via onStateChange.
 	// Maps TabSessionState → TabState for the existing TabBar contract.
@@ -1305,7 +1476,10 @@ export function ChatPanel({
 								);
 							}
 						} catch (error) {
-							console.error("[Agent Console] Approve permission error:", error);
+							console.error(
+								"[Agent Console] Approve permission error:",
+								error,
+							);
 						}
 					})();
 				},
@@ -1326,7 +1500,10 @@ export function ChatPanel({
 								);
 							}
 						} catch (error) {
-							console.error("[Agent Console] Reject permission error:", error);
+							console.error(
+								"[Agent Console] Reject permission error:",
+								error,
+							);
 						}
 					})();
 				},
@@ -1365,11 +1542,7 @@ export function ChatPanel({
 				workspace.offref(ref);
 			}
 		};
-	}, [
-		plugin.app.workspace,
-		plugin.lastActiveChatViewId,
-		viewId,
-	]);
+	}, [plugin.app.workspace, plugin.lastActiveChatViewId, viewId]);
 
 	// ============================================================
 	// Effects - Focus Tracking
@@ -1465,7 +1638,10 @@ export function ChatPanel({
 				setAttachedFiles([]);
 
 				try {
-					await handleSendMessageRef.current(messageToSend, filesToSend);
+					await handleSendMessageRef.current(
+						messageToSend,
+						filesToSend,
+					);
 				} catch (error) {
 					console.error("[Agent Console] Send message error:", error);
 				}
@@ -1476,7 +1652,10 @@ export function ChatPanel({
 					try {
 						await handleStopGenerationRef.current();
 					} catch (error) {
-						console.error("[Agent Console] Cancel operation error:", error);
+						console.error(
+							"[Agent Console] Cancel operation error:",
+							error,
+						);
 					}
 				}
 			},
@@ -1529,9 +1708,8 @@ export function ChatPanel({
 	// agent is not among them, surface one-click picks + open-settings instead
 	// of a dead-end "Connecting..." that never resolves. Detection is the
 	// session-cached, login-shell-aware plugin probe (never on the load path).
-	const [detectedAgentIds, setDetectedAgentIds] = useState<
-		Set<string> | null
-	>(null);
+	const [detectedAgentIds, setDetectedAgentIds] =
+		useState<Set<string> | null>(null);
 
 	const isEmptyAndIdle =
 		messages.length === 0 && !isSessionReady && !sessionHistory.loading;
@@ -1572,9 +1750,7 @@ export function ChatPanel({
 		}
 		const installed = detectedAgentIds ?? new Set<string>();
 		return {
-			detectedAgents: availableAgents.filter((a) =>
-				installed.has(a.id),
-			),
+			detectedAgents: availableAgents.filter((a) => installed.has(a.id)),
 			onPickAgent: (agentId: string) => {
 				void handleNewChatWithPersist(agentId);
 			},
@@ -1592,7 +1768,7 @@ export function ChatPanel({
 
 	// Combine real messages with the optimistic pending message for display.
 	const displayMessages = useMemo(
-		() => pendingMessage ? [...messages, pendingMessage] : messages,
+		() => (pendingMessage ? [...messages, pendingMessage] : messages),
 		[messages, pendingMessage],
 	);
 
@@ -1632,6 +1808,16 @@ export function ChatPanel({
 				committed: contextNotes.notes,
 			})}
 			onSuppressProvisional={() => setAutoDefaultSuppressed(true)}
+		/>
+	);
+
+	// Prompt-library buttons for the active note (gated by tags). Sits just
+	// above the context strip; renders nothing when no prompts match.
+	const promptRowElement = (
+		<PromptButtonRow
+			prompts={matchingPromptList}
+			onLaunch={launchPrompt}
+			disabled={isSending || sessionHistory.loading}
 		/>
 	);
 
@@ -1714,7 +1900,6 @@ export function ChatPanel({
 		/>
 	);
 
-
 	return (
 		<div
 			ref={containerRef}
@@ -1725,6 +1910,7 @@ export function ChatPanel({
 			{cwdBanner}
 			{recoverableHistoryBanner}
 			{messageListElement}
+			{promptRowElement}
 			{contextStripElement}
 			{inputAreaElement}
 		</div>

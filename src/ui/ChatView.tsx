@@ -1,4 +1,11 @@
-import { ItemView, WorkspaceLeaf, Menu, Notice, Scope, type MenuItem } from "obsidian";
+import {
+	ItemView,
+	WorkspaceLeaf,
+	Menu,
+	Notice,
+	Scope,
+	type MenuItem,
+} from "obsidian";
 import { registerOpenMenu } from "../utils/menu-registry";
 import type {
 	IChatViewContainer,
@@ -12,7 +19,12 @@ import { createRoot, Root } from "react-dom/client";
 import type AgentClientPlugin from "../plugin";
 import type { ChatInputState, ChatMessage } from "../types/chat";
 import type { ContextNote } from "../types/context";
-import type { TabInfo, TabState, PerLeafTabState, PersistedTabInfo } from "../types/tab";
+import type {
+	TabInfo,
+	TabState,
+	PerLeafTabState,
+	PersistedTabInfo,
+} from "../types/tab";
 
 // Utility imports
 import { getLogger, Logger } from "../utils/logger";
@@ -31,12 +43,18 @@ import { ConfirmCloseModal } from "./ConfirmCloseModal";
 
 // Hook imports
 import { useTabManager, truncateLabel } from "../hooks/useTabManager";
-import { useTabPersistence, type TabPersistenceStorage } from "../hooks/useTabPersistence";
+import {
+	useTabPersistence,
+	type TabPersistenceStorage,
+} from "../hooks/useTabPersistence";
 import { useRecentlyClosedTabs } from "../hooks/useRecentlyClosedTabs";
 
 // Service imports
 import { VaultService } from "../services/vault-service";
-import { resolveSessionIdForSave, resolveRenamedSessionWrite } from "../services/session-helpers";
+import {
+	resolveSessionIdForSave,
+	resolveRenamedSessionWrite,
+} from "../services/session-helpers";
 import { buildClosedTabRecord } from "../services/recently-closed-stack";
 import type { AcpClient } from "../acp/acp-client";
 
@@ -127,7 +145,10 @@ function hasCorruptedLeafState(
 	if (!Array.isArray(all)) return false;
 	// Check if there's a raw entry with matching leafId
 	const rawEntry = all.find(
-		(s) => typeof s === "object" && s !== null && (s as unknown as Record<string, unknown>).leafId === leafId,
+		(s) =>
+			typeof s === "object" &&
+			s !== null &&
+			(s as unknown as Record<string, unknown>).leafId === leafId,
 	);
 	if (!rawEntry) return false;
 	// If readPersistedLeafState would return null for this entry, it's corrupted
@@ -163,8 +184,7 @@ function ChatComponent({
 	viewId: string;
 }) {
 	const initialAgentId =
-		view.getInitialAgentId() ??
-		plugin.settings.defaultAgentId;
+		view.getInitialAgentId() ?? plugin.settings.defaultAgentId;
 
 	// ============================================================
 	// Tab Persistence — synchronous restore for initial render
@@ -179,7 +199,8 @@ function ChatComponent({
 		[plugin, viewId],
 	);
 	const restoredTabs = useMemo(
-		() => (restoredLeaf ? persistedToRuntime(restoredLeaf.tabs) : undefined),
+		() =>
+			restoredLeaf ? persistedToRuntime(restoredLeaf.tabs) : undefined,
 		[restoredLeaf],
 	);
 
@@ -229,9 +250,7 @@ function ChatComponent({
 
 	// Per-tab persisted session IDs (for lazy session restore on first keystroke)
 	const persistedSessionIdsRef = useRef<Map<string, string | null>>(
-		new Map(
-			restoredLeaf?.tabs.map((t) => [t.tabId, t.sessionId]) ?? [],
-		),
+		new Map(restoredLeaf?.tabs.map((t) => [t.tabId, t.sessionId]) ?? []),
 	);
 
 	// ============================================================
@@ -267,8 +286,11 @@ function ChatComponent({
 							enablePlugin: (id: string) => Promise<void>;
 						};
 					};
-					void appAny.plugins.disablePlugin(plugin.manifest.id)
-						.then(() => appAny.plugins.enablePlugin(plugin.manifest.id));
+					void appAny.plugins
+						.disablePlugin(plugin.manifest.id)
+						.then(() =>
+							appAny.plugins.enablePlugin(plugin.manifest.id),
+						);
 				},
 				async () => {
 					// Discard: clear tab state via settings service
@@ -312,10 +334,7 @@ function ChatComponent({
 	}, [plugin]);
 
 	// Shared VaultService (one per view, not per tab)
-	const vaultService = useMemo(
-		() => view.vaultService,
-		[view.vaultService],
-	);
+	const vaultService = useMemo(() => view.vaultService, [view.vaultService]);
 
 	// ============================================================
 	// Tab Persistence — save side + async message loading
@@ -605,9 +624,7 @@ function ChatComponent({
 	// Register callbacks for IChatViewContainer (active tab only)
 	// ============================================================
 	const activeCallbacksRef = useRef<ChatPanelCallbacks | null>(null);
-	const tabHandlesRef = useRef<Map<string, ChatPanelCallbacks>>(
-		new Map(),
-	);
+	const tabHandlesRef = useRef<Map<string, ChatPanelCallbacks>>(new Map());
 
 	useEffect(() => {
 		view.setCallbacks({
@@ -617,25 +634,21 @@ function ChatComponent({
 				activeCallbacksRef.current?.getInputState() ?? null,
 			setInputState: (state) =>
 				activeCallbacksRef.current?.setInputState(state),
-			canSend: () =>
-				activeCallbacksRef.current?.canSend() ?? false,
+			canSend: () => activeCallbacksRef.current?.canSend() ?? false,
 			sendMessage: async () =>
-				(await activeCallbacksRef.current?.sendMessage()) ??
-				false,
+				(await activeCallbacksRef.current?.sendMessage()) ?? false,
 			cancelOperation: async () =>
 				activeCallbacksRef.current?.cancelOperation(),
 		});
 		view.setTabHandlesAccessor(() =>
-			Array.from(tabHandlesRef.current.entries()).map(
-				([tabId, cb]) => ({
-					tabId,
-					getInputState: cb.getInputState,
-					setInputState: cb.setInputState,
-					canSend: cb.canSend,
-					sendMessage: cb.sendMessage,
-					cancelOperation: cb.cancelOperation,
-				}),
-			),
+			Array.from(tabHandlesRef.current.entries()).map(([tabId, cb]) => ({
+				tabId,
+				getInputState: cb.getInputState,
+				setInputState: cb.setInputState,
+				canSend: cb.canSend,
+				sendMessage: cb.sendMessage,
+				cancelOperation: cb.cancelOperation,
+			})),
 		);
 	}, [view]);
 
@@ -678,7 +691,9 @@ function ChatComponent({
 	// Render
 	// ============================================================
 	return (
-		<div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+		<div
+			style={{ display: "flex", flexDirection: "column", height: "100%" }}
+		>
 			<TabBar
 				tabs={tabs}
 				activeTabId={activeTabId}
@@ -696,10 +711,7 @@ function ChatComponent({
 					key={tab.tabId}
 					className="agent-client-tab-panel"
 					style={{
-						display:
-							tab.tabId === activeTabId
-								? "flex"
-								: "none",
+						display: tab.tabId === activeTabId ? "flex" : "none",
 						flexDirection: "column" as const,
 						flex: 1,
 						minHeight: 0,
@@ -728,36 +740,28 @@ function ChatComponent({
 										callbacks,
 									);
 									if (tab.tabId === activeTabId) {
-										activeCallbacksRef.current =
-											callbacks;
+										activeCallbacksRef.current = callbacks;
 									}
 								}}
 								onAgentIdChanged={(agentId) =>
 									view.setAgentId(agentId)
 								}
 								onStateChange={(state) =>
-									handleTabStateChange(
-										tab.tabId,
-										state,
-									)
+									handleTabStateChange(tab.tabId, state)
 								}
 								onLabelChange={(label) =>
-									handleTabLabelChange(
-										tab.tabId,
-										label,
-									)
+									handleTabLabelChange(tab.tabId, label)
 								}
 								onSessionIdChange={(sessionId) =>
-									handleSessionIdChange(
-										tab.tabId,
-										sessionId,
-									)
+									handleSessionIdChange(tab.tabId, sessionId)
 								}
 								findTabBySessionId={findTabBySessionId}
 								onSwitchToTab={tabManager.setActiveTab}
 								restoredSessionId={
 									reopenPayload[tab.tabId]?.sessionId ??
-									persistedSessionIdsRef.current.get(tab.tabId) ??
+									persistedSessionIdsRef.current.get(
+										tab.tabId,
+									) ??
 									null
 								}
 								restoredMessages={
@@ -766,7 +770,9 @@ function ChatComponent({
 								}
 								restoredContextNotes={
 									reopenPayload[tab.tabId]?.contextNotes ??
-									tabPersistence.restoredContextNotes[tab.tabId]
+									tabPersistence.restoredContextNotes[
+										tab.tabId
+									]
 								}
 								historyRecoverable={
 									!!tabPersistence.recoverableTabs[tab.tabId]
@@ -893,9 +899,7 @@ export class ChatView extends ItemView implements IChatViewContainer {
 	// Tab Manager (set by React component)
 	// ============================================================
 
-	setTabManager(
-		manager: ReturnType<typeof useTabManager> | null,
-	): void {
+	setTabManager(manager: ReturnType<typeof useTabManager> | null): void {
 		this.tabManagerRef = manager;
 	}
 
@@ -949,9 +953,7 @@ export class ChatView extends ItemView implements IChatViewContainer {
 			return;
 		}
 		if (this.tabManagerRef) {
-			this.tabManagerRef.removeTab(
-				this.tabManagerRef.activeTabId,
-			);
+			this.tabManagerRef.removeTab(this.tabManagerRef.activeTabId);
 		}
 	}
 

@@ -10,6 +10,7 @@ import {
 	type SettingsService,
 } from "./services/settings-service";
 import { SessionStorage } from "./services/session-storage";
+import { PromptLibraryService } from "./services/prompt-library";
 import { AgentClientSettingTab } from "./ui/SettingsTab";
 import { AcpClient } from "./acp/acp-client";
 import {
@@ -109,6 +110,13 @@ export interface AgentClientPluginSettings {
 	// Last used mode per agent (agentId → modeId)
 	lastUsedModes: Record<string, string>;
 
+	/**
+	 * Vault-relative folder holding the prompt library. Each markdown file in
+	 * it becomes a button in the chat panel (gated by the active note's tags).
+	 * Empty string disables the feature. See `services/prompt-library.ts`.
+	 */
+	promptLibraryFolder: string;
+
 	// Tab settings
 	/** Restore open tabs on startup (default: true). See [[ACP Tab Persistence Across Restarts]] § Setting. */
 	restoreTabsOnStartup: boolean;
@@ -149,6 +157,9 @@ export default class AgentClientPlugin extends Plugin {
 	/** Registry for all chat view containers */
 	viewRegistry = new ChatViewRegistry();
 
+	/** Prompt-library service (scans the configured folder for prompt files). */
+	promptLibrary!: PromptLibraryService;
+
 	/** Map of viewId to AcpClient for multi-session support */
 	private _acpClients: Map<string, AcpClient> = new Map();
 
@@ -174,6 +185,16 @@ export default class AgentClientPlugin extends Plugin {
 
 		// Initialize settings store
 		this.settingsService = createSettingsService(this.settings, this);
+
+		// Prompt library — scans the configured folder for prompt files that
+		// surface as buttons in the chat panel. Starts after layout is ready so
+		// the initial scan stays off the critical load path.
+		this.promptLibrary = new PromptLibraryService({
+			app: this.app,
+			getFolder: () => this.settings.promptLibraryFolder,
+			getKnownAgentIds: () => this.getAvailableAgents().map((a) => a.id),
+		});
+		this.app.workspace.onLayoutReady(() => this.promptLibrary.start());
 
 		// One-time migration of session files from the legacy
 		// `agent-client` plugin dir into this plugin's own dir (I68).
@@ -338,6 +359,9 @@ export default class AgentClientPlugin extends Plugin {
 
 		// Clear registry (sidebar views are managed by Obsidian workspace)
 		this.viewRegistry.clear();
+
+		// Stop watching the prompt-library folder.
+		this.promptLibrary?.stop();
 
 		// Disconnect all ACP clients (kill agent processes)
 		for (const [, client] of this._acpClients) {
@@ -1035,10 +1059,7 @@ export default class AgentClientPlugin extends Plugin {
 			this.settings.settingsImportOfferShown = true;
 			await this.saveSettings();
 		} catch (error) {
-			getLogger().warn(
-				"settings-import offer failed:",
-				error,
-			);
+			getLogger().warn("settings-import offer failed:", error);
 		}
 	}
 
@@ -1108,10 +1129,7 @@ export default class AgentClientPlugin extends Plugin {
 			// Layer 3 — land the new user in the UI exactly once.
 			await this.activateView();
 		} catch (error) {
-			getLogger().warn(
-				"first-run onboarding failed:",
-				error,
-			);
+			getLogger().warn("first-run onboarding failed:", error);
 		}
 	}
 
