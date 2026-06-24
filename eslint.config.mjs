@@ -1,5 +1,6 @@
 import tsparser from "@typescript-eslint/parser";
 import { defineConfig } from "eslint/config";
+import jsxA11y from "eslint-plugin-jsx-a11y";
 import obsidianmd from "eslint-plugin-obsidianmd";
 import tseslint from "typescript-eslint";
 
@@ -36,6 +37,17 @@ export default defineConfig([
 			// for Linux", "Gemini API key") or technical UI strings. Demote to
 			// warn until a dedicated cleanup pass.
 			"obsidianmd/ui/sentence-case": "warn",
+		},
+	},
+	{
+		// Keyboard accessibility — enforce on React components (.tsx only).
+		files: ["**/*.tsx"],
+		plugins: { "jsx-a11y": jsxA11y },
+		rules: {
+			"jsx-a11y/click-events-have-key-events": "error",
+			"jsx-a11y/no-static-element-interactions": "error",
+			"jsx-a11y/no-noninteractive-element-interactions": "error",
+			"jsx-a11y/interactive-supports-focus": "error",
 		},
 	},
 	{

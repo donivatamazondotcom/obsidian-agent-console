@@ -118,7 +118,16 @@ function TabItem({
 	return (
 		<div
 			className={`agent-client-tab${isActive ? " agent-client-tab-active" : ""}`}
+			role="tab"
+			tabIndex={0}
+			aria-selected={isActive}
 			onClick={onSelect}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					onSelect();
+				}
+			}}
 			onContextMenu={onContextMenu}
 			onMouseDown={handleMouseDown}
 			draggable
@@ -131,9 +140,18 @@ function TabItem({
 			<div
 				ref={closeRef}
 				className="agent-client-tab-close clickable-icon"
+				role="button"
+				tabIndex={0}
 				onClick={(e) => {
 					e.stopPropagation();
 					onClose();
+				}}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						e.stopPropagation();
+						onClose();
+					}
 				}}
 				aria-label="Close tab"
 			/>
@@ -157,8 +175,8 @@ export function TabBar({
 	onMoveTab,
 	onAddTabWithAgent,
 }: TabBarProps) {
-	const addBtnRef = useRef<HTMLDivElement>(null);
-	const chevronRef = useRef<HTMLDivElement>(null);
+	const addBtnRef = useRef<HTMLButtonElement>(null);
+	const chevronRef = useRef<HTMLButtonElement>(null);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const dragIndexRef = useRef<number>(-1);
 
@@ -330,15 +348,17 @@ export function TabBar({
 					/>
 				))}
 			</div>
-			<div
+			<button
 				ref={addBtnRef}
+				type="button"
 				className="clickable-icon agent-client-tab-bar-add"
 				aria-label="New session tab"
 				onClick={onAddTab}
 				onContextMenu={onAddTabWithAgent}
 			/>
-			<div
+			<button
 				ref={chevronRef}
+				type="button"
 				className="clickable-icon agent-client-tab-bar-chevron"
 				aria-label="Tab list"
 				onClick={handleChevronClick}

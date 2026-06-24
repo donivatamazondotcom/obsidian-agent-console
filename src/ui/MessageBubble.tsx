@@ -47,12 +47,24 @@ function TextWithMentions({
 			<span
 				key="auto-mention"
 				className="agent-client-text-mention"
+				role="link"
+				tabIndex={0}
 				onClick={(e) => {
 					void plugin.app.workspace.openLinkText(
 						autoMentionContext.notePath,
 						"",
 						deriveNewLeaf(e.nativeEvent),
 					);
+				}}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						void plugin.app.workspace.openLinkText(
+							autoMentionContext.notePath,
+							"",
+							"tab",
+						);
+					}
 				}}
 				onAuxClick={(e) => {
 					if (e.button !== 1) return;
@@ -93,12 +105,24 @@ function TextWithMentions({
 				<span
 					key={match.index}
 					className="agent-client-text-mention"
+					role="link"
+					tabIndex={0}
 					onClick={(e) => {
 						void plugin.app.workspace.openLinkText(
 							file.path,
 							"",
 							deriveNewLeaf(e.nativeEvent),
 						);
+					}}
+					onKeyDown={(e) => {
+						if (e.key === "Enter" || e.key === " ") {
+							e.preventDefault();
+							void plugin.app.workspace.openLinkText(
+								file.path,
+								"",
+								"tab",
+							);
+						}
 					}}
 					onAuxClick={(e) => {
 						if (e.button !== 1) return;
@@ -145,7 +169,16 @@ function CollapsibleThought({ text, plugin }: CollapsibleThoughtProps) {
 	return (
 		<div
 			className="agent-client-collapsible-thought"
+			role="button"
+			tabIndex={0}
 			onClick={() => setIsExpanded(!isExpanded)}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					setIsExpanded(!isExpanded);
+				}
+			}}
+			aria-expanded={isExpanded}
 		>
 			<div className="agent-client-collapsible-thought-header">
 				{showEmojis && (

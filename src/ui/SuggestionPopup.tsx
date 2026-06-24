@@ -92,8 +92,17 @@ export function SuggestionPopup({
 			return (
 				<div
 					key={`mention-${index}`}
+					role="option"
+					tabIndex={-1}
+					aria-selected={isSelected}
 					className={`agent-client-mention-dropdown-item ${isSelected ? "agent-client-selected" : ""} ${hasBorder ? "agent-client-has-border" : ""}`}
 					onClick={() => onSelect(note)}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") {
+							e.preventDefault();
+							onSelect(note);
+						}
+					}}
 					onMouseEnter={() => {
 						// Could update selected index on hover
 					}}
@@ -112,8 +121,17 @@ export function SuggestionPopup({
 			return (
 				<div
 					key={`command-${index}`}
+					role="option"
+					tabIndex={-1}
+					aria-selected={isSelected}
 					className={`agent-client-mention-dropdown-item ${isSelected ? "agent-client-selected" : ""} ${hasBorder ? "agent-client-has-border" : ""}`}
 					onClick={() => onSelect(command)}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") {
+							e.preventDefault();
+							onSelect(command);
+						}
+					}}
 					onMouseEnter={() => {
 						// Could update selected index on hover
 					}}
@@ -131,7 +149,7 @@ export function SuggestionPopup({
 	};
 
 	return (
-		<div ref={dropdownRef} className="agent-client-mention-dropdown">
+		<div ref={dropdownRef} className="agent-client-mention-dropdown" role="listbox">
 			{items.map((item, index) => renderItem(item, index))}
 		</div>
 	);
