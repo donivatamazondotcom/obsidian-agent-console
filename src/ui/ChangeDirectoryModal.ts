@@ -7,6 +7,7 @@
  */
 
 import { Modal, App } from "obsidian";
+import { pickFolder } from "../utils/folder-picker";
 
 export class ChangeDirectoryModal extends Modal {
 	private currentPath: string;
@@ -92,35 +93,10 @@ export class ChangeDirectoryModal extends Modal {
 	}
 
 	private async openFolderPicker(): Promise<string | null> {
-		try {
-			// eslint-disable-next-line @typescript-eslint/no-require-imports -- electron is a runtime-only module provided by Obsidian's host environment
-			const { remote } = require("electron") as {
-				remote: {
-					dialog: {
-						showOpenDialog: (options: {
-							properties: string[];
-							title: string;
-							defaultPath?: string;
-						}) => Promise<{
-							canceled: boolean;
-							filePaths: string[];
-						}>;
-					};
-				};
-			};
-			const result = await remote.dialog.showOpenDialog({
-				properties: ["openDirectory"],
-				title: "Select working directory",
-				defaultPath: this.currentPath,
-			});
-			if (!result.canceled && result.filePaths.length > 0) {
-				return result.filePaths[0];
-			}
-		} catch {
-			// Electron remote not available — ignore silently
-			// User can still type the path manually
-		}
-		return null;
+		return pickFolder({
+			title: "Select working directory",
+			defaultPath: this.currentPath,
+		});
 	}
 
 	private selectAndClose(rawValue: string) {

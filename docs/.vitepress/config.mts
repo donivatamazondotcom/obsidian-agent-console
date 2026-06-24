@@ -83,6 +83,7 @@ export default defineConfig({
           { text: "Session History", link: "/usage/session-history" },
           { text: "Reloading a Session", link: "/usage/reload-session" },
           { text: "Shared Links", link: "/usage/shared-links" },
+          { text: "Working Directory", link: "/usage/working-directory" },
           { text: "Tabbed Sessions", link: "/usage/tabbed-sessions" },
           { text: "Editing", link: "/usage/editing" },
           { text: "Chat Export", link: "/usage/chat-export" },

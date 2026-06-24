@@ -318,6 +318,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	enableSystemNotifications: true,
 	debugMode: false,
 	nodePath: "",
+	defaultWorkingDirectory: "",
 	exportSettings: {
 		defaultFolder: "Agent Console",
 		filenameTemplate: "agent_console_{date}_{time}",
@@ -501,6 +502,10 @@ export function normalizeRawSettings(
 		),
 		debugMode: bool(raw.debugMode, D.debugMode),
 		nodePath: str(raw.nodePath, D.nodePath),
+		defaultWorkingDirectory: str(
+			raw.defaultWorkingDirectory,
+			D.defaultWorkingDirectory,
+		),
 		exportSettings: {
 			defaultFolder: str(
 				re.defaultFolder,

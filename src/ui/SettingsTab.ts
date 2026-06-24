@@ -6,6 +6,7 @@ import {
 	Platform,
 	SecretComponent,
 	Notice,
+	FileSystemAdapter,
 } from "obsidian";
 import type AgentClientPlugin from "../plugin";
 import type {
@@ -14,6 +15,8 @@ import type {
 	ChatViewLocation,
 } from "../plugin";
 import { resolveCommandPath, resolveCommandPathInWsl } from "../utils/paths";
+import { pickFolder } from "../utils/folder-picker";
+import { resolveDefaultWorkingDirectory } from "../utils/working-directory";
 import {
 	TITLE_STRATEGY_OPTIONS,
 	type TitleStrategy,
@@ -160,6 +163,60 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						});
 					}),
 			);
+
+		// Default working directory — global default new chats launch in.
+		const resolveVaultRoot = (): string => {
+			const adapter = this.plugin.app.vault.adapter;
+			return adapter instanceof FileSystemAdapter
+				? adapter.getBasePath()
+				: "";
+		};
+		const describeCwd = (value: string): string => {
+			const vaultRoot = resolveVaultRoot();
+			const base =
+				"Directory new chats start in. Leave blank to use the vault root. Existing and restored chats keep their own directory.";
+			if (!value.trim()) {
+				return `${base} Currently: vault root${vaultRoot ? ` (${vaultRoot})` : ""}.`;
+			}
+			const resolved = resolveDefaultWorkingDirectory(value, vaultRoot);
+			if (resolved.fellBack) {
+				return `${base} ⚠ "${value}" is not a valid absolute directory — new chats will use the vault root${vaultRoot ? ` (${vaultRoot})` : ""}.`;
+			}
+			return `${base} Resolved: ${resolved.dir}.`;
+		};
+		const cwdSetting = new Setting(containerEl)
+			.setName("Default working directory")
+			.setDesc(describeCwd(this.plugin.settings.defaultWorkingDirectory));
+		cwdSetting.addText((text) =>
+			text
+				.setPlaceholder("Leave blank for vault root")
+				.setValue(this.plugin.settings.defaultWorkingDirectory)
+				.onChange(async (value) => {
+					await this.plugin.settingsService.updateSettings({
+						defaultWorkingDirectory: value.trim(),
+					});
+					cwdSetting.setDesc(describeCwd(value));
+				}),
+		);
+		cwdSetting.addButton((btn) =>
+			btn
+				.setButtonText("Browse…")
+				.setTooltip("Choose a folder")
+				.onClick(async () => {
+					const picked = await pickFolder({
+						title: "Select default working directory",
+						defaultPath:
+							this.plugin.settings.defaultWorkingDirectory ||
+							resolveVaultRoot(),
+					});
+					if (picked) {
+						await this.plugin.settingsService.updateSettings({
+							defaultWorkingDirectory: picked,
+						});
+						this.display();
+					}
+				}),
+		);
 
 		// ─────────────────────────────────────────────────────────────────────
 		// Context
