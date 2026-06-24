@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { resolveDefaultWorkingDirectory } from "../working-directory";
+import {
+	resolveDefaultWorkingDirectory,
+	resolveAgentWorkingDirectory,
+} from "../working-directory";
 
 const VAULT = "/Users/me/vault";
 
@@ -44,5 +47,53 @@ describe("resolveDefaultWorkingDirectory", () => {
 			(p) => p === "/Users/me/repo",
 		);
 		expect(r).toEqual({ dir: "/Users/me/repo", fellBack: false });
+	});
+});
+
+describe("resolveAgentWorkingDirectory", () => {
+	const VAULT = "/Users/me/vault";
+	const GLOBAL = "/Users/me/global";
+	const AGENT = "/Users/me/repo";
+	const existsAll = () => true;
+
+	it("prefers a valid per-agent directory over global and vault", () => {
+		const r = resolveAgentWorkingDirectory(AGENT, GLOBAL, VAULT, existsAll);
+		expect(r).toEqual({ dir: AGENT, source: "agent", fellBack: false });
+	});
+
+	it("falls through to global default when per-agent is blank", () => {
+		const r = resolveAgentWorkingDirectory("", GLOBAL, VAULT, existsAll);
+		expect(r).toEqual({ dir: GLOBAL, source: "global", fellBack: false });
+	});
+
+	it("falls through to vault root when both per-agent and global are blank", () => {
+		const r = resolveAgentWorkingDirectory("", "", VAULT, existsAll);
+		expect(r).toEqual({ dir: VAULT, source: "vault", fellBack: false });
+	});
+
+	it("skips an invalid per-agent value to a valid global, flagging fellBack", () => {
+		// per-agent is non-absolute → skip; global is absolute + exists → use
+		const r = resolveAgentWorkingDirectory(
+			"relative/path",
+			GLOBAL,
+			VAULT,
+			(p) => p === GLOBAL,
+		);
+		expect(r).toEqual({ dir: GLOBAL, source: "global", fellBack: true });
+	});
+
+	it("skips invalid per-agent AND invalid global down to vault, flagging fellBack", () => {
+		const r = resolveAgentWorkingDirectory(
+			"/Users/me/missing-agent",
+			"/Users/me/missing-global",
+			VAULT,
+			() => false,
+		);
+		expect(r).toEqual({ dir: VAULT, source: "vault", fellBack: true });
+	});
+
+	it("does not flag fellBack when only blank values defer (no invalid value)", () => {
+		const r = resolveAgentWorkingDirectory("  ", "", VAULT, existsAll);
+		expect(r).toEqual({ dir: VAULT, source: "vault", fellBack: false });
 	});
 });
