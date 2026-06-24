@@ -125,6 +125,24 @@ export function executeFlush(deps: {
 	return true;
 }
 
+/**
+ * Whether the composer's send action (button click or Enter) must be blocked
+ * because a message is queued (#82, smoke-test issue 3).
+ *
+ * While streaming, the primary button is **Stop** (isSending true) — that must
+ * stay live so the user can cancel (T7), so this returns false then. But once
+ * a queued message is being *held* (queued + no live turn, e.g. after an
+ * errored/cancelled turn), the composer is locked and the Send button would
+ * otherwise fire the locked text, bypassing the queue. Block it — the user
+ * acts via Edit/Delete instead.
+ */
+export function isQueuedSendBlocked(params: {
+	isQueued: boolean;
+	isSending: boolean;
+}): boolean {
+	return params.isQueued && !params.isSending;
+}
+
 /** Minimal shape of a broadcast target for skip-guard selection. */
 export interface BroadcastTarget {
 	readonly tabId: string;

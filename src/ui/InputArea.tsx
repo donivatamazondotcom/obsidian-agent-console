@@ -19,7 +19,7 @@ import { ErrorBanner } from "./ErrorBanner";
 import { AttachmentStrip } from "./shared/AttachmentStrip";
 import { InputToolbar } from "./InputToolbar";
 import { getLogger } from "../utils/logger";
-import { decideComposerEnterAction, buildComposerPlaceholder } from "../services/message-queue-logic";
+import { decideComposerEnterAction, buildComposerPlaceholder, isQueuedSendBlocked } from "../services/message-queue-logic";
 import type { ErrorInfo } from "../types/errors";
 import type { AgentUpdateNotification } from "../services/update-checker";
 import { useSettings } from "../hooks/useSettings";
@@ -777,6 +777,12 @@ export function InputArea({
 			return;
 		}
 
+		// #82 issue 3: a held queued message locks the composer — the Send
+		// button must not fire the locked text (Edit/Delete are the actions).
+		// (During streaming this is unreachable: isSending short-circuits above
+		// to Stop, which stays live for cancel.)
+		if (isQueuedSendBlocked({ isQueued, isSending })) return;
+
 		// Allow sending if there's text OR attachments
 		if (!inputValue.trim() && attachedFiles.length === 0) return;
 
@@ -795,6 +801,7 @@ export function InputArea({
 		await onSendMessage(messageToSend, filesToSend);
 	}, [
 		isSending,
+		isQueued,
 		inputValue,
 		attachedFiles,
 		onSendMessage,
@@ -879,7 +886,8 @@ export function InputArea({
 	// Button disabled state - also allow sending if files are attached
 	const isButtonDisabled =
 		!isSending &&
-		((inputValue.trim() === "" && attachedFiles.length === 0) ||
+		(isQueuedSendBlocked({ isQueued, isSending }) ||
+			(inputValue.trim() === "" && attachedFiles.length === 0) ||
 			(!isSessionReady && !isLazyIdle && !isLazyConnecting) ||
 			isRestoringSession);
 
@@ -990,6 +998,25 @@ export function InputArea({
 			}
 		}, 0);
 	}, []);
+
+	// #82 issue 1: when a queued message is unlocked (Edit) or discarded
+	// (Delete), return focus to the composer with the cursor at the end so the
+	// user can keep typing immediately — without this, Edit unlocks the text
+	// but leaves focus nowhere.
+	const prevIsQueuedRef = useRef(isQueued);
+	useEffect(() => {
+		const wasQueued = prevIsQueuedRef.current;
+		prevIsQueuedRef.current = isQueued;
+		if (wasQueued && !isQueued) {
+			window.setTimeout(() => {
+				const el = textareaRef.current;
+				if (!el) return;
+				el.focus();
+				const end = el.value.length;
+				el.setSelectionRange(end, end);
+			}, 0);
+		}
+	}, [isQueued]);
 
 	// Focus textarea when this tab becomes active (I19)
 	// Tabs are kept mounted and hidden via display:none; without this, hotkey-

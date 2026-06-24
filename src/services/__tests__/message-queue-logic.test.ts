@@ -13,6 +13,7 @@ import {
 	shouldFlushQueue,
 	decideComposerEnterAction,
 	buildComposerPlaceholder,
+	isQueuedSendBlocked,
 	executeFlush,
 	selectBroadcastSendTargets,
 	selectBroadcastPromptTargets,
@@ -102,6 +103,30 @@ describe("decideComposerEnterAction (T1, T13)", () => {
 		expect(
 			decideComposerEnterAction({ ...base, isButtonDisabled: true }),
 		).toBe("none");
+	});
+});
+
+// --- issue 3: held queued message must block the Send button ---------------
+
+describe("isQueuedSendBlocked (smoke-test issue 3)", () => {
+	it("reproduce — a held queued message (queued, not streaming) blocks send", () => {
+		// Naive (pre-fix) behavior had no such guard → the Send button fired the
+		// locked text, bypassing the queue.
+		expect(isQueuedSendBlocked({ isQueued: true, isSending: false })).toBe(
+			true,
+		);
+	});
+
+	it("does NOT block during streaming — the button is Stop, must stay live (T7)", () => {
+		expect(isQueuedSendBlocked({ isQueued: true, isSending: true })).toBe(
+			false,
+		);
+	});
+
+	it("does not block when nothing is queued", () => {
+		expect(isQueuedSendBlocked({ isQueued: false, isSending: false })).toBe(
+			false,
+		);
 	});
 });
 
