@@ -43,6 +43,7 @@ src/
 │   ├── context-validator.ts     # Context-note data-model invariant enforcement (parse-at-edge)
 │   ├── replayContextBuilder.ts  # Reconstructs replay context for restored sessions
 │   ├── session-metadata.ts      # Session metadata write resolution (history entry on turn-end)
+│   ├── session-search.ts        # Pure full-text search engine over saved sessions (extract/index/match/snippet)
 │   ├── settings-migration.ts    # One-time settings migration (autoMentionActiveNote → activeNoteAsDefaultContext)
 │   ├── settings-service.ts      # Reactive settings store (observer pattern only)
 │   ├── session-storage.ts       # Session metadata + message file I/O (sessions/*.json)
@@ -79,6 +80,7 @@ src/
 │   ├── useAgentMessages.ts      # Message state, streaming (RAF batch), permissions
 │   ├── useSuggestions.ts        # @[[note]] mentions + /command suggestions (unified)
 │   ├── useSessionHistory.ts     # Session list/load/resume/fork
+│   ├── useSessionSearch.ts      # Session search state: query debounce + lazy content index
 │   ├── useChatActions.ts        # Business callbacks (send, newChat, export, restart, etc.)
 │   ├── useHistoryModal.ts       # Session history modal lifecycle
 │   ├── useSettings.ts           # Settings subscription (useSyncExternalStore)

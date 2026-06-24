@@ -1,6 +1,6 @@
 # Session History
 
-Resume previous conversations or branch off from past sessions.
+Resume previous conversations, search across them, or branch off from past sessions.
 
 ## Agent Support
 
@@ -14,12 +14,22 @@ Click the **History** button (clock icon) in the chat header to open the session
   <img src="/images/session-history-button.webp" alt="Session history button in chat header" />
 </p>
 
+## Searching Sessions
+
+A search box sits at the top of the history modal. Type to filter the list as you go:
+
+- **Title match** is instant.
+- **Content match** searches inside your saved transcripts — so you can find a session by something that was *said* in it, even when the title doesn't mention it. The first time you focus the search box the plugin indexes your transcripts (a brief "Searching transcripts…" note shows while it works); after that, filtering is immediate.
+
+Matches that hit message content show a short snippet with the term highlighted, so you can confirm it's the right session before opening it. Search is fully local — no agent connection required.
+
 ## Available Actions
 
 Depending on the agent's capabilities, you can perform the following actions:
 
 | Action | Description |
 |--------|-------------|
+| **Search** | Filter the list by title or message content as you type |
 | **Edit title** | Rename the session from the history modal |
 | **Restore** | Resume the session where you left off |
 | **Fork** *(experimental)* | Create a new branch from that point — only shown for agents that advertise the experimental session-fork capability |

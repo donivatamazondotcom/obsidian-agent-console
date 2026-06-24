@@ -1888,6 +1888,10 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
+	/* Fixed-height scroll region so the modal frame stays anchored as the
+	   result count changes during search (I96). */
+	height: clamp(280px, 50vh, 460px);
+	overflow-y: auto;
 }
 
 .agent-client-session-history-item {
@@ -1981,7 +1985,13 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .agent-client-session-history-loading,
 .agent-client-session-history-empty,
 .agent-client-session-history-error {
-	padding: 32px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	/* Match the list's fixed height so the frame doesn't jump between the
+	   list, empty, loading, and error states (I96). */
+	height: clamp(280px, 50vh, 460px);
 	text-align: center;
 	color: var(--text-muted);
 }
@@ -2505,4 +2515,59 @@ button.agent-client-message-tool-call-summary:focus-visible {
    (Agent Console Reload Control — reuses the agent-client-spin keyframes). */
 .agent-client-reload-spinning svg {
 	animation: agent-client-spin 1s linear infinite;
+}
+
+/* ===== Session History Search ===== */
+.agent-client-session-history-search {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.agent-client-session-history-search-input {
+	flex: 1;
+	padding: 6px 10px;
+	font-size: 14px;
+	border-radius: var(--radius-s);
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.agent-client-session-history-search-status {
+	font-size: 12px;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.agent-client-session-history-item-snippet {
+	margin-top: 4px;
+	font-size: 12px;
+	line-height: 1.4;
+	color: var(--text-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.agent-client-session-history-item-snippet-match {
+	background: var(--text-highlight-bg);
+	color: var(--text-normal);
+	border-radius: var(--radius-s);
+	padding: 0 2px;
+}
+
+/* I96: pin the session-history modal size so it doesn't resize/re-center
+   as search filters the results. */
+.agent-client-session-history-modal {
+	width: 600px;
+	max-width: 90vw;
+}
+
+/* Shared search-term highlight (title + snippet). */
+.agent-client-session-history-match {
+	background: var(--text-highlight-bg);
+	color: var(--text-normal);
+	border-radius: var(--radius-s);
+	padding: 0 2px;
 }
