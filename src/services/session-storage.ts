@@ -327,12 +327,37 @@ export class SessionStorage {
 		const filePath = this.getSessionFilePath(sessionId);
 		const adapter = this.plugin.app.vault.adapter;
 
-		if (!(await adapter.exists(filePath))) {
+		// TP-I01: do NOT gate on adapter.exists(). At plugin startup exists()
+		// can transiently report false for a present, readable session file;
+		// gating on it latched a false "history not stored locally" (I72)
+		// recovery banner for tabs whose history was intact. Read directly and
+		// treat a thrown read as the genuine missing-history signal, retrying
+		// once on a transient read failure (mirrors the saveSessionMessages
+		// write-durability retry). Never a fixed delay — a sleep is not a
+		// signal.
+		let content: string | null = null;
+		const MAX_ATTEMPTS = 2;
+		for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+			try {
+				content = await adapter.read(filePath);
+				break;
+			} catch (error) {
+				if (attempt >= MAX_ATTEMPTS) {
+					// Genuine miss / unreadable — the I72 recovery path.
+					// Logged (this path was previously silent) so a real miss
+					// leaves a trace with the sessionId.
+					getLogger().debug(
+						`[SessionStorage] No readable session file for ${sessionId}: ${String(error)}`,
+					);
+					return null;
+				}
+			}
+		}
+		if (content === null) {
 			return null;
 		}
 
 		try {
-			const content = await adapter.read(filePath);
 			const data = JSON.parse(content) as SessionMessagesFile;
 
 			if (
