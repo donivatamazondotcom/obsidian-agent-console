@@ -170,6 +170,16 @@ export default class AgentClientPlugin extends Plugin {
 	 */
 	private recentlyClosedLeaves: ClosedLeafRecord[] = [];
 
+	/**
+	 * One-shot intent flag, set by the "Reopen closed Agent Console view"
+	 * command immediately before it opens a fresh leaf and consumed once by
+	 * that leaf's mount. Keeps plain panel opens (ribbon / "Open chat") fresh —
+	 * only an explicit reopen adopts the last-closed tab set, so "New" never
+	 * silently restores. Restart-restore is unaffected (it goes through the
+	 * leaf.id-keyed path, not the stack). See [[ACP Restore Tabs on View Reopen]].
+	 */
+	private reopenIntent = false;
+
 	/** Map of viewId to AcpClient for multi-session support */
 	private _acpClients: Map<string, AcpClient> = new Map();
 
@@ -315,6 +325,14 @@ export default class AgentClientPlugin extends Plugin {
 					this.getActiveChatView()?.reopenClosedTab();
 				}
 				return true;
+			},
+		});
+
+		this.addCommand({
+			id: "reopen-closed-view",
+			name: "Reopen closed view",
+			callback: () => {
+				void this.requestReopenClosedView();
 			},
 		});
 
@@ -547,6 +565,41 @@ export default class AgentClientPlugin extends Plugin {
 			void this.settingsService.removeTabStateForLeaf(record.leafId);
 		}
 		return record;
+	}
+
+	/**
+	 * Consume the one-shot reopen intent (read + clear). Returns true only on
+	 * the fresh-leaf mount immediately following the reopen command; every
+	 * other open reads false and stays fresh.
+	 */
+	consumeReopenIntent(): boolean {
+		const intent = this.reopenIntent;
+		this.reopenIntent = false;
+		return intent;
+	}
+
+	/**
+	 * Reopen the most-recently-closed Agent Console view, restoring its tab set
+	 * — the per-view analog of a browser's "reopen closed window" (Cmd/Ctrl+
+	 * Shift+T). Opens a fresh leaf flagged to adopt the top recently-closed
+	 * snapshot on mount; surfaces a Notice and does nothing when the stack is
+	 * empty. The adopt itself no-ops when "Restore tabs on startup" is off.
+	 */
+	async requestReopenClosedView(): Promise<void> {
+		if (this.recentlyClosedLeaves.length === 0) {
+			new Notice("No recently closed view to reopen");
+			return;
+		}
+		this.reopenIntent = true;
+		const leaf = this.createNewChatLeaf(true);
+		if (!leaf) {
+			this.reopenIntent = false;
+			getLogger().warn("Failed to create new leaf for reopen");
+			return;
+		}
+		await leaf.setViewState({ type: VIEW_TYPE_CHAT, active: true });
+		await this.app.workspace.revealLeaf(leaf);
+		this.focusTextarea(leaf);
 	}
 
 	async activateView() {

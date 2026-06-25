@@ -143,9 +143,11 @@ A tab that already holds a [queued message](#queue-your-next-message) is **skipp
 
 Open tabs survive an Obsidian restart. When you quit and reopen, each sidebar pane brings back its own tabs — same order, same active tab, each tab's conversation visible right away. Turn this off under Settings → Tabs → "Restore tabs on startup" (on by default). Panes restore independently; split views don't merge into one.
 
-### Reopen the panel and pick up where you left off
+### Reopen a panel you closed
 
-You don't have to restart Obsidian to get your tabs back. Close the Agent Console panel and open it again in the same session — from the ribbon icon or the *Open Agent Console* command — and your last tab set comes back: every tab, the one you had active, each conversation, and any half-typed draft. It works like reopening a closed browser window (Cmd/Ctrl + Shift + T), so closing the panel by accident is no longer a way to lose your work. The same "Restore tabs on startup" setting controls this — turn it off and a reopened panel starts with one fresh tab.
+Closed the whole Agent Console panel and want it back? Run **Reopen closed view** (command palette, or bind a hotkey — the browser-style Cmd/Ctrl + Shift + T) and your last-closed panel returns with its full tab set: every tab, the one you had active, each conversation, and any unsent draft. Like reopening a closed browser window, it walks back through panels you've closed this session.
+
+Opening the panel the normal way — the ribbon icon or **Open chat** — always starts a single fresh tab. Restoring a closed panel is a deliberate action, so "open" never silently brings back old tabs; **Reopen closed view** is the one that restores. (Closing a panel with several chats also asks first, so an accidental close is hard to trigger in the first place.) Turn restore off entirely under Settings → Tabs → "Restore tabs on startup".
 
 ### Unsent drafts come back too
 

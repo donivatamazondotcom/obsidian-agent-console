@@ -191,14 +191,17 @@ function ChatComponent({
 	// pop runs exactly once):
 	//   - Restart path: Obsidian recreates this leaf with its original id, so
 	//     the synchronous id-match wins and the recently-closed stack is left
-	//     intact.
-	//   - Reopen path: a fresh leaf mints a new id that matches nothing on
-	//     disk, so we adopt the most-recently-closed leaf snapshot from the
-	//     plugin's in-memory stack (gated on the same restore setting —
-	//     Decision #1). See [[ACP Restore Tabs on View Reopen]].
+	//     intact. (Restart auto-restores; that's expected, not a "new" gesture.)
+	//   - Reopen path: only the explicit "Reopen closed Agent Console view"
+	//     command sets the one-shot reopen intent; the fresh leaf it opens has
+	//     no id-match and consumes the intent here, adopting the most-recently-
+	//     closed snapshot. A plain open (ribbon / "Open chat") also has no
+	//     id-match but consumes a `false` intent, so it stays a single fresh
+	//     tab — "New" never silently restores (option a). Gated on the same
+	//     restore setting. See [[ACP Restore Tabs on View Reopen]].
 	const [restoredLeaf] = useState<PerLeafTabState | null>(() =>
 		resolveRestoredLeaf(readPersistedLeafState(plugin, viewId), () =>
-			plugin.settings.restoreTabsOnStartup
+			plugin.consumeReopenIntent() && plugin.settings.restoreTabsOnStartup
 				? plugin.adoptClosedLeaf()
 				: null,
 		),

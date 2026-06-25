@@ -50,6 +50,7 @@ These appear only when a chat view is open.
 | **Previous session tab** | Switch to the previous tab in the active panel |
 | **Close session tab** | Close the active tab |
 | **Reopen closed session tab** | Reopen the most-recently-closed tab and restore its conversation — transcript, agent, label, and pinned context. Repeat to walk further back (browser-style Cmd+Shift+T). Closed tabs are remembered for the current session only |
+| **Reopen closed view** | Reopen the whole panel you last closed, restoring its entire tab set — every tab, the active tab, each conversation, and any unsent draft. The per-*panel* analog of the per-*tab* command above. Opening the panel normally (ribbon / **Open chat**) always starts fresh; this command is how you bring a closed panel back. Remembered for the current session only |
 
 ## Settings Commands
 
