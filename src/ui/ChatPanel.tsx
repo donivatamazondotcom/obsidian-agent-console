@@ -1556,11 +1556,19 @@ export function ChatPanel({
 					setInputValue("");
 					setAttachedFiles([]);
 				},
+				// Dispatch via the RAW send, NOT handleSendWithLazyAcquisition
+				// (I-Q-FLUSH): at the isSending true→false commit, lazySession
+				// hasn't re-rendered busy→ready yet, so the wrapper would see
+				// "busy", re-enqueue the just-consumed message, and the
+				// connect-flush (gated to connecting/idle→ready) would never
+				// pick it up → silent drop. The session is established at
+				// turn-end, so handleSendMessage sends directly. Matches the
+				// connect-flush, which already dispatches raw.
 				dispatch: (content, attachments) =>
-					void handleSendMessageRef.current(content, attachments),
+					void handleSendMessage(content, attachments),
 			});
 		}
-	}, [isSending, errorInfo, messageQueue]);
+	}, [isSending, errorInfo, messageQueue, handleSendMessage]);
 
 	useEffect(() => {
 		onRegisterCallbacks?.({
