@@ -541,7 +541,18 @@ export function ChatPanel({
 
 	// Shared Links Bubble: derive the per-tab link set from the active tab's
 	// messages (spec [[Shared Links Bubble]] § "derive, don't store").
-	const sharedLinks = useMemo(() => extractLinks(messages), [messages]);
+	// Resolve internal links against the vault so illustrative/abbreviated
+	// wikilinks the agent typed in prose (e.g. [[file]]) are excluded (SLB-I8);
+	// external URLs are unaffected.
+	const resolveInternalLink = useCallback(
+		(linkpath: string): boolean =>
+			plugin.app.metadataCache.getFirstLinkpathDest(linkpath, "") !== null,
+		[plugin.app.metadataCache],
+	);
+	const sharedLinks = useMemo(
+		() => extractLinks(messages, { resolveInternal: resolveInternalLink }),
+		[messages, resolveInternalLink],
+	);
 
 	const handleOpenSharedLink = useCallback(
 		(link: SharedLink, evt: MouseEvent | KeyboardEvent) => {

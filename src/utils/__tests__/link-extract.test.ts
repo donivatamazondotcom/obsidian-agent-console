@@ -164,3 +164,40 @@ describe("extractLinks", () => {
 		expect(a).toEqual(b);
 	});
 });
+
+describe("extractLinks — SLB-I8: resolve internal links against the vault", () => {
+	it("drops non-resolving internal wikilinks (illustrative links), keeps externals and real notes", () => {
+		const messages = [
+			msg("assistant", [
+				text("see [[Agent Console]], an example [[file]], and [[TP-I05 …]]"),
+			]),
+			msg("assistant", [text("external https://example.com/x stays")]),
+		];
+		// Only the real note resolves in the vault.
+		const resolveInternal = (lp: string) => lp.trim() === "Agent Console";
+		const links = extractLinks(messages, { resolveInternal });
+		const labels = links.map((l) => l.label);
+
+		expect(labels).toContain("Agent Console"); // resolves → kept
+		expect(labels).toContain("https://example.com/x"); // external → always kept
+		expect(labels).not.toContain("file"); // [[file]] doesn't resolve → dropped
+		expect(links.some((l) => l.target.includes("TP-I05"))).toBe(false); // [[TP-I05 …]] dropped
+	});
+
+	it("keeps an agent-created file even when the resolver says it doesn't exist yet (index timing)", () => {
+		const messages = [
+			msg("assistant", [createdDiff("01-inbox/New Note.md")]),
+			msg("assistant", [text("created [[New Note]] for you")]),
+		];
+		const resolveInternal = () => false; // metadata cache hasn't indexed it
+		const links = extractLinks(messages, { resolveInternal });
+		expect(links).toHaveLength(1);
+		expect(links[0].label).toBe("New Note");
+		expect(links[0].isNew).toBe(true);
+	});
+
+	it("without a resolver, keeps all internal links (back-compat)", () => {
+		const links = extractLinks([msg("assistant", [text("[[whatever]]")])]);
+		expect(links).toHaveLength(1);
+	});
+});

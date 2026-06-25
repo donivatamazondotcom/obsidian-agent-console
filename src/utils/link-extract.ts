@@ -74,7 +74,23 @@ interface RawLink {
  * "Earlier" is the UI's responsibility (so the same array serves both the count
  * badge and the popover).
  */
-export function extractLinks(messages: ChatMessage[]): SharedLink[] {
+export interface ExtractLinksOptions {
+	/**
+	 * Resolve an internal link's linkpath (section stripped) to whether it
+	 * exists as a vault note. When supplied, internal links that do NOT resolve
+	 * are dropped (SLB-I8) — illustrative/abbreviated wikilinks the agent typed
+	 * in prose (e.g. `[[file]]`, `[[TP-I05 …]]`) are noise, not shared files.
+	 * External URLs are never resolved (you cannot resolve a URL against the
+	 * vault). When omitted, all internal links are kept (pure / back-compat).
+	 * Wire to Obsidian's `metadataCache.getFirstLinkpathDest(linkpath, "")`.
+	 */
+	resolveInternal?: (linkpath: string) => boolean;
+}
+
+export function extractLinks(
+	messages: ChatMessage[],
+	options?: ExtractLinksOptions,
+): SharedLink[] {
 	const createdPaths = collectCreatedFilePaths(messages);
 
 	// Dedup by key, keeping the most-recent order and merging the label from the
@@ -94,16 +110,26 @@ export function extractLinks(messages: ChatMessage[]): SharedLink[] {
 		}
 	});
 
+	const resolveInternal = options?.resolveInternal;
 	const links: SharedLink[] = [];
 	for (const [key, raw] of byKey) {
+		const isNew =
+			raw.kind === "internal" &&
+			isCreatedTarget(raw.target, createdPaths);
+		// SLB-I8: when a resolver is supplied, drop internal links whose target
+		// does not resolve to an existing vault note. External URLs are never
+		// resolved. A file the agent created THIS session is always kept (isNew)
+		// — it exists by definition even before the metadata cache indexes it.
+		if (raw.kind === "internal" && resolveInternal && !isNew) {
+			const linkpath = raw.target.split("#")[0].trim();
+			if (!resolveInternal(linkpath)) continue;
+		}
 		links.push({
 			key,
 			kind: raw.kind,
 			label: raw.label,
 			target: raw.target,
-			isNew:
-				raw.kind === "internal" &&
-				isCreatedTarget(raw.target, createdPaths),
+			isNew,
 			order: raw.order,
 		});
 	}
