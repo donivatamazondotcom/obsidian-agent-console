@@ -18,6 +18,7 @@ import { SuggestionPopup } from "./SuggestionPopup";
 import { ErrorBanner } from "./ErrorBanner";
 import { AttachmentStrip } from "./shared/AttachmentStrip";
 import { InputToolbar } from "./InputToolbar";
+import { focusComposerAtEnd } from "./composer-focus";
 import { getLogger } from "../utils/logger";
 import { decideComposerEnterAction, buildComposerPlaceholder, buildQueuedBanner, isQueuedSendBlocked } from "../services/message-queue-logic";
 import type { ErrorInfo } from "../types/errors";
@@ -992,12 +993,12 @@ export function InputArea({
 		adjustTextareaHeight();
 	}, [inputValue, adjustTextareaHeight]);
 
-	// Auto-focus textarea on mount
+	// Auto-focus textarea on mount; place the caret at the end so a restored
+	// unsent draft (#94) is ready to keep typing instead of caret-at-start
+	// (TP-I03). Empty composer → end === 0, unchanged.
 	useEffect(() => {
 		window.setTimeout(() => {
-			if (textareaRef.current) {
-				textareaRef.current.focus();
-			}
+			focusComposerAtEnd(textareaRef.current);
 		}, 0);
 	}, []);
 
