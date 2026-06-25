@@ -66,6 +66,7 @@ Because the agents live in your vault, you stay in control: you pin what they se
 * **Don’t lose a panel full of agents to one keystroke** – closing the panel with Cmd+W checks first when you have two or more chats open
 * **Scroll up to read while the agent is still typing** – the incoming stream won’t yank you back to the bottom, so you can reread earlier output mid-response; tabs also keep their scroll position when you switch away and back
 * **Tabs don’t spin up until you type** – opening a tab won’t start an agent session, or any of its MCP servers, until you actually type, so rereading past chats stays light
+* **Fire your recurring prompts in one click** – save kickoffs like “debrief this meeting” or “summarize the selection” as notes, then launch them from the ⚡ button, a hotkey, or context-aware chips that appear only on the notes they fit
 
 <details>
 <summary><strong>More features</strong></summary>

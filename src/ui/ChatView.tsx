@@ -13,6 +13,7 @@ import type AgentClientPlugin from "../plugin";
 import type { ChatInputState, ChatMessage } from "../types/chat";
 import type { ContextNote } from "../types/context";
 import type { TabInfo, TabState, PerLeafTabState, PersistedTabInfo } from "../types/tab";
+import type { QuickPrompt } from "../types/quick-prompt";
 
 // Utility imports
 import { getLogger, Logger } from "../utils/logger";
@@ -742,6 +743,8 @@ function ChatComponent({
 				activeCallbacksRef.current?.cancelOperation(),
 			hasPendingQueue: () =>
 				activeCallbacksRef.current?.hasPendingQueue() ?? false,
+			runQuickPrompt: (prompt, opts) =>
+				activeCallbacksRef.current?.runQuickPrompt(prompt, opts),
 		});
 		view.setTabHandlesAccessor(() =>
 			Array.from(tabHandlesRef.current.entries()).map(
@@ -1154,6 +1157,10 @@ export class ChatView extends ItemView implements IChatViewContainer {
 
 	async cancelOperation(): Promise<void> {
 		await this.callbacks?.cancelOperation();
+	}
+
+	runQuickPrompt(prompt: QuickPrompt, opts: { modifier: boolean }): void {
+		this.callbacks?.runQuickPrompt(prompt, opts);
 	}
 
 	// ============================================================

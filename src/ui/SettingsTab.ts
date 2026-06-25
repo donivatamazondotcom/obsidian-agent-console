@@ -375,6 +375,28 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			});
 
 		// ─────────────────────────────────────────────────────────────────────
+		// Quick Prompts
+		// ─────────────────────────────────────────────────────────────────────
+
+		new Setting(containerEl).setName("Quick prompts").setHeading();
+
+		new Setting(containerEl)
+			.setName("Quick prompts folder")
+			.setDesc(
+				"Vault folder scanned for quick prompts — one markdown note per prompt. The note's description (or name/title/filename) is the label; the body is the prompt text. Changes are picked up live.",
+			)
+			.addText((text) => {
+				text.setPlaceholder("Quick Prompts")
+					.setValue(this.plugin.settings.quickPromptsFolder)
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							quickPromptsFolder: value.trim(),
+						});
+						void this.plugin.quickPromptLibrary.rescan();
+					});
+			});
+
+		// ─────────────────────────────────────────────────────────────────────
 		// Permissions
 		// ─────────────────────────────────────────────────────────────────────
 

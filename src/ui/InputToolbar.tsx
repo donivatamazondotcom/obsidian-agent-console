@@ -164,6 +164,8 @@ export interface InputToolbarProps {
 	usage?: SessionUsage;
 	isSessionReady: boolean;
 	isLazyIdle?: boolean;
+	/** Open the Quick prompt picker for this tab. Renders the zap launcher when set. */
+	onOpenQuickPrompts?: () => void;
 }
 
 export function InputToolbar({
@@ -180,8 +182,16 @@ export function InputToolbar({
 	usage,
 	isSessionReady,
 	isLazyIdle = false,
+	onOpenQuickPrompts,
 }: InputToolbarProps) {
 	const sendButtonRef = useRef<HTMLButtonElement>(null);
+	const quickPromptButtonRef = useRef<HTMLButtonElement>(null);
+
+	useEffect(() => {
+		if (quickPromptButtonRef.current) {
+			setIcon(quickPromptButtonRef.current, "zap");
+		}
+	}, []);
 
 	const updateIconColor = useCallback(
 		(svg: SVGElement) => {
@@ -261,6 +271,22 @@ export function InputToolbar({
 
 	return (
 		<div className="agent-client-chat-input-actions">
+			{/* Quick prompts launcher (leftmost). A plain button, so it stays
+			    clickable even while the composer is locked/queued — unlike the
+			    `!` trigger which needs a typable composer. */}
+			{onOpenQuickPrompts && (
+				<button
+					ref={quickPromptButtonRef}
+					type="button"
+					className="clickable-icon agent-client-quick-prompt-launcher"
+					aria-label="Quick prompts"
+					onClick={(e) => {
+						e.preventDefault();
+						onOpenQuickPrompts();
+					}}
+				></button>
+			)}
+
 			{/* Context Usage Indicator (left-aligned via margin-right: auto) */}
 			{usage && (
 				<span

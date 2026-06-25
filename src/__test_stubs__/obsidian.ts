@@ -15,6 +15,16 @@
 
 import { vi } from "vitest";
 
+export class TAbstractFile {
+	path = "";
+}
+
+export class TFile extends TAbstractFile {
+	basename = "";
+	extension = "md";
+	stat = { ctime: 0, mtime: 0, size: 0 };
+}
+
 export const setIcon = vi.fn();
 
 export const setTooltip = vi.fn();

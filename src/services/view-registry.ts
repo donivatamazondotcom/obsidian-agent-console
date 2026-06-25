@@ -16,6 +16,7 @@
  */
 
 import type { ChatInputState } from "../types/chat";
+import type { QuickPrompt } from "../types/quick-prompt";
 import { getLogger } from "../utils/logger";
 
 // ============================================================================
@@ -166,6 +167,18 @@ export interface IChatViewContainer {
 	 * ID of this view's currently active tab (the broadcast source).
 	 */
 	getActiveTabId(): string;
+
+	// ============================================================
+	// Quick Prompts
+	// ============================================================
+
+	/**
+	 * Fire / insert a quick prompt in this view's active tab. The fire vs
+	 * insert vs queue vs disabled outcome is decided by the engine against
+	 * the active tab's live composer/queue/selection state; `modifier` is the
+	 * picker's tweak modifier (⇧/⌥). See [[Agent Console Quick Prompts and Workflows]].
+	 */
+	runQuickPrompt(prompt: QuickPrompt, opts: { modifier: boolean }): void;
 
 	// ============================================================
 	// Container Access

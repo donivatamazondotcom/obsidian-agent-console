@@ -274,6 +274,10 @@ export interface InputAreaProps {
 	messages: ChatMessage[];
 	/** Whether this tab is the currently active tab (focuses textarea on activation) */
 	isActive?: boolean;
+	/** Open the Quick prompt picker for this tab (zap launcher in the toolbar). */
+	onOpenQuickPrompts?: () => void;
+	/** Ephemeral contextual chips row, rendered directly above the composer box. */
+	quickPromptBar?: React.ReactNode;
 }
 
 /**
@@ -333,6 +337,8 @@ export function InputArea({
 	// Input history
 	messages,
 	isActive,
+	onOpenQuickPrompts,
+	quickPromptBar,
 }: InputAreaProps) {
 	const { mentions, commands: slashCommands } = suggestions;
 	const logger = getLogger();
@@ -1161,6 +1167,10 @@ export function InputArea({
 				/>
 			)}
 
+			{/* Ephemeral contextual quick-prompt chips — directly above the box,
+			    aligned to the box-border edge. Renders nothing when empty. */}
+			{quickPromptBar}
+
 			{/* Input Box - flexbox container with border */}
 			<div
 				className={`agent-client-chat-input-box ${isDraggingOver ? "agent-client-dragging-over" : ""} ${isQueued ? "agent-client-queued" : ""}`}
@@ -1262,6 +1272,7 @@ export function InputArea({
 					usage={usage}
 					isSessionReady={isSessionReady}
 					isLazyIdle={isLazyIdle}
+					onOpenQuickPrompts={onOpenQuickPrompts}
 				/>
 			</div>
 		</div>

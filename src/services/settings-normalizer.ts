@@ -343,6 +343,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	lastUsedModes: {},
 	restoreTabsOnStartup: true,
 	confirmCloseWithMultipleTabs: true,
+	quickPromptsFolder: "Quick Prompts",
 };
 
 /**
@@ -576,6 +577,10 @@ export function normalizeRawSettings(
 			typeof raw.confirmCloseWithMultipleTabs === "boolean"
 				? raw.confirmCloseWithMultipleTabs
 				: D.confirmCloseWithMultipleTabs,
+		quickPromptsFolder: str(
+			raw.quickPromptsFolder,
+			D.quickPromptsFolder,
+		),
 		// Type-level coercion only — record-level validation happens inside
 		// SessionStorage.loadTabState (so the service can return null on
 		// corruption rather than silently dropping malformed records here).
