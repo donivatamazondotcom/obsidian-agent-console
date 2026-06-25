@@ -31,6 +31,7 @@ src/
 │   ├── errors.ts                # AcpError, ProcessError, ErrorInfo
 │   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref)
 │   ├── title-strategy.ts        # TitleStrategy union + dropdown options (F03 session-title setting)
+│   ├── quick-prompt.ts          # QuickPrompt + QuickPromptFileInput (Quick Prompts feature)
 │   └── obsidian-internals.d.ts  # Obsidian API declarations not in @types/obsidian
 ├── acp/                         # ACP protocol (SDK dependency confined here)
 │   ├── acp-client.ts            # Process lifecycle, UI-facing API (AcpClient class)
@@ -59,6 +60,8 @@ src/
 │   ├── recently-closed-stack.ts # F13 undo-close: closed-tab record + LIFO push/pop/build (pure)
 │   ├── message-queue-logic.ts   # #82 queue-of-one pure decisions: queue/flush/Enter-action/broadcast-skip
 │   ├── queue-orchestration-reducer.ts # #82 dispatch-owning single-slot reducer: (state,event)->{state,effects}; flush is raw-by-construction (closes Q4)
+│   ├── quick-prompts-logic.ts   # Quick Prompts pure logic: parse/label/slug-id/folder-scope/{{selection}}-resolve/fire-insert-queue-disable decision + tag matching
+│   ├── quick-prompts.ts         # QuickPromptLibrary (scan/watch/reconcile) + VaultQuickPromptSource adapter
 │   ├── update-checker.ts        # Agent/plugin version checking
 │   ├── import/                   # Cross-plugin settings-import adapters
 │   │   ├── ImportSource.ts       # ImportSource interface + preview types
@@ -90,6 +93,8 @@ src/
 │   ├── useComposerFocusReturn.ts # Return focus to composer after in-panel state changes (guarded by composer-cluster focus)
 │   ├── useSettings.ts           # Settings subscription (useSyncExternalStore)
 │   ├── useRecentlyClosedTabs.ts # F13 undo-close: per-leaf in-memory recently-closed stack
+│   ├── useMessageQueue.ts       # #82 queue-of-one: runtime-only next-message slot (auto-sends on turn end)
+│   ├── useQuickPrompts.ts       # Quick Prompts: live list + guarded runQuickPrompt (fire/insert/queue via the pure engine)
 │   └── useTabManager.ts         # Per-tab session orchestration (state, focus, lifecycle)
 ├── ui/                          # React components
 │   ├── ChatContext.ts           # React Context (plugin, acpClient, vaultService, settingsService)
@@ -110,7 +115,7 @@ src/
 │   ├── InputArea.tsx            # Textarea, attachments, mentions, history
 │   ├── composer-focus.ts       # Focus composer textarea + caret at end (restored-draft mount, TP-I03)
 │   ├── composer-focus-tracker.ts # Pure composer-cluster focus reducer + classifier (focus-return guardrail)
-│   ├── InputToolbar.tsx         # Config/mode/model selectors, usage, send button
+│   ├── InputToolbar.tsx         # Config/mode/model selectors, usage, send button, Quick Prompts ⚡ launcher
 │   ├── SuggestionPopup.tsx      # Mention/command dropdown
 │   ├── PermissionBanner.tsx     # Permission request buttons
 │   ├── ErrorBanner.tsx          # Error/notification overlay
@@ -118,6 +123,8 @@ src/
 │   ├── ChangeDirectoryModal.ts  # Per-tab cwd change modal (sets working dir for agent process)
 │   ├── ImportSettingsModal.ts  # Cross-plugin settings-import preview + apply dialog
 │   ├── AgentPickerModal.ts      # FuzzySuggestModal agent picker for "New chat with agent…"
+│   ├── QuickPromptPickerModal.ts # FuzzySuggestModal Quick Prompts picker (fire / ⌥⇧-insert)
+│   ├── QuickPromptBar.tsx       # Ephemeral contextual quick-prompt chips row above the composer
 │   ├── SettingsTab.ts           # Plugin settings UI
 │   ├── SharedLinksButton.tsx    # Header shared-links indicator (count badge + grouped New/Earlier popover)
 │   ├── view-host.ts             # IChatViewHost interface

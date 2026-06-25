@@ -76,6 +76,7 @@ export default defineConfig({
           { text: "Context Strip", link: "/usage/context-strip" },
           { text: "Sending Images and Files", link: "/usage/sending-images" },
           { text: "Slash Commands", link: "/usage/slash-commands" },
+          { text: "Quick Prompts", link: "/usage/quick-prompts" },
           { text: "Mode Selection", link: "/usage/mode-selection" },
           { text: "Model Selection", link: "/usage/model-selection" },
           { text: "Effort Level Selection", link: "/usage/thought-level-selection" },

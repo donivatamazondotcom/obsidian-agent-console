@@ -2742,4 +2742,85 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .acp-shared-links-badge--accent {
 	color: var(--text-on-accent);
 	background-color: var(--interactive-accent);
+
+/* ==========================================================================
+   Quick Prompts — toolbar launcher + ephemeral contextual chips row
+   See [[Agent Console Quick Prompts and Workflows]].
+   ========================================================================== */
+
+/* Zap launcher in the composer toolbar (leftmost). A clickable-icon button,
+   so it stays reachable even while the composer is locked/queued. */
+.agent-client-quick-prompt-launcher {
+	flex: 0 0 auto;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-muted);
+}
+.agent-client-quick-prompt-launcher:hover {
+	color: var(--text-normal);
+}
+
+/* Ephemeral chips row, directly above the composer box. Aligns to the
+   box-border edge (the context-strip / `+` reference); the toolbar zap aligns
+   to the composer text-left — two references, different containers. The row is
+   not rendered at all when no prompts match (empty = no row). */
+.agent-client-quick-prompt-bar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-2-2);
+	align-items: center;
+	margin-bottom: var(--size-2-2);
+	padding: 0;
+}
+
+.agent-client-quick-prompt-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	padding: var(--size-2-1) var(--size-2-3);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
+	color: var(--text-muted);
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-l);
+	cursor: pointer;
+	white-space: nowrap;
+	max-width: 100%;
+	overflow: hidden;
+}
+.agent-client-quick-prompt-chip:hover {
+	color: var(--text-normal);
+	background-color: var(--background-modifier-hover);
+}
+
+.agent-client-quick-prompt-chip-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* `newTab` marker (↩) — the prompt fires into a fresh tab. */
+.agent-client-quick-prompt-chip-newtab {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+/* Disabled-in-place (current-tab chip while a message is queued). Distinguished
+   by shape (lock glyph) + reduced opacity — color-vision-safe, no red/green. */
+.agent-client-quick-prompt-chip-disabled,
+.agent-client-quick-prompt-chip-disabled:hover {
+	opacity: 0.5;
+	cursor: not-allowed;
+	color: var(--text-muted);
+	background-color: var(--background-secondary);
+}
+
+.agent-client-quick-prompt-chip-lock {
+	display: inline-flex;
+	align-items: center;
+}
+.agent-client-quick-prompt-chip-lock svg {
+	width: var(--icon-xs);
+	height: var(--icon-xs);
 }

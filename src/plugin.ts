@@ -48,6 +48,12 @@ import { initializeLogger, getLogger } from "./utils/logger";
 import { closeOpenMenus } from "./utils/menu-registry";
 import { ImportSettingsModal } from "./ui/ImportSettingsModal";
 import { AgentPickerModal } from "./ui/AgentPickerModal";
+import { QuickPromptPickerModal } from "./ui/QuickPromptPickerModal";
+import {
+	QuickPromptLibrary,
+	VaultQuickPromptSource,
+} from "./services/quick-prompts";
+import type { QuickPrompt } from "./types/quick-prompt";
 import {
 	computeStartChat,
 	isChatCommandAvailable,
@@ -137,6 +143,12 @@ export interface AgentClientPluginSettings {
 	confirmCloseWithMultipleTabs: boolean;
 
 	/**
+	 * Vault folder scanned for Quick Prompts (one markdown note per prompt).
+	 * Default `Quick Prompts`. See [[Agent Console Quick Prompts and Workflows]].
+	 */
+	quickPromptsFolder: string;
+
+	/**
 	 * Per-leaf saved tab state for restoration across Obsidian restarts.
 	 *
 	 * Optional: undefined means no state has been saved yet (first
@@ -165,6 +177,13 @@ export default class AgentClientPlugin extends Plugin {
 
 	/** Registry for all chat view containers */
 	viewRegistry = new ChatViewRegistry();
+
+	/**
+	 * Quick Prompts library — scans the configured folder and watches it for
+	 * changes. Assigned in onload (before any ChatView mounts via registerView).
+	 * See [[Agent Console Quick Prompts and Workflows]].
+	 */
+	quickPromptLibrary!: QuickPromptLibrary;
 
 	/**
 	 * In-memory LIFO stack of recently-closed ChatView leaf snapshots, for
@@ -212,6 +231,18 @@ export default class AgentClientPlugin extends Plugin {
 
 		// Initialize settings store
 		this.settingsService = createSettingsService(this.settings, this);
+
+		// Quick Prompts library — scan + watch the configured folder. Created
+		// before registerView so any ChatPanel that mounts can read it. The
+		// initial scan is async (reads note bodies); prompts populate shortly
+		// after and the watch keeps them live.
+		this.quickPromptLibrary = new QuickPromptLibrary(
+			new VaultQuickPromptSource(
+				this,
+				() => this.settings.quickPromptsFolder,
+			),
+		);
+		void this.quickPromptLibrary.init();
 
 		// One-time migration of session files from the legacy
 		// `agent-client` plugin dir into this plugin's own dir (I68).
@@ -353,6 +384,18 @@ export default class AgentClientPlugin extends Plugin {
 			},
 		});
 
+		this.addCommand({
+			id: "quick-prompt-picker",
+			name: "Quick prompt picker",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.openQuickPromptPicker();
+				}
+				return true;
+			},
+		});
+
 		// Register agent-specific commands
 		this.registerAgentCommands();
 		this.registerPermissionCommands();
@@ -397,6 +440,9 @@ export default class AgentClientPlugin extends Plugin {
 
 		// Clear registry (sidebar views are managed by Obsidian workspace)
 		this.viewRegistry.clear();
+
+		// Stop watching the Quick Prompts folder.
+		this.quickPromptLibrary?.destroy();
 
 		// Disconnect all ACP clients (kill agent processes)
 		for (const [, client] of this._acpClients) {
@@ -498,6 +544,31 @@ export default class AgentClientPlugin extends Plugin {
 		return isChatCommandAvailable(
 			this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT).length,
 		);
+	}
+
+	/**
+	 * Open the Quick prompt picker, targeting the focused chat view's active
+	 * tab. The picker lists every prompt; choosing fires it (⌥/⇧ to insert),
+	 * and the fire/insert/queue/disabled outcome is decided per the focused
+	 * tab's live composer/queue/selection state.
+	 */
+	private openQuickPromptPicker(): void {
+		const prompts = this.quickPromptLibrary.getPrompts();
+		if (prompts.length === 0) {
+			new Notice(
+				`[Agent Console] No quick prompts found. Add markdown notes to your "${this.settings.quickPromptsFolder}" folder.`,
+			);
+			return;
+		}
+		new QuickPromptPickerModal(
+			this.app,
+			prompts,
+			(prompt: QuickPrompt, opts: { modifier: boolean }) => {
+				this.viewRegistry.toFocused((view) =>
+					view.runQuickPrompt(prompt, opts),
+				);
+			},
+		).open();
 	}
 
 	/**

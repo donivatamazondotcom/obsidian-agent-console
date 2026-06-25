@@ -58,6 +58,7 @@ function makeView(
 		cancelOperation: async () => {},
 		getTabHandles: () => tabs,
 		getActiveTabId: () => tabs[0]?.tabId ?? viewId,
+		runQuickPrompt: noop,
 		getContainerEl: () => document.createElement("div"),
 	};
 }

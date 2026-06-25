@@ -5,6 +5,8 @@ import {
 	FileSystemAdapter,
 	Platform,
 	Menu,
+	MarkdownView,
+	getAllTags,
 	setIcon,
 	type MenuItem,
 } from "obsidian";
@@ -56,6 +58,14 @@ import {
 	type QueueEffectHandlers,
 } from "../hooks/useQueueOrchestration";
 import { decideConnectFlush, decideQueuedSendKind } from "../services/message-queue-logic";
+import {
+	useQuickPrompts,
+	type QuickPromptComposerBridge,
+} from "../hooks/useQuickPrompts";
+import type { QuickPrompt } from "../types/quick-prompt";
+import { matchPromptsForNote } from "../services/quick-prompts-logic";
+import { QuickPromptBar } from "./QuickPromptBar";
+import { QuickPromptPickerModal } from "./QuickPromptPickerModal";
 
 // Domain model imports
 import {
@@ -98,6 +108,8 @@ export interface ChatPanelCallbacks {
 	cancelOperation: () => Promise<void>;
 	/** True when this tab holds a pending queued message (#82 broadcast skip-guard). */
 	hasPendingQueue: () => boolean;
+	/** Fire / insert a quick prompt in this tab (picker / chips). */
+	runQuickPrompt: (prompt: QuickPrompt, opts: { modifier: boolean }) => void;
 }
 
 // ============================================================================
@@ -1697,6 +1709,105 @@ export function ChatPanel({
 	handleQueueMessageRef.current = handleQueueMessage;
 
 	// ============================================================
+	// Quick Prompts (picker / chips) — bridge + actions
+	// ============================================================
+	// The bridge exposes this tab's live composer/queue/selection state and the
+	// fire/insert effects to the pure engine. Built once from stable refs +
+	// setters; every method reads `.current` so it never goes stale.
+	const quickPromptBridge = useMemo<QuickPromptComposerBridge>(
+		() => ({
+			getComposerText: () => inputValueRef.current,
+			getSelectionText: () => {
+				const view =
+					plugin.app.workspace.getActiveViewOfType(MarkdownView);
+				const sel = view?.editor?.getSelection();
+				return sel && sel.length > 0 ? sel : null;
+			},
+			isStreaming: () => isSendingRef.current,
+			isQueued: () => isQueuedRef.current,
+			// fire/queue: dispatch the resolved text through the same send path
+			// the composer uses (queues while streaming / pre-ready). The
+			// engine only routes here when the composer is empty, so passing
+			// the text directly never clobbers a draft.
+			fireOrQueue: (text) => {
+				if (isSendingRef.current || !isSessionReadyRef.current) {
+					if (isQueuedRef.current) return; // slot full (defensive)
+					handleQueueMessageRef.current(text, undefined);
+					return;
+				}
+				setInputValue("");
+				void handleSendMessageRef.current(text, undefined);
+			},
+			// insert: splice the resolved text at the caret, preserving the
+			// existing draft. Reads the composer textarea from this view's
+			// container (same selector ChatView.focus uses).
+			insertAtCursor: (text) => {
+				const el = containerRef.current?.querySelector(
+					"textarea.agent-client-chat-input-textarea",
+				);
+				const current = inputValueRef.current;
+				let next: string;
+				let caret: number;
+				if (el instanceof HTMLTextAreaElement) {
+					const start = el.selectionStart ?? current.length;
+					const end = el.selectionEnd ?? current.length;
+					next = current.slice(0, start) + text + current.slice(end);
+					caret = start + text.length;
+				} else {
+					next = current.length > 0 ? `${current}\n${text}` : text;
+					caret = next.length;
+				}
+				setInputValue(next);
+				window.requestAnimationFrame(() => {
+					if (el instanceof HTMLTextAreaElement) {
+						el.focus();
+						el.setSelectionRange(caret, caret);
+					}
+				});
+			},
+			notify: (message) => {
+				new Notice(`[Agent Console] ${message}`);
+			},
+		}),
+		[plugin],
+	);
+
+	const quickPrompts = useQuickPrompts(
+		plugin.quickPromptLibrary,
+		quickPromptBridge,
+	);
+	const runQuickPromptRef = useRef(quickPrompts.runQuickPrompt);
+	runQuickPromptRef.current = quickPrompts.runQuickPrompt;
+
+	// Contextual chips: prompts matching the active note's tags (untagged
+	// always match). Recomputed on editor-note switch (activeNotePath) and on
+	// library reconcile, so the matched set stays live.
+	const matchedQuickPrompts = useMemo(() => {
+		const path = selectionTracker.activeNotePath;
+		const cache = path ? plugin.app.metadataCache.getCache(path) : null;
+		const tags = cache ? (getAllTags(cache) ?? []) : [];
+		return matchPromptsForNote(quickPrompts.prompts, tags);
+	}, [
+		quickPrompts.prompts,
+		selectionTracker.activeNotePath,
+		plugin.app.metadataCache,
+	]);
+
+	// Toolbar zap launcher: open the picker for THIS tab.
+	const openQuickPrompts = useCallback(() => {
+		const prompts = quickPrompts.prompts;
+		if (prompts.length === 0) {
+			new Notice(
+				`[Agent Console] No quick prompts found. Add markdown notes to your "${plugin.settings.quickPromptsFolder}" folder.`,
+			);
+			return;
+		}
+		new QuickPromptPickerModal(plugin.app, prompts, (prompt, opts) =>
+			runQuickPromptRef.current(prompt, opts),
+		).open();
+	}, [plugin, quickPrompts.prompts]);
+
+	// ============================================================
 	// Effects - Flush queued message on turn completion (#82)
 	// ============================================================
 	// Reset the cancel flag at turn start; on turn end (isSending true -> false)
@@ -1810,6 +1921,8 @@ export function ChatPanel({
 				}
 			},
 			hasPendingQueue: () => isQueuedRef.current,
+			runQuickPrompt: (prompt, opts) =>
+				runQuickPromptRef.current(prompt, opts),
 		});
 	}, [onRegisterCallbacks, activeAgentLabel]);
 
@@ -2068,6 +2181,14 @@ export function ChatPanel({
 			onClearAgentUpdate={handleClearAgentUpdate}
 			messages={messages}
 			isActive={isActive}
+			onOpenQuickPrompts={openQuickPrompts}
+			quickPromptBar={
+				<QuickPromptBar
+					prompts={matchedQuickPrompts}
+					hasPendingQueue={queue.isQueued}
+					onFire={quickPrompts.runQuickPrompt}
+				/>
+			}
 		/>
 	);
 

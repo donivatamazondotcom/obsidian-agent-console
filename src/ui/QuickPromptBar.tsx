@@ -1,0 +1,129 @@
+/**
+ * QuickPromptBar — the ephemeral contextual chips row above the composer.
+ *
+ * Renders **nothing** when no prompts match the active note (empty = no row,
+ * vertical space reclaimed). Each chip fires its prompt on click / Enter /
+ * Space; holding ⇧ or ⌥ inserts instead. A current-tab chip is disabled in
+ * place while a message is queued (lock glyph + reduced opacity —
+ * color-vision-safe, no red/green); a `newTab` chip stays live (and shows a
+ * `↩` marker). Disabled chips use `aria-disabled` + a banner-linked tooltip so
+ * they explain why rather than reading as inert (keyboard-first rule).
+ *
+ * The prompt set passed in is already matched to the active note
+ * (`matchPromptsForNote`); the disabled state is a derived render-time
+ * predicate (`quickPromptButtonDisabled`), never a captured flag, so it stays
+ * correct as the matched set changes on editor-tab switches.
+ *
+ * See [[Agent Console Quick Prompts and Workflows]] § Three surfaces / § Cross-Feature Interactions.
+ */
+
+import * as React from "react";
+const { useRef, useEffect } = React;
+import { setIcon } from "obsidian";
+import type { QuickPrompt } from "../types/quick-prompt";
+import { quickPromptButtonDisabled } from "../services/quick-prompts-logic";
+
+/** Tooltip on a disabled current-tab chip — points at the queued banner. */
+export const QUEUED_CHIP_TOOLTIP =
+	"A message is queued — Edit or Delete it to send something else";
+
+export interface QuickPromptBarProps {
+	/** Prompts already matched to the active note (`matchPromptsForNote`). */
+	prompts: QuickPrompt[];
+	/** Whether this tab holds a pending queued message. */
+	hasPendingQueue: boolean;
+	/** Fire / insert a prompt (routes through the engine in the hook). */
+	onFire: (prompt: QuickPrompt, opts: { modifier: boolean }) => void;
+}
+
+export function QuickPromptBar({
+	prompts,
+	hasPendingQueue,
+	onFire,
+}: QuickPromptBarProps) {
+	// Ephemeral: no matching prompts ⇒ no row at all.
+	if (prompts.length === 0) return null;
+	return (
+		<div
+			className="agent-client-quick-prompt-bar"
+			role="toolbar"
+			aria-label="Quick prompts"
+		>
+			{prompts.map((prompt) => (
+				<QuickPromptChip
+					key={prompt.id}
+					prompt={prompt}
+					hasPendingQueue={hasPendingQueue}
+					onFire={onFire}
+				/>
+			))}
+		</div>
+	);
+}
+
+interface QuickPromptChipProps {
+	prompt: QuickPrompt;
+	hasPendingQueue: boolean;
+	onFire: (prompt: QuickPrompt, opts: { modifier: boolean }) => void;
+}
+
+function QuickPromptChip({
+	prompt,
+	hasPendingQueue,
+	onFire,
+}: QuickPromptChipProps) {
+	const lockRef = useRef<HTMLSpanElement>(null);
+	const disabled = quickPromptButtonDisabled(prompt, hasPendingQueue);
+
+	useEffect(() => {
+		if (lockRef.current) setIcon(lockRef.current, "lock");
+	}, [disabled]);
+
+	const activate = (modifier: boolean) => {
+		if (disabled) return;
+		onFire(prompt, { modifier });
+	};
+
+	return (
+		<button
+			type="button"
+			className={`agent-client-quick-prompt-chip${
+				disabled ? " agent-client-quick-prompt-chip-disabled" : ""
+			}`}
+			aria-disabled={disabled}
+			aria-label={
+				disabled ? `${prompt.label} — ${QUEUED_CHIP_TOOLTIP}` : prompt.label
+			}
+			title={disabled ? QUEUED_CHIP_TOOLTIP : undefined}
+			onClick={(e) => {
+				e.preventDefault();
+				activate(e.shiftKey || e.altKey);
+			}}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					activate(e.shiftKey || e.altKey);
+				}
+			}}
+		>
+			<span className="agent-client-quick-prompt-chip-label">
+				{prompt.label}
+			</span>
+			{prompt.newTab && (
+				<span
+					className="agent-client-quick-prompt-chip-newtab"
+					aria-hidden="true"
+				>
+					↩
+				</span>
+			)}
+			{disabled && (
+				<span
+					ref={lockRef}
+					className="agent-client-quick-prompt-chip-lock"
+					aria-hidden="true"
+				/>
+			)}
+		</button>
+	);
+}

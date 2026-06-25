@@ -35,6 +35,9 @@ features:
   - icon: 🎛️
     title: A Model for Every Task
     details: Run a fast model in one tab and a heavyweight one in another. Switch model or mode mid-conversation – each tab keeps its own choice, so the right tool is always one tab away.
+  - icon: ⚡
+    title: One-Click Kickoffs
+    details: Save the prompts you retype every session – "debrief this meeting", "summarize the selection" – as little notes, then fire them in one click from the composer or the command palette. Relevant ones show up as chips only on the notes they fit, so the right kickoff is one tap away and nothing clutters the rest.
   - icon: 🔍
     title: Search Your History
     details: Find that conversation you half-remember. Search across every past chat by title or by what was actually said inside it, then reopen any session in a tab and pick up right where it left off.
@@ -78,6 +81,7 @@ Agent Console is based on [Agent Client](https://github.com/RAIT-09/obsidian-age
 - **Keep a working log** – let an agent capture decisions and action items as you talk a problem through.
 - **Run parallel trains of thought** – keep one tab digging into research while another drafts the summary.
 - **Line up your next message while the agent works** – type your follow-up and press Enter; it queues and sends the moment the current reply finishes, so you never wait on the cursor.
+- **Fire a saved prompt in one click** – keep your recurring kickoffs as notes and launch them from the ⚡ button, a hotkey, or context-aware chips above the composer.
 
 ### Why parallel?
 
