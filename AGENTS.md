@@ -105,6 +105,7 @@ src/
 │   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting)
 │   ├── TerminalBlock.tsx        # Terminal output polling
 │   ├── InputArea.tsx            # Textarea, attachments, mentions, history
+│   ├── composer-focus.ts       # Focus composer textarea + caret at end (restored-draft mount, TP-I03)
 │   ├── InputToolbar.tsx         # Config/mode/model selectors, usage, send button
 │   ├── SuggestionPopup.tsx      # Mention/command dropdown
 │   ├── PermissionBanner.tsx     # Permission request buttons
