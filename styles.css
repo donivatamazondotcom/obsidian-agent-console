@@ -293,8 +293,18 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	color: var(--text-muted);
 }
 
+/* Failed status chip (CTC-I05): distinguished by background fill + shape, not
+   hue alone, so it is parseable with red/green color-vision deficiency. This is
+   the at-a-glance "this failed" signal in the collapsed summary row now that
+   failed calls no longer auto-expand. */
+.agent-client-message-tool-call-status-icon.agent-client-status-failed {
+	background: var(--background-modifier-error);
+	border-radius: var(--radius-s);
+	padding: 1px 3px;
+}
+
 .agent-client-message-tool-call-status-icon.agent-client-status-failed svg {
-	color: var(--color-red);
+	color: var(--text-on-accent);
 }
 
 .agent-client-message-tool-call-status-icon.agent-client-status-in_progress svg,
