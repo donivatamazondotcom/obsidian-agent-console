@@ -12,7 +12,8 @@ Always available, including from a cold start with no chat view open. **New chat
 
 | Command | Description |
 |---------|-------------|
-| **Open chat** | Reveal the chat panel, creating one if none is open |
+| **Open chat** | Reveal the chat panel. If none is open, restore the tabs from the panel you last closed (when **Restore tabs on startup** is on) — opening resumes where you left off |
+| **Open new view** | Open a fresh, empty chat panel — does *not* restore the last-closed tabs. The deliberate "clean slate" counterpart to **Open chat**. Also in the tab-bar ⌄ menu |
 | **New chat** | Open a new tab with a fresh chat — opens a panel first if none is open |
 | **New chat with agent…** | Pick an agent from a list, then open a new tab with a fresh chat on it |
 
@@ -50,7 +51,6 @@ These appear only when a chat view is open.
 | **Previous session tab** | Switch to the previous tab in the active panel |
 | **Close session tab** | Close the active tab |
 | **Reopen closed session tab** | Reopen the most-recently-closed tab and restore its conversation — transcript, agent, label, and pinned context. Repeat to walk further back (browser-style Cmd+Shift+T). Closed tabs are remembered for the current session only |
-| **Reopen closed view** | Reopen the whole panel you last closed, restoring its entire tab set — every tab, the active tab, each conversation, and any unsent draft. The per-*panel* analog of the per-*tab* command above. Opening the panel normally (ribbon / **Open chat**) always starts fresh; this command is how you bring a closed panel back. Remembered for the current session only |
 
 ## Settings Commands
 

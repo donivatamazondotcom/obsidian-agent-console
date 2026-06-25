@@ -143,11 +143,11 @@ A tab that already holds a [queued message](#queue-your-next-message) is **skipp
 
 Open tabs survive an Obsidian restart. When you quit and reopen, each sidebar pane brings back its own tabs — same order, same active tab, each tab's conversation visible right away. Turn this off under Settings → Tabs → "Restore tabs on startup" (on by default). Panes restore independently; split views don't merge into one.
 
-### Reopen a panel you closed
+### Reopen the panel and pick up where you left off
 
-Closed the whole Agent Console panel and want it back? Run **Reopen closed view** (command palette, or bind a hotkey — the browser-style Cmd/Ctrl + Shift + T) and your last-closed panel returns with its full tab set: every tab, the one you had active, each conversation, and any unsent draft. Like reopening a closed browser window, it walks back through panels you've closed this session.
+You don't have to restart Obsidian to get your tabs back. Closed the Agent Console panel? Open it again the normal way — the ribbon icon or the **Open chat** command — and your last set of tabs comes back: every tab, the one you had active, each conversation, and any unsent draft. Opening the panel resumes where you left off, the same way relaunching Obsidian does.
 
-Opening the panel the normal way — the ribbon icon or **Open chat** — always starts a single fresh tab. Restoring a closed panel is a deliberate action, so "open" never silently brings back old tabs; **Reopen closed view** is the one that restores. (Closing a panel with several chats also asks first, so an accidental close is hard to trigger in the first place.) Turn restore off entirely under Settings → Tabs → "Restore tabs on startup".
+When you actually want a clean slate, choose **Open new view** (in the tab-bar ⌄ menu, or the command of the same name) — that opens a fresh, empty panel and never pulls back old tabs. So "open" resumes and "new" starts fresh, with no overlap. Prefer everything fresh? Turn off Settings → Tabs → "Restore tabs on startup" and every open starts empty.
 
 ### Unsent drafts come back too
 

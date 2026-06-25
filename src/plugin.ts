@@ -171,14 +171,15 @@ export default class AgentClientPlugin extends Plugin {
 	private recentlyClosedLeaves: ClosedLeafRecord[] = [];
 
 	/**
-	 * One-shot intent flag, set by the "Reopen closed Agent Console view"
-	 * command immediately before it opens a fresh leaf and consumed once by
-	 * that leaf's mount. Keeps plain panel opens (ribbon / "Open chat") fresh —
-	 * only an explicit reopen adopts the last-closed tab set, so "New" never
-	 * silently restores. Restart-restore is unaffected (it goes through the
-	 * leaf.id-keyed path, not the stack). See [[ACP Restore Tabs on View Reopen]].
+	 * One-shot intent flag, set immediately before opening a deliberately-fresh
+	 * view ("Open new view" menu item / command, or "New chat" with no panel
+	 * open) and consumed once by that leaf's mount. A plain open (ribbon /
+	 * "Open chat") leaves it false, so by default opening the panel RESTORES the
+	 * last-closed tab set when "Restore tabs on startup" is on — resume by
+	 * default, fresh only when explicitly asked. Restart goes through the
+	 * leaf.id path, not this flag. See [[ACP Restore Tabs on View Reopen]].
 	 */
-	private reopenIntent = false;
+	private forceFreshView = false;
 
 	/** Map of viewId to AcpClient for multi-session support */
 	private _acpClients: Map<string, AcpClient> = new Map();
@@ -329,10 +330,12 @@ export default class AgentClientPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "reopen-closed-view",
-			name: "Reopen closed view",
+			id: "open-new-view",
+			name: "Open new view",
 			callback: () => {
-				void this.requestReopenClosedView();
+				void this.openNewChatViewWithAgent(
+					this.settings.defaultAgentId,
+				);
 			},
 		});
 
@@ -523,6 +526,8 @@ export default class AgentClientPlugin extends Plugin {
 			if (action.agentId) {
 				await this.openNewChatViewWithAgent(action.agentId);
 			} else {
+				// "New chat" with no panel open is an explicit fresh start.
+				this.forceFreshView = true;
 				await this.activateView();
 			}
 			return;
@@ -568,38 +573,15 @@ export default class AgentClientPlugin extends Plugin {
 	}
 
 	/**
-	 * Consume the one-shot reopen intent (read + clear). Returns true only on
-	 * the fresh-leaf mount immediately following the reopen command; every
-	 * other open reads false and stays fresh.
+	 * Consume the one-shot force-fresh-view intent (read + clear). Returns true
+	 * only on the fresh-leaf mount immediately following an explicit "new view"
+	 * action ("Open new view" or "New chat" with no panel); a plain ribbon /
+	 * "Open chat" open reads false, so it restores the last-closed tab set.
 	 */
-	consumeReopenIntent(): boolean {
-		const intent = this.reopenIntent;
-		this.reopenIntent = false;
-		return intent;
-	}
-
-	/**
-	 * Reopen the most-recently-closed Agent Console view, restoring its tab set
-	 * — the per-view analog of a browser's "reopen closed window" (Cmd/Ctrl+
-	 * Shift+T). Opens a fresh leaf flagged to adopt the top recently-closed
-	 * snapshot on mount; surfaces a Notice and does nothing when the stack is
-	 * empty. The adopt itself no-ops when "Restore tabs on startup" is off.
-	 */
-	async requestReopenClosedView(): Promise<void> {
-		if (this.recentlyClosedLeaves.length === 0) {
-			new Notice("No recently closed view to reopen");
-			return;
-		}
-		this.reopenIntent = true;
-		const leaf = this.createNewChatLeaf(true);
-		if (!leaf) {
-			this.reopenIntent = false;
-			getLogger().warn("Failed to create new leaf for reopen");
-			return;
-		}
-		await leaf.setViewState({ type: VIEW_TYPE_CHAT, active: true });
-		await this.app.workspace.revealLeaf(leaf);
-		this.focusTextarea(leaf);
+	consumeForceFreshView(): boolean {
+		const fresh = this.forceFreshView;
+		this.forceFreshView = false;
+		return fresh;
 	}
 
 	async activateView() {
@@ -722,6 +704,8 @@ export default class AgentClientPlugin extends Plugin {
 	 * Always creates a new view (doesn't reuse existing).
 	 */
 	async openNewChatViewWithAgent(agentId: string): Promise<void> {
+		// Explicit "new view" — do NOT adopt the last-closed tab set.
+		this.forceFreshView = true;
 		const leaf = this.createNewChatLeaf(true);
 		if (!leaf) {
 			getLogger().warn("Failed to create new leaf");
