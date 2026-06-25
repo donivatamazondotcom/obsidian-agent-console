@@ -114,27 +114,23 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 	const hasPendingPermission =
 		!!permissionRequest && !permissionRequest.selectedOptionId;
 
-	// Failed tool calls auto-expand so errors are visible without a click.
-	// Manual collapse still wins after the user toggles.
-	const isFailed = status === "failed";
+	// Failed tool calls do NOT auto-expand (CTC-I05). The collapsed summary row
+	// flags failure with a highlighted status chip (the "x" icon on an
+	// error-background pill), so the user can parse "this failed" at a glance and
+	// choose to expand. On expand, the error is surfaced by RawPayloadBlock
+	// (rawOutput). Only a pending permission forces expansion, because the user
+	// must see the PermissionBanner to act on the request.
+	const [isExpanded, setIsExpanded] = useState(hasPendingPermission);
 
-	const [isExpanded, setIsExpanded] = useState(
-		hasPendingPermission || isFailed,
-	);
-
-	// If a pending permission or failure shows up after initial render
-	// (e.g., during a streaming tool call), open the block. Don't auto-collapse
-	// it again after the user has interacted — manual state wins.
+	// If a pending permission shows up after initial render (e.g., during a
+	// streaming tool call), open the block so the banner is actionable. Don't
+	// auto-collapse it again after the user has interacted — manual state wins.
 	const userHasToggledRef = React.useRef(false);
 	React.useEffect(() => {
-		if (
-			(hasPendingPermission || isFailed) &&
-			!isExpanded &&
-			!userHasToggledRef.current
-		) {
+		if (hasPendingPermission && !isExpanded && !userHasToggledRef.current) {
 			setIsExpanded(true);
 		}
-	}, [hasPendingPermission, isFailed, isExpanded]);
+	}, [hasPendingPermission, isExpanded]);
 
 	const toggleExpanded = () => {
 		userHasToggledRef.current = true;
