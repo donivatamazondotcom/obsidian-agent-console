@@ -15,6 +15,8 @@
  * wraps them with a ref. See [[F13 Undo Close Tab]].
  */
 
+import type { PerLeafTabState } from "../types/tab";
+
 /**
  * Lightweight record of a closed tab — enough to recreate the tab and drive
  * the restore-by-sessionId path. The transcript and context notes are NOT
@@ -46,11 +48,11 @@ export const RECENTLY_CLOSED_CAP = 10;
  * Push a record onto the stack (newest at the end). Caps the stack at `cap`
  * by dropping the oldest entries (front). Returns a new array — never mutates.
  */
-export function pushClosedTab(
-	stack: readonly ClosedTabRecord[],
-	record: ClosedTabRecord,
+export function pushClosedTab<T>(
+	stack: readonly T[],
+	record: T,
 	cap: number = RECENTLY_CLOSED_CAP,
-): ClosedTabRecord[] {
+): T[] {
 	const next = [...stack, record];
 	// Drop oldest when over cap (keep the most-recent `cap` entries).
 	return next.length > cap ? next.slice(next.length - cap) : next;
@@ -61,9 +63,9 @@ export function pushClosedTab(
  * Returns the popped record (or null when empty) and the new stack.
  * Never mutates the input.
  */
-export function popClosedTab(stack: readonly ClosedTabRecord[]): {
-	record: ClosedTabRecord | null;
-	stack: ClosedTabRecord[];
+export function popClosedTab<T>(stack: readonly T[]): {
+	record: T | null;
+	stack: T[];
 } {
 	if (stack.length === 0) {
 		return { record: null, stack: [] };
@@ -90,4 +92,60 @@ export function buildClosedTabRecord(args: {
 		agentId: args.tab.agentId,
 		position: args.position,
 	};
+}
+
+// ============================================================================
+// Leaf granularity — reopen tabs on view reopen
+// ([[ACP Restore Tabs on View Reopen]])
+//
+// The same pure LIFO helpers above serve a second, plugin-level stack whose
+// records are whole-leaf snapshots. This stack must survive a ChatView leaf's
+// unmount (its purpose is restoring the tab set AFTER the panel is closed), so
+// it lives on the plugin — unlike F13's per-leaf ClosedTabRecord stack, which
+// is held in a hook ref and dies with the leaf.
+// ============================================================================
+
+/**
+ * Leaf-granularity recently-closed record: a full snapshot of a closed
+ * ChatView leaf's tab set. Reuses PerLeafTabState (it already carries leafId —
+ * needed to prune the orphaned data.json entry on adopt — plus tabs and
+ * activeTabId).
+ */
+export type ClosedLeafRecord = PerLeafTabState;
+
+/**
+ * Build a ClosedLeafRecord from a leaf's just-saved PerLeafTabState, or return
+ * null when the leaf has nothing worth restoring — a lone fresh tab with no
+ * session and no unsent draft. Mirrors buildClosedTabRecord's skip-never-used
+ * gate at leaf granularity: a multi-tab leaf, any tab with a session, or any
+ * unsent draft is worth capturing.
+ */
+export function buildClosedLeafRecord(
+	state: PerLeafTabState,
+): ClosedLeafRecord | null {
+	if (state.tabs.length === 0) return null;
+	if (state.tabs.length > 1) return state;
+	const only = state.tabs[0];
+	const hasSession = only.sessionId !== null;
+	const hasDraft = (only.draftText ?? "") !== "";
+	return hasSession || hasDraft ? state : null;
+}
+
+/**
+ * Resolve which PerLeafTabState a freshly-mounted ChatView leaf restores from.
+ *
+ * Restart path: Obsidian recreates the leaf with its original id, so the
+ * synchronous id-match (`idMatch`) is non-null and wins — `adopt` is NOT
+ * called, leaving the recently-closed stack intact (no spurious pop).
+ *
+ * Reopen path: a fresh leaf mints a new id that matches nothing on disk
+ * (`idMatch` null), so we adopt the most-recently-closed snapshot from the
+ * in-memory stack. `adopt` pops the stack, so it must run exactly once and
+ * only when there is no id-match — this single chokepoint guarantees that.
+ */
+export function resolveRestoredLeaf(
+	idMatch: PerLeafTabState | null,
+	adopt: () => PerLeafTabState | null,
+): PerLeafTabState | null {
+	return idMatch ?? adopt();
 }

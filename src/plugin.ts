@@ -15,6 +15,12 @@ import {
 	type SettingsService,
 } from "./services/settings-service";
 import { SessionStorage } from "./services/session-storage";
+import {
+	type ClosedLeafRecord,
+	RECENTLY_CLOSED_CAP,
+	popClosedTab,
+	pushClosedTab,
+} from "./services/recently-closed-stack";
 import { AgentClientSettingTab } from "./ui/SettingsTab";
 import { AcpClient } from "./acp/acp-client";
 import {
@@ -153,6 +159,27 @@ export default class AgentClientPlugin extends Plugin {
 
 	/** Registry for all chat view containers */
 	viewRegistry = new ChatViewRegistry();
+
+	/**
+	 * In-memory LIFO stack of recently-closed ChatView leaf snapshots, for
+	 * reopen-restore ([[ACP Restore Tabs on View Reopen]]). Lives on the plugin
+	 * so it survives a leaf's unmount (the whole point — restore the tab set
+	 * AFTER the panel closes). Session-scoped: never persisted, cleared on
+	 * restart, so it can't contend with the leaf.id-keyed restart-restore path
+	 * (which is empty-stack on a fresh launch).
+	 */
+	private recentlyClosedLeaves: ClosedLeafRecord[] = [];
+
+	/**
+	 * One-shot intent flag, set immediately before opening a deliberately-fresh
+	 * view ("Open new view" menu item / command, or "New chat" with no panel
+	 * open) and consumed once by that leaf's mount. A plain open (ribbon /
+	 * "Open chat") leaves it false, so by default opening the panel RESTORES the
+	 * last-closed tab set when "Restore tabs on startup" is on — resume by
+	 * default, fresh only when explicitly asked. Restart goes through the
+	 * leaf.id path, not this flag. See [[ACP Restore Tabs on View Reopen]].
+	 */
+	private forceFreshView = false;
 
 	/** Map of viewId to AcpClient for multi-session support */
 	private _acpClients: Map<string, AcpClient> = new Map();
@@ -299,6 +326,16 @@ export default class AgentClientPlugin extends Plugin {
 					this.getActiveChatView()?.reopenClosedTab();
 				}
 				return true;
+			},
+		});
+
+		this.addCommand({
+			id: "open-new-view",
+			name: "Open new view",
+			callback: () => {
+				void this.openNewChatViewWithAgent(
+					this.settings.defaultAgentId,
+				);
 			},
 		});
 
@@ -489,6 +526,8 @@ export default class AgentClientPlugin extends Plugin {
 			if (action.agentId) {
 				await this.openNewChatViewWithAgent(action.agentId);
 			} else {
+				// "New chat" with no panel open is an explicit fresh start.
+				this.forceFreshView = true;
 				await this.activateView();
 			}
 			return;
@@ -500,6 +539,49 @@ export default class AgentClientPlugin extends Plugin {
 			await this.app.workspace.revealLeaf(leaf as WorkspaceLeaf);
 			this.focusTextarea(leaf as WorkspaceLeaf);
 		}
+	}
+
+	/**
+	 * Capture a closed leaf's tab-set snapshot onto the recently-closed stack
+	 * for reopen-restore. A null record (leaf not worth restoring — a lone
+	 * fresh tab with no session and no draft) is ignored, so callers can pass
+	 * buildClosedLeafRecord(...) directly. See [[ACP Restore Tabs on View Reopen]].
+	 */
+	captureClosedLeaf(record: ClosedLeafRecord | null): void {
+		if (!record) return;
+		this.recentlyClosedLeaves = pushClosedTab(
+			this.recentlyClosedLeaves,
+			record,
+			RECENTLY_CLOSED_CAP,
+		);
+	}
+
+	/**
+	 * Pop the most-recently-closed leaf snapshot (LIFO) for a freshly-opened
+	 * ChatView leaf to adopt. Returns null when the stack is empty (fresh open
+	 * → single idle tab). Prunes the popped snapshot's now-orphaned data.json
+	 * entry — its old leafId will never match a future leaf, so leaving it
+	 * would grow data.json across reopens.
+	 */
+	adoptClosedLeaf(): ClosedLeafRecord | null {
+		const { record, stack } = popClosedTab(this.recentlyClosedLeaves);
+		this.recentlyClosedLeaves = stack;
+		if (record) {
+			void this.settingsService.removeTabStateForLeaf(record.leafId);
+		}
+		return record;
+	}
+
+	/**
+	 * Consume the one-shot force-fresh-view intent (read + clear). Returns true
+	 * only on the fresh-leaf mount immediately following an explicit "new view"
+	 * action ("Open new view" or "New chat" with no panel); a plain ribbon /
+	 * "Open chat" open reads false, so it restores the last-closed tab set.
+	 */
+	consumeForceFreshView(): boolean {
+		const fresh = this.forceFreshView;
+		this.forceFreshView = false;
+		return fresh;
 	}
 
 	async activateView() {
@@ -622,6 +704,8 @@ export default class AgentClientPlugin extends Plugin {
 	 * Always creates a new view (doesn't reuse existing).
 	 */
 	async openNewChatViewWithAgent(agentId: string): Promise<void> {
+		// Explicit "new view" — do NOT adopt the last-closed tab set.
+		this.forceFreshView = true;
 		const leaf = this.createNewChatLeaf(true);
 		if (!leaf) {
 			getLogger().warn("Failed to create new leaf");

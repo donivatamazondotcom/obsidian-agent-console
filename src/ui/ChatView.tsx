@@ -37,7 +37,11 @@ import { useRecentlyClosedTabs } from "../hooks/useRecentlyClosedTabs";
 // Service imports
 import { VaultService } from "../services/vault-service";
 import { resolveSessionIdForSave, resolveRenamedSessionWrite } from "../services/session-helpers";
-import { buildClosedTabRecord } from "../services/recently-closed-stack";
+import {
+	buildClosedLeafRecord,
+	buildClosedTabRecord,
+	resolveRestoredLeaf,
+} from "../services/recently-closed-stack";
 import type { AcpClient } from "../acp/acp-client";
 
 export const VIEW_TYPE_CHAT = "agent-client-chat-view";
@@ -182,10 +186,38 @@ function ChatComponent({
 	// (already in memory from loadData). This lets useTabManager
 	// initialize with restored tabs on the first render — no async
 	// two-phase mount needed.
-	const restoredLeaf = useMemo(
-		() => readPersistedLeafState(plugin, viewId),
-		// plugin and viewId are stable across the component's lifetime.
-		[plugin, viewId],
+	//
+	// Resolution (once, on mount — the lazy initializer guarantees the adopt
+	// pop runs exactly once):
+	//   - Restart path: Obsidian recreates this leaf with its original id, so
+	//     the synchronous id-match wins and the recently-closed stack is left
+	//     intact. (Restart auto-restores.)
+	//   - Default open (ribbon / "Open chat"): a fresh leaf with no id-match
+	//     and no force-fresh intent → adopts the most-recently-closed tab set,
+	//     so opening the panel resumes where you left off.
+	//   - Explicit "new view" ("Open new view" menu/command, or "New chat" with
+	//     no panel): sets the one-shot force-fresh intent, consumed here →
+	//     stays a single fresh tab. "New" is the only path that doesn't
+	//     restore. Gated on the "Restore tabs on startup" setting.
+	//     See [[ACP Restore Tabs on View Reopen]].
+	const [restoredLeaf] = useState<PerLeafTabState | null>(() =>
+		resolveRestoredLeaf(readPersistedLeafState(plugin, viewId), () =>
+			!plugin.consumeForceFreshView() && plugin.settings.restoreTabsOnStartup
+				? plugin.adoptClosedLeaf()
+				: null,
+		),
+	);
+	// When the resolved source was adopted (its leafId differs from this fresh
+	// leaf's viewId), hand it to useTabPersistence as the restore source so
+	// message history loads by the snapshot's tab sessionIds — a disk read by
+	// the new viewId would find nothing. undefined on the restart path leaves
+	// that path byte-for-byte unchanged.
+	const restoreSource = useMemo(
+		() =>
+			restoredLeaf && restoredLeaf.leafId !== viewId
+				? restoredLeaf
+				: undefined,
+		[restoredLeaf, viewId],
 	);
 	const restoredTabs = useMemo(
 		() => (restoredLeaf ? persistedToRuntime(restoredLeaf.tabs) : undefined),
@@ -431,6 +463,7 @@ function ChatComponent({
 		restoreEnabled: plugin.settings.restoreTabsOnStartup,
 		sessionSignature,
 		draftSignature,
+		restoreSource,
 	});
 
 	// Expose flushSave to the view class for onClose
@@ -1173,6 +1206,22 @@ export class ChatView extends ItemView implements IChatViewContainer {
 				await this.flushSaveFn();
 			} catch (e) {
 				this.logger.error("flushSave error:", e);
+			}
+		}
+
+		// Reopen-restore: snapshot this leaf's just-saved tab set onto the
+		// plugin's recently-closed stack so a fresh ChatView leaf opened later
+		// in the same session can adopt it. flushSave above wrote this leaf's
+		// entry to settings (updateSettings keeps plugin.settings in sync), so
+		// read it back and capture. buildClosedLeafRecord skips a trivial lone
+		// idle tab. Gated on the same setting as restart-restore (Decision #1).
+		// See [[ACP Restore Tabs on View Reopen]].
+		if (this.plugin.settings.restoreTabsOnStartup) {
+			const entry = this.plugin.settings.perLeafTabStates?.find(
+				(s) => s.leafId === this.viewId,
+			);
+			if (entry) {
+				this.plugin.captureClosedLeaf(buildClosedLeafRecord(entry));
 			}
 		}
 

@@ -1139,3 +1139,100 @@ describe("useTabPersistence — draft change triggers a save (restart fix)", () 
 		).toBe("typed but never switched away");
 	});
 });
+
+// ============================================================================
+// restoreSource override (reopen-restore — [[ACP Restore Tabs on View Reopen]])
+//
+// When a fresh leaf adopts a recently-closed snapshot, its own leafId matches
+// no entry on disk, so loadTabStateForLeaf(leafId) would return null and the
+// adopted tabs would show no message history. The optional restoreSource prop
+// lets the caller hand the resolved snapshot directly: the hook loads message
+// history by the snapshot's tab sessionIds and skips the disk read. Undefined
+// preserves the original load-by-leafId behavior byte-for-byte (restart path).
+// ============================================================================
+
+describe("useTabPersistence — restoreSource override", () => {
+	it("restores from the provided source and does NOT read tab state by leafId", async () => {
+		const storage = makeStorage();
+		// Disk has nothing for this (fresh) leafId — proves the override,
+		// not the disk read, is what populated the restore.
+		storage.loadTabStateForLeaf.mockResolvedValue(null);
+		const adoptedMessages = [
+			{
+				id: "m9",
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "adopted" }],
+				timestamp: new Date("2026-06-24T10:00:00Z"),
+			},
+		];
+		storage.loadSessionMessages.mockImplementation(async (id: string) =>
+			id === "S9" ? adoptedMessages : null,
+		);
+		const restoreSource: PerLeafTabState = {
+			leafId: "OLD-leaf",
+			tabs: [makePersistedTab({ tabId: "T9", sessionId: "S9" })],
+			activeTabId: "T9",
+		};
+
+		const { result } = renderHook(() =>
+			useTabPersistence(
+				makeProps({ leafId: "NEW-leaf", storage, restoreSource }),
+			),
+		);
+
+		await waitForRestoreReady(() => result.current);
+
+		// Override drove the restore; disk read by leafId never happened.
+		expect(storage.loadTabStateForLeaf).not.toHaveBeenCalled();
+		expect(result.current.restoredLeafState).toEqual(restoreSource);
+		// Message history loaded by the snapshot's sessionId.
+		expect(storage.loadSessionMessages).toHaveBeenCalledWith("S9");
+		expect(result.current.restoredMessages).toEqual({ T9: adoptedMessages });
+	});
+
+	it("falls back to loadTabStateForLeaf when restoreSource is undefined (restart path unchanged)", async () => {
+		const storage = makeStorage();
+		storage.loadTabStateForLeaf.mockResolvedValue({
+			leafId: "leaf-1",
+			tabs: [makePersistedTab({ tabId: "T1", sessionId: null })],
+			activeTabId: "T1",
+		});
+
+		const { result } = renderHook(() =>
+			useTabPersistence(
+				makeProps({ leafId: "leaf-1", storage, restoreSource: undefined }),
+			),
+		);
+
+		await waitForRestoreReady(() => result.current);
+
+		expect(storage.loadTabStateForLeaf).toHaveBeenCalledWith("leaf-1");
+		expect(storage.loadTabStateForLeaf).toHaveBeenCalledTimes(1);
+	});
+
+	it("restoreEnabled OFF short-circuits even when a restoreSource is provided", async () => {
+		const storage = makeStorage();
+		const restoreSource: PerLeafTabState = {
+			leafId: "OLD-leaf",
+			tabs: [makePersistedTab({ tabId: "T9", sessionId: "S9" })],
+			activeTabId: "T9",
+		};
+
+		const { result } = renderHook(() =>
+			useTabPersistence(
+				makeProps({
+					leafId: "NEW-leaf",
+					storage,
+					restoreSource,
+					restoreEnabled: false,
+				}),
+			),
+		);
+
+		await waitForRestoreReady(() => result.current);
+
+		expect(result.current.restoredLeafState).toBeNull();
+		expect(storage.loadTabStateForLeaf).not.toHaveBeenCalled();
+		expect(storage.loadSessionMessages).not.toHaveBeenCalled();
+	});
+});
