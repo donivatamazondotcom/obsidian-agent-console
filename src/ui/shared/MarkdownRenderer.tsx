@@ -4,7 +4,6 @@ import {
 	Component,
 	FileSystemAdapter,
 	MarkdownRenderer as ObsidianMarkdownRenderer,
-	Notice,
 	Platform,
 } from "obsidian";
 import { convertWslPathToWindows } from "../../utils/platform";
@@ -35,14 +34,37 @@ export function MarkdownRenderer({ text, plugin }: MarkdownRendererProps) {
 		// backing file of its own; the active file is the natural source.
 		const sourcePath = plugin.app.workspace.getActiveFile()?.path ?? "";
 
-		// Render markdown
+		// Render markdown. `MarkdownRenderer.render` does NOT run the
+		// reading-view post-processor that marks dead links `.is-unresolved`
+		// (verified: the programmatic API leaves them as plain
+		// `a.internal-link`). So after render, resolve each internal link
+		// against the metadata cache and add `.is-unresolved` ourselves to
+		// restore native styling. Click behavior is left entirely to Obsidian
+		// (openLinkText creates a missing note, exactly like reading view).
+		let cancelled = false;
 		void ObsidianMarkdownRenderer.render(
 			plugin.app,
 			text,
 			el,
 			sourcePath,
 			component,
-		);
+		).then(() => {
+			if (cancelled) return;
+			// Best-effort styling only — skip if the resolver isn't available
+			// rather than risk throwing or marking everything unresolved.
+			const cache = plugin.app.metadataCache;
+			if (!cache || typeof cache.getFirstLinkpathDest !== "function")
+				return;
+			el.querySelectorAll("a.internal-link").forEach((a) => {
+				const href = a.getAttribute("data-href");
+				if (!href) return;
+				const dest = cache.getFirstLinkpathDest(
+					decodeURIComponent(href),
+					sourcePath,
+				);
+				if (!dest) a.classList.add("is-unresolved");
+			});
+		});
 
 		// Handle internal link clicks
 		const vaultBasePath =
@@ -65,21 +87,6 @@ export function MarkdownRenderer({ text, plugin }: MarkdownRendererProps) {
 			const link = target.closest("a.internal-link");
 			if (link) {
 				e.preventDefault();
-				// Dead link: Obsidian tags an internal link whose target does
-				// not exist with `.is-unresolved`. Don't silently create a
-				// stray note via openLinkText (its default for a missing
-				// target) — surface a notice and bail.
-				if (link.classList.contains("is-unresolved")) {
-					const missing = link.getAttribute("data-href");
-					new Notice(
-						`Note not found: ${
-							missing
-								? decodeURIComponent(missing)
-								: "unknown"
-						}`,
-					);
-					return;
-				}
 				const rawHref = link.getAttribute("data-href");
 				if (rawHref) {
 					let href = decodeURIComponent(rawHref);
@@ -149,6 +156,7 @@ export function MarkdownRenderer({ text, plugin }: MarkdownRendererProps) {
 		el.addEventListener("mouseover", handleInternalLinkHover);
 
 		return () => {
+			cancelled = true;
 			el.removeEventListener("click", handleInternalLinkClick);
 			el.removeEventListener("auxclick", handleInternalLinkClick);
 			el.removeEventListener("mouseover", handleInternalLinkHover);

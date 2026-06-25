@@ -39,7 +39,7 @@ Note references in the chat panel are clickable — both the mention chips you s
 
 Hover a link to preview the note without opening it — the same **Page preview** popover you get elsewhere in Obsidian. By default you hold Cmd/Ctrl while hovering; you can change whether the modifier is required under **Settings → Core plugins → Page preview**.
 
-If a link points to a note that doesn't exist (for example, an agent referenced a file that was since renamed or deleted), clicking it shows a **"Note not found"** notice instead of creating an empty note.
+Links to notes that don't exist are shown in Obsidian's unresolved-link style, just like in a note. Hovering one previews "not created yet", and clicking it creates the note (in your **Files & Links → Default location for new notes** folder) — the same behavior as the editor and reading view.
 
 ## See also
 
