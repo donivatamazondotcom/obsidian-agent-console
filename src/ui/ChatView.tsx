@@ -28,6 +28,7 @@ import { TabErrorBoundary } from "./TabErrorBoundary";
 import { EditTitleModal } from "./SessionHistoryModal";
 import { CorruptionRecoveryModal } from "./CorruptionRecoveryModal";
 import { ConfirmCloseModal } from "./ConfirmCloseModal";
+import { shouldApplyViewStateAgentRestore } from "./viewStateAgentRestore";
 
 // Hook imports
 import { useTabManager, truncateLabel } from "../hooks/useTabManager";
@@ -476,13 +477,24 @@ function ChatComponent({
 	// ============================================================
 	// Agent ID restoration from Obsidian setState
 	// ============================================================
+	// The legacy single-agent view-state restore must NOT clobber a leaf that
+	// was already restored synchronously from perLeafTabStates — doing so
+	// appends a spurious tab that reverts the active tab to the wrong agent
+	// (TP-I05) and renders from a diff-less replay (SLB-I6). Apply it only when
+	// there is no persisted restore to clobber. See viewStateAgentRestore.ts.
 	useEffect(() => {
 		const unsubscribe = view.onAgentIdRestored((agentId) => {
-			// Update the active tab's agent
-			tabManager.addTab(agentId);
+			if (
+				shouldApplyViewStateAgentRestore({
+					restoredFromPersistence: restoredLeaf !== null,
+				})
+			) {
+				// Update the active tab's agent
+				tabManager.addTab(agentId);
+			}
 		});
 		return unsubscribe;
-	}, [view, tabManager.addTab]);
+	}, [view, tabManager.addTab, restoredLeaf]);
 
 	// ============================================================
 	// Tab callbacks

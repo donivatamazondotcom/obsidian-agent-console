@@ -116,6 +116,7 @@ src/
 │   ├── AgentPickerModal.ts      # FuzzySuggestModal agent picker for "New chat with agent…"
 │   ├── SettingsTab.ts           # Plugin settings UI
 │   ├── view-host.ts             # IChatViewHost interface
+│   ├── viewStateAgentRestore.ts # Pure guard: skip legacy view-state agent restore when leaf already restored from persistence (TP-I05)
 │   ├── use-auto-scroll-pin.ts   # Auto-scroll-to-bottom hook (pin state + native scroll + ResizeObserver/wheel/touch)
 │   ├── use-auto-scroll-pin.types.ts  # PinState, params, result types for useAutoScrollPin
 │   └── shared/
