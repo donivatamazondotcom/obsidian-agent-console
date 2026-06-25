@@ -398,11 +398,25 @@ export class SessionStorage {
 	): Promise<ContextNote[] | null> {
 		const filePath = this.getSessionFilePath(sessionId);
 		const adapter = this.plugin.app.vault.adapter;
-		if (!(await adapter.exists(filePath))) return null;
+		// TP-I02: do NOT gate on adapter.exists() — same startup false-negative
+		// as TP-I01 in loadSessionMessages. Gating here could silently drop
+		// restored context-strip notes for a tab whose session file is intact.
+		// Read directly; a thrown read on the final attempt is the genuine
+		// missing-file signal. Retry once, no fixed delay (a sleep is not a
+		// signal).
+		let content: string | null = null;
+		const MAX_ATTEMPTS = 2;
+		for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+			try {
+				content = await adapter.read(filePath);
+				break;
+			} catch {
+				if (attempt >= MAX_ATTEMPTS) return null;
+			}
+		}
+		if (content === null) return null;
 		try {
-			const data = JSON.parse(
-				await adapter.read(filePath),
-			) as SessionMessagesFile;
+			const data = JSON.parse(content) as SessionMessagesFile;
 			if (!Array.isArray(data.contextNotes)) return null;
 			const { notes, dropped } = sanitizeContextNotes(data.contextNotes);
 			if (dropped.length > 0) {

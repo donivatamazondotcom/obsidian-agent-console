@@ -664,3 +664,65 @@ describe("SessionStorage loadSessionMessages restore-time false-negative (TP-I01
 		expect(await storage.loadSessionMessages("sess-gone")).toBeNull();
 	});
 });
+
+// ============================================================================
+// TP-I02 — loadSessionContextNotes restore-time false-negative
+//
+// Same startup false-negative as TP-I01 (loadSessionMessages): adapter.exists()
+// can transiently report a present session file as missing, and
+// loadSessionContextNotes gated on it — silently dropping restored context-strip
+// pills for a tab whose session file is intact. Read the file directly instead;
+// a thrown read is the genuine missing-file signal.
+// ============================================================================
+
+describe("SessionStorage loadSessionContextNotes restore-time false-negative (TP-I02)", () => {
+	const SID = "sess-ctx-flaky";
+	const FP = `test-config/plugins/agent-console/sessions/${SID}.json`;
+	const NOTES: ContextNote[] = [
+		{ path: "Design Doc.md", source: "user", seen: false },
+	];
+	const onDisk = JSON.stringify({
+		version: 1,
+		sessionId: SID,
+		agentId: "agent-1",
+		messages: [],
+		contextNotes: NOTES,
+		savedAt: "2026-06-24T08:40:00.000Z",
+	});
+
+	function makeStorageWithExists(exists: ReturnType<typeof vi.fn>) {
+		const adapter = {
+			exists,
+			read: vi.fn(async (p: string) => {
+				if (p === FP) return onDisk;
+				throw new Error(`not found: ${p}`);
+			}),
+			mkdir: vi.fn(),
+			write: vi.fn(),
+			remove: vi.fn(),
+		};
+		const plugin = {
+			app: { vault: { adapter, configDir: "test-config" } },
+			manifest: { id: "agent-console" },
+		};
+		const settingsAccess = { getSnapshot: vi.fn(), updateSettings: vi.fn() };
+		return new SessionStorage(
+			plugin as unknown as ConstructorParameters<typeof SessionStorage>[0],
+			settingsAccess,
+		);
+	}
+
+	it("returns the persisted context notes even when exists() reports the file missing (startup false-negative)", async () => {
+		const storage = makeStorageWithExists(vi.fn(async () => false));
+
+		expect(await storage.loadSessionContextNotes(SID)).toEqual(NOTES);
+	});
+
+	it("returns null when the session file genuinely cannot be read — preserves missing-file semantics", async () => {
+		const storage = makeStorageWithExists(vi.fn(async () => false));
+
+		expect(
+			await storage.loadSessionContextNotes("sess-ctx-gone"),
+		).toBeNull();
+	});
+});
