@@ -582,3 +582,85 @@ describe("SessionStorage saveSessionMessages write durability (I72)", () => {
 		errorSpy.mockRestore();
 	});
 });
+
+// ============================================================================
+// TP-I01 — loadSessionMessages restore-time false-negative
+//
+// At plugin startup the vault adapter can transiently report exists()===false
+// for a session file that exists and is fully readable moments later.
+// loadSessionMessages trusts that single exists() check and returns null;
+// useTabPersistence then latches recoverableTabs[tabId]=true and ChatPanel
+// shows the "history not stored locally — reload from agent" banner for a tab
+// whose history is intact on disk (observed live 2026-06-24: a 95-message
+// session flagged recoverable while adapter.read returned the full 605 KB).
+//
+// loadSessionMessages must not conclude "missing" from a single
+// exists()===false — it reads the file directly (no exists() gate) and treats a
+// thrown read as the genuine missing-history signal, retrying once on a
+// transient read failure (no fixed delay). A genuinely-unreadable file must
+// still return null so the real I72 recovery path survives.
+// ============================================================================
+
+describe("SessionStorage loadSessionMessages restore-time false-negative (TP-I01)", () => {
+	const SID = "sess-flaky";
+	const FP = `test-config/plugins/agent-console/sessions/${SID}.json`;
+	const onDisk = JSON.stringify({
+		version: 1,
+		sessionId: SID,
+		agentId: "agent-1",
+		messages: [
+			{
+				id: "m1",
+				role: "user",
+				content: [{ type: "text", text: "hello" }],
+				timestamp: "2026-06-24T08:40:00.000Z",
+			},
+		],
+		contextNotes: [],
+		savedAt: "2026-06-24T08:40:00.000Z",
+	});
+
+	function makeStorageWithExists(exists: ReturnType<typeof vi.fn>) {
+		const adapter = {
+			exists,
+			read: vi.fn(async (p: string) => {
+				if (p === FP) return onDisk;
+				throw new Error(`not found: ${p}`);
+			}),
+			mkdir: vi.fn(),
+			write: vi.fn(),
+			remove: vi.fn(),
+		};
+		const plugin = {
+			app: { vault: { adapter, configDir: "test-config" } },
+			manifest: { id: "agent-console" },
+		};
+		const settingsAccess = { getSnapshot: vi.fn(), updateSettings: vi.fn() };
+		return new SessionStorage(
+			plugin as unknown as ConstructorParameters<typeof SessionStorage>[0],
+			settingsAccess,
+		);
+	}
+
+	it("returns the persisted messages even when exists() would report the file missing (startup false-negative)", async () => {
+		// adapter.exists() lies (false) at startup, but the file is present and
+		// readable. The read-first path must ignore the exists() proxy and
+		// return the intact history — not latch the I72 recovery banner.
+		const exists = vi.fn(async () => false);
+		const storage = makeStorageWithExists(exists);
+
+		const loaded = await storage.loadSessionMessages(SID);
+
+		expect(loaded).not.toBeNull();
+		expect(loaded).toHaveLength(1);
+		expect(loaded?.[0].id).toBe("m1");
+	});
+
+	it("returns null when the session file genuinely cannot be read — preserves I72 recovery path", async () => {
+		// "sess-gone" has no entry in the read mock, so adapter.read throws on
+		// every attempt → genuine missing-history signal.
+		const storage = makeStorageWithExists(vi.fn(async () => false));
+
+		expect(await storage.loadSessionMessages("sess-gone")).toBeNull();
+	});
+});
