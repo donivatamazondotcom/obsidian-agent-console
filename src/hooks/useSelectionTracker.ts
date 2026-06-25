@@ -97,6 +97,14 @@ export function useSelectionTracker(source: SelectionSource): UseSelectionTracke
 				setActiveNotePath(null);
 				setActiveNoteName(null);
 				setSelection(null);
+				// I101: Obsidian may activate a replacement note (often in the
+				// same leaf) without firing the active-leaf-change the tracker
+				// listens to, leaving the grab button stale-disabled until a
+				// manual click. Re-derive the active note now. getActiveNote's
+				// I32 guard returns null when the deleted file is no longer in
+				// any markdown leaf, so this cannot re-introduce the dangling
+				// reference; it only picks up a genuine replacement.
+				void handleSelectionChange();
 			}
 		});
 		// Prime initial state on mount. The shared VaultService only emits to
