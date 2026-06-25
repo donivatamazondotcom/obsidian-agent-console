@@ -57,23 +57,22 @@ export function SharedLinksButton({ links, onOpenLink }: SharedLinksButtonProps)
 		const addLinkItem = (link: SharedLink) => {
 			menu.addItem((item) => {
 				item.setTitle(link.label);
-				item.setIcon(
-					link.kind === "external" ? "external-link" : "file-text",
-				);
 				item.onClick((evt) => onOpenLink(link, evt));
 			});
 		};
 
+		// New (agent-created this session) links float to the top, divided from
+		// the rest by a bare separator — but ONLY when there are both new and
+		// old links to distinguish. When nothing is classified new (agents that
+		// don't emit a create signal, or a turn with no creates), the list
+		// renders flat with no divider, so it never shows a confusing empty
+		// "Earlier" framing. The divide is conveyed by position + separator,
+		// never color (colorblind-safe per user-profile.md).
 		if (newLinks.length > 0 && oldLinks.length > 0) {
-			menu.addItem((i) =>
-				i.setTitle("New this session").setIsLabel(true),
-			);
 			newLinks.forEach(addLinkItem);
 			menu.addSeparator();
-			menu.addItem((i) => i.setTitle("Earlier").setIsLabel(true));
 			oldLinks.forEach(addLinkItem);
 		} else {
-			// Single group — no section header needed.
 			links.forEach(addLinkItem);
 		}
 

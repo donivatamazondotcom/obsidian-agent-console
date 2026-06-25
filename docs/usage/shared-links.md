@@ -6,12 +6,9 @@ The button sits just left of the **↻ reload** button. A small count badge on i
 
 ## Open the list
 
-Click the link button to open the list. Every link the agent shared shows up, grouped into two sections:
+Click the link button to open the list. Every link the agent shared in this conversation is there, most-recent first.
 
-- **New this session** – files the agent *created* during this conversation.
-- **Earlier** – everything else: notes that already existed, files the agent only read or edited, and web links.
-
-The two groups are separated by their headings and icons, not by color, so the distinction is clear no matter how you see color.
+When the agent **created** a new file during the conversation, those new files float to the top, divided from the rest by a thin separator line so they are easy to spot. If nothing new was created, the list is one clean run of links – no divider. The distinction is shown by position and the separator, never by color, so it reads the same no matter how you see color.
 
 ## Click to open
 
@@ -24,4 +21,4 @@ The button is always visible so it never surprises you by appearing and vanishin
 
 ## Per tab, and it remembers
 
-Each tab keeps its own list – the links from *that* conversation. And because the list is built from the conversation itself, it survives an Obsidian restart: reopen the tab and your links are right where you left them, still split into new and earlier.
+Each tab keeps its own list – the links from *that* conversation. And because the list is built from the conversation itself, it survives an Obsidian restart: reopen the tab and your links are right where you left them, with any newly-created files still floated to the top.

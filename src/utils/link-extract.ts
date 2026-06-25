@@ -53,8 +53,9 @@ export interface SharedLink {
 const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 // `[label](target)` — target up to first whitespace or closing paren.
 const MD_LINK_RE = /\[([^\]]+)\]\(([^)\s]+)\)/g;
-// bare http(s) URL.
-const BARE_URL_RE = /https?:\/\/[^\s)<>"']+/g;
+// bare http(s) URL. Excludes backtick so a URL wrapped in inline code
+// (`https://x`) isn't captured with a trailing ` and rendered unopenable.
+const BARE_URL_RE = /https?:\/\/[^\s)<>"'`]+/g;
 // Protocol detector for "is this target an external URL?".
 const PROTOCOL_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
 
@@ -194,7 +195,7 @@ function rawLinksFromText(text: string, order: number): RawLink[] {
 	}
 
 	for (const m of urlScan.matchAll(BARE_URL_RE)) {
-		const url = m[0].replace(/[.,;:]+$/, ""); // strip trailing sentence punctuation
+		const url = m[0].replace(/[.,;:`]+$/, ""); // strip trailing sentence punctuation / inline-code backtick
 		out.push({ kind: "external", label: url, target: url, order });
 	}
 

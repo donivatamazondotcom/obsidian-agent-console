@@ -16,6 +16,7 @@ const h = vi.hoisted(() => {
 	interface FakeItem {
 		title?: string;
 		isLabel?: boolean;
+		separator?: boolean;
 		click?: (e: unknown) => void;
 	}
 	const menus: Array<{ items: FakeItem[]; shown: boolean }> = [];
@@ -27,6 +28,7 @@ vi.mock("obsidian", () => {
 		items: Array<{
 			title?: string;
 			isLabel?: boolean;
+			separator?: boolean;
 			click?: (e: unknown) => void;
 		}> = [];
 		_record = { items: this.items, shown: false };
@@ -61,6 +63,7 @@ vi.mock("obsidian", () => {
 			return this;
 		}
 		addSeparator() {
+			this.items.push({ separator: true });
 			return this;
 		}
 		showAtMouseEvent() {
@@ -158,14 +161,35 @@ describe("SharedLinksButton", () => {
 		expect(h.menus).toHaveLength(1);
 		const menu = h.menus[0];
 		expect(menu.shown).toBe(true);
-		// Two section labels present when both groups are non-empty.
-		const labels = menu.items.filter((i) => i.isLabel).map((i) => i.title);
-		expect(labels).toEqual(["New this session", "Earlier"]);
+		// No section labels — a bare separator divides new (top) from old.
+		expect(menu.items.filter((i) => i.isLabel)).toHaveLength(0);
+		expect(
+			menu.items.map((i) => (i.separator ? "---" : i.title)),
+		).toEqual(["Created.md", "---", "Old.md"]);
 
 		// Click the "Created.md" item -> onOpenLink fired with that link.
 		const item = menu.items.find((i) => i.title === "Created.md");
 		item?.click?.(new MouseEvent("click"));
 		expect(onOpenLink).toHaveBeenCalledTimes(1);
 		expect(onOpenLink.mock.calls[0][0]).toMatchObject({ label: "Created.md" });
+	});
+
+	it("renders a flat list with no separator or labels when nothing is new", () => {
+		const { container } = render(
+			<SharedLinksButton
+				links={[
+					link({ label: "A", target: "A" }),
+					link({ label: "B", target: "B" }),
+				]}
+				onOpenLink={vi.fn()}
+			/>,
+		);
+		fireEvent.click(
+			container.querySelector(".acp-shared-links-button") as HTMLElement,
+		);
+		const menu = h.menus[0];
+		expect(menu.items.some((i) => i.separator)).toBe(false);
+		expect(menu.items.filter((i) => i.isLabel)).toHaveLength(0);
+		expect(menu.items.map((i) => i.title)).toEqual(["A", "B"]);
 	});
 });

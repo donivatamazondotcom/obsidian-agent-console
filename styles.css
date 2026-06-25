@@ -2618,6 +2618,12 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	position: relative;
 }
 
+.acp-shared-links-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
 .acp-shared-links-button--disabled {
 	opacity: 0.4;
 	cursor: default;
@@ -2626,7 +2632,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 
 .acp-shared-links-badge {
 	position: absolute;
-	top: -2px;
+	bottom: -2px;
 	right: -2px;
 	min-width: 14px;
 	height: 14px;

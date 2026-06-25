@@ -105,6 +105,16 @@ describe("extractLinks", () => {
 		expect(links[0].label).toBe("docs");
 	});
 
+	it("strips a trailing backtick from an inline-code-wrapped bare URL", () => {
+		const messages = [
+			msg("assistant", [text("see `https://obsidian.md` for docs")]),
+		];
+		const links = extractLinks(messages);
+		expect(links).toHaveLength(1);
+		expect(links[0].target).toBe("https://obsidian.md");
+		expect(links[0].label).toBe("https://obsidian.md");
+	});
+
 	it("captures resource_link blocks and matches agent-created files", () => {
 		const messages = [
 			msg("assistant", [createdDiff("/abs/vault/Report.md")]),
