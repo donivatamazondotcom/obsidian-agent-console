@@ -354,6 +354,22 @@ export class VaultService implements IVaultAccess {
 		return () => this.plugin.app.vault.offref(ref);
 	}
 
+	/**
+	 * Subscribe to vault delete events, normalized to the deleted path.
+	 * Used by useSelectionTracker to clear the active note when its file is
+	 * deleted — active-leaf-change either does not fire or leaves a stale
+	 * getActiveFile() fallback, so the tracker would otherwise keep the
+	 * deleted path. (I100; companion to onRename / I85)
+	 */
+	onDelete(cb: (path: string) => void): () => void {
+		const ref = this.plugin.app.vault.on("delete", (file) => {
+			if (file instanceof TFile && file.extension === "md") {
+				cb(file.path);
+			}
+		});
+		return () => this.plugin.app.vault.offref(ref);
+	}
+
 	private ensureSelectionTracking(): void {
 		if (this.activeLeafRef) {
 			return;

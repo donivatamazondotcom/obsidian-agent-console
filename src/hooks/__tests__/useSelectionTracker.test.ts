@@ -21,6 +21,7 @@ function makeMockSource(overrides: Partial<SelectionSource> = {}): SelectionSour
 	return {
 		getActiveNote: vi.fn().mockResolvedValue(null),
 		onRename: vi.fn().mockReturnValue(() => {}),
+		onDelete: vi.fn().mockReturnValue(() => {}),
 		subscribeSelectionChanges: vi.fn().mockReturnValue(() => {}),
 		...overrides,
 	};
@@ -352,6 +353,112 @@ describe("useSelectionTracker — I85 rename handling", () => {
 	it("T-E: disposes the rename subscription on unmount", async () => {
 		const { onRename, dispose } = captureRename();
 		const source = makeMockSource({ onRename });
+
+		const { unmount } = renderHook(() => useSelectionTracker(source));
+		await flushMount();
+		unmount();
+
+		expect(dispose).toHaveBeenCalledTimes(1);
+	});
+});
+
+// ============================================================================
+// I100: tracker must clear on vault delete of the currently-active note.
+// The provisional auto-default pill (Decision #26) and useChatActions' first-
+// send auto-default both derive from activeNotePath. Per Decision #24 the hook
+// PRESERVES the last path when getActiveNote() returns null — correct for chat
+// focus, WRONG when the file was deleted. Without a delete handler the deleted
+// note's path persists and rides into the sent <obsidian_context_note> ref.
+// Reproduce-first: these FAIL against unfixed code (hook never subscribes to
+// onDelete — getCb() stays null and dispose is never called).
+// ============================================================================
+describe("useSelectionTracker — I100 delete handling", () => {
+	function captureDelete() {
+		let cb: ((path: string) => void) | null = null;
+		const dispose = vi.fn();
+		const onDelete = vi.fn((listener: (p: string) => void) => {
+			cb = listener;
+			return dispose;
+		});
+		return { onDelete, dispose, getCb: () => cb };
+	}
+
+	async function flushMount() {
+		await act(async () => {
+			await Promise.resolve();
+		});
+	}
+
+	it("T-F: deleting the active note clears path, name, and selection", async () => {
+		const { onDelete, getCb } = captureDelete();
+		const getActiveNote = vi.fn().mockResolvedValue({
+			path: "A.md",
+			name: "A",
+			extension: "md",
+			created: 0,
+			modified: 0,
+			selection: { from: { line: 1, ch: 0 }, to: { line: 3, ch: 5 } },
+		});
+		const source = makeMockSource({ getActiveNote, onDelete });
+
+		const { result } = renderHook(() => useSelectionTracker(source));
+		await flushMount();
+		expect(result.current.activeNotePath).toBe("A.md");
+		expect(result.current.selection).not.toBeNull();
+
+		expect(onDelete).toHaveBeenCalledTimes(1);
+		await act(async () => {
+			getCb()!("A.md");
+		});
+
+		expect(result.current.activeNotePath).toBeNull();
+		expect(result.current.activeNoteName).toBeNull();
+		expect(result.current.selection).toBeNull();
+	});
+
+	it("T-G: deleting a different (non-active) note leaves the tracker unchanged", async () => {
+		const { onDelete, getCb } = captureDelete();
+		const getActiveNote = vi.fn().mockResolvedValue({
+			path: "A.md",
+			name: "A",
+			extension: "md",
+			created: 0,
+			modified: 0,
+		});
+		const source = makeMockSource({ getActiveNote, onDelete });
+
+		const { result } = renderHook(() => useSelectionTracker(source));
+		await flushMount();
+
+		await act(async () => {
+			getCb()!("Other.md");
+		});
+
+		expect(result.current.activeNotePath).toBe("A.md");
+		expect(result.current.activeNoteName).toBe("A");
+	});
+
+	it("T-H: a delete with no active note tracked is a no-op (no crash, stays null)", async () => {
+		const { onDelete, getCb } = captureDelete();
+		const source = makeMockSource({
+			getActiveNote: vi.fn().mockResolvedValue(null),
+			onDelete,
+		});
+
+		const { result } = renderHook(() => useSelectionTracker(source));
+		await flushMount();
+
+		await act(async () => {
+			getCb()!("X.md");
+		});
+
+		expect(result.current.activeNotePath).toBeNull();
+		expect(result.current.activeNoteName).toBeNull();
+	});
+
+	it("T-I: disposes the delete subscription on unmount", async () => {
+		const { onDelete, dispose } = captureDelete();
+		const source = makeMockSource({ onDelete });
 
 		const { unmount } = renderHook(() => useSelectionTracker(source));
 		await flushMount();

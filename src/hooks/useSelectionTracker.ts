@@ -20,6 +20,8 @@ export interface SelectionSource {
 	subscribeSelectionChanges(listener: () => void): () => void;
 	/** Subscribe to vault rename/move events. Returns an unsubscribe fn. (I85) */
 	onRename(cb: (oldPath: string, newPath: string) => void): () => void;
+	/** Subscribe to vault delete events. Returns an unsubscribe fn. (I100) */
+	onDelete(cb: (path: string) => void): () => void;
 }
 
 export interface SelectionState {
@@ -85,6 +87,18 @@ export function useSelectionTracker(source: SelectionSource): UseSelectionTracke
 				setActiveNoteName(basename(newPath));
 			}
 		});
+		// I100: deleting the currently-tracked active note must clear the
+		// tracker. Decision #24 preserves the last path when getActiveNote()
+		// returns null (correct for chat focus) — but a deleted file is gone,
+		// not merely unfocused, so without this the stale path would drive the
+		// provisional auto-default pill and ride into the sent context ref.
+		const unsubscribeDelete = source.onDelete((deletedPath) => {
+			if (activeNotePathRef.current === deletedPath) {
+				setActiveNotePath(null);
+				setActiveNoteName(null);
+				setSelection(null);
+			}
+		});
 		// Prime initial state on mount. The shared VaultService only emits to
 		// the first subscriber (ensureSelectionTracking early-returns after),
 		// so a new chat tab's tracker would otherwise stay null until the next
@@ -93,6 +107,7 @@ export function useSelectionTracker(source: SelectionSource): UseSelectionTracke
 		return () => {
 			unsubscribe();
 			unsubscribeRename();
+			unsubscribeDelete();
 		};
 	}, [source, handleSelectionChange]);
 
