@@ -35,6 +35,8 @@ export interface UseTabManagerReturn {
 	setTabLabel: (tabId: string, label: string, custom?: boolean) => void;
 	/** Update a tab's visual state */
 	setTabState: (tabId: string, state: TabState) => void;
+	/** Update a tab's bound agent — the single source of truth, persisted (TP-I05). */
+	setTabAgent: (tabId: string, agentId: string) => void;
 	/** Reset a tab's label and state to defaults (used after error boundary retry) */
 	resetTab: (tabId: string) => void;
 	/** Reorder: move tab from one index to another */
@@ -193,6 +195,16 @@ export function useTabManager(
 		[],
 	);
 
+	const setTabAgent = useCallback((tabId: string, agentId: string) => {
+		setTabs((prev) => {
+			const tab = prev.find((t) => t.tabId === tabId);
+			if (!tab || tab.agentId === agentId) return prev;
+			return prev.map((t) =>
+				t.tabId === tabId ? { ...t, agentId } : t,
+			);
+		});
+	}, []);
+
 	const resetTab = useCallback((tabId: string) => {
 		setTabs((prev) =>
 			prev.map((t) =>
@@ -263,6 +275,7 @@ export function useTabManager(
 			setActiveTab: setActiveTabId,
 			setTabLabel,
 			setTabState,
+			setTabAgent,
 			resetTab,
 			moveTab,
 			nextTab,
@@ -278,6 +291,7 @@ export function useTabManager(
 			removeTabsToRight,
 			setTabLabel,
 			setTabState,
+			setTabAgent,
 			resetTab,
 			moveTab,
 			nextTab,

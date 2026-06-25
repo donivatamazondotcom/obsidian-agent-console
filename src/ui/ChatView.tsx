@@ -33,6 +33,7 @@ import { ConfirmCloseModal } from "./ConfirmCloseModal";
 import { useTabManager, truncateLabel } from "../hooks/useTabManager";
 import { useTabPersistence, type TabPersistenceStorage } from "../hooks/useTabPersistence";
 import { useRecentlyClosedTabs } from "../hooks/useRecentlyClosedTabs";
+import { resolveInitialAgentId } from "../utils/resolveInitialAgentId";
 
 // Service imports
 import { VaultService } from "../services/vault-service";
@@ -175,9 +176,11 @@ function ChatComponent({
 	view: ChatView;
 	viewId: string;
 }) {
-	const initialAgentId =
-		view.getInitialAgentId() ??
-		plugin.settings.defaultAgentId;
+	const initialAgentId = resolveInitialAgentId({
+		restoreEnabled: plugin.settings.restoreTabsOnStartup,
+		viewStateAgentId: view.getInitialAgentId(),
+		defaultAgentId: plugin.settings.defaultAgentId,
+	});
 
 	// ============================================================
 	// Tab Persistence — synchronous restore for initial render
@@ -473,16 +476,12 @@ function ChatComponent({
 		view.setFlushSave(() => flushSaveRef.current());
 	}, [view]);
 
-	// ============================================================
-	// Agent ID restoration from Obsidian setState
-	// ============================================================
-	useEffect(() => {
-		const unsubscribe = view.onAgentIdRestored((agentId) => {
-			// Update the active tab's agent
-			tabManager.addTab(agentId);
-		});
-		return unsubscribe;
-	}, [view, tabManager.addTab]);
+	// Agent identity is owned by the tab (TabInfo.agentId, persisted) and by
+	// per-tab restore. The legacy onAgentIdRestored->addTab effect was removed:
+	// it appended a spurious last-agent tab on every reload (clobbering the
+	// per-tab restore and ignoring the Default Agent setting when restore is
+	// off). view.setAgentId is now a downstream mirror only.
+	// See [[Tab Agent Identity and Session Acquisition Unification]] D1 + TP-I05.
 
 	// ============================================================
 	// Tab callbacks
@@ -839,9 +838,15 @@ function ChatComponent({
 											callbacks;
 									}
 								}}
-								onAgentIdChanged={(agentId) =>
-									view.setAgentId(agentId)
-								}
+								onAgentIdChanged={(agentId) => {
+									// Update the persisted source of truth, then
+									// mirror to Obsidian view-state (TP-I05 / D1).
+									tabManager.setTabAgent(
+										tab.tabId,
+										agentId,
+									);
+									view.setAgentId(agentId);
+								}}
 								onStateChange={(state) =>
 									handleTabStateChange(
 										tab.tabId,
