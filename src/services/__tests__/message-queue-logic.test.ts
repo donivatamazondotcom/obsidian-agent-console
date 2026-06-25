@@ -61,6 +61,55 @@ describe("executeFlush — clear-before-dispatch ordering (T3, T4)", () => {
 	});
 });
 
+// --- I-Q-FLUSH (reproduce): turn-end flush must DELIVER, not re-enqueue ------
+//
+// Silent-data-loss regression from the Decision 9 unification: the turn-end
+// flush dispatched through handleSendWithLazyAcquisition, which RE-ENQUEUES
+// when lazySession.state !== "ready". At the isSending true→false commit,
+// lazySession.endBusy() (busy→ready) hasn't re-rendered yet, so state is still
+// "busy" → the wrapper re-enqueues the just-consumed message, the composer is
+// already cleared, and the connect-flush (gated to connecting/idle→ready, NOT
+// busy→ready) never picks it up → orphaned: "Queued" banner over an empty
+// composer, message never sent.
+
+describe("turn-end flush delivers even at transiently-busy state (I-Q-FLUSH)", () => {
+	/** Models handleSendWithLazyAcquisition: re-enqueues when not "ready". */
+	function lazyWrapperDispatch(
+		stateAtFlush: string,
+		queue: { content: string }[],
+		sent: string[],
+	) {
+		return (content: string) => {
+			if (stateAtFlush === "ready") sent.push(content);
+			else queue.push({ content }); // re-enqueue → orphaned
+		};
+	}
+
+	it("reproduce — flushing through the lazy wrapper at 'busy' DROPS the message", () => {
+		const queue = [{ content: "msg" }];
+		const sent: string[] = [];
+		executeFlush({
+			consume: () => queue.shift() ?? null,
+			clearComposer: () => {}, // composer cleared regardless
+			dispatch: lazyWrapperDispatch("busy", queue, sent),
+		});
+		expect(sent).toEqual([]); // never sent
+		expect(queue.map((q) => q.content)).toEqual(["msg"]); // re-queued, orphaned
+	});
+
+	it("fix — dispatching directly (raw send) delivers regardless of lazy state", () => {
+		const queue = [{ content: "msg" }];
+		const sent: string[] = [];
+		executeFlush({
+			consume: () => queue.shift() ?? null,
+			clearComposer: () => {},
+			dispatch: (content) => sent.push(content), // raw handleSendMessage
+		});
+		expect(sent).toEqual(["msg"]); // delivered
+		expect(queue).toEqual([]); // not re-queued
+	});
+});
+
 // --- T1 / T13: composer Enter-key action -----------------------------------
 
 describe("decideComposerEnterAction (T1, T13, Q2)", () => {
