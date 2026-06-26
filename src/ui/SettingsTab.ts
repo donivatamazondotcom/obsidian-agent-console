@@ -5,6 +5,7 @@ import {
 	DropdownComponent,
 	Platform,
 	SecretComponent,
+	Notice,
 } from "obsidian";
 import type AgentClientPlugin from "../plugin";
 import type {
@@ -23,6 +24,10 @@ import {
 	CHAT_FONT_SIZE_MIN,
 	parseChatFontSize,
 } from "../services/settings-normalizer";
+import {
+	collectAgentIdsExcept,
+	resolveUniqueAgentId,
+} from "../services/session-helpers";
 
 export class AgentClientSettingTab extends PluginSettingTab {
 	plugin: AgentClientPlugin;
@@ -1199,6 +1204,43 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						await this.flushSettings();
 						this.refreshAgentDropdown();
 					});
+				// Enforce id uniqueness on blur (not per-keystroke, so typing
+				// isn't fought). An id colliding a built-in or another custom
+				// agent is auto-suffixed; without this the colliding custom
+				// agent is shadowed by findAgentSettings and unreachable (I105).
+				text.inputEl.addEventListener("blur", () => {
+					void (async () => {
+						const current =
+							this.plugin.settings.customAgents[index];
+						if (!current) return;
+						const previousId = current.id;
+						let desired = text.getValue().trim();
+						if (desired.length === 0) {
+							desired = this.generateCustomAgentId();
+						}
+						const taken = collectAgentIdsExcept(
+							this.plugin.settings,
+							index,
+						);
+						const unique = resolveUniqueAgentId(desired, taken);
+						if (unique === previousId) return;
+						if (unique !== desired) {
+							new Notice(
+								`Agent ID "${desired}" is already in use — changed to "${unique}".`,
+							);
+						}
+						text.setValue(unique);
+						current.id = unique;
+						if (
+							this.plugin.settings.defaultAgentId === previousId
+						) {
+							this.plugin.settings.defaultAgentId = unique;
+						}
+						this.plugin.ensureDefaultAgentId();
+						await this.flushSettings();
+						this.refreshAgentDropdown();
+					})();
+				});
 			});
 
 		idSetting.addExtraButton((button) => {
