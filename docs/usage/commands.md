@@ -8,7 +8,7 @@ Most commands operate on the **last focused chat view** — click a chat view to
 
 ## Start a chat
 
-Always available, including from a cold start with no chat view open. **New chat** and **New chat with agent…** open a *new tab* — to clear and restart the conversation in the current tab instead, use **Hard reload session (fresh)**.
+Always available, including from a cold start with no chat view open. **New chat** and **New chat with agent…** open a *new tab* — to clear and restart the conversation in the current tab instead, use **Restart session (fresh)**.
 
 | Command | Description |
 |---------|-------------|
@@ -32,7 +32,7 @@ These appear only when a chat view is open.
 | Command | Description |
 |---------|-------------|
 | **Reload session** | Reload the current session under a fresh harness, resuming the same conversation (agent process respawned, MCP servers reloaded) |
-| **Hard reload session (fresh)** | Restart the agent and start a brand-new session (clears the transcript) |
+| **Restart session (fresh)** | Restart the agent and start a brand-new session (clears the transcript) |
 | **Cancel current message** | Stop the agent's current response |
 | **Export chat** | Export the current conversation to a note |
 | **Toggle active note in context** | Pin or unpin the active note in the context strip |

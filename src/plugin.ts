@@ -883,7 +883,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "hard-reload-session",
-			name: "Hard reload session (fresh)",
+			name: "Restart session (fresh)",
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {

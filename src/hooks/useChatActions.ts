@@ -43,7 +43,6 @@ export interface UseChatActionsReturn {
 	handleNewChat: (requestedAgentId?: string) => Promise<void>;
 	handleExportChat: () => Promise<void>;
 	handleSwitchAgent: (agentId: string) => Promise<void>;
-	handleRestartAgent: () => Promise<void>;
 	/**
 	 * Reload the current session (header ↻ button / commands). `hard === false`
 	 * = soft reload (resume same session under a fresh harness, transcript
@@ -390,39 +389,6 @@ export function useChatActions(
 		[session.agentId, handleNewChat],
 	);
 
-	const handleRestartAgent = useCallback(async () => {
-		logger.log("[ChatPanel] Restarting agent process...");
-
-		// Auto-export current chat before restart (if has messages)
-		if (messages.length > 0) {
-			await autoExportIfEnabled("newChat", messages, session);
-		}
-
-		// Clear messages for fresh start
-		agent.clearMessages();
-
-		try {
-			// Tear down the subprocess, then respawn + acquire a fresh session
-			// through the single owner (useLazySession.acquireNow) — no direct
-			// createSession (design D3). closeSession disconnects so the
-			// acquisition re-initializes a fresh harness.
-			await agent.closeSession();
-			await lazyAcquireNowRef.current?.();
-			new Notice("[Agent Console] Agent restarted");
-		} catch (error) {
-			new Notice("[Agent Console] Failed to restart agent");
-			logger.error("Restart error:", error);
-		}
-	}, [
-		logger,
-		messages,
-		session,
-		autoExportIfEnabled,
-		agent.clearMessages,
-		agent.closeSession,
-		lazyAcquireNowRef,
-	]);
-
 	const handleReload = useCallback(
 		async (hard: boolean) => {
 			// Spinner on for the whole reload so the user sees the click
@@ -536,7 +502,6 @@ export function useChatActions(
 		handleNewChat,
 		handleExportChat,
 		handleSwitchAgent,
-		handleRestartAgent,
 		handleReload,
 		isReloading,
 		handleSetMode,

@@ -43,7 +43,7 @@ describe("ChatHeader reload button (T5)", () => {
 		);
 
 		const btn = container.querySelector(
-			'[aria-label^="Reload session"]',
+			'[aria-label^="Reload"]',
 		) as HTMLElement | null;
 		expect(btn).toBeTruthy();
 
@@ -72,14 +72,14 @@ describe("ChatHeader reload button (T5)", () => {
 			);
 
 		const spinning = renderWith(true).container.querySelector(
-			'[aria-label^="Reload session"]',
+			'[aria-label^="Reload"]',
 		) as HTMLElement;
 		expect(
 			spinning.classList.contains("agent-client-reload-spinning"),
 		).toBe(true);
 
 		const idle = renderWith(false).container.querySelector(
-			'[aria-label^="Reload session"]',
+			'[aria-label^="Reload"]',
 		) as HTMLElement;
 		expect(idle.classList.contains("agent-client-reload-spinning")).toBe(
 			false,
