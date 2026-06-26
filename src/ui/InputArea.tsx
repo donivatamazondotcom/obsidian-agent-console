@@ -1034,6 +1034,23 @@ export function InputArea({
 		}
 	}, [isActive]);
 
+	// Focus the composer when the tab's agent changes (agent switch / new chat
+	// with a different agent) so the user can type immediately — without this,
+	// switching via the header menu leaves focus on the menu, not the composer
+	// (studio smoke (c), 2026-06-25). prevAgentIdRef gates to actual changes
+	// (not mount, which the mount effect above already handles); isActive gates
+	// out background tabs so a swap there can't steal focus.
+	const prevAgentIdRef = useRef(agentId);
+	useEffect(() => {
+		const prev = prevAgentIdRef.current;
+		prevAgentIdRef.current = agentId;
+		if (prev !== agentId && isActive) {
+			window.setTimeout(() => {
+				focusComposerAtEnd(textareaRef.current);
+			}, 0);
+		}
+	}, [agentId, isActive]);
+
 	// Focus textarea when the ACP panel regains visibility from another
 	// Obsidian pane. The isActive effect above only fires on tab switches
 	// within ACP, not on leaf-level focus changes. (I26)

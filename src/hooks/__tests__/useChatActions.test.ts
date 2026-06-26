@@ -74,6 +74,7 @@ describe("useChatActions handleSendMessage — mention crystallize timing (I66)"
 				null,
 				null,
 				false,
+				{ current: null } as Params[12],
 			),
 		);
 
@@ -127,6 +128,7 @@ describe("useChatActions handleSendMessage — auto-default crystallize on first
 				null,
 				opts.activeNotePath,
 				opts.autoDefaultSuppressed,
+				{ current: null } as Params[12],
 			),
 		);
 		return { add, result };
@@ -207,6 +209,7 @@ describe("useChatActions handleSendMessage — auto-default reaches the send pay
 			useChatActions(
 				plugin, agent, sessionHistory, suggestions, session,
 				[], settings, "", contextNotes, null, "B.md", false,
+				{ current: null } as Params[12],
 			),
 		);
 

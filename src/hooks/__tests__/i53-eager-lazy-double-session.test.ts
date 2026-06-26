@@ -2,13 +2,18 @@
  * I53: Eager+lazy double session/new race — reproducing test.
  *
  * Models the race between a prior session creation (eager-init or prior lazy
- * fire) and a subsequent lazy-session `acquireNewSession` call. The fix adds
- * a guard in the `acquireNewSession` callback that checks
- * `agent.session.sessionId` before calling `createSession`.
+ * fire) and a subsequent lazy-session `acquireNewSession` call.
  *
- * Test gate per SDLC § Stack-Trace Patch Anti-Pattern:
- * - Against PRE-FIX code (no guard): sessionNewCallCount = 2, FAILS
- * - Against POST-FIX code (with guard): sessionNewCallCount = 1, PASSES
+ * HISTORICAL NOTE (2026-06-25): the original fix added an `existingSid`
+ * reuse-guard in ChatPanel's `acquireNewSession`. That guard was later REMOVED
+ * by the Tab Agent Identity & Session Acquisition unification: moving
+ * switch/new-chat onto the lazy owner eliminated the eager `createSession`
+ * path that produced the second session/new, so the guard became redundant —
+ * and it was actively harmful on Restart agent (it reused a just-closed
+ * session id, hanging the tab on "Connecting"; see restart-respawn-fresh.test.ts).
+ * These tests still validly exercise the HOOK contract (it faithfully returns
+ * whatever acquireNewSession yields), so they are retained as hook-mechanics
+ * regression guards — they no longer mirror ChatPanel's callback.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";

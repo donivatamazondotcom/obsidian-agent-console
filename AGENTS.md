@@ -139,6 +139,7 @@ src/
 │   ├── menu-registry.ts         # Tracks open Menu popups; closes them on plugin unload (reload-safety)
 │   ├── agent-switch.ts          # Switch a lazy tab's agent so the first message connects to the switched agent
 │   ├── command-palette.ts       # Pure start-a-chat + context-gating decisions (computeStartChat, isChatCommandAvailable)
+│   ├── tab-agent-invariant.ts   # Pure fail-loud invariant: a tab's live session agent == its selected agent
 │   ├── resolveInitialAgentId.ts # Pure: agent a fresh (non-restored) tab opens on — Default agent when restore-tabs is off (TP-I05)
 │   └── logger.ts                # Debug-mode logger
 ├── plugin.ts                    # Obsidian plugin lifecycle, settings persistence

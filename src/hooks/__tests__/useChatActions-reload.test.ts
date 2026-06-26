@@ -54,6 +54,7 @@ interface AgentOverrides {
 	cancelOperation?: ReturnType<typeof vi.fn>;
 	clearMessages?: ReturnType<typeof vi.fn>;
 	forceRestartAgent?: ReturnType<typeof vi.fn>;
+	closeSession?: ReturnType<typeof vi.fn>;
 	reloadSession?: ReturnType<typeof vi.fn>;
 }
 
@@ -65,6 +66,7 @@ function setup(agentOverrides: AgentOverrides, messages: ChatMessage[]) {
 		cancelOperation: vi.fn().mockResolvedValue(undefined),
 		clearMessages: vi.fn(),
 		forceRestartAgent: vi.fn().mockResolvedValue(undefined),
+		closeSession: vi.fn().mockResolvedValue(undefined),
 		reloadSession: vi.fn().mockResolvedValue({ resumed: true }),
 		...agentOverrides,
 	}) as Params[1];
@@ -76,6 +78,8 @@ function setup(agentOverrides: AgentOverrides, messages: ChatMessage[]) {
 	} as unknown as Params[4];
 	const settings = deepMock() as Params[6];
 	const contextNotes = { notes: [], add: vi.fn() } as unknown as Params[8];
+	const acquireNow = vi.fn().mockResolvedValue(undefined);
+	const lazyAcquireNowRef = { current: acquireNow } as Params[12];
 
 	const { result } = renderHook(() =>
 		useChatActions(
@@ -91,25 +95,29 @@ function setup(agentOverrides: AgentOverrides, messages: ChatMessage[]) {
 			null,
 			null,
 			false,
+			lazyAcquireNowRef,
 		),
 	);
-	return { result, agent, invalidateCache };
+	return { result, agent, invalidateCache, acquireNow };
 }
 
 describe("useChatActions handleReload", () => {
-	it("T3: hard reload clears messages, restarts the agent, and invalidates history cache", async () => {
+	it("T3: hard reload clears messages, respawns via the single owner (closeSession + acquireNow), and invalidates history cache", async () => {
 		const clearMessages = vi.fn();
-		const forceRestartAgent = vi.fn().mockResolvedValue(undefined);
+		const closeSession = vi.fn().mockResolvedValue(undefined);
 		const reloadSession = vi.fn();
-		const { result, invalidateCache } = setup(
-			{ clearMessages, forceRestartAgent, reloadSession },
+		const { result, invalidateCache, acquireNow } = setup(
+			{ clearMessages, closeSession, reloadSession },
 			[],
 		);
 
 		await result.current.handleReload(true);
 
 		expect(clearMessages).toHaveBeenCalledTimes(1);
-		expect(forceRestartAgent).toHaveBeenCalledTimes(1);
+		// Hard reload tears down the subprocess then re-acquires through the
+		// single session/new owner — not a direct forceRestartAgent/createSession.
+		expect(closeSession).toHaveBeenCalledTimes(1);
+		expect(acquireNow).toHaveBeenCalledTimes(1);
 		expect(invalidateCache).toHaveBeenCalledTimes(1);
 		// Hard reload must NOT go through the soft resume path.
 		expect(reloadSession).not.toHaveBeenCalled();

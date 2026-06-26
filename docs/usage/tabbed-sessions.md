@@ -161,6 +161,8 @@ Once in a while a restored tab can't find its saved messages on disk – rare, b
 
 Opening a tab no longer starts an agent session immediately. The session connects the moment you start typing, so you can open a tab just to reread an old conversation without starting an agent. A restored tab reconnects to its previous session on your first keystroke. If that session is gone — the agent restarted or it expired — the tab transparently continues from a transcript of the earlier conversation and shows a one-time notice that the agent's internal state from before wasn't recovered.
 
+Switching the agent for a tab follows the same rule: it rebinds the tab to the new agent without starting a session, so the connection happens against the agent you picked when you next start typing.
+
 ## See also
 
 - [Session history](/usage/session-history) — browse past sessions, restore any in a new tab

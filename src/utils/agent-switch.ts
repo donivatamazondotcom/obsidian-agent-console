@@ -76,3 +76,117 @@ export function selectAcquisitionAgent(
 ): string | undefined {
 	return sessionAgentId || fallbackAgentId || undefined;
 }
+
+// ============================================================================
+// decideSessionIntent — the unified pure decision for the
+// "useLazySession is the sole owner of session/new" refactor
+// ([[Tab Agent Identity and Session Acquisition Unification]] design item #1).
+//
+// Every "create / recreate / restart / reload a session" entry point in the
+// UI (switch agent, new chat, new chat in directory, restart agent, hard/soft
+// reload) maps to ONE of these intents. The decision says what should happen
+// to (a) the tab's agent binding, (b) the live session, and (c) the lazy
+// state machine — WITHOUT any handler calling `agent.createSession` directly.
+// The caller (ChatPanel) executes the decision and lets the lazy path acquire
+// the (correct) agent on the next send.
+// ============================================================================
+
+/** The user/UI action being applied to a tab. */
+export type SessionIntent =
+	/** User picked a (possibly different) agent from the switch menu. */
+	| "switch-agent"
+	/** "New chat" — clear the transcript, same agent, defer re-acquire. */
+	| "new-chat"
+	/** "New chat in directory…" — same agent, new cwd, defer re-acquire. */
+	| "new-chat-in-directory"
+	/** "Restart agent" — respawn the subprocess (disconnect), same agent. */
+	| "restart-agent"
+	/** Hard reload — fresh session under a fresh harness, transcript cleared. */
+	| "hard-reload"
+	/** Soft reload — resume the SAME session under a fresh harness (loadSession). */
+	| "soft-reload";
+
+export type SessionIntentDecision =
+	/** Nothing to do (e.g. switch to the same agent, or "new chat" on an
+	 *  already-empty idle tab, or soft-reload with no live session). */
+	| { kind: "noop" }
+	/** Idle, no-session, no-message tab: swap the agent binding in place,
+	 *  create NO session. The lazy path acquires `agentId` on first send. */
+	| { kind: "swap-idle"; agentId: string }
+	/** Clear the transcript + reset the lazy machine to idle + defer
+	 *  acquisition to first send. No subprocess respawn. `agentId` is the
+	 *  agent the next acquisition must bind to. */
+	| { kind: "recreate-lazy"; agentId: string }
+	/** Disconnect the subprocess (genuine respawn) + reset the lazy machine
+	 *  + defer acquisition. Used by Restart agent / hard reload. */
+	| { kind: "respawn-lazy"; agentId: string }
+	/** Resume the SAME live session (soft reload — loadSession, not
+	 *  session/new). Transcript preserved; not part of the new-session owner. */
+	| { kind: "resume" };
+
+export interface DecideSessionIntentParams {
+	/** Which UI action is being applied. */
+	intent: SessionIntent;
+	/** Agent the tab is currently bound to (the source of truth, TabInfo.agentId). */
+	currentAgentId: string;
+	/**
+	 * Agent the user picked, when the intent carries one (switch-agent, or a
+	 * new-chat invoked with an explicit agent). Undefined → keep current.
+	 */
+	requestedAgentId?: string;
+	/** Whether an ACP session already exists for this tab (sessionId != null). */
+	hasSession: boolean;
+	/** Number of messages already in the tab. */
+	messageCount: number;
+}
+
+/**
+ * Resolve a UI action against the tab's current state into a single,
+ * exhaustively-testable decision. Total function — every input maps to a
+ * known `kind`; never throws.
+ *
+ * The returned `agentId` (when present) is always the agent the next
+ * acquisition must bind to, so the caller never has to recompute it.
+ */
+export function decideSessionIntent(
+	params: DecideSessionIntentParams,
+): SessionIntentDecision {
+	const { intent, currentAgentId, requestedAgentId, hasSession, messageCount } =
+		params;
+
+	const targetAgent = requestedAgentId || currentAgentId;
+	const isSwitch = targetAgent !== currentAgentId;
+	const isIdleEmpty = !hasSession && messageCount === 0;
+
+	switch (intent) {
+		case "soft-reload":
+			// Resume the same session; nothing to resume on an idle tab.
+			return hasSession ? { kind: "resume" } : { kind: "noop" };
+
+		case "restart-agent":
+		case "hard-reload":
+			// Genuine subprocess respawn, same agent, defer re-acquire.
+			return { kind: "respawn-lazy", agentId: targetAgent };
+
+		case "new-chat-in-directory":
+			// Directory change always re-acquires (the caller sets the cwd);
+			// keep the current agent, defer to first send.
+			return { kind: "recreate-lazy", agentId: targetAgent };
+
+		case "switch-agent":
+		case "new-chat": {
+			if (!isSwitch) {
+				// Same agent. "New chat" on an already-empty idle tab is a noop;
+				// otherwise clear + reset + defer.
+				return isIdleEmpty
+					? { kind: "noop" }
+					: { kind: "recreate-lazy", agentId: targetAgent };
+			}
+			// Different agent: swap in place when idle+empty (no eager session),
+			// otherwise teardown + reset + defer ("new chat with a different agent").
+			return isIdleEmpty
+				? { kind: "swap-idle", agentId: targetAgent }
+				: { kind: "recreate-lazy", agentId: targetAgent };
+		}
+	}
+}

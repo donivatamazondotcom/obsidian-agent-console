@@ -14,7 +14,11 @@ import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
 import { deriveNewLeaf } from "../utils/link-leaf";
 import { extractLinks, type SharedLink } from "../utils/link-extract";
-import { decideAgentSwitch, selectAcquisitionAgent } from "../utils/agent-switch";
+import {
+	decideSessionIntent,
+	selectAcquisitionAgent,
+	type SessionIntent,
+} from "../utils/agent-switch";
 import { useHistoryModal } from "../hooks/useHistoryModal";
 import { useChatActions } from "../hooks/useChatActions";
 import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
@@ -497,6 +501,9 @@ export function ChatPanel({
 	// ============================================================
 	// Chat Actions
 	// ============================================================
+	// Forward ref to useLazySession.acquireNow (created later). restart-agent
+	// and hard-reload route their re-acquisition through the single owner.
+	const lazyAcquireNowRef = useRef<(() => Promise<void>) | null>(null);
 	const actions = useChatActions(
 		plugin,
 		agent,
@@ -510,12 +517,12 @@ export function ChatPanel({
 		selectionForSend,
 		selectionTracker.activeNotePath,
 		autoDefaultSuppressed,
+		lazyAcquireNowRef,
 	);
 
 	const {
 		handleSendMessage,
 		handleStopGeneration,
-		handleNewChat,
 		handleExportChat,
 		handleRestartAgent,
 		handleReload,
@@ -584,6 +591,11 @@ export function ChatPanel({
 	// Track whether tab label has been reported (reset on new chat / restore)
 	const labelReportedRef = useRef(false);
 
+	// Forward ref to useLazySession.reset — handleNewChatWithPersist (declared
+	// above the lazySession hook) drives the lazy machine back to idle on a
+	// recreate-lazy/swap-idle intent. Assigned right after useLazySession runs.
+	const lazyResetRef = useRef<(() => void) | null>(null);
+
 	// Stable refs for tab callbacks (avoid re-render loops from inline arrow props)
 	const onStateChangeRef = useRef(onStateChange);
 	onStateChangeRef.current = onStateChange;
@@ -614,53 +626,83 @@ export function ChatPanel({
 	);
 
 	// ============================================================
-	// Sidebar-specific: handleNewChat wrapper that persists agent ID
+	// Sidebar-specific: agent switch / new-chat dispatcher.
 	// ============================================================
+	// Intent dispatcher for switch-agent / new-chat against the CURRENT tab
+	// ([[Tab Agent Identity and Session Acquisition Unification]] design #1).
+	// No path here calls agent.createSession: a switch/new-chat either swaps
+	// the idle agent in place (swap-idle) or tears down the transcript and
+	// RESETS the lazy machine (recreate-lazy), deferring acquisition to the
+	// next send. useLazySession is the sole owner of session/new, so the first
+	// message connects to the just-selected agent — no eager session to clobber
+	// and no second session/new (the I53 flicker for this trigger).
 	const handleNewChatWithPersist = useCallback(
 		async (requestedAgentId?: string) => {
 			try {
-				// Stopgap for the "switch agent on a new tab, then type,
-				// connects to the OLD agent" bug. Switching agent on an idle,
-				// no-session, no-message tab must NOT eagerly create a session
-				// (handleNewChat → createSession): that leaves the lazy state
-				// machine at idle, so the first send re-acquires with the
-				// stale mount-time agent and clobbers the switch. Instead,
-				// swap the tab's agent in place and let the lazy path acquire
-				// the correct agent (via session.agentId) on first send.
-				// See [[Tab Agent Identity and Session Acquisition Unification]].
-				if (requestedAgentId) {
-					const decision = decideAgentSwitch({
-						requestedAgentId,
-						currentAgentId: session.agentId,
-						hasSession: !!session.sessionId,
-						messageCount: messages.length,
-					});
-					if (decision.kind === "swap-idle") {
-						agent.setAgentWithoutSession(requestedAgentId);
-						labelReportedRef.current = false;
-						onLabelChangeRef.current?.("");
-						onAgentIdChanged?.(requestedAgentId);
-						return;
-					}
+				const decision = decideSessionIntent({
+					intent: (requestedAgentId
+						? "switch-agent"
+						: "new-chat") satisfies SessionIntent,
+					currentAgentId: session.agentId,
+					requestedAgentId,
+					hasSession: !!session.sessionId,
+					messageCount: messages.length,
+				});
+
+				if (decision.kind === "noop") return;
+
+				// This dispatcher only issues switch-agent / new-chat intents,
+				// which resolve to swap-idle or recreate-lazy. respawn-lazy and
+				// resume come from restart/reload (Slice 3), never here — guard
+				// so the decision.agentId access below is type-safe.
+				if (
+					decision.kind !== "swap-idle" &&
+					decision.kind !== "recreate-lazy"
+				) {
+					return;
 				}
-				await handleNewChat(requestedAgentId);
+
+				// recreate-lazy: genuine teardown of an existing
+				// session/transcript before rebinding (auto-export first).
+				if (decision.kind === "recreate-lazy") {
+					if (agent.isSending) {
+						await agent.cancelOperation();
+					}
+					if (messages.length > 0) {
+						await autoExportIfEnabled("newChat", messages, session);
+					}
+					suggestions.mentions.toggleAutoMention(false);
+					agent.clearMessages();
+					sessionHistory.invalidateCache();
+				}
+
+				// swap-idle | recreate-lazy: rebind the tab's agent WITHOUT
+				// creating a session and reset the lazy machine to idle. The
+				// next send acquires (via useLazySession) against decision.agentId,
+				// the now-current source of truth (session.agentId).
+				agent.setAgentWithoutSession(decision.agentId);
+				lazyResetRef.current?.();
 				labelReportedRef.current = false;
 				onLabelChangeRef.current?.("");
-				// Persist agent ID for this view (survives Obsidian restart)
-				if (requestedAgentId) {
-					onAgentIdChanged?.(requestedAgentId);
-				}
+				// Persist agent ID for this view (survives Obsidian restart).
+				onAgentIdChanged?.(decision.agentId);
 			} catch (error) {
 				console.error("[Agent Console] New chat error:", error);
 			}
 		},
 		[
-			handleNewChat,
-			onAgentIdChanged,
+			session,
 			session.agentId,
 			session.sessionId,
-			messages.length,
+			messages,
+			agent.isSending,
+			agent.cancelOperation,
+			agent.clearMessages,
 			agent.setAgentWithoutSession,
+			autoExportIfEnabled,
+			suggestions.mentions.toggleAutoMention,
+			sessionHistory.invalidateCache,
+			onAgentIdChanged,
 		],
 	);
 
@@ -687,13 +729,32 @@ export function ChatPanel({
 	const handleNewChatInDirectory = useCallback(
 		async (directory: string) => {
 			try {
-				// Auto-export current chat before switching
+				const decision = decideSessionIntent({
+					intent: "new-chat-in-directory",
+					currentAgentId: session.agentId,
+					hasSession: !!session.sessionId,
+					messageCount: messages.length,
+				});
+				// new-chat-in-directory always resolves to recreate-lazy on the
+				// CURRENT agent. (Previously restartSession(undefined, dir) ran
+				// createSession(undefined) → the DEFAULT agent, silently dropping
+				// the tab's agent. Keeping decision.agentId fixes that.)
+				if (decision.kind !== "recreate-lazy") return;
+
+				if (agent.isSending) {
+					await agent.cancelOperation();
+				}
 				if (messages.length > 0) {
 					await autoExportIfEnabled("newChat", messages, session);
 				}
+				suggestions.mentions.toggleAutoMention(false);
 				agent.clearMessages();
+				// Change the cwd the lazy acquisition will read, rebind the SAME
+				// agent without creating a session, and reset the lazy machine.
+				// The next send acquires in the new directory via the sole owner.
 				setAgentCwd(directory);
-				await agent.restartSession(undefined, directory);
+				agent.setAgentWithoutSession(decision.agentId);
+				lazyResetRef.current?.();
 				sessionHistory.invalidateCache();
 			} catch (error) {
 				console.error("[Agent Console] New chat in directory error:", error);
@@ -703,8 +764,11 @@ export function ChatPanel({
 			messages,
 			session,
 			autoExportIfEnabled,
+			suggestions.mentions.toggleAutoMention,
+			agent.isSending,
+			agent.cancelOperation,
 			agent.clearMessages,
-			agent.restartSession,
+			agent.setAgentWithoutSession,
 			sessionHistory.invalidateCache,
 		],
 	);
@@ -834,7 +898,12 @@ export function ChatPanel({
 				logger.log("[ChatPanel] Eager initialize failed (non-fatal):", e);
 			}
 		})();
-		// Run once on mount only. agentId/vaultPath are stable.
+		// Run once on mount only. Re-eager-init on swap was reverted: model/mode
+		// dropdowns come from the SESSION (newSession), not initialize(), so
+		// eager re-init can't populate them pre-type (studio smoke (e),
+		// 2026-06-25) — it only added a subprocess spawn on swap and competed
+		// with the restart acquisition. Lazy acquisition on first send fetches
+		// the swapped agent's session (and its model/mode list) correctly.
 	}, []);
 
 	// Queue-next-message (#82). Runtime-only queue-of-one shared by BOTH the
@@ -858,26 +927,28 @@ export function ChatPanel({
 
 		acquireNewSession: useCallback(async () => {
 			try {
+				// Source of truth is the LIVE tab agent (session.agentId,
+				// updated on switch via setAgentWithoutSession). The mount-time
+				// config?.agent / initialAgentId snapshot is intentionally NOT
+				// consulted — reading it was the original clobber (acquisition
+				// used the frozen default agent after a switch). D1/D3.
 				const effectiveAgent = selectAcquisitionAgent(
 					agent.session.agentId,
-					config?.agent || initialAgentId,
+					undefined,
 				);
 				logger.log(
 					"[Lazy] Acquiring new session for agent:",
 					effectiveAgent,
 				);
-				// I53 guard: if a session already exists (e.g. from a prior
-				// acquisition that completed during a re-render cycle before
-				// the lazy hook's setSessionId propagated), reuse it instead
-				// of creating a duplicate.
-				const existingSid = agent.session.sessionId;
-				if (existingSid) {
-					logger.log(
-						"[Lazy] Session already exists, reusing:",
-						existingSid,
-					);
-					return { ok: true as const, sessionId: existingSid };
-				}
+				// No reuse-guard here: acquireNewSession ALWAYS creates a fresh
+				// session. The old I53 `existingSid` reuse-guard read a stale
+				// agent.session.sessionId and, on Restart agent (closeSession +
+				// acquireNow), short-circuited to the just-closed session — the
+				// agent never respawned and the tab hung on "Connecting" (studio
+				// smoke (g), 2026-06-25; see restart-respawn-fresh.test.ts). The
+				// original eager+lazy double-session/new the guard protected
+				// against was removed when switch/new-chat moved onto the lazy
+				// owner, so the guard is now redundant and was actively harmful.
 				// I55: use the sessionId RETURNED by createSession instead
 				// of reading agent.session.sessionId from a stale closure.
 				// The setState inside createSession has not propagated to
@@ -902,10 +973,7 @@ export function ChatPanel({
 			}
 		}, [
 			agent.createSession,
-			agent.session.sessionId,
 			agent.session.agentId,
-			config?.agent,
-			initialAgentId,
 			logger,
 		]),
 
@@ -952,6 +1020,12 @@ export function ChatPanel({
 			// the user message threads through handleSendMessage.
 		}, []),
 	});
+
+	// Wire the forward ref so the (earlier-declared) switch/new-chat dispatcher
+	// can reset the lazy machine to idle. lazySession.reset is a stable
+	// useCallback identity, so reassigning each render is a no-op cost.
+	lazyResetRef.current = lazySession.reset;
+	lazyAcquireNowRef.current = lazySession.acquireNow;
 
 	// Connect-flush effect (#82 Decision 9): when session acquisition completes
 	// — the (connecting|idle)→ready transition — flush the pending queued
