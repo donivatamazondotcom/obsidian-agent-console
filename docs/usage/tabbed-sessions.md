@@ -20,7 +20,7 @@ Status icons on each tab tell you at a glance which agent needs attention.
 
 The tab bar appears at the top of the chat sidebar. Each tab shows:
 
-- **Label** — auto-generated from the first message; editable via right-click rename
+- **Label** — generated for each new chat; how it's generated is configurable (see [Tab titles](#tab-titles) below). Editable any time via right-click rename.
 - **Status icon** — at-a-glance signal:
   - 🟢 Ready (waiting for your next message)
   - ⏳ Busy (agent is generating)
@@ -57,6 +57,16 @@ Each new tab starts a fresh agent process. The tab inherits the active note as c
 ## Reordering tabs
 
 **Drag a tab** along the tab bar to reorder. The order persists for the session.
+
+## Tab titles
+
+Get a useful tab name without thinking about it. **Settings → Agent Console → Tabs → Session title** controls how each new chat is labeled:
+
+- **Suggested by the agent in its first reply** (default) — the agent reads your first message and proposes a short title, which appears as soon as its reply starts. Until then the tab shows a preview of your first message, so the tab is never blank. If your agent doesn't propose one, the preview just stays.
+- **Generated from your first message** — the tab is named from the start of your first message. No agent involvement.
+- **Agent name and timestamp** — the tab keeps the plain "agent + time" name it opens with and never changes on its own.
+
+You can rename any tab yourself at any time (see below) — a manual rename always wins and is never overwritten by a suggestion.
 
 ## Renaming tabs
 

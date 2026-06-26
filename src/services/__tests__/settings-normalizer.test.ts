@@ -214,3 +214,49 @@ describe("normalizeRawSettings — custom agents", () => {
 		expect(s.defaultAgentId).toBe("custom-mine");
 	});
 });
+
+describe("normalizeRawSettings — titleStrategy (F03)", () => {
+	it("empty raw (fresh install) defaults to agent-suggested (D1)", () => {
+		const s = normalizeRawSettings({}, DEFAULT_SETTINGS, idKey);
+		expect(s.titleStrategy).toBe("agent-suggested");
+	});
+
+	it("pre-F03 upgrade (no titleStrategy key) lands on agent-suggested", () => {
+		// Simulate an existing user's data.json that predates F03: it has
+		// other settings but no titleStrategy. Upgrade must default to
+		// agent-suggested, same as a fresh install.
+		const s = normalizeRawSettings(
+			{ chatViewLocation: "left", restoreTabsOnStartup: false },
+			DEFAULT_SETTINGS,
+			idKey,
+		);
+		expect(s.titleStrategy).toBe("agent-suggested");
+	});
+
+	it("preserves an explicit prompt-derived choice", () => {
+		const s = normalizeRawSettings(
+			{ titleStrategy: "prompt-derived" },
+			DEFAULT_SETTINGS,
+			idKey,
+		);
+		expect(s.titleStrategy).toBe("prompt-derived");
+	});
+
+	it("preserves an explicit agent-timestamp choice", () => {
+		const s = normalizeRawSettings(
+			{ titleStrategy: "agent-timestamp" },
+			DEFAULT_SETTINGS,
+			idKey,
+		);
+		expect(s.titleStrategy).toBe("agent-timestamp");
+	});
+
+	it("falls back to agent-suggested on an invalid value", () => {
+		const s = normalizeRawSettings(
+			{ titleStrategy: "nonsense" },
+			DEFAULT_SETTINGS,
+			idKey,
+		);
+		expect(s.titleStrategy).toBe("agent-suggested");
+	});
+});

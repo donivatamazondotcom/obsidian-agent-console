@@ -14,6 +14,10 @@ import type {
 } from "../plugin";
 import { resolveCommandPath, resolveCommandPathInWsl } from "../utils/paths";
 import {
+	TITLE_STRATEGY_OPTIONS,
+	type TitleStrategy,
+} from "../types/title-strategy";
+import {
 	normalizeEnvVars,
 	CHAT_FONT_SIZE_MAX,
 	CHAT_FONT_SIZE_MIN,
@@ -346,6 +350,24 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						});
 					}),
 			);
+
+		new Setting(containerEl)
+			.setName("Session title")
+			.setDesc(
+				"How a new chat's tab label is generated. Agent-suggested asks the agent for a short title on its first reply and falls back to your first message while it arrives. You can always rename a tab manually.",
+			)
+			.addDropdown((dropdown) => {
+				for (const { value, label } of TITLE_STRATEGY_OPTIONS) {
+					dropdown.addOption(value, label);
+				}
+				dropdown
+					.setValue(this.plugin.settings.titleStrategy)
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							titleStrategy: value as TitleStrategy,
+						});
+					});
+			});
 
 		// ─────────────────────────────────────────────────────────────────────
 		// Permissions

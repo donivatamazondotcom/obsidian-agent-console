@@ -30,6 +30,7 @@ src/
 │   ├── agent.ts                 # AgentConfig, agent settings (Claude/Codex/Gemini/Kiro/Custom)
 │   ├── errors.ts                # AcpError, ProcessError, ErrorInfo
 │   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref)
+│   ├── title-strategy.ts        # TitleStrategy union + dropdown options (F03 session-title setting)
 │   └── obsidian-internals.d.ts  # Obsidian API declarations not in @types/obsidian
 ├── acp/                         # ACP protocol (SDK dependency confined here)
 │   ├── acp-client.ts            # Process lifecycle, UI-facing API (AcpClient class)
