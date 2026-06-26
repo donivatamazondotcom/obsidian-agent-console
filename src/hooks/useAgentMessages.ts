@@ -274,6 +274,14 @@ export function useAgentMessages(
 	 * on a generation mismatch), so an aborted prompt's -32603 "Internal error"
 	 * never reaches the error overlay (I106). Also resets streaming state; the
 	 * on-screen transcript is left intact.
+	 *
+	 * Clears `sendPromiseRef` too (I107): if the cancelled turn's `sendPromise`
+	 * never settles — the in-flight `session/prompt` RPC is left unresolved when
+	 * the subprocess is disconnected by the interrupt (observed with Claude
+	 * CLI) — a subsequent send would block forever on the prior-send guard
+	 * (`await sendPromiseRef.current`) and never reach `addMessage`, silently
+	 * dropping the message. The generation bump above already neutralizes the
+	 * orphaned promise's late result, so dropping the ref is safe.
 	 */
 	const discardPendingTurn = useCallback((): void => {
 		generationRef.current++;
@@ -281,6 +289,9 @@ export function useAgentMessages(
 		flushScheduledRef.current = false;
 		setIsSending(false);
 		titleBufferRef.current = null;
+		// I107: drop the (possibly never-settling) prior-send promise so the
+		// next send doesn't await a dead turn.
+		sendPromiseRef.current = null;
 	}, []);
 
 	const clearMessages = useCallback((): void => {
