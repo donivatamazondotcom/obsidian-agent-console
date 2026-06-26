@@ -94,6 +94,13 @@ export function useChatActions(
 	selection: { path: string; fromLine: number; toLine: number } | null,
 	activeNotePath: string | null,
 	autoDefaultSuppressed: boolean,
+	/**
+	 * Ref to useLazySession.acquireNow — restart-agent and hard-reload route
+	 * their re-acquisition through the single session/new owner (design D3)
+	 * instead of calling createSession directly. A ref because useChatActions
+	 * is created before useLazySession in ChatPanel; assigned post-mount.
+	 */
+	lazyAcquireNowRef: { current: (() => Promise<void>) | null },
 ): UseChatActionsReturn {
 	const logger = getLogger();
 
@@ -395,7 +402,12 @@ export function useChatActions(
 		agent.clearMessages();
 
 		try {
-			await agent.forceRestartAgent();
+			// Tear down the subprocess, then respawn + acquire a fresh session
+			// through the single owner (useLazySession.acquireNow) — no direct
+			// createSession (design D3). closeSession disconnects so the
+			// acquisition re-initializes a fresh harness.
+			await agent.closeSession();
+			await lazyAcquireNowRef.current?.();
 			new Notice("[Agent Console] Agent restarted");
 		} catch (error) {
 			new Notice("[Agent Console] Failed to restart agent");
@@ -407,7 +419,8 @@ export function useChatActions(
 		session,
 		autoExportIfEnabled,
 		agent.clearMessages,
-		agent.forceRestartAgent,
+		agent.closeSession,
+		lazyAcquireNowRef,
 	]);
 
 	const handleReload = useCallback(
@@ -423,12 +436,14 @@ export function useChatActions(
 
 				if (hard) {
 					// Hard reload (⌘⇧R analog): fresh session under a fresh
-					// harness. Auto-export, restart the agent, clear transcript.
+					// harness. Auto-export, tear down, re-acquire via the single
+					// owner (acquireNow), clear transcript.
 					if (messages.length > 0) {
 						await autoExportIfEnabled("newChat", messages, session);
 					}
 					agent.clearMessages();
-					await agent.forceRestartAgent();
+					await agent.closeSession();
+					await lazyAcquireNowRef.current?.();
 					sessionHistory.invalidateCache();
 					new Notice("[Agent Console] Session restarted (fresh)");
 					return;
@@ -459,7 +474,8 @@ export function useChatActions(
 			agent.isSending,
 			agent.cancelOperation,
 			agent.clearMessages,
-			agent.forceRestartAgent,
+			agent.closeSession,
+			lazyAcquireNowRef,
 			agent.reloadSession,
 			messages,
 			session,

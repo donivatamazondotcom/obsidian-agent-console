@@ -147,6 +147,17 @@ export interface UseLazySessionApi {
 	 * the lazy default — fires only on the user's click.
 	 */
 	recoverHistory: () => void;
+	/**
+	 * Explicitly acquire a FRESH session immediately, through the single
+	 * owner. Resets any prior session/queue/restored id, then fires
+	 * acquisition without waiting for a keystroke. Backs the explicit
+	 * "respawn now" intents (Restart agent / hard reload), so the agent
+	 * comes back without the user having to type — while keeping
+	 * useLazySession the sole caller of session/new (design D3). The caller
+	 * tears down the subprocess (disconnect) first so the acquisition
+	 * re-initializes a fresh harness.
+	 */
+	acquireNow: () => Promise<void>;
 	/** Reset to `idle`, release sessionId, clear fallback flag. */
 	reset: () => void;
 
@@ -363,6 +374,21 @@ export function useLazySession(
 	}, []);
 
 	// ============================================================================
+	// acquireNow — explicit eager acquisition through the single owner
+	// ============================================================================
+
+	const acquireNow = useCallback(() => {
+		// Reset any prior session/queue/restored-id state, then immediately
+		// fire a fresh acquisition — no keystroke, no queued message. The
+		// "respawn now" intents (Restart agent / hard reload) route through
+		// here so they don't call createSession directly (design D3); the
+		// caller disconnects the subprocess first so this re-initializes.
+		// Returns the acquisition promise so callers can await readiness.
+		reset();
+		return fireAcquisition();
+	}, [reset, fireAcquisition]);
+
+	// ============================================================================
 	// Cleanup pending timer on unmount
 	// ============================================================================
 
@@ -382,6 +408,7 @@ export function useLazySession(
 		onComposerChange,
 		onSendClick,
 		recoverHistory,
+		acquireNow,
 		reset,
 		// Expose state machine transitions for busy/permission — driven
 		// by ChatPanel in response to agent events (isSending,

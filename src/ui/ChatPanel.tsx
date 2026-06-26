@@ -501,6 +501,9 @@ export function ChatPanel({
 	// ============================================================
 	// Chat Actions
 	// ============================================================
+	// Forward ref to useLazySession.acquireNow (created later). restart-agent
+	// and hard-reload route their re-acquisition through the single owner.
+	const lazyAcquireNowRef = useRef<(() => Promise<void>) | null>(null);
 	const actions = useChatActions(
 		plugin,
 		agent,
@@ -514,6 +517,7 @@ export function ChatPanel({
 		selectionForSend,
 		selectionTracker.activeNotePath,
 		autoDefaultSuppressed,
+		lazyAcquireNowRef,
 	);
 
 	const {
@@ -725,13 +729,32 @@ export function ChatPanel({
 	const handleNewChatInDirectory = useCallback(
 		async (directory: string) => {
 			try {
-				// Auto-export current chat before switching
+				const decision = decideSessionIntent({
+					intent: "new-chat-in-directory",
+					currentAgentId: session.agentId,
+					hasSession: !!session.sessionId,
+					messageCount: messages.length,
+				});
+				// new-chat-in-directory always resolves to recreate-lazy on the
+				// CURRENT agent. (Previously restartSession(undefined, dir) ran
+				// createSession(undefined) → the DEFAULT agent, silently dropping
+				// the tab's agent. Keeping decision.agentId fixes that.)
+				if (decision.kind !== "recreate-lazy") return;
+
+				if (agent.isSending) {
+					await agent.cancelOperation();
+				}
 				if (messages.length > 0) {
 					await autoExportIfEnabled("newChat", messages, session);
 				}
+				suggestions.mentions.toggleAutoMention(false);
 				agent.clearMessages();
+				// Change the cwd the lazy acquisition will read, rebind the SAME
+				// agent without creating a session, and reset the lazy machine.
+				// The next send acquires in the new directory via the sole owner.
 				setAgentCwd(directory);
-				await agent.restartSession(undefined, directory);
+				agent.setAgentWithoutSession(decision.agentId);
+				lazyResetRef.current?.();
 				sessionHistory.invalidateCache();
 			} catch (error) {
 				console.error("[Agent Console] New chat in directory error:", error);
@@ -741,8 +764,11 @@ export function ChatPanel({
 			messages,
 			session,
 			autoExportIfEnabled,
+			suggestions.mentions.toggleAutoMention,
+			agent.isSending,
+			agent.cancelOperation,
 			agent.clearMessages,
-			agent.restartSession,
+			agent.setAgentWithoutSession,
 			sessionHistory.invalidateCache,
 		],
 	);
@@ -843,9 +869,23 @@ export function ChatPanel({
 	// createSession call (on first keystroke) sees isInitialized()=true
 	// and skips re-initialization, going straight to newSession.
 	useEffect(() => {
-		if (acpClient.isInitialized()) return;
-		const agentId = config?.agent || initialAgentId;
+		// Re-eager-init on swap (design item #3): pre-spawn the bound agent's
+		// process so its slash commands / model / mode lists are ready before
+		// the user types — on mount AND after an idle agent swap. Read the LIVE
+		// tab agent (session.agentId), not the frozen mount-time prop.
+		const agentId = session.agentId || config?.agent || initialAgentId;
 		if (!agentId) return;
+		// Already initialized for THIS agent → nothing to pre-fetch.
+		if (
+			acpClient.isInitialized() &&
+			acpClient.getCurrentAgentId() === agentId
+		) {
+			return;
+		}
+		// A live session is owned by the lazy acquisition path — don't disrupt
+		// it (a swap clears sessionId first via setAgentWithoutSession, so an
+		// idle swap passes this guard while a connected/connecting tab does not).
+		if (session.sessionId) return;
 
 		void (async () => {
 			try {
@@ -872,8 +912,8 @@ export function ChatPanel({
 				logger.log("[ChatPanel] Eager initialize failed (non-fatal):", e);
 			}
 		})();
-		// Run once on mount only. agentId/vaultPath are stable.
-	}, []);
+		// Re-runs when the bound agent changes (swap) or the session clears.
+	}, [session.agentId, session.sessionId]);
 
 	// Queue-next-message (#82). Runtime-only queue-of-one shared by BOTH the
 	// streaming case (send while a turn runs) and the pre-ready case (send
@@ -995,6 +1035,7 @@ export function ChatPanel({
 	// can reset the lazy machine to idle. lazySession.reset is a stable
 	// useCallback identity, so reassigning each render is a no-op cost.
 	lazyResetRef.current = lazySession.reset;
+	lazyAcquireNowRef.current = lazySession.acquireNow;
 
 	// Connect-flush effect (#82 Decision 9): when session acquisition completes
 	// — the (connecting|idle)→ready transition — flush the pending queued
