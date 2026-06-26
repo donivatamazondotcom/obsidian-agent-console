@@ -57,6 +57,7 @@ src/
 │   ├── view-registry.ts         # Multi-view management, focus, broadcast
 │   ├── recently-closed-stack.ts # F13 undo-close: closed-tab record + LIFO push/pop/build (pure)
 │   ├── message-queue-logic.ts   # #82 queue-of-one pure decisions: queue/flush/Enter-action/broadcast-skip
+│   ├── queue-orchestration-reducer.ts # #82 dispatch-owning single-slot reducer: (state,event)->{state,effects}; flush is raw-by-construction (closes Q4)
 │   ├── update-checker.ts        # Agent/plugin version checking
 │   ├── import/                   # Cross-plugin settings-import adapters
 │   │   ├── ImportSource.ts       # ImportSource interface + preview types
