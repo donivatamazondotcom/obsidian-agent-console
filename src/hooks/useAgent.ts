@@ -47,6 +47,8 @@ export interface UseAgentReturn {
 	isSending: boolean;
 	lastUserMessage: string | null;
 
+	/** AI-suggested session title (F03), or null. See [[ACP AI Session Rename]]. */
+	suggestedTitle: string | null;
 	// Combined error
 	errorInfo: ErrorInfo | null;
 
@@ -197,6 +199,7 @@ export function useAgent(
 			messages: agentMessages.messages,
 			isSending: agentMessages.isSending,
 			lastUserMessage: agentMessages.lastUserMessage,
+			suggestedTitle: agentMessages.suggestedTitle,
 
 			// Combined error
 			errorInfo,
@@ -239,6 +242,7 @@ export function useAgent(
 			agentMessages.messages,
 			agentMessages.isSending,
 			agentMessages.lastUserMessage,
+			agentMessages.suggestedTitle,
 			errorInfo,
 			agentSession.createSession,
 			agentSession.restartSession,

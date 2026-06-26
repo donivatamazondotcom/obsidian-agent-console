@@ -36,6 +36,13 @@ import {
 	extractMentionedNotes,
 	type IMentionService,
 } from "../utils/mention-parser";
+import type { TitleStrategy } from "../types/title-strategy";
+import {
+	WIKI_LINK_INSTRUCTION,
+	TABLE_INSTRUCTION,
+	LATEX_MATH_INSTRUCTION,
+	TITLE_RUBRIC,
+} from "../utils/system-instructions";
 import { convertWindowsPathToWsl } from "../utils/platform";
 import { buildFileUri } from "../utils/paths";
 import { buildContextBlocks } from "./context-builder";
@@ -80,6 +87,14 @@ export interface PreparePromptInput {
 
 	/** Whether this is the first message in the session */
 	isFirstMessage?: boolean;
+
+	/**
+	 * Session title strategy (F03). When `agent-suggested` and this is the
+	 * first message, buildSystemInstructions appends the title rubric asking
+	 * the agent to emit a `<title>…</title>` marker. Any other value (or
+	 * undefined) injects no rubric. See [[ACP AI Session Rename]].
+	 */
+	titleStrategy?: TitleStrategy;
 
 	// --- Context Note Lifecycle (new system) ---
 	// When contextNotes is provided, buildContextBlocks is used instead of autoMention.
@@ -163,12 +178,12 @@ export interface SendPromptResult {
 
 const DEFAULT_MAX_NOTE_LENGTH = 10000; // Default maximum characters per note
 export const DEFAULT_MAX_SELECTION_LENGTH = 10000; // Default maximum characters for selection
-const LATEX_MATH_INSTRUCTION =
-	"This client uses Obsidian Flavored Markdown. For math, use $...$ for inline and $$...$$ for display (not \\(...\\) or \\[...\\]).";
-const WIKI_LINK_INSTRUCTION =
-	"When referencing notes in this vault, use [[Note Name]] wikilink syntax so they become clickable links.";
-const TABLE_INSTRUCTION =
-	"Always leave a blank line before Markdown tables; without it Obsidian renders them as plain text.";
+
+// System-instruction strings now live in utils/system-instructions.ts so the
+// label-deriver (deriveTabLabel) can strip any that leak to the head of a
+// replayed first user message (F4/TS-I02) using the same source of truth.
+// TITLE_RUBRIC is re-exported here for back-compat with existing importers.
+export { TITLE_RUBRIC };
 
 // ============================================================================
 // Shared Helper Functions
@@ -295,12 +310,27 @@ function buildAutoMentionPrefix(
  * math delimiters) on the first message of each session, and an empty array
  * thereafter. Always-on plugin behavior — no settings gate.
  *
+ * When `titleStrategy === 'agent-suggested'` (F03), also appends the title
+ * rubric so the agent emits a `<title>…</title>` marker the head-buffer parser
+ * can extract. The rubric fires only on the first message — same `isFirstMessage`
+ * gate as the formatting hints.
+ *
  * Rationale: the plugin only runs in Obsidian, so all three hints are
  * universally applicable; the cost is ~150 tokens on message #1 of a session.
+ *
+ * Exported for unit testing (pure function).
  */
-function buildSystemInstructions(input: PreparePromptInput): string[] {
+export function buildSystemInstructions(input: PreparePromptInput): string[] {
 	if (!input.isFirstMessage) return [];
-	return [WIKI_LINK_INSTRUCTION, TABLE_INSTRUCTION, LATEX_MATH_INSTRUCTION];
+	const instructions = [
+		WIKI_LINK_INSTRUCTION,
+		TABLE_INSTRUCTION,
+		LATEX_MATH_INSTRUCTION,
+	];
+	if (input.titleStrategy === "agent-suggested") {
+		instructions.push(TITLE_RUBRIC);
+	}
+	return instructions;
 }
 
 function buildAgentMessageText(
@@ -486,8 +516,20 @@ async function preparePromptWithContextNotes(
 		displayContent.push(...input.images);
 	}
 
-	// Build agent content (context blocks + mentions + user message + images + resource links)
+	// System instructions (Obsidian formatting hints + F03 title rubric) as
+	// leading text blocks — same as the embedded/text-context paths. Without
+	// this the real send path (which always provides contextNotes) sent no
+	// system instructions at all, so the title rubric never reached the agent
+	// and no <title> marker was ever emitted (T52 root cause, 2026-06-25).
+	const systemInstructions = buildSystemInstructions(input);
+	const systemBlocks: PromptContent[] = systemInstructions.map((text) => ({
+		type: "text" as const,
+		text,
+	}));
+
+	// Build agent content (system instructions + context blocks + mentions + user message + images + resource links)
 	const agentContent: PromptContent[] = [
+		...systemBlocks,
 		...contextBlocks,
 		...mentionBlocks,
 		...(input.message ? [{ type: "text" as const, text: input.message }] : []),

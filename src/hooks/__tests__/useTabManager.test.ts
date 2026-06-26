@@ -12,7 +12,7 @@
 
 import { describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { useTabManager } from "../useTabManager";
+import { useTabManager, suffixOnCollision } from "../useTabManager";
 
 describe("I38 — handleAddTab default agent selection", () => {
 	/**
@@ -89,3 +89,53 @@ function extractHandleAddTabLogic() {
 		},
 	};
 }
+
+describe("suffixOnCollision (F03 — auto-applied label disambiguation)", () => {
+	it("returns the label unchanged when there is no collision", () => {
+		expect(suffixOnCollision("Fix scroll jitter", [])).toBe(
+			"Fix scroll jitter",
+		);
+		expect(
+			suffixOnCollision("Fix scroll jitter", ["Add dark mode"]),
+		).toBe("Fix scroll jitter");
+	});
+
+	it("appends (2) on a single collision", () => {
+		expect(
+			suffixOnCollision("Fix scroll jitter", ["Fix scroll jitter"]),
+		).toBe("Fix scroll jitter (2)");
+	});
+
+	it("walks past taken suffixes to the next free number", () => {
+		expect(
+			suffixOnCollision("Fix scroll jitter", [
+				"Fix scroll jitter",
+				"Fix scroll jitter (2)",
+			]),
+		).toBe("Fix scroll jitter (3)");
+	});
+
+	it("skips a gap — picks the first free slot, not max+1", () => {
+		// (2) is free even though (3) is taken: filesystem-style first-free.
+		expect(
+			suffixOnCollision("Fix scroll jitter", [
+				"Fix scroll jitter",
+				"Fix scroll jitter (3)",
+			]),
+		).toBe("Fix scroll jitter (2)");
+	});
+
+	it("does not collide with an unrelated label that merely shares a prefix", () => {
+		expect(
+			suffixOnCollision("Fix", ["Fix scroll jitter", "Fixate"]),
+		).toBe("Fix");
+	});
+
+	it("ignores the tab's own label (caller excludes self → no self-collision)", () => {
+		// The caller passes OTHER tabs' labels only, so an unchanged re-apply
+		// of the same label to the same tab does not suffix.
+		expect(suffixOnCollision("Fix scroll jitter", [])).toBe(
+			"Fix scroll jitter",
+		);
+	});
+});

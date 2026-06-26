@@ -43,6 +43,7 @@ import {
 } from "./types/agent";
 import type { SavedSessionInfo } from "./types/session";
 import type { PerLeafTabState } from "./types/tab";
+import type { TitleStrategy } from "./types/title-strategy";
 import { initializeLogger, getLogger } from "./utils/logger";
 import { closeOpenMenus } from "./utils/menu-registry";
 import { ImportSettingsModal } from "./ui/ImportSettingsModal";
@@ -108,6 +109,11 @@ export interface AgentClientPluginSettings {
 	sendMessageShortcut: SendMessageShortcut;
 	// View settings
 	chatViewLocation: ChatViewLocation;
+	/**
+	 * How a new session's tab label is generated (F03 — AI Session Rename).
+	 * Default `agent-suggested`. See [[ACP AI Session Rename]] § Settings.
+	 */
+	titleStrategy: TitleStrategy;
 	// Display settings
 	displaySettings: {
 		showEmojis: boolean;

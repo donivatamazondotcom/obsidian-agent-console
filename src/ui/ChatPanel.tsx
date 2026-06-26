@@ -25,7 +25,7 @@ import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
 
 // Service imports
 import { getLogger } from "../utils/logger";
-import { deriveTabLabel } from "../utils/deriveTabLabel";
+import { deriveTabLabel, labelAlreadyReportedOnMount, shouldReportInterimLabel } from "../utils/deriveTabLabel";
 import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";
 import { loadExistingSessionFlow } from "../hooks/loadExistingSessionFlow";
@@ -588,8 +588,14 @@ export function ChatPanel({
 		[plugin.app.workspace],
 	);
 
-	// Track whether tab label has been reported (reset on new chat / restore)
-	const labelReportedRef = useRef(false);
+	// Track whether tab label has been reported (reset on new chat / restore).
+	// TS-I03: a restored tab (one with a persisted/restored sessionId) starts
+	// with the label already "reported" so the interim first-message effect
+	// does not re-derive and clobber the persisted label (e.g. an AI title)
+	// with the replayed first-message text.
+	const labelReportedRef = useRef(
+		labelAlreadyReportedOnMount(restoredSessionId),
+	);
 
 	// Forward ref to useLazySession.reset — handleNewChatWithPersist (declared
 	// above the lazySession hook) drives the lazy machine back to idle on a
@@ -1391,11 +1397,37 @@ export function ChatPanel({
 	useEffect(() => {
 		if (!onLabelChangeRef.current || labelReportedRef.current) return;
 		const label = deriveTabLabel(messages);
-		if (label) {
-			onLabelChangeRef.current(label);
+		if (
+			shouldReportInterimLabel({
+				alreadyReported: labelReportedRef.current,
+				derivedLabel: label,
+				titleStrategy: settings.titleStrategy,
+			})
+		) {
+			onLabelChangeRef.current(label as string);
 			labelReportedRef.current = true;
 		}
 	}, [messages]);
+
+	// F03: swap in the agent-suggested title once the head of the first reply
+	// resolves a <title>…</title> marker. Routes through the same onLabelChange
+	// (custom=false) as the interim prompt-derived label, so setTabLabel's
+	// manual-rename guard preserves a user rename (T55) and the title simply
+	// replaces the interim otherwise (T52). No marker → suggestedTitle stays
+	// null → this never fires, interim is retained (T54). The ref de-dupes
+	// repeat fires and resets when the title clears (new chat).
+	const lastSuggestedTitleRef = useRef<string | null>(null);
+	useEffect(() => {
+		const title = agent.suggestedTitle;
+		if (!title) {
+			lastSuggestedTitleRef.current = null;
+			return;
+		}
+		if (title === lastSuggestedTitleRef.current) return;
+		lastSuggestedTitleRef.current = title;
+		onLabelChangeRef.current?.(title);
+		labelReportedRef.current = true;
+	}, [agent.suggestedTitle]);
 
 	// Report session ID changes to parent (for tab rename persistence)
 	useEffect(() => {

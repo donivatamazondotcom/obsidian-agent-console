@@ -15,6 +15,10 @@ import type { PerLeafTabState } from "../types/tab";
 import { migrateContextNoteSettings } from "./settings-migration";
 import type { BaseAgentSettings } from "../types/agent";
 import type { AgentConfig } from "../acp/acp-client";
+import {
+	DEFAULT_TITLE_STRATEGY,
+	TITLE_STRATEGY_VALUES,
+} from "../types/title-strategy";
 
 // ============================================================================
 // Display Settings
@@ -329,6 +333,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	windowsWslDistribution: undefined,
 	sendMessageShortcut: "enter",
 	chatViewLocation: "right",
+	titleStrategy: DEFAULT_TITLE_STRATEGY,
 	displaySettings: {
 		showEmojis: true,
 		fontSize: null,
@@ -546,6 +551,13 @@ export function normalizeRawSettings(
 			raw.chatViewLocation,
 			["right", "left"],
 			D.chatViewLocation,
+		),
+		// F03 — AI Session Rename. A missing key (fresh install or pre-F03
+		// upgrade) falls back to D.titleStrategy = "agent-suggested" (D1).
+		titleStrategy: enumVal(
+			raw.titleStrategy,
+			TITLE_STRATEGY_VALUES,
+			D.titleStrategy,
 		),
 		displaySettings: {
 			showEmojis: bool(rd.showEmojis, D.displaySettings.showEmojis),
