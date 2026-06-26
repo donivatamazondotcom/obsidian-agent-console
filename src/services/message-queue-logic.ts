@@ -8,6 +8,7 @@
  */
 
 import type { AttachedFile, QueuedMessage } from "../types/chat";
+import type { TabSessionState } from "../hooks/useTabSessionState";
 
 /**
  * Whether a send action should QUEUE rather than dispatch a turn.
@@ -301,4 +302,35 @@ export function decideConnectFlush(
 	}
 
 	return { dispatchAcquisitionComplete: false, awaitingSessionId };
+}
+
+/**
+ * Decide how a message typed while a session is mid-flight should be queued.
+ *
+ * When a LIVE session exists (`ready` / `busy` / `permission`) the message is
+ * HELD and flushed on turn-end (`sendWhileStreaming`) — there is nothing to
+ * acquire. Only when there is no live session (`idle` / `connecting` / `error`)
+ * does it take the acquire path (`sendWhilePreReady`), which flushes on the
+ * acquisition→ready edge.
+ *
+ * I109: the old inline check (`state === "ready"`) misrouted the common `busy`
+ * (streaming) case to the acquire path. With a live session that acquire
+ * usually no-ops, but a post-hard-reload `sessionId` flicker could let it fire
+ * a spurious acquisition whose `acquisitionComplete` flushed the queued message
+ * mid-stream instead of after the turn. Routing by live-session state removes
+ * the acquire entirely during streaming.
+ */
+export function decideQueuedSendKind(
+	state: TabSessionState,
+): "sendWhileStreaming" | "sendWhilePreReady" {
+	switch (state) {
+		case "ready":
+		case "busy":
+		case "permission":
+			return "sendWhileStreaming";
+		case "idle":
+		case "connecting":
+		case "error":
+			return "sendWhilePreReady";
+	}
 }
