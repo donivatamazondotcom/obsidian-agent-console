@@ -30,7 +30,7 @@ import { CorruptionRecoveryModal } from "./CorruptionRecoveryModal";
 import { ConfirmCloseModal } from "./ConfirmCloseModal";
 
 // Hook imports
-import { useTabManager, truncateLabel } from "../hooks/useTabManager";
+import { useTabManager, truncateLabel, suffixOnCollision } from "../hooks/useTabManager";
 import { useTabPersistence, type TabPersistenceStorage } from "../hooks/useTabPersistence";
 import { useRecentlyClosedTabs } from "../hooks/useRecentlyClosedTabs";
 import { resolveInitialAgentId } from "../utils/resolveInitialAgentId";
@@ -672,9 +672,22 @@ function ChatComponent({
 		(tabId: string, label: string) => {
 			if (label === "") {
 				tabManager.resetTab(tabId);
-			} else {
-				tabManager.setTabLabel(tabId, label);
+				return;
 			}
+			// F03: auto-applied labels (prompt-derived interim + the AI title
+			// swap) get a filesystem-style numeric suffix on collision with
+			// another OPEN tab's label, computed here at apply time against the
+			// other tabs only. Never retroactively renumbered when a sibling
+			// closes. Manual renames go through handleRenameTab (custom=true)
+			// and reject duplicates instead (T40/I22).
+			const truncated = truncateLabel(label);
+			const otherLabels = tabManager.tabs
+				.filter((t) => t.tabId !== tabId)
+				.map((t) => t.label);
+			tabManager.setTabLabel(
+				tabId,
+				suffixOnCollision(truncated, otherLabels),
+			);
 		},
 		[tabManager],
 	);

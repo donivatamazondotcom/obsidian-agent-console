@@ -1323,6 +1323,26 @@ export function ChatPanel({
 		}
 	}, [messages]);
 
+	// F03: swap in the agent-suggested title once the head of the first reply
+	// resolves a <title>…</title> marker. Routes through the same onLabelChange
+	// (custom=false) as the interim prompt-derived label, so setTabLabel's
+	// manual-rename guard preserves a user rename (T55) and the title simply
+	// replaces the interim otherwise (T52). No marker → suggestedTitle stays
+	// null → this never fires, interim is retained (T54). The ref de-dupes
+	// repeat fires and resets when the title clears (new chat).
+	const lastSuggestedTitleRef = useRef<string | null>(null);
+	useEffect(() => {
+		const title = agent.suggestedTitle;
+		if (!title) {
+			lastSuggestedTitleRef.current = null;
+			return;
+		}
+		if (title === lastSuggestedTitleRef.current) return;
+		lastSuggestedTitleRef.current = title;
+		onLabelChangeRef.current?.(title);
+		labelReportedRef.current = true;
+	}, [agent.suggestedTitle]);
+
 	// Report session ID changes to parent (for tab rename persistence)
 	useEffect(() => {
 		// Report the live session id, or fall back to the restored (persisted)
