@@ -21,7 +21,7 @@ import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
 
 // Service imports
 import { getLogger } from "../utils/logger";
-import { deriveTabLabel } from "../utils/deriveTabLabel";
+import { deriveTabLabel, labelAlreadyReportedOnMount, shouldReportInterimLabel } from "../utils/deriveTabLabel";
 import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";
 import { loadExistingSessionFlow } from "../hooks/loadExistingSessionFlow";
@@ -581,8 +581,14 @@ export function ChatPanel({
 		[plugin.app.workspace],
 	);
 
-	// Track whether tab label has been reported (reset on new chat / restore)
-	const labelReportedRef = useRef(false);
+	// Track whether tab label has been reported (reset on new chat / restore).
+	// TS-I03: a restored tab (one with a persisted/restored sessionId) starts
+	// with the label already "reported" so the interim first-message effect
+	// does not re-derive and clobber the persisted label (e.g. an AI title)
+	// with the replayed first-message text.
+	const labelReportedRef = useRef(
+		labelAlreadyReportedOnMount(restoredSessionId),
+	);
 
 	// Stable refs for tab callbacks (avoid re-render loops from inline arrow props)
 	const onStateChangeRef = useRef(onStateChange);
@@ -1317,8 +1323,13 @@ export function ChatPanel({
 	useEffect(() => {
 		if (!onLabelChangeRef.current || labelReportedRef.current) return;
 		const label = deriveTabLabel(messages);
-		if (label) {
-			onLabelChangeRef.current(label);
+		if (
+			shouldReportInterimLabel({
+				alreadyReported: labelReportedRef.current,
+				derivedLabel: label,
+			})
+		) {
+			onLabelChangeRef.current(label as string);
 			labelReportedRef.current = true;
 		}
 	}, [messages]);

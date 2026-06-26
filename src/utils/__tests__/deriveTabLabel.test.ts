@@ -140,3 +140,51 @@ describe("TS-I02 / F03: deriveTabLabel strips leaked bare instructions + title m
 		);
 	});
 });
+
+import {
+	labelAlreadyReportedOnMount,
+	shouldReportInterimLabel,
+} from "../deriveTabLabel";
+
+describe("TS-I03: restored tabs keep their persisted label (no interim re-derive)", () => {
+	it("labelAlreadyReportedOnMount → true for a restored tab (has a session id)", () => {
+		// A restored tab's persisted label (possibly an AI title) is
+		// authoritative; the interim effect must start suppressed.
+		expect(labelAlreadyReportedOnMount("sess-123")).toBe(true);
+	});
+
+	it("labelAlreadyReportedOnMount → false for a fresh tab (no restored session)", () => {
+		expect(labelAlreadyReportedOnMount(null)).toBe(false);
+		expect(labelAlreadyReportedOnMount(undefined)).toBe(false);
+	});
+
+	it("a restored tab does NOT report a derived label even though one derives", () => {
+		// This is the clobber the bug caused: deriveTabLabel(replayed first
+		// message) is non-null, but because the tab is restored
+		// (alreadyReported=true) it must not overwrite the persisted label.
+		expect(
+			shouldReportInterimLabel({
+				alreadyReported: labelAlreadyReportedOnMount("sess-123"),
+				derivedLabel: "say \"Fix scroll jitter\" only",
+			}),
+		).toBe(false);
+	});
+
+	it("a fresh tab DOES report its first-message interim label", () => {
+		expect(
+			shouldReportInterimLabel({
+				alreadyReported: labelAlreadyReportedOnMount(null),
+				derivedLabel: "Fix the scroll jitter",
+			}),
+		).toBe(true);
+	});
+
+	it("a fresh tab with no derivable label reports nothing", () => {
+		expect(
+			shouldReportInterimLabel({
+				alreadyReported: false,
+				derivedLabel: null,
+			}),
+		).toBe(false);
+	});
+});
