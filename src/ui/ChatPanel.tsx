@@ -54,6 +54,7 @@ import {
 	useQueueOrchestration,
 	type QueueEffectHandlers,
 } from "../hooks/useQueueOrchestration";
+import { decideConnectFlush } from "../services/message-queue-logic";
 
 // Domain model imports
 import {
@@ -1059,22 +1060,26 @@ export function ChatPanel({
 	// double-fires nor bypasses the hold-on-error/cancel gate. The
 	// ready+sessionId guard is the I69 invariant (sessionId must be committed
 	// before handleSendMessage reads it).
-	// Connect-flush (#82 Decision 9): on the (connecting|idle)->ready acquisition
-	// edge, hand the event to the reducer, which flushes the pending message iff
-	// a sessionId is committed (I69) — disjoint from the turn-end flush
-	// (busy->ready), so it can't double-fire.
+	// Connect-flush (#82 Decision 9 + I103 fix): dispatch acquisitionComplete
+	// when acquisition completes. `decideConnectFlush` handles the restored/
+	// loadSession path where agent.session.sessionId commits a render AFTER
+	// lazySession.state becomes "ready" — it arms an await flag on the
+	// acquisition edge and fires once the sessionId lands. Stays disjoint from
+	// the turn-end flush (busy->ready never arms the flag; leaving `ready`
+	// clears it), so it can't double-fire.
 	const prevLazyStateRef = useRef<string>(lazySession.state);
+	const awaitingSessionIdRef = useRef(false);
 	useEffect(() => {
-		const prevState = prevLazyStateRef.current;
+		const decision = decideConnectFlush({
+			prevState: prevLazyStateRef.current,
+			state: lazySession.state,
+			hasSessionId: !!agent.session.sessionId,
+			awaitingSessionId: awaitingSessionIdRef.current,
+		});
 		prevLazyStateRef.current = lazySession.state;
-		const acquisitionJustCompleted =
-			(prevState === "connecting" || prevState === "idle") &&
-			lazySession.state === "ready";
-		if (acquisitionJustCompleted) {
-			queue.dispatch({
-				type: "acquisitionComplete",
-				hasSessionId: !!agent.session.sessionId,
-			});
+		awaitingSessionIdRef.current = decision.awaitingSessionId;
+		if (decision.dispatchAcquisitionComplete) {
+			queue.dispatch({ type: "acquisitionComplete", hasSessionId: true });
 		}
 	}, [lazySession.state, agent.session.sessionId, queue.dispatch]);
 
