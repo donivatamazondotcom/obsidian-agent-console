@@ -1002,6 +1002,60 @@
 			"altText": "Agent Console composer locked with a queued message held below it, showing Edit and Delete controls, while the agent streams",
 			"docPage": "docs/usage/tabbed-sessions.md",
 			"captureNote": "v1.3.0 PR #97. Confirm the queued-message element selector + final dims at capture; requires driving a session into streaming state with a queued message."
+		},
+		{
+			"name": "shared-links-bubble",
+			"pending": true,
+			"width": 720,
+			"height": 200,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 720,
+				"height": 200
+			},
+			"cropSelector": ".agent-client-chat-view-header",
+			"cropPadding": 12,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"approvalThreshold": 0.05,
+			"placement": "feature",
+			"purpose": "See and reopen the links shared during a session from a bubble in the chat header.",
+			"differentiator": "Shared links bubble (v1.3.0)",
+			"mustShow": ".agent-client-chat-view-header",
+			"caption": "Jump back to links shared in the chat",
+			"altText": "Agent Console chat header showing the shared-links bubble that lists links shared during the session",
+			"docPage": "docs/usage/tabbed-sessions.md",
+			"captureNote": "v1.3.0 PR #103 (focus ring PR #116). Confirm the shared-links bubble selector and final dims at capture; drive a session that has shared at least one link so the bubble renders."
+		},
+		{
+			"name": "ai-session-titles",
+			"pending": true,
+			"width": 700,
+			"height": 140,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 700,
+				"height": 140
+			},
+			"cropSelector": ".agent-client-tab-bar",
+			"cropPadding": 12,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"approvalThreshold": 0.05,
+			"placement": "feature",
+			"purpose": "Chat tabs are labeled with concise AI-generated titles derived from each session's content.",
+			"differentiator": "AI-generated session titles (v1.3.0)",
+			"mustShow": ".agent-client-tab-label",
+			"caption": "Tabs name themselves from the conversation",
+			"altText": "Agent Console tab bar with chat tabs showing concise AI-generated session titles instead of generic labels",
+			"docPage": "docs/usage/tabbed-sessions.md",
+			"captureNote": "v1.3.0 PR #119. Confirm the tab-label selector and final dims at capture; needs seeded sessions whose content yields meaningful generated titles."
 		}
 	]
 }
