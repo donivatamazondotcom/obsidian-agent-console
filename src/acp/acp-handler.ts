@@ -52,7 +52,13 @@ export class AcpHandler {
 	/** Emit a session update to all listeners. Filters by current sessionId. */
 	emitSessionUpdate(update: SessionUpdate): void {
 		const currentId = this.getCurrentSessionId();
-		if (currentId && update.sessionId !== currentId) {
+		// Drop updates that carry a non-empty sessionId not matching the current
+		// session — even when currentId is null (the hard-reload teardown window
+		// after disconnect, before the new session commits). This prevents a
+		// late stream chunk from the cancelled turn painting the just-cleared
+		// transcript (I108). process_error is emitted with an empty sessionId, so
+		// it is falsy here and still surfaces.
+		if (update.sessionId && update.sessionId !== currentId) {
 			return;
 		}
 		for (const listener of this.sessionUpdateListeners) {
