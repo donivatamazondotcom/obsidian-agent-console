@@ -35,6 +35,7 @@ import {
 	findActivePermission,
 	selectOption,
 } from "../services/message-state";
+import { TitleHeadBuffer } from "../utils/titleMarker";
 
 // ============================================================================
 // Types
@@ -68,6 +69,12 @@ export interface UseAgentMessagesReturn {
 	isSending: boolean;
 	lastUserMessage: string | null;
 
+	/**
+	 * AI-suggested session title parsed from the head of the agent's first
+	 * reply (F03). Null until/unless a `<title>…</title>` marker resolves.
+	 * Consumed by ChatPanel to swap the tab label. See [[ACP AI Session Rename]].
+	 */
+	suggestedTitle: string | null;
 	// Message operations
 	sendMessage: (
 		content: string,
@@ -117,6 +124,12 @@ export function useAgentMessages(
 	const [isSending, setIsSending] = useState(false);
 	const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
 
+	// F03 — AI Session Rename. Head buffer for the first reply's leading text;
+	// armed in sendMessage when isFirstMessage && titleStrategy === 'agent-suggested'.
+	// suggestedTitle surfaces the parsed title to ChatPanel (S4 applies it).
+	const titleBufferRef = useRef<TitleHeadBuffer | null>(null);
+	const [suggestedTitle, setSuggestedTitle] = useState<string | null>(null);
+
 	// Tool call index: toolCallId → message index for O(1) lookup
 	const toolCallIndexRef = useRef<Map<string, number>>(new Map());
 
@@ -162,13 +175,57 @@ export function useAgentMessages(
 	const enqueueUpdate = useCallback(
 		(update: SessionUpdate) => {
 			if (ignoreUpdatesRef.current) return;
-			pendingUpdatesRef.current.push(update);
+
+			// F03: intercept the LEADING agent-message text while the title
+			// head buffer is armed. Hold (emit null) while the head could still
+			// be a `<title>…</title>` marker; on resolve, surface the title and
+			// emit the stripped remainder; on divergence/cap, release verbatim.
+			// Other update types (thoughts, tool calls) pass straight through —
+			// the buffer watches only the first agent_message_chunk text (F1/F5).
+			let u = update;
+			const buf = titleBufferRef.current;
+			if (u.type === "agent_message_chunk" && buf?.isActive) {
+				const r = buf.push(u.text);
+				if (r.title) setSuggestedTitle(r.title);
+				if (r.done) titleBufferRef.current = null;
+				if (r.emit === null) return; // hold — nothing to render yet
+				u = { ...u, text: r.emit };
+			}
+
+			pendingUpdatesRef.current.push(u);
 			if (!flushScheduledRef.current) {
 				flushScheduledRef.current = true;
 				window.requestAnimationFrame(flushPendingUpdates);
 			}
 		},
 		[flushPendingUpdates],
+	);
+
+	/**
+	 * Release any text still held by the title head buffer at turn end (F03).
+	 * Covers a never-closed marker that stayed under the cap and got no more
+	 * chunks: the held head text would otherwise never render. The buffer is
+	 * deactivated first so the released chunk passes straight through
+	 * enqueueUpdate's interception.
+	 */
+	const flushTitleBuffer = useCallback(
+		(sessionId: string) => {
+			const buf = titleBufferRef.current;
+			if (!buf || !buf.isActive) {
+				titleBufferRef.current = null;
+				return;
+			}
+			titleBufferRef.current = null; // deactivate before re-enqueue
+			const held = buf.flush();
+			if (held) {
+				enqueueUpdate({
+					type: "agent_message_chunk",
+					sessionId,
+					text: held,
+				});
+			}
+		},
+		[enqueueUpdate],
 	);
 
 	// Clean up on unmount
@@ -197,6 +254,9 @@ export function useAgentMessages(
 		pendingUpdatesRef.current = [];
 		flushScheduledRef.current = false;
 		setIsSending(false);
+		// F03: a cancelled turn discards its pending updates — drop the title
+		// head buffer too (held head text belongs to the cancelled turn).
+		titleBufferRef.current = null;
 	}, []);
 
 	const clearMessages = useCallback((): void => {
@@ -205,6 +265,10 @@ export function useAgentMessages(
 		setLastUserMessage(null);
 		setIsSending(false);
 		setErrorInfo(null);
+		// F03: drop any in-flight title head buffer and clear the suggestion
+		// so a new chat starts without a stale title.
+		titleBufferRef.current = null;
+		setSuggestedTitle(null);
 	}, [setErrorInfo]);
 
 	const setInitialMessages = useCallback(
@@ -270,6 +334,20 @@ export function useAgentMessages(
 
 			const currentSessionId = session.sessionId;
 			const generation = ++generationRef.current;
+
+			// F03: arm the title head buffer for the first message under the
+			// agent-suggested strategy; otherwise ensure it's disarmed so a
+			// later message never strips text. Reset the suggestion per turn.
+			const titleStrategy = settingsAccess.getSnapshot().titleStrategy;
+			if (
+				options.isFirstMessage &&
+				titleStrategy === "agent-suggested"
+			) {
+				titleBufferRef.current = new TitleHeadBuffer();
+				setSuggestedTitle(null);
+			} else {
+				titleBufferRef.current = null;
+			}
 
 			// Resolve selection text (Channel 2) from raw selection lines.
 			let selectionContext:
@@ -382,6 +460,10 @@ export function useAgentMessages(
 					// Discard results if a newer send has started
 					if (generationRef.current !== generation) return;
 
+					// F03: turn ended — release any text still held by the
+					// title head buffer (e.g. a never-closed marker under cap).
+					flushTitleBuffer(currentSessionId);
+
 					if (result.success) {
 						setIsSending(false);
 						setLastUserMessage(null);
@@ -402,6 +484,7 @@ export function useAgentMessages(
 					}
 				} catch (error) {
 					if (generationRef.current !== generation) return;
+					flushTitleBuffer(currentSessionId);
 					setIsSending(false);
 					setErrorInfo({
 						title: "Send Message Failed",
@@ -429,6 +512,7 @@ export function useAgentMessages(
 			shouldConvertToWsl,
 			addMessage,
 			setErrorInfo,
+			flushTitleBuffer,
 		],
 	);
 
@@ -492,6 +576,7 @@ export function useAgentMessages(
 		messages,
 		isSending,
 		lastUserMessage,
+		suggestedTitle,
 		sendMessage,
 		clearMessages,
 		setInitialMessages,

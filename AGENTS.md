@@ -130,6 +130,7 @@ src/
 │   ├── activeNoteGrabToggle.ts  # Grab/ungrab active note in context strip (hotkey)
 │   ├── provisional-context.ts   # Provisional auto-default context pill (crystallize-on-send)
 │   ├── deriveTabLabel.ts        # Derive tab label from session / first message
+│   ├── titleMarker.ts           # F03: parse/strip <title>…</title> from the head of the first reply (parseLeadingTitle + TitleHeadBuffer)
 │   ├── toolCallSummary.ts       # One-row tool-call summary derivation
 │   ├── toolCallDiff.ts          # Pure unified-diff computation shared by ToolCallBlock + the line-count badge
 │   ├── paths.ts                 # Path resolution, file:// URI
