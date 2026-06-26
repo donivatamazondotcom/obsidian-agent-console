@@ -327,7 +327,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 		includeImages: true,
 		imageLocation: "obsidian",
 		imageCustomFolder: "Agent Console",
-		frontmatterTag: "agent-client",
+		frontmatterTag: "agent-console",
 	},
 	windowsWslMode: false,
 	windowsWslDistribution: undefined,

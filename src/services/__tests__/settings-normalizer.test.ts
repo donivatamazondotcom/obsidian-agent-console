@@ -45,6 +45,17 @@ describe("normalizeRawSettings — defaults", () => {
 		expect(s.lastUsedModes).toEqual({});
 	});
 
+	it("defaults the export frontmatter tag to agent-console (post-rebrand, I102)", () => {
+		// Guards against regressing to the legacy "agent-client" name, which
+		// every other export default already abandoned (filenameTemplate,
+		// imageCustomFolder). See [[I102 Frontmatter tag default still agent-client]].
+		expect(DEFAULT_SETTINGS.exportSettings.frontmatterTag).toBe(
+			"agent-console",
+		);
+		const s = normalizeRawSettings({}, DEFAULT_SETTINGS, idKey);
+		expect(s.exportSettings.frontmatterTag).toBe("agent-console");
+	});
+
 	it("never copies the fork-fixed agent id from raw", () => {
 		const s = normalizeRawSettings(
 			{ claude: { id: "test-spoofed", command: "x" } },
