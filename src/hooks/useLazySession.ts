@@ -24,11 +24,12 @@
  *     Slice 6. The hook itself does NOT prepend or render — that
  *     separation keeps Slice 3 a pure trigger-and-state hook.
  *
- *   - **Send-while-connecting:** the message is queued internally. When
- *     the in-flight acquisition resolves to `ready`, the queued message
- *     is flushed via `sendPrompt`. If acquisition fails, the queue is
- *     cleared and the consumer's composer keeps the message — the user
- *     re-clicks send to retry.
+ *   - **Send-while-connecting:** the hook does NOT queue internally. The
+ *     consumer's queue-orchestration reducer holds the one pending message
+ *     and flushes it (via the consumer's raw send) on the
+ *     (connecting|idle)->ready transition. This hook only drives acquisition
+ *     and reports `state`/`sessionId`; if acquisition fails the consumer's
+ *     composer keeps the text and the user re-clicks send to retry.
  *
  *   - **Sticky session:** once `ready`, subsequent `onSendClick`s reuse
  *     the same sessionId; no idle GC in v1 (Decision #4).
@@ -51,7 +52,7 @@
  *
  * Implementation note — refs for in-flight state:
  *
- *   `isAcquiringRef`, `queueRef`, `debounceTimerRef`, and
+ *   `isAcquiringRef`, `debounceTimerRef`, and
  *   `restoredSessionIdRef` are all `useRef`s rather than `useState`. The
  *   acquisition pipeline runs across multiple await points; reading
  *   `state` (a useState value) inside an async closure would see the
@@ -199,7 +200,6 @@ export function useLazySession(
 
 	// Imperative state (read inside async callbacks; refs avoid stale closures).
 	const debounceTimerRef = useRef<number | null>(null);
-	const queueRef = useRef<string | null>(null);
 	const isAcquiringRef = useRef(false);
 	const restoredSessionIdRef = useRef<string | null>(restoredSessionId);
 
@@ -249,24 +249,12 @@ export function useLazySession(
 		if (result.ok) {
 			setSessionId(result.sessionId);
 			tabStateRef.current.connectSucceeded();
-
-			// Flush queue if a send happened during connecting.
-			const queued = queueRef.current;
-			queueRef.current = null;
-			if (queued !== null) {
-				try {
-					await sendPromptRef.current(result.sessionId, queued);
-				} catch {
-					// Send failures are out of scope for the trigger hook.
-					// The agent-message stream surfaces them via the state
-					// machine's `error` transition or via UI-level handling.
-				}
-			}
+			// Queue delivery is owned by the consumer's queue-orchestration
+			// reducer (connect-flush on the connecting|idle->ready transition),
+			// not by this hook — so there is no internal queued message to
+			// flush here. The hook's job ends at "session is ready".
 		} else {
 			tabStateRef.current.connectFailed();
-			// Drop the queued message — user must explicitly re-send.
-			// Their composer text is still there (consumer never cleared it).
-			queueRef.current = null;
 		}
 
 		isAcquiringRef.current = false;
@@ -310,25 +298,31 @@ export function useLazySession(
 
 	const onSendClick = useCallback(
 		(message: string) => {
-			// Ready → fire immediately, sticky session.
+			// The queue-orchestration reducer owns the pending-message slot;
+			// this method's sole remaining job is to TRIGGER lazy acquisition
+			// (idle/error) so the reducer's connect-flush can deliver once the
+			// session is ready. It no longer queues anything internally.
+
+			// Ready → nothing to acquire. The no-op sendPrompt is kept only for
+			// backward compat with any direct caller; the consumer sends ready
+			// messages via the raw path, not here.
 			if (sessionId !== null) {
 				void sendPromptRef.current(sessionId, message);
 				return;
 			}
 
-			// Connecting → queue for flush on `ready` transition.
+			// Connecting → acquisition already in flight; the reducer holds the
+			// pending message and flushes it on the ready transition.
 			if (isAcquiringRef.current) {
-				queueRef.current = message;
 				return;
 			}
 
-			// Idle or error → initiate acquisition and queue. Cancel any
-			// pending typing-debounce timer so we don't double-fire.
+			// Idle or error → initiate acquisition. Cancel any pending
+			// typing-debounce timer so we don't double-fire.
 			if (debounceTimerRef.current !== null) {
 				window.clearTimeout(debounceTimerRef.current);
 				debounceTimerRef.current = null;
 			}
-			queueRef.current = message;
 			void fireAcquisition();
 		},
 		[sessionId, fireAcquisition],
@@ -364,7 +358,6 @@ export function useLazySession(
 			window.clearTimeout(debounceTimerRef.current);
 			debounceTimerRef.current = null;
 		}
-		queueRef.current = null;
 		isAcquiringRef.current = false;
 		// Forget any restored sessionId — "new chat" means brand new from now on.
 		restoredSessionIdRef.current = null;

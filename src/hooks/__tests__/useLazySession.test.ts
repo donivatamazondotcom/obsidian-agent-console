@@ -1,7 +1,7 @@
 /**
  * Unit tests for useLazySession (Slice 3 of Tab Persistence + Lazy Sessions).
  *
- * Pins the typing-as-intent debounce, send-click queue logic, restored-tab
+ * Pins the typing-as-intent debounce, send-click acquisition-trigger logic, restored-tab
  * fallback, sticky-session, and reset semantics from
  * [[ACP Tab Persistence Across Restarts]] § Session Lifecycle.
  *
@@ -15,12 +15,12 @@
  *   U06  Failed session/new → `error`, sessionId stays null
  *   U07  Restored tab calls session/load (not session/new) on first keystroke
  *   U08  session/load failure falls through to session/new; isFallbackRecovery=true
- *   U09  Send-while-connecting queues; fires session/prompt on `ready`
+ *   U09  Send-while-connecting does NOT flush internally; reaches `ready` (reducer owns flush)
  *   U10  Send-while-connecting then connecting → error: error surfaces; sendPrompt NOT called
  *   U11  Subsequent send after `ready` reuses sticky session
  *   U12  Reset returns to `idle`; releases sessionId
  *   U13  Sustained typing fires only one session/new across many keystrokes
- *   U14  Click-send when `error` retries reconnect and queues message
+ *   U14  Click-send when `error` retries reconnect (reducer flushes on ready)
  *
  * Mocking strategy (per spec § Unit Tests):
  *   - acquireNewSession / loadExistingSession / sendPrompt are vi.fn() at the
@@ -303,7 +303,7 @@ describe("useLazySession — restored tab", () => {
 // useLazySession — send-while-connecting queue (spec § Trigger 2)
 // ============================================================================
 
-describe("useLazySession — send-while-connecting queue", () => {
+describe("useLazySession — send-while-connecting (acquisition trigger only)", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 	});
@@ -311,7 +311,7 @@ describe("useLazySession — send-while-connecting queue", () => {
 		vi.useRealTimers();
 	});
 
-	it("U09: send-while-connecting queues; queued message fires sendPrompt on `ready`", async () => {
+	it("U09: send-while-connecting does NOT flush internally; acquisition still reaches `ready` (the reducer owns the flush)", async () => {
 		// Slow-resolving acquireNewSession lets us click send during the
 		// `connecting` window.
 		let resolveAcquire!: (
@@ -335,12 +335,14 @@ describe("useLazySession — send-while-connecting queue", () => {
 		expect(result.current.state).toBe("connecting");
 		expect(acquireNewSession).toHaveBeenCalledTimes(1);
 
-		// Click send while still connecting — queue the message.
+		// Click send while still connecting — the hook no longer queues; the
+		// queue-orchestration reducer holds the pending message. No sendPrompt.
 		act(() => result.current.onSendClick("queued message"));
 		expect(options.sendPrompt).not.toHaveBeenCalled();
 		expect(result.current.state).toBe("connecting");
 
-		// Resolve the acquisition promise; queue should flush.
+		// Resolve acquisition; the hook reaches `ready` WITHOUT flushing — the
+		// consumer's connect-flush effect delivers, not this hook.
 		await act(async () => {
 			resolveAcquire({ ok: true, sessionId: "session-after-queue" });
 			await vi.runAllTimersAsync();
@@ -348,11 +350,7 @@ describe("useLazySession — send-while-connecting queue", () => {
 
 		expect(result.current.state).toBe("ready");
 		expect(result.current.sessionId).toBe("session-after-queue");
-		expect(options.sendPrompt).toHaveBeenCalledTimes(1);
-		expect(options.sendPrompt).toHaveBeenCalledWith(
-			"session-after-queue",
-			"queued message",
-		);
+		expect(options.sendPrompt).not.toHaveBeenCalled();
 	});
 
 	it("U10: send-while-connecting then connecting → error: error surfaces; sendPrompt NOT called", async () => {
@@ -477,7 +475,7 @@ describe("useLazySession — error retry", () => {
 		vi.useRealTimers();
 	});
 
-	it("U14: click-send when `error` retries reconnect and queues message", async () => {
+	it("U14: click-send when `error` retries reconnect (the reducer, not the hook, flushes on ready)", async () => {
 		// First call fails, second call (retry) succeeds.
 		const acquireNewSession = vi
 			.fn()
@@ -497,21 +495,18 @@ describe("useLazySession — error retry", () => {
 		expect(result.current.state).toBe("error");
 		expect(acquireNewSession).toHaveBeenCalledTimes(1);
 
-		// Click send while in error — retries acquisition + queues message.
+		// Click send while in error — retries acquisition. The hook no longer
+		// queues/flushes; the consumer's connect-flush delivers on ready.
 		await act(async () => {
 			result.current.onSendClick("retry message");
 			await vi.runAllTimersAsync();
 		});
 
-		// Acquisition retried; queue flushed on the resulting `ready`.
+		// Acquisition retried; reaches ready. The hook itself does NOT flush.
 		expect(acquireNewSession).toHaveBeenCalledTimes(2);
 		expect(result.current.state).toBe("ready");
 		expect(result.current.sessionId).toBe("session-retry-success");
-		expect(options.sendPrompt).toHaveBeenCalledTimes(1);
-		expect(options.sendPrompt).toHaveBeenCalledWith(
-			"session-retry-success",
-			"retry message",
-		);
+		expect(options.sendPrompt).not.toHaveBeenCalled();
 	});
 });
 

@@ -58,6 +58,7 @@ src/
 │   ├── view-registry.ts         # Multi-view management, focus, broadcast
 │   ├── recently-closed-stack.ts # F13 undo-close: closed-tab record + LIFO push/pop/build (pure)
 │   ├── message-queue-logic.ts   # #82 queue-of-one pure decisions: queue/flush/Enter-action/broadcast-skip
+│   ├── queue-orchestration-reducer.ts # #82 dispatch-owning single-slot reducer: (state,event)->{state,effects}; flush is raw-by-construction (closes Q4)
 │   ├── update-checker.ts        # Agent/plugin version checking
 │   ├── import/                   # Cross-plugin settings-import adapters
 │   │   ├── ImportSource.ts       # ImportSource interface + preview types
@@ -69,6 +70,7 @@ src/
 ├── hooks/                       # React custom hooks (state + logic)
 │   ├── useAgent.ts              # Facade: composes useAgentSession + useAgentMessages
 │   ├── useLazySession.ts        # Typing-as-intent session lifecycle (debounce + queued send)
+│   ├── useQueueOrchestration.ts # #82 React adapter over queueOrchestrationReducer: owns the pending slot, runs effects (acquire / flushDispatch=raw / clearComposer)
 │   ├── useTabPersistence.ts     # Save/restore per-leaf tab state across restarts
 │   ├── useTabSessionState.ts    # Six-state per-tab session state machine
 │   ├── useRestoredMessages.ts   # Replay transcript for restored tabs with no live session
@@ -87,7 +89,6 @@ src/
 │   ├── useHistoryModal.ts       # Session history modal lifecycle
 │   ├── useSettings.ts           # Settings subscription (useSyncExternalStore)
 │   ├── useRecentlyClosedTabs.ts # F13 undo-close: per-leaf in-memory recently-closed stack
-│   ├── useMessageQueue.ts       # #82 queue-of-one: runtime-only next-message slot (auto-sends on turn end)
 │   └── useTabManager.ts         # Per-tab session orchestration (state, focus, lifecycle)
 ├── ui/                          # React components
 │   ├── ChatContext.ts           # React Context (plugin, acpClient, vaultService, settingsService)

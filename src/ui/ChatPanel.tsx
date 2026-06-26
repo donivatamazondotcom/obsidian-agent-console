@@ -50,12 +50,11 @@ import { useAgent } from "../hooks/useAgent";
 import { useSessionHistory } from "../hooks/useSessionHistory";
 import { useLazySession } from "../hooks/useLazySession";
 import { useDebouncedSessionSave } from "../hooks/useDebouncedSessionSave";
-import { useMessageQueue } from "../hooks/useMessageQueue";
 import {
-	shouldFlushQueue,
-	shouldFlushOnReady,
-	executeFlush,
-} from "../services/message-queue-logic";
+	useQueueOrchestration,
+	type QueueEffectHandlers,
+} from "../hooks/useQueueOrchestration";
+import { decideConnectFlush } from "../services/message-queue-logic";
 
 // Domain model imports
 import {
@@ -918,7 +917,19 @@ export function ChatPanel({
 	// is the single source of truth; `isQueued` is never persisted. Declared
 	// here (above lazySession + the flush effect + the send wrapper) so those
 	// can reference it.
-	const messageQueue = useMessageQueue();
+	// Effect handlers depend on handleSendMessage + lazySession (declared
+	// below), so they are wired through a ref in the render body once those are
+	// in scope (same forward-ref pattern as lazyResetRef).
+	const queueEffectsRef = useRef<QueueEffectHandlers>({
+		acquire: () => {},
+		flushDispatch: () => {},
+		clearComposer: () => {},
+	});
+	const queue = useQueueOrchestration({
+		acquire: () => queueEffectsRef.current.acquire(),
+		flushDispatch: (message) => queueEffectsRef.current.flushDispatch(message),
+		clearComposer: () => queueEffectsRef.current.clearComposer(),
+	});
 
 	// Tracks whether the in-flight turn was cancelled by the user so the
 	// turn-end flush HOLDS (does not auto-fire) per Decision 5. Reset at turn
@@ -1033,6 +1044,20 @@ export function ChatPanel({
 	lazyResetRef.current = lazySession.reset;
 	lazyAcquireNowRef.current = lazySession.acquireNow;
 
+	// Wire the queue-orchestration effect handlers now that handleSendMessage and
+	// lazySession are in scope. flushDispatch is ALWAYS the raw send — the
+	// reducer's flushDispatch effect carries no dispatch choice, so the
+	// re-enqueuing wrapper can never be wired into a flush (closes Q4).
+	queueEffectsRef.current = {
+		acquire: () => lazySession.onSendClick(""),
+		flushDispatch: (message) =>
+			void handleSendMessage(message.content, message.attachments),
+		clearComposer: () => {
+			setInputValue("");
+			setAttachedFiles([]);
+		},
+	};
+
 	// Connect-flush effect (#82 Decision 9): when session acquisition completes
 	// — the (connecting|idle)→ready transition — flush the pending queued
 	// message through the normal send path. Keyed on the transition (not
@@ -1041,31 +1066,28 @@ export function ChatPanel({
 	// double-fires nor bypasses the hold-on-error/cancel gate. The
 	// ready+sessionId guard is the I69 invariant (sessionId must be committed
 	// before handleSendMessage reads it).
+	// Connect-flush (#82 Decision 9 + I103 fix): dispatch acquisitionComplete
+	// when acquisition completes. `decideConnectFlush` handles the restored/
+	// loadSession path where agent.session.sessionId commits a render AFTER
+	// lazySession.state becomes "ready" — it arms an await flag on the
+	// acquisition edge and fires once the sessionId lands. Stays disjoint from
+	// the turn-end flush (busy->ready never arms the flag; leaving `ready`
+	// clears it), so it can't double-fire.
 	const prevLazyStateRef = useRef<string>(lazySession.state);
+	const awaitingSessionIdRef = useRef(false);
 	useEffect(() => {
-		const prevState = prevLazyStateRef.current;
+		const decision = decideConnectFlush({
+			prevState: prevLazyStateRef.current,
+			state: lazySession.state,
+			hasSessionId: !!agent.session.sessionId,
+			awaitingSessionId: awaitingSessionIdRef.current,
+		});
 		prevLazyStateRef.current = lazySession.state;
-		if (
-			shouldFlushOnReady({
-				prevState,
-				state: lazySession.state,
-				hasSessionId: !!agent.session.sessionId,
-				isQueued: messageQueue.isQueued,
-			})
-		) {
-			const payload = messageQueue.consume();
-			if (payload) {
-				setInputValue("");
-				setAttachedFiles([]);
-				void handleSendMessage(payload.content, payload.attachments);
-			}
+		awaitingSessionIdRef.current = decision.awaitingSessionId;
+		if (decision.dispatchAcquisitionComplete) {
+			queue.dispatch({ type: "acquisitionComplete", hasSessionId: true });
 		}
-	}, [
-		lazySession.state,
-		agent.session.sessionId,
-		messageQueue,
-		handleSendMessage,
-	]);
+	}, [lazySession.state, agent.session.sessionId, queue.dispatch]);
 
 	// Send wrapper: ready → handleSendMessage directly. Not-ready → enqueue the
 	// message (queue-of-one) and trigger lazy acquisition; the connect-flush
@@ -1078,23 +1100,20 @@ export function ChatPanel({
 				await handleSendMessage(content, attachments);
 				return;
 			}
-			if (messageQueue.enqueue({ content, attachments })) {
-				lazySession.onSendClick(content);
-			}
+			// Not ready (connecting/idle): the reducer holds the one pending
+			// message and triggers acquisition; the connect-flush delivers on ready.
+			queue.dispatch({
+				type: "sendWhilePreReady",
+				message: { content, attachments },
+			});
 		},
-		[
-			lazySession.state,
-			lazySession.onSendClick,
-			agent.session.sessionId,
-			handleSendMessage,
-			messageQueue,
-		],
+		[lazySession.state, agent.session.sessionId, handleSendMessage, queue.dispatch],
 	);
 
 	// ============================================================
 	// Queue Next Message (#82) — handlers
 	// ============================================================
-	// (messageQueue + cancelledRef are declared earlier, above lazySession.)
+	// (the queue adapter + cancelledRef are declared earlier, above lazySession.)
 
 	// Queue the composer's current content. Used for BOTH streaming (flushes on
 	// turn-end) and pre-ready/connecting (flushes on connect — Decision 9). The
@@ -1105,32 +1124,30 @@ export function ChatPanel({
 		(content: string, attachments?: AttachedFile[]) => {
 			const trimmed = content.trim();
 			if (!trimmed && (attachments?.length ?? 0) === 0) return;
-			const accepted = messageQueue.enqueue({ content: trimmed, attachments });
-			if (!accepted) return; // queue-of-one — already holding one
-			// Pre-ready: kick off session acquisition so the queued message
-			// flushes when the session connects. (Streaming: the turn-end flush
-			// handles it; no acquisition needed.)
-			if (lazySession.state !== "ready") {
-				lazySession.onSendClick(trimmed);
+			const message = { content: trimmed, attachments };
+			// Ready + streaming → hold, flush on turn-end. Not ready → hold +
+			// acquire, flush on connect. The reducer enforces queue-of-one.
+			if (lazySession.state === "ready") {
+				queue.dispatch({ type: "sendWhileStreaming", message });
+			} else {
+				queue.dispatch({ type: "sendWhilePreReady", message });
 			}
 		},
-		[messageQueue, lazySession.state, lazySession.onSendClick],
+		[lazySession.state, queue.dispatch],
 	);
 
 	// Edit: unlock the composer (clear the queued flag) but KEEP the text so
 	// the user can modify it and re-queue on the next send.
 	const handleEditQueued = useCallback(() => {
-		messageQueue.clear();
-	}, [messageQueue]);
+		queue.dispatch({ type: "editQueued" });
+	}, [queue.dispatch]);
 
 	// Delete: clear the slot AND empty the composer (discard the message).
 	// (Edit keeps the text; Delete removes it — the label distinction the user
 	// flagged: "Cancel" wrongly implied the text returns to the composer.)
 	const handleDeleteQueued = useCallback(() => {
-		messageQueue.clear();
-		setInputValue("");
-		setAttachedFiles([]);
-	}, [messageQueue]);
+		queue.dispatch({ type: "deleteQueued" });
+	}, [queue.dispatch]);
 
 	// Stop wrapper: mark the in-flight turn as user-cancelled so the flush
 	// effect HOLDS any queued message (Decision 5) instead of firing it into
@@ -1493,13 +1510,26 @@ export function ChatPanel({
 	const rejectActivePermissionRef = useRef(agent.rejectActivePermission);
 	const handleStopGenerationRef = useRef(handleStopWithCancelFlag);
 	const handleExportChatRef = useRef(handleExportChat);
-	const handleReloadRef = useRef(handleReload);
+	// Degrade a queued message to a preserved draft on reload (soft = resume,
+	// hard = respawn) so it does NOT flush into the just-reloaded session, which
+	// isn't prompt-ready yet (I103/(l): the agent returns "Session not found").
+	// The queue adapter is in scope here, so no forward ref is needed.
+	const handleReloadWithQueue = useCallback(
+		(hard: boolean) => {
+			queue.dispatch(
+				hard ? { type: "respawn" } : { type: "resume", canResume: true },
+			);
+			return handleReload(hard);
+		},
+		[queue.dispatch, handleReload],
+	);
+	const handleReloadRef = useRef(handleReloadWithQueue);
 	handleNewChatWithPersistRef.current = handleNewChatWithPersist;
 	approveActivePermissionRef.current = agent.approveActivePermission;
 	rejectActivePermissionRef.current = agent.rejectActivePermission;
 	handleStopGenerationRef.current = handleStopWithCancelFlag;
 	handleExportChatRef.current = handleExportChat;
-	handleReloadRef.current = handleReload;
+	handleReloadRef.current = handleReloadWithQueue;
 
 	useEffect(() => {
 		const workspace = plugin.app.workspace;
@@ -1653,21 +1683,19 @@ export function ChatPanel({
 
 	// Queue refs (#82) — read latest queue state from the once-registered
 	// broadcast/send callbacks (same ref pattern as the values above).
-	const isQueuedRef = useRef(messageQueue.isQueued);
+	const isQueuedRef = useRef(queue.isQueued);
 	const handleQueueMessageRef = useRef(handleQueueMessage);
-	isQueuedRef.current = messageQueue.isQueued;
+	isQueuedRef.current = queue.isQueued;
 	handleQueueMessageRef.current = handleQueueMessage;
 
 	// ============================================================
 	// Effects - Flush queued message on turn completion (#82)
 	// ============================================================
-	// Auto-send the queued message ONLY when the turn it was queued behind
-	// completed normally. Reset the cancel flag at turn start; on turn end
-	// (isSending true -> false) consult shouldFlushQueue, which holds on
-	// error/cancel (Decision 5). The flush routes through the normal send path
-	// (handleSendWithLazyAcquisition) AFTER clearing the composer, so
-	// draft-preservation observes the emptied composer and persists "" — no
-	// stale-draft resurrection.
+	// Reset the cancel flag at turn start; on turn end (isSending true -> false)
+	// dispatch `turnEnded` to the queue-orchestration reducer, which owns the
+	// flush-vs-hold decision (holds on error/cancel — Decision 5) and emits a
+	// RAW flushDispatch on flush, after clearing the composer so
+	// draft-preservation persists "" (no stale-draft resurrection).
 	const prevIsSendingForQueueRef = useRef(false);
 	useEffect(() => {
 		const wasSending = prevIsSendingForQueueRef.current;
@@ -1679,37 +1707,19 @@ export function ChatPanel({
 			return;
 		}
 
-		// Turn end: decide flush vs hold.
+		// Turn end: hand the outcome to the reducer, which owns flush-vs-hold
+		// (hold on error/cancel — Decision 5) and, on flush, emits clearComposer +
+		// a RAW flushDispatch. The reducer effect carries no dispatch choice, so
+		// the re-enqueuing wrapper can't be used — closing Q4 by construction.
 		const turnEnded = wasSending && !isSending;
-		if (
-			shouldFlushQueue({
-				turnEnded,
-				isQueued: messageQueue.isQueued,
+		if (turnEnded) {
+			queue.dispatch({
+				type: "turnEnded",
 				hadError: errorInfo !== null,
 				wasCancelled: cancelledRef.current,
-			})
-		) {
-			executeFlush({
-				consume: messageQueue.consume,
-				clearComposer: () => {
-					// Clear first so the cleared value persists (mirrors a
-					// normal send, which clears on dispatch).
-					setInputValue("");
-					setAttachedFiles([]);
-				},
-				// Dispatch via the RAW send, NOT handleSendWithLazyAcquisition
-				// (I-Q-FLUSH): at the isSending true→false commit, lazySession
-				// hasn't re-rendered busy→ready yet, so the wrapper would see
-				// "busy", re-enqueue the just-consumed message, and the
-				// connect-flush (gated to connecting/idle→ready) would never
-				// pick it up → silent drop. The session is established at
-				// turn-end, so handleSendMessage sends directly. Matches the
-				// connect-flush, which already dispatches raw.
-				dispatch: (content, attachments) =>
-					void handleSendMessage(content, attachments),
 			});
 		}
-	}, [isSending, errorInfo, messageQueue, handleSendMessage]);
+	}, [isSending, errorInfo, queue.dispatch]);
 
 	useEffect(() => {
 		onRegisterCallbacks?.({
@@ -1815,7 +1825,7 @@ export function ChatPanel({
 			}}
 			isUpdateAvailable={isUpdateAvailable}
 			onUpdateClick={handleOpenCommunityPlugins}
-			onReload={(hard) => void handleReload(hard)}
+			onReload={(hard) => void handleReloadWithQueue(hard)}
 			isReloading={isReloading}
 			onExportChat={() => void handleExportChat()}
 			onShowMenu={handleShowSidebarMenu}
@@ -1993,7 +2003,7 @@ export function ChatPanel({
 			onRestoredMessageConsumed={handleRestoredMessageConsumed}
 			// Queue Next Message (#82)
 			isStreaming={isSending}
-			isQueued={messageQueue.isQueued}
+			isQueued={queue.isQueued}
 			onQueueMessage={handleQueueMessage}
 			onEditQueued={handleEditQueued}
 			onDeleteQueued={handleDeleteQueued}

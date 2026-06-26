@@ -229,3 +229,76 @@ export function selectBroadcastPromptTargets<
 	const targets = others.filter((h) => !h.hasPendingQueue());
 	return { targets, skippedQueued };
 }
+
+
+/**
+ * Connect-flush trigger decision (I103 fix).
+ *
+ * The connect-flush must dispatch `acquisitionComplete` to the queue reducer
+ * when session acquisition completes — but `agent.session.sessionId` is
+ * committed by a setState that LAGS the `lazySession.state -> "ready"`
+ * transition on the restored/loadSession path (extra await hops in
+ * loadExistingSessionFlow). Keying purely on the (connecting|idle)->ready EDGE
+ * meant the edge fired with `hasSessionId=false` (reducer holds) and, when the
+ * sessionId committed a render later, there was no fresh edge — so the queued
+ * message stuck forever (I103: re-sent draft never flushes).
+ *
+ * This decision arms an `awaitingSessionId` flag when the acquisition edge
+ * fires before the sessionId is committed, and dispatches once the sessionId
+ * lands while still `ready`. Crucially it stays DISJOINT from the turn-end
+ * flush (busy->ready): a turn ending is NOT an acquisition edge and never arms
+ * the flag (leaving `ready` clears it), so this never double-fires with the
+ * gated turn-end flush.
+ *
+ * Pure + stateful-by-value: the caller owns `prevState` and `awaitingSessionId`
+ * as refs and feeds the returned `awaitingSessionId` back in next render.
+ */
+export interface ConnectFlushInput {
+	/** lazySession.state from the previous render. */
+	prevState: string;
+	/** lazySession.state this render. */
+	state: string;
+	/** Whether agent.session.sessionId is committed this render. */
+	hasSessionId: boolean;
+	/** The awaiting-sessionId flag carried from the previous render. */
+	awaitingSessionId: boolean;
+}
+
+export interface ConnectFlushDecision {
+	/** Dispatch `acquisitionComplete` to the queue reducer now. */
+	dispatchAcquisitionComplete: boolean;
+	/** Next value of the caller's awaiting-sessionId ref. */
+	awaitingSessionId: boolean;
+}
+
+export function decideConnectFlush(
+	input: ConnectFlushInput,
+): ConnectFlushDecision {
+	const { prevState, state, hasSessionId, awaitingSessionId } = input;
+
+	// Not ready → nothing to flush; clear any pending await (e.g. connecting,
+	// busy, error, or back to idle). This is what keeps us disjoint from the
+	// turn-end flush: leaving `ready` always resets the flag.
+	if (state !== "ready") {
+		return { dispatchAcquisitionComplete: false, awaitingSessionId: false };
+	}
+
+	const acquisitionEdge =
+		(prevState === "connecting" || prevState === "idle") && state === "ready";
+
+	if (acquisitionEdge) {
+		// Acquisition just completed. Flush now if the sessionId is committed;
+		// otherwise wait for it (it commits a render later on the load path).
+		return hasSessionId
+			? { dispatchAcquisitionComplete: true, awaitingSessionId: false }
+			: { dispatchAcquisitionComplete: false, awaitingSessionId: true };
+	}
+
+	// Already `ready`, no fresh acquisition edge. Deliver iff we were waiting on
+	// the sessionId from a prior acquisition edge and it has now committed.
+	if (awaitingSessionId && hasSessionId) {
+		return { dispatchAcquisitionComplete: true, awaitingSessionId: false };
+	}
+
+	return { dispatchAcquisitionComplete: false, awaitingSessionId };
+}
