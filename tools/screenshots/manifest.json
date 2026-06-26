@@ -946,6 +946,62 @@
 			"captureNote": "Pill only renders when an update is available; needs a mocked update-available state to capture.",
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 720
+		},
+		{
+			"name": "session-history-search",
+			"pending": true,
+			"width": 760,
+			"height": 520,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 760,
+				"height": 520
+			},
+			"cropSelector": ".modal",
+			"cropPadding": 16,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"approvalThreshold": 0.05,
+			"placement": "feature",
+			"purpose": "Full-text search across your local session library from the history modal.",
+			"differentiator": "Session history search (v1.3.0)",
+			"mustShow": ".modal",
+			"caption": "Find any past chat by title or content",
+			"altText": "Agent Console session-history modal with a search box filtering sessions, showing highlighted title and snippet matches",
+			"docPage": "docs/usage/session-history.md",
+			"captureNote": "v1.3.0 PR #89. Confirm the search-input + result-snippet selectors and final dims at capture; needs seeded fixture sessions with searchable content."
+		},
+		{
+			"name": "queue-next-message",
+			"pending": true,
+			"width": 1300,
+			"height": 380,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1300,
+				"height": 380
+			},
+			"cropPadding": 12,
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-container"
+			],
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"approvalThreshold": 0.05,
+			"placement": "feature",
+			"purpose": "Queue one next message while the agent is still streaming; it auto-sends when the turn returns to ready.",
+			"differentiator": "Queue next message (v1.3.0)",
+			"mustShow": ".agent-client-chat-input-container",
+			"caption": "Line up your next message without waiting",
+			"altText": "Agent Console composer locked with a queued message held below it, showing Edit and Delete controls, while the agent streams",
+			"docPage": "docs/usage/tabbed-sessions.md",
+			"captureNote": "v1.3.0 PR #97. Confirm the queued-message element selector + final dims at capture; requires driving a session into streaming state with a queued message."
 		}
 	]
 }
