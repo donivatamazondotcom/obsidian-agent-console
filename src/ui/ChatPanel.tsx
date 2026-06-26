@@ -20,6 +20,7 @@ import {
 	type SessionIntent,
 } from "../utils/agent-switch";
 import { useHistoryModal } from "../hooks/useHistoryModal";
+import { useComposerFocusReturn } from "../hooks/useComposerFocusReturn";
 import { useChatActions } from "../hooks/useChatActions";
 import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
 
@@ -537,6 +538,9 @@ export function ChatPanel({
 		setAgentUpdateNotification,
 		autoExportIfEnabled,
 	} = actions;
+
+	// Focus-return after in-panel state changes — [[Composer Focus Return After State Change]].
+	const { composerElRef, returnFocusToComposer } = useComposerFocusReturn();
 
 	const handleContextPillClick = useCallback(
 		(path: string, event: React.MouseEvent) => {
@@ -1827,7 +1831,10 @@ export function ChatPanel({
 			}}
 			isUpdateAvailable={isUpdateAvailable}
 			onUpdateClick={handleOpenCommunityPlugins}
-			onReload={(hard) => void handleReloadWithQueue(hard)}
+			onReload={(hard) => {
+				void handleReloadWithQueue(hard);
+				returnFocusToComposer();
+			}}
 			isReloading={isReloading}
 			onExportChat={() => void handleExportChat()}
 			onShowMenu={handleShowSidebarMenu}
@@ -1946,8 +1953,14 @@ export function ChatPanel({
 			isFull={contextNotes.isFull}
 			activeNotePath={selectionTracker.activeNotePath}
 			activeNoteName={selectionTracker.activeNoteName}
-			onAdd={contextNotes.add}
-			onRemove={contextNotes.remove}
+			onAdd={(path, source) => {
+				contextNotes.add(path, source);
+				returnFocusToComposer();
+			}}
+			onRemove={(path) => {
+				contextNotes.remove(path);
+				returnFocusToComposer();
+			}}
 			onPillClick={handleContextPillClick}
 			provisionalPath={computeProvisionalPath({
 				settingOn: settings.activeNoteAsDefaultContext,
@@ -1956,7 +1969,10 @@ export function ChatPanel({
 				activeNotePath: selectionTracker.activeNotePath,
 				committed: contextNotes.notes,
 			})}
-			onSuppressProvisional={() => setAutoDefaultSuppressed(true)}
+			onSuppressProvisional={() => {
+				setAutoDefaultSuppressed(true);
+				returnFocusToComposer();
+			}}
 		/>
 	);
 
@@ -2000,6 +2016,7 @@ export function ChatPanel({
 			suggestions={suggestions}
 			plugin={plugin}
 			view={viewHost}
+			composerElRef={composerElRef}
 			onSendMessage={handleSendWithLazyAcquisition}
 			onStopGeneration={handleStopWithCancelFlag}
 			onRestoredMessageConsumed={handleRestoredMessageConsumed}
@@ -2010,13 +2027,20 @@ export function ChatPanel({
 			onEditQueued={handleEditQueued}
 			onDeleteQueued={handleDeleteQueued}
 			modes={session.modes}
-			onModeChange={(modeId) => void handleSetMode(modeId)}
+			onModeChange={(modeId) => {
+				void handleSetMode(modeId);
+				returnFocusToComposer();
+			}}
 			models={session.models}
-			onModelChange={(modelId) => void handleSetModel(modelId)}
+			onModelChange={(modelId) => {
+				void handleSetModel(modelId);
+				returnFocusToComposer();
+			}}
 			configOptions={session.configOptions}
-			onConfigOptionChange={(configId, value) =>
-				void handleSetConfigOption(configId, value)
-			}
+			onConfigOptionChange={(configId, value) => {
+				void handleSetConfigOption(configId, value);
+				returnFocusToComposer();
+			}}
 			usage={session.usage}
 			supportsImages={session.promptCapabilities?.image ?? false}
 			imageCapabilityKnown={session.promptCapabilities !== undefined}

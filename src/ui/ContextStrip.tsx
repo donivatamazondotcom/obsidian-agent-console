@@ -92,6 +92,7 @@ export function ContextStrip({
 		<div className="context-strip">
 			<button
 				className="context-strip-grab"
+				data-acp-focus-cluster=""
 				disabled={grabDisabled}
 				aria-label={
 					grabDisabled
@@ -147,6 +148,7 @@ export function ContextStrip({
 						</span>
 						<button
 							className="context-strip-pill-remove"
+							data-acp-focus-cluster=""
 							aria-label="Remove note from context"
 							onClick={() => onRemove(note.path)}
 						>
@@ -181,6 +183,7 @@ export function ContextStrip({
 						</span>
 						<button
 							className="context-strip-pill-remove"
+							data-acp-focus-cluster=""
 							aria-label="Don't add the active note as context for this chat"
 							onClick={onSuppressProvisional}
 						>

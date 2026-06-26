@@ -23,6 +23,10 @@ Models are different versions of the AI with varying capabilities:
 Available models depend on the active agent and your subscription/API plan.
 :::
 
+::: tip Keep typing after you pick
+After you change the model — with the mouse or the keyboard — focus returns to the message box at the end of your draft, so you can keep typing without clicking back. The same applies to mode and thought-level selection, pinning or removing context notes, and reloading the session.
+:::
+
 ## Model Persistence
 
 The selected model persists for the current session. Your preference is remembered across sessions.

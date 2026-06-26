@@ -88,11 +88,14 @@ function NavActionButton({
 	label,
 	onClick,
 	spinning,
+	focusCluster,
 }: {
 	icon: string;
 	label: string;
 	onClick: (e: React.MouseEvent<HTMLElement>) => void;
 	spinning?: boolean;
+	/** Tag this control as a composer focus-cluster member (data attr). */
+	focusCluster?: boolean;
 }) {
 	const ref = useRef<HTMLButtonElement>(null);
 
@@ -106,6 +109,7 @@ function NavActionButton({
 		<button
 			ref={ref}
 			type="button"
+			{...(focusCluster ? { "data-acp-focus-cluster": "" } : {})}
 			className={
 				"clickable-icon nav-action-button" +
 				(spinning ? " agent-client-reload-spinning" : "")
@@ -383,6 +387,7 @@ export function ChatHeader({
 					label="Reload session (Shift-click: fresh restart)"
 					onClick={(e) => onReload(e.shiftKey)}
 					spinning={isReloading}
+					focusCluster
 				/>
 				{onOpenHistory && (
 					<NavActionButton
