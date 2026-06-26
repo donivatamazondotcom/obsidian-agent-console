@@ -52,3 +52,6 @@ plan/
 
 # Local dev tooling
 .trees/
+
+# Per-worktree smoke-test studio vault copies (ST-<name>)
+tools/smoke-test/studios/
