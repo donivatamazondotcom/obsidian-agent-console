@@ -108,7 +108,17 @@ export function SharedLinksButton({ links, onOpenLink }: SharedLinksButtonProps)
 				(disabled ? " acp-shared-links-button--disabled" : "")
 			}
 			role="button"
-			tabIndex={disabled ? -1 : 0}
+			// Static -1 keeps this control out of the Tab sequence by default and
+			// satisfies jsx-a11y (a role="button" element must be focusable). Its
+			// effective tab order is owned at runtime by the parent header
+			// toolbar's roving tabindex (role="toolbar" in ChatHeader): the toolbar
+			// promotes exactly one enabled control to tabindex 0 and re-affirms
+			// after every render, and skips this control while it is aria-disabled
+			// (zero links). React never changes this constant -1, so it does not
+			// fight the toolbar's imperative roving value. See SLB-I7 and the
+			// keyboard-first design rule.
+			tabIndex={-1}
+			data-acp-toolbar-item="true"
 			aria-label={
 				disabled
 					? "No shared links yet"
