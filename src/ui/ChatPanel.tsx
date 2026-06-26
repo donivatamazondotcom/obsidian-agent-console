@@ -869,23 +869,9 @@ export function ChatPanel({
 	// createSession call (on first keystroke) sees isInitialized()=true
 	// and skips re-initialization, going straight to newSession.
 	useEffect(() => {
-		// Re-eager-init on swap (design item #3): pre-spawn the bound agent's
-		// process so its slash commands / model / mode lists are ready before
-		// the user types — on mount AND after an idle agent swap. Read the LIVE
-		// tab agent (session.agentId), not the frozen mount-time prop.
-		const agentId = session.agentId || config?.agent || initialAgentId;
+		if (acpClient.isInitialized()) return;
+		const agentId = config?.agent || initialAgentId;
 		if (!agentId) return;
-		// Already initialized for THIS agent → nothing to pre-fetch.
-		if (
-			acpClient.isInitialized() &&
-			acpClient.getCurrentAgentId() === agentId
-		) {
-			return;
-		}
-		// A live session is owned by the lazy acquisition path — don't disrupt
-		// it (a swap clears sessionId first via setAgentWithoutSession, so an
-		// idle swap passes this guard while a connected/connecting tab does not).
-		if (session.sessionId) return;
 
 		void (async () => {
 			try {
@@ -912,8 +898,13 @@ export function ChatPanel({
 				logger.log("[ChatPanel] Eager initialize failed (non-fatal):", e);
 			}
 		})();
-		// Re-runs when the bound agent changes (swap) or the session clears.
-	}, [session.agentId, session.sessionId]);
+		// Run once on mount only. Re-eager-init on swap was reverted: model/mode
+		// dropdowns come from the SESSION (newSession), not initialize(), so
+		// eager re-init can't populate them pre-type (studio smoke (e),
+		// 2026-06-25) — it only added a subprocess spawn on swap and competed
+		// with the restart acquisition. Lazy acquisition on first send fetches
+		// the swapped agent's session (and its model/mode list) correctly.
+	}, []);
 
 	// Queue-next-message (#82). Runtime-only queue-of-one shared by BOTH the
 	// streaming case (send while a turn runs) and the pre-ready case (send
@@ -949,18 +940,15 @@ export function ChatPanel({
 					"[Lazy] Acquiring new session for agent:",
 					effectiveAgent,
 				);
-				// I53 guard: if a session already exists (e.g. from a prior
-				// acquisition that completed during a re-render cycle before
-				// the lazy hook's setSessionId propagated), reuse it instead
-				// of creating a duplicate.
-				const existingSid = agent.session.sessionId;
-				if (existingSid) {
-					logger.log(
-						"[Lazy] Session already exists, reusing:",
-						existingSid,
-					);
-					return { ok: true as const, sessionId: existingSid };
-				}
+				// No reuse-guard here: acquireNewSession ALWAYS creates a fresh
+				// session. The old I53 `existingSid` reuse-guard read a stale
+				// agent.session.sessionId and, on Restart agent (closeSession +
+				// acquireNow), short-circuited to the just-closed session — the
+				// agent never respawned and the tab hung on "Connecting" (studio
+				// smoke (g), 2026-06-25; see restart-respawn-fresh.test.ts). The
+				// original eager+lazy double-session/new the guard protected
+				// against was removed when switch/new-chat moved onto the lazy
+				// owner, so the guard is now redundant and was actively harmful.
 				// I55: use the sessionId RETURNED by createSession instead
 				// of reading agent.session.sessionId from a stale closure.
 				// The setState inside createSession has not propagated to
@@ -985,7 +973,6 @@ export function ChatPanel({
 			}
 		}, [
 			agent.createSession,
-			agent.session.sessionId,
 			agent.session.agentId,
 			logger,
 		]),
