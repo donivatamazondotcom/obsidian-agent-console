@@ -24,15 +24,15 @@ describe("checkTabAgentInvariant", () => {
 	it("violates when the live session is bound to a different agent — the wrong-agent bug", () => {
 		const v = checkTabAgentInvariant({
 			selectedAgentId: "claude-code",
-			liveSessionAgentId: "auto-sa",
+			liveSessionAgentId: "test-agent",
 		});
 		expect(v).not.toBeNull();
 		expect(v?.code).toBe("tab-agent-mismatch");
 		expect(v?.selectedAgentId).toBe("claude-code");
-		expect(v?.liveSessionAgentId).toBe("auto-sa");
+		expect(v?.liveSessionAgentId).toBe("test-agent");
 		// Message names both sides so logs/metrics are self-explaining.
 		expect(v?.message).toContain("claude-code");
-		expect(v?.message).toContain("auto-sa");
+		expect(v?.message).toContain("test-agent");
 	});
 
 	it("vacuously holds when there is no live session (idle/lazy tab)", () => {
@@ -54,7 +54,7 @@ describe("checkTabAgentInvariant", () => {
 		expect(
 			checkTabAgentInvariant({
 				selectedAgentId: null,
-				liveSessionAgentId: "auto-sa",
+				liveSessionAgentId: "test-agent",
 			}),
 		).toBeNull();
 	});
@@ -65,7 +65,7 @@ describe("assertTabAgentInvariant", () => {
 		expect(() =>
 			assertTabAgentInvariant({
 				selectedAgentId: "claude-code",
-				liveSessionAgentId: "auto-sa",
+				liveSessionAgentId: "test-agent",
 			}),
 		).toThrow(/invariant violated/i);
 	});
@@ -87,7 +87,7 @@ describe("assertTabAgentInvariant", () => {
 });
 
 describe("tab-agent invariant — properties", () => {
-	const agentArb = fc.constantFrom("auto-sa", "claude-code", "codex");
+	const agentArb = fc.constantFrom("test-agent", "claude-code", "codex");
 
 	it("violation iff both ids are present AND differ", () => {
 		fc.assert(

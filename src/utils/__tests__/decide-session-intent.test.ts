@@ -16,7 +16,7 @@ import {
  * decision layer, not discovered by manual reload.
  */
 
-const CUR = "auto-sa";
+const CUR = "test-agent";
 const OTHER = "claude-code";
 
 describe("decideSessionIntent — switch-agent", () => {
@@ -192,9 +192,9 @@ const intentArb: fc.Arbitrary<SessionIntent> = fc.constantFrom(
 
 const paramsArb = fc.record({
 	intent: intentArb,
-	currentAgentId: fc.constantFrom("auto-sa", "claude-code", "codex"),
+	currentAgentId: fc.constantFrom("test-agent", "claude-code", "codex"),
 	requestedAgentId: fc.option(
-		fc.constantFrom("auto-sa", "claude-code", "codex"),
+		fc.constantFrom("test-agent", "claude-code", "codex"),
 		{ nil: undefined },
 	),
 	hasSession: fc.boolean(),
