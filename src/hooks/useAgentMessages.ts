@@ -93,6 +93,14 @@ export interface UseAgentMessagesReturn {
 	setIgnoreUpdates: (ignore: boolean) => void;
 	/** Discard any pending RAF updates and reset streaming state (call after stop/cancel). */
 	clearPendingUpdates: () => void;
+	/**
+	 * Discard the in-flight turn's outcome on a user-initiated interrupt
+	 * (reload / stop / new chat). Bumps the generation so the pending send's
+	 * late result/error is a no-op — prevents an aborted prompt's error (e.g.
+	 * Kiro's -32603 "Internal error") from surfacing as the error overlay
+	 * (I106). Resets streaming state; leaves the transcript intact.
+	 */
+	discardPendingTurn: () => void;
 
 	// Permission
 	activePermission: ActivePermission | null;
@@ -256,6 +264,22 @@ export function useAgentMessages(
 		setIsSending(false);
 		// F03: a cancelled turn discards its pending updates — drop the title
 		// head buffer too (held head text belongs to the cancelled turn).
+		titleBufferRef.current = null;
+	}, []);
+
+	/**
+	 * Discard the in-flight turn's outcome on a user-initiated interrupt
+	 * (reload / stop / new chat). Bumping the generation makes the pending
+	 * send's late result/error a no-op (the result/error handlers early-return
+	 * on a generation mismatch), so an aborted prompt's -32603 "Internal error"
+	 * never reaches the error overlay (I106). Also resets streaming state; the
+	 * on-screen transcript is left intact.
+	 */
+	const discardPendingTurn = useCallback((): void => {
+		generationRef.current++;
+		pendingUpdatesRef.current = [];
+		flushScheduledRef.current = false;
+		setIsSending(false);
 		titleBufferRef.current = null;
 	}, []);
 
@@ -584,6 +608,7 @@ export function useAgentMessages(
 		clearError,
 		setIgnoreUpdates,
 		clearPendingUpdates,
+		discardPendingTurn,
 		activePermission,
 		hasActivePermission,
 		approvePermission,
