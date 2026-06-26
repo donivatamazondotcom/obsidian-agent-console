@@ -70,6 +70,70 @@ export function getAvailableAgentsFromSettings(
 }
 
 /**
+ * Index of the agent that is the tab's *current* selection, for marking the
+ * switch-agent menu (I105). Returns the FIRST entry whose id matches, so a
+ * duplicate id (e.g. a custom agent colliding a built-in id) can never produce
+ * two checkmarks — at most one row is marked. Returns -1 when there is no
+ * agentId or no match (nothing checked), never marking a non-current row.
+ *
+ * Configured agents are NOT de-duplicated here: a user-configured agent must
+ * stay visible in the menu even when its id collides a built-in. The collision
+ * is a settings smell (the built-in shadows it in findAgentSettings); surfacing
+ * it is better than silently hiding the user's agent.
+ */
+export function indexOfCurrentAgent(
+	agents: AgentDisplayInfo[],
+	agentId: string | null | undefined,
+): number {
+	if (!agentId) return -1;
+	return agents.findIndex((agent) => agent.id === agentId);
+}
+
+/**
+ * All agent ids currently in use EXCEPT the custom agent at `excludeIndex`
+ * (pass -1 to exclude none). Includes the four built-in ids plus every other
+ * custom agent's id. Used to validate a custom agent id for uniqueness (I105
+ * prevention) so a custom agent can't be saved with an id that collides a
+ * built-in (where findAgentSettings would shadow it) or another custom agent.
+ */
+export function collectAgentIdsExcept(
+	settings: AgentClientPluginSettings,
+	excludeIndex: number,
+): string[] {
+	const ids = [
+		settings.claude.id,
+		settings.codex.id,
+		settings.gemini.id,
+		settings.kiro.id,
+	];
+	settings.customAgents.forEach((agent, i) => {
+		if (i !== excludeIndex) ids.push(agent.id);
+	});
+	return ids;
+}
+
+/**
+ * Resolve a unique agent id from a desired candidate against the set of taken
+ * ids. Returns the candidate unchanged when free; otherwise appends `-2`, `-3`,
+ * … until unique (same suffix style as the auto-generated custom-agent ids).
+ * Pure — the UI decides whether to surface that the id was adjusted (I105).
+ */
+export function resolveUniqueAgentId(
+	candidate: string,
+	takenIds: Iterable<string>,
+): string {
+	const taken = new Set(takenIds);
+	if (!taken.has(candidate)) return candidate;
+	let counter = 2;
+	let next = `${candidate}-${counter}`;
+	while (taken.has(next)) {
+		counter += 1;
+		next = `${candidate}-${counter}`;
+	}
+	return next;
+}
+
+/**
  * Get the currently active agent information from settings.
  */
 export function getCurrentAgent(

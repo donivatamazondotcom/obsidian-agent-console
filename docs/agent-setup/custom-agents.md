@@ -11,7 +11,7 @@ You can use any agent that implements the [Agent Client Protocol (ACP)](https://
 3. Click **Add custom agent**.
 
 4. Configure the agent:
-   - **Agent ID**: Unique identifier (e.g., `my-agent`)
+   - **Agent ID**: Unique identifier (e.g., `my-agent`). Must be unique — if you enter an ID already used by another agent (including a built-in like `kiro-cli`), it's automatically given a numbered suffix (e.g., `kiro-cli-2`) when you leave the field, and a notice tells you it was changed.
    - **Display name**: Name shown in menus (e.g., `My Agent`)
    - **Path**: Command name or absolute path to the agent executable. The command name alone (e.g., `opencode`) works in many cases. If the agent is not found automatically, set the full path, or click **Auto-detect**.
    - **Arguments**: Command-line arguments, one per line (if required)

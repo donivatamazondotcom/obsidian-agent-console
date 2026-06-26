@@ -74,6 +74,7 @@ const EMPTY_COMMANDS: SlashCommand[] = [];
 import { ChatHeader } from "./ChatHeader";
 import { MessageList, type GettingStartedInfo } from "./MessageList";
 import { shouldShowGettingStarted } from "../services/agent-detection";
+import { indexOfCurrentAgent } from "../services/session-helpers";
 import { InputArea } from "./InputArea";
 import { ContextStrip } from "./ContextStrip";
 import { computeProvisionalPath } from "../utils/provisional-context";
@@ -791,15 +792,27 @@ export function ChatPanel({
 				item.setTitle("Switch agent").setIsLabel(true);
 			});
 
-			for (const agent of availableAgents) {
+			// Read the agent list fresh at click time so settings edits (added
+			// or renamed custom agents) show without a tab remount — the
+			// memoized availableAgents only recomputes on [plugin] (I105).
+			const menuAgents = plugin.getAvailableAgents();
+			// Mark at most ONE row: the first entry matching the tab's agentId.
+			// A duplicate id (custom agent colliding a built-in) can no longer
+			// produce two checkmarks; all configured agents stay visible (I105).
+			const currentAgentIdx = indexOfCurrentAgent(
+				menuAgents,
+				session.agentId,
+			);
+
+			menuAgents.forEach((agent, idx) => {
 				menu.addItem((item: MenuItem) => {
 					item.setTitle(agent.displayName)
-						.setChecked(agent.id === (session.agentId || ""))
+						.setChecked(idx === currentAgentIdx)
 						.onClick(() => {
 							void handleNewChatWithPersist(agent.id);
 						});
 				});
-			}
+			});
 
 			menu.addSeparator();
 
@@ -842,7 +855,6 @@ export function ChatPanel({
 			menu.showAtMouseEvent(e.nativeEvent);
 		},
 		[
-			availableAgents,
 			session.agentId,
 			handleNewChatWithPersist,
 			plugin,
