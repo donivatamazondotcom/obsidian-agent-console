@@ -42,6 +42,15 @@ import type { QueuedMessage } from "../types/chat";
 export interface QueueOrchestrationState {
 	/** The one pending message, or null when the slot is empty. */
 	readonly pending: QueuedMessage | null;
+	/**
+	 * I110: how the held message must flush. `true` = held for acquisition
+	 * (`sendWhilePreReady`) → flushes on `acquisitionComplete`. `false`/absent =
+	 * held during a live turn (`sendWhileStreaming`) → flushes ONLY on
+	 * `turnEnded`. Without this distinction a late/stray `acquisitionComplete`
+	 * mid-stream flushed a streaming-hold into the middle of the running turn,
+	 * splitting the reply.
+	 */
+	readonly awaitingAcquire?: boolean;
 }
 
 export const initialQueueState: QueueOrchestrationState = { pending: null };
@@ -144,7 +153,7 @@ function enqueue(
 		return { state, effects: NO_EFFECTS };
 	}
 	return {
-		state: { pending: message },
+		state: { pending: message, awaitingAcquire: withAcquire },
 		effects: withAcquire ? [{ kind: "acquire" }] : NO_EFFECTS,
 	};
 }
@@ -207,7 +216,17 @@ export function queueOrchestrationReducer(
 		case "acquisitionComplete": {
 			// Flush only once a sessionId is committed (I69): handleSendMessage
 			// reads agent.session.sessionId, which must be set first.
-			if (state.pending !== null && event.hasSessionId) {
+			//
+			// I110: AND only when the held message was waiting for acquisition
+			// (`sendWhilePreReady`). A `sendWhileStreaming` hold (awaitingAcquire
+			// false) must wait for `turnEnded` — a late/stray acquisitionComplete
+			// landing mid-stream must NOT flush it, or the queued message is
+			// inserted into the middle of the running turn, splitting the reply.
+			if (
+				state.pending !== null &&
+				event.hasSessionId &&
+				state.awaitingAcquire
+			) {
 				return flush(state.pending);
 			}
 			return { state, effects: NO_EFFECTS };

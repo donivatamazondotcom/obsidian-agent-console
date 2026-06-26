@@ -116,8 +116,12 @@ describe("queueOrchestrationReducer — turnEnded (the Q4 flush)", () => {
 });
 
 describe("queueOrchestrationReducer — acquisitionComplete / Failed", () => {
-	it("pending + sessionId committed → flush", () => {
-		const r = queueOrchestrationReducer(FULL, {
+	it("pending (pre-ready hold) + sessionId committed → flush", () => {
+		const held = queueOrchestrationReducer(EMPTY, {
+			type: "sendWhilePreReady",
+			message: MSG,
+		}).state;
+		const r = queueOrchestrationReducer(held, {
 			type: "acquisitionComplete",
 			hasSessionId: true,
 		});
@@ -129,7 +133,11 @@ describe("queueOrchestrationReducer — acquisitionComplete / Failed", () => {
 	});
 
 	it("pending but sessionId NOT yet committed → hold (I69 guard)", () => {
-		const r = queueOrchestrationReducer(FULL, {
+		const held = queueOrchestrationReducer(EMPTY, {
+			type: "sendWhilePreReady",
+			message: MSG,
+		}).state;
+		const r = queueOrchestrationReducer(held, {
 			type: "acquisitionComplete",
 			hasSessionId: false,
 		});
@@ -149,6 +157,57 @@ describe("queueOrchestrationReducer — acquisitionComplete / Failed", () => {
 		const r = queueOrchestrationReducer(FULL, { type: "acquisitionFailed" });
 		expect(r.state.pending).toBe(MSG);
 		expect(r.effects).toEqual([]);
+	});
+
+	// I110: a message held during a live turn (sendWhileStreaming) must flush
+	// ONLY on turnEnded. A stray/late acquisitionComplete mid-stream must NOT
+	// flush it — doing so inserts the queued message into the middle of the
+	// running turn, splitting the reply (broken code fence, leftover fragment,
+	// <title> pushed off the head and leaked). Models the studio trace.
+	it("I110: a streaming-hold is NOT flushed by a stray acquisitionComplete", () => {
+		const held = queueOrchestrationReducer(EMPTY, {
+			type: "sendWhileStreaming",
+			message: MSG,
+		}).state;
+		const r = queueOrchestrationReducer(held, {
+			type: "acquisitionComplete",
+			hasSessionId: true,
+		});
+		expect(r.state.pending).toBe(MSG); // still held
+		expect(r.effects).toEqual([]); // no mid-stream flush
+	});
+
+	it("I110: a streaming-hold flushes on turnEnded", () => {
+		const held = queueOrchestrationReducer(EMPTY, {
+			type: "sendWhileStreaming",
+			message: MSG,
+		}).state;
+		const r = queueOrchestrationReducer(held, {
+			type: "turnEnded",
+			hadError: false,
+			wasCancelled: false,
+		});
+		expect(r.state.pending).toBeNull();
+		expect(r.effects).toEqual([
+			{ kind: "clearComposer" },
+			{ kind: "flushDispatch", message: MSG },
+		]);
+	});
+
+	it("I110: a pre-ready hold still flushes on acquisitionComplete (no regression)", () => {
+		const held = queueOrchestrationReducer(EMPTY, {
+			type: "sendWhilePreReady",
+			message: MSG,
+		}).state;
+		const r = queueOrchestrationReducer(held, {
+			type: "acquisitionComplete",
+			hasSessionId: true,
+		});
+		expect(r.state.pending).toBeNull();
+		expect(r.effects).toEqual([
+			{ kind: "clearComposer" },
+			{ kind: "flushDispatch", message: MSG },
+		]);
 	});
 });
 
@@ -317,11 +376,21 @@ describe("queueOrchestrationReducer — properties", () => {
 	it("no-orphan: a flush from turnEnded/acquisitionComplete dispatches exactly the consumed slot and empties it", () => {
 		fc.assert(
 			fc.property(msgArb, (held) => {
-				for (const event of [
-					{ type: "turnEnded" as const, hadError: false, wasCancelled: false },
-					{ type: "acquisitionComplete" as const, hasSessionId: true },
-				]) {
-					const r = queueOrchestrationReducer({ pending: held }, event);
+				// I110: each flush trigger matches its hold type — turnEnded
+				// flushes a streaming-hold (awaitingAcquire false); acquisitionComplete
+				// flushes a pre-ready hold (awaitingAcquire true).
+				const cases: Array<[QueueOrchestrationState, QueueEvent]> = [
+					[
+						{ pending: held, awaitingAcquire: false },
+						{ type: "turnEnded", hadError: false, wasCancelled: false },
+					],
+					[
+						{ pending: held, awaitingAcquire: true },
+						{ type: "acquisitionComplete", hasSessionId: true },
+					],
+				];
+				for (const [state, event] of cases) {
+					const r = queueOrchestrationReducer(state, event);
 					const flush = r.effects.find((e) => e.kind === "flushDispatch") as
 						| Extract<QueueEffect, { kind: "flushDispatch" }>
 						| undefined;

@@ -75,7 +75,12 @@ function oldDelivers(seq: Render[]): boolean {
 
 /** The FIXED connect-flush: decideConnectFlush -> reducer acquisitionComplete. */
 function fixedDelivers(seq: Render[], initialPrev = "idle", pending = true): boolean {
-	let state: QueueOrchestrationState = { pending: pending ? MSG : null };
+	// I110: this is the PRE-READY/acquire path — the held message awaits
+	// acquisition, so `acquisitionComplete` is its flush trigger (awaitingAcquire).
+	let state: QueueOrchestrationState = {
+		pending: pending ? MSG : null,
+		awaitingAcquire: pending,
+	};
 	let prev = initialPrev;
 	let awaiting = false;
 	let delivered = 0;
