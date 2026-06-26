@@ -311,6 +311,7 @@ export function useAgentMessages(
 					supportsEmbeddedContext:
 						session.promptCapabilities?.embeddedContext ?? false,
 					isFirstMessage: options.isFirstMessage,
+					titleStrategy: settingsAccess.getSnapshot().titleStrategy,
 					contextNotes: options.contextNotes,
 					selectionContext,
 				},

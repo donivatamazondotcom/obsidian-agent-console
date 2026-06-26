@@ -36,6 +36,7 @@ import {
 	extractMentionedNotes,
 	type IMentionService,
 } from "../utils/mention-parser";
+import type { TitleStrategy } from "../types/title-strategy";
 import { convertWindowsPathToWsl } from "../utils/platform";
 import { buildFileUri } from "../utils/paths";
 import { buildContextBlocks } from "./context-builder";
@@ -80,6 +81,14 @@ export interface PreparePromptInput {
 
 	/** Whether this is the first message in the session */
 	isFirstMessage?: boolean;
+
+	/**
+	 * Session title strategy (F03). When `agent-suggested` and this is the
+	 * first message, buildSystemInstructions appends the title rubric asking
+	 * the agent to emit a `<title>…</title>` marker. Any other value (or
+	 * undefined) injects no rubric. See [[ACP AI Session Rename]].
+	 */
+	titleStrategy?: TitleStrategy;
 
 	// --- Context Note Lifecycle (new system) ---
 	// When contextNotes is provided, buildContextBlocks is used instead of autoMention.
@@ -169,6 +178,28 @@ const WIKI_LINK_INSTRUCTION =
 	"When referencing notes in this vault, use [[Note Name]] wikilink syntax so they become clickable links.";
 const TABLE_INSTRUCTION =
 	"Always leave a blank line before Markdown tables; without it Obsidian renders them as plain text.";
+
+/**
+ * F03 — AI Session Rename title rubric.
+ *
+ * Injected as a system instruction on the first message only, and only when
+ * `titleStrategy === 'agent-suggested'`. Asks the agent to emit a
+ * `<title>…</title>` marker as the very first content of its reply, which the
+ * head-buffer parser (S3) extracts and strips before render. Degrades
+ * gracefully: an agent that ignores it just produces no marker, and the
+ * prompt-derived interim label is kept.
+ *
+ * Style mirrors Claudian's battle-tested prompt (strong verb, sentence case,
+ * no "Conversation with…"), tightened to 20–30 chars for tab real estate.
+ */
+export const TITLE_RUBRIC =
+	"Begin your reply with a short session title wrapped exactly as " +
+	"<title>your title here</title>, then a blank line, then your normal " +
+	"answer. The title summarizes this request in about 20-30 characters, " +
+	"sentence case, starting with a strong verb (e.g. Fix, Add, Explain, " +
+	"Debug, Compare). Do not use quotes, trailing punctuation, or phrases " +
+	'like "Conversation with" or "Help me". Emit the <title>…</title> only ' +
+	"once, as the very first characters of this reply.";
 
 // ============================================================================
 // Shared Helper Functions
@@ -295,12 +326,27 @@ function buildAutoMentionPrefix(
  * math delimiters) on the first message of each session, and an empty array
  * thereafter. Always-on plugin behavior — no settings gate.
  *
+ * When `titleStrategy === 'agent-suggested'` (F03), also appends the title
+ * rubric so the agent emits a `<title>…</title>` marker the head-buffer parser
+ * can extract. The rubric fires only on the first message — same `isFirstMessage`
+ * gate as the formatting hints.
+ *
  * Rationale: the plugin only runs in Obsidian, so all three hints are
  * universally applicable; the cost is ~150 tokens on message #1 of a session.
+ *
+ * Exported for unit testing (pure function).
  */
-function buildSystemInstructions(input: PreparePromptInput): string[] {
+export function buildSystemInstructions(input: PreparePromptInput): string[] {
 	if (!input.isFirstMessage) return [];
-	return [WIKI_LINK_INSTRUCTION, TABLE_INSTRUCTION, LATEX_MATH_INSTRUCTION];
+	const instructions = [
+		WIKI_LINK_INSTRUCTION,
+		TABLE_INSTRUCTION,
+		LATEX_MATH_INSTRUCTION,
+	];
+	if (input.titleStrategy === "agent-suggested") {
+		instructions.push(TITLE_RUBRIC);
+	}
+	return instructions;
 }
 
 function buildAgentMessageText(
