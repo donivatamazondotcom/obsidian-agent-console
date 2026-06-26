@@ -38,6 +38,9 @@ features:
   - icon: 🔍
     title: Search Your History
     details: Find that conversation you half-remember. Search across every past chat by title or by what was actually said inside it, then reopen any session in a tab and pick up right where it left off.
+  - icon: 🔗
+    title: Every Shared Link, One Click Away
+    details: As the agent points you at notes and web pages, they collect in a link list in the chat header – with files it just created this session set apart from ones that already existed. Jump back to anything it shared without scrolling the conversation.
   - icon: 📥
     title: Bring Your Setup With You
     details: Switching from another agent plugin? Import its agent definitions, defaults, and API keys in one click. Agent Console offers it on first run and keeps your keys where they already live.

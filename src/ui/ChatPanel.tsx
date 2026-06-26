@@ -13,6 +13,7 @@ import { registerOpenMenu } from "../utils/menu-registry";
 import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
 import { deriveNewLeaf } from "../utils/link-leaf";
+import { extractLinks, type SharedLink } from "../utils/link-extract";
 import { decideAgentSwitch, selectAcquisitionAgent } from "../utils/agent-switch";
 import { useHistoryModal } from "../hooks/useHistoryModal";
 import { useChatActions } from "../hooks/useChatActions";
@@ -541,6 +542,40 @@ export function ChatPanel({
 				path,
 				plugin.app.workspace.getActiveFile()?.path ?? "",
 				deriveNewLeaf(event.nativeEvent),
+			);
+		},
+		[plugin.app.workspace],
+	);
+
+	// Shared Links Bubble: derive the per-tab link set from the active tab's
+	// messages (spec [[Shared Links Bubble]] § "derive, don't store").
+	// Resolve internal links against the vault so illustrative/abbreviated
+	// wikilinks the agent typed in prose (e.g. [[file]]) are excluded (SLB-I8);
+	// external URLs are unaffected.
+	const resolveInternalLink = useCallback(
+		(linkpath: string): boolean =>
+			plugin.app.metadataCache.getFirstLinkpathDest(linkpath, "") !== null,
+		[plugin.app.metadataCache],
+	);
+	const sharedLinks = useMemo(
+		() => extractLinks(messages, { resolveInternal: resolveInternalLink }),
+		[messages, resolveInternalLink],
+	);
+
+	const handleOpenSharedLink = useCallback(
+		(link: SharedLink, evt: MouseEvent | KeyboardEvent) => {
+			if (link.kind === "external") {
+				window.open(link.target, "_blank");
+				return;
+			}
+			// Internal vault file — honor open-in-new-tab modifiers via the
+			// same sanctioned resolver the chat-panel links use.
+			const newLeaf =
+				evt instanceof MouseEvent ? deriveNewLeaf(evt) : false;
+			void plugin.app.workspace.openLinkText(
+				link.target,
+				plugin.app.workspace.getActiveFile()?.path ?? "",
+				newLeaf,
 			);
 		},
 		[plugin.app.workspace],
@@ -1679,6 +1714,8 @@ export function ChatPanel({
 			onExportChat={() => void handleExportChat()}
 			onShowMenu={handleShowSidebarMenu}
 			onOpenHistory={handleOpenHistory}
+			sharedLinks={sharedLinks}
+			onOpenSharedLink={handleOpenSharedLink}
 		/>
 	);
 

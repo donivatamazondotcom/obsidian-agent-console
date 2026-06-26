@@ -1,6 +1,8 @@
 import * as React from "react";
 const { useRef, useEffect, useState } = React;
 import { setIcon, setTooltip } from "obsidian";
+import { SharedLinksButton } from "./SharedLinksButton";
+import type { SharedLink } from "../utils/link-extract";
 
 // ============================================================================
 // Types
@@ -64,6 +66,13 @@ export interface ChatHeaderProps {
 	onShowMenu: (e: React.MouseEvent<HTMLElement>) => void;
 	/** Callback to open session history */
 	onOpenHistory?: () => void;
+	/** Links the agent has shared in the active tab (Shared Links Bubble). */
+	sharedLinks?: SharedLink[];
+	/** Open a shared link; the DOM event carries open-in-new-tab modifiers. */
+	onOpenSharedLink?: (
+		link: SharedLink,
+		evt: MouseEvent | KeyboardEvent,
+	) => void;
 }
 
 // ============================================================================
@@ -342,6 +351,8 @@ export function ChatHeader({
 	onExportChat,
 	onShowMenu,
 	onOpenHistory,
+	sharedLinks,
+	onOpenSharedLink,
 }: ChatHeaderProps) {
 	const titleSlotRef = useRef<HTMLSpanElement>(null);
 	const tooltip = buildHeaderTooltip(headerSegments);
@@ -360,6 +371,12 @@ export function ChatHeader({
 				</span>
 				{isUpdateAvailable && (
 					<UpdatePill onClick={onUpdateClick} />
+				)}
+				{onOpenSharedLink && (
+					<SharedLinksButton
+						links={sharedLinks ?? []}
+						onOpenLink={onOpenSharedLink}
+					/>
 				)}
 				<NavActionButton
 					icon="refresh-cw"
