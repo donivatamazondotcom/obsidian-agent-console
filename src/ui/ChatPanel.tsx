@@ -1327,6 +1327,7 @@ export function ChatPanel({
 			shouldReportInterimLabel({
 				alreadyReported: labelReportedRef.current,
 				derivedLabel: label,
+				titleStrategy: settings.titleStrategy,
 			})
 		) {
 			onLabelChangeRef.current(label as string);

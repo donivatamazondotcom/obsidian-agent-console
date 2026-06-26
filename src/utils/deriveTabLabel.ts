@@ -1,5 +1,6 @@
 import type { ChatMessage } from "../types/chat";
 import { SYSTEM_INSTRUCTION_SENTINELS } from "./system-instructions";
+import type { TitleStrategy } from "../types/title-strategy";
 
 /**
  * Strip leading injected context from the head of a (possibly replayed) first
@@ -100,10 +101,18 @@ export function labelAlreadyReportedOnMount(
  * derived label this run. Reports only when the label has not already been
  * reported (covers restored tabs via {@link labelAlreadyReportedOnMount}) and
  * a non-null label was actually derived.
+ *
+ * TS-I04 — additionally gated by `titleStrategy`: under `agent-timestamp` the
+ * tab keeps its agent-name + timestamp default and never derives a label from
+ * the prompt or response (T58). Under `agent-suggested` the derived label is
+ * the interim shown until the AI title resolves; under `prompt-derived` it is
+ * the final label.
  */
 export function shouldReportInterimLabel(args: {
 	alreadyReported: boolean;
 	derivedLabel: string | null;
+	titleStrategy: TitleStrategy;
 }): boolean {
+	if (args.titleStrategy === "agent-timestamp") return false;
 	return !args.alreadyReported && args.derivedLabel !== null;
 }

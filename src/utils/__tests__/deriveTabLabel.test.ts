@@ -166,6 +166,7 @@ describe("TS-I03: restored tabs keep their persisted label (no interim re-derive
 			shouldReportInterimLabel({
 				alreadyReported: labelAlreadyReportedOnMount("sess-123"),
 				derivedLabel: "say \"Fix scroll jitter\" only",
+				titleStrategy: "agent-suggested",
 			}),
 		).toBe(false);
 	});
@@ -175,6 +176,7 @@ describe("TS-I03: restored tabs keep their persisted label (no interim re-derive
 			shouldReportInterimLabel({
 				alreadyReported: labelAlreadyReportedOnMount(null),
 				derivedLabel: "Fix the scroll jitter",
+				titleStrategy: "agent-suggested",
 			}),
 		).toBe(true);
 	});
@@ -184,7 +186,40 @@ describe("TS-I03: restored tabs keep their persisted label (no interim re-derive
 			shouldReportInterimLabel({
 				alreadyReported: false,
 				derivedLabel: null,
+				titleStrategy: "agent-suggested",
 			}),
 		).toBe(false);
+	});
+});
+
+describe("TS-I04: agent-timestamp never derives a label (T58)", () => {
+	it("does NOT report a derived label under agent-timestamp, even on a fresh tab with a label", () => {
+		expect(
+			shouldReportInterimLabel({
+				alreadyReported: false,
+				derivedLabel: "say \"Fix scroll jitter\" only",
+				titleStrategy: "agent-timestamp",
+			}),
+		).toBe(false);
+	});
+
+	it("prompt-derived DOES report the derived first-message label", () => {
+		expect(
+			shouldReportInterimLabel({
+				alreadyReported: false,
+				derivedLabel: "Fix the scroll jitter",
+				titleStrategy: "prompt-derived",
+			}),
+		).toBe(true);
+	});
+
+	it("agent-suggested reports the interim derived label (before the AI title swap)", () => {
+		expect(
+			shouldReportInterimLabel({
+				alreadyReported: false,
+				derivedLabel: "Fix the scroll jitter",
+				titleStrategy: "agent-suggested",
+			}),
+		).toBe(true);
 	});
 });
