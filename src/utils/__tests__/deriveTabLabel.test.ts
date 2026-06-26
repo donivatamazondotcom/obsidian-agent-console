@@ -75,3 +75,68 @@ describe("I45: deriveTabLabel strips injected wrapper blocks (RED until fix)", (
 		);
 	});
 });
+
+import {
+	WIKI_LINK_INSTRUCTION,
+	TABLE_INSTRUCTION,
+	LATEX_MATH_INSTRUCTION,
+	TITLE_RUBRIC,
+} from "../system-instructions";
+
+describe("TS-I02 / F03: deriveTabLabel strips leaked bare instructions + title marker (RED until fix)", () => {
+	it("strips a single leading BARE system-instruction (embedded-path replay leak)", () => {
+		// On session/load replay of an embedded-context-path first message,
+		// the system instructions arrive as bare leading text (NOT
+		// <obsidian_*>-wrapped), so the current stripper misses them and the
+		// instruction would become the tab label.
+		const text = `${WIKI_LINK_INSTRUCTION}\n\nFix the scroll jitter`;
+		expect(deriveTabLabel([userMsg(text)])).toBe("Fix the scroll jitter");
+	});
+
+	it("strips multiple stacked bare instructions in any order", () => {
+		const text = [
+			TABLE_INSTRUCTION,
+			WIKI_LINK_INSTRUCTION,
+			LATEX_MATH_INSTRUCTION,
+			"",
+			"Add a dark mode toggle",
+		].join("\n");
+		expect(deriveTabLabel([userMsg(text)])).toBe("Add a dark mode toggle");
+	});
+
+	it("strips the bare F03 title rubric when it leaks to the head", () => {
+		const text = `${TITLE_RUBRIC}\n\nExplain merge vs rebase`;
+		expect(deriveTabLabel([userMsg(text)])).toBe(
+			"Explain merge vs rebase",
+		);
+	});
+
+	it("strips a leaked <title>…</title> marker (defense in depth)", () => {
+		const text = "<title>Leaked title</title>\n\nActual user request";
+		expect(deriveTabLabel([userMsg(text)])).toBe("Actual user request");
+	});
+
+	it("strips a mix of wrapped block + bare instruction + leaked marker", () => {
+		const text = [
+			SYS_INSTR, // <obsidian_system_instruction> wrapped
+			WIKI_LINK_INSTRUCTION, // bare
+			"<title>Some title</title>", // leaked marker
+			"",
+			"What does this code do?",
+		].join("\n");
+		expect(deriveTabLabel([userMsg(text)])).toBe("What does this code do?");
+	});
+
+	it("returns null when the message is ONLY leaked instructions (no user text)", () => {
+		const text = `${WIKI_LINK_INSTRUCTION}\n${TITLE_RUBRIC}`;
+		expect(deriveTabLabel([userMsg(text)])).toBeNull();
+	});
+
+	it("leaves a normal user message that merely mentions tables unchanged", () => {
+		// Guard against over-stripping: a user message that isn't an exact
+		// instruction sentinel must pass through untouched.
+		expect(deriveTabLabel([userMsg("Always use my table format")])).toBe(
+			"Always use my table format",
+		);
+	});
+});

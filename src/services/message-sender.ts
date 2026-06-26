@@ -37,6 +37,12 @@ import {
 	type IMentionService,
 } from "../utils/mention-parser";
 import type { TitleStrategy } from "../types/title-strategy";
+import {
+	WIKI_LINK_INSTRUCTION,
+	TABLE_INSTRUCTION,
+	LATEX_MATH_INSTRUCTION,
+	TITLE_RUBRIC,
+} from "../utils/system-instructions";
 import { convertWindowsPathToWsl } from "../utils/platform";
 import { buildFileUri } from "../utils/paths";
 import { buildContextBlocks } from "./context-builder";
@@ -172,34 +178,12 @@ export interface SendPromptResult {
 
 const DEFAULT_MAX_NOTE_LENGTH = 10000; // Default maximum characters per note
 export const DEFAULT_MAX_SELECTION_LENGTH = 10000; // Default maximum characters for selection
-const LATEX_MATH_INSTRUCTION =
-	"This client uses Obsidian Flavored Markdown. For math, use $...$ for inline and $$...$$ for display (not \\(...\\) or \\[...\\]).";
-const WIKI_LINK_INSTRUCTION =
-	"When referencing notes in this vault, use [[Note Name]] wikilink syntax so they become clickable links.";
-const TABLE_INSTRUCTION =
-	"Always leave a blank line before Markdown tables; without it Obsidian renders them as plain text.";
 
-/**
- * F03 — AI Session Rename title rubric.
- *
- * Injected as a system instruction on the first message only, and only when
- * `titleStrategy === 'agent-suggested'`. Asks the agent to emit a
- * `<title>…</title>` marker as the very first content of its reply, which the
- * head-buffer parser (S3) extracts and strips before render. Degrades
- * gracefully: an agent that ignores it just produces no marker, and the
- * prompt-derived interim label is kept.
- *
- * Style mirrors Claudian's battle-tested prompt (strong verb, sentence case,
- * no "Conversation with…"), tightened to 20–30 chars for tab real estate.
- */
-export const TITLE_RUBRIC =
-	"Begin your reply with a short session title wrapped exactly as " +
-	"<title>your title here</title>, then a blank line, then your normal " +
-	"answer. The title summarizes this request in about 20-30 characters, " +
-	"sentence case, starting with a strong verb (e.g. Fix, Add, Explain, " +
-	"Debug, Compare). Do not use quotes, trailing punctuation, or phrases " +
-	'like "Conversation with" or "Help me". Emit the <title>…</title> only ' +
-	"once, as the very first characters of this reply.";
+// System-instruction strings now live in utils/system-instructions.ts so the
+// label-deriver (deriveTabLabel) can strip any that leak to the head of a
+// replayed first user message (F4/TS-I02) using the same source of truth.
+// TITLE_RUBRIC is re-exported here for back-compat with existing importers.
+export { TITLE_RUBRIC };
 
 // ============================================================================
 // Shared Helper Functions
