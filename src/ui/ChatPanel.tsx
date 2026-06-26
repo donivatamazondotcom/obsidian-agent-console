@@ -54,7 +54,7 @@ import {
 	useQueueOrchestration,
 	type QueueEffectHandlers,
 } from "../hooks/useQueueOrchestration";
-import { decideConnectFlush } from "../services/message-queue-logic";
+import { decideConnectFlush, decideQueuedSendKind } from "../services/message-queue-logic";
 
 // Domain model imports
 import {
@@ -1125,13 +1125,15 @@ export function ChatPanel({
 			const trimmed = content.trim();
 			if (!trimmed && (attachments?.length ?? 0) === 0) return;
 			const message = { content: trimmed, attachments };
-			// Ready + streaming → hold, flush on turn-end. Not ready → hold +
-			// acquire, flush on connect. The reducer enforces queue-of-one.
-			if (lazySession.state === "ready") {
-				queue.dispatch({ type: "sendWhileStreaming", message });
-			} else {
-				queue.dispatch({ type: "sendWhilePreReady", message });
-			}
+			// Live session (ready/busy/permission) → hold, flush on turn-end.
+			// No live session (idle/connecting/error) → hold + acquire, flush on
+			// connect. Routing by live-session state (not just "ready") keeps a
+			// message queued mid-stream (busy) off the acquire path (I109). The
+			// reducer enforces queue-of-one.
+			queue.dispatch({
+				type: decideQueuedSendKind(lazySession.state),
+				message,
+			});
 		},
 		[lazySession.state, queue.dispatch],
 	);
