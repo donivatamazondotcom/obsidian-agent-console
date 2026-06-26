@@ -936,9 +936,14 @@ export function ChatPanel({
 
 		acquireNewSession: useCallback(async () => {
 			try {
+				// Source of truth is the LIVE tab agent (session.agentId,
+				// updated on switch via setAgentWithoutSession). The mount-time
+				// config?.agent / initialAgentId snapshot is intentionally NOT
+				// consulted — reading it was the original clobber (acquisition
+				// used the frozen default agent after a switch). D1/D3.
 				const effectiveAgent = selectAcquisitionAgent(
 					agent.session.agentId,
-					config?.agent || initialAgentId,
+					undefined,
 				);
 				logger.log(
 					"[Lazy] Acquiring new session for agent:",
@@ -982,8 +987,6 @@ export function ChatPanel({
 			agent.createSession,
 			agent.session.sessionId,
 			agent.session.agentId,
-			config?.agent,
-			initialAgentId,
 			logger,
 		]),
 
