@@ -504,11 +504,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Frontmatter tag")
 			.setDesc(
-				"Tag to add to exported notes. Supports nested tags (e.g., projects/agent-client). Leave empty to disable.",
+				"Tag to add to exported notes. Supports nested tags (e.g., projects/agent-console). Leave empty to disable.",
 			)
 			.addText((text) =>
 				text
-					.setPlaceholder("agent-client")
+					.setPlaceholder("agent-console")
 					.setValue(
 						this.plugin.settings.exportSettings.frontmatterTag,
 					)
