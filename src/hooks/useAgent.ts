@@ -164,11 +164,22 @@ export function useAgent(
 		[agentSession.handleSessionUpdate, agentMessages.enqueueUpdate],
 	);
 
-	// Composed cancel: session-level cancel + message-level RAF cleanup
+	// Composed cancel: session-level cancel + message-level RAF cleanup.
+	// Bump the generation FIRST (discardPendingTurn) so the aborted prompt's
+	// late result/error — e.g. Kiro CLI's -32603 "Internal error" for a turn
+	// cancelled mid-stream by reload/stop/new-chat — is discarded instead of
+	// surfacing as the error overlay (I106). This is the single shared cancel
+	// entry point for Stop, reload, and New chat, so one wiring point covers
+	// all three.
 	const cancelOperation = useCallback(async () => {
+		agentMessages.discardPendingTurn();
 		await agentSession.cancelOperation();
 		agentMessages.clearPendingUpdates();
-	}, [agentSession.cancelOperation, agentMessages.clearPendingUpdates]);
+	}, [
+		agentSession.cancelOperation,
+		agentMessages.clearPendingUpdates,
+		agentMessages.discardPendingTurn,
+	]);
 
 	// Soft reload with history-replay suppression: inject the message-level
 	// setIgnoreUpdates so the agent's loadSession replay does not duplicate the
