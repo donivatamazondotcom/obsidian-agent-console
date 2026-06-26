@@ -19,7 +19,7 @@ const h = vi.hoisted(() => {
 		separator?: boolean;
 		click?: (e: unknown) => void;
 	}
-	const menus: Array<{ items: FakeItem[]; shown: boolean }> = [];
+	const menus: Array<{ items: FakeItem[]; shown: boolean; via: string | null }> = [];
 	return { menus };
 });
 
@@ -31,7 +31,7 @@ vi.mock("obsidian", () => {
 			separator?: boolean;
 			click?: (e: unknown) => void;
 		}> = [];
-		_record = { items: this.items, shown: false };
+		_record = { items: this.items, shown: false, via: null as string | null };
 		constructor() {
 			h.menus.push(this._record);
 		}
@@ -68,6 +68,11 @@ vi.mock("obsidian", () => {
 		}
 		showAtMouseEvent() {
 			this._record.shown = true;
+			this._record.via = "mouse";
+		}
+		showAtPosition() {
+			this._record.shown = true;
+			this._record.via = "position";
 		}
 		onHide() {}
 	}
@@ -107,7 +112,7 @@ describe("SharedLinksButton", () => {
 		expect(
 			btn.classList.contains("acp-shared-links-button--disabled"),
 		).toBe(true);
-		expect(btn.getAttribute("aria-disabled")).toBe("true");
+		expect((btn as HTMLButtonElement).disabled).toBe(true);
 		expect(container.querySelector(".acp-shared-links-badge")).toBeNull();
 
 		fireEvent.click(btn);
@@ -191,5 +196,42 @@ describe("SharedLinksButton", () => {
 		expect(menu.items.some((i) => i.separator)).toBe(false);
 		expect(menu.items.filter((i) => i.isLabel)).toHaveLength(0);
 		expect(menu.items.map((i) => i.title)).toEqual(["A", "B"]);
+	});
+
+	it("SLB-I7: renders a native button so it is individually focusable", () => {
+		const { container } = render(
+			<SharedLinksButton
+				links={[link({ label: "A" })]}
+				onOpenLink={vi.fn()}
+			/>,
+		);
+		const btn = container.querySelector(
+			".acp-shared-links-button",
+		) as HTMLButtonElement;
+		// A native <button> (not a div[role=button]) is individually tab-focusable
+		// and inherits Obsidian's clickable-icon focus ring, like its siblings.
+		expect(btn.tagName).toBe("BUTTON");
+		expect(btn.disabled).toBe(false);
+	});
+
+	it("SLB-I7: keyboard activation anchors the menu by position; mouse uses the cursor", () => {
+		const { container } = render(
+			<SharedLinksButton
+				links={[link({ label: "A" })]}
+				onOpenLink={vi.fn()}
+			/>,
+		);
+		const btn = container.querySelector(
+			".acp-shared-links-button",
+		) as HTMLButtonElement;
+
+		// Enter/Space on a native button produce a click with detail === 0.
+		fireEvent.click(btn, { detail: 0 });
+		expect(h.menus[0].shown).toBe(true);
+		expect(h.menus[0].via).toBe("position");
+
+		// A real mouse click carries detail >= 1.
+		fireEvent.click(btn, { detail: 1 });
+		expect(h.menus[1].via).toBe("mouse");
 	});
 });

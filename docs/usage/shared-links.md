@@ -22,3 +22,7 @@ The button is always visible so it never surprises you by appearing and vanishin
 ## Per tab, and it remembers
 
 Each tab keeps its own list – the links from *that* conversation. And because the list is built from the conversation itself, it survives an Obsidian restart: reopen the tab and your links are right where you left them, with any newly-created files still floated to the top.
+
+## From the keyboard
+
+The link button is reachable with **Tab**, just like the other header buttons. It shows a focus ring when it has keyboard focus, and **Enter** or **Space** opens the list. When it's greyed out (no links yet), Tab skips it.
