@@ -516,8 +516,20 @@ async function preparePromptWithContextNotes(
 		displayContent.push(...input.images);
 	}
 
-	// Build agent content (context blocks + mentions + user message + images + resource links)
+	// System instructions (Obsidian formatting hints + F03 title rubric) as
+	// leading text blocks — same as the embedded/text-context paths. Without
+	// this the real send path (which always provides contextNotes) sent no
+	// system instructions at all, so the title rubric never reached the agent
+	// and no <title> marker was ever emitted (T52 root cause, 2026-06-25).
+	const systemInstructions = buildSystemInstructions(input);
+	const systemBlocks: PromptContent[] = systemInstructions.map((text) => ({
+		type: "text" as const,
+		text,
+	}));
+
+	// Build agent content (system instructions + context blocks + mentions + user message + images + resource links)
 	const agentContent: PromptContent[] = [
+		...systemBlocks,
 		...contextBlocks,
 		...mentionBlocks,
 		...(input.message ? [{ type: "text" as const, text: input.message }] : []),
