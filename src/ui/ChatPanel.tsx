@@ -523,7 +523,6 @@ export function ChatPanel({
 		handleSendMessage,
 		handleStopGeneration,
 		handleExportChat,
-		handleRestartAgent,
 		handleReload,
 		isReloading,
 		handleSetMode,
@@ -812,14 +811,6 @@ export function ChatPanel({
 			});
 
 			menu.addItem((item: MenuItem) => {
-				item.setTitle("Restart agent")
-					.setIcon("refresh-cw")
-					.onClick(() => {
-						void handleRestartAgent();
-					});
-			});
-
-			menu.addItem((item: MenuItem) => {
 				item.setTitle("New chat in directory...")
 					.setIcon("folder-open")
 					.onClick(() => {
@@ -851,7 +842,6 @@ export function ChatPanel({
 			session.agentId,
 			handleNewChatWithPersist,
 			plugin,
-			handleRestartAgent,
 			agentCwd,
 			handleNewChatInDirectory,
 			handleOpenSettings,

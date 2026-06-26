@@ -88,7 +88,7 @@ Click the **+** button in the tab bar to open a new tab with a fresh conversatio
 
 ## Reloading a Session
 
-The header **↻ Reload** button reloads the current session under a fresh agent process — the agent restarts and its MCP servers reload, mirroring a browser's refresh. See [Reloading a session](/usage/reload-session) for soft vs. hard reload.
+The header **↻ Reload** button reloads the current session under a fresh agent process — the agent restarts and its MCP servers reload, mirroring a browser's refresh. Shift-click to **Restart** with a fresh, empty session instead. See [Reloading a session](/usage/reload-session) for Reload vs. Restart.
 
 ## Stopping Generation
 

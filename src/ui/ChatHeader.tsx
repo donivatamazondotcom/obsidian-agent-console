@@ -380,7 +380,7 @@ export function ChatHeader({
 				)}
 				<NavActionButton
 					icon="refresh-cw"
-					label="Reload session (Shift-click: fresh restart)"
+					label="Reload — resume session, keep conversation. Shift-click: Restart — fresh session, clears conversation."
 					onClick={(e) => onReload(e.shiftKey)}
 					spinning={isReloading}
 				/>
