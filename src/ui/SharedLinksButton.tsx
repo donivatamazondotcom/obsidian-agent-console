@@ -80,53 +80,43 @@ export function SharedLinksButton({ links, onOpenLink }: SharedLinksButtonProps)
 		return menu;
 	}, [links, onOpenLink]);
 
-	const showMenuAtMouse = useCallback(
-		(e: React.MouseEvent<HTMLDivElement>) => {
+	// Single handler for both mouse and keyboard activation. A native <button>
+	// fires a `click` for Enter/Space too; keyboard-synthesized clicks carry
+	// detail === 0 (no mouse coordinates), so anchor the menu to the button's
+	// bottom-left rect in that case and to the cursor for real mouse clicks.
+	const openMenu = useCallback(
+		(e: React.MouseEvent<HTMLButtonElement>) => {
 			if (links.length === 0) return;
-			buildMenu().showAtMouseEvent(e.nativeEvent);
-		},
-		[links.length, buildMenu],
-	);
-
-	const handleKeyDown = useCallback(
-		(e: React.KeyboardEvent<HTMLDivElement>) => {
-			if (links.length === 0) return;
-			if (e.key !== "Enter" && e.key !== " ") return;
-			e.preventDefault();
-			// No mouse coords on keyboard activation — anchor the menu to the
-			// button's bottom-left via its bounding rect.
-			const rect = e.currentTarget.getBoundingClientRect();
-			buildMenu().showAtPosition({ x: rect.left, y: rect.bottom });
+			const menu = buildMenu();
+			if (e.detail === 0) {
+				const rect = e.currentTarget.getBoundingClientRect();
+				menu.showAtPosition({ x: rect.left, y: rect.bottom });
+			} else {
+				menu.showAtMouseEvent(e.nativeEvent);
+			}
 		},
 		[links.length, buildMenu],
 	);
 
 	return (
-		<div
+		<button
+			type="button"
 			className={
 				"clickable-icon nav-action-button acp-shared-links-button" +
 				(disabled ? " acp-shared-links-button--disabled" : "")
 			}
-			role="button"
-			// Static -1 keeps this control out of the Tab sequence by default and
-			// satisfies jsx-a11y (a role="button" element must be focusable). Its
-			// effective tab order is owned at runtime by the parent header
-			// toolbar's roving tabindex (role="toolbar" in ChatHeader): the toolbar
-			// promotes exactly one enabled control to tabindex 0 and re-affirms
-			// after every render, and skips this control while it is aria-disabled
-			// (zero links). React never changes this constant -1, so it does not
-			// fight the toolbar's imperative roving value. See SLB-I7 and the
-			// keyboard-first design rule.
-			tabIndex={-1}
-			data-acp-toolbar-item="true"
+			// Native <button> matching the sibling reload/history/save/more nav
+			// buttons: individually Tab-focusable, Enter/Space activation, and
+			// Obsidian's clickable-icon :focus-visible ring — identical focus
+			// behavior to its siblings. `disabled` takes it out of the tab order
+			// at zero links. See SLB-I7.
+			disabled={disabled}
 			aria-label={
 				disabled
 					? "No shared links yet"
 					: `Shared links (${count}${newCount > 0 ? `, ${newCount} new` : ""})`
 			}
-			aria-disabled={disabled}
-			onClick={disabled ? undefined : showMenuAtMouse}
-			onKeyDown={disabled ? undefined : handleKeyDown}
+			onClick={openMenu}
 		>
 			<span ref={iconRef} className="acp-shared-links-icon" />
 			{count > 0 && (
@@ -139,6 +129,6 @@ export function SharedLinksButton({ links, onOpenLink }: SharedLinksButtonProps)
 					{count}
 				</span>
 			)}
-		</div>
+		</button>
 	);
 }

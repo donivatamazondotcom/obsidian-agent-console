@@ -23,6 +23,6 @@ The button is always visible so it never surprises you by appearing and vanishin
 
 Each tab keeps its own list – the links from *that* conversation. And because the list is built from the conversation itself, it survives an Obsidian restart: reopen the tab and your links are right where you left them, with any newly-created files still floated to the top.
 
-## Reach it from the keyboard
+## From the keyboard
 
-The header buttons – shared links, reload, history, and the rest – work as one keyboard group. Press **Tab** to land on the row, then use the **Left** and **Right** arrow keys to move between the buttons (**Home** and **End** jump to the first and last), and **Enter** or **Space** to activate the one you're on. The whole row is a single Tab stop, so tabbing through the panel stays quick. When the shared-links button is greyed out, the keyboard skips it.
+The link button is reachable with **Tab**, just like the other header buttons. It shows a focus ring when it has keyboard focus, and **Enter** or **Space** opens the list. When it's greyed out (no links yet), Tab skips it.

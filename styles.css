@@ -487,16 +487,6 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	flex-wrap: nowrap;
 }
 
-/* Header action toolbar — WAI-ARIA toolbar group wrapping the nav buttons
- * (shared-links, reload, history, save, more) with a roving tabindex. Lays the
- * buttons out in a row without growing, so the title keeps the remaining space.
- * See [[Shared Links Bubble]] SLB-I7. */
-.agent-client-chat-view-header .acp-header-toolbar {
-	display: flex;
-	align-items: center;
-	flex: 0 0 auto;
-}
-
 .agent-client-chat-view-header-title {
 	flex: 1 1 0;
 	min-width: 0;

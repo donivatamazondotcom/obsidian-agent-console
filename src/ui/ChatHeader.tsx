@@ -1,5 +1,5 @@
 import * as React from "react";
-const { useRef, useEffect, useState, useCallback, useLayoutEffect } = React;
+const { useRef, useEffect, useState } = React;
 import { setIcon, setTooltip } from "obsidian";
 import { SharedLinksButton } from "./SharedLinksButton";
 import type { SharedLink } from "../utils/link-extract";
@@ -110,10 +110,6 @@ function NavActionButton({
 				"clickable-icon nav-action-button" +
 				(spinning ? " agent-client-reload-spinning" : "")
 			}
-			// Part of the header toolbar's roving tabindex group — the toolbar
-			// owns the tabIndex (one control is 0, the rest -1). A native
-			// <button> handles Enter/Space activation itself. See SLB-I7.
-			data-acp-toolbar-item="true"
 			aria-label={label}
 			onClick={onClick}
 		/>
@@ -337,124 +333,6 @@ function buildHeaderTooltip(segments: HeaderSegments): string {
 }
 
 // ============================================================================
-// Header toolbar roving focus (WAI-ARIA Toolbar pattern)
-// ============================================================================
-
-/** A toolbar control is enabled (focusable) unless aria-disabled / disabled. */
-function isToolbarItemEnabled(el: HTMLElement): boolean {
-	return (
-		el.getAttribute("aria-disabled") !== "true" &&
-		!el.hasAttribute("disabled")
-	);
-}
-
-/**
- * Roving-tabindex focus management for the header action toolbar.
- *
- * Obsidian's own native sidebar nav buttons are not keyboard-focusable at all
- * (verified: `.nav-action-button` divs carry no role/tabindex — Obsidian's
- * keyboard path is the command palette). Agent Console's keyboard-first design
- * principle requires these controls BE operable, so we group them as a
- * `role="toolbar"` and apply the WAI-ARIA Toolbar pattern
- * (https://www.w3.org/WAI/ARIA/apg/patterns/toolbar/):
- *
- *   - The whole row is a SINGLE Tab stop (roving tabindex): exactly one enabled
- *     control has `tabindex=0`, every other control has `tabindex=-1`.
- *   - Left/Right arrows move focus between controls (wrapping); Home/End jump to
- *     the first/last. Tab / Shift+Tab move focus in and out of the group.
- *   - Disabled controls (e.g. the shared-links button at zero links) are skipped
- *     by arrow navigation and never hold the tab stop.
- *
- * The tab stop "remembers" the last-focused control so Tab-out / Tab-in returns
- * there (APG optional behavior). Membership is dynamic — the history button is
- * conditional and the shared-links button toggles disabled — so the tab stop is
- * recomputed on every render via a layout effect.
- *
- * tabindex is managed imperatively on the DOM (not via React props on each
- * child) so the heterogeneous, conditional control set stays decoupled from the
- * toolbar: children just carry `data-acp-toolbar-item` and the hook owns focus.
- * This fixes SLB-I7 (header button not in the same focus group as its siblings).
- */
-function useToolbarRovingFocus(toolbarRef: React.RefObject<HTMLElement>) {
-	const lastActiveRef = useRef<HTMLElement | null>(null);
-
-	const getItems = useCallback((): HTMLElement[] => {
-		const root = toolbarRef.current;
-		if (!root) return [];
-		return Array.from(
-			root.querySelectorAll<HTMLElement>("[data-acp-toolbar-item]"),
-		);
-	}, [toolbarRef]);
-
-	const applyRoving = useCallback(
-		(active: HTMLElement | null) => {
-			for (const el of getItems()) {
-				el.setAttribute("tabindex", el === active ? "0" : "-1");
-			}
-		},
-		[getItems],
-	);
-
-	// Keep exactly one tab stop after every render. The control set changes
-	// (conditional history button, shared-links disabled toggle), so this runs
-	// without a deps array on purpose.
-	useLayoutEffect(() => {
-		const enabled = getItems().filter(isToolbarItemEnabled);
-		const prev = lastActiveRef.current;
-		const active =
-			prev && enabled.includes(prev) ? prev : (enabled[0] ?? null);
-		lastActiveRef.current = active;
-		applyRoving(active);
-	});
-
-	const onKeyDown = useCallback(
-		(e: React.KeyboardEvent<HTMLDivElement>) => {
-			if (
-				e.key !== "ArrowLeft" &&
-				e.key !== "ArrowRight" &&
-				e.key !== "Home" &&
-				e.key !== "End"
-			) {
-				return;
-			}
-			const enabled = getItems().filter(isToolbarItemEnabled);
-			if (enabled.length === 0) return;
-			const current = (e.target as HTMLElement).closest<HTMLElement>(
-				"[data-acp-toolbar-item]",
-			);
-			const idx = current ? enabled.indexOf(current) : -1;
-			let next: number;
-			if (e.key === "Home") next = 0;
-			else if (e.key === "End") next = enabled.length - 1;
-			else if (e.key === "ArrowRight")
-				next = idx < 0 ? 0 : (idx + 1) % enabled.length;
-			else next = idx <= 0 ? enabled.length - 1 : idx - 1;
-			e.preventDefault();
-			const target = enabled[next];
-			lastActiveRef.current = target;
-			applyRoving(target);
-			target.focus();
-		},
-		[getItems, applyRoving],
-	);
-
-	const onFocus = useCallback(
-		(e: React.FocusEvent<HTMLDivElement>) => {
-			const item = (e.target as HTMLElement).closest<HTMLElement>(
-				"[data-acp-toolbar-item]",
-			);
-			if (item && isToolbarItemEnabled(item)) {
-				lastActiveRef.current = item;
-				applyRoving(item);
-			}
-		},
-		[applyRoving],
-	);
-
-	return { onKeyDown, onFocus };
-}
-
-// ============================================================================
 // ChatHeader
 // ============================================================================
 
@@ -477,8 +355,6 @@ export function ChatHeader({
 	onOpenSharedLink,
 }: ChatHeaderProps) {
 	const titleSlotRef = useRef<HTMLSpanElement>(null);
-	const toolbarRef = useRef<HTMLDivElement>(null);
-	const roving = useToolbarRovingFocus(toolbarRef);
 	const tooltip = buildHeaderTooltip(headerSegments);
 	return (
 		<div className="nav-header agent-client-chat-view-header">
@@ -496,45 +372,35 @@ export function ChatHeader({
 				{isUpdateAvailable && (
 					<UpdatePill onClick={onUpdateClick} />
 				)}
-				<div
-					ref={toolbarRef}
-					role="toolbar"
-					aria-label="Chat actions"
-					aria-orientation="horizontal"
-					className="acp-header-toolbar"
-					onKeyDown={roving.onKeyDown}
-					onFocus={roving.onFocus}
-				>
-					{onOpenSharedLink && (
-						<SharedLinksButton
-							links={sharedLinks ?? []}
-							onOpenLink={onOpenSharedLink}
-						/>
-					)}
-					<NavActionButton
-						icon="refresh-cw"
-						label="Reload session (Shift-click: fresh restart)"
-						onClick={(e) => onReload(e.shiftKey)}
-						spinning={isReloading}
+				{onOpenSharedLink && (
+					<SharedLinksButton
+						links={sharedLinks ?? []}
+						onOpenLink={onOpenSharedLink}
 					/>
-					{onOpenHistory && (
-						<NavActionButton
-							icon="history"
-							label="Session history"
-							onClick={onOpenHistory}
-						/>
-					)}
+				)}
+				<NavActionButton
+					icon="refresh-cw"
+					label="Reload session (Shift-click: fresh restart)"
+					onClick={(e) => onReload(e.shiftKey)}
+					spinning={isReloading}
+				/>
+				{onOpenHistory && (
 					<NavActionButton
-						icon="save"
-						label="Export chat to Markdown"
-						onClick={onExportChat}
+						icon="history"
+						label="Session history"
+						onClick={onOpenHistory}
 					/>
-					<NavActionButton
-						icon="more-vertical"
-						label="More"
-						onClick={onShowMenu}
-					/>
-				</div>
+				)}
+				<NavActionButton
+					icon="save"
+					label="Export chat to Markdown"
+					onClick={onExportChat}
+				/>
+				<NavActionButton
+					icon="more-vertical"
+					label="More"
+					onClick={onShowMenu}
+				/>
 			</div>
 		</div>
 	);
