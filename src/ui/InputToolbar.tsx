@@ -99,6 +99,8 @@ function ToolbarDropdown({
 		<button
 			ref={buttonRef}
 			type="button"
+			// keep in sync with FOCUS_CLUSTER_ATTR (composer-focus-tracker)
+			data-acp-focus-cluster=""
 			className={wrapperClass}
 			aria-label={title}
 			onClick={handleClick}

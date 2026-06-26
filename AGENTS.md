@@ -87,6 +87,7 @@ src/
 │   ├── useSessionSearch.ts      # Session search state: query debounce + lazy content index
 │   ├── useChatActions.ts        # Business callbacks (send, newChat, export, restart, etc.)
 │   ├── useHistoryModal.ts       # Session history modal lifecycle
+│   ├── useComposerFocusReturn.ts # Return focus to composer after in-panel state changes (guarded by composer-cluster focus)
 │   ├── useSettings.ts           # Settings subscription (useSyncExternalStore)
 │   ├── useRecentlyClosedTabs.ts # F13 undo-close: per-leaf in-memory recently-closed stack
 │   └── useTabManager.ts         # Per-tab session orchestration (state, focus, lifecycle)
@@ -108,6 +109,7 @@ src/
 │   ├── TerminalBlock.tsx        # Terminal output polling
 │   ├── InputArea.tsx            # Textarea, attachments, mentions, history
 │   ├── composer-focus.ts       # Focus composer textarea + caret at end (restored-draft mount, TP-I03)
+│   ├── composer-focus-tracker.ts # Pure composer-cluster focus reducer + classifier (focus-return guardrail)
 │   ├── InputToolbar.tsx         # Config/mode/model selectors, usage, send button
 │   ├── SuggestionPopup.tsx      # Mention/command dropdown
 │   ├── PermissionBanner.tsx     # Permission request buttons

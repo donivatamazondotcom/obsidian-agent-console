@@ -208,6 +208,8 @@ export interface InputAreaProps {
 	plugin: AgentClientPlugin;
 	/** View instance for event registration */
 	view: IChatViewHost;
+	/** Composer textarea node, registered for focus-return after state changes. */
+	composerElRef?: React.MutableRefObject<HTMLTextAreaElement | null>;
 	/** Callback to send a message with optional attachments */
 	onSendMessage: (
 		content: string,
@@ -298,6 +300,7 @@ export function InputArea({
 	suggestions,
 	plugin,
 	view,
+	composerElRef,
 	onSendMessage,
 	onStopGeneration,
 	onRestoredMessageConsumed,
@@ -351,7 +354,16 @@ export function InputArea({
 	);
 
 	// Refs
-	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+	// Mirror the composer node out to the parent (ChatPanel) for focus-return
+	// after in-panel state changes. See [[Composer Focus Return After State Change]].
+	const setComposerNode = useCallback(
+		(node: HTMLTextAreaElement | null) => {
+			textareaRef.current = node;
+			if (composerElRef) composerElRef.current = node;
+		},
+		[composerElRef],
+	);
 	const dragCounterRef = useRef(0);
 
 	// Clear attached files when agent changes
@@ -1199,7 +1211,7 @@ export function InputArea({
 				{/* Textarea with Hint Overlay */}
 				<div className="agent-client-textarea-wrapper">
 					<textarea
-						ref={textareaRef}
+						ref={setComposerNode}
 						value={inputValue}
 						onChange={handleInputChange}
 						onKeyDown={handleKeyDown}
