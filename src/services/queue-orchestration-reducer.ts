@@ -226,11 +226,14 @@ export function queueOrchestrationReducer(
 			return { state: { pending: null }, effects: [{ kind: "clearComposer" }] };
 
 		case "resume":
-			// Soft-reload: when the agent can resume (loadSession), the session
-			// continues and the pending message is kept (re-flushes on the next
-			// ready/turn-end). When it can't, the slot degrades to draft exactly
-			// like a respawn.
-			return event.canResume ? { state, effects: NO_EFFECTS } : degradeToDraft();
+			// Soft-reload. INTERIM (I103/(l)): degrade to a preserved draft
+			// regardless of canResume. The designed "keep + re-flush on resume"
+			// is blocked on the resume path signaling `ready` before the resumed
+			// session can accept a prompt (the agent returns "Session not found");
+			// until that resume-domain fix lands, soft-reload matches
+			// restart/hard-reload. `canResume` is retained on the event for when
+			// flush-on-resume becomes safe.
+			return degradeToDraft();
 
 		case "respawn":
 			// Fresh session, transcript cleared. Degrade the pending message to a

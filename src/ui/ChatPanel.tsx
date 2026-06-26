@@ -1478,13 +1478,26 @@ export function ChatPanel({
 	const rejectActivePermissionRef = useRef(agent.rejectActivePermission);
 	const handleStopGenerationRef = useRef(handleStopWithCancelFlag);
 	const handleExportChatRef = useRef(handleExportChat);
-	const handleReloadRef = useRef(handleReload);
+	// Degrade a queued message to a preserved draft on reload (soft = resume,
+	// hard = respawn) so it does NOT flush into the just-reloaded session, which
+	// isn't prompt-ready yet (I103/(l): the agent returns "Session not found").
+	// The queue adapter is in scope here, so no forward ref is needed.
+	const handleReloadWithQueue = useCallback(
+		(hard: boolean) => {
+			queue.dispatch(
+				hard ? { type: "respawn" } : { type: "resume", canResume: true },
+			);
+			return handleReload(hard);
+		},
+		[queue.dispatch, handleReload],
+	);
+	const handleReloadRef = useRef(handleReloadWithQueue);
 	handleNewChatWithPersistRef.current = handleNewChatWithPersist;
 	approveActivePermissionRef.current = agent.approveActivePermission;
 	rejectActivePermissionRef.current = agent.rejectActivePermission;
 	handleStopGenerationRef.current = handleStopWithCancelFlag;
 	handleExportChatRef.current = handleExportChat;
-	handleReloadRef.current = handleReload;
+	handleReloadRef.current = handleReloadWithQueue;
 
 	useEffect(() => {
 		const workspace = plugin.app.workspace;
@@ -1780,7 +1793,7 @@ export function ChatPanel({
 			}}
 			isUpdateAvailable={isUpdateAvailable}
 			onUpdateClick={handleOpenCommunityPlugins}
-			onReload={(hard) => void handleReload(hard)}
+			onReload={(hard) => void handleReloadWithQueue(hard)}
 			isReloading={isReloading}
 			onExportChat={() => void handleExportChat()}
 			onShowMenu={handleShowSidebarMenu}

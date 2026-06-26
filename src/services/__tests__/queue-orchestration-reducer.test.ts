@@ -167,13 +167,13 @@ describe("queueOrchestrationReducer — edit / delete", () => {
 });
 
 describe("queueOrchestrationReducer — resume / respawn (cross-agent + restart semantics)", () => {
-	it("resume with canResume=true → keep pending (re-flushes on next ready/turn-end)", () => {
+	it("resume with canResume=true → degrade to draft (interim; flush-on-resume blocked on resume-not-ready)", () => {
 		const r = queueOrchestrationReducer(FULL, {
 			type: "resume",
 			canResume: true,
 		});
-		expect(r.state.pending).toBe(MSG);
-		expect(r.effects).toEqual([]);
+		expect(r.state.pending).toBeNull();
+		expect(r.effects).toEqual([]); // keep composer text, no auto-fire
 	});
 
 	it("resume with canResume=false → degrade to draft (agent can't loadSession)", () => {
