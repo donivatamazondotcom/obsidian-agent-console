@@ -1,7 +1,7 @@
 import * as React from "react";
 const { useRef, useEffect, useCallback } = React;
 import { Menu, setIcon } from "obsidian";
-import { registerOpenMenu } from "../utils/menu-registry";
+import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import type { SharedLink } from "../utils/link-extract";
 
 // ============================================================================
@@ -80,20 +80,14 @@ export function SharedLinksButton({ links, onOpenLink }: SharedLinksButtonProps)
 		return menu;
 	}, [links, onOpenLink]);
 
-	// Single handler for both mouse and keyboard activation. A native <button>
-	// fires a `click` for Enter/Space too; keyboard-synthesized clicks carry
-	// detail === 0 (no mouse coordinates), so anchor the menu to the button's
-	// bottom-left rect in that case and to the cursor for real mouse clicks.
+	// Single handler for both mouse and keyboard activation; showMenuAtEvent
+	// anchors to the button rect for keyboard activation (no cursor) and to the
+	// cursor for real mouse clicks (I115).
 	const openMenu = useCallback(
 		(e: React.MouseEvent<HTMLButtonElement>) => {
 			if (links.length === 0) return;
 			const menu = buildMenu();
-			if (e.detail === 0) {
-				const rect = e.currentTarget.getBoundingClientRect();
-				menu.showAtPosition({ x: rect.left, y: rect.bottom });
-			} else {
-				menu.showAtMouseEvent(e.nativeEvent);
-			}
+			showMenuAtEvent(menu, e);
 		},
 		[links.length, buildMenu],
 	);

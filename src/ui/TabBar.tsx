@@ -13,7 +13,7 @@
 import * as React from "react";
 const { useRef, useEffect, useCallback } = React;
 import { Menu, setIcon, type MenuItem } from "obsidian";
-import { registerOpenMenu } from "../utils/menu-registry";
+import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import type { TabInfo, TabState } from "../types/tab";
 
 // ============================================================================
@@ -264,7 +264,7 @@ export function TabBar({
 				}
 			}
 
-			menu.showAtMouseEvent(e.nativeEvent);
+			showMenuAtEvent(menu, e);
 		},
 		[tabs, onCloseTab, onCloseOtherTabs, onCloseTabsToRight, onRenameTab],
 	);
@@ -283,7 +283,7 @@ export function TabBar({
 						});
 				});
 			}
-			menu.showAtMouseEvent(e.nativeEvent);
+			showMenuAtEvent(menu, e);
 		},
 		[tabs, activeTabId, onSelectTab],
 	);

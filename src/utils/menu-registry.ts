@@ -48,3 +48,45 @@ export function closeOpenMenus(): void {
 export function _openMenuCount(): number {
 	return openMenus.size;
 }
+
+
+/**
+ * The subset of a React mouse event that {@link showMenuAtEvent} reads.
+ * Declared structurally so this module (in utils/) stays free of a React
+ * import — the layer constraint forbids React here. A `React.MouseEvent` is
+ * assignable to this shape at every call site.
+ */
+interface MenuTriggerEvent {
+	readonly detail: number;
+	readonly clientX: number;
+	readonly clientY: number;
+	readonly currentTarget: Element;
+	readonly nativeEvent: MouseEvent;
+}
+
+/**
+ * Anchor and show a {@link Menu} for a pointer- OR keyboard-triggered event.
+ *
+ * Keyboard activation of a native control (Enter/Space on a `<button>`) fires a
+ * synthesized `click` with `detail === 0` and `clientX/clientY === 0` — there
+ * is no cursor. Handing that event to {@link Menu.showAtMouseEvent} drops the
+ * menu at the viewport origin instead of the control (the "modal opens in a
+ * random place" bug, I115). Detect that case and anchor to the trigger's
+ * bottom-left rect. Real mouse clicks and right-click context menus carry
+ * genuine coordinates and fall through to cursor-anchored placement.
+ *
+ * This is the ONLY sanctioned way to position a menu: a `no-restricted-syntax`
+ * lint rule forbids calling `showAtMouseEvent` / `showAtPosition` directly
+ * outside this module, so every current and future menu is keyboard-correct by
+ * construction.
+ */
+export function showMenuAtEvent(menu: Menu, e: MenuTriggerEvent): void {
+	const isKeyboardActivation =
+		e.detail === 0 && e.clientX === 0 && e.clientY === 0;
+	if (isKeyboardActivation) {
+		const rect = e.currentTarget.getBoundingClientRect();
+		menu.showAtPosition({ x: rect.left, y: rect.bottom });
+	} else {
+		menu.showAtMouseEvent(e.nativeEvent);
+	}
+}

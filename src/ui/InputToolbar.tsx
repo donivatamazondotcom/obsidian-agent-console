@@ -2,7 +2,7 @@ import * as React from "react";
 const { useRef, useEffect, useCallback, useMemo } = React;
 import { setIcon, Menu } from "obsidian";
 
-import { registerOpenMenu } from "../utils/menu-registry";
+import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import { isSessionLive } from "../utils/send-affordance";
 import type { TabSessionState } from "../hooks/useTabSessionState";
 import {
@@ -89,7 +89,7 @@ function ToolbarDropdown({
 				});
 			}
 
-			menu.showAtMouseEvent(e.nativeEvent);
+			showMenuAtEvent(menu, e);
 			buttonRef.current?.blur();
 		},
 		[items, currentValue, onChange],

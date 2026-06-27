@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf, Menu, Notice, Scope, type MenuItem } from "obsidian";
-import { registerOpenMenu } from "../utils/menu-registry";
+import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import type {
 	IChatViewContainer,
 	IChatTabHandle,
@@ -654,7 +654,7 @@ function ChatComponent({
 					});
 				});
 			}
-			menu.showAtMouseEvent(e.nativeEvent);
+			showMenuAtEvent(menu, e);
 		},
 		[plugin, tabManager],
 	);

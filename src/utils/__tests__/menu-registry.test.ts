@@ -3,6 +3,7 @@ import {
 	registerOpenMenu,
 	closeOpenMenus,
 	_openMenuCount,
+	showMenuAtEvent,
 } from "../menu-registry";
 import type { Menu } from "obsidian";
 
@@ -61,5 +62,61 @@ describe("menu-registry (I14 — close orphaned menus on plugin unload)", () => 
 	it("is idempotent — closing again with no open menus is a no-op", () => {
 		closeOpenMenus();
 		expect(_openMenuCount()).toBe(0);
+	});
+});
+
+/** Menu stub recording the two positioning calls. */
+function makePositionMenu() {
+	return {
+		showAtMouseEvent: vi.fn(),
+		showAtPosition: vi.fn(),
+	} as unknown as Menu & {
+		showAtMouseEvent: ReturnType<typeof vi.fn>;
+		showAtPosition: ReturnType<typeof vi.fn>;
+	};
+}
+
+type TriggerEvent = Parameters<typeof showMenuAtEvent>[1];
+
+function makeEvent(
+	over: Partial<{ detail: number; clientX: number; clientY: number }>,
+): TriggerEvent {
+	const nativeEvent = { __native: true } as unknown as MouseEvent;
+	return {
+		detail: 1,
+		clientX: 120,
+		clientY: 40,
+		currentTarget: {
+			getBoundingClientRect: () => ({ left: 10, bottom: 25 }),
+		},
+		nativeEvent,
+		...over,
+	} as unknown as TriggerEvent;
+}
+
+describe("showMenuAtEvent (I115 — keyboard-activated menus anchor to the trigger)", () => {
+	it("anchors to the button rect for keyboard activation (detail 0, no coords)", () => {
+		const menu = makePositionMenu();
+		showMenuAtEvent(menu, makeEvent({ detail: 0, clientX: 0, clientY: 0 }));
+		expect(menu.showAtPosition).toHaveBeenCalledWith({ x: 10, y: 25 });
+		expect(menu.showAtMouseEvent).not.toHaveBeenCalled();
+	});
+
+	it("anchors to the cursor for a real mouse click (detail >= 1)", () => {
+		const menu = makePositionMenu();
+		const e = makeEvent({ detail: 1, clientX: 120, clientY: 40 });
+		showMenuAtEvent(menu, e);
+		expect(menu.showAtMouseEvent).toHaveBeenCalledWith(e.nativeEvent);
+		expect(menu.showAtPosition).not.toHaveBeenCalled();
+	});
+
+	it("anchors to the cursor for a right-click context menu (detail 0 but real coords)", () => {
+		const menu = makePositionMenu();
+		// Right-click contextmenu events carry detail 0 yet have genuine
+		// coordinates — they must stay cursor-anchored, not rect-anchored.
+		const e = makeEvent({ detail: 0, clientX: 200, clientY: 90 });
+		showMenuAtEvent(menu, e);
+		expect(menu.showAtMouseEvent).toHaveBeenCalledWith(e.nativeEvent);
+		expect(menu.showAtPosition).not.toHaveBeenCalled();
 	});
 });
