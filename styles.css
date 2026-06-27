@@ -1335,10 +1335,19 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	background-color: var(--background-modifier-hover);
 }
 
-.agent-client-toolbar-dropdown:focus {
+.agent-client-toolbar-dropdown:focus:not(:focus-visible) {
 	background: transparent;
 	box-shadow: none;
 	outline: none;
+}
+
+/* Keyboard focus shows the standard focus ring; mouse focus stays clean
+   (above). One predictable ring via outline, matching the explicit
+   :focus-visible treatment on the header update + tool-call summary buttons. */
+.agent-client-toolbar-dropdown:focus-visible {
+	outline: var(--border-width) solid var(--background-modifier-border-focus);
+	outline-offset: 0;
+	box-shadow: none;
 }
 
 .agent-client-toolbar-dropdown-label-area {
