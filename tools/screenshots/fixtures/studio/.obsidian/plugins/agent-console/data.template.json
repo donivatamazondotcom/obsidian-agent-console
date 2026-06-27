@@ -39,17 +39,7 @@
     ],
     "env": []
   },
-  "customAgents": [
-    {
-      "id": "kiro-cli",
-      "displayName": "Kiro",
-      "command": "/Users/doniv/.toolbox/bin/kiro-cli",
-      "args": [
-        "acp"
-      ],
-      "env": []
-    }
-  ],
+  "customAgents": [],
   "defaultAgentId": "claude-code-acp",
   "autoAllowPermissions": false,
   "activeNoteAsDefaultContext": true,
