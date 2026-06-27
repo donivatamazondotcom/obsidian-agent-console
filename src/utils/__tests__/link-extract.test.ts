@@ -13,7 +13,10 @@ import { extractLinks } from "../link-extract";
 import type { ChatMessage, MessageContent } from "../../types/chat";
 
 let seq = 0;
-function msg(role: "assistant" | "user", content: MessageContent[]): ChatMessage {
+function msg(
+	role: "assistant" | "user",
+	content: MessageContent[],
+): ChatMessage {
 	return { id: `m${seq++}`, role, content, timestamp: new Date() };
 }
 function text(t: string): MessageContent {
@@ -44,7 +47,9 @@ describe("extractLinks", () => {
 			msg("assistant", [
 				text("See [[A]] and https://example.com/docs for context."),
 			]),
-			msg("assistant", [createdDiff("04-initiatives/Agent Console/B.md")]),
+			msg("assistant", [
+				createdDiff("04-initiatives/Agent Console/B.md"),
+			]),
 			msg("assistant", [text("Wrote [[B]] for you.")]),
 		];
 
@@ -85,7 +90,9 @@ describe("extractLinks", () => {
 	it("classifies markdown links internal vs external by protocol", () => {
 		const messages = [
 			msg("assistant", [
-				text("[the spec](04-initiatives/spec.md) and [site](https://aws.amazon.com)"),
+				text(
+					"[the spec](04-initiatives/spec.md) and [site](https://aws.amazon.com)",
+				),
 			]),
 		];
 		const links = extractLinks(messages);
@@ -113,6 +120,23 @@ describe("extractLinks", () => {
 		expect(links).toHaveLength(1);
 		expect(links[0].target).toBe("https://obsidian.md");
 		expect(links[0].label).toBe("https://obsidian.md");
+	});
+	it("SLB-I9: strips trailing markdown bold/italic markers from a bare URL", () => {
+		const messages = [
+			msg("assistant", [
+				text(
+					"PR is up: **https://github.com/donivatamazondotcom/obsidian-agent-console/pull/131**",
+				),
+			]),
+		];
+		const links = extractLinks(messages);
+		expect(links).toHaveLength(1);
+		expect(links[0].kind).toBe("external");
+		// The closing ** must NOT be swallowed into the href (it 404s).
+		expect(links[0].target).toBe(
+			"https://github.com/donivatamazondotcom/obsidian-agent-console/pull/131",
+		);
+		expect(links[0].label).toBe(links[0].target);
 	});
 
 	it("captures resource_link blocks and matches agent-created files", () => {
@@ -169,7 +193,9 @@ describe("extractLinks — SLB-I8: resolve internal links against the vault", ()
 	it("drops non-resolving internal wikilinks (illustrative links), keeps externals and real notes", () => {
 		const messages = [
 			msg("assistant", [
-				text("see [[Agent Console]], an example [[file]], and [[TP-I05 …]]"),
+				text(
+					"see [[Agent Console]], an example [[file]], and [[TP-I05 …]]",
+				),
 			]),
 			msg("assistant", [text("external https://example.com/x stays")]),
 		];
