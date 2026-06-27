@@ -92,3 +92,69 @@ describe("preparePrompt context-notes path — system instructions (F03)", () =>
 		expect(textBlocks(r.agentContent)).toContain("git merge vs rebase");
 	});
 });
+
+/**
+ * I111 — title-rubric recency. The rubric must be the FINAL block immediately
+ * before the user message (not buried in the leading systemBlocks), so a large
+ * injected context/mention note can't push it far from where the agent starts
+ * generating. Burying it at the head let tool-first / code-work prompts lead
+ * with prose instead of <title>, the head buffer abandoned, and the
+ * prompt-derived interim label was kept (root-caused from the raw session
+ * store, 2026-06-27). The formatting hints still lead.
+ *
+ * Reproduce-first: with an intervening context-note block, the unfixed path
+ * places the rubric BEFORE the context note (rubricIdx !== userIdx - 1) — red.
+ */
+describe("preparePrompt context-notes path — title rubric recency (I111)", () => {
+	const withNote: PreparePromptInput = {
+		message: "implement the newTab feature",
+		vaultBasePath: "/vault",
+		contextNotes: [
+			{ path: "Quick Prompts.md", source: "mention", seen: false },
+		],
+	};
+
+	it("places the rubric immediately before the user message, after context blocks", async () => {
+		const r = await preparePrompt(
+			{
+				...withNote,
+				isFirstMessage: true,
+				titleStrategy: "agent-suggested",
+			},
+			vaultAccess,
+			mentionService,
+		);
+		const texts = textBlocks(r.agentContent);
+		const rubricIdx = texts.indexOf(TITLE_RUBRIC);
+		const userIdx = texts.indexOf("implement the newTab feature");
+		const ctxIdx = texts.findIndex((t) =>
+			t.includes("obsidian_context_note"),
+		);
+		const hintIdx = texts.findIndex((t) => t.includes("wikilink"));
+
+		expect(rubricIdx).toBeGreaterThanOrEqual(0);
+		expect(userIdx).toBeGreaterThanOrEqual(0);
+		expect(ctxIdx).toBeGreaterThanOrEqual(0);
+		// Rubric is the final block before the user message (recency).
+		expect(rubricIdx).toBe(userIdx - 1);
+		// Rubric sits AFTER the injected context note — no longer head-buried.
+		expect(rubricIdx).toBeGreaterThan(ctxIdx);
+		// Formatting hints still lead (before the context block).
+		expect(hintIdx).toBeLessThan(ctxIdx);
+	});
+
+	it("keeps the hints leading but drops the rubric when not agent-suggested", async () => {
+		const r = await preparePrompt(
+			{
+				...withNote,
+				isFirstMessage: true,
+				titleStrategy: "prompt-derived",
+			},
+			vaultAccess,
+			mentionService,
+		);
+		const texts = textBlocks(r.agentContent);
+		expect(texts).not.toContain(TITLE_RUBRIC);
+		expect(texts.some((t) => t.includes("wikilink"))).toBe(true);
+	});
+});

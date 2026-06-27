@@ -310,10 +310,10 @@ function buildAutoMentionPrefix(
  * math delimiters) on the first message of each session, and an empty array
  * thereafter. Always-on plugin behavior — no settings gate.
  *
- * When `titleStrategy === 'agent-suggested'` (F03), also appends the title
- * rubric so the agent emits a `<title>…</title>` marker the head-buffer parser
- * can extract. The rubric fires only on the first message — same `isFirstMessage`
- * gate as the formatting hints.
+ * These hints LEAD the prompt (they govern output formatting throughout the
+ * reply, so head position is fine). The F03 title rubric is intentionally NOT
+ * returned here — it is positioned separately, immediately before the user
+ * message, via {@link buildTitleRubric} (I111). See that function for why.
  *
  * Rationale: the plugin only runs in Obsidian, so all three hints are
  * universally applicable; the cost is ~150 tokens on message #1 of a session.
@@ -322,15 +322,29 @@ function buildAutoMentionPrefix(
  */
 export function buildSystemInstructions(input: PreparePromptInput): string[] {
 	if (!input.isFirstMessage) return [];
-	const instructions = [
-		WIKI_LINK_INSTRUCTION,
-		TABLE_INSTRUCTION,
-		LATEX_MATH_INSTRUCTION,
-	];
-	if (input.titleStrategy === "agent-suggested") {
-		instructions.push(TITLE_RUBRIC);
-	}
-	return instructions;
+	return [WIKI_LINK_INSTRUCTION, TABLE_INSTRUCTION, LATEX_MATH_INSTRUCTION];
+}
+
+/**
+ * Build the F03 title rubric (or null), positioned as the FINAL instruction
+ * immediately before the user message — NOT in the leading system-instruction
+ * block (I111).
+ *
+ * Recency matters for this rubric specifically: it asks the agent to emit a
+ * `<title>…</title>` marker as the very FIRST content of its reply. When the
+ * rubric led the prompt, a large injected context/mention note sat between it
+ * and the user's question, so on tool-first / code-work prompts the agent led
+ * with prose instead of the marker — the head buffer abandoned and the
+ * prompt-derived interim label was kept (root-caused from the raw session
+ * store, 2026-06-27). Placing the rubric last (closest to where the model
+ * starts generating) maximizes the chance the marker leads the reply.
+ *
+ * Fires only on the first message under the `agent-suggested` strategy — same
+ * gate as before, just a different position. Exported for unit testing.
+ */
+export function buildTitleRubric(input: PreparePromptInput): string | null {
+	if (!input.isFirstMessage) return null;
+	return input.titleStrategy === "agent-suggested" ? TITLE_RUBRIC : null;
 }
 
 function buildAgentMessageText(
@@ -527,11 +541,20 @@ async function preparePromptWithContextNotes(
 		text,
 	}));
 
-	// Build agent content (system instructions + context blocks + mentions + user message + images + resource links)
+	// F03/I111: the title rubric is positioned LAST — immediately before the
+	// user message — not in the leading systemBlocks, so an injected context/
+	// mention note can't bury it far from where the agent starts generating.
+	const titleRubric = buildTitleRubric(input);
+	const titleRubricBlocks: PromptContent[] = titleRubric
+		? [{ type: "text" as const, text: titleRubric }]
+		: [];
+
+	// Build agent content (formatting hints + context + mentions + title rubric + user message + images + resource links)
 	const agentContent: PromptContent[] = [
 		...systemBlocks,
 		...contextBlocks,
 		...mentionBlocks,
+		...titleRubricBlocks,
 		...(input.message ? [{ type: "text" as const, text: input.message }] : []),
 		...(input.images ?? []),
 		...(input.resourceLinks ?? []),
@@ -618,10 +641,18 @@ async function preparePromptWithEmbeddedContext(
 		text,
 	}));
 
+	// F03/I111: title rubric positioned last, immediately before the user
+	// message (see buildTitleRubric) — not buried in the leading systemBlocks.
+	const titleRubric = buildTitleRubric(input);
+	const titleRubricBlocks: PromptContent[] = titleRubric
+		? [{ type: "text" as const, text: titleRubric }]
+		: [];
+
 	const agentContent: PromptContent[] = [
 		...systemBlocks,
 		...resourceBlocks,
 		...autoMentionBlocks,
+		...titleRubricBlocks,
 		...(input.message || autoMentionPrefix
 			? [
 					{
@@ -698,6 +729,15 @@ async function preparePromptWithTextContext(
 	for (const instruction of systemInstructions) {
 		contextBlocks.push(
 			`<obsidian_system_instruction>\n${instruction}\n</obsidian_system_instruction>`,
+		);
+	}
+
+	// F03/I111: title rubric appended LAST so it lands immediately before the
+	// user message in the combined text (recency) — see buildTitleRubric.
+	const titleRubric = buildTitleRubric(input);
+	if (titleRubric) {
+		contextBlocks.push(
+			`<obsidian_system_instruction>\n${titleRubric}\n</obsidian_system_instruction>`,
 		);
 	}
 
