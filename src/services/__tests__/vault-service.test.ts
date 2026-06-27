@@ -51,6 +51,7 @@ describe("VaultService selection persistence (T09)", () => {
 			listSelections: () => [
 				{ anchor: { line: 5, ch: 0 }, head: { line: 10, ch: 20 } },
 			],
+			getSelection: () => "the selected text",
 			hasFocus: () => true,
 			// no `cm` — attachToView returns after the initial emitSelection
 		} as unknown as import("obsidian").Editor;
@@ -100,5 +101,20 @@ describe("VaultService selection persistence (T09)", () => {
 		// but the selection must still be present for the send path.
 		const after = await svc.getActiveNote();
 		expect(after?.selection).toBeTruthy();
+	});
+
+	it("captures selection text and exposes it via getActiveSelectionText, persisting across focus loss (QP-I03)", async () => {
+		const svc = new VaultService(makePlugin());
+		svc.subscribeSelectionChanges(() => {});
+
+		// Captured eagerly while the editor was focused.
+		expect(svc.getActiveSelectionText()).toBe("the selected text");
+
+		// Focus moves to the chat panel (non-markdown leaf). The unfocused
+		// editor's getSelection() would return "", so a lazy read fails — the
+		// eagerly-captured text must persist for the {{selection}} fire path.
+		activeMarkdownView = null;
+		leafChangeCb!({ view: {} });
+		expect(svc.getActiveSelectionText()).toBe("the selected text");
 	});
 });

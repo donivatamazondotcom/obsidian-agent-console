@@ -31,6 +31,22 @@ export class QuickPromptPickerModal extends FuzzySuggestModal<QuickPrompt> {
 	) {
 		super(app);
 		this.setPlaceholder("Search quick prompts — ↵ fire, ⌥↵ insert");
+
+		// FuzzySuggestModal only wires plain Enter to choose an item, so ⇧↵ / ⌥↵
+		// otherwise do nothing and the modifier-insert convention is unreachable
+		// from the keyboard (QP-I02). Register them to select the highlighted
+		// item WITH the modifier event, which flows through onChooseItem →
+		// isInsertModifier(evt) → insert instead of fire.
+		const chooseWithModifier = (evt: KeyboardEvent): false => {
+			(
+				this as unknown as {
+					chooser?: { useSelectedItem(evt: KeyboardEvent): void };
+				}
+			).chooser?.useSelectedItem(evt);
+			return false;
+		};
+		this.scope.register(["Shift"], "Enter", chooseWithModifier);
+		this.scope.register(["Alt"], "Enter", chooseWithModifier);
 	}
 
 	getItems(): QuickPrompt[] {
