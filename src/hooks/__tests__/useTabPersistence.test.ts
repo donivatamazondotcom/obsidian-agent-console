@@ -125,6 +125,7 @@ function makeProps(
 		getSessionId: () => null,
 		getScrollPosition: () => 0,
 		getDraft: () => "",
+		getWorkingDirectory: () => "",
 		storage: makeStorage(),
 		restoreEnabled: true,
 		...overrides,

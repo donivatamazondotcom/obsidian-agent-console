@@ -639,5 +639,7 @@ function isValidPersistedTabInfo(value: unknown): value is PersistedTabInfo {
 	if (v.sessionId !== null && typeof v.sessionId !== "string") return false;
 	if (typeof v.tabOrder !== "number") return false;
 	if (typeof v.scrollPosition !== "number") return false;
+	// workingDirectory is optional (back-compat); when present must be string.
+	if (v.workingDirectory !== undefined && typeof v.workingDirectory !== "string") return false;
 	return true;
 }
