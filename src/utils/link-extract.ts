@@ -136,7 +136,9 @@ export function extractLinks(
 
 	// Most-recent first; stable tiebreak on label for determinism.
 	links.sort((a, b) =>
-		b.order !== a.order ? b.order - a.order : a.label.localeCompare(b.label),
+		b.order !== a.order
+			? b.order - a.order
+			: a.label.localeCompare(b.label),
 	);
 	return links;
 }
@@ -173,13 +175,11 @@ function collectCreatedFilePaths(messages: ChatMessage[]): {
 }
 
 /** Extract raw links from a single content block at message index `order`. */
-function rawLinksFromBlock(
-	block: MessageContent,
-	order: number,
-): RawLink[] {
+function rawLinksFromBlock(block: MessageContent, order: number): RawLink[] {
 	if (block.type === "resource_link") {
 		const target = fileUriToPath(block.uri);
-		const external = PROTOCOL_RE.test(target) && !target.startsWith("file:");
+		const external =
+			PROTOCOL_RE.test(target) && !target.startsWith("file:");
 		return [
 			{
 				kind: external ? "external" : "internal",
@@ -221,7 +221,14 @@ function rawLinksFromText(text: string, order: number): RawLink[] {
 	}
 
 	for (const m of urlScan.matchAll(BARE_URL_RE)) {
-		const url = m[0].replace(/[.,;:`]+$/, ""); // strip trailing sentence punctuation / inline-code backtick
+		// Strip trailing sentence punctuation, inline-code backtick, and
+		// markdown emphasis markers (`*`). A bare URL wrapped in **bold** or
+		// *italic* (e.g. `**https://…/pull/131**`) otherwise swallows the
+		// closing markers into the href and 404s (SLB-I9). Leading markers are
+		// never captured (the match anchors on `https?://`); only the trailing
+		// run needs stripping. `*` is a legal URL sub-delim, so this strips it
+		// only at the END — an internal `*` (e.g. `/a*b`) is preserved.
+		const url = m[0].replace(/[.,;:`*]+$/, "");
 		out.push({ kind: "external", label: url, target: url, order });
 	}
 
