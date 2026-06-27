@@ -3,6 +3,7 @@ const { useRef, useEffect, useState } = React;
 import { setIcon, setTooltip } from "obsidian";
 import { SharedLinksButton } from "./SharedLinksButton";
 import type { SharedLink } from "../utils/link-extract";
+import { deriveHeaderSlot } from "../utils/header-slot";
 
 // ============================================================================
 // Types
@@ -258,10 +259,11 @@ function BrandedTitle({
 	const tier = useHeaderWidthTier(widthRef);
 
 	const showPlugin = tier === "wide";
-	const showModel = !!segments.model;
-	const showConnectingPlaceholder =
-		!segments.model && !segments.isLazyIdle && !!segments.isConnecting;
-	const showIdlePlaceholder = !segments.model && !!segments.isLazyIdle;
+	const slot = deriveHeaderSlot({
+		model: segments.model,
+		isLazyIdle: !!segments.isLazyIdle,
+		isConnecting: !!segments.isConnecting,
+	});
 
 	const rootClass = `acp-header-branded acp-header-branded--${tier}`;
 
@@ -275,7 +277,7 @@ function BrandedTitle({
 			<span className="acp-header-branded-profile">
 				{segments.profile}
 			</span>
-			{showModel && segments.model && (
+			{slot.kind === "model" && (
 				<>
 					<span
 						className="acp-header-branded-sep"
@@ -284,11 +286,11 @@ function BrandedTitle({
 						{" · "}
 					</span>
 					<span className="acp-header-branded-model">
-						{segments.model}
+						{slot.model}
 					</span>
 				</>
 			)}
-			{showConnectingPlaceholder && (
+			{slot.kind === "connecting" && (
 				<>
 					<span
 						className="acp-header-branded-sep"
@@ -301,7 +303,7 @@ function BrandedTitle({
 					</span>
 				</>
 			)}
-			{showIdlePlaceholder && (
+			{slot.kind === "idle" && (
 				<>
 					<span
 						className="acp-header-branded-sep"
