@@ -90,6 +90,7 @@ src/
 │   ├── useSessionSearch.ts      # Session search state: query debounce + lazy content index
 │   ├── useChatActions.ts        # Business callbacks (send, newChat, export, restart, etc.)
 │   ├── useHistoryModal.ts       # Session history modal lifecycle
+│   ├── useTitleHistorySync.ts   # Propagate the resolved AI session title to the history record
 │   ├── useComposerFocusReturn.ts # Return focus to composer after in-panel state changes (guarded by composer-cluster focus)
 │   ├── useSettings.ts           # Settings subscription (useSyncExternalStore)
 │   ├── useRecentlyClosedTabs.ts # F13 undo-close: per-leaf in-memory recently-closed stack

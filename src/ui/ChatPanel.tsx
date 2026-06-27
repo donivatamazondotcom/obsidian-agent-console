@@ -21,6 +21,7 @@ import {
 	type SessionIntent,
 } from "../utils/agent-switch";
 import { useHistoryModal } from "../hooks/useHistoryModal";
+import { useTitleHistorySync } from "../hooks/useTitleHistorySync";
 import { useComposerFocusReturn } from "../hooks/useComposerFocusReturn";
 import { useChatActions } from "../hooks/useChatActions";
 import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
@@ -1464,6 +1465,18 @@ export function ChatPanel({
 		onLabelChangeRef.current?.(title);
 		labelReportedRef.current = true;
 	}, [agent.suggestedTitle]);
+
+	// I112: propagate the resolved AI title to the session-history record so
+	// the history pane matches the tab label. saveSessionLocally only stored
+	// the first-message text, and updateSessionTitle was otherwise called only
+	// by the history modal's manual rename — so the AI title never reached the
+	// history list. Scoped to the AI/auto title (not the interim label).
+	useTitleHistorySync({
+		suggestedTitle: agent.suggestedTitle,
+		sessionId: agent.session.sessionId,
+		cwd: agentCwd,
+		updateSessionTitle: sessionHistory.updateSessionTitle,
+	});
 
 	// Report session ID changes to parent (for tab rename persistence)
 	useEffect(() => {
