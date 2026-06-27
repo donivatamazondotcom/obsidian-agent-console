@@ -212,6 +212,7 @@ export function useAgentSession(
 				usage: undefined,
 				promptCapabilities: prev.promptCapabilities,
 				agentCapabilities: prev.agentCapabilities,
+				capabilities: prev.capabilities,
 				agentInfo: prev.agentInfo,
 				createdAt: new Date(),
 				lastActivityAt: new Date(),
@@ -304,6 +305,10 @@ export function useAgentSession(
 						: (agentClient.getInitializeResult()
 								?.agentCapabilities ??
 							prev.agentCapabilities),
+					capabilities: initResult
+						? initResult.capabilities
+						: (agentClient.getInitializeResult()?.capabilities ??
+							prev.capabilities),
 					agentInfo: initResult
 						? initResult.agentInfo
 						: prev.agentInfo,
@@ -399,6 +404,7 @@ export function useAgentSession(
 				usage: undefined,
 				promptCapabilities: undefined,
 				agentCapabilities: undefined,
+				capabilities: undefined,
 				agentInfo: undefined,
 				lastActivityAt: new Date(),
 			}));
@@ -470,6 +476,9 @@ export function useAgentSession(
 				agentCapabilities:
 					agentClient.getInitializeResult()?.agentCapabilities ??
 					prev.agentCapabilities,
+				capabilities:
+					agentClient.getInitializeResult()?.capabilities ??
+					prev.capabilities,
 				lastActivityAt: new Date(),
 			}));
 		},
@@ -484,7 +493,7 @@ export function useAgentSession(
 		const prev = sessionRef.current;
 		const sessionId = prev.sessionId;
 		const agentId = prev.agentId;
-		const canResume = prev.agentCapabilities?.loadSession === true;
+		const canResume = prev.capabilities?.restoresViaLoad === true;
 		const effectiveCwd = workingDirectory;
 
 		return reloadSessionFlow({
@@ -676,6 +685,7 @@ export function useAgentSession(
 				init.promptCapabilities ?? prev.promptCapabilities,
 			agentCapabilities:
 				init.agentCapabilities ?? prev.agentCapabilities,
+			capabilities: init.capabilities ?? prev.capabilities,
 		}));
 	}, [agentClient]);
 

@@ -26,7 +26,7 @@ This is a separately-distributed fork that adds tabbed multi-session UX. The cod
 src/
 ├── types/                       # Type definitions (no logic, no dependencies)
 │   ├── chat.ts                  # ChatMessage, MessageContent, PromptContent, AttachedFile, ActivePermission
-│   ├── session.ts               # ChatSession, SessionUpdate (12-type union), SessionInfo, Capabilities
+│   ├── session.ts               # ChatSession, SessionUpdate (12-type union), SessionInfo, AgentCapabilities (normalized) + RawAgentCapabilities
 │   ├── agent.ts                 # AgentConfig, agent settings (Claude/Codex/Gemini/Kiro/Custom)
 │   ├── errors.ts                # AcpError, ProcessError, ErrorInfo
 │   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref)
@@ -36,7 +36,7 @@ src/
 ├── acp/                         # ACP protocol (SDK dependency confined here)
 │   ├── acp-client.ts            # Process lifecycle, UI-facing API (AcpClient class)
 │   ├── acp-handler.ts           # SDK event handler + sessionId filter + listener broadcast
-│   ├── type-converter.ts        # ACP SDK ↔ internal type conversion
+│   ├── type-converter.ts        # ACP SDK ↔ internal type conversion; capability normalizer (toAgentCapabilities)
 │   ├── permission-handler.ts    # Permission queue, auto-approve, Promise resolution
 │   └── terminal-handler.ts      # Terminal process create/output/kill
 ├── services/                    # Business logic (non-React, no React imports)

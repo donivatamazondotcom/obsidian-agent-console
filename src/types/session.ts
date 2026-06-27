@@ -247,11 +247,22 @@ export interface ChatSession {
 	promptCapabilities?: PromptCapabilities;
 
 	/**
-	 * Full agent capabilities from initialization.
-	 * Contains loadSession, sessionCapabilities, mcpCapabilities, and promptCapabilities.
+	 * Raw agent capabilities from initialization (SDK-shaped bag).
+	 * Carries loadSession, sessionCapabilities, mcpCapabilities, and
+	 * promptCapabilities. Retained for prompt/MCP content capabilities; the
+	 * UI MUST read {@link ChatSession.capabilities} for session/model decisions.
 	 * Set during initialization and persists for the session lifetime.
 	 */
-	agentCapabilities?: AgentCapabilities;
+	agentCapabilities?: RawAgentCapabilities;
+
+	/**
+	 * Normalized agent-capability record (total, explicit booleans).
+	 * Derived once at the `acp/` edge from {@link RawAgentCapabilities}; this
+	 * is the only capability shape the UI/logic reads for session-history and
+	 * header decisions. Undefined before initialize resolves — consumers
+	 * default to {@link NO_AGENT_CAPABILITIES}.
+	 */
+	capabilities?: AgentCapabilities;
 
 	/**
 	 * Information about the connected agent.
@@ -653,12 +664,16 @@ export interface SessionCapabilities {
 }
 
 /**
- * Full agent capabilities from ACP initialization.
+ * Raw agent capabilities exactly as advertised over ACP `initialize`.
  *
- * Contains all capability information returned by the agent,
- * including session features, MCP support, and prompt capabilities.
+ * This is the unnormalized SDK-shaped bag: optional fields, `undefined`
+ * sub-capabilities, the whole external-variance surface. It is retained as
+ * the carrier for prompt/MCP content capabilities, but the rest of the app
+ * MUST NOT branch on its session-capability shape — it consumes the
+ * normalized {@link AgentCapabilities} record instead. The single place that
+ * maps this bag → the domain record is {@link AcpTypeConverter.toAgentCapabilities}.
  */
-export interface AgentCapabilities {
+export interface RawAgentCapabilities {
 	/** Whether the agent supports session/load for resuming sessions (stable) */
 	loadSession?: boolean;
 
@@ -671,6 +686,57 @@ export interface AgentCapabilities {
 	/** Prompt content type capabilities */
 	promptCapabilities?: PromptCapabilities;
 }
+
+/**
+ * Normalized, uniform agent-capability domain record.
+ *
+ * Produced ONCE at the `acp/` edge ({@link AcpTypeConverter.toAgentCapabilities})
+ * from {@link RawAgentCapabilities}. Every field is a **total, explicit
+ * boolean** — there is no `undefined`-means-something ambiguity. This is the
+ * only capability shape the rest of the app reads; UI/logic never inspects
+ * the raw SDK capability objects nor branches on agent id.
+ *
+ * Read-time resolvers (`deriveSessionHistoryView`, `deriveHeaderSlot`) take
+ * this record as input. See [[Agent Capability Normalization]].
+ */
+export interface AgentCapabilities {
+	/** Agent advertises `session/list` (can enumerate server-side sessions). */
+	listsSessions: boolean;
+
+	/** Agent advertises `session/load` (restores a session by replaying history). */
+	restoresViaLoad: boolean;
+
+	/** Agent advertises `session/resume` (restores a session without replay). */
+	restoresViaResume: boolean;
+
+	/** Agent advertises `session/fork` (branches a new session from an existing one). */
+	forks: boolean;
+
+	/**
+	 * Agent reports model state the header can display.
+	 *
+	 * ACP SDK 0.14.1 exposes NO model capability in `initialize` (model
+	 * selectors were dropped; model state, when present, arrives per-session).
+	 * So this normalizes to `false` for every agent at this SDK version. It is
+	 * kept as a total, explicit field and is the SINGLE wire-point to flip if
+	 * the SDK reintroduces an initialize-time model capability — never by
+	 * re-scattering raw reads across the UI.
+	 */
+	reportsModels: boolean;
+}
+
+/**
+ * The normalized record for an agent that advertised no capabilities (or
+ * before `initialize` has resolved). Every axis is `false`. Used as the
+ * default so consumers always read a total record, never `undefined`.
+ */
+export const NO_AGENT_CAPABILITIES: AgentCapabilities = {
+	listsSessions: false,
+	restoresViaLoad: false,
+	restoresViaResume: false,
+	forks: false,
+	reportsModels: false,
+};
 
 // ============================================================================
 // Agent Info
@@ -718,10 +784,18 @@ export interface InitializeResult {
 	promptCapabilities?: PromptCapabilities;
 
 	/**
-	 * Full agent capabilities from initialization.
-	 * Contains loadSession, sessionCapabilities, mcpCapabilities, and promptCapabilities.
+	 * Raw agent capabilities from initialization (SDK-shaped bag).
+	 * Contains loadSession, sessionCapabilities, mcpCapabilities, and
+	 * promptCapabilities. Retained for prompt/MCP content capabilities.
 	 */
-	agentCapabilities?: AgentCapabilities;
+	agentCapabilities?: RawAgentCapabilities;
+
+	/**
+	 * Normalized agent-capability record, produced at the `acp/` edge from
+	 * {@link RawAgentCapabilities}. Total, explicit booleans — the uniform
+	 * shape the rest of the app consumes (see {@link AgentCapabilities}).
+	 */
+	capabilities: AgentCapabilities;
 
 	/**
 	 * Information about the agent implementation.
