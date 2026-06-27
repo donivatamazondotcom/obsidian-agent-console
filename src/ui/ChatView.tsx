@@ -249,6 +249,19 @@ function ChatComponent({
 		return map;
 	}, [restoredLeaf]);
 
+	// Per-tab restored working directory, keyed by tabId. Passed as the
+	// workingDirectory prop so restored tabs keep their cwd (suppresses
+	// the launch notice and shows the banner).
+	const restoredCwdByTabId = useMemo(() => {
+		const map: Record<string, string> = {};
+		for (const t of restoredLeaf?.tabs ?? []) {
+			if (typeof t.workingDirectory === "string" && t.workingDirectory !== "") {
+				map[t.tabId] = t.workingDirectory;
+			}
+		}
+		return map;
+	}, [restoredLeaf]);
+
 	const tabManager = useTabManager(
 		initialAgentId,
 		restoredTabs,
@@ -462,6 +475,13 @@ function ChatComponent({
 		[],
 	);
 
+	// Resolves a tab's current resolved working directory for persistence.
+	const getWorkingDirectoryForTab = useCallback(
+		(tabId: string) =>
+			tabHandlesRef.current.get(tabId)?.getWorkingDirectory() ?? "",
+		[],
+	);
+
 	// Debounced draft-save trigger. Each ChatPanel calls this on composer
 	// change; after the debounce we recompute a signature from all tabs' live
 	// drafts and bump state, which fires useTabPersistence's save effect. Using
@@ -494,6 +514,7 @@ function ChatComponent({
 		getSessionId: getSessionIdForTab,
 		getScrollPosition: getScrollPositionForTab,
 		getDraft: getDraftForTab,
+		getWorkingDirectory: getWorkingDirectoryForTab,
 		storage: persistenceStorage,
 		restoreEnabled: plugin.settings.restoreTabsOnStartup,
 		sessionSignature,
@@ -903,6 +924,8 @@ function ChatComponent({
 				activeCallbacksRef.current?.hasPendingQueue() ?? false,
 			runQuickPrompt: (prompt, opts) =>
 				activeCallbacksRef.current?.runQuickPrompt(prompt, opts),
+			getWorkingDirectory: () =>
+				activeCallbacksRef.current?.getWorkingDirectory() ?? "",
 		});
 		view.setTabHandlesAccessor(() =>
 			Array.from(tabHandlesRef.current.entries()).map(
@@ -999,6 +1022,7 @@ function ChatComponent({
 						>
 							<ChatPanel
 								viewId={tab.tabId}
+								workingDirectory={restoredCwdByTabId[tab.tabId]}
 								initialAgentId={tab.agentId}
 								viewHost={view}
 								isActive={tab.tabId === activeTabId}

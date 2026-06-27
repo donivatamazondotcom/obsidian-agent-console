@@ -117,6 +117,8 @@ export interface ChatPanelCallbacks {
 	hasPendingQueue: () => boolean;
 	/** Fire / insert a quick prompt in this tab (picker / chips). */
 	runQuickPrompt: (prompt: QuickPrompt, gesture: QuickPromptGesture) => void;
+	/** Current resolved working directory for this tab (persisted for restore). */
+	getWorkingDirectory: () => string;
 }
 
 // ============================================================================
@@ -2199,8 +2201,9 @@ export function ChatPanel({
 			hasPendingQueue: () => isQueuedRef.current,
 			runQuickPrompt: (prompt, opts) =>
 				runQuickPromptRef.current(prompt, opts),
+			getWorkingDirectory: () => agentCwd,
 		});
-	}, [onRegisterCallbacks, activeAgentLabel]);
+	}, [onRegisterCallbacks, activeAgentLabel, agentCwd]);
 
 	// ============================================================
 	// Render

@@ -123,6 +123,11 @@ export interface UseTabPersistenceProps {
 	 * the composer is empty. (Draft persistence — close/reopen + restart.)
 	 */
 	getDraft: (tabId: string) => string;
+	/**
+	 * Resolves the current resolved working directory for a tab. Read at
+	 * save-time via ref. Returns "" when the tab uses the vault default.
+	 */
+	getWorkingDirectory: (tabId: string) => string;
 	/** Storage adapter (tab-state + session-messages) */
 	storage: TabPersistenceStorage;
 	/**
@@ -212,17 +217,23 @@ function buildPerLeafState(
 	getSessionId: (tabId: string) => string | null,
 	getScrollPosition: (tabId: string) => number,
 	getDraft: (tabId: string) => string,
+	getWorkingDirectory: (tabId: string) => string,
 ): PerLeafTabState {
-	const persistedTabs: PersistedTabInfo[] = tabs.map((tab, index) => ({
-		tabId: tab.tabId,
-		agentId: tab.agentId,
-		label: tab.label,
-		labelIsCustom: tab.labelIsCustom ?? false,
-		sessionId: getSessionId(tab.tabId),
-		tabOrder: index,
-		scrollPosition: getScrollPosition(tab.tabId),
-		draftText: getDraft(tab.tabId),
-	}));
+	const persistedTabs: PersistedTabInfo[] = tabs.map((tab, index) => {
+		const cwd = getWorkingDirectory(tab.tabId);
+		const base: PersistedTabInfo = {
+			tabId: tab.tabId,
+			agentId: tab.agentId,
+			label: tab.label,
+			labelIsCustom: tab.labelIsCustom ?? false,
+			sessionId: getSessionId(tab.tabId),
+			tabOrder: index,
+			scrollPosition: getScrollPosition(tab.tabId),
+			draftText: getDraft(tab.tabId),
+		};
+		if (cwd) base.workingDirectory = cwd;
+		return base;
+	});
 	return {
 		leafId,
 		tabs: persistedTabs,
@@ -244,6 +255,7 @@ export function useTabPersistence(
 		getSessionId,
 		getScrollPosition,
 		getDraft,
+		getWorkingDirectory,
 		storage,
 		restoreEnabled,
 		sessionSignature,
@@ -270,6 +282,7 @@ export function useTabPersistence(
 	const getSessionIdRef = useRef(getSessionId);
 	const getScrollPositionRef = useRef(getScrollPosition);
 	const getDraftRef = useRef(getDraft);
+	const getWorkingDirectoryRef = useRef(getWorkingDirectory);
 	const storageRef = useRef(storage);
 	const tabsRef = useRef(tabs);
 	const activeTabIdRef = useRef(activeTabId);
@@ -280,6 +293,7 @@ export function useTabPersistence(
 		getSessionIdRef.current = getSessionId;
 		getScrollPositionRef.current = getScrollPosition;
 		getDraftRef.current = getDraft;
+		getWorkingDirectoryRef.current = getWorkingDirectory;
 		storageRef.current = storage;
 		tabsRef.current = tabs;
 		activeTabIdRef.current = activeTabId;
@@ -413,6 +427,7 @@ export function useTabPersistence(
 			getSessionIdRef.current,
 			getScrollPositionRef.current,
 			getDraftRef.current,
+			getWorkingDirectoryRef.current,
 		);
 		void storageRef.current.saveTabStateForLeaf(leafId, state);
 		// Deps are leafId + persistenceSignature + sessionSignature +
@@ -430,6 +445,7 @@ export function useTabPersistence(
 			getSessionIdRef.current,
 			getScrollPositionRef.current,
 			getDraftRef.current,
+			getWorkingDirectoryRef.current,
 		);
 		await storageRef.current.saveTabStateForLeaf(leafId, state);
 	}, [leafId]);

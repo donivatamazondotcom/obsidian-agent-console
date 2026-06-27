@@ -83,6 +83,13 @@ export interface PersistedTabInfo {
 	 * See [[ACP Preserve Unsent Draft Text Per Tab]].
 	 */
 	draftText?: string;
+	/**
+	 * Working directory this tab was launched in. Persisted so a restored
+	 * tab keeps its cwd (suppresses the launch notice and shows the banner).
+	 * Optional for back-compat: pre-cwd persisted state omits it and the
+	 * tab falls through to the agent/global/vault default on restore.
+	 */
+	workingDirectory?: string;
 }
 
 /**
