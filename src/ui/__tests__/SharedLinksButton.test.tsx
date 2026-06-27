@@ -79,7 +79,14 @@ vi.mock("obsidian", () => {
 	return { Menu, setIcon: vi.fn() };
 });
 
-vi.mock("../../utils/menu-registry", () => ({ registerOpenMenu: vi.fn() }));
+// Keep the real showMenuAtEvent (so button → helper → menu positioning runs
+// end-to-end and the SLB-I7 anchoring assertions still exercise live wiring);
+// only registerOpenMenu is stubbed.
+vi.mock("../../utils/menu-registry", async (importOriginal) => {
+	const actual =
+		await importOriginal<typeof import("../../utils/menu-registry")>();
+	return { ...actual, registerOpenMenu: vi.fn() };
+});
 
 import { SharedLinksButton } from "../SharedLinksButton";
 import type { SharedLink } from "../../utils/link-extract";

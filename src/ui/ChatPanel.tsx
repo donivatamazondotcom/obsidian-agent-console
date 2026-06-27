@@ -10,7 +10,7 @@ import {
 	type MenuItem,
 } from "obsidian";
 
-import { registerOpenMenu } from "../utils/menu-registry";
+import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
 import { deriveNewLeaf } from "../utils/link-leaf";
@@ -864,7 +864,7 @@ export function ChatPanel({
 					});
 			});
 
-			menu.showAtMouseEvent(e.nativeEvent);
+			showMenuAtEvent(menu, e);
 		},
 		[
 			session.agentId,

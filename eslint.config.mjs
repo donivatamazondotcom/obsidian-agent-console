@@ -29,6 +29,25 @@ export default defineConfig([
 		},
 		rules: {
 			// Preserve existing rules
+			// Menu positioning must go through showMenuAtEvent() (utils/menu-registry)
+			// so keyboard activation anchors to the trigger element instead of the
+			// viewport origin (I115). Forbid the raw Obsidian APIs everywhere except
+			// the wrapper itself (exempted below).
+			"no-restricted-syntax": [
+				"error",
+				{
+					selector:
+						"CallExpression[callee.property.name='showAtMouseEvent']",
+					message:
+						"Route menus through showMenuAtEvent() (utils/menu-registry) instead of calling menu.showAtMouseEvent directly, so keyboard activation anchors to the trigger element (I115).",
+				},
+				{
+					selector:
+						"CallExpression[callee.property.name='showAtPosition']",
+					message:
+						"Route menus through showMenuAtEvent() (utils/menu-registry) instead of calling menu.showAtPosition directly (I115).",
+				},
+			],
 			"@typescript-eslint/no-unused-vars": ["error", { args: "none" }],
 			"@typescript-eslint/ban-ts-comment": "off",
 			"@typescript-eslint/no-empty-function": "off",
@@ -54,5 +73,11 @@ export default defineConfig([
 		// Node tooling — disable the obsidian renderer ruleset (see note above).
 		files: ["tools/**/*.ts"],
 		rules: obsidianmdRulesOff,
+	},
+	{
+		// showMenuAtEvent is the sanctioned menu-positioning wrapper; it must call
+		// the raw Menu APIs that every other module is forbidden from touching.
+		files: ["src/utils/menu-registry.ts"],
+		rules: { "no-restricted-syntax": "off" },
 	},
 ]);
