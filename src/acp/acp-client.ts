@@ -744,26 +744,16 @@ export class AcpClient {
 	/**
 	 * DEPRECATED: Use setSessionConfigOption instead.
 	 */
-	async setSessionModel(sessionId: string, modelId: string): Promise<void> {
-		const connection = this.requireConnection();
-
-		this.logger.log(
-			`Setting session model to: ${modelId} for session: ${sessionId}`,
+	async setSessionModel(_sessionId: string, _modelId: string): Promise<void> {
+		// Model selection was removed from the ACP protocol in SDK 0.24
+		// (superseded by setSessionConfigOption). The SDK no longer exposes a
+		// model-selector method. This path is unreachable in practice: the
+		// model picker only renders when the agent reports model state, which
+		// type-converter no longer populates. Kept as a guarded stub until the
+		// model-selector surface is removed in a follow-up.
+		throw new Error(
+			"Model selection is no longer supported by the ACP SDK (removed in 0.24); use session config options instead.",
 		);
-
-		try {
-			await connection.unstable_setSessionModel({
-				sessionId,
-				modelId,
-			});
-			this.logger.log(`Session model set to: ${modelId}`);
-		} catch (error) {
-			this.logger.error(
-				"Failed to set session model:",
-				error,
-			);
-			throw error;
-		}
 	}
 
 	/**
@@ -903,7 +893,7 @@ export class AcpClient {
 
 			const filterCwd = cwd ? this.toSessionCwd(cwd) : undefined;
 
-			const response = await connection.unstable_listSessions({
+			const response = await connection.listSessions({
 				cwd: filterCwd ?? null,
 				cursor: cursor ?? null,
 			});
@@ -986,7 +976,7 @@ export class AcpClient {
 		try {
 			this.logger.log(`Resuming session: ${sessionId}...`);
 
-			const response = await connection.unstable_resumeSession({
+			const response = await connection.resumeSession({
 				sessionId,
 				cwd: this.toSessionCwd(cwd),
 				mcpServers: [],

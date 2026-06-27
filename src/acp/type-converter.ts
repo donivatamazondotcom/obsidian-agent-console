@@ -21,7 +21,6 @@ import type {
 interface AcpSessionResponse {
 	sessionId?: string;
 	modes?: acp.SessionModeState | null;
-	models?: acp.SessionModelState | null;
 	configOptions?: acp.SessionConfigOption[] | null;
 }
 
@@ -100,15 +99,24 @@ export class AcpTypeConverter {
 	static toSessionConfigOptions(
 		acpOptions: acp.SessionConfigOption[],
 	): SessionConfigOption[] {
-		return acpOptions.map((opt) => ({
-			id: opt.id,
-			name: opt.name,
-			description: opt.description ?? undefined,
-			category: opt.category ?? undefined,
-			type: opt.type,
-			currentValue: opt.currentValue,
-			options: this.toSessionConfigSelectOptions(opt.options),
-		}));
+		const result: SessionConfigOption[] = [];
+		for (const opt of acpOptions) {
+			// Domain models select-type config options only. Boolean config
+			// options (added to the ACP schema after the domain type was
+			// written) have no UI representation and are skipped, matching
+			// pre-1.0 behavior where SessionConfigOption was select-only.
+			if (opt.type !== "select") continue;
+			result.push({
+				id: opt.id,
+				name: opt.name,
+				description: opt.description ?? undefined,
+				category: opt.category ?? undefined,
+				type: "select",
+				currentValue: opt.currentValue,
+				options: this.toSessionConfigSelectOptions(opt.options),
+			});
+		}
+		return result;
 	}
 
 	private static toSessionConfigSelectOptions(
@@ -166,17 +174,10 @@ export class AcpTypeConverter {
 			};
 		}
 
-		let models: SessionResult["models"];
-		if (response.models) {
-			models = {
-				availableModels: response.models.availableModels.map((m) => ({
-					modelId: m.modelId,
-					name: m.name,
-					description: m.description ?? undefined,
-				})),
-				currentModelId: response.models.currentModelId,
-			};
-		}
+		// Model selectors were removed from the ACP schema in SDK 0.24
+		// (superseded by configOptions); the SDK no longer delivers model
+		// state, so SessionResult.models is left undefined. A separate
+		// follow-up tracks removing the now-dead model-selector surface.
 
 		const configOptions = response.configOptions
 			? this.toSessionConfigOptions(response.configOptions)
@@ -185,7 +186,6 @@ export class AcpTypeConverter {
 		return {
 			sessionId,
 			modes,
-			models,
 			configOptions,
 		};
 	}
