@@ -987,6 +987,12 @@ export function ChatPanel({
 		// hook calls loadExistingSession on first keystroke instead of
 		// acquireNewSession.
 		restoredSessionId: restoredSessionId ?? null,
+		// Track C: when set, acquisition forks a NEW branch from this id
+		// instead of loading/creating (restore/fork-in-new-tab).
+		forkFromSessionId: restoredForkSessionId ?? null,
+		// Fork is eager — but only once the agent is initialized (capabilities
+		// known) so the fork/new call doesn't race the ACP handshake.
+		eagerAcquire: !!restoredForkSessionId && !!session.capabilities,
 
 		acquireNewSession: useCallback(async () => {
 			try {
@@ -1074,6 +1080,95 @@ export function ChatPanel({
 			agent.setIgnoreUpdates,
 			logger,
 		]),
+
+		// Track C (RC-2) — agent-agnostic fork for a tab opened via Session
+		// History "fork". `session/fork`-capable agents branch server-side
+		// (context retained); others get a LOCAL branch (a fresh session seeded
+		// with the transcript — the agent has no server-side history, so we
+		// flag `lossy` and the disk-only-restore notice is shown). The branch
+		// is persisted to history immediately so it appears + is renamable
+		// before the first send.
+		forkExistingSession: useCallback(
+			async (originalSessionId: string) => {
+				const agentId = session.agentId;
+				const serverForks = session.capabilities?.forks ?? false;
+				let newId: string;
+				let lossy = false;
+				try {
+					if (serverForks) {
+						const result = await acpClient.forkSession(
+							originalSessionId,
+							agentCwd,
+						);
+						void agent.updateSessionFromLoad(
+							result.sessionId,
+							result.modes,
+							result.models,
+							result.configOptions,
+						);
+						newId = result.sessionId;
+					} else {
+						const sid = await agent.createSession(agentId);
+						if (!sid) {
+							return {
+								ok: false as const,
+								error: new Error(
+									"Fork (local branch) produced no sessionId",
+								),
+							};
+						}
+						newId = sid;
+						lossy = true;
+					}
+				} catch (err) {
+					return {
+						ok: false as const,
+						error:
+							err instanceof Error
+								? err
+								: new Error(String(err)),
+					};
+				}
+
+				// Eager-persist the branch to history.
+				const orig = plugin.settingsService
+					.getSavedSessions()
+					.find((s) => s.sessionId === originalSessionId);
+				const forkTitle = `Fork: ${orig?.title ?? "Session"}`.slice(
+					0,
+					50,
+				);
+				const now = new Date().toISOString();
+				void plugin.settingsService.saveSession({
+					sessionId: newId,
+					agentId,
+					cwd: agentCwd,
+					title: forkTitle,
+					createdAt: now,
+					updatedAt: now,
+				});
+				if (restoredMessages && restoredMessages.length > 0) {
+					void plugin.settingsService.saveSessionMessages(
+						newId,
+						agentId,
+						restoredMessages,
+						restoredContextNotes ?? undefined,
+					);
+				}
+				return { ok: true as const, sessionId: newId, lossy };
+			},
+			[
+				session.agentId,
+				session.capabilities,
+				acpClient,
+				agentCwd,
+				agent.createSession,
+				agent.updateSessionFromLoad,
+				plugin.settingsService,
+				restoredMessages,
+				restoredContextNotes,
+			],
+		),
 
 		sendPrompt: useCallback(async () => {
 			// Queue flush is owned by ChatPanel's connect-flush effect

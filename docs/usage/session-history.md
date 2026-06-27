@@ -32,10 +32,11 @@ Depending on the agent's capabilities, you can perform the following actions:
 | **Search** | Filter the list by title or message content as you type |
 | **Edit title** | Rename the session from the history modal |
 | **Restore** | Reopen the session in a **new tab**, right where you left off — your current chat is never replaced |
+| **Fork** | Branch the session into a **new tab**. Works with any agent — see Fork below for how context is (or isn't) carried over |
 | **Delete** | Remove the session from history |
 
 ::: tip
-Restore doesn't require a connected agent — opening a session reconnects automatically on your first message. It's offered whenever a session can be reopened (from the agent or from local data).
+Restore and Fork don't require a connected agent — opening a session reconnects automatically on your first message. Both are offered whenever a session can be reopened (from the agent or from local data).
 :::
 
 ## Session Storage
@@ -61,6 +62,21 @@ Restoring a session reopens it in a **new tab** — your current chat is left un
 3. New messages continue the same session
 
 Use restore when you want to **continue where you left off** without losing your current chat.
+
+### Fork
+
+Forking opens a **new tab** that branches from a previous session:
+
+1. The new tab opens immediately, showing the conversation up to that point
+2. The original session and your current chat both remain unchanged
+3. New messages go to the forked branch
+
+Use fork when you want to **explore a different direction** without affecting the original conversation.
+
+**Agent support.** Fork works with any agent, but how much context carries over depends on the agent:
+
+- Agents that support server-side forking (`session/fork`) create a true branch that keeps the assistant's full context.
+- Other agents start a **fresh session** that shows the prior transcript for reference, but the assistant won't have the earlier conversation's context (the transcript is stored locally, not on the agent). You'll see a one-time notice on the first reply — the same notice shown when restoring a session that only exists on disk.
 
 ## Deleting Sessions
 
