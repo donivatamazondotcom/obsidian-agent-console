@@ -238,8 +238,8 @@ export class AcpHandler {
 	}
 
 	killTerminal(
-		params: acp.KillTerminalCommandRequest,
-	): Promise<acp.KillTerminalCommandResponse> {
+		params: acp.KillTerminalRequest,
+	): Promise<acp.KillTerminalResponse> {
 		const success = this.terminalManager.killTerminal(params.terminalId);
 		if (!success) {
 			throw new Error(`Terminal ${params.terminalId} not found`);

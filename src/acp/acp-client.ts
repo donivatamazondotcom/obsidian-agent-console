@@ -78,7 +78,7 @@ export interface TerminalOutputResult {
  */
 export class AcpClient {
 	// Connection & process
-	private connection: acp.ClientSideConnection | null = null;
+	private connection: acp.ClientConnection | null = null;
 	private agentProcess: ChildProcess | null = null;
 	private currentConfig: AgentConfig | null = null;
 	private isInitializedFlag = false;
@@ -424,15 +424,41 @@ export class AcpClient {
 		);
 
 		const stream = acp.ndJsonStream(input, output);
-		this.connection = new acp.ClientSideConnection(
-			() => this.handler,
-			stream,
-		);
+		this.connection = acp
+			.client({ name: "agent-console" })
+			.onNotification(acp.methods.client.session.update, (ctx) =>
+				this.handler.sessionUpdate(ctx.params),
+			)
+			.onRequest(acp.methods.client.session.requestPermission, (ctx) =>
+				this.handler.requestPermission(ctx.params),
+			)
+			.onRequest(acp.methods.client.fs.readTextFile, (ctx) =>
+				this.handler.readTextFile(ctx.params),
+			)
+			.onRequest(acp.methods.client.fs.writeTextFile, (ctx) =>
+				this.handler.writeTextFile(ctx.params),
+			)
+			.onRequest(acp.methods.client.terminal.create, (ctx) =>
+				this.handler.createTerminal(ctx.params),
+			)
+			.onRequest(acp.methods.client.terminal.output, (ctx) =>
+				this.handler.terminalOutput(ctx.params),
+			)
+			.onRequest(acp.methods.client.terminal.waitForExit, (ctx) =>
+				this.handler.waitForTerminalExit(ctx.params),
+			)
+			.onRequest(acp.methods.client.terminal.kill, (ctx) =>
+				this.handler.killTerminal(ctx.params),
+			)
+			.onRequest(acp.methods.client.terminal.release, (ctx) =>
+				this.handler.releaseTerminal(ctx.params),
+			)
+			.connect(stream);
 
 		try {
 			this.logger.log("Starting ACP initialization...");
 
-			const initResult = await this.connection.initialize({
+			const initResult = await this.connection.agent.request(acp.methods.agent.initialize, {
 				protocolVersion: acp.PROTOCOL_VERSION,
 				clientCapabilities: {
 					fs: {
@@ -506,7 +532,7 @@ export class AcpClient {
 		try {
 			this.logger.log("Creating new session...");
 
-			const response = await connection.newSession({
+			const response = await connection.agent.request(acp.methods.agent.session.new, {
 				cwd: this.toSessionCwd(workingDirectory),
 				mcpServers: [],
 			});
@@ -533,7 +559,7 @@ export class AcpClient {
 		const connection = this.requireConnection();
 
 		try {
-			await connection.authenticate({ methodId });
+			await connection.agent.request(acp.methods.agent.authenticate, { methodId });
 			this.logger.log("✅ authenticate ok:", methodId);
 			return true;
 		} catch (error: unknown) {
@@ -564,7 +590,7 @@ export class AcpClient {
 				`Sending prompt with ${content.length} content blocks`,
 			);
 
-			const promptResult = await connection.prompt({
+			const promptResult = await connection.agent.request(acp.methods.agent.session.prompt, {
 				sessionId: sessionId,
 				prompt: acpContent,
 			});
@@ -619,7 +645,7 @@ export class AcpClient {
 			this.logger.log(
 				"Sending session/cancel notification...",
 			);
-			await this.connection.cancel({ sessionId });
+			await this.connection.agent.notify(acp.methods.agent.session.cancel, { sessionId });
 			this.logger.log(
 				"Cancellation request sent successfully",
 			);
@@ -730,7 +756,7 @@ export class AcpClient {
 		);
 
 		try {
-			await connection.setSessionMode({
+			await connection.agent.request(acp.methods.agent.session.setMode, {
 				sessionId,
 				modeId,
 			});
@@ -744,26 +770,16 @@ export class AcpClient {
 	/**
 	 * DEPRECATED: Use setSessionConfigOption instead.
 	 */
-	async setSessionModel(sessionId: string, modelId: string): Promise<void> {
-		const connection = this.requireConnection();
-
-		this.logger.log(
-			`Setting session model to: ${modelId} for session: ${sessionId}`,
+	async setSessionModel(_sessionId: string, _modelId: string): Promise<void> {
+		// Model selection was removed from the ACP protocol in SDK 0.24
+		// (superseded by setSessionConfigOption). The SDK no longer exposes a
+		// model-selector method. This path is unreachable in practice: the
+		// model picker only renders when the agent reports model state, which
+		// type-converter no longer populates. Kept as a guarded stub until the
+		// model-selector surface is removed in a follow-up.
+		throw new Error(
+			"Model selection is no longer supported by the ACP SDK (removed in 0.24); use session config options instead.",
 		);
-
-		try {
-			await connection.unstable_setSessionModel({
-				sessionId,
-				modelId,
-			});
-			this.logger.log(`Session model set to: ${modelId}`);
-		} catch (error) {
-			this.logger.error(
-				"Failed to set session model:",
-				error,
-			);
-			throw error;
-		}
 	}
 
 	/**
@@ -785,7 +801,7 @@ export class AcpClient {
 		);
 
 		try {
-			const response = await connection.setSessionConfigOption({
+			const response = await connection.agent.request(acp.methods.agent.session.setConfigOption, {
 				sessionId,
 				configId,
 				value,
@@ -844,7 +860,7 @@ export class AcpClient {
 	 * Assert that the ACP connection is initialized and return it.
 	 * @throws Error if connection is not available
 	 */
-	private requireConnection(): acp.ClientSideConnection {
+	private requireConnection(): acp.ClientConnection {
 		if (!this.connection) {
 			throw new Error(
 				"Connection not initialized. Call initialize() first.",
@@ -903,7 +919,7 @@ export class AcpClient {
 
 			const filterCwd = cwd ? this.toSessionCwd(cwd) : undefined;
 
-			const response = await connection.unstable_listSessions({
+			const response = await connection.agent.request(acp.methods.agent.session.list, {
 				cwd: filterCwd ?? null,
 				cursor: cursor ?? null,
 			});
@@ -946,7 +962,7 @@ export class AcpClient {
 		try {
 			this.logger.log(`Loading session: ${sessionId}...`);
 
-			const response = await connection.loadSession({
+			const response = await connection.agent.request(acp.methods.agent.session.load, {
 				sessionId,
 				cwd: this.toSessionCwd(cwd),
 				mcpServers: [],
@@ -986,7 +1002,7 @@ export class AcpClient {
 		try {
 			this.logger.log(`Resuming session: ${sessionId}...`);
 
-			const response = await connection.unstable_resumeSession({
+			const response = await connection.agent.request(acp.methods.agent.session.resume, {
 				sessionId,
 				cwd: this.toSessionCwd(cwd),
 				mcpServers: [],
@@ -1020,7 +1036,7 @@ export class AcpClient {
 		try {
 			this.logger.log(`Forking session: ${sessionId}...`);
 
-			const response = await connection.unstable_forkSession({
+			const response = await connection.agent.request(acp.methods.agent.session.fork, {
 				sessionId,
 				cwd: this.toSessionCwd(cwd),
 				mcpServers: [],
