@@ -134,7 +134,7 @@ function makePlugin(): AgentClientPlugin {
 
 const baseProps = {
 	isSending: false,
-	isSessionReady: true,
+	lazyState: "ready" as const,
 	isRestoringSession: false,
 	agentLabel: "Test Agent",
 	hasActivePermission: false,

@@ -77,8 +77,7 @@ describe("I43: Pending message visibility", () => {
 			<MessageList
 				messages={[pending]}
 				isSending={false}
-				isSessionReady={false}
-				isLazyIdle={false}
+				lazyState="connecting"
 				isRestoringSession={false}
 				agentLabel="Claude"
 				plugin={mockPlugin}
@@ -97,8 +96,7 @@ describe("I43: Pending message visibility", () => {
 			<MessageList
 				messages={[pending]}
 				isSending={false}
-				isSessionReady={false}
-				isLazyIdle={false}
+				lazyState="connecting"
 				isRestoringSession={false}
 				agentLabel="Claude"
 				plugin={mockPlugin}
@@ -123,8 +121,7 @@ describe("I43: Pending message visibility", () => {
 			<MessageList
 				messages={[normal]}
 				isSending={false}
-				isSessionReady={true}
-				isLazyIdle={false}
+				lazyState="ready"
 				isRestoringSession={false}
 				agentLabel="Claude"
 				plugin={mockPlugin}
@@ -143,8 +140,7 @@ describe("I43: Pending message visibility", () => {
 			<MessageList
 				messages={[pending]}
 				isSending={false}
-				isSessionReady={false}
-				isLazyIdle={false}
+				lazyState="connecting"
 				isRestoringSession={false}
 				agentLabel="Claude"
 				plugin={mockPlugin}

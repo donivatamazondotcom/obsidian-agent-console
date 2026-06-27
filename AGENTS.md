@@ -155,6 +155,7 @@ src/
 │   ├── command-palette.ts       # Pure start-a-chat + context-gating decisions (computeStartChat, isChatCommandAvailable)
 │   ├── tab-agent-invariant.ts   # Pure fail-loud invariant: a tab's live session agent == its selected agent
 │   ├── resolveInitialAgentId.ts # Pure: agent a fresh (non-restored) tab opens on — Default agent when restore-tabs is off (TP-I05)
+│   ├── send-affordance.ts       # Pure send-enablement resolver (deriveSendAffordance → canSend/buttonDisabled/reason) + isSessionLive; single source for ChatPanel/InputArea/InputToolbar/MessageList/broadcast
 │   └── logger.ts                # Debug-mode logger
 ├── plugin.ts                    # Obsidian plugin lifecycle, settings persistence
 └── main.ts                      # Entry point

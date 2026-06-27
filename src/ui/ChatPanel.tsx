@@ -14,6 +14,7 @@ import { registerOpenMenu } from "../utils/menu-registry";
 import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
 import { deriveNewLeaf } from "../utils/link-leaf";
+import { deriveSendAffordance, isSessionLive } from "../utils/send-affordance";
 import { extractLinks, type SharedLink } from "../utils/link-extract";
 import {
 	decideSessionIntent,
@@ -1717,16 +1718,19 @@ export function ChatPanel({
 	// Use refs so callbacks always access latest values
 	const inputValueRef = useRef(inputValue);
 	const attachedFilesRef = useRef(attachedFiles);
-	const isSessionReadyRef = useRef(isSessionReady);
 	const isSendingRef = useRef(isSending);
 	const sessionHistoryLoadingRef = useRef(sessionHistory.loading);
 	const handleSendMessageRef = useRef(handleSendWithLazyAcquisition);
 	inputValueRef.current = inputValue;
 	attachedFilesRef.current = attachedFiles;
-	isSessionReadyRef.current = isSessionReady;
 	isSendingRef.current = isSending;
 	sessionHistoryLoadingRef.current = sessionHistory.loading;
 	handleSendMessageRef.current = handleSendWithLazyAcquisition;
+	// Fresh lazy-session state for the once-registered broadcast/send callbacks
+	// (the lazySession object is captured by closure and would otherwise be
+	// stale between registrations). Feeds deriveSendAffordance / isSessionLive.
+	const lazyStateRef = useRef(lazySession.state);
+	lazyStateRef.current = lazySession.state;
 
 	// Queue refs (#82) — read latest queue state from the once-registered
 	// broadcast/send callbacks (same ref pattern as the values above).
@@ -1757,7 +1761,7 @@ export function ChatPanel({
 			// engine only routes here when the composer is empty, so passing
 			// the text directly never clobbers a draft.
 			fireOrQueue: (text) => {
-				if (isSendingRef.current || !isSessionReadyRef.current) {
+				if (isSendingRef.current || !isSessionLive(lazyStateRef.current)) {
 					if (isQueuedRef.current) return; // slot full (defensive)
 					// Seed the composer so it mirrors the queued content. The
 					// composer is the single source of truth the Edit flow
@@ -1891,17 +1895,15 @@ export function ChatPanel({
 				const hasContent =
 					inputValueRef.current.trim() !== "" ||
 					attachedFilesRef.current.length > 0;
-				const lazyState = lazySession.state;
-				const canAcceptSend =
-					isSessionReadyRef.current ||
-					lazyState === "connecting" ||
-					lazyState === "idle";
-				return (
-					hasContent &&
-					canAcceptSend &&
-					!sessionHistoryLoadingRef.current &&
-					!isSendingRef.current
-				);
+				// Single source of truth for send-enablement (deriveSendAffordance).
+				// History load maps to `isRestoringSession`. (I40/I41/I70 cluster.)
+				return deriveSendAffordance({
+					lazyState: lazyStateRef.current,
+					isSending: isSendingRef.current,
+					isQueued: isQueuedRef.current,
+					hasContent,
+					isRestoringSession: sessionHistoryLoadingRef.current,
+				}).canSend;
 			},
 			sendMessage: async () => {
 				const currentInput = inputValueRef.current;
@@ -1930,7 +1932,7 @@ export function ChatPanel({
 				// triggers acquisition so it flushes on connect. A tab already
 				// holding a queued message is skipped upstream by broadcast; the
 				// queue-of-one cap is the defensive backstop here.
-				if (isSendingRef.current || !isSessionReadyRef.current) {
+				if (isSendingRef.current || !isSessionLive(lazyStateRef.current)) {
 					if (isQueuedRef.current) return false;
 					handleQueueMessageRef.current(messageToSend, filesToSend);
 					return true;
@@ -2083,8 +2085,7 @@ export function ChatPanel({
 		<MessageList
 			messages={displayMessages}
 			isSending={isSending}
-			isSessionReady={isSessionReady}
-			isLazyIdle={lazySession.state === "idle"}
+			lazyState={lazySession.state}
 			isRestoringSession={sessionHistory.loading}
 			agentLabel={activeAgentLabel}
 			plugin={plugin}
@@ -2158,8 +2159,7 @@ export function ChatPanel({
 		<InputArea
 			isSending={isSending}
 			isSessionReady={isSessionReady}
-			isLazyIdle={lazySession.state === "idle"}
-			isLazyConnecting={lazySession.state === "connecting"}
+			lazyState={lazySession.state}
 			isRestoringSession={sessionHistory.loading}
 			agentLabel={activeAgentLabel}
 			availableCommands={session.availableCommands || []}
