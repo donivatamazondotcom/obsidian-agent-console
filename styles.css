@@ -1380,7 +1380,6 @@ button.agent-client-message-tool-call-summary:focus-visible {
 /* Context Usage Indicator */
 .agent-client-usage-indicator {
 	font-size: var(--font-smallest);
-	margin-right: auto;
 	flex-shrink: 0;
 	cursor: default;
 	user-select: none;
@@ -2752,6 +2751,12 @@ button.agent-client-message-tool-call-summary:focus-visible {
    so it stays reachable even while the composer is locked/queued. */
 .agent-client-quick-prompt-launcher {
 	flex: 0 0 auto;
+	/* Negate the clickable-icon's internal left padding (--size-2-3 = 6px) so the
+	   zap GLYPH — not the button box — aligns to the composer text inset (under
+	   the placeholder), per spec § Three surfaces "toolbar zap → composer
+	   text-left". The actions row's 12px padding already lands the button box at
+	   the textarea's 12px text inset; this shifts the padded glyph back onto it. */
+	margin-left: calc(-1 * var(--size-2-3));
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -2759,6 +2764,15 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 .agent-client-quick-prompt-launcher:hover {
 	color: var(--text-normal);
+}
+
+/* Owns the left/right split in the composer toolbar actions row: pushes the
+   dropdowns + send button to the right while the zap launcher (and optional
+   usage %) stay text-left. Always rendered, so the split is independent of the
+   conditional usage indicator (which only renders for usage-reporting agents). */
+.agent-client-toolbar-spacer {
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 /* Ephemeral chips row, directly above the composer box. Aligns to the
@@ -2784,7 +2798,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	color: var(--text-muted);
 	background-color: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-l);
+	border-radius: var(--radius-s);
 	cursor: pointer;
 	white-space: nowrap;
 	max-width: 100%;

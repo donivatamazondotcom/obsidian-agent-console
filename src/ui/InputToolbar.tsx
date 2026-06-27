@@ -287,7 +287,10 @@ export function InputToolbar({
 				></button>
 			)}
 
-			{/* Context Usage Indicator (left-aligned via margin-right: auto) */}
+			{/* Context Usage Indicator — sits in the left cluster, right of the
+			    zap launcher (left/right split is owned by the spacer below, not
+			    this element, so the launcher stays text-left-anchored even for
+			    agents that don't report usage). */}
 			{usage && (
 				<span
 					className={`agent-client-usage-indicator ${getUsageColorClass(Math.round((usage.used / usage.size) * 100))}`}
@@ -300,6 +303,12 @@ export function InputToolbar({
 					{Math.round((usage.used / usage.size) * 100)}%
 				</span>
 			)}
+
+			{/* Flex spacer — always present, owns the left/right split so the
+			    zap launcher (+ optional usage %) stay text-left while the
+			    dropdowns + send button stay right, regardless of which
+			    conditional elements render. */}
+			<span className="agent-client-toolbar-spacer" aria-hidden="true" />
 
 			{/* Config Options (supersedes legacy mode/model selectors) */}
 			{configOptions && configOptions.length > 0

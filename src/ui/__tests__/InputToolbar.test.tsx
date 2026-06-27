@@ -58,3 +58,73 @@ describe("InputToolbar — quick prompts launcher (T22)", () => {
 		expect(onOpen).toHaveBeenCalledTimes(1);
 	});
 });
+
+/**
+ * Layout split (I-spacer): the zap launcher must sit at the composer text-left
+ * edge for EVERY agent, not only usage-reporting ones. The left/right split is
+ * owned by an always-present flex spacer (`.agent-client-toolbar-spacer`), not
+ * by the conditional usage indicator's auto-margin — so the launcher stays
+ * left even when `usage` is absent.
+ *
+ * jsdom can't compute flexbox, so we assert the DOM structure that produces the
+ * layout: spacer present, ordered after the launcher and before the send
+ * button, with and without usage. See [[Agent Console Quick Prompts and
+ * Workflows]] § Three surfaces (zap "leftmost") + § Screen mocks.
+ */
+describe("InputToolbar — launcher left-anchor split (spacer)", () => {
+	/** True when `b` follows `a` in document order. */
+	function follows(a: Element, b: Element): boolean {
+		return Boolean(
+			a.compareDocumentPosition(b) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		);
+	}
+
+	it("renders an always-present spacer between the launcher and send button (no usage)", () => {
+		const { container } = render(
+			<InputToolbar {...baseProps()} onOpenQuickPrompts={vi.fn()} />,
+		);
+		const launcher = container.querySelector(
+			".agent-client-quick-prompt-launcher",
+		)!;
+		const spacer = container.querySelector(
+			".agent-client-toolbar-spacer",
+		)!;
+		const send = container.querySelector(
+			".agent-client-chat-send-button",
+		)!;
+		expect(launcher).toBeTruthy();
+		expect(spacer).toBeTruthy();
+		expect(send).toBeTruthy();
+		// Left cluster (launcher) → spacer → right cluster (send).
+		expect(follows(launcher, spacer)).toBe(true);
+		expect(follows(spacer, send)).toBe(true);
+	});
+
+	it("keeps the usage % in the left cluster: launcher → usage → spacer → send", () => {
+		const { container } = render(
+			<InputToolbar
+				{...baseProps()}
+				onOpenQuickPrompts={vi.fn()}
+				usage={{ used: 1234, size: 10000 }}
+			/>,
+		);
+		const launcher = container.querySelector(
+			".agent-client-quick-prompt-launcher",
+		)!;
+		const usage = container.querySelector(
+			".agent-client-usage-indicator",
+		)!;
+		const spacer = container.querySelector(
+			".agent-client-toolbar-spacer",
+		)!;
+		const send = container.querySelector(
+			".agent-client-chat-send-button",
+		)!;
+		expect(usage).toBeTruthy();
+		// Usage sits left of the spacer (left cluster), spacer owns the split.
+		expect(follows(launcher, usage)).toBe(true);
+		expect(follows(usage, spacer)).toBe(true);
+		expect(follows(spacer, send)).toBe(true);
+	});
+});
