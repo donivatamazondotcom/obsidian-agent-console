@@ -136,9 +136,29 @@ if [ ! -d "$STUDIO_DIR" ]; then
 		--exclude '.DS_Store' \
 		"$FIXTURES/" "$STUDIO_DIR/"
 	deploy_build
-	# Clean baseline: the plugin isn't running yet, so a plain copy is enough —
-	# the first open loads the template (no disable/enable dance needed).
-	[ -f "$PLUGIN_DIR/data.template.json" ] && cp "$PLUGIN_DIR/data.template.json" "$PLUGIN_DIR/data.json"
+	# Clean baseline: seed from the template, then strip settings keys that have
+	# code defaults so a FRESH smoke vault opens with DEFAULT settings (e.g.
+	# restoreTabsOnStartup -> plugin default `true`), not the template's pinned
+	# values. Only agent/runtime config + first-run suppressors are kept; the
+	# settings-normalizer fills code defaults for everything dropped. The shared
+	# template keeps its pinned values for the screenshot fixture (setup.sh),
+	# which deliberately wants restore-off for deterministic captures.
+	if [ -f "$PLUGIN_DIR/data.template.json" ]; then
+		cp "$PLUGIN_DIR/data.template.json" "$PLUGIN_DIR/data.json"
+		SMOKE_DATA_JSON="$PLUGIN_DIR/data.json" python3 - <<'PY'
+import json, os
+p = os.environ["SMOKE_DATA_JSON"]
+d = json.load(open(p))
+# Whitelist: agent/runtime config + first-run suppressors. Everything else
+# (all UI/behavior settings) is dropped so the plugin applies code defaults.
+keep = {
+	"claude", "codex", "gemini", "kiro", "customAgents", "nodePath",
+	"migrationNoticeShown", "legacySessionsMigrated", "settingsImportOfferShown",
+}
+seeded = {k: v for k, v in d.items() if k in keep}
+json.dump(seeded, open(p, "w"), indent=2)
+PY
+	fi
 
 	# Register in obsidian.json (idempotent by path; atomic write). This makes
 	# the vault selectable once Obsidian next reads the registry.

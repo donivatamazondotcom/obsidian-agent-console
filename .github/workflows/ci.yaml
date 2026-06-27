@@ -23,6 +23,24 @@ jobs:
       - name: Lint
         run: npx eslint src/
 
+      - name: Fixture path leak guard
+        run: |
+          # Tracked smoke/screenshot fixture settings (data*.json under any
+          # .obsidian/plugins/*/) must not embed an absolute home path — that is
+          # a personal-data leak via fixture seeding. Bare command names resolve
+          # via the plugin's login-shell PATH probe instead, so absolute paths
+          # are never required here.
+          files=$(git ls-files | grep -E '\.obsidian/plugins/[^/]+/data[^/]*\.json$' || true)
+          if [ -n "$files" ]; then
+            hits=$(echo "$files" | xargs grep -nE '/(Users|home)/' || true)
+            if [ -n "$hits" ]; then
+              echo "::error::Absolute home path in tracked fixture settings (personal-data leak):"
+              echo "$hits"
+              exit 1
+            fi
+          fi
+          echo "OK — no absolute home paths in tracked fixture settings"
+
       - name: Build
         run: npm run build
 

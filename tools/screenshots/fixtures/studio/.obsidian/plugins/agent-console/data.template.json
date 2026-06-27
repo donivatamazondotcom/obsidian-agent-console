@@ -3,12 +3,12 @@
     "id": "claude-code-acp",
     "displayName": "Claude Code",
     "apiKeySecretId": "",
-    "command": "/Users/doniv/.local/share/mise/installs/node/24.14.0/bin/claude-agent-acp",
+    "command": "claude-agent-acp",
     "args": [],
     "env": [
       {
         "key": "CLAUDE_CODE_EXECUTABLE",
-        "value": "/Users/doniv/.toolbox/bin/claude"
+        "value": "claude"
       }
     ]
   },
@@ -24,7 +24,7 @@
     "id": "gemini-cli",
     "displayName": "Gemini CLI",
     "apiKeySecretId": "gemini-obsidian",
-    "command": "/Users/doniv/.local/share/mise/installs/node/24.14.0/bin/gemini",
+    "command": "gemini",
     "args": [
       "--experimental-acp"
     ],
@@ -46,7 +46,7 @@
   "migrationNoticeShown": true,
   "enableSystemNotifications": false,
   "debugMode": false,
-  "nodePath": "/Users/doniv/.local/share/mise/installs/node/24.14.0/bin/node",
+  "nodePath": "",
   "exportSettings": {
     "defaultFolder": "Agent Console",
     "filenameTemplate": "agent_console_{date}_{time}",
