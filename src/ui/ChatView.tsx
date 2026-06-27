@@ -275,6 +275,13 @@ function ChatComponent({
 		>
 	>({});
 
+	// One-shot seed for tabs spawned by a `newTab` quick prompt, keyed by the
+	// new tabId. The new tab's ChatPanel consumes it on mount (send through the
+	// lazy-acquisition path, or just seed the composer). Mirrors reopenPayload.
+	const [pendingPromptByTab, setPendingPromptByTab] = useState<
+		Record<string, { text: string; send: boolean }>
+	>({});
+
 	// ============================================================
 	// Per-tab AcpClient management
 	// ============================================================
@@ -490,6 +497,21 @@ function ChatComponent({
 	const handleAddTab = useCallback(() => {
 		tabManager.addTab(plugin.settings.defaultAgentId);
 	}, [tabManager, plugin.settings.defaultAgentId]);
+
+	// newTab quick prompt: spawn a fresh tab on the default agent and seed it
+	// with the resolved prompt. addTab appends + activates; the new tab's
+	// ChatPanel reads `initialPrompt` on mount and either sends (queues until
+	// the lazy session connects) or only seeds its composer for editing.
+	const handleOpenInNewTab = useCallback(
+		(text: string, opts: { send: boolean }) => {
+			const newTabId = tabManager.addTab(plugin.settings.defaultAgentId);
+			setPendingPromptByTab((prev) => ({
+				...prev,
+				[newTabId]: { text, send: opts.send },
+			}));
+		},
+		[tabManager, plugin.settings.defaultAgentId],
+	);
 
 	const handleCloseTab = useCallback(
 		(tabId: string) => {
@@ -981,6 +1003,10 @@ function ChatComponent({
 									restoredDraftByTabId[tab.tabId]
 								}
 								onDraftChange={bumpDraftSignature}
+								onOpenInNewTab={handleOpenInNewTab}
+								initialPrompt={
+									pendingPromptByTab[tab.tabId]
+								}
 							/>
 						</TabPanel>
 					</TabErrorBoundary>

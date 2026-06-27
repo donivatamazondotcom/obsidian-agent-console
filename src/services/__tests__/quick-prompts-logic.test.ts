@@ -5,7 +5,7 @@
  * § Test Cases (core slice). TDD — written against the approved acceptance
  * cases before the hook/modal/plugin wiring.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
 	stripFrontmatter,
 	deriveLabel,
@@ -15,6 +15,7 @@ import {
 	resolvePromptText,
 	decideQuickPromptAction,
 	planQuickPromptFire,
+	executeQuickPrompt,
 	matchPromptsForNote,
 	promptMatchesTags,
 	quickPromptButtonDisabled,
@@ -391,6 +392,175 @@ describe("quick-prompts-logic — slice 2 (chips)", () => {
 		});
 		it("newTab prompt is never disabled (stays live while queued)", () => {
 			expect(quickPromptButtonDisabled({ newTab: true }, true)).toBe(false);
+		});
+	});
+});
+
+// ============================================================================
+// T23–T28 — newTab slice: open-in-new-tab decision + dispatch
+//
+// A `newTab` prompt always spawns a fresh tab; it bypasses the current-tab
+// guard entirely (never queue/insert/disabled because of current-tab state).
+// Plain fire → send into the new tab; modifier or {{selection}}-with-no-
+// selection → open the tab but only seed its composer (don't auto-send).
+// See [[Agent Console Quick Prompts and Workflows]] § Fire target.
+// ============================================================================
+describe("quick-prompts-logic — newTab slice", () => {
+	const base = {
+		modifier: false,
+		composerHasText: false,
+		isStreaming: false,
+		isQueued: false,
+		usesSelection: false,
+		hasSelection: false,
+	};
+
+	describe("T23: newTab plain fire bypasses the current-tab guard", () => {
+		it("new-tab + send:true even when composer has text / streaming / queued", () => {
+			expect(
+				decideQuickPromptAction({
+					...base,
+					newTab: true,
+					composerHasText: true,
+					isStreaming: true,
+					isQueued: true,
+				}),
+			).toEqual({ action: "new-tab", send: true });
+		});
+		it("new-tab + send:true on an empty idle composer", () => {
+			expect(decideQuickPromptAction({ ...base, newTab: true })).toEqual({
+				action: "new-tab",
+				send: true,
+			});
+		});
+	});
+
+	describe("T24: newTab + modifier → new-tab + send:false (open tab, insert, don't send)", () => {
+		it("modifier seeds the fresh tab regardless of current-tab state", () => {
+			expect(
+				decideQuickPromptAction({
+					...base,
+					newTab: true,
+					modifier: true,
+					isQueued: true,
+				}),
+			).toEqual({ action: "new-tab", send: false });
+		});
+	});
+
+	describe("T25/T26: newTab + {{selection}}", () => {
+		it("T25: selection present → new-tab + send:true with resolved text", () => {
+			const plan = planQuickPromptFire(
+				{
+					body: "Summarize:\n\n{{selection}}",
+					usesSelection: true,
+					newTab: true,
+				},
+				{
+					modifier: false,
+					composerHasText: false,
+					isStreaming: false,
+					isQueued: false,
+					selectionText: "sel",
+				},
+			);
+			expect(plan.action).toBe("new-tab");
+			expect(plan.send).toBe(true);
+			expect(plan.text).toBe("Summarize:\n\nsel");
+		});
+		it("T26: no selection → new-tab + send:false + no-selection reason; never send:true", () => {
+			const plan = planQuickPromptFire(
+				{ body: "{{selection}}", usesSelection: true, newTab: true },
+				{
+					modifier: false,
+					composerHasText: false,
+					isStreaming: false,
+					isQueued: false,
+					selectionText: null,
+				},
+			);
+			expect(plan.action).toBe("new-tab");
+			expect(plan.send).toBe(false);
+			expect(plan.reason).toBe("no-selection");
+		});
+	});
+
+	describe("T27: non-newTab decision matrix unchanged (regression)", () => {
+		it("newTab false/undefined preserves fire/queue/insert/disabled outcomes", () => {
+			expect(decideQuickPromptAction({ ...base })).toEqual({
+				action: "fire",
+			});
+			expect(
+				decideQuickPromptAction({ ...base, newTab: false }),
+			).toEqual({ action: "fire" });
+			expect(
+				decideQuickPromptAction({ ...base, isStreaming: true }),
+			).toEqual({ action: "queue" });
+			expect(
+				decideQuickPromptAction({ ...base, composerHasText: true }),
+			).toEqual({ action: "insert", reason: "unsent-draft" });
+			expect(
+				decideQuickPromptAction({ ...base, isQueued: true }),
+			).toEqual({ action: "disabled" });
+			expect(
+				decideQuickPromptAction({ ...base, modifier: true }),
+			).toEqual({ action: "insert" });
+		});
+	});
+
+	describe("T28: executeQuickPrompt dispatches new-tab to openInNewTab", () => {
+		function actions() {
+			return {
+				fireOrQueue: vi.fn(),
+				insert: vi.fn(),
+				notify: vi.fn(),
+				openInNewTab: vi.fn(),
+			};
+		}
+		const ctx = {
+			modifier: false,
+			composerHasText: false,
+			isStreaming: false,
+			isQueued: false,
+			selectionText: null,
+		};
+
+		it("plain newTab → openInNewTab(text,{send:true}); not fireOrQueue/insert", () => {
+			const a = actions();
+			executeQuickPrompt(
+				{ body: "Kick off", usesSelection: false, label: "Kick", newTab: true },
+				ctx,
+				a,
+			);
+			expect(a.openInNewTab).toHaveBeenCalledWith("Kick off", {
+				send: true,
+			});
+			expect(a.fireOrQueue).not.toHaveBeenCalled();
+			expect(a.insert).not.toHaveBeenCalled();
+		});
+		it("modifier newTab → openInNewTab(text,{send:false}); no notice", () => {
+			const a = actions();
+			executeQuickPrompt(
+				{ body: "Kick off", usesSelection: false, label: "Kick", newTab: true },
+				{ ...ctx, modifier: true },
+				a,
+			);
+			expect(a.openInNewTab).toHaveBeenCalledWith("Kick off", {
+				send: false,
+			});
+			expect(a.notify).not.toHaveBeenCalled();
+		});
+		it("newTab + {{selection}} with no selection → openInNewTab(...,{send:false}) + notice", () => {
+			const a = actions();
+			executeQuickPrompt(
+				{ body: "S: {{selection}}", usesSelection: true, label: "Sum", newTab: true },
+				ctx,
+				a,
+			);
+			expect(a.openInNewTab).toHaveBeenCalledWith("S: ", { send: false });
+			expect(a.notify).toHaveBeenCalledWith(
+				'"Sum" needs a selection — dropped into the composer instead.',
+			);
 		});
 	});
 });

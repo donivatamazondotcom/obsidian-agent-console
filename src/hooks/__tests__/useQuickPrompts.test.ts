@@ -55,6 +55,7 @@ function makeBridge(
 		isQueued: () => false,
 		fireOrQueue: vi.fn(),
 		insertAtCursor: vi.fn(),
+		openInNewTab: vi.fn(),
 		notify: vi.fn(),
 		...overrides,
 	};
@@ -155,5 +156,46 @@ describe("useQuickPrompts — T18", () => {
 			]),
 		);
 		expect(result.current.prompts.map((p) => p.label)).toEqual(["A", "B"]);
+	});
+
+	// ========================================================================
+	// T29 — newTab routing: a newTab prompt goes through openInNewTab, never
+	// the current-tab fireOrQueue/insert path, and bypasses the current-tab
+	// guard (queued/streaming/draft).
+	// ========================================================================
+	it("T29: newTab prompt routes through openInNewTab(send:true), not fireOrQueue/insert", () => {
+		bridge = makeBridge();
+		const nt = prompt({ id: "kick", label: "Kick", body: "Kick off", newTab: true });
+		const { lib } = makeFakeLibrary([nt]);
+		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
+
+		act(() => result.current.runQuickPrompt(nt, { modifier: false }));
+
+		expect(bridge.openInNewTab).toHaveBeenCalledWith("Kick off", { send: true });
+		expect(bridge.fireOrQueue).not.toHaveBeenCalled();
+		expect(bridge.insertAtCursor).not.toHaveBeenCalled();
+	});
+
+	it("T29: newTab fire opens a new tab even when the current tab is queued", () => {
+		bridge = makeBridge({ isQueued: () => true });
+		const nt = prompt({ id: "kick", label: "Kick", body: "Kick off", newTab: true });
+		const { lib } = makeFakeLibrary([nt]);
+		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
+
+		act(() => result.current.runQuickPrompt(nt, { modifier: false }));
+
+		expect(bridge.openInNewTab).toHaveBeenCalledWith("Kick off", { send: true });
+	});
+
+	it("T29: newTab + modifier → openInNewTab(send:false)", () => {
+		bridge = makeBridge();
+		const nt = prompt({ id: "kick", label: "Kick", body: "Kick off", newTab: true });
+		const { lib } = makeFakeLibrary([nt]);
+		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
+
+		act(() => result.current.runQuickPrompt(nt, { modifier: true }));
+
+		expect(bridge.openInNewTab).toHaveBeenCalledWith("Kick off", { send: false });
+		expect(bridge.insertAtCursor).not.toHaveBeenCalled();
 	});
 });

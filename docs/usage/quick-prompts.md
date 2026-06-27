@@ -44,6 +44,23 @@ Summarize the following concisely:
 
 When you fire this with text selected in a note, the selection is filled in and sent. If nothing is selected, the prompt drops into the composer instead of sending — so you never fire a half-formed prompt by accident.
 
+## Open in a new tab
+
+Some prompts kick off a whole new conversation — "debrief this meeting", "get the latest on this project". Add `newTab: true` and firing the prompt opens a fresh chat tab and sends it there, leaving your current conversation untouched:
+
+````markdown
+---
+description: "🗓️ Debrief meeting"
+newTab: true
+---
+Debrief this meeting — pull the AI summary, extract action items, and update the vault note.
+````
+
+- A `newTab` prompt always opens a new tab on your default agent and sends the prompt there.
+- It never waits on your current tab — even if that tab is mid-reply or has a message queued. A `newTab` chip stays active while current-tab chips are locked.
+- Hold ⌥/⇧ to open the new tab and drop the text into its composer for editing instead of sending.
+- A `{{selection}}` prompt with nothing selected opens the new tab and seeds its composer (with a heads-up) rather than sending half-formed.
+
 ## Contextual chips
 
 Prompts can show up as **chips right above the composer**, but only when they're relevant to the note you're in. Add a `tags` field to scope a prompt to matching notes:
