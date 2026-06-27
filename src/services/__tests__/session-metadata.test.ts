@@ -17,6 +17,7 @@ import { describe, it, expect } from "vitest";
 import {
 	resolveSessionMetadataWrite,
 	deriveSessionTitle,
+	deriveSessionRecordTitle,
 } from "../session-metadata";
 import type { ChatMessage } from "../../types/chat";
 import type { SavedSessionInfo } from "../../types/session";
@@ -86,5 +87,130 @@ describe("deriveSessionTitle", () => {
 
 	it("falls back to 'Session' when there is no user text", () => {
 		expect(deriveSessionTitle([])).toBe("Session");
+	});
+});
+
+describe("deriveSessionRecordTitle (I114 precedence)", () => {
+	const existing: SavedSessionInfo = {
+		sessionId: "s1",
+		agentId: "test-agent",
+		cwd: "/work",
+		title: "Existing title",
+		createdAt: NOW,
+		updatedAt: NOW,
+	};
+
+	it("AI-suggested title wins over an existing title", () => {
+		expect(
+			deriveSessionRecordTitle({
+				existing,
+				suggestedTitle: "AI title",
+				messages: [userMsg("hello there")],
+			}),
+		).toBe("AI title");
+	});
+
+	it("AI-suggested title wins over the first-message fallback when no entry exists", () => {
+		expect(
+			deriveSessionRecordTitle({
+				suggestedTitle: "AI title",
+				messages: [userMsg("hello there")],
+			}),
+		).toBe("AI title");
+	});
+
+	it("preserves the existing title (manual rename / prior AI) when no AI title is supplied", () => {
+		expect(
+			deriveSessionRecordTitle({
+				existing,
+				suggestedTitle: null,
+				messages: [userMsg("a brand new first message")],
+			}),
+		).toBe("Existing title");
+	});
+
+	it("falls back to the first-message title when there is no existing entry and no AI title", () => {
+		expect(
+			deriveSessionRecordTitle({
+				suggestedTitle: undefined,
+				messages: [userMsg("the first message text")],
+			}),
+		).toBe("the first message text");
+	});
+
+	it("treats a blank/whitespace AI suggestion as absent", () => {
+		expect(
+			deriveSessionRecordTitle({
+				existing,
+				suggestedTitle: "   ",
+				messages: [userMsg("hi")],
+			}),
+		).toBe("Existing title");
+	});
+
+	it("falls back to first-message when an existing entry has no title and no AI title", () => {
+		const titleless: SavedSessionInfo = { ...existing, title: undefined };
+		expect(
+			deriveSessionRecordTitle({
+				existing: titleless,
+				messages: [userMsg("first message here")],
+			}),
+		).toBe("first message here");
+	});
+});
+
+describe("resolveSessionMetadataWrite (I114 title-aware)", () => {
+	it("sets the AI title on the existing path when suggestedTitle is supplied", () => {
+		const existing: SavedSessionInfo = {
+			sessionId: "s1",
+			agentId: "test-agent",
+			cwd: "/work",
+			title: "First message text",
+			createdAt: "2026-06-01T00:00:00.000Z",
+			updatedAt: "2026-06-01T00:00:00.000Z",
+		};
+		const w = resolveSessionMetadataWrite(existing, {
+			sessionId: "s1",
+			agentId: "test-agent",
+			cwd: "/work",
+			messages: [userMsg("First message text")],
+			now: NOW,
+			suggestedTitle: "Resolved AI title",
+		});
+		expect(w!.title).toBe("Resolved AI title");
+		expect(w!.updatedAt).toBe(NOW);
+		expect(w!.createdAt).toBe(existing.createdAt);
+	});
+
+	it("creates with the AI title when suggestedTitle is supplied and no entry exists", () => {
+		const w = resolveSessionMetadataWrite(undefined, {
+			sessionId: "s2",
+			agentId: "test-agent",
+			cwd: "/work",
+			messages: [userMsg("the first message")],
+			now: NOW,
+			suggestedTitle: "AI created title",
+		});
+		expect(w!.title).toBe("AI created title");
+		expect(w!.createdAt).toBe(NOW);
+	});
+
+	it("preserves the existing title on a messages-only write (no clobber)", () => {
+		const existing: SavedSessionInfo = {
+			sessionId: "s1",
+			agentId: "test-agent",
+			cwd: "/work",
+			title: "Resolved AI title",
+			createdAt: "2026-06-01T00:00:00.000Z",
+			updatedAt: "2026-06-01T00:00:00.000Z",
+		};
+		const w = resolveSessionMetadataWrite(existing, {
+			sessionId: "s1",
+			agentId: "test-agent",
+			cwd: "/work",
+			messages: [userMsg("First message text")],
+			now: NOW,
+		});
+		expect(w!.title).toBe("Resolved AI title");
 	});
 });

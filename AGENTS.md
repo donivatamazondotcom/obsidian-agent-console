@@ -44,11 +44,12 @@ src/
 │   ├── context-builder.ts       # Builds prompt context from crystallized notes
 │   ├── context-validator.ts     # Context-note data-model invariant enforcement (parse-at-edge)
 │   ├── replayContextBuilder.ts  # Reconstructs replay context for restored sessions
-│   ├── session-metadata.ts      # Session metadata write resolution (history entry on turn-end)
+│   ├── session-metadata.ts      # Session metadata write resolution (history entry on turn-end) + title-precedence resolver (deriveSessionRecordTitle)
 │   ├── session-search.ts        # Pure full-text search engine over saved sessions (extract/index/match/snippet)
 │   ├── settings-migration.ts    # One-time settings migration (autoMentionActiveNote → activeNoteAsDefaultContext)
 │   ├── settings-service.ts      # Reactive settings store (observer pattern only)
 │   ├── session-storage.ts       # Session metadata + message file I/O (sessions/*.json)
+│   ├── session-store.ts         # Single serialized writer of record for savedSessions metadata/title (I114)
 │   ├── settings-normalizer.ts   # Validation helpers + DEFAULT_SETTINGS + normalizeRawSettings (raw→typed mapping)
 │   ├── session-helpers.ts       # Agent config building, API key injection (pure functions)
 │   ├── agent-detection.ts       # First-run agent detection (probe commands) + default-by-priority selection (pure)
@@ -90,7 +91,6 @@ src/
 │   ├── useSessionSearch.ts      # Session search state: query debounce + lazy content index
 │   ├── useChatActions.ts        # Business callbacks (send, newChat, export, restart, etc.)
 │   ├── useHistoryModal.ts       # Session history modal lifecycle
-│   ├── useTitleHistorySync.ts   # Propagate the resolved AI session title to the history record
 │   ├── useComposerFocusReturn.ts # Return focus to composer after in-panel state changes (guarded by composer-cluster focus)
 │   ├── useSettings.ts           # Settings subscription (useSyncExternalStore)
 │   ├── useRecentlyClosedTabs.ts # F13 undo-close: per-leaf in-memory recently-closed stack

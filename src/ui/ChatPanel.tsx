@@ -21,7 +21,6 @@ import {
 	type SessionIntent,
 } from "../utils/agent-switch";
 import { useHistoryModal } from "../hooks/useHistoryModal";
-import { useTitleHistorySync } from "../hooks/useTitleHistorySync";
 import { useComposerFocusReturn } from "../hooks/useComposerFocusReturn";
 import { useChatActions } from "../hooks/useChatActions";
 import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
@@ -1317,6 +1316,7 @@ export function ChatPanel({
 				session.sessionId,
 				messages,
 				contextNotes.notes,
+				agent.suggestedTitle ?? undefined,
 			);
 			logger.log(
 				`[ChatPanel] Session messages saved: ${session.sessionId}`,
@@ -1338,6 +1338,7 @@ export function ChatPanel({
 		session.sessionId,
 		messages,
 		sessionHistory.saveSessionMessages,
+		agent.suggestedTitle,
 		settings.enableSystemNotifications,
 		activeAgentLabel,
 		logger,
@@ -1466,17 +1467,31 @@ export function ChatPanel({
 		labelReportedRef.current = true;
 	}, [agent.suggestedTitle]);
 
-	// I112: propagate the resolved AI title to the session-history record so
-	// the history pane matches the tab label. saveSessionLocally only stored
-	// the first-message text, and updateSessionTitle was otherwise called only
-	// by the history modal's manual rename — so the AI title never reached the
-	// history list. Scoped to the AI/auto title (not the interim label).
-	useTitleHistorySync({
-		suggestedTitle: agent.suggestedTitle,
-		sessionId: agent.session.sessionId,
-		cwd: agentCwd,
-		updateSessionTitle: sessionHistory.updateSessionTitle,
-	});
+	// I114: propagate the resolved AI title to the session-history record so
+	// the history pane matches the tab label. Routed through the single
+	// serialized writer (sessionHistory.applySessionTitle → SessionStore) so it
+	// cannot be clobbered by — nor clobber — a concurrent turn-end / debounced
+	// save (the stale-snapshot race that defeated the earlier flat hook). The
+	// ref de-dupes repeat fires and resets when the title clears (new chat);
+	// it no-ops until a sessionId exists, then fires once the id arrives.
+	const lastSyncedTitleRef = useRef<string | null>(null);
+	useEffect(() => {
+		const title = agent.suggestedTitle;
+		if (!title) {
+			lastSyncedTitleRef.current = null;
+			return;
+		}
+		if (title === lastSyncedTitleRef.current) return;
+		const sid = agent.session.sessionId;
+		if (!sid) return;
+		lastSyncedTitleRef.current = title;
+		sessionHistory.applySessionTitle(sid, title, agentCwd);
+	}, [
+		agent.suggestedTitle,
+		agent.session.sessionId,
+		agentCwd,
+		sessionHistory.applySessionTitle,
+	]);
 
 	// Report session ID changes to parent (for tab rename persistence)
 	useEffect(() => {
