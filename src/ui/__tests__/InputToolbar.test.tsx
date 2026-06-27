@@ -19,7 +19,7 @@ function baseProps() {
 		isButtonDisabled: false,
 		hasContent: false,
 		onSendOrStop: vi.fn(),
-		isSessionReady: true,
+		lazyState: "ready" as const,
 	};
 }
 

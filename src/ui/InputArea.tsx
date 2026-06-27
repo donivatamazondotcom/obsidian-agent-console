@@ -18,6 +18,8 @@ import { SuggestionPopup } from "./SuggestionPopup";
 import { ErrorBanner } from "./ErrorBanner";
 import { AttachmentStrip } from "./shared/AttachmentStrip";
 import { InputToolbar } from "./InputToolbar";
+import { deriveSendAffordance } from "../utils/send-affordance";
+import type { TabSessionState } from "../hooks/useTabSessionState";
 import { focusComposerAtEnd } from "./composer-focus";
 import { getLogger } from "../utils/logger";
 import { decideComposerEnterAction, buildComposerPlaceholder, buildQueuedBanner, isQueuedSendBlocked } from "../services/message-queue-logic";
@@ -190,10 +192,8 @@ export interface InputAreaProps {
 	isSending: boolean;
 	/** Whether the session is ready for user input */
 	isSessionReady: boolean;
-	/** Whether the tab is in lazy-idle state (no connection attempted yet) */
-	isLazyIdle?: boolean;
-	/** Whether session acquisition is in flight (connecting state) */
-	isLazyConnecting?: boolean;
+	/** Per-tab lazy session state (canonical readiness signal for send affordance) */
+	lazyState: TabSessionState;
 	/** Whether a session is being restored (load/resume/fork) */
 	isRestoringSession: boolean;
 	/** Display name of the active agent */
@@ -295,8 +295,7 @@ export interface InputAreaProps {
 export function InputArea({
 	isSending,
 	isSessionReady,
-	isLazyIdle = false,
-	isLazyConnecting = false,
+	lazyState,
 	isRestoringSession,
 	agentLabel,
 	availableCommands,
@@ -902,13 +901,15 @@ export function InputArea({
 		[slashCommands, mentions, handleSelectSlashCommand, selectMention],
 	);
 
-	// Button disabled state - also allow sending if files are attached
-	const isButtonDisabled =
-		!isSending &&
-		(isQueuedSendBlocked({ isQueued, isSending }) ||
-			(inputValue.trim() === "" && attachedFiles.length === 0) ||
-			(!isSessionReady && !isLazyIdle && !isLazyConnecting) ||
-			isRestoringSession);
+	// Button disabled state — single source of truth (deriveSendAffordance).
+	// Files-attached counts as content; idle/connecting are sendable (I40/I41).
+	const { buttonDisabled: isButtonDisabled } = deriveSendAffordance({
+		lazyState,
+		isSending,
+		isQueued,
+		hasContent: inputValue.trim() !== "" || attachedFiles.length > 0,
+		isRestoringSession,
+	});
 
 	/**
 	 * Handle keyboard events in the textarea.
@@ -1270,8 +1271,7 @@ export function InputArea({
 					configOptions={configOptions}
 					onConfigOptionChange={onConfigOptionChange}
 					usage={usage}
-					isSessionReady={isSessionReady}
-					isLazyIdle={isLazyIdle}
+					lazyState={lazyState}
 					onOpenQuickPrompts={onOpenQuickPrompts}
 				/>
 			</div>

@@ -62,13 +62,12 @@ function makePlugin(): AgentClientPlugin {
 
 describe("I40: idle tab should not show 'Connecting...' text", () => {
 	describe("MessageList empty state", () => {
-		it("shows 'Send a message to connect' when idle (isLazyIdle=true)", () => {
+		it("shows 'Send a message to connect' when idle (idle)", () => {
 			const { container } = render(
 				<MessageList
 					messages={[]}
 					isSending={false}
-					isSessionReady={false}
-					isLazyIdle={true}
+					lazyState="idle"
 					isRestoringSession={false}
 					agentLabel="Kiro CLI"
 					plugin={makePlugin()}
@@ -86,13 +85,12 @@ describe("I40: idle tab should not show 'Connecting...' text", () => {
 			expect(emptyState?.textContent).not.toContain("Connecting");
 		});
 
-		it("shows 'Connecting...' when actually connecting (isLazyIdle=false)", () => {
+		it("shows 'Connecting...' when actually connecting (connecting)", () => {
 			const { container } = render(
 				<MessageList
 					messages={[]}
 					isSending={false}
-					isSessionReady={false}
-					isLazyIdle={false}
+					lazyState="connecting"
 					isRestoringSession={false}
 					agentLabel="Kiro CLI"
 					plugin={makePlugin()}
@@ -112,8 +110,7 @@ describe("I40: idle tab should not show 'Connecting...' text", () => {
 				<MessageList
 					messages={[]}
 					isSending={false}
-					isSessionReady={true}
-					isLazyIdle={false}
+					lazyState="ready"
 					isRestoringSession={false}
 					agentLabel="Kiro CLI"
 					plugin={makePlugin()}
@@ -130,14 +127,13 @@ describe("I40: idle tab should not show 'Connecting...' text", () => {
 	});
 
 	describe("InputToolbar send button tooltip", () => {
-		it("shows 'Send to connect' when idle (isLazyIdle=true)", () => {
+		it("shows 'Send to connect' when idle (idle)", () => {
 			const { container } = render(
 				<InputToolbar
 					isSending={false}
 					isButtonDisabled={false}
 					hasContent={false}
-					isSessionReady={false}
-					isLazyIdle={true}
+					lazyState="idle"
 					onSendOrStop={vi.fn()}
 					onModelChange={vi.fn()}
 				/>,
@@ -149,14 +145,13 @@ describe("I40: idle tab should not show 'Connecting...' text", () => {
 			expect(sendButton?.getAttribute("aria-label")).toBe("Send to connect");
 		});
 
-		it("shows 'Connecting...' when actually connecting (isLazyIdle=false)", () => {
+		it("shows 'Connecting...' when actually connecting (connecting)", () => {
 			const { container } = render(
 				<InputToolbar
 					isSending={false}
 					isButtonDisabled={false}
 					hasContent={false}
-					isSessionReady={false}
-					isLazyIdle={false}
+					lazyState="connecting"
 					onSendOrStop={vi.fn()}
 					onModelChange={vi.fn()}
 				/>,

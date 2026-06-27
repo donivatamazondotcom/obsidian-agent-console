@@ -50,8 +50,7 @@ describe("T5: getting-started empty state (Layer 2)", () => {
 			<MessageList
 				messages={[]}
 				isSending={false}
-				isSessionReady={false}
-				isLazyIdle={false}
+				lazyState="connecting"
 				isRestoringSession={false}
 				agentLabel="Kiro CLI"
 				plugin={makePlugin()}
@@ -96,8 +95,7 @@ describe("T5: getting-started empty state (Layer 2)", () => {
 			<MessageList
 				messages={[]}
 				isSending={false}
-				isSessionReady={false}
-				isLazyIdle={false}
+				lazyState="connecting"
 				isRestoringSession={false}
 				agentLabel="Claude Code"
 				plugin={makePlugin()}
@@ -128,8 +126,7 @@ describe("T5: getting-started empty state (Layer 2)", () => {
 			<MessageList
 				messages={[]}
 				isSending={false}
-				isSessionReady={false}
-				isLazyIdle={false}
+				lazyState="connecting"
 				isRestoringSession={false}
 				agentLabel="Kiro CLI"
 				plugin={makePlugin()}

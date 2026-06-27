@@ -8,6 +8,8 @@ import type { IChatViewHost } from "./view-host";
 import { setIcon } from "obsidian";
 import { MessageBubble } from "./MessageBubble";
 import { LossyFallbackNotice } from "./LossyFallbackNotice";
+import { isSessionLive } from "../utils/send-affordance";
+import type { TabSessionState } from "../hooks/useTabSessionState";
 import { useAutoScrollPin } from "./use-auto-scroll-pin";
 
 /**
@@ -93,10 +95,8 @@ export interface MessageListProps {
 	messages: ChatMessage[];
 	/** Whether a message is currently being sent */
 	isSending: boolean;
-	/** Whether the session is ready for user input */
-	isSessionReady: boolean;
-	/** Whether the tab is in lazy-idle state (no connection attempted yet) */
-	isLazyIdle?: boolean;
+	/** Per-tab lazy session state (canonical readiness signal for empty-state copy) */
+	lazyState: TabSessionState;
 	/** Whether a session is being restored (load/resume/fork) */
 	isRestoringSession: boolean;
 	/** Display name of the active agent */
@@ -191,8 +191,7 @@ export interface MessageListProps {
 export function MessageList({
 	messages,
 	isSending,
-	isSessionReady,
-	isLazyIdle = false,
+	lazyState,
 	isRestoringSession,
 	agentLabel,
 	plugin,
@@ -246,9 +245,9 @@ export function MessageList({
 						<div className="agent-client-chat-empty-state">
 							{isRestoringSession
 								? "Restoring session..."
-								: isLazyIdle
+								: lazyState === "idle"
 									? `Send a message to connect to ${agentLabel}...`
-									: !isSessionReady
+									: !isSessionLive(lazyState)
 										? `Connecting to ${agentLabel}...`
 										: `Start a conversation with ${agentLabel}...`}
 						</div>

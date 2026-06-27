@@ -3,6 +3,8 @@ const { useRef, useEffect, useCallback, useMemo } = React;
 import { setIcon, Menu } from "obsidian";
 
 import { registerOpenMenu } from "../utils/menu-registry";
+import { isSessionLive } from "../utils/send-affordance";
+import type { TabSessionState } from "../hooks/useTabSessionState";
 import {
 	flattenConfigSelectOptions,
 	type SessionModeState,
@@ -162,8 +164,7 @@ export interface InputToolbarProps {
 	configOptions?: SessionConfigOption[];
 	onConfigOptionChange?: (configId: string, value: string) => void;
 	usage?: SessionUsage;
-	isSessionReady: boolean;
-	isLazyIdle?: boolean;
+	lazyState: TabSessionState;
 	/** Open the Quick prompt picker for this tab. Renders the zap launcher when set. */
 	onOpenQuickPrompts?: () => void;
 }
@@ -180,8 +181,7 @@ export function InputToolbar({
 	configOptions,
 	onConfigOptionChange,
 	usage,
-	isSessionReady,
-	isLazyIdle = false,
+	lazyState,
 	onOpenQuickPrompts,
 }: InputToolbarProps) {
 	const sendButtonRef = useRef<HTMLButtonElement>(null);
@@ -410,13 +410,13 @@ export function InputToolbar({
 				disabled={isButtonDisabled}
 				className={`clickable-icon agent-client-chat-send-button ${isSending ? "sending" : ""} ${isButtonDisabled ? "agent-client-disabled" : ""}`}
 				aria-label={
-					!isSessionReady
-						? isLazyIdle
+					isSending
+						? "Stop generation"
+						: lazyState === "idle"
 							? "Send to connect"
-							: "Connecting..."
-						: isSending
-							? "Stop generation"
-							: "Send message"
+							: !isSessionLive(lazyState)
+								? "Connecting..."
+								: "Send message"
 				}
 			></button>
 		</div>
