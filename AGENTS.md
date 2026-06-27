@@ -44,11 +44,12 @@ src/
 │   ├── context-builder.ts       # Builds prompt context from crystallized notes
 │   ├── context-validator.ts     # Context-note data-model invariant enforcement (parse-at-edge)
 │   ├── replayContextBuilder.ts  # Reconstructs replay context for restored sessions
-│   ├── session-metadata.ts      # Session metadata write resolution (history entry on turn-end)
+│   ├── session-metadata.ts      # Session metadata write resolution (history entry on turn-end) + title-precedence resolver (deriveSessionRecordTitle)
 │   ├── session-search.ts        # Pure full-text search engine over saved sessions (extract/index/match/snippet)
 │   ├── settings-migration.ts    # One-time settings migration (autoMentionActiveNote → activeNoteAsDefaultContext)
 │   ├── settings-service.ts      # Reactive settings store (observer pattern only)
 │   ├── session-storage.ts       # Session metadata + message file I/O (sessions/*.json)
+│   ├── session-store.ts         # Single serialized writer of record for savedSessions metadata/title (I114)
 │   ├── settings-normalizer.ts   # Validation helpers + DEFAULT_SETTINGS + normalizeRawSettings (raw→typed mapping)
 │   ├── session-helpers.ts       # Agent config building, API key injection (pure functions)
 │   ├── agent-detection.ts       # First-run agent detection (probe commands) + default-by-priority selection (pure)

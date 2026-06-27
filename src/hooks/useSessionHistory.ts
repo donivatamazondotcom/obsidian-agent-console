@@ -11,7 +11,7 @@ import type {
 	SessionConfigOption,
 	AgentCapabilities,
 } from "../types/session";
-import { resolveSessionMetadataWrite } from "../services/session-metadata";
+import { SessionStore } from "../services/session-store";
 import type { ChatMessage } from "../types/chat";
 import { extractErrorMessage } from "../utils/error-utils";
 import type { ContextNote } from "../types/context";
@@ -198,11 +198,29 @@ export interface UseSessionHistoryReturn {
 	 * Called when a turn ends (agent response complete).
 	 * @param sessionId - Session ID
 	 * @param messages - Messages to save
+	 * @param contextNotes - Crystallized context notes for the session
+	 * @param suggestedTitle - Resolved AI title to set as the record title
+	 *   (I114). When omitted, the existing title is preserved.
 	 */
 	saveSessionMessages: (
 		sessionId: string,
 		messages: import("../types/chat").ChatMessage[],
 		contextNotes?: ContextNote[],
+		suggestedTitle?: string | null,
+	) => void;
+
+	/**
+	 * Propagate a resolved AI-suggested title to the session-history record
+	 * (I114). Serialized through the same single writer as the message saves,
+	 * so it can neither clobber nor be clobbered by a concurrent save.
+	 * @param sessionId - Session ID
+	 * @param suggestedTitle - The resolved AI title
+	 * @param sessionCwd - Working directory (used when creating a new entry)
+	 */
+	applySessionTitle: (
+		sessionId: string,
+		suggestedTitle: string,
+		sessionCwd: string,
 	) => void;
 
 	/**
@@ -299,6 +317,14 @@ export function useSessionHistory(
 	const capabilities: SessionCapabilityFlags = useMemo(
 		() => getSessionCapabilityFlags(session.agentCapabilities),
 		[session.agentCapabilities],
+	);
+
+	// I114: single serialized writer of record for savedSessions metadata.
+	// All metadata/title writes from the racing turn-end / debounced / AI-title
+	// paths go through this owner so no writer acts on a stale snapshot.
+	const sessionStore = useMemo(
+		() => new SessionStore(settingsAccess),
+		[settingsAccess],
 	);
 
 	// State
@@ -845,10 +871,13 @@ export function useSessionHistory(
 			sessionId: string,
 			messages: import("../types/chat").ChatMessage[],
 			contextNotes?: ContextNote[],
+			suggestedTitle?: string | null,
 		) => {
 			if (!session.agentId || messages.length === 0) return;
 
-			// Persist message content + crystallized context (fire-and-forget)
+			// Persist message content + crystallized context (fire-and-forget).
+			// The message FILE is an independent concern from the savedSessions
+			// metadata array and is not part of the title race.
 			void settingsAccess.saveSessionMessages(
 				sessionId,
 				session.agentId,
@@ -856,28 +885,41 @@ export function useSessionHistory(
 				contextNotes,
 			);
 
-			// Upsert session metadata. Read the live snapshot (not React
-			// state) to avoid races with rapid fork/rename. If an entry
-			// exists, bump updatedAt so "last used" ordering reflects real
-			// activity. If none exists — e.g. the first-message
-			// saveSessionLocally gate was skipped on the send-before-connect
-			// path — CREATE it here so a session with a transcript on disk is
-			// never orphaned from the history list (I58).
-			const existing = settingsAccess
-				.getSavedSessions()
-				.find((s) => s.sessionId === sessionId);
-			const metadataWrite = resolveSessionMetadataWrite(existing, {
+			// Upsert session metadata through the single serialized writer
+			// (I114). The owner re-reads the latest snapshot inside its critical
+			// section and consults the title-precedence resolver, so a
+			// concurrent AI-title write is never clobbered by a stale read, and
+			// a transcript-on-disk session is never orphaned from the history
+			// list (I58). A carried `suggestedTitle` sets the AI title; omitting
+			// it preserves the existing title.
+			void sessionStore.recordTurnSave({
 				sessionId,
 				agentId: session.agentId,
 				cwd: agentCwd,
 				messages,
-				now: new Date().toISOString(),
+				suggestedTitle: suggestedTitle ?? null,
 			});
-			if (metadataWrite) {
-				void settingsAccess.saveSession(metadataWrite);
-			}
 		},
-		[session.agentId, agentCwd, settingsAccess],
+		[session.agentId, agentCwd, settingsAccess, sessionStore],
+	);
+
+	/**
+	 * Propagate the resolved AI-suggested title to the session-history record
+	 * (I114). Routes through the single serialized writer so it cannot be
+	 * clobbered by — and cannot clobber — a concurrent turn-end / debounced
+	 * save. Replaces the racing `useTitleHistorySync` hook.
+	 */
+	const applySessionTitle = useCallback(
+		(sessionId: string, suggestedTitle: string, sessionCwd: string) => {
+			if (!session.agentId) return;
+			void sessionStore.applySuggestedTitle({
+				sessionId,
+				agentId: session.agentId,
+				cwd: sessionCwd,
+				suggestedTitle,
+			});
+		},
+		[session.agentId, sessionStore],
 	);
 
 	/**
@@ -913,6 +955,7 @@ export function useSessionHistory(
 			updateSessionTitle,
 			saveSessionLocally,
 			saveSessionMessages,
+			applySessionTitle,
 			loadSessionMessages,
 			invalidateCache,
 		}),
@@ -934,6 +977,7 @@ export function useSessionHistory(
 			updateSessionTitle,
 			saveSessionLocally,
 			saveSessionMessages,
+			applySessionTitle,
 			loadSessionMessages,
 			invalidateCache,
 		],

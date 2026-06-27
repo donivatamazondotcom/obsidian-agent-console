@@ -1316,6 +1316,7 @@ export function ChatPanel({
 				session.sessionId,
 				messages,
 				contextNotes.notes,
+				agent.suggestedTitle ?? undefined,
 			);
 			logger.log(
 				`[ChatPanel] Session messages saved: ${session.sessionId}`,
@@ -1337,6 +1338,7 @@ export function ChatPanel({
 		session.sessionId,
 		messages,
 		sessionHistory.saveSessionMessages,
+		agent.suggestedTitle,
 		settings.enableSystemNotifications,
 		activeAgentLabel,
 		logger,
@@ -1464,6 +1466,32 @@ export function ChatPanel({
 		onLabelChangeRef.current?.(title);
 		labelReportedRef.current = true;
 	}, [agent.suggestedTitle]);
+
+	// I114: propagate the resolved AI title to the session-history record so
+	// the history pane matches the tab label. Routed through the single
+	// serialized writer (sessionHistory.applySessionTitle → SessionStore) so it
+	// cannot be clobbered by — nor clobber — a concurrent turn-end / debounced
+	// save (the stale-snapshot race that defeated the earlier flat hook). The
+	// ref de-dupes repeat fires and resets when the title clears (new chat);
+	// it no-ops until a sessionId exists, then fires once the id arrives.
+	const lastSyncedTitleRef = useRef<string | null>(null);
+	useEffect(() => {
+		const title = agent.suggestedTitle;
+		if (!title) {
+			lastSyncedTitleRef.current = null;
+			return;
+		}
+		if (title === lastSyncedTitleRef.current) return;
+		const sid = agent.session.sessionId;
+		if (!sid) return;
+		lastSyncedTitleRef.current = title;
+		sessionHistory.applySessionTitle(sid, title, agentCwd);
+	}, [
+		agent.suggestedTitle,
+		agent.session.sessionId,
+		agentCwd,
+		sessionHistory.applySessionTitle,
+	]);
 
 	// Report session ID changes to parent (for tab rename persistence)
 	useEffect(() => {

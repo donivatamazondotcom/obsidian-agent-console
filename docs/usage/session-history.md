@@ -43,7 +43,7 @@ Not all actions are available for every agent. The modal shows only the actions 
 
 Sessions are saved automatically when you send messages. The plugin stores:
 
-- **Session metadata**: Title (derived from your first message), timestamps, and working directory
+- **Session metadata**: Title (the AI-suggested session title once it resolves, otherwise derived from your first message), timestamps, and working directory
 - **Message history**: Full conversation including agent responses, tool calls, and plans
 
 ### Where Sessions Are Stored
