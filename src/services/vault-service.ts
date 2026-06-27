@@ -125,6 +125,8 @@ export class VaultService implements IVaultAccess {
 	private currentSelection: {
 		filePath: string;
 		selection: { from: EditorPosition; to: EditorPosition };
+		/** Selected text, captured eagerly while the editor is focused (QP-I03). */
+		text: string;
 	} | null = null;
 	private selectionListeners = new Set<() => void>();
 	private activeLeafRef: EventRef | null = null;
@@ -306,6 +308,18 @@ export class VaultService implements IVaultAccess {
 	}
 
 	/**
+	 * The text of the last captured selection (QP-I03). Captured eagerly while
+	 * the editor was focused, so it survives the chat panel taking focus —
+	 * which nulls getActiveViewOfType(MarkdownView) and workspace.activeEditor
+	 * and makes the unfocused editor's getSelection() return "". Returns null
+	 * when there is no active selection.
+	 */
+	getActiveSelectionText(): string | null {
+		const t = this.currentSelection?.text;
+		return t && t.length > 0 ? t : null;
+	}
+
+	/**
 	 * List all markdown notes in the vault.
 	 *
 	 * @returns Promise resolving to array of all note metadata
@@ -437,16 +451,24 @@ export class VaultService implements IVaultAccess {
 				const selections = editor.listSelections();
 				if (selections.length > 0) {
 					const normalized = this.normalizeSelection(selections[0]);
-					this.handleSelectionChange(filePath, {
-						from: {
-							line: normalized.anchor.line,
-							ch: normalized.anchor.ch,
+					// Capture the selected TEXT here, while the editor is
+					// focused — getSelection() returns "" on an unfocused leaf,
+					// so it must be read eagerly, not lazily at fire time (QP-I03).
+					const selectedText = editor.getSelection();
+					this.handleSelectionChange(
+						filePath,
+						{
+							from: {
+								line: normalized.anchor.line,
+								ch: normalized.anchor.ch,
+							},
+							to: {
+								line: normalized.head.line,
+								ch: normalized.head.ch,
+							},
 						},
-						to: {
-							line: normalized.head.line,
-							ch: normalized.head.ch,
-						},
-					});
+						selectedText,
+					);
 					return;
 				}
 			}
@@ -518,6 +540,7 @@ export class VaultService implements IVaultAccess {
 	private handleSelectionChange(
 		filePath: string | null,
 		selection: { from: EditorPosition; to: EditorPosition } | null,
+		text?: string,
 	): void {
 		const selectionKey = filePath
 			? selection
@@ -535,6 +558,7 @@ export class VaultService implements IVaultAccess {
 			this.currentSelection = {
 				filePath,
 				selection,
+				text: text ?? "",
 			};
 		} else if (
 			this.currentSelection &&

@@ -5,7 +5,6 @@ import {
 	FileSystemAdapter,
 	Platform,
 	Menu,
-	MarkdownView,
 	getAllTags,
 	setIcon,
 	type MenuItem,
@@ -1717,12 +1716,12 @@ export function ChatPanel({
 	const quickPromptBridge = useMemo<QuickPromptComposerBridge>(
 		() => ({
 			getComposerText: () => inputValueRef.current,
-			getSelectionText: () => {
-				const view =
-					plugin.app.workspace.getActiveViewOfType(MarkdownView);
-				const sel = view?.editor?.getSelection();
-				return sel && sel.length > 0 ? sel : null;
-			},
+			// Read the eagerly-captured selection text from VaultService. The
+			// chat panel becoming active nulls getActiveViewOfType(MarkdownView)
+			// AND workspace.activeEditor, and an unfocused leaf's getSelection()
+			// returns "" — so the selection cannot be read lazily here; it is
+			// captured while the editor was focused (QP-I03).
+			getSelectionText: () => vaultService.getActiveSelectionText(),
 			isStreaming: () => isSendingRef.current,
 			isQueued: () => isQueuedRef.current,
 			// fire/queue: dispatch the resolved text through the same send path
@@ -1732,6 +1731,15 @@ export function ChatPanel({
 			fireOrQueue: (text) => {
 				if (isSendingRef.current || !isSessionReadyRef.current) {
 					if (isQueuedRef.current) return; // slot full (defensive)
+					// Seed the composer so it mirrors the queued content. The
+					// composer is the single source of truth the Edit flow
+					// relies on — handleEditQueued only unlocks it, it does not
+					// repopulate. Without this the quick prompt queues but the
+					// composer is empty, so Edit shows no draft (QP-I04). Safe:
+					// the engine only routes here when the composer was empty
+					// (unsent-draft guard), and the turn-end flush both consumes
+					// the queue entry once AND clears the composer.
+					setInputValue(text);
 					handleQueueMessageRef.current(text, undefined);
 					return;
 				}

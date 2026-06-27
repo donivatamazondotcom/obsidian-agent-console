@@ -50,8 +50,19 @@ export class Modal {
 
 export class App {}
 
+export class Scope {
+	register(
+		_modifiers: string[],
+		_key: string | null,
+		_callback: unknown,
+	): unknown {
+		return {};
+	}
+}
+
 export class FuzzySuggestModal<T> {
 	app: App;
+	scope = new Scope();
 	constructor(app: App) {
 		this.app = app;
 	}
