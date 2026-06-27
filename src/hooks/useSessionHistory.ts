@@ -12,36 +12,10 @@ import type {
 	AgentCapabilities,
 } from "../types/session";
 import { SessionStore } from "../services/session-store";
+import { NO_AGENT_CAPABILITIES } from "../types/session";
 import type { ChatMessage } from "../types/chat";
 import { extractErrorMessage } from "../utils/error-utils";
 import type { ContextNote } from "../types/context";
-
-// ============================================================================
-// Session Capability Helpers (from session-capability-utils.ts)
-// ============================================================================
-
-interface SessionCapabilityFlags {
-	/** Whether session/load is supported (stable) */
-	canLoad: boolean;
-	/** Whether session/resume is supported (unstable) */
-	canResume: boolean;
-	/** Whether session/fork is supported (unstable) */
-	canFork: boolean;
-	/** Whether session/list is supported (unstable) */
-	canList: boolean;
-}
-
-function getSessionCapabilityFlags(
-	agentCapabilities?: AgentCapabilities,
-): SessionCapabilityFlags {
-	const sessionCaps = agentCapabilities?.sessionCapabilities;
-	return {
-		canLoad: agentCapabilities?.loadSession === true,
-		canResume: sessionCaps?.resume !== undefined,
-		canFork: sessionCaps?.fork !== undefined,
-		canList: sessionCaps?.list !== undefined,
-	};
-}
 
 // ============================================================================
 // Types
@@ -313,10 +287,12 @@ export function useSessionHistory(
 		onContextNotesRestore,
 	} = options;
 
-	// Derive capability flags from session.agentCapabilities
-	const capabilities: SessionCapabilityFlags = useMemo(
-		() => getSessionCapabilityFlags(session.agentCapabilities),
-		[session.agentCapabilities],
+	// Consume the normalized capability record produced once at the acp/ edge.
+	// Never reads the raw SDK capability bag; defaults to the all-false record
+	// before initialize resolves.
+	const capabilities: AgentCapabilities = useMemo(
+		() => session.capabilities ?? NO_AGENT_CAPABILITIES,
+		[session.capabilities],
 	);
 
 	// I114: single serialized writer of record for savedSessions metadata.
@@ -363,7 +339,7 @@ export function useSessionHistory(
 
 	// Check if any restoration operation is available
 	const canPerformAnyOperation =
-		capabilities.canLoad || capabilities.canResume || capabilities.canFork;
+		capabilities.restoresViaLoad || capabilities.restoresViaResume || capabilities.forks;
 
 	/**
 	 * Fetch sessions list from agent or local storage.
@@ -377,7 +353,7 @@ export function useSessionHistory(
 			// - Agent doesn't support session/list, OR
 			// - Agent doesn't support any restoration operation (for delete only)
 			const shouldUseLocalSessions =
-				!capabilities.canList || !canPerformAnyOperation;
+				!capabilities.listsSessions || !canPerformAnyOperation;
 
 			if (shouldUseLocalSessions) {
 				// Get locally saved sessions for this agent
@@ -468,7 +444,7 @@ export function useSessionHistory(
 		},
 		[
 			agentClient,
-			capabilities.canList,
+			capabilities.listsSessions,
 			canPerformAnyOperation,
 			isCacheValid,
 			settingsAccess,
@@ -482,7 +458,7 @@ export function useSessionHistory(
 	 */
 	const loadMoreSessions = useCallback(async () => {
 		// Guard: Check if there's more to load
-		if (!nextCursor || !capabilities.canList) {
+		if (!nextCursor || !capabilities.listsSessions) {
 			return;
 		}
 
@@ -531,7 +507,7 @@ export function useSessionHistory(
 		}
 	}, [
 		agentClient,
-		capabilities.canList,
+		capabilities.listsSessions,
 		nextCursor,
 		settingsAccess,
 		session.agentId,
@@ -560,7 +536,7 @@ export function useSessionHistory(
 					onContextNotesRestore(savedNotes ?? []);
 				}
 
-				if (capabilities.canLoad) {
+				if (capabilities.restoresViaLoad) {
 					// Check local messages first to decide whether to use them or agent replay
 					const localMessages =
 						await settingsAccess.loadSessionMessages(sessionId);
@@ -597,7 +573,7 @@ export function useSessionHistory(
 							result.configOptions,
 						);
 					}
-				} else if (capabilities.canResume) {
+				} else if (capabilities.restoresViaResume) {
 					// Use resume (without history replay, restore from local storage)
 					const result = await agentClient.resumeSession(
 						sessionId,
@@ -640,8 +616,8 @@ export function useSessionHistory(
 		},
 		[
 			agentClient,
-			capabilities.canLoad,
-			capabilities.canResume,
+			capabilities.restoresViaLoad,
+			capabilities.restoresViaResume,
 			onSessionLoad,
 			settingsAccess,
 			onMessagesRestore,
@@ -940,10 +916,10 @@ export function useSessionHistory(
 
 			// Capability flags
 			canShowSessionHistory: true,
-			canRestore: capabilities.canLoad || capabilities.canResume,
-			canFork: capabilities.canFork,
-			canList: capabilities.canList,
-			isUsingLocalSessions: !capabilities.canList,
+			canRestore: capabilities.restoresViaLoad || capabilities.restoresViaResume,
+			canFork: capabilities.forks,
+			canList: capabilities.listsSessions,
+			isUsingLocalSessions: !capabilities.listsSessions,
 			localSessionIds,
 
 			// Methods
@@ -964,10 +940,10 @@ export function useSessionHistory(
 			loading,
 			error,
 			nextCursor,
-			capabilities.canList,
-			capabilities.canLoad,
-			capabilities.canResume,
-			capabilities.canFork,
+			capabilities.listsSessions,
+			capabilities.restoresViaLoad,
+			capabilities.restoresViaResume,
+			capabilities.forks,
 			localSessionIds,
 			fetchSessions,
 			loadMoreSessions,

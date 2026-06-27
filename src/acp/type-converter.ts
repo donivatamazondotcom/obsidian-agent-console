@@ -7,6 +7,8 @@ import type {
 	SessionConfigSelectOption,
 	SessionResult,
 	SlashCommand,
+	RawAgentCapabilities,
+	AgentCapabilities,
 } from "../types/session";
 
 /**
@@ -222,6 +224,34 @@ export class AcpTypeConverter {
 	}
 
 	/**
+	 * Normalize the raw ACP `initialize` capability bag into the uniform
+	 * {@link AgentCapabilities} domain record.
+	 *
+	 * This is THE single anti-corruption boundary for agent-capability
+	 * variance: every external shape difference (`undefined` sub-caps, present
+	 * objects, absent bag) collapses here into total, explicit booleans. The
+	 * rest of the app consumes the record and never re-reads the raw bag's
+	 * session-capability shape nor branches on agent id.
+	 *
+	 * @param raw - Raw capabilities from {@link toInitializeResult}, or undefined
+	 * @returns Normalized record (all-false when raw is absent)
+	 */
+	static toAgentCapabilities(
+		raw: RawAgentCapabilities | undefined,
+	): AgentCapabilities {
+		const sessionCaps = raw?.sessionCapabilities;
+		return {
+			listsSessions: sessionCaps?.list !== undefined,
+			restoresViaLoad: raw?.loadSession === true,
+			restoresViaResume: sessionCaps?.resume !== undefined,
+			forks: sessionCaps?.fork !== undefined,
+			// ACP SDK 0.14.1 has no initialize-time model capability; this is
+			// the single wire-point if that ever changes. See AgentCapabilities.
+			reportsModels: false,
+		};
+	}
+
+	/**
 	 * Convert ACP InitializeResponse to domain InitializeResult.
 	 */
 	static toInitializeResult(
@@ -231,6 +261,28 @@ export class AcpTypeConverter {
 		const mcpCaps = initResult.agentCapabilities?.mcpCapabilities;
 		const sessionCaps = initResult.agentCapabilities?.sessionCapabilities;
 
+		const agentCapabilities: RawAgentCapabilities = {
+			loadSession: initResult.agentCapabilities?.loadSession ?? false,
+			sessionCapabilities: sessionCaps
+				? {
+						resume: sessionCaps.resume ?? undefined,
+						fork: sessionCaps.fork ?? undefined,
+						list: sessionCaps.list ?? undefined,
+					}
+				: undefined,
+			mcpCapabilities: mcpCaps
+				? {
+						http: mcpCaps.http ?? false,
+						sse: mcpCaps.sse ?? false,
+					}
+				: undefined,
+			promptCapabilities: {
+				image: promptCaps?.image ?? false,
+				audio: promptCaps?.audio ?? false,
+				embeddedContext: promptCaps?.embeddedContext ?? false,
+			},
+		};
+
 		return {
 			protocolVersion: initResult.protocolVersion,
 			authMethods: initResult.authMethods || [],
@@ -239,27 +291,8 @@ export class AcpTypeConverter {
 				audio: promptCaps?.audio ?? false,
 				embeddedContext: promptCaps?.embeddedContext ?? false,
 			},
-			agentCapabilities: {
-				loadSession: initResult.agentCapabilities?.loadSession ?? false,
-				sessionCapabilities: sessionCaps
-					? {
-							resume: sessionCaps.resume ?? undefined,
-							fork: sessionCaps.fork ?? undefined,
-							list: sessionCaps.list ?? undefined,
-						}
-					: undefined,
-				mcpCapabilities: mcpCaps
-					? {
-							http: mcpCaps.http ?? false,
-							sse: mcpCaps.sse ?? false,
-						}
-					: undefined,
-				promptCapabilities: {
-					image: promptCaps?.image ?? false,
-					audio: promptCaps?.audio ?? false,
-					embeddedContext: promptCaps?.embeddedContext ?? false,
-				},
-			},
+			agentCapabilities,
+			capabilities: this.toAgentCapabilities(agentCapabilities),
 			agentInfo: initResult.agentInfo
 				? {
 						name: initResult.agentInfo.name,
