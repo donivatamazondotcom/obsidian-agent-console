@@ -152,7 +152,12 @@ export function resolvePromptText(
 // Fire / insert / queue / disabled decision
 // ============================================================================
 
-export type QuickPromptAction = "fire" | "queue" | "insert" | "disabled";
+export type QuickPromptAction =
+	| "fire"
+	| "queue"
+	| "insert"
+	| "disabled"
+	| "new-tab";
 
 export type QuickPromptReason = "no-selection" | "unsent-draft";
 
@@ -169,11 +174,22 @@ export interface QuickPromptDecisionInput {
 	usesSelection: boolean;
 	/** A non-empty editor selection exists. */
 	hasSelection: boolean;
+	/**
+	 * The prompt is declared `newTab: true` — fire into a fresh tab/session.
+	 * A newTab prompt bypasses the current-tab guard entirely (never queue /
+	 * insert / disabled because of current-tab state). Absent ⇒ current-tab.
+	 */
+	newTab?: boolean;
 }
 
 export interface QuickPromptDecision {
 	action: QuickPromptAction;
 	reason?: QuickPromptReason;
+	/**
+	 * For a `new-tab` action: send into the fresh tab (true) vs only seed its
+	 * composer for the user to edit (false). Unset for current-tab actions.
+	 */
+	send?: boolean;
 }
 
 /**
@@ -192,6 +208,17 @@ export interface QuickPromptDecision {
 export function decideQuickPromptAction(
 	input: QuickPromptDecisionInput,
 ): QuickPromptDecision {
+	// newTab prompts always spawn a fresh tab; they bypass the current-tab
+	// guard (queued/streaming/draft) entirely. Plain fire sends into the new
+	// tab; a modifier (tweak) or a {{selection}} prompt with nothing selected
+	// only seeds the new tab's composer (never auto-sends a half-formed prompt).
+	if (input.newTab) {
+		if (input.usesSelection && !input.hasSelection) {
+			return { action: "new-tab", send: false, reason: "no-selection" };
+		}
+		if (input.modifier) return { action: "new-tab", send: false };
+		return { action: "new-tab", send: true };
+	}
 	if (input.isQueued) return { action: "disabled" };
 	if (input.modifier) return { action: "insert" };
 	if (input.usesSelection && !input.hasSelection) {
@@ -222,6 +249,8 @@ export interface QuickPromptPlan {
 	/** Fully-resolved prompt text (placeholders substituted). */
 	text: string;
 	reason?: QuickPromptReason;
+	/** For `new-tab`: send into the fresh tab vs only seed its composer. */
+	send?: boolean;
 }
 
 /**
@@ -231,7 +260,7 @@ export interface QuickPromptPlan {
  * cursor; `disabled` → no-op).
  */
 export function planQuickPromptFire(
-	prompt: Pick<QuickPrompt, "body" | "usesSelection">,
+	prompt: Pick<QuickPrompt, "body" | "usesSelection" | "newTab">,
 	ctx: QuickPromptPlanContext,
 ): QuickPromptPlan {
 	const hasSelection =
@@ -243,10 +272,12 @@ export function planQuickPromptFire(
 		isQueued: ctx.isQueued,
 		usesSelection: prompt.usesSelection,
 		hasSelection,
+		newTab: prompt.newTab === true,
 	});
 	return {
 		action: decision.action,
 		reason: decision.reason,
+		send: decision.send,
 		text: resolvePromptText(prompt.body, ctx.selectionText),
 	};
 }
@@ -268,6 +299,12 @@ export interface QuickPromptActions {
 	fireOrQueue(text: string): void;
 	/** Insert `text` at the cursor, preserving any existing draft. */
 	insert(text: string): void;
+	/**
+	 * Open a fresh tab/session and either send `text` there (`send: true`) or
+	 * only seed its composer for the user to edit (`send: false`). Used for
+	 * `newTab` prompts; bypasses the current-tab composer entirely.
+	 */
+	openInNewTab(text: string, opts: { send: boolean }): void;
 	/** Show a transient notice. */
 	notify(message: string): void;
 }
@@ -282,7 +319,7 @@ export interface QuickPromptActions {
  * behavior (T18) testable without mounting React.
  */
 export function executeQuickPrompt(
-	prompt: Pick<QuickPrompt, "body" | "usesSelection" | "label">,
+	prompt: Pick<QuickPrompt, "body" | "usesSelection" | "label" | "newTab">,
 	ctx: QuickPromptPlanContext,
 	actions: QuickPromptActions,
 ): QuickPromptPlan {
@@ -302,6 +339,14 @@ export function executeQuickPrompt(
 				actions.notify(noSelectionNotice(prompt.label));
 			} else if (plan.reason === "unsent-draft") {
 				actions.notify(UNSENT_DRAFT_NOTICE);
+			}
+			break;
+		case "new-tab":
+			actions.openInNewTab(plan.text, { send: plan.send ?? true });
+			// A newTab {{selection}} prompt with nothing selected opens the
+			// tab but only seeds its composer — tell the user why nothing sent.
+			if (plan.reason === "no-selection") {
+				actions.notify(noSelectionNotice(prompt.label));
 			}
 			break;
 	}

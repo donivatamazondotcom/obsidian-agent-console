@@ -33,6 +33,13 @@ export interface QuickPromptComposerBridge {
 	fireOrQueue(text: string): void;
 	/** Insert at the cursor, preserving any existing draft. */
 	insertAtCursor(text: string): void;
+	/**
+	 * Open a fresh tab/session and either send `text` there (`send: true`) or
+	 * only seed its composer for editing (`send: false`). For `newTab` prompts;
+	 * never touches the current tab's composer. Implemented by ChatPanel via a
+	 * ChatView-supplied callback that owns the tab manager.
+	 */
+	openInNewTab(text: string, opts: { send: boolean }): void;
 	/** Show a transient notice. */
 	notify(message: string): void;
 }
@@ -78,6 +85,7 @@ export function useQuickPrompts(
 				{
 					fireOrQueue: (text) => b.fireOrQueue(text),
 					insert: (text) => b.insertAtCursor(text),
+					openInNewTab: (text, opts) => b.openInNewTab(text, opts),
 					notify: (message) => b.notify(message),
 				},
 			);

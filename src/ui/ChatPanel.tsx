@@ -176,6 +176,20 @@ export interface ChatPanelProps {
 	 * not on the initial restore-seed. (Draft persistence — restart fix.)
 	 */
 	onDraftChange?: () => void;
+	/**
+	 * Open a fresh tab/session for a `newTab` quick prompt. ChatView owns the
+	 * tab manager, so a fire in the active tab routes up here to spawn a
+	 * sibling tab and dispatch the resolved prompt into it. See [[Agent Console
+	 * Quick Prompts and Workflows]] § Fire target.
+	 */
+	onOpenInNewTab?: (text: string, opts: { send: boolean }) => void;
+	/**
+	 * One-shot seed for a tab just spawned by a `newTab` quick prompt:
+	 * `send: true` dispatches `text` through the lazy-acquisition send path
+	 * (queues until the fresh session connects, I69); `send: false` only seeds
+	 * the composer for the user to edit. Consumed once on mount.
+	 */
+	initialPrompt?: { text: string; send: boolean };
 }
 
 // ============================================================================
@@ -248,6 +262,8 @@ export function ChatPanel({
 	historyRecoverable,
 	restoredDraft,
 	onDraftChange,
+	onOpenInNewTab,
+	initialPrompt,
 }: ChatPanelProps) {
 	// ============================================================
 	// Platform Check
@@ -1817,11 +1833,17 @@ export function ChatPanel({
 					}
 				});
 			},
+			// newTab quick prompts route up to ChatView (which owns the tab
+			// manager) to spawn a sibling tab and seed/send into it. Never
+			// touches this tab's composer.
+			openInNewTab: (text, opts) => {
+				onOpenInNewTab?.(text, opts);
+			},
 			notify: (message) => {
 				new Notice(`[Agent Console] ${message}`);
 			},
 		}),
-		[plugin],
+		[plugin, onOpenInNewTab],
 	);
 
 	const quickPrompts = useQuickPrompts(
@@ -1830,6 +1852,22 @@ export function ChatPanel({
 	);
 	const runQuickPromptRef = useRef(quickPrompts.runQuickPrompt);
 	runQuickPromptRef.current = quickPrompts.runQuickPrompt;
+
+	// Consume a one-shot newTab seed: this tab was just spawned by a `newTab`
+	// quick prompt fired from another tab. `send` dispatches through the same
+	// fire/queue path the composer uses (queues until the fresh lazy session
+	// connects, I69); otherwise we only seed the composer for editing.
+	const initialPromptConsumedRef = useRef(false);
+	useEffect(() => {
+		if (initialPromptConsumedRef.current || !initialPrompt) return;
+		initialPromptConsumedRef.current = true;
+		if (initialPrompt.send) {
+			quickPromptBridge.fireOrQueue(initialPrompt.text);
+		} else {
+			setInputValue(initialPrompt.text);
+			returnFocusToComposer();
+		}
+	}, [initialPrompt, quickPromptBridge, returnFocusToComposer]);
 
 	// Contextual chips: prompts matching the active note's tags (untagged
 	// always match). Recomputed on editor-note switch (activeNotePath) and on
