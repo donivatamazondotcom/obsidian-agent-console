@@ -299,6 +299,11 @@ export function InputToolbar({
 					ref={quickPromptButtonRef}
 					type="button"
 					className="clickable-icon agent-client-quick-prompt-launcher"
+					// Part of the composer focus cluster: tabbing through this
+					// launcher must NOT disarm composer-focus-return, or a later
+					// model/config pick won't return focus to the composer (I124).
+					// keep in sync with FOCUS_CLUSTER_ATTR (composer-focus-tracker)
+					data-acp-focus-cluster=""
 					aria-label="Quick prompts"
 					onClick={(e) => {
 						e.preventDefault();
