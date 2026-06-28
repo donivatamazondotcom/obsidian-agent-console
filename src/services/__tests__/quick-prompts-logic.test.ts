@@ -90,7 +90,7 @@ describe("quick-prompts-logic", () => {
 					tags: ["NoteType/MeetingNote"],
 					agent: "kiro-cli",
 					mode: "default",
-					newTab: true,
+					"open in new tab": true,
 				},
 				body: "x",
 			});
@@ -112,7 +112,7 @@ describe("quick-prompts-logic", () => {
 			const prompt = buildQuickPrompt({
 				path: "Quick Prompts/x.md",
 				basename: "x",
-				frontmatter: { description: "x", newTab: false },
+				frontmatter: { description: "x", "open in new tab": false },
 				body: "x",
 			});
 			expect(prompt.tags).toBeUndefined();

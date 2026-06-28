@@ -29,12 +29,6 @@ import { quickPromptGestureFromEvent } from "../utils/quick-prompt-gesture";
 export const QUEUED_CHIP_TOOLTIP =
 	"A message is queued — Edit or Delete it to send something else";
 
-/** Hover/focus tooltip enumerating the modifier matrix (plain language). */
-export const NEW_TAB_CHIP_TOOLTIP =
-	"Click: open in a new tab · ⌘-click: open in the background · ⌥-click: drop into the box to edit first";
-export const THIS_TAB_CHIP_TOOLTIP =
-	"Click: send in this chat · ⌘-click: send in a new background tab (add ⇧ to switch there) · ⌥-click: drop into the box to edit first";
-
 export interface QuickPromptBarProps {
 	/** Prompts already matched to the active note (`matchPromptsForNote`). */
 	prompts: QuickPrompt[];
@@ -101,12 +95,6 @@ function QuickPromptChip({
 		onFire(prompt, gesture);
 	};
 
-	const tooltip = disabled
-		? QUEUED_CHIP_TOOLTIP
-		: prompt.newTab
-			? NEW_TAB_CHIP_TOOLTIP
-			: THIS_TAB_CHIP_TOOLTIP;
-
 	return (
 		<button
 			type="button"
@@ -114,8 +102,11 @@ function QuickPromptChip({
 				disabled ? " agent-client-quick-prompt-chip-disabled" : ""
 			}`}
 			aria-disabled={disabled}
-			aria-label={disabled ? `${prompt.label} — ${tooltip}` : prompt.label}
-			title={tooltip}
+			aria-label={
+				disabled
+					? `${prompt.label} — ${QUEUED_CHIP_TOOLTIP}`
+					: prompt.label
+			}
 			onClick={(e) => {
 				e.preventDefault();
 				activate(quickPromptGestureFromEvent(e.nativeEvent));

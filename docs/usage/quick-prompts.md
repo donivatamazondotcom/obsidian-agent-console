@@ -61,7 +61,7 @@ open in new tab: true
 Debrief this meeting — pull the AI summary, extract action items, and update the vault note.
 ````
 
-- `open in new tab` is a checkbox property — toggle it in the note's Properties view, no typing. (Notes that still use the older `newTab: true` keep working.)
+- `open in new tab` is a checkbox property — toggle it in the note's Properties view, no typing.
 - Firing it always opens a new tab on your default agent and sends there — even if your current tab is mid-reply or has a message queued. A new-tab chip stays active while current-tab chips are locked.
 - A plain click **switches to** the new tab; hold **⌘ (Cmd)** to open it in the **background** (you stay put) — Agent Console shows a brief "Started … in a new tab" note so you know it's running.
 - Hold **⌥ (Alt)** to open the new tab and drop the text into its composer for editing instead of sending.

@@ -109,12 +109,9 @@ export function buildQuickPrompt(input: QuickPromptFileInput): QuickPrompt {
 		tags: fm ? normalizeTags(fm["tags"]) : undefined,
 		agent: fm ? normalizeString(fm["agent"]) : undefined,
 		mode: fm ? normalizeString(fm["mode"]) : undefined,
-		// Default target = new tab. D5 renamed the frontmatter to the
-		// `open in new tab` checkbox; accept the shipped `newTab` key too so
-		// existing prompt notes keep working.
-		newTab: fm
-			? fm["open in new tab"] === true || fm["newTab"] === true
-			: undefined,
+		// Default target = new tab, via the `open in new tab` checkbox (D5).
+		// No `newTab` back-compat — that key was never in a released build.
+		newTab: fm ? fm["open in new tab"] === true : undefined,
 	};
 }
 
