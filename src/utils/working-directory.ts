@@ -1,5 +1,6 @@
 import { isAbsolute } from "path";
 import { existsSync, statSync } from "fs";
+import { isSameDirectory } from "./platform";
 
 export interface ResolvedWorkingDirectory {
 	/** The directory a new chat should launch in. */
@@ -102,4 +103,22 @@ export function resolveAgentWorkingDirectory(
 		fellBack = true;
 	}
 	return { dir: vaultRoot, source: "vault", fellBack };
+}
+
+/**
+ * Determine whether the cwd banner should be shown for a chat panel.
+ *
+ * The banner is visible when the chat's working directory differs from the
+ * vault root — i.e. the agent is working outside the vault base path.
+ * It must compare against `vaultRoot` (the true base path), NOT the tab's
+ * operative cwd (`vaultPath`), because for a restored tab `agentCwd ===
+ * vaultPath` and the banner would never render.
+ *
+ * @param agentCwd  The chat's current working directory.
+ * @param vaultRoot The vault base path (from FileSystemAdapter.getBasePath()).
+ * @returns Whether the cwd banner should be rendered.
+ */
+export function deriveCwdBanner(agentCwd: string, vaultRoot: string): boolean {
+	if (!agentCwd || agentCwd === vaultRoot) return false;
+	return !isSameDirectory(agentCwd, vaultRoot);
 }

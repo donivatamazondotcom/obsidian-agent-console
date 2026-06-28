@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
 	resolveDefaultWorkingDirectory,
 	resolveAgentWorkingDirectory,
+	deriveCwdBanner,
 } from "../working-directory";
 
 const VAULT = "/Users/me/vault";
@@ -95,5 +96,33 @@ describe("resolveAgentWorkingDirectory", () => {
 	it("does not flag fellBack when only blank values defer (no invalid value)", () => {
 		const r = resolveAgentWorkingDirectory("  ", "", VAULT, existsAll);
 		expect(r).toEqual({ dir: VAULT, source: "vault", fellBack: false });
+	});
+});
+
+describe("deriveCwdBanner", () => {
+	const VAULT_ROOT = "/Users/me/vault";
+
+	it("hidden when agentCwd equals vaultRoot (same string)", () => {
+		expect(deriveCwdBanner(VAULT_ROOT, VAULT_ROOT)).toBe(false);
+	});
+
+	it("hidden when agentCwd is empty", () => {
+		expect(deriveCwdBanner("", VAULT_ROOT)).toBe(false);
+	});
+
+	it("shown when agentCwd is a different directory", () => {
+		expect(deriveCwdBanner("/Users/me/repo", VAULT_ROOT)).toBe(true);
+	});
+
+	it("hidden when agentCwd differs only by trailing slash", () => {
+		expect(deriveCwdBanner(VAULT_ROOT + "/", VAULT_ROOT)).toBe(false);
+	});
+
+	it("shown when agentCwd is a subdirectory of vaultRoot", () => {
+		expect(deriveCwdBanner(VAULT_ROOT + "/subdir", VAULT_ROOT)).toBe(true);
+	});
+
+	it("shown when agentCwd is a parent of vaultRoot", () => {
+		expect(deriveCwdBanner("/Users/me", VAULT_ROOT)).toBe(true);
 	});
 });

@@ -16,6 +16,7 @@ import { isSameDirectory } from "../utils/platform";
 import {
 	resolveDefaultWorkingDirectory,
 	resolveAgentWorkingDirectory,
+	deriveCwdBanner,
 } from "../utils/working-directory";
 import { findAgentSettings } from "../services/session-helpers";
 import { deriveNewLeaf } from "../utils/link-leaf";
@@ -2239,7 +2240,7 @@ export function ChatPanel({
 	);
 
 	const cwdBanner =
-		agentCwd !== vaultPath && !isSameDirectory(agentCwd, vaultPath) ? (
+		deriveCwdBanner(agentCwd, vaultRoot) ? (
 			<div className="agent-client-cwd-banner" aria-label={agentCwd}>
 				<span
 					className="agent-client-cwd-banner-icon"
