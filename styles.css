@@ -2750,6 +2750,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .acp-shared-links-badge--accent {
 	color: var(--text-on-accent);
 	background-color: var(--interactive-accent);
+}
 
 /* ==========================================================================
    Quick Prompts — toolbar launcher + ephemeral contextual chips row
