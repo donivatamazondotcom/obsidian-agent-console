@@ -1987,8 +1987,8 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 .agent-client-session-history-source-pill.is-active {
-	background-color: var(--background-primary);
-	color: var(--text-normal);
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
 	font-weight: var(--font-medium);
 }
 

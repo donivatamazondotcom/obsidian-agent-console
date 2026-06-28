@@ -866,11 +866,12 @@ export function SessionHistoryContent({
 									{formatRelativeTime(
 										new Date(agentSessionCache.syncedAt),
 									)}{" "}
-									– connect to refresh
+									– send a message to reconnect and refresh
 								</span>
 							) : (
 								<span>
-									Connect to load sessions from the agent
+									Send a message to connect, then this list
+									loads from the agent
 								</span>
 							)}
 						</div>

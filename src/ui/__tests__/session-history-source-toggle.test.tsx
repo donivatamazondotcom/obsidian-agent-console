@@ -237,7 +237,7 @@ describe("SessionHistoryContent — disconnected Agent view (cache + affordance)
 				})}
 			/>,
 		);
-		expect(screen.getByText(/connect to refresh/)).toBeTruthy();
+		expect(screen.getByText(/send a message to reconnect/)).toBeTruthy();
 		expect(screen.getByText("server row")).toBeTruthy();
 	});
 
@@ -252,7 +252,7 @@ describe("SessionHistoryContent — disconnected Agent view (cache + affordance)
 			/>,
 		);
 		expect(
-			screen.getByText("Connect to load sessions from the agent"),
+			screen.getByText(/Send a message to connect/),
 		).toBeTruthy();
 	});
 });

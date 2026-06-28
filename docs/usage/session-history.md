@@ -25,7 +25,7 @@ The toggle remembers your last choice.
 
 ### The Agent view when you're not connected
 
-Agent Console keeps a small list of your agent's sessions, refreshed each time the agent connects. So even before this tab connects, the Agent view can show that list — marked with when it was last refreshed (for example, "Synced 5 minutes ago – connect to refresh"). Connect and send a message to pull the latest.
+Agent Console keeps a small list of your agent's sessions, refreshed each time the agent connects. So even before this tab connects, the Agent view can show that list — marked with when it was last refreshed (for example, "Synced 5 minutes ago – send a message to reconnect and refresh"). Sending a message connects the agent and pulls the latest.
 
 ### Coming from Agent Client?
 
