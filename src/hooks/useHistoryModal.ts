@@ -38,9 +38,11 @@ export function useHistoryModal(
 		cwd: string,
 		mode: "restore" | "fork",
 	) => void | Promise<void>,
+	onSetTabLabelCustom?: (tabId: string, label: string) => void,
 ): {
 	handleOpenHistory: () => void;
 	handleDeleteSession: (sessionId: string) => Promise<void>;
+	handleEditTitle: (sessionId: string, newTitle: string, sessionCwd: string) => Promise<void>;
 } {
 	const logger = getLogger();
 	const historyModalRef = useRef<SessionHistoryModal | null>(null);
@@ -65,6 +67,8 @@ export function useHistoryModal(
 	// reconnect all live in ChatView.onOpenSessionInTab.
 	const onOpenSessionInTabRef = useRef(onOpenSessionInTab);
 	onOpenSessionInTabRef.current = onOpenSessionInTab;
+	const onSetTabLabelCustomRef = useRef(onSetTabLabelCustom);
+	onSetTabLabelCustomRef.current = onSetTabLabelCustom;
 
 	const handleRestoreSession = useCallback(
 		async (sessionId: string, cwd: string) => {
@@ -136,12 +140,12 @@ export function useHistoryModal(
 					newTitle,
 					sessionCwd,
 				);
-				// If the renamed session is open in this tab, update the tab label
-				if (
-					sessionId === currentSessionIdRef.current &&
-					onLabelChangeRef.current
-				) {
-					onLabelChangeRef.current(newTitle);
+				// If the renamed session is open in any tab, update that tab's
+				// label as custom (I128 — a history-modal rename is an explicit
+				// user action and must override the custom-lock guard).
+				const openTab = findTabBySessionIdRef.current?.(sessionId);
+				if (openTab) {
+					onSetTabLabelCustomRef.current?.(openTab.tabId, newTitle);
 				}
 				new Notice("[Agent Console] Title updated");
 			} catch (error) {
@@ -308,5 +312,5 @@ export function useHistoryModal(
 		};
 	}, []);
 
-	return { handleOpenHistory, handleDeleteSession };
+	return { handleOpenHistory, handleDeleteSession, handleEditTitle };
 }

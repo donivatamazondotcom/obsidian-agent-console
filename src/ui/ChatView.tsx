@@ -1036,6 +1036,9 @@ function ChatComponent({
 								onSwitchToTab={tabManager.setActiveTab}
 								onCloseTab={tabManager.removeTab}
 								onOpenSessionInTab={openSessionInTab}
+								onSetTabLabelCustom={(tabId, label) =>
+									tabManager.setTabLabel(tabId, label, true)
+								}
 								restoredSessionId={
 									reopenPayload[tab.tabId]?.sessionId ??
 									persistedSessionIdsRef.current.get(tab.tabId) ??
