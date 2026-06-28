@@ -140,6 +140,16 @@ export interface ChatPanelProps {
 	onSwitchToTab?: (tabId: string) => void;
 	/** Close a specific tab by ID (used when its session is deleted) */
 	onCloseTab?: (tabId: string) => void;
+	/**
+	 * Open a history session in a matched-or-new tab (Track C). Restore/fork
+	 * route through here (ChatView orchestration) instead of restoring into the
+	 * current tab, so the active session is never clobbered.
+	 */
+	onOpenSessionInTab?: (
+		sessionId: string,
+		cwd: string,
+		mode: "restore" | "fork",
+	) => void | Promise<void>;
 	/** Persisted session ID for this tab (from tab persistence). Passed to useLazySession for session/load on first keystroke. */
 	restoredSessionId?: string | null;
 	/** Restored message history for this tab (from tab persistence). Seeded into the message list on async arrival while idle (I43). */
@@ -231,6 +241,7 @@ export function ChatPanel({
 	findTabBySessionId,
 	onSwitchToTab,
 	onCloseTab,
+	onOpenSessionInTab,
 	restoredSessionId,
 	restoredMessages,
 	restoredContextNotes,
@@ -644,6 +655,7 @@ export function ChatPanel({
 		findTabBySessionId,
 		onSwitchToTab,
 		onCloseTab,
+		onOpenSessionInTab,
 	);
 
 	// ============================================================

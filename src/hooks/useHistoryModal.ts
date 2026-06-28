@@ -1,8 +1,7 @@
 import { useRef, useCallback, useEffect } from "react";
-import { Notice, Platform } from "obsidian";
+import { Notice } from "obsidian";
 import { SessionHistoryModal } from "../ui/SessionHistoryModal";
 import { getLogger } from "../utils/logger";
-import { convertWslPathToWindows } from "../utils/platform";
 import type AgentClientPlugin from "../plugin";
 import type { UseAgentReturn } from "./useAgent";
 import type { UseSessionHistoryReturn } from "./useSessionHistory";
@@ -33,6 +32,11 @@ export function useHistoryModal(
 	findTabBySessionId?: (sessionId: string) => { tabId: string; label: string } | null,
 	onSwitchToTab?: (tabId: string) => void,
 	onCloseTab?: (tabId: string) => void,
+	onOpenSessionInTab?: (
+		sessionId: string,
+		cwd: string,
+		mode: "restore" | "fork",
+	) => void | Promise<void>,
 ): {
 	handleOpenHistory: () => void;
 	handleDeleteSession: (sessionId: string) => Promise<void>;
@@ -46,79 +50,42 @@ export function useHistoryModal(
 	// which would cause the callbacks to be recreated every render,
 	// which would cause the useEffect syncing modal props to fire every render,
 	// which would call updateProps → root.render() → infinite re-render loop (I11/I12).
-	const sessionsRef = useRef(sessionHistory.sessions);
-	sessionsRef.current = sessionHistory.sessions;
 	const onLabelChangeRef = useRef(onLabelChange);
 	onLabelChangeRef.current = onLabelChange;
-	const onAgentCwdChangeRef = useRef(onAgentCwdChange);
-	onAgentCwdChangeRef.current = onAgentCwdChange;
 	const currentSessionIdRef = useRef(currentSessionId);
 	currentSessionIdRef.current = currentSessionId;
 	const findTabBySessionIdRef = useRef(findTabBySessionId);
 	findTabBySessionIdRef.current = findTabBySessionId;
-	const onSwitchToTabRef = useRef(onSwitchToTab);
-	onSwitchToTabRef.current = onSwitchToTab;
 	const onCloseTabRef = useRef(onCloseTab);
 	onCloseTabRef.current = onCloseTab;
+	// Orchestration callback (ChatView). Restore/fork open the session in a
+	// matched-or-new tab rather than restoring INTO the current one — the
+	// target-tab decision, switch-if-open (I20), new-tab seed and lazy
+	// reconnect all live in ChatView.onOpenSessionInTab.
+	const onOpenSessionInTabRef = useRef(onOpenSessionInTab);
+	onOpenSessionInTabRef.current = onOpenSessionInTab;
 
 	const handleRestoreSession = useCallback(
 		async (sessionId: string, cwd: string) => {
+			// Open the session in a matched-or-new tab via ChatView's
+			// orchestration. Restore is gated on data + intent, not connection
+			// (I09/I41 superseded); the new tab reconnects lazily on first
+			// send, and the active session is never clobbered.
 			try {
-				// I20: If session is already open in another tab, switch to it
-				const existingTab = findTabBySessionIdRef.current?.(sessionId);
-				if (existingTab) {
-					onSwitchToTabRef.current?.(existingTab.tabId);
-					historyModalRef.current?.close();
-					new Notice(
-						`[Agent Console] Session already open in tab "${existingTab.label}"`,
-					);
-					return;
-				}
-				logger.log(`[ChatPanel] Restoring session: ${sessionId}`);
-				agent.clearMessages();
-				await sessionHistory.restoreSession(sessionId, cwd);
-				onAgentCwdChangeRef.current?.(
-					Platform.isWin ? convertWslPathToWindows(cwd) : cwd,
+				logger.log(
+					`[ChatPanel] Open session in tab (restore): ${sessionId}`,
 				);
-				// Update tab label from saved session title
-				const saved = sessionsRef.current.find(
-					(s) => s.sessionId === sessionId,
+				await onOpenSessionInTabRef.current?.(
+					sessionId,
+					cwd,
+					"restore",
 				);
-				if (saved?.title && onLabelChangeRef.current) {
-					onLabelChangeRef.current(saved.title);
-				}
-				new Notice("[Agent Console] Session restored");
 			} catch (error) {
 				new Notice("[Agent Console] Failed to restore session");
 				logger.error("Session restore error:", error);
 			}
 		},
-		[logger, agent.clearMessages, sessionHistory.restoreSession],
-	);
-
-	const handleForkSession = useCallback(
-		async (sessionId: string, cwd: string) => {
-			try {
-				logger.log(`[ChatPanel] Forking session: ${sessionId}`);
-				agent.clearMessages();
-				await sessionHistory.forkSession(sessionId, cwd);
-				onAgentCwdChangeRef.current?.(
-					Platform.isWin ? convertWslPathToWindows(cwd) : cwd,
-				);
-				// Update tab label from the original session's title
-				const saved = sessionsRef.current.find(
-					(s) => s.sessionId === sessionId,
-				);
-				if (saved?.title && onLabelChangeRef.current) {
-					onLabelChangeRef.current(saved.title);
-				}
-				new Notice("[Agent Console] Session forked");
-			} catch (error) {
-				new Notice("[Agent Console] Failed to fork session");
-				logger.error("Session fork error:", error);
-			}
-		},
-		[logger, agent.clearMessages, sessionHistory.forkSession],
+		[logger],
 	);
 
 	const handleDeleteSession = useCallback(
@@ -187,15 +154,11 @@ export function useHistoryModal(
 				hasMore: sessionHistory.hasMore,
 				currentCwd: vaultPath,
 				loadSessionMessages: sessionHistory.loadSessionMessages,
-				canList: sessionHistory.canList,
-				canRestore: sessionHistory.canRestore,
-				canFork: sessionHistory.canFork,
-				isUsingLocalSessions: sessionHistory.isUsingLocalSessions,
+				capabilities: sessionHistory.capabilities,
 				localSessionIds: sessionHistory.localSessionIds,
 				isAgentReady: isSessionReady,
 				debugMode: debugMode,
 				onRestoreSession: handleRestoreSession,
-				onForkSession: handleForkSession,
 				onDeleteSession: handleDeleteSession,
 				onEditTitle: handleEditTitle,
 				onLoadMore: handleLoadMore,
@@ -210,10 +173,7 @@ export function useHistoryModal(
 		sessionHistory.loading,
 		sessionHistory.error,
 		sessionHistory.hasMore,
-		sessionHistory.canList,
-		sessionHistory.canRestore,
-		sessionHistory.canFork,
-		sessionHistory.isUsingLocalSessions,
+		sessionHistory.capabilities,
 		sessionHistory.loadSessionMessages,
 		sessionHistory.localSessionIds,
 		sessionHistory.fetchSessions,
@@ -221,7 +181,6 @@ export function useHistoryModal(
 		isSessionReady,
 		debugMode,
 		handleRestoreSession,
-		handleForkSession,
 		handleDeleteSession,
 		handleEditTitle,
 		handleLoadMore,
@@ -238,15 +197,11 @@ export function useHistoryModal(
 				hasMore: sessionHistory.hasMore,
 				currentCwd: vaultPath,
 				loadSessionMessages: sessionHistory.loadSessionMessages,
-				canList: sessionHistory.canList,
-				canRestore: sessionHistory.canRestore,
-				canFork: sessionHistory.canFork,
-				isUsingLocalSessions: sessionHistory.isUsingLocalSessions,
+				capabilities: sessionHistory.capabilities,
 				localSessionIds: sessionHistory.localSessionIds,
 				isAgentReady: isSessionReady,
 				debugMode: debugMode,
 				onRestoreSession: handleRestoreSession,
-				onForkSession: handleForkSession,
 				onDeleteSession: handleDeleteSession,
 				onEditTitle: handleEditTitle,
 				onLoadMore: handleLoadMore,
@@ -258,21 +213,28 @@ export function useHistoryModal(
 		sessionHistory.loading,
 		sessionHistory.error,
 		sessionHistory.hasMore,
-		sessionHistory.canList,
-		sessionHistory.canRestore,
-		sessionHistory.canFork,
-		sessionHistory.isUsingLocalSessions,
+		sessionHistory.capabilities,
 		sessionHistory.loadSessionMessages,
 		vaultPath,
 		isSessionReady,
 		debugMode,
 		handleRestoreSession,
-		handleForkSession,
 		handleDeleteSession,
 		handleEditTitle,
 		handleLoadMore,
 		handleFetchSessions,
 	]);
+
+	// RC-4: close the modal if this host (ChatPanel) unmounts while the modal
+	// is open. Deleting a session that is open in the owning tab closes that
+	// tab, which unmounts the hook driving updateProps — without this the
+	// modal is orphaned showing stale content (the just-deleted row). Closing
+	// it on unmount lets the user reopen a fresh, correctly-fetched list.
+	useEffect(() => {
+		return () => {
+			historyModalRef.current?.close();
+		};
+	}, []);
 
 	return { handleOpenHistory, handleDeleteSession };
 }

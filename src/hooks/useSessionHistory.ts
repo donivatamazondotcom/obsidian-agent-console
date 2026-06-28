@@ -93,6 +93,13 @@ export interface UseSessionHistoryReturn {
 	/** Whether there are more sessions to load */
 	hasMore: boolean;
 
+	/**
+	 * The normalized agent-capability record (Track B / I117). The Session
+	 * History view decision is derived from this via `deriveSessionHistoryView`
+	 * — consumers read the resolver output, not the individual flags below.
+	 */
+	capabilities: AgentCapabilities;
+
 	// Capability flags (from session.agentCapabilities)
 	/** Whether session history UI should be shown */
 	canShowSessionHistory: boolean;
@@ -914,6 +921,8 @@ export function useSessionHistory(
 			error,
 			hasMore: nextCursor !== undefined,
 
+			// Normalized capability record (Track B) — the resolver input.
+			capabilities,
 			// Capability flags
 			canShowSessionHistory: true,
 			canRestore: capabilities.restoresViaLoad || capabilities.restoresViaResume,
@@ -940,6 +949,7 @@ export function useSessionHistory(
 			loading,
 			error,
 			nextCursor,
+			capabilities,
 			capabilities.listsSessions,
 			capabilities.restoresViaLoad,
 			capabilities.restoresViaResume,
