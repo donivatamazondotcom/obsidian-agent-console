@@ -282,6 +282,25 @@ function ChatComponent({
 		Record<string, { text: string; send: boolean }>
 	>({});
 
+	// Track C — fork payload, keyed by new tabId. Seeds the ORIGINAL session's
+	// transcript for display in a tab opened via Session History "fork"; the
+	// tab branches a NEW session on first send (connect-then-fork via
+	// restoredForkSessionId). Kept separate from reopenPayload so a fork tab is
+	// NOT given the original sessionId as restoredSessionId (which would load
+	// the original instead of branching).
+	const [forkPayload, setForkPayload] = useState<
+		Record<
+			string,
+			{
+				sessionId: string;
+				messages: ChatMessage[];
+				contextNotes: ContextNote[];
+				/** Explicit, collision-suffixed "Fork: …" title for the branch. */
+				title: string;
+			}
+		>
+	>({});
+
 	// ============================================================
 	// Per-tab AcpClient management
 	// ============================================================
@@ -768,21 +787,35 @@ function ChatComponent({
 		// the upcoming fork path).
 		async (sessionId: string, cwd: string, mode: "restore" | "fork") => {
 			void cwd; // cwd is carried for parity; agentCwd is resolved per tab.
-			void mode;
-			// Switch-if-open (I20): restoring a session already open focuses it.
-			const existing = findTabBySessionId(sessionId);
-			if (existing) {
-				tabManager.setActiveTab(existing.tabId);
-				return;
+			// Switch-if-open is RESTORE-only (I20): restoring a session that is
+			// already open just focuses its tab. Fork must NOT switch — forking
+			// a session whose tab is open is the primary use case, so it always
+			// branches into a new tab.
+			if (mode === "restore") {
+				const existing = findTabBySessionId(sessionId);
+				if (existing) {
+					tabManager.setActiveTab(existing.tabId);
+					return;
+				}
 			}
 
 			// Restore whichever agent the session ran on (plugin-level history),
 			// falling back to the active tab's agent when unknown.
-			const saved = plugin.settingsService
-				.getSavedSessions()
-				.find((s) => s.sessionId === sessionId);
+			const savedSessions = plugin.settingsService.getSavedSessions();
+			const saved = savedSessions.find((s) => s.sessionId === sessionId);
 			const agentId = saved?.agentId ?? activeTab.agentId;
-			const label = truncateLabel(saved?.title ?? "Session");
+			const baseLabel = saved?.title ?? "Session";
+			// Forks can't earn an AI title (the rubric fires only on a tab's
+			// first message and a fork is seeded with the transcript), so they
+			// won't diverge on their own — suffix the "Fork: …" title against
+			// existing saved-session titles so multiple forks stay distinct.
+			const label =
+				mode === "fork"
+					? suffixOnCollision(
+							truncateLabel(`Fork: ${baseLabel}`),
+							savedSessions.map((s) => s.title ?? ""),
+						)
+					: truncateLabel(baseLabel);
 
 			// Load the transcript + context notes from disk — the same storage
 			// the reopen/startup-restore paths read.
@@ -793,22 +826,38 @@ function ChatComponent({
 
 			const newTabId = tabManager.addTab(agentId, label);
 			// RC-1: mark the seeded label custom so ChatPanel's auto-derivation
-			// (first-message-derived label / AI-title swap) doesn't clobber the
-			// restored saved (AI) title. setTabLabel ignores non-custom
-			// overwrites of a custom label (useTabManager L194).
+			// (first-message-derived label / AI-title swap) doesn't clobber it.
+			// The restored saved title (already the AI title) and the "Fork: …"
+			// prefix must stick. setTabLabel ignores non-custom overwrites of a
+			// custom label (useTabManager L194), so this is the protection.
 			tabManager.setTabLabel(newTabId, label, true);
 
-			// Seed transcript + the session id so the tab loads it lazily on
-			// first send (and survives a later restart).
-			setReopenPayload((prev) => ({
-				...prev,
-				[newTabId]: {
-					sessionId,
-					messages: messages ?? [],
-					contextNotes: contextNotes ?? [],
-				},
-			}));
-			persistedSessionIdsRef.current.set(newTabId, sessionId);
+			if (mode === "fork") {
+				// Seed the original transcript for display; the new tab branches
+				// a NEW session on first send (forkFromSessionId). No persisted
+				// id — the branch id is minted at fork time.
+				setForkPayload((prev) => ({
+					...prev,
+					[newTabId]: {
+						sessionId,
+						messages: messages ?? [],
+						contextNotes: contextNotes ?? [],
+						title: label,
+					},
+				}));
+			} else {
+				// Seed transcript + the session id so the tab loads it lazily on
+				// first send (and survives a later restart).
+				setReopenPayload((prev) => ({
+					...prev,
+					[newTabId]: {
+						sessionId,
+						messages: messages ?? [],
+						contextNotes: contextNotes ?? [],
+					},
+				}));
+				persistedSessionIdsRef.current.set(newTabId, sessionId);
+			}
 		},
 		[
 			findTabBySessionId,
@@ -987,6 +1036,12 @@ function ChatComponent({
 									reopenPayload[tab.tabId]?.sessionId ??
 									persistedSessionIdsRef.current.get(tab.tabId) ??
 									null
+								}
+								restoredForkSessionId={
+									forkPayload[tab.tabId]?.sessionId ?? null
+								}
+								restoredForkTitle={
+									forkPayload[tab.tabId]?.title
 								}
 								restoredMessages={
 									reopenPayload[tab.tabId]?.messages ??

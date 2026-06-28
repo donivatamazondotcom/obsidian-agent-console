@@ -152,6 +152,18 @@ export interface ChatPanelProps {
 	) => void | Promise<void>;
 	/** Persisted session ID for this tab (from tab persistence). Passed to useLazySession for session/load on first keystroke. */
 	restoredSessionId?: string | null;
+	/**
+	 * Session to fork from on first acquisition (Track C). Set on a tab opened
+	 * via Session History "fork": the first send branches a NEW session from
+	 * this id (connect-then-fork) while the seeded transcript displays.
+	 */
+	restoredForkSessionId?: string | null;
+	/**
+	 * Explicit, collision-suffixed "Fork: …" title for a fork tab (Track C).
+	 * Recorded as the branch's history title via the single writer so it is
+	 * set on create and preserved across later turn-end saves.
+	 */
+	restoredForkTitle?: string;
 	/** Restored message history for this tab (from tab persistence). Seeded into the message list on async arrival while idle (I43). */
 	restoredMessages?: ChatMessage[];
 	/** Restored context notes for this tab (from tab persistence). Rehydrates the context strip on async arrival while idle (I61). */
@@ -257,6 +269,8 @@ export function ChatPanel({
 	onCloseTab,
 	onOpenSessionInTab,
 	restoredSessionId,
+	restoredForkSessionId,
+	restoredForkTitle,
 	restoredMessages,
 	restoredContextNotes,
 	historyRecoverable,
@@ -1130,31 +1144,20 @@ export function ChatPanel({
 					};
 				}
 
-				// Eager-persist the branch to history.
-				const orig = plugin.settingsService
-					.getSavedSessions()
-					.find((s) => s.sessionId === originalSessionId);
-				const forkTitle = `Fork: ${orig?.title ?? "Session"}`.slice(
-					0,
-					50,
+				// Persist the branch to history through the SINGLE WRITER
+				// (useSessionHistory.saveSessionMessages → SessionStore) — NEVER
+				// a direct settingsService.saveSession, which would race the
+				// turn-end save and clobber the title (the 723f868 bug; see
+				// learned/skill-rules § single writer of record). The explicit
+				// fork title is passed as suggestedTitle so it is set on create
+				// and preserved across later no-title turn-end saves (forks get
+				// no AI title; deriveSessionRecordTitle keeps the existing one).
+				sessionHistory.saveSessionMessages(
+					newId,
+					restoredMessages ?? [],
+					restoredContextNotes ?? undefined,
+					restoredForkTitle ?? "Fork: Session",
 				);
-				const now = new Date().toISOString();
-				void plugin.settingsService.saveSession({
-					sessionId: newId,
-					agentId,
-					cwd: agentCwd,
-					title: forkTitle,
-					createdAt: now,
-					updatedAt: now,
-				});
-				if (restoredMessages && restoredMessages.length > 0) {
-					void plugin.settingsService.saveSessionMessages(
-						newId,
-						agentId,
-						restoredMessages,
-						restoredContextNotes ?? undefined,
-					);
-				}
 				return { ok: true as const, sessionId: newId, lossy };
 			},
 			[
@@ -1164,9 +1167,10 @@ export function ChatPanel({
 				agentCwd,
 				agent.createSession,
 				agent.updateSessionFromLoad,
-				plugin.settingsService,
+				sessionHistory.saveSessionMessages,
 				restoredMessages,
 				restoredContextNotes,
+				restoredForkTitle,
 			],
 		),
 
