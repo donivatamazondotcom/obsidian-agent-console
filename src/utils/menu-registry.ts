@@ -26,11 +26,19 @@ const openMenus = new Set<Menu>();
  * The menu auto-untracks itself when it hides normally (selection or outside
  * click), so the registry only ever holds genuinely-open menus.
  *
- * Call immediately after `new Menu()` (before or after `showAtMouseEvent`).
+ * Call immediately after `new Menu()` (before or after `showMenuAtEvent`).
+ *
+ * @param onHide optional caller callback run when the menu hides (after the
+ *   registry untracks it). Use it for trigger-focus restoration, etc. — this
+ *   is the supported way to react to hide without clobbering the registry's
+ *   own `onHide` (Obsidian's `Menu.onHide` stores a single callback).
  */
-export function registerOpenMenu(menu: Menu): void {
+export function registerOpenMenu(menu: Menu, onHide?: () => void): void {
 	openMenus.add(menu);
-	menu.onHide(() => openMenus.delete(menu));
+	menu.onHide(() => {
+		openMenus.delete(menu);
+		onHide?.();
+	});
 }
 
 /**

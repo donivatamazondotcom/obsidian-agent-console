@@ -63,6 +63,16 @@ describe("menu-registry (I14 — close orphaned menus on plugin unload)", () => 
 		closeOpenMenus();
 		expect(_openMenuCount()).toBe(0);
 	});
+
+	it("runs an optional caller onHide when the menu hides, and still untracks (I123)", () => {
+		const m = makeMenu();
+		const onHide = vi.fn();
+		registerOpenMenu(m, onHide);
+		expect(_openMenuCount()).toBe(1);
+		m.hide(); // normal dismiss (selection / outside click / Esc)
+		expect(onHide).toHaveBeenCalledTimes(1);
+		expect(_openMenuCount()).toBe(0); // registry cleanup not clobbered
+	});
 });
 
 /** Menu stub recording the two positioning calls. */
