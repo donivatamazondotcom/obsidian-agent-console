@@ -35,6 +35,10 @@ import { useTabManager, truncateLabel, suffixOnCollision } from "../hooks/useTab
 import { useTabPersistence, type TabPersistenceStorage } from "../hooks/useTabPersistence";
 import { useRecentlyClosedTabs } from "../hooks/useRecentlyClosedTabs";
 import { resolveInitialAgentId } from "../utils/resolveInitialAgentId";
+import {
+	resolveSeededMessages,
+	resolveSeededContextNotes,
+} from "../utils/restored-tab-content";
 
 // Service imports
 import { VaultService } from "../services/vault-service";
@@ -1043,14 +1047,24 @@ function ChatComponent({
 								restoredForkTitle={
 									forkPayload[tab.tabId]?.title
 								}
-								restoredMessages={
-									reopenPayload[tab.tabId]?.messages ??
-									tabPersistence.restoredMessages[tab.tabId]
-								}
-								restoredContextNotes={
-									reopenPayload[tab.tabId]?.contextNotes ??
-									tabPersistence.restoredContextNotes[tab.tabId]
-								}
+								restoredMessages={resolveSeededMessages({
+									restore: reopenPayload[tab.tabId],
+									fork: forkPayload[tab.tabId],
+									persistedMessages:
+										tabPersistence.restoredMessages[
+											tab.tabId
+										],
+								})}
+								restoredContextNotes={resolveSeededContextNotes(
+									{
+										restore: reopenPayload[tab.tabId],
+										fork: forkPayload[tab.tabId],
+										persistedContextNotes:
+											tabPersistence.restoredContextNotes[
+												tab.tabId
+											],
+									},
+								)}
 								historyRecoverable={
 									!!tabPersistence.recoverableTabs[tab.tabId]
 								}
