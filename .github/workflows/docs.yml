@@ -1,11 +1,14 @@
 name: Deploy Docs
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "docs/**"
-      - ".github/workflows/docs.yml"
+  # Deploy docs only when a release is published — not on every push to main.
+  # main is the dev integration line; features (and their docs) land there before
+  # a version is cut, so a main-push trigger published docs for unreleased features.
+  # On a `release` event, actions/checkout resolves the release tag, so docs build
+  # from the released commit. workflow_dispatch stays as the manual escape hatch for
+  # doc-only fixes to already-shipped pages between releases.
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
