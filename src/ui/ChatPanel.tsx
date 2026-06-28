@@ -150,6 +150,8 @@ export interface ChatPanelProps {
 		cwd: string,
 		mode: "restore" | "fork",
 	) => void | Promise<void>;
+	/** Apply a custom (user-explicit) label to a tab by ID (I128 — history rename) */
+	onSetTabLabelCustom?: (tabId: string, label: string) => void;
 	/** Persisted session ID for this tab (from tab persistence). Passed to useLazySession for session/load on first keystroke. */
 	restoredSessionId?: string | null;
 	/**
@@ -268,6 +270,7 @@ export function ChatPanel({
 	onSwitchToTab,
 	onCloseTab,
 	onOpenSessionInTab,
+	onSetTabLabelCustom,
 	restoredSessionId,
 	restoredForkSessionId,
 	restoredForkTitle,
@@ -686,6 +689,7 @@ export function ChatPanel({
 		onSwitchToTab,
 		onCloseTab,
 		onOpenSessionInTab,
+		onSetTabLabelCustom,
 	);
 
 	// ============================================================
