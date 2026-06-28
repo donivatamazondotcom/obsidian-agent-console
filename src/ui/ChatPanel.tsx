@@ -541,11 +541,13 @@ export function ChatPanel({
 			? `${info.title || info.name}${info.version ? ` ${info.version}` : ""}`
 			: null;
 
+		// Prefer confirmedModelId (from response metadata, SDK 0.24+),
+		// fall back to legacy models state for older agents.
 		const models = session.models;
-		const currentModel = models?.availableModels.find(
+		const legacyModel = models?.availableModels.find(
 			(m) => m.modelId === models.currentModelId,
-		);
-		const model = currentModel?.name ?? null;
+		)?.name;
+		const model = session.confirmedModelId ?? legacyModel ?? null;
 
 		return { plugin: pluginName, profile, runtime, model };
 	}, [
@@ -553,6 +555,7 @@ export function ChatPanel({
 		activeAgentLabel,
 		session.agentInfo,
 		session.models,
+		session.confirmedModelId,
 	]);
 
 	const availableAgents = useMemo(() => {
