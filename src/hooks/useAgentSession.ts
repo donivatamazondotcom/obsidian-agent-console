@@ -174,6 +174,12 @@ export function useAgentSession(
 						},
 					}));
 					break;
+				case "model_update":
+					setSession((prev) => ({
+						...prev,
+						confirmedModelId: update.modelId,
+					}));
+					break;
 				case "process_error":
 					setSession((prev) => ({ ...prev, state: "error" }));
 					setErrorInfo({

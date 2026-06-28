@@ -599,6 +599,16 @@ export class AcpClient {
 				`Agent completed with: ${promptResult.stopReason}`,
 			);
 
+			// Extract modelId from response metadata for header display (SDK 0.24+).
+			const metaModelId = (promptResult._meta as Record<string, unknown> | undefined)?.modelId;
+			if (typeof metaModelId === "string" && metaModelId) {
+				this.handler.emitSessionUpdate({
+					type: "model_update",
+					sessionId,
+					modelId: metaModelId,
+				});
+			}
+
 			// Detect silent failures: agent returned end_turn but sent no content.
 			// Only surface an error when stderr contains a recognized error pattern
 			// (e.g., missing API key). Some commands like /compact legitimately

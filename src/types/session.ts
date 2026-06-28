@@ -239,6 +239,13 @@ export interface ChatSession {
 	usage?: SessionUsage;
 
 	/**
+	 * Model identifier confirmed by the agent's response metadata.
+	 * Populated from PromptResponse._meta.modelId after the first response.
+	 * Used for header display when the legacy models field is absent (SDK 0.24+).
+	 */
+	confirmedModelId?: string;
+
+	/**
 	 * Prompt capabilities supported by the agent.
 	 * Indicates which content types (image, audio, etc.) can be included in prompts.
 	 * Set during initialization and persists for the session lifetime.
@@ -526,6 +533,11 @@ export function flattenConfigSelectOptions(
  * session the update belongs to. This enables filtering/routing of updates
  * in multi-session scenarios.
  */
+export interface ModelUpdate extends SessionUpdateBase {
+	type: "model_update";
+	modelId: string;
+}
+
 export type SessionUpdate =
 	| AgentMessageChunk
 	| AgentThoughtChunk
@@ -538,7 +550,8 @@ export type SessionUpdate =
 	| SessionInfoUpdate
 	| UsageUpdate
 	| ConfigOptionUpdate
-	| ProcessErrorUpdate;
+	| ProcessErrorUpdate
+	| ModelUpdate;
 
 /**
  * Session metadata from session/list response.
