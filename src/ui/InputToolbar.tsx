@@ -60,9 +60,25 @@ function ToolbarDropdown({
 			e.preventDefault();
 			e.stopPropagation();
 
+			// Keyboard activation (Enter/Space) reports detail === 0. Keep the
+			// trigger focused in that case so the focus ring stays and the menu
+			// can be reopened; on a plain dismiss (Esc / outside click) return
+			// focus to it when the menu closes, since Obsidian's Menu does not
+			// restore trigger focus. On an actual PICK, leave focus alone so the
+			// caller's onChange can return it to the composer (D5 composer-focus
+			// return). Mouse activation blurs as before (no ring expected). (I123)
+			const triggeredByKeyboard = e.detail === 0;
+			let itemSelected = false;
 			const menu = new Menu();
 
-			registerOpenMenu(menu);
+			registerOpenMenu(
+				menu,
+				triggeredByKeyboard
+					? () => {
+							if (!itemSelected) buttonRef.current?.focus();
+						}
+					: undefined,
+			);
 
 			menu.addItem((menuItem) => {
 				menuItem.setTitle(title).setIsLabel(true);
@@ -84,13 +100,17 @@ function ToolbarDropdown({
 						.setTitle(item.label)
 						.setChecked(item.value === currentValue)
 						.onClick(() => {
+							itemSelected = true;
 							onChange(item.value);
 						});
 				});
 			}
 
 			showMenuAtEvent(menu, e);
-			buttonRef.current?.blur();
+			// Mouse activation: drop focus so no control lingers focused after a
+			// pointer click. Keyboard activation keeps focus (restored on hide
+			// via the registerOpenMenu callback above). (I123)
+			if (!triggeredByKeyboard) buttonRef.current?.blur();
 		},
 		[items, currentValue, onChange],
 	);
