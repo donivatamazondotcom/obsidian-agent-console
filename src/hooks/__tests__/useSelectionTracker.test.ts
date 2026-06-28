@@ -22,6 +22,7 @@ function makeMockSource(overrides: Partial<SelectionSource> = {}): SelectionSour
 		getActiveNote: vi.fn().mockResolvedValue(null),
 		onRename: vi.fn().mockReturnValue(() => {}),
 		onDelete: vi.fn().mockReturnValue(() => {}),
+		hasOpenMarkdownLeaves: vi.fn().mockReturnValue(true),
 		subscribeSelectionChanges: vi.fn().mockReturnValue(() => {}),
 		...overrides,
 	};
@@ -171,6 +172,53 @@ describe("useSelectionTracker", () => {
 		await act(async () => { listener!(); });
 		// Should NOT clear — lastMarkdownLeaf persists
 		expect(result.current.activeNotePath).toBe("note.md");
+	});
+
+	it("clears activeNotePath when getActiveNote returns null and no markdown leaves are open", async () => {
+		let listener: (() => void) | null = null;
+		const subscribe = vi.fn((cb: () => void) => {
+			listener = cb;
+			return () => {};
+		});
+		const hasOpenMarkdownLeaves = vi.fn().mockReturnValue(true);
+		const getActiveNote = vi.fn()
+			// Mount-time priming call
+			.mockResolvedValueOnce({
+				path: "note.md",
+				name: "note",
+				extension: "md",
+				created: 0,
+				modified: 0,
+			})
+			// First listener fire: note still active
+			.mockResolvedValueOnce({
+				path: "note.md",
+				name: "note",
+				extension: "md",
+				created: 0,
+				modified: 0,
+			})
+			// Second listener fire: user closed last note
+			.mockResolvedValueOnce(null);
+		const source = makeMockSource({
+			subscribeSelectionChanges: subscribe,
+			getActiveNote,
+			hasOpenMarkdownLeaves,
+		});
+
+		const { result } = renderHook(() => useSelectionTracker(source));
+
+		// Wait for mount-time priming
+		await act(async () => {});
+		await act(async () => { listener!(); });
+		expect(result.current.activeNotePath).toBe("note.md");
+
+		// Now close last note — no markdown leaves remain
+		hasOpenMarkdownLeaves.mockReturnValue(false);
+		await act(async () => { listener!(); });
+		// No markdown leaves open — SHOULD clear (provisional pill disappears)
+		expect(result.current.activeNotePath).toBeNull();
+		expect(result.current.activeNoteName).toBeNull();
 	});
 
 	it("updates to a different note when a new markdown note becomes active", async () => {
