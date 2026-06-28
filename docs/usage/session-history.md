@@ -14,6 +14,23 @@ Click the **History** button (clock icon) in the chat header to open the session
   <img src="/images/session-history-button.webp" alt="Session history button in chat header" />
 </p>
 
+## Local and Agent views
+
+Your history has two views, switched with the toggle at the top of the modal:
+
+- **Local** (the default): every session this plugin saved — across **all your agents** and **all your vaults**. This is your full history. Each row shows a small badge naming the agent that ran it, so you can tell a Claude Code session from a Kiro CLI one at a glance. A session you forked here shows up right away, because the plugin saved it locally — it never depends on the agent listing it.
+- **Agent**: the sessions the agent itself knows about, pulled from its own server. Use this to find a conversation you started outside Agent Console. The Agent view is only offered for agents that can list their server sessions (for example, Claude Code); agents that don't (for example, Kiro CLI) just show the Local view.
+
+The toggle remembers your last choice.
+
+### The Agent view when you're not connected
+
+Agent Console keeps a small list of your agent's sessions, refreshed each time the agent connects. So even before this tab connects, the Agent view can show that list — marked with when it was last refreshed (for example, "Synced 5 minutes ago – connect to refresh"). Connect and send a message to pull the latest.
+
+### Coming from Agent Client?
+
+If you switched from the original Agent Client plugin, your earlier sessions live on the agent, not in Agent Console's local store yet. When your Local view is empty but your agent has sessions, the empty state points you to the Agent view so you can find them.
+
 ## Searching Sessions
 
 A search box sits at the top of the history modal. Type to filter the list as you go:
@@ -22,6 +39,8 @@ A search box sits at the top of the history modal. Type to filter the list as yo
 - **Content match** searches inside your saved transcripts — so you can find a session by something that was *said* in it, even when the title doesn't mention it. The first time you focus the search box the plugin indexes your transcripts (a brief "Searching transcripts…" note shows while it works); after that, filtering is immediate.
 
 Matches that hit message content show a short snippet with the term highlighted, so you can confirm it's the right session before opening it. Search is fully local — no agent connection required.
+
+On the **Agent** view, a **This vault only** checkbox limits the list to sessions from your current vault. (The Local view always spans every vault, so it has no filter.) Agent-view rows the plugin hasn't saved a transcript for can only be matched by their title — content search needs a local transcript.
 
 ## Available Actions
 
@@ -99,6 +118,6 @@ This appears only when a session can't be reopened at all — the agent advertis
 
 The agent is still initializing. Wait a moment for the agent to become ready.
 
-### "No previous sessions"
+### "No local sessions yet"
 
-No sessions have been saved yet for the current agent and vault. Start a new conversation to create your first session.
+The Local view has no saved sessions for you yet. Start a conversation to create your first one. If your agent already has sessions (you used it elsewhere, or came from Agent Client), the empty state links you to the **Agent** view to find them.

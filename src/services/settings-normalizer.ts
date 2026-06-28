@@ -339,6 +339,8 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 		fontSize: null,
 	},
 	savedSessions: [],
+	sessionHistorySource: "local",
+	agentSessionMetaCache: {},
 	lastUsedModels: {},
 	lastUsedModes: {},
 	restoreTabsOnStartup: true,
@@ -567,6 +569,17 @@ export function normalizeRawSettings(
 		savedSessions: Array.isArray(raw.savedSessions)
 			? (raw.savedSessions as SavedSessionInfo[])
 			: D.savedSessions,
+		sessionHistorySource:
+			raw.sessionHistorySource === "agent" ||
+			raw.sessionHistorySource === "local"
+				? raw.sessionHistorySource
+				: D.sessionHistorySource,
+		agentSessionMetaCache:
+			raw.agentSessionMetaCache &&
+			typeof raw.agentSessionMetaCache === "object" &&
+			!Array.isArray(raw.agentSessionMetaCache)
+				? (raw.agentSessionMetaCache as AgentClientPluginSettings["agentSessionMetaCache"])
+				: D.agentSessionMetaCache,
 		lastUsedModels: strRecord(raw.lastUsedModels),
 		lastUsedModes: strRecord(raw.lastUsedModes),
 		restoreTabsOnStartup:

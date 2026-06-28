@@ -553,6 +553,13 @@ export interface SessionInfo {
 	title?: string;
 	/** ISO 8601 timestamp of last update */
 	updatedAt?: string;
+	/**
+	 * Agent that owns this session. Populated on the unified Local view (mapped
+	 * from `SavedSessionInfo.agentId`) so a row can render its agent badge and
+	 * per-row actions resolve the agent from the row rather than the tab.
+	 * Absent on raw agent `session/list` rows (server doesn't report it).
+	 */
+	agentId?: string;
 }
 
 /**
@@ -563,6 +570,23 @@ export interface ListSessionsResult {
 	sessions: SessionInfo[];
 	/** Cursor for pagination (load more sessions) */
 	nextCursor?: string;
+}
+
+/**
+ * A per-agent cache of server-session metadata, mirrored on connect.
+ *
+ * `session/list` returns metadata only (id, cwd, title, updatedAt) — no
+ * transcript — so this cache is cheap and faithful (Session History Source
+ * Model Decision 1, "Mirror cheap, import explicit" tenet). It lets the Agent
+ * view render last-synced rows when the tab's agent is not currently
+ * connected, with a "synced N ago — connect to refresh" affordance. Never
+ * presents stale data as current (the staleness corollary).
+ */
+export interface AgentSessionMetaCacheEntry {
+	/** Cached server-session metadata from the last successful `session/list`. */
+	sessions: SessionInfo[];
+	/** ISO 8601 timestamp of the last successful sync. */
+	syncedAt: string;
 }
 
 /**

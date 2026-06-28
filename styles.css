@@ -1963,6 +1963,57 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 /* ===== Session History Modal ===== */
+
+/* Local / Agent source toggle (replaces the old filter checkboxes). */
+.agent-client-session-history-source-toggle {
+	display: flex;
+	gap: 4px;
+	margin-bottom: 12px;
+	padding: 4px;
+	background-color: var(--background-modifier-form-field);
+	border-radius: var(--radius-m);
+	width: fit-content;
+}
+
+.agent-client-session-history-source-pill {
+	padding: 4px 14px;
+	border: none;
+	border-radius: var(--radius-s);
+	background-color: transparent;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	cursor: pointer;
+	box-shadow: none;
+}
+
+.agent-client-session-history-source-pill.is-active {
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+	font-weight: var(--font-medium);
+}
+
+/* "Synced N ago — connect to refresh" affordance on the disconnected Agent
+   view. */
+.agent-client-session-history-sync-affordance {
+	margin-bottom: 12px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+/* Per-row agent badge on the unified Local view. */
+.agent-client-session-history-item-agent-badge {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	padding: 1px 6px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}
+
+/* Migration empty-state action ("View agent sessions"). */
+.agent-client-session-history-empty-action {
+	margin-top: 8px;
+}
+
 .agent-client-session-history-filter {
 	margin-bottom: 16px;
 	padding-bottom: 12px;

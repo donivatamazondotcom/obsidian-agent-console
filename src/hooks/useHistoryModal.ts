@@ -5,6 +5,7 @@ import { getLogger } from "../utils/logger";
 import type AgentClientPlugin from "../plugin";
 import type { UseAgentReturn } from "./useAgent";
 import type { UseSessionHistoryReturn } from "./useSessionHistory";
+import type { SessionListSource } from "../utils/session-history-view";
 
 /**
  * Hook for managing the session history modal lifecycle.
@@ -138,13 +139,32 @@ export function useHistoryModal(
 	}, [sessionHistory.loadMoreSessions]);
 
 	const handleFetchSessions = useCallback(
-		(cwd?: string) => {
-			void sessionHistory.fetchSessions(cwd);
+		(source: SessionListSource, cwd?: string) => {
+			void sessionHistory.fetchSessions(source, cwd);
 		},
 		[sessionHistory.fetchSessions],
 	);
 
+	// Persist the Local/Agent toggle choice (Decision 2 — remember last
+	// choice, global scope). The modal owns the live toggle state; this only
+	// records it so the next open restores it.
+	const handleSourceChange = useCallback(
+		(source: SessionListSource) => {
+			void plugin.settingsService.updateSettings({
+				sessionHistorySource: source,
+			});
+		},
+		[plugin.settingsService],
+	);
+
 	const handleOpenHistory = useCallback(() => {
+		const settings = plugin.settingsService.getSnapshot();
+		const source = settings.sessionHistorySource;
+		const agentId = agent.session.agentId;
+		const agentSessionCache = settings.agentSessionMetaCache[agentId] ?? null;
+		const agentLabels = Object.fromEntries(
+			plugin.getAvailableAgents().map((a) => [a.id, a.displayName]),
+		);
 		// Create modal if it doesn't exist
 		if (!historyModalRef.current) {
 			historyModalRef.current = new SessionHistoryModal(plugin.app, {
@@ -158,17 +178,29 @@ export function useHistoryModal(
 				localSessionIds: sessionHistory.localSessionIds,
 				isAgentReady: isSessionReady,
 				debugMode: debugMode,
+				initialSource: source,
+				agentSessionCache,
+				agentLabels,
 				onRestoreSession: handleRestoreSession,
 				onDeleteSession: handleDeleteSession,
 				onEditTitle: handleEditTitle,
 				onLoadMore: handleLoadMore,
 				onFetchSessions: handleFetchSessions,
+				onSourceChange: handleSourceChange,
 			}, () => { historyModalRef.current = null; });
 		}
 		historyModalRef.current.open();
-		void sessionHistory.fetchSessions(vaultPath);
+		// Fetch the persisted source. The cwd filter applies to the Agent view
+		// only — Local is the whole local store.
+		void sessionHistory.fetchSessions(
+			source,
+			source === "agent" ? vaultPath : undefined,
+		);
 	}, [
 		plugin.app,
+		plugin.settingsService,
+		plugin,
+		agent.session.agentId,
 		sessionHistory.sessions,
 		sessionHistory.loading,
 		sessionHistory.error,
@@ -185,11 +217,14 @@ export function useHistoryModal(
 		handleEditTitle,
 		handleLoadMore,
 		handleFetchSessions,
+		handleSourceChange,
 	]);
 
 	// Update modal props when session history state changes
 	useEffect(() => {
 		if (historyModalRef.current) {
+			const settings = plugin.settingsService.getSnapshot();
+			const agentId = agent.session.agentId;
 			historyModalRef.current.updateProps({
 				sessions: sessionHistory.sessions,
 				loading: sessionHistory.loading,
@@ -201,20 +236,32 @@ export function useHistoryModal(
 				localSessionIds: sessionHistory.localSessionIds,
 				isAgentReady: isSessionReady,
 				debugMode: debugMode,
+				initialSource: settings.sessionHistorySource,
+				agentSessionCache:
+					settings.agentSessionMetaCache[agentId] ?? null,
+				agentLabels: Object.fromEntries(
+					plugin
+						.getAvailableAgents()
+						.map((a) => [a.id, a.displayName]),
+				),
 				onRestoreSession: handleRestoreSession,
 				onDeleteSession: handleDeleteSession,
 				onEditTitle: handleEditTitle,
 				onLoadMore: handleLoadMore,
 				onFetchSessions: handleFetchSessions,
+				onSourceChange: handleSourceChange,
 			});
 		}
 	}, [
+		plugin,
+		agent.session.agentId,
 		sessionHistory.sessions,
 		sessionHistory.loading,
 		sessionHistory.error,
 		sessionHistory.hasMore,
 		sessionHistory.capabilities,
 		sessionHistory.loadSessionMessages,
+		sessionHistory.localSessionIds,
 		vaultPath,
 		isSessionReady,
 		debugMode,
@@ -223,6 +270,7 @@ export function useHistoryModal(
 		handleEditTitle,
 		handleLoadMore,
 		handleFetchSessions,
+		handleSourceChange,
 	]);
 
 	// RC-4: close the modal if this host (ChatPanel) unmounts while the modal

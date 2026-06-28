@@ -1313,6 +1313,20 @@ export function ChatPanel({
 		await handleStopGeneration();
 	}, [handleStopGeneration]);
 
+	// Mirror the agent's server-session metadata into the local cache on
+	// connect (Session History Source Model Decision 1). One session/list of
+	// metadata for a listing agent, persisted so the Agent view is non-empty
+	// cold and shows its freshness even while disconnected. Best-effort.
+	useEffect(() => {
+		if (!isSessionReady || !sessionHistory.capabilities.listsSessions)
+			return;
+		void sessionHistory.syncAgentSessionMetaCache();
+	}, [
+		isSessionReady,
+		sessionHistory.capabilities.listsSessions,
+		sessionHistory.syncAgentSessionMetaCache,
+	]);
+
 	// Apply configured model when session is ready
 	useEffect(() => {
 		if (!config?.model || !isSessionReady) return;

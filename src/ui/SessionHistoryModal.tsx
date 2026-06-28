@@ -10,9 +10,11 @@ import * as React from "react";
 const { useState, useCallback } = React;
 import { createRoot, Root } from "react-dom/client";
 import type { AgentCapabilities, SessionInfo } from "../types/session";
+import type { AgentSessionMetaCacheEntry } from "../types/session";
 import {
 	deriveSessionHistoryView,
 	type SessionHistoryView,
+	type SessionListSource,
 } from "../utils/session-history-view";
 import { useSessionSearch } from "../hooks/useSessionSearch";
 import type { SearchSnippet } from "../services/session-search";
@@ -217,6 +219,24 @@ interface SessionHistoryContentProps {
 	/** Whether debug mode is enabled (shows manual input form) */
 	debugMode: boolean;
 
+	/**
+	 * The persisted Local/Agent toggle choice to start on (Decision 2). The
+	 * modal owns the live toggle state from here; `onSourceChange` records
+	 * subsequent choices.
+	 */
+	initialSource: SessionListSource;
+
+	/**
+	 * Last-synced server-session metadata for the current tab's agent, or null
+	 * if never synced. Powers the disconnected Agent view (Decision 1) — shown
+	 * with a "synced N ago — connect to refresh" affordance when the agent is
+	 * not connected. Metadata only (no transcripts).
+	 */
+	agentSessionCache: AgentSessionMetaCacheEntry | null;
+
+	/** agentId → display name, for the per-row agent badge on the Local view. */
+	agentLabels: Record<string, string>;
+
 	/** Callback when a session is restored */
 	onRestoreSession: (sessionId: string, cwd: string) => Promise<void>;
 	/** Callback when a session is deleted */
@@ -229,8 +249,10 @@ interface SessionHistoryContentProps {
 	) => void | Promise<void>;
 	/** Callback to load more sessions (pagination) */
 	onLoadMore: () => void;
-	/** Callback to fetch sessions with filter */
-	onFetchSessions: (cwd?: string) => void;
+	/** Callback to fetch sessions for a source, with an optional cwd filter. */
+	onFetchSessions: (source: SessionListSource, cwd?: string) => void;
+	/** Persist the Local/Agent toggle choice. */
+	onSourceChange: (source: SessionListSource) => void;
 	/** Callback to close the modal */
 	onClose: () => void;
 }
@@ -419,6 +441,7 @@ function SessionItem({
 	snippet,
 	query,
 	canRestore,
+	agentLabel,
 	currentCwd,
 	onRestoreSession,
 	onDeleteSession,
@@ -429,6 +452,7 @@ function SessionItem({
 	snippet?: SearchSnippet;
 	query: string;
 	canRestore: boolean;
+	agentLabel?: string;
 	currentCwd: string;
 	onRestoreSession: (sessionId: string, cwd: string) => Promise<void>;
 	onDeleteSession: (sessionId: string) => void | Promise<void>;
@@ -463,6 +487,14 @@ function SessionItem({
 					</span>
 				</div>
 				<div className="agent-client-session-history-item-metadata">
+					{agentLabel && (
+						<span
+							className="agent-client-session-history-item-agent-badge"
+							aria-label={`Agent: ${agentLabel}`}
+						>
+							{agentLabel}
+						</span>
+					)}
 					{session.updatedAt && (
 						<span className="agent-client-session-history-item-timestamp">
 							{formatRelativeTime(new Date(session.updatedAt))}
@@ -541,15 +573,22 @@ export function SessionHistoryContent({
 	localSessionIds,
 	isAgentReady,
 	debugMode,
+	initialSource,
+	agentSessionCache,
+	agentLabels,
 	onRestoreSession,
 	onDeleteSession,
 	onEditTitle,
 	onLoadMore,
 	onFetchSessions,
+	onSourceChange,
 	onClose,
 }: SessionHistoryContentProps) {
+	// The Local/Agent toggle choice (Decision 2 — seeded from the persisted
+	// last choice). Drives the resolver's source input and the fetch.
+	const [source, setSource] = useState<SessionListSource>(initialSource);
+	// The "This vault only" cwd filter — Agent view only.
 	const [filterByCurrentVault, setFilterByCurrentVault] = useState(true);
-	const [hideNonLocalSessions, setHideNonLocalSessions] = useState(false);
 
 	// Full-text search over the local session library (titles + content).
 	const {
@@ -578,7 +617,16 @@ export function SessionHistoryContent({
 		capabilities,
 		isAgentReady,
 		hasLocalData,
+		source,
 	);
+
+	// Agent view served from the local metadata cache while the agent is NOT
+	// connected (Decision 1, "Connection-free reading" tenet). The live
+	// session/list needs a connection; when there isn't one we render the
+	// last-synced rows with a freshness affordance instead of forcing a
+	// connect. Metadata only — no transcript search over these rows.
+	const agentViewDisconnected =
+		view.listSource === "agent" && !isAgentReady;
 
 	// I94: focus the search box when the modal opens so the user can type
 	// immediately. Index build is NOT triggered here — it fires on first
@@ -604,20 +652,39 @@ export function SessionHistoryContent({
 		return () => window.clearTimeout(handle);
 	}, [indexState]);
 
+	// Switch between the Local store and the agent's server list. Persists the
+	// choice (Decision 2) and refetches. The cwd filter applies to Agent only.
+	const handleSourceToggle = useCallback(
+		(next: SessionListSource) => {
+			if (next === source) return;
+			setSource(next);
+			onSourceChange(next);
+			onFetchSessions(
+				next,
+				next === "agent" && filterByCurrentVault
+					? currentCwd
+					: undefined,
+			);
+		},
+		[source, onSourceChange, onFetchSessions, filterByCurrentVault, currentCwd],
+	);
+
 	const handleFilterChange = useCallback(
 		(e: React.ChangeEvent<HTMLInputElement>) => {
 			const checked = e.target.checked;
 			setFilterByCurrentVault(checked);
-			const cwd = checked ? currentCwd : undefined;
-			onFetchSessions(cwd);
+			// The filter is Agent-view only.
+			onFetchSessions("agent", checked ? currentCwd : undefined);
 		},
 		[currentCwd, onFetchSessions],
 	);
 
 	const handleRetry = useCallback(() => {
-		const cwd = filterByCurrentVault ? currentCwd : undefined;
-		onFetchSessions(cwd);
-	}, [filterByCurrentVault, currentCwd, onFetchSessions]);
+		onFetchSessions(
+			source,
+			source === "agent" && filterByCurrentVault ? currentCwd : undefined,
+		);
+	}, [source, filterByCurrentVault, currentCwd, onFetchSessions]);
 
 	// Wrap onDeleteSession to show confirmation modal
 	const handleDeleteWithConfirmation = useCallback(
@@ -657,30 +724,37 @@ export function SessionHistoryContent({
 		[app, sessions, currentCwd, onEditTitle],
 	);
 
-	// Display list = search results, then the hide-non-local filter applied on
-	// top. Empty query → searchResults is the full list (title matches), so
-	// behavior matches the pre-search modal when nothing is typed.
+	// Display list. Connected/local → search results over the indexed local
+	// sessions. Disconnected Agent view → the last-synced metadata cache,
+	// title-filtered by the query (no transcript search — the cache is
+	// metadata only).
 	const displayItems = React.useMemo(() => {
+		if (agentViewDisconnected) {
+			const q = query.trim().toLowerCase();
+			const rows = agentSessionCache?.sessions ?? [];
+			const filtered = q
+				? rows.filter((s) =>
+						(s.title ?? "").toLowerCase().includes(q),
+					)
+				: rows;
+			return filtered.map((s) => ({
+				session: s,
+				snippet: undefined as SearchSnippet | undefined,
+			}));
+		}
 		const items: { session: SessionInfo; snippet?: SearchSnippet }[] = [];
 		for (const match of searchResults) {
 			const s = sessionById.get(match.sessionId);
 			if (!s) continue;
-			if (
-				view.listSource === "agent" &&
-				hideNonLocalSessions &&
-				!localSessionIds.has(s.sessionId)
-			) {
-				continue;
-			}
 			items.push({ session: s, snippet: match.snippet });
 		}
 		return items;
 	}, [
+		agentViewDisconnected,
+		agentSessionCache,
+		query,
 		searchResults,
 		sessionById,
-		view.listSource,
-		hideNonLocalSessions,
-		localSessionIds,
 	]);
 
 	return (
@@ -713,6 +787,68 @@ export function SessionHistoryContent({
 
 			{(
 				<>
+					{/* Local / Agent source toggle — replaces the two filter
+					    checkboxes. The Agent pill is offered only when the agent
+					    can enumerate server-side sessions; an agent without
+					    session/list (e.g. Kiro CLI) shows just the unified Local
+					    store with no toggle. Native buttons for keyboard
+					    activation + focus ring (Keyboard-first tenet). */}
+					{view.agentViewAvailable && (
+						<div
+							className="agent-client-session-history-source-toggle"
+							role="tablist"
+							aria-label="Session source"
+						>
+							<button
+								type="button"
+								role="tab"
+								aria-selected={view.listSource === "local"}
+								className={`agent-client-session-history-source-pill${
+									view.listSource === "local"
+										? " is-active"
+										: ""
+								}`}
+								onClick={() => handleSourceToggle("local")}
+							>
+								Local
+							</button>
+							<button
+								type="button"
+								role="tab"
+								aria-selected={view.listSource === "agent"}
+								className={`agent-client-session-history-source-pill${
+									view.listSource === "agent"
+										? " is-active"
+										: ""
+								}`}
+								onClick={() => handleSourceToggle("agent")}
+							>
+								Agent
+							</button>
+						</div>
+					)}
+
+					{/* Disconnected Agent view — served from the last-synced
+					    metadata cache with a freshness affordance instead of
+					    forcing a connect (Decision 1). */}
+					{agentViewDisconnected && (
+						<div className="agent-client-session-history-sync-affordance">
+							{agentSessionCache ? (
+								<span>
+									Synced{" "}
+									{formatRelativeTime(
+										new Date(agentSessionCache.syncedAt),
+									)}{" "}
+									– connect to refresh
+								</span>
+							) : (
+								<span>
+									Connect to load sessions from the agent
+								</span>
+							)}
+						</div>
+					)}
+
 					{/* Full-text search */}
 					<div className="agent-client-session-history-search">
 						<input
@@ -734,7 +870,8 @@ export function SessionHistoryContent({
 						)}
 					</div>
 
-					{/* Filter toggles - only over an agent-enumerated list */}
+					{/* "This vault only" — Agent view only (the cwd filter).
+					    Local spans every vault, so it carries no filter. */}
 					{view.showFilters && (
 						<div className="agent-client-session-history-filter">
 							<label className="agent-client-session-history-filter-label">
@@ -743,19 +880,7 @@ export function SessionHistoryContent({
 									checked={filterByCurrentVault}
 									onChange={handleFilterChange}
 								/>
-								<span>Show current vault only</span>
-							</label>
-							<label className="agent-client-session-history-filter-label">
-								<input
-									type="checkbox"
-									checked={hideNonLocalSessions}
-									onChange={(e) =>
-										setHideNonLocalSessions(
-											e.target.checked,
-										)
-									}
-								/>
-								<span>Hide sessions without local data</span>
+								<span>This vault only</span>
 							</label>
 						</div>
 					)}
@@ -785,11 +910,39 @@ export function SessionHistoryContent({
 					{/* Empty state */}
 					{!error && !loading && displayItems.length === 0 && (
 						<div className="agent-client-session-history-empty">
-							<p className="agent-client-session-history-empty-text">
-								{query.trim()
-									? "No sessions match your search"
-									: "No previous sessions"}
-							</p>
+							{!query.trim() &&
+							view.listSource === "local" &&
+							view.agentViewAvailable ? (
+								// Migration empty-state: the local store is
+								// empty but the agent can list server-side
+								// sessions (e.g. arriving from Agent Client,
+								// whose local store isn't inherited). Point the
+								// user to the Agent view instead of a bare
+								// "none".
+								<>
+									<p className="agent-client-session-history-empty-text">
+										{agentSessionCache &&
+										agentSessionCache.sessions.length > 0
+											? `No local sessions yet. Your agent has ${agentSessionCache.sessions.length} — view them under Agent.`
+											: "No local sessions yet. Your agent may have saved sessions — view them under Agent."}
+									</p>
+									<button
+										type="button"
+										className="agent-client-session-history-empty-action"
+										onClick={() =>
+											handleSourceToggle("agent")
+										}
+									>
+										View agent sessions
+									</button>
+								</>
+							) : (
+								<p className="agent-client-session-history-empty-text">
+									{query.trim()
+										? "No sessions match your search"
+										: "No previous sessions"}
+								</p>
+							)}
 						</div>
 					)}
 
@@ -803,6 +956,11 @@ export function SessionHistoryContent({
 									snippet={snippet}
 									query={query}
 									canRestore={view.restore !== "hidden"}
+									agentLabel={
+										session.agentId
+											? agentLabels[session.agentId]
+											: undefined
+									}
 									currentCwd={currentCwd}
 									onRestoreSession={onRestoreSession}
 									onDeleteSession={

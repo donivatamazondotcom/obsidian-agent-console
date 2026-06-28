@@ -87,9 +87,25 @@ export type SessionHistoryBanner =
  * recomputing inline booleans.
  */
 export interface SessionHistoryView {
-	/** Source of the session list (drives fetch + the filter facet). */
+	/**
+	 * Resolved source of the session list (drives fetch + the filter facet).
+	 * Toggle-driven: the user's `source` choice gated by capability. Defaults
+	 * to "local" for EVERY agent — the local store is the canonical record
+	 * (Local-first source-of-truth tenet; Session History Source Model
+	 * Decision 3).
+	 */
 	listSource: SessionListSource;
-	/** Whether the current-vault / hide-non-local filter checkboxes are shown. */
+	/**
+	 * Whether the `[Local] [Agent]` toggle offers an Agent pill at all. True
+	 * only when the agent advertises `session/list` (Kiro CLI, which does not,
+	 * shows the unified Local list with no toggle).
+	 */
+	agentViewAvailable: boolean;
+	/**
+	 * Whether the "This vault only" cwd filter is shown. The cwd filter applies
+	 * to the **Agent (server) view** only — the Local view is "your whole
+	 * history" across every agent and vault, so it carries no filter.
+	 */
 	showFilters: boolean;
 	/** Whether/how the restore (▶) action is available. */
 	restore: RestoreAvailability;
@@ -110,20 +126,31 @@ export interface SessionHistoryView {
  *   Kept in the signature so the totality/invariance tests can prove it.
  * @param hasLocalData - Whether the plugin has local session data available
  *   to restore from (a non-empty local library / local list).
+ * @param source - The user's `[Local] [Agent]` toggle choice. Defaults to
+ *   `"local"` for every agent (Decision 3). Gated by capability: an "agent"
+ *   choice resolves to the Agent view only when the agent advertises
+ *   `session/list`; otherwise it falls back to Local.
  */
 export function deriveSessionHistoryView(
 	capabilities: AgentCapabilities,
 	isAgentReady: boolean,
 	hasLocalData: boolean,
+	source: SessionListSource = "local",
 ): SessionHistoryView {
-	const listSource: SessionListSource = capabilities.listsSessions
-		? "agent"
-		: "local";
+	// Whether the Agent pill is even offered. The Local view is the default
+	// and always available; the Agent view exists only for agents that can
+	// enumerate server-side sessions.
+	const agentViewAvailable = capabilities.listsSessions;
 
-	// The filter checkboxes only make sense over an agent-enumerated list;
-	// plugin-local lists (e.g. Kiro CLI) have no filters. Equivalent to the old
-	// `canList && !isUsingLocalSessions`, which reduced to `listsSessions`.
-	const showFilters = capabilities.listsSessions;
+	// Toggle-driven and capability-gated. Defaults to Local for EVERY agent —
+	// the local store is the canonical "your history" record; the agent's
+	// `session/list` is an opt-in inspect view reached by choosing "agent".
+	const listSource: SessionListSource =
+		source === "agent" && agentViewAvailable ? "agent" : "local";
+
+	// The "This vault only" cwd filter applies to the Agent (server) view only.
+	// The Local view spans every agent and every vault, so it has no filter.
+	const showFilters = listSource === "agent";
 
 	const canRestoreViaAgent =
 		capabilities.restoresViaLoad || capabilities.restoresViaResume;
@@ -157,5 +184,5 @@ export function deriveSessionHistoryView(
 				? "local-saved"
 				: "none";
 
-	return { listSource, showFilters, restore, fork, banner };
+	return { listSource, agentViewAvailable, showFilters, restore, fork, banner };
 }
