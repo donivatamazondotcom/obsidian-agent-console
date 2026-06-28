@@ -721,6 +721,82 @@ function ChatComponent({
 		[tabs],
 	);
 
+
+	// Track C — open a history session in a tab (restore or fork). The
+	// session-history modal routes its restore/fork actions here (via the
+	// onOpenSessionInTab prop threaded through ChatPanel) instead of restoring
+	// INTO the current tab, so the active session is never clobbered ("safe
+	// defaults — no surprise data loss", [[Restore-fork gated on agent
+	// connection]]). Gated on data + intent, not connection — the new tab
+	// reconnects lazily on first send (supersedes I09/I41).
+	//
+	// Target-tab decision:
+	//   - target already open in another tab → switch to it (I20)
+	//   - otherwise → append a NEW tab, activated, seeded so its ChatPanel
+	//     rehydrates via the same restored* props the F13 reopen + startup
+	//     restore paths use. (Reuse-of-an-empty-lazy-tab is a deferred
+	//     refinement — restored* props are read at mount, so a fresh tab is
+	//     the mechanism that actually works; always-new-tab is also the safe
+	//     default that never clobbers.)
+	//
+	// Restore loads the original session; fork branches a NEW session from it.
+	const openSessionInTab = useCallback(
+		// Fork is deferred to the Session History Source Model track; this
+		// orchestration handles RESTORE only (the `mode` param is retained for
+		// the upcoming fork path).
+		async (sessionId: string, cwd: string, mode: "restore" | "fork") => {
+			void cwd; // cwd is carried for parity; agentCwd is resolved per tab.
+			void mode;
+			// Switch-if-open (I20): restoring a session already open focuses it.
+			const existing = findTabBySessionId(sessionId);
+			if (existing) {
+				tabManager.setActiveTab(existing.tabId);
+				return;
+			}
+
+			// Restore whichever agent the session ran on (plugin-level history),
+			// falling back to the active tab's agent when unknown.
+			const saved = plugin.settingsService
+				.getSavedSessions()
+				.find((s) => s.sessionId === sessionId);
+			const agentId = saved?.agentId ?? activeTab.agentId;
+			const label = truncateLabel(saved?.title ?? "Session");
+
+			// Load the transcript + context notes from disk — the same storage
+			// the reopen/startup-restore paths read.
+			const [messages, contextNotes] = await Promise.all([
+				persistenceStorage.loadSessionMessages(sessionId),
+				persistenceStorage.loadSessionContextNotes(sessionId),
+			]);
+
+			const newTabId = tabManager.addTab(agentId, label);
+			// RC-1: mark the seeded label custom so ChatPanel's auto-derivation
+			// (first-message-derived label / AI-title swap) doesn't clobber the
+			// restored saved (AI) title. setTabLabel ignores non-custom
+			// overwrites of a custom label (useTabManager L194).
+			tabManager.setTabLabel(newTabId, label, true);
+
+			// Seed transcript + the session id so the tab loads it lazily on
+			// first send (and survives a later restart).
+			setReopenPayload((prev) => ({
+				...prev,
+				[newTabId]: {
+					sessionId,
+					messages: messages ?? [],
+					contextNotes: contextNotes ?? [],
+				},
+			}));
+			persistedSessionIdsRef.current.set(newTabId, sessionId);
+		},
+		[
+			findTabBySessionId,
+			tabManager,
+			plugin.settingsService,
+			activeTab.agentId,
+			persistenceStorage,
+		],
+	);
+
 	// ============================================================
 	// Register callbacks for IChatViewContainer (active tab only)
 	// (activeCallbacksRef / tabHandlesRef are declared earlier so
@@ -884,6 +960,7 @@ function ChatComponent({
 								findTabBySessionId={findTabBySessionId}
 								onSwitchToTab={tabManager.setActiveTab}
 								onCloseTab={tabManager.removeTab}
+								onOpenSessionInTab={openSessionInTab}
 								restoredSessionId={
 									reopenPayload[tab.tabId]?.sessionId ??
 									persistedSessionIdsRef.current.get(tab.tabId) ??

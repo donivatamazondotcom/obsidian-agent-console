@@ -156,6 +156,7 @@ src/
 │   ├── tab-agent-invariant.ts   # Pure fail-loud invariant: a tab's live session agent == its selected agent
 │   ├── resolveInitialAgentId.ts # Pure: agent a fresh (non-restored) tab opens on — Default agent when restore-tabs is off (TP-I05)
 │   ├── send-affordance.ts       # Pure send-enablement resolver (deriveSendAffordance → canSend/buttonDisabled/reason) + isSessionLive; single source for ChatPanel/InputArea/InputToolbar/MessageList/broadcast
+│   ├── session-history-view.ts  # Pure session-history gating resolver (deriveSessionHistoryView → listSource/showFilters/restore/fork/banner) from the normalized AgentCapabilities; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
 │   └── logger.ts                # Debug-mode logger
 ├── plugin.ts                    # Obsidian plugin lifecycle, settings persistence
 └── main.ts                      # Entry point

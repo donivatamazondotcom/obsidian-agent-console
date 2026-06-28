@@ -31,12 +31,11 @@ Depending on the agent's capabilities, you can perform the following actions:
 |--------|-------------|
 | **Search** | Filter the list by title or message content as you type |
 | **Edit title** | Rename the session from the history modal |
-| **Restore** | Resume the session where you left off |
-| **Fork** *(experimental)* | Create a new branch from that point — only shown for agents that advertise the experimental session-fork capability |
+| **Restore** | Reopen the session in a **new tab**, right where you left off — your current chat is never replaced |
 | **Delete** | Remove the session from history |
 
 ::: tip
-Not all actions are available for every agent. The modal shows only the actions supported by your current agent.
+Restore doesn't require a connected agent — opening a session reconnects automatically on your first message. It's offered whenever a session can be reopened (from the agent or from local data).
 :::
 
 ## Session Storage
@@ -53,31 +52,15 @@ Sessions are saved in two places:
 - **Plugin side**: Stored locally in Obsidian's data folder
 - **Agent side**: Managed by the agent
 
-## Restore vs Fork
+## Restore
 
-### Restore
+Restoring a session reopens it in a **new tab** — your current chat is left untouched. If the session is already open in another tab, you're switched to that tab instead.
 
-Restoring a session continues the existing conversation:
-
-1. The agent reconnects to the previous session
-2. Your conversation history is displayed
+1. The session opens in a new tab with its conversation history displayed
+2. The agent reconnects automatically when you send your first message — no need to connect first
 3. New messages continue the same session
 
-Use restore when you want to **continue where you left off**.
-
-### Fork
-
-Forking creates a new session branching from a previous point:
-
-1. A new session is created with a copy of the conversation up to that point
-2. The original session remains unchanged
-3. New messages go to the forked session
-
-Use fork when you want to **explore a different direction** without affecting the original conversation.
-
-::: warning
-Forking relies on an **experimental** agent capability (`session/fork`). The Fork action only appears when your agent advertises support — most agents currently do not, so you may never see it.
-:::
+Use restore when you want to **continue where you left off** without losing your current chat.
 
 ## Deleting Sessions
 
@@ -92,9 +75,9 @@ Deletion removes the session from the plugin's local storage only. The session s
 
 ## Troubleshooting
 
-### "This agent does not support session restoration"
+### "This agent does not support restoring sessions"
 
-The current agent doesn't provide session restore/fork capabilities. You can still view and delete locally saved sessions.
+This appears only when a session can't be reopened at all — the agent advertises no restore capability **and** there's no locally saved transcript to reopen from. Whenever local data exists, Restore stays available (it reopens the session in a new tab and reconnects on your first message). You can always view and delete locally saved sessions.
 
 ### "Preparing agent..."
 

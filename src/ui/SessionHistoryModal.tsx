@@ -9,7 +9,11 @@ import { Modal, App, setIcon } from "obsidian";
 import * as React from "react";
 const { useState, useCallback } = React;
 import { createRoot, Root } from "react-dom/client";
-import type { SessionInfo } from "../types/session";
+import type { AgentCapabilities, SessionInfo } from "../types/session";
+import {
+	deriveSessionHistoryView,
+	type SessionHistoryView,
+} from "../utils/session-history-view";
 import { useSessionSearch } from "../hooks/useSessionSearch";
 import type { SearchSnippet } from "../services/session-search";
 
@@ -196,16 +200,13 @@ interface SessionHistoryContentProps {
 		sessionId: string,
 	) => Promise<import("../types/chat").ChatMessage[] | null>;
 
-	// Capability flags (from useSessionHistory)
-	/** Whether session/list is supported (unstable) */
-	canList: boolean;
-	/** Whether session can be restored (load or resume supported) */
-	canRestore: boolean;
-	/** Whether session/fork is supported (unstable) */
-	canFork: boolean;
-
-	/** Whether using locally saved sessions (instead of agent session/list) */
-	isUsingLocalSessions: boolean;
+	/**
+	 * Normalized agent-capability record (Track B / I117). The whole modal
+	 * surface (list source, filters, restore/fork availability, banner) is
+	 * derived from this via `deriveSessionHistoryView` — gated on capability
+	 * + local-data + intent, never on connection.
+	 */
+	capabilities: AgentCapabilities;
 
 	/** Set of session IDs that have local data (for filtering) */
 	localSessionIds: Set<string>;
@@ -218,8 +219,6 @@ interface SessionHistoryContentProps {
 
 	/** Callback when a session is restored */
 	onRestoreSession: (sessionId: string, cwd: string) => Promise<void>;
-	/** Callback when a session is forked (create new branch) */
-	onForkSession: (sessionId: string, cwd: string) => Promise<void>;
 	/** Callback when a session is deleted */
 	onDeleteSession: (sessionId: string) => void | Promise<void>;
 	/** Callback when a session title is edited */
@@ -316,12 +315,10 @@ function truncateTitle(title: string): string {
 function DebugForm({
 	currentCwd,
 	onRestoreSession,
-	onForkSession,
 	onClose,
 }: {
 	currentCwd: string;
 	onRestoreSession: (sessionId: string, cwd: string) => Promise<void>;
-	onForkSession: (sessionId: string, cwd: string) => Promise<void>;
 	onClose: () => void;
 }) {
 	const [sessionId, setSessionId] = useState("");
@@ -333,13 +330,6 @@ function DebugForm({
 			void onRestoreSession(sessionId.trim(), cwd.trim() || currentCwd);
 		}
 	}, [sessionId, cwd, currentCwd, onRestoreSession, onClose]);
-
-	const handleFork = useCallback(() => {
-		if (sessionId.trim()) {
-			onClose();
-			void onForkSession(sessionId.trim(), cwd.trim() || currentCwd);
-		}
-	}, [sessionId, cwd, currentCwd, onForkSession, onClose]);
 
 	return (
 		<div className="agent-client-session-history-debug">
@@ -375,12 +365,6 @@ function DebugForm({
 					onClick={handleRestore}
 				>
 					Restore
-				</button>
-				<button
-					className="agent-client-session-history-debug-button"
-					onClick={handleFork}
-				>
-					Fork
 				</button>
 			</div>
 
@@ -435,10 +419,8 @@ function SessionItem({
 	snippet,
 	query,
 	canRestore,
-	canFork,
 	currentCwd,
 	onRestoreSession,
-	onForkSession,
 	onDeleteSession,
 	onEditTitle,
 	onClose,
@@ -447,10 +429,8 @@ function SessionItem({
 	snippet?: SearchSnippet;
 	query: string;
 	canRestore: boolean;
-	canFork: boolean;
 	currentCwd: string;
 	onRestoreSession: (sessionId: string, cwd: string) => Promise<void>;
-	onForkSession: (sessionId: string, cwd: string) => Promise<void>;
 	onDeleteSession: (sessionId: string) => void | Promise<void>;
 	onEditTitle: (sessionId: string) => void;
 	onClose: () => void;
@@ -460,10 +440,6 @@ function SessionItem({
 		void onRestoreSession(session.sessionId, session.cwd);
 	}, [session, onRestoreSession, onClose]);
 
-	const handleFork = useCallback(() => {
-		onClose();
-		void onForkSession(session.sessionId, session.cwd);
-	}, [session, onForkSession, onClose]);
 
 	const handleDelete = useCallback(() => {
 		void onDeleteSession(session.sessionId);
@@ -532,14 +508,6 @@ function SessionItem({
 						onClick={handleRestore}
 					/>
 				)}
-				{canFork && (
-					<IconButton
-						iconName="git-branch"
-						label="Fork session (create new branch)"
-						className="agent-client-session-history-action-icon agent-client-session-history-fork-icon"
-						onClick={handleFork}
-					/>
-				)}
 				<IconButton
 					iconName="trash-2"
 					label="Delete session"
@@ -569,15 +537,11 @@ export function SessionHistoryContent({
 	hasMore,
 	currentCwd,
 	loadSessionMessages,
-	canList,
-	canRestore,
-	canFork,
-	isUsingLocalSessions,
+	capabilities,
 	localSessionIds,
 	isAgentReady,
 	debugMode,
 	onRestoreSession,
-	onForkSession,
 	onDeleteSession,
 	onEditTitle,
 	onLoadMore,
@@ -600,6 +564,20 @@ export function SessionHistoryContent({
 	const sessionById = React.useMemo(
 		() => new Map(sessions.map((s) => [s.sessionId, s])),
 		[sessions],
+	);
+
+	// One pure decision for the whole modal surface (Track C —
+	// deriveSessionHistoryView). Gated on capability + local-data + intent,
+	// NOT on connection: supersedes the I09 "Connect to an agent…" gate and
+	// the I41 "does not support restoration" banner. `isAgentReady` is passed
+	// for completeness but the resolver provably ignores it (connection
+	// invariance), so restore/fork show on a not-yet-connected tab and the
+	// orchestration reconnects lazily.
+	const hasLocalData = localSessionIds.size > 0;
+	const view: SessionHistoryView = deriveSessionHistoryView(
+		capabilities,
+		isAgentReady,
+		hasLocalData,
 	);
 
 	// I94: focus the search box when the modal opens so the user can type
@@ -688,7 +666,7 @@ export function SessionHistoryContent({
 			const s = sessionById.get(match.sessionId);
 			if (!s) continue;
 			if (
-				!isUsingLocalSessions &&
+				view.listSource === "agent" &&
 				hideNonLocalSessions &&
 				!localSessionIds.has(s.sessionId)
 			) {
@@ -700,19 +678,10 @@ export function SessionHistoryContent({
 	}, [
 		searchResults,
 		sessionById,
-		isUsingLocalSessions,
+		view.listSource,
 		hideNonLocalSessions,
 		localSessionIds,
 	]);
-
-	// Check if any session operation is available (requires agent connection)
-	const canPerformAnyOperation = isAgentReady && (canRestore || canFork);
-
-	// Show local sessions list (always show for delete functionality)
-	// - If agent supports list: use agent's session/list
-	// - If agent doesn't support list OR doesn't support restoration: use locally saved sessions
-	const canShowList =
-		canList || isUsingLocalSessions || !canPerformAnyOperation;
 
 	return (
 		<>
@@ -721,42 +690,28 @@ export function SessionHistoryContent({
 				<DebugForm
 					currentCwd={currentCwd}
 					onRestoreSession={onRestoreSession}
-					onForkSession={onForkSession}
 					onClose={onClose}
 				/>
 			)}
 
-			{/* Warning banner for agents that don't support restoration or aren't connected */}
-			{!canPerformAnyOperation && !isUsingLocalSessions && (
+			{/* Banner — derived from the resolver. There is no connection-gated
+			    "Connect to an agent…" message (I09 superseded); the "no
+			    restoration" warning shows only when restore is genuinely
+			    impossible (I41 superseded — suppressed whenever local data
+			    exists). */}
+			{view.banner === "no-restore-capability" && (
 				<div className="agent-client-session-history-warning-banner">
-					<p>{!isAgentReady
-						? "Connect to an agent to restore or fork sessions."
-						: "This agent does not support session restoration."
-					}</p>
+					<p>This agent does not support restoring sessions.</p>
 				</div>
 			)}
 
-			{/* Local sessions banner */}
-			{(isUsingLocalSessions || !canPerformAnyOperation) && (
+			{view.banner === "local-saved" && (
 				<div className="agent-client-session-history-local-banner">
 					<span>These sessions are saved in the plugin.</span>
 				</div>
 			)}
 
-			{/* No list capability message */}
-			{!canShowList && !debugMode && (
-				<div className="agent-client-session-history-empty">
-					<p className="agent-client-session-history-empty-text">
-						Session list is not available for this agent.
-					</p>
-					<p className="agent-client-session-history-empty-text">
-						Enable Debug Mode in settings to manually enter session
-						IDs.
-					</p>
-				</div>
-			)}
-
-			{canShowList && (
+			{(
 				<>
 					{/* Full-text search */}
 					<div className="agent-client-session-history-search">
@@ -779,8 +734,8 @@ export function SessionHistoryContent({
 						)}
 					</div>
 
-					{/* Filter toggles - only for agent session/list */}
-					{canList && !isUsingLocalSessions && (
+					{/* Filter toggles - only over an agent-enumerated list */}
+					{view.showFilters && (
 						<div className="agent-client-session-history-filter">
 							<label className="agent-client-session-history-filter-label">
 								<input
@@ -847,11 +802,9 @@ export function SessionHistoryContent({
 									session={session}
 									snippet={snippet}
 									query={query}
-									canRestore={(isAgentReady && canRestore) || isUsingLocalSessions}
-									canFork={isAgentReady && canFork}
+									canRestore={view.restore !== "hidden"}
 									currentCwd={currentCwd}
 									onRestoreSession={onRestoreSession}
-									onForkSession={onForkSession}
 									onDeleteSession={
 										handleDeleteWithConfirmation
 									}
