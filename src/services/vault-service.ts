@@ -130,6 +130,7 @@ export class VaultService implements IVaultAccess {
 	} | null = null;
 	private selectionListeners = new Set<() => void>();
 	private activeLeafRef: EventRef | null = null;
+	private layoutChangeRef: EventRef | null = null;
 	private detachEditorListenerFn: (() => void) | null = null;
 	private selectionCompartment: Compartment | null = null;
 	private lastSelectionKey = "";
@@ -384,6 +385,20 @@ export class VaultService implements IVaultAccess {
 		return () => this.plugin.app.vault.offref(ref);
 	}
 
+	/**
+	 * Whether any markdown leaf with an open file exists in the workspace.
+	 * Used by useSelectionTracker to distinguish "chat took focus" (leaves
+	 * still open → preserve last note per Decision #24) from "all notes
+	 * closed" (no leaves → clear stale path so provisional pill disappears).
+	 * Checks view.file to exclude leaves mid-teardown (active-leaf-change
+	 * fires before Obsidian removes the closing leaf from its list).
+	 */
+	hasOpenMarkdownLeaves(): boolean {
+		return this.plugin.app.workspace.getLeavesOfType("markdown").some(
+			(leaf) => leaf.view instanceof MarkdownView && leaf.view.file != null,
+		);
+	}
+
 	private ensureSelectionTracking(): void {
 		if (this.activeLeafRef) {
 			return;
@@ -405,6 +420,22 @@ export class VaultService implements IVaultAccess {
 				this.attachToView(nextView ?? null);
 			},
 		);
+
+		// layout-change fires AFTER Obsidian removes a closed leaf from its
+		// internal list. active-leaf-change fires before — so at that point
+		// getLeavesOfType("markdown") still includes the closing leaf, and
+		// hasOpenMarkdownLeaves() returns a stale true. This secondary
+		// notification lets the tracker re-check once the layout settles.
+		this.layoutChangeRef = this.plugin.app.workspace.on(
+			"layout-change",
+			() => {
+				// Only re-notify when no markdown view is active — avoids
+				// noise on unrelated layout changes (pane resizes, etc.).
+				if (!this.plugin.app.workspace.getActiveViewOfType(MarkdownView)) {
+					this.notifySelectionListeners();
+				}
+			},
+		);
 	}
 
 	private teardownSelectionTracking(): void {
@@ -412,6 +443,10 @@ export class VaultService implements IVaultAccess {
 		if (this.activeLeafRef) {
 			this.plugin.app.workspace.offref(this.activeLeafRef);
 			this.activeLeafRef = null;
+		}
+		if (this.layoutChangeRef) {
+			this.plugin.app.workspace.offref(this.layoutChangeRef);
+			this.layoutChangeRef = null;
 		}
 		this.lastSelectionKey = "";
 	}

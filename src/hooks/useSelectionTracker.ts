@@ -22,6 +22,8 @@ export interface SelectionSource {
 	onRename(cb: (oldPath: string, newPath: string) => void): () => void;
 	/** Subscribe to vault delete events. Returns an unsubscribe fn. (I100) */
 	onDelete(cb: (path: string) => void): () => void;
+	/** Whether any markdown leaf is currently open in the workspace. */
+	hasOpenMarkdownLeaves(): boolean;
 }
 
 export interface SelectionState {
@@ -70,8 +72,15 @@ export function useSelectionTracker(source: SelectionSource): UseSelectionTracke
 			} else {
 				setSelection(null);
 			}
+		} else if (!sourceRef.current.hasOpenMarkdownLeaves()) {
+			// No markdown leaves at all — the user closed every note.
+			// Clear the stale path so the provisional pill disappears.
+			setActiveNotePath(null);
+			setActiveNoteName(null);
+			setSelection(null);
 		}
-		// If null, user focused non-markdown leaf (e.g., chat) — preserve last state (Decision #24)
+		// Otherwise: user focused a non-markdown leaf (e.g. chat) while notes
+		// remain open — preserve last state (Decision #24).
 	}, []);
 
 	useEffect(() => {
