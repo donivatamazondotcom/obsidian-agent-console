@@ -17,6 +17,7 @@
 
 import type { ChatInputState } from "../types/chat";
 import type { QuickPrompt } from "../types/quick-prompt";
+import type { QuickPromptGesture } from "./quick-prompts-logic";
 import { getLogger } from "../utils/logger";
 
 // ============================================================================
@@ -174,11 +175,12 @@ export interface IChatViewContainer {
 
 	/**
 	 * Fire / insert a quick prompt in this view's active tab. The fire vs
-	 * insert vs queue vs disabled outcome is decided by the engine against
-	 * the active tab's live composer/queue/selection state; `modifier` is the
-	 * picker's tweak modifier (⇧/⌥). See [[Agent Console Quick Prompts and Workflows]].
+	 * insert vs queue vs disabled vs new-tab outcome is decided by the engine
+	 * against the active tab's live composer/queue/selection state; `gesture`
+	 * is the browser-true 2×2 (⌘ new tab · ⇧ foreground · ⌥ insert). See
+	 * [[Agent Console Quick Prompts UX Refinement]].
 	 */
-	runQuickPrompt(prompt: QuickPrompt, opts: { modifier: boolean }): void;
+	runQuickPrompt(prompt: QuickPrompt, gesture: QuickPromptGesture): void;
 
 	// ============================================================
 	// Container Access

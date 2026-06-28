@@ -27,7 +27,12 @@ There are two ways to reach your prompts:
 - **The ⚡ button** in the composer toolbar (bottom-left) opens a searchable list of every prompt. It stays reachable even while the agent is busy.
 - **The Quick prompt picker command** (`Cmd/Ctrl + P`, then search for it) opens the same list, and you can bind it to a hotkey under **Settings → Hotkeys**.
 
-In the list, press **Enter** to fire a prompt — it sends right away, carrying the active note and any selection as context. Hold **⌥ (Alt)** or **⇧ (Shift)** while choosing to drop the text into the composer for editing instead of sending.
+In the list, press **Enter** to fire a prompt — it sends right away in the current chat, carrying the active note and any selection as context. Modifier keys change where it goes and whether it sends, mirroring how links open in a browser:
+
+- **⌘ (Cmd) + Enter** → send in a **new tab**, in the background. Add **⇧ (Shift)** — ⌘⇧Enter — to switch to the new tab as it opens.
+- **⌥ (Alt) + Enter** → drop the text into the composer to edit first, instead of sending.
+
+The same keys work when you click a chip (below).
 
 ## Use your selection
 
@@ -46,19 +51,20 @@ When you fire this with text selected in a note, the selection is filled in and 
 
 ## Open in a new tab
 
-Some prompts kick off a whole new conversation — "debrief this meeting", "get the latest on this project". Add `newTab: true` and firing the prompt opens a fresh chat tab and sends it there, leaving your current conversation untouched:
+Some prompts kick off a whole new conversation — "debrief this meeting", "get the latest on this project". Tick **`open in new tab`** in the note's properties and firing the prompt opens a fresh chat tab and sends it there, leaving your current conversation untouched:
 
 ````markdown
 ---
 description: "🗓️ Debrief meeting"
-newTab: true
+open in new tab: true
 ---
 Debrief this meeting — pull the AI summary, extract action items, and update the vault note.
 ````
 
-- A `newTab` prompt always opens a new tab on your default agent and sends the prompt there.
-- It never waits on your current tab — even if that tab is mid-reply or has a message queued. A `newTab` chip stays active while current-tab chips are locked.
-- Hold ⌥/⇧ to open the new tab and drop the text into its composer for editing instead of sending.
+- `open in new tab` is a checkbox property — toggle it in the note's Properties view, no typing. (Notes that still use the older `newTab: true` keep working.)
+- Firing it always opens a new tab on your default agent and sends there — even if your current tab is mid-reply or has a message queued. A new-tab chip stays active while current-tab chips are locked.
+- A plain click **switches to** the new tab; hold **⌘ (Cmd)** to open it in the **background** (you stay put) — Agent Console shows a brief "Started … in a new tab" note so you know it's running.
+- Hold **⌥ (Alt)** to open the new tab and drop the text into its composer for editing instead of sending.
 - A `{{selection}}` prompt with nothing selected opens the new tab and seeds its composer (with a heads-up) rather than sending half-formed.
 
 ## Contextual chips
@@ -77,7 +83,7 @@ Give me the daily brief for this note.
 - A prompt with `tags` shows only when the active note carries a matching tag. Matching is nested — `NoteType` matches a note tagged `NoteType/DailyNote`.
 - When no prompts match the note you're in, there's **no chip row at all** — the space is reclaimed.
 
-Click a chip to fire it; hold ⌥/⇧ and click to insert instead.
+Click a chip to fire it in the current chat. Hold **⌘** to send it in a new tab (⌘⇧ to switch there), or **⌥** to drop it into the composer to edit first — the same keys as the picker.
 
 ## How it works with a busy agent
 

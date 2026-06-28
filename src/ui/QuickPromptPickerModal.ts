@@ -14,11 +14,8 @@
 
 import { App, FuzzySuggestModal } from "obsidian";
 import type { QuickPrompt } from "../types/quick-prompt";
-
-/** True when a tweak modifier (⇧ or ⌥) was held during the choose event. */
-export function isInsertModifier(evt: MouseEvent | KeyboardEvent | undefined): boolean {
-	return !!evt && (evt.shiftKey || evt.altKey);
-}
+import type { QuickPromptGesture } from "../services/quick-prompts-logic";
+import { quickPromptGestureFromEvent } from "../utils/quick-prompt-gesture";
 
 export class QuickPromptPickerModal extends FuzzySuggestModal<QuickPrompt> {
 	constructor(
@@ -26,17 +23,18 @@ export class QuickPromptPickerModal extends FuzzySuggestModal<QuickPrompt> {
 		private prompts: QuickPrompt[],
 		private onChoose: (
 			prompt: QuickPrompt,
-			opts: { modifier: boolean },
+			gesture: QuickPromptGesture,
 		) => void,
 	) {
 		super(app);
-		this.setPlaceholder("Search quick prompts — ↵ fire, ⌥↵ insert");
+		this.setPlaceholder("Search quick prompts — ↵ run, ⌘↵ new tab, ⌥↵ edit");
 
-		// FuzzySuggestModal only wires plain Enter to choose an item, so ⇧↵ / ⌥↵
-		// otherwise do nothing and the modifier-insert convention is unreachable
-		// from the keyboard (QP-I02). Register them to select the highlighted
-		// item WITH the modifier event, which flows through onChooseItem →
-		// isInsertModifier(evt) → insert instead of fire.
+		// FuzzySuggestModal only wires plain Enter to choose an item, so the
+		// modifier combos otherwise do nothing. Register them to select the
+		// highlighted item WITH the modifier event, which flows through
+		// onChooseItem → quickPromptGestureFromEvent(evt) → the 2×2:
+		//   ⌘↵ new tab (background) · ⌘⇧↵ new tab + switch · ⌥↵ insert ·
+		//   ⌘⌥↵ new tab + insert.
 		const chooseWithModifier = (evt: KeyboardEvent): false => {
 			(
 				this as unknown as {
@@ -45,8 +43,10 @@ export class QuickPromptPickerModal extends FuzzySuggestModal<QuickPrompt> {
 			).chooser?.useSelectedItem(evt);
 			return false;
 		};
-		this.scope.register(["Shift"], "Enter", chooseWithModifier);
+		this.scope.register(["Mod"], "Enter", chooseWithModifier);
+		this.scope.register(["Mod", "Shift"], "Enter", chooseWithModifier);
 		this.scope.register(["Alt"], "Enter", chooseWithModifier);
+		this.scope.register(["Mod", "Alt"], "Enter", chooseWithModifier);
 	}
 
 	getItems(): QuickPrompt[] {
@@ -61,6 +61,6 @@ export class QuickPromptPickerModal extends FuzzySuggestModal<QuickPrompt> {
 		item: QuickPrompt,
 		evt?: MouseEvent | KeyboardEvent,
 	): void {
-		this.onChoose(item, { modifier: isInsertModifier(evt) });
+		this.onChoose(item, quickPromptGestureFromEvent(evt));
 	}
 }

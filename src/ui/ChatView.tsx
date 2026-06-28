@@ -14,6 +14,7 @@ import type { ChatInputState, ChatMessage } from "../types/chat";
 import type { ContextNote } from "../types/context";
 import type { TabInfo, TabState, PerLeafTabState, PersistedTabInfo } from "../types/tab";
 import type { QuickPrompt } from "../types/quick-prompt";
+import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 
 // Utility imports
 import { getLogger, Logger } from "../utils/logger";
@@ -522,12 +523,18 @@ function ChatComponent({
 	}, [tabManager, plugin.settings.defaultAgentId]);
 
 	// newTab quick prompt: spawn a fresh tab on the default agent and seed it
-	// with the resolved prompt. addTab appends + activates; the new tab's
-	// ChatPanel reads `initialPrompt` on mount and either sends (queues until
-	// the lazy session connects) or only seeds its composer for editing.
+	// with the resolved prompt. addTab appends and (when foreground) activates;
+	// the new tab's ChatPanel reads `initialPrompt` on mount and either sends
+	// (queues until the lazy session connects) or only seeds its composer. A
+	// background open (foreground:false) appends without switching — the tab
+	// still mounts and sends, the user stays on their current tab.
 	const handleOpenInNewTab = useCallback(
-		(text: string, opts: { send: boolean }) => {
-			const newTabId = tabManager.addTab(plugin.settings.defaultAgentId);
+		(text: string, opts: { send: boolean; foreground: boolean }) => {
+			const newTabId = tabManager.addTab(
+				plugin.settings.defaultAgentId,
+				undefined,
+				opts.foreground,
+			);
 			setPendingPromptByTab((prev) => ({
 				...prev,
 				[newTabId]: { text, send: opts.send },
@@ -1334,8 +1341,8 @@ export class ChatView extends ItemView implements IChatViewContainer {
 		await this.callbacks?.cancelOperation();
 	}
 
-	runQuickPrompt(prompt: QuickPrompt, opts: { modifier: boolean }): void {
-		this.callbacks?.runQuickPrompt(prompt, opts);
+	runQuickPrompt(prompt: QuickPrompt, gesture: QuickPromptGesture): void {
+		this.callbacks?.runQuickPrompt(prompt, gesture);
 	}
 
 	// ============================================================
