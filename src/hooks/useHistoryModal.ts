@@ -89,6 +89,24 @@ export function useHistoryModal(
 		[logger],
 	);
 
+	const handleForkSession = useCallback(
+		async (sessionId: string, cwd: string) => {
+			// Fork branches the session into a NEW tab (never switches to an
+			// open one, never clobbers the active session). Agent is resolved
+			// per-row from the saved session inside ChatView.openSessionInTab.
+			try {
+				logger.log(
+					`[ChatPanel] Open session in tab (fork): ${sessionId}`,
+				);
+				await onOpenSessionInTabRef.current?.(sessionId, cwd, "fork");
+			} catch (error) {
+				new Notice("[Agent Console] Failed to fork session");
+				logger.error("Session fork error:", error);
+			}
+		},
+		[logger],
+	);
+
 	const handleDeleteSession = useCallback(
 		async (sessionId: string) => {
 			try {
@@ -165,6 +183,7 @@ export function useHistoryModal(
 		const agentLabels = Object.fromEntries(
 			plugin.getAvailableAgents().map((a) => [a.id, a.displayName]),
 		);
+		const currentAgentLabel = agentLabels[agentId] ?? agentId;
 		// Create modal if it doesn't exist
 		if (!historyModalRef.current) {
 			historyModalRef.current = new SessionHistoryModal(plugin.app, {
@@ -181,7 +200,9 @@ export function useHistoryModal(
 				initialSource: source,
 				agentSessionCache,
 				agentLabels,
+				currentAgentLabel,
 				onRestoreSession: handleRestoreSession,
+				onForkSession: handleForkSession,
 				onDeleteSession: handleDeleteSession,
 				onEditTitle: handleEditTitle,
 				onLoadMore: handleLoadMore,
@@ -213,6 +234,7 @@ export function useHistoryModal(
 		isSessionReady,
 		debugMode,
 		handleRestoreSession,
+		handleForkSession,
 		handleDeleteSession,
 		handleEditTitle,
 		handleLoadMore,
@@ -225,6 +247,9 @@ export function useHistoryModal(
 		if (historyModalRef.current) {
 			const settings = plugin.settingsService.getSnapshot();
 			const agentId = agent.session.agentId;
+			const agentLabels = Object.fromEntries(
+				plugin.getAvailableAgents().map((a) => [a.id, a.displayName]),
+			);
 			historyModalRef.current.updateProps({
 				sessions: sessionHistory.sessions,
 				loading: sessionHistory.loading,
@@ -239,12 +264,10 @@ export function useHistoryModal(
 				initialSource: settings.sessionHistorySource,
 				agentSessionCache:
 					settings.agentSessionMetaCache[agentId] ?? null,
-				agentLabels: Object.fromEntries(
-					plugin
-						.getAvailableAgents()
-						.map((a) => [a.id, a.displayName]),
-				),
+				agentLabels,
+				currentAgentLabel: agentLabels[agentId] ?? agentId,
 				onRestoreSession: handleRestoreSession,
+				onForkSession: handleForkSession,
 				onDeleteSession: handleDeleteSession,
 				onEditTitle: handleEditTitle,
 				onLoadMore: handleLoadMore,
@@ -266,6 +289,7 @@ export function useHistoryModal(
 		isSessionReady,
 		debugMode,
 		handleRestoreSession,
+		handleForkSession,
 		handleDeleteSession,
 		handleEditTitle,
 		handleLoadMore,

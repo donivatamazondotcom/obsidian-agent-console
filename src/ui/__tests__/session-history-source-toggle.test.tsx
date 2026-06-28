@@ -52,7 +52,9 @@ function makeProps(
 		initialSource: "local",
 		agentSessionCache: null,
 		agentLabels: { claude: "Claude Code", kiro: "Kiro CLI" },
+		currentAgentLabel: "Claude Code",
 		onRestoreSession: vi.fn(async () => {}),
+		onForkSession: vi.fn(async () => {}),
 		onDeleteSession: vi.fn(),
 		onEditTitle: vi.fn(),
 		onLoadMore: vi.fn(),
@@ -66,22 +68,37 @@ function makeProps(
 describe("SessionHistoryContent — Local/Agent toggle", () => {
 	afterEach(cleanup);
 
-	it("renders the Local/Agent toggle for a listing agent (Claude)", () => {
+	it("renders the toggle for a listing agent (Claude), labeling the Agent pill with the agent name (D2)", () => {
 		render(<SessionHistoryContent {...makeProps()} />);
 		expect(screen.getByRole("tab", { name: "Local" })).toBeTruthy();
-		expect(screen.getByRole("tab", { name: "Agent" })).toBeTruthy();
+		const agentPill = screen.getByRole("tab", { name: /Claude Code/ });
+		expect(agentPill).toBeTruthy();
+		expect((agentPill as HTMLButtonElement).disabled).toBe(false);
 	});
 
-	it("hides the toggle for a non-listing agent (Kiro shows only the unified Local store)", () => {
+	it("always shows the toggle but disables the Agent pill for a non-listing agent (Kiro), with a tooltip (D3)", () => {
 		render(
 			<SessionHistoryContent
-				{...makeProps({ capabilities: KIRO_CAPS })}
+				{...makeProps({
+					capabilities: KIRO_CAPS,
+					currentAgentLabel: "Kiro CLI",
+				})}
 			/>,
 		);
-		expect(screen.queryByRole("tab", { name: "Agent" })).toBeNull();
+		const agentPill = screen.getByRole("tab", { name: /Kiro CLI/ });
+		expect((agentPill as HTMLButtonElement).disabled).toBe(true);
+		expect(agentPill.getAttribute("title")).toMatch(
+			/doesn't keep a session list/,
+		);
+		// Local pill is still there and active.
+		expect(
+			screen
+				.getByRole("tab", { name: "Local" })
+				.getAttribute("aria-selected"),
+		).toBe("true");
 	});
 
-	it("clicking Agent persists the choice and refetches from the agent", () => {
+	it("clicking the Agent pill persists the choice and refetches from the agent", () => {
 		const onSourceChange = vi.fn();
 		const onFetchSessions = vi.fn();
 		render(
@@ -89,7 +106,7 @@ describe("SessionHistoryContent — Local/Agent toggle", () => {
 				{...makeProps({ onSourceChange, onFetchSessions })}
 			/>,
 		);
-		fireEvent.click(screen.getByRole("tab", { name: "Agent" }));
+		fireEvent.click(screen.getByRole("tab", { name: /Claude Code/ }));
 		expect(onSourceChange).toHaveBeenCalledWith("agent");
 		expect(onFetchSessions).toHaveBeenCalledWith("agent", "/vault");
 	});
@@ -110,6 +127,44 @@ describe("SessionHistoryContent — Local/Agent toggle", () => {
 	});
 });
 
+describe("SessionHistoryContent — fork action (D1)", () => {
+	afterEach(cleanup);
+
+	it("renders the fork icon on a Local row and calls onForkSession with the row's id + cwd", () => {
+		const onForkSession = vi.fn(async () => {});
+		render(
+			<SessionHistoryContent
+				{...makeProps({
+					sessions: [row("c1", "a claude session", "claude")],
+					onForkSession,
+				})}
+			/>,
+		);
+		const forkBtn = screen.getByRole("button", {
+			name: "Fork session into a new tab",
+		});
+		fireEvent.click(forkBtn);
+		expect(onForkSession).toHaveBeenCalledWith("c1", "/vault");
+	});
+
+	it("offers fork on a non-fork-capable agent too (agent-agnostic, RC-2)", () => {
+		render(
+			<SessionHistoryContent
+				{...makeProps({
+					capabilities: KIRO_CAPS,
+					currentAgentLabel: "Kiro CLI",
+					sessions: [row("k1", "a kiro session", "kiro")],
+				})}
+			/>,
+		);
+		expect(
+			screen.getByRole("button", {
+				name: "Fork session into a new tab",
+			}),
+		).toBeTruthy();
+	});
+});
+
 describe("SessionHistoryContent — per-row agent badge", () => {
 	afterEach(cleanup);
 
@@ -121,7 +176,9 @@ describe("SessionHistoryContent — per-row agent badge", () => {
 				})}
 			/>,
 		);
-		expect(screen.getByText("Claude Code")).toBeTruthy();
+		// Query by the badge's aria-label so it isn't confused with the Agent
+		// pill (which now also reads the agent name).
+		expect(screen.getByLabelText("Agent: Claude Code")).toBeTruthy();
 	});
 });
 

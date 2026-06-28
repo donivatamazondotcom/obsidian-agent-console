@@ -237,8 +237,16 @@ interface SessionHistoryContentProps {
 	/** agentId → display name, for the per-row agent badge on the Local view. */
 	agentLabels: Record<string, string>;
 
+	/**
+	 * Display name of the current tab's agent — labels the Agent pill so the
+	 * user knows whose server sessions the Agent view shows (D2).
+	 */
+	currentAgentLabel: string;
+
 	/** Callback when a session is restored */
 	onRestoreSession: (sessionId: string, cwd: string) => Promise<void>;
+	/** Callback when a session is forked into a new tab */
+	onForkSession: (sessionId: string, cwd: string) => Promise<void>;
 	/** Callback when a session is deleted */
 	onDeleteSession: (sessionId: string) => void | Promise<void>;
 	/** Callback when a session title is edited */
@@ -441,9 +449,11 @@ function SessionItem({
 	snippet,
 	query,
 	canRestore,
+	canFork,
 	agentLabel,
 	currentCwd,
 	onRestoreSession,
+	onForkSession,
 	onDeleteSession,
 	onEditTitle,
 	onClose,
@@ -452,9 +462,11 @@ function SessionItem({
 	snippet?: SearchSnippet;
 	query: string;
 	canRestore: boolean;
+	canFork: boolean;
 	agentLabel?: string;
 	currentCwd: string;
 	onRestoreSession: (sessionId: string, cwd: string) => Promise<void>;
+	onForkSession: (sessionId: string, cwd: string) => Promise<void>;
 	onDeleteSession: (sessionId: string) => void | Promise<void>;
 	onEditTitle: (sessionId: string) => void;
 	onClose: () => void;
@@ -463,6 +475,11 @@ function SessionItem({
 		onClose();
 		void onRestoreSession(session.sessionId, session.cwd);
 	}, [session, onRestoreSession, onClose]);
+
+	const handleFork = useCallback(() => {
+		onClose();
+		void onForkSession(session.sessionId, session.cwd);
+	}, [session, onForkSession, onClose]);
 
 
 	const handleDelete = useCallback(() => {
@@ -540,6 +557,14 @@ function SessionItem({
 						onClick={handleRestore}
 					/>
 				)}
+				{canFork && (
+					<IconButton
+						iconName="git-branch"
+						label="Fork session into a new tab"
+						className="agent-client-session-history-action-icon agent-client-session-history-fork-icon"
+						onClick={handleFork}
+					/>
+				)}
 				<IconButton
 					iconName="trash-2"
 					label="Delete session"
@@ -576,7 +601,9 @@ export function SessionHistoryContent({
 	initialSource,
 	agentSessionCache,
 	agentLabels,
+	currentAgentLabel,
 	onRestoreSession,
+	onForkSession,
 	onDeleteSession,
 	onEditTitle,
 	onLoadMore,
@@ -779,54 +806,54 @@ export function SessionHistoryContent({
 				</div>
 			)}
 
-			{view.banner === "local-saved" && (
-				<div className="agent-client-session-history-local-banner">
-					<span>These sessions are saved in the plugin.</span>
-				</div>
-			)}
+			{/* The "local-saved" banner was removed: the explicit [Local] pill
+			    now conveys the source, so the extra line was redundant and
+			    added vertical churn when toggling (D4). */}
 
 			{(
 				<>
-					{/* Local / Agent source toggle — replaces the two filter
-					    checkboxes. The Agent pill is offered only when the agent
-					    can enumerate server-side sessions; an agent without
-					    session/list (e.g. Kiro CLI) shows just the unified Local
-					    store with no toggle. Native buttons for keyboard
+					{/* Local / Agent source toggle — replaces the old filter
+					    checkboxes. Always shown for consistency/transparency:
+					    the Agent pill is named after the tab's agent (D2) and
+					    is disabled with a tooltip when that agent can't list
+					    server sessions (D3 — e.g. Kiro CLI), rather than
+					    silently vanishing. Native buttons for keyboard
 					    activation + focus ring (Keyboard-first tenet). */}
-					{view.agentViewAvailable && (
-						<div
-							className="agent-client-session-history-source-toggle"
-							role="tablist"
-							aria-label="Session source"
+					<div
+						className="agent-client-session-history-source-toggle"
+						role="tablist"
+						aria-label="Session source"
+					>
+						<button
+							type="button"
+							role="tab"
+							aria-selected={view.listSource === "local"}
+							className={`agent-client-session-history-source-pill${
+								view.listSource === "local" ? " is-active" : ""
+							}`}
+							onClick={() => handleSourceToggle("local")}
 						>
-							<button
-								type="button"
-								role="tab"
-								aria-selected={view.listSource === "local"}
-								className={`agent-client-session-history-source-pill${
-									view.listSource === "local"
-										? " is-active"
-										: ""
-								}`}
-								onClick={() => handleSourceToggle("local")}
-							>
-								Local
-							</button>
-							<button
-								type="button"
-								role="tab"
-								aria-selected={view.listSource === "agent"}
-								className={`agent-client-session-history-source-pill${
-									view.listSource === "agent"
-										? " is-active"
-										: ""
-								}`}
-								onClick={() => handleSourceToggle("agent")}
-							>
-								Agent
-							</button>
-						</div>
-					)}
+							Local
+						</button>
+						<button
+							type="button"
+							role="tab"
+							aria-selected={view.listSource === "agent"}
+							aria-label={`Agent server sessions (${currentAgentLabel})`}
+							disabled={!view.agentViewAvailable}
+							title={
+								view.agentViewAvailable
+									? undefined
+									: `${currentAgentLabel} doesn't keep a session list on its server, so only your local history is available.`
+							}
+							className={`agent-client-session-history-source-pill${
+								view.listSource === "agent" ? " is-active" : ""
+							}`}
+							onClick={() => handleSourceToggle("agent")}
+						>
+							{currentAgentLabel}
+						</button>
+					</div>
 
 					{/* Disconnected Agent view — served from the last-synced
 					    metadata cache with a freshness affordance instead of
@@ -874,7 +901,10 @@ export function SessionHistoryContent({
 					    Local spans every vault, so it carries no filter. */}
 					{view.showFilters && (
 						<div className="agent-client-session-history-filter">
-							<label className="agent-client-session-history-filter-label">
+							<label
+								className="agent-client-session-history-filter-label"
+								title="Only show the agent's sessions whose working folder is this vault."
+							>
 								<input
 									type="checkbox"
 									checked={filterByCurrentVault}
@@ -956,6 +986,7 @@ export function SessionHistoryContent({
 									snippet={snippet}
 									query={query}
 									canRestore={view.restore !== "hidden"}
+									canFork={view.fork === "available"}
 									agentLabel={
 										session.agentId
 											? agentLabels[session.agentId]
@@ -963,6 +994,7 @@ export function SessionHistoryContent({
 									}
 									currentCwd={currentCwd}
 									onRestoreSession={onRestoreSession}
+									onForkSession={onForkSession}
 									onDeleteSession={
 										handleDeleteWithConfirmation
 									}

@@ -1992,6 +1992,11 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	font-weight: var(--font-medium);
 }
 
+.agent-client-session-history-source-pill:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
 /* "Synced N ago — connect to refresh" affordance on the disconnected Agent
    view. */
 .agent-client-session-history-sync-affordance {
