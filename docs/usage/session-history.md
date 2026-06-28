@@ -14,6 +14,23 @@ Click the **History** button (clock icon) in the chat header to open the session
   <img src="/images/session-history-button.webp" alt="Session history button in chat header" />
 </p>
 
+## Local and Agent views
+
+Your history has two views, switched with the toggle at the top of the modal:
+
+- **Local** (the default): every session this plugin saved — across **all your agents** and **all your vaults**. This is your full history. Each row shows a small badge naming the agent that ran it, so you can tell a Claude Code session from a Kiro CLI one at a glance. A session you forked here shows up right away, because the plugin saved it locally — it never depends on the agent listing it.
+- **Agent**: the sessions the agent itself knows about, pulled from its own server. Use this to find a conversation you started outside Agent Console. The Agent pill is **named after the tab's agent** (for example, **Claude Code**), so you can tell whose sessions you're looking at. For an agent that doesn't keep a server-side session list (for example, Kiro CLI), the Agent pill is shown but **disabled**, with a tooltip explaining why — only the Local view is available there.
+
+The toggle remembers your last choice.
+
+### The Agent view when you're not connected
+
+Agent Console keeps a small list of your agent's sessions, refreshed each time the agent connects. So even before this tab connects, the Agent view can show that list — marked with when it was last refreshed (for example, "Synced 5 minutes ago – send a message to reconnect and refresh"). Sending a message connects the agent and pulls the latest.
+
+### Coming from Agent Client?
+
+If you switched from the original Agent Client plugin, your earlier sessions live on the agent, not in Agent Console's local store yet. When your Local view is empty but your agent has sessions, the empty state points you to the Agent view so you can find them.
+
 ## Searching Sessions
 
 A search box sits at the top of the history modal. Type to filter the list as you go:
@@ -22,6 +39,8 @@ A search box sits at the top of the history modal. Type to filter the list as yo
 - **Content match** searches inside your saved transcripts — so you can find a session by something that was *said* in it, even when the title doesn't mention it. The first time you focus the search box the plugin indexes your transcripts (a brief "Searching transcripts…" note shows while it works); after that, filtering is immediate.
 
 Matches that hit message content show a short snippet with the term highlighted, so you can confirm it's the right session before opening it. Search is fully local — no agent connection required.
+
+On the **Agent** view, a **This vault only** checkbox limits the list to sessions from your current vault. (The Local view always spans every vault, so it has no filter.) Agent-view rows the plugin hasn't saved a transcript for can only be matched by their title — content search needs a local transcript.
 
 ## Available Actions
 
@@ -32,10 +51,11 @@ Depending on the agent's capabilities, you can perform the following actions:
 | **Search** | Filter the list by title or message content as you type |
 | **Edit title** | Rename the session from the history modal |
 | **Restore** | Reopen the session in a **new tab**, right where you left off — your current chat is never replaced |
+| **Fork** | Branch the session into a **new tab**. Works with any agent — see Fork below for how context is (or isn't) carried over |
 | **Delete** | Remove the session from history |
 
 ::: tip
-Restore doesn't require a connected agent — opening a session reconnects automatically on your first message. It's offered whenever a session can be reopened (from the agent or from local data).
+Restore and Fork don't require a connected agent — opening a session reconnects automatically on your first message. Both are offered whenever a session can be reopened (from the agent or from local data).
 :::
 
 ## Session Storage
@@ -62,6 +82,21 @@ Restoring a session reopens it in a **new tab** — your current chat is left un
 
 Use restore when you want to **continue where you left off** without losing your current chat.
 
+### Fork
+
+Forking opens a **new tab** that branches from a previous session:
+
+1. The new tab opens immediately, showing the conversation up to that point
+2. The original session and your current chat both remain unchanged
+3. New messages go to the forked branch
+
+Use fork when you want to **explore a different direction** without affecting the original conversation.
+
+**Agent support.** Fork works with any agent, but how much context carries over depends on the agent:
+
+- Agents that support server-side forking (`session/fork`) create a true branch that keeps the assistant's full context.
+- Other agents start a **fresh session** that shows the prior transcript for reference, but the assistant won't have the earlier conversation's context (the transcript is stored locally, not on the agent). You'll see a one-time notice on the first reply — the same notice shown when restoring a session that only exists on disk.
+
 ## Deleting Sessions
 
 To delete a session:
@@ -83,6 +118,6 @@ This appears only when a session can't be reopened at all — the agent advertis
 
 The agent is still initializing. Wait a moment for the agent to become ready.
 
-### "No previous sessions"
+### "No local sessions yet"
 
-No sessions have been saved yet for the current agent and vault. Start a new conversation to create your first session.
+The Local view has no saved sessions for you yet. Start a conversation to create your first one. If your agent already has sessions (you used it elsewhere, or came from Agent Client), the empty state links you to the **Agent** view to find them.

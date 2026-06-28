@@ -120,7 +120,8 @@ src/
 │   ├── SuggestionPopup.tsx      # Mention/command dropdown
 │   ├── PermissionBanner.tsx     # Permission request buttons
 │   ├── ErrorBanner.tsx          # Error/notification overlay
-│   ├── SessionHistoryModal.tsx  # Session history modal (list + confirm delete)
+│   ├── SessionHistoryModal.tsx  # Session history modal (Local/Agent source toggle, per-row agent badge, search, confirm delete, migration empty-state, disconnected-Agent sync affordance)
+│   ├── session-intent-confirm.ts # SEAM (Track 1↔2): shared confirm/carry-over modal interface — Track 2 owns the component, Track 1 defines the contract
 │   ├── ChangeDirectoryModal.ts  # Per-tab cwd change modal (sets working dir for agent process)
 │   ├── ImportSettingsModal.ts  # Cross-plugin settings-import preview + apply dialog
 │   ├── AgentPickerModal.ts      # FuzzySuggestModal agent picker for "New chat with agent…"
@@ -156,7 +157,7 @@ src/
 │   ├── tab-agent-invariant.ts   # Pure fail-loud invariant: a tab's live session agent == its selected agent
 │   ├── resolveInitialAgentId.ts # Pure: agent a fresh (non-restored) tab opens on — Default agent when restore-tabs is off (TP-I05)
 │   ├── send-affordance.ts       # Pure send-enablement resolver (deriveSendAffordance → canSend/buttonDisabled/reason) + isSessionLive; single source for ChatPanel/InputArea/InputToolbar/MessageList/broadcast
-│   ├── session-history-view.ts  # Pure session-history gating resolver (deriveSessionHistoryView → listSource/showFilters/restore/fork/banner) from the normalized AgentCapabilities; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
+│   ├── session-history-view.ts  # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source) → listSource/agentViewAvailable/showFilters/restore/fork/banner); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
 │   └── logger.ts                # Debug-mode logger
 ├── plugin.ts                    # Obsidian plugin lifecycle, settings persistence
 └── main.ts                      # Entry point

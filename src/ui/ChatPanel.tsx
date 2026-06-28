@@ -152,6 +152,18 @@ export interface ChatPanelProps {
 	) => void | Promise<void>;
 	/** Persisted session ID for this tab (from tab persistence). Passed to useLazySession for session/load on first keystroke. */
 	restoredSessionId?: string | null;
+	/**
+	 * Session to fork from on first acquisition (Track C). Set on a tab opened
+	 * via Session History "fork": the first send branches a NEW session from
+	 * this id (connect-then-fork) while the seeded transcript displays.
+	 */
+	restoredForkSessionId?: string | null;
+	/**
+	 * Explicit, collision-suffixed "Fork: …" title for a fork tab (Track C).
+	 * Recorded as the branch's history title via the single writer so it is
+	 * set on create and preserved across later turn-end saves.
+	 */
+	restoredForkTitle?: string;
 	/** Restored message history for this tab (from tab persistence). Seeded into the message list on async arrival while idle (I43). */
 	restoredMessages?: ChatMessage[];
 	/** Restored context notes for this tab (from tab persistence). Rehydrates the context strip on async arrival while idle (I61). */
@@ -257,6 +269,8 @@ export function ChatPanel({
 	onCloseTab,
 	onOpenSessionInTab,
 	restoredSessionId,
+	restoredForkSessionId,
+	restoredForkTitle,
 	restoredMessages,
 	restoredContextNotes,
 	historyRecoverable,
@@ -987,6 +1001,12 @@ export function ChatPanel({
 		// hook calls loadExistingSession on first keystroke instead of
 		// acquireNewSession.
 		restoredSessionId: restoredSessionId ?? null,
+		// Track C: when set, acquisition forks a NEW branch from this id
+		// instead of loading/creating (restore/fork-in-new-tab).
+		forkFromSessionId: restoredForkSessionId ?? null,
+		// Fork is eager — but only once the agent is initialized (capabilities
+		// known) so the fork/new call doesn't race the ACP handshake.
+		eagerAcquire: !!restoredForkSessionId && !!session.capabilities,
 
 		acquireNewSession: useCallback(async () => {
 			try {
@@ -1074,6 +1094,93 @@ export function ChatPanel({
 			agent.setIgnoreUpdates,
 			logger,
 		]),
+
+		// Track C (RC-2) — agent-agnostic fork for a tab opened via Session
+		// History "fork". `session/fork`-capable agents branch server-side
+		// (context retained); others get a LOCAL branch (a fresh session seeded
+		// with the transcript — the agent has no server-side history, so we
+		// flag `lossy` and the disk-only-restore notice is shown). The branch
+		// is persisted to history immediately so it appears + is renamable
+		// before the first send.
+		forkExistingSession: useCallback(
+			async (originalSessionId: string) => {
+				const agentId = session.agentId;
+				const serverForks = session.capabilities?.forks ?? false;
+				let newId: string;
+				let lossy = false;
+				try {
+					if (serverForks) {
+						const result = await acpClient.forkSession(
+							originalSessionId,
+							agentCwd,
+						);
+						void agent.updateSessionFromLoad(
+							result.sessionId,
+							result.modes,
+							result.models,
+							result.configOptions,
+						);
+						newId = result.sessionId;
+					} else {
+						const sid = await agent.createSession(agentId);
+						if (!sid) {
+							return {
+								ok: false as const,
+								error: new Error(
+									"Fork (local branch) produced no sessionId",
+								),
+							};
+						}
+						newId = sid;
+						lossy = true;
+					}
+				} catch (err) {
+					return {
+						ok: false as const,
+						error:
+							err instanceof Error
+								? err
+								: new Error(String(err)),
+					};
+				}
+
+				// Persist the branch to history through the SINGLE WRITER
+				// (useSessionHistory.saveSessionMessages → SessionStore) — NEVER
+				// a direct settingsService.saveSession, which would race the
+				// turn-end save and clobber the title (the 723f868 bug; see
+				// learned/skill-rules § single writer of record). The explicit
+				// fork title is passed as suggestedTitle so it is set on create
+				// and preserved across later no-title turn-end saves (forks get
+				// no AI title; deriveSessionRecordTitle keeps the existing one).
+				sessionHistory.saveSessionMessages(
+					newId,
+					restoredMessages ?? [],
+					restoredContextNotes ?? undefined,
+					restoredForkTitle ?? "Fork: Session",
+				);
+				// Invalidate the session-list cache so reopening Session History
+				// re-fetches and shows the new branch. The 5-min cache was
+				// populated when the modal was opened to fork, so without this
+				// the reopened modal returns the stale pre-fork list (the old
+				// forkSession called invalidateCache; the orchestration dropped
+				// it).
+				sessionHistory.invalidateCache();
+				return { ok: true as const, sessionId: newId, lossy };
+			},
+			[
+				session.agentId,
+				session.capabilities,
+				acpClient,
+				agentCwd,
+				agent.createSession,
+				agent.updateSessionFromLoad,
+				sessionHistory.saveSessionMessages,
+				sessionHistory.invalidateCache,
+				restoredMessages,
+				restoredContextNotes,
+				restoredForkTitle,
+			],
+		),
 
 		sendPrompt: useCallback(async () => {
 			// Queue flush is owned by ChatPanel's connect-flush effect
@@ -1205,6 +1312,20 @@ export function ChatPanel({
 		cancelledRef.current = true;
 		await handleStopGeneration();
 	}, [handleStopGeneration]);
+
+	// Mirror the agent's server-session metadata into the local cache on
+	// connect (Session History Source Model Decision 1). One session/list of
+	// metadata for a listing agent, persisted so the Agent view is non-empty
+	// cold and shows its freshness even while disconnected. Best-effort.
+	useEffect(() => {
+		if (!isSessionReady || !sessionHistory.capabilities.listsSessions)
+			return;
+		void sessionHistory.syncAgentSessionMetaCache();
+	}, [
+		isSessionReady,
+		sessionHistory.capabilities.listsSessions,
+		sessionHistory.syncAgentSessionMetaCache,
+	]);
 
 	// Apply configured model when session is ready
 	useEffect(() => {

@@ -13,6 +13,7 @@ import type {
 } from "../types/session";
 import { SessionStore } from "../services/session-store";
 import { NO_AGENT_CAPABILITIES } from "../types/session";
+import type { SessionListSource } from "../utils/session-history-view";
 import type { ChatMessage } from "../types/chat";
 import { extractErrorMessage } from "../utils/error-utils";
 import type { ContextNote } from "../types/context";
@@ -116,11 +117,14 @@ export interface UseSessionHistoryReturn {
 	localSessionIds: Set<string>;
 
 	/**
-	 * Fetch sessions list from agent.
+	 * Fetch the session list for the chosen source.
 	 * Replaces existing sessions in state.
-	 * @param cwd - Optional working directory filter
+	 * @param source - "local" (the unified local store, every agent) or
+	 *   "agent" (the agent's server-side session/list). Defaults to Local for
+	 *   every agent; falls back to Local when the agent cannot list.
+	 * @param cwd - Optional working-directory filter (Agent view only).
 	 */
-	fetchSessions: (cwd?: string) => Promise<void>;
+	fetchSessions: (source: SessionListSource, cwd?: string) => Promise<void>;
 
 	/**
 	 * Load more sessions (pagination).
@@ -217,6 +221,12 @@ export interface UseSessionHistoryReturn {
 	loadSessionMessages: (
 		sessionId: string,
 	) => Promise<import("../types/chat").ChatMessage[] | null>;
+
+	/**
+	 * Mirror the agent's `session/list` metadata into the local cache. Call on
+	 * connect for a listing agent; powers the disconnected Agent view.
+	 */
+	syncAgentSessionMetaCache: () => Promise<void>;
 }
 
 /**
@@ -344,37 +354,38 @@ export function useSessionHistory(
 		cacheRef.current = null;
 	}, []);
 
-	// Check if any restoration operation is available
-	const canPerformAnyOperation =
-		capabilities.restoresViaLoad || capabilities.restoresViaResume || capabilities.forks;
-
 	/**
-	 * Fetch sessions list from agent or local storage.
-	 * Uses agent's session/list if supported, otherwise falls back to local storage.
-	 * For agents that don't support restoration, local sessions are used for deletion.
-	 * Replaces existing sessions in state.
+	 * Fetch the session list for the chosen source.
+	 *
+	 * - **Local** (default): the canonical "your history" — EVERY agent's saved
+	 *   sessions across ALL vaults. Drops the per-agent filter so a
+	 *   plugin-created fork (and sessions from other agents) appears even on a
+	 *   listing agent's tab — the motivating Session History Source Model fix.
+	 *   The cwd "This vault only" filter does NOT apply to Local; it is the
+	 *   whole local store. Each row carries its `agentId` for the badge and for
+	 *   per-row action resolution. No agent call.
+	 * - **Agent**: the agent's server-side `session/list` (e.g. Claude),
+	 *   honoring the cwd filter, with local titles overlaid. Cached.
+	 *
+	 * An "agent" source falls back to Local when the agent cannot list — this
+	 * mirrors `deriveSessionHistoryView`'s capability gate so the fetch and the
+	 * resolved view never disagree.
 	 */
 	const fetchSessions = useCallback(
-		async (cwd?: string) => {
-			// Use local sessions if:
-			// - Agent doesn't support session/list, OR
-			// - Agent doesn't support any restoration operation (for delete only)
-			const shouldUseLocalSessions =
-				!capabilities.listsSessions || !canPerformAnyOperation;
+		async (source: SessionListSource, cwd?: string) => {
+			const useLocal = source === "local" || !capabilities.listsSessions;
 
-			if (shouldUseLocalSessions) {
-				// Get locally saved sessions for this agent
-				const localSessions = settingsAccess.getSavedSessions(
-					session.agentId,
-					cwd,
-				);
+			if (useLocal) {
+				// Unified local store: every agent, every vault. No agentId or
+				// cwd filter — Local is the user's whole history.
+				const localSessions = settingsAccess.getSavedSessions();
 
-				// Convert SavedSessionInfo to SessionInfo format
 				const sessionInfos: SessionInfo[] = localSessions.map((s) => ({
 					sessionId: s.sessionId,
 					cwd: s.cwd,
 					title: s.title,
 					updatedAt: s.updatedAt,
+					agentId: s.agentId,
 				}));
 
 				setSessions(sessionInfos);
@@ -452,7 +463,6 @@ export function useSessionHistory(
 		[
 			agentClient,
 			capabilities.listsSessions,
-			canPerformAnyOperation,
 			isCacheValid,
 			settingsAccess,
 			session.agentId,
@@ -914,6 +924,36 @@ export function useSessionHistory(
 		[settingsAccess],
 	);
 
+	/**
+	 * Mirror the agent's server-session metadata into the local cache (Session
+	 * History Source Model Decision 1, "Mirror cheap, import explicit" tenet).
+	 *
+	 * `session/list` returns metadata only — no transcripts — so this is a
+	 * cheap, faithful one-shot mirror. Called on connect (agent ready) for a
+	 * listing agent; the cache then powers the **disconnected** Agent view with
+	 * a "synced N ago" affordance. Best-effort: a failed list leaves the prior
+	 * cache intact (never presents an empty list as a fresh sync).
+	 */
+	const syncAgentSessionMetaCache = useCallback(async () => {
+		if (!session.agentId || !capabilities.listsSessions) return;
+		try {
+			const result = await agentClient.listSessions();
+			const agentId = session.agentId;
+			const current = settingsAccess.getSnapshot().agentSessionMetaCache;
+			await settingsAccess.updateSettings({
+				agentSessionMetaCache: {
+					...current,
+					[agentId]: {
+						sessions: result.sessions,
+						syncedAt: new Date().toISOString(),
+					},
+				},
+			});
+		} catch {
+			// Best-effort mirror — keep the last good cache on failure.
+		}
+	}, [agentClient, capabilities.listsSessions, session.agentId, settingsAccess]);
+
 	return useMemo(
 		() => ({
 			sessions,
@@ -943,6 +983,7 @@ export function useSessionHistory(
 			applySessionTitle,
 			loadSessionMessages,
 			invalidateCache,
+			syncAgentSessionMetaCache,
 		}),
 		[
 			sessions,
@@ -966,6 +1007,7 @@ export function useSessionHistory(
 			applySessionTitle,
 			loadSessionMessages,
 			invalidateCache,
+			syncAgentSessionMetaCache,
 		],
 	);
 }

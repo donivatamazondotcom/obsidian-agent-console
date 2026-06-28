@@ -191,3 +191,51 @@ describe("SessionStore save-ordering (I114)", () => {
 		expect(titleOf(port)).toBe(FIRST_MESSAGE);
 	});
 });
+
+// ============================================================================
+// Track C / RC-2 — fork title must survive via the single writer
+// ============================================================================
+
+describe("SessionStore — explicit fork title preservation", () => {
+	it("keeps an explicit 'Fork: …' title across a concurrent and a later no-title turn-end save", async () => {
+		// Agent-agnostic fork sets an explicit "Fork: …" title at branch
+		// creation through the SINGLE writer; the seeded transcript means no AI
+		// title is ever generated, so the first turn-end save carries no
+		// suggestedTitle. The 723f868 bug used a DIRECT settingsService
+		// .saveSession for the fork persist, which raced the turn-end
+		// recordTurnSave and clobbered "Fork: hi" with the first-message text.
+		// Routed through the one serialized writer, the explicit title survives.
+		const FORK_TITLE = "Fork: hi";
+		const port = new FakePort();
+		const store = new SessionStore(port);
+
+		// Eager fork persist (explicit title) + concurrent turn-end save (none).
+		await Promise.all([
+			store.recordTurnSave({
+				sessionId: SID,
+				agentId: AGENT,
+				cwd: CWD,
+				messages: [userMsg(FIRST_MESSAGE)],
+				suggestedTitle: FORK_TITLE,
+			}),
+			store.recordTurnSave({
+				sessionId: SID,
+				agentId: AGENT,
+				cwd: CWD,
+				messages: [userMsg(FIRST_MESSAGE)],
+				suggestedTitle: null,
+			}),
+		]);
+		expect(titleOf(port)).toBe(FORK_TITLE);
+
+		// A later turn-end save (still no AI title) preserves it too.
+		await store.recordTurnSave({
+			sessionId: SID,
+			agentId: AGENT,
+			cwd: CWD,
+			messages: [userMsg(FIRST_MESSAGE), userMsg("a follow-up")],
+			suggestedTitle: null,
+		});
+		expect(titleOf(port)).toBe(FORK_TITLE);
+	});
+});

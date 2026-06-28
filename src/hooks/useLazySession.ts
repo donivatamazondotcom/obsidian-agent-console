@@ -80,7 +80,7 @@ import {
  * boundary and translate to this shape.
  */
 export type SessionAcquisitionResult =
-	| { ok: true; sessionId: string }
+	| { ok: true; sessionId: string; lossy?: boolean }
 	| { ok: false; error: Error };
 
 export interface UseLazySessionOptions {
@@ -97,6 +97,34 @@ export interface UseLazySessionOptions {
 
 	/** Resume an existing session. Wraps `acpClient.loadSession(id, cwd)`. */
 	loadExistingSession: (sessionId: string) => Promise<SessionAcquisitionResult>;
+
+	/**
+	 * Session to FORK from on first acquisition (Track C — restore/fork in a
+	 * new tab). `null` / `undefined` → not a fork tab. When set (and
+	 * `forkExistingSession` is provided), the first acquisition branches a NEW
+	 * session from this id instead of loading or creating one. Takes precedence
+	 * over `restoredSessionId`. No load/new fallback — a failed fork surfaces
+	 * as `connectFailed` so the seeded transcript stays visible for retry.
+	 */
+	forkFromSessionId?: string | null;
+
+	/**
+	 * Fork an existing session into a new branch. Wraps
+	 * `acpClient.forkSession(id, cwd)`; the result carries the NEW branch
+	 * sessionId. Required only when `forkFromSessionId` is set.
+	 */
+	forkExistingSession?: (
+		sessionId: string,
+	) => Promise<SessionAcquisitionResult>;
+
+	/**
+	 * Acquire eagerly on mount (instead of waiting for the first send). Used
+	 * for fork tabs — fork is an explicit "branch now" intent, so the branch
+	 * is minted immediately (visible in history, renamable pre-send). The
+	 * consumer flips this true only once the agent is initialized
+	 * (capabilities known) so the fork/new call doesn't race the handshake.
+	 */
+	eagerAcquire?: boolean;
 
 	/** Send a prompt against an active session. Used to flush queued messages. */
 	sendPrompt: (sessionId: string, message: string) => Promise<void>;
@@ -187,6 +215,9 @@ export function useLazySession(
 		restoredSessionId = null,
 		acquireNewSession,
 		loadExistingSession,
+		forkFromSessionId = null,
+		forkExistingSession,
+		eagerAcquire = false,
 		sendPrompt,
 		debounceMs = DEFAULT_DEBOUNCE_MS,
 	} = options;
@@ -202,14 +233,20 @@ export function useLazySession(
 	const debounceTimerRef = useRef<number | null>(null);
 	const isAcquiringRef = useRef(false);
 	const restoredSessionIdRef = useRef<string | null>(restoredSessionId);
+	// Init-once (NOT re-synced every render) — mirrors restoredSessionIdRef.
+	// reset() clears this; a per-render resync would immediately undo that,
+	// letting a new-chat on a fork tab re-fork (caught by the reset test).
+	const forkFromSessionIdRef = useRef<string | null>(forkFromSessionId);
 
 	// Stable refs to the latest callbacks. Recreating useCallbacks on every
 	// callback identity change would invalidate timer cleanup; refs sidestep.
 	const acquireNewSessionRef = useRef(acquireNewSession);
 	const loadExistingSessionRef = useRef(loadExistingSession);
+	const forkExistingSessionRef = useRef(forkExistingSession);
 	const sendPromptRef = useRef(sendPrompt);
 	acquireNewSessionRef.current = acquireNewSession;
 	loadExistingSessionRef.current = loadExistingSession;
+	forkExistingSessionRef.current = forkExistingSession;
 	sendPromptRef.current = sendPrompt;
 
 	// Stable refs to state-machine transition methods (already stable from
@@ -228,10 +265,28 @@ export function useLazySession(
 
 		tabStateRef.current.startConnect();
 
-		// Restored tab path: try load first, fall through to new on failure.
+		// Acquisition source, in precedence order: fork > restore > new.
 		let result: SessionAcquisitionResult;
+		const forkId = forkFromSessionIdRef.current;
 		const restoredId = restoredSessionIdRef.current;
-		if (restoredId) {
+		if (forkId && forkExistingSessionRef.current) {
+			// Fork branch: mint a NEW session branched from forkId. The callback
+			// performs a server-side fork (agent retains context) OR a local
+			// branch (fresh session seeded with the transcript) and persists
+			// the branch to history. A local branch has no server-side history,
+			// so the callback returns `lossy` and we raise isFallbackRecovery
+			// to show the same "working from a transcript" notice as a disk-only
+			// restore (RC-2 transparency). No load/new fallback here — a failed
+			// fork surfaces as connectFailed; the seeded transcript stays
+			// visible so the user can retry.
+			result = await forkExistingSessionRef.current(forkId);
+			if (result.ok) {
+				forkFromSessionIdRef.current = null;
+				if (result.lossy) {
+					setIsFallbackRecovery(true);
+				}
+			}
+		} else if (restoredId) {
 			result = await loadExistingSessionRef.current(restoredId);
 			if (!result.ok) {
 				// Fallback: forget the restored ID (so a future retry goes
@@ -359,8 +414,10 @@ export function useLazySession(
 			debounceTimerRef.current = null;
 		}
 		isAcquiringRef.current = false;
-		// Forget any restored sessionId — "new chat" means brand new from now on.
+		// Forget any restored / fork-pending sessionId — "new chat" means brand
+		// new from now on.
 		restoredSessionIdRef.current = null;
+		forkFromSessionIdRef.current = null;
 		setSessionId(null);
 		setIsFallbackRecovery(false);
 		tabStateRef.current.reset();
@@ -393,6 +450,21 @@ export function useLazySession(
 			}
 		};
 	}, []);
+
+	// Eager acquisition for fork tabs: once `eagerAcquire` flips true (the
+	// consumer gates it on the agent being initialized), mint the branch
+	// immediately rather than waiting for the first send. Idempotent — the
+	// sessionId / isAcquiring guards prevent a double-fire.
+	useEffect(() => {
+		if (
+			eagerAcquire &&
+			forkFromSessionIdRef.current &&
+			sessionId === null &&
+			!isAcquiringRef.current
+		) {
+			void fireAcquisition();
+		}
+	}, [eagerAcquire, sessionId, fireAcquisition]);
 
 	return {
 		state: tabState.state,

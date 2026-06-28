@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
 	deriveSessionHistoryView,
 	type SessionHistoryView,
+	type SessionListSource,
 } from "../session-history-view";
 import type { AgentCapabilities } from "../../types/session";
 
@@ -34,41 +35,89 @@ const CLAUDE_CODE = caps({
 const KIRO_CLI = caps({ restoresViaResume: true });
 
 // ============================================================================
-// listSource — agent session/list vs plugin-local saved sessions
+// listSource — toggle-driven, defaulting to Local for EVERY agent (Decision 3)
 // ============================================================================
 
-describe("deriveSessionHistoryView — listSource", () => {
-	it("is 'agent' when the agent advertises session/list", () => {
+describe("deriveSessionHistoryView — listSource (toggle-driven, default Local)", () => {
+	it("defaults to 'local' even for a listing agent (Claude) when no source is chosen", () => {
+		// Decision 3: the local store is the canonical record; a Claude user
+		// lands on Local and clicks Agent to browse server history. This is the
+		// behavior that makes a plugin-created fork visible by default.
+		expect(deriveSessionHistoryView(CLAUDE_CODE, true, true).listSource).toBe(
+			"local",
+		);
+	});
+
+	it("is 'agent' only when the user chooses Agent AND the agent advertises session/list", () => {
 		expect(
-			deriveSessionHistoryView(caps({ listsSessions: true }), true, true)
-				.listSource,
+			deriveSessionHistoryView(CLAUDE_CODE, true, true, "agent").listSource,
 		).toBe("agent");
 	});
 
-	it("is 'local' when the agent does not advertise session/list", () => {
+	it("falls back to 'local' when Agent is chosen but the agent cannot list (Kiro)", () => {
 		expect(
-			deriveSessionHistoryView(caps({ listsSessions: false }), true, true)
-				.listSource,
+			deriveSessionHistoryView(KIRO_CLI, true, true, "agent").listSource,
+		).toBe("local");
+	});
+
+	it("is 'local' when Local is explicitly chosen, regardless of capability", () => {
+		expect(
+			deriveSessionHistoryView(CLAUDE_CODE, true, true, "local").listSource,
 		).toBe("local");
 	});
 });
 
 // ============================================================================
-// showFilters — the filter-checkbox facet (folded in from the modal)
+// agentViewAvailable — whether the [Agent] pill is offered
+// ============================================================================
+
+describe("deriveSessionHistoryView — agentViewAvailable", () => {
+	it("is true for an agent that advertises session/list (Claude)", () => {
+		expect(
+			deriveSessionHistoryView(CLAUDE_CODE, true, true).agentViewAvailable,
+		).toBe(true);
+	});
+
+	it("is false for a plugin-local agent with no session/list (Kiro)", () => {
+		expect(
+			deriveSessionHistoryView(KIRO_CLI, true, true).agentViewAvailable,
+		).toBe(false);
+	});
+
+	it("does not depend on the chosen source", () => {
+		expect(
+			deriveSessionHistoryView(CLAUDE_CODE, true, true, "local")
+				.agentViewAvailable,
+		).toBe(true);
+		expect(
+			deriveSessionHistoryView(CLAUDE_CODE, true, true, "agent")
+				.agentViewAvailable,
+		).toBe(true);
+	});
+});
+
+// ============================================================================
+// showFilters — the "This vault only" cwd filter, Agent-view only
 // ============================================================================
 
 describe("deriveSessionHistoryView — showFilters", () => {
-	it("shows filters only when listing from the agent", () => {
+	it("shows the filter only on the resolved Agent view", () => {
 		expect(
-			deriveSessionHistoryView(caps({ listsSessions: true }), true, true)
+			deriveSessionHistoryView(CLAUDE_CODE, true, true, "agent")
 				.showFilters,
 		).toBe(true);
 	});
 
-	it("hides filters for plugin-local lists (Kiro CLI has no filter checkboxes)", () => {
-		expect(deriveSessionHistoryView(KIRO_CLI, true, true).showFilters).toBe(
-			false,
-		);
+	it("hides the filter on the Local view (default), even for a listing agent", () => {
+		expect(
+			deriveSessionHistoryView(CLAUDE_CODE, true, true).showFilters,
+		).toBe(false);
+	});
+
+	it("hides the filter for plugin-local agents (Kiro has no filter)", () => {
+		expect(
+			deriveSessionHistoryView(KIRO_CLI, true, true, "agent").showFilters,
+		).toBe(false);
 	});
 });
 
@@ -102,19 +151,23 @@ describe("deriveSessionHistoryView — restore", () => {
 
 	it("is 'hidden' only for an agent-listed source with no restore capability AND no local data", () => {
 		expect(
-			deriveSessionHistoryView(caps({ listsSessions: true }), true, false)
-				.restore,
+			deriveSessionHistoryView(
+				caps({ listsSessions: true }),
+				true,
+				false,
+				"agent",
+			).restore,
 		).toBe("hidden");
 	});
 
-	it("is NOT 'hidden' for a plugin-local source even with no local-data overlay (RC-3)", () => {
-		// A local list IS the local data — restorable from disk.
+	it("is 'local-only' on the Local view even with no local-data overlay (RC-3)", () => {
+		// A local source IS the local data — restorable from disk.
 		expect(deriveSessionHistoryView(caps(), true, false).restore).toBe(
 			"local-only",
 		);
 	});
 
-	it("prefers the agent path (live) over local even when local data exists", () => {
+	it("prefers the agent path (live) over local even when no overlay data exists", () => {
 		expect(
 			deriveSessionHistoryView(caps({ restoresViaLoad: true }), true, false)
 				.restore,
@@ -134,19 +187,19 @@ describe("deriveSessionHistoryView — fork", () => {
 	});
 
 	it("is 'available' for any agent that can restore — even without session/fork (agent-agnostic, RC-2)", () => {
-		// Local-branch fallback: fork is offered; the server-vs-local choice is
-		// made at acquisition time, not here.
 		expect(deriveSessionHistoryView(caps(), true, true).fork).toBe(
 			"available",
 		);
 	});
 
 	it("is 'hidden' only when there is nothing to restore or branch", () => {
-		// Agent-listed source, no restore capability, no local data → restore
-		// hidden → fork hidden.
 		expect(
-			deriveSessionHistoryView(caps({ listsSessions: true }), true, false)
-				.fork,
+			deriveSessionHistoryView(
+				caps({ listsSessions: true }),
+				true,
+				false,
+				"agent",
+			).fork,
 		).toBe("hidden");
 	});
 });
@@ -156,9 +209,15 @@ describe("deriveSessionHistoryView — fork", () => {
 // ============================================================================
 
 describe("deriveSessionHistoryView — banner", () => {
-	it("is 'none' for an agent-listed, restore-capable agent (Claude Code)", () => {
+	it("is 'none' for an agent-listed, restore-capable agent on the Agent view (Claude)", () => {
+		expect(
+			deriveSessionHistoryView(CLAUDE_CODE, true, true, "agent").banner,
+		).toBe("none");
+	});
+
+	it("is 'local-saved' on the Local view (default), including for Claude", () => {
 		expect(deriveSessionHistoryView(CLAUDE_CODE, true, true).banner).toBe(
-			"none",
+			"local-saved",
 		);
 	});
 
@@ -170,15 +229,16 @@ describe("deriveSessionHistoryView — banner", () => {
 
 	it("is 'no-restore-capability' only when restore is hidden (agent source, no data)", () => {
 		expect(
-			deriveSessionHistoryView(caps({ listsSessions: true }), true, false)
-				.banner,
+			deriveSessionHistoryView(
+				caps({ listsSessions: true }),
+				true,
+				false,
+				"agent",
+			).banner,
 		).toBe("no-restore-capability");
 	});
 
 	it("a local source shows 'local-saved', never the no-restore banner, even pre-fetch (RC-3)", () => {
-		// Kiro CLI pre-connect: NO_AGENT_CAPABILITIES (all false) is a local
-		// source. The banner must be a stable 'local-saved', not the
-		// misleading "does not support restoration" that flickered before.
 		expect(deriveSessionHistoryView(caps(), false, false).banner).toBe(
 			"local-saved",
 		);
@@ -188,18 +248,11 @@ describe("deriveSessionHistoryView — banner", () => {
 	});
 
 	it("never shows a 'connect to an agent' banner — connection is not a banner input", () => {
-		// I09: the old modal showed an orange "Connect to an agent…" banner
-		// when disconnected. The banner enum has no such member; disconnected
-		// + local data is a plain operable state.
 		const disconnected = deriveSessionHistoryView(KIRO_CLI, false, true);
 		expect(disconnected.banner).toBe("local-saved");
 	});
 
 	it("suppresses the 'no restoration' banner when local data is available (I41)", () => {
-		// I41: the old modal showed "This agent does not support session
-		// restoration" for a no-capability agent even though local data could
-		// be restored. The resolver returns local-only restore + local-saved
-		// banner instead.
 		const v = deriveSessionHistoryView(caps(), true, true);
 		expect(v.restore).toBe("local-only");
 		expect(v.banner).toBe("local-saved");
@@ -216,30 +269,47 @@ describe("deriveSessionHistoryView — banner", () => {
 // ============================================================================
 
 describe("deriveSessionHistoryView — connection invariance (I09/I41)", () => {
-	const profiles: { name: string; caps: AgentCapabilities; hasLocalData: boolean }[] =
-		[
-			{ name: "Claude Code + local data", caps: CLAUDE_CODE, hasLocalData: true },
-			{ name: "Claude Code, no local data", caps: CLAUDE_CODE, hasLocalData: false },
-			{ name: "Kiro CLI + local data", caps: KIRO_CLI, hasLocalData: true },
-			{ name: "no-capability + local data", caps: caps(), hasLocalData: true },
-			{ name: "no-capability, no local data", caps: caps(), hasLocalData: false },
-			{
-				name: "fork-only + local data",
-				caps: caps({ forks: true }),
-				hasLocalData: true,
-			},
-		];
+	const profiles: {
+		name: string;
+		caps: AgentCapabilities;
+		hasLocalData: boolean;
+	}[] = [
+		{ name: "Claude Code + local data", caps: CLAUDE_CODE, hasLocalData: true },
+		{
+			name: "Claude Code, no local data",
+			caps: CLAUDE_CODE,
+			hasLocalData: false,
+		},
+		{ name: "Kiro CLI + local data", caps: KIRO_CLI, hasLocalData: true },
+		{ name: "no-capability + local data", caps: caps(), hasLocalData: true },
+		{ name: "no-capability, no local data", caps: caps(), hasLocalData: false },
+		{
+			name: "fork-only + local data",
+			caps: caps({ forks: true }),
+			hasLocalData: true,
+		},
+	];
+
+	const sources: SessionListSource[] = ["local", "agent"];
 
 	for (const p of profiles) {
-		it(`output is identical whether ready or not — ${p.name}`, () => {
-			const ready = deriveSessionHistoryView(p.caps, true, p.hasLocalData);
-			const notReady = deriveSessionHistoryView(
-				p.caps,
-				false,
-				p.hasLocalData,
-			);
-			expect(notReady).toEqual(ready);
-		});
+		for (const source of sources) {
+			it(`output is identical whether ready or not — ${p.name} (source=${source})`, () => {
+				const ready = deriveSessionHistoryView(
+					p.caps,
+					true,
+					p.hasLocalData,
+					source,
+				);
+				const notReady = deriveSessionHistoryView(
+					p.caps,
+					false,
+					p.hasLocalData,
+					source,
+				);
+				expect(notReady).toEqual(ready);
+			});
+		}
 	}
 });
 
@@ -249,7 +319,9 @@ describe("deriveSessionHistoryView — connection invariance (I09/I41)", () => {
 
 describe("deriveSessionHistoryView — totality over the input cube", () => {
 	const bools = [true, false];
-	it("is total: every (caps × isAgentReady × hasLocalData) cell resolves", () => {
+	const sources: SessionListSource[] = ["local", "agent"];
+
+	it("is total: every (caps × isAgentReady × hasLocalData × source) cell resolves", () => {
 		const listSources: SessionHistoryView["listSource"][] = [];
 		const restores: SessionHistoryView["restore"][] = [];
 		const forks: SessionHistoryView["fork"][] = [];
@@ -260,28 +332,58 @@ describe("deriveSessionHistoryView — totality over the input cube", () => {
 					for (const forksCap of bools)
 						for (const reportsModels of bools)
 							for (const ready of bools)
-								for (const hasLocalData of bools) {
-									const v = deriveSessionHistoryView(
-										{
-											listsSessions,
-											restoresViaLoad,
-											restoresViaResume,
-											forks: forksCap,
-											reportsModels,
-										},
-										ready,
-										hasLocalData,
-									);
-									listSources.push(v.listSource);
-									restores.push(v.restore);
-									forks.push(v.fork);
-									banners.push(v.banner);
-								}
-		// 2^7 = 128 cells, all resolved without throwing.
-		expect(listSources).toHaveLength(128);
-		// banner is consistent with restore: no-restore-capability iff restore hidden
+								for (const hasLocalData of bools)
+									for (const source of sources) {
+										const v = deriveSessionHistoryView(
+											{
+												listsSessions,
+												restoresViaLoad,
+												restoresViaResume,
+												forks: forksCap,
+												reportsModels,
+											},
+											ready,
+											hasLocalData,
+											source,
+										);
+										listSources.push(v.listSource);
+										restores.push(v.restore);
+										forks.push(v.fork);
+										banners.push(v.banner);
+									}
+		// 2^7 × 2 sources = 256 cells, all resolved without throwing.
+		expect(listSources).toHaveLength(256);
 		expect(restores).toContain("hidden");
 		expect(banners).toContain("no-restore-capability");
+	});
+
+	it("agent view requires the capability: listSource 'agent' ⇒ listsSessions", () => {
+		for (const listsSessions of bools)
+			for (const source of sources) {
+				const v = deriveSessionHistoryView(
+					caps({ listsSessions }),
+					true,
+					true,
+					source,
+				);
+				if (v.listSource === "agent") {
+					expect(listsSessions).toBe(true);
+					expect(source).toBe("agent");
+				}
+			}
+	});
+
+	it("showFilters ⇔ resolved Agent view (invariant)", () => {
+		for (const listsSessions of bools)
+			for (const source of sources) {
+				const v = deriveSessionHistoryView(
+					caps({ listsSessions }),
+					true,
+					true,
+					source,
+				);
+				expect(v.showFilters).toBe(v.listSource === "agent");
+			}
 	});
 
 	it("banner is 'no-restore-capability' iff restore is 'hidden' (invariant)", () => {
@@ -289,21 +391,23 @@ describe("deriveSessionHistoryView — totality over the input cube", () => {
 			for (const restoresViaLoad of bools)
 				for (const restoresViaResume of bools)
 					for (const forksCap of bools)
-						for (const hasLocalData of bools) {
-							const v = deriveSessionHistoryView(
-								{
-									listsSessions,
-									restoresViaLoad,
-									restoresViaResume,
-									forks: forksCap,
-									reportsModels: false,
-								},
-								true,
-								hasLocalData,
-							);
-							expect(v.banner === "no-restore-capability").toBe(
-								v.restore === "hidden",
-							);
-						}
-	});
+						for (const hasLocalData of bools)
+							for (const source of sources) {
+								const v = deriveSessionHistoryView(
+									{
+										listsSessions,
+										restoresViaLoad,
+										restoresViaResume,
+										forks: forksCap,
+										reportsModels: false,
+									},
+									true,
+									hasLocalData,
+									source,
+								);
+								expect(
+									v.banner === "no-restore-capability",
+								).toBe(v.restore === "hidden");
+							}
+		});
 });

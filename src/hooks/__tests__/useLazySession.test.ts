@@ -570,3 +570,120 @@ describe("useLazySession — recoverHistory (I72)", () => {
 		expect(options.acquireNewSession).not.toHaveBeenCalled();
 	});
 });
+
+// ============================================================================
+// useLazySession — fork acquisition (Track C / RC-2, agent-agnostic fork)
+// ============================================================================
+
+describe("useLazySession — fork acquisition (Track C / RC-2)", () => {
+	beforeEach(() => vi.useFakeTimers());
+	afterEach(() => {
+		vi.runOnlyPendingTimers();
+		vi.useRealTimers();
+	});
+
+	it("forks via forkExistingSession on send; a server branch is NOT lossy", async () => {
+		const forkExistingSession = vi
+			.fn()
+			.mockResolvedValue({ ok: true, sessionId: "branch-1", lossy: false });
+		const { result } = renderHook(() =>
+			useLazySession(
+				makeOptions({ forkFromSessionId: "orig-1", forkExistingSession }),
+			),
+		);
+		await act(async () => {
+			result.current.onSendClick("hi");
+			await vi.advanceTimersByTimeAsync(0);
+		});
+		expect(forkExistingSession).toHaveBeenCalledWith("orig-1");
+		expect(result.current.sessionId).toBe("branch-1");
+		expect(result.current.isFallbackRecovery).toBe(false);
+	});
+
+	it("a local-branch fork (lossy result) raises isFallbackRecovery for transparency", async () => {
+		const forkExistingSession = vi.fn().mockResolvedValue({
+			ok: true,
+			sessionId: "branch-local",
+			lossy: true,
+		});
+		const { result } = renderHook(() =>
+			useLazySession(
+				makeOptions({ forkFromSessionId: "orig-1", forkExistingSession }),
+			),
+		);
+		await act(async () => {
+			result.current.onSendClick("hi");
+			await vi.advanceTimersByTimeAsync(0);
+		});
+		expect(result.current.sessionId).toBe("branch-local");
+		expect(result.current.isFallbackRecovery).toBe(true);
+	});
+
+	it("eagerAcquire forks on mount, without waiting for a send", async () => {
+		const forkExistingSession = vi
+			.fn()
+			.mockResolvedValue({ ok: true, sessionId: "branch-eager", lossy: true });
+		const { result } = renderHook(() =>
+			useLazySession(
+				makeOptions({
+					forkFromSessionId: "orig-1",
+					forkExistingSession,
+					eagerAcquire: true,
+				}),
+			),
+		);
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(0);
+		});
+		expect(forkExistingSession).toHaveBeenCalledWith("orig-1");
+		expect(result.current.sessionId).toBe("branch-eager");
+	});
+
+	it("does NOT eager-acquire when eagerAcquire is false (stays lazy until send)", async () => {
+		const forkExistingSession = vi
+			.fn()
+			.mockResolvedValue({ ok: true, sessionId: "branch-x" });
+		const { result } = renderHook(() =>
+			useLazySession(
+				makeOptions({
+					forkFromSessionId: "orig-1",
+					forkExistingSession,
+					eagerAcquire: false,
+				}),
+			),
+		);
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(0);
+		});
+		expect(forkExistingSession).not.toHaveBeenCalled();
+		expect(result.current.sessionId).toBeNull();
+	});
+
+	it("reset() clears a pending fork so a later new-chat acquires fresh, not a re-fork", async () => {
+		const forkExistingSession = vi
+			.fn()
+			.mockResolvedValue({ ok: true, sessionId: "branch-1" });
+		const acquireNewSession = vi
+			.fn()
+			.mockResolvedValue({ ok: true, sessionId: "fresh-1" });
+		const { result } = renderHook(() =>
+			useLazySession(
+				makeOptions({
+					forkFromSessionId: "orig-1",
+					forkExistingSession,
+					acquireNewSession,
+				}),
+			),
+		);
+		act(() => {
+			result.current.reset();
+		});
+		await act(async () => {
+			result.current.onSendClick("hi");
+			await vi.advanceTimersByTimeAsync(0);
+		});
+		expect(forkExistingSession).not.toHaveBeenCalled();
+		expect(acquireNewSession).toHaveBeenCalled();
+		expect(result.current.sessionId).toBe("fresh-1");
+	});
+});

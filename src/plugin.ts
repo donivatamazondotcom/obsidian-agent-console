@@ -41,7 +41,11 @@ import {
 	CustomAgentSettings,
 	KiroAgentSettings,
 } from "./types/agent";
-import type { SavedSessionInfo } from "./types/session";
+import type {
+	SavedSessionInfo,
+	AgentSessionMetaCacheEntry,
+} from "./types/session";
+import type { SessionListSource } from "./utils/session-history-view";
 import type { PerLeafTabState } from "./types/tab";
 import type { TitleStrategy } from "./types/title-strategy";
 import { initializeLogger, getLogger } from "./utils/logger";
@@ -127,6 +131,19 @@ export interface AgentClientPluginSettings {
 	};
 	// Locally saved session metadata (for agents without session/list support)
 	savedSessions: SavedSessionInfo[];
+	/**
+	 * Persisted Session History source toggle. Defaults to "local" — the
+	 * canonical local store is the source of truth for "your history"
+	 * (Session History Source Model Decision 3). The last choice is remembered
+	 * across opens (Decision 2; global scope).
+	 */
+	sessionHistorySource: SessionListSource;
+	/**
+	 * Per-agent cache of server-session metadata (agentId → entry), mirrored
+	 * on connect via one `session/list`. Powers the disconnected Agent view
+	 * with a "synced N ago — connect to refresh" affordance (Decision 1).
+	 */
+	agentSessionMetaCache: Record<string, AgentSessionMetaCacheEntry>;
 	// Last used model per agent (agentId → modelId)
 	lastUsedModels: Record<string, string>;
 	// Last used mode per agent (agentId → modeId)

@@ -13,13 +13,23 @@ import type { UseAgentReturn } from "../useAgent";
 import type { UseSessionHistoryReturn } from "../useSessionHistory";
 
 function makePlugin() {
-	return { app: {} as App } as unknown as Parameters<
-		typeof useHistoryModal
-	>[0];
+	return {
+		app: {} as App,
+		settingsService: {
+			getSnapshot: () => ({
+				sessionHistorySource: "local",
+				agentSessionMetaCache: {},
+			}),
+		},
+		getAvailableAgents: () => [],
+	} as unknown as Parameters<typeof useHistoryModal>[0];
 }
 
 function makeAgent() {
-	return { clearMessages: vi.fn() } as unknown as UseAgentReturn;
+	return {
+		clearMessages: vi.fn(),
+		session: { agentId: "test-agent" },
+	} as unknown as UseAgentReturn;
 }
 
 function makeSessionHistory(
