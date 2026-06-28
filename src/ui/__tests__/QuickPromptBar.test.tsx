@@ -12,7 +12,11 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { setIcon } from "obsidian";
-import { QuickPromptBar } from "../QuickPromptBar";
+import {
+	QuickPromptBar,
+	NEW_TAB_CHIP_TOOLTIP,
+	THIS_TAB_CHIP_TOOLTIP,
+} from "../QuickPromptBar";
 import type { QuickPrompt } from "../../types/quick-prompt";
 
 afterEach(cleanup);
@@ -59,6 +63,14 @@ describe("QuickPromptBar — T21", () => {
 		).toHaveLength(1);
 		expect(screen.queryByText("↩")).toBeNull();
 		expect(setIcon).toHaveBeenCalledWith(expect.anything(), "external-link");
+		// Guidance tooltip lives in aria-label — Obsidian's themed tooltip
+		// mechanism (not the native `title`). new-tab vs this-tab matrix.
+		expect(
+			screen.getByText("Daily brief").closest("button")!.getAttribute("aria-label"),
+		).toBe(NEW_TAB_CHIP_TOOLTIP);
+		expect(
+			screen.getByText("Sync opps").closest("button")!.getAttribute("aria-label"),
+		).toBe(THIS_TAB_CHIP_TOOLTIP);
 	});
 
 	it("fires the plain gesture on click; ⌥-click sets insert", () => {
@@ -67,7 +79,7 @@ describe("QuickPromptBar — T21", () => {
 		render(
 			<QuickPromptBar prompts={[prompt]} hasPendingQueue={false} onFire={onFire} />,
 		);
-		const chip = screen.getByRole("button", { name: "Sync opps" });
+		const chip = screen.getByText("Sync opps").closest("button")!;
 		fireEvent.click(chip);
 		expect(onFire).toHaveBeenLastCalledWith(prompt, PLAIN);
 		fireEvent.click(chip, { altKey: true });

@@ -29,6 +29,17 @@ import { quickPromptGestureFromEvent } from "../utils/quick-prompt-gesture";
 export const QUEUED_CHIP_TOOLTIP =
 	"A message is queued — Edit or Delete it to send something else";
 
+/**
+ * Guidance tooltips enumerating the modifier matrix (plain language). Set as
+ * the chip's `aria-label` so Obsidian renders its own themed tooltip (the
+ * sanctioned mechanism — Obsidian reads tooltip text from `aria-label`), NOT
+ * the native `title` attribute (inconsistent styling + long delay).
+ */
+export const NEW_TAB_CHIP_TOOLTIP =
+	"Click: open in a new tab · ⌘-click: open in the background · ⌥-click: drop into the box to edit first";
+export const THIS_TAB_CHIP_TOOLTIP =
+	"Click: send in this chat · ⌘-click: send in a new background tab (add ⇧ to switch there) · ⌥-click: drop into the box to edit first";
+
 export interface QuickPromptBarProps {
 	/** Prompts already matched to the active note (`matchPromptsForNote`). */
 	prompts: QuickPrompt[];
@@ -105,7 +116,9 @@ function QuickPromptChip({
 			aria-label={
 				disabled
 					? `${prompt.label} — ${QUEUED_CHIP_TOOLTIP}`
-					: prompt.label
+					: prompt.newTab
+						? NEW_TAB_CHIP_TOOLTIP
+						: THIS_TAB_CHIP_TOOLTIP
 			}
 			onClick={(e) => {
 				e.preventDefault();
