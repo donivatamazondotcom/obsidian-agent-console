@@ -57,11 +57,7 @@ export function QuickPromptBar({
 	// Ephemeral: no matching prompts ⇒ no row at all.
 	if (prompts.length === 0) return null;
 	return (
-		<div
-			className="agent-client-quick-prompt-bar"
-			role="toolbar"
-			aria-label="Quick prompts"
-		>
+		<div className="agent-client-quick-prompt-bar">
 			{prompts.map((prompt) => (
 				<QuickPromptChip
 					key={prompt.id}
