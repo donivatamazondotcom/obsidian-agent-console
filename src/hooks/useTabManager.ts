@@ -21,8 +21,8 @@ export interface UseTabManagerReturn {
 	activeTabId: string;
 	/** Currently active tab info */
 	activeTab: TabInfo;
-	/** Add a new tab and switch to it */
-	addTab: (agentId: string, label?: string) => string;
+	/** Add a new tab. Activates it unless `activate` is false (background open). */
+	addTab: (agentId: string, label?: string, activate?: boolean) => string;
 	/** Remove a tab by ID. Returns the new active tab ID. */
 	removeTab: (tabId: string) => string | null;
 	/** Remove all tabs except the given one */
@@ -125,10 +125,14 @@ export function useTabManager(
 	);
 
 	const addTab = useCallback(
-		(agentId: string, label?: string): string => {
+		(agentId: string, label?: string, activate = true): string => {
 			const tab = createTab(agentId, label);
 			setTabs((prev) => [...prev, tab]);
-			setActiveTabId(tab.tabId);
+			// Background open (activate:false) appends without switching — the
+			// new tab still mounts (all tabs render) and consumes its
+			// initialPrompt, so a background quick-prompt fire sends without
+			// stealing focus from the user's current tab.
+			if (activate) setActiveTabId(tab.tabId);
 			return tab.tabId;
 		},
 		[],

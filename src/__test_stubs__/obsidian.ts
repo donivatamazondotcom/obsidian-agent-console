@@ -87,6 +87,15 @@ export const Platform = {
 	isDesktop: true,
 };
 
+export const Keymap = {
+	/** Mirrors Obsidian: ⌘/⌃ or a middle-click → a pane type ("tab"); else false. */
+	isModEvent(evt?: MouseEvent | KeyboardEvent | null): string | boolean {
+		if (!evt) return false;
+		const middleClick = (evt as MouseEvent).button === 1;
+		return evt.metaKey || evt.ctrlKey || middleClick ? "tab" : false;
+	},
+};
+
 export class FileSystemAdapter {
 	getBasePath() {
 		return "";

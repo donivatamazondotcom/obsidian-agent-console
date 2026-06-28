@@ -109,7 +109,9 @@ export function buildQuickPrompt(input: QuickPromptFileInput): QuickPrompt {
 		tags: fm ? normalizeTags(fm["tags"]) : undefined,
 		agent: fm ? normalizeString(fm["agent"]) : undefined,
 		mode: fm ? normalizeString(fm["mode"]) : undefined,
-		newTab: fm ? fm["newTab"] === true : undefined,
+		// Default target = new tab, via the `open in new tab` checkbox (D5).
+		// No `newTab` back-compat — that key was never in a released build.
+		newTab: fm ? fm["open in new tab"] === true : undefined,
 	};
 }
 
@@ -149,7 +151,7 @@ export function resolvePromptText(
 }
 
 // ============================================================================
-// Fire / insert / queue / disabled decision
+// Fire / insert / queue / disabled decision — the browser-true 2×2
 // ============================================================================
 
 export type QuickPromptAction =
@@ -161,9 +163,30 @@ export type QuickPromptAction =
 
 export type QuickPromptReason = "no-selection" | "unsent-draft";
 
-export interface QuickPromptDecisionInput {
-	/** A tweak modifier (⇧ or ⌥) is held → insert instead of fire. */
-	modifier: boolean;
+/**
+ * A quick-prompt activation gesture, decomposed into the two browser-true
+ * axes (see [[Agent Console Quick Prompts UX Refinement]] § The action model):
+ *
+ * - **Where (Axis A):** `openElsewhere` — `Keymap.isModEvent` is truthy
+ *   (⌘/⌃ or middle-click), clamped to a tab. With `foreground` (⇧) the new
+ *   tab is switched to; without it, it opens in the background.
+ * - **Commitment (Axis B):** `insert` — ⌥ is held → stage in the composer
+ *   instead of sending (the browser's ⌥-click "capture, don't navigate").
+ *
+ * Bare ⇧ (no ⌘) is inert: `foreground` only modifies a new-tab open.
+ */
+export interface QuickPromptGesture {
+	/** ⌘/⌃/middle-click — open in a new tab. */
+	openElsewhere: boolean;
+	/** ⇧ — when opening a new tab, switch to it (foreground). */
+	foreground: boolean;
+	/** ⌥ — insert/stage instead of send. */
+	insert: boolean;
+}
+
+export interface QuickPromptDecisionInput extends QuickPromptGesture {
+	/** The prompt's `open in new tab` checkbox — default target is a new tab. */
+	defaultNewTab: boolean;
 	/** The composer holds unsent draft text. */
 	composerHasText: boolean;
 	/** A turn is in flight (queue slot empty). */
@@ -174,53 +197,55 @@ export interface QuickPromptDecisionInput {
 	usesSelection: boolean;
 	/** A non-empty editor selection exists. */
 	hasSelection: boolean;
-	/**
-	 * The prompt is declared `newTab: true` — fire into a fresh tab/session.
-	 * A newTab prompt bypasses the current-tab guard entirely (never queue /
-	 * insert / disabled because of current-tab state). Absent ⇒ current-tab.
-	 */
-	newTab?: boolean;
 }
 
 export interface QuickPromptDecision {
 	action: QuickPromptAction;
 	reason?: QuickPromptReason;
-	/**
-	 * For a `new-tab` action: send into the fresh tab (true) vs only seed its
-	 * composer for the user to edit (false). Unset for current-tab actions.
-	 */
+	/** For `new-tab`: send into the fresh tab (true) vs only seed its composer. */
 	send?: boolean;
+	/** For `new-tab`: switch to it (true) vs open in the background (false). */
+	foreground?: boolean;
 }
 
 /**
- * Decide what a current-tab quick-prompt activation does. Precedence:
+ * Decide what a quick-prompt activation does, browser-true (2×2).
  *
- * 1. **queued (slot full)** → `disabled` (plain or modifier — composer is
- *    `readOnly`, nothing to insert into; Edit/Delete the pending one).
- * 2. **modifier** → `insert` (tweak-before-send; never fires).
- * 3. **`{{selection}}` with no selection** → `insert` (`no-selection`); a
- *    half-formed prompt is never fired/queued.
- * 4. **unsent draft present** → `insert` (`unsent-draft`); never discard,
- *    overwrite, or auto-send over a draft.
- * 5. **empty composer, streaming** → `queue` (parity with typed input).
- * 6. **empty composer, idle** → `fire`.
+ * **Where** — the target is a new tab when the gesture escalates
+ * (`openElsewhere`, ⌘/middle-click) OR the prompt declares `open in new tab`.
+ * A new-tab target **bypasses the current-tab guard** (queue/draft/streaming).
+ * Foreground/background is inherited from the browser: a declared-new-tab
+ * prompt **foregrounds** on a plain click (the `target="_blank"` analogue);
+ * ⌘ forces **background**; ⌘⇧ foregrounds.
+ *
+ * **Commitment** — ⌥ (`insert`) stages instead of sending; a `{{selection}}`
+ * prompt with nothing selected also stages (never fires half-formed).
+ *
+ * Current-tab precedence (no new-tab target): queued → `disabled`; ⌥ →
+ * `insert`; no-selection → `insert`; unsent draft → `insert`; streaming →
+ * `queue`; else `fire`.
  */
 export function decideQuickPromptAction(
 	input: QuickPromptDecisionInput,
 ): QuickPromptDecision {
-	// newTab prompts always spawn a fresh tab; they bypass the current-tab
-	// guard (queued/streaming/draft) entirely. Plain fire sends into the new
-	// tab; a modifier (tweak) or a {{selection}} prompt with nothing selected
-	// only seeds the new tab's composer (never auto-sends a half-formed prompt).
-	if (input.newTab) {
+	const targetNewTab = input.openElsewhere || input.defaultNewTab;
+	if (targetNewTab) {
+		// Plain click on a declared-new-tab prompt foregrounds (target=_blank);
+		// an explicit ⌘ opens in the background unless ⇧ is also held.
+		const foreground = input.openElsewhere ? input.foreground : true;
 		if (input.usesSelection && !input.hasSelection) {
-			return { action: "new-tab", send: false, reason: "no-selection" };
+			return {
+				action: "new-tab",
+				send: false,
+				foreground,
+				reason: "no-selection",
+			};
 		}
-		if (input.modifier) return { action: "new-tab", send: false };
-		return { action: "new-tab", send: true };
+		if (input.insert) return { action: "new-tab", send: false, foreground };
+		return { action: "new-tab", send: true, foreground };
 	}
 	if (input.isQueued) return { action: "disabled" };
-	if (input.modifier) return { action: "insert" };
+	if (input.insert) return { action: "insert" };
 	if (input.usesSelection && !input.hasSelection) {
 		return { action: "insert", reason: "no-selection" };
 	}
@@ -235,8 +260,7 @@ export function decideQuickPromptAction(
 // Plan = decision + resolved text (the single entry the hook calls)
 // ============================================================================
 
-export interface QuickPromptPlanContext {
-	modifier: boolean;
+export interface QuickPromptPlanContext extends QuickPromptGesture {
 	composerHasText: boolean;
 	isStreaming: boolean;
 	isQueued: boolean;
@@ -251,13 +275,14 @@ export interface QuickPromptPlan {
 	reason?: QuickPromptReason;
 	/** For `new-tab`: send into the fresh tab vs only seed its composer. */
 	send?: boolean;
+	/** For `new-tab`: switch to it vs open in the background. */
+	foreground?: boolean;
 }
 
 /**
  * Compose the decision and placeholder resolution into a single plan. The hook
  * calls this with the live composer/queue/selection state and then dispatches
- * per `action` (`fire`/`queue` → set composer + send; `insert` → drop at
- * cursor; `disabled` → no-op).
+ * per `action`.
  */
 export function planQuickPromptFire(
 	prompt: Pick<QuickPrompt, "body" | "usesSelection" | "newTab">,
@@ -266,18 +291,21 @@ export function planQuickPromptFire(
 	const hasSelection =
 		ctx.selectionText != null && ctx.selectionText.length > 0;
 	const decision = decideQuickPromptAction({
-		modifier: ctx.modifier,
+		openElsewhere: ctx.openElsewhere,
+		foreground: ctx.foreground,
+		insert: ctx.insert,
 		composerHasText: ctx.composerHasText,
 		isStreaming: ctx.isStreaming,
 		isQueued: ctx.isQueued,
 		usesSelection: prompt.usesSelection,
 		hasSelection,
-		newTab: prompt.newTab === true,
+		defaultNewTab: prompt.newTab === true,
 	});
 	return {
 		action: decision.action,
 		reason: decision.reason,
 		send: decision.send,
+		foreground: decision.foreground,
 		text: resolvePromptText(prompt.body, ctx.selectionText),
 	};
 }
@@ -291,6 +319,14 @@ export const UNSENT_DRAFT_NOTICE = "Added to your draft — review and send";
 export function noSelectionNotice(label: string): string {
 	return `"${label}" needs a selection — dropped into the composer instead.`;
 }
+/** Toast shown when a prompt is sent into a new **background** tab. */
+export function newTabStartedNotice(label: string): string {
+	return `Started "${label}" in a new tab.`;
+}
+/** Toast shown when a prompt seeds a new **background** tab's composer (no send). */
+export function newTabSeedNotice(label: string): string {
+	return `Opened "${label}" in a new tab to edit.`;
+}
 
 /** Side-effecting actions the executor invokes per the planned action. */
 export interface QuickPromptActions {
@@ -301,10 +337,10 @@ export interface QuickPromptActions {
 	insert(text: string): void;
 	/**
 	 * Open a fresh tab/session and either send `text` there (`send: true`) or
-	 * only seed its composer for the user to edit (`send: false`). Used for
-	 * `newTab` prompts; bypasses the current-tab composer entirely.
+	 * only seed its composer (`send: false`); `foreground` switches to the new
+	 * tab vs opening it in the background. Bypasses the current-tab composer.
 	 */
-	openInNewTab(text: string, opts: { send: boolean }): void;
+	openInNewTab(text: string, opts: { send: boolean; foreground: boolean }): void;
 	/** Show a transient notice. */
 	notify(message: string): void;
 }
@@ -313,10 +349,6 @@ export interface QuickPromptActions {
  * Run a quick prompt: compute the plan from the live composer/queue/selection
  * context, then invoke the matching action. `disabled` (slot full) is a no-op.
  * Returns the plan so callers/tests can assert the chosen branch.
- *
- * This is the single behavior the `useQuickPrompts` hook performs; keeping it
- * pure (callbacks injected) makes the picker/chip out-of-band-but-guarded
- * behavior (T18) testable without mounting React.
  */
 export function executeQuickPrompt(
 	prompt: Pick<QuickPrompt, "body" | "usesSelection" | "label" | "newTab">,
@@ -326,8 +358,6 @@ export function executeQuickPrompt(
 	const plan = planQuickPromptFire(prompt, ctx);
 	switch (plan.action) {
 		case "disabled":
-			// Slot full — composer is locked; nothing to do (Edit/Delete the
-			// pending message instead).
 			break;
 		case "fire":
 		case "queue":
@@ -341,14 +371,24 @@ export function executeQuickPrompt(
 				actions.notify(UNSENT_DRAFT_NOTICE);
 			}
 			break;
-		case "new-tab":
-			actions.openInNewTab(plan.text, { send: plan.send ?? true });
-			// A newTab {{selection}} prompt with nothing selected opens the
-			// tab but only seeds its composer — tell the user why nothing sent.
+		case "new-tab": {
+			const send = plan.send ?? true;
+			const foreground = plan.foreground ?? false;
+			actions.openInNewTab(plan.text, { send, foreground });
+			// Feedback only when the new tab is in the BACKGROUND (foreground
+			// fires are self-evident — you land on the tab). A no-selection
+			// seed explains itself with the no-selection notice instead.
 			if (plan.reason === "no-selection") {
 				actions.notify(noSelectionNotice(prompt.label));
+			} else if (!foreground) {
+				actions.notify(
+					send
+						? newTabStartedNotice(prompt.label)
+						: newTabSeedNotice(prompt.label),
+				);
 			}
 			break;
+		}
 	}
 	return plan;
 }

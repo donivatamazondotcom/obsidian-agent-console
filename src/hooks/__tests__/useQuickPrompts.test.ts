@@ -73,7 +73,7 @@ describe("useQuickPrompts — T18", () => {
 		const { lib } = makeFakeLibrary([prompt()]);
 		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
 
-		act(() => result.current.runQuickPrompt(prompt(), { modifier: false }));
+		act(() => result.current.runQuickPrompt(prompt(), { openElsewhere: false, foreground: false, insert: false }));
 
 		expect(bridge.fireOrQueue).toHaveBeenCalledWith("Debrief this meeting.");
 		expect(bridge.insertAtCursor).not.toHaveBeenCalled();
@@ -84,7 +84,7 @@ describe("useQuickPrompts — T18", () => {
 		const { lib } = makeFakeLibrary([prompt()]);
 		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
 
-		act(() => result.current.runQuickPrompt(prompt(), { modifier: false }));
+		act(() => result.current.runQuickPrompt(prompt(), { openElsewhere: false, foreground: false, insert: false }));
 
 		expect(bridge.insertAtCursor).toHaveBeenCalledWith("Debrief this meeting.");
 		expect(bridge.fireOrQueue).not.toHaveBeenCalled();
@@ -98,7 +98,7 @@ describe("useQuickPrompts — T18", () => {
 		const { lib } = makeFakeLibrary([prompt()]);
 		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
 
-		act(() => result.current.runQuickPrompt(prompt(), { modifier: false }));
+		act(() => result.current.runQuickPrompt(prompt(), { openElsewhere: false, foreground: false, insert: false }));
 
 		expect(bridge.fireOrQueue).not.toHaveBeenCalled();
 		expect(bridge.insertAtCursor).not.toHaveBeenCalled();
@@ -111,7 +111,7 @@ describe("useQuickPrompts — T18", () => {
 		const { lib } = makeFakeLibrary([sel]);
 		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
 
-		act(() => result.current.runQuickPrompt(sel, { modifier: false }));
+		act(() => result.current.runQuickPrompt(sel, { openElsewhere: false, foreground: false, insert: false }));
 
 		expect(bridge.insertAtCursor).toHaveBeenCalledWith("Summarize:\n\n");
 		expect(bridge.fireOrQueue).not.toHaveBeenCalled();
@@ -126,7 +126,7 @@ describe("useQuickPrompts — T18", () => {
 		const { lib } = makeFakeLibrary([sel]);
 		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
 
-		act(() => result.current.runQuickPrompt(sel, { modifier: false }));
+		act(() => result.current.runQuickPrompt(sel, { openElsewhere: false, foreground: false, insert: false }));
 
 		expect(bridge.fireOrQueue).toHaveBeenCalledWith("Summarize:\n\nselected body");
 	});
@@ -136,7 +136,7 @@ describe("useQuickPrompts — T18", () => {
 		const { lib } = makeFakeLibrary([prompt()]);
 		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
 
-		act(() => result.current.runQuickPrompt(prompt(), { modifier: true }));
+		act(() => result.current.runQuickPrompt(prompt(), { openElsewhere: false, foreground: false, insert: true }));
 
 		expect(bridge.insertAtCursor).toHaveBeenCalledWith("Debrief this meeting.");
 		expect(bridge.fireOrQueue).not.toHaveBeenCalled();
@@ -169,9 +169,9 @@ describe("useQuickPrompts — T18", () => {
 		const { lib } = makeFakeLibrary([nt]);
 		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
 
-		act(() => result.current.runQuickPrompt(nt, { modifier: false }));
+		act(() => result.current.runQuickPrompt(nt, { openElsewhere: false, foreground: false, insert: false }));
 
-		expect(bridge.openInNewTab).toHaveBeenCalledWith("Kick off", { send: true });
+		expect(bridge.openInNewTab).toHaveBeenCalledWith("Kick off", { send: true, foreground: true });
 		expect(bridge.fireOrQueue).not.toHaveBeenCalled();
 		expect(bridge.insertAtCursor).not.toHaveBeenCalled();
 	});
@@ -182,9 +182,9 @@ describe("useQuickPrompts — T18", () => {
 		const { lib } = makeFakeLibrary([nt]);
 		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
 
-		act(() => result.current.runQuickPrompt(nt, { modifier: false }));
+		act(() => result.current.runQuickPrompt(nt, { openElsewhere: false, foreground: false, insert: false }));
 
-		expect(bridge.openInNewTab).toHaveBeenCalledWith("Kick off", { send: true });
+		expect(bridge.openInNewTab).toHaveBeenCalledWith("Kick off", { send: true, foreground: true });
 	});
 
 	it("T29: newTab + modifier → openInNewTab(send:false)", () => {
@@ -193,9 +193,9 @@ describe("useQuickPrompts — T18", () => {
 		const { lib } = makeFakeLibrary([nt]);
 		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
 
-		act(() => result.current.runQuickPrompt(nt, { modifier: true }));
+		act(() => result.current.runQuickPrompt(nt, { openElsewhere: false, foreground: false, insert: true }));
 
-		expect(bridge.openInNewTab).toHaveBeenCalledWith("Kick off", { send: false });
+		expect(bridge.openInNewTab).toHaveBeenCalledWith("Kick off", { send: false, foreground: true });
 		expect(bridge.insertAtCursor).not.toHaveBeenCalled();
 	});
 });

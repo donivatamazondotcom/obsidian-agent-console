@@ -1,19 +1,28 @@
 /**
- * QuickPromptBar (T21).
+ * QuickPromptBar (T21 + slice-1 2×2).
  *
  * Empty matched set ⇒ no row. Otherwise a chip per prompt; `newTab` chips show
- * the ↩ marker; click fires (⇧/⌥-click inserts). While queued, current-tab
- * chips are disabled in place (aria-disabled, no-op) while `newTab` chips stay
- * live.
+ * the ↗ (external-link) marker — NOT a return glyph, which would read as Enter.
+ * Click fires the 2×2 gesture (⌘ new tab · ⇧ foreground · ⌥ insert). While
+ * queued, current-tab chips are disabled in place (aria-disabled, no-op) while
+ * `newTab` chips stay live.
  *
- * See [[Agent Console Quick Prompts and Workflows]] § Test Cases T21.
+ * See [[Agent Console Quick Prompts UX Refinement]] § The action model.
  */
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { QuickPromptBar } from "../QuickPromptBar";
+import { setIcon } from "obsidian";
+import {
+	QuickPromptBar,
+	NEW_TAB_CHIP_TOOLTIP,
+	THIS_TAB_CHIP_TOOLTIP,
+} from "../QuickPromptBar";
 import type { QuickPrompt } from "../../types/quick-prompt";
 
 afterEach(cleanup);
+beforeEach(() => vi.clearAllMocks());
+
+const PLAIN = { openElsewhere: false, foreground: false, insert: false };
 
 function p(overrides: Partial<QuickPrompt>): QuickPrompt {
 	return {
@@ -34,8 +43,8 @@ describe("QuickPromptBar — T21", () => {
 		expect(container.firstChild).toBeNull();
 	});
 
-	it("renders a chip per prompt, labelled, with ↩ on newTab chips", () => {
-		render(
+	it("renders a chip per prompt; newTab chips get the ↗ (external-link) marker, not ↩", () => {
+		const { container } = render(
 			<QuickPromptBar
 				prompts={[
 					p({ id: "daily", label: "Daily brief", newTab: true }),
@@ -47,21 +56,34 @@ describe("QuickPromptBar — T21", () => {
 		);
 		expect(screen.getByText("Daily brief")).toBeTruthy();
 		expect(screen.getByText("Sync opps")).toBeTruthy();
-		// newTab marker present once (on the Daily brief chip).
-		expect(screen.getByText("↩")).toBeTruthy();
+		// newTab marker span present once, rendered via setIcon("external-link")
+		// — never a literal ↩ (which reads as Enter, colliding with the picker).
+		expect(
+			container.querySelectorAll(".agent-client-quick-prompt-chip-newtab"),
+		).toHaveLength(1);
+		expect(screen.queryByText("↩")).toBeNull();
+		expect(setIcon).toHaveBeenCalledWith(expect.anything(), "external-link");
+		// Guidance tooltip lives in aria-label — Obsidian's themed tooltip
+		// mechanism (not the native `title`). new-tab vs this-tab matrix.
+		expect(
+			screen.getByText("Daily brief").closest("button")!.getAttribute("aria-label"),
+		).toBe(NEW_TAB_CHIP_TOOLTIP);
+		expect(
+			screen.getByText("Sync opps").closest("button")!.getAttribute("aria-label"),
+		).toBe(THIS_TAB_CHIP_TOOLTIP);
 	});
 
-	it("fires on click; ⌥-click inserts (modifier=true)", () => {
+	it("fires the plain gesture on click; ⌥-click sets insert", () => {
 		const onFire = vi.fn();
 		const prompt = p({ id: "sync", label: "Sync opps" });
 		render(
 			<QuickPromptBar prompts={[prompt]} hasPendingQueue={false} onFire={onFire} />,
 		);
-		const chip = screen.getByRole("button", { name: "Sync opps" });
+		const chip = screen.getByText("Sync opps").closest("button")!;
 		fireEvent.click(chip);
-		expect(onFire).toHaveBeenLastCalledWith(prompt, { modifier: false });
+		expect(onFire).toHaveBeenLastCalledWith(prompt, PLAIN);
 		fireEvent.click(chip, { altKey: true });
-		expect(onFire).toHaveBeenLastCalledWith(prompt, { modifier: true });
+		expect(onFire).toHaveBeenLastCalledWith(prompt, { ...PLAIN, insert: true });
 	});
 
 	it("while queued: current-tab chip is aria-disabled and does not fire; newTab chip stays live", () => {
@@ -83,6 +105,6 @@ describe("QuickPromptBar — T21", () => {
 		const newTabChip = screen.getByText("Daily brief").closest("button")!;
 		expect(newTabChip.getAttribute("aria-disabled")).toBe("false");
 		fireEvent.click(newTabChip);
-		expect(onFire).toHaveBeenCalledWith(newTab, { modifier: false });
+		expect(onFire).toHaveBeenCalledWith(newTab, PLAIN);
 	});
 });

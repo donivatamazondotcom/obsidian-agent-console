@@ -63,6 +63,7 @@ import {
 	type QuickPromptComposerBridge,
 } from "../hooks/useQuickPrompts";
 import type { QuickPrompt } from "../types/quick-prompt";
+import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import { matchPromptsForNote } from "../services/quick-prompts-logic";
 import { QuickPromptBar } from "./QuickPromptBar";
 import { QuickPromptPickerModal } from "./QuickPromptPickerModal";
@@ -109,7 +110,7 @@ export interface ChatPanelCallbacks {
 	/** True when this tab holds a pending queued message (#82 broadcast skip-guard). */
 	hasPendingQueue: () => boolean;
 	/** Fire / insert a quick prompt in this tab (picker / chips). */
-	runQuickPrompt: (prompt: QuickPrompt, opts: { modifier: boolean }) => void;
+	runQuickPrompt: (prompt: QuickPrompt, gesture: QuickPromptGesture) => void;
 }
 
 // ============================================================================
@@ -196,7 +197,10 @@ export interface ChatPanelProps {
 	 * sibling tab and dispatch the resolved prompt into it. See [[Agent Console
 	 * Quick Prompts and Workflows]] § Fire target.
 	 */
-	onOpenInNewTab?: (text: string, opts: { send: boolean }) => void;
+	onOpenInNewTab?: (
+		text: string,
+		opts: { send: boolean; foreground: boolean },
+	) => void;
 	/**
 	 * One-shot seed for a tab just spawned by a `newTab` quick prompt:
 	 * `send: true` dispatches `text` through the lazy-acquisition send path

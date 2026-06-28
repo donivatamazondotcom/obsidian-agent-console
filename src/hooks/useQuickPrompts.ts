@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { QuickPromptLibrary } from "../services/quick-prompts";
 import { executeQuickPrompt } from "../services/quick-prompts-logic";
+import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import type { QuickPrompt } from "../types/quick-prompt";
 
 /**
@@ -39,7 +40,7 @@ export interface QuickPromptComposerBridge {
 	 * never touches the current tab's composer. Implemented by ChatPanel via a
 	 * ChatView-supplied callback that owns the tab manager.
 	 */
-	openInNewTab(text: string, opts: { send: boolean }): void;
+	openInNewTab(text: string, opts: { send: boolean; foreground: boolean }): void;
 	/** Show a transient notice. */
 	notify(message: string): void;
 }
@@ -47,8 +48,8 @@ export interface QuickPromptComposerBridge {
 export interface UseQuickPromptsReturn {
 	/** Current parsed prompts (re-rendered on library reconcile). */
 	prompts: QuickPrompt[];
-	/** Fire / insert / queue a prompt per the engine and the live state. */
-	runQuickPrompt: (prompt: QuickPrompt, opts: { modifier: boolean }) => void;
+	/** Fire / insert / queue / new-tab a prompt per the engine + live state. */
+	runQuickPrompt: (prompt: QuickPrompt, gesture: QuickPromptGesture) => void;
 }
 
 export function useQuickPrompts(
@@ -71,12 +72,14 @@ export function useQuickPrompts(
 	bridgeRef.current = bridge;
 
 	const runQuickPrompt = useCallback(
-		(prompt: QuickPrompt, opts: { modifier: boolean }) => {
+		(prompt: QuickPrompt, gesture: QuickPromptGesture) => {
 			const b = bridgeRef.current;
 			executeQuickPrompt(
 				prompt,
 				{
-					modifier: opts.modifier,
+					openElsewhere: gesture.openElsewhere,
+					foreground: gesture.foreground,
+					insert: gesture.insert,
 					composerHasText: b.getComposerText().trim().length > 0,
 					isStreaming: b.isStreaming(),
 					isQueued: b.isQueued(),

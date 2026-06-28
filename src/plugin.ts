@@ -58,6 +58,7 @@ import {
 	VaultQuickPromptSource,
 } from "./services/quick-prompts";
 import type { QuickPrompt } from "./types/quick-prompt";
+import type { QuickPromptGesture } from "./services/quick-prompts-logic";
 import {
 	computeStartChat,
 	isChatCommandAvailable,
@@ -580,9 +581,9 @@ export default class AgentClientPlugin extends Plugin {
 		new QuickPromptPickerModal(
 			this.app,
 			prompts,
-			(prompt: QuickPrompt, opts: { modifier: boolean }) => {
+			(prompt: QuickPrompt, gesture: QuickPromptGesture) => {
 				this.viewRegistry.toFocused((view) =>
-					view.runQuickPrompt(prompt, opts),
+					view.runQuickPrompt(prompt, gesture),
 				);
 			},
 		).open();
