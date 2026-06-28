@@ -20,7 +20,11 @@
 #             "open this folder as a vault" instruction and stop. Pure file prep
 #             — no Obsidian needed yet.
 #   2. REDEPLOY (studio dir present + vault open): rebuild + copy the new build
-#             in + scoped plugin reload + verify. Smoke session state preserved.
+#             in + scoped FULL WINDOW reload (re-reads JS *and* CSS from disk) +
+#             verify JS and CSS actually loaded. A full reload (not a JS-only
+#             plugin hot-reload) is required because Obsidian does not re-read a
+#             plugin's styles.css on a hot reload. The studio is reload-safe (no
+#             precious sessions), so resetting its transient state is fine.
 #             This is the normal iterate-after-a-fix path and is fully automatic.
 #
 # After the one-time open, the vault is known to Obsidian for the session (and
@@ -196,16 +200,36 @@ if [ "$(vault_name_check)" != "$VAULT_NAME" ]; then
 fi
 build_worktree
 deploy_build
-ob vault="$VAULT_NAME" plugin:reload id=agent-console >/dev/null 2>&1 || true
-sleep 2
+# Reload so the studio runs the freshly deployed build. A plugin hot-reload
+# (`plugin:reload`) reloads the plugin's JS but does NOT re-read its styles.css
+# from disk — so a CSS change would be INVISIBLE in the smoke test (this gap
+# once shipped a broken launcher layout: the bolt floated right because the
+# updated spacer CSS never loaded). A full window reload re-reads everything
+# from disk (manifest + main.js + styles.css). The studio is reload-safe — no
+# precious ACP sessions, unlike the working vault.
+ob vault="$VAULT_NAME" eval code='window.app.commands.executeCommandById("app:reload")' >/dev/null 2>&1 || true
+# app:reload tears down and rebuilds the renderer (and its IPC bridge); wait for
+# the window to come back before verifying.
+sleep 3
+if ! wait_until_open; then
+	echo "✗ studio '$VAULT_NAME' did not come back after reload" >&2
+	exit 1
+fi
 
 # --- verify the OUTCOME (not a proxy) --------------------------------------
+# JS: the plugin object exists. CSS: a representative LATE plugin rule
+# (.agent-client-toolbar-spacer, near the end of styles.css) is present in the
+# loaded CSSOM — proving the stylesheet actually re-loaded AND was not
+# truncated by an unclosed block (the exact failure this reload fix and the
+# styles.css syntax guard both target). Update the selector if that class is
+# ever renamed.
 NAME="$(vault_name_check)"
 PLUG="$(ob vault="$VAULT_NAME" eval code='!!window.app.plugins.plugins["agent-console"]' 2>/dev/null | sed 's/^=> *//' | tr -d '[:space:]')"
-if [ "$NAME" = "$VAULT_NAME" ] && [ "$PLUG" = "true" ]; then
-	echo "✓ redeployed — vault '$VAULT_NAME' open, agent-console loaded with the latest build"
+CSS="$(ob vault="$VAULT_NAME" eval code='(function(){for(var i=0;i<document.styleSheets.length;i++){try{var r=document.styleSheets[i].cssRules;for(var j=0;j<r.length;j++){if((r[j].selectorText||"").indexOf("agent-client-toolbar-spacer")>=0)return "ok"}}catch(e){}}return "missing"})()' 2>/dev/null | sed 's/^=> *//' | tr -d '"' | tr -d '[:space:]')"
+if [ "$NAME" = "$VAULT_NAME" ] && [ "$PLUG" = "true" ] && [ "$CSS" = "ok" ]; then
+	echo "✓ redeployed — vault '$VAULT_NAME' open, agent-console JS + CSS loaded with the latest build"
 	echo "  tear down when done:  tools/smoke-test/smoke-test-teardown.sh $WORKTREE_NAME"
 else
-	echo "✗ verification failed: name='${NAME:-<empty>}' (want '$VAULT_NAME'), plugin-loaded='${PLUG:-<empty>}'" >&2
+	echo "✗ verification failed: name='${NAME:-<empty>}' (want '$VAULT_NAME'), plugin-loaded='${PLUG:-<empty>}', css-loaded='${CSS:-<empty>}'" >&2
 	exit 1
 fi
