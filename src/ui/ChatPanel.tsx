@@ -1158,6 +1158,13 @@ export function ChatPanel({
 					restoredContextNotes ?? undefined,
 					restoredForkTitle ?? "Fork: Session",
 				);
+				// Invalidate the session-list cache so reopening Session History
+				// re-fetches and shows the new branch. The 5-min cache was
+				// populated when the modal was opened to fork, so without this
+				// the reopened modal returns the stale pre-fork list (the old
+				// forkSession called invalidateCache; the orchestration dropped
+				// it).
+				sessionHistory.invalidateCache();
 				return { ok: true as const, sessionId: newId, lossy };
 			},
 			[
@@ -1168,6 +1175,7 @@ export function ChatPanel({
 				agent.createSession,
 				agent.updateSessionFromLoad,
 				sessionHistory.saveSessionMessages,
+				sessionHistory.invalidateCache,
 				restoredMessages,
 				restoredContextNotes,
 				restoredForkTitle,

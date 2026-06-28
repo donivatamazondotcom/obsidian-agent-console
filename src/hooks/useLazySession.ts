@@ -242,9 +242,11 @@ export function useLazySession(
 	// callback identity change would invalidate timer cleanup; refs sidestep.
 	const acquireNewSessionRef = useRef(acquireNewSession);
 	const loadExistingSessionRef = useRef(loadExistingSession);
+	const forkExistingSessionRef = useRef(forkExistingSession);
 	const sendPromptRef = useRef(sendPrompt);
 	acquireNewSessionRef.current = acquireNewSession;
 	loadExistingSessionRef.current = loadExistingSession;
+	forkExistingSessionRef.current = forkExistingSession;
 	sendPromptRef.current = sendPrompt;
 
 	// Stable refs to state-machine transition methods (already stable from
@@ -263,8 +265,9 @@ export function useLazySession(
 
 		tabStateRef.current.startConnect();
 
-		// Restored tab path: try load first, fall through to new on failure.
+		// Acquisition source, in precedence order: fork > restore > new.
 		let result: SessionAcquisitionResult;
+		const forkId = forkFromSessionIdRef.current;
 		const restoredId = restoredSessionIdRef.current;
 		if (forkId && forkExistingSessionRef.current) {
 			// Fork branch: mint a NEW session branched from forkId. The callback
