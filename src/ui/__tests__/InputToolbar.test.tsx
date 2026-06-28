@@ -101,6 +101,18 @@ describe("InputToolbar — launcher left-anchor split (spacer)", () => {
 		expect(follows(spacer, send)).toBe(true);
 	});
 
+	it("tags the quick-prompt launcher as a focus-cluster member (I124)", () => {
+		const { container } = render(
+			<InputToolbar {...baseProps()} onOpenQuickPrompts={vi.fn()} />,
+		);
+		const launcher = container.querySelector(
+			".agent-client-quick-prompt-launcher",
+		)!;
+		// Must be in the composer focus cluster so tabbing through it does not
+		// disarm composer-focus-return before a model/config pick (I124).
+		expect(launcher.hasAttribute("data-acp-focus-cluster")).toBe(true);
+	});
+
 	it("keeps the usage % in the left cluster: launcher → usage → spacer → send", () => {
 		const { container } = render(
 			<InputToolbar
