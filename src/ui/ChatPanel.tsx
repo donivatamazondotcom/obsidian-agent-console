@@ -2629,7 +2629,19 @@ export function ChatPanel({
 			isActive={isActive}
 			quickPromptSearchSignal={qpSearchSignal}
 			hasQuickPrompts={quickPrompts.prompts.length > 0}
-			onRunQuickPrompt={quickPrompts.runQuickPrompt}
+			onRunQuickPrompt={(prompt, gesture, composerAfterStrip) => {
+				// QP-I13: a ! picker fire still has the `!query` token in the
+				// composer. Sync the composer + its ref (read synchronously by
+				// the engine) to the stripped text BEFORE running, so the token
+				// doesn't mis-route the fire into the unsent-draft insert and any
+				// insert lands in the stripped composer. Chip fires pass no
+				// stripped value, so the real composer is used untouched.
+				if (composerAfterStrip !== undefined) {
+					inputValueRef.current = composerAfterStrip;
+					setInputValue(composerAfterStrip);
+				}
+				quickPrompts.runQuickPrompt(prompt, gesture);
+			}}
 			onCreateQuickPrompt={(opts) =>
 				void plugin.createQuickPromptNote({
 					label:

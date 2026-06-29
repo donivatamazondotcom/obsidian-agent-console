@@ -290,7 +290,11 @@ export interface InputAreaProps {
 	/** Whether any quick prompts exist (drives the composer placeholder hint). */
 	hasQuickPrompts?: boolean;
 	/** Fire/insert a quick prompt from the composer ! trigger (engine 2×2). */
-	onRunQuickPrompt?: (prompt: QuickPrompt, gesture: QuickPromptGesture) => void;
+	onRunQuickPrompt?: (
+		prompt: QuickPrompt,
+		gesture: QuickPromptGesture,
+		composerAfterStrip?: string,
+	) => void;
 	/** Create a new quick prompt from the ! create row (optionally from the composer draft). */
 	onCreateQuickPrompt?: (opts: { query: string; body?: string }) => void;
 	/** Bumps when the "Quick prompts: Search" command fires — focuses + inserts !. */
@@ -739,14 +743,21 @@ export function InputArea({
 	 */
 	const selectQuickPrompt = useCallback(
 		(prompt: QuickPrompt, evt?: React.MouseEvent | React.KeyboardEvent) => {
+			// Strip the `!query` token FIRST and hand the stripped composer up so
+			// ChatPanel can sync its composer ref BEFORE the engine evaluates
+			// (QP-I13). Otherwise the `!query` token counts as a draft → the fire
+			// is mis-routed to the unsent-draft insert, and the post-fire
+			// setTextAndFocus would clobber it. ChatPanel now owns the composer
+			// update (fire clears it / insert lands in it), so we do NOT
+			// setTextAndFocus here.
+			const stripped = quickPrompts.selectSuggestion(inputValue);
 			onRunQuickPrompt?.(
 				prompt,
 				quickPromptGestureFromEvent(evt?.nativeEvent),
+				stripped,
 			);
-			const newText = quickPrompts.selectSuggestion(inputValue);
-			setTextAndFocus(newText);
 		},
-		[onRunQuickPrompt, quickPrompts, inputValue, setTextAndFocus],
+		[onRunQuickPrompt, quickPrompts, inputValue],
 	);
 
 	/**
