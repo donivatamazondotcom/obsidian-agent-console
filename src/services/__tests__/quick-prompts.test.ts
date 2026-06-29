@@ -172,6 +172,7 @@ describe("createQuickPrompt — S4-T7/T8 (clobber-safe creation)", () => {
 				label: "Daily brief",
 				"open in new tab": false,
 				"always show": false,
+				"show on tags": [],
 			},
 		);
 		expect(store.get("Daily brief")?.body).toBe("Give me the latest on X.");
@@ -181,6 +182,13 @@ describe("createQuickPrompt — S4-T7/T8 (clobber-safe creation)", () => {
 		const { writer, store } = makeFakeWriter();
 		await createQuickPrompt(writer, { label: "daily" });
 		expect(store.get("daily")?.body).toBe(NEW_PROMPT_BODY_PLACEHOLDER);
+	});
+
+	it("QP-I08: blank label → 'New prompt' note (prefilled, never empty)", async () => {
+		const { writer, store } = makeFakeWriter();
+		const r = await createQuickPrompt(writer, { label: "" });
+		expect(r.basename).toBe("New prompt");
+		expect(store.get("New prompt")?.frontmatter.label).toBe("New prompt");
 	});
 
 	it("S4-T8: collision → disambiguates, never overwrites the existing note", async () => {

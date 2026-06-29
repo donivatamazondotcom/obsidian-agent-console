@@ -645,9 +645,15 @@ export function buildNewPromptNote(opts: {
 	const hasBody = (opts.body?.trim().length ?? 0) > 0;
 	return {
 		frontmatter: {
-			label: opts.label,
+			// Never write an empty label (QP-I08) — a blank label renders as an
+			// "Empty" property dead end; fall back to the standard name.
+			label:
+				opts.label.trim().length > 0 ? opts.label : FALLBACK_PROMPT_NAME,
 			"open in new tab": false,
 			"always show": false,
+			// Seed the contextual-scope property (QP-I09) so it shows in the
+			// note's properties for the author to fill in (empty = search-only).
+			"show on tags": [],
 		},
 		body: hasBody ? (opts.body as string) : NEW_PROMPT_BODY_PLACEHOLDER,
 	};
@@ -663,28 +669,28 @@ export interface CreatePromptRow {
 }
 
 /**
- * Decide whether the launcher `!` dropdown should show a "create" row. Mirrors
- * Quick Switcher's Enter-creates-on-no-match idiom: the row appears whenever the
- * query matched nothing (call 2a). A non-blank query offers
- * `Create quick prompt "<query>"`; a blank query at zero prompts offers the
- * empty-state on-ramp ("Create your first quick prompt", call 1) so a bare `!`
- * at first-open is never a dead end.
+ * The "create" row that ALWAYS sits at the bottom of the launcher `!` dropdown
+ * (QP-I10) — so creation is reachable on every `!`, with matches or not (mirrors
+ * Quick Switcher always offering a "Create" option, and keeps the affordance
+ * consistent rather than vanishing once prompts exist). Labels:
+ * - non-blank query → `Create quick prompt "<query>"` (creates with that name);
+ * - blank query, zero prompts → `Create your first quick prompt` (on-ramp, QP-I07);
+ * - blank query, prompts exist → `Create a quick prompt`.
+ * A blank query creates the `New prompt` fallback note (QP-I08).
  */
-export function decideCreateOnNoMatch(
+export function buildCreatePromptRow(
 	query: string,
 	matchCount: number,
-): CreatePromptRow | null {
-	if (matchCount > 0) return null;
+): CreatePromptRow {
 	const q = query.trim();
-	// Blank query + zero matches ⟹ zero prompts total (a blank query ranks all
-	// prompts, so any existing prompt would make matchCount > 0). Show the
-	// empty-state on-ramp row (QP-I07) so a bare `!` at first-open isn't a dead
-	// end; selecting it creates a "New prompt" note (deriveFilenameBase("")).
 	if (q.length === 0) {
 		return {
 			kind: "create-prompt",
 			query: "",
-			label: "Create your first quick prompt",
+			label:
+				matchCount > 0
+					? "Create a quick prompt"
+					: "Create your first quick prompt",
 		};
 	}
 	return {

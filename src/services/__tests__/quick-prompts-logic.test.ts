@@ -28,7 +28,7 @@ import {
 	disambiguateFilename,
 	buildNewPromptNote,
 	deriveLabelFromComposer,
-	decideCreateOnNoMatch,
+	buildCreatePromptRow,
 	NEW_PROMPT_BODY_PLACEHOLDER,
 } from "../quick-prompts-logic";
 import type { QuickPrompt, QuickPromptFileInput } from "../../types/quick-prompt";
@@ -895,14 +895,23 @@ describe("quick-prompts-logic — slice 4 (creation flow, D4)", () => {
 	});
 
 	describe("S4-T3: buildNewPromptNote — templated frontmatter + body", () => {
-		it("seeds label + unchecked checkboxes, placeholder body when none given", () => {
+		it("seeds label + unchecked checkboxes + empty show-on-tags, placeholder body", () => {
 			const note = buildNewPromptNote({ label: "Daily brief" });
 			expect(note.frontmatter).toEqual({
 				label: "Daily brief",
 				"open in new tab": false,
 				"always show": false,
+				"show on tags": [],
 			});
 			expect(note.body).toBe(NEW_PROMPT_BODY_PLACEHOLDER);
+		});
+		it("QP-I08: blank label is prefilled with 'New prompt' (no empty label)", () => {
+			expect(buildNewPromptNote({ label: "" }).frontmatter.label).toBe(
+				"New prompt",
+			);
+			expect(buildNewPromptNote({ label: "   " }).frontmatter.label).toBe(
+				"New prompt",
+			);
 		});
 		it("preserves a captured body verbatim when provided", () => {
 			const note = buildNewPromptNote({
@@ -919,28 +928,31 @@ describe("quick-prompts-logic — slice 4 (creation flow, D4)", () => {
 		});
 	});
 
-	describe("S4-T4: decideCreateOnNoMatch — only when zero matches + non-blank query (2a)", () => {
-		it("zero matches + non-blank query → create row carrying the trimmed query", () => {
-			expect(decideCreateOnNoMatch("  daily  ", 0)).toEqual({
-				kind: "create-prompt",
-				query: "daily",
-				label: 'Create quick prompt "daily"',
-			});
+	describe("S4-T4/QP-I10: buildCreatePromptRow — always offered at the bottom of the ! list", () => {
+		const cqp = (q: string) => ({
+			kind: "create-prompt",
+			query: q,
+			label: `Create quick prompt "${q}"`,
 		});
-		it("null when matches exist (Quick Switcher Enter-creates branch only)", () => {
-			expect(decideCreateOnNoMatch("daily", 2)).toBeNull();
+		it("non-blank query → Create quick prompt row whether or not matches exist", () => {
+			expect(buildCreatePromptRow("  daily  ", 0)).toEqual(cqp("daily"));
+			expect(buildCreatePromptRow("daily", 5)).toEqual(cqp("daily"));
 		});
-		it("QP-I07: blank query + zero matches → 'Create your first quick prompt' (on-ramp)", () => {
+		it("QP-I07: blank query + zero prompts → 'Create your first quick prompt' (on-ramp)", () => {
 			const onramp = {
 				kind: "create-prompt",
 				query: "",
 				label: "Create your first quick prompt",
 			};
-			expect(decideCreateOnNoMatch("   ", 0)).toEqual(onramp);
-			expect(decideCreateOnNoMatch("", 0)).toEqual(onramp);
+			expect(buildCreatePromptRow("   ", 0)).toEqual(onramp);
+			expect(buildCreatePromptRow("", 0)).toEqual(onramp);
 		});
-		it("still null for a blank query when matches exist", () => {
-			expect(decideCreateOnNoMatch("", 3)).toBeNull();
+		it("QP-I10: blank query + prompts exist → 'Create a quick prompt' (still reachable)", () => {
+			expect(buildCreatePromptRow("", 3)).toEqual({
+				kind: "create-prompt",
+				query: "",
+				label: "Create a quick prompt",
+			});
 		});
 	});
 

@@ -12,7 +12,7 @@ import {
 	parseQuickPromptTrigger,
 	stripQuickPromptTrigger,
 	rankLauncherPrompts,
-	decideCreateOnNoMatch,
+	buildCreatePromptRow,
 	type CreatePromptRow,
 } from "../services/quick-prompts-logic";
 import type { QuickPrompt } from "../types/quick-prompt";
@@ -356,7 +356,7 @@ export function useSuggestions(
 			const scorer = trimmed ? prepareFuzzySearch(trimmed) : undefined;
 			const ranked = rankLauncherPrompts(qpPrompts, query, scorer);
 			setQpSuggestions(ranked);
-			setQpCreateRow(decideCreateOnNoMatch(query, ranked.length));
+			setQpCreateRow(buildCreatePromptRow(query, ranked.length));
 			setQpSelectedIndex(0);
 			setQpContext({ cursorPos: cursorPosition });
 		},
