@@ -584,7 +584,7 @@ export function rankLauncherPrompts(
 
 /** Placeholder body seeded into a brand-new prompt note (no captured text). */
 export const NEW_PROMPT_BODY_PLACEHOLDER =
-	"Write your prompt here. Use {{selection}} to drop in the selected text.";
+	"Write your prompt here. (Tip: you can pull in text you've selected in a note — see the Quick Prompts docs for the selection placeholder.)";
 
 /** Cap on a label derived from composer text (first line can be long). */
 export const MAX_DERIVED_LABEL_LENGTH = 60;

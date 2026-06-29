@@ -29,6 +29,7 @@ import {
 	buildNewPromptNote,
 	deriveLabelFromComposer,
 	buildCreatePromptRow,
+	SELECTION_TOKEN,
 	NEW_PROMPT_BODY_PLACEHOLDER,
 } from "../quick-prompts-logic";
 import type { QuickPrompt, QuickPromptFileInput } from "../../types/quick-prompt";
@@ -925,6 +926,21 @@ describe("quick-prompts-logic — slice 4 (creation flow, D4)", () => {
 			expect(buildNewPromptNote({ label: "X", body: "   " }).body).toBe(
 				NEW_PROMPT_BODY_PLACEHOLDER,
 			);
+		});
+	});
+
+	describe("QP-I12: default placeholder is not itself a {{selection}} prompt", () => {
+		it("the placeholder body contains no live selection token (no dead-end fire)", () => {
+			expect(NEW_PROMPT_BODY_PLACEHOLDER).not.toContain(SELECTION_TOKEN);
+		});
+		it("a freshly-created prompt (placeholder body) fires normally, not as a selection prompt", () => {
+			const p = buildQuickPrompt({
+				path: "Quick Prompts/New prompt.md",
+				basename: "New prompt",
+				frontmatter: { label: "New prompt" },
+				body: NEW_PROMPT_BODY_PLACEHOLDER,
+			});
+			expect(p.usesSelection).toBe(false);
 		});
 	});
 
