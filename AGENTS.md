@@ -32,6 +32,7 @@ src/
 │   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref)
 │   ├── title-strategy.ts        # TitleStrategy union + dropdown options (F03 session-title setting)
 │   ├── quick-prompt.ts          # QuickPrompt + QuickPromptFileInput (Quick Prompts feature)
+│   ├── picker.ts                # Unified picker view model: PickerItem / PickerInstruction / PickerMarker (Unified Picker Control)
 │   └── obsidian-internals.d.ts  # Obsidian API declarations not in @types/obsidian
 ├── acp/                         # ACP protocol (SDK dependency confined here)
 │   ├── acp-client.ts            # Process lifecycle, UI-facing API (AcpClient class)
@@ -122,7 +123,7 @@ src/
 │   ├── composer-focus.ts       # Focus composer textarea + caret at end (restored-draft mount, TP-I03)
 │   ├── composer-focus-tracker.ts # Pure composer-cluster focus reducer + classifier (focus-return guardrail)
 │   ├── InputToolbar.tsx         # Config/mode/model selectors, usage, send button
-│   ├── SuggestionPopup.tsx      # Mention / command / quick-prompt (! trigger) dropdown
+│   ├── SuggestionPopup.tsx      # Unified suggestion picker: one PickerItem render path for mention / slash / quick-prompt (! trigger) + pinned instruction footer
 │   ├── PermissionBanner.tsx     # Permission request buttons
 │   ├── ErrorBanner.tsx          # Error/notification overlay
 │   ├── SessionHistoryModal.tsx  # Session history modal (Local/Agent source toggle, per-row agent badge, search, confirm delete, migration empty-state, disconnected-Agent sync affordance)
@@ -154,6 +155,7 @@ src/
 │   ├── paths.ts                 # Path resolution, file:// URI
 │   ├── error-utils.ts           # ACP error conversion
 │   ├── mention-parser.ts        # @[[note]] detection/extraction
+│   ├── picker-sources.ts        # Pure projections of mentions / slash / quick-prompts into the unified PickerItem model + per-source footer instructions (Unified Picker Control)
 │   ├── link-leaf.ts             # Resolve click modifiers → Obsidian leaf/pane (Keymap.isModEvent) for internal links
 │   ├── quick-prompt-gesture.ts  # Map a click/keypress → the Quick Prompts 2×2 gesture (openElsewhere/foreground/insert) via Keymap.isModEvent + shift/alt
 │   ├── link-extract.ts          # Derive per-tab shared-link set from messages (Shared Links Bubble) + new/old classification

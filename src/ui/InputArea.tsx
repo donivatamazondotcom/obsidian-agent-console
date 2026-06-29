@@ -15,6 +15,14 @@ import type {
 } from "../types/session";
 import type { AttachedFile, ChatMessage } from "../types/chat";
 import type { UseSuggestionsReturn } from "../hooks/useSuggestions";
+import {
+	noteToPickerItem,
+	slashCommandToPickerItem,
+	quickPromptToPickerItem,
+	MENTION_INSTRUCTIONS,
+	SLASH_INSTRUCTIONS,
+	quickPromptInstructions,
+} from "../utils/picker-sources";
 import { SuggestionPopup } from "./SuggestionPopup";
 import { QuickPromptBar } from "./QuickPromptBar";
 import {
@@ -1418,10 +1426,13 @@ export function InputArea({
 			{/* Mention Dropdown */}
 			{mentions.isOpen && (
 				<SuggestionPopup
-					type="mention"
-					items={mentions.suggestions}
+					items={mentions.suggestions.map(noteToPickerItem)}
+					instructions={MENTION_INSTRUCTIONS}
 					selectedIndex={mentions.selectedIndex}
-					onSelect={selectMention}
+					onSelect={(index) => {
+						const note = mentions.suggestions[index];
+						if (note) selectMention(note);
+					}}
 					onClose={mentions.close}
 				/>
 			)}
@@ -1429,10 +1440,15 @@ export function InputArea({
 			{/* Slash Command Dropdown */}
 			{slashCommands.isOpen && (
 				<SuggestionPopup
-					type="slash-command"
-					items={slashCommands.suggestions}
+					items={slashCommands.suggestions.map(
+						slashCommandToPickerItem,
+					)}
+					instructions={SLASH_INSTRUCTIONS}
 					selectedIndex={slashCommands.selectedIndex}
-					onSelect={handleSelectSlashCommand}
+					onSelect={(index) => {
+						const command = slashCommands.suggestions[index];
+						if (command) handleSelectSlashCommand(command);
+					}}
 					onClose={slashCommands.close}
 				/>
 			)}
@@ -1440,12 +1456,19 @@ export function InputArea({
 			{/* Quick Prompt (! trigger) Dropdown */}
 			{quickPrompts.isOpen && (
 				<SuggestionPopup
-					type="quick-prompt"
-					items={quickPrompts.suggestions}
+					items={quickPrompts.suggestions.map(
+						quickPromptToPickerItem,
+					)}
+					instructions={quickPromptInstructions(
+						quickPrompts.createRow != null &&
+							quickPrompts.selectedIndex ===
+								quickPrompts.suggestions.length,
+					)}
 					selectedIndex={quickPrompts.selectedIndex}
-					onSelect={(item, evt) =>
-						selectQuickPrompt(item as QuickPrompt, evt)
-					}
+					onSelect={(index, evt) => {
+						const prompt = quickPrompts.suggestions[index];
+						if (prompt) selectQuickPrompt(prompt, evt);
+					}}
 					createRow={quickPrompts.createRow}
 					onCreate={handleCreateQuickPrompt}
 					onClose={quickPrompts.close}

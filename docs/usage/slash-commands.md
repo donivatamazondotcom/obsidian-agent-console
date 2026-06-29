@@ -17,6 +17,8 @@ If the input field placeholder shows `/ for commands`, the current agent support
 3. Select a command or continue typing to filter
 4. Press `Enter` to execute the command
 
+A hint bar along the bottom of the dropdown shows the keys — navigate, run, and dismiss — so the shortcuts stay visible.
+
 <p align="center">
   <img src="/images/slash-commands-1.webp" alt="Slash commands dropdown" width="400" />
 </p>

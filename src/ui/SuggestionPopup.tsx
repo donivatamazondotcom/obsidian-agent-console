@@ -1,65 +1,62 @@
 import * as React from "react";
 const { useRef, useEffect } = React;
-import type { NoteMetadata } from "../services/vault-service";
-import type { SlashCommand } from "../types/session";
-import type { QuickPrompt } from "../types/quick-prompt";
-import {
-	MOD_KEY,
-	ALT_KEY,
-	SHIFT_KEY,
-	ENTER_KEY,
-	modCombo,
-} from "../utils/platform";
-import type { CreatePromptRow } from "../services/quick-prompts-logic";
+import type {
+	PickerItem,
+	PickerInstruction,
+	PickerCreateRow,
+} from "../types/picker";
 
 /**
- * Dropdown type for suggestion display.
- */
-type DropdownType = "mention" | "slash-command" | "quick-prompt";
-
-/**
- * Props for the SuggestionPopup component.
+ * Props for the unified suggestion popup.
  *
- * This component can display either note mentions or slash commands
- * based on the `type` prop.
+ * The popup is domain-agnostic: it renders a list of {@link PickerItem} rows and
+ * an optional pinned {@link PickerInstruction} footer. Each caller (mention `@`,
+ * slash `/`, quick-prompt `!`) projects its own items and supplies its own
+ * instructions — the control hardcodes neither row layout nor help text.
+ *
+ * Spec: [[Unified Picker Control]] (Tier 1 — unified view).
  */
 interface SuggestionPopupProps {
-	/** Type of dropdown to display */
-	type: DropdownType;
+	/** Rows to display. */
+	items: PickerItem[];
 
-	/** Items to display (NoteMetadata for mentions, SlashCommand for commands) */
-	items: NoteMetadata[] | SlashCommand[] | QuickPrompt[];
+	/** Pinned footer hints. Omit/empty → no footer. */
+	instructions?: PickerInstruction[];
 
-	/** Currently selected item index */
+	/** Index of the currently selected row (an index of `items.length` selects the create row). */
 	selectedIndex: number;
 
-	/** Callback when an item is selected */
+	/**
+	 * Invoked when a row is chosen (click or Enter on a focused row). Reports the
+	 * row index; the caller maps it back to its domain item. The DOM event is
+	 * forwarded so a caller can read modifier keys (e.g. the quick-prompt 2×2
+	 * gesture).
+	 */
 	onSelect: (
-		item: NoteMetadata | SlashCommand | QuickPrompt,
+		index: number,
 		evt?: React.MouseEvent | React.KeyboardEvent,
 	) => void;
 
-	/** Callback to close the dropdown */
+	/** Callback to close the dropdown (outside click). */
 	onClose: () => void;
 
-	/** Quick-prompt only: the "create" row appended when the query has no match. */
-	createRow?: CreatePromptRow | null;
-	/** Quick-prompt only: invoked when the create row is chosen. */
+	/** Optional "create" row appended after the items (quick-prompt). */
+	createRow?: PickerCreateRow | null;
+	/** Invoked when the create row is chosen. */
 	onCreate?: () => void;
 }
 
 /**
- * Generic suggestion popup component.
+ * Generic suggestion popup.
  *
- * Displays either:
- * - Note mentions (@[[note]])
- * - Slash commands (/command)
- *
- * Handles keyboard navigation, mouse selection, and outside click detection.
+ * Handles keyboard-row activation, mouse selection, outside-click dismissal, and
+ * scroll-into-view of the selected row. The pinned footer lives OUTSIDE the
+ * scrollable rows container so it stays visible and never forces an always-on
+ * scrollbar.
  */
 export function SuggestionPopup({
-	type,
 	items,
+	instructions,
 	selectedIndex,
 	onSelect,
 	onClose,
@@ -88,7 +85,7 @@ export function SuggestionPopup({
 
 	// Scroll the selected row into view within the scrollable rows container.
 	// Query `.agent-client-selected` (not children[index]) so this stays correct
-	// now that the legend footer lives OUTSIDE the scroll area.
+	// with the legend footer living OUTSIDE the scroll area.
 	useEffect(() => {
 		const selected = dropdownRef.current?.querySelector<HTMLElement>(
 			".agent-client-selected",
@@ -100,108 +97,7 @@ export function SuggestionPopup({
 		return null;
 	}
 
-	/**
-	 * Render a single dropdown item based on type.
-	 */
-	const renderItem = (
-		item: NoteMetadata | SlashCommand | QuickPrompt,
-		index: number,
-	) => {
-		const isSelected = index === selectedIndex;
-
-		if (type === "mention") {
-			const note = item as NoteMetadata;
-			return (
-				<div
-					key={`mention-${index}`}
-					role="option"
-					tabIndex={-1}
-					aria-selected={isSelected}
-					className={`agent-client-mention-dropdown-item ${isSelected ? "agent-client-selected" : ""}`}
-					onClick={() => onSelect(note)}
-					onKeyDown={(e) => {
-						if (e.key === "Enter") {
-							e.preventDefault();
-							onSelect(note);
-						}
-					}}
-					onMouseEnter={() => {
-						// Could update selected index on hover
-					}}
-				>
-					<div className="agent-client-mention-dropdown-item-name">
-						{note.name}
-					</div>
-					<div className="agent-client-mention-dropdown-item-path">
-						{note.path}
-					</div>
-				</div>
-			);
-		} else if (type === "slash-command") {
-			// type === "slash-command"
-			const command = item as SlashCommand;
-			return (
-				<div
-					key={`command-${index}`}
-					role="option"
-					tabIndex={-1}
-					aria-selected={isSelected}
-					className={`agent-client-mention-dropdown-item ${isSelected ? "agent-client-selected" : ""}`}
-					onClick={() => onSelect(command)}
-					onKeyDown={(e) => {
-						if (e.key === "Enter") {
-							e.preventDefault();
-							onSelect(command);
-						}
-					}}
-					onMouseEnter={() => {
-						// Could update selected index on hover
-					}}
-				>
-					<div className="agent-client-mention-dropdown-item-name">
-						/{command.name}
-					</div>
-					<div className="agent-client-mention-dropdown-item-path">
-						{command.description}
-						{command.hint && ` (${command.hint})`}
-					</div>
-				</div>
-			);
-		} else {
-			// type === "quick-prompt"
-			const prompt = item as QuickPrompt;
-			return (
-				<div
-					key={`qp-${index}`}
-					role="option"
-					tabIndex={-1}
-					aria-selected={isSelected}
-					className={`agent-client-mention-dropdown-item ${isSelected ? "agent-client-selected" : ""}`}
-					onClick={(e) => onSelect(prompt, e)}
-					onKeyDown={(e) => {
-						if (e.key === "Enter") {
-							e.preventDefault();
-							onSelect(prompt, e);
-						}
-					}}
-				>
-					<div className="agent-client-mention-dropdown-item-name">
-						{prompt.label}
-						{prompt.newTab && (
-							<span className="agent-client-quick-prompt-row-marker">
-								{" ↗"}
-							</span>
-						)}
-						{prompt.usesSelection && (
-							<span className="agent-client-quick-prompt-row-marker">
-								{" { }"}
-							</span>
-						)}
-					</div>
-				</div>
-			);
-		}
-	};
+	const hasInstructions = !!instructions && instructions.length > 0;
 
 	return (
 		<div
@@ -210,8 +106,45 @@ export function SuggestionPopup({
 			role="listbox"
 		>
 			<div className="agent-client-mention-dropdown-scroll">
-				{items.map((item, index) => renderItem(item, index))}
-				{type === "quick-prompt" && createRow && (
+				{items.map((item, index) => {
+					const isSelected = index === selectedIndex;
+					const layout = item.layout ?? "stacked";
+					return (
+						<div
+							key={item.id}
+							role="option"
+							tabIndex={-1}
+							aria-selected={isSelected}
+							className={`agent-client-mention-dropdown-item agent-client-picker-item-${layout} ${isSelected ? "agent-client-selected" : ""}`}
+							onClick={(e) => onSelect(index, e)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter") {
+									e.preventDefault();
+									onSelect(index, e);
+								}
+							}}
+						>
+							<div className="agent-client-mention-dropdown-item-name">
+								{item.title}
+								{item.markers?.map((marker, i) => (
+									<span
+										key={i}
+										className="agent-client-quick-prompt-row-marker"
+										aria-label={marker.label}
+									>
+										{` ${marker.glyph}`}
+									</span>
+								))}
+							</div>
+							{item.subtitle ? (
+								<div className="agent-client-mention-dropdown-item-path">
+									{item.subtitle}
+								</div>
+							) : null}
+						</div>
+					);
+				})}
+				{createRow && (
 					<div
 						role="option"
 						tabIndex={-1}
@@ -234,23 +167,16 @@ export function SuggestionPopup({
 					</div>
 				)}
 			</div>
-			{type === "quick-prompt" && (
+			{hasInstructions && (
 				<div
-					className="agent-client-quick-prompt-legend"
+					className="agent-client-mention-dropdown-instructions"
 					aria-hidden="true"
 				>
-					{createRow && selectedIndex === items.length ? (
-						<span>{ENTER_KEY} create</span>
-					) : (
-						<>
-							<span>{ENTER_KEY} run</span>
-							<span>{modCombo(MOD_KEY, ENTER_KEY)} new tab</span>
-							<span>
-								{modCombo(MOD_KEY, SHIFT_KEY, ENTER_KEY)} switch
-							</span>
-							<span>{modCombo(ALT_KEY, ENTER_KEY)} insert</span>
-						</>
-					)}
+					{instructions.map((instruction, i) => (
+						<span key={i}>
+							{instruction.keys} {instruction.label}
+						</span>
+					))}
 				</div>
 			)}
 		</div>
