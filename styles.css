@@ -2127,6 +2127,8 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	align-items: center;
 	justify-content: space-between;
 	padding: 12px;
+	/* E: stable row height across Local (badge) and Agent (no badge) views. */
+	min-height: 56px;
 	background: var(--background-secondary);
 	border-radius: var(--radius-m);
 	border: 1px solid var(--background-modifier-border);
@@ -2174,6 +2176,15 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	gap: 6px;
 	flex-shrink: 0;
 	margin-left: 12px;
+}
+
+/* C: separates the destructive Delete icon from the constructive actions
+   (spatial cue, not color — red/green-safe). */
+.agent-client-session-history-action-divider {
+	width: 1px;
+	align-self: stretch;
+	margin: 4px 2px;
+	background: var(--background-modifier-border);
 }
 
 .agent-client-session-history-action-icon {

@@ -462,6 +462,18 @@ export default class AgentClientPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "open-session-history",
+			name: "Open session history",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.getActiveChatView()?.openSessionHistory();
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
 			id: "open-new-view",
 			name: "Open new view",
 			callback: () => {

@@ -8,7 +8,7 @@ Session history features are agent-specific. Not all agents support all features
 
 ## Opening Session History
 
-Click the **History** button (clock icon) in the chat header to open the session history modal.
+Click the **History** button (clock icon) in the chat header to open the session history modal. You can also run the **Open session history** command from the command palette, or bind it to a hotkey under **Settings → Hotkeys** for mouse-free access.
 
 <p align="center">
   <img src="/images/session-history-button.webp" alt="Session history button in chat header" />
@@ -18,7 +18,7 @@ Click the **History** button (clock icon) in the chat header to open the session
 
 Your history has two views, switched with the toggle at the top of the modal:
 
-- **Local** (the default): every session this plugin saved — across **all your agents** and **all your vaults**. This is your full history. Each row shows a small badge naming the agent that ran it, so you can tell a Claude Code session from a Kiro CLI one at a glance. A session you forked here shows up right away, because the plugin saved it locally — it never depends on the agent listing it.
+- **Local** (the default): every session this plugin saved — across **all your agents** and **all your vaults**. This is your full history. When your history spans more than one agent, each row shows a small badge naming the agent that ran it, so you can tell a Claude Code session from a Kiro CLI one at a glance. A session you forked here shows up right away, because the plugin saved it locally — it never depends on the agent listing it.
 - **Agent**: the sessions the agent itself knows about, pulled from its own server. Use this to find a conversation you started outside Agent Console. The Agent pill is **named after the tab's agent** (for example, **Claude Code**), so you can tell whose sessions you're looking at. For an agent that doesn't keep a server-side session list (for example, Kiro CLI), the Agent pill is shown but **disabled**, with a tooltip explaining why — only the Local view is available there.
 
 The toggle remembers your last choice.

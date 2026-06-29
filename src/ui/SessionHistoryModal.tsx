@@ -5,7 +5,7 @@
  * and the confirmation modal for session deletion.
  */
 
-import { Modal, App, setIcon } from "obsidian";
+import { Modal, App, Notice, setIcon } from "obsidian";
 import * as React from "react";
 const { useState, useCallback } = React;
 import { createRoot, Root } from "react-dom/client";
@@ -18,6 +18,7 @@ import {
 } from "../utils/session-history-view";
 import { useSessionSearch } from "../hooks/useSessionSearch";
 import type { SearchSnippet } from "../services/session-search";
+import { formatSessionTitle } from "../utils/format-session-title";
 
 // ============================================================
 // ConfirmDeleteModal (internal)
@@ -166,7 +167,10 @@ export class EditTitleModal extends Modal {
 
 	private saveAndClose(rawValue: string) {
 		const value = rawValue.trim();
-		if (!value) return;
+		if (!value) {
+			new Notice("Title can't be empty");
+			return;
+		}
 		this.close();
 		void this.onSave(value);
 	}
@@ -330,16 +334,6 @@ function formatRelativeTime(date: Date): string {
 }
 
 /**
- * Truncate session title to 50 characters with ellipsis.
- */
-function truncateTitle(title: string): string {
-	if (title.length <= 50) {
-		return title;
-	}
-	return title.slice(0, 50) + "...";
-}
-
-/**
  * Debug form for manual session input.
  */
 function DebugForm({
@@ -370,7 +364,7 @@ function DebugForm({
 				<input
 					id="debug-session-id"
 					type="text"
-					placeholder="Enter session ID..."
+					placeholder="Enter session ID…"
 					className="agent-client-session-history-debug-input"
 					value={sessionId}
 					onChange={(e) => setSessionId(e.target.value)}
@@ -382,7 +376,7 @@ function DebugForm({
 				<input
 					id="debug-cwd"
 					type="text"
-					placeholder="Enter working directory..."
+					placeholder="Enter working directory…"
 					className="agent-client-session-history-debug-input"
 					value={cwd}
 					onChange={(e) => setCwd(e.target.value)}
@@ -451,6 +445,7 @@ function SessionItem({
 	canRestore,
 	canFork,
 	agentLabel,
+	showAgentBadge,
 	currentCwd,
 	onRestoreSession,
 	onForkSession,
@@ -464,6 +459,7 @@ function SessionItem({
 	canRestore: boolean;
 	canFork: boolean;
 	agentLabel?: string;
+	showAgentBadge: boolean;
 	currentCwd: string;
 	onRestoreSession: (sessionId: string, cwd: string) => Promise<void>;
 	onForkSession: (sessionId: string, cwd: string) => Promise<void>;
@@ -496,15 +492,13 @@ function SessionItem({
 				<div className="agent-client-session-history-item-title">
 					<span>
 						<HighlightedText
-							text={truncateTitle(
-								session.title ?? "Untitled Session",
-							)}
+							text={formatSessionTitle(session.title)}
 							query={query}
 						/>
 					</span>
 				</div>
 				<div className="agent-client-session-history-item-metadata">
-					{agentLabel && (
+					{showAgentBadge && agentLabel && (
 						<span
 							className="agent-client-session-history-item-agent-badge"
 							aria-label={`Agent: ${agentLabel}`}
@@ -565,6 +559,10 @@ function SessionItem({
 						onClick={handleFork}
 					/>
 				)}
+				<span
+					className="agent-client-session-history-action-divider"
+					aria-hidden="true"
+				/>
 				<IconButton
 					iconName="trash-2"
 					label="Delete session"
@@ -629,6 +627,13 @@ export function SessionHistoryContent({
 
 	const sessionById = React.useMemo(
 		() => new Map(sessions.map((s) => [s.sessionId, s])),
+		[sessions],
+	);
+
+	// D: the per-row agent badge only earns its place when the library spans
+	// more than one agent — otherwise it duplicates the source pill and adds noise.
+	const showAgentBadges = React.useMemo(
+		() => new Set(sessions.map((s) => s.agentId).filter(Boolean)).size > 1,
 		[sessions],
 	);
 
@@ -934,7 +939,7 @@ export function SessionHistoryContent({
 					{/* Loading state */}
 					{!error && loading && displayItems.length === 0 && (
 						<div className="agent-client-session-history-loading">
-							<p>Loading sessions...</p>
+							<p>Loading sessions…</p>
 						</div>
 					)}
 
@@ -993,6 +998,7 @@ export function SessionHistoryContent({
 											? agentLabels[session.agentId]
 											: undefined
 									}
+										showAgentBadge={showAgentBadges}
 									currentCwd={currentCwd}
 									onRestoreSession={onRestoreSession}
 									onForkSession={onForkSession}
@@ -1014,7 +1020,7 @@ export function SessionHistoryContent({
 								disabled={loading}
 								onClick={onLoadMore}
 							>
-								{loading ? "Loading..." : "Load more"}
+								{loading ? "Loading…" : "Load more"}
 							</button>
 						</div>
 					)}
