@@ -647,6 +647,49 @@ describe("captureAll", () => {
 			/no manifest entry matches filter/i,
 		);
 	});
+
+	it("brackets each capture with the acp-capturing body marker (set before, cleared after)", async () => {
+		const deps = makeDeps();
+		const entries = [makeEntry({ name: "a" })];
+
+		await captureAll(entries, deps);
+
+		const evalExprs = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c) => c[0] as string);
+		// The Fixture theme gates its capture-only hides on body.acp-capturing,
+		// so the marker MUST be set before any capture step and cleared after.
+		expect(evalExprs[0]).toBe(
+			`document.body.classList.add("acp-capturing")`,
+		);
+		expect(evalExprs[evalExprs.length - 1]).toBe(
+			`document.body.classList.remove("acp-capturing")`,
+		);
+	});
+
+	it("clears the acp-capturing marker even when the capture fails", async () => {
+		const deps = makeDeps();
+		(deps.cdp.screenshot as ReturnType<typeof vi.fn>).mockRejectedValue(
+			new Error("boom"),
+		);
+		const entries = [makeEntry({ name: "fail" })];
+
+		const results = await captureAll(entries, deps);
+
+		expect(results[0]).toEqual({
+			name: "fail",
+			success: false,
+			error: "boom",
+		});
+		// A failed shot must not leave the fixtures vault with chrome hidden for
+		// a subsequent interactive smoke test.
+		const evalExprs = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c) => c[0] as string);
+		expect(evalExprs).toContain(
+			`document.body.classList.remove("acp-capturing")`,
+		);
+	});
 });
 
 describe("captureEntry — group crop (cropSelectors)", () => {
