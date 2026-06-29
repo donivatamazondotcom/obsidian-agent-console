@@ -21,9 +21,9 @@ import {
 	resolveAgentWorkingDirectory,
 } from "../utils/working-directory";
 import {
-	composeHostContextBriefing,
-	DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS,
-} from "../utils/host-context-briefing";
+	composeObsidianSystemPrompt,
+	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
+} from "../utils/obsidian-system-prompt";
 import {
 	TITLE_STRATEGY_OPTIONS,
 	type TitleStrategy,
@@ -281,19 +281,19 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		// Setting API so labels/controls share native alignment; textareas + the
 		// preview are made full-width by a stacking class on their .setting-item.
 		const hcbVaultRoot = resolveVaultRoot();
-		const hcb = (): typeof this.plugin.settings.hostContextBriefing =>
-			this.plugin.settings.hostContextBriefing;
+		const hcb = (): typeof this.plugin.settings.obsidianSystemPrompt =>
+			this.plugin.settings.obsidianSystemPrompt;
 		const setHcb = async (
-			patch: Partial<typeof this.plugin.settings.hostContextBriefing>,
+			patch: Partial<typeof this.plugin.settings.obsidianSystemPrompt>,
 		): Promise<void> => {
 			await this.plugin.settingsService.updateSettings({
-				hostContextBriefing: { ...this.plugin.settings.hostContextBriefing, ...patch },
+				obsidianSystemPrompt: { ...this.plugin.settings.obsidianSystemPrompt, ...patch },
 			});
 		};
 		const hcbComposed = (appendOverride?: string): string => {
 			const cur = hcb();
 			const base =
-				composeHostContextBriefing(
+				composeObsidianSystemPrompt(
 					{ blocks: cur.blocks, mode: "options" },
 					{ cwd: hcbVaultRoot, vaultRoot: hcbVaultRoot },
 				) ?? "";
@@ -338,7 +338,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					const blockToggle = (
 						name: string,
 						desc: string,
-						key: keyof typeof this.plugin.settings.hostContextBriefing.blocks,
+						key: keyof typeof this.plugin.settings.obsidianSystemPrompt.blocks,
 					): void => {
 						new Setting(body)
 							.setName(name)
@@ -461,7 +461,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					.addButton((btn) =>
 						btn.setButtonText("Reset to defaults").onClick(async () => {
 							await setHcb(
-								structuredClone(DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS),
+								structuredClone(DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS),
 							);
 							this.display();
 						}),

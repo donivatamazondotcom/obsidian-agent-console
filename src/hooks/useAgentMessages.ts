@@ -432,8 +432,8 @@ export function useAgentMessages(
 						session.promptCapabilities?.embeddedContext ?? false,
 					isFirstMessage: options.isFirstMessage,
 					titleStrategy: settingsAccess.getSnapshot().titleStrategy,
-					hostContextBriefing:
-						settingsAccess.getSnapshot().hostContextBriefing,
+					obsidianSystemPrompt:
+						settingsAccess.getSnapshot().obsidianSystemPrompt,
 					workingDirectory: options.workingDirectory,
 					vaultRootPath: options.vaultRootPath,
 					contextNotes: options.contextNotes,

@@ -20,9 +20,9 @@ import {
 	TITLE_STRATEGY_VALUES,
 } from "../types/title-strategy";
 import {
-	DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS,
-	normalizeHostContextBriefingSettings,
-} from "../utils/host-context-briefing";
+	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
+	normalizeObsidianSystemPromptSettings,
+} from "../utils/obsidian-system-prompt";
 
 // ============================================================================
 // Display Settings
@@ -344,7 +344,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	sendMessageShortcut: "enter",
 	chatViewLocation: "right",
 	titleStrategy: DEFAULT_TITLE_STRATEGY,
-	hostContextBriefing: DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS,
+	obsidianSystemPrompt: DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
 	displaySettings: {
 		showEmojis: true,
 		fontSize: null,
@@ -581,8 +581,8 @@ export function normalizeRawSettings(
 			TITLE_STRATEGY_VALUES,
 			D.titleStrategy,
 		),
-		hostContextBriefing: normalizeHostContextBriefingSettings(
-			raw.hostContextBriefing,
+		obsidianSystemPrompt: normalizeObsidianSystemPromptSettings(
+			raw.obsidianSystemPrompt,
 		),
 		displaySettings: {
 			showEmojis: bool(rd.showEmojis, D.displaySettings.showEmojis),

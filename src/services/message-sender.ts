@@ -39,10 +39,10 @@ import {
 import type { TitleStrategy } from "../types/title-strategy";
 import { TITLE_RUBRIC } from "../utils/system-instructions";
 import {
-	composeHostContextBriefing,
-	DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS,
-	type HostContextBriefingSettings,
-} from "../utils/host-context-briefing";
+	composeObsidianSystemPrompt,
+	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
+	type ObsidianSystemPromptSettings,
+} from "../utils/obsidian-system-prompt";
 import { convertWindowsPathToWsl } from "../utils/platform";
 import { buildFileUri } from "../utils/paths";
 import { buildContextBlocks } from "./context-builder";
@@ -95,7 +95,7 @@ export interface PreparePromptInput {
 	vaultRootPath?: string;
 
 	/** Host-context briefing settings (block selection + raw-edit escape). */
-	hostContextBriefing?: HostContextBriefingSettings;
+	obsidianSystemPrompt?: ObsidianSystemPromptSettings;
 
 	/**
 	 * Session title strategy (F03). When `agent-suggested` and this is the
@@ -329,12 +329,12 @@ function buildAutoMentionPrefix(
  *
  * Exported for unit testing (pure function).
  */
-export function buildHostContextBriefing(
+export function buildObsidianSystemPrompt(
 	input: PreparePromptInput,
 ): string | null {
 	if (!input.isFirstMessage) return null;
-	return composeHostContextBriefing(
-		input.hostContextBriefing ?? DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS,
+	return composeObsidianSystemPrompt(
+		input.obsidianSystemPrompt ?? DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
 		{
 			cwd: input.workingDirectory ?? input.vaultBasePath,
 			vaultRoot: input.vaultRootPath ?? input.vaultBasePath,
@@ -556,7 +556,7 @@ async function preparePromptWithContextNotes(
 	// this the real send path (which always provides contextNotes) sent no
 	// system instructions at all, so the title rubric never reached the agent
 	// and no <title> marker was ever emitted (T52 root cause, 2026-06-25).
-	const briefing = buildHostContextBriefing(input);
+	const briefing = buildObsidianSystemPrompt(input);
 	const systemBlocks: PromptContent[] = briefing
 		? [{ type: "text" as const, text: wrapSystemInstruction(briefing) }]
 		: [];
@@ -655,7 +655,7 @@ async function preparePromptWithEmbeddedContext(
 	);
 
 	// Build system prompt instructions (first message only)
-	const briefing = buildHostContextBriefing(input);
+	const briefing = buildObsidianSystemPrompt(input);
 	const systemBlocks: PromptContent[] = briefing
 		? [{ type: "text" as const, text: wrapSystemInstruction(briefing) }]
 		: [];
@@ -744,7 +744,7 @@ async function preparePromptWithTextContext(
 	}
 
 	// Build system prompt instructions (first message only)
-	const briefing = buildHostContextBriefing(input);
+	const briefing = buildObsidianSystemPrompt(input);
 	if (briefing) {
 		contextBlocks.push(wrapSystemInstruction(briefing));
 	}

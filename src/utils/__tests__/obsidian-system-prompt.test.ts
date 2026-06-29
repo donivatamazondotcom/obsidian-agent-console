@@ -1,15 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
-	composeHostContextBriefing,
+	composeObsidianSystemPrompt,
 	isCwdInsideVault,
 	HOST_IDENTITY_BLOCK,
 	RENDERING_AFFORDANCES_BLOCK,
 	VAULT_COLLABORATION_BLOCK,
 	workingDirectoryBlock,
-	DEFAULT_HOST_CONTEXT_BRIEFING_BLOCKS,
-	type HostContextBriefingBlocks,
-	normalizeHostContextBriefingSettings,
-} from "../host-context-briefing";
+	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS,
+	type ObsidianSystemPromptBlocks,
+	normalizeObsidianSystemPromptSettings,
+} from "../obsidian-system-prompt";
 import {
 	WIKI_LINK_INSTRUCTION,
 	TABLE_INSTRUCTION,
@@ -18,8 +18,8 @@ import {
 
 const VAULT = "/Users/me/vault";
 
-const allOn = (): HostContextBriefingBlocks => ({
-	...DEFAULT_HOST_CONTEXT_BRIEFING_BLOCKS,
+const allOn = (): ObsidianSystemPromptBlocks => ({
+	...DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS,
 });
 
 describe("isCwdInsideVault", () => {
@@ -50,9 +50,9 @@ describe("isCwdInsideVault", () => {
 	});
 });
 
-describe("composeHostContextBriefing", () => {
+describe("composeObsidianSystemPrompt", () => {
 	it("assembles all four blocks in order when all are enabled and cwd is the vault", () => {
-		const out = composeHostContextBriefing(
+		const out = composeObsidianSystemPrompt(
 			{ blocks: allOn() },
 			{ cwd: VAULT, vaultRoot: VAULT },
 		);
@@ -67,7 +67,7 @@ describe("composeHostContextBriefing", () => {
 	});
 
 	it("omits the vault-collaboration block when cwd is outside the vault", () => {
-		const out = composeHostContextBriefing(
+		const out = composeObsidianSystemPrompt(
 			{ blocks: allOn() },
 			{ cwd: "/Users/me/repo", vaultRoot: VAULT },
 		);
@@ -78,7 +78,7 @@ describe("composeHostContextBriefing", () => {
 
 	it("keeps the vault-collaboration block for a vault subfolder cwd", () => {
 		const sub = `${VAULT}/projects`;
-		const out = composeHostContextBriefing(
+		const out = composeObsidianSystemPrompt(
 			{ blocks: allOn() },
 			{ cwd: sub, vaultRoot: VAULT },
 		);
@@ -87,7 +87,7 @@ describe("composeHostContextBriefing", () => {
 	});
 
 	it("omits the working-directory block when cwd is empty", () => {
-		const out = composeHostContextBriefing(
+		const out = composeObsidianSystemPrompt(
 			{ blocks: allOn() },
 			{ cwd: "", vaultRoot: VAULT },
 		);
@@ -99,7 +99,7 @@ describe("composeHostContextBriefing", () => {
 	});
 
 	it("removes exactly the deselected block (host identity off)", () => {
-		const out = composeHostContextBriefing(
+		const out = composeObsidianSystemPrompt(
 			{ blocks: { ...allOn(), hostIdentity: false } },
 			{ cwd: VAULT, vaultRoot: VAULT },
 		);
@@ -109,7 +109,7 @@ describe("composeHostContextBriefing", () => {
 	});
 
 	it("removes exactly the deselected block (rendering off)", () => {
-		const out = composeHostContextBriefing(
+		const out = composeObsidianSystemPrompt(
 			{ blocks: { ...allOn(), rendering: false } },
 			{ cwd: VAULT, vaultRoot: VAULT },
 		);
@@ -118,7 +118,7 @@ describe("composeHostContextBriefing", () => {
 	});
 
 	it("returns null when no block is enabled and there is no custom text", () => {
-		const out = composeHostContextBriefing(
+		const out = composeObsidianSystemPrompt(
 			{
 				blocks: {
 					hostIdentity: false,
@@ -133,7 +133,7 @@ describe("composeHostContextBriefing", () => {
 	});
 
 	it("folds the three shipped formatting instructions into the rendering block", () => {
-		const out = composeHostContextBriefing(
+		const out = composeObsidianSystemPrompt(
 			{ blocks: { ...allOn(), rendering: true } },
 			{ cwd: VAULT, vaultRoot: VAULT },
 		);
@@ -144,7 +144,7 @@ describe("composeHostContextBriefing", () => {
 
 	describe("appendText (Your vault context)", () => {
 		it("appends the user's text after the composed blocks", () => {
-			const out = composeHostContextBriefing(
+			const out = composeObsidianSystemPrompt(
 				{ blocks: allOn(), appendText: "Daily notes live in Journal/." },
 				{ cwd: VAULT, vaultRoot: VAULT },
 			);
@@ -153,7 +153,7 @@ describe("composeHostContextBriefing", () => {
 		});
 
 		it("returns just the append text when all blocks are off", () => {
-			const out = composeHostContextBriefing(
+			const out = composeObsidianSystemPrompt(
 				{
 					blocks: {
 						hostIdentity: false,
@@ -169,11 +169,11 @@ describe("composeHostContextBriefing", () => {
 		});
 
 		it("ignores whitespace-only append text", () => {
-			const withWs = composeHostContextBriefing(
+			const withWs = composeObsidianSystemPrompt(
 				{ blocks: allOn(), appendText: "   \n  " },
 				{ cwd: VAULT, vaultRoot: VAULT },
 			);
-			const without = composeHostContextBriefing(
+			const without = composeObsidianSystemPrompt(
 				{ blocks: allOn() },
 				{ cwd: VAULT, vaultRoot: VAULT },
 			);
@@ -183,7 +183,7 @@ describe("composeHostContextBriefing", () => {
 
 	describe("full mode (Edit full prompt)", () => {
 		it("returns customText verbatim and ignores blocks + cwd + append", () => {
-			const out = composeHostContextBriefing(
+			const out = composeObsidianSystemPrompt(
 				{
 					blocks: allOn(),
 					mode: "full",
@@ -196,7 +196,7 @@ describe("composeHostContextBriefing", () => {
 		});
 
 		it("returns null for an empty full prompt", () => {
-			const out = composeHostContextBriefing(
+			const out = composeObsidianSystemPrompt(
 				{ blocks: allOn(), mode: "full", customText: "   " },
 				{ cwd: VAULT, vaultRoot: VAULT },
 			);
@@ -204,7 +204,7 @@ describe("composeHostContextBriefing", () => {
 		});
 
 		it("options mode ignores customText (only full mode uses it)", () => {
-			const out = composeHostContextBriefing(
+			const out = composeObsidianSystemPrompt(
 				{
 					blocks: allOn(),
 					mode: "options",
@@ -218,9 +218,9 @@ describe("composeHostContextBriefing", () => {
 	});
 });
 
-describe("normalizeHostContextBriefingSettings", () => {
+describe("normalizeObsidianSystemPromptSettings", () => {
 	it("returns full defaults for undefined / missing", () => {
-		const s = normalizeHostContextBriefingSettings(undefined);
+		const s = normalizeObsidianSystemPromptSettings(undefined);
 		expect(s).toEqual({
 			blocks: {
 				hostIdentity: true,
@@ -235,7 +235,7 @@ describe("normalizeHostContextBriefingSettings", () => {
 	});
 
 	it("returns defaults for a non-object (array / garbage)", () => {
-		expect(normalizeHostContextBriefingSettings([1, 2])).toEqual({
+		expect(normalizeObsidianSystemPromptSettings([1, 2])).toEqual({
 			blocks: {
 				hostIdentity: true,
 				rendering: true,
@@ -249,7 +249,7 @@ describe("normalizeHostContextBriefingSettings", () => {
 	});
 
 	it("defaults missing individual block keys to true", () => {
-		const s = normalizeHostContextBriefingSettings({
+		const s = normalizeObsidianSystemPromptSettings({
 			blocks: { vaultCollaboration: false },
 		});
 		expect(s.blocks).toEqual({
@@ -261,19 +261,19 @@ describe("normalizeHostContextBriefingSettings", () => {
 	});
 
 	it("preserves a string customText", () => {
-		const s = normalizeHostContextBriefingSettings({
+		const s = normalizeObsidianSystemPromptSettings({
 			customText: "My briefing.",
 		});
 		expect(s.customText).toBe("My briefing.");
 	});
 
 	it("coerces a non-string customText to empty", () => {
-		const s = normalizeHostContextBriefingSettings({ customText: 42 });
+		const s = normalizeObsidianSystemPromptSettings({ customText: 42 });
 		expect(s.customText).toBe("");
 	});
 
 	it("ignores dormant promptInjection-shaped keys (superseded feature)", () => {
-		const s = normalizeHostContextBriefingSettings({
+		const s = normalizeObsidianSystemPromptSettings({
 			enabled: false,
 			wikiLinks: true,
 		});
@@ -283,20 +283,20 @@ describe("normalizeHostContextBriefingSettings", () => {
 	});
 
 	it("defaults to options mode and empty appendText", () => {
-		const s = normalizeHostContextBriefingSettings({});
+		const s = normalizeObsidianSystemPromptSettings({});
 		expect(s.mode).toBe("options");
 		expect(s.appendText).toBe("");
 	});
 
 	it("preserves appendText", () => {
-		const s = normalizeHostContextBriefingSettings({
+		const s = normalizeObsidianSystemPromptSettings({
 			appendText: "my vault context",
 		});
 		expect(s.appendText).toBe("my vault context");
 	});
 
 	it("infers full mode for a legacy customText with no mode", () => {
-		const s = normalizeHostContextBriefingSettings({
+		const s = normalizeObsidianSystemPromptSettings({
 			customText: "legacy replace",
 		});
 		expect(s.mode).toBe("full");

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-	buildHostContextBriefing,
+	buildObsidianSystemPrompt,
 	buildTitleRubric,
 	TITLE_RUBRIC,
 	type PreparePromptInput,
@@ -9,7 +9,7 @@ import {
 /**
  * S2 (F03) + I111 — title rubric gating and placement.
  *
- * buildHostContextBriefing returns the composed Obsidian host-context briefing
+ * buildObsidianSystemPrompt returns the composed Obsidian host-context briefing
  * on the first message (it leads the prompt). The title rubric is produced separately
  * by buildTitleRubric and positioned immediately before the user message
  * (I111), firing ONLY on the first message under `agent-suggested`.
@@ -20,15 +20,15 @@ const base: PreparePromptInput = {
 	vaultBasePath: "/vault",
 };
 
-describe("buildHostContextBriefing — composed briefing (slice 3)", () => {
+describe("buildObsidianSystemPrompt — composed briefing (slice 3)", () => {
 	it("returns null on a non-first message", () => {
 		expect(
-			buildHostContextBriefing({ ...base, isFirstMessage: false }),
+			buildObsidianSystemPrompt({ ...base, isFirstMessage: false }),
 		).toBeNull();
 	});
 
 	it("first message → the composed briefing, folding in the formatting hints, never the rubric", () => {
-		const out = buildHostContextBriefing({ ...base, isFirstMessage: true });
+		const out = buildObsidianSystemPrompt({ ...base, isFirstMessage: true });
 		expect(out).not.toBeNull();
 		expect(out).not.toContain(TITLE_RUBRIC);
 		expect(out).toContain("wikilink");
@@ -36,12 +36,12 @@ describe("buildHostContextBriefing — composed briefing (slice 3)", () => {
 	});
 
 	it("includes the vault-collaboration line when cwd defaults to the vault root", () => {
-		const out = buildHostContextBriefing({ ...base, isFirstMessage: true });
+		const out = buildObsidianSystemPrompt({ ...base, isFirstMessage: true });
 		expect(out).toContain("read and edit");
 	});
 
 	it("omits the vault-collaboration line, keeps the working-dir line, when cwd is outside the vault", () => {
-		const out = buildHostContextBriefing({
+		const out = buildObsidianSystemPrompt({
 			...base,
 			isFirstMessage: true,
 			workingDirectory: "/somewhere/else",
@@ -51,7 +51,7 @@ describe("buildHostContextBriefing — composed briefing (slice 3)", () => {
 	});
 
 	it("gates on the true vault root (vaultRootPath), not vaultBasePath", () => {
-		const out = buildHostContextBriefing({
+		const out = buildObsidianSystemPrompt({
 			...base,
 			isFirstMessage: true,
 			vaultBasePath: "/realvault/sub",
@@ -62,7 +62,7 @@ describe("buildHostContextBriefing — composed briefing (slice 3)", () => {
 	});
 
 	it("hides the vault line when cwd is outside the true vault root", () => {
-		const out = buildHostContextBriefing({
+		const out = buildObsidianSystemPrompt({
 			...base,
 			isFirstMessage: true,
 			vaultBasePath: "/external",

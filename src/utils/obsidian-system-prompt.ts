@@ -6,7 +6,7 @@ import {
 import { isSameDirectory } from "./platform";
 
 /**
- * Host Context Briefing — the honest, plugin-generic orientation injected on
+ * Obsidian system prompt — the honest, plugin-generic orientation injected on
  * the first message of a session so a connected agent behaves natively in
  * Obsidian out of the box.
  *
@@ -17,7 +17,7 @@ import { isSameDirectory } from "./platform";
  * at emit time (so the existing tab-label leak-stripper handles it) — that
  * wrapping is NOT this module's concern.
  *
- * Spec: [[Obsidian Host Context Briefing]].
+ * Spec: [[Obsidian System Prompt]].
  */
 
 // ── Block constants (shipped defaults) ──────────────────────────────────────
@@ -52,17 +52,17 @@ export function workingDirectoryBlock(cwd: string): string {
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface HostContextBriefingBlocks {
+export interface ObsidianSystemPromptBlocks {
 	hostIdentity: boolean;
 	rendering: boolean;
 	workingDirectory: boolean;
 	vaultCollaboration: boolean;
 }
 
-export type HostContextBriefingMode = "options" | "full";
+export type ObsidianSystemPromptMode = "options" | "full";
 
-export interface HostContextBriefingSettings {
-	blocks: HostContextBriefingBlocks;
+export interface ObsidianSystemPromptSettings {
+	blocks: ObsidianSystemPromptBlocks;
 	/**
 	 * The user's own additions (vault structure, conventions, preferences).
 	 * Appended after the composed blocks in "options" mode. The scope-safe
@@ -76,17 +76,17 @@ export interface HostContextBriefingSettings {
 	 */
 	customText?: string;
 	/** "options" = blocks + appendText (cwd-gated); "full" = customText verbatim. */
-	mode?: HostContextBriefingMode;
+	mode?: ObsidianSystemPromptMode;
 }
 
-export interface HostContextBriefingContext {
+export interface ObsidianSystemPromptContext {
 	/** The session's resolved working directory. */
 	cwd: string;
 	/** The vault base path. */
 	vaultRoot: string;
 }
 
-export const DEFAULT_HOST_CONTEXT_BRIEFING_BLOCKS: HostContextBriefingBlocks = {
+export const DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS: ObsidianSystemPromptBlocks = {
 	hostIdentity: true,
 	rendering: true,
 	workingDirectory: true,
@@ -125,9 +125,9 @@ export function isCwdInsideVault(cwd: string, vaultRoot: string): boolean {
  * - The working-directory block is omitted when `cwd` is empty.
  * - The vault-collaboration block is gated on {@link isCwdInsideVault}.
  */
-export function composeHostContextBriefing(
-	settings: HostContextBriefingSettings,
-	ctx: HostContextBriefingContext,
+export function composeObsidianSystemPrompt(
+	settings: ObsidianSystemPromptSettings,
+	ctx: ObsidianSystemPromptContext,
 ): string | null {
 	if ((settings.mode ?? "options") === "full") {
 		const full = (settings.customText ?? "").trim();
@@ -154,26 +154,26 @@ export function composeHostContextBriefing(
 
 // ── Settings normalization (trust boundary) ────────────────────────────────
 
-export const DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS: HostContextBriefingSettings =
+export const DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS: ObsidianSystemPromptSettings =
 	{
-		blocks: { ...DEFAULT_HOST_CONTEXT_BRIEFING_BLOCKS },
+		blocks: { ...DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS },
 		appendText: "",
 		customText: "",
 		mode: "options",
 	};
 
 /**
- * Normalize a raw, untrusted `hostContextBriefing` value from persisted config
- * into a valid {@link HostContextBriefingSettings}. Missing/garbage values fall
+ * Normalize a raw, untrusted `obsidianSystemPrompt` value from persisted config
+ * into a valid {@link ObsidianSystemPromptSettings}. Missing/garbage values fall
  * back to the shipped defaults (all blocks on, no custom text). Never throws.
  *
- * A fresh install or a pre-feature upgrade has no `hostContextBriefing` key →
+ * A fresh install or a pre-feature upgrade has no `obsidianSystemPrompt` key →
  * full defaults. (The dormant `promptInjection` keys from the superseded
  * Prompt Injection Defaults work are simply ignored here.)
  */
-export function normalizeHostContextBriefingSettings(
+export function normalizeObsidianSystemPromptSettings(
 	raw: unknown,
-): HostContextBriefingSettings {
+): ObsidianSystemPromptSettings {
 	const obj =
 		raw && typeof raw === "object" && !Array.isArray(raw)
 			? (raw as Record<string, unknown>)
@@ -182,11 +182,11 @@ export function normalizeHostContextBriefingSettings(
 		obj.blocks && typeof obj.blocks === "object" && !Array.isArray(obj.blocks)
 			? (obj.blocks as Record<string, unknown>)
 			: {};
-	const b = (k: keyof HostContextBriefingBlocks): boolean => {
+	const b = (k: keyof ObsidianSystemPromptBlocks): boolean => {
 		const v = rawBlocks[k];
 		return typeof v === "boolean"
 			? v
-			: DEFAULT_HOST_CONTEXT_BRIEFING_BLOCKS[k];
+			: DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS[k];
 	};
 	const appendText =
 		typeof obj.appendText === "string" ? obj.appendText : "";
@@ -194,7 +194,7 @@ export function normalizeHostContextBriefingSettings(
 		typeof obj.customText === "string" ? obj.customText : "";
 	// Migration: a pre-mode config carrying non-empty customText meant
 	// "replace" → preserve as "full"; otherwise default to "options".
-	const mode: HostContextBriefingMode =
+	const mode: ObsidianSystemPromptMode =
 		obj.mode === "full"
 			? "full"
 			: obj.mode === "options"

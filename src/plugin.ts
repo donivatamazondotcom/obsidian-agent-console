@@ -4,7 +4,7 @@ import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
 import { HOVER_LINK_SOURCE } from "./utils/link-leaf";
-import type { HostContextBriefingSettings } from "./utils/host-context-briefing";
+import type { ObsidianSystemPromptSettings } from "./utils/obsidian-system-prompt";
 import { fetchJson } from "./services/net";
 import { ChatViewRegistry } from "./services/view-registry";
 import {
@@ -128,7 +128,7 @@ export interface AgentClientPluginSettings {
 	 */
 	titleStrategy: TitleStrategy;
 	/** Obsidian host-context briefing injected on first message (block selection + raw-edit escape). */
-	hostContextBriefing: HostContextBriefingSettings;
+	obsidianSystemPrompt: ObsidianSystemPromptSettings;
 	// Display settings
 	displaySettings: {
 		showEmojis: boolean;
