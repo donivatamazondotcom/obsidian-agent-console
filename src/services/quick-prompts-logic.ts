@@ -93,10 +93,10 @@ function normalizeString(value: unknown): string | undefined {
 
 /**
  * Build a `QuickPrompt` from a parsed file. Pure — label fallback, stable id,
- * `usesSelection`, and the parsed-and-carried optional fields (`tags`,
- * `agent`, `mode`, `newTab`). Core does not act on the carried fields (firing
- * is always current-tab); they ride through so the later slices need no
- * re-parse.
+ * `usesSelection`, and the parsed-and-carried optional fields (`showOnTags`,
+ * `alwaysShow`, `agent`, `mode`, `newTab`). Core does not act on the carried
+ * fields (firing is always current-tab); they ride through so the later slices
+ * need no re-parse.
  */
 export function buildQuickPrompt(input: QuickPromptFileInput): QuickPrompt {
 	const fm = input.frontmatter;
@@ -106,7 +106,13 @@ export function buildQuickPrompt(input: QuickPromptFileInput): QuickPrompt {
 		body: input.body,
 		path: input.path,
 		usesSelection: input.body.includes(SELECTION_TOKEN),
-		tags: fm ? normalizeTags(fm["tags"]) : undefined,
+		// Contextual-chip scope (slice 2). Frontmatter key `show on tags`
+		// (renamed from `tags` — that key collided with the note's own tags
+		// property; clean rename, never released). Accepts an array or a single
+		// string.
+		showOnTags: fm ? normalizeTags(fm["show on tags"]) : undefined,
+		// Global chip: show in the resting row on every note (slice 2, D6).
+		alwaysShow: fm ? fm["always show"] === true : undefined,
 		agent: fm ? normalizeString(fm["agent"]) : undefined,
 		mode: fm ? normalizeString(fm["mode"]) : undefined,
 		// Default target = new tab, via the `open in new tab` checkbox (D5).
@@ -394,23 +400,24 @@ export function executeQuickPrompt(
 }
 
 // ============================================================================
-// Slice 2 — contextual chips: tag matching + queued-disable predicate
+// Slice 2 — chip visibility (D6): always-show ∪ tag-matched
 // ============================================================================
 
 /**
- * Whether a prompt's tags match the active note's tags.
+ * Whether a prompt's `show on tags` scope matches the active note's tags.
  *
- * - **Untagged prompts always match** (globally-shown).
- * - A tagged prompt matches on **any** tag, with **nested** matching: prompt
- *   tag `NoteType` matches note tag `NoteType/DailyNote` (prompt tag is the
- *   filter; a note tag nested under it counts). Comparison is
- *   case-insensitive and tolerant of a leading `#`.
+ * Contract (slice 2, D6): an **empty/undefined** scope matches **nothing** —
+ * an unscoped prompt is NOT globally shown by default (that role belongs to
+ * `alwaysShow`). A scoped prompt matches on **any** tag, with **nested**
+ * matching: scope tag `NoteType` matches note tag `NoteType/DailyNote` (the
+ * scope tag is the filter; a note tag nested under it counts). Comparison is
+ * case-insensitive and tolerant of a leading `#`.
  */
-export function promptMatchesTags(
+export function tagsMatch(
 	promptTags: string[] | undefined,
 	noteTags: string[],
 ): boolean {
-	if (!promptTags || promptTags.length === 0) return true;
+	if (!promptTags || promptTags.length === 0) return false;
 	const clean = (t: string) => t.toLowerCase().replace(/^#/, "");
 	const notes = noteTags.map(clean);
 	return promptTags.some((promptTag) => {
@@ -420,14 +427,33 @@ export function promptMatchesTags(
 }
 
 /**
- * The contextual chip set for the active note: untagged prompts plus those
- * whose tags match. Empty result ⇒ the chips row renders nothing (no row).
+ * Whether a prompt belongs in the **resting chip row** for the active note
+ * (D6). Two explicit ways in — never the old "untagged ⇒ always shows":
+ *
+ * - `alwaysShow` (the `always show` checkbox) → a **global** chip, shown on
+ *   every note regardless of tags.
+ * - `showOnTags` matching the note's tags → a **contextual** chip.
+ *
+ * Neither ⇒ **search-only**: the prompt stays findable in the picker but never
+ * enters the resting row. The single pure gating decision for chip presence.
+ */
+export function promptInRestingRow(
+	prompt: Pick<QuickPrompt, "alwaysShow" | "showOnTags">,
+	noteTags: string[],
+): boolean {
+	return prompt.alwaysShow === true || tagsMatch(prompt.showOnTags, noteTags);
+}
+
+/**
+ * The resting chip set for the active note: `always-show ∪ tag-matched`.
+ * Untagged + un-`always show` prompts are search-only and excluded here. Empty
+ * result ⇒ the chips row renders nothing (no row).
  */
 export function matchPromptsForNote(
 	prompts: QuickPrompt[],
 	noteTags: string[],
 ): QuickPrompt[] {
-	return prompts.filter((prompt) => promptMatchesTags(prompt.tags, noteTags));
+	return prompts.filter((prompt) => promptInRestingRow(prompt, noteTags));
 }
 
 /**
