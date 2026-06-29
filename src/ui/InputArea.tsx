@@ -1,5 +1,6 @@
 import * as React from "react";
-const { useRef, useState, useEffect, useCallback, useMemo } = React;
+const { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } =
+	React;
 import { Notice, setIcon, Scope } from "obsidian";
 
 import type AgentClientPlugin from "../plugin";
@@ -1270,8 +1271,12 @@ export function InputArea({
 		],
 	);
 
-	// Adjust textarea height when input changes
-	useEffect(() => {
+	// Adjust textarea height when input changes. useLayoutEffect (pre-paint) so
+	// the collapse lands in the SAME frame the text changes: with a post-paint
+	// useEffect, clearing the composer on a !/@ pick painted one frame at the
+	// stale (taller) height before collapsing — a visible flicker, worst in a
+	// narrow pane where the trigger text had wrapped (QP-I19).
+	useLayoutEffect(() => {
 		adjustTextareaHeight();
 	}, [inputValue, adjustTextareaHeight]);
 

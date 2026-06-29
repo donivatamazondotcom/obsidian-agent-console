@@ -2975,7 +2975,10 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	gap: var(--size-2-2);
 	align-items: center;
 	margin-bottom: var(--size-2-2);
-	padding: 2px 4px;
+	/* No left padding: the chip's left edge sits on the same rail as the
+	   context-strip pin / box edge (QP-I20). Right padding keeps a focus-ring
+	   margin; the row is overflow:visible so the leftmost ring isn't clipped. */
+	padding: 2px 4px 2px 0;
 }
 
 .agent-client-quick-prompt-chip {
