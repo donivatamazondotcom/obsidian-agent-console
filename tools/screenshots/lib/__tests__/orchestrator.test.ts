@@ -1628,3 +1628,306 @@ describe("framing (Decision 11)", () => {
 		expect(frameImage).not.toHaveBeenCalled();
 	});
 });
+
+describe("captureEntry — v1.3.0 driving primitives", () => {
+	it("forceConnectingHold rewrites the default agent's command to a never-completing process (queue-next-message)", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: { clickRibbon: true, forceConnectingHold: true },
+		});
+
+		await captureEntry(entry, deps);
+
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		// The hold rewrites the matched agent's command so its ACP handshake
+		// never completes — a sent message stays in the locked composer.
+		const holdCall = evals.find(
+			(e) => e.includes('a.command = "sleep"') && e.includes('"86400"'),
+		);
+		expect(holdCall).toBeDefined();
+		// It must run before the panel opens so the first tab connects to the
+		// hung command.
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		const execMock = deps.cdp.executeCommand as ReturnType<typeof vi.fn>;
+		const holdIdx = evals.findIndex((e) =>
+			e.includes('a.command = "sleep"'),
+		);
+		const openIdx = execMock.mock.calls.findIndex((c: unknown[]) =>
+			(c[0] as string).includes("open-chat-view"),
+		);
+		expect(evalMock.mock.invocationCallOrder[holdIdx]).toBeLessThan(
+			execMock.mock.invocationCallOrder[openIdx],
+		);
+	});
+
+	it("disableNativeMenus turns native menus off so a Menu renders as a DOM .menu", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: { clickRibbon: true, disableNativeMenus: true },
+		});
+
+		await captureEntry(entry, deps);
+
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(
+			evals.some((e) => e.includes('setConfig("nativeMenus", false)')),
+		).toBe(true);
+	});
+
+	it("clickSequence clicks each step via clickWithCoords and waits for its waitFor", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: {
+				clickRibbon: true,
+				clickSequence: [
+					{ selector: ".step-one", waitFor: ".after-one" },
+					{ selector: ".step-two", waitFor: ".after-two" },
+				],
+			},
+		});
+
+		await captureEntry(entry, deps);
+
+		// Multi-click drive uses clickWithCoords (focus-independent), not
+		// clickElement, for each step.
+		expect(deps.cdp.clickWithCoords).toHaveBeenCalledWith(".step-one");
+		expect(deps.cdp.clickWithCoords).toHaveBeenCalledWith(".step-two");
+		const waits = (
+			deps.cdp.waitForElement as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(waits).toContain(".after-one");
+		expect(waits).toContain(".after-two");
+	});
+
+	it("clickSequence falls back to a settle (no wait) when a step omits waitFor", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: {
+				clickRibbon: true,
+				clickSequence: [{ selector: ".only-step" }],
+			},
+		});
+
+		await captureEntry(entry, deps);
+
+		expect(deps.cdp.clickWithCoords).toHaveBeenCalledWith(".only-step");
+		// Each step waits for its own selector to exist before clicking; with
+		// no waitFor it then just settles (no second selector wait), so the
+		// step selector is waited on exactly once.
+		const waits = (
+			deps.cdp.waitForElement as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(waits.filter((w) => w === ".only-step")).toHaveLength(1);
+	});
+
+	it("typeQuerySelector aims the typed query at a non-palette input", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: {
+				openSettings: "agent-console",
+				typeQuery: "docs",
+				typeQuerySelector: ".agent-client-session-history-search-input",
+			},
+		});
+
+		await captureEntry(entry, deps);
+
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		const typeCall = evals.find(
+			(e) =>
+				e.includes(".agent-client-session-history-search-input") &&
+				e.includes("docs") &&
+				e.includes("dispatchEvent"),
+		);
+		expect(typeCall).toBeDefined();
+	});
+
+	it("typeQuery defaults to the command-palette .prompt-input when no typeQuerySelector is given", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: {
+				runCommands: ["command-palette:open"],
+				typeQuery: "Agent Console",
+			},
+		});
+
+		await captureEntry(entry, deps);
+
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(
+			evals.some(
+				(e) =>
+					e.includes(".prompt-input") && e.includes("Agent Console"),
+			),
+		).toBe(true);
+	});
+
+	it("collapseSelectors collapses the targeted <details> accordions (open=false)", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: {
+				openSettings: "agent-console",
+				collapseSelectors: [".agent-client-agent-section"],
+			},
+		});
+
+		await captureEntry(entry, deps);
+
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		const collapseCall = evals.find(
+			(e) =>
+				e.includes("d.open = false") &&
+				e.includes(".agent-client-agent-section"),
+		);
+		expect(collapseCall).toBeDefined();
+	});
+
+	it("scrollToSettingText expands + scrolls the named setting/section into view", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: {
+				openSettings: "agent-console",
+				scrollToSettingText: "Default working directory",
+			},
+		});
+
+		await captureEntry(entry, deps);
+
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		const scrollCall = evals.find(
+			(e) =>
+				e.includes("Default working directory") &&
+				e.includes("scrollIntoView") &&
+				e.includes(".vertical-tab-content"),
+		);
+		expect(scrollCall).toBeDefined();
+	});
+
+	it("forceCloseConfirm invokes the live view's close handler then waits for the .modal (confirm-close-multiple-tabs)", async () => {
+		const deps = makeDeps();
+		// forceTabStates only seeds tabs when the view exposes tabs[0]; mock
+		// those reads (as the tab-status-dropdown test does) so addTab runs.
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) => {
+				if (expr.includes("tabs[0].agentId"))
+					return Promise.resolve("claude-code-acp");
+				if (expr.includes("tabs[0].tabId"))
+					return Promise.resolve("tab-initial");
+				if (expr.includes("tabs.map"))
+					return Promise.resolve(JSON.stringify(["id0", "id1"]));
+				return Promise.resolve(undefined);
+			},
+		);
+		const entry = makeEntry({
+			initialState: {
+				clickRibbon: true,
+				forceTabStates: [
+					{ label: "Draft the launch post", state: "ready" },
+					{ label: "Summarize meeting notes", state: "ready" },
+				],
+				forceCloseConfirm: true,
+			},
+		});
+
+		await captureEntry(entry, deps);
+
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		const evals = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		// The modal is reachable only via the panel's private close handler;
+		// the driver calls it on the live view.
+		const closeIdx = evals.findIndex((e) =>
+			e.includes("v.handleCloseRequest()"),
+		);
+		expect(closeIdx).toBeGreaterThanOrEqual(0);
+		// It must then wait for the modal to render before capturing.
+		const waits = (
+			deps.cdp.waitForElement as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(waits).toContain(".modal");
+		// The close handler runs AFTER forceTabStates has seeded the tabs, so
+		// the real tab count gates the real modal.
+		const seedIdx = evals.findIndex((e) => e.includes("addTab("));
+		expect(seedIdx).toBeGreaterThanOrEqual(0);
+		expect(evalMock.mock.invocationCallOrder[seedIdx]).toBeLessThan(
+			evalMock.mock.invocationCallOrder[closeIdx],
+		);
+	}, 15000);
+});
+
+describe("captureEntry — modal hygiene (leftover-modal leak fix)", () => {
+	const MODAL_CLOSE = (e: string) =>
+		e.includes(".modal-container") && e.includes(".modal-close-button");
+
+	it("dismisses any leftover modal at the start of every capture", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry();
+
+		await captureEntry(entry, deps);
+
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		const evals = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		const dismissIdx = evals.findIndex(MODAL_CLOSE);
+		// A leftover app modal (e.g. confirm-close) survives the setup.sh plugin
+		// reload, so each capture clears stray modals before driving state.
+		expect(dismissIdx).toBeGreaterThanOrEqual(0);
+		// The clear must run before the screenshot so the shot is never overlapped.
+		const shotOrder = (deps.cdp.screenshot as ReturnType<typeof vi.fn>).mock
+			.invocationCallOrder[0];
+		expect(evalMock.mock.invocationCallOrder[dismissIdx]).toBeLessThan(
+			shotOrder,
+		);
+	});
+
+	it("tears down the forceCloseConfirm modal after capture so it can't linger in studio", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) => {
+				if (expr.includes("tabs[0].agentId"))
+					return Promise.resolve("claude-code-acp");
+				if (expr.includes("tabs[0].tabId"))
+					return Promise.resolve("tab-initial");
+				if (expr.includes("tabs.map"))
+					return Promise.resolve(JSON.stringify(["id0", "id1"]));
+				return Promise.resolve(undefined);
+			},
+		);
+		const entry = makeEntry({
+			initialState: {
+				clickRibbon: true,
+				forceTabStates: [
+					{ label: "A", state: "ready" },
+					{ label: "B", state: "ready" },
+				],
+				forceCloseConfirm: true,
+			},
+		});
+
+		await captureEntry(entry, deps);
+
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		const evals = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		const orders = evalMock.mock.invocationCallOrder;
+		const shotOrder = (deps.cdp.screenshot as ReturnType<typeof vi.fn>).mock
+			.invocationCallOrder[0];
+		// Two modal-close evaluates: the start-of-capture dismiss (before the
+		// shot) and the finally teardown (after it).
+		const closeOrders = evals
+			.map((e, i) => (MODAL_CLOSE(e) ? orders[i] : -1))
+			.filter((o) => o >= 0);
+		expect(closeOrders.length).toBeGreaterThanOrEqual(2);
+		// At least one teardown runs AFTER the capture (the finally).
+		expect(closeOrders.some((o) => o > shotOrder)).toBe(true);
+	}, 15000);
+});

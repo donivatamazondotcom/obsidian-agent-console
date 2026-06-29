@@ -190,6 +190,15 @@ export async function captureEntry(
 
 	try {
 
+	// 0.5 Dismiss any leftover Obsidian modal from a prior capture so this shot
+	// starts clean. A modal opened by an earlier entry (e.g. confirm-close via
+	// forceCloseConfirm, or settings-import) is an APP modal that survives the
+	// setup.sh plugin reload and would overlap this shot. Shots that need a
+	// modal open their own later in the flow, so clearing leftovers here is safe.
+	await deps.cdp.evaluate(
+		`(() => { let n = 0; document.querySelectorAll(".modal-container").forEach((m) => { const b = m.querySelector(".modal-close-button"); if (b) { b.click(); } else { m.remove(); } n++; }); return n; })()`,
+	);
+
 	// 1. Mobile emulation (before any UI driving)
 	if (entry.mobile) {
 		await deps.cdp.setMobileEmulation(true);
@@ -520,6 +529,19 @@ export async function captureEntry(
 				await sleep(SETTLE_MS / 2);
 			}
 		}
+	}
+	// 3c-quinquies. Surface the ConfirmCloseModal for the confirm-close shot.
+	// The modal is reachable only through the panel's private Cmd+W handler
+	// (handleCloseRequest → shouldConfirmClose → ConfirmCloseModal): there is no
+	// command and a focused Cmd+W can't be synthesized reliably. Call the live
+	// view's handler AFTER forceTabStates has seeded 2+ tabs so the real tab
+	// count gates the real modal. The confirm action (leaf.detach) only fires
+	// on the user's "Close panel" click, so capturing the open modal is safe.
+	if (entry.initialState?.forceCloseConfirm) {
+		await deps.cdp.evaluate(
+			`(() => { const v = app.workspace.getLeavesOfType("agent-client-chat-view")[0]?.view; if (!v) return false; v.handleCloseRequest(); return true; })()`,
+		);
+		await deps.cdp.waitForElement(".modal", HOVER_TOOLTIP_TIMEOUT_MS);
 	}
 	// 3c-ter. Type a filter into an open input. Default target is the
 	// command-palette `.prompt-input`; set `typeQuerySelector` to aim the
@@ -982,6 +1004,15 @@ export async function captureEntry(
 		// user's daily vault — even if an assert or the content guard threw.
 		if (entry.captureMode === "screen") {
 			await deps.cdp.setWindowAlwaysOnTop(false);
+		}
+		// Tear down a modal this entry opened (forceCloseConfirm) so it never
+		// lingers in studio to overlap a later shot or the user's view.
+		if (entry.initialState?.forceCloseConfirm) {
+			await deps.cdp
+				.evaluate(
+					`(() => { document.querySelectorAll(".modal-container").forEach((m) => { const b = m.querySelector(".modal-close-button"); if (b) { b.click(); } else { m.remove(); } }); return true; })()`,
+				)
+				.catch(() => {});
 		}
 	}
 }

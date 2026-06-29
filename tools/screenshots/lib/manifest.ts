@@ -155,6 +155,16 @@ export interface InitialState {
 		state: "ready" | "busy" | "permission" | "error" | "disconnected";
 	}[];
 	/**
+	 * Surface the ConfirmCloseModal for the confirm-close shot. The modal is
+	 * only reachable via the panel's private Cmd+W handler (handleCloseRequest
+	 * → shouldConfirmClose → ConfirmCloseModal); there is no command and Cmd+W
+	 * can't be synthesized reliably. When true, the driver calls the live
+	 * view's close handler AFTER forceTabStates has seeded 2+ tabs, so the real
+	 * tab count gates the real modal. Capturing the open modal never detaches
+	 * the leaf (the leaf.detach() only runs on a "Close panel" click).
+	 */
+	forceCloseConfirm?: boolean;
+	/**
 	 * CSS selectors whose `<details>` accordion to collapse (set `open=false`)
 	 * before capture — e.g. collapse the built-in-agent sections so the compact
 	 * accordion row is the subject (collapsible-agent-sections).

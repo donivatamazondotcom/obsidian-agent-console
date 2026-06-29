@@ -91,6 +91,10 @@ Closing a single tab is easy to undo, but closing the **whole panel** — `Cmd/C
 >
 > [Cancel] [Close panel]
 
+<p align="center">
+  <img src="/images/confirm-close-multiple-tabs.webp" alt="Agent Console confirm-close dialog warning that closing the panel closes all open chats, with Cancel and Close panel buttons" width="520" />
+</p>
+
 The prompt appears only when the panel has **2 or more** open chats. With a single chat, `Cmd/Ctrl + W` closes immediately — there's nothing ambiguous to confirm.
 
 Turn it off under **Settings → Tabs → "Confirm before closing multiple chats"** (on by default).

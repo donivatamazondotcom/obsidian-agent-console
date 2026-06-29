@@ -1214,6 +1214,78 @@
 			"altText": "Agent Console settings showing the Default working directory option that sets where new chats start",
 			"docPage": "docs/usage/settings.md",
 			"captureNote": "v1.3.0 PR #100/#154. scrollToSettingText centers the Default working directory setting-item."
+		},
+		{
+			"name": "quick-prompts",
+			"pending": false,
+			"width": 760,
+			"height": 620,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 760,
+				"height": 620
+			},
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-mention-dropdown",
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-quick-prompt-bar",
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-box"
+			],
+			"cropPadding": 12,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"draftMessage": "!",
+			"approvalThreshold": 0.05,
+			"minDistinctColors": 400,
+			"placement": "feature",
+			"purpose": "Reusable saved prompts as chips above the composer and a ! search launcher.",
+			"differentiator": "Quick prompts (v1.3.0)",
+			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-quick-prompt-create-row",
+			"caption": "Reuse your favorite prompts",
+			"altText": "Agent Console composer with quick-prompt chips above the box and the ! launcher dropdown open: prompts, a Create row, and a key legend",
+			"docPage": "docs/usage/quick-prompts.md",
+			"captureNote": "v1.3.0 quick-prompts (#130/#144/#150/#152/#161/#169). Seeded Quick Prompts/ fixture notes (3 always-show chips: a {{selection}} chip, a new-tab chip, a plain one; plus search-only prompts). No agent connection needed (composer is live pre-connect); draftMessage ! opens the launcher; union-crops chip bar + ! dropdown + composer box."
+		},
+		{
+			"name": "confirm-close-multiple-tabs",
+			"pending": false,
+			"width": 760,
+			"height": 360,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 760,
+				"height": 360
+			},
+			"cropSelector": ".modal",
+			"cropPadding": 16,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"forceTabStates": [
+					{
+						"label": "Draft the launch post",
+						"state": "ready"
+					},
+					{
+						"label": "Summarize meeting notes",
+						"state": "ready"
+					}
+				],
+				"forceCloseConfirm": true
+			},
+			"approvalThreshold": 0.02,
+			"minDistinctColors": 150,
+			"placement": "feature",
+			"purpose": "Warn before a focused Cmd+W tears down a panel holding multiple live chats.",
+			"differentiator": "Confirm before closing multiple chats (v1.3.0)",
+			"mustShow": ".agent-client-confirm-close-message",
+			"caption": "Don't lose chats to one keystroke",
+			"altText": "Agent Console confirm-close dialog warning that closing the panel closes all open chats, with Cancel and Close panel buttons",
+			"docPage": "docs/usage/tabbed-sessions.md",
+			"captureNote": "v1.3.0 #84. forceTabStates seeds 2 ready tabs; forceCloseConfirm invokes the panel close handler so the real ConfirmCloseModal opens; window-mode .modal crop."
 		}
 	]
 }
