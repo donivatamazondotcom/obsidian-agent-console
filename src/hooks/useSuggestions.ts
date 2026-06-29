@@ -18,6 +18,12 @@ import {
 } from "../services/quick-prompts-logic";
 import type { QuickPrompt } from "../types/quick-prompt";
 import type { QuickPromptLibrary } from "../services/quick-prompts";
+import type { ResolvedPicker } from "../types/picker";
+import {
+	noteToPickerItem,
+	slashCommandToPickerItem,
+	quickPromptToPickerItem,
+} from "../utils/picker-sources";
 
 // ============================================================================
 // Types
@@ -103,6 +109,12 @@ export interface UseSuggestionsReturn {
 	commands: CommandsState;
 	/** Quick-prompt (! trigger) dropdown state and operations */
 	quickPrompts: QuickPromptsState;
+	/**
+	 * The single open picker, priority-resolved (quick-prompt > slash >
+	 * mention), or null when none is open. `select` is bound by the consumer
+	 * (InputArea), so this is the hook-owned {@link ResolvedPicker}. Tier 2.
+	 */
+	activePicker: ResolvedPicker | null;
 }
 
 // ============================================================================
@@ -438,6 +450,80 @@ export function useSuggestions(
 	}, []);
 
 	// ============================================================
+	// Active picker (Tier 2)
+	// ============================================================
+	// Priority-resolve the single open source into one
+	// ActivePicker-shaped object so InputArea's keyboard handler
+	// routes through it instead of a 3-way source ladder. The
+	// quick-prompt > slash > mention order mirrors the prior
+	// handleDropdownKeyPress branch order; only one is ever open
+	// (the @ / / / ! triggers are mutually exclusive at the caret).
+	// `select` is bound by InputArea (composer-side effects), so the
+	// hook exposes the ResolvedPicker (everything but select).
+	const activePicker = useMemo<ResolvedPicker | null>(() => {
+		if (quickPromptIsOpen) {
+			return {
+				kind: "quick-prompt",
+				isOpen: true,
+				items: qpSuggestions.map(quickPromptToPickerItem),
+				selectedIndex: qpSelectedIndex,
+				navigate: quickPromptNavigate,
+				dismiss: quickPromptClose,
+				capabilities: {
+					dismissOnShiftEnter: false,
+					ownsEnterScopeCombos: true,
+				},
+			};
+		}
+		if (commandIsOpen) {
+			return {
+				kind: "slash",
+				isOpen: true,
+				items: commandSuggestions.map(slashCommandToPickerItem),
+				selectedIndex: commandSelectedIndex,
+				navigate: commandNavigate,
+				dismiss: commandClose,
+				capabilities: {
+					dismissOnShiftEnter: false,
+					ownsEnterScopeCombos: false,
+				},
+			};
+		}
+		if (mentionIsOpen) {
+			return {
+				kind: "mention",
+				isOpen: true,
+				items: mentionSuggestions.map(noteToPickerItem),
+				selectedIndex: mentionSelectedIndex,
+				navigate: mentionNavigate,
+				// mention Escape keeps the run-dismiss guard (QP/slash close).
+				dismiss: mentionDismiss,
+				capabilities: {
+					dismissOnShiftEnter: true,
+					ownsEnterScopeCombos: false,
+				},
+			};
+		}
+		return null;
+	}, [
+		quickPromptIsOpen,
+		qpSuggestions,
+		qpSelectedIndex,
+		quickPromptNavigate,
+		quickPromptClose,
+		commandIsOpen,
+		commandSuggestions,
+		commandSelectedIndex,
+		commandNavigate,
+		commandClose,
+		mentionIsOpen,
+		mentionSuggestions,
+		mentionSelectedIndex,
+		mentionNavigate,
+		mentionDismiss,
+	]);
+
+	// ============================================================
 	// Return
 	// ============================================================
 
@@ -519,7 +605,7 @@ export function useSuggestions(
 	);
 
 	return useMemo(
-		() => ({ mentions, commands, quickPrompts }),
-		[mentions, commands, quickPrompts],
+		() => ({ mentions, commands, quickPrompts, activePicker }),
+		[mentions, commands, quickPrompts, activePicker],
 	);
 }
