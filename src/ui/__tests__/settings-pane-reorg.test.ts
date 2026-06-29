@@ -86,6 +86,7 @@ vi.mock("obsidian", () => {
 		inputEl = document.createElement("input");
 		selectEl = document.createElement("select");
 		_value: unknown;
+		btnText = "";
 		onChangeCb: ((v: unknown) => unknown) | null = null;
 		onClickCb: (() => unknown) | null = null;
 		setPlaceholder() {
@@ -105,7 +106,8 @@ vi.mock("obsidian", () => {
 		addOption() {
 			return this;
 		}
-		setButtonText() {
+		setButtonText(t: string) {
+			this.btnText = t;
 			return this;
 		}
 		setTooltip() {
@@ -478,5 +480,42 @@ describe("Settings Pane Reorganization — D5 Import placement (T5 render)", () 
 			const { settings } = renderPane({ hasCompletedSetup: configured });
 			expect(names(settings).filter((n) => n === IMPORT).length).toBe(1);
 		}
+	});
+});
+
+describe("Settings Pane Reorganization — Add custom agent (auto-expand + focus)", () => {
+	it("auto-expands the new agent's accordion and consumes the focus intent on its first field", async () => {
+		const { tab, container, settings } = renderPane();
+		const addBtn = settings.find(
+			(s) =>
+				(s.comps.button as { btnText?: string } | undefined)
+					?.btnText === "Add custom agent",
+		);
+		expect(addBtn).toBeDefined();
+
+		await (
+			addBtn!.comps.button as unknown as {
+				onClickCb: () => Promise<void>;
+			}
+		).onClickCb();
+
+		// After the click re-renders the pane, the new custom-agent accordion
+		// exists AND is expanded (no extra click needed to open it).
+		const newAccordion = Array.from(
+			container.querySelectorAll("details.agent-client-agent-section"),
+		).find(
+			(d) =>
+				d.querySelector(".agent-client-agent-section-name")
+					?.textContent === "Custom agent",
+		) as HTMLDetailsElement | undefined;
+		expect(newAccordion).toBeDefined();
+		expect(newAccordion!.open).toBe(true);
+
+		// The focus intent was consumed when the Agent ID field rendered
+		// (the field schedules an rAF focus; the flag clears synchronously).
+		expect(
+			(tab as unknown as { pendingFocusAgentId: string | null })
+				.pendingFocusAgentId,
+		).toBeNull();
 	});
 });

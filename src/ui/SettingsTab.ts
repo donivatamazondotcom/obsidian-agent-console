@@ -47,6 +47,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	private agentSelector: DropdownComponent | null = null;
 	private unsubscribe: (() => void) | null = null;
 	private agentExpansion: AgentExpansionState = freshAgentExpansion();
+	/**
+	 * Agent id whose first field should grab focus on the next render — set
+	 * when "Add custom agent" creates an agent, consumed (cleared) when that
+	 * agent's Agent ID field renders. Per-session UI intent, not persisted.
+	 */
+	private pendingFocusAgentId: string | null = null;
 
 	constructor(app: App, plugin: AgentClientPlugin) {
 		super(app, plugin);
@@ -1326,6 +1332,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						args: [],
 						env: [],
 					});
+					// Auto-expand the new section and focus its first field so the
+					// user can start typing immediately — no extra click to open
+					// the accordion.
+					this.agentExpansion = toggleAgentExpansion(
+						this.agentExpansion,
+						newId,
+						true,
+					);
+					this.pendingFocusAgentId = newId;
 					this.plugin.ensureDefaultAgentId();
 					await this.flushSettings();
 					this.display();
@@ -1404,6 +1419,19 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						this.refreshAgentDropdown();
 					})();
 				});
+
+				// Autofocus the just-added agent's first field (set by
+				// "Add custom agent") so the user can type immediately. Native
+				// focus + select is keyboard-first; deferred to the next frame so
+				// the (now-expanded) accordion body is laid out first.
+				if (this.pendingFocusAgentId === agent.id) {
+					this.pendingFocusAgentId = null;
+					const inputEl = text.inputEl;
+					window.requestAnimationFrame(() => {
+						inputEl.focus();
+						inputEl.select();
+					});
+				}
 			});
 
 		idSetting.addExtraButton((button) => {
