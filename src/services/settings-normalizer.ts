@@ -19,6 +19,10 @@ import {
 	DEFAULT_TITLE_STRATEGY,
 	TITLE_STRATEGY_VALUES,
 } from "../types/title-strategy";
+import {
+	DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS,
+	normalizeHostContextBriefingSettings,
+} from "../utils/host-context-briefing";
 
 // ============================================================================
 // Display Settings
@@ -340,6 +344,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	sendMessageShortcut: "enter",
 	chatViewLocation: "right",
 	titleStrategy: DEFAULT_TITLE_STRATEGY,
+	hostContextBriefing: DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS,
 	displaySettings: {
 		showEmojis: true,
 		fontSize: null,
@@ -575,6 +580,9 @@ export function normalizeRawSettings(
 			raw.titleStrategy,
 			TITLE_STRATEGY_VALUES,
 			D.titleStrategy,
+		),
+		hostContextBriefing: normalizeHostContextBriefingSettings(
+			raw.hostContextBriefing,
 		),
 		displaySettings: {
 			showEmojis: bool(rd.showEmojis, D.displaySettings.showEmojis),

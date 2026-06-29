@@ -8,6 +8,7 @@ import {
 	workingDirectoryBlock,
 	DEFAULT_HOST_CONTEXT_BRIEFING_BLOCKS,
 	type HostContextBriefingBlocks,
+	normalizeHostContextBriefingSettings,
 } from "../host-context-briefing";
 import {
 	WIKI_LINK_INSTRUCTION,
@@ -173,5 +174,66 @@ describe("composeHostContextBriefing", () => {
 			);
 			expect(out).toContain(HOST_IDENTITY_BLOCK);
 		});
+	});
+});
+
+describe("normalizeHostContextBriefingSettings", () => {
+	it("returns full defaults for undefined / missing", () => {
+		const s = normalizeHostContextBriefingSettings(undefined);
+		expect(s).toEqual({
+			blocks: {
+				hostIdentity: true,
+				rendering: true,
+				workingDirectory: true,
+				vaultCollaboration: true,
+			},
+			customText: "",
+		});
+	});
+
+	it("returns defaults for a non-object (array / garbage)", () => {
+		expect(normalizeHostContextBriefingSettings([1, 2])).toEqual({
+			blocks: {
+				hostIdentity: true,
+				rendering: true,
+				workingDirectory: true,
+				vaultCollaboration: true,
+			},
+			customText: "",
+		});
+	});
+
+	it("defaults missing individual block keys to true", () => {
+		const s = normalizeHostContextBriefingSettings({
+			blocks: { vaultCollaboration: false },
+		});
+		expect(s.blocks).toEqual({
+			hostIdentity: true,
+			rendering: true,
+			workingDirectory: true,
+			vaultCollaboration: false,
+		});
+	});
+
+	it("preserves a string customText", () => {
+		const s = normalizeHostContextBriefingSettings({
+			customText: "My briefing.",
+		});
+		expect(s.customText).toBe("My briefing.");
+	});
+
+	it("coerces a non-string customText to empty", () => {
+		const s = normalizeHostContextBriefingSettings({ customText: 42 });
+		expect(s.customText).toBe("");
+	});
+
+	it("ignores dormant promptInjection-shaped keys (superseded feature)", () => {
+		const s = normalizeHostContextBriefingSettings({
+			enabled: false,
+			wikiLinks: true,
+		});
+		// no valid block keys → all defaults
+		expect(s.blocks.hostIdentity).toBe(true);
+		expect(s.customText).toBe("");
 	});
 });

@@ -134,3 +134,46 @@ export function composeHostContextBriefing(
 
 	return parts.length > 0 ? parts.join("\n\n") : null;
 }
+
+// ── Settings normalization (trust boundary) ────────────────────────────────
+
+export const DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS: HostContextBriefingSettings =
+	{
+		blocks: { ...DEFAULT_HOST_CONTEXT_BRIEFING_BLOCKS },
+		customText: "",
+	};
+
+/**
+ * Normalize a raw, untrusted `hostContextBriefing` value from persisted config
+ * into a valid {@link HostContextBriefingSettings}. Missing/garbage values fall
+ * back to the shipped defaults (all blocks on, no custom text). Never throws.
+ *
+ * A fresh install or a pre-feature upgrade has no `hostContextBriefing` key →
+ * full defaults. (The dormant `promptInjection` keys from the superseded
+ * Prompt Injection Defaults work are simply ignored here.)
+ */
+export function normalizeHostContextBriefingSettings(
+	raw: unknown,
+): HostContextBriefingSettings {
+	const obj =
+		raw && typeof raw === "object" && !Array.isArray(raw)
+			? (raw as Record<string, unknown>)
+			: {};
+	const rawBlocks =
+		obj.blocks && typeof obj.blocks === "object" && !Array.isArray(obj.blocks)
+			? (obj.blocks as Record<string, unknown>)
+			: {};
+	const b = (k: keyof HostContextBriefingBlocks): boolean =>
+		typeof rawBlocks[k] === "boolean"
+			? (rawBlocks[k] as boolean)
+			: DEFAULT_HOST_CONTEXT_BRIEFING_BLOCKS[k];
+	return {
+		blocks: {
+			hostIdentity: b("hostIdentity"),
+			rendering: b("rendering"),
+			workingDirectory: b("workingDirectory"),
+			vaultCollaboration: b("vaultCollaboration"),
+		},
+		customText: typeof obj.customText === "string" ? obj.customText : "",
+	};
+}
