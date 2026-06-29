@@ -51,7 +51,7 @@ Large diffs can be automatically collapsed to keep the chat readable. This featu
 | **Auto-collapse long diffs** | Off | Enable automatic collapsing of large diffs |
 | **Collapse threshold** | 10 lines | Diffs exceeding this line count are collapsed |
 
-Configure these in **Settings → Agent Console → Display**.
+Configure these in **Settings → Agent Console → Appearance & notifications**.
 
 Collapsed diffs can be expanded by clicking on them.
 

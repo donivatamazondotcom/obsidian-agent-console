@@ -289,6 +289,17 @@ export function useChatActions(
 						`[ChatPanel] Session saved locally: ${session.sessionId}`,
 					);
 				}
+
+				// D5 (Settings Pane Reorganization): the first real send trips
+				// the one-time setup latch (forward-only; guarded so we write
+				// once), relocating "Import settings" from Top matter to
+				// Advanced. Routed through settingsService — the single writer
+				// of record for data.json.
+				if (!plugin.settings.hasCompletedSetup) {
+					await plugin.settingsService.updateSettings({
+						hasCompletedSetup: true,
+					});
+				}
 			} catch (error) {
 				logger.error("[ChatPanel] Send message error:", error);
 			}

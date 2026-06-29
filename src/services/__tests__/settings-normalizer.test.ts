@@ -271,3 +271,26 @@ describe("normalizeRawSettings — titleStrategy (F03)", () => {
 		expect(s.titleStrategy).toBe("agent-suggested");
 	});
 });
+
+describe("normalizeRawSettings — hasCompletedSetup latch (T2 / D5)", () => {
+	it("defaults hasCompletedSetup to false on a fresh install", () => {
+		const s = normalizeRawSettings({}, DEFAULT_SETTINGS, idKey);
+		expect(s.hasCompletedSetup).toBe(false);
+		expect(DEFAULT_SETTINGS.hasCompletedSetup).toBe(false);
+	});
+
+	it("preserves a tripped latch (forward-only, persists across loads)", () => {
+		const s = normalizeRawSettings(
+			{ hasCompletedSetup: true },
+			DEFAULT_SETTINGS,
+			idKey,
+		);
+		expect(s.hasCompletedSetup).toBe(true);
+	});
+
+	it("keeps autoAllowPermissions default false (security invariant)", () => {
+		expect(DEFAULT_SETTINGS.autoAllowPermissions).toBe(false);
+		const s = normalizeRawSettings({}, DEFAULT_SETTINGS, idKey);
+		expect(s.autoAllowPermissions).toBe(false);
+	});
+});
