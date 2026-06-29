@@ -27,6 +27,7 @@ import {
 } from "../services/quick-prompts-logic";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import { quickPromptGestureFromEvent } from "../utils/quick-prompt-gesture";
+import { MOD_KEY, ALT_KEY, SHIFT_KEY } from "../utils/platform";
 
 /** Tooltip on a disabled current-tab chip — points at the queued banner. */
 export const QUEUED_CHIP_TOOLTIP =
@@ -38,10 +39,8 @@ export const QUEUED_CHIP_TOOLTIP =
  * sanctioned mechanism — Obsidian reads tooltip text from `aria-label`), NOT
  * the native `title` attribute (inconsistent styling + long delay).
  */
-export const NEW_TAB_CHIP_TOOLTIP =
-	"Click: open in a new tab · ⌘-click: open in the background · ⌥-click: drop into the box to edit first";
-export const THIS_TAB_CHIP_TOOLTIP =
-	"Click: send in this chat · ⌘-click: send in a new background tab (add ⇧ to switch there) · ⌥-click: drop into the box to edit first";
+export const NEW_TAB_CHIP_TOOLTIP = `Click: open in a new tab · ${MOD_KEY}-click: open in the background · ${ALT_KEY}-click: drop into the box to edit first`;
+export const THIS_TAB_CHIP_TOOLTIP = `Click: send in this chat · ${MOD_KEY}-click: send in a new background tab (add ${SHIFT_KEY} to switch there) · ${ALT_KEY}-click: drop into the box to edit first`;
 
 export interface QuickPromptBarProps {
 	/** Prompts already matched to the active note (`matchPromptsForNote`). */

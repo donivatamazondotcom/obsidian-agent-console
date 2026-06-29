@@ -31,6 +31,9 @@ vi.mock("obsidian", () => ({
 	// instanceof check in ToolCallBlock — our mock adapter is NOT an instance,
 	// so vaultPath resolves to "" (irrelevant to these tests).
 	FileSystemAdapter: class {},
+	// platform.ts (pulled in transitively via the quick-prompt UI) reads
+	// Platform.isMacOS at module load for the modifier-label helper (I134).
+	Platform: { isMacOS: true, isWin: false, isLinux: false },
 }));
 
 // Preserve the className so the status-chip class is assertable in the DOM.

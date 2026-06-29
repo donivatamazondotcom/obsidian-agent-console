@@ -103,6 +103,14 @@ We use `eslint-plugin-obsidianmd` for Obsidian-specific rules, `typescript-eslin
 4. **Use Platform API** — Don't use `process.platform`
 5. **Minimize `any`** — Use proper types
 
+### Cross-Platform (macOS, Windows, Linux)
+
+Agent Console ships on all three desktop platforms. Keep platform specifics out of shared code:
+
+- **Keyboard hints** — never hardcode Mac glyphs (⌘ ⌥ ⇧). Route key/modifier labels through `MOD_KEY` / `ALT_KEY` / `SHIFT_KEY` / `modCombo` in `utils/platform.ts` so Windows/Linux render `Ctrl` / `Alt` / `Shift`. A CI ESLint rule fails the build on a hardcoded glyph in a user-facing string.
+- **Paths and shells** — use the helpers in `utils/platform.ts` (WSL, cmd.exe, login-shell); don't assume macOS paths or `/bin/zsh`.
+- **Copy** — don't assume macOS in UI text, menu paths, or examples.
+
 ### File Naming Conventions
 
 - **Types**: `kebab-case.ts` in `types/`

@@ -47,6 +47,16 @@ export default defineConfig([
 					message:
 						"Route menus through showMenuAtEvent() (utils/menu-registry) instead of calling menu.showAtPosition directly (I115).",
 				},
+				{
+					selector: "Literal[value=/[⌘⌥⇧⌃]/]",
+					message:
+						"Don't hardcode Mac modifier glyphs (⌘ ⌥ ⇧ ⌃) — route through MOD_KEY/ALT_KEY/SHIFT_KEY/modCombo in utils/platform.ts so Windows/Linux show Ctrl/Alt/Shift (I134).",
+				},
+				{
+					selector: "TemplateElement[value.raw=/[⌘⌥⇧⌃]/]",
+					message:
+						"Don't hardcode Mac modifier glyphs (⌘ ⌥ ⇧ ⌃) in template strings — route through utils/platform.ts (I134).",
+				},
 			],
 			"@typescript-eslint/no-unused-vars": ["error", { args: "none" }],
 			"@typescript-eslint/ban-ts-comment": "off",
@@ -78,6 +88,14 @@ export default defineConfig([
 		// showMenuAtEvent is the sanctioned menu-positioning wrapper; it must call
 		// the raw Menu APIs that every other module is forbidden from touching.
 		files: ["src/utils/menu-registry.ts"],
+		rules: { "no-restricted-syntax": "off" },
+	},
+	{
+		// platform.ts is the single source of truth for the modifier-label glyphs
+		// (I134) — it legitimately contains ⌘/⌥/⇧. It is a shell/platform util that
+		// never calls Menu APIs, so dropping no-restricted-syntax wholesale here is
+		// safe (the I115 menu rule has nothing to catch in this file).
+		files: ["src/utils/platform.ts"],
 		rules: { "no-restricted-syntax": "off" },
 	},
 ]);

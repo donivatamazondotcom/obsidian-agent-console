@@ -371,6 +371,14 @@ Satisfy them (preferred -> fallback):
 
 Scope: `.tsx` (React components) only. Node tooling under `tools/` and non-component `.ts` are out of scope.
 
+### Cross-platform (macOS, Windows, Linux) — enforced
+
+Agent Console runs on all three desktop platforms. Shared code must not bake in macOS assumptions.
+
+- **Modifier/key hints** — route every user-facing key label through `MOD_KEY` / `ALT_KEY` / `SHIFT_KEY` / `ENTER_KEY` / `modCombo` in `utils/platform.ts`. On macOS these render the glyphs (⌘ ⌥ ⇧ ↵); on Windows/Linux they render `Ctrl` / `Alt` / `Shift` / `Enter`. NEVER hardcode a Mac glyph in a string — a CI ESLint rule (`no-restricted-syntax`, added with I134) fails the build on `⌘`/`⌥`/`⇧`/`⌃` in any `src/` string literal except `platform.ts` (the single source) and tests. This mirrors the gesture *behavior*, which already routes through Obsidian's `Keymap.isModEvent` / `Mod` (Ctrl on non-Mac).
+- **Paths / shells / env** — use `utils/platform.ts` (`prepareShellCommand`, WSL wrappers, Windows registry PATH); never `process.platform` or hardcoded `/bin/zsh`-style assumptions.
+- **Copy** — no macOS-only menu paths or examples in user-facing text.
+
 ### Naming Conventions
 - Types: `kebab-case.ts` in `types/`
 - ACP: `kebab-case.ts` in `acp/`
