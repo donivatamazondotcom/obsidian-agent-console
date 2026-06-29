@@ -31,6 +31,11 @@ import {
 	IMAGE_PASTE_CONNECTING_NOTICE,
 	IMAGE_PASTE_UNSUPPORTED_NOTICE,
 } from "../utils/image-paste";
+import {
+	clampTextareaHeight,
+	decideTextareaResize,
+	TEXTAREA_MIN_HEIGHT,
+} from "../utils/textarea-autosize";
 
 // ============================================================================
 // Image Constants
@@ -748,41 +753,65 @@ export function InputArea({
 
 	/**
 	 * Adjust textarea height based on content.
+	 *
+	 * I-S13 fix: when the composer is OVERFLOWING (typing while tall / parked at
+	 * max-height), `scrollHeight` already reports the true content height, so we
+	 * size from it directly and never toggle `height: auto`. That toggle's
+	 * momentary relayout — the composer is a flex sibling of the message list —
+	 * made the browser revert the message list's scrollTop, which
+	 * `useAutoScrollPin` misread as a user scroll-up and unpinned the chat. The
+	 * `height: auto` collapse is now only used on the cold shrink path (content
+	 * deleted), never on the hot typing path. Styles are written only when the
+	 * height actually changes, so the overflow path touches no DOM in steady
+	 * state. See utils/textarea-autosize.ts and
+	 * 04-initiatives/Agent Console/ACP Scroll Architecture Rework.md § I-S13.
 	 */
 	const adjustTextareaHeight = useCallback(() => {
 		const textarea = textareaRef.current;
-		if (textarea) {
-			// Remove previous dynamic height classes
-			textarea.classList.remove(
-				"agent-client-textarea-auto-height",
-				"agent-client-textarea-expanded",
-			);
+		if (!textarea) return;
 
-			// Temporarily use auto to measure
+		const decision = decideTextareaResize({
+			scrollHeight: textarea.scrollHeight,
+			clientHeight: textarea.clientHeight,
+		});
+
+		let height: number;
+		if (decision.kind === "apply") {
+			// Overflowing: no height:auto toggle → no layout thrash.
+			height = decision.heightPx;
+		} else {
+			// Cold shrink path: collapse once to measure the true content height.
+			// Drop the expanded height FIRST — `.agent-client-textarea-expanded`
+			// (`height: var(--textarea-height)`) sits later in the cascade than
+			// `.agent-client-textarea-auto-height` (`height: auto`) at equal
+			// specificity, so leaving it on would win and the element would NOT
+			// collapse; the measurement would return the stale expanded height
+			// and the composer could never shrink back down.
+			textarea.classList.remove("agent-client-textarea-expanded");
 			textarea.classList.add("agent-client-textarea-auto-height");
-			const scrollHeight = textarea.scrollHeight;
-			const minHeight = 80;
-			const maxHeight = 300;
-
-			// Calculate height
-			const calculatedHeight = Math.max(
-				minHeight,
-				Math.min(scrollHeight, maxHeight),
-			);
-
-			// Apply expanded class if needed
-			if (calculatedHeight > minHeight) {
-				textarea.classList.add("agent-client-textarea-expanded");
-				// Set CSS variable for dynamic height
-				textarea.style.setProperty(
-					"--textarea-height",
-					`${calculatedHeight}px`,
-				);
-			} else {
-				textarea.style.removeProperty("--textarea-height");
-			}
-
+			const collapsed = textarea.scrollHeight;
 			textarea.classList.remove("agent-client-textarea-auto-height");
+			height = clampTextareaHeight(collapsed);
+		}
+
+		// Apply only when something actually changes, so the overflow path never
+		// perturbs layout in steady state.
+		const nextVar = height > TEXTAREA_MIN_HEIGHT ? `${height}px` : "";
+		const currentVar = textarea.style.getPropertyValue("--textarea-height");
+		if (nextVar) {
+			if (
+				currentVar !== nextVar ||
+				!textarea.classList.contains("agent-client-textarea-expanded")
+			) {
+				textarea.classList.add("agent-client-textarea-expanded");
+				textarea.style.setProperty("--textarea-height", nextVar);
+			}
+		} else if (
+			currentVar ||
+			textarea.classList.contains("agent-client-textarea-expanded")
+		) {
+			textarea.classList.remove("agent-client-textarea-expanded");
+			textarea.style.removeProperty("--textarea-height");
 		}
 	}, []);
 
