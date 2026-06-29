@@ -277,8 +277,9 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		// Obsidian system prompt — single-artifact model: block toggles + the
-		// user's own "Your vault context" append, with an Edit-full-prompt escape.
+		// Obsidian system prompt — single-artifact model. All rows render via the
+		// Setting API so labels/controls share native alignment; textareas + the
+		// preview are made full-width by a stacking class on their .setting-item.
 		const hcbVaultRoot = resolveVaultRoot();
 		const hcb = (): typeof this.plugin.settings.hostContextBriefing =>
 			this.plugin.settings.hostContextBriefing;
@@ -303,32 +304,35 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			(hcb().mode ?? "options") === "full" || (hcb().appendText ?? "").trim()
 				? "custom prompt active"
 				: "defaults on";
+		const hcbFullWidth = (el: HTMLElement): void => {
+			el.closest(".setting-item")?.classList.add(
+				"agent-client-hcb-fullwidth",
+			);
+		};
 		this.renderCollapsibleSection(
 			containerEl,
 			"Obsidian system prompt – " + hcbStatus,
 			(body) => {
-				let previewEl: HTMLElement | null = null;
-				let appendTaEl: HTMLTextAreaElement | null = null;
-				let fullTaEl: HTMLTextAreaElement | null = null;
-				const refreshPreview = (): void => {
-					if (!previewEl) return;
+				let previewTa: import("obsidian").TextAreaComponent | null = null;
+				let appendTa: import("obsidian").TextAreaComponent | null = null;
+				let fullTa: import("obsidian").TextAreaComponent | null = null;
+				const liveText = (): string => {
 					const cur = hcb();
-					let text: string;
 					if ((cur.mode ?? "options") === "full") {
-						text = (fullTaEl ? fullTaEl.value : cur.customText ?? "").trim();
-					} else {
-						text = hcbComposed(
-							appendTaEl ? appendTaEl.value : undefined,
-						).trim();
+						return (fullTa?.inputEl?.value ?? cur.customText ?? "").trim();
 					}
-					previewEl.textContent =
-						text ||
-						"(No system prompt will be sent — the agent gets no Obsidian context.)";
+					return hcbComposed(appendTa?.inputEl?.value).trim();
 				};
-				body.createEl("p", {
-					text: "Sent to the agent on the first message of each chat so it works naturally in Obsidian. Most people can leave this alone.",
-					cls: "setting-item-description",
-				});
+				const refreshPreview = (): void => {
+					if (!previewTa) return;
+					previewTa.setValue(
+						liveText() ||
+							"(No system prompt will be sent — the agent gets no Obsidian context.)",
+					);
+				};
+				new Setting(body).setDesc(
+					"Sent to the agent on the first message of each chat so it works naturally in Obsidian. Most people can leave this alone.",
+				);
 
 				if ((hcb().mode ?? "options") === "options") {
 					const blockToggle = (
@@ -371,60 +375,50 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						"vaultCollaboration",
 					);
 
-					body.createEl("p", {
-						text: "Your vault context",
-						cls: "setting-item-name",
-					});
-					body.createEl("p", {
-						text: "Your own notes for the agent — where things live, naming and linking conventions, the tone you prefer. Added to the end of the prompt, and the same for every chat in this vault.",
-						cls: "setting-item-description",
-					});
-					appendTaEl = body.createEl("textarea", {
-						cls: "agent-client-hcb-textarea",
-					});
-					appendTaEl.rows = 4;
-					appendTaEl.value = hcb().appendText ?? "";
-					appendTaEl.addEventListener("input", () => {
-						refreshPreview();
-					});
-					appendTaEl.addEventListener("change", () => {
-						void setHcb({ appendText: appendTaEl ? appendTaEl.value : "" });
-					});
+					new Setting(body)
+						.setName("Your vault context")
+						.setDesc(
+							"Your own notes for the agent — where things live, naming and linking conventions, the tone you prefer. Added to the end of the prompt, and the same for every chat in this vault.",
+						)
+						.addTextArea((ta) => {
+							appendTa = ta;
+							ta.setValue(hcb().appendText ?? "");
+							ta.inputEl.rows = 4;
+							hcbFullWidth(ta.inputEl);
+							ta.onChange(async (value) => {
+								await setHcb({ appendText: value });
+								refreshPreview();
+							});
+						});
 
 					new Setting(body)
 						.setName("Edit the full prompt")
 						.setDesc(
-							"Advanced: take over the whole prompt by hand. Opens pre-filled with the text shown below so you edit exactly what's sent.",
+							"Advanced: take over the whole prompt by hand. Opens pre-filled with the text shown below.",
 						)
 						.addButton((btn) =>
 							btn.setButtonText("Edit full prompt…").onClick(async () => {
-								const seeded = hcbComposed(
-									appendTaEl ? appendTaEl.value : undefined,
-								);
+								const seeded = hcbComposed(appendTa?.inputEl?.value);
 								await setHcb({ mode: "full", customText: seeded });
 								this.display();
 							}),
 						);
 				} else {
-					body.createEl("p", {
-						text: "Full prompt",
-						cls: "setting-item-name",
-					});
-					body.createEl("p", {
-						text: "You're editing the entire prompt by hand. The options are baked into this text and no longer apply.",
-						cls: "setting-item-description",
-					});
-					fullTaEl = body.createEl("textarea", {
-						cls: "agent-client-hcb-textarea",
-					});
-					fullTaEl.rows = 10;
-					fullTaEl.value = hcb().customText ?? "";
-					fullTaEl.addEventListener("input", () => {
-						refreshPreview();
-					});
-					fullTaEl.addEventListener("change", () => {
-						void setHcb({ customText: fullTaEl ? fullTaEl.value : "" });
-					});
+					new Setting(body)
+						.setName("Full prompt")
+						.setDesc(
+							"You're editing the entire prompt by hand. The options are baked into this text and no longer apply.",
+						)
+						.addTextArea((ta) => {
+							fullTa = ta;
+							ta.setValue(hcb().customText ?? "");
+							ta.inputEl.rows = 10;
+							hcbFullWidth(ta.inputEl);
+							ta.onChange(async (value) => {
+								await setHcb({ customText: value });
+								refreshPreview();
+							});
+						});
 					new Setting(body)
 						.setName("Back to options")
 						.setDesc(
@@ -438,22 +432,25 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						);
 				}
 
-				body.createEl("p", {
-					text: "What gets sent",
-					cls: "setting-item-name",
-				});
-				previewEl = body.createEl("pre", {
-					cls: "agent-client-hcb-preview",
-				});
-				refreshPreview();
+				new Setting(body)
+					.setName("What gets sent")
+					.setDesc(
+						"The exact text the agent receives on the first message.",
+					)
+					.addTextArea((ta) => {
+						previewTa = ta;
+						ta.inputEl.rows = 8;
+						ta.inputEl.readOnly = true;
+						hcbFullWidth(ta.inputEl);
+						refreshPreview();
+					});
 				if (
 					(hcb().mode ?? "options") === "options" &&
 					hcb().blocks.vaultCollaboration
 				) {
-					body.createEl("p", {
-						text: "The notes line is only sent when a chat's folder is inside your vault.",
-						cls: "setting-item-description",
-					});
+					new Setting(body).setDesc(
+						"The notes line is only sent when a chat's folder is inside your vault.",
+					);
 				}
 
 				new Setting(body)
