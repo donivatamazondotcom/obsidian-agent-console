@@ -123,6 +123,13 @@ You don't have to wait for the agent to finish before lining up your next messag
 
 Text only for now — staged image attachments aren't queued in this version.
 
+## Completion notifications
+
+Turn on **System notifications** in settings to get a notification when an agent finishes a reply — useful when several tabs are working at once and Obsidian is in the background. (Notifications stay quiet while Obsidian is focused.)
+
+- **The notification names the tab.** The title is the tab's name, so you can tell which conversation just finished without opening Obsidian and scanning the tab bar.
+- **Click it to jump straight there.** Clicking the notification brings the right vault window to the front and switches to that exact tab.
+
 ## Tab error recovery
 
 If a tab crashes (rare; usually due to an agent process error), the tab shows an error boundary with a **Retry** button. Click Retry to reset just that tab without affecting others.

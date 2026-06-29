@@ -41,6 +41,7 @@ import { CarriedOverPreview } from "./CarriedOverPreview";
 // Service imports
 import { getLogger } from "../utils/logger";
 import { deriveTabLabel, labelAlreadyReportedOnMount, shouldReportInterimLabel } from "../utils/deriveTabLabel";
+import { buildCompletionNotificationContent } from "../utils/notification-content";
 import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";
 import { loadExistingSessionFlow } from "../hooks/loadExistingSessionFlow";
@@ -150,6 +151,13 @@ export interface ChatPanelProps {
 	onSessionIdChange?: (sessionId: string | null) => void;
 	/** Whether this tab is the currently active tab (controls focus on activation) */
 	isActive?: boolean;
+	/**
+	 * Human-readable label of the tab hosting this panel (AI-suggested title,
+	 * custom rename, or first-message derivation). Surfaced as the completion
+	 * notification title so a multi-tab user sees WHICH tab finished. Undefined
+	 * for a floating chat (no tab) — the notification falls back to the plugin name.
+	 */
+	tabLabel?: string;
 	/** Look up whether a session is already open in another tab (I20) */
 	findTabBySessionId?: (sessionId: string) => { tabId: string; label: string } | null;
 	/** Switch to a specific tab by ID (I20) */
@@ -285,6 +293,7 @@ export function ChatPanel({
 	onLabelChange,
 	onSessionIdChange,
 	isActive,
+	tabLabel,
 	findTabBySessionId,
 	onSwitchToTab,
 	onCloseTab,
@@ -1619,6 +1628,16 @@ export function ChatPanel({
 	// ============================================================
 	// Effects - Save Session Messages on Turn End
 	// ============================================================
+	// Stable refs for the completion-notification onclick handler. The handler
+	// is attached to a Notification object and fires outside React (possibly
+	// long after the effect ran), so it must read current values via refs
+	// rather than the effect's captured closure. viewId is stable per panel,
+	// so it can be closed over directly.
+	const tabLabelRef = useRef(tabLabel);
+	tabLabelRef.current = tabLabel;
+	const onSwitchToTabRef = useRef(onSwitchToTab);
+	onSwitchToTabRef.current = onSwitchToTab;
+
 	const prevIsSendingRef = useRef<boolean>(false);
 
 	useEffect(() => {
@@ -1642,15 +1661,24 @@ export function ChatPanel({
 				`[ChatPanel] Session messages saved: ${session.sessionId}`,
 			);
 
-			// System notification on response completion
+			// System notification on response completion. The title carries the
+			// tab label (which tab finished); a click focuses the owning vault
+			// window (I52) AND switches to that tab. Per-tab tag prevents the OS
+			// from coalescing back-to-back completions from different tabs.
 			if (settings.enableSystemNotifications && !activeDocument.hasFocus()) {
-				// I52: bind onclick so a click focuses the vault window that owns
-				// this panel, not Electron's most-recently-active window (which is
-				// the wrong vault entirely in a multi-vault setup).
-				const completionNotification = new Notification("Agent Console", {
-					body: `${activeAgentLabel} has completed the response.`,
+				const { title, body, tag } = buildCompletionNotificationContent({
+					tabLabel: tabLabelRef.current,
+					agentLabel: activeAgentLabel,
+					tabId: viewId,
 				});
-				completionNotification.onclick = () => focusOwningWindow();
+				const completionNotification = new Notification(title, {
+					body,
+					tag,
+				});
+				completionNotification.onclick = () => {
+					focusOwningWindow();
+					onSwitchToTabRef.current?.(viewId);
+				};
 			}
 		}
 	}, [
