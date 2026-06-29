@@ -142,8 +142,17 @@ describe("composeHostContextBriefing", () => {
 		expect(out).toContain(LATEX_MATH_INSTRUCTION);
 	});
 
-	describe("customText raw-edit escape", () => {
-		it("injects custom text verbatim and bypasses block composition", () => {
+	describe("appendText (Your vault context)", () => {
+		it("appends the user's text after the composed blocks", () => {
+			const out = composeHostContextBriefing(
+				{ blocks: allOn(), appendText: "Daily notes live in Journal/." },
+				{ cwd: VAULT, vaultRoot: VAULT },
+			);
+			expect(out).toContain(HOST_IDENTITY_BLOCK);
+			expect(out?.endsWith("Daily notes live in Journal/.")).toBe(true);
+		});
+
+		it("returns just the append text when all blocks are off", () => {
 			const out = composeHostContextBriefing(
 				{
 					blocks: {
@@ -152,26 +161,58 @@ describe("composeHostContextBriefing", () => {
 						workingDirectory: false,
 						vaultCollaboration: false,
 					},
-					customText: "My exact briefing.",
+					appendText: "Only my context.",
+				},
+				{ cwd: VAULT, vaultRoot: VAULT },
+			);
+			expect(out).toBe("Only my context.");
+		});
+
+		it("ignores whitespace-only append text", () => {
+			const withWs = composeHostContextBriefing(
+				{ blocks: allOn(), appendText: "   \n  " },
+				{ cwd: VAULT, vaultRoot: VAULT },
+			);
+			const without = composeHostContextBriefing(
+				{ blocks: allOn() },
+				{ cwd: VAULT, vaultRoot: VAULT },
+			);
+			expect(withWs).toBe(without);
+		});
+	});
+
+	describe("full mode (Edit full prompt)", () => {
+		it("returns customText verbatim and ignores blocks + cwd + append", () => {
+			const out = composeHostContextBriefing(
+				{
+					blocks: allOn(),
+					mode: "full",
+					customText: "My exact prompt.",
+					appendText: "ignored",
 				},
 				{ cwd: "/Users/me/repo", vaultRoot: VAULT },
 			);
-			expect(out).toBe("My exact briefing.");
+			expect(out).toBe("My exact prompt.");
 		});
 
-		it("bypasses cwd-gating entirely (custom text wins even outside the vault)", () => {
+		it("returns null for an empty full prompt", () => {
 			const out = composeHostContextBriefing(
-				{ blocks: allOn(), customText: "Custom." },
-				{ cwd: "/Users/me/repo", vaultRoot: VAULT },
-			);
-			expect(out).toBe("Custom.");
-		});
-
-		it("falls through to block composition when custom text is whitespace only", () => {
-			const out = composeHostContextBriefing(
-				{ blocks: allOn(), customText: "   \n  " },
+				{ blocks: allOn(), mode: "full", customText: "   " },
 				{ cwd: VAULT, vaultRoot: VAULT },
 			);
+			expect(out).toBeNull();
+		});
+
+		it("options mode ignores customText (only full mode uses it)", () => {
+			const out = composeHostContextBriefing(
+				{
+					blocks: allOn(),
+					mode: "options",
+					customText: "should be ignored",
+				},
+				{ cwd: VAULT, vaultRoot: VAULT },
+			);
+			expect(out).not.toContain("should be ignored");
 			expect(out).toContain(HOST_IDENTITY_BLOCK);
 		});
 	});
@@ -187,7 +228,9 @@ describe("normalizeHostContextBriefingSettings", () => {
 				workingDirectory: true,
 				vaultCollaboration: true,
 			},
+			appendText: "",
 			customText: "",
+			mode: "options",
 		});
 	});
 
@@ -199,7 +242,9 @@ describe("normalizeHostContextBriefingSettings", () => {
 				workingDirectory: true,
 				vaultCollaboration: true,
 			},
+			appendText: "",
 			customText: "",
+			mode: "options",
 		});
 	});
 
@@ -235,5 +280,25 @@ describe("normalizeHostContextBriefingSettings", () => {
 		// no valid block keys → all defaults
 		expect(s.blocks.hostIdentity).toBe(true);
 		expect(s.customText).toBe("");
+	});
+
+	it("defaults to options mode and empty appendText", () => {
+		const s = normalizeHostContextBriefingSettings({});
+		expect(s.mode).toBe("options");
+		expect(s.appendText).toBe("");
+	});
+
+	it("preserves appendText", () => {
+		const s = normalizeHostContextBriefingSettings({
+			appendText: "my vault context",
+		});
+		expect(s.appendText).toBe("my vault context");
+	});
+
+	it("infers full mode for a legacy customText with no mode", () => {
+		const s = normalizeHostContextBriefingSettings({
+			customText: "legacy replace",
+		});
+		expect(s.mode).toBe("full");
 	});
 });

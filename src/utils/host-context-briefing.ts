@@ -31,11 +31,13 @@ export const HOST_IDENTITY_BLOCK =
  * constants stay the single source of truth for the leak-stripper sentinels.
  */
 export const RENDERING_AFFORDANCES_BLOCK = [
-	"Your replies are shown to the user rendered as Obsidian-flavored markdown.",
+	"Your replies are shown to the user in a chat panel, rendered as Obsidian-flavored markdown (they are not saved as notes unless you write them to the vault).",
 	WIKI_LINK_INSTRUCTION,
+	"Prefer wikilinks when referencing notes so they connect in the user's knowledge graph.",
 	TABLE_INSTRUCTION,
 	LATEX_MATH_INSTRUCTION,
 	"Fenced `mermaid` code blocks render as diagrams, and callouts, embeds, and images render natively.",
+	"When you create or edit notes, you can use Obsidian conventions: callouts (`> [!note]`), task lists (`- [ ]`), tags (`#tag`), and YAML frontmatter.",
 ].join(" ");
 
 export const VAULT_COLLABORATION_BLOCK =
@@ -57,14 +59,24 @@ export interface HostContextBriefingBlocks {
 	vaultCollaboration: boolean;
 }
 
+export type HostContextBriefingMode = "options" | "full";
+
 export interface HostContextBriefingSettings {
 	blocks: HostContextBriefingBlocks;
 	/**
-	 * Raw-edit escape (Open Q1). When set to a non-empty string, it is injected
-	 * verbatim and block composition + cwd-gating are bypassed entirely — the
-	 * user has taken exact control of the briefing text.
+	 * The user's own additions (vault structure, conventions, preferences).
+	 * Appended after the composed blocks in "options" mode. The scope-safe
+	 * personalization on-ramp — user-authored, never plugin-derived.
+	 */
+	appendText?: string;
+	/**
+	 * Full hand-edited prompt. Used ONLY in "full" mode, where it replaces the
+	 * entire composed prompt. The "Edit full prompt" escape seeds it with the
+	 * current composed text so the user edits the real prompt.
 	 */
 	customText?: string;
+	/** "options" = blocks + appendText (cwd-gated); "full" = customText verbatim. */
+	mode?: HostContextBriefingMode;
 }
 
 export interface HostContextBriefingContext {
@@ -105,11 +117,11 @@ export function isCwdInsideVault(cwd: string, vaultRoot: string): boolean {
 /**
  * Compose the host-context briefing.
  *
- * Returns the assembled briefing text, or `null` when there is nothing to
- * inject (no custom text and no enabled block produced content).
+ * Returns the assembled briefing text, or `null` when nothing is produced.
  *
- * - `customText` (non-empty) short-circuits everything → injected verbatim.
- * - Otherwise enabled blocks are joined in a stable order with blank lines.
+ * - In "full" mode `customText` replaces everything (verbatim, no gating).
+ * - In "options" mode, enabled blocks join in a stable order, then the user's
+ *   `appendText` ("Your vault context") is appended.
  * - The working-directory block is omitted when `cwd` is empty.
  * - The vault-collaboration block is gated on {@link isCwdInsideVault}.
  */
@@ -117,8 +129,10 @@ export function composeHostContextBriefing(
 	settings: HostContextBriefingSettings,
 	ctx: HostContextBriefingContext,
 ): string | null {
-	const custom = (settings.customText ?? "").trim();
-	if (custom) return custom;
+	if ((settings.mode ?? "options") === "full") {
+		const full = (settings.customText ?? "").trim();
+		return full || null;
+	}
 
 	const { blocks } = settings;
 	const parts: string[] = [];
@@ -132,6 +146,9 @@ export function composeHostContextBriefing(
 		parts.push(VAULT_COLLABORATION_BLOCK);
 	}
 
+	const append = (settings.appendText ?? "").trim();
+	if (append) parts.push(append);
+
 	return parts.length > 0 ? parts.join("\n\n") : null;
 }
 
@@ -140,7 +157,9 @@ export function composeHostContextBriefing(
 export const DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS: HostContextBriefingSettings =
 	{
 		blocks: { ...DEFAULT_HOST_CONTEXT_BRIEFING_BLOCKS },
+		appendText: "",
 		customText: "",
+		mode: "options",
 	};
 
 /**
@@ -169,6 +188,20 @@ export function normalizeHostContextBriefingSettings(
 			? v
 			: DEFAULT_HOST_CONTEXT_BRIEFING_BLOCKS[k];
 	};
+	const appendText =
+		typeof obj.appendText === "string" ? obj.appendText : "";
+	const customText =
+		typeof obj.customText === "string" ? obj.customText : "";
+	// Migration: a pre-mode config carrying non-empty customText meant
+	// "replace" → preserve as "full"; otherwise default to "options".
+	const mode: HostContextBriefingMode =
+		obj.mode === "full"
+			? "full"
+			: obj.mode === "options"
+				? "options"
+				: customText.trim()
+					? "full"
+					: "options";
 	return {
 		blocks: {
 			hostIdentity: b("hostIdentity"),
@@ -176,6 +209,8 @@ export function normalizeHostContextBriefingSettings(
 			workingDirectory: b("workingDirectory"),
 			vaultCollaboration: b("vaultCollaboration"),
 		},
-		customText: typeof obj.customText === "string" ? obj.customText : "",
+		appendText,
+		customText,
+		mode,
 	};
 }

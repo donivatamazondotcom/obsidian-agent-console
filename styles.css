@@ -3163,3 +3163,26 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	padding-right: 16px;
 	color: var(--text-muted);
 }
+
+/* Obsidian system prompt — live "what gets sent" preview */
+.agent-client-hcb-preview {
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-size: var(--font-smaller);
+	color: var(--text-muted);
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	padding: var(--size-4-2);
+	max-height: 220px;
+	overflow-y: auto;
+	margin: var(--size-4-1) 0;
+}
+
+/* Obsidian system prompt — full-width author textareas */
+.agent-client-hcb-textarea {
+	width: 100%;
+	resize: vertical;
+	font-family: var(--font-text);
+	margin: var(--size-4-1) 0;
+}

@@ -51,6 +51,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	private agentSelector: DropdownComponent | null = null;
 	private unsubscribe: (() => void) | null = null;
 	private agentExpansion: AgentExpansionState = freshAgentExpansion();
+	// Obsidian system prompt — accordion open state (content persists in settings).
+	private hcbExpanded = false;
 	/**
 	 * Agent id whose first field should grab focus on the next render — set
 	 * when "Add custom agent" creates an agent, consumed (cleared) when that
@@ -275,111 +277,208 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		// Obsidian context: the host-context briefing sent on a chat's first
-		// message. See the Obsidian Host Context Briefing spec.
-		new Setting(containerEl).setName("Obsidian context").setHeading();
-
-		const hcb = this.plugin.settings.hostContextBriefing;
+		// Obsidian system prompt — single-artifact model: block toggles + the
+		// user's own "Your vault context" append, with an Edit-full-prompt escape.
 		const hcbVaultRoot = resolveVaultRoot();
-
-		new Setting(containerEl).setDesc(
-			"On the first message of each chat, the plugin tells the agent a few things about its surroundings so it works well in Obsidian. Pick what to include, or write your own briefing below.",
-		);
-
-		const setHcbBlock = async (
-			key: keyof typeof hcb.blocks,
-			value: boolean,
+		const hcb = (): typeof this.plugin.settings.hostContextBriefing =>
+			this.plugin.settings.hostContextBriefing;
+		const setHcb = async (
+			patch: Partial<typeof this.plugin.settings.hostContextBriefing>,
 		): Promise<void> => {
 			await this.plugin.settingsService.updateSettings({
-				hostContextBriefing: {
-					...hcb,
-					blocks: { ...hcb.blocks, [key]: value },
-				},
+				hostContextBriefing: { ...this.plugin.settings.hostContextBriefing, ...patch },
 			});
-			this.display();
 		};
-
-		new Setting(containerEl)
-			.setName("Say it's running in Obsidian")
-			.setDesc("Lets the agent know it's working inside your Obsidian app.")
-			.addToggle((toggle) =>
-				toggle
-					.setValue(hcb.blocks.hostIdentity)
-					.onChange((value) => void setHcbBlock("hostIdentity", value)),
-			);
-
-		new Setting(containerEl)
-			.setName("Explain how replies are shown")
-			.setDesc(
-				"Tells the agent your replies render as Obsidian Markdown – clickable links, math, and diagrams – so it formats them that way.",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(hcb.blocks.rendering)
-					.onChange((value) => void setHcbBlock("rendering", value)),
-			);
-
-		new Setting(containerEl)
-			.setName("Share the working folder")
-			.setDesc("Tells the agent which folder this chat is working in.")
-			.addToggle((toggle) =>
-				toggle
-					.setValue(hcb.blocks.workingDirectory)
-					.onChange(
-						(value) => void setHcbBlock("workingDirectory", value),
-					),
-			);
-
-		new Setting(containerEl)
-			.setName("Let it work with your notes")
-			.setDesc(
-				"Tells the agent it can read and edit your notes to work on them with you. Only sent when the chat is running inside your vault.",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(hcb.blocks.vaultCollaboration)
-					.onChange(
-						(value) => void setHcbBlock("vaultCollaboration", value),
-					),
-			);
-
-		const hcbPreview =
-			composeHostContextBriefing(hcb, {
-				cwd: hcbVaultRoot,
-				vaultRoot: hcbVaultRoot,
-			}) ?? "";
-
-		const hcbCustom = new Setting(containerEl)
-			.setName("Custom briefing")
-			.setDesc(
-				"Advanced: type your own briefing to send the agent exactly this text instead of the options above. Leave blank to use the options – the box shows what gets sent by default.",
-			);
-		hcbCustom.addTextArea((ta) => {
-			ta.setPlaceholder(hcbPreview)
-				.setValue(hcb.customText ?? "")
-				.onChange(async (value) => {
-					await this.plugin.settingsService.updateSettings({
-						hostContextBriefing: { ...hcb, customText: value },
-					});
+		const hcbComposed = (appendOverride?: string): string => {
+			const cur = hcb();
+			const base =
+				composeHostContextBriefing(
+					{ blocks: cur.blocks, mode: "options" },
+					{ cwd: hcbVaultRoot, vaultRoot: hcbVaultRoot },
+				) ?? "";
+			const add = (appendOverride ?? cur.appendText ?? "").trim();
+			return add ? base + "\n\n" + add : base;
+		};
+		const hcbStatus =
+			(hcb().mode ?? "options") === "full" || (hcb().appendText ?? "").trim()
+				? "custom prompt active"
+				: "defaults on";
+		this.renderCollapsibleSection(
+			containerEl,
+			"Obsidian system prompt – " + hcbStatus,
+			(body) => {
+				let previewEl: HTMLElement | null = null;
+				let appendTaEl: HTMLTextAreaElement | null = null;
+				let fullTaEl: HTMLTextAreaElement | null = null;
+				const refreshPreview = (): void => {
+					if (!previewEl) return;
+					const cur = hcb();
+					let text: string;
+					if ((cur.mode ?? "options") === "full") {
+						text = (fullTaEl ? fullTaEl.value : cur.customText ?? "").trim();
+					} else {
+						text = hcbComposed(
+							appendTaEl ? appendTaEl.value : undefined,
+						).trim();
+					}
+					previewEl.textContent =
+						text ||
+						"(No system prompt will be sent — the agent gets no Obsidian context.)";
+				};
+				body.createEl("p", {
+					text: "Sent to the agent on the first message of each chat so it works naturally in Obsidian. Most people can leave this alone.",
+					cls: "setting-item-description",
 				});
-			ta.inputEl.rows = 8;
-		});
 
-		new Setting(containerEl)
-			.setName("Reset Obsidian context")
-			.setDesc("Restore the options above and clear any custom briefing.")
-			.addButton((btn) =>
-				btn.setButtonText("Reset to defaults").onClick(async () => {
-					await this.plugin.settingsService.updateSettings({
-						hostContextBriefing: structuredClone(
-							DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS,
-						),
+				if ((hcb().mode ?? "options") === "options") {
+					const blockToggle = (
+						name: string,
+						desc: string,
+						key: keyof typeof this.plugin.settings.hostContextBriefing.blocks,
+					): void => {
+						new Setting(body)
+							.setName(name)
+							.setDesc(desc)
+							.addToggle((toggle) =>
+								toggle
+									.setValue(hcb().blocks[key])
+									.onChange(async (value) => {
+										await setHcb({
+											blocks: { ...hcb().blocks, [key]: value },
+										});
+										this.display();
+									}),
+							);
+					};
+					blockToggle(
+						"Say it's running in Obsidian",
+						"Lets the agent know it's working inside your Obsidian app.",
+						"hostIdentity",
+					);
+					blockToggle(
+						"Explain how replies are shown",
+						"Tells the agent how to format replies so links, math, and diagrams render correctly, and which Obsidian conventions to use when writing notes.",
+						"rendering",
+					);
+					blockToggle(
+						"Share the working folder",
+						"Tells the agent which folder this chat is working in.",
+						"workingDirectory",
+					);
+					blockToggle(
+						"Let it work with your notes",
+						"Tells the agent it can read and edit your notes. Only sent when the chat runs inside your vault.",
+						"vaultCollaboration",
+					);
+
+					body.createEl("p", {
+						text: "Your vault context",
+						cls: "setting-item-name",
 					});
-					this.display();
-				}),
-			);
+					body.createEl("p", {
+						text: "Your own notes for the agent — where things live, naming and linking conventions, the tone you prefer. Added to the end of the prompt, and the same for every chat in this vault.",
+						cls: "setting-item-description",
+					});
+					appendTaEl = body.createEl("textarea", {
+						cls: "agent-client-hcb-textarea",
+					});
+					appendTaEl.rows = 4;
+					appendTaEl.value = hcb().appendText ?? "";
+					appendTaEl.addEventListener("input", () => {
+						refreshPreview();
+					});
+					appendTaEl.addEventListener("change", () => {
+						void setHcb({ appendText: appendTaEl ? appendTaEl.value : "" });
+					});
 
-		new Setting(containerEl)
+					new Setting(body)
+						.setName("Edit the full prompt")
+						.setDesc(
+							"Advanced: take over the whole prompt by hand. Opens pre-filled with the text shown below so you edit exactly what's sent.",
+						)
+						.addButton((btn) =>
+							btn.setButtonText("Edit full prompt…").onClick(async () => {
+								const seeded = hcbComposed(
+									appendTaEl ? appendTaEl.value : undefined,
+								);
+								await setHcb({ mode: "full", customText: seeded });
+								this.display();
+							}),
+						);
+				} else {
+					body.createEl("p", {
+						text: "Full prompt",
+						cls: "setting-item-name",
+					});
+					body.createEl("p", {
+						text: "You're editing the entire prompt by hand. The options are baked into this text and no longer apply.",
+						cls: "setting-item-description",
+					});
+					fullTaEl = body.createEl("textarea", {
+						cls: "agent-client-hcb-textarea",
+					});
+					fullTaEl.rows = 10;
+					fullTaEl.value = hcb().customText ?? "";
+					fullTaEl.addEventListener("input", () => {
+						refreshPreview();
+					});
+					fullTaEl.addEventListener("change", () => {
+						void setHcb({ customText: fullTaEl ? fullTaEl.value : "" });
+					});
+					new Setting(body)
+						.setName("Back to options")
+						.setDesc(
+							"Return to the switches. Your hand-edited text is kept in case you come back.",
+						)
+						.addButton((btn) =>
+							btn.setButtonText("Back to options").onClick(async () => {
+								await setHcb({ mode: "options" });
+								this.display();
+							}),
+						);
+				}
+
+				body.createEl("p", {
+					text: "What gets sent",
+					cls: "setting-item-name",
+				});
+				previewEl = body.createEl("pre", {
+					cls: "agent-client-hcb-preview",
+				});
+				refreshPreview();
+				if (
+					(hcb().mode ?? "options") === "options" &&
+					hcb().blocks.vaultCollaboration
+				) {
+					body.createEl("p", {
+						text: "The notes line is only sent when a chat's folder is inside your vault.",
+						cls: "setting-item-description",
+					});
+				}
+
+				new Setting(body)
+					.setName("Reset to defaults")
+					.setDesc(
+						"Turn all switches on, clear your vault context and any full prompt, and return to the options view.",
+					)
+					.addButton((btn) =>
+						btn.setButtonText("Reset to defaults").onClick(async () => {
+							await setHcb(
+								structuredClone(DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS),
+							);
+							this.display();
+						}),
+					);
+			},
+			{
+				open: this.hcbExpanded,
+				onToggle: (open: boolean) => {
+					this.hcbExpanded = open;
+				},
+			},
+		);
+
+				new Setting(containerEl)
 			.setName("Appearance & notifications")
 			.setHeading();
 
