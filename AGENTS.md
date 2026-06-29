@@ -107,6 +107,7 @@ src/
 │   ├── ConfirmSessionIntentModal.ts # Confirm-before-clearing modal (switch / new-chat / hard-reload)
 │   ├── CorruptionRecoveryModal.ts # Corrupt persisted-state recovery modal
 │   ├── ConfirmCloseModal.ts     # Confirm-before-closing-panel modal (focused Cmd+W with 2+ tabs)
+│   ├── ConfirmResetModal.ts     # Confirm-before-resetting the Obsidian system prompt (only when typed text would be lost)
 │   ├── branding.ts              # Agent Console SVG mark + cross-surface branding
 │   ├── ChatPanel.tsx            # Orchestrator: calls hooks, workspace events, rendering
 │   ├── ChatView.tsx             # Sidebar view (ItemView wrapper)

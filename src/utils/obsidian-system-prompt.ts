@@ -214,3 +214,33 @@ export function normalizeObsidianSystemPromptSettings(
 		mode,
 	};
 }
+
+// ── Reset confirmation gate ────────────────────────────────────────────────
+
+/**
+ * True when the settings differ from the shipped defaults in any way — a block
+ * toggled off, full-prompt mode, typed vault context, or a hand-edited full
+ * prompt. "Reset to defaults" discards all of that, so the UI confirms before
+ * resetting whenever this is true; only a pristine, all-default state resets
+ * without a prompt.
+ *
+ * Pure decision (per the resolver tenet) so the confirm gate is unit-testable
+ * independently of the settings UI.
+ */
+export function obsidianSystemPromptIsCustomized(
+	settings: ObsidianSystemPromptSettings,
+): boolean {
+	const blocksAtDefault = (
+		Object.keys(
+			DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS,
+		) as (keyof ObsidianSystemPromptBlocks)[]
+	).every(
+		(k) => settings.blocks[k] === DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS[k],
+	);
+	return (
+		!blocksAtDefault ||
+		(settings.mode ?? "options") !== "options" ||
+		(settings.appendText ?? "").trim() !== "" ||
+		(settings.customText ?? "").trim() !== ""
+	);
+}

@@ -22,8 +22,10 @@ import {
 } from "../utils/working-directory";
 import {
 	composeObsidianSystemPrompt,
+	obsidianSystemPromptIsCustomized,
 	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
 } from "../utils/obsidian-system-prompt";
+import { ConfirmResetModal } from "./ConfirmResetModal";
 import {
 	TITLE_STRATEGY_OPTIONS,
 	type TitleStrategy,
@@ -60,6 +62,13 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	 * agent's Agent ID field renders. Per-session UI intent, not persisted.
 	 */
 	private pendingFocusAgentId: string | null = null;
+	/**
+	 * When the user clicks "Edit full prompt…", the tab re-renders into full
+	 * mode; this flag tells the full-prompt textarea's render to grab focus
+	 * (and scroll itself into view) so the cursor lands in the editable box,
+	 * not on the read-only "What gets sent" preview below it.
+	 */
+	private pendingFocusObsidianFullPrompt = false;
 
 	constructor(app: App, plugin: AgentClientPlugin) {
 		super(app, plugin);
@@ -347,7 +356,16 @@ export class AgentClientSettingTab extends PluginSettingTab {
 										await setHcb({
 											blocks: { ...hcb().blocks, [key]: value },
 										});
-										this.display();
+										// Avoid a full re-render (which scrolls the
+										// pane and jumps the view) — just refresh
+										// the live preview. The vault-note hint's
+										// visibility depends on the vaultCollaboration
+										// block, so only that toggle re-renders.
+										if (key === "vaultCollaboration") {
+											this.display();
+										} else {
+											refreshPreview();
+										}
 									}),
 							);
 					};
@@ -396,6 +414,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						.addButton((btn) =>
 							btn.setButtonText("Edit full prompt…").onClick(async () => {
 								const seeded = hcbComposed(appendTa?.inputEl?.value);
+								this.pendingFocusObsidianFullPrompt = true;
 								await setHcb({ mode: "full", customText: seeded });
 								this.display();
 							}),
@@ -415,6 +434,20 @@ export class AgentClientSettingTab extends PluginSettingTab {
 								await setHcb({ customText: value });
 								refreshPreview();
 							});
+							// Just switched into full mode: focus the editable
+							// box, put the cursor at the end, and scroll it into
+							// view so the user doesn't land on the read-only
+							// "What gets sent" preview below.
+							if (this.pendingFocusObsidianFullPrompt) {
+								this.pendingFocusObsidianFullPrompt = false;
+								const inputEl = ta.inputEl;
+								window.requestAnimationFrame(() => {
+									inputEl.focus();
+									const end = inputEl.value.length;
+									inputEl.setSelectionRange(end, end);
+									inputEl.scrollIntoView({ block: "center" });
+								});
+							}
 						});
 					new Setting(body)
 						.setName("Back to options")
@@ -465,10 +498,24 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					)
 					.addButton((btn) =>
 						btn.setButtonText("Reset to defaults").onClick(async () => {
-							await setHcb(
-								structuredClone(DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS),
-							);
-							this.display();
+							const doReset = async (): Promise<void> => {
+								await setHcb(
+									structuredClone(
+										DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
+									),
+								);
+								this.display();
+							};
+							// Confirm only when reset would discard customization
+							// (a block toggled off, full-prompt mode, or typed
+							// text). A pristine all-default state resets directly.
+							if (obsidianSystemPromptIsCustomized(hcb())) {
+								new ConfirmResetModal(this.plugin.app, () => {
+									void doReset();
+								}).open();
+							} else {
+								await doReset();
+							}
 						}),
 					);
 			},

@@ -214,8 +214,19 @@ vi.mock("obsidian", () => {
 			return "/vault";
 		}
 	}
+	class Modal {
+		contentEl: HTMLElement = document.createElement("div");
+		constructor(public app: unknown) {}
+		open() {
+			(this as unknown as { onOpen?: () => void }).onOpen?.();
+		}
+		close() {
+			(this as unknown as { onClose?: () => void }).onClose?.();
+		}
+	}
 	return {
 		App,
+		Modal,
 		PluginSettingTab,
 		Setting: MockSettingImpl,
 		DropdownComponent: Comp,
@@ -233,13 +244,21 @@ import { App, FileSystemAdapter } from "obsidian";
 import { AgentClientSettingTab } from "../SettingsTab";
 import { DEFAULT_SETTINGS } from "../../services/settings-normalizer";
 
-function makePlugin(over: Record<string, unknown> = {}) {
+function makePlugin(
+	over: Record<string, unknown> = {},
+	opts: { live?: boolean } = {},
+) {
 	const settings = structuredClone(DEFAULT_SETTINGS) as unknown as Record<
 		string,
 		unknown
 	>;
 	Object.assign(settings, over);
-	const updateSettings = vi.fn(async () => {});
+	const updateSettings = vi.fn(async (patch?: Record<string, unknown>) => {
+		// Opt-in: actually persist the patch so state changes (e.g. mode →
+		// "full") propagate through a subsequent display(), letting tests
+		// exercise re-render flows. Default is a no-op for call-arg assertions.
+		if (opts.live && patch) Object.assign(settings, patch);
+	});
 	const saveSettingsAndNotify = vi.fn(async () => {});
 	const updateAllAutoAllow = vi.fn();
 	const adapter = new FileSystemAdapter();
@@ -270,8 +289,11 @@ function makePlugin(over: Record<string, unknown> = {}) {
 	};
 }
 
-function renderPane(over: Record<string, unknown> = {}) {
-	const ctx = makePlugin(over);
+function renderPane(
+	over: Record<string, unknown> = {},
+	opts: { live?: boolean } = {},
+) {
+	const ctx = makePlugin(over, opts);
 	const reg = (globalThis as unknown as { __settings: MockSetting[] })
 		.__settings;
 	reg.length = 0;
@@ -558,5 +580,95 @@ describe("Obsidian system prompt — 'What gets sent' preview is always present"
 	it("still renders the preview in options mode (no regression)", () => {
 		const { settings } = renderPane(); // DEFAULT_SETTINGS → options mode
 		expect(find(settings, "What gets sent")).toBeDefined();
+	});
+});
+
+describe("Obsidian system prompt — Reset confirm gate", () => {
+	it("resets immediately (no confirm) at shipped defaults", async () => {
+		const { settings, updateSettings } = renderPane();
+		const btn = find(settings, "Reset to defaults")!.comps.button;
+		await (btn as unknown as { onClickCb: () => Promise<void> }).onClickCb();
+		// At defaults there's nothing to lose → reset applied directly.
+		expect(updateSettings).toHaveBeenCalledWith(
+			expect.objectContaining({ obsidianSystemPrompt: expect.anything() }),
+		);
+	});
+
+	it("defers the reset to a confirm modal when a block is toggled off", async () => {
+		const { settings, updateSettings } = renderPane({
+			obsidianSystemPrompt: {
+				blocks: {
+					hostIdentity: true,
+					rendering: true,
+					workingDirectory: true,
+					vaultCollaboration: false,
+				},
+				appendText: "",
+				customText: "",
+				mode: "options",
+			},
+		});
+		const btn = find(settings, "Reset to defaults")!.comps.button;
+		await (btn as unknown as { onClickCb: () => Promise<void> }).onClickCb();
+		// Non-default (a switch off) → confirm modal opens; not reset yet.
+		expect(updateSettings).not.toHaveBeenCalled();
+	});
+
+	it("defers the reset to a confirm modal when vault context is set", async () => {
+		const { settings, updateSettings } = renderPane({
+			obsidianSystemPrompt: {
+				blocks: {
+					hostIdentity: true,
+					rendering: true,
+					workingDirectory: true,
+					vaultCollaboration: true,
+				},
+				appendText: "Daily notes live in Journal/.",
+				customText: "",
+				mode: "options",
+			},
+		});
+		const btn = find(settings, "Reset to defaults")!.comps.button;
+		await (btn as unknown as { onClickCb: () => Promise<void> }).onClickCb();
+		// Typed text present → a confirm modal opens; reset is NOT applied yet.
+		expect(updateSettings).not.toHaveBeenCalled();
+	});
+});
+
+describe("Obsidian system prompt — focus & no-jump on interaction", () => {
+	it("requests focus for the full-prompt box when entering full mode", async () => {
+		const { settings } = renderPane({}, { live: true });
+		// Spy AFTER the initial render so only the click's rAF is counted.
+		const rafSpy = vi
+			.spyOn(window, "requestAnimationFrame")
+			.mockImplementation(() => 0 as unknown as number);
+		try {
+			const editBtn = find(settings, "Edit the full prompt")!.comps
+				.button;
+			await (
+				editBtn as unknown as { onClickCb: () => Promise<void> }
+			).onClickCb();
+			// The full-prompt textarea's render hit the focus branch (proving
+			// the focus intent was set on click and consumed on render).
+			expect(rafSpy).toHaveBeenCalled();
+			expect(find(settings, "Full prompt")).toBeDefined();
+		} finally {
+			rafSpy.mockRestore();
+		}
+	});
+
+	it("non-vault toggles refresh the preview without re-rendering; the vault toggle re-renders", async () => {
+		const { settings } = renderPane();
+		const before = settings.length;
+		// A non-vault block toggle must NOT trigger a full re-render (the jump).
+		const host = find(settings, "Say it's running in Obsidian")!.comps
+			.toggle;
+		await (host.onChangeCb as (v: unknown) => unknown)(false);
+		expect(settings.length).toBe(before);
+		// The vault toggle DOES re-render (its note-hint visibility depends on it).
+		const vault = find(settings, "Let it work with your notes")!.comps
+			.toggle;
+		await (vault.onChangeCb as (v: unknown) => unknown)(false);
+		expect(settings.length).toBeGreaterThan(before);
 	});
 });

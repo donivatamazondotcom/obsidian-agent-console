@@ -8,7 +8,9 @@ import {
 	workingDirectoryBlock,
 	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS,
 	type ObsidianSystemPromptBlocks,
+	type ObsidianSystemPromptSettings,
 	normalizeObsidianSystemPromptSettings,
+	obsidianSystemPromptIsCustomized,
 } from "../obsidian-system-prompt";
 import {
 	WIKI_LINK_INSTRUCTION,
@@ -321,5 +323,62 @@ describe("normalizeObsidianSystemPromptSettings", () => {
 			customText: "legacy replace",
 		});
 		expect(s.mode).toBe("full");
+	});
+});
+
+describe("obsidianSystemPromptIsCustomized (reset confirm gate)", () => {
+	const base = (
+		over: Partial<ObsidianSystemPromptSettings> = {},
+	): ObsidianSystemPromptSettings => ({
+		blocks: { ...DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS },
+		appendText: "",
+		customText: "",
+		mode: "options",
+		...over,
+	});
+
+	it("is false only at shipped defaults", () => {
+		expect(obsidianSystemPromptIsCustomized(base())).toBe(false);
+	});
+
+	it("is true when any block is toggled off", () => {
+		expect(
+			obsidianSystemPromptIsCustomized(
+				base({
+					blocks: {
+						...DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS,
+						vaultCollaboration: false,
+					},
+				}),
+			),
+		).toBe(true);
+	});
+
+	it("is true in full-prompt mode", () => {
+		expect(obsidianSystemPromptIsCustomized(base({ mode: "full" }))).toBe(
+			true,
+		);
+	});
+
+	it("is true when vault context (appendText) is set", () => {
+		expect(
+			obsidianSystemPromptIsCustomized(
+				base({ appendText: "Daily notes live in Journal/." }),
+			),
+		).toBe(true);
+	});
+
+	it("is true when a full prompt (customText) is set", () => {
+		expect(
+			obsidianSystemPromptIsCustomized(
+				base({ customText: "My whole prompt." }),
+			),
+		).toBe(true);
+	});
+
+	it("ignores whitespace-only text (still default)", () => {
+		expect(
+			obsidianSystemPromptIsCustomized(base({ appendText: "   \n\t" })),
+		).toBe(false);
 	});
 });

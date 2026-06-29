@@ -31,7 +31,7 @@ Want full control? **Edit full prompt…** opens an editable box pre-filled with
 
 ## Start over
 
-**Reset to defaults** turns all four switches back on, clears your vault context and any hand-edited prompt, and returns to the switches — handy if you've experimented and want the original behavior back.
+**Reset to defaults** turns all four switches back on, clears your vault context and any hand-edited prompt, and returns to the switches — handy if you've experimented and want the original behavior back. If you've changed anything from the defaults — a switch, your vault context, or the full prompt — it asks you to confirm first so you don't lose your changes by accident.
 
 ::: tip
 Not sure what to change? Leave everything on. The default system prompt is short and helps any agent work more naturally in your vault.
