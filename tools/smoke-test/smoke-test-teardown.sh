@@ -8,7 +8,13 @@
 # non-interactive session.
 #
 # Usage:
-#   tools/smoke-test/smoke-test-teardown.sh <worktree-name>
+#   tools/smoke-test/smoke-test-teardown.sh <worktree-name>   # tear down one studio
+#   tools/smoke-test/smoke-test-teardown.sh --prune           # deregister all dead ST-* studios
+#
+# --prune reconciles obsidian.json against disk: it deregisters every ST-<name>
+# smoke-studio vault whose folder no longer exists (orphaned when a studio was
+# removed without running this script). It deletes no folders and never touches
+# a registration whose folder still exists, so in-flight studios are safe.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -19,8 +25,36 @@ REPO_ROOT="$(dirname "$GIT_COMMON")"
 
 WORKTREE_NAME="${1:-}"
 if [ -z "$WORKTREE_NAME" ]; then
-	echo "usage: $0 <worktree-name>" >&2
+	echo "usage: $0 <worktree-name> | --prune" >&2
 	exit 2
+fi
+
+# --prune: reconcile obsidian.json against disk — deregister every ST-* smoke
+# studio whose folder no longer exists. Deletes no folders; leaves live studios
+# (folder present) untouched. Re-runnable; the standing fix for orphaned
+# registrations that hang the GUI vault-picker in non-interactive sessions.
+if [ "$WORKTREE_NAME" = "--prune" ]; then
+	STUDIOS_DIR="$REPO_ROOT/tools/smoke-test/studios" python3 - <<'PY'
+import json, os, pathlib
+cfg = pathlib.Path.home() / "Library/Application Support/obsidian/obsidian.json"
+prefix = os.path.join(os.environ["STUDIOS_DIR"], "ST-")
+d = json.loads(cfg.read_text())
+vaults = d.get("vaults", {})
+dead = [(vid, v.get("path", "")) for vid, v in list(vaults.items())
+        if v.get("path", "").startswith(prefix) and not pathlib.Path(v.get("path", "")).is_dir()]
+for vid, _ in dead:
+    del vaults[vid]
+if dead:
+    tmp = cfg.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(d))
+    os.replace(tmp, cfg)
+    for vid, p in dead:
+        print(f"  deregistered dead studio: {p.split('/studios/')[-1]} (id {vid})")
+    print(f"✓ pruned {len(dead)} dead smoke-studio registration(s)")
+else:
+    print("✓ no dead smoke-studio registrations found")
+PY
+	exit 0
 fi
 
 VAULT_NAME="ST-$WORKTREE_NAME"
