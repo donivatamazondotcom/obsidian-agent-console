@@ -1563,15 +1563,25 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	bottom: 100%;
 	left: 8px;
 	right: 8px;
-	max-height: 250px;
+	max-height: 300px;
 	background-color: var(--background-secondary);
 	border: 2px solid var(--background-modifier-border);
 	border-radius: var(--radius-m);
 	box-shadow: var(--shadow-l);
-	overflow-y: auto;
 	font-size: 14px;
 	margin-bottom: 8px;
 	z-index: 1000;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+/* Rows scroll here; the quick-prompt legend footer is pinned OUTSIDE this
+   container so it stays visible and never forces an always-on scrollbar. */
+.agent-client-mention-dropdown-scroll {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
 }
 
 .agent-client-mention-dropdown-item {
@@ -1584,10 +1594,6 @@ button.agent-client-message-tool-call-summary:focus-visible {
 
 .agent-client-mention-dropdown-item.agent-client-selected {
 	background-color: var(--background-modifier-hover);
-}
-
-.agent-client-mention-dropdown-item.agent-client-has-border {
-	border-bottom: 1px solid var(--background-modifier-border);
 }
 
 .agent-client-mention-dropdown-item-name {
@@ -3080,6 +3086,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 
 /* Modifier legend pinned to the bottom of the composer ! dropdown. */
 .agent-client-quick-prompt-legend {
+	flex: 0 0 auto;
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--size-4-2);
@@ -3090,11 +3097,8 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	font-size: var(--font-ui-smaller);
 }
 
-/* The "create" row pinned at the bottom of the ! launcher dropdown (#2) —
- * a top separator + a muted + glyph so it reads as "create", not "run". */
-.agent-client-quick-prompt-create-row {
-	border-top: 1px solid var(--background-modifier-border);
-}
+/* The "create" row at the bottom of the ! launcher dropdown — distinguished by
+ * the muted + glyph; no separator line (harmonized with Obsidian's picker). */
 
 .agent-client-quick-prompt-create-icon {
 	margin-right: var(--size-2-2);

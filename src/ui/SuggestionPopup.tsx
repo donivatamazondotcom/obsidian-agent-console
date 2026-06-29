@@ -3,7 +3,13 @@ const { useRef, useEffect } = React;
 import type { NoteMetadata } from "../services/vault-service";
 import type { SlashCommand } from "../types/session";
 import type { QuickPrompt } from "../types/quick-prompt";
-import { MOD_KEY, ALT_KEY, SHIFT_KEY, ENTER_KEY, modCombo } from "../utils/platform";
+import {
+	MOD_KEY,
+	ALT_KEY,
+	SHIFT_KEY,
+	ENTER_KEY,
+	modCombo,
+} from "../utils/platform";
 import type { CreatePromptRow } from "../services/quick-prompts-logic";
 
 /**
@@ -80,13 +86,14 @@ export function SuggestionPopup({
 		};
 	}, [onClose]);
 
-	// Scroll selected item into view
+	// Scroll the selected row into view within the scrollable rows container.
+	// Query `.agent-client-selected` (not children[index]) so this stays correct
+	// now that the legend footer lives OUTSIDE the scroll area.
 	useEffect(() => {
-		if (!dropdownRef.current) return;
-		const selectedElement = dropdownRef.current.children[selectedIndex] as
-			| HTMLElement
-			| undefined;
-		selectedElement?.scrollIntoView({ block: "nearest" });
+		const selected = dropdownRef.current?.querySelector<HTMLElement>(
+			".agent-client-selected",
+		);
+		selected?.scrollIntoView?.({ block: "nearest" });
 	}, [selectedIndex]);
 
 	if (items.length === 0 && !createRow) {
@@ -101,7 +108,6 @@ export function SuggestionPopup({
 		index: number,
 	) => {
 		const isSelected = index === selectedIndex;
-		const hasBorder = index < items.length - 1;
 
 		if (type === "mention") {
 			const note = item as NoteMetadata;
@@ -111,7 +117,7 @@ export function SuggestionPopup({
 					role="option"
 					tabIndex={-1}
 					aria-selected={isSelected}
-					className={`agent-client-mention-dropdown-item ${isSelected ? "agent-client-selected" : ""} ${hasBorder ? "agent-client-has-border" : ""}`}
+					className={`agent-client-mention-dropdown-item ${isSelected ? "agent-client-selected" : ""}`}
 					onClick={() => onSelect(note)}
 					onKeyDown={(e) => {
 						if (e.key === "Enter") {
@@ -140,7 +146,7 @@ export function SuggestionPopup({
 					role="option"
 					tabIndex={-1}
 					aria-selected={isSelected}
-					className={`agent-client-mention-dropdown-item ${isSelected ? "agent-client-selected" : ""} ${hasBorder ? "agent-client-has-border" : ""}`}
+					className={`agent-client-mention-dropdown-item ${isSelected ? "agent-client-selected" : ""}`}
 					onClick={() => onSelect(command)}
 					onKeyDown={(e) => {
 						if (e.key === "Enter") {
@@ -170,7 +176,7 @@ export function SuggestionPopup({
 					role="option"
 					tabIndex={-1}
 					aria-selected={isSelected}
-					className={`agent-client-mention-dropdown-item ${isSelected ? "agent-client-selected" : ""} ${hasBorder ? "agent-client-has-border" : ""}`}
+					className={`agent-client-mention-dropdown-item ${isSelected ? "agent-client-selected" : ""}`}
 					onClick={(e) => onSelect(prompt, e)}
 					onKeyDown={(e) => {
 						if (e.key === "Enter") {
@@ -198,30 +204,36 @@ export function SuggestionPopup({
 	};
 
 	return (
-		<div ref={dropdownRef} className="agent-client-mention-dropdown" role="listbox">
-			{items.map((item, index) => renderItem(item, index))}
-			{type === "quick-prompt" && createRow && (
-				<div
-					role="option"
-					tabIndex={-1}
-					aria-selected={selectedIndex === items.length}
-					className={`agent-client-mention-dropdown-item agent-client-quick-prompt-create-row ${selectedIndex === items.length ? "agent-client-selected" : ""}`}
-					onClick={() => onCreate?.()}
-					onKeyDown={(e) => {
-						if (e.key === "Enter") {
-							e.preventDefault();
-							onCreate?.();
-						}
-					}}
-				>
-					<div className="agent-client-mention-dropdown-item-name">
-						<span className="agent-client-quick-prompt-create-icon">
-							+
-						</span>
-						{createRow.label}
+		<div
+			ref={dropdownRef}
+			className="agent-client-mention-dropdown"
+			role="listbox"
+		>
+			<div className="agent-client-mention-dropdown-scroll">
+				{items.map((item, index) => renderItem(item, index))}
+				{type === "quick-prompt" && createRow && (
+					<div
+						role="option"
+						tabIndex={-1}
+						aria-selected={selectedIndex === items.length}
+						className={`agent-client-mention-dropdown-item agent-client-quick-prompt-create-row ${selectedIndex === items.length ? "agent-client-selected" : ""}`}
+						onClick={() => onCreate?.()}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") {
+								e.preventDefault();
+								onCreate?.();
+							}
+						}}
+					>
+						<div className="agent-client-mention-dropdown-item-name">
+							<span className="agent-client-quick-prompt-create-icon">
+								+
+							</span>
+							{createRow.label}
+						</div>
 					</div>
-				</div>
-			)}
+				)}
+			</div>
 			{type === "quick-prompt" && (
 				<div
 					className="agent-client-quick-prompt-legend"
