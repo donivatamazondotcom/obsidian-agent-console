@@ -84,6 +84,9 @@ describe("composeObsidianSystemPrompt", () => {
 		// authoring conventions live in the gated vault block, not rendering
 		expect(out).not.toContain("create or edit notes");
 		expect(out).not.toContain("Obsidian vault");
+		// working-directory line must stay neutral — no file-work affirmation that
+		// the agent bridges to "I can edit vault notes" (smoke test 2 leak).
+		expect(out).not.toContain("Read and edit files");
 	});
 
 	it("includes authoring conventions only when cwd is inside the vault", () => {

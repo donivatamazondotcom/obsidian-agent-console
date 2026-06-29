@@ -47,7 +47,7 @@ export const VAULT_COLLABORATION_BLOCK =
 
 /** Working-directory block is parameterized by the resolved cwd. */
 export function workingDirectoryBlock(cwd: string): string {
-	return `Your working directory is ${cwd}. Read and edit files there to work with the user.`;
+	return `Your working directory is ${cwd}.`;
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
