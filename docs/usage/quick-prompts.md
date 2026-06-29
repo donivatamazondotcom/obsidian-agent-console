@@ -25,7 +25,7 @@ Debrief this meeting — pull the AI summary, extract action items, and update t
 You don't have to hand-write a note — Agent Console can make one for you and open it so you just fill in the prompt.
 
 - **Make one from scratch** — run **Quick prompts: New prompt** from the command palette. It creates a templated note (with the `open in new tab` and `always show` toggles ready to flip) and opens it. This works even when you have no prompts yet, so it's the way in on a fresh setup.
-- **Create while you search** — type `!` at the start of a line. A **Create…** row always sits at the bottom of the list, so you can make a new prompt whether or not anything matched: with text typed it reads **Create quick prompt "your text"**; on a bare `!` it's **Create a quick prompt**. Pick it to make the prompt and open it.
+- **Create while you search** — type `!` at the start of a line. A **Create…** row always sits at the bottom of the list, so you can make a new prompt whether or not anything matched: with text typed it reads **Create quick prompt "your text"**; on a bare `!` it's **Create a quick prompt**. Your text can include spaces, so you can name it right there (e.g. `!Daily brief`). Pick it to make the prompt and open it.
 - **Save what you've drafted** — typed a message you'll want again? Hit `!` and pick **Create quick prompt from this message**, or run the **Quick prompts: Save composer as a prompt** command. Either saves your message-box text as a new prompt and opens it; your draft stays in the box.
 
 New prompts start quiet — they don't show as a chip until you turn on `always show` or add `show on tags`, so making one never clutters your composer. If a prompt with the same name already exists, Agent Console adds a number instead of overwriting it.

@@ -780,8 +780,14 @@ describe("quick-prompts-logic — slice 3 (launcher: chips + ! trigger)", () => 
 		it("bare ! → empty query (show all)", () => {
 			expect(parseQuickPromptTrigger("!")).toBe("");
 		});
-		it("closes once a space follows the query: '!foo ' → null", () => {
-			expect(parseQuickPromptTrigger("!foo ")).toBeNull();
+		it("QP-I15: keeps spaces in the query — '!foo ' → 'foo '", () => {
+			expect(parseQuickPromptTrigger("!foo ")).toBe("foo ");
+		});
+		it("QP-I15: multi-word query — '!Daily brief' → 'Daily brief'", () => {
+			expect(parseQuickPromptTrigger("!Daily brief")).toBe("Daily brief");
+		});
+		it("QP-I15: query still terminates at a second ! — '!a !b' → null", () => {
+			expect(parseQuickPromptTrigger("!a !b")).toBeNull();
 		});
 	});
 
@@ -799,6 +805,14 @@ describe("quick-prompts-logic — slice 3 (launcher: chips + ! trigger)", () => 
 		});
 		it("keeps text after the caret", () => {
 			expect(stripQuickPromptTrigger("!sum tail", 4)).toBe(" tail");
+		});
+		it("QP-I15: strips a multi-word token — '!Daily brief' → ''", () => {
+			expect(stripQuickPromptTrigger("!Daily brief", 12)).toBe("");
+		});
+		it("QP-I15: preserves the line before a multi-word token", () => {
+			expect(stripQuickPromptTrigger("hey\n!Daily brief", 16)).toBe(
+				"hey\n",
+			);
 		});
 	});
 

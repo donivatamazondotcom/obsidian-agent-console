@@ -513,14 +513,17 @@ export function capRestingChips(
  *
  * Fires ONLY at the start of a line — the start of the composer, or right
  * after a newline — NOT after a space mid-line, so prose like "see you later !"
- * does not false-trigger (maintainer steer 2026-06-28). `foo!bar` mid-word
- * also doesn't trigger; `!foo ` (a space after the query) closes it; a bare
- * `!` at line start yields an empty query (show all).
+ * does not false-trigger (maintainer steer 2026-06-28). `foo!bar` mid-word also
+ * doesn't trigger. Once triggered, the query spans the rest of the line
+ * INCLUDING spaces (QP-I15: a `!` at line start is clear quick-prompt intent,
+ * so `!Daily brief` yields the query "Daily brief" — needed to find or create
+ * multi-word-named prompts inline); it terminates only at a newline or a second
+ * `!`. A bare `!` at line start yields an empty query (show all).
  */
 export function parseQuickPromptTrigger(
 	textBeforeCaret: string,
 ): string | null {
-	const m = /(?:^|\n)!([^\s!]*)$/.exec(textBeforeCaret);
+	const m = /(?:^|\n)!([^\n!]*)$/.exec(textBeforeCaret);
 	return m ? m[1] : null;
 }
 
@@ -536,7 +539,7 @@ export function stripQuickPromptTrigger(
 ): string {
 	const before = input.slice(0, cursorPos);
 	const after = input.slice(cursorPos);
-	const m = /(^|\n)!([^\s!]*)$/.exec(before);
+	const m = /(^|\n)!([^\n!]*)$/.exec(before);
 	if (!m) return input;
 	// Keep everything up to and including the leading newline (m[1]); drop
 	// from the `!` onward.
