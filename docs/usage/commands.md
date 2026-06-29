@@ -12,7 +12,7 @@ Always available, including from a cold start with no chat view open. **New chat
 
 | Command | Description |
 |---------|-------------|
-| **Open chat** | Reveal the chat panel. If none is open, restore the tabs from the panel you last closed (when **Restore tabs on startup** is on) — opening resumes where you left off |
+| **Open chat** | Reveal the chat panel and put your cursor straight in the message box — bind this to a hotkey under **Settings → Hotkeys** to jump into the composer from anywhere, including while you're editing a note. If no panel is open, restore the tabs from the one you last closed (when **Restore tabs on startup** is on) so you pick up where you left off |
 | **Open new view** | Open a fresh, empty chat panel — does *not* restore the last-closed tabs. The deliberate "clean slate" counterpart to **Open chat**. Also in the tab-bar ⌄ menu |
 | **New chat** | Open a new tab with a fresh chat — opens a panel first if none is open |
 | **New chat with agent…** | Pick an agent from a list, then open a new tab with a fresh chat on it |

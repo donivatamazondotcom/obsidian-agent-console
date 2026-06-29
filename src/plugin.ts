@@ -3,6 +3,7 @@ import { addIcon, Plugin, WorkspaceLeaf, Notice } from "obsidian";
 import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
+import { focusActiveTabComposer } from "./ui/composer-focus";
 import { HOVER_LINK_SOURCE } from "./utils/link-leaf";
 import { fetchJson } from "./services/net";
 import { ChatViewRegistry } from "./services/view-registry";
@@ -642,7 +643,7 @@ export default class AgentClientPlugin extends Plugin {
 		if (view instanceof ChatView) {
 			view.addTab(action.agentId);
 			await this.app.workspace.revealLeaf(leaf as WorkspaceLeaf);
-			this.focusTextarea(leaf as WorkspaceLeaf);
+			this.focusLeafComposer(leaf as WorkspaceLeaf);
 		}
 	}
 
@@ -718,24 +719,29 @@ export default class AgentClientPlugin extends Plugin {
 
 		if (leaf) {
 			await workspace.revealLeaf(leaf);
-			this.focusTextarea(leaf);
+			this.focusLeafComposer(leaf);
 		}
 	}
 
 	/**
 	 * Focus the textarea in a ChatView leaf.
 	 */
-	private focusTextarea(leaf: WorkspaceLeaf): void {
+	/**
+	 * Make a chat leaf active (moving keyboard focus to it) and drop the caret
+	 * into its ACTIVE tab's composer. Used by Open chat / view activation and by
+	 * startChat. revealLeaf alone makes a sidebar leaf visible but does NOT move
+	 * keyboard focus (I136 H2), so setActiveLeaf({ focus: true }) is required;
+	 * the composer focus is deferred one frame so it lands after Obsidian
+	 * finishes activating the leaf (H3). focusActiveTabComposer targets the
+	 * active tab's composer, never a hidden background tab's (I136 H1).
+	 */
+	private focusLeafComposer(leaf: WorkspaceLeaf): void {
+		this.app.workspace.setActiveLeaf(leaf, { focus: true });
 		const viewContainerEl = leaf.view?.containerEl;
 		if (viewContainerEl) {
-			window.setTimeout(() => {
-				const textarea = viewContainerEl.querySelector(
-					"textarea.agent-client-chat-input-textarea",
-				);
-				if (textarea instanceof HTMLTextAreaElement) {
-					textarea.focus();
-				}
-			}, 50);
+			window.requestAnimationFrame(() => {
+				focusActiveTabComposer(viewContainerEl);
+			});
 		}
 	}
 
