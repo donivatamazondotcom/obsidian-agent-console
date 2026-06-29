@@ -217,10 +217,10 @@ export function useHistoryModal(
 		historyModalRef.current.open();
 		// Fetch the persisted source. The cwd filter applies to the Agent view
 		// only — Local is the whole local store.
-		void sessionHistory.fetchSessions(
-			source,
-			source === "agent" ? vaultPath : undefined,
-		);
+		// Default-off filter: open unfiltered (whole history). The cwd filter is
+		// applied only when the user opts in — server-side for the live Agent
+		// view, client-side for Local + the disconnected cache.
+		void sessionHistory.fetchSessions(source, undefined);
 	}, [
 		plugin.app,
 		plugin.settingsService,

@@ -40,7 +40,7 @@ A search box sits at the top of the history modal. Type to filter the list as yo
 
 Matches that hit message content show a short snippet with the term highlighted, so you can confirm it's the right session before opening it. Search is fully local — no agent connection required.
 
-On the **Agent** view, a **This vault only** checkbox limits the list to sessions from your current vault. (The Local view always spans every vault, so it has no filter.) Agent-view rows the plugin hasn't saved a transcript for can only be matched by their title — content search needs a local transcript.
+When your saved sessions span more than one working folder, an **Only this folder** checkbox appears, with the current folder's path shown beneath it. Check it to narrow the list to sessions whose working folder is the one shown; uncheck (the default) to see sessions from every folder. The filter works on both the Local and Agent views and for every agent — the working folder is whatever directory the agent runs in, which may or may not be your vault root. Agent-view rows the plugin hasn't saved a transcript for can only be matched by their title — content search needs a local transcript.
 
 ## Available Actions
 

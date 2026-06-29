@@ -98,7 +98,7 @@ describe("SessionHistoryContent — Local/Agent toggle", () => {
 		).toBe("true");
 	});
 
-	it("clicking the Agent pill persists the choice and refetches from the agent", () => {
+	it("clicking the Agent pill persists the choice and refetches unfiltered (filter defaults off — I147)", () => {
 		const onSourceChange = vi.fn();
 		const onFetchSessions = vi.fn();
 		render(
@@ -108,22 +108,24 @@ describe("SessionHistoryContent — Local/Agent toggle", () => {
 		);
 		fireEvent.click(screen.getByRole("tab", { name: /Claude Code/ }));
 		expect(onSourceChange).toHaveBeenCalledWith("agent");
-		expect(onFetchSessions).toHaveBeenCalledWith("agent", "/vault");
+		// Default-off filter → the Agent view opens unfiltered (every folder).
+		expect(onFetchSessions).toHaveBeenCalledWith("agent", undefined);
 	});
 
-	it("defaults the Local pill active and hides the 'This vault only' filter on Local", () => {
+	it("defaults the Local pill active", () => {
 		render(<SessionHistoryContent {...makeProps()} />);
 		expect(
 			screen.getByRole("tab", { name: "Local" }).getAttribute("aria-selected"),
 		).toBe("true");
-		expect(screen.queryByText("This vault only")).toBeNull();
 	});
 
-	it("shows the 'This vault only' filter only on the Agent view", () => {
+	it("does not gate the folder filter on source (I147: data-gated, not source-gated) — hidden on the Agent view too when the library has ≤1 folder", () => {
 		render(
 			<SessionHistoryContent {...makeProps({ initialSource: "agent" })} />,
 		);
-		expect(screen.getByText("This vault only")).toBeTruthy();
+		// makeProps has an empty library (≤1 folder) → no folder filter, either source.
+		expect(screen.queryByText("Only this folder")).toBeNull();
+		expect(screen.queryByText("This vault only")).toBeNull();
 	});
 });
 
