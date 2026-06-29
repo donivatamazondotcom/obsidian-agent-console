@@ -5,7 +5,7 @@
  * config changes, and related UI state (restoredMessage, agentUpdateNotification).
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Notice, Platform } from "obsidian";
 
 import type AgentClientPlugin from "../plugin";
@@ -28,6 +28,8 @@ import { ChatExporter } from "../services/chat-exporter";
 import { getLogger } from "../utils/logger";
 import { buildFileUri } from "../utils/paths";
 import { convertWindowsPathToWsl } from "../utils/platform";
+import { confirmSessionIntent } from "../ui/ConfirmSessionIntentModal";
+import { buildCarryOverBlocks } from "../services/carry-over-builder";
 
 // ============================================================================
 // Types
@@ -74,6 +76,9 @@ export interface UseChatActionsReturn {
 		triggerMessages: ChatMessage[],
 		triggerSession: ChatSession,
 	) => Promise<void>;
+
+	// Carry-over (needed by ChatPanel agent-switch dispatcher)
+	setCarryOverBlocks: (blocks: import("../types/chat").PromptContent[] | null) => void;
 }
 
 // ============================================================================
@@ -113,6 +118,14 @@ export function useChatActions(
 	// Drives the header ↻ spinner while a reload runs (soft reload can take a
 	// few seconds to respawn the subprocess). See `Agent Console Reload Control`.
 	const [isReloading, setIsReloading] = useState(false);
+	// Carry-over blocks from an agent switch — injected on the first send to
+	// the new agent, then cleared. See [[Agent-Portable Sessions]].
+	// Uses a ref (not state) to avoid stale-closure in handleSendMessage after
+	// the lazy-session acquire + re-render cycle.
+	const carryOverBlocksRef = useRef<import("../types/chat").PromptContent[] | null>(null);
+	const setCarryOverBlocks = useCallback((blocks: import("../types/chat").PromptContent[] | null) => {
+		carryOverBlocksRef.current = blocks;
+	}, []);
 
 	// ============================================================
 	// Auto-export
@@ -210,6 +223,15 @@ export function useChatActions(
 				// reach the agent on THIS turn.
 				const notesToSend = [...contextNotes.notes];
 
+				// --- Carry-over injection (cross-agent portability) ---
+				// If carry-over blocks are pending (from an agent switch),
+				// consume them on this send regardless of message count.
+				let carryOverForThisSend: import("../types/chat").PromptContent[] | undefined;
+				if (carryOverBlocksRef.current) {
+					carryOverForThisSend = carryOverBlocksRef.current;
+					carryOverBlocksRef.current = null; // consume once
+				}
+
 				// Auto-crystallize @[[mentions]] at send time (Decision #11,
 				// I66) so pills appear immediately — not after the turn ends.
 				// State update is async, so this turn's prompt still inlines
@@ -254,6 +276,7 @@ export function useChatActions(
 					resourceLinks:
 						resourceLinks.length > 0 ? resourceLinks : undefined,
 					isFirstMessage,
+					carryOverBlocks: carryOverForThisSend,
 				});
 
 				// Save session metadata locally on first message
@@ -312,6 +335,17 @@ export function useChatActions(
 				return;
 			}
 
+			// --- No silent data loss guard ---
+			// Agent switch is handled by handleSwitchAgent (with carry-over);
+			// plain new-chat over a non-empty tab requires confirmation.
+			if (messages.length > 0 && !isAgentSwitch) {
+				const decision = await confirmSessionIntent(
+					plugin.app,
+					{ kind: "new-chat", canCarryOver: false },
+				);
+				if (decision === "cancel") return;
+			}
+
 			try {
 				// Cancel ongoing generation before starting new chat
 				if (agent.isSending) {
@@ -353,6 +387,7 @@ export function useChatActions(
 			agent.restartSession,
 			suggestions.mentions.toggleAutoMention,
 			sessionHistory.invalidateCache,
+			plugin.app,
 		],
 	);
 
@@ -382,11 +417,31 @@ export function useChatActions(
 
 	const handleSwitchAgent = useCallback(
 		async (agentId: string) => {
-			if (agentId !== session.agentId) {
-				await handleNewChat(agentId);
+			if (agentId === session.agentId) return;
+
+			// --- No silent data loss guard ---
+			// If there are messages, confirm before switching + carry over.
+			if (messages.length > 0) {
+				const agents = agent.getAvailableAgents();
+				const agentName =
+					agents.find((a) => a.id === agentId)?.displayName || agentId;
+				const decision = await confirmSessionIntent(
+					plugin.app,
+					{ kind: "switch-agent", canCarryOver: true },
+					agentName,
+				);
+				if (decision === "cancel") return;
+				// decision === "carry-over": stash messages for injection on next send
+				if (decision === "carry-over") {
+					const supportsEmbedded = session.promptCapabilities?.embeddedContext ?? false;
+					const blocks = buildCarryOverBlocks(messages, supportsEmbedded);
+					setCarryOverBlocks(blocks);
+				}
 			}
+
+			await handleNewChat(agentId);
 		},
-		[session.agentId, handleNewChat],
+		[session.agentId, session.promptCapabilities, handleNewChat, messages, plugin.app, agent.getAvailableAgents],
 	);
 
 	const handleReload = useCallback(
@@ -401,6 +456,20 @@ export function useChatActions(
 				}
 
 				if (hard) {
+					// --- No silent data loss guard ---
+					// Hard reload clears the transcript; confirm first.
+					if (messages.length > 0) {
+						const agentName = session.agentDisplayName || session.agentId;
+						const decision = await confirmSessionIntent(
+							plugin.app,
+							{ kind: "reload", canCarryOver: false },
+							agentName,
+						);
+						if (decision === "cancel") {
+							return;
+						}
+					}
+
 					// Hard reload (⌘⇧R analog): fresh session under a fresh
 					// harness. Auto-export, tear down, re-acquire via the single
 					// owner (acquireNow), clear transcript.
@@ -448,6 +517,7 @@ export function useChatActions(
 			autoExportIfEnabled,
 			sessionHistory.invalidateCache,
 			logger,
+			plugin.app,
 		],
 	);
 
@@ -514,5 +584,6 @@ export function useChatActions(
 		agentUpdateNotification,
 		setAgentUpdateNotification,
 		autoExportIfEnabled,
+		setCarryOverBlocks,
 	};
 }

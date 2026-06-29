@@ -44,6 +44,9 @@ features:
   - icon: 🔗
     title: Every Shared Link, One Click Away
     details: As the agent points you at notes and web pages, they collect in a link list in the chat header – with files it just created this session set apart from ones that already existed. Jump back to anything it shared without scrolling the conversation.
+  - icon: 🔀
+    title: Take Your Conversation to Any Agent
+    details: Switch a chat from one agent to another and bring the conversation along – the new agent picks up with the earlier messages as context, shown in a read-only block you can collapse. Nothing is ever cleared without asking first.
   - icon: 📥
     title: Bring Your Setup With You
     details: Switching from another agent plugin? Import its agent definitions, defaults, and API keys in one click. Agent Console offers it on first run and keeps your keys where they already live.

@@ -56,6 +56,8 @@ src/
 │   ├── session-state.ts         # Session state updates (legacy mode/model, config restore)
 │   ├── message-state.ts         # Message array transforms (upsert, merge, streaming apply)
 │   ├── message-sender.ts        # Prompt preparation + sending (pure functions)
+│   ├── carried-over-preview.ts  # Cross-agent carry-over preview builder (pure)
+│   ├── carry-over-builder.ts    # Cross-agent carry-over transcript + content blocks (pure)
 │   ├── chat-exporter.ts         # Markdown export with frontmatter
 │   ├── view-registry.ts         # Multi-view management, focus, broadcast
 │   ├── recently-closed-stack.ts # F13 undo-close: closed-tab record + LIFO push/pop/build (pure)
@@ -101,6 +103,8 @@ src/
 │   ├── ChatContext.ts           # React Context (plugin, acpClient, vaultService, settingsService)
 │   ├── ContextStrip.tsx         # Context-note strip (crystallized pills + type-to-add)
 │   ├── LossyFallbackNotice.tsx  # Notice when a restored tab continues from transcript only
+│   ├── CarriedOverPreview.tsx   # Read-only carried-over conversation block (agent switch)
+│   ├── ConfirmSessionIntentModal.ts # Confirm-before-clearing modal (switch / new-chat / hard-reload)
 │   ├── CorruptionRecoveryModal.ts # Corrupt persisted-state recovery modal
 │   ├── ConfirmCloseModal.ts     # Confirm-before-closing-panel modal (focused Cmd+W with 2+ tabs)
 │   ├── branding.ts              # Agent Console SVG mark + cross-surface branding

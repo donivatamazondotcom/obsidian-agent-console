@@ -14,6 +14,7 @@ import type {
 	ActivePermission,
 	ImagePromptContent,
 	ResourceLinkPromptContent,
+	PromptContent,
 } from "../types/chat";
 import type { ChatSession, SessionUpdate } from "../types/session";
 import type { AcpClient } from "../acp/acp-client";
@@ -61,6 +62,8 @@ export interface SendMessageOptions {
 	contextNotes?: ContextNote[];
 	/** Raw selection from the last active markdown editor (0-based lines) */
 	selection?: { path: string; fromLine: number; toLine: number } | null;
+	/** Carry-over blocks from a prior agent's conversation (cross-agent portability). */
+	carryOverBlocks?: PromptContent[];
 }
 
 export interface UseAgentMessagesReturn {
@@ -431,6 +434,15 @@ export function useAgentMessages(
 				vaultAccess,
 				vaultAccess, // IMentionService (same object)
 			);
+
+			// Cross-agent carry-over: prepend earlier conversation as context
+			// blocks on the first send to the new agent ([[Agent-Portable Sessions]]).
+			if (options.carryOverBlocks && options.carryOverBlocks.length > 0) {
+				prepared.agentContent = [
+					...options.carryOverBlocks,
+					...prepared.agentContent,
+				];
+			}
 
 			const userMessageContent: MessageContent[] = [];
 
