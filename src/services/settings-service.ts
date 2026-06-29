@@ -204,6 +204,21 @@ export class SettingsService implements ISettingsAccess {
 	private sessionStorage: SessionStorage;
 
 	/**
+	 * Serialized owner of the data.json flush.
+	 *
+	 * The in-memory merge in `updateSettings` is synchronous and safe, but the
+	 * disk write (`plugin.saveSettings` -> `saveData`) was unserialized. The
+	 * per-concern `sessionLock` and `tabStateLock` are deliberately separate,
+	 * so a session write and a tab write could be in `saveData` concurrently
+	 * and land out of order — the older payload winning on disk and dropping
+	 * the newer concern's slice (surfacing only on the next restart). Chaining
+	 * every flush on this queue makes the data.json write the single serialized
+	 * writer of record. See `settings-flush-ordering` test +
+	 * [[Resolver and Single-Writer Refactors]] candidate #5.
+	 */
+	private flushQueue: Promise<void> = Promise.resolve();
+
+	/**
 	 * Create a new settings store.
 	 *
 	 * @param initial - Initial settings state
@@ -250,8 +265,26 @@ export class SettingsService implements ISettingsAccess {
 			listener();
 		}
 
-		// Persist to disk
-		await this.plugin.saveSettings();
+		// Persist to disk through the serialized flush queue so concurrent
+		// updates (the per-concern sessionLock and tabStateLock both feed here)
+		// cannot reorder on disk and clobber each other's slice.
+		return this.enqueueFlush();
+	}
+
+	/**
+	 * Run the data.json flush serialized behind every prior flush. Each queued
+	 * flush writes the LATEST in-memory `this.state` (the synchronous merge in
+	 * `updateSettings` has already committed it), and the queue guarantees
+	 * flushes run one at a time — so out-of-order disk landings are impossible
+	 * by construction. The internal chain never rejects (a failed flush does
+	 * not stall the queue); the caller still observes its own flush's rejection
+	 * via the returned promise. Same construction as `SessionStore.enqueue` and
+	 * the session/tab-state locks.
+	 */
+	private enqueueFlush(): Promise<void> {
+		const run = this.flushQueue.then(() => this.plugin.saveSettings());
+		this.flushQueue = run.catch(() => {});
+		return run;
 	}
 
 	/**
