@@ -159,3 +159,21 @@ It fails (non-zero) if:
 - an animation gif's dimensions don't match its manifest `width`/`height` (gifs carry no shadow and never resize, so this is exact — webp sizes are left to the manual T05 check because of the drop-shadow margin / `cropSelector` native sizing).
 
 It does **not** regenerate screenshots: most shots are driven by a real agent and are non-deterministic by design (Decision 2), so a content-hash compare is infeasible — true visual-regression is deferred to F02 (Percy/Chromatic, loose thresholds). CI runs this check (plus the unit tests) on every PR — see `.github/workflows/ci.yaml`.
+
+## Fixture theme: capture-only styling
+
+The fixtures vault uses a custom `Fixture` theme (`fixtures/studio/.obsidian/themes/Fixture/theme.css`) to keep captures clean and deterministic — e.g. hiding the transient scroll-to-bottom pill and the network-driven info banners that must never appear in docs images.
+
+**This same fixtures vault doubles as the interactive smoke-test bed** (`tools/smoke-test/smoke-test-spawn.sh` copies the `studio` vault). So any styling that exists *only* for clean screenshots must NOT apply unconditionally — otherwise it hides elements during interactive testing too, making them impossible to verify by eye.
+
+**Rule:** gate every screenshot-only rule on the `body.acp-capturing` marker class:
+
+```css
+/* ✗ wrong — leaks into smoke testing */
+.agent-client-scroll-to-bottom { display: none !important; }
+
+/* ✓ right — applies only while a shot is being captured */
+body.acp-capturing .agent-client-scroll-to-bottom { display: none !important; }
+```
+
+The driver sets the marker for you: `captureAll` (in `lib/orchestrator.ts`) adds `acp-capturing` to `document.body` before each shot and removes it in a `finally` (cleared even if the capture throws). You only need to author the gated CSS. Smoke studios then render the real UI; screenshots stay clean.

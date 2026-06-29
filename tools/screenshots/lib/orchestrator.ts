@@ -901,11 +901,29 @@ export async function captureAll(
 	const results: CaptureResult[] = [];
 	for (const entry of targets) {
 		try {
+			// Mark capture-in-progress so the Fixture theme's capture-only hides
+			// (the transient scroll-to-bottom pill and non-deterministic info
+			// banners) apply for THIS shot. The same fixtures vault doubles as
+			// the interactive smoke-test bed (smoke-test-spawn.sh copies it), so
+			// the hides must be gated to capture time — otherwise a rule that
+			// exists purely for clean screenshots makes those elements
+			// impossible to verify by eye during smoke testing.
+			await deps.cdp.evaluate(
+				`document.body.classList.add("acp-capturing")`,
+			);
 			await captureEntry(entry, deps);
 			results.push({ name: entry.name, success: true });
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
 			results.push({ name: entry.name, success: false, error: msg });
+		} finally {
+			// Always clear the marker — even when the capture threw — so a
+			// failed shot can't leave the fixtures vault with chrome hidden for
+			// a later smoke test. Swallow cleanup errors so they can't mask the
+			// real capture failure recorded above.
+			await deps.cdp
+				.evaluate(`document.body.classList.remove("acp-capturing")`)
+				.catch(() => {});
 		}
 	}
 	return results;

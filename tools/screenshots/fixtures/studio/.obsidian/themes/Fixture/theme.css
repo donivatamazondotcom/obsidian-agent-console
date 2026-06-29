@@ -32,11 +32,17 @@
 
 /* Screenshot fixtures: hide the transient scroll-to-bottom affordance so a
    compact capture height doesn't surface it over the transcript. !important
-   persists across React re-renders (an inline display:none does not). */
-.agent-client-scroll-to-bottom { display: none !important; }
+   persists across React re-renders (an inline display:none does not).
+
+   Gated on body.acp-capturing — set by the screenshot driver only while a shot
+   is being captured (tools/screenshots/lib/orchestrator.ts) — so the hide
+   applies to CAPTURES but NOT to interactive smoke testing, which copies this
+   same fixtures vault and needs the real chrome visible to verify by eye. */
+body.acp-capturing .agent-client-scroll-to-bottom { display: none !important; }
 
 /* Screenshot fixtures: hide benign info banners (agent-update / package-migration
    notifications). They render as info-variant ErrorBanners, are network-driven
    (npm registry version check) and non-deterministic, and must never appear in
-   docs screenshots. Real error/warning overlays are NOT hidden. */
-.agent-client-error-overlay--info { display: none !important; }
+   docs screenshots. Real error/warning overlays are NOT hidden. Same
+   capture-time gate as above. */
+body.acp-capturing .agent-client-error-overlay--info { display: none !important; }
