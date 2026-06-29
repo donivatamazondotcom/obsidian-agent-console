@@ -241,8 +241,8 @@ export function getSpawnErrorInfo(
 ): { title: string; message: string; suggestion: string } {
 	if ((error as NodeJS.ErrnoException).code === "ENOENT") {
 		return {
-			title: "Command Not Found",
-			message: `The command "${command}" could not be found. Please check the path configuration for ${agentLabel}.`,
+			title: `Can't start ${agentLabel}`,
+			message: `${agentLabel} doesn't look installed (couldn't run "${command}"). Install it, or open Settings to set its path.`,
 			suggestion: getCommandNotFoundSuggestion(command, wslMode),
 		};
 	}
