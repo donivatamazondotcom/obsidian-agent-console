@@ -15,7 +15,7 @@ function file(basename: string, body = "body"): QuickPromptFileInput {
 	return {
 		path: `Quick Prompts/${basename}.md`,
 		basename,
-		frontmatter: { description: basename },
+		frontmatter: { label: basename },
 		body,
 	};
 }

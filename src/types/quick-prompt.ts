@@ -25,8 +25,18 @@ export interface QuickPrompt {
 	/** True when `body` references the `{{selection}}` placeholder. */
 	usesSelection: boolean;
 	// ── Parsed-and-carried (inert in the core slice; consumed by later slices) ──
-	/** Tag scopes for the contextual chips row (slice 2). */
-	tags?: string[];
+	/**
+	 * Contextual-chip scope (slice 2): the chip shows in the resting row when
+	 * the active note is tagged with one of these. Frontmatter key
+	 * `show on tags` (renamed from `tags`, which collided with the note's own
+	 * tags property).
+	 */
+	showOnTags?: string[];
+	/**
+	 * Global chip (slice 2): show in the resting row on every note, regardless
+	 * of tags. Frontmatter key `always show` (boolean checkbox).
+	 */
+	alwaysShow?: boolean;
 	/** Target agent (later slice). */
 	agent?: string;
 	/** Target mode (later slice). */

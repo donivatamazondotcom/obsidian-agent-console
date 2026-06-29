@@ -17,7 +17,8 @@ import {
 	planQuickPromptFire,
 	executeQuickPrompt,
 	matchPromptsForNote,
-	promptMatchesTags,
+	tagsMatch,
+	promptInRestingRow,
 	quickPromptButtonDisabled,
 } from "../quick-prompts-logic";
 import type { QuickPrompt, QuickPromptFileInput } from "../../types/quick-prompt";
@@ -29,7 +30,7 @@ describe("quick-prompts-logic", () => {
 	describe("T01: parse a prompt note", () => {
 		it("strips the leading frontmatter block, leaving the body", () => {
 			const raw =
-				'---\ndescription: "🗓️ Debrief meeting"\n---\nDebrief this meeting.';
+				'---\nlabel: "🗓️ Debrief meeting"\n---\nDebrief this meeting.';
 			expect(stripFrontmatter(raw)).toBe("Debrief this meeting.");
 		});
 
@@ -39,11 +40,11 @@ describe("quick-prompts-logic", () => {
 			);
 		});
 
-		it("label = description (emoji preserved), body carried through", () => {
+		it("label = label field (emoji preserved), body carried through", () => {
 			const prompt = buildQuickPrompt({
 				path: "Quick Prompts/Debrief.md",
 				basename: "Debrief",
-				frontmatter: { description: "🗓️ Debrief meeting" },
+				frontmatter: { label: "🗓️ Debrief meeting" },
 				body: "Debrief this meeting.",
 			});
 			expect(prompt.label).toBe("🗓️ Debrief meeting");
@@ -55,13 +56,13 @@ describe("quick-prompts-logic", () => {
 	// ========================================================================
 	// T02 — Label fallback chain
 	// ========================================================================
-	describe("T02: label fallback chain description → name → title → basename", () => {
-		it("uses name when description is absent", () => {
+	describe("T02: label fallback chain label → name → title → basename", () => {
+		it("uses name when label is absent", () => {
 			expect(deriveLabel({ name: "Sync opps" }, "file-base")).toBe(
 				"Sync opps",
 			);
 		});
-		it("uses title when description and name are absent", () => {
+		it("uses title when label and name are absent", () => {
 			expect(deriveLabel({ title: "Daily brief" }, "file-base")).toBe(
 				"Daily brief",
 			);
@@ -71,7 +72,7 @@ describe("quick-prompts-logic", () => {
 			expect(deriveLabel({}, "My Prompt")).toBe("My Prompt");
 		});
 		it("ignores empty/whitespace label fields", () => {
-			expect(deriveLabel({ description: "   ", name: "Real" }, "b")).toBe(
+			expect(deriveLabel({ label: "   ", name: "Real" }, "b")).toBe(
 				"Real",
 			);
 		});
@@ -81,41 +82,41 @@ describe("quick-prompts-logic", () => {
 	// T03 — Optional fields parsed-and-carried (inert in core)
 	// ========================================================================
 	describe("T03: optional fields parsed-and-carried", () => {
-		it("carries tags (array), agent, mode, newTab", () => {
+		it("carries showOnTags (array), agent, mode, newTab", () => {
 			const prompt = buildQuickPrompt({
 				path: "Quick Prompts/Debrief.md",
 				basename: "Debrief",
 				frontmatter: {
-					description: "Debrief",
-					tags: ["NoteType/MeetingNote"],
+					label: "Debrief",
+					"show on tags": ["NoteType/MeetingNote"],
 					agent: "kiro-cli",
 					mode: "default",
 					"open in new tab": true,
 				},
 				body: "x",
 			});
-			expect(prompt.tags).toEqual(["NoteType/MeetingNote"]);
+			expect(prompt.showOnTags).toEqual(["NoteType/MeetingNote"]);
 			expect(prompt.agent).toBe("kiro-cli");
 			expect(prompt.mode).toBe("default");
 			expect(prompt.newTab).toBe(true);
 		});
-		it("normalizes a single-string tags value to an array", () => {
+		it("normalizes a single-string `show on tags` value to an array", () => {
 			const prompt = buildQuickPrompt({
 				path: "Quick Prompts/x.md",
 				basename: "x",
-				frontmatter: { tags: "NoteType/DailyNote" },
+				frontmatter: { "show on tags": "NoteType/DailyNote" },
 				body: "x",
 			});
-			expect(prompt.tags).toEqual(["NoteType/DailyNote"]);
+			expect(prompt.showOnTags).toEqual(["NoteType/DailyNote"]);
 		});
 		it("leaves optional fields undefined when absent; newTab only true when literal true", () => {
 			const prompt = buildQuickPrompt({
 				path: "Quick Prompts/x.md",
 				basename: "x",
-				frontmatter: { description: "x", "open in new tab": false },
+				frontmatter: { label: "x", "open in new tab": false },
 				body: "x",
 			});
-			expect(prompt.tags).toBeUndefined();
+			expect(prompt.showOnTags).toBeUndefined();
 			expect(prompt.agent).toBeUndefined();
 			expect(prompt.mode).toBeUndefined();
 			expect(prompt.newTab).toBe(false);
@@ -431,9 +432,13 @@ function fileInput(
 }
 
 // ============================================================================
-// T19/T20 — Slice 2: contextual chips matching + queued-disable
+// S2-T1..T6 / T20 — Slice 2: chip visibility (D6) + queued-disable
+//
+// Resting chip row = `always show` ∪ tag-matched. Untagged + un-`always show`
+// prompts are SEARCH-ONLY (still in the picker, never in the resting row).
+// See [[Agent Console Quick Prompts UX Refinement]] § Chip visibility (D6).
 // ============================================================================
-describe("quick-prompts-logic — slice 2 (chips)", () => {
+describe("quick-prompts-logic — slice 2 (chip visibility, D6)", () => {
 	function p(overrides: Partial<QuickPrompt>): QuickPrompt {
 		return {
 			id: "id",
@@ -445,38 +450,121 @@ describe("quick-prompts-logic — slice 2 (chips)", () => {
 		};
 	}
 
-	describe("T19: promptMatchesTags / matchPromptsForNote", () => {
-		it("untagged prompt always matches (globally-shown)", () => {
-			expect(promptMatchesTags(undefined, [])).toBe(true);
-			expect(promptMatchesTags([], ["NoteType/DailyNote"])).toBe(true);
+	function fileInput(
+		frontmatter: Record<string, unknown> | null,
+	): QuickPromptFileInput {
+		return {
+			path: "Quick Prompts/x.md",
+			basename: "x",
+			frontmatter,
+			body: "Body text",
+		};
+	}
+
+	describe("S2-T1: parse the `always show` checkbox", () => {
+		it("true when `always show: true`", () => {
+			expect(buildQuickPrompt(fileInput({ "always show": true })).alwaysShow).toBe(
+				true,
+			);
 		});
-		it("tagged prompt matches on any exact tag", () => {
+		it("falsy when absent or false", () => {
+			expect(buildQuickPrompt(fileInput(null)).alwaysShow).toBeFalsy();
 			expect(
-				promptMatchesTags(["project", "NoteType/MeetingNote"], ["NoteType/MeetingNote"]),
+				buildQuickPrompt(fileInput({ "always show": false })).alwaysShow,
+			).toBeFalsy();
+		});
+	});
+
+	describe("S2-T2: parse `show on tags` (array or single string); `tags` ignored", () => {
+		it("array value", () => {
+			expect(
+				buildQuickPrompt(fileInput({ "show on tags": ["NoteType/MeetingNote"] }))
+					.showOnTags,
+			).toEqual(["NoteType/MeetingNote"]);
+		});
+		it("single string value", () => {
+			expect(
+				buildQuickPrompt(fileInput({ "show on tags": "project" })).showOnTags,
+			).toEqual(["project"]);
+		});
+		it("the legacy `tags` key is NOT read into the scope (clean rename)", () => {
+			expect(
+				buildQuickPrompt(fileInput({ tags: ["project"] })).showOnTags,
+			).toBeUndefined();
+		});
+	});
+
+	describe("S2-T3: tagsMatch — empty scope matches NOTHING (inverted contract)", () => {
+		it("undefined / empty prompt scope → false (no longer always-true)", () => {
+			expect(tagsMatch(undefined, ["NoteType/DailyNote"])).toBe(false);
+			expect(tagsMatch([], ["NoteType/DailyNote"])).toBe(false);
+		});
+		it("matches on any exact tag", () => {
+			expect(
+				tagsMatch(["project", "NoteType/MeetingNote"], ["NoteType/MeetingNote"]),
 			).toBe(true);
 		});
-		it("nested match: prompt tag NoteType matches note tag NoteType/DailyNote", () => {
-			expect(promptMatchesTags(["NoteType"], ["NoteType/DailyNote"])).toBe(true);
+		it("nested: scope NoteType matches note tag NoteType/DailyNote", () => {
+			expect(tagsMatch(["NoteType"], ["NoteType/DailyNote"])).toBe(true);
 		});
 		it("is case-insensitive and tolerates a leading #", () => {
-			expect(promptMatchesTags(["notetype"], ["#NoteType/DailyNote"])).toBe(true);
+			expect(tagsMatch(["notetype"], ["#NoteType/DailyNote"])).toBe(true);
 		});
-		it("no match when tags disjoint", () => {
-			expect(promptMatchesTags(["NoteType"], ["Project/Alpha"])).toBe(false);
+		it("no match when scope and note tags are disjoint", () => {
+			expect(tagsMatch(["NoteType"], ["Project/Alpha"])).toBe(false);
 		});
-		it("matchPromptsForNote keeps untagged + tag-matched, drops the rest", () => {
+	});
+
+	describe("S2-T4: promptInRestingRow — alwaysShow ∪ tag-matched", () => {
+		it("alwaysShow → true regardless of tags", () => {
+			expect(promptInRestingRow(p({ alwaysShow: true }), [])).toBe(true);
+			expect(
+				promptInRestingRow(p({ alwaysShow: true }), ["Project/Alpha"]),
+			).toBe(true);
+		});
+		it("showOnTags matching the note → true", () => {
+			expect(
+				promptInRestingRow(p({ showOnTags: ["NoteType"] }), [
+					"NoteType/DailyNote",
+				]),
+			).toBe(true);
+		});
+		it("showOnTags not matching → false", () => {
+			expect(
+				promptInRestingRow(p({ showOnTags: ["NoteType"] }), ["Project/Alpha"]),
+			).toBe(false);
+		});
+		it("neither alwaysShow nor showOnTags → false (search-only)", () => {
+			expect(promptInRestingRow(p({}), ["NoteType/DailyNote"])).toBe(false);
+		});
+	});
+
+	describe("S2-T5: matchPromptsForNote = always-show ∪ tag-matched (rewrite of T19)", () => {
+		it("keeps always-show + tag-matched; drops untagged/un-always-show", () => {
 			const prompts = [
-				p({ id: "global", tags: undefined }),
-				p({ id: "meeting", tags: ["NoteType/MeetingNote"] }),
-				p({ id: "daily", tags: ["NoteType"] }),
-				p({ id: "other", tags: ["Project/Alpha"] }),
+				p({ id: "global", alwaysShow: true }),
+				p({ id: "meeting", showOnTags: ["NoteType/MeetingNote"] }),
+				p({ id: "daily", showOnTags: ["NoteType"] }),
+				p({ id: "other", showOnTags: ["Project/Alpha"] }),
+				p({ id: "quiet" }), // neither → search-only
 			];
 			const matched = matchPromptsForNote(prompts, ["NoteType/MeetingNote"]);
 			expect(matched.map((m) => m.id)).toEqual(["global", "meeting", "daily"]);
 		});
-		it("empty matched set when no untagged and no tag match (⇒ no row)", () => {
-			const prompts = [p({ id: "other", tags: ["Project/Alpha"] })];
+		it("empty resting set when only quiet/non-matching prompts (⇒ no row)", () => {
+			const prompts = [
+				p({ id: "quiet" }),
+				p({ id: "other", showOnTags: ["Project/Alpha"] }),
+			];
 			expect(matchPromptsForNote(prompts, ["NoteType/DailyNote"])).toEqual([]);
+		});
+	});
+
+	describe("S2-T6: alwaysShow + showOnTags both set → resting on every note", () => {
+		const prompt = p({ alwaysShow: true, showOnTags: ["NoteType"] });
+		it("shows even when the tag scope does NOT match (alwaysShow wins)", () => {
+			expect(promptInRestingRow(prompt, ["Project/Alpha"])).toBe(true);
+			expect(matchPromptsForNote([prompt], ["Project/Alpha"])).toHaveLength(1);
 		});
 	});
 

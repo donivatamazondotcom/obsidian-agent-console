@@ -2,7 +2,7 @@
 
 Save the prompts you type over and over — "debrief this meeting", "summarize the selection", "get the latest on this project" — as little markdown notes, then fire them in one click. No more retyping the same kickoff every session.
 
-A quick prompt is just a note in a folder. The note's description is the button label; the note body is the prompt that gets sent. Add a note, and the prompt shows up right away — no restart.
+A quick prompt is just a note in a folder. The note's `label` is the button text; the note body is the prompt that gets sent. Add a note, and the prompt shows up right away — no restart.
 
 ## Set up the folder
 
@@ -12,12 +12,12 @@ Make a note in that folder for each prompt:
 
 ````markdown
 ---
-description: "🗓️ Debrief meeting"
+label: "🗓️ Debrief meeting"
 ---
 Debrief this meeting — pull the AI summary, extract action items, and update the vault note.
 ````
 
-- **Label** comes from the `description` field (emoji welcome). If there's no `description`, Agent Console falls back to `name`, then `title`, then the filename.
+- **Label** comes from the `label` field (emoji welcome). If there's no `label`, Agent Console falls back to `name`, then `title`, then the filename. (`description` is intentionally not used — it clashes with the common note-summary field.)
 - **Prompt text** is everything below the frontmatter.
 
 ## Fire a prompt
@@ -40,7 +40,7 @@ Reference the text you have highlighted with the `{{selection}}` placeholder:
 
 ````markdown
 ---
-description: "Summarize selection"
+label: "Summarize selection"
 ---
 Summarize the following concisely:
 
@@ -55,7 +55,7 @@ Some prompts kick off a whole new conversation — "debrief this meeting", "get 
 
 ````markdown
 ---
-description: "🗓️ Debrief meeting"
+label: "🗓️ Debrief meeting"
 open in new tab: true
 ---
 Debrief this meeting — pull the AI summary, extract action items, and update the vault note.
@@ -69,19 +69,33 @@ Debrief this meeting — pull the AI summary, extract action items, and update t
 
 ## Contextual chips
 
-Prompts can show up as **chips right above the composer**, but only when they're relevant to the note you're in. Add a `tags` field to scope a prompt to matching notes:
+Prompts can show up as **chips right above the composer**. There are two ways to make a prompt appear as a chip — otherwise it stays search-only (you'll still find it in the ⚡ picker, it just doesn't take up space in the row).
+
+**Show a chip only on relevant notes** — add a `show on tags` field to scope a prompt to matching notes:
 
 ````markdown
 ---
-description: "🗓️ Daily brief"
-tags: [NoteType/DailyNote]
+label: "🗓️ Daily brief"
+show on tags: [NoteType/DailyNote]
 ---
 Give me the daily brief for this note.
 ````
 
-- A prompt with **no `tags`** always shows as a chip.
-- A prompt with `tags` shows only when the active note carries a matching tag. Matching is nested — `NoteType` matches a note tagged `NoteType/DailyNote`.
-- When no prompts match the note you're in, there's **no chip row at all** — the space is reclaimed.
+**Show a chip everywhere** — tick the **`always show`** checkbox for prompts you reach for on any note ("new chat", "debrief"):
+
+````markdown
+---
+label: "🚀 Start a debrief"
+always show: true
+---
+Debrief the meeting I just had.
+````
+
+- A prompt with **`always show`** is a chip on every note.
+- A prompt with **`show on tags`** is a chip only when the active note carries a matching tag. Matching is nested — `NoteType` matches a note tagged `NoteType/DailyNote`.
+- A prompt with **neither** is **search-only** — never in the chip row, always one keystroke away in the ⚡ picker. This is the default, so new prompts don't clutter the row until you opt them in.
+- `always show` is a checkbox property — toggle it in the note's Properties view, no typing.
+- When no prompts apply to the note you're in, there's **no chip row at all** — the space is reclaimed.
 
 Click a chip to fire it in the current chat. Hold **⌘** to send it in a new tab (⌘⇧ to switch there), or **⌥** to drop it into the composer to edit first — the same keys as the picker.
 
@@ -97,5 +111,5 @@ Quick prompts behave exactly like typing a message and pressing Enter, so they f
 ## Tips
 
 - Keep prompt notes short and action-oriented — they're kickoffs, not essays.
-- Use emoji in the `description` to make chips and the picker easy to scan.
+- Use emoji in the `label` to make chips and the picker easy to scan.
 - Prompts are plain notes, so you can version them, grep them, and share them like any other note.
