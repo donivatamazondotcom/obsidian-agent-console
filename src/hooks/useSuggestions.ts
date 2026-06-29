@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import type { NoteMetadata, IVaultAccess } from "../services/vault-service";
 import {
 	detectMention,
@@ -41,6 +41,8 @@ export interface MentionsState {
 	navigate: (direction: "up" | "down") => void;
 	/** Close the dropdown */
 	close: () => void;
+	/** Dismiss the dropdown and keep it closed for the current @ run (Esc) */
+	dismiss: () => void;
 
 	/** Currently active note for auto-mention */
 	activeNote: NoteMetadata | null;
@@ -138,6 +140,11 @@ export function useSuggestions(
 		null,
 	);
 	const [activeNote, setActiveNote] = useState<NoteMetadata | null>(null);
+	// When the user dismisses the mention dropdown with Esc, remember the
+	// dismissed mention's @ start index so the dropdown stays closed for that
+	// run (even as more chars are typed). It reopens only when a different @
+	// becomes the active mention, or the caret leaves the mention entirely.
+	const dismissedMentionStartRef = useRef<number | null>(null);
 	const [isAutoMentionDisabled, setIsAutoMentionDisabled] = useState(
 		!autoMentionDefault,
 	);
@@ -182,11 +189,24 @@ export function useSuggestions(
 			const ctx = detectMention(input, cursorPosition);
 
 			if (!ctx) {
+				// Caret left the mention — clear any Esc dismissal so a
+				// future mention can open.
+				dismissedMentionStartRef.current = null;
 				setMentionSuggestions([]);
 				setMentionSelectedIndex(0);
 				setMentionContext(null);
 				return;
 			}
+
+			// Stay closed if this exact @ run was dismissed via Esc.
+			if (dismissedMentionStartRef.current === ctx.start) {
+				setMentionSuggestions([]);
+				setMentionSelectedIndex(0);
+				setMentionContext(null);
+				return;
+			}
+			// A different mention than the dismissed one — clear the guard.
+			dismissedMentionStartRef.current = null;
 
 			const results = await vaultAccess.searchNotes(ctx.query);
 			setMentionSuggestions(results);
@@ -234,10 +254,20 @@ export function useSuggestions(
 	);
 
 	const mentionClose = useCallback(() => {
+		dismissedMentionStartRef.current = null;
 		setMentionSuggestions([]);
 		setMentionSelectedIndex(0);
 		setMentionContext(null);
 	}, []);
+
+	const mentionDismiss = useCallback(() => {
+		// Esc: remember the current mention's @ start so it stays closed for
+		// this run, then clear the open dropdown.
+		dismissedMentionStartRef.current = mentionContext?.start ?? null;
+		setMentionSuggestions([]);
+		setMentionSelectedIndex(0);
+		setMentionContext(null);
+	}, [mentionContext]);
 
 	const updateActiveNote = useCallback(async () => {
 		const note = await vaultAccess.getActiveNote();
@@ -421,6 +451,7 @@ export function useSuggestions(
 			selectSuggestion: mentionSelectSuggestion,
 			navigate: mentionNavigate,
 			close: mentionClose,
+			dismiss: mentionDismiss,
 			activeNote,
 			isAutoMentionDisabled,
 			toggleAutoMention,
@@ -435,6 +466,7 @@ export function useSuggestions(
 			mentionSelectSuggestion,
 			mentionNavigate,
 			mentionClose,
+			mentionDismiss,
 			activeNote,
 			isAutoMentionDisabled,
 			toggleAutoMention,

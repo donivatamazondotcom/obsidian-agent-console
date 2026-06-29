@@ -1064,6 +1064,28 @@ export function InputArea({
 				return true;
 			}
 
+			// Shift+Enter bypasses the mention suggestion, keeping the literal
+			// typed text (e.g. "@agent con" stays as-is). This matches
+			// Obsidian's link-autocomplete convention (desktop v1.3.5+): while
+			// the suggester is open, Shift+Enter closes it WITHOUT selecting and
+			// does NOT insert a newline. dismiss() also keeps it closed for this
+			// @ run. Scoped to the mention dropdown — the slash/quick-prompt
+			// dropdowns have no Obsidian-native equivalent, so their behavior is
+			// unchanged. When no dropdown is open, Shift+Enter still inserts a
+			// newline via the normal handler below.
+			if (
+				e.key === "Enter" &&
+				e.shiftKey &&
+				!e.nativeEvent.isComposing &&
+				isMentionActive &&
+				!isQuickPromptActive &&
+				!isSlashCommandActive
+			) {
+				e.preventDefault();
+				mentions.dismiss();
+				return true;
+			}
+
 			// Select item (Enter or Tab)
 			if (e.key === "Enter" || e.key === "Tab") {
 				// Skip Enter during IME composition (allow Tab to still work)
@@ -1111,7 +1133,10 @@ export function InputArea({
 				} else if (isSlashCommandActive) {
 					slashCommands.close();
 				} else {
-					mentions.close();
+					// dismiss() keeps the mention closed for this @ run so it
+					// does not immediately reopen on the next keystroke (the
+					// query now allows spaces, so the run persists in the text).
+					mentions.dismiss();
 				}
 				return true;
 			}
