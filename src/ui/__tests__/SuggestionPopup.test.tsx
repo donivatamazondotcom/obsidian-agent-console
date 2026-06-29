@@ -160,3 +160,47 @@ describe("SuggestionPopup — quick-prompt create-on-no-match row (S4-T9)", () =
 		expect(row?.classList.contains("agent-client-selected")).toBe(true);
 	});
 });
+
+describe("SuggestionPopup — picker harmonization (legend footer + no separators)", () => {
+	it("pins the legend as a footer OUTSIDE the scrollable rows container", () => {
+		const { container } = render(
+			<SuggestionPopup
+				type="quick-prompt"
+				items={[qp({ id: "a", label: "Daily brief" })]}
+				selectedIndex={0}
+				onSelect={vi.fn()}
+				onClose={vi.fn()}
+			/>,
+		);
+		const scroll = container.querySelector(
+			".agent-client-mention-dropdown-scroll",
+		);
+		const legend = container.querySelector(
+			".agent-client-quick-prompt-legend",
+		);
+		expect(scroll).toBeTruthy();
+		expect(legend).toBeTruthy();
+		// The legend must NOT live inside the scroll container — else it scrolls
+		// out of view and forces the always-on scrollbar (the bug this fixes).
+		expect(scroll?.contains(legend)).toBe(false);
+	});
+
+	it("renders no inter-row separators (harmonized with the native picker)", () => {
+		const { container } = render(
+			<SuggestionPopup
+				type="quick-prompt"
+				items={[
+					qp({ id: "a", label: "One" }),
+					qp({ id: "b", label: "Two" }),
+					qp({ id: "c", label: "Three" }),
+				]}
+				selectedIndex={0}
+				onSelect={vi.fn()}
+				onClose={vi.fn()}
+			/>,
+		);
+		expect(
+			container.querySelectorAll(".agent-client-has-border").length,
+		).toBe(0);
+	});
+});
