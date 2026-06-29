@@ -17,7 +17,7 @@ vi.mock("obsidian", () => ({
 	Keymap: { isModEvent },
 }));
 
-import { deriveNewLeaf } from "../link-leaf";
+import { deriveNewLeaf, shouldOpenFromActivation } from "../link-leaf";
 
 function mouse(init: Partial<MouseEvent>): MouseEvent {
 	return {
@@ -43,5 +43,30 @@ describe("deriveNewLeaf", () => {
 		const evt = mouse({ button: 1, metaKey: true });
 		deriveNewLeaf(evt);
 		expect(isModEvent).toHaveBeenCalledWith(evt);
+	});
+});
+
+describe("shouldOpenFromActivation", () => {
+	it("opens on left-click (button 0)", () => {
+		expect(shouldOpenFromActivation(mouse({ button: 0 }))).toBe(true);
+	});
+
+	it("opens on middle-click (button 1)", () => {
+		expect(shouldOpenFromActivation(mouse({ button: 1 }))).toBe(true);
+	});
+
+	it("does NOT open on right-click (button 2)", () => {
+		expect(shouldOpenFromActivation(mouse({ button: 2 }))).toBe(false);
+	});
+
+	it("opens on keyboard activation — a KeyboardEvent has no .button (I148 regression guard)", () => {
+		// Enter on a focused pill: the event carries no `button`. Gating on
+		// `button` (the old bug) would reject this and silently swallow Enter-open.
+		const enter = { key: "Enter" } as unknown as KeyboardEvent;
+		expect(shouldOpenFromActivation(enter)).toBe(true);
+		// A real DOM KeyboardEvent (no button) behaves the same.
+		expect(
+			shouldOpenFromActivation(new KeyboardEvent("keydown", { key: "Enter" })),
+		).toBe(true);
 	});
 });
