@@ -584,7 +584,7 @@ export function rankLauncherPrompts(
 
 /** Placeholder body seeded into a brand-new prompt note (no captured text). */
 export const NEW_PROMPT_BODY_PLACEHOLDER =
-	"Write your prompt here. (Tip: you can pull in text you've selected in a note — see the Quick Prompts docs for the selection placeholder.)";
+	"Write your prompt here. (Tip: you can pull in text you've selected in a note — see the [Quick Prompts docs](https://donivatamazondotcom.github.io/obsidian-agent-console/usage/quick-prompts) for the selection placeholder.)";
 
 /** Cap on a label derived from composer text (first line can be long). */
 export const MAX_DERIVED_LABEL_LENGTH = 60;
@@ -729,4 +729,27 @@ export function deriveLabelFromComposer(text: string): string {
 		.find((line) => line.length > 0);
 	if (!firstLine) return FALLBACK_PROMPT_NAME;
 	return firstLine.slice(0, MAX_DERIVED_LABEL_LENGTH);
+}
+
+// ============================================================================
+// Launcher dropdown — circular keyboard navigation (QP-I17)
+// ============================================================================
+
+/**
+ * Next selected index for wrap-around (circular) `!` dropdown navigation. The
+ * Create row is always the last row (`maxIndex`), so wrapping makes it reachable
+ * with a single `up` from the top — predictable, since it's always last (QP-I17).
+ *
+ * - `down` past the last row → `0` (top); otherwise `prev + 1`.
+ * - `up` past `0` → `maxIndex` (the Create row); otherwise `prev - 1`.
+ * - `maxIndex < 0` (nothing to select) → `0`.
+ */
+export function wrapSelectionIndex(
+	prev: number,
+	maxIndex: number,
+	direction: "up" | "down",
+): number {
+	if (maxIndex < 0) return 0;
+	if (direction === "down") return prev >= maxIndex ? 0 : prev + 1;
+	return prev <= 0 ? maxIndex : prev - 1;
 }

@@ -13,6 +13,7 @@ import {
 	stripQuickPromptTrigger,
 	rankLauncherPrompts,
 	buildCreatePromptRow,
+	wrapSelectionIndex,
 	type CreatePromptRow,
 } from "../services/quick-prompts-logic";
 import type { QuickPrompt } from "../types/quick-prompt";
@@ -390,10 +391,10 @@ export function useSuggestions(
 			if (!quickPromptIsOpen) return;
 			const maxIndex =
 				qpSuggestions.length - 1 + (qpCreateRow !== null ? 1 : 0);
+			// Circular (QP-I17): down past the last row wraps to the top; up
+			// past the top wraps to the always-last Create row.
 			setQpSelectedIndex((prev) =>
-				direction === "down"
-					? Math.min(prev + 1, maxIndex)
-					: Math.max(prev - 1, 0),
+				wrapSelectionIndex(prev, maxIndex, direction),
 			);
 		},
 		[quickPromptIsOpen, qpSuggestions.length, qpCreateRow],
