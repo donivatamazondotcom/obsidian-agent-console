@@ -969,6 +969,13 @@ function ChatComponent({
 		});
 	}, [view, reopenClosed, handleCloseTab, activeTabId]);
 
+	// Wire the TabBar's "open tab list" capability to the view class so the
+	// show-tab-list plugin command (hotkey-bindable) can trigger it.
+	const handleRegisterShowTabList = useCallback(
+		(fn: () => void) => view.setShowTabList(fn),
+		[view],
+	);
+
 	// Prune broadcast handles for tabs that have closed (F11)
 	useEffect(() => {
 		const liveIds = new Set(tabs.map((t) => t.tabId));
@@ -995,6 +1002,7 @@ function ChatComponent({
 				onRenameTab={handleRenameTab}
 				onMoveTab={tabManager.moveTab}
 				onAddTabWithAgent={handleAddTabWithAgent}
+				onRegisterShowTabList={handleRegisterShowTabList}
 			/>
 			{tabs.map((tab) => (
 				<div
@@ -1266,6 +1274,9 @@ export class ChatView extends ItemView implements IChatViewContainer {
 	// component (ChatComponent) via the effect that also calls setTabManager.
 	private reopenClosedTabFn: (() => void) | null = null;
 	private closeActiveTabFn: (() => void) | null = null;
+	// Opens the tab list (chevron dropdown), registered by the React component.
+	// Drives the show-tab-list command. See TabBar.onRegisterShowTabList.
+	private showTabListFn: (() => void) | null = null;
 
 	setReopenClosedTab(fn: () => void): void {
 		this.reopenClosedTabFn = fn;
@@ -1278,6 +1289,16 @@ export class ChatView extends ItemView implements IChatViewContainer {
 	/** Reopen the most-recently-closed tab and restore its conversation (F13). */
 	reopenClosedTab(): void {
 		this.reopenClosedTabFn?.();
+	}
+
+	/** Register the tab-list opener (called by the React TabBar on mount). */
+	setShowTabList(fn: () => void): void {
+		this.showTabListFn = fn;
+	}
+
+	/** Open the tab list (for the show-tab-list Obsidian command). */
+	showTabList(): void {
+		this.showTabListFn?.();
 	}
 
 	/** Close the active tab (for Obsidian commands) */

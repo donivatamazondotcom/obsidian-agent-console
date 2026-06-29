@@ -387,6 +387,18 @@ export default class AgentClientPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "show-tab-list",
+			name: "Show tab list",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.getActiveChatView()?.showTabList();
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
 			id: "reopen-closed-session",
 			name: "Reopen closed session tab",
 			checkCallback: (checking: boolean) => {

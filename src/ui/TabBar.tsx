@@ -32,6 +32,12 @@ export interface TabBarProps {
 	onMoveTab: (fromIndex: number, toIndex: number) => void;
 	/** Right-click on + button — show agent picker */
 	onAddTabWithAgent?: (e: React.MouseEvent) => void;
+	/**
+	 * Register a callback that opens the tab list, so the `show-tab-list`
+	 * plugin command (hotkey-bindable) can trigger it. The registered fn
+	 * clicks the chevron, reusing the exact same menu path as a mouse click.
+	 */
+	onRegisterShowTabList?: (fn: () => void) => void;
 }
 
 // ============================================================================
@@ -174,6 +180,7 @@ export function TabBar({
 	onRenameTab,
 	onMoveTab,
 	onAddTabWithAgent,
+	onRegisterShowTabList,
 }: TabBarProps) {
 	const addBtnRef = useRef<HTMLButtonElement>(null);
 	const chevronRef = useRef<HTMLButtonElement>(null);
@@ -197,6 +204,20 @@ export function TabBar({
 		if (chevronRef.current)
 			setIcon(chevronRef.current, "chevron-down");
 	}, []);
+
+	// Expose "open the tab list" to the plugin's show-tab-list command
+	// (hotkey-bindable). Clicking the chevron synthesizes a click with
+	// detail === 0 / clientX,Y === 0 — the exact signature showMenuAtEvent
+	// (I115) anchors to the chevron rect — so a keyboard/command-triggered
+	// tab list pops from the chevron, not the viewport origin, and reuses the
+	// identical menu-building path as a mouse click (no second code path).
+	const showTabList = useCallback(() => {
+		chevronRef.current?.click();
+	}, []);
+
+	useEffect(() => {
+		onRegisterShowTabList?.(showTabList);
+	}, [onRegisterShowTabList, showTabList]);
 
 	// Scroll active tab into view — use rAF to ensure DOM class is applied
 	useEffect(() => {
