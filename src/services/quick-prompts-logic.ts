@@ -638,14 +638,19 @@ export function rankLauncherPrompts(
 
 /** Placeholder body seeded into a brand-new prompt note (no captured text). */
 export const NEW_PROMPT_BODY_PLACEHOLDER = [
-	"Write the prompt you want to send here, then set this note's label above.",
+	"Write your prompt here, then set the label above. Delete this help once you're set.",
 	"",
-	"Where this prompt shows up — edit the properties above:",
-	"- show when: list of property=value conditions; the prompt appears as a chip on notes that match (e.g. type=meeting, tags=people, initiatives=[[Project]]). All listed conditions must match. Leave it empty to keep the prompt search-only (type ! in the composer to find it).",
-	"- always show: turn on to show this prompt on every note.",
+	"Properties above (top to bottom):",
 	"- open in new tab: fire into a fresh chat tab instead of the current one.",
+	"- always show: show this prompt's chip on every note.",
+	"- show when: show the chip only on matching notes — a list of property=value conditions (all must match). Empty = search-only (type ! in the composer to find it).",
 	"",
-	"See the guide for the selection placeholder and more: https://donivatamazondotcom.github.io/obsidian-agent-console/usage/quick-prompts",
+	"Copy-paste into show when (one condition per line):",
+	"type=meeting",
+	"status=open",
+	"tags=NoteType/DailyNote",
+	"",
+	"Guide: https://donivatamazondotcom.github.io/obsidian-agent-console/usage/quick-prompts",
 ].join("\n");
 
 /** Cap on a label derived from composer text (first line can be long). */
