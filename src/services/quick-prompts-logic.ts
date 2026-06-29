@@ -573,3 +573,125 @@ export function rankLauncherPrompts(
 	scored.sort((a, b) => b.score - a.score);
 	return scored.map((s) => s.prompt);
 }
+
+// ============================================================================
+// Slice 4 — creation flow (D4): filename derivation, collision disambiguation,
+// templated-note builder, create-on-no-match decision, composer-label
+// derivation. All pure; the file write + open is the service/UI layer.
+// See [[Agent Console Quick Prompts UX Refinement]] § Creating quick prompts
+// (D4) + § Prior art + UX grounding.
+// ============================================================================
+
+/** Placeholder body seeded into a brand-new prompt note (no captured text). */
+export const NEW_PROMPT_BODY_PLACEHOLDER =
+	"Write your prompt here. Use {{selection}} to drop in the selected text.";
+
+/** Cap on a label derived from composer text (first line can be long). */
+export const MAX_DERIVED_LABEL_LENGTH = 60;
+
+/** Fallback name when a label yields no usable filename / no composer text. */
+const FALLBACK_PROMPT_NAME = "New prompt";
+
+/**
+ * Derive a filesystem-safe basename (no extension, no folder) from a label.
+ * Strips the characters Obsidian / Note Refactor reject in filenames
+ * (`# : \ / * ? " < > |`), collapses whitespace runs to a single space, and
+ * trims. Emoji and ordinary spaces are preserved. A blank / symbol-only result
+ * falls back to "New prompt". (Note Refactor strips the same set — see
+ * [[Agent Console Quick Prompts UX Refinement]] § Prior art.)
+ */
+export function deriveFilenameBase(label: string): string {
+	const cleaned = label
+		.replace(/[#:\\/*?"<>|]/g, "")
+		.replace(/\s+/g, " ")
+		.trim();
+	return cleaned.length > 0 ? cleaned : FALLBACK_PROMPT_NAME;
+}
+
+/**
+ * Disambiguate a desired basename against existing basenames so a create never
+ * overwrites an existing note (No-silent-data-loss). Returns the desired name
+ * when free, else appends " 1", " 2", … (Obsidian's new-file convention).
+ * Comparison is case-insensitive (macOS filesystem safety).
+ */
+export function disambiguateFilename(
+	desired: string,
+	existing: string[],
+): string {
+	const taken = new Set(existing.map((n) => n.toLowerCase()));
+	if (!taken.has(desired.toLowerCase())) return desired;
+	let n = 1;
+	while (taken.has(`${desired} ${n}`.toLowerCase())) n++;
+	return `${desired} ${n}`;
+}
+
+/** A templated new-prompt note: typed frontmatter + body. */
+export interface NewPromptNote {
+	frontmatter: Record<string, unknown>;
+	body: string;
+}
+
+/**
+ * Build a templated new-prompt note. Seeds `label` plus the two unchecked
+ * toggle properties (`open in new tab`, `always show`) so the author just flips
+ * them, and a body — the captured text when provided (verbatim), else the
+ * placeholder. The adapter applies the frontmatter via
+ * FileManager.processFrontMatter so Obsidian renders real typed toggles.
+ */
+export function buildNewPromptNote(opts: {
+	label: string;
+	body?: string;
+}): NewPromptNote {
+	const hasBody = (opts.body?.trim().length ?? 0) > 0;
+	return {
+		frontmatter: {
+			label: opts.label,
+			"open in new tab": false,
+			"always show": false,
+		},
+		body: hasBody ? (opts.body as string) : NEW_PROMPT_BODY_PLACEHOLDER,
+	};
+}
+
+/** The "create quick prompt" row appended to the `!` dropdown on no match. */
+export interface CreatePromptRow {
+	kind: "create-prompt";
+	/** The trimmed query → the new prompt's label. */
+	query: string;
+	/** Row label shown in the dropdown. */
+	label: string;
+}
+
+/**
+ * Decide whether the launcher `!` dropdown should show a "create" row. Mirrors
+ * Quick Switcher's Enter-creates-on-no-match idiom: the row appears ONLY when
+ * the query matched nothing (call 2a) and is non-blank. (At zero prompts every
+ * query yields zero matches, so this is also the empty-state on-ramp — call 1.)
+ */
+export function decideCreateOnNoMatch(
+	query: string,
+	matchCount: number,
+): CreatePromptRow | null {
+	const q = query.trim();
+	if (q.length === 0 || matchCount > 0) return null;
+	return {
+		kind: "create-prompt",
+		query: q,
+		label: `Create quick prompt "${q}"`,
+	};
+}
+
+/**
+ * Derive a provisional label from composer text for "save composer as a
+ * prompt": the first non-empty line, trimmed and capped. Blank composer →
+ * "New prompt". The author renames in the opened note (Note Refactor's
+ * first-line-as-name idiom).
+ */
+export function deriveLabelFromComposer(text: string): string {
+	const firstLine = text
+		.split("\n")
+		.map((line) => line.trim())
+		.find((line) => line.length > 0);
+	if (!firstLine) return FALLBACK_PROMPT_NAME;
+	return firstLine.slice(0, MAX_DERIVED_LABEL_LENGTH);
+}

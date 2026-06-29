@@ -12,9 +12,16 @@
  * See [[Agent Console Quick Prompts and Workflows]] § Storage / § Architecture.
  */
 
-import { TFile, type EventRef } from "obsidian";
+import { TFile, normalizePath, type EventRef } from "obsidian";
 import type AgentClientPlugin from "../plugin";
-import { buildQuickPrompt, isQuickPromptFile, stripFrontmatter } from "./quick-prompts-logic";
+import {
+	buildNewPromptNote,
+	buildQuickPrompt,
+	deriveFilenameBase,
+	disambiguateFilename,
+	isQuickPromptFile,
+	stripFrontmatter,
+} from "./quick-prompts-logic";
 import type { QuickPrompt, QuickPromptFileInput } from "../types/quick-prompt";
 import { getLogger } from "../utils/logger";
 
@@ -176,5 +183,93 @@ export class VaultQuickPromptSource implements QuickPromptSource {
 			for (const ref of refs) vault.offref(ref);
 			this.plugin.app.metadataCache.offref(metaRef);
 		};
+	}
+}
+
+/**
+ * Writer port for creating quick-prompt notes. Decoupled from Obsidian so the
+ * clobber-safe orchestration is unit-testable without a vault harness.
+ * `VaultQuickPromptWriter` is the real adapter.
+ */
+export interface QuickPromptWriter {
+	/** Existing basenames in the prompts folder (for collision disambiguation). */
+	listBasenames(): string[];
+	/**
+	 * Create `folder/<basename>.md` with `body`, then set the typed frontmatter.
+	 * MUST NOT overwrite an existing file (throws on a true collision). Returns
+	 * the created vault path.
+	 */
+	create(
+		basename: string,
+		body: string,
+		frontmatter: Record<string, unknown>,
+	): Promise<string>;
+}
+
+/**
+ * Create a quick-prompt note, clobber-safe (No-silent-data-loss). Derives a
+ * filesystem-safe basename from the label, disambiguates against existing notes
+ * (never overwrites), builds the templated note, and writes via the port.
+ * Returns the created path + basename.
+ *
+ * - (a) create-on-no-match passes only a `label` (placeholder body);
+ * - (b) save-composer passes `label` + the captured `body`.
+ */
+export async function createQuickPrompt(
+	writer: QuickPromptWriter,
+	opts: { label: string; body?: string },
+): Promise<{ path: string; basename: string }> {
+	const desired = deriveFilenameBase(opts.label);
+	const basename = disambiguateFilename(desired, writer.listBasenames());
+	const note = buildNewPromptNote(opts);
+	const path = await writer.create(basename, note.body, note.frontmatter);
+	return { path, basename };
+}
+
+/**
+ * Real writer adapter: creates the note via the Vault API and sets typed
+ * frontmatter via the sanctioned `FileManager.processFrontMatter`
+ * (https://docs.obsidian.md/Reference/TypeScript+API/FileManager/processFrontMatter).
+ * `existing` supplies the current prompt basenames for disambiguation;
+ * `Vault.create` additionally throws on a true path collision (belt-and-
+ * suspenders against overwrite).
+ */
+export class VaultQuickPromptWriter implements QuickPromptWriter {
+	constructor(
+		private plugin: AgentClientPlugin,
+		private folder: () => string,
+		private existing: () => string[],
+	) {}
+
+	listBasenames(): string[] {
+		return this.existing();
+	}
+
+	async create(
+		basename: string,
+		body: string,
+		frontmatter: Record<string, unknown>,
+	): Promise<string> {
+		const folder = this.folder().replace(/\/+$/, "");
+		await this.ensureFolder(folder);
+		const path = normalizePath(
+			folder.length > 0 ? `${folder}/${basename}.md` : `${basename}.md`,
+		);
+		const file = await this.plugin.app.vault.create(path, body);
+		await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
+			Object.assign(fm, frontmatter);
+		});
+		return file.path;
+	}
+
+	private async ensureFolder(folder: string): Promise<void> {
+		if (folder.length === 0) return;
+		if (!this.plugin.app.vault.getAbstractFileByPath(folder)) {
+			try {
+				await this.plugin.app.vault.createFolder(folder);
+			} catch {
+				// Folder created concurrently (race) — safe to ignore.
+			}
+		}
 	}
 }

@@ -1,5 +1,5 @@
 import { migrateContextNoteSettings } from "./services/settings-migration";
-import { addIcon, Plugin, WorkspaceLeaf, Notice } from "obsidian";
+import { addIcon, Plugin, TFile, WorkspaceLeaf, Notice } from "obsidian";
 import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
@@ -59,6 +59,8 @@ import { AgentPickerModal } from "./ui/AgentPickerModal";
 import {
 	QuickPromptLibrary,
 	VaultQuickPromptSource,
+	VaultQuickPromptWriter,
+	createQuickPrompt,
 } from "./services/quick-prompts";
 import {
 	computeStartChat,
@@ -260,6 +262,44 @@ export default class AgentClientPlugin extends Plugin {
 		this.probeInstalledAgents(),
 	);
 
+	/**
+	 * Create a quick-prompt note (clobber-safe) and open it for editing. Used by
+	 * the "Quick prompts: New prompt" command, the ! create-on-no-match row, and
+	 * "save composer as a prompt". `body` omitted → a placeholder body (the
+	 * author writes the prompt in the opened note); provided → captured text.
+	 * On a name collision the filename is disambiguated — an existing note is
+	 * never overwritten (No-silent-data-loss).
+	 */
+	async createQuickPromptNote(opts: {
+		label: string;
+		body?: string;
+	}): Promise<void> {
+		const writer = new VaultQuickPromptWriter(
+			this,
+			() => this.settings.quickPromptsFolder,
+			() =>
+				this.quickPromptLibrary
+					.getPrompts()
+					.map(
+						(p) =>
+							p.path.split("/").pop()?.replace(/\.md$/i, "") ?? "",
+					),
+		);
+		try {
+			const { path, basename } = await createQuickPrompt(writer, opts);
+			const file = this.app.vault.getAbstractFileByPath(path);
+			if (file instanceof TFile) {
+				await this.app.workspace.getLeaf(true).openFile(file);
+			}
+			new Notice(`[Agent Console] Created quick prompt "${basename}".`);
+		} catch (error) {
+			getLogger().error("[QuickPrompts] create failed", error);
+			new Notice(
+				"[Agent Console] Could not create the quick prompt — see the console.",
+			);
+		}
+	}
+
 	async onload() {
 		await this.loadSettings();
 
@@ -450,6 +490,14 @@ export default class AgentClientPlugin extends Plugin {
 					);
 				}
 				return true;
+			},
+		});
+
+		this.addCommand({
+			id: "quick-prompt-new",
+			name: "Quick prompts: New prompt",
+			callback: () => {
+				void this.createQuickPromptNote({ label: "New prompt" });
 			},
 		});
 
