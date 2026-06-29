@@ -78,7 +78,7 @@ vi.mock("obsidian", () => {
 		}
 		onHide() {}
 	}
-	return { Menu, setIcon: vi.fn() };
+	return { Menu, setIcon: vi.fn(), setTooltip: vi.fn() };
 });
 
 // Keep the real showMenuAtEvent so the chevron → helper → menu positioning
