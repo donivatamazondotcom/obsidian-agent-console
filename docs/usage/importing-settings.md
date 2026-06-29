@@ -16,7 +16,7 @@ Anything specific to Agent Console – your Kiro CLI setup, open tabs, and saved
 
 - **On first run.** The first time Agent Console starts and finds another agent plugin's settings, it shows a notice. Click it to open the import preview. You'll only see this once.
 - **From the command palette.** Run **Import settings from another agent plugin** any time.
-- **From settings.** Open **Settings → Agent Console** and use **Import settings from another plugin → Import…**.
+- **From settings.** Open **Settings → Agent Console** and use **Import settings from another plugin → Import…**. On a brand-new setup this sits right at the top, where you'd look first. Once you've started using Agent Console it moves into the **Advanced** section near the bottom, keeping the top of the pane focused on everyday settings.
 
 All three open the same preview, so you always see what will change before anything is applied.
 

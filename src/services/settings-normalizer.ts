@@ -317,6 +317,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	customAgents: [],
 	defaultAgentId: "claude-code-acp",
 	autoAllowPermissions: false,
+	hasCompletedSetup: false,
 	activeNoteAsDefaultContext: true,
 	migrationNoticeShown: false,
 	enableSystemNotifications: true,
@@ -615,5 +616,6 @@ export function normalizeRawSettings(
 			: undefined,
 		legacySessionsMigrated: bool(raw.legacySessionsMigrated, false),
 		settingsImportOfferShown: bool(raw.settingsImportOfferShown, false),
+		hasCompletedSetup: bool(raw.hasCompletedSetup, false),
 	};
 }

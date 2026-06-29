@@ -40,12 +40,19 @@ import {
 	collectAgentIdsExcept,
 	resolveUniqueAgentId,
 } from "../services/session-helpers";
+import { deriveImportPlacement } from "../utils/settings-layout";
 
 export class AgentClientSettingTab extends PluginSettingTab {
 	plugin: AgentClientPlugin;
 	private agentSelector: DropdownComponent | null = null;
 	private unsubscribe: (() => void) | null = null;
 	private agentExpansion: AgentExpansionState = freshAgentExpansion();
+	/**
+	 * Agent id whose first field should grab focus on the next render — set
+	 * when "Add custom agent" creates an agent, consumed (cleared) when that
+	 * agent's Agent ID field renders. Per-session UI intent, not persisted.
+	 */
+	private pendingFocusAgentId: string | null = null;
 
 	constructor(app: App, plugin: AgentClientPlugin) {
 		super(app, plugin);
@@ -64,6 +71,20 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			this.unsubscribe = null;
 		}
 
+		const importPlacement = deriveImportPlacement(
+			this.plugin.settings.hasCompletedSetup,
+		);
+
+		// ── Top matter (ungrouped) ──
+		// A Settings search input slot is reserved here for member #5 of the
+		// Settings Pane Overhaul (not yet built).
+		// D5: Import settings shows here on a fresh/un-configured install (the
+		// moment you'd import from another machine); once set up it moves to
+		// Advanced.
+		if (importPlacement === "top-matter") {
+			this.renderImportSetting(containerEl);
+		}
+
 		// Documentation link
 		const docContainer = containerEl.createDiv({
 			cls: "agent-client-doc-link",
@@ -76,20 +97,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		});
 		docContainer.createSpan({ text: "." });
 
-		new Setting(containerEl)
-			.setName("Import settings from another plugin")
-			.setDesc(
-				"Bring over agent definitions, defaults, and API keys from another agent plugin (e.g. Agent Client). Shows a preview before applying.",
-			)
-			.addButton((btn) =>
-				btn.setButtonText("Import…").onClick(() => {
-					this.plugin.openImportSettingsModal();
-				}),
-			);
-
-		// ─────────────────────────────────────────────────────────────────────
-		// Top-level settings (no header)
-		// ─────────────────────────────────────────────────────────────────────
+		new Setting(containerEl).setName("Agents").setHeading();
 
 		this.renderAgentSelector(containerEl);
 
@@ -97,82 +105,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		this.unsubscribe = this.plugin.settingsService.subscribe(() => {
 			this.updateAgentDropdown();
 		});
-
 		// Also update immediately on display to sync with current settings
 		this.updateAgentDropdown();
-
-		const nodePathSetting = new Setting(containerEl)
-			.setName("Node.js path")
-			.setDesc(
-				"Path to Node.js. Usually leave blank. Only needed if node is in a non-standard location (enter absolute path, e.g. /usr/local/bin/node).",
-			)
-			.addText((text) => {
-				text.setPlaceholder("Leave blank (login shell auto-resolves)")
-					.setValue(this.plugin.settings.nodePath)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							nodePath: value.trim(),
-						});
-					});
-			});
-		this.addAutoDetectButton(nodePathSetting, "node", async (path) => {
-			await this.plugin.settingsService.updateSettings({
-				nodePath: path,
-			});
-		});
-
-		new Setting(containerEl)
-			.setName("Send message shortcut")
-			.setDesc(
-				"Choose the keyboard shortcut to send messages. Note: If using Cmd/Ctrl+Enter, you may need to remove any hotkeys assigned to Cmd/Ctrl+Enter (Settings → Hotkeys).",
-			)
-			.addDropdown((dropdown) =>
-				dropdown
-					.addOption(
-						"enter",
-						"Enter to send, Shift+Enter for newline",
-					)
-					.addOption(
-						"cmd-enter",
-						"Cmd/Ctrl+Enter to send, Enter for newline",
-					)
-					.setValue(this.plugin.settings.sendMessageShortcut)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							sendMessageShortcut: value as "enter" | "cmd-enter",
-						});
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Debug mode")
-			.setDesc(
-				"Enable debug logging to console. Useful for development and troubleshooting.",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.debugMode)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							debugMode: value,
-						});
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("System notifications")
-			.setDesc(
-				"Show OS notifications when the agent completes a response or requests permission. Notifications are suppressed while Obsidian is focused.",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.enableSystemNotifications)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							enableSystemNotifications: value,
-						});
-					}),
-			);
 
 		// Default working directory — global default new chats launch in.
 		const resolveVaultRoot = (): string => {
@@ -228,11 +162,42 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				}),
 		);
 
-		// ─────────────────────────────────────────────────────────────────────
-		// Context
-		// ─────────────────────────────────────────────────────────────────────
+		new Setting(containerEl).setName("Built-in agents").setHeading();
 
-		new Setting(containerEl).setName("Context").setHeading();
+		this.agentExpansion = syncAgentExpansion(
+			this.agentExpansion,
+			this.plugin.settings.defaultAgentId,
+		);
+		this.renderCollapsibleAgentSection(
+			containerEl,
+			this.plugin.settings.claude.id,
+			this.plugin.settings.claude.displayName || "Claude Code",
+			(el) => this.renderClaudeSettings(el),
+		);
+		this.renderCollapsibleAgentSection(
+			containerEl,
+			this.plugin.settings.codex.id,
+			this.plugin.settings.codex.displayName || "Codex",
+			(el) => this.renderCodexSettings(el),
+		);
+		this.renderCollapsibleAgentSection(
+			containerEl,
+			this.plugin.settings.gemini.id,
+			this.plugin.settings.gemini.displayName || "Gemini CLI",
+			(el) => this.renderGeminiSettings(el),
+		);
+		this.renderCollapsibleAgentSection(
+			containerEl,
+			this.plugin.settings.kiro.id,
+			this.plugin.settings.kiro.displayName || "Kiro CLI",
+			(el) => this.renderKiroSettings(el),
+		);
+
+		new Setting(containerEl).setName("Custom agents").setHeading();
+
+		this.renderCustomAgents(containerEl);
+
+		new Setting(containerEl).setName("Chat behavior").setHeading();
 
 		new Setting(containerEl)
 			.setName("Active note as default context")
@@ -249,11 +214,66 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		// ─────────────────────────────────────────────────────────────────────
-		// Display
-		// ─────────────────────────────────────────────────────────────────────
+		new Setting(containerEl)
+			.setName("Session title")
+			.setDesc(
+				"How a new chat's tab label is generated. Agent-suggested asks the agent for a short title on its first reply and falls back to your first message while it arrives. You can always rename a tab manually.",
+			)
+			.addDropdown((dropdown) => {
+				for (const { value, label } of TITLE_STRATEGY_OPTIONS) {
+					dropdown.addOption(value, label);
+				}
+				dropdown
+					.setValue(this.plugin.settings.titleStrategy)
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							titleStrategy: value as TitleStrategy,
+						});
+					});
+			});
 
-		new Setting(containerEl).setName("Display").setHeading();
+		new Setting(containerEl)
+			.setName("Quick prompts folder")
+			.setDesc(
+				"Vault folder scanned for quick prompts — one markdown note per prompt. The note's description (or name/title/filename) is the label; the body is the prompt text. Changes are picked up live.",
+			)
+			.addText((text) => {
+				text.setPlaceholder("Quick Prompts")
+					.setValue(this.plugin.settings.quickPromptsFolder)
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							quickPromptsFolder: value.trim(),
+						});
+						void this.plugin.quickPromptLibrary.rescan();
+					});
+			});
+
+		new Setting(containerEl)
+			.setName("Send message shortcut")
+			.setDesc(
+				"Choose the keyboard shortcut to send messages. Note: If using Cmd/Ctrl+Enter, you may need to remove any hotkeys assigned to Cmd/Ctrl+Enter (Settings → Hotkeys).",
+			)
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption(
+						"enter",
+						"Enter to send, Shift+Enter for newline",
+					)
+					.addOption(
+						"cmd-enter",
+						"Cmd/Ctrl+Enter to send, Enter for newline",
+					)
+					.setValue(this.plugin.settings.sendMessageShortcut)
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							sendMessageShortcut: value as "enter" | "cmd-enter",
+						});
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Appearance & notifications")
+			.setHeading();
 
 		new Setting(containerEl)
 			.setName("Sidebar side")
@@ -385,9 +405,20 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		// ─────────────────────────────────────────────────────────────────────
-		// Tabs
-		// ─────────────────────────────────────────────────────────────────────
+		new Setting(containerEl)
+			.setName("System notifications")
+			.setDesc(
+				"Show OS notifications when the agent completes a response or requests permission. Notifications are suppressed while Obsidian is focused.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.enableSystemNotifications)
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							enableSystemNotifications: value,
+						});
+					}),
+			);
 
 		new Setting(containerEl).setName("Tabs").setHeading();
 
@@ -413,59 +444,13 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			)
 			.addToggle((toggle) =>
 				toggle
-					.setValue(
-						this.plugin.settings.confirmCloseWithMultipleTabs,
-					)
+					.setValue(this.plugin.settings.confirmCloseWithMultipleTabs)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
 							confirmCloseWithMultipleTabs: value,
 						});
 					}),
 			);
-
-		new Setting(containerEl)
-			.setName("Session title")
-			.setDesc(
-				"How a new chat's tab label is generated. Agent-suggested asks the agent for a short title on its first reply and falls back to your first message while it arrives. You can always rename a tab manually.",
-			)
-			.addDropdown((dropdown) => {
-				for (const { value, label } of TITLE_STRATEGY_OPTIONS) {
-					dropdown.addOption(value, label);
-				}
-				dropdown
-					.setValue(this.plugin.settings.titleStrategy)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							titleStrategy: value as TitleStrategy,
-						});
-					});
-			});
-
-		// ─────────────────────────────────────────────────────────────────────
-		// Quick Prompts
-		// ─────────────────────────────────────────────────────────────────────
-
-		new Setting(containerEl).setName("Quick prompts").setHeading();
-
-		new Setting(containerEl)
-			.setName("Quick prompts folder")
-			.setDesc(
-				"Vault folder scanned for quick prompts — one markdown note per prompt. The note's description (or name/title/filename) is the label; the body is the prompt text. Changes are picked up live.",
-			)
-			.addText((text) => {
-				text.setPlaceholder("Quick Prompts")
-					.setValue(this.plugin.settings.quickPromptsFolder)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							quickPromptsFolder: value.trim(),
-						});
-						void this.plugin.quickPromptLibrary.rescan();
-					});
-			});
-
-		// ─────────────────────────────────────────────────────────────────────
-		// Permissions
-		// ─────────────────────────────────────────────────────────────────────
 
 		new Setting(containerEl).setName("Permissions").setHeading();
 
@@ -486,223 +471,106 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		// ─────────────────────────────────────────────────────────────────────
-		// Windows WSL Settings (Windows only)
-		// ─────────────────────────────────────────────────────────────────────
-
-		if (Platform.isWin) {
+		this.renderCollapsibleSection(containerEl, "Export", (containerEl) => {
 			new Setting(containerEl)
-				.setName("Windows Subsystem for Linux")
-				.setHeading();
-
-			new Setting(containerEl)
-				.setName("Enable WSL mode")
-				.setDesc(
-					"Run agents inside Windows Subsystem for Linux. Recommended for agents like Codex that don't work well in native Windows environments.",
-				)
-				.addToggle((toggle) =>
-					toggle
-						.setValue(this.plugin.settings.windowsWslMode)
-						.onChange(async (value) => {
-							await this.plugin.settingsService.updateSettings({
-								windowsWslMode: value,
-							});
-							this.display(); // Refresh to show/hide distribution setting
-						}),
-				);
-
-			if (this.plugin.settings.windowsWslMode) {
-				new Setting(containerEl)
-					.setName("WSL distribution")
-					.setDesc(
-						"Specify WSL distribution name (leave empty for default). Example: Ubuntu, Debian",
-					)
-					.addText((text) =>
-						text
-							.setPlaceholder("Leave empty for default")
-							.setValue(
-								this.plugin.settings.windowsWslDistribution ||
-									"",
-							)
-							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										windowsWslDistribution:
-											value.trim() || undefined,
-									},
-								);
-							}),
-					);
-			}
-		}
-
-		// ─────────────────────────────────────────────────────────────────────
-		// Agents
-		// ─────────────────────────────────────────────────────────────────────
-
-		new Setting(containerEl).setName("Built-in agents").setHeading();
-
-		this.agentExpansion = syncAgentExpansion(
-			this.agentExpansion,
-			this.plugin.settings.defaultAgentId,
-		);
-		this.renderCollapsibleAgentSection(
-			containerEl,
-			this.plugin.settings.claude.id,
-			this.plugin.settings.claude.displayName || "Claude Code",
-			(el) => this.renderClaudeSettings(el),
-		);
-		this.renderCollapsibleAgentSection(
-			containerEl,
-			this.plugin.settings.codex.id,
-			this.plugin.settings.codex.displayName || "Codex",
-			(el) => this.renderCodexSettings(el),
-		);
-		this.renderCollapsibleAgentSection(
-			containerEl,
-			this.plugin.settings.gemini.id,
-			this.plugin.settings.gemini.displayName || "Gemini CLI",
-			(el) => this.renderGeminiSettings(el),
-		);
-		this.renderCollapsibleAgentSection(
-			containerEl,
-			this.plugin.settings.kiro.id,
-			this.plugin.settings.kiro.displayName || "Kiro CLI",
-			(el) => this.renderKiroSettings(el),
-		);
-
-		new Setting(containerEl).setName("Custom agents").setHeading();
-
-		this.renderCustomAgents(containerEl);
-
-		// ─────────────────────────────────────────────────────────────────────
-		// Export
-		// ─────────────────────────────────────────────────────────────────────
-
-		new Setting(containerEl).setName("Export").setHeading();
-
-		new Setting(containerEl)
-			.setName("Export folder")
-			.setDesc("Folder where chat exports will be saved")
-			.addText((text) =>
-				text
-					.setPlaceholder("Agent Console")
-					.setValue(this.plugin.settings.exportSettings.defaultFolder)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							exportSettings: {
-								...this.plugin.settings.exportSettings,
-								defaultFolder: value,
-							},
-						});
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Filename")
-			.setDesc(
-				"Template for exported filenames. Use {date} for date and {time} for time",
-			)
-			.addText((text) =>
-				text
-					.setPlaceholder("agent_console_{date}_{time}")
-					.setValue(
-						this.plugin.settings.exportSettings.filenameTemplate,
-					)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							exportSettings: {
-								...this.plugin.settings.exportSettings,
-								filenameTemplate: value,
-							},
-						});
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Frontmatter tag")
-			.setDesc(
-				"Tag to add to exported notes. Supports nested tags (e.g., projects/agent-console). Leave empty to disable.",
-			)
-			.addText((text) =>
-				text
-					.setPlaceholder("agent-console")
-					.setValue(
-						this.plugin.settings.exportSettings.frontmatterTag,
-					)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							exportSettings: {
-								...this.plugin.settings.exportSettings,
-								frontmatterTag: value,
-							},
-						});
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Include images")
-			.setDesc("Include images in exported markdown files")
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.exportSettings.includeImages)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							exportSettings: {
-								...this.plugin.settings.exportSettings,
-								includeImages: value,
-							},
-						});
-						this.display();
-					}),
-			);
-
-		if (this.plugin.settings.exportSettings.includeImages) {
-			new Setting(containerEl)
-				.setName("Image location")
-				.setDesc("Where to save exported images")
-				.addDropdown((dropdown) =>
-					dropdown
-						.addOption(
-							"obsidian",
-							"Use Obsidian's attachment setting",
-						)
-						.addOption("custom", "Save to custom folder")
-						.addOption(
-							"base64",
-							"Embed as Base64 (not recommended)",
-						)
+				.setName("Export folder")
+				.setDesc("Folder where chat exports will be saved")
+				.addText((text) =>
+					text
+						.setPlaceholder("Agent Console")
 						.setValue(
-							this.plugin.settings.exportSettings.imageLocation,
+							this.plugin.settings.exportSettings.defaultFolder,
 						)
 						.onChange(async (value) => {
 							await this.plugin.settingsService.updateSettings({
 								exportSettings: {
 									...this.plugin.settings.exportSettings,
-									imageLocation: value as
-										| "obsidian"
-										| "custom"
-										| "base64",
+									defaultFolder: value,
+								},
+							});
+						}),
+				);
+
+			new Setting(containerEl)
+				.setName("Filename")
+				.setDesc(
+					"Template for exported filenames. Use {date} for date and {time} for time",
+				)
+				.addText((text) =>
+					text
+						.setPlaceholder("agent_console_{date}_{time}")
+						.setValue(
+							this.plugin.settings.exportSettings
+								.filenameTemplate,
+						)
+						.onChange(async (value) => {
+							await this.plugin.settingsService.updateSettings({
+								exportSettings: {
+									...this.plugin.settings.exportSettings,
+									filenameTemplate: value,
+								},
+							});
+						}),
+				);
+
+			new Setting(containerEl)
+				.setName("Frontmatter tag")
+				.setDesc(
+					"Tag to add to exported notes. Supports nested tags (e.g., projects/agent-console). Leave empty to disable.",
+				)
+				.addText((text) =>
+					text
+						.setPlaceholder("agent-console")
+						.setValue(
+							this.plugin.settings.exportSettings.frontmatterTag,
+						)
+						.onChange(async (value) => {
+							await this.plugin.settingsService.updateSettings({
+								exportSettings: {
+									...this.plugin.settings.exportSettings,
+									frontmatterTag: value,
+								},
+							});
+						}),
+				);
+
+			new Setting(containerEl)
+				.setName("Include images")
+				.setDesc("Include images in exported markdown files")
+				.addToggle((toggle) =>
+					toggle
+						.setValue(
+							this.plugin.settings.exportSettings.includeImages,
+						)
+						.onChange(async (value) => {
+							await this.plugin.settingsService.updateSettings({
+								exportSettings: {
+									...this.plugin.settings.exportSettings,
+									includeImages: value,
 								},
 							});
 							this.display();
 						}),
 				);
 
-			if (
-				this.plugin.settings.exportSettings.imageLocation === "custom"
-			) {
+			if (this.plugin.settings.exportSettings.includeImages) {
 				new Setting(containerEl)
-					.setName("Custom image folder")
-					.setDesc(
-						"Folder path for exported images (relative to vault root)",
-					)
-					.addText((text) =>
-						text
-							.setPlaceholder("Agent Console")
+					.setName("Image location")
+					.setDesc("Where to save exported images")
+					.addDropdown((dropdown) =>
+						dropdown
+							.addOption(
+								"obsidian",
+								"Use Obsidian's attachment setting",
+							)
+							.addOption("custom", "Save to custom folder")
+							.addOption(
+								"base64",
+								"Embed as Base64 (not recommended)",
+							)
 							.setValue(
 								this.plugin.settings.exportSettings
-									.imageCustomFolder,
+									.imageLocation,
 							)
 							.onChange(async (value) => {
 								await this.plugin.settingsService.updateSettings(
@@ -710,73 +578,213 @@ export class AgentClientSettingTab extends PluginSettingTab {
 										exportSettings: {
 											...this.plugin.settings
 												.exportSettings,
-											imageCustomFolder: value,
+											imageLocation: value as
+												| "obsidian"
+												| "custom"
+												| "base64",
 										},
+									},
+								);
+								this.display();
+							}),
+					);
+
+				if (
+					this.plugin.settings.exportSettings.imageLocation ===
+					"custom"
+				) {
+					new Setting(containerEl)
+						.setName("Custom image folder")
+						.setDesc(
+							"Folder path for exported images (relative to vault root)",
+						)
+						.addText((text) =>
+							text
+								.setPlaceholder("Agent Console")
+								.setValue(
+									this.plugin.settings.exportSettings
+										.imageCustomFolder,
+								)
+								.onChange(async (value) => {
+									await this.plugin.settingsService.updateSettings(
+										{
+											exportSettings: {
+												...this.plugin.settings
+													.exportSettings,
+												imageCustomFolder: value,
+											},
+										},
+									);
+								}),
+						);
+				}
+			}
+
+			new Setting(containerEl)
+				.setName("Auto-export on new chat")
+				.setDesc(
+					"Automatically export the current chat when starting a new chat",
+				)
+				.addToggle((toggle) =>
+					toggle
+						.setValue(
+							this.plugin.settings.exportSettings
+								.autoExportOnNewChat,
+						)
+						.onChange(async (value) => {
+							await this.plugin.settingsService.updateSettings({
+								exportSettings: {
+									...this.plugin.settings.exportSettings,
+									autoExportOnNewChat: value,
+								},
+							});
+						}),
+				);
+
+			new Setting(containerEl)
+				.setName("Auto-export on close chat")
+				.setDesc(
+					"Automatically export the current chat when closing the chat view",
+				)
+				.addToggle((toggle) =>
+					toggle
+						.setValue(
+							this.plugin.settings.exportSettings
+								.autoExportOnCloseChat,
+						)
+						.onChange(async (value) => {
+							await this.plugin.settingsService.updateSettings({
+								exportSettings: {
+									...this.plugin.settings.exportSettings,
+									autoExportOnCloseChat: value,
+								},
+							});
+						}),
+				);
+
+			new Setting(containerEl)
+				.setName("Open note after export")
+				.setDesc("Automatically open the exported note after exporting")
+				.addToggle((toggle) =>
+					toggle
+						.setValue(
+							this.plugin.settings.exportSettings
+								.openFileAfterExport,
+						)
+						.onChange(async (value) => {
+							await this.plugin.settingsService.updateSettings({
+								exportSettings: {
+									...this.plugin.settings.exportSettings,
+									openFileAfterExport: value,
+								},
+							});
+						}),
+				);
+		});
+
+		this.renderCollapsibleSection(
+			containerEl,
+			"Advanced",
+			(containerEl) => {
+				const nodePathSetting = new Setting(containerEl)
+					.setName("Node.js path")
+					.setDesc(
+						"Path to Node.js. Usually leave blank. Only needed if node is in a non-standard location (enter absolute path, e.g. /usr/local/bin/node).",
+					)
+					.addText((text) => {
+						text.setPlaceholder(
+							"Leave blank (login shell auto-resolves)",
+						)
+							.setValue(this.plugin.settings.nodePath)
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings(
+									{
+										nodePath: value.trim(),
+									},
+								);
+							});
+					});
+				this.addAutoDetectButton(
+					nodePathSetting,
+					"node",
+					async (path) => {
+						await this.plugin.settingsService.updateSettings({
+							nodePath: path,
+						});
+					},
+				);
+
+				if (Platform.isWin) {
+					new Setting(containerEl)
+						.setName("Windows Subsystem for Linux")
+						.setHeading();
+
+					new Setting(containerEl)
+						.setName("Enable WSL mode")
+						.setDesc(
+							"Run agents inside Windows Subsystem for Linux. Recommended for agents like Codex that don't work well in native Windows environments.",
+						)
+						.addToggle((toggle) =>
+							toggle
+								.setValue(this.plugin.settings.windowsWslMode)
+								.onChange(async (value) => {
+									await this.plugin.settingsService.updateSettings(
+										{
+											windowsWslMode: value,
+										},
+									);
+									this.display(); // Refresh to show/hide distribution setting
+								}),
+						);
+
+					if (this.plugin.settings.windowsWslMode) {
+						new Setting(containerEl)
+							.setName("WSL distribution")
+							.setDesc(
+								"Specify WSL distribution name (leave empty for default). Example: Ubuntu, Debian",
+							)
+							.addText((text) =>
+								text
+									.setPlaceholder("Leave empty for default")
+									.setValue(
+										this.plugin.settings
+											.windowsWslDistribution || "",
+									)
+									.onChange(async (value) => {
+										await this.plugin.settingsService.updateSettings(
+											{
+												windowsWslDistribution:
+													value.trim() || undefined,
+											},
+										);
+									}),
+							);
+					}
+				}
+
+				new Setting(containerEl)
+					.setName("Debug mode")
+					.setDesc(
+						"Enable debug logging to console. Useful for development and troubleshooting.",
+					)
+					.addToggle((toggle) =>
+						toggle
+							.setValue(this.plugin.settings.debugMode)
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings(
+									{
+										debugMode: value,
 									},
 								);
 							}),
 					);
-			}
-		}
 
-		new Setting(containerEl)
-			.setName("Auto-export on new chat")
-			.setDesc(
-				"Automatically export the current chat when starting a new chat",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(
-						this.plugin.settings.exportSettings.autoExportOnNewChat,
-					)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							exportSettings: {
-								...this.plugin.settings.exportSettings,
-								autoExportOnNewChat: value,
-							},
-						});
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Auto-export on close chat")
-			.setDesc(
-				"Automatically export the current chat when closing the chat view",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(
-						this.plugin.settings.exportSettings
-							.autoExportOnCloseChat,
-					)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							exportSettings: {
-								...this.plugin.settings.exportSettings,
-								autoExportOnCloseChat: value,
-							},
-						});
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Open note after export")
-			.setDesc("Automatically open the exported note after exporting")
-			.addToggle((toggle) =>
-				toggle
-					.setValue(
-						this.plugin.settings.exportSettings.openFileAfterExport,
-					)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							exportSettings: {
-								...this.plugin.settings.exportSettings,
-								openFileAfterExport: value,
-							},
-						});
-					}),
-			);
+				// D5: once configured, Import settings lives here in Advanced.
+				if (importPlacement === "advanced") {
+					this.renderImportSetting(containerEl);
+				}
+			},
+		);
 	}
 
 	/**
@@ -1296,6 +1304,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		if (this.plugin.settings.customAgents.length === 0) {
 			containerEl.createEl("p", {
 				text: "No custom agents configured yet.",
+				cls: "agent-client-empty-state",
 			});
 		} else {
 			this.plugin.settings.customAgents.forEach((agent, index) => {
@@ -1323,6 +1332,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						args: [],
 						env: [],
 					});
+					// Auto-expand the new section and focus its first field so the
+					// user can start typing immediately — no extra click to open
+					// the accordion.
+					this.agentExpansion = toggleAgentExpansion(
+						this.agentExpansion,
+						newId,
+						true,
+					);
+					this.pendingFocusAgentId = newId;
 					this.plugin.ensureDefaultAgentId();
 					await this.flushSettings();
 					this.display();
@@ -1401,6 +1419,19 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						this.refreshAgentDropdown();
 					})();
 				});
+
+				// Autofocus the just-added agent's first field (set by
+				// "Add custom agent") so the user can type immediately. Native
+				// focus + select is keyboard-first; deferred to the next frame so
+				// the (now-expanded) accordion body is laid out first.
+				if (this.pendingFocusAgentId === agent.id) {
+					this.pendingFocusAgentId = null;
+					const inputEl = text.inputEl;
+					window.requestAnimationFrame(() => {
+						inputEl.focus();
+						inputEl.select();
+					});
+				}
 			});
 
 		idSetting.addExtraButton((button) => {
@@ -1485,8 +1516,9 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				this.plugin.settings.customAgents[index]
 					.defaultWorkingDirectory ?? "",
 			async (value) => {
-				this.plugin.settings.customAgents[index].defaultWorkingDirectory =
-					value;
+				this.plugin.settings.customAgents[
+					index
+				].defaultWorkingDirectory = value;
 				await this.flushSettings();
 			},
 		);
@@ -1628,11 +1660,64 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	}
 
 	/**
-	 * Wrap an agent's settings block in a native <details>/<summary> disclosure.
-	 * The summary shows the display name (always visible); the body holds the
-	 * detail settings. Open/closed is per-session UI state in `agentExpansion`
-	 * (see Collapsible Agent Sections spec). Native <details> gives keyboard
-	 * toggle + aria-expanded for free.
+	 * "Import settings" control. Rendered in Top matter on a fresh/un-configured
+	 * install and in Advanced once configured (D5). Single definition, two call
+	 * sites — placement is decided by display() from hasCompletedSetup.
+	 */
+	private renderImportSetting(containerEl: HTMLElement): void {
+		new Setting(containerEl)
+			.setName("Import settings from another plugin")
+			.setDesc(
+				"Bring over agent definitions, defaults, and API keys from another agent plugin (e.g. Agent Client). Shows a preview before applying.",
+			)
+			.addButton((btn) =>
+				btn.setButtonText("Import…").onClick(() => {
+					this.plugin.openImportSettingsModal();
+				}),
+			);
+	}
+
+	/**
+	 * Low-level collapsible section: a native <details>/<summary> disclosure
+	 * with a visible title. Native <details> gives keyboard toggle (Enter /
+	 * Space on the focused summary) + aria-expanded for free, so the section is
+	 * keyboard-first without hand-rolled handlers. `options.open` sets the
+	 * initial state (default collapsed); `options.onToggle` (optional) fires
+	 * with the new open state on user toggle, for callers that persist
+	 * expansion. Callers wanting a fixed default (Export / Advanced) pass no
+	 * onToggle. Shares the agent-section CSS class family so styling matches.
+	 */
+	private renderCollapsibleSection(
+		parentEl: HTMLElement,
+		title: string,
+		renderBody: (bodyEl: HTMLElement) => void,
+		options?: { open?: boolean; onToggle?: (open: boolean) => void },
+	): void {
+		const details = parentEl.createEl("details", {
+			cls: "agent-client-agent-section",
+		});
+		details.open = options?.open ?? false;
+		const summary = details.createEl("summary", {
+			cls: "agent-client-agent-section-summary",
+		});
+		summary.createSpan({
+			cls: "agent-client-agent-section-name",
+			text: title,
+		});
+		const onToggle = options?.onToggle;
+		if (onToggle) {
+			details.addEventListener("toggle", () => {
+				onToggle(details.open);
+			});
+		}
+		renderBody(details);
+	}
+
+	/**
+	 * Wrap an agent's settings block in a collapsible <details>/<summary>
+	 * disclosure. Open/closed is per-session UI state in `agentExpansion`
+	 * (Collapsible Agent Sections spec). Delegates to renderCollapsibleSection
+	 * so the accordion mechanism is shared with Export / Advanced.
 	 */
 	private renderCollapsibleAgentSection(
 		parentEl: HTMLElement,
@@ -1640,25 +1725,16 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		displayName: string,
 		renderBody: (bodyEl: HTMLElement) => void,
 	): void {
-		const details = parentEl.createEl("details", {
-			cls: "agent-client-agent-section",
+		this.renderCollapsibleSection(parentEl, displayName, renderBody, {
+			open: this.agentExpansion.expanded.has(agentId),
+			onToggle: (open) => {
+				this.agentExpansion = toggleAgentExpansion(
+					this.agentExpansion,
+					agentId,
+					open,
+				);
+			},
 		});
-		details.open = this.agentExpansion.expanded.has(agentId);
-		const summary = details.createEl("summary", {
-			cls: "agent-client-agent-section-summary",
-		});
-		summary.createSpan({
-			cls: "agent-client-agent-section-name",
-			text: displayName,
-		});
-		details.addEventListener("toggle", () => {
-			this.agentExpansion = toggleAgentExpansion(
-				this.agentExpansion,
-				agentId,
-				details.open,
-			);
-		});
-		renderBody(details);
 	}
 
 	/**

@@ -6,7 +6,7 @@ A quick prompt is just a note in a folder. The note's `label` is the button text
 
 ## Set up the folder
 
-By default Agent Console reads quick prompts from a folder named `Quick Prompts` in your vault. Change it under **Settings → Agent Console → Quick prompts → Quick prompts folder**.
+By default Agent Console reads quick prompts from a folder named `Quick Prompts` in your vault. Change it under **Settings → Agent Console → Chat behavior → Quick prompts folder**.
 
 Make a note in that folder for each prompt:
 

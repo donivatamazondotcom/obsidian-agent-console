@@ -166,6 +166,7 @@ src/
 │   ├── folder-picker.ts         # Shared Electron native folder picker (modal + settings Browse)
 │   ├── working-directory.ts     # Resolve/validate the default working directory for new chats
 │   ├── agent-expansion.ts       # Per-session expand/collapse state for settings agent sections
+│   ├── settings-layout.ts       # Pure settings-pane layout resolvers (deriveImportPlacement(hasCompletedSetup) → top-matter | advanced; D5)
 │   └── logger.ts                # Debug-mode logger
 ├── plugin.ts                    # Obsidian plugin lifecycle, settings persistence
 └── main.ts                      # Entry point

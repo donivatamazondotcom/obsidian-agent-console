@@ -191,6 +191,15 @@ export interface AgentClientPluginSettings {
 
 	/** One-shot guard for the first-run settings-import offer. */
 	settingsImportOfferShown?: boolean;
+
+	/**
+	 * One-time forward latch: set true the first time the user sends a
+	 * message in any agent or imports settings once. Once true it stays
+	 * true. Decides where "Import settings" renders in the settings pane —
+	 * Top matter while un-configured, Advanced once set up (D5, see
+	 * [[Agent Console Settings Pane Reorganization]]).
+	 */
+	hasCompletedSetup: boolean;
 }
 
 export default class AgentClientPlugin extends Plugin {
@@ -1226,7 +1235,12 @@ export default class AgentClientPlugin extends Plugin {
 			this.app,
 			this.createImportSources(),
 			async (slice) => {
-				await this.settingsService.updateSettings(slice);
+				// D5: importing settings trips the one-time setup latch, so
+				// "Import settings" relocates from Top matter to Advanced.
+				await this.settingsService.updateSettings({
+					...slice,
+					hasCompletedSetup: true,
+				});
 			},
 		).open();
 	}

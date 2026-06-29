@@ -27,7 +27,7 @@ When you send a message, any provisional pill **pins** and becomes a pinned pill
 
 ## Default context
 
-On a fresh chat, the note you have open is offered as a provisional pill automatically. Prefer to start every chat with an empty strip and pin notes by hand? Turn this off under **Settings → Agent Console → Context → "Active note as default context"**.
+On a fresh chat, the note you have open is offered as a provisional pill automatically. Prefer to start every chat with an empty strip and pin notes by hand? Turn this off under **Settings → Agent Console → Chat behavior → "Active note as default context"**.
 
 ## Context survives restarts
 
