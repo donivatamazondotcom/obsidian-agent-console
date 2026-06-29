@@ -12,6 +12,10 @@ import type {
 } from "../types/agent";
 import type { ChatSession, SavedSessionInfo } from "../types/session";
 import { toAgentConfig } from "./settings-normalizer";
+import {
+	resolveAgentWorkingDirectory,
+	type ResolvedAgentWorkingDirectory,
+} from "../utils/working-directory";
 
 // ============================================================================
 // Types
@@ -178,6 +182,38 @@ export function findAgentSettings(
 		(agent) => agent.id === agentId,
 	);
 	return customAgent || null;
+}
+
+/**
+ * Resolve the working directory a NEW chat with `agentId` should launch in.
+ *
+ * Looks up the agent's per-agent default, then applies the standard precedence
+ * (per-agent default → global default → vault root) via
+ * `resolveAgentWorkingDirectory`. An unknown `agentId` is treated as having no
+ * per-agent default (falls back to global → vault).
+ *
+ * This is the single resolver shared by the mount-time cwd resolution and the
+ * agent-switch path (I131), so both agree on which directory a fresh session
+ * with a given agent uses. Pure and total — never throws.
+ *
+ * @param settings   Plugin settings (source of per-agent + global defaults).
+ * @param agentId    The agent the new chat will use.
+ * @param vaultRoot  The vault base path — the final fallback.
+ * @param dirExists  Existence predicate (injectable for tests).
+ */
+export function resolveCwdForAgent(
+	settings: AgentClientPluginSettings,
+	agentId: string,
+	vaultRoot: string,
+	dirExists?: (p: string) => boolean,
+): ResolvedAgentWorkingDirectory {
+	const agentSettings = findAgentSettings(settings, agentId);
+	return resolveAgentWorkingDirectory(
+		agentSettings?.defaultWorkingDirectory ?? "",
+		settings.defaultWorkingDirectory,
+		vaultRoot,
+		dirExists,
+	);
 }
 
 /**
