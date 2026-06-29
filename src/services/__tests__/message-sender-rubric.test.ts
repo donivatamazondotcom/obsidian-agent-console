@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-	buildSystemInstructions,
+	buildObsidianSystemPrompt,
 	buildTitleRubric,
 	TITLE_RUBRIC,
 	type PreparePromptInput,
@@ -9,8 +9,8 @@ import {
 /**
  * S2 (F03) + I111 — title rubric gating and placement.
  *
- * buildSystemInstructions returns ONLY the 3 Obsidian formatting hints on the
- * first message (they lead the prompt). The title rubric is produced separately
+ * buildObsidianSystemPrompt returns the composed Obsidian host-context briefing
+ * on the first message (it leads the prompt). The title rubric is produced separately
  * by buildTitleRubric and positioned immediately before the user message
  * (I111), firing ONLY on the first message under `agent-suggested`.
  */
@@ -20,27 +20,56 @@ const base: PreparePromptInput = {
 	vaultBasePath: "/vault",
 };
 
-describe("buildSystemInstructions — formatting hints only (S2/I111)", () => {
-	it("returns nothing on a non-first message", () => {
+describe("buildObsidianSystemPrompt — composed briefing (slice 3)", () => {
+	it("returns null on a non-first message", () => {
 		expect(
-			buildSystemInstructions({ ...base, isFirstMessage: false }),
-		).toEqual([]);
+			buildObsidianSystemPrompt({ ...base, isFirstMessage: false }),
+		).toBeNull();
 	});
 
-	it("first message → exactly the 3 hints, never the rubric", () => {
-		const out = buildSystemInstructions({ ...base, isFirstMessage: true });
-		expect(out).toHaveLength(3);
+	it("first message → the composed briefing, folding in the formatting hints, never the rubric", () => {
+		const out = buildObsidianSystemPrompt({ ...base, isFirstMessage: true });
+		expect(out).not.toBeNull();
 		expect(out).not.toContain(TITLE_RUBRIC);
+		expect(out).toContain("wikilink");
+		expect(out).toContain("Markdown tables");
 	});
 
-	it("first message, agent-suggested → still only the 3 hints (rubric is separate now)", () => {
-		const out = buildSystemInstructions({
+	it("includes the vault-collaboration line when cwd defaults to the vault root", () => {
+		const out = buildObsidianSystemPrompt({ ...base, isFirstMessage: true });
+		expect(out).toContain("Obsidian vault");
+	});
+
+	it("omits the vault-collaboration line, keeps the working-dir line, when cwd is outside the vault", () => {
+		const out = buildObsidianSystemPrompt({
 			...base,
 			isFirstMessage: true,
-			titleStrategy: "agent-suggested",
+			workingDirectory: "/somewhere/else",
 		});
-		expect(out).toHaveLength(3);
-		expect(out).not.toContain(TITLE_RUBRIC);
+		expect(out).not.toContain("Obsidian vault");
+		expect(out).toContain("/somewhere/else");
+	});
+
+	it("gates on the true vault root (vaultRootPath), not vaultBasePath", () => {
+		const out = buildObsidianSystemPrompt({
+			...base,
+			isFirstMessage: true,
+			vaultBasePath: "/realvault/sub",
+			workingDirectory: "/realvault/sub",
+			vaultRootPath: "/realvault",
+		});
+		expect(out).toContain("Obsidian vault");
+	});
+
+	it("hides the vault line when cwd is outside the true vault root", () => {
+		const out = buildObsidianSystemPrompt({
+			...base,
+			isFirstMessage: true,
+			vaultBasePath: "/external",
+			workingDirectory: "/external",
+			vaultRootPath: "/realvault",
+		});
+		expect(out).not.toContain("Obsidian vault");
 	});
 });
 

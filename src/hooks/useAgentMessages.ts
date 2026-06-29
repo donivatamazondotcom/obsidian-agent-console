@@ -58,6 +58,10 @@ export interface SendMessageOptions {
 	resourceLinks?: ResourceLinkPromptContent[];
 	/** Whether this is the first message in the session */
 	isFirstMessage?: boolean;
+	/** Session working directory (cwd) for the host-context briefing. */
+	workingDirectory?: string;
+	/** True vault root for the host-context vault-collaboration gate. */
+	vaultRootPath?: string;
 	/** Crystallized context notes for this chat (activates the context-note path) */
 	contextNotes?: ContextNote[];
 	/** Raw selection from the last active markdown editor (0-based lines) */
@@ -428,6 +432,10 @@ export function useAgentMessages(
 						session.promptCapabilities?.embeddedContext ?? false,
 					isFirstMessage: options.isFirstMessage,
 					titleStrategy: settingsAccess.getSnapshot().titleStrategy,
+					obsidianSystemPrompt:
+						settingsAccess.getSnapshot().obsidianSystemPrompt,
+					workingDirectory: options.workingDirectory,
+					vaultRootPath: options.vaultRootPath,
 					contextNotes: options.contextNotes,
 					selectionContext,
 				},

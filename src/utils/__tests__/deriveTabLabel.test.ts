@@ -223,3 +223,16 @@ describe("TS-I04: agent-timestamp never derives a label (T58)", () => {
 		).toBe(true);
 	});
 });
+
+describe("deriveTabLabel — strips a wrapped host-context briefing (T05 / slice 3)", () => {
+	it("strips a multi-paragraph wrapped briefing (incl. arbitrary user-edited text) from the head", () => {
+		const briefing =
+			"<obsidian_system_instruction>\n" +
+			"You are running inside Obsidian via the Agent Console plugin.\n\n" +
+			"My custom edited briefing line with arbitrary text.\n\n" +
+			"Your working directory is /vault.\n" +
+			"</obsidian_system_instruction>";
+		const msg = userMsg(`${briefing}\n\nimplement the feature`);
+		expect(deriveTabLabel([msg])).toBe("implement the feature");
+	});
+});

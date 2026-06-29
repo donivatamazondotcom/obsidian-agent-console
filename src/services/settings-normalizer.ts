@@ -19,6 +19,10 @@ import {
 	DEFAULT_TITLE_STRATEGY,
 	TITLE_STRATEGY_VALUES,
 } from "../types/title-strategy";
+import {
+	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
+	normalizeObsidianSystemPromptSettings,
+} from "../utils/obsidian-system-prompt";
 
 // ============================================================================
 // Display Settings
@@ -365,6 +369,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	sendMessageShortcut: "enter",
 	chatViewLocation: "right",
 	titleStrategy: DEFAULT_TITLE_STRATEGY,
+	obsidianSystemPrompt: DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
 	displaySettings: {
 		showEmojis: true,
 		fontSize: null,
@@ -600,6 +605,9 @@ export function normalizeRawSettings(
 			raw.titleStrategy,
 			TITLE_STRATEGY_VALUES,
 			D.titleStrategy,
+		),
+		obsidianSystemPrompt: normalizeObsidianSystemPromptSettings(
+			raw.obsidianSystemPrompt,
 		),
 		displaySettings: {
 			showEmojis: bool(rd.showEmojis, D.displaySettings.showEmojis),

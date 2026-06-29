@@ -21,6 +21,10 @@ import {
 	resolveAgentWorkingDirectory,
 } from "../utils/working-directory";
 import {
+	composeObsidianSystemPrompt,
+	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
+} from "../utils/obsidian-system-prompt";
+import {
 	TITLE_STRATEGY_OPTIONS,
 	type TitleStrategy,
 } from "../types/title-strategy";
@@ -48,6 +52,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	private agentSelector: DropdownComponent | null = null;
 	private unsubscribe: (() => void) | null = null;
 	private agentExpansion: AgentExpansionState = freshAgentExpansion();
+	// Obsidian system prompt — accordion open state (content persists in settings).
+	private hcbExpanded = false;
 	/**
 	 * Agent id whose first field should grab focus on the next render — set
 	 * when "Add custom agent" creates an agent, consumed (cleared) when that
@@ -272,7 +278,209 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(containerEl)
+		// Obsidian system prompt — single-artifact model. All rows render via the
+		// Setting API so labels/controls share native alignment; textareas + the
+		// preview are made full-width by a stacking class on their .setting-item.
+		const hcbVaultRoot = resolveVaultRoot();
+		const hcb = (): typeof this.plugin.settings.obsidianSystemPrompt =>
+			this.plugin.settings.obsidianSystemPrompt;
+		const setHcb = async (
+			patch: Partial<typeof this.plugin.settings.obsidianSystemPrompt>,
+		): Promise<void> => {
+			await this.plugin.settingsService.updateSettings({
+				obsidianSystemPrompt: { ...this.plugin.settings.obsidianSystemPrompt, ...patch },
+			});
+		};
+		const hcbComposed = (appendOverride?: string): string => {
+			const cur = hcb();
+			const base =
+				composeObsidianSystemPrompt(
+					{ blocks: cur.blocks, mode: "options" },
+					{ cwd: hcbVaultRoot, vaultRoot: hcbVaultRoot },
+				) ?? "";
+			const add = (appendOverride ?? cur.appendText ?? "").trim();
+			return add ? base + "\n\n" + add : base;
+		};
+		const hcbFullWidth = (el: HTMLElement): void => {
+			el.closest(".setting-item")?.classList.add(
+				"agent-client-hcb-fullwidth",
+			);
+		};
+		this.renderCollapsibleSection(
+			containerEl,
+			"Obsidian system prompt",
+			(body) => {
+				let previewTa: import("obsidian").TextAreaComponent | null = null;
+				let appendTa: import("obsidian").TextAreaComponent | null = null;
+				let fullTa: import("obsidian").TextAreaComponent | null = null;
+				const liveText = (): string => {
+					const cur = hcb();
+					if ((cur.mode ?? "options") === "full") {
+						return (fullTa?.inputEl?.value ?? cur.customText ?? "").trim();
+					}
+					return hcbComposed(appendTa?.inputEl?.value).trim();
+				};
+				const refreshPreview = (): void => {
+					if (!previewTa) return;
+					previewTa.setValue(
+						liveText() ||
+							"(No system prompt will be sent — the agent gets no Obsidian context.)",
+					);
+				};
+				new Setting(body).setDesc(
+					"Sent to the agent on the first message of each chat so it works naturally in Obsidian. Most people can leave this alone.",
+				);
+
+				if ((hcb().mode ?? "options") === "options") {
+					const blockToggle = (
+						name: string,
+						desc: string,
+						key: keyof typeof this.plugin.settings.obsidianSystemPrompt.blocks,
+					): void => {
+						new Setting(body)
+							.setName(name)
+							.setDesc(desc)
+							.addToggle((toggle) =>
+								toggle
+									.setValue(hcb().blocks[key])
+									.onChange(async (value) => {
+										await setHcb({
+											blocks: { ...hcb().blocks, [key]: value },
+										});
+										this.display();
+									}),
+							);
+					};
+					blockToggle(
+						"Say it's running in Obsidian",
+						"Lets the agent know it's working inside your Obsidian app.",
+						"hostIdentity",
+					);
+					blockToggle(
+						"Explain how replies are shown",
+						"Tells the agent how to format replies so links, math, and diagrams render correctly, and which Obsidian conventions to use when writing notes.",
+						"rendering",
+					);
+					blockToggle(
+						"Share the working folder",
+						"Tells the agent which folder this chat is working in.",
+						"workingDirectory",
+					);
+					blockToggle(
+						"Let it work with your notes",
+						"Tells the agent it can read and edit your notes. Only sent when the chat runs inside your vault.",
+						"vaultCollaboration",
+					);
+
+					new Setting(body)
+						.setName("Your vault context")
+						.setDesc(
+							"Your own notes for the agent — where things live, naming and linking conventions, the tone you prefer. Added to the end of the prompt, and the same for every chat in this vault.",
+						)
+						.addTextArea((ta) => {
+							appendTa = ta;
+							ta.setValue(hcb().appendText ?? "");
+							ta.inputEl.rows = 4;
+							hcbFullWidth(ta.inputEl);
+							ta.onChange(async (value) => {
+								await setHcb({ appendText: value });
+								refreshPreview();
+							});
+						});
+
+					new Setting(body)
+						.setName("Edit the full prompt")
+						.setDesc(
+							"Advanced: take over the whole prompt by hand. Opens pre-filled with the text shown below.",
+						)
+						.addButton((btn) =>
+							btn.setButtonText("Edit full prompt…").onClick(async () => {
+								const seeded = hcbComposed(appendTa?.inputEl?.value);
+								await setHcb({ mode: "full", customText: seeded });
+								this.display();
+							}),
+						);
+				} else {
+					new Setting(body)
+						.setName("Full prompt")
+						.setDesc(
+							"You're editing the entire prompt by hand. Your switches are baked into this text and no longer apply; the preview below shows exactly what gets sent.",
+						)
+						.addTextArea((ta) => {
+							fullTa = ta;
+							ta.setValue(hcb().customText ?? "");
+							ta.inputEl.rows = 10;
+							hcbFullWidth(ta.inputEl);
+							ta.onChange(async (value) => {
+								await setHcb({ customText: value });
+								refreshPreview();
+							});
+						});
+					new Setting(body)
+						.setName("Back to options")
+						.setDesc(
+							"Return to the switches. Your hand-edited text is kept in case you come back.",
+						)
+						.addButton((btn) =>
+							btn.setButtonText("Back to options").onClick(async () => {
+								await setHcb({ mode: "options" });
+								this.display();
+							}),
+						);
+				}
+
+				// "What gets sent" is ALWAYS present — the constant, honest
+				// picture of the exact text the agent receives. In options mode
+				// it tracks the toggles + vault context; in full mode it mirrors
+				// the hand-edited prompt live (the full-prompt box's onChange
+				// calls refreshPreview, and liveText() reads that box in full
+				// mode). Rendering it after the mode-specific section keeps the
+				// input-above-output reading order in both modes.
+				new Setting(body)
+					.setName("What gets sent")
+					.setDesc(
+						"Read-only preview of the exact text the agent receives on the first message.",
+					)
+					.addTextArea((ta) => {
+						previewTa = ta;
+						ta.inputEl.rows = 8;
+						ta.inputEl.readOnly = true;
+						ta.inputEl.classList.add("agent-client-hcb-readonly");
+						hcbFullWidth(ta.inputEl);
+						refreshPreview();
+					});
+				if (
+					(hcb().mode ?? "options") === "options" &&
+					hcb().blocks.vaultCollaboration
+				) {
+					new Setting(body).setDesc(
+						"The notes line is only sent when a chat's folder is inside your vault.",
+					);
+				}
+
+				new Setting(body)
+					.setName("Reset to defaults")
+					.setDesc(
+						"Turn all switches on, clear your vault context and any full prompt, and return to the options view.",
+					)
+					.addButton((btn) =>
+						btn.setButtonText("Reset to defaults").onClick(async () => {
+							await setHcb(
+								structuredClone(DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS),
+							);
+							this.display();
+						}),
+					);
+			},
+			{
+				open: this.hcbExpanded,
+				onToggle: (open: boolean) => {
+					this.hcbExpanded = open;
+				},
+			},
+		);
+
+				new Setting(containerEl)
 			.setName("Appearance & notifications")
 			.setHeading();
 

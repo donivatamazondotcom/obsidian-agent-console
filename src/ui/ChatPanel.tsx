@@ -658,6 +658,7 @@ export function ChatPanel({
 		selectionTracker.activeNotePath,
 		autoDefaultSuppressed,
 		lazyAcquireNowRef,
+		vaultRoot,
 	);
 
 	const {

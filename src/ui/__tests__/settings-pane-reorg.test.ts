@@ -519,3 +519,44 @@ describe("Settings Pane Reorganization — Add custom agent (auto-expand + focus
 		).toBeNull();
 	});
 });
+
+describe("Obsidian system prompt — 'What gets sent' preview is always present", () => {
+	// Issue 1: clicking "Edit full prompt" used to gate the preview out of
+	// full mode. The preview must be present in BOTH modes and, in full mode,
+	// mirror the hand-edited full-prompt box live.
+	const fullModeOverride = {
+		obsidianSystemPrompt: {
+			blocks: {
+				hostIdentity: true,
+				rendering: true,
+				workingDirectory: true,
+				vaultCollaboration: true,
+			},
+			appendText: "",
+			customText: "SEED PROMPT",
+			mode: "full" as const,
+		},
+	};
+
+	it("renders the 'What gets sent' preview in full-edit mode alongside the editable box", () => {
+		const { settings } = renderPane(fullModeOverride);
+		expect(find(settings, "What gets sent")).toBeDefined();
+		expect(find(settings, "Full prompt")).toBeDefined();
+	});
+
+	it("preview tracks edits to the full-prompt box live", async () => {
+		const { settings } = renderPane(fullModeOverride);
+		const fullTa = find(settings, "Full prompt")!.comps.textarea;
+		// Simulate the user typing into the editable full-prompt box.
+		(fullTa as unknown as { inputEl: HTMLInputElement }).inputEl.value =
+			"EDITED LIVE";
+		await (fullTa.onChangeCb as (v: unknown) => unknown)("EDITED LIVE");
+		const preview = find(settings, "What gets sent")!.comps.textarea;
+		expect(preview.getValue()).toBe("EDITED LIVE");
+	});
+
+	it("still renders the preview in options mode (no regression)", () => {
+		const { settings } = renderPane(); // DEFAULT_SETTINGS → options mode
+		expect(find(settings, "What gets sent")).toBeDefined();
+	});
+});

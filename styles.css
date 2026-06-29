@@ -3173,3 +3173,25 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	padding-right: 16px;
 	color: var(--text-muted);
 }
+
+/* Obsidian system prompt — stack name/desc above a full-width control */
+.agent-client-hcb-fullwidth {
+	display: block;
+}
+.agent-client-hcb-fullwidth .setting-item-control {
+	width: 100%;
+	padding-top: var(--size-4-2);
+	justify-content: stretch;
+}
+.agent-client-hcb-fullwidth .setting-item-control textarea {
+	width: 100%;
+	resize: vertical;
+	font-family: var(--font-text);
+}
+
+/* Obsidian system prompt — read-only preview (visually distinct from editable boxes) */
+.agent-client-hcb-readonly {
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	cursor: default;
+}

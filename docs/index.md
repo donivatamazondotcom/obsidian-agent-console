@@ -53,6 +53,9 @@ features:
   - icon: 🎨
     title: Native & Theme-Friendly
     details: Agent Console adopts Obsidian’s native styling and theme variables instead of hardcoded colors and chrome, so it looks like part of your Obsidian and adapts to any custom theme.
+  - icon: 🧭
+    title: Agents That Know They're in Obsidian
+    details: From the first message, each agent gets a short system prompt about its surroundings – that it's in Obsidian, that your replies render links, math, and diagrams, and that it can work with your notes when the chat runs in your vault. It acts native out of the box, and you choose exactly what it's told.
   - icon: 🛡️
     title: Enterprise-Grade Quality
     details: "Built with the rigor you'd expect from enterprise software: 700+ automated tests, lint and build checks on every change, a token-efficiency benchmark you can run yourself, and performance tracked against a baseline – so updates stay solid as the plugin grows."
