@@ -47,9 +47,11 @@ if [ -d "$PLUGIN_DIR/sessions.seed" ]; then
 fi
 
 # Create a clean, username-free demo working directory so the "Default working
-# directory" settings hint resolves to it (e.g. "Resolved: /Users/Shared/notes")
-# instead of leaking the real vault-root absolute path in settings screenshots.
-mkdir -p /Users/Shared/notes 2>/dev/null || true
+# directory" settings hint resolves to it (e.g. "Resolved: /tmp/notes") instead
+# of leaking the real vault-root absolute path in settings screenshots. Must be
+# outside /Users and /home (CI "Fixture path leak guard" forbids those in the
+# tracked data.template.json that points new chats here).
+mkdir -p /tmp/notes 2>/dev/null || true
 # Enable loads the freshly-built main.js (symlinked above) AND the template
 # data.json. Scoped to the fixtures vault ONLY; the daily-driver vault is never
 # touched (see learned/skill-rules/agent-console.md "never reload").
