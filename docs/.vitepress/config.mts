@@ -85,6 +85,7 @@ export default defineConfig({
           { text: "Switching Agents", link: "/usage/switching-agents" },
           { text: "Shared Links", link: "/usage/shared-links" },
           { text: "Working Directory", link: "/usage/working-directory" },
+          { text: "Obsidian Context", link: "/usage/obsidian-context" },
           { text: "Tabbed Sessions", link: "/usage/tabbed-sessions" },
           { text: "Editing", link: "/usage/editing" },
           { text: "Chat Export", link: "/usage/chat-export" },
