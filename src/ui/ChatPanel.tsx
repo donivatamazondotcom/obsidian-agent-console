@@ -129,6 +129,8 @@ export interface ChatPanelCallbacks {
 	saveComposerAsQuickPrompt: () => void;
 	/** Current resolved working directory for this tab (persisted for restore). */
 	getWorkingDirectory: () => string;
+	/** Open the Session History modal for this tab (open-session-history command). */
+	openHistory: () => void;
 }
 
 // ============================================================================
@@ -778,6 +780,11 @@ export function ChatPanel({
 		onOpenSessionInTab,
 		onSetTabLabelCustom,
 	);
+
+	// Stable ref so the registered callback bundle doesn't churn on
+	// handleOpenHistory identity changes (mirrors handleSendMessageRef etc.).
+	const handleOpenHistoryRef = useRef(handleOpenHistory);
+	handleOpenHistoryRef.current = handleOpenHistory;
 
 	// ============================================================
 	// Sidebar-specific: agent switch / new-chat dispatcher.
@@ -2333,6 +2340,7 @@ export function ChatPanel({
 				});
 			},
 			getWorkingDirectory: () => agentCwd,
+			openHistory: () => handleOpenHistoryRef.current(),
 		});
 	}, [onRegisterCallbacks, activeAgentLabel, agentCwd]);
 

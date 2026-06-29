@@ -2116,9 +2116,11 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
-	/* Fixed-height scroll region so the modal frame stays anchored as the
-	   result count changes during search (I96). */
-	height: clamp(280px, 50vh, 460px);
+	/* Flex to fill the fixed-height frame; the frame (not the list) owns the
+	   height, so header-row changes can't re-center the modal (I146,
+	   refines I96). */
+	flex: 1;
+	min-height: 0;
 	overflow-y: auto;
 }
 
@@ -2127,6 +2129,8 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	align-items: center;
 	justify-content: space-between;
 	padding: 12px;
+	/* E: stable row height across Local (badge) and Agent (no badge) views. */
+	min-height: 56px;
 	background: var(--background-secondary);
 	border-radius: var(--radius-m);
 	border: 1px solid var(--background-modifier-border);
@@ -2176,6 +2180,15 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	margin-left: 12px;
 }
 
+/* C: separates the destructive Delete icon from the constructive actions
+   (spatial cue, not color — red/green-safe). */
+.agent-client-session-history-action-divider {
+	width: 1px;
+	align-self: stretch;
+	margin: 4px 2px;
+	background: var(--background-modifier-border);
+}
+
 .agent-client-session-history-action-icon {
 	width: 24px;
 	height: 24px;
@@ -2218,9 +2231,10 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	/* Match the list's fixed height so the frame doesn't jump between the
-	   list, empty, loading, and error states (I96). */
-	height: clamp(280px, 50vh, 460px);
+	/* Fill the flex frame so empty / loading / error occupy the same space as
+	   the list (I96 + I146). */
+	flex: 1;
+	min-height: 0;
 	text-align: center;
 	color: var(--text-muted);
 }
@@ -2808,6 +2822,25 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .agent-client-session-history-modal {
 	width: 600px;
 	max-width: 90vw;
+	/* Fixed frame height so toggling source / "This vault only" / the search
+	   hint can't change total height and re-center the modal (I146). */
+	height: min(78vh, 640px);
+}
+
+/* Modal body as a flex column: the list fills the remaining space and the
+   header rows (toggle, sync affordance, search, filter) no longer grow the
+   frame (I146, refines I96). */
+.agent-client-session-history-modal .modal-content {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.agent-client-session-history-react-root {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
 }
 
 /* Shared search-term highlight (title + snippet). */

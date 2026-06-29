@@ -55,6 +55,7 @@ These appear only when a chat view is open.
 | **Show tab list** | Open the tab-bar ⌄ list — a one-glance view of every tab and its status (done ●, working ◐, waiting on you △, error ✕), including tabs scrolled out of sight. Bind a hotkey under **Settings → Hotkeys** to pop it without reaching for the mouse |
 | **Close session tab** | Close the active tab |
 | **Reopen closed session tab** | Reopen the most-recently-closed tab and restore its conversation — transcript, agent, label, and pinned context. Repeat to walk further back (browser-style Cmd+Shift+T). Closed tabs are remembered for the current session only |
+| **Open session history** | Open the session history view to browse, search, restore, fork, rename, or delete past sessions. Bind a hotkey under **Settings → Hotkeys** to open it without reaching for the mouse |
 
 ## Settings Commands
 

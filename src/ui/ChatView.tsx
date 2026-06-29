@@ -931,6 +931,8 @@ function ChatComponent({
 				activeCallbacksRef.current?.saveComposerAsQuickPrompt(),
 			getWorkingDirectory: () =>
 				activeCallbacksRef.current?.getWorkingDirectory() ?? "",
+			openHistory: () =>
+				activeCallbacksRef.current?.openHistory(),
 		});
 		view.setTabHandlesAccessor(() =>
 			Array.from(tabHandlesRef.current.entries()).map(
@@ -1390,6 +1392,11 @@ export class ChatView extends ItemView implements IChatViewContainer {
 
 	async cancelOperation(): Promise<void> {
 		await this.callbacks?.cancelOperation();
+	}
+
+	/** Open the active tab's Session History modal (open-session-history command). */
+	openSessionHistory(): void {
+		this.callbacks?.openHistory();
 	}
 
 	runQuickPrompt(prompt: QuickPrompt, gesture: QuickPromptGesture): void {

@@ -165,20 +165,39 @@ describe("SessionHistoryContent — fork action (D1)", () => {
 	});
 });
 
-describe("SessionHistoryContent — per-row agent badge", () => {
+describe("SessionHistoryContent — per-row agent badge (D: only when >1 agent)", () => {
 	afterEach(cleanup);
 
-	it("renders the agent display name as a badge on Local rows", () => {
+	it("hides the agent badge in a single-agent library (avoids redundant noise)", () => {
 		render(
 			<SessionHistoryContent
 				{...makeProps({
-					sessions: [row("c1", "a claude session", "claude")],
+					sessions: [
+						row("c1", "a claude session", "claude"),
+						row("c2", "another claude session", "claude"),
+					],
 				})}
 			/>,
 		);
-		// Query by the badge's aria-label so it isn't confused with the Agent
-		// pill (which now also reads the agent name).
+		// All rows share one agent → the badge would duplicate the source pill,
+		// so it is suppressed.
+		expect(screen.queryByLabelText("Agent: Claude Code")).toBeNull();
+	});
+
+	it("shows agent badges when the library spans more than one agent", () => {
+		render(
+			<SessionHistoryContent
+				{...makeProps({
+					sessions: [
+						row("c1", "a claude session", "claude"),
+						row("k1", "a kiro session", "kiro"),
+					],
+				})}
+			/>,
+		);
+		// Query by aria-label so the badges aren't confused with the Agent pill.
 		expect(screen.getByLabelText("Agent: Claude Code")).toBeTruthy();
+		expect(screen.getByLabelText("Agent: Kiro CLI")).toBeTruthy();
 	});
 });
 

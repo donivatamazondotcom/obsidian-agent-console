@@ -164,6 +164,7 @@ src/
 │   ├── resolveInitialAgentId.ts # Pure: agent a fresh (non-restored) tab opens on — Default agent when restore-tabs is off (TP-I05)
 │   ├── send-affordance.ts       # Pure send-enablement resolver (deriveSendAffordance → canSend/buttonDisabled/reason) + isSessionLive; single source for ChatPanel/InputArea/InputToolbar/MessageList/broadcast
 │   ├── session-history-view.ts  # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source) → listSource/agentViewAvailable/showFilters/restore/fork/banner); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
+│   ├── format-session-title.ts  # Pure display-formatter for session-history titles (renders markdown links/wikilinks to readable text, collapses whitespace; no truncation — CSS owns width); used by SessionHistoryModal, carries into HistoryRow
 │   ├── folder-picker.ts         # Shared Electron native folder picker (modal + settings Browse)
 │   ├── working-directory.ts     # Resolve/validate the default working directory for new chats
 │   ├── agent-expansion.ts       # Per-session expand/collapse state for settings agent sections
