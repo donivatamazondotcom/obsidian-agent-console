@@ -4,6 +4,10 @@ Save the prompts you type over and over — "debrief this meeting", "summarize t
 
 A quick prompt is just a note in a folder. The note's `label` is the button text; the note body is the prompt that gets sent. Add a note, and the prompt shows up right away — no restart.
 
+<p align="center">
+  <img src="/images/quick-prompts.webp" alt="Agent Console composer with quick-prompt chips above the box and the ! launcher dropdown open: prompts, a Create row, and a key legend" width="520" />
+</p>
+
 ## Set up the folder
 
 By default Agent Console reads quick prompts from a folder named `Quick Prompts` in your vault. Change it under **Settings → Agent Console → Chat behavior → Quick prompts folder**.

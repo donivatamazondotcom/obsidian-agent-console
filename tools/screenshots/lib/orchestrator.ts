@@ -190,6 +190,15 @@ export async function captureEntry(
 
 	try {
 
+	// 0.5 Dismiss any leftover Obsidian modal from a prior capture so this shot
+	// starts clean. A modal opened by an earlier entry (e.g. confirm-close via
+	// forceCloseConfirm, or settings-import) is an APP modal that survives the
+	// setup.sh plugin reload and would overlap this shot. Shots that need a
+	// modal open their own later in the flow, so clearing leftovers here is safe.
+	await deps.cdp.evaluate(
+		`(() => { let n = 0; document.querySelectorAll(".modal-container").forEach((m) => { const b = m.querySelector(".modal-close-button"); if (b) { b.click(); } else { m.remove(); } n++; }); return n; })()`,
+	);
+
 	// 1. Mobile emulation (before any UI driving)
 	if (entry.mobile) {
 		await deps.cdp.setMobileEmulation(true);
@@ -205,6 +214,25 @@ export async function captureEntry(
 		await deps.cdp.evaluate(
 			`(() => { const s = app.plugins.plugins["agent-console"].settings; s.defaultAgentId = ${JSON.stringify(entry.agentId)}; return s.defaultAgentId; })()`,
 		);
+	}
+
+	// 1b. Force a perpetual "connecting" session for the queue-next-message
+	// shot: rewrite the default agent's command so its process never completes
+	// the ACP handshake. A message sent into a connecting session is held in
+	// the LOCKED composer (queue-of-one, #82 Decision 9) — the subject of that
+	// shot. Runs before clickRibbon so the first tab connects to the hung
+	// command. setup.sh restores the real command from the template next run.
+	if (entry.initialState?.forceConnectingHold) {
+		await deps.cdp.evaluate(
+			`(() => { const s = app.plugins.plugins["agent-console"].settings; const id = s.defaultAgentId; const all = [s.claude, s.codex, s.gemini, s.kiro, ...(s.customAgents || [])]; for (const a of all) { if (a && a.id === id) { a.command = "sleep"; a.args = ["86400"]; } } return id; })()`,
+		);
+	}
+
+	// 1c. Disable native menus so an Obsidian Menu popover renders as a
+	// window-capturable DOM `.menu` (not an OS popup that screen-mode would
+	// need). Mirrors the forceTabStates path; setup.sh restores config next run.
+	if (entry.initialState?.disableNativeMenus) {
+		await deps.cdp.evaluate(`app.vault.setConfig("nativeMenus", false)`);
 	}
 
 	// 2. Initial state
@@ -502,15 +530,35 @@ export async function captureEntry(
 			}
 		}
 	}
-	// 3c-ter. Type a filter into the open prompt/suggest input (e.g. narrow the
-	// command palette to the Agent Console commands).
+	// 3c-quinquies. Surface the ConfirmCloseModal for the confirm-close shot.
+	// The modal is reachable only through the panel's private Cmd+W handler
+	// (handleCloseRequest → shouldConfirmClose → ConfirmCloseModal): there is no
+	// command and a focused Cmd+W can't be synthesized reliably. Call the live
+	// view's handler AFTER forceTabStates has seeded 2+ tabs so the real tab
+	// count gates the real modal. The confirm action (leaf.detach) only fires
+	// on the user's "Close panel" click, so capturing the open modal is safe.
+	if (entry.initialState?.forceCloseConfirm) {
+		await deps.cdp.evaluate(
+			`(() => { const v = app.workspace.getLeavesOfType("agent-client-chat-view")[0]?.view; if (!v) return false; v.handleCloseRequest(); return true; })()`,
+		);
+		await deps.cdp.waitForElement(".modal", HOVER_TOOLTIP_TIMEOUT_MS);
+	}
+	// 3c-ter. Type a filter into an open input. Default target is the
+	// command-palette `.prompt-input`; set `typeQuerySelector` to aim the
+	// keystrokes at a different input — e.g. the session-history search box
+	// `.agent-client-session-history-search-input`. Works for <input> and
+	// <textarea> (the native value setter is chosen per element so React's
+	// controlled input picks up the change).
 	if (entry.initialState?.typeQuery) {
 		const q = entry.initialState.typeQuery
 			.replace(/\\/g, "\\\\")
 			.replace(/`/g, "\\`")
 			.replace(/\$/g, "\\$");
+		const inputSel = JSON.stringify(
+			entry.initialState.typeQuerySelector ?? ".prompt-input",
+		);
 		await deps.cdp.evaluate(
-			`(() => { const i = document.querySelector('.prompt-input'); if (!i) return false; const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; setter.call(i, \`${q}\`); i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`,
+			`(() => { const i = document.querySelector(${inputSel}); if (!i) return false; const proto = i.tagName === "TEXTAREA" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype; const setter = Object.getOwnPropertyDescriptor(proto, 'value').set; setter.call(i, \`${q}\`); i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`,
 		);
 		await sleep(SETTLE_MS);
 	}
@@ -532,6 +580,22 @@ export async function captureEntry(
 		} else {
 			const waitSel = entry.initialState.waitSelector ?? ".menu";
 			await deps.cdp.waitForElement(waitSel, HOVER_TOOLTIP_TIMEOUT_MS);
+		}
+	}
+
+	// 3d-bis. Multi-click drive: click each selector in order, waiting for its
+	// `waitFor` (or a brief settle) between steps. Used when a shot needs two
+	// clicks — e.g. load a saved session from the history modal, then open the
+	// shared-links dropdown on the now-active tab.
+	if (entry.initialState?.clickSequence?.length) {
+		for (const step of entry.initialState.clickSequence) {
+			await deps.cdp.waitForElement(step.selector, RESPONSE_TIMEOUT_MS);
+			await deps.cdp.clickWithCoords(step.selector);
+			if (step.waitFor) {
+				await deps.cdp.waitForElement(step.waitFor, RESPONSE_TIMEOUT_MS);
+			} else {
+				await sleep(SETTLE_MS);
+			}
 		}
 	}
 
@@ -598,6 +662,45 @@ export async function captureEntry(
 		);
 	}
 
+	// 3h. Settings-surface driving: collapse `<details>` accordions (by CSS) and
+	// expand + scroll a named setting/section into view (by visible text). Used
+	// by the settings shots (collapsible-agent-sections, obsidian-system-prompt,
+	// settings-working-directory) whose subject sits inside a collapsed accordion
+	// and/or below the settings-pane fold. The crop reads getBoundingClientRect
+	// at capture time, so an off-screen section must be scrolled into the window.
+	if (entry.initialState?.collapseSelectors?.length) {
+		const sels = JSON.stringify(entry.initialState.collapseSelectors);
+		await deps.cdp.evaluate(
+			`(() => { for (const s of ${sels}) { document.querySelectorAll(s).forEach((el) => { const d = el.tagName === "DETAILS" ? el : el.closest("details"); if (d) d.open = false; }); } return true; })()`,
+		);
+		await sleep(SETTLE_MS);
+	}
+	if (entry.initialState?.scrollToSettingText) {
+		const txt = JSON.stringify(entry.initialState.scrollToSettingText);
+		await deps.cdp.evaluate(
+			`(() => {
+				const sc = document.querySelector(".vertical-tab-content");
+				if (!sc) return false;
+				const norm = (s) => (s || "").replace(/\\s+/g, " ").trim();
+				const want = norm(${txt});
+				const sections = Array.from(sc.querySelectorAll("details.agent-client-agent-section"));
+				let accordion = sections.find((d) => norm(d.querySelector("summary") && d.querySelector("summary").textContent) === want);
+				if (accordion) {
+					accordion.open = true;
+					// Lead with the section heading: align the summary to the top,
+					// then nudge up a little so it isn't flush against the edge.
+					(accordion.querySelector("summary") || accordion).scrollIntoView({ block: "start", inline: "nearest" });
+					sc.scrollTop = Math.max(0, sc.scrollTop - 24);
+					return true;
+				}
+				const item = Array.from(sc.querySelectorAll(".setting-item")).find((it) => { const n = it.querySelector(".setting-item-name"); return n && norm(n.textContent) === want; });
+				if (!item) return false;
+				item.scrollIntoView({ block: "center", inline: "nearest" });
+				return true;
+			})()`,
+		);
+		await sleep(SETTLE_MS);
+	}
 	// 4. Brief settle for UI animations
 	await sleep(SETTLE_MS);
 
@@ -619,6 +722,15 @@ export async function captureEntry(
 		}
 		await sleep(SETTLE_MS);
 	}
+
+	// 4b-ter. Dismiss transient Obsidian notices (toasts) before the
+	// cleanliness assert + capture. A notice is never part of a docs shot
+	// (the cleanliness guard forbids `.notice`); loading a session or
+	// changing config can fire one (e.g. "new chat started in …"). Removing
+	// any present keeps a benign toast from failing the shot or leaking in.
+	await deps.cdp.evaluate(
+		`(() => { document.querySelectorAll(".notice").forEach((n) => n.remove()); return true; })()`,
+	);
 
 	// 4c. Tier-2 mustShow assertion (rubric P2). Window-mode only: screen-mode
 	// popovers render in a native popup window outside the renderer DOM, so
@@ -892,6 +1004,15 @@ export async function captureEntry(
 		// user's daily vault — even if an assert or the content guard threw.
 		if (entry.captureMode === "screen") {
 			await deps.cdp.setWindowAlwaysOnTop(false);
+		}
+		// Tear down a modal this entry opened (forceCloseConfirm) so it never
+		// lingers in studio to overlap a later shot or the user's view.
+		if (entry.initialState?.forceCloseConfirm) {
+			await deps.cdp
+				.evaluate(
+					`(() => { document.querySelectorAll(".modal-container").forEach((m) => { const b = m.querySelector(".modal-close-button"); if (b) { b.click(); } else { m.remove(); } }); return true; })()`,
+				)
+				.catch(() => {});
 		}
 	}
 }

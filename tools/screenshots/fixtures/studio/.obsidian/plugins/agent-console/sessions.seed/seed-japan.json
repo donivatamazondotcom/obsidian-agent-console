@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "sessionId": "seed-japan",
+  "agentId": "claude-code-acp",
+  "messages": [
+    {
+      "id": "m5",
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Plan a 10-day Japan itinerary covering Tokyo, Kyoto, and Osaka with food recommendations."
+        }
+      ],
+      "timestamp": "2026-06-22T19:28:00.000Z"
+    },
+    {
+      "id": "m6",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Here is a 10-day plan: 4 nights Tokyo (Shinjuku, Asakusa, a day trip to Hakone), 3 nights Kyoto (Fushimi Inari, Arashiyama), 2 nights Osaka (Dotonbori street food). I grouped sights by neighborhood to minimize transit."
+        }
+      ],
+      "timestamp": "2026-06-22T19:30:00.000Z"
+    }
+  ],
+  "contextNotes": [],
+  "savedAt": "2026-06-22T19:30:00.000Z"
+}

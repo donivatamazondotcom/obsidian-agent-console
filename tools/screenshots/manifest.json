@@ -17,7 +17,7 @@
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 800,
 			"placement": "feature",
-			"purpose": "Shows where Agent Console lives \u2014 the ribbon entry point.",
+			"purpose": "Shows where Agent Console lives — the ribbon entry point.",
 			"differentiator": "Ribbon icon / one-click access",
 			"mustShow": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"]",
 			"caption": "Open the agent from the ribbon",
@@ -156,7 +156,7 @@
 			"purpose": "Tune how much reasoning effort the agent spends per session.",
 			"differentiator": "Per-session reasoning effort",
 			"mustShow": ".agent-client-config-selector-thought_level",
-			"caption": "Dial the agent\u2019s effort up or down",
+			"caption": "Dial the agent’s effort up or down",
 			"altText": "Agent Console effort-level menu showing Default, Low, Medium, High, and Max"
 		},
 		{
@@ -479,7 +479,7 @@
 			"differentiator": "Context strip / @-mention notes",
 			"mustShow": ".context-strip",
 			"caption": "Pull notes into context with @",
-			"altText": "Typing an @ note mention, choosing a note, and sending \u2014 the mentioned notes appear as pills in the context strip",
+			"altText": "Typing an @ note mention, choosing a note, and sending — the mentioned notes appear as pills in the context strip",
 			"animation": {
 				"fps": 5,
 				"maxBytes": 1500000,
@@ -539,7 +539,7 @@
 			"differentiator": "Tabbed sessions with per-tab status",
 			"mustShow": ".agent-client-tab-state-icon",
 			"caption": "Run agents in parallel tabs",
-			"altText": "Sending a prompt in one session tab, opening a second tab, and sending another \u2014 each tab keeps its own conversation and status icon",
+			"altText": "Sending a prompt in one session tab, opening a second tab, and sending another — each tab keeps its own conversation and status icon",
 			"animation": {
 				"fps": 5,
 				"maxBytes": 2500000,
@@ -629,7 +629,7 @@
 			"differentiator": "Tabbed sessions with per-tab status",
 			"mustShow": ".agent-client-tab-state-icon",
 			"caption": "Run agents in parallel tabs",
-			"altText": "Three agent sessions in parallel tabs beside an open note in Obsidian \u2014 each tab keeps its own conversation and status icon",
+			"altText": "Three agent sessions in parallel tabs beside an open note in Obsidian — each tab keeps its own conversation and status icon",
 			"animation": {
 				"fps": 5,
 				"maxBytes": 3500000,
@@ -776,13 +776,13 @@
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 40,
 			"placement": "feature",
-			"purpose": "Per-tab status glyphs in the tab bar \u2014 spot the active, idle, or stuck session at a glance.",
+			"purpose": "Per-tab status glyphs in the tab bar — spot the active, idle, or stuck session at a glance.",
 			"differentiator": "Per-tab status glyphs in the tab-list dropdown",
 			"mustShow": ".menu-item",
 			"caption": "See every session's status at a glance",
 			"altText": "Agent Console tab-list dropdown: five sessions, each with a status glyph for ready, busy, awaiting permission, errored, and disconnected.",
 			"docPage": "docs/usage/tabbed-sessions.md",
-			"captureNote": "Driven by initialState.forceTabStates: seeds 5 nicely-labeled tabs forced into the five visual states with nativeMenus off (so the chevron opens a DOM .menu), then clickSelector opens the chevron. Window-mode, dpr-independent \u2014 no screen-mode crop.",
+			"captureNote": "Driven by initialState.forceTabStates: seeds 5 nicely-labeled tabs forced into the five visual states with nativeMenus off (so the chevron opens a DOM .menu), then clickSelector opens the chevron. Window-mode, dpr-independent — no screen-mode crop.",
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 680
 		},
@@ -950,9 +950,9 @@
 		},
 		{
 			"name": "session-history-search",
-			"pending": true,
-			"width": 760,
-			"height": 520,
+			"pending": false,
+			"width": 712,
+			"height": 706,
 			"crop": {
 				"x": 0,
 				"y": 0,
@@ -963,7 +963,12 @@
 			"cropPadding": 16,
 			"initialState": {
 				"openNote": "Welcome.md",
-				"clickRibbon": true
+				"clickRibbon": true,
+				"runCommands": [
+					"agent-console:open-session-history"
+				],
+				"typeQuery": "docs",
+				"typeQuerySelector": ".agent-client-session-history-search-input"
 			},
 			"approvalThreshold": 0.05,
 			"placement": "feature",
@@ -977,9 +982,9 @@
 		},
 		{
 			"name": "queue-next-message",
-			"pending": true,
-			"width": 1300,
-			"height": 380,
+			"pending": false,
+			"width": 1380,
+			"height": 460,
 			"crop": {
 				"x": 0,
 				"y": 0,
@@ -992,50 +997,70 @@
 			],
 			"initialState": {
 				"openNote": "Welcome.md",
-				"clickRibbon": true
+				"clickRibbon": true,
+				"forceConnectingHold": true
 			},
 			"approvalThreshold": 0.05,
 			"placement": "feature",
 			"purpose": "Queue one next message while the agent is still streaming; it auto-sends when the turn returns to ready.",
 			"differentiator": "Queue next message (v1.3.0)",
-			"mustShow": ".agent-client-chat-input-container",
+			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-queued-banner",
 			"caption": "Line up your next message without waiting",
-			"altText": "Agent Console composer locked with a queued message held below it, showing Edit and Delete controls, while the agent streams",
+			"altText": "Agent Console composer locked with a 'Queued — sends when ready' banner and Edit and Delete controls, holding the next message until ready",
 			"docPage": "docs/usage/tabbed-sessions.md",
-			"captureNote": "v1.3.0 PR #97. Confirm the queued-message element selector + final dims at capture; requires driving a session into streaming state with a queued message."
+			"captureNote": "v1.3.0 PR #97. Confirm the queued-message element selector + final dims at capture; requires driving a session into streaming state with a queued message.",
+			"promptFile": "queue-next-message.txt",
+			"awaitSelector": ".agent-client-queued-banner"
 		},
 		{
 			"name": "shared-links-bubble",
-			"pending": true,
-			"width": 720,
-			"height": 200,
+			"pending": false,
+			"width": 680,
+			"height": 240,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 720,
-				"height": 200
+				"width": 680,
+				"height": 240
 			},
-			"cropSelector": ".agent-client-chat-view-header",
 			"cropPadding": 12,
 			"initialState": {
 				"openNote": "Welcome.md",
-				"clickRibbon": true
+				"clickRibbon": true,
+				"disableNativeMenus": true,
+				"runCommands": [
+					"agent-console:open-session-history"
+				],
+				"clickSequence": [
+					{
+						"selector": ".agent-client-session-history-restore-icon",
+						"waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) .acp-shared-links-badge"
+					},
+					{
+						"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .acp-shared-links-button",
+						"waitFor": ".menu"
+					}
+				]
 			},
 			"approvalThreshold": 0.05,
 			"placement": "feature",
 			"purpose": "See and reopen the links shared during a session from a bubble in the chat header.",
 			"differentiator": "Shared links bubble (v1.3.0)",
-			"mustShow": ".agent-client-chat-view-header",
+			"mustShow": ".menu",
 			"caption": "Jump back to links shared in the chat",
-			"altText": "Agent Console chat header showing the shared-links bubble that lists links shared during the session",
+			"altText": "Agent Console shared-links bubble with an accent count badge and its open dropdown grouping links into New this session and Earlier",
 			"docPage": "docs/usage/tabbed-sessions.md",
-			"captureNote": "v1.3.0 PR #103 (focus ring PR #116). Confirm the shared-links bubble selector and final dims at capture; drive a session that has shared at least one link so the bubble renders."
+			"captureNote": "v1.3.0 PR #103 (focus ring PR #116). Confirm the shared-links bubble selector and final dims at capture; drive a session that has shared at least one link so the bubble renders.",
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-view-header",
+				".menu"
+			]
 		},
 		{
 			"name": "ai-session-titles",
-			"pending": true,
-			"width": 700,
-			"height": 140,
+			"pending": false,
+			"width": 668,
+			"height": 137,
 			"crop": {
 				"x": 0,
 				"y": 0,
@@ -1046,7 +1071,21 @@
 			"cropPadding": 12,
 			"initialState": {
 				"openNote": "Welcome.md",
-				"clickRibbon": true
+				"clickRibbon": true,
+				"forceTabStates": [
+					{
+						"label": "Refactor the auth middleware",
+						"state": "ready"
+					},
+					{
+						"label": "Summarize Q3 planning notes",
+						"state": "ready"
+					},
+					{
+						"label": "Plan the Japan itinerary",
+						"state": "ready"
+					}
+				]
 			},
 			"approvalThreshold": 0.05,
 			"placement": "feature",
@@ -1060,9 +1099,9 @@
 		},
 		{
 			"name": "first-run-activation",
-			"pending": true,
-			"width": 760,
-			"height": 560,
+			"pending": false,
+			"width": 664,
+			"height": 388,
 			"crop": {
 				"x": 0,
 				"y": 0,
@@ -1073,7 +1112,11 @@
 			"cropPadding": 16,
 			"initialState": {
 				"openNote": "Welcome.md",
-				"clickRibbon": true
+				"clickRibbon": true,
+				"forceGettingStarted": {
+					"defaultAgentId": "kiro-cli",
+					"detectedAgentIds": []
+				}
 			},
 			"approvalThreshold": 0.05,
 			"placement": "feature",
@@ -1087,7 +1130,35 @@
 		},
 		{
 			"name": "obsidian-system-prompt",
-			"pending": true,
+			"pending": false,
+			"width": 960,
+			"height": 756,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 760,
+				"height": 560
+			},
+			"cropSelector": ".vertical-tab-content",
+			"cropPadding": 16,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"openSettings": "agent-console",
+				"scrollToSettingText": "Obsidian system prompt"
+			},
+			"approvalThreshold": 0.05,
+			"placement": "feature",
+			"purpose": "An editable Obsidian system prompt the agent receives on its first message, with per-block toggles and reset to defaults.",
+			"differentiator": "Obsidian system prompt / host-context briefing (v1.3.0)",
+			"mustShow": ".vertical-tab-content",
+			"caption": "Tell the agent it runs in Obsidian",
+			"altText": "Agent Console settings showing the editable Obsidian system prompt with per-block include toggles and a reset-to-defaults button",
+			"docPage": "docs/usage/obsidian-context.md",
+			"captureNote": "v1.3.0 PRs #168/#170 (shipped as Obsidian System Prompt). Confirm the Obsidian-system-prompt settings-section selector + final dims at capture; scroll the settings pane to that accordion first."
+		},
+		{
+			"name": "collapsible-agent-sections",
+			"pending": false,
 			"width": 760,
 			"height": 560,
 			"crop": {
@@ -1100,17 +1171,121 @@
 			"cropPadding": 16,
 			"initialState": {
 				"openNote": "Welcome.md",
-				"openSettings": "agent-console"
+				"openSettings": "agent-console",
+				"collapseSelectors": [
+					".agent-client-agent-section"
+				],
+				"scrollToSettingText": "Built-in agents"
 			},
 			"approvalThreshold": 0.05,
 			"placement": "feature",
-			"purpose": "An editable Obsidian system prompt the agent receives on its first message, with per-block toggles and reset to defaults.",
-			"differentiator": "Obsidian system prompt / host-context briefing (v1.3.0)",
+			"purpose": "Built-in agent settings collapse into accordions so the pane stays scannable.",
+			"differentiator": "Collapsible agent sections (v1.3.0)",
 			"mustShow": ".vertical-tab-content",
-			"caption": "Tell the agent it runs in Obsidian",
-			"altText": "Agent Console settings showing the editable Obsidian system prompt with per-block include toggles and a reset-to-defaults button",
-			"docPage": "docs/usage/obsidian-context.md",
-			"captureNote": "v1.3.0 PRs #168/#170 (shipped as Obsidian System Prompt). Confirm the Obsidian-system-prompt settings-section selector + final dims at capture; scroll the settings pane to that accordion first."
+			"caption": "Keep the settings pane tidy",
+			"altText": "Agent Console settings with each built-in agent shown as a collapsed accordion section under Built-in agents",
+			"docPage": "docs/usage/settings.md",
+			"captureNote": "v1.3.0 PR #104. collapseSelectors collapses every .agent-client-agent-section; scrollToSettingText leads with the Built-in agents heading."
+		},
+		{
+			"name": "settings-working-directory",
+			"pending": false,
+			"width": 760,
+			"height": 300,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 760,
+				"height": 300
+			},
+			"cropSelector": ".vertical-tab-content",
+			"cropPadding": 16,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"openSettings": "agent-console",
+				"scrollToSettingText": "Default working directory"
+			},
+			"approvalThreshold": 0.05,
+			"placement": "feature",
+			"purpose": "Set the folder new chats start in — a global default, overridable per agent.",
+			"differentiator": "Configurable working directory (v1.3.0)",
+			"mustShow": ".vertical-tab-content",
+			"caption": "Choose where chats run",
+			"altText": "Agent Console settings showing the Default working directory option that sets where new chats start",
+			"docPage": "docs/usage/settings.md",
+			"captureNote": "v1.3.0 PR #100/#154. scrollToSettingText centers the Default working directory setting-item."
+		},
+		{
+			"name": "quick-prompts",
+			"pending": false,
+			"width": 760,
+			"height": 620,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 760,
+				"height": 620
+			},
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-mention-dropdown",
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-quick-prompt-bar",
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-box"
+			],
+			"cropPadding": 12,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"draftMessage": "!",
+			"approvalThreshold": 0.05,
+			"minDistinctColors": 400,
+			"placement": "feature",
+			"purpose": "Reusable saved prompts as chips above the composer and a ! search launcher.",
+			"differentiator": "Quick prompts (v1.3.0)",
+			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-quick-prompt-create-row",
+			"caption": "Reuse your favorite prompts",
+			"altText": "Agent Console composer with quick-prompt chips above the box and the ! launcher dropdown open: prompts, a Create row, and a key legend",
+			"docPage": "docs/usage/quick-prompts.md",
+			"captureNote": "v1.3.0 quick-prompts (#130/#144/#150/#152/#161/#169). Seeded Quick Prompts/ fixture notes (3 always-show chips: a {{selection}} chip, a new-tab chip, a plain one; plus search-only prompts). No agent connection needed (composer is live pre-connect); draftMessage ! opens the launcher; union-crops chip bar + ! dropdown + composer box."
+		},
+		{
+			"name": "confirm-close-multiple-tabs",
+			"pending": false,
+			"width": 760,
+			"height": 360,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 760,
+				"height": 360
+			},
+			"cropSelector": ".modal",
+			"cropPadding": 16,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"forceTabStates": [
+					{
+						"label": "Draft the launch post",
+						"state": "ready"
+					},
+					{
+						"label": "Summarize meeting notes",
+						"state": "ready"
+					}
+				],
+				"forceCloseConfirm": true
+			},
+			"approvalThreshold": 0.02,
+			"minDistinctColors": 150,
+			"placement": "feature",
+			"purpose": "Warn before a focused Cmd+W tears down a panel holding multiple live chats.",
+			"differentiator": "Confirm before closing multiple chats (v1.3.0)",
+			"mustShow": ".agent-client-confirm-close-message",
+			"caption": "Don't lose chats to one keystroke",
+			"altText": "Agent Console confirm-close dialog warning that closing the panel closes all open chats, with Cancel and Close panel buttons",
+			"docPage": "docs/usage/tabbed-sessions.md",
+			"captureNote": "v1.3.0 #84. forceTabStates seeds 2 ready tabs; forceCloseConfirm invokes the panel close handler so the real ConfirmCloseModal opens; window-mode .modal crop."
 		}
 	]
 }

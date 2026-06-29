@@ -1,0 +1,1 @@
+Also add a dark-mode toggle to the settings panel
