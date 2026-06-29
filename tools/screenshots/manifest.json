@@ -1083,6 +1083,33 @@
 			"altText": "Agent Console first-run panel with no agent installed, listing Claude Code, Codex, Gemini CLI and Kiro CLI with Install and Copy buttons",
 			"docPage": "docs/getting-started/first-run.md",
 			"captureNote": "v1.3.0 first-run-activation PR. Needs the no-agent state: deploy the fixtures studio with smoke-test-spawn.sh --first-run --no-agents (or drop the .force-no-agents marker), open a new chat. Confirm the .agent-client-getting-started crop selector + final dims at capture."
+		},
+		{
+			"name": "obsidian-system-prompt",
+			"pending": true,
+			"width": 760,
+			"height": 560,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 760,
+				"height": 560
+			},
+			"cropSelector": ".vertical-tab-content",
+			"cropPadding": 16,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"openSettings": "agent-console"
+			},
+			"approvalThreshold": 0.05,
+			"placement": "feature",
+			"purpose": "An editable Obsidian system prompt the agent receives on its first message, with per-block toggles and reset to defaults.",
+			"differentiator": "Obsidian system prompt / host-context briefing (v1.3.0)",
+			"mustShow": ".vertical-tab-content",
+			"caption": "Tell the agent it runs in Obsidian",
+			"altText": "Agent Console settings showing the editable Obsidian system prompt with per-block include toggles and a reset-to-defaults button",
+			"docPage": "docs/usage/obsidian-context.md",
+			"captureNote": "v1.3.0 PRs #168/#170 (shipped as Obsidian System Prompt). Confirm the Obsidian-system-prompt settings-section selector + final dims at capture; scroll the settings pane to that accordion first."
 		}
 	]
 }
