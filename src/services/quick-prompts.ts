@@ -218,12 +218,14 @@ export interface QuickPromptWriter {
 export async function createQuickPrompt(
 	writer: QuickPromptWriter,
 	opts: { label: string; body?: string },
-): Promise<{ path: string; basename: string }> {
+): Promise<{ path: string; basename: string; collided: boolean }> {
 	const desired = deriveFilenameBase(opts.label);
 	const basename = disambiguateFilename(desired, writer.listBasenames());
 	const note = buildNewPromptNote(opts);
 	const path = await writer.create(basename, note.body, note.frontmatter);
-	return { path, basename };
+	// `collided` ⟺ the desired name was taken and we disambiguated (QP-I03/#3),
+	// so the caller can explain the rename instead of a silent " 1" suffix.
+	return { path, basename, collided: basename !== desired };
 }
 
 /**

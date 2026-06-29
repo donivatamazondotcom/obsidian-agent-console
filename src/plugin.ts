@@ -286,12 +286,19 @@ export default class AgentClientPlugin extends Plugin {
 					),
 		);
 		try {
-			const { path, basename } = await createQuickPrompt(writer, opts);
+			const { path, basename, collided } = await createQuickPrompt(
+				writer,
+				opts,
+			);
 			const file = this.app.vault.getAbstractFileByPath(path);
 			if (file instanceof TFile) {
 				await this.app.workspace.getLeaf(true).openFile(file);
 			}
-			new Notice(`[Agent Console] Created quick prompt "${basename}".`);
+			new Notice(
+				collided
+					? `[Agent Console] A quick prompt with that name already existed — saved as "${basename}".`
+					: `[Agent Console] Created quick prompt "${basename}".`,
+			);
 		} catch (error) {
 			getLogger().error("[QuickPrompts] create failed", error);
 			new Notice(

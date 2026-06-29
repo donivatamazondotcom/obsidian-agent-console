@@ -215,6 +215,9 @@ export function SuggestionPopup({
 					}}
 				>
 					<div className="agent-client-mention-dropdown-item-name">
+						<span className="agent-client-quick-prompt-create-icon">
+							+
+						</span>
 						{createRow.label}
 					</div>
 				</div>
@@ -224,10 +227,18 @@ export function SuggestionPopup({
 					className="agent-client-quick-prompt-legend"
 					aria-hidden="true"
 				>
-					<span>{ENTER_KEY} run</span>
-					<span>{modCombo(MOD_KEY, ENTER_KEY)} new tab</span>
-					<span>{modCombo(MOD_KEY, SHIFT_KEY, ENTER_KEY)} switch</span>
-					<span>{modCombo(ALT_KEY, ENTER_KEY)} insert</span>
+					{createRow && selectedIndex === items.length ? (
+						<span>{ENTER_KEY} create</span>
+					) : (
+						<>
+							<span>{ENTER_KEY} run</span>
+							<span>{modCombo(MOD_KEY, ENTER_KEY)} new tab</span>
+							<span>
+								{modCombo(MOD_KEY, SHIFT_KEY, ENTER_KEY)} switch
+							</span>
+							<span>{modCombo(ALT_KEY, ENTER_KEY)} insert</span>
+						</>
+					)}
 				</div>
 			)}
 		</div>

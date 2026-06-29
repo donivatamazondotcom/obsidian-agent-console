@@ -2630,8 +2630,13 @@ export function ChatPanel({
 			quickPromptSearchSignal={qpSearchSignal}
 			hasQuickPrompts={quickPrompts.prompts.length > 0}
 			onRunQuickPrompt={quickPrompts.runQuickPrompt}
-			onCreateQuickPrompt={(query) =>
-				void plugin.createQuickPromptNote({ label: query })
+			onCreateQuickPrompt={(opts) =>
+				void plugin.createQuickPromptNote({
+					label:
+						opts.query.trim() ||
+						(opts.body ? deriveLabelFromComposer(opts.body) : ""),
+					body: opts.body,
+				})
 			}
 			quickPromptPrompts={matchedQuickPrompts}
 			quickPromptHasPendingQueue={queue.isQueued}

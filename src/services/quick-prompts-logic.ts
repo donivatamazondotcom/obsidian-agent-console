@@ -666,14 +666,21 @@ export interface CreatePromptRow {
 	query: string;
 	/** Row label shown in the dropdown. */
 	label: string;
+	/**
+	 * Set when the composer holds a draft (QP-I11): selecting the row captures
+	 * the composer text as the new prompt's body (the save-composer flow,
+	 * reachable right in the `!` list).
+	 */
+	fromComposer?: boolean;
 }
 
 /**
  * The "create" row that ALWAYS sits at the bottom of the launcher `!` dropdown
  * (QP-I10) — so creation is reachable on every `!`, with matches or not (mirrors
- * Quick Switcher always offering a "Create" option, and keeps the affordance
- * consistent rather than vanishing once prompts exist). Labels:
- * - non-blank query → `Create quick prompt "<query>"` (creates with that name);
+ * Quick Switcher always offering a "Create" option). Labels:
+ * - composer holds a draft → `Create quick prompt from this message`, with
+ *   `fromComposer` set so the handler captures the draft as the body (QP-I11);
+ * - non-blank query → `Create quick prompt "<query>"`;
  * - blank query, zero prompts → `Create your first quick prompt` (on-ramp, QP-I07);
  * - blank query, prompts exist → `Create a quick prompt`.
  * A blank query creates the `New prompt` fallback note (QP-I08).
@@ -681,8 +688,17 @@ export interface CreatePromptRow {
 export function buildCreatePromptRow(
 	query: string,
 	matchCount: number,
+	hasDraft: boolean,
 ): CreatePromptRow {
 	const q = query.trim();
+	if (hasDraft) {
+		return {
+			kind: "create-prompt",
+			query: q,
+			label: "Create quick prompt from this message",
+			fromComposer: true,
+		};
+	}
 	if (q.length === 0) {
 		return {
 			kind: "create-prompt",

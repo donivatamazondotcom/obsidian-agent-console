@@ -3040,6 +3040,18 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	font-size: var(--font-ui-smaller);
 }
 
+/* The "create" row pinned at the bottom of the ! launcher dropdown (#2) —
+ * a top separator + a muted + glyph so it reads as "create", not "run". */
+.agent-client-quick-prompt-create-row {
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.agent-client-quick-prompt-create-icon {
+	margin-right: var(--size-2-2);
+	color: var(--text-muted);
+	font-weight: var(--font-bold);
+}
+
 /* ============================================================
  * Collapsible agent sections (settings pane)
  * Each built-in / custom agent's settings live in a <details>;

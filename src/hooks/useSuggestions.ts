@@ -356,7 +356,16 @@ export function useSuggestions(
 			const scorer = trimmed ? prepareFuzzySearch(trimmed) : undefined;
 			const ranked = rankLauncherPrompts(qpPrompts, query, scorer);
 			setQpSuggestions(ranked);
-			setQpCreateRow(buildCreatePromptRow(query, ranked.length));
+			// QP-I11: if the composer holds a draft beyond the `!` token, the
+			// create row captures it as the new prompt's body.
+			const draftText = stripQuickPromptTrigger(input, cursorPosition);
+			setQpCreateRow(
+				buildCreatePromptRow(
+					query,
+					ranked.length,
+					draftText.trim().length > 0,
+				),
+			);
 			setQpSelectedIndex(0);
 			setQpContext({ cursorPos: cursorPosition });
 		},

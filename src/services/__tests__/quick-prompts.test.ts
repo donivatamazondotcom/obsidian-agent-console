@@ -164,6 +164,7 @@ describe("createQuickPrompt — S4-T7/T8 (clobber-safe creation)", () => {
 		expect(result).toEqual({
 			path: "Quick Prompts/Daily brief.md",
 			basename: "Daily brief",
+			collided: false,
 		});
 		expect(writer.create).toHaveBeenCalledWith(
 			"Daily brief",
@@ -204,6 +205,7 @@ describe("createQuickPrompt — S4-T7/T8 (clobber-safe creation)", () => {
 		});
 		// New note got a disambiguated name…
 		expect(result.basename).toBe("Daily brief 1");
+		expect(result.collided).toBe(true);
 		// …and the original is untouched.
 		expect(store.get("Daily brief")?.body).toBe("ORIGINAL");
 		expect(store.get("Daily brief 1")?.body).toBe("NEW");

@@ -291,8 +291,8 @@ export interface InputAreaProps {
 	hasQuickPrompts?: boolean;
 	/** Fire/insert a quick prompt from the composer ! trigger (engine 2×2). */
 	onRunQuickPrompt?: (prompt: QuickPrompt, gesture: QuickPromptGesture) => void;
-	/** Create a new quick prompt from the ! create-on-no-match row. */
-	onCreateQuickPrompt?: (query: string) => void;
+	/** Create a new quick prompt from the ! create row (optionally from the composer draft). */
+	onCreateQuickPrompt?: (opts: { query: string; body?: string }) => void;
 	/** Bumps when the "Quick prompts: Search" command fires — focuses + inserts !. */
 	quickPromptSearchSignal?: number;
 }
@@ -756,8 +756,15 @@ export function InputArea({
 	const handleCreateQuickPrompt = useCallback(() => {
 		const row = quickPrompts.createRow;
 		if (!row) return;
-		onCreateQuickPrompt?.(row.query);
+		// selectSuggestion strips the `!query` token and returns the remaining
+		// composer text (the draft, preserved — No-silent-data-loss).
 		const newText = quickPrompts.selectSuggestion(inputValue);
+		onCreateQuickPrompt?.({
+			query: row.query,
+			// QP-I11: a from-composer create captures the surviving draft as the
+			// new prompt body; otherwise the note gets the placeholder body.
+			body: row.fromComposer ? newText : undefined,
+		});
 		setTextAndFocus(newText);
 	}, [quickPrompts, onCreateQuickPrompt, inputValue, setTextAndFocus]);
 

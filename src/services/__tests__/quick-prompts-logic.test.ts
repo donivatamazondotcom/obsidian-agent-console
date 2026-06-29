@@ -928,30 +928,46 @@ describe("quick-prompts-logic — slice 4 (creation flow, D4)", () => {
 		});
 	});
 
-	describe("S4-T4/QP-I10: buildCreatePromptRow — always offered at the bottom of the ! list", () => {
+	describe("S4-T4/QP-I10/I11: buildCreatePromptRow — always offered; composer-aware", () => {
 		const cqp = (q: string) => ({
 			kind: "create-prompt",
 			query: q,
 			label: `Create quick prompt "${q}"`,
 		});
-		it("non-blank query → Create quick prompt row whether or not matches exist", () => {
-			expect(buildCreatePromptRow("  daily  ", 0)).toEqual(cqp("daily"));
-			expect(buildCreatePromptRow("daily", 5)).toEqual(cqp("daily"));
+		it("non-blank query, no draft → Create quick prompt row whether or not matches exist", () => {
+			expect(buildCreatePromptRow("  daily  ", 0, false)).toEqual(
+				cqp("daily"),
+			);
+			expect(buildCreatePromptRow("daily", 5, false)).toEqual(cqp("daily"));
 		});
-		it("QP-I07: blank query + zero prompts → 'Create your first quick prompt' (on-ramp)", () => {
+		it("QP-I07: blank query + zero prompts, no draft → 'Create your first quick prompt'", () => {
 			const onramp = {
 				kind: "create-prompt",
 				query: "",
 				label: "Create your first quick prompt",
 			};
-			expect(buildCreatePromptRow("   ", 0)).toEqual(onramp);
-			expect(buildCreatePromptRow("", 0)).toEqual(onramp);
+			expect(buildCreatePromptRow("   ", 0, false)).toEqual(onramp);
+			expect(buildCreatePromptRow("", 0, false)).toEqual(onramp);
 		});
-		it("QP-I10: blank query + prompts exist → 'Create a quick prompt' (still reachable)", () => {
-			expect(buildCreatePromptRow("", 3)).toEqual({
+		it("QP-I10: blank query + prompts exist, no draft → 'Create a quick prompt'", () => {
+			expect(buildCreatePromptRow("", 3, false)).toEqual({
 				kind: "create-prompt",
 				query: "",
 				label: "Create a quick prompt",
+			});
+		});
+		it("QP-I11: composer has a draft → 'from this message' + fromComposer flag", () => {
+			expect(buildCreatePromptRow("", 0, true)).toEqual({
+				kind: "create-prompt",
+				query: "",
+				label: "Create quick prompt from this message",
+				fromComposer: true,
+			});
+			expect(buildCreatePromptRow("foo", 5, true)).toEqual({
+				kind: "create-prompt",
+				query: "foo",
+				label: "Create quick prompt from this message",
+				fromComposer: true,
 			});
 		});
 	});
