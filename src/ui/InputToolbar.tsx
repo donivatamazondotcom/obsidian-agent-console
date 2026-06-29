@@ -185,8 +185,6 @@ export interface InputToolbarProps {
 	onConfigOptionChange?: (configId: string, value: string) => void;
 	usage?: SessionUsage;
 	lazyState: TabSessionState;
-	/** Open the Quick prompt picker for this tab. Renders the zap launcher when set. */
-	onOpenQuickPrompts?: () => void;
 }
 
 export function InputToolbar({
@@ -202,16 +200,8 @@ export function InputToolbar({
 	onConfigOptionChange,
 	usage,
 	lazyState,
-	onOpenQuickPrompts,
 }: InputToolbarProps) {
 	const sendButtonRef = useRef<HTMLButtonElement>(null);
-	const quickPromptButtonRef = useRef<HTMLButtonElement>(null);
-
-	useEffect(() => {
-		if (quickPromptButtonRef.current) {
-			setIcon(quickPromptButtonRef.current, "zap");
-		}
-	}, []);
 
 	const updateIconColor = useCallback(
 		(svg: SVGElement) => {
@@ -291,27 +281,6 @@ export function InputToolbar({
 
 	return (
 		<div className="agent-client-chat-input-actions">
-			{/* Quick prompts launcher (leftmost). A plain button, so it stays
-			    clickable even while the composer is locked/queued — unlike the
-			    `!` trigger which needs a typable composer. */}
-			{onOpenQuickPrompts && (
-				<button
-					ref={quickPromptButtonRef}
-					type="button"
-					className="clickable-icon agent-client-quick-prompt-launcher"
-					// Part of the composer focus cluster: tabbing through this
-					// launcher must NOT disarm composer-focus-return, or a later
-					// model/config pick won't return focus to the composer (I124).
-					// keep in sync with FOCUS_CLUSTER_ATTR (composer-focus-tracker)
-					data-acp-focus-cluster=""
-					aria-label="Quick prompts"
-					onClick={(e) => {
-						e.preventDefault();
-						onOpenQuickPrompts();
-					}}
-				></button>
-			)}
-
 			{/* Context Usage Indicator — sits in the left cluster, right of the
 			    zap launcher (left/right split is owned by the spacer below, not
 			    this element, so the launcher stays text-left-anchored even for

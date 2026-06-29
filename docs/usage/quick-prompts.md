@@ -22,17 +22,19 @@ Debrief this meeting — pull the AI summary, extract action items, and update t
 
 ## Fire a prompt
 
-There are two ways to reach your prompts:
+Two ways, depending on whether you can already see the prompt:
 
-- **The ⚡ button** in the composer toolbar (bottom-left) opens a searchable list of every prompt. It stays reachable even while the agent is busy.
-- **The Quick prompt picker command** (`Cmd/Ctrl + P`, then search for it) opens the same list, and you can bind it to a hotkey under **Settings → Hotkeys**.
+- **Chips above the composer** — click one to fire it (see [Contextual chips](#contextual-chips) below).
+- **Type `!` at the start of a line in the message box** — a search opens right where you're typing, the same place `@` mentions a note and `/` runs a command. Keep typing to filter, then press **Enter** to fire. (It only triggers at the start of a line, so an everyday `!` in your prose won't open it.) No need to leave the composer, so it's the fastest way to run any prompt.
 
-In the list, press **Enter** to fire a prompt — it sends right away in the current chat, carrying the active note and any selection as context. Modifier keys change where it goes and whether it sends, mirroring how links open in a browser:
+You can also run **Quick prompts: Search** from the command palette (`Cmd/Ctrl + P`) — or bind it to a hotkey under **Settings → Hotkeys** — to drop a `!` into the composer and open the search hands-free.
+
+Firing sends the prompt right away in the current chat, carrying the active note and any selection as context. Modifier keys change where it goes and whether it sends, mirroring how links open in a browser:
 
 - **⌘ (Cmd) + Enter** → send in a **new tab**, in the background. Add **⇧ (Shift)** — ⌘⇧Enter — to switch to the new tab as it opens.
 - **⌥ (Alt) + Enter** → drop the text into the composer to edit first, instead of sending.
 
-The same keys work when you click a chip (below).
+The same keys work when you click a chip (below). The `!` search shows this legend right in the dropdown, so you don't have to remember it.
 
 ## Use your selection
 
@@ -69,7 +71,7 @@ Debrief this meeting — pull the AI summary, extract action items, and update t
 
 ## Contextual chips
 
-Prompts can show up as **chips right above the composer**. There are two ways to make a prompt appear as a chip — otherwise it stays search-only (you'll still find it in the ⚡ picker, it just doesn't take up space in the row).
+Prompts can show up as **chips right above the composer**. There are two ways to make a prompt appear as a chip — otherwise it stays search-only (you'll still find it by typing `!` in the composer, it just doesn't take up space in the row).
 
 **Show a chip only on relevant notes** — add a `show on tags` field to scope a prompt to matching notes:
 
@@ -93,11 +95,11 @@ Debrief the meeting I just had.
 
 - A prompt with **`always show`** is a chip on every note.
 - A prompt with **`show on tags`** is a chip only when the active note carries a matching tag. Matching is nested — `NoteType` matches a note tagged `NoteType/DailyNote`.
-- A prompt with **neither** is **search-only** — never in the chip row, always one keystroke away in the ⚡ picker. This is the default, so new prompts don't clutter the row until you opt them in.
+- A prompt with **neither** is **search-only** — never in the chip row, always one keystroke away by typing `!`. This is the default, so new prompts don't clutter the row until you opt them in.
 - `always show` is a checkbox property — toggle it in the note's Properties view, no typing.
 - When no prompts apply to the note you're in, there's **no chip row at all** — the space is reclaimed.
 
-Click a chip to fire it in the current chat. Hold **⌘** to send it in a new tab (⌘⇧ to switch there), or **⌥** to drop it into the composer to edit first — the same keys as the picker.
+Click a chip to fire it in the current chat. Hold **⌘** to send it in a new tab (⌘⇧ to switch there), or **⌥** to drop it into the composer to edit first — the same keys as the `!` search. When the row runs out of space, a **+N** at the end folds the rest into the `!` search.
 
 ## How it works with a busy agent
 
@@ -105,11 +107,11 @@ Quick prompts behave exactly like typing a message and pressing Enter, so they f
 
 - **Agent idle** → the prompt sends and starts a turn.
 - **Agent streaming a reply** → the prompt queues and sends the moment the current reply finishes.
-- **A message already queued** → current-tab chips disable in place (a small lock marks them) until you send or edit the queued message. The ⚡ launcher stays reachable the whole time.
+- **A message already queued** → current-tab chips disable in place (a small lock marks them) until you send or edit the queued message. The `!` search stays reachable the whole time.
 - **You have unsent text in the composer** → firing drops the prompt into your draft at the cursor instead of sending, so your half-typed message is never overwritten.
 
 ## Tips
 
 - Keep prompt notes short and action-oriented — they're kickoffs, not essays.
-- Use emoji in the `label` to make chips and the picker easy to scan.
+- Use emoji in the `label` to make chips and the `!` search easy to scan.
 - Prompts are plain notes, so you can version them, grep them, and share them like any other note.

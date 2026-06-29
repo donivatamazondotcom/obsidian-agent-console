@@ -27,6 +27,16 @@ export class TFile extends TAbstractFile {
 
 export const setIcon = vi.fn();
 
+// Minimal prepareFuzzySearch stub: substring match, score = -len (shorter
+// labels rank higher), matches[] unused by our ranker. Mirrors the real
+// signature `(query) => (text) => SearchResult | null`.
+export const prepareFuzzySearch =
+	(query: string) =>
+	(text: string) =>
+		text.toLowerCase().includes(query.toLowerCase())
+			? { score: -text.length, matches: [] as number[][] }
+			: null;
+
 export const setTooltip = vi.fn();
 
 export const MarkdownRenderer = {

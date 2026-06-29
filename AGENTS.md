@@ -63,7 +63,7 @@ src/
 │   ├── recently-closed-stack.ts # F13 undo-close: closed-tab record + LIFO push/pop/build (pure)
 │   ├── message-queue-logic.ts   # #82 queue-of-one pure decisions: queue/flush/Enter-action/broadcast-skip
 │   ├── queue-orchestration-reducer.ts # #82 dispatch-owning single-slot reducer: (state,event)->{state,effects}; flush is raw-by-construction (closes Q4)
-│   ├── quick-prompts-logic.ts   # Quick Prompts pure logic: parse/label/slug-id/folder-scope/{{selection}}-resolve + the browser-true 2×2 action decision (where × commitment: fire/queue/insert/disabled/new-tab + foreground) + tag matching
+│   ├── quick-prompts-logic.ts   # Quick Prompts pure logic: parse/label/slug-id/folder-scope/{{selection}}-resolve + the browser-true 2×2 action decision (where × commitment: fire/queue/insert/disabled/new-tab + foreground) + tag matching + launcher helpers (capRestingChips / parseQuickPromptTrigger / stripQuickPromptTrigger / rankLauncherPrompts)
 │   ├── quick-prompts.ts         # QuickPromptLibrary (scan/watch/reconcile) + VaultQuickPromptSource adapter
 │   ├── update-checker.ts        # Agent/plugin version checking
 │   ├── import/                   # Cross-plugin settings-import adapters
@@ -120,8 +120,8 @@ src/
 │   ├── InputArea.tsx            # Textarea, attachments, mentions, history
 │   ├── composer-focus.ts       # Focus composer textarea + caret at end (restored-draft mount, TP-I03)
 │   ├── composer-focus-tracker.ts # Pure composer-cluster focus reducer + classifier (focus-return guardrail)
-│   ├── InputToolbar.tsx         # Config/mode/model selectors, usage, send button, Quick Prompts ⚡ launcher
-│   ├── SuggestionPopup.tsx      # Mention/command dropdown
+│   ├── InputToolbar.tsx         # Config/mode/model selectors, usage, send button
+│   ├── SuggestionPopup.tsx      # Mention / command / quick-prompt (! trigger) dropdown
 │   ├── PermissionBanner.tsx     # Permission request buttons
 │   ├── ErrorBanner.tsx          # Error/notification overlay
 │   ├── SessionHistoryModal.tsx  # Session history modal (Local/Agent source toggle, per-row agent badge, search, confirm delete, migration empty-state, disconnected-Agent sync affordance)
@@ -129,7 +129,6 @@ src/
 │   ├── ChangeDirectoryModal.ts  # Per-tab cwd change modal (sets working dir for agent process)
 │   ├── ImportSettingsModal.ts  # Cross-plugin settings-import preview + apply dialog
 │   ├── AgentPickerModal.ts      # FuzzySuggestModal agent picker for "New chat with agent…"
-│   ├── QuickPromptPickerModal.ts # FuzzySuggestModal Quick Prompts picker (fire / ⌥⇧-insert)
 │   ├── QuickPromptBar.tsx       # Ephemeral contextual quick-prompt chips row above the composer
 │   ├── SettingsTab.ts           # Plugin settings UI
 │   ├── SharedLinksButton.tsx    # Header shared-links indicator (count badge + grouped New/Earlier popover)

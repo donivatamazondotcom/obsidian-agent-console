@@ -54,13 +54,10 @@ import { initializeLogger, getLogger } from "./utils/logger";
 import { closeOpenMenus } from "./utils/menu-registry";
 import { ImportSettingsModal } from "./ui/ImportSettingsModal";
 import { AgentPickerModal } from "./ui/AgentPickerModal";
-import { QuickPromptPickerModal } from "./ui/QuickPromptPickerModal";
 import {
 	QuickPromptLibrary,
 	VaultQuickPromptSource,
 } from "./services/quick-prompts";
-import type { QuickPrompt } from "./types/quick-prompt";
-import type { QuickPromptGesture } from "./services/quick-prompts-logic";
 import {
 	computeStartChat,
 	isChatCommandAvailable,
@@ -420,12 +417,21 @@ export default class AgentClientPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "quick-prompt-picker",
-			name: "Quick prompt picker",
+			id: "quick-prompt-search",
+			name: "Quick prompts: Search",
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
-					this.openQuickPromptPicker();
+					const prompts = this.quickPromptLibrary.getPrompts();
+					if (prompts.length === 0) {
+						new Notice(
+							`[Agent Console] No quick prompts found. Add markdown notes to your "${this.settings.quickPromptsFolder}" folder.`,
+						);
+						return true;
+					}
+					this.viewRegistry.toFocused((view) =>
+						view.startQuickPromptSearch(),
+					);
 				}
 				return true;
 			},
@@ -579,31 +585,6 @@ export default class AgentClientPlugin extends Plugin {
 		return isChatCommandAvailable(
 			this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT).length,
 		);
-	}
-
-	/**
-	 * Open the Quick prompt picker, targeting the focused chat view's active
-	 * tab. The picker lists every prompt; choosing fires it (⌥/⇧ to insert),
-	 * and the fire/insert/queue/disabled outcome is decided per the focused
-	 * tab's live composer/queue/selection state.
-	 */
-	private openQuickPromptPicker(): void {
-		const prompts = this.quickPromptLibrary.getPrompts();
-		if (prompts.length === 0) {
-			new Notice(
-				`[Agent Console] No quick prompts found. Add markdown notes to your "${this.settings.quickPromptsFolder}" folder.`,
-			);
-			return;
-		}
-		new QuickPromptPickerModal(
-			this.app,
-			prompts,
-			(prompt: QuickPrompt, gesture: QuickPromptGesture) => {
-				this.viewRegistry.toFocused((view) =>
-					view.runQuickPrompt(prompt, gesture),
-				);
-			},
-		).open();
 	}
 
 	/**

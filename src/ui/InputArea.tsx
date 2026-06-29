@@ -15,6 +15,10 @@ import type {
 import type { AttachedFile, ChatMessage } from "../types/chat";
 import type { UseSuggestionsReturn } from "../hooks/useSuggestions";
 import { SuggestionPopup } from "./SuggestionPopup";
+import { QuickPromptBar } from "./QuickPromptBar";
+import { quickPromptGestureFromEvent } from "../utils/quick-prompt-gesture";
+import type { QuickPrompt } from "../types/quick-prompt";
+import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import { ErrorBanner } from "./ErrorBanner";
 import { AttachmentStrip } from "./shared/AttachmentStrip";
 import { InputToolbar } from "./InputToolbar";
@@ -274,10 +278,16 @@ export interface InputAreaProps {
 	messages: ChatMessage[];
 	/** Whether this tab is the currently active tab (focuses textarea on activation) */
 	isActive?: boolean;
-	/** Open the Quick prompt picker for this tab (zap launcher in the toolbar). */
-	onOpenQuickPrompts?: () => void;
-	/** Ephemeral contextual chips row, rendered directly above the composer box. */
-	quickPromptBar?: React.ReactNode;
+	/** Resting chip set (already matched to the active note) for the chips row. */
+	quickPromptPrompts?: QuickPrompt[];
+	/** Whether this tab holds a pending queued message (disables current-tab chips). */
+	quickPromptHasPendingQueue?: boolean;
+	/** Whether any quick prompts exist (drives the composer placeholder hint). */
+	hasQuickPrompts?: boolean;
+	/** Fire/insert a quick prompt from the composer ! trigger (engine 2×2). */
+	onRunQuickPrompt?: (prompt: QuickPrompt, gesture: QuickPromptGesture) => void;
+	/** Bumps when the "Quick prompts: Search" command fires — focuses + inserts !. */
+	quickPromptSearchSignal?: number;
 }
 
 /**
@@ -336,10 +346,13 @@ export function InputArea({
 	// Input history
 	messages,
 	isActive,
-	onOpenQuickPrompts,
-	quickPromptBar,
+	quickPromptPrompts,
+	quickPromptHasPendingQueue,
+	hasQuickPrompts,
+	onRunQuickPrompt,
+	quickPromptSearchSignal,
 }: InputAreaProps) {
-	const { mentions, commands: slashCommands } = suggestions;
+	const { mentions, commands: slashCommands, quickPrompts } = suggestions;
 	const logger = getLogger();
 	const settings = useSettings(plugin);
 	const showEmojis = plugin.settings.displaySettings.showEmojis;
@@ -712,6 +725,56 @@ export function InputArea({
 	);
 
 	/**
+	 * Fire a quick prompt chosen from the composer ! dropdown. The prompt is
+	 * sent/staged via the engine (gesture → 2×2); the ! token is stripped
+	 * from the composer, preserving any surrounding draft text.
+	 */
+	const selectQuickPrompt = useCallback(
+		(prompt: QuickPrompt, evt?: React.MouseEvent | React.KeyboardEvent) => {
+			onRunQuickPrompt?.(
+				prompt,
+				quickPromptGestureFromEvent(evt?.nativeEvent),
+			);
+			const newText = quickPrompts.selectSuggestion(inputValue);
+			setTextAndFocus(newText);
+		},
+		[onRunQuickPrompt, quickPrompts, inputValue, setTextAndFocus],
+	);
+
+	/**
+	 * Overflow "+N" affordance: focus the composer and start a ! search. Inserts
+	 * a `!` at line start (a newline is prepended when there is existing draft text) and opens
+	 * the quick-prompt dropdown.
+	 */
+	const handleSearchAll = useCallback(() => {
+		const base = inputValue;
+		const next =
+			base.length === 0 || base.endsWith("\n") ? `${base}!` : `${base}\n!`;
+		onInputChange(next);
+		window.setTimeout(() => {
+			const textarea = textareaRef.current;
+			if (textarea) {
+				const pos = next.length;
+				textarea.selectionStart = pos;
+				textarea.selectionEnd = pos;
+				textarea.focus();
+				quickPrompts.updateSuggestions(next, pos);
+			}
+		}, 0);
+	}, [inputValue, onInputChange, quickPrompts]);
+
+	// "Quick prompts: Search" command → run handleSearchAll on each signal bump
+	// (ref so the effect gates only on the signal, not handleSearchAll identity).
+	const handleSearchAllRef = useRef(handleSearchAll);
+	handleSearchAllRef.current = handleSearchAll;
+	const qpSearchSignalSeen = useRef(quickPromptSearchSignal);
+	useEffect(() => {
+		if (quickPromptSearchSignal === qpSearchSignalSeen.current) return;
+		qpSearchSignalSeen.current = quickPromptSearchSignal;
+		handleSearchAllRef.current();
+	}, [quickPromptSearchSignal]);
+
+	/**
 	 * Handle slash command selection from dropdown.
 	 */
 	const handleSelectSlashCommand = useCallback(
@@ -834,17 +897,24 @@ export function InputArea({
 	 */
 	const handleDropdownKeyPress = useCallback(
 		(e: React.KeyboardEvent): boolean => {
+			const isQuickPromptActive = quickPrompts.isOpen;
 			const isSlashCommandActive = slashCommands.isOpen;
 			const isMentionActive = mentions.isOpen;
 
-			if (!isSlashCommandActive && !isMentionActive) {
+			if (
+				!isQuickPromptActive &&
+				!isSlashCommandActive &&
+				!isMentionActive
+			) {
 				return false;
 			}
 
 			// Arrow navigation
 			if (e.key === "ArrowDown") {
 				e.preventDefault();
-				if (isSlashCommandActive) {
+				if (isQuickPromptActive) {
+					quickPrompts.navigate("down");
+				} else if (isSlashCommandActive) {
 					slashCommands.navigate("down");
 				} else {
 					mentions.navigate("down");
@@ -854,7 +924,9 @@ export function InputArea({
 
 			if (e.key === "ArrowUp") {
 				e.preventDefault();
-				if (isSlashCommandActive) {
+				if (isQuickPromptActive) {
+					quickPrompts.navigate("up");
+				} else if (isSlashCommandActive) {
 					slashCommands.navigate("up");
 				} else {
 					mentions.navigate("up");
@@ -869,7 +941,13 @@ export function InputArea({
 					return false;
 				}
 				e.preventDefault();
-				if (isSlashCommandActive) {
+				if (isQuickPromptActive) {
+					const selectedPrompt =
+						quickPrompts.suggestions[quickPrompts.selectedIndex];
+					if (selectedPrompt) {
+						selectQuickPrompt(selectedPrompt, e);
+					}
+				} else if (isSlashCommandActive) {
 					const selectedCommand =
 						slashCommands.suggestions[slashCommands.selectedIndex];
 					if (selectedCommand) {
@@ -888,7 +966,9 @@ export function InputArea({
 			// Close dropdown (Escape)
 			if (e.key === "Escape") {
 				e.preventDefault();
-				if (isSlashCommandActive) {
+				if (isQuickPromptActive) {
+					quickPrompts.close();
+				} else if (isSlashCommandActive) {
 					slashCommands.close();
 				} else {
 					mentions.close();
@@ -898,7 +978,14 @@ export function InputArea({
 
 			return false;
 		},
-		[slashCommands, mentions, handleSelectSlashCommand, selectMention],
+		[
+			quickPrompts,
+			slashCommands,
+			mentions,
+			handleSelectSlashCommand,
+			selectMention,
+			selectQuickPrompt,
+		],
 	);
 
 	// Button disabled state — single source of truth (deriveSendAffordance).
@@ -1003,8 +1090,19 @@ export function InputArea({
 
 			// Update slash command suggestions
 			slashCommands.updateSuggestions(newValue, cursorPosition);
+
+			// Update quick-prompt (! trigger) suggestions
+			quickPrompts.updateSuggestions(newValue, cursorPosition);
 		},
-		[logger, hintText, commandText, mentions, slashCommands, onInputChange],
+		[
+			logger,
+			hintText,
+			commandText,
+			mentions,
+			slashCommands,
+			quickPrompts,
+			onInputChange,
+		],
 	);
 
 	// Adjust textarea height when input changes
@@ -1119,6 +1217,7 @@ export function InputArea({
 	const placeholder = buildComposerPlaceholder({
 		agentLabel,
 		hasCommands: availableCommands.length > 0,
+		hasQuickPrompts: hasQuickPrompts ?? false,
 		isStreaming,
 		isQueued,
 	});
@@ -1168,9 +1267,29 @@ export function InputArea({
 				/>
 			)}
 
-			{/* Ephemeral contextual quick-prompt chips — directly above the box,
-			    aligned to the box-border edge. Renders nothing when empty. */}
-			{quickPromptBar}
+			{/* Quick Prompt (! trigger) Dropdown */}
+			{quickPrompts.isOpen && (
+				<SuggestionPopup
+					type="quick-prompt"
+					items={quickPrompts.suggestions}
+					selectedIndex={quickPrompts.selectedIndex}
+					onSelect={(item, evt) =>
+						selectQuickPrompt(item as QuickPrompt, evt)
+					}
+					onClose={quickPrompts.close}
+				/>
+			)}
+
+			{/* Ephemeral contextual quick-prompt chips — directly above the box.
+			    Renders nothing when no resting prompts match (S3). */}
+			{quickPromptPrompts && (
+				<QuickPromptBar
+					prompts={quickPromptPrompts}
+					hasPendingQueue={quickPromptHasPendingQueue ?? false}
+					onFire={onRunQuickPrompt ?? (() => undefined)}
+					onSearchAll={handleSearchAll}
+				/>
+			)}
 
 			{/* Input Box - flexbox container with border */}
 			<div
@@ -1272,7 +1391,6 @@ export function InputArea({
 					onConfigOptionChange={onConfigOptionChange}
 					usage={usage}
 					lazyState={lazyState}
-					onOpenQuickPrompts={onOpenQuickPrompts}
 				/>
 			</div>
 		</div>

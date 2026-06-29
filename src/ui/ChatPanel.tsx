@@ -78,8 +78,6 @@ import {
 import type { QuickPrompt } from "../types/quick-prompt";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import { matchPromptsForNote } from "../services/quick-prompts-logic";
-import { QuickPromptBar } from "./QuickPromptBar";
-import { QuickPromptPickerModal } from "./QuickPromptPickerModal";
 
 // Domain model imports
 import {
@@ -123,8 +121,10 @@ export interface ChatPanelCallbacks {
 	cancelOperation: () => Promise<void>;
 	/** True when this tab holds a pending queued message (#82 broadcast skip-guard). */
 	hasPendingQueue: () => boolean;
-	/** Fire / insert a quick prompt in this tab (picker / chips). */
+	/** Fire / insert a quick prompt in this tab (chips / composer ! trigger). */
 	runQuickPrompt: (prompt: QuickPrompt, gesture: QuickPromptGesture) => void;
+	/** Focus this tab's composer and start a ! quick-prompt search. */
+	startQuickPromptSearch: () => void;
 	/** Current resolved working directory for this tab (persisted for restore). */
 	getWorkingDirectory: () => string;
 }
@@ -415,6 +415,7 @@ export function ChatPanel({
 		plugin,
 		session.availableCommands || EMPTY_COMMANDS,
 		settings.activeNoteAsDefaultContext,
+		plugin.quickPromptLibrary,
 	);
 
 	// ============================================================
@@ -2172,6 +2173,10 @@ export function ChatPanel({
 	const runQuickPromptRef = useRef(quickPrompts.runQuickPrompt);
 	runQuickPromptRef.current = quickPrompts.runQuickPrompt;
 
+	// Bumped by the "Quick prompts: Search" command (single search path) to
+	// focus the composer + insert ! via InputArea's handleSearchAll.
+	const [qpSearchSignal, setQpSearchSignal] = useState(0);
+
 	// Consume a one-shot newTab seed: this tab was just spawned by a `newTab`
 	// quick prompt fired from another tab. `send` dispatches through the same
 	// fire/queue path the composer uses (queues until the fresh lazy session
@@ -2201,20 +2206,6 @@ export function ChatPanel({
 		selectionTracker.activeNotePath,
 		plugin.app.metadataCache,
 	]);
-
-	// Toolbar zap launcher: open the picker for THIS tab.
-	const openQuickPrompts = useCallback(() => {
-		const prompts = quickPrompts.prompts;
-		if (prompts.length === 0) {
-			new Notice(
-				`[Agent Console] No quick prompts found. Add markdown notes to your "${plugin.settings.quickPromptsFolder}" folder.`,
-			);
-			return;
-		}
-		new QuickPromptPickerModal(plugin.app, prompts, (prompt, opts) =>
-			runQuickPromptRef.current(prompt, opts),
-		).open();
-	}, [plugin, quickPrompts.prompts]);
 
 	// ============================================================
 	// Effects - Flush queued message on turn completion (#82)
@@ -2330,6 +2321,7 @@ export function ChatPanel({
 			hasPendingQueue: () => isQueuedRef.current,
 			runQuickPrompt: (prompt, opts) =>
 				runQuickPromptRef.current(prompt, opts),
+			startQuickPromptSearch: () => setQpSearchSignal((n) => n + 1),
 			getWorkingDirectory: () => agentCwd,
 		});
 	}, [onRegisterCallbacks, activeAgentLabel, agentCwd]);
@@ -2625,14 +2617,11 @@ export function ChatPanel({
 			onClearAgentUpdate={handleClearAgentUpdate}
 			messages={messages}
 			isActive={isActive}
-			onOpenQuickPrompts={openQuickPrompts}
-			quickPromptBar={
-				<QuickPromptBar
-					prompts={matchedQuickPrompts}
-					hasPendingQueue={queue.isQueued}
-					onFire={quickPrompts.runQuickPrompt}
-				/>
-			}
+			quickPromptSearchSignal={qpSearchSignal}
+			hasQuickPrompts={quickPrompts.prompts.length > 0}
+			onRunQuickPrompt={quickPrompts.runQuickPrompt}
+			quickPromptPrompts={matchedQuickPrompts}
+			quickPromptHasPendingQueue={queue.isQueued}
 		/>
 	);
 

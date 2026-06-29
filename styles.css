@@ -2911,11 +2911,19 @@ button.agent-client-message-tool-call-summary:focus-visible {
    not rendered at all when no prompts match (empty = no row). */
 .agent-client-quick-prompt-bar {
 	display: flex;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
+	/* Clip horizontal overflow only (the width-aware cap already display:none's
+	   chips that don't fit); overflow-y stays visible so a focused chip's
+	   :focus-visible ring isn't clipped top/bottom. overflow-clip-margin gives
+	   the ring a few px of bleed at the row's left/right edges too. */
+	/* No clipping: the width-aware cap display:none's overflow chips, so nothing
+	   overflows horizontally — and clipping (any axis) cut focused chips' rings.
+	   Small padding keeps the leftmost/rightmost ring off any ancestor clip. */
+	overflow: visible;
 	gap: var(--size-2-2);
 	align-items: center;
 	margin-bottom: var(--size-2-2);
-	padding: 0;
+	padding: 2px 4px;
 }
 
 .agent-client-quick-prompt-chip {
@@ -2925,14 +2933,22 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	padding: var(--size-2-1) var(--size-2-3);
 	font-size: var(--font-ui-smaller);
 	line-height: 1.4;
-	color: var(--text-muted);
+	color: var(--text-normal);
 	background-color: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-s);
 	cursor: pointer;
 	white-space: nowrap;
-	max-width: 100%;
+	/* Readable rounded-rect chips (spec § Screen mocks) — never compress to stubs
+	   in a narrow leaf (QP-I05); the visible count is trimmed in JS instead.
+	   Ellipsis caps a single long label. */
+	flex: 0 0 auto;
+	max-width: 16em;
 	overflow: hidden;
+}
+/* Folded out of the single-line row by the width-aware cap (QP-I05). */
+.agent-client-quick-prompt-chip-folded {
+	display: none;
 }
 .agent-client-quick-prompt-chip:hover {
 	color: var(--text-normal);
@@ -2946,7 +2962,17 @@ button.agent-client-message-tool-call-summary:focus-visible {
 
 /* `newTab` marker (↩) — the prompt fires into a fresh tab. */
 .agent-client-quick-prompt-chip-newtab {
-	color: var(--text-faint);
+	display: inline-flex;
+	align-items: center;
+	color: var(--text-muted);
+}
+.agent-client-quick-prompt-chip-newtab svg {
+	width: var(--icon-xs);
+	height: var(--icon-xs);
+}
+/* `{{selection}}` marker — the prompt needs a selection before it'll send. */
+.agent-client-quick-prompt-chip-selection {
+	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 }
 
@@ -2967,6 +2993,41 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .agent-client-quick-prompt-chip-lock svg {
 	width: var(--icon-xs);
 	height: var(--icon-xs);
+}
+
+/* "+N" overflow — folds the rest of the resting set into a ! search. */
+.agent-client-quick-prompt-more {
+	flex: 0 0 auto;
+	padding: var(--size-2-1) var(--size-2-3);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
+	color: var(--text-muted);
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+.agent-client-quick-prompt-more:hover {
+	color: var(--text-normal);
+	background-color: var(--background-modifier-hover);
+}
+
+/* Per-row markers in the composer ! dropdown (↗ new-tab, { } selection). */
+.agent-client-quick-prompt-row-marker {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+/* Modifier legend pinned to the bottom of the composer ! dropdown. */
+.agent-client-quick-prompt-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-4-2);
+	padding: var(--size-2-2) var(--size-2-3);
+	border-top: 1px solid var(--background-modifier-border);
+	background-color: var(--background-secondary);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
 }
 
 /* ============================================================

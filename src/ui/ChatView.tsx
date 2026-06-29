@@ -924,6 +924,8 @@ function ChatComponent({
 				activeCallbacksRef.current?.hasPendingQueue() ?? false,
 			runQuickPrompt: (prompt, opts) =>
 				activeCallbacksRef.current?.runQuickPrompt(prompt, opts),
+			startQuickPromptSearch: () =>
+				activeCallbacksRef.current?.startQuickPromptSearch(),
 			getWorkingDirectory: () =>
 				activeCallbacksRef.current?.getWorkingDirectory() ?? "",
 		});
@@ -1368,6 +1370,10 @@ export class ChatView extends ItemView implements IChatViewContainer {
 
 	runQuickPrompt(prompt: QuickPrompt, gesture: QuickPromptGesture): void {
 		this.callbacks?.runQuickPrompt(prompt, gesture);
+	}
+
+	startQuickPromptSearch(): void {
+		this.callbacks?.startQuickPromptSearch();
 	}
 
 	// ============================================================

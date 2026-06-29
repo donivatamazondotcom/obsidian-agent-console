@@ -2,11 +2,12 @@ import * as React from "react";
 const { useRef, useEffect } = React;
 import type { NoteMetadata } from "../services/vault-service";
 import type { SlashCommand } from "../types/session";
+import type { QuickPrompt } from "../types/quick-prompt";
 
 /**
  * Dropdown type for suggestion display.
  */
-type DropdownType = "mention" | "slash-command";
+type DropdownType = "mention" | "slash-command" | "quick-prompt";
 
 /**
  * Props for the SuggestionPopup component.
@@ -19,13 +20,16 @@ interface SuggestionPopupProps {
 	type: DropdownType;
 
 	/** Items to display (NoteMetadata for mentions, SlashCommand for commands) */
-	items: NoteMetadata[] | SlashCommand[];
+	items: NoteMetadata[] | SlashCommand[] | QuickPrompt[];
 
 	/** Currently selected item index */
 	selectedIndex: number;
 
 	/** Callback when an item is selected */
-	onSelect: (item: NoteMetadata | SlashCommand) => void;
+	onSelect: (
+		item: NoteMetadata | SlashCommand | QuickPrompt,
+		evt?: React.MouseEvent | React.KeyboardEvent,
+	) => void;
 
 	/** Callback to close the dropdown */
 	onClose: () => void;
@@ -83,7 +87,10 @@ export function SuggestionPopup({
 	/**
 	 * Render a single dropdown item based on type.
 	 */
-	const renderItem = (item: NoteMetadata | SlashCommand, index: number) => {
+	const renderItem = (
+		item: NoteMetadata | SlashCommand | QuickPrompt,
+		index: number,
+	) => {
 		const isSelected = index === selectedIndex;
 		const hasBorder = index < items.length - 1;
 
@@ -115,7 +122,7 @@ export function SuggestionPopup({
 					</div>
 				</div>
 			);
-		} else {
+		} else if (type === "slash-command") {
 			// type === "slash-command"
 			const command = item as SlashCommand;
 			return (
@@ -145,12 +152,56 @@ export function SuggestionPopup({
 					</div>
 				</div>
 			);
+		} else {
+			// type === "quick-prompt"
+			const prompt = item as QuickPrompt;
+			return (
+				<div
+					key={`qp-${index}`}
+					role="option"
+					tabIndex={-1}
+					aria-selected={isSelected}
+					className={`agent-client-mention-dropdown-item ${isSelected ? "agent-client-selected" : ""} ${hasBorder ? "agent-client-has-border" : ""}`}
+					onClick={(e) => onSelect(prompt, e)}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") {
+							e.preventDefault();
+							onSelect(prompt, e);
+						}
+					}}
+				>
+					<div className="agent-client-mention-dropdown-item-name">
+						{prompt.label}
+						{prompt.newTab && (
+							<span className="agent-client-quick-prompt-row-marker">
+								{" ↗"}
+							</span>
+						)}
+						{prompt.usesSelection && (
+							<span className="agent-client-quick-prompt-row-marker">
+								{" { }"}
+							</span>
+						)}
+					</div>
+				</div>
+			);
 		}
 	};
 
 	return (
 		<div ref={dropdownRef} className="agent-client-mention-dropdown" role="listbox">
 			{items.map((item, index) => renderItem(item, index))}
+			{type === "quick-prompt" && (
+				<div
+					className="agent-client-quick-prompt-legend"
+					aria-hidden="true"
+				>
+					<span>↵ run</span>
+					<span>⌘↵ new tab</span>
+					<span>⌘⇧↵ switch</span>
+					<span>⌥↵ insert</span>
+				</div>
+			)}
 		</div>
 	);
 }
