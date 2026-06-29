@@ -13,6 +13,7 @@ import {
 	buildQuickPrompt,
 	isQuickPromptFile,
 	resolvePromptText,
+	extractPromptBody,
 	decideQuickPromptAction,
 	planQuickPromptFire,
 	executeQuickPrompt,
@@ -1070,11 +1071,13 @@ describe("quick-prompts-logic — slice 4 (creation flow, D4)", () => {
 		});
 	});
 
-	describe("QP-I12: default placeholder is not itself a {{selection}} prompt", () => {
-		it("the placeholder body contains no live selection token (no dead-end fire)", () => {
-			expect(NEW_PROMPT_BODY_PLACEHOLDER).not.toContain(SELECTION_TOKEN);
+	describe("QP-I12: prompt/help separator — a selection token below --- is ignored", () => {
+		it("the PROMPT part (above ---) of the placeholder has no live selection token", () => {
+			expect(extractPromptBody(NEW_PROMPT_BODY_PLACEHOLDER)).not.toContain(
+				SELECTION_TOKEN,
+			);
 		});
-		it("a freshly-created prompt (placeholder body) fires normally, not as a selection prompt", () => {
+		it("a freshly-created prompt fires normally (a token in the help below --- does not count)", () => {
 			const p = buildQuickPrompt({
 				path: "Quick Prompts/New prompt.md",
 				basename: "New prompt",
@@ -1082,6 +1085,7 @@ describe("quick-prompts-logic — slice 4 (creation flow, D4)", () => {
 				body: NEW_PROMPT_BODY_PLACEHOLDER,
 			});
 			expect(p.usesSelection).toBe(false);
+			expect(p.body).toBe("Write your prompt here.");
 		});
 	});
 
@@ -1143,5 +1147,38 @@ describe("quick-prompts-logic — slice 4 (creation flow, D4)", () => {
 			expect(deriveLabelFromComposer("   \n  ")).toBe("New prompt");
 			expect(deriveLabelFromComposer("")).toBe("New prompt");
 		});
+	});
+});
+
+describe("quick-prompts-logic — prompt/help separator (---)", () => {
+	it("SEP-T1: prompt = text above the first ---; below ignored", () => {
+		expect(extractPromptBody("Do the thing.\n\n---\n\nhelp & notes")).toBe(
+			"Do the thing.",
+		);
+	});
+	it("SEP-T2: no separator → whole body (trimmed)", () => {
+		expect(extractPromptBody("  Just a prompt.  ")).toBe("Just a prompt.");
+		expect(extractPromptBody("a\nb\nc")).toBe("a\nb\nc");
+	});
+	it("SEP-T3: only the prompt part counts for {{selection}} + body", () => {
+		const above = buildQuickPrompt({
+			path: "Quick Prompts/a.md",
+			basename: "a",
+			frontmatter: null,
+			body: "Summarize {{selection}}\n---\nhelp",
+		});
+		const below = buildQuickPrompt({
+			path: "Quick Prompts/b.md",
+			basename: "b",
+			frontmatter: null,
+			body: "Summarize this\n---\nuse {{selection}} here",
+		});
+		expect(above.usesSelection).toBe(true);
+		expect(above.body).toBe("Summarize {{selection}}");
+		expect(below.usesSelection).toBe(false);
+		expect(below.body).toBe("Summarize this");
+	});
+	it("SEP-T4: matches 3+ dashes", () => {
+		expect(extractPromptBody("a\n----\nb")).toBe("a");
 	});
 });

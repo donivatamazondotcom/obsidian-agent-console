@@ -18,7 +18,7 @@ Debrief this meeting — pull the AI summary, extract action items, and update t
 ````
 
 - **Label** comes from the `label` field (emoji welcome). If there's no `label`, Agent Console falls back to `name`, then `title`, then the filename. (`description` is intentionally not used — it clashes with the common note-summary field.)
-- **Prompt text** is everything below the frontmatter.
+- **Prompt text** is everything below the frontmatter. If you add a `---` line, only the text **above** it is sent — everything from the `---` down is ignored, so you can keep help, notes, or draft variations in the note. New prompts are created with a `---` and a help block below it.
 
 ## Create a quick prompt
 

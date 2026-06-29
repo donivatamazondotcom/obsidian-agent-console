@@ -115,14 +115,29 @@ function normalizeString(value: unknown): string | undefined {
  * fields (firing is always current-tab); they ride through so the later slices
  * need no re-parse.
  */
+/**
+ * The prompt text that actually gets sent: everything ABOVE the first
+ * thematic-break line (`---`, 3+ dashes). Content from the separator down is
+ * ignored — persistent help, notes, or draft variations the author keeps in
+ * the note. No separator → the whole body is the prompt (back-compat).
+ */
+export function extractPromptBody(body: string): string {
+	const lines = body.split("\n");
+	const sep = lines.findIndex((line) => /^-{3,}$/.test(line.trim()));
+	return (sep < 0 ? body : lines.slice(0, sep).join("\n")).trim();
+}
+
 export function buildQuickPrompt(input: QuickPromptFileInput): QuickPrompt {
 	const fm = input.frontmatter;
+	// Prompt text = everything above the first `---`; content below it is
+	// ignored (persistent help / notes / drafts).
+	const promptBody = extractPromptBody(input.body);
 	return {
 		id: slugifyPromptId(input.basename),
 		label: deriveLabel(fm, input.basename),
-		body: input.body,
+		body: promptBody,
 		path: input.path,
-		usesSelection: input.body.includes(SELECTION_TOKEN),
+		usesSelection: promptBody.includes(SELECTION_TOKEN),
 		// Contextual-chip scope: `show when:` List property; each item a
 		// `key=value` condition. Supersedes the tags-only `show on tags:` key —
 		// matches on any frontmatter property (`tags` is one supported key).
@@ -638,12 +653,20 @@ export function rankLauncherPrompts(
 
 /** Placeholder body seeded into a brand-new prompt note (no captured text). */
 export const NEW_PROMPT_BODY_PLACEHOLDER = [
-	"Write your prompt here, then set the label above. Delete this help once you're set.",
+	"Write your prompt here.",
 	"",
-	"Properties above (top to bottom):",
-	"- open in new tab: fire into a fresh chat tab instead of the current one.",
-	"- always show: show this prompt's chip on every note.",
-	"- show when: show the chip only on matching notes. Add one item to the list per condition, each property=value — e.g. type=meeting, tags=people, status=open. Empty = search-only (type ! in the composer to find it).",
+	"---",
+	"",
+	"Notes & help — everything below this line is ignored; only the text above the --- is sent. Keep it, edit it, or jot draft variations here.",
+	"",
+	"Set the label above, then choose where this prompt's chip appears:",
+	"- open in new tab: runs in a new chat tab instead of this one.",
+	"- always show: the chip shows on every note.",
+	"- show when: the chip shows only on matching notes. Add one list item per condition, like type=meeting, tags=people, or status=open.",
+	"",
+	"Set none of these and the prompt stays out of the chip row — type ! in the composer to run it.",
+	"",
+	"To pull in text you've selected in a note, write {{selection}} in your prompt above.",
 	"",
 	"Guide: https://donivatamazondotcom.github.io/obsidian-agent-console/usage/quick-prompts",
 ].join("\n");
