@@ -1,7 +1,8 @@
 import { Keymap, type PaneType } from "obsidian";
 
 /**
- * Derive the target pane type for opening an internal link from a mouse event.
+ * Derive the target pane type for opening an internal link from a mouse or
+ * keyboard (Enter) event.
  *
  * Thin wrapper over `Keymap.isModEvent` — Obsidian's sanctioned API for
  * translating a mouse event into the pane that should open. Per the official
@@ -27,8 +28,29 @@ import { Keymap, type PaneType } from "obsidian";
  * Imports `Keymap` (runtime) and `PaneType` (type) from `obsidian`, so — like
  * `platform.ts` — it is a sanctioned obsidian-importing util.
  */
-export function deriveNewLeaf(evt: MouseEvent): PaneType | boolean {
+export function deriveNewLeaf(evt: MouseEvent | KeyboardEvent): PaneType | boolean {
 	return Keymap.isModEvent(evt);
+}
+
+/**
+ * Should a link/pill activation open the target?
+ *
+ * - **Mouse** → open only for left (button 0) or middle (button 1). Right-click
+ *   (button 2) must fall through to the context menu.
+ * - **Keyboard** (Enter) → always open; it is a deliberate activation. A
+ *   `KeyboardEvent` has no `.button`, so the decision must NOT be gated on one
+ *   — gating on `button` is exactly the bug that silently swallowed Enter-open
+ *   on context-strip pills (I148).
+ *
+ * Button-based (not `instanceof MouseEvent`) so it is robust across Obsidian
+ * popout windows, whose `MouseEvent` constructor differs from the main window's.
+ * Pane routing is derived separately via {@link deriveNewLeaf}.
+ */
+export function shouldOpenFromActivation(
+	evt: MouseEvent | KeyboardEvent,
+): boolean {
+	const button = (evt as MouseEvent).button;
+	return typeof button !== "number" || button === 0 || button === 1;
 }
 
 /**

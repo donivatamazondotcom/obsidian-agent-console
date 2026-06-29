@@ -19,7 +19,7 @@ When you send a message, any provisional pill **pins** and becomes a pinned pill
 
 - **Grab the active note:** click the grab button in the strip, or run the **"Toggle active note in context"** command (bind it to a hotkey for one-key pinning). Running it again ungrabs the note.
 - **Add more notes:** `@mention` them in your message — mentioned notes pin into pills when you send.
-- **Remove a note:** click the ✕ on its pill, or — with the text field empty — press **Backspace** to remove the rightmost pill. A provisional (dashed) pill goes in a single press; a pinned pill highlights on the first Backspace and clears on the second.
+- **Remove a note:** click the ✕ on its pill, or focus a pill (Tab to it) and press **Backspace** or **Delete** to remove it.
 
 <p align="center">
   <img src="/images/temporary-disable.gif" alt="Removing the auto-pinned active note from the context strip with its remove button, then pinning it back with the grab button" />

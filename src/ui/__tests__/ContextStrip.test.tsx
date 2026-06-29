@@ -1,13 +1,13 @@
 /**
  * Unit tests for ContextStrip component.
  *
- * TDD — written before implementation. Covers:
+ * Covers:
  * - Pill rendering from contextNotes array
  * - Grab button states (enabled/disabled/tooltip)
- * - Pill removal via × click
- * - Keyboard navigation (arrow-left into pills, Backspace to select/remove)
- * - Placeholder when empty
- * - Cap-reached disabled state
+ * - Pill removal via × click and via Backspace/Delete on a focused pill
+ * - Pill click (open note)
+ * - Provisional (dashed) pill render + suppression
+ * - No text input (typing-to-add was never wired and has been removed)
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
@@ -26,6 +26,7 @@ function makeProps(overrides: Partial<Parameters<typeof ContextStrip>[0]> = {}) 
 		onPillClick: vi.fn(),
 		provisionalPath: null,
 		onSuppressProvisional: vi.fn(),
+		onFocusComposer: vi.fn(),
 		...overrides,
 	};
 }
@@ -37,9 +38,10 @@ describe("ContextStrip", () => {
 	// Rendering
 	// ========================================================================
 
-	it("renders placeholder when no notes crystallized", () => {
-		render(<ContextStrip {...makeProps()} />);
-		expect(screen.getByPlaceholderText("Pin notes with +")).toBeTruthy();
+	it("renders no text input — typing-to-add was removed", () => {
+		const { container } = render(<ContextStrip {...makeProps()} />);
+		expect(container.querySelector("input")).toBeNull();
+		expect(container.querySelector(".context-strip-field")).toBeTruthy();
 	});
 
 	it("renders pills for each crystallized note", () => {
@@ -114,23 +116,26 @@ describe("ContextStrip", () => {
 		expect((btn as HTMLButtonElement).disabled).toBe(true);
 	});
 
-	it("clicking grab button calls onAdd with active note path and 'user' source", () => {
+	it("clicking grab button calls onAdd with active note path and 'user' source, then focuses the composer", () => {
 		const onAdd = vi.fn();
+		const onFocusComposer = vi.fn();
 		render(
 			<ContextStrip
 				{...makeProps({
 					activeNotePath: "note.md",
 					activeNoteName: "note",
 					onAdd,
+					onFocusComposer,
 				})}
 			/>,
 		);
 		fireEvent.click(screen.getByLabelText("Pin: note"));
 		expect(onAdd).toHaveBeenCalledWith("note.md", "user");
+		expect(onFocusComposer).toHaveBeenCalledTimes(1);
 	});
 
 	// ========================================================================
-	// Pill removal
+	// Pill removal — × click
 	// ========================================================================
 
 	it("clicking × on a pill calls onRemove with the path", () => {
@@ -161,50 +166,39 @@ describe("ContextStrip", () => {
 		);
 	});
 
-	// ========================================================================
-	// Keyboard navigation
-	// ========================================================================
-
-	it("Backspace with empty input selects last pill", () => {
+	it("Enter on a focused pill opens the note", () => {
+		const onPillClick = vi.fn();
 		const notes: ContextNote[] = [
-			{ path: "a.md", source: "user", seen: false },
-			{ path: "b.md", source: "user", seen: false },
+			{ path: "note.md", source: "user", seen: false },
 		];
-		const { container } = render(
-			<ContextStrip {...makeProps({ notes })} />,
-		);
-		const input = screen.getByPlaceholderText("Pin notes with +");
-		fireEvent.keyDown(input, { key: "Backspace" });
-		// Last pill should have selected class
-		const pills = container.querySelectorAll(".context-strip-pill");
-		expect(
-			pills[pills.length - 1].classList.contains(
-				"context-strip-pill--selected",
-			),
-		).toBe(true);
+		render(<ContextStrip {...makeProps({ notes, onPillClick })} />);
+		fireEvent.keyDown(screen.getByText("note"), { key: "Enter" });
+		expect(onPillClick).toHaveBeenCalledWith("note.md", expect.any(Object));
 	});
 
-	it("Backspace on selected pill calls onRemove", () => {
+	// ========================================================================
+	// Pill removal — Backspace/Delete on the focused pill (per-pill, one-step)
+	// ========================================================================
+
+	it("Backspace on a focused pill removes that pill", () => {
 		const onRemove = vi.fn();
 		const notes: ContextNote[] = [
 			{ path: "a.md", source: "user", seen: false },
 			{ path: "b.md", source: "user", seen: false },
 		];
 		render(<ContextStrip {...makeProps({ notes, onRemove })} />);
-		const input = screen.getByPlaceholderText("Pin notes with +");
-		// First Backspace selects
-		fireEvent.keyDown(input, { key: "Backspace" });
-		// Second Backspace removes
-		fireEvent.keyDown(input, { key: "Backspace" });
-		expect(onRemove).toHaveBeenCalledWith("b.md");
+		fireEvent.keyDown(screen.getByText("a"), { key: "Backspace" });
+		expect(onRemove).toHaveBeenCalledWith("a.md");
 	});
 
-	it("Escape blurs the strip input", () => {
-		render(<ContextStrip {...makeProps()} />);
-		const input = screen.getByPlaceholderText("Pin notes with +");
-		input.focus();
-		fireEvent.keyDown(input, { key: "Escape" });
-		expect(document.activeElement).not.toBe(input);
+	it("Delete on a focused pill removes that pill", () => {
+		const onRemove = vi.fn();
+		const notes: ContextNote[] = [
+			{ path: "a.md", source: "user", seen: false },
+		];
+		render(<ContextStrip {...makeProps({ notes, onRemove })} />);
+		fireEvent.keyDown(screen.getByText("a"), { key: "Delete" });
+		expect(onRemove).toHaveBeenCalledWith("a.md");
 	});
 
 	// ========================================================================
@@ -240,7 +234,7 @@ describe("ContextStrip", () => {
 		).toBeNull();
 	});
 
-	it("Backspace with empty input and no crystallized pills suppresses the provisional pill (one-step)", () => {
+	it("Backspace on the focused provisional pill calls onSuppressProvisional", () => {
 		const onSuppressProvisional = vi.fn();
 		render(
 			<ContextStrip
@@ -250,34 +244,84 @@ describe("ContextStrip", () => {
 				})}
 			/>,
 		);
-		const input = screen.getByPlaceholderText("Pin notes with +");
-		fireEvent.keyDown(input, { key: "Backspace" });
+		fireEvent.keyDown(screen.getByText("Draft"), { key: "Backspace" });
 		expect(onSuppressProvisional).toHaveBeenCalledTimes(1);
 	});
 
-	it("Backspace targets the cursor-adjacent provisional pill before crystallized pills", () => {
+	it("Delete on the focused provisional pill calls onSuppressProvisional", () => {
 		const onSuppressProvisional = vi.fn();
-		const onRemove = vi.fn();
-		const notes: ContextNote[] = [
-			{ path: "a.md", source: "user", seen: false },
-		];
-		const { container } = render(
+		render(
 			<ContextStrip
 				{...makeProps({
-					notes,
 					provisionalPath: "folder/Draft.md",
 					onSuppressProvisional,
-					onRemove,
 				})}
 			/>,
 		);
-		const input = screen.getByPlaceholderText("Pin notes with +");
-		fireEvent.keyDown(input, { key: "Backspace" });
-		// Provisional suppressed first; crystallized pill untouched and unselected.
+		fireEvent.keyDown(screen.getByText("Draft"), { key: "Delete" });
 		expect(onSuppressProvisional).toHaveBeenCalledTimes(1);
-		expect(onRemove).not.toHaveBeenCalled();
-		expect(
-			container.querySelector(".context-strip-pill--selected"),
-		).toBeNull();
+	});
+
+	// ========================================================================
+	// Focus management after keyboard removal (g)
+	// ========================================================================
+
+	function focusedPath(): string | null {
+		return document.activeElement?.getAttribute("data-context-pill-path") ?? null;
+	}
+
+	it("moves focus to the NEXT pill after Backspace removes a focused middle pill", () => {
+		const notes: ContextNote[] = [
+			{ path: "a.md", source: "user", seen: false },
+			{ path: "b.md", source: "user", seen: false },
+			{ path: "c.md", source: "user", seen: false },
+		];
+		const { rerender } = render(<ContextStrip {...makeProps({ notes })} />);
+		(screen.getByText("b") as HTMLElement).focus();
+		fireEvent.keyDown(screen.getByText("b"), { key: "Backspace" });
+		// Parent removes b → re-render with [a, c]; the queued focus lands on c.
+		rerender(
+			<ContextStrip
+				{...makeProps({
+					notes: [
+						{ path: "a.md", source: "user", seen: false },
+						{ path: "c.md", source: "user", seen: false },
+					],
+				})}
+			/>,
+		);
+		expect(focusedPath()).toBe("c.md");
+	});
+
+	it("moves focus to the PREVIOUS pill when the focused LAST pill is removed", () => {
+		const notes: ContextNote[] = [
+			{ path: "a.md", source: "user", seen: false },
+			{ path: "b.md", source: "user", seen: false },
+		];
+		const { rerender } = render(<ContextStrip {...makeProps({ notes })} />);
+		(screen.getByText("b") as HTMLElement).focus();
+		fireEvent.keyDown(screen.getByText("b"), { key: "Delete" });
+		rerender(
+			<ContextStrip
+				{...makeProps({
+					notes: [{ path: "a.md", source: "user", seen: false }],
+				})}
+			/>,
+		);
+		expect(focusedPath()).toBe("a.md");
+	});
+
+	it("calls onFocusComposer when the LAST remaining pill is removed", () => {
+		const onFocusComposer = vi.fn();
+		const notes: ContextNote[] = [
+			{ path: "only.md", source: "user", seen: false },
+		];
+		const { rerender } = render(
+			<ContextStrip {...makeProps({ notes, onFocusComposer })} />,
+		);
+		(screen.getByText("only") as HTMLElement).focus();
+		fireEvent.keyDown(screen.getByText("only"), { key: "Backspace" });
+		rerender(<ContextStrip {...makeProps({ notes: [], onFocusComposer })} />);
+		expect(onFocusComposer).toHaveBeenCalledTimes(1);
 	});
 });

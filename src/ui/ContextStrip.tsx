@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { ContextNote, ContextNoteSource } from "../types/context";
 
 export interface ContextStripProps {
@@ -8,11 +8,20 @@ export interface ContextStripProps {
 	activeNoteName: string | null;
 	onAdd: (path: string, source: ContextNoteSource) => void;
 	onRemove: (path: string) => void;
-	onPillClick: (path: string, event: React.MouseEvent) => void;
+	onPillClick: (
+		path: string,
+		event: React.MouseEvent | React.KeyboardEvent,
+	) => void;
 	/** Decision #26: active-note path to show as a dashed provisional pill, or null. */
 	provisionalPath: string | null;
 	/** Called when the provisional pill's × is clicked (sticky-suppress for the tab). */
 	onSuppressProvisional: () => void;
+	/**
+	 * Focus the composer. Called when a keyboard removal empties the strip so
+	 * focus doesn't fall to document.body. (Mouse-driven removal focus-return is
+	 * handled separately by ChatPanel's guarded returnFocusToComposer.)
+	 */
+	onFocusComposer: () => void;
 }
 
 /** Derive display name from vault-relative path (basename without extension). */
@@ -22,9 +31,24 @@ function displayName(path: string): string {
 	return dot > 0 ? base.slice(0, dot) : base;
 }
 
+/** Identifies the focused pill to the Mod/Alt+Enter keymap scope in ChatPanel. */
+export const PILL_PATH_ATTR = "data-context-pill-path";
+
 /**
- * Context strip — tag-input field with crystallized pills + grab button.
- * Follows Obsidian's property/tag input pattern.
+ * Context strip — a grab (+) button plus a row of removable note pills.
+ *
+ * Each pill is a SINGLE focusable token (one tab stop): open it (click / Enter /
+ * middle-click, honoring ⌘/⌃/⌥/⇧ to open in a new tab/split/window like any
+ * Obsidian link) or remove it (Backspace/Delete while focused, or the × button
+ * by mouse — the × is not a separate tab stop). After a keyboard removal, focus
+ * moves to the next pill (or the previous, or the composer when none remain) so
+ * the keyboard user is never stranded on document.body.
+ *
+ * There is no text-entry field. An inline type-to-add/search affordance was
+ * advertised by a placeholder but never wired (see I62); the type-to-search
+ * picker it stood in for is not being shipped, so the input — and the two-step
+ * "Backspace from empty field selects then removes" scaffolding it required —
+ * were removed (I148). Removal now lives on the focused pill.
  */
 export function ContextStrip({
 	notes,
@@ -36,57 +60,68 @@ export function ContextStrip({
 	onPillClick,
 	provisionalPath,
 	onSuppressProvisional,
+	onFocusComposer,
 }: ContextStripProps) {
-	const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-	const inputRef = useRef<HTMLInputElement>(null);
-
 	const isAlreadyCrystallized =
 		activeNotePath != null && notes.some((n) => n.path === activeNotePath);
 	const grabDisabled = !activeNotePath || isAlreadyCrystallized || isFull;
 
+	// Pill name nodes by path, for moving focus after a keyboard removal.
+	const pillRefs = useRef(new Map<string, HTMLSpanElement>());
+	// Where focus should land once the post-removal re-render commits.
+	const pendingFocus = useRef<
+		{ kind: "pill"; path: string } | { kind: "composer" } | null
+	>(null);
+
 	const handleGrabClick = useCallback(() => {
 		if (activeNotePath && !grabDisabled) {
 			onAdd(activeNotePath, "user");
+			// Pinning is a one-shot action — drop focus into the composer so the
+			// user can keep typing (the grab button also disables itself once the
+			// note is pinned). Unconditional, unlike ChatPanel's guarded
+			// returnFocusToComposer, which no-ops for a mouse click that never
+			// had composer focus.
+			onFocusComposer();
 		}
-	}, [activeNotePath, grabDisabled, onAdd]);
+	}, [activeNotePath, grabDisabled, onAdd, onFocusComposer]);
 
-	const handleKeyDown = useCallback(
-		(e: React.KeyboardEvent<HTMLInputElement>) => {
-			const input = inputRef.current;
-			if (!input) return;
-
-			if (e.key === "Escape") {
-				input.blur();
-				setSelectedIndex(null);
-				return;
-			}
-
-			if (e.key === "Backspace" && input.value === "") {
-				e.preventDefault();
-				if (selectedIndex != null) {
-					// Second Backspace — remove selected pill
-					onRemove(notes[selectedIndex].path);
-					setSelectedIndex(null);
-				} else if (provisionalPath != null) {
-					// I77: the provisional (dashed) pill is the rightmost,
-					// cursor-adjacent pill. A single Backspace suppresses it —
-					// one-step, since it's a transient draft, not a committed
-					// pill that warrants the two-step select-then-remove guard.
-					onSuppressProvisional();
-				} else if (notes.length > 0) {
-					// First Backspace — select last pill
-					setSelectedIndex(notes.length - 1);
-				}
-				return;
-			}
-
-			// Any other key clears pill selection
-			if (selectedIndex != null) {
-				setSelectedIndex(null);
-			}
+	// Remove a crystallized pill at index `i`, then queue focus to its neighbor
+	// (next, else previous), or the composer when it was the last pill.
+	const removePillAt = useCallback(
+		(i: number) => {
+			const next = notes[i + 1]?.path ?? notes[i - 1]?.path ?? null;
+			pendingFocus.current = next
+				? { kind: "pill", path: next }
+				: { kind: "composer" };
+			onRemove(notes[i].path);
 		},
-		[notes, selectedIndex, onRemove, provisionalPath, onSuppressProvisional],
+		[notes, onRemove],
 	);
+
+	// Suppress the provisional pill, then queue focus to the last crystallized
+	// pill, or the composer when there are none.
+	const suppressProvisional = useCallback(() => {
+		const last = notes[notes.length - 1]?.path ?? null;
+		pendingFocus.current = last
+			? { kind: "pill", path: last }
+			: { kind: "composer" };
+		onSuppressProvisional();
+	}, [notes, onSuppressProvisional]);
+
+	// Apply the queued focus after the removal re-render commits.
+	useEffect(() => {
+		const pf = pendingFocus.current;
+		if (!pf) return;
+		pendingFocus.current = null;
+		if (pf.kind === "pill") {
+			const el = pillRefs.current.get(pf.path);
+			if (el) {
+				el.focus();
+				return;
+			}
+		}
+		onFocusComposer();
+	}, [notes, provisionalPath, onFocusComposer]);
 
 	return (
 		<div className="context-strip">
@@ -122,20 +157,25 @@ export function ContextStrip({
 			</button>
 			<div className="context-strip-field">
 				{notes.map((note, i) => (
-					<span
-						key={note.path}
-						className={`context-strip-pill${selectedIndex === i ? " context-strip-pill--selected" : ""}`}
-					>
+					<span key={note.path} className="context-strip-pill">
 						<span
 							className="context-strip-pill-name"
 							role="link"
 							tabIndex={0}
 							aria-label={displayName(note.path)}
+							{...{ [PILL_PATH_ATTR]: note.path }}
+							ref={(el) => {
+								if (el) pillRefs.current.set(note.path, el);
+								else pillRefs.current.delete(note.path);
+							}}
 							onClick={(e) => onPillClick(note.path, e)}
 							onKeyDown={(e) => {
-								if (e.key === "Enter" || e.key === " ") {
+								if (e.key === "Enter") {
 									e.preventDefault();
-									onPillClick(note.path, e as unknown as React.MouseEvent);
+									onPillClick(note.path, e);
+								} else if (e.key === "Backspace" || e.key === "Delete") {
+									e.preventDefault();
+									removePillAt(i);
 								}
 							}}
 							onAuxClick={(e) => {
@@ -149,6 +189,7 @@ export function ContextStrip({
 						<button
 							className="context-strip-pill-remove"
 							data-acp-focus-cluster=""
+							tabIndex={-1}
 							aria-label="Remove note from context"
 							onClick={() => onRemove(note.path)}
 						>
@@ -166,11 +207,15 @@ export function ContextStrip({
 							role="link"
 							tabIndex={0}
 							aria-label={displayName(provisionalPath)}
+							{...{ [PILL_PATH_ATTR]: provisionalPath }}
 							onClick={(e) => onPillClick(provisionalPath, e)}
 							onKeyDown={(e) => {
-								if (e.key === "Enter" || e.key === " ") {
+								if (e.key === "Enter") {
 									e.preventDefault();
-									onPillClick(provisionalPath, e as unknown as React.MouseEvent);
+									onPillClick(provisionalPath, e);
+								} else if (e.key === "Backspace" || e.key === "Delete") {
+									e.preventDefault();
+									suppressProvisional();
 								}
 							}}
 							onAuxClick={(e) => {
@@ -184,6 +229,7 @@ export function ContextStrip({
 						<button
 							className="context-strip-pill-remove"
 							data-acp-focus-cluster=""
+							tabIndex={-1}
 							aria-label="Don't add the active note as context for this chat"
 							onClick={onSuppressProvisional}
 						>
@@ -191,13 +237,6 @@ export function ContextStrip({
 						</button>
 					</span>
 				)}
-				<input
-					ref={inputRef}
-					className="context-strip-input"
-					placeholder="Pin notes with +"
-					onKeyDown={handleKeyDown}
-					onFocus={() => setSelectedIndex(null)}
-				/>
 			</div>
 		</div>
 	);

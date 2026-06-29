@@ -7,6 +7,7 @@ import {
 	Menu,
 	getAllTags,
 	setIcon,
+	Scope,
 	type MenuItem,
 } from "obsidian";
 
@@ -18,7 +19,7 @@ import {
 	deriveCwdBanner,
 } from "../utils/working-directory";
 import { resolveCwdForAgent } from "../services/session-helpers";
-import { deriveNewLeaf } from "../utils/link-leaf";
+import { deriveNewLeaf, shouldOpenFromActivation } from "../utils/link-leaf";
 import { deriveSendAffordance, isSessionLive } from "../utils/send-affordance";
 import { extractLinks, type SharedLink } from "../utils/link-extract";
 import {
@@ -99,7 +100,8 @@ import { shouldShowGettingStarted } from "../services/agent-detection";
 import { installAgent } from "../services/agent-installer";
 import { indexOfCurrentAgent } from "../services/session-helpers";
 import { InputArea } from "./InputArea";
-import { ContextStrip } from "./ContextStrip";
+import { ContextStrip, PILL_PATH_ATTR } from "./ContextStrip";
+import { focusComposerAtEnd } from "./composer-focus";
 import { computeProvisionalPath } from "../utils/provisional-context";
 import type { IChatViewHost } from "./view-host";
 
@@ -687,20 +689,52 @@ export function ChatPanel({
 	// Focus-return after in-panel state changes — [[Composer Focus Return After State Change]].
 	const { composerElRef, returnFocusToComposer } = useComposerFocusReturn();
 
-	const handleContextPillClick = useCallback(
-		(path: string, event: React.MouseEvent) => {
-			// Right-click (button 2) arrives via onAuxClick on the pill; ignore
-			// it so the default menu survives. Left-click and middle-click route
-			// through the shared deriveNewLeaf for parity with chat-panel links.
-			if (event.button !== 0 && event.button !== 1) return;
+	// Open a context-pill note, honoring left/middle-click, Enter, and the
+	// ⌘/⌃/⌥/⇧ pane modifiers. Button-based gate so keyboard activation (no
+	// `.button`) isn't swallowed (I148); pane derived via the sanctioned
+	// Keymap.isModEvent. Shared by onPillClick and the Mod/Alt+Enter scope below.
+	const openContextNote = useCallback(
+		(path: string, native: MouseEvent | KeyboardEvent) => {
+			if (!shouldOpenFromActivation(native)) return;
 			void plugin.app.workspace.openLinkText(
 				path,
 				plugin.app.workspace.getActiveFile()?.path ?? "",
-				deriveNewLeaf(event.nativeEvent),
+				deriveNewLeaf(native),
 			);
 		},
 		[plugin.app.workspace],
 	);
+
+	const handleContextPillClick = useCallback(
+		(path: string, event: React.MouseEvent | React.KeyboardEvent) =>
+			openContextNote(path, event.nativeEvent),
+		[openContextNote],
+	);
+
+	// Obsidian's global editor hotkeys claim ⌥/⌘/⌃+Enter (editor:follow-link /
+	// open-link-in-new-leaf|split|window) before a focused pill's React onKeyDown
+	// can see them — so plain Enter opens but the modifier combos never reach the
+	// pill. Push a Scope (the quick-prompts QP-I14 pattern) that claims exactly
+	// those combos and, when a context pill is the focused element, opens it in
+	// the matching pane. When no pill is focused the handler returns void so
+	// Obsidian's editor hotkeys still fire elsewhere.
+	useEffect(() => {
+		const keymap = plugin.app.keymap;
+		const scope = new Scope(plugin.app.scope);
+		const handler = (evt: KeyboardEvent): false | void => {
+			const path =
+				activeDocument.activeElement?.getAttribute(PILL_PATH_ATTR);
+			if (!path) return; // not on a pill — fall through to Obsidian
+			openContextNote(path, evt);
+			return false; // consume
+		};
+		scope.register(["Alt"], "Enter", handler);
+		scope.register(["Mod"], "Enter", handler);
+		scope.register(["Mod", "Alt"], "Enter", handler);
+		scope.register(["Mod", "Alt", "Shift"], "Enter", handler);
+		keymap.pushScope(scope);
+		return () => keymap.popScope(scope);
+	}, [plugin, openContextNote]);
 
 	// Shared Links Bubble: derive the per-tab link set from the active tab's
 	// messages (spec [[Shared Links Bubble]] § "derive, don't store").
@@ -2532,6 +2566,7 @@ export function ChatPanel({
 				returnFocusToComposer();
 			}}
 			onPillClick={handleContextPillClick}
+			onFocusComposer={() => focusComposerAtEnd(composerElRef.current)}
 			provisionalPath={computeProvisionalPath({
 				settingOn: settings.activeNoteAsDefaultContext,
 				suppressed: autoDefaultSuppressed,
