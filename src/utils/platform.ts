@@ -423,3 +423,37 @@ export function prepareShellCommand(
 	}
 	return { command, args, needsShell: true };
 }
+
+/**
+ * Platform-aware modifier-key labels for user-facing hint text.
+ *
+ * The gesture *behavior* is already platform-adaptive — it routes through
+ * Obsidian's `Keymap.isModEvent` and the `Mod` scope token, so the platform
+ * Mod key (⌘ on macOS, Ctrl on Windows/Linux) works without branching. These
+ * labels only fix the *displayed* hints so non-macOS users see the keys their
+ * keyboard actually has instead of Mac glyphs. The branch is macOS-vs-not, so
+ * Linux gets the same Ctrl/Alt/Shift form as Windows (matching what Obsidian's
+ * own `Mod` maps to on Linux).
+ *
+ * This is the "normalize variance once at the edge" pattern: the platform
+ * choice lives here only; consumers read these labels and never branch on
+ * `Platform.isMacOS` inline.
+ */
+
+/** Platform "Mod" key: ⌘ on macOS, Ctrl on Windows/Linux. */
+export const MOD_KEY = Platform.isMacOS ? "⌘" : "Ctrl";
+/** Alt/Option key: ⌥ on macOS, Alt on Windows/Linux. */
+export const ALT_KEY = Platform.isMacOS ? "⌥" : "Alt";
+/** Shift key: ⇧ on macOS, Shift on Windows/Linux. */
+export const SHIFT_KEY = Platform.isMacOS ? "⇧" : "Shift";
+/** Enter/Return key: ↵ on macOS, Enter on Windows/Linux. */
+export const ENTER_KEY = Platform.isMacOS ? "↵" : "Enter";
+
+/**
+ * Join modifier/key labels into a combo for hint text. macOS concatenates
+ * glyphs (`⌘↵`, `⌘⇧↵`); other platforms join with `+` (`Ctrl+Enter`,
+ * `Ctrl+Shift+Enter`).
+ */
+export function modCombo(...keys: string[]): string {
+	return keys.join(Platform.isMacOS ? "" : "+");
+}

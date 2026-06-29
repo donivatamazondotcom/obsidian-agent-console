@@ -31,6 +31,7 @@ You can also run **Quick prompts: Search** from the command palette (`Cmd/Ctrl +
 
 Firing sends the prompt right away in the current chat, carrying the active note and any selection as context. Modifier keys change where it goes and whether it sends, mirroring how links open in a browser:
 
+On Windows and Linux, use **Ctrl** / **Alt** / **Shift** wherever these show ⌘ / ⌥ / ⇧ — Agent Console shows the keys for your system automatically.
 - **⌘ (Cmd) + Enter** → send in a **new tab**, in the background. Add **⇧ (Shift)** — ⌘⇧Enter — to switch to the new tab as it opens.
 - **⌥ (Alt) + Enter** → drop the text into the composer to edit first, instead of sending.
 

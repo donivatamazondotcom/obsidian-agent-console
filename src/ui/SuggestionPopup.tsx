@@ -3,6 +3,7 @@ const { useRef, useEffect } = React;
 import type { NoteMetadata } from "../services/vault-service";
 import type { SlashCommand } from "../types/session";
 import type { QuickPrompt } from "../types/quick-prompt";
+import { MOD_KEY, ALT_KEY, SHIFT_KEY, ENTER_KEY, modCombo } from "../utils/platform";
 
 /**
  * Dropdown type for suggestion display.
@@ -196,10 +197,10 @@ export function SuggestionPopup({
 					className="agent-client-quick-prompt-legend"
 					aria-hidden="true"
 				>
-					<span>↵ run</span>
-					<span>⌘↵ new tab</span>
-					<span>⌘⇧↵ switch</span>
-					<span>⌥↵ insert</span>
+					<span>{ENTER_KEY} run</span>
+					<span>{modCombo(MOD_KEY, ENTER_KEY)} new tab</span>
+					<span>{modCombo(MOD_KEY, SHIFT_KEY, ENTER_KEY)} switch</span>
+					<span>{modCombo(ALT_KEY, ENTER_KEY)} insert</span>
 				</div>
 			)}
 		</div>
