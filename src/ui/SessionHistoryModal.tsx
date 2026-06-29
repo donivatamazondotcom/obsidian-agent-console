@@ -5,7 +5,7 @@
  * and the confirmation modal for session deletion.
  */
 
-import { Modal, App, Notice, setIcon } from "obsidian";
+import { Modal, App, Notice, setIcon, setTooltip } from "obsidian";
 import * as React from "react";
 const { useState, useCallback } = React;
 import { createRoot, Root } from "react-dom/client";
@@ -685,6 +685,22 @@ export function SessionHistoryContent({
 	// narrows the set to one folder, so it can always be turned back off.
 	const showFolderFilter = distinctCwdCount > 1 || filterByCurrentVault;
 
+	// I148: surface the full working-folder path via Obsidian's styled tooltip
+	// (the raw `title` attr did not). Callback ref re-applies on mount (the
+	// filter is conditionally rendered) and whenever currentCwd changes.
+	const setFolderTooltip = useCallback(
+		(el: HTMLSpanElement | null) => {
+			if (el) setTooltip(el, currentCwd);
+		},
+		[currentCwd],
+	);
+
+	// I150: the disconnected-Agent affordance text, rendered inline in the
+	// source-toggle row (with a tooltip, since it truncates).
+	const syncAffordanceText = agentSessionCache
+		? `Synced ${formatRelativeTime(new Date(agentSessionCache.syncedAt))} – send a message to reconnect and refresh`
+		: "Send a message to connect, then this list loads from the agent";
+
 	// I94: focus the search box when the modal opens so the user can type
 	// immediately. Index build is NOT triggered here — it fires on first
 	// keystroke (below), keeping the open path cheap and avoiding a hint flash.
@@ -864,63 +880,56 @@ export function SessionHistoryContent({
 					    server sessions (D3 — e.g. Kiro CLI), rather than
 					    silently vanishing. Native buttons for keyboard
 					    activation + focus ring (Keyboard-first tenet). */}
-					<div
-						className="agent-client-session-history-source-toggle"
-						role="tablist"
-						aria-label="Session source"
-					>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={view.listSource === "local"}
-							className={`agent-client-session-history-source-pill${
-								view.listSource === "local" ? " is-active" : ""
-							}`}
-							onClick={() => handleSourceToggle("local")}
+					{/* Source-toggle row: Local / Agent pills, with the
+					    disconnected-Agent "synced N ago" affordance pulled inline
+					    to the right (I150) so switching Local↔Agent doesn't push
+					    the rows below it up and down. */}
+					<div className="agent-client-session-history-source-row">
+						<div
+							className="agent-client-session-history-source-toggle"
+							role="tablist"
+							aria-label="Session source"
 						>
-							Local
-						</button>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={view.listSource === "agent"}
-							aria-label={`Agent server sessions (${currentAgentLabel})`}
-							disabled={!view.agentViewAvailable}
-							title={
-								view.agentViewAvailable
-									? undefined
-									: `${currentAgentLabel} doesn't keep a session list on its server, so only your local history is available.`
-							}
-							className={`agent-client-session-history-source-pill${
-								view.listSource === "agent" ? " is-active" : ""
-							}`}
-							onClick={() => handleSourceToggle("agent")}
-						>
-							{currentAgentLabel}
-						</button>
-					</div>
-
-					{/* Disconnected Agent view — served from the last-synced
-					    metadata cache with a freshness affordance instead of
-					    forcing a connect (Decision 1). */}
-					{agentViewDisconnected && (
-						<div className="agent-client-session-history-sync-affordance">
-							{agentSessionCache ? (
-								<span>
-									Synced{" "}
-									{formatRelativeTime(
-										new Date(agentSessionCache.syncedAt),
-									)}{" "}
-									– send a message to reconnect and refresh
-								</span>
-							) : (
-								<span>
-									Send a message to connect, then this list
-									loads from the agent
-								</span>
-							)}
+							<button
+								type="button"
+								role="tab"
+								aria-selected={view.listSource === "local"}
+								className={`agent-client-session-history-source-pill${
+									view.listSource === "local" ? " is-active" : ""
+								}`}
+								onClick={() => handleSourceToggle("local")}
+							>
+								Local
+							</button>
+							<button
+								type="button"
+								role="tab"
+								aria-selected={view.listSource === "agent"}
+								aria-label={`Agent server sessions (${currentAgentLabel})`}
+								disabled={!view.agentViewAvailable}
+								title={
+									view.agentViewAvailable
+										? undefined
+										: `${currentAgentLabel} doesn't keep a session list on its server, so only your local history is available.`
+								}
+								className={`agent-client-session-history-source-pill${
+									view.listSource === "agent" ? " is-active" : ""
+								}`}
+								onClick={() => handleSourceToggle("agent")}
+							>
+								{currentAgentLabel}
+							</button>
 						</div>
-					)}
+
+						{agentViewDisconnected && (
+							<span
+								className="agent-client-session-history-sync-affordance"
+								ref={(el) => el && setTooltip(el, syncAffordanceText)}
+							>
+								{syncAffordanceText}
+							</span>
+						)}
+					</div>
 
 					{/* Full-text search */}
 					<div className="agent-client-session-history-search">
@@ -952,25 +961,27 @@ export function SessionHistoryContent({
 					    rendered as text (not tooltip-only) so it is reachable by
 					    screen readers. */}
 					{showFolderFilter && (
-						<div className="agent-client-session-history-filter">
-							<label
-								className="agent-client-session-history-filter-label"
-								title="Show only sessions whose working folder is this one. Uncheck to show sessions from every folder."
-							>
-								<input
-									type="checkbox"
-									checked={filterByCurrentVault}
-									onChange={handleFilterChange}
-								/>
-								<span>Only this folder</span>
-							</label>
-							<span
-								className="agent-client-session-history-filter-folder"
-								title={currentCwd}
-							>
-								{currentCwd}
+						<label
+							className="agent-client-session-history-filter"
+							title="Show only sessions whose working folder is this one. Uncheck to show sessions from every folder."
+						>
+							<input
+								type="checkbox"
+								checked={filterByCurrentVault}
+								onChange={handleFilterChange}
+							/>
+							<span className="agent-client-session-history-filter-text">
+								<span className="agent-client-session-history-filter-title">
+									Only this folder
+								</span>
+								<span
+									className="agent-client-session-history-filter-folder"
+									ref={setFolderTooltip}
+								>
+									{currentCwd}
+								</span>
 							</span>
-						</div>
+						</label>
 					)}
 
 					{/* Error state */}

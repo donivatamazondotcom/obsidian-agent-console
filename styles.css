@@ -2039,10 +2039,16 @@ button.agent-client-message-tool-call-summary:focus-visible {
 /* ===== Session History Modal ===== */
 
 /* Local / Agent source toggle (replaces the old filter checkboxes). */
+.agent-client-session-history-source-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
 .agent-client-session-history-source-toggle {
 	display: flex;
 	gap: 4px;
-	margin-bottom: 12px;
 	padding: 4px;
 	background-color: var(--background-modifier-form-field);
 	border-radius: var(--radius-m);
@@ -2074,9 +2080,13 @@ button.agent-client-message-tool-call-summary:focus-visible {
 /* "Synced N ago — connect to refresh" affordance on the disconnected Agent
    view. */
 .agent-client-session-history-sync-affordance {
-	margin-bottom: 12px;
+	margin-left: auto;
+	min-width: 0;
 	font-size: var(--font-ui-smaller);
 	color: var(--text-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 /* Per-row agent badge on the unified Local view. */
@@ -2094,28 +2104,34 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 .agent-client-session-history-filter {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	cursor: pointer;
 	margin-bottom: 16px;
 	padding-bottom: 12px;
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.agent-client-session-history-filter-label {
-	display: flex;
-	align-items: center;
-	gap: 8px;
+.agent-client-session-history-filter input[type="checkbox"] {
 	cursor: pointer;
+	margin-top: 2px;
+	flex-shrink: 0;
+}
+
+.agent-client-session-history-filter-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.agent-client-session-history-filter-title {
 	font-size: 14px;
 	color: var(--text-normal);
 }
 
-.agent-client-session-history-filter-label input[type="checkbox"] {
-	cursor: pointer;
-}
-
 .agent-client-session-history-filter-folder {
-	display: block;
-	margin-top: 4px;
-	margin-left: 24px;
 	font-size: 12px;
 	color: var(--text-muted);
 	white-space: nowrap;
