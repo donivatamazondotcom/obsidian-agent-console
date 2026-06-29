@@ -185,7 +185,7 @@ describe("preparePrompt context-notes path — host-context briefing wrapping (s
 			t.startsWith("<obsidian_system_instruction>"),
 		);
 		expect(wrapped).toBeDefined();
-		expect(wrapped).not.toContain("read and edit");
+		expect(wrapped).not.toContain("Obsidian vault");
 		expect(wrapped).toContain("/elsewhere");
 	});
 });

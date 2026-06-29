@@ -37,7 +37,7 @@ describe("buildObsidianSystemPrompt — composed briefing (slice 3)", () => {
 
 	it("includes the vault-collaboration line when cwd defaults to the vault root", () => {
 		const out = buildObsidianSystemPrompt({ ...base, isFirstMessage: true });
-		expect(out).toContain("read and edit");
+		expect(out).toContain("Obsidian vault");
 	});
 
 	it("omits the vault-collaboration line, keeps the working-dir line, when cwd is outside the vault", () => {
@@ -46,7 +46,7 @@ describe("buildObsidianSystemPrompt — composed briefing (slice 3)", () => {
 			isFirstMessage: true,
 			workingDirectory: "/somewhere/else",
 		});
-		expect(out).not.toContain("read and edit");
+		expect(out).not.toContain("Obsidian vault");
 		expect(out).toContain("/somewhere/else");
 	});
 
@@ -58,7 +58,7 @@ describe("buildObsidianSystemPrompt — composed briefing (slice 3)", () => {
 			workingDirectory: "/realvault/sub",
 			vaultRootPath: "/realvault",
 		});
-		expect(out).toContain("read and edit");
+		expect(out).toContain("Obsidian vault");
 	});
 
 	it("hides the vault line when cwd is outside the true vault root", () => {
@@ -69,7 +69,7 @@ describe("buildObsidianSystemPrompt — composed briefing (slice 3)", () => {
 			workingDirectory: "/external",
 			vaultRootPath: "/realvault",
 		});
-		expect(out).not.toContain("read and edit");
+		expect(out).not.toContain("Obsidian vault");
 	});
 });
 

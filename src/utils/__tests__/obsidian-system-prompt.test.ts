@@ -76,6 +76,24 @@ describe("composeObsidianSystemPrompt", () => {
 		expect(out).toContain(workingDirectoryBlock("/Users/me/repo"));
 	});
 
+	it("does NOT imply note write/edit capability when cwd is outside the vault (gate leak guard)", () => {
+		const out = composeObsidianSystemPrompt(
+			{ blocks: allOn() },
+			{ cwd: "/Users/me/repo", vaultRoot: VAULT },
+		);
+		// authoring conventions live in the gated vault block, not rendering
+		expect(out).not.toContain("create or edit notes");
+		expect(out).not.toContain("Obsidian vault");
+	});
+
+	it("includes authoring conventions only when cwd is inside the vault", () => {
+		const out = composeObsidianSystemPrompt(
+			{ blocks: allOn() },
+			{ cwd: VAULT, vaultRoot: VAULT },
+		);
+		expect(out).toContain("create or edit notes");
+	});
+
 	it("keeps the vault-collaboration block for a vault subfolder cwd", () => {
 		const sub = `${VAULT}/projects`;
 		const out = composeObsidianSystemPrompt(

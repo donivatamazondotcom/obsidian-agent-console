@@ -3178,3 +3178,10 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	resize: vertical;
 	font-family: var(--font-text);
 }
+
+/* Obsidian system prompt — read-only preview (visually distinct from editable boxes) */
+.agent-client-hcb-readonly {
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	cursor: default;
+}

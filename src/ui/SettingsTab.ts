@@ -300,10 +300,6 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			const add = (appendOverride ?? cur.appendText ?? "").trim();
 			return add ? base + "\n\n" + add : base;
 		};
-		const hcbStatus =
-			(hcb().mode ?? "options") === "full" || (hcb().appendText ?? "").trim()
-				? "custom prompt active"
-				: "defaults on";
 		const hcbFullWidth = (el: HTMLElement): void => {
 			el.closest(".setting-item")?.classList.add(
 				"agent-client-hcb-fullwidth",
@@ -311,7 +307,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		};
 		this.renderCollapsibleSection(
 			containerEl,
-			"Obsidian system prompt – " + hcbStatus,
+			"Obsidian system prompt",
 			(body) => {
 				let previewTa: import("obsidian").TextAreaComponent | null = null;
 				let appendTa: import("obsidian").TextAreaComponent | null = null;
@@ -407,7 +403,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					new Setting(body)
 						.setName("Full prompt")
 						.setDesc(
-							"You're editing the entire prompt by hand. The options are baked into this text and no longer apply.",
+							"You're editing the entire prompt by hand — this is exactly what gets sent. The options are baked in and no longer apply.",
 						)
 						.addTextArea((ta) => {
 							fullTa = ta;
@@ -432,25 +428,27 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						);
 				}
 
-				new Setting(body)
-					.setName("What gets sent")
-					.setDesc(
-						"The exact text the agent receives on the first message.",
-					)
-					.addTextArea((ta) => {
-						previewTa = ta;
-						ta.inputEl.rows = 8;
-						ta.inputEl.readOnly = true;
-						hcbFullWidth(ta.inputEl);
-						refreshPreview();
-					});
-				if (
-					(hcb().mode ?? "options") === "options" &&
-					hcb().blocks.vaultCollaboration
-				) {
-					new Setting(body).setDesc(
-						"The notes line is only sent when a chat's folder is inside your vault.",
-					);
+				if ((hcb().mode ?? "options") === "options") {
+					new Setting(body)
+						.setName("What gets sent")
+						.setDesc(
+							"Read-only preview of the exact text the agent receives on the first message.",
+						)
+						.addTextArea((ta) => {
+							previewTa = ta;
+							ta.inputEl.rows = 8;
+							ta.inputEl.readOnly = true;
+							ta.inputEl.classList.add(
+								"agent-client-hcb-readonly",
+							);
+							hcbFullWidth(ta.inputEl);
+							refreshPreview();
+						});
+					if (hcb().blocks.vaultCollaboration) {
+						new Setting(body).setDesc(
+							"The notes line is only sent when a chat's folder is inside your vault.",
+						);
+					}
 				}
 
 				new Setting(body)

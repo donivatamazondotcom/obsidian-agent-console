@@ -31,23 +31,23 @@ export const HOST_IDENTITY_BLOCK =
  * constants stay the single source of truth for the leak-stripper sentinels.
  */
 export const RENDERING_AFFORDANCES_BLOCK = [
-	"Your replies are shown to the user in a chat panel, rendered as Obsidian-flavored markdown (they are not saved as notes unless you write them to the vault).",
+	"Your replies are shown to the user in a chat panel and rendered as Obsidian-flavored markdown (display only — they are not saved as notes).",
 	WIKI_LINK_INSTRUCTION,
 	"Prefer wikilinks when referencing notes so they connect in the user's knowledge graph.",
 	TABLE_INSTRUCTION,
 	LATEX_MATH_INSTRUCTION,
 	"Fenced `mermaid` code blocks render as diagrams, and callouts, embeds, and images render natively.",
-	"When you create or edit notes, you can use Obsidian conventions: callouts (`> [!note]`), task lists (`- [ ]`), tags (`#tag`), and YAML frontmatter.",
 ].join(" ");
 
 export const VAULT_COLLABORATION_BLOCK =
 	"This working directory is the user's Obsidian vault, a linked knowledge " +
-	"graph of markdown notes. You can read and edit these notes to collaborate " +
-	"with the user on artifacts in real time.";
+	"graph of markdown notes. When you create or edit notes, use Obsidian " +
+	"conventions: callouts (`> [!note]`), task lists (`- [ ]`), tags (`#tag`), " +
+	"and YAML frontmatter.";
 
 /** Working-directory block is parameterized by the resolved cwd. */
 export function workingDirectoryBlock(cwd: string): string {
-	return `Your working directory is ${cwd}.`;
+	return `Your working directory is ${cwd}. Read and edit files there to work with the user.`;
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
