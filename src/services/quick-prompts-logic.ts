@@ -9,7 +9,11 @@
  * See [[Agent Console Quick Prompts and Workflows]] § Interaction model.
  */
 
-import type { QuickPrompt, QuickPromptFileInput } from "../types/quick-prompt";
+import type {
+	QuickPrompt,
+	QuickPromptFileInput,
+	ShowWhenCondition,
+} from "../types/quick-prompt";
 
 /** The single v1 placeholder. */
 export const SELECTION_TOKEN = "{{selection}}";
@@ -74,16 +78,27 @@ export function slugifyPromptId(basename: string): string {
 	return slug.length > 0 ? slug : "untitled";
 }
 
-/** Normalize a frontmatter `tags` value (array or single string) to string[]. */
-function normalizeTags(value: unknown): string[] | undefined {
-	if (Array.isArray(value)) {
-		const tags = value.filter((t): t is string => typeof t === "string");
-		return tags.length > 0 ? tags : undefined;
+/**
+ * Parse a `show when:` frontmatter value into `key=value` conditions. Accepts a
+ * List (array of strings) or a single string. Each item splits on the FIRST `=`
+ * (the value may itself contain `=` or `[[ ]]`); items with no `=` or an empty
+ * key are dropped. Returns [] when absent/empty (⇒ search-only).
+ */
+export function parseShowWhen(value: unknown): ShowWhenCondition[] {
+	const items: string[] = Array.isArray(value)
+		? value.filter((v): v is string => typeof v === "string")
+		: typeof value === "string" && value.trim().length > 0
+			? [value]
+			: [];
+	const out: ShowWhenCondition[] = [];
+	for (const item of items) {
+		const eq = item.indexOf("=");
+		if (eq < 0) continue;
+		const key = item.slice(0, eq).trim();
+		if (key.length === 0) continue;
+		out.push({ key, value: item.slice(eq + 1).trim() });
 	}
-	if (typeof value === "string" && value.trim().length > 0) {
-		return [value];
-	}
-	return undefined;
+	return out;
 }
 
 /** Normalize an optional string frontmatter field. */
@@ -95,24 +110,38 @@ function normalizeString(value: unknown): string | undefined {
 
 /**
  * Build a `QuickPrompt` from a parsed file. Pure — label fallback, stable id,
- * `usesSelection`, and the parsed-and-carried optional fields (`showOnTags`,
+ * `usesSelection`, and the parsed-and-carried optional fields (`showWhen`,
  * `alwaysShow`, `agent`, `mode`, `newTab`). Core does not act on the carried
  * fields (firing is always current-tab); they ride through so the later slices
  * need no re-parse.
  */
+/**
+ * The prompt text that actually gets sent: everything ABOVE the first
+ * thematic-break line (`---`, 3+ dashes). Content from the separator down is
+ * ignored — persistent help, notes, or draft variations the author keeps in
+ * the note. No separator → the whole body is the prompt (back-compat).
+ */
+export function extractPromptBody(body: string): string {
+	const lines = body.split("\n");
+	const sep = lines.findIndex((line) => /^-{3,}$/.test(line.trim()));
+	return (sep < 0 ? body : lines.slice(0, sep).join("\n")).trim();
+}
+
 export function buildQuickPrompt(input: QuickPromptFileInput): QuickPrompt {
 	const fm = input.frontmatter;
+	// Prompt text = everything above the first `---`; content below it is
+	// ignored (persistent help / notes / drafts).
+	const promptBody = extractPromptBody(input.body);
 	return {
 		id: slugifyPromptId(input.basename),
 		label: deriveLabel(fm, input.basename),
-		body: input.body,
+		body: promptBody,
 		path: input.path,
-		usesSelection: input.body.includes(SELECTION_TOKEN),
-		// Contextual-chip scope (slice 2). Frontmatter key `show on tags`
-		// (renamed from `tags` — that key collided with the note's own tags
-		// property; clean rename, never released). Accepts an array or a single
-		// string.
-		showOnTags: fm ? normalizeTags(fm["show on tags"]) : undefined,
+		usesSelection: promptBody.includes(SELECTION_TOKEN),
+		// Contextual-chip scope: `show when:` List property; each item a
+		// `key=value` condition. Supersedes the tags-only `show on tags:` key —
+		// matches on any frontmatter property (`tags` is one supported key).
+		showWhen: parseShowWhen(fm?.["show when"]),
 		// Global chip: show in the resting row on every note (slice 2, D6).
 		alwaysShow: fm ? fm["always show"] === true : undefined,
 		agent: fm ? normalizeString(fm["agent"]) : undefined,
@@ -406,14 +435,10 @@ export function executeQuickPrompt(
 // ============================================================================
 
 /**
- * Whether a prompt's `show on tags` scope matches the active note's tags.
- *
- * Contract (slice 2, D6): an **empty/undefined** scope matches **nothing** —
- * an unscoped prompt is NOT globally shown by default (that role belongs to
- * `alwaysShow`). A scoped prompt matches on **any** tag, with **nested**
- * matching: scope tag `NoteType` matches note tag `NoteType/DailyNote` (the
- * scope tag is the filter; a note tag nested under it counts). Comparison is
- * case-insensitive and tolerant of a leading `#`.
+ * Tag matcher used by the `tags` key of a `show when:` condition. An
+ * **empty/undefined** scope matches **nothing**. A scoped tag matches on
+ * **any** of the note's tags, with **nested** matching: scope tag `NoteType`
+ * matches note tag `NoteType/DailyNote`. Case-insensitive, `#`-tolerant.
  */
 export function tagsMatch(
 	promptTags: string[] | undefined,
@@ -428,34 +453,75 @@ export function tagsMatch(
 	});
 }
 
-/**
- * Whether a prompt belongs in the **resting chip row** for the active note
- * (D6). Two explicit ways in — never the old "untagged ⇒ always shows":
- *
- * - `alwaysShow` (the `always show` checkbox) → a **global** chip, shown on
- *   every note regardless of tags.
- * - `showOnTags` matching the note's tags → a **contextual** chip.
- *
- * Neither ⇒ **search-only**: the prompt stays findable in the picker but never
- * enters the resting row. The single pure gating decision for chip presence.
- */
-export function promptInRestingRow(
-	prompt: Pick<QuickPrompt, "alwaysShow" | "showOnTags">,
-	noteTags: string[],
-): boolean {
-	return prompt.alwaysShow === true || tagsMatch(prompt.showOnTags, noteTags);
+/** The active note's matchable context: its tags + parsed frontmatter. */
+export interface NoteMatchContext {
+	/** All tags on the note (frontmatter + inline), from `getAllTags`. */
+	tags: string[];
+	/** The note's parsed frontmatter, or null when it has none. */
+	frontmatter: Record<string, unknown> | null;
 }
 
 /**
- * The resting chip set for the active note: `always-show ∪ tag-matched`.
- * Untagged + un-`always show` prompts are search-only and excluded here. Empty
- * result ⇒ the chips row renders nothing (no row).
+ * Equality / list-membership of a frontmatter value against a condition value.
+ * Scalars compare by trimmed, case-insensitive string; a list matches when any
+ * item equals the condition value. `undefined` / `null` never matches.
+ */
+export function propertyMatches(
+	noteValue: unknown,
+	condValue: string,
+): boolean {
+	const want = condValue.trim().toLowerCase();
+	const eq = (v: unknown): boolean => {
+		if (typeof v === "string") return v.trim().toLowerCase() === want;
+		if (typeof v === "number" || typeof v === "boolean")
+			return String(v).toLowerCase() === want;
+		return false;
+	};
+	return Array.isArray(noteValue) ? noteValue.some(eq) : eq(noteValue);
+}
+
+/**
+ * Whether a single `show when:` condition matches the active note. The `tags`
+ * key routes to the tag matcher (nested, `#`-tolerant); any other key is
+ * frontmatter equality / list-membership.
+ */
+export function conditionMatches(
+	cond: ShowWhenCondition,
+	note: NoteMatchContext,
+): boolean {
+	if (cond.key === "tags") return tagsMatch([cond.value], note.tags);
+	return propertyMatches(note.frontmatter?.[cond.key], cond.value);
+}
+
+/**
+ * Whether a prompt belongs in the **resting chip row** for the active note.
+ * Two explicit ways in — never "untagged ⇒ always shows":
+ *
+ * - `alwaysShow` (the `always show` checkbox) → a **global** chip on every note.
+ * - `showWhen` conditions that ALL match the note (AND) → a **contextual** chip.
+ *
+ * Neither ⇒ **search-only**: findable in the picker, never in the resting row.
+ */
+export function promptInRestingRow(
+	prompt: Pick<QuickPrompt, "alwaysShow" | "showWhen">,
+	note: NoteMatchContext,
+): boolean {
+	if (prompt.alwaysShow === true) return true;
+	const conds = prompt.showWhen;
+	if (!conds || conds.length === 0) return false;
+	return conds.every((cond) => conditionMatches(cond, note));
+}
+
+/**
+ * The resting chip set for the active note: `always-show ∪ show-when-matched`.
+ * Search-only prompts (no `always show`, no matching `show when`) are excluded.
+ * Empty result ⇒ the chips row renders nothing (no row).
  */
 export function matchPromptsForNote(
 	prompts: QuickPrompt[],
-	noteTags: string[],
+	note: NoteMatchContext,
 ): QuickPrompt[] {
-	return prompts.filter((prompt) => promptInRestingRow(prompt, noteTags));
+	return prompts.filter((prompt) => promptInRestingRow(prompt, note));
 }
 
 /**
@@ -586,8 +652,24 @@ export function rankLauncherPrompts(
 // ============================================================================
 
 /** Placeholder body seeded into a brand-new prompt note (no captured text). */
-export const NEW_PROMPT_BODY_PLACEHOLDER =
-	"Write your prompt here. (Tip: you can pull in text you've selected in a note — see the [Quick Prompts docs](https://donivatamazondotcom.github.io/obsidian-agent-console/usage/quick-prompts) for the selection placeholder.)";
+export const NEW_PROMPT_BODY_PLACEHOLDER = [
+	"Write your prompt here.",
+	"",
+	"---",
+	"",
+	"Notes & help — everything below this line is ignored; only the text above the --- is sent. Keep it, edit it, or jot draft variations here.",
+	"",
+	"Set the label above, then choose where this prompt's chip appears:",
+	"- open in new tab: runs in a new chat tab instead of this one.",
+	"- always show: the chip shows on every note.",
+	"- show when: the chip shows only on matching notes. Add one list item per condition, like type=meeting, tags=people, or status=open.",
+	"",
+	"Set none of these and the prompt stays out of the chip row — type ! in the composer to run it.",
+	"",
+	"To pull in text you've selected in a note, write {{selection}} in your prompt above.",
+	"",
+	"Guide: https://donivatamazondotcom.github.io/obsidian-agent-console/usage/quick-prompts",
+].join("\n");
 
 /** Cap on a label derived from composer text (first line can be long). */
 export const MAX_DERIVED_LABEL_LENGTH = 60;
@@ -654,9 +736,10 @@ export function buildNewPromptNote(opts: {
 				opts.label.trim().length > 0 ? opts.label : FALLBACK_PROMPT_NAME,
 			"open in new tab": false,
 			"always show": false,
-			// Seed the contextual-scope property (QP-I09) so it shows in the
-			// note's properties for the author to fill in (empty = search-only).
-			"show on tags": [],
+			// Seed the contextual-scope property (empty = search-only) so it
+			// shows in the note's Properties for the author to fill in. Each
+			// item is a `property=value` condition (e.g. `type=meeting`).
+			"show when": [],
 		},
 		body: hasBody ? (opts.body as string) : NEW_PROMPT_BODY_PLACEHOLDER,
 	};

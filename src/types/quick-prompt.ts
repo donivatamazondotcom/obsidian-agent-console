@@ -6,6 +6,14 @@
  * See [[Agent Console Quick Prompts and Workflows]].
  */
 
+/** A parsed `show when:` condition: `key=value`, split on the first `=`. */
+export interface ShowWhenCondition {
+	/** Frontmatter property name — or `tags` to match the note's tags. */
+	key: string;
+	/** Value to match (equality / list-membership; tag scope for `tags`). */
+	value: string;
+}
+
 /**
  * A parsed quick prompt, ready to surface in the picker / chips and fire.
  *
@@ -26,12 +34,13 @@ export interface QuickPrompt {
 	usesSelection: boolean;
 	// ── Parsed-and-carried (inert in the core slice; consumed by later slices) ──
 	/**
-	 * Contextual-chip scope (slice 2): the chip shows in the resting row when
-	 * the active note is tagged with one of these. Frontmatter key
-	 * `show on tags` (renamed from `tags`, which collided with the note's own
-	 * tags property).
+	 * Contextual-chip scope: conditions parsed from the `show when:` List
+	 * property (each item `key=value`). The chip shows when ALL conditions
+	 * match the active note (AND), or when `alwaysShow` is true. Empty/absent
+	 * ⇒ search-only. The `tags` key routes to tag matching (nested,
+	 * `#`-tolerant); any other key is frontmatter equality / list-membership.
 	 */
-	showOnTags?: string[];
+	showWhen?: ShowWhenCondition[];
 	/**
 	 * Global chip (slice 2): show in the resting row on every note, regardless
 	 * of tags. Frontmatter key `always show` (boolean checkbox).

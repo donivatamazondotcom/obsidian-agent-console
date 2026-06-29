@@ -2237,18 +2237,36 @@ export function ChatPanel({
 		}
 	}, [initialPrompt, quickPromptBridge, returnFocusToComposer]);
 
-	// Contextual chips: prompts matching the active note's tags (untagged
-	// always match). Recomputed on editor-note switch (activeNotePath) and on
+	// Recompute the matched set when the ACTIVE note's metadata cache changes —
+	// not just on path change. `metadataCache` is a stable ref, so on a
+	// cold-cache first open (frontmatter not parsed yet) or an in-place
+	// property/tag edit, the chip set would otherwise stay stale until a
+	// navigation forced a recompute (QP-I21: TCOM cold-open + property-edit).
+	const [activeNoteMetaVersion, setActiveNoteMetaVersion] = useState(0);
+	useEffect(() => {
+		const ref = plugin.app.metadataCache.on("changed", (file) => {
+			if (file.path === selectionTracker.activeNotePath) {
+				setActiveNoteMetaVersion((v) => v + 1);
+			}
+		});
+		return () => plugin.app.metadataCache.offref(ref);
+	}, [plugin.app.metadataCache, selectionTracker.activeNotePath]);
+
+	// Contextual chips: prompts whose `show when:` conditions match the active
+	// note (its tags + frontmatter), plus `always show` prompts. Recomputed on
+	// editor-note switch (activeNotePath), active-note metadata change, and
 	// library reconcile, so the matched set stays live.
 	const matchedQuickPrompts = useMemo(() => {
 		const path = selectionTracker.activeNotePath;
 		const cache = path ? plugin.app.metadataCache.getCache(path) : null;
 		const tags = cache ? (getAllTags(cache) ?? []) : [];
-		return matchPromptsForNote(quickPrompts.prompts, tags);
+		const frontmatter = cache?.frontmatter ?? null;
+		return matchPromptsForNote(quickPrompts.prompts, { tags, frontmatter });
 	}, [
 		quickPrompts.prompts,
 		selectionTracker.activeNotePath,
 		plugin.app.metadataCache,
+		activeNoteMetaVersion,
 	]);
 
 	// ============================================================

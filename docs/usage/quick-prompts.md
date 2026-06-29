@@ -18,7 +18,7 @@ Debrief this meeting — pull the AI summary, extract action items, and update t
 ````
 
 - **Label** comes from the `label` field (emoji welcome). If there's no `label`, Agent Console falls back to `name`, then `title`, then the filename. (`description` is intentionally not used — it clashes with the common note-summary field.)
-- **Prompt text** is everything below the frontmatter.
+- **Prompt text** is everything below the frontmatter. If you add a `---` line, only the text **above** it is sent — everything from the `---` down is ignored, so you can keep help, notes, or draft variations in the note. New prompts are created with a `---` and a help block below it.
 
 ## Create a quick prompt
 
@@ -28,7 +28,7 @@ You don't have to hand-write a note — Agent Console can make one for you and o
 - **Create while you search** — type `!` at the start of a line. A **Create…** row always sits at the bottom of the list, so you can make a new prompt whether or not anything matched: with text typed it reads **Create quick prompt "your text"**; on a bare `!` it's **Create a quick prompt**. Your text can include spaces, so you can name it right there (e.g. `!Daily brief`). Pick it to make the prompt and open it.
 - **Save what you've drafted** — typed a message you'll want again? Hit `!` and pick **Create quick prompt from this message**, or run the **Quick prompts: Save composer as a prompt** command. Either saves your message-box text as a new prompt and opens it; your draft stays in the box.
 
-New prompts start quiet — they don't show as a chip until you turn on `always show` or add `show on tags`, so making one never clutters your composer. If a prompt with the same name already exists, Agent Console adds a number instead of overwriting it.
+New prompts start quiet — they don't show as a chip until you turn on `always show` or add `show when` conditions, so making one never clutters your composer. If a prompt with the same name already exists, Agent Console adds a number instead of overwriting it.
 
 ## Fire a prompt
 
@@ -84,12 +84,13 @@ Debrief this meeting — pull the AI summary, extract action items, and update t
 
 Prompts can show up as **chips right above the composer**. There are two ways to make a prompt appear as a chip — otherwise it stays search-only (you'll still find it by typing `!` in the composer, it just doesn't take up space in the row).
 
-**Show a chip only on relevant notes** — add a `show on tags` field to scope a prompt to matching notes:
+**Show a chip only on relevant notes** — add a `show when` field to scope a prompt to notes whose properties match. Each item is a `property=value` condition:
 
 ````markdown
 ---
 label: "🗓️ Daily brief"
-show on tags: [NoteType/DailyNote]
+show when:
+  - type=daily
 ---
 Give me the daily brief for this note.
 ````
@@ -105,9 +106,9 @@ Debrief the meeting I just had.
 ````
 
 - A prompt with **`always show`** is a chip on every note.
-- A prompt with **`show on tags`** is a chip only when the active note carries a matching tag. Matching is nested — `NoteType` matches a note tagged `NoteType/DailyNote`.
+- A prompt with **`show when`** is a chip only on notes whose properties match **every** listed condition. Use any frontmatter property — `type=meeting`, `status=open`, `initiatives=[[Project]]`. The special **`tags=`** key matches the note's tags instead, with nested matching (`tags=NoteType` matches a note tagged `NoteType/DailyNote`).
 - A prompt with **neither** is **search-only** — never in the chip row, always one keystroke away by typing `!`. This is the default, so new prompts don't clutter the row until you opt them in.
-- `always show` is a checkbox property — toggle it in the note's Properties view, no typing.
+- `always show` is a checkbox property and `show when` is a list property — both edit in the note's Properties view.
 - When no prompts apply to the note you're in, there's **no chip row at all** — the space is reclaimed.
 
 Click a chip to fire it in the current chat. Hold **⌘** to send it in a new tab (⌘⇧ to switch there), or **⌥** to drop it into the composer to edit first — the same keys as the `!` search. When the row runs out of space, a **+N** at the end folds the rest into the `!` search.
