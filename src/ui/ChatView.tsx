@@ -1022,6 +1022,7 @@ function ChatComponent({
 						>
 							<ChatPanel
 								viewId={tab.tabId}
+								tabLabel={tab.label}
 								workingDirectory={restoredCwdByTabId[tab.tabId]}
 								initialAgentId={tab.agentId}
 								viewHost={view}

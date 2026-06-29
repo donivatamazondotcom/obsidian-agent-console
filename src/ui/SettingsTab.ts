@@ -408,7 +408,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("System notifications")
 			.setDesc(
-				"Show OS notifications when the agent completes a response or requests permission. Notifications are suppressed while Obsidian is focused.",
+				"Show a notification when the agent finishes a reply or asks for permission. Completion notifications name the tab and switch to it when clicked. Notifications stay quiet while Obsidian is focused.",
 			)
 			.addToggle((toggle) =>
 				toggle
