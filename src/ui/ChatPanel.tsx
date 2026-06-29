@@ -30,6 +30,13 @@ import { useHistoryModal } from "../hooks/useHistoryModal";
 import { useComposerFocusReturn } from "../hooks/useComposerFocusReturn";
 import { useChatActions } from "../hooks/useChatActions";
 import { ChangeDirectoryModal } from "./ChangeDirectoryModal";
+import { confirmSessionIntent } from "./ConfirmSessionIntentModal";
+import { buildCarryOverBlocks } from "../services/carry-over-builder";
+import {
+	buildCarriedOverPreview,
+	type CarriedOverPreview as CarriedOverPreviewData,
+} from "../services/carried-over-preview";
+import { CarriedOverPreview } from "./CarriedOverPreview";
 
 // Service imports
 import { getLogger } from "../utils/logger";
@@ -517,6 +524,11 @@ export function ChatPanel({
 	// ============================================================
 	const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
 
+	// Cross-agent carry-over preview shown at the top of a freshly-switched
+	// tab until the first real message lands. See [[Agent-Portable Sessions]].
+	const [carriedOver, setCarriedOver] =
+		useState<CarriedOverPreviewData | null>(null);
+
 	// Input state (for broadcast commands). Seeded from the restored draft so a
 	// half-typed prompt survives panel close/reopen and restart (initializer
 	// runs once at mount; later draft changes never re-seed, so live typing is
@@ -654,6 +666,7 @@ export function ChatPanel({
 		agentUpdateNotification,
 		setAgentUpdateNotification,
 		autoExportIfEnabled,
+		setCarryOverBlocks,
 	} = actions;
 
 	// Focus-return after in-panel state changes — [[Composer Focus Return After State Change]].
@@ -792,7 +805,55 @@ export function ChatPanel({
 
 				// recreate-lazy: genuine teardown of an existing
 				// session/transcript before rebinding (auto-export first).
+				let carriedMessages: typeof messages | null = null;
+				let carriedFromAgent = "";
 				if (decision.kind === "recreate-lazy") {
+					// --- No silent data loss guard (Track 2) ---
+					if (messages.length > 0) {
+						const isSwitch =
+							decision.agentId !== session.agentId;
+						const kind = isSwitch
+							? "switch-agent"
+							: "new-chat";
+
+						// Optimistically set carry-over blocks BEFORE the
+						// modal opens — the user may type and send while
+						// the modal is visible, and that send must carry the
+						// context. Cleared on cancel.
+						// Always use XML text blocks (not resource blocks)
+						// because we don't know the TARGET agent's capabilities
+						// yet — it hasn't connected. XML works universally.
+						if (isSwitch) {
+							const blocks = buildCarryOverBlocks(
+								messages,
+								false, // always XML — target agent unknown
+							);
+							setCarryOverBlocks(blocks);
+							carriedMessages = [...messages];
+							carriedFromAgent = activeAgentLabel;
+						}
+
+						const agentName = isSwitch
+							? (agent.getAvailableAgents().find(
+									(a) => a.id === decision.agentId,
+								)?.displayName || decision.agentId)
+							: undefined;
+						const confirmResult =
+							await confirmSessionIntent(
+								plugin.app,
+								{
+									kind: kind,
+									canCarryOver: isSwitch,
+								},
+								agentName,
+							);
+						if (confirmResult === "cancel") {
+							// Clear optimistic carry-over on cancel
+							setCarryOverBlocks(null);
+							return;
+						}
+					}
+
 					if (agent.isSending) {
 						await agent.cancelOperation();
 					}
@@ -830,6 +891,25 @@ export function ChatPanel({
 				onLabelChangeRef.current?.("");
 				// Persist agent ID for this view (survives Obsidian restart).
 				onAgentIdChanged?.(decision.agentId);
+
+				// After rebind + lazy reset, re-populate the chat view with
+				// the carried-over messages so the user sees exactly what
+				// the new agent will receive as context. Must be AFTER the
+				// lazy reset so the message population doesn't trigger an
+				// eager send on the old session.
+				if (carriedMessages && carriedMessages.length > 0) {
+					// Show the carried-over conversation as a distinct read-only
+					// block (NOT real messages, so first-message semantics are
+					// preserved). It persists for the session (user-collapsible)
+					// and is delivered to the new agent on the first send.
+					setCarriedOver(
+						buildCarriedOverPreview(carriedMessages, carriedFromAgent),
+					);
+				} else {
+					// New chat / switch with nothing to carry — drop any stale
+					// preview left from a prior switch on this tab.
+					setCarriedOver(null);
+				}
 			} catch (error) {
 				console.error("[Agent Console] New chat error:", error);
 			}
@@ -843,6 +923,8 @@ export function ChatPanel({
 			agent.cancelOperation,
 			agent.clearMessages,
 			agent.setAgentWithoutSession,
+			agent.getAvailableAgents,
+			agent.setMessagesFromLocal,
 			autoExportIfEnabled,
 			suggestions.mentions.toggleAutoMention,
 			sessionHistory.invalidateCache,
@@ -850,6 +932,9 @@ export function ChatPanel({
 			setAgentCwd,
 			plugin,
 			vaultRoot,
+			setCarryOverBlocks,
+			session.promptCapabilities,
+			activeAgentLabel,
 		],
 	);
 
@@ -896,6 +981,7 @@ export function ChatPanel({
 				}
 				suggestions.mentions.toggleAutoMention(false);
 				agent.clearMessages();
+				setCarriedOver(null);
 				// Change the cwd the lazy acquisition will read, rebind the SAME
 				// agent without creating a session, and reset the lazy machine.
 				// The next send acquires in the new directory via the sole owner.
@@ -2532,6 +2618,7 @@ export function ChatPanel({
 			{headerElement}
 			{cwdBanner}
 			{recoverableHistoryBanner}
+			{carriedOver ? <CarriedOverPreview data={carriedOver} /> : null}
 			{messageListElement}
 			{contextStripElement}
 			{inputAreaElement}

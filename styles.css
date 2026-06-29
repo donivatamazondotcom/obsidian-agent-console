@@ -3040,3 +3040,55 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	padding-left: 10px;
 	padding-right: 10px;
 }
+
+/* Carried-over conversation preview (Agent-Portable Sessions) ---------------
+   Read-only block at the top of a freshly-switched tab showing the prior
+   conversation the new agent will receive as context on the first send. */
+.agent-client-carried-over {
+	margin: var(--size-4-2) var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+	font-size: var(--font-ui-smaller);
+}
+.agent-client-carried-over-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	padding: var(--size-4-2) var(--size-4-3);
+	background: transparent;
+	border: none;
+	box-shadow: none;
+	cursor: pointer;
+	color: var(--text-muted);
+	font-weight: var(--font-medium);
+}
+.agent-client-carried-over-title {
+	text-align: left;
+}
+.agent-client-carried-over-toggle {
+	color: var(--text-faint);
+}
+.agent-client-carried-over-body {
+	padding: 0 var(--size-4-3) var(--size-4-2);
+	max-height: 240px;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+}
+.agent-client-carried-over-turn {
+	display: flex;
+	gap: var(--size-4-2);
+	color: var(--text-muted);
+}
+.agent-client-carried-over-role {
+	flex: 0 0 auto;
+	font-weight: var(--font-medium);
+	color: var(--text-faint);
+}
+.agent-client-carried-over-text {
+	white-space: pre-wrap;
+	word-break: break-word;
+}

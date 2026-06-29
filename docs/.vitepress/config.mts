@@ -82,6 +82,7 @@ export default defineConfig({
           { text: "Effort Level Selection", link: "/usage/thought-level-selection" },
           { text: "Session History", link: "/usage/session-history" },
           { text: "Reloading a Session", link: "/usage/reload-session" },
+          { text: "Switching Agents", link: "/usage/switching-agents" },
           { text: "Shared Links", link: "/usage/shared-links" },
           { text: "Working Directory", link: "/usage/working-directory" },
           { text: "Tabbed Sessions", link: "/usage/tabbed-sessions" },
