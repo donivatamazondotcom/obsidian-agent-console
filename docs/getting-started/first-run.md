@@ -26,8 +26,12 @@ Still on that first install, Agent Console opens the chat panel once so you don'
 If no agent is connectable yet — nothing installed, or the configured command can't be found — the panel shows a **getting-started** screen instead of an endless "Connecting…":
 
 - **One-click picks** for any agent it detected on your machine. Click one to start chatting with it.
+- **Install an agent without leaving Obsidian.** When nothing is detected, each supported agent shows an **Install** button that runs the one-line install for you and streams the output right there. If your setup needs a permission the plugin doesn't have (some system Node installs do), the install stops with a plain explanation and a **Copy command** button so you can finish in your terminal. Kiro links to its setup guide instead, since it isn't an npm package.
+- Each agent name links to its **setup guide** on this site, so you can read the details first.
 - An **Open settings** button that jumps straight to Agent Console's settings, where you can choose a provider or set a CLI path by hand.
 - A hint for the case where you installed a CLI somewhere custom — point Agent Console at it with an absolute path in settings.
+
+While this screen is up, the message box is turned off — there's no agent to send to yet. It turns back on the moment an agent is installed or picked.
 
 Detection here is the same login-shell-aware check used for the default pick, so it finds CLIs installed under version managers (mise, nvm, asdf) and `~/.local/bin`, not just the system path.
 

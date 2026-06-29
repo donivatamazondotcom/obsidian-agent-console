@@ -143,3 +143,61 @@ export function shouldShowGettingStarted(params: {
 	if (!builtInIds.has(currentAgentId)) return false; // custom agent → not a dead end
 	return !detectedIds.has(currentAgentId); // built-in not detected → dead end
 }
+
+/**
+ * A session cache for an agent-detection probe that can be **invalidated**.
+ *
+ * Detection costs a login-shell spawn per agent, so the result is memoized and
+ * shared across first-run onboarding and the getting-started empty state. The
+ * crucial difference from a plain promise field is `clear()`: when the user
+ * fixes a built-in's command in settings (I-FRO5) or an in-plugin install
+ * succeeds, the cache must be invalidated so the NEXT `get()` re-probes and the
+ * panel clears without a reload. Without `clear()`, a once-empty probe stays
+ * empty for the whole session and re-detection silently no-ops.
+ *
+ * Fail-soft: a probe rejection resolves to an empty set rather than rejecting,
+ * so one bad probe never sinks detection (and is not cached as a rejection).
+ *
+ * @param probe - The (expensive) detection function to memoize
+ * @returns A cache with a memoizing `get()` and an invalidating `clear()`
+ */
+export interface DetectionCache {
+	get(): Promise<Set<string>>;
+	clear(): void;
+}
+
+export function createDetectionCache(
+	probe: () => Promise<Set<string>>,
+): DetectionCache {
+	let cached: Promise<Set<string>> | null = null;
+	return {
+		get(): Promise<Set<string>> {
+			if (!cached) {
+				cached = probe().catch(() => new Set<string>());
+			}
+			return cached;
+		},
+		clear(): void {
+			cached = null;
+		},
+	};
+}
+
+/**
+ * Compose detection + priority-selection into the first-run default agent id.
+ * Thin, awaitable seam over `chooseFirstRunDefault` so the onboarding wiring
+ * (detect → choose) is unit-testable with a mocked detector, without standing
+ * up an Obsidian Plugin harness — see plugin.ts `maybeFirstRunOnboarding`.
+ *
+ * @param detect - Detector yielding the set of installed built-in agent ids
+ * @param currentDefault - The default to keep when nothing resolves
+ * @param priorityOrder - Preference list (defaults to DEFAULT_AGENT_PRIORITY)
+ * @returns The agent id to use as the fresh-install default
+ */
+export async function resolveFirstRunDefaultAgent(
+	detect: () => Promise<Set<string>>,
+	currentDefault: string,
+	priorityOrder: readonly string[] = DEFAULT_AGENT_PRIORITY,
+): Promise<string> {
+	return chooseFirstRunDefault(await detect(), currentDefault, priorityOrder);
+}

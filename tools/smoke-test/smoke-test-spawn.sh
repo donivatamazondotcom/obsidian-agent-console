@@ -31,7 +31,14 @@
 # persisted for future startups), so every later redeploy/reload/teardown is
 # hands-off.
 #
-# Usage:   tools/smoke-test/smoke-test-spawn.sh <worktree-name>
+# Usage:   tools/smoke-test/smoke-test-spawn.sh <worktree-name> [--first-run] [--no-agents]
+#   --first-run   remove data.json + clear sessions/ so the plugin runs first-run
+#                 onboarding (isFirstRun = loadData()==null). Flow #1 / #2 setup.
+#   --no-agents   drop the vault-local .force-no-agents marker so detection is
+#                 forced empty even on a machine with agents installed. Flow #2.
+#                 Composable with --first-run for a genuine fresh-install/no-agent.
+#                 Flags trigger an action; a plain redeploy preserves studio state
+#                 (reset a marker/first-run via teardown + fresh re-spawn).
 # Teardown: tools/smoke-test/smoke-test-teardown.sh <worktree-name>
 set -euo pipefail
 
@@ -41,9 +48,32 @@ GIT_COMMON="$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir)"
 case "$GIT_COMMON" in /*) ;; *) GIT_COMMON="$(cd "$SCRIPT_DIR" && cd "$GIT_COMMON" && pwd)";; esac
 REPO_ROOT="$(dirname "$GIT_COMMON")"
 
-WORKTREE_NAME="${1:-}"
+WORKTREE_NAME=""
+FIRST_RUN=false
+NO_AGENTS=false
+for arg in "$@"; do
+	case "$arg" in
+		--first-run) FIRST_RUN=true ;;
+		--no-agents) NO_AGENTS=true ;;
+		--*)
+			echo "unknown flag: $arg" >&2
+			echo "usage: $0 <worktree-name> [--first-run] [--no-agents]" >&2
+			exit 2
+			;;
+		*)
+			if [ -z "$WORKTREE_NAME" ]; then
+				WORKTREE_NAME="$arg"
+			else
+				echo "unexpected extra argument: $arg" >&2
+				exit 2
+			fi
+			;;
+	esac
+done
 if [ -z "$WORKTREE_NAME" ]; then
-	echo "usage: $0 <worktree-name>   (must match a directory under .trees/)" >&2
+	echo "usage: $0 <worktree-name> [--first-run] [--no-agents]" >&2
+	echo "  --first-run   remove data.json + clear sessions/ so isFirstRun triggers (Flow #1)" >&2
+	echo "  --no-agents   drop the .force-no-agents marker so detection is forced empty (Flow #2)" >&2
 	exit 2
 fi
 
@@ -83,6 +113,26 @@ deploy_build() {
 		rm -f "$PLUGIN_DIR/$f"
 		cp "$WORKTREE_DIR/$f" "$PLUGIN_DIR/$f"
 	done
+}
+
+# Apply the first-run flow mutations to the deployed plugin dir. Orthogonal to
+# the build artifacts (deploy_build only touches main.js/styles.css/manifest):
+#   --no-agents  drops the vault-local .force-no-agents marker so the plugin's
+#                detection probe returns empty even on a machine WITH agents
+#                installed — exercises the getting-started/install dead-end.
+#   --first-run  removes data.json (+ .bak) and clears sessions/ so the plugin
+#                sees loadData()==null and runs maybeFirstRunOnboarding once.
+# Composable: --first-run --no-agents = a genuine fresh install with no agents.
+apply_flow_mode() {
+	if [ "$NO_AGENTS" = true ]; then
+		touch "$PLUGIN_DIR/.force-no-agents"
+		echo "  --no-agents: dropped .force-no-agents marker (detection forced empty)"
+	fi
+	if [ "$FIRST_RUN" = true ]; then
+		rm -f "$PLUGIN_DIR/data.json" "$PLUGIN_DIR/data.json.bak"
+		rm -f "$PLUGIN_DIR"/sessions/*.json 2>/dev/null || true
+		echo "  --first-run: removed data.json + cleared sessions/ (isFirstRun will trigger)"
+	fi
 }
 
 build_worktree() {
@@ -164,6 +214,8 @@ json.dump(seeded, open(p, "w"), indent=2)
 PY
 	fi
 
+	apply_flow_mode
+
 	# Register in obsidian.json (idempotent by path; atomic write). This makes
 	# the vault selectable once Obsidian next reads the registry.
 	STUDIO_DIR="$STUDIO_DIR" python3 - <<'PY'
@@ -200,6 +252,7 @@ if [ "$(vault_name_check)" != "$VAULT_NAME" ]; then
 fi
 build_worktree
 deploy_build
+apply_flow_mode
 # Reload so the studio runs the freshly deployed build. A plugin hot-reload
 # (`plugin:reload`) reloads the plugin's JS but does NOT re-read its styles.css
 # from disk — so a CSS change would be INVISIBLE in the smoke test (this gap

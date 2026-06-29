@@ -934,6 +934,70 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	max-width: 280px;
 }
 
+/* First-run install rows (activation) */
+.agent-client-getting-started-installs {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	width: 100%;
+	max-width: 320px;
+}
+
+.agent-client-install-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.agent-client-install-name {
+	flex: 0 0 auto;
+	width: 6.5em;
+	text-align: right;
+	white-space: nowrap;
+	color: var(--text-normal);
+	font-size: var(--font-ui-smaller);
+}
+
+.agent-client-install-run,
+.agent-client-install-copy {
+	cursor: pointer;
+}
+
+.agent-client-install-run:disabled {
+	opacity: 0.6;
+	cursor: progress;
+}
+
+.agent-client-install-guide {
+	font-size: var(--font-ui-smaller);
+}
+
+/* Keyboard focus ring for the empty-state links (per-agent install-guide link
+   + the inline example links in the subtext). Outline (shape, not color-only)
+   keeps it visible under red-green color-vision deficiency. Matches the
+   accent-outline pattern used elsewhere (queued actions, tool-call summary). */
+.agent-client-install-guide:focus-visible,
+.agent-client-getting-started-subtext a:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 1px;
+	border-radius: var(--radius-s);
+}
+
+.agent-client-install-output {
+	flex-basis: 100%;
+	margin: 2px 0 0;
+	padding: 6px 8px;
+	max-height: 140px;
+	overflow: auto;
+	white-space: pre-wrap;
+	word-break: break-word;
+	background: var(--background-secondary);
+	border-radius: var(--radius-s);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
 /* Context strip */
 .context-strip {
 	display: flex;

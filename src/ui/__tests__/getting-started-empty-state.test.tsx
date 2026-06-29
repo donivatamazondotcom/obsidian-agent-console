@@ -63,6 +63,7 @@ describe("T5: getting-started empty state (Layer 2)", () => {
 					],
 					onPickAgent,
 					onOpenSettings,
+					onInstall: vi.fn().mockResolvedValue({ ok: false, exitCode: 1 }),
 				}}
 			/>,
 		);
@@ -105,6 +106,7 @@ describe("T5: getting-started empty state (Layer 2)", () => {
 					detectedAgents: [],
 					onPickAgent: vi.fn(),
 					onOpenSettings: vi.fn(),
+					onInstall: vi.fn().mockResolvedValue({ ok: false, exitCode: 1 }),
 				}}
 			/>,
 		);
@@ -119,6 +121,17 @@ describe("T5: getting-started empty state (Layer 2)", () => {
 				".agent-client-getting-started-settings",
 			)?.textContent,
 		).toContain("Open settings");
+
+		// No-agent state surfaces install rows: 3 npm agents get an Install
+		// button; Kiro is link-only (setup guide).
+		expect(
+			container.querySelectorAll(".agent-client-install-run").length,
+		).toBe(3);
+		expect(
+			container
+				.querySelector(".agent-client-install-guide")
+				?.getAttribute("href"),
+		).toContain("agent-setup/kiro-cli");
 	});
 
 	it("falls back to the normal connecting text when gettingStarted is absent", () => {

@@ -30,8 +30,10 @@ import {
 import { getAvailableAgentsFromSettings } from "./services/session-helpers";
 import {
 	detectAvailableAgents,
-	chooseFirstRunDefault,
+	createDetectionCache,
+	resolveFirstRunDefaultAgent,
 	type AgentCandidate,
+	type DetectionCache,
 } from "./services/agent-detection";
 import {
 	AgentEnvVar,
@@ -237,12 +239,16 @@ export default class AgentClientPlugin extends Plugin {
 	private isFirstRun = false;
 
 	/**
-	 * Session-cached agent-detection result. Detection costs a login-shell
-	 * spawn per agent, so it runs at most once per session and is shared by
-	 * first-run onboarding and the getting-started empty state. Lazy: never
-	 * started in onload.
+	 * Session-cached agent-detection result, **invalidatable**. Detection costs
+	 * a login-shell spawn per agent, so it runs at most once per session and is
+	 * shared by first-run onboarding and the getting-started empty state. Lazy:
+	 * never started in onload. `clear()` (via {@link clearAgentDetectionCache})
+	 * forces a re-probe when the user fixes a built-in's command (I-FRO5) or an
+	 * in-plugin install succeeds, so the panel clears without a reload.
 	 */
-	private _detectedAgentsPromise: Promise<Set<string>> | null = null;
+	private _agentDetectionCache: DetectionCache = createDetectionCache(() =>
+		this.probeInstalledAgents(),
+	);
 
 	async onload() {
 		await this.loadSettings();
@@ -1264,30 +1270,58 @@ export default class AgentClientPlugin extends Plugin {
 	 * yields an empty set rather than rejecting.
 	 */
 	detectAgents(): Promise<Set<string>> {
-		if (!this._detectedAgentsPromise) {
-			const candidates: AgentCandidate[] = [
-				{
-					id: this.settings.kiro.id,
-					command: this.settings.kiro.command,
-				},
-				{
-					id: this.settings.claude.id,
-					command: this.settings.claude.command,
-				},
-				{
-					id: this.settings.codex.id,
-					command: this.settings.codex.command,
-				},
-				{
-					id: this.settings.gemini.id,
-					command: this.settings.gemini.command,
-				},
-			];
-			this._detectedAgentsPromise = detectAvailableAgents(
-				candidates,
-			).catch(() => new Set<string>());
+		return this._agentDetectionCache.get();
+	}
+
+	/**
+	 * Invalidate the session detection cache so the next `detectAgents()`
+	 * re-probes. Called when a built-in's command changes in settings (I-FRO5)
+	 * or an in-plugin install succeeds, so the getting-started panel clears and
+	 * the composer re-enables without a reload. Without this, a once-empty probe
+	 * stays empty for the whole session and re-detection silently no-ops.
+	 */
+	clearAgentDetectionCache(): void {
+		this._agentDetectionCache.clear();
+	}
+
+	/**
+	 * Probe which built-in agents are installed.
+	 *
+	 * Dev/test affordance: a vault-local marker file (`.force-no-agents` in the
+	 * plugin dir) forces an empty result, so the no-agent first-run experience
+	 * is smoke-testable on a machine that DOES have agents installed — without
+	 * uninstalling anything or hand-editing commands. The marker is inert in
+	 * normal installs (the file never exists) and vault-scoped, so it never
+	 * affects another vault. Smoke tooling creates it via `--no-agents`.
+	 */
+	private async probeInstalledAgents(): Promise<Set<string>> {
+		const marker = `${this.manifest.dir}/.force-no-agents`;
+		try {
+			if (await this.app.vault.adapter.exists(marker)) {
+				return new Set<string>();
+			}
+		} catch {
+			/* ignore — fall through to real detection */
 		}
-		return this._detectedAgentsPromise;
+		const candidates: AgentCandidate[] = [
+			{
+				id: this.settings.kiro.id,
+				command: this.settings.kiro.command,
+			},
+			{
+				id: this.settings.claude.id,
+				command: this.settings.claude.command,
+			},
+			{
+				id: this.settings.codex.id,
+				command: this.settings.codex.command,
+			},
+			{
+				id: this.settings.gemini.id,
+				command: this.settings.gemini.command,
+			},
+		];
+		return detectAvailableAgents(candidates);
 	}
 
 	/**
@@ -1312,9 +1346,8 @@ export default class AgentClientPlugin extends Plugin {
 		this.isFirstRun = false; // re-entrancy guard within a session
 
 		try {
-			const available = await this.detectAgents();
-			this.settings.defaultAgentId = chooseFirstRunDefault(
-				available,
+			this.settings.defaultAgentId = await resolveFirstRunDefaultAgent(
+				() => this.detectAgents(),
 				this.settings.defaultAgentId,
 			);
 			await this.saveSettings();

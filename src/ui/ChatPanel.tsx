@@ -86,6 +86,7 @@ const EMPTY_COMMANDS: SlashCommand[] = [];
 import { ChatHeader } from "./ChatHeader";
 import { MessageList, type GettingStartedInfo } from "./MessageList";
 import { shouldShowGettingStarted } from "../services/agent-detection";
+import { installAgent } from "../services/agent-installer";
 import { indexOfCurrentAgent } from "../services/session-helpers";
 import { InputArea } from "./InputArea";
 import { ContextStrip } from "./ContextStrip";
@@ -2232,6 +2233,29 @@ export function ChatPanel({
 		};
 	}, [isEmptyAndIdle, detectedAgentIds, plugin]);
 
+	// I-FRO5: when a built-in agent's command changes in settings (e.g. the
+	// user fixes a path the panel pointed them to), invalidate cached
+	// detection so the panel re-probes and clears without needing a new chat
+	// — matching the Install button's re-detect on success.
+	const builtInCommandsKey = [
+		settings.claude.command,
+		settings.codex.command,
+		settings.gemini.command,
+		settings.kiro.command,
+	].join("\u0000");
+	const prevBuiltInCommandsKeyRef = useRef(builtInCommandsKey);
+	useEffect(() => {
+		if (prevBuiltInCommandsKeyRef.current !== builtInCommandsKey) {
+			prevBuiltInCommandsKeyRef.current = builtInCommandsKey;
+			// Invalidate the session detection cache (not just the React state)
+			// so the re-fired detection effect actually re-probes — otherwise
+			// detectAgents() returns the stale once-empty memoized result and
+			// the panel never clears.
+			plugin.clearAgentDetectionCache();
+			setDetectedAgentIds(null);
+		}
+	}, [builtInCommandsKey, plugin]);
+
 	const gettingStarted = useMemo<GettingStartedInfo | undefined>(() => {
 		const currentAgentId =
 			session.agentId || plugin.settings.defaultAgentId;
@@ -2264,6 +2288,21 @@ export function ChatPanel({
 				void handleNewChatWithPersist(agentId);
 			},
 			onOpenSettings: handleOpenSettings,
+			onInstall: async (
+				npmPackage: string,
+				onOutput: (chunk: string) => void,
+			) => {
+				const result = await installAgent(npmPackage, { onOutput });
+				if (result.ok) {
+					// Re-probe: invalidate the session cache AND clear the
+					// React state so the detection effect re-runs against a
+					// fresh probe — a freshly-installed agent flips the panel
+					// and ungates the composer with no reload.
+					plugin.clearAgentDetectionCache();
+					setDetectedAgentIds(null);
+				}
+				return result;
+			},
 		};
 	}, [
 		messages.length,

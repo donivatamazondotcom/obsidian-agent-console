@@ -1,5 +1,5 @@
 import * as React from "react";
-const { memo, useEffect, useRef } = React;
+const { memo, useEffect, useRef, useState } = React;
 
 import type { ChatMessage } from "../types/chat";
 import type { AcpClient } from "../acp/acp-client";
@@ -11,6 +11,13 @@ import { LossyFallbackNotice } from "./LossyFallbackNotice";
 import { isSessionLive } from "../utils/send-affordance";
 import type { TabSessionState } from "../hooks/useTabSessionState";
 import { useAutoScrollPin } from "./use-auto-scroll-pin";
+import {
+	BUILTIN_AGENT_INSTALLS,
+	buildInstallCommand,
+	docsSetupUrl,
+	type BuiltInAgentInstall,
+} from "../services/agent-packages";
+import type { InstallResult } from "../services/agent-installer";
 
 /**
  * Memoized wrapper around MessageBubble. Skips re-rendering when the
@@ -35,6 +42,14 @@ export interface GettingStartedInfo {
 	onPickAgent: (agentId: string) => void;
 	/** Open the plugin settings tab. */
 	onOpenSettings: () => void;
+	/**
+	 * Run the one-line install for an npm-backed built-in agent, streaming
+	 * output to `onOutput`. Resolves with a structured result (never throws).
+	 */
+	onInstall: (
+		npmPackage: string,
+		onOutput: (chunk: string) => void,
+	) => Promise<InstallResult>;
 }
 
 /**
@@ -43,8 +58,94 @@ export interface GettingStartedInfo {
  * hatch, and a manual-path hint. Built from elements + CSS classes only
  * (no inline styles), sentence case per Obsidian plugin guidelines.
  */
+function InstallRow({
+	agent,
+	onInstall,
+}: {
+	agent: BuiltInAgentInstall;
+	onInstall: GettingStartedInfo["onInstall"];
+}) {
+	const [installing, setInstalling] = useState(false);
+	const [output, setOutput] = useState("");
+	const [error, setError] = useState<string | null>(null);
+	const [copied, setCopied] = useState(false);
+
+	// Kiro has no npm one-liner — offer its setup guide, no Install button.
+	if (!agent.npmPackage) {
+		return (
+			<div className="agent-client-install-row">
+				<span className="agent-client-install-name">
+					{agent.displayName}
+				</span>
+				<a
+					className="agent-client-install-guide"
+					href={docsSetupUrl(agent.docsSlug)}
+					target="_blank"
+					rel="noopener noreferrer"
+				>
+					Setup guide
+				</a>
+			</div>
+		);
+	}
+
+	const npmPackage = agent.npmPackage;
+	const command = buildInstallCommand(npmPackage);
+
+	const runInstall = async () => {
+		setInstalling(true);
+		setError(null);
+		setOutput("");
+		const result = await onInstall(npmPackage, (chunk) =>
+			setOutput((prev) => prev + chunk),
+		);
+		setInstalling(false);
+		if (!result.ok) {
+			setError(result.message ?? "The install didn't finish.");
+		}
+		// On success the agent is detected on re-probe and this whole panel
+		// unmounts — nothing else to do here.
+	};
+
+	const copyCommand = () => {
+		void navigator.clipboard.writeText(command).then(
+			() => {
+				setCopied(true);
+				window.setTimeout(() => setCopied(false), 1500);
+			},
+			() => undefined,
+		);
+	};
+
+	return (
+		<div className="agent-client-install-row">
+			<span className="agent-client-install-name">{agent.displayName}</span>
+			<button
+				type="button"
+				className="agent-client-install-run"
+				disabled={installing}
+				onClick={() => void runInstall()}
+			>
+				{installing ? "Installing…" : "Install"}
+			</button>
+			<button
+				type="button"
+				className="agent-client-install-copy"
+				onClick={copyCommand}
+			>
+				{copied ? "Copied!" : "Copy command"}
+			</button>
+			{(error || output) && (
+				<pre className="agent-client-install-output">
+					{error ? `${error}\n\n${command}` : output}
+				</pre>
+			)}
+		</div>
+	);
+}
+
 function GettingStarted({ info }: { info: GettingStartedInfo }) {
-	const { detectedAgents, onPickAgent, onOpenSettings } = info;
+	const { detectedAgents, onPickAgent, onOpenSettings, onInstall } = info;
 	return (
 		<div className="agent-client-chat-empty-state agent-client-getting-started">
 			<div className="agent-client-getting-started-heading">
@@ -69,9 +170,37 @@ function GettingStarted({ info }: { info: GettingStartedInfo }) {
 					</div>
 				</>
 			) : (
-				<div className="agent-client-getting-started-subtext">
-					No agent CLI detected on your machine yet.
-				</div>
+				<>
+					<div className="agent-client-getting-started-subtext">
+						No agent is installed yet. Agent Console needs an AI agent
+						on your computer –{" "}
+						{BUILTIN_AGENT_INSTALLS.map((agent, i) => (
+							<React.Fragment key={agent.id}>
+								{i > 0 &&
+									(i === BUILTIN_AGENT_INSTALLS.length - 1
+										? ", or "
+										: ", ")}
+								<a
+									href={docsSetupUrl(agent.docsSlug)}
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									{agent.displayName}
+								</a>
+							</React.Fragment>
+						))}
+						.
+					</div>
+					<div className="agent-client-getting-started-installs">
+						{BUILTIN_AGENT_INSTALLS.map((agent) => (
+							<InstallRow
+								key={agent.id}
+								agent={agent}
+								onInstall={onInstall}
+							/>
+						))}
+					</div>
+				</>
 			)}
 			<button
 				type="button"
@@ -81,7 +210,7 @@ function GettingStarted({ info }: { info: GettingStartedInfo }) {
 				Open settings
 			</button>
 			<div className="agent-client-getting-started-hint">
-				Already have a CLI installed elsewhere? Set its path in settings.
+				Already have one installed elsewhere? Set its path in settings.
 			</div>
 		</div>
 	);

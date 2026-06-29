@@ -355,8 +355,8 @@ export class AcpClient {
 					type: "command_not_found",
 					agentId: config.id,
 					exitCode: code,
-					title: "Command Not Found",
-					message: `The command "${command}" could not be found. Please check the path configuration for ${agentLabel}.`,
+					title: `Can't start ${agentLabel}`,
+					message: `${agentLabel} doesn't look installed (couldn't run "${command}"). Install it, or open Settings to set its path.`,
 					suggestion: getCommandNotFoundSuggestion(
 						command,
 						this.plugin.settings.windowsWslMode,
