@@ -2986,7 +2986,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: 8px 10px;
+	padding: 10px 16px;
 	font-weight: var(--font-semibold, 600);
 	color: var(--text-normal);
 	cursor: pointer;
@@ -3035,10 +3035,12 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	white-space: nowrap;
 }
 
-/* Nest the body settings slightly under the header. */
+/* Align body settings with the pane's 16px column (matches top-level
+ * setting-items so control right edges line up, and gives the controls room
+ * to breathe inside the bordered section). */
 .agent-client-agent-section > .setting-item {
-	padding-left: 10px;
-	padding-right: 10px;
+	padding-left: 16px;
+	padding-right: 16px;
 }
 
 /* Carried-over conversation preview (Agent-Portable Sessions) ---------------
