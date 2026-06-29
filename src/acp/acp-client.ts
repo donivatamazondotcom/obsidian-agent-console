@@ -778,18 +778,33 @@ export class AcpClient {
 	}
 
 	/**
-	 * DEPRECATED: Use setSessionConfigOption instead.
+	 * Apply a model selection for a session.
+	 *
+	 * SDK 1.0 dropped the typed `session/set_model` wrapper (model selection was
+	 * removed from the schema in 0.24 in favor of config options). However,
+	 * agents that still report legacy model state — e.g. kiro-cli, which emits
+	 * `models` in its session responses — continue to honor the raw
+	 * `session/set_model` JSON-RPC method on the wire. Call it via the SDK's
+	 * untyped request overload so those agents keep working. Agents that don't
+	 * support it will reject with "Method not found", surfaced as an error.
 	 */
-	async setSessionModel(_sessionId: string, _modelId: string): Promise<void> {
-		// Model selection was removed from the ACP protocol in SDK 0.24
-		// (superseded by setSessionConfigOption). The SDK no longer exposes a
-		// model-selector method. This path is unreachable in practice: the
-		// model picker only renders when the agent reports model state, which
-		// type-converter no longer populates. Kept as a guarded stub until the
-		// model-selector surface is removed in a follow-up.
-		throw new Error(
-			"Model selection is no longer supported by the ACP SDK (removed in 0.24); use session config options instead.",
+	async setSessionModel(sessionId: string, modelId: string): Promise<void> {
+		const connection = this.requireConnection();
+
+		this.logger.log(
+			`Setting session model to: ${modelId} for session: ${sessionId}`,
 		);
+
+		try {
+			await connection.agent.request<
+				void,
+				{ sessionId: string; modelId: string }
+			>("session/set_model", { sessionId, modelId });
+			this.logger.log(`Session model set to: ${modelId}`);
+		} catch (error) {
+			this.logger.error("Failed to set session model:", error);
+			throw error;
+		}
 	}
 
 	/**

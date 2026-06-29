@@ -20,10 +20,31 @@ import type {
  * shared fields for type-safe conversion; sessionId is optional here
  * and supplied explicitly when missing from the response.
  */
+/**
+ * Raw legacy model-state shape. Removed from the ACP SDK types in 0.24
+ * (superseded by configOptions), but agents such as kiro-cli still emit it
+ * on the wire in session responses, and the SDK passes the untyped field
+ * through unchanged. Typed here as the raw shape so the converter can
+ * re-surface it. See the "Restore Kiro Model Selection" spec.
+ */
+interface LegacyModelState {
+	currentModelId: string;
+	availableModels: Array<{
+		modelId: string;
+		name: string;
+		description?: string | null;
+	}>;
+}
+
 interface AcpSessionResponse {
 	sessionId?: string;
 	modes?: acp.SessionModeState | null;
 	configOptions?: acp.SessionConfigOption[] | null;
+	/**
+	 * Legacy model state, untyped by the SDK since 0.24 but still emitted by
+	 * some agents (e.g. kiro-cli). Surfaced via {@link LegacyModelState}.
+	 */
+	models?: LegacyModelState | null;
 }
 
 /**
@@ -176,10 +197,28 @@ export class AcpTypeConverter {
 			};
 		}
 
-		// Model selectors were removed from the ACP schema in SDK 0.24
-		// (superseded by configOptions); the SDK no longer delivers model
-		// state, so SessionResult.models is left undefined. A separate
-		// follow-up tracks removing the now-dead model-selector surface.
+		// Model state was dropped from the ACP SDK types in 0.24, but agents
+		// such as kiro-cli still emit `models` on the wire in session responses
+		// and the SDK passes the untyped field through. Re-surface it here —
+		// validated at this trust boundary — so the model picker and header
+		// model name work for those agents. Agents that don't send it (e.g.
+		// Claude Code) leave `models` undefined; never coerce.
+		let models: SessionResult["models"];
+		const rawModels = response.models;
+		if (
+			rawModels &&
+			Array.isArray(rawModels.availableModels) &&
+			typeof rawModels.currentModelId === "string"
+		) {
+			models = {
+				availableModels: rawModels.availableModels.map((m) => ({
+					modelId: m.modelId,
+					name: m.name,
+					description: m.description ?? undefined,
+				})),
+				currentModelId: rawModels.currentModelId,
+			};
+		}
 
 		const configOptions = response.configOptions
 			? this.toSessionConfigOptions(response.configOptions)
@@ -188,6 +227,7 @@ export class AcpTypeConverter {
 		return {
 			sessionId,
 			modes,
+			models,
 			configOptions,
 		};
 	}
