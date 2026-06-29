@@ -1,6 +1,6 @@
 import * as React from "react";
 const { useRef, useState, useEffect, useCallback, useMemo } = React;
-import { Notice, setIcon } from "obsidian";
+import { Notice, setIcon, Scope } from "obsidian";
 
 import type AgentClientPlugin from "../plugin";
 import type { IChatViewHost } from "./view-host";
@@ -16,7 +16,10 @@ import type { AttachedFile, ChatMessage } from "../types/chat";
 import type { UseSuggestionsReturn } from "../hooks/useSuggestions";
 import { SuggestionPopup } from "./SuggestionPopup";
 import { QuickPromptBar } from "./QuickPromptBar";
-import { quickPromptGestureFromEvent } from "../utils/quick-prompt-gesture";
+import {
+	quickPromptGestureFromEvent,
+	isQuickPromptScopeCombo,
+} from "../utils/quick-prompt-gesture";
 import type { QuickPrompt } from "../types/quick-prompt";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import { ErrorBanner } from "./ErrorBanner";
@@ -742,7 +745,14 @@ export function InputArea({
 	 * from the composer, preserving any surrounding draft text.
 	 */
 	const selectQuickPrompt = useCallback(
-		(prompt: QuickPrompt, evt?: React.MouseEvent | React.KeyboardEvent) => {
+		(
+			prompt: QuickPrompt,
+			evt?:
+				| React.MouseEvent
+				| React.KeyboardEvent
+				| MouseEvent
+				| KeyboardEvent,
+		) => {
 			// Strip the `!query` token FIRST and hand the stripped composer up so
 			// ChatPanel can sync its composer ref BEFORE the engine evaluates
 			// (QP-I13). Otherwise the `!query` token counts as a draft → the fire
@@ -750,10 +760,15 @@ export function InputArea({
 			// setTextAndFocus would clobber it. ChatPanel now owns the composer
 			// update (fire clears it / insert lands in it), so we do NOT
 			// setTextAndFocus here.
+			// `evt` may be a React synthetic (React path) or a native DOM event
+			// (the QP-I14 Scope path); normalize to the native event the gesture
+			// util reads.
+			const native =
+				evt && "nativeEvent" in evt ? evt.nativeEvent : evt;
 			const stripped = quickPrompts.selectSuggestion(inputValue);
 			onRunQuickPrompt?.(
 				prompt,
-				quickPromptGestureFromEvent(evt?.nativeEvent),
+				quickPromptGestureFromEvent(native),
 				stripped,
 			);
 		},
@@ -778,6 +793,59 @@ export function InputArea({
 		});
 		setTextAndFocus(newText);
 	}, [quickPrompts, onCreateQuickPrompt, inputValue, setTextAndFocus]);
+
+	/**
+	 * Activate the highlighted quick-prompt dropdown row: the create row, or a
+	 * prompt fired through the engine with the event’s gesture. Shared by the
+	 * React keydown path and the pushed Scope (QP-I14) so both surfaces select
+	 * identically. Returns true when it acted on an open quick-prompt dropdown.
+	 */
+	const activateQuickPromptSelection = useCallback(
+		(evt: React.KeyboardEvent | KeyboardEvent): boolean => {
+			if (!quickPrompts.isOpen) return false;
+			if (
+				quickPrompts.createRow &&
+				quickPrompts.selectedIndex === quickPrompts.suggestions.length
+			) {
+				handleCreateQuickPrompt();
+				return true;
+			}
+			const selectedPrompt =
+				quickPrompts.suggestions[quickPrompts.selectedIndex];
+			if (!selectedPrompt) return false;
+			selectQuickPrompt(selectedPrompt, evt);
+			return true;
+		},
+		[quickPrompts, handleCreateQuickPrompt, selectQuickPrompt],
+	);
+
+	// QP-I14: while the `!` quick-prompt dropdown is open, claim the Enter
+	// combos Obsidian’s DEFAULT editor hotkeys steal (⌥ / ⌘ / ⌘⌥ / ⌘⌥⇧ + Enter
+	// → follow-link / open-link-in-new-leaf|split|window). A Scope pushed onto
+	// app.keymap outranks the global editor scope (the same mechanism that lets
+	// ChatView’s Mod+W beat workspace:close), so these reach the quick-prompt
+	// selection instead of being swallowed. Plain Enter and ⌘⇧Enter are NOT
+	// bound by Obsidian and keep flowing through React’s handleDropdownKeyPress.
+	// The scope lives only while the dropdown is open.
+	const activateQuickPromptSelectionRef = useRef(activateQuickPromptSelection);
+	activateQuickPromptSelectionRef.current = activateQuickPromptSelection;
+	const quickPromptDropdownOpen = quickPrompts.isOpen;
+	useEffect(() => {
+		if (!quickPromptDropdownOpen) return;
+		const keymap = plugin.app.keymap;
+		const scope = new Scope(plugin.app.scope);
+		const handler = (evt: KeyboardEvent): false | void => {
+			// Consume (preventDefault) when we acted on the dropdown; otherwise
+			// return void so Obsidian falls through to its editor hotkeys.
+			if (activateQuickPromptSelectionRef.current(evt)) return false;
+		};
+		scope.register(["Alt"], "Enter", handler);
+		scope.register(["Mod"], "Enter", handler);
+		scope.register(["Mod", "Alt"], "Enter", handler);
+		scope.register(["Mod", "Alt", "Shift"], "Enter", handler);
+		keymap.pushScope(scope);
+		return () => keymap.popScope(scope);
+	}, [quickPromptDropdownOpen, plugin]);
 
 	/**
 	 * Overflow "+N" affordance: focus the composer and start a ! search. Inserts
@@ -1002,23 +1070,23 @@ export function InputArea({
 				if (e.key === "Enter" && e.nativeEvent.isComposing) {
 					return false;
 				}
+				// QP-I14: the ⌥ / ⌘ / ⌘⌥ / ⌘⌥⇧ + Enter combos are owned by the
+				// pushed Scope (it beats Obsidian’s editor link-open hotkeys). If
+				// such a keydown also bubbles to React while the quick-prompt
+				// dropdown is open, swallow it here so we neither double-fire nor
+				// fall through to the send path. Plain Enter and ⌘⇧Enter are not
+				// scope-owned and proceed normally below.
+				if (
+					isQuickPromptActive &&
+					e.key === "Enter" &&
+					isQuickPromptScopeCombo(e)
+				) {
+					e.preventDefault();
+					return true;
+				}
 				e.preventDefault();
 				if (isQuickPromptActive) {
-					if (
-						quickPrompts.createRow &&
-						quickPrompts.selectedIndex ===
-							quickPrompts.suggestions.length
-					) {
-						handleCreateQuickPrompt();
-					} else {
-						const selectedPrompt =
-							quickPrompts.suggestions[
-								quickPrompts.selectedIndex
-							];
-						if (selectedPrompt) {
-							selectQuickPrompt(selectedPrompt, e);
-						}
-					}
+					activateQuickPromptSelection(e);
 				} else if (isSlashCommandActive) {
 					const selectedCommand =
 						slashCommands.suggestions[slashCommands.selectedIndex];
@@ -1056,7 +1124,7 @@ export function InputArea({
 			mentions,
 			handleSelectSlashCommand,
 			selectMention,
-			selectQuickPrompt,
+			activateQuickPromptSelection,
 		],
 	);
 
