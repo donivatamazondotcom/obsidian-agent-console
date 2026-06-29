@@ -643,12 +643,7 @@ export const NEW_PROMPT_BODY_PLACEHOLDER = [
 	"Properties above (top to bottom):",
 	"- open in new tab: fire into a fresh chat tab instead of the current one.",
 	"- always show: show this prompt's chip on every note.",
-	"- show when: show the chip only on matching notes — a list of property=value conditions (all must match). Empty = search-only (type ! in the composer to find it).",
-	"",
-	"Copy-paste into show when (one condition per line):",
-	"type=meeting",
-	"status=open",
-	"tags=NoteType/DailyNote",
+	"- show when: show the chip only on matching notes. Add one item to the list per condition, each property=value — e.g. type=meeting, tags=people, status=open. Empty = search-only (type ! in the composer to find it).",
 	"",
 	"Guide: https://donivatamazondotcom.github.io/obsidian-agent-console/usage/quick-prompts",
 ].join("\n");
