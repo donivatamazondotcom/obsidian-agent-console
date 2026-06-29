@@ -35,6 +35,7 @@ import {
 	evaluateCleanliness,
 	type CleanlinessProbeResult,
 } from "./cleanliness";
+import { resolveFrameConfig, type FrameOptions } from "./frame";
 
 /** Subset of Cdp used by the orchestrator (for DI). */
 export interface CdpLike {
@@ -110,6 +111,14 @@ export interface OrchestratorDeps {
 	 * spawning; run.ts binds the real `encodeGif` with its exec/fs deps.
 	 */
 	encodeGif: (opts: EncodeGifOptions) => Promise<EncodeGifResult>;
+	/**
+	 * Apply presentation framing (Decision 11) to a written output file,
+	 * overwriting it in place. Called INSTEAD of `postProcess` for entries that
+	 * opt into `frame` (the frame brings its own shadow). Injected so the
+	 * orchestrator stays free of direct sharp framing; run.ts binds the real
+	 * `frameImage`.
+	 */
+	frameImage?: (outputPath: string, opts: FrameOptions) => Promise<void>;
 }
 
 export interface CaptureResult {
@@ -842,8 +851,16 @@ export async function captureEntry(
 		await encoded.webp({ quality: 90 }).toFile(outputPath);
 	}
 
-	// 8. Optional post-processing (e.g. drop shadow) on the written file.
-	await deps.postProcess?.(outputPath);
+	// 8. Post-processing on the written file. A framed entry (Decision 11) gets
+	// the presentation frame (gradient + soft shadow + rounded corners + optional
+	// synthetic chrome) INSTEAD of the flat drop shadow — the frame brings its
+	// own shadow. Unframed entries keep the flat drop shadow as before.
+	const frameCfg = resolveFrameConfig(entry);
+	if (frameCfg) {
+		await deps.frameImage?.(outputPath, frameCfg);
+	} else {
+		await deps.postProcess?.(outputPath);
+	}
 
 	// 9. Restore mobile emulation (before the guard, so a guard failure can't
 	// leave the running Obsidian stuck in mobile mode).

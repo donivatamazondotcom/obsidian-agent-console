@@ -25,6 +25,7 @@ import { parseManifest, validateManifest } from "./lib/manifest";
 import { captureAll, type OrchestratorDeps } from "./lib/orchestrator";
 import { Cdp } from "./lib/cdp";
 import { addDropShadow } from "./lib/shadow";
+import { frameImage as applyFrame } from "./lib/frame";
 import { encodeGif, frameFileName } from "./lib/encode-gif";
 
 async function main() {
@@ -88,6 +89,7 @@ async function main() {
 		readFile: (p, enc) => readFileSync(p, enc as BufferEncoding),
 		devicePixelRatio: dpr,
 		postProcess: (output) => addDropShadow(output),
+		frameImage: (output, opts) => applyFrame(output, opts),
 		// Content guard: decode the final webp to raw RGB(A) pixels so the
 		// orchestrator can count distinct colors and reject blank/degraded
 		// captures (I11 follow-up). Read after postProcess (the shadow margin

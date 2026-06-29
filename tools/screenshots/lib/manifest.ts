@@ -419,6 +419,24 @@ export interface ManifestEntry {
 	altText?: string;
 
 	/**
+	 * Presentation framing (Decision 11). `true` mounts the shot in a
+	 * placement-appropriate frame (hero → synthetic macOS window + soft shadow +
+	 * gradient; else → chrome-less card); an object overrides specific fields.
+	 * A framed entry SKIPS the flat drop shadow. Resolved by `lib/frame.ts`
+	 * resolveFrameConfig and applied as the orchestrator post-process step.
+	 */
+	frame?:
+		| boolean
+		| {
+				chrome?: "macos" | "none";
+				background?: { from?: string; to?: string };
+				cornerRadius?: number;
+				padding?: number;
+				chromeHeight?: number;
+				shadow?: { opacity?: number; blur?: number; offsetY?: number };
+			};
+
+	/**
 	 * Animated-GIF spec (v2). When present, the entry is captured as a
 	 * multi-frame `.gif` (output `<name>.gif`, not `.webp`): the orchestrator
 	 * drives each frame, captures window-mode, crops each to the static `crop`,
@@ -716,6 +734,69 @@ export function validateManifest(
 				throw new Error(
 					`manifest entry "${entry.name}" altText must not start with "image of"/"photo of" (screen readers already announce this)`,
 				);
+			}
+		}
+
+		if (entry.frame !== undefined) {
+			const fr = entry.frame;
+			if (
+				typeof fr !== "boolean" &&
+				(typeof fr !== "object" || fr === null || Array.isArray(fr))
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid frame: must be a boolean or an object`,
+				);
+			}
+			if (typeof fr === "object") {
+				if (fr.chrome !== undefined && fr.chrome !== "macos" && fr.chrome !== "none") {
+					throw new Error(
+						`manifest entry "${entry.name}" has invalid frame.chrome: ${String(fr.chrome)} (must be "macos" or "none")`,
+					);
+				}
+				const nums: Array<[string, number | undefined]> = [
+					["cornerRadius", fr.cornerRadius],
+					["padding", fr.padding],
+					["chromeHeight", fr.chromeHeight],
+				];
+				for (const [k, v] of nums) {
+					if (v !== undefined && (!Number.isFinite(v) || v < 0)) {
+						throw new Error(
+							`manifest entry "${entry.name}" has invalid frame.${k}: ${v} (must be a finite number >= 0)`,
+						);
+					}
+				}
+				if (fr.shadow !== undefined) {
+					const op = fr.shadow.opacity;
+					if (op !== undefined && (!Number.isFinite(op) || op < 0 || op > 1)) {
+						throw new Error(
+							`manifest entry "${entry.name}" has invalid frame.shadow.opacity: ${op} (must be in [0, 1])`,
+						);
+					}
+					const sn: Array<[string, number | undefined]> = [
+						["blur", fr.shadow.blur],
+						["offsetY", fr.shadow.offsetY],
+					];
+					for (const [k, v] of sn) {
+						if (v !== undefined && !Number.isFinite(v)) {
+							throw new Error(
+								`manifest entry "${entry.name}" has invalid frame.shadow.${k}: ${v} (must be a finite number)`,
+							);
+						}
+					}
+				}
+				if (fr.background !== undefined) {
+					const bg: Array<[string, string | undefined]> = [
+						["from", fr.background.from],
+						["to", fr.background.to],
+					];
+					for (const [k, v] of bg) {
+						if (v !== undefined && (typeof v !== "string" || v.trim() === "")) {
+							throw new Error(
+								`manifest entry "${entry.name}" has invalid frame.background.${k}: must be a non-empty string`,
+							);
+						}
+					}
+				}
 			}
 		}
 

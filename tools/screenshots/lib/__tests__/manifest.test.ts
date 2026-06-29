@@ -787,3 +787,50 @@ describe("validateManifest — rightSplitWidth", () => {
 		);
 	});
 });
+
+
+describe("validateManifest — frame (Decision 11)", () => {
+	const root = makeFixtureRoot();
+	const base = {
+		name: "f",
+		width: 10,
+		height: 10,
+		crop: { x: 0, y: 0, width: 10, height: 10 },
+	};
+	const v = (frame: unknown) => () =>
+		validateManifest(
+			{ entries: [{ ...base, frame } as unknown as ManifestEntry] },
+			root,
+		);
+
+	it("accepts frame: true", () => {
+		expect(v(true)).not.toThrow();
+	});
+	it("accepts a frame object with valid fields", () => {
+		expect(
+			v({
+				chrome: "macos",
+				padding: 20,
+				cornerRadius: 8,
+				chromeHeight: 30,
+				background: { from: "#000", to: "#fff" },
+				shadow: { opacity: 0.5, blur: 10, offsetY: 5 },
+			}),
+		).not.toThrow();
+	});
+	it("rejects an invalid chrome value", () => {
+		expect(v({ chrome: "win95" })).toThrow(/frame\.chrome/);
+	});
+	it("rejects negative padding", () => {
+		expect(v({ padding: -5 })).toThrow(/frame\.padding/);
+	});
+	it("rejects shadow.opacity outside [0,1]", () => {
+		expect(v({ shadow: { opacity: 2 } })).toThrow(/opacity/);
+	});
+	it("rejects a non-boolean, non-object frame", () => {
+		expect(v(42)).toThrow(/invalid frame/);
+	});
+	it("rejects an empty background string", () => {
+		expect(v({ background: { from: "  " } })).toThrow(/frame\.background\.from/);
+	});
+});
