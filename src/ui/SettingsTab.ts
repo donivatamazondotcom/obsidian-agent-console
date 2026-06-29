@@ -35,6 +35,7 @@ import {
 	CHAT_FONT_SIZE_MAX,
 	CHAT_FONT_SIZE_MIN,
 	parseChatFontSize,
+	parseThemeTextSizePx,
 } from "../services/settings-normalizer";
 import {
 	collectAgentIdsExcept,
@@ -304,6 +305,20 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						: String(currentFontSize);
 				};
 
+				// When no explicit size is set (fontSize === null), the field
+				// is empty and the chat area follows the theme's text size.
+				// Surface that effective size in the placeholder so the field
+				// always shows the size in use, not just the allowed range.
+				const getPlaceholder = (): string => {
+					const themeTextSize = getComputedStyle(
+						document.body,
+					).getPropertyValue("--font-text-size");
+					const effectivePx = parseThemeTextSizePx(themeTextSize);
+					return effectivePx === null
+						? `${CHAT_FONT_SIZE_MIN}-${CHAT_FONT_SIZE_MAX}`
+						: `${effectivePx} (theme default)`;
+				};
+
 				const persistChatFontSize = async (
 					fontSize: number | null,
 				): Promise<void> => {
@@ -324,9 +339,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettingsAndNotify(nextSettings);
 				};
 
-				text.setPlaceholder(
-					`${CHAT_FONT_SIZE_MIN}-${CHAT_FONT_SIZE_MAX}`,
-				)
+				text.setPlaceholder(getPlaceholder())
 					.setValue(getCurrentDisplayValue())
 					.onChange(async (value) => {
 						if (value.trim().length === 0) {

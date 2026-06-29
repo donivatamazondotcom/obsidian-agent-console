@@ -61,6 +61,31 @@ export const parseChatFontSize = (value: unknown): number | null => {
 	);
 };
 
+/**
+ * Resolve the chat message area's *effective* font size in whole pixels from a
+ * computed CSS value (e.g. Obsidian's `--font-text-size`, which reads back as
+ * "16px"). Used to show the current size in the settings field's placeholder
+ * when the user has not set an explicit override (`fontSize === null`), so the
+ * field always communicates the size in use rather than just a range hint.
+ *
+ * Returns the rounded px, or `null` when the value can't be parsed (caller
+ * then falls back to the range hint). NOT clamped to CHAT_FONT_SIZE_MIN/MAX —
+ * the display must reflect the true theme size even if it sits outside the
+ * range allowed for a manual override.
+ */
+export const parseThemeTextSizePx = (
+	value: string | number | null | undefined,
+): number | null => {
+	const numericValue =
+		typeof value === "number" ? value : Number.parseFloat(String(value));
+
+	if (!Number.isFinite(numericValue) || numericValue <= 0) {
+		return null;
+	}
+
+	return Math.round(numericValue);
+};
+
 // ============================================================================
 // Settings Utilities
 // ============================================================================

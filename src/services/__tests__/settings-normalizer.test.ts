@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { normalizeRawSettings, DEFAULT_SETTINGS } from "../settings-normalizer";
+import { parseThemeTextSizePx } from "../settings-normalizer";
 
 /**
  * Behavior-preserving tests for the raw → typed settings mapping extracted
@@ -292,5 +293,38 @@ describe("normalizeRawSettings — hasCompletedSetup latch (T2 / D5)", () => {
 		expect(DEFAULT_SETTINGS.autoAllowPermissions).toBe(false);
 		const s = normalizeRawSettings({}, DEFAULT_SETTINGS, idKey);
 		expect(s.autoAllowPermissions).toBe(false);
+	});
+});
+
+describe("parseThemeTextSizePx — effective chat font size for placeholder", () => {
+	it("parses an Obsidian computed '16px' value to 16", () => {
+		expect(parseThemeTextSizePx("16px")).toBe(16);
+	});
+
+	it("parses fractional px and rounds to whole pixels", () => {
+		expect(parseThemeTextSizePx("18.6px")).toBe(19);
+		expect(parseThemeTextSizePx("13.2px")).toBe(13);
+	});
+
+	it("accepts a numeric value as-is (rounded)", () => {
+		expect(parseThemeTextSizePx(20)).toBe(20);
+		expect(parseThemeTextSizePx(15.4)).toBe(15);
+	});
+
+	it("does NOT clamp to the override range (true theme size wins)", () => {
+		// --font-text-size can exceed the 10-30 manual-override range; the
+		// displayed effective size must reflect reality, not be clamped.
+		expect(parseThemeTextSizePx("34px")).toBe(34);
+		expect(parseThemeTextSizePx("8px")).toBe(8);
+	});
+
+	it("returns null for unparseable / empty / non-positive values", () => {
+		expect(parseThemeTextSizePx("")).toBeNull();
+		expect(parseThemeTextSizePx("   ")).toBeNull();
+		expect(parseThemeTextSizePx("auto")).toBeNull();
+		expect(parseThemeTextSizePx(null)).toBeNull();
+		expect(parseThemeTextSizePx(undefined)).toBeNull();
+		expect(parseThemeTextSizePx(0)).toBeNull();
+		expect(parseThemeTextSizePx(-5)).toBeNull();
 	});
 });
