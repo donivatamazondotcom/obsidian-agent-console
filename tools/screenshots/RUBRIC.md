@@ -29,10 +29,10 @@ documented human review (or, eventually, VLM scoring — see Tier 3).
 
 ## The principles
 
-Eleven principles. Each maps to one of three desiderata — **appealing**,
+Twelve principles. Each maps to one of three desiderata — **appealing**,
 **delightful**, **differentiating** — and to a checkability tier. P1–P10 converge
-across all four researched sources; P11 is an Agent-Console-specific accessibility
-addition (see § Sources).
+across all four researched sources; P11 (accessibility) and P12 (rich rendering, below) are Agent-Console-specific
+additions (see § Sources).
 
 | # | Principle | Desideratum | Checkable? |
 |---|---|---|---|
@@ -47,6 +47,7 @@ addition (see § Sources).
 | **P9** | **Caption sells the benefit, not the mechanism.** If a caption/alt is used: 3–7 words, benefit-led, no hype/superlatives/CTAs. Carries the docs `alt=` too. | Differentiating | `caption` / `altText` fields |
 | **P10** | **Motion where motion is the value.** Use a short, focused GIF for behaviors a still can't convey (parallel agents, status transitions). | Delightful | Future — v2 gif work |
 | **P11** | **Color-blind-safe signals.** Any status/state conveyed by color must also carry a non-color cue (shape, icon, text). Never red/green as the sole differentiator. | Appealing | Partly — review + `mustShow` wording |
+| **P12** | **Show off Obsidian's rich rendering.** The chat view *is* Obsidian's markdown renderer and the note pane renders the full vault — favor fixture content that exercises it: syntax-highlighted code blocks, Mermaid diagrams, callouts, tables, and Bases dashboards (card/table views). Make quick-prompt pills expressive with glyphs/emoji. Colorful, varied, authentic content over plain prose. | Delightful + Differentiating | Partly — fixture content + `mustShow` on a rich element |
 
 ## Source validation
 
@@ -74,9 +75,12 @@ one candidate "one idea per shot" (P2 + P4):
 | Header branding | header | the `[Agent Console] Profile · Model` header, legible |
 | Ribbon icon | ribbon-icon | the Agent Console mark + "Agent Console" tooltip |
 | Sidebar-only placement | (covered by hero) | panel docked in the sidebar, tabs visible |
+| Renders like Obsidian | rich-rendering shot | a syntax-highlighted code block / Mermaid diagram in the transcript, or a Bases card view in the note pane |
 
 **Hero = multi-session** (tabs + per-tab status), matching the README value order.
 The set is built one-shot-per-differentiator, ranked by `placement`.
+
+**P12 is realized in the fixtures, not the capture code.** The `studio` fixtures must carry the richness P12 asks for: at least one note exercising code blocks + a Mermaid diagram + callouts, a `.base` + property-rich notes for a card/table dashboard, and quick-prompt fixtures with glyph/emoji labels. Because the chat view renders full Obsidian-flavored markdown, transcript fixtures should produce a colorful code block / diagram / callout; assert the rich element via `mustShow`. Authentic-but-rich content (P3 + P12) beats plain prose — a plain-text transcript undersells that the chat renders like Obsidian.
 
 ## How the rubric is encoded
 
