@@ -22,7 +22,7 @@ import {
 } from "../utils/working-directory";
 import {
 	composeObsidianSystemPrompt,
-	obsidianSystemPromptHasUserText,
+	obsidianSystemPromptIsCustomized,
 	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
 } from "../utils/obsidian-system-prompt";
 import { ConfirmResetModal } from "./ConfirmResetModal";
@@ -506,11 +506,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 								);
 								this.display();
 							};
-							// Confirm only when reset would discard typed text
-							// (vault context or a hand-edited full prompt). A
-							// toggle-only difference is cheap to redo, so reset
-							// directly without a prompt.
-							if (obsidianSystemPromptHasUserText(hcb())) {
+							// Confirm only when reset would discard customization
+							// (a block toggled off, full-prompt mode, or typed
+							// text). A pristine all-default state resets directly.
+							if (obsidianSystemPromptIsCustomized(hcb())) {
 								new ConfirmResetModal(this.plugin.app, () => {
 									void doReset();
 								}).open();

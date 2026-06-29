@@ -584,7 +584,7 @@ describe("Obsidian system prompt — 'What gets sent' preview is always present"
 });
 
 describe("Obsidian system prompt — Reset confirm gate", () => {
-	it("resets immediately (no confirm) when there is no typed text", async () => {
+	it("resets immediately (no confirm) at shipped defaults", async () => {
 		const { settings, updateSettings } = renderPane();
 		const btn = find(settings, "Reset to defaults")!.comps.button;
 		await (btn as unknown as { onClickCb: () => Promise<void> }).onClickCb();
@@ -592,6 +592,26 @@ describe("Obsidian system prompt — Reset confirm gate", () => {
 		expect(updateSettings).toHaveBeenCalledWith(
 			expect.objectContaining({ obsidianSystemPrompt: expect.anything() }),
 		);
+	});
+
+	it("defers the reset to a confirm modal when a block is toggled off", async () => {
+		const { settings, updateSettings } = renderPane({
+			obsidianSystemPrompt: {
+				blocks: {
+					hostIdentity: true,
+					rendering: true,
+					workingDirectory: true,
+					vaultCollaboration: false,
+				},
+				appendText: "",
+				customText: "",
+				mode: "options",
+			},
+		});
+		const btn = find(settings, "Reset to defaults")!.comps.button;
+		await (btn as unknown as { onClickCb: () => Promise<void> }).onClickCb();
+		// Non-default (a switch off) → confirm modal opens; not reset yet.
+		expect(updateSettings).not.toHaveBeenCalled();
 	});
 
 	it("defers the reset to a confirm modal when vault context is set", async () => {

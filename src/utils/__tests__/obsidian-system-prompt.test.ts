@@ -8,8 +8,9 @@ import {
 	workingDirectoryBlock,
 	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS,
 	type ObsidianSystemPromptBlocks,
+	type ObsidianSystemPromptSettings,
 	normalizeObsidianSystemPromptSettings,
-	obsidianSystemPromptHasUserText,
+	obsidianSystemPromptIsCustomized,
 } from "../obsidian-system-prompt";
 import {
 	WIKI_LINK_INSTRUCTION,
@@ -325,51 +326,59 @@ describe("normalizeObsidianSystemPromptSettings", () => {
 	});
 });
 
-describe("obsidianSystemPromptHasUserText (reset confirm gate)", () => {
+describe("obsidianSystemPromptIsCustomized (reset confirm gate)", () => {
 	const base = (
-		over: Partial<{
-			appendText: string;
-			customText: string;
-		}> = {},
-	) => ({
+		over: Partial<ObsidianSystemPromptSettings> = {},
+	): ObsidianSystemPromptSettings => ({
 		blocks: { ...DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS },
 		appendText: "",
 		customText: "",
-		mode: "options" as const,
+		mode: "options",
 		...over,
 	});
 
-	it("is false at shipped defaults (nothing typed)", () => {
-		expect(obsidianSystemPromptHasUserText(base())).toBe(false);
+	it("is false only at shipped defaults", () => {
+		expect(obsidianSystemPromptIsCustomized(base())).toBe(false);
 	});
 
-	it("is false when only block toggles differ (no typed text)", () => {
+	it("is true when any block is toggled off", () => {
 		expect(
-			obsidianSystemPromptHasUserText({
-				...base(),
-				blocks: {
-					...DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS,
-					vaultCollaboration: false,
-				},
-			}),
-		).toBe(false);
+			obsidianSystemPromptIsCustomized(
+				base({
+					blocks: {
+						...DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS,
+						vaultCollaboration: false,
+					},
+				}),
+			),
+		).toBe(true);
+	});
+
+	it("is true in full-prompt mode", () => {
+		expect(obsidianSystemPromptIsCustomized(base({ mode: "full" }))).toBe(
+			true,
+		);
 	});
 
 	it("is true when vault context (appendText) is set", () => {
 		expect(
-			obsidianSystemPromptHasUserText(base({ appendText: "Daily notes live in Journal/." })),
+			obsidianSystemPromptIsCustomized(
+				base({ appendText: "Daily notes live in Journal/." }),
+			),
 		).toBe(true);
 	});
 
 	it("is true when a full prompt (customText) is set", () => {
 		expect(
-			obsidianSystemPromptHasUserText(base({ customText: "My whole prompt." })),
+			obsidianSystemPromptIsCustomized(
+				base({ customText: "My whole prompt." }),
+			),
 		).toBe(true);
 	});
 
-	it("ignores whitespace-only text", () => {
+	it("ignores whitespace-only text (still default)", () => {
 		expect(
-			obsidianSystemPromptHasUserText(base({ appendText: "   \n\t" })),
+			obsidianSystemPromptIsCustomized(base({ appendText: "   \n\t" })),
 		).toBe(false);
 	});
 });
