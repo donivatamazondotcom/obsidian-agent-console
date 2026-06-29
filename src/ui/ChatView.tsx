@@ -1,5 +1,6 @@
 import { ItemView, WorkspaceLeaf, Menu, Notice, Scope, type MenuItem } from "obsidian";
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
+import { focusActiveTabComposer } from "./composer-focus";
 import type {
 	IChatViewContainer,
 	IChatTabHandle,
@@ -1411,12 +1412,13 @@ export class ChatView extends ItemView implements IChatViewContainer {
 
 	focus(): void {
 		void this.app.workspace.revealLeaf(this.leaf).then(() => {
-			const textarea = this.containerEl.querySelector(
-				"textarea.agent-client-chat-input-textarea",
+			// revealLeaf shows the leaf but does not move keyboard focus to it
+			// (I136 H2); setActiveLeaf does. Defer the composer focus one frame
+			// so it lands after Obsidian activates the leaf (H3).
+			this.app.workspace.setActiveLeaf(this.leaf, { focus: true });
+			window.requestAnimationFrame(() =>
+				focusActiveTabComposer(this.containerEl),
 			);
-			if (textarea instanceof HTMLTextAreaElement) {
-				textarea.focus();
-			}
 		});
 	}
 
