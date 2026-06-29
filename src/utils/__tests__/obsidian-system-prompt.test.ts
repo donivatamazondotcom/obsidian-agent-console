@@ -9,6 +9,7 @@ import {
 	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS,
 	type ObsidianSystemPromptBlocks,
 	normalizeObsidianSystemPromptSettings,
+	obsidianSystemPromptHasUserText,
 } from "../obsidian-system-prompt";
 import {
 	WIKI_LINK_INSTRUCTION,
@@ -321,5 +322,54 @@ describe("normalizeObsidianSystemPromptSettings", () => {
 			customText: "legacy replace",
 		});
 		expect(s.mode).toBe("full");
+	});
+});
+
+describe("obsidianSystemPromptHasUserText (reset confirm gate)", () => {
+	const base = (
+		over: Partial<{
+			appendText: string;
+			customText: string;
+		}> = {},
+	) => ({
+		blocks: { ...DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS },
+		appendText: "",
+		customText: "",
+		mode: "options" as const,
+		...over,
+	});
+
+	it("is false at shipped defaults (nothing typed)", () => {
+		expect(obsidianSystemPromptHasUserText(base())).toBe(false);
+	});
+
+	it("is false when only block toggles differ (no typed text)", () => {
+		expect(
+			obsidianSystemPromptHasUserText({
+				...base(),
+				blocks: {
+					...DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS,
+					vaultCollaboration: false,
+				},
+			}),
+		).toBe(false);
+	});
+
+	it("is true when vault context (appendText) is set", () => {
+		expect(
+			obsidianSystemPromptHasUserText(base({ appendText: "Daily notes live in Journal/." })),
+		).toBe(true);
+	});
+
+	it("is true when a full prompt (customText) is set", () => {
+		expect(
+			obsidianSystemPromptHasUserText(base({ customText: "My whole prompt." })),
+		).toBe(true);
+	});
+
+	it("ignores whitespace-only text", () => {
+		expect(
+			obsidianSystemPromptHasUserText(base({ appendText: "   \n\t" })),
+		).toBe(false);
 	});
 });

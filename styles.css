@@ -2394,6 +2394,23 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	gap: 8px;
 }
 
+/* Confirm reset (Obsidian system prompt) modal */
+.agent-client-confirm-reset-message {
+	margin-bottom: 8px;
+}
+
+.agent-client-confirm-reset-warning {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	margin-bottom: 16px;
+}
+
+.agent-client-confirm-reset-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
 /* Edit title modal */
 .agent-client-edit-title-input {
 	width: 100%;

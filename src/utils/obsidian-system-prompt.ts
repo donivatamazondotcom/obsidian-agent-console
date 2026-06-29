@@ -214,3 +214,23 @@ export function normalizeObsidianSystemPromptSettings(
 		mode,
 	};
 }
+
+// ── Reset confirmation gate ────────────────────────────────────────────────
+
+/**
+ * True when the settings carry text the user typed — the "Your vault context"
+ * append field or a hand-edited full prompt. Resetting to defaults discards
+ * that text, so the UI confirms before resetting only when this is true; a
+ * toggle-only difference is cheap to redo and resets without a prompt.
+ *
+ * Pure decision (per the resolver tenet) so the confirm gate is unit-testable
+ * independently of the settings UI.
+ */
+export function obsidianSystemPromptHasUserText(
+	settings: ObsidianSystemPromptSettings,
+): boolean {
+	return (
+		(settings.appendText ?? "").trim() !== "" ||
+		(settings.customText ?? "").trim() !== ""
+	);
+}

@@ -214,8 +214,19 @@ vi.mock("obsidian", () => {
 			return "/vault";
 		}
 	}
+	class Modal {
+		contentEl: HTMLElement = document.createElement("div");
+		constructor(public app: unknown) {}
+		open() {
+			(this as unknown as { onOpen?: () => void }).onOpen?.();
+		}
+		close() {
+			(this as unknown as { onClose?: () => void }).onClose?.();
+		}
+	}
 	return {
 		App,
+		Modal,
 		PluginSettingTab,
 		Setting: MockSettingImpl,
 		DropdownComponent: Comp,
@@ -558,5 +569,37 @@ describe("Obsidian system prompt — 'What gets sent' preview is always present"
 	it("still renders the preview in options mode (no regression)", () => {
 		const { settings } = renderPane(); // DEFAULT_SETTINGS → options mode
 		expect(find(settings, "What gets sent")).toBeDefined();
+	});
+});
+
+describe("Obsidian system prompt — Reset confirm gate", () => {
+	it("resets immediately (no confirm) when there is no typed text", async () => {
+		const { settings, updateSettings } = renderPane();
+		const btn = find(settings, "Reset to defaults")!.comps.button;
+		await (btn as unknown as { onClickCb: () => Promise<void> }).onClickCb();
+		// At defaults there's nothing to lose → reset applied directly.
+		expect(updateSettings).toHaveBeenCalledWith(
+			expect.objectContaining({ obsidianSystemPrompt: expect.anything() }),
+		);
+	});
+
+	it("defers the reset to a confirm modal when vault context is set", async () => {
+		const { settings, updateSettings } = renderPane({
+			obsidianSystemPrompt: {
+				blocks: {
+					hostIdentity: true,
+					rendering: true,
+					workingDirectory: true,
+					vaultCollaboration: true,
+				},
+				appendText: "Daily notes live in Journal/.",
+				customText: "",
+				mode: "options",
+			},
+		});
+		const btn = find(settings, "Reset to defaults")!.comps.button;
+		await (btn as unknown as { onClickCb: () => Promise<void> }).onClickCb();
+		// Typed text present → a confirm modal opens; reset is NOT applied yet.
+		expect(updateSettings).not.toHaveBeenCalled();
 	});
 });

@@ -22,8 +22,10 @@ import {
 } from "../utils/working-directory";
 import {
 	composeObsidianSystemPrompt,
+	obsidianSystemPromptHasUserText,
 	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
 } from "../utils/obsidian-system-prompt";
+import { ConfirmResetModal } from "./ConfirmResetModal";
 import {
 	TITLE_STRATEGY_OPTIONS,
 	type TitleStrategy,
@@ -465,10 +467,25 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					)
 					.addButton((btn) =>
 						btn.setButtonText("Reset to defaults").onClick(async () => {
-							await setHcb(
-								structuredClone(DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS),
-							);
-							this.display();
+							const doReset = async (): Promise<void> => {
+								await setHcb(
+									structuredClone(
+										DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
+									),
+								);
+								this.display();
+							};
+							// Confirm only when reset would discard typed text
+							// (vault context or a hand-edited full prompt). A
+							// toggle-only difference is cheap to redo, so reset
+							// directly without a prompt.
+							if (obsidianSystemPromptHasUserText(hcb())) {
+								new ConfirmResetModal(this.plugin.app, () => {
+									void doReset();
+								}).open();
+							} else {
+								await doReset();
+							}
 						}),
 					);
 			},
