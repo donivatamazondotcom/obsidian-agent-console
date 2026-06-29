@@ -7,6 +7,14 @@ import {
 } from "../utils/mention-parser";
 import type { SlashCommand } from "../types/session";
 import type AgentClientPlugin from "../plugin";
+import { prepareFuzzySearch } from "obsidian";
+import {
+	parseQuickPromptTrigger,
+	stripQuickPromptTrigger,
+	rankLauncherPrompts,
+} from "../services/quick-prompts-logic";
+import type { QuickPrompt } from "../types/quick-prompt";
+import type { QuickPromptLibrary } from "../services/quick-prompts";
 
 // ============================================================================
 // Types
@@ -59,6 +67,24 @@ export interface CommandsState {
 	close: () => void;
 }
 
+export interface QuickPromptsState {
+	/** Ranked quick-prompt suggestions for the current ! query */
+	suggestions: QuickPrompt[];
+	/** Currently selected index in the dropdown */
+	selectedIndex: number;
+	/** Whether the dropdown is open */
+	isOpen: boolean;
+
+	/** Update suggestions from the composer text + caret (! trigger) */
+	updateSuggestions: (input: string, cursorPosition: number) => void;
+	/** Strip the ! token from the input on select; returns updated text */
+	selectSuggestion: (input: string) => string;
+	/** Navigate the dropdown selection */
+	navigate: (direction: "up" | "down") => void;
+	/** Close the dropdown */
+	close: () => void;
+}
+
 // Backward-compatible type aliases
 export type UseMentionsReturn = MentionsState;
 export type UseSlashCommandsReturn = CommandsState;
@@ -68,6 +94,8 @@ export interface UseSuggestionsReturn {
 	mentions: MentionsState;
 	/** Slash command dropdown state and operations */
 	commands: CommandsState;
+	/** Quick-prompt (! trigger) dropdown state and operations */
+	quickPrompts: QuickPromptsState;
 }
 
 // ============================================================================
@@ -91,6 +119,7 @@ export function useSuggestions(
 	plugin: AgentClientPlugin,
 	availableCommands: SlashCommand[],
 	autoMentionDefault: boolean,
+	quickPromptLibrary?: QuickPromptLibrary,
 ): UseSuggestionsReturn {
 	// ============================================================
 	// Mention State
@@ -281,6 +310,82 @@ export function useSuggestions(
 	}, []);
 
 	// ============================================================
+	// Quick Prompt (! trigger) State
+	// ============================================================
+
+	const [qpSuggestions, setQpSuggestions] = useState<QuickPrompt[]>([]);
+	const [qpSelectedIndex, setQpSelectedIndex] = useState(0);
+	const [qpContext, setQpContext] = useState<{ cursorPos: number } | null>(
+		null,
+	);
+	const [qpPrompts, setQpPrompts] = useState<QuickPrompt[]>(() =>
+		quickPromptLibrary ? quickPromptLibrary.getPrompts() : [],
+	);
+
+	// Subscribe to the quick-prompt library so the ! dropdown filters the live
+	// set (read-only — firing is owned by useQuickPrompts/ChatPanel).
+	useEffect(() => {
+		if (!quickPromptLibrary) return;
+		setQpPrompts(quickPromptLibrary.getPrompts());
+		return quickPromptLibrary.subscribe(() =>
+			setQpPrompts(quickPromptLibrary.getPrompts()),
+		);
+	}, [quickPromptLibrary]);
+
+	const quickPromptIsOpen = qpSuggestions.length > 0 && qpContext !== null;
+
+	const quickPromptUpdateSuggestions = useCallback(
+		(input: string, cursorPosition: number) => {
+			const query = parseQuickPromptTrigger(
+				input.slice(0, cursorPosition),
+			);
+			if (query === null) {
+				setQpSuggestions([]);
+				setQpSelectedIndex(0);
+				setQpContext(null);
+				return;
+			}
+			const trimmed = query.trim();
+			const scorer = trimmed ? prepareFuzzySearch(trimmed) : undefined;
+			setQpSuggestions(rankLauncherPrompts(qpPrompts, query, scorer));
+			setQpSelectedIndex(0);
+			setQpContext({ cursorPos: cursorPosition });
+		},
+		[qpPrompts],
+	);
+
+	const quickPromptSelectSuggestion = useCallback(
+		(input: string): string => {
+			const cursorPos = qpContext ? qpContext.cursorPos : input.length;
+			const newText = stripQuickPromptTrigger(input, cursorPos);
+			setQpSuggestions([]);
+			setQpSelectedIndex(0);
+			setQpContext(null);
+			return newText;
+		},
+		[qpContext],
+	);
+
+	const quickPromptNavigate = useCallback(
+		(direction: "up" | "down") => {
+			if (!quickPromptIsOpen) return;
+			const maxIndex = qpSuggestions.length - 1;
+			setQpSelectedIndex((prev) =>
+				direction === "down"
+					? Math.min(prev + 1, maxIndex)
+					: Math.max(prev - 1, 0),
+			);
+		},
+		[quickPromptIsOpen, qpSuggestions.length],
+	);
+
+	const quickPromptClose = useCallback(() => {
+		setQpSuggestions([]);
+		setQpSelectedIndex(0);
+		setQpContext(null);
+	}, []);
+
+	// ============================================================
 	// Return
 	// ============================================================
 
@@ -336,5 +441,29 @@ export function useSuggestions(
 		],
 	);
 
-	return useMemo(() => ({ mentions, commands }), [mentions, commands]);
+	const quickPrompts = useMemo(
+		() => ({
+			suggestions: qpSuggestions,
+			selectedIndex: qpSelectedIndex,
+			isOpen: quickPromptIsOpen,
+			updateSuggestions: quickPromptUpdateSuggestions,
+			selectSuggestion: quickPromptSelectSuggestion,
+			navigate: quickPromptNavigate,
+			close: quickPromptClose,
+		}),
+		[
+			qpSuggestions,
+			qpSelectedIndex,
+			quickPromptIsOpen,
+			quickPromptUpdateSuggestions,
+			quickPromptSelectSuggestion,
+			quickPromptNavigate,
+			quickPromptClose,
+		],
+	);
+
+	return useMemo(
+		() => ({ mentions, commands, quickPrompts }),
+		[mentions, commands, quickPrompts],
+	);
 }

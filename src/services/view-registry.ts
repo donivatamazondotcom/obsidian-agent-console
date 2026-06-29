@@ -181,6 +181,7 @@ export interface IChatViewContainer {
 	 * [[Agent Console Quick Prompts UX Refinement]].
 	 */
 	runQuickPrompt(prompt: QuickPrompt, gesture: QuickPromptGesture): void;
+	startQuickPromptSearch(): void;
 
 	// ============================================================
 	// Container Access

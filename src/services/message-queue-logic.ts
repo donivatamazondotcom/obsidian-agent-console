@@ -107,13 +107,14 @@ export function shouldFlushOnReady(params: {
 export function buildComposerPlaceholder(params: {
 	agentLabel: string;
 	hasCommands: boolean;
+	hasQuickPrompts?: boolean;
 	isStreaming: boolean;
 	isQueued: boolean;
 }): string {
 	if (params.isStreaming && !params.isQueued) {
 		return `Queue a message – hit Enter to send when ${params.agentLabel} is done`;
 	}
-	return `Message ${params.agentLabel} - @ to mention notes${params.hasCommands ? ", / for commands" : ""}`;
+	return `Message ${params.agentLabel} - @ to mention notes${params.hasCommands ? ", / for commands" : ""}${params.hasQuickPrompts ? ", ! for quick prompts" : ""}`;
 }
 
 export interface FlushDecisionParams {

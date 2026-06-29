@@ -471,3 +471,105 @@ export function quickPromptButtonDisabled(
 ): boolean {
 	return !prompt.newTab && hasPendingQueue;
 }
+
+// ============================================================================
+// Slice 3 — launcher (Option E): chip count cap + `!` trigger + dropdown rank
+//
+// Borderless resting chips (count-capped to a single line) + a composer
+// `!`-trigger that opens the quick-prompt dropdown. All pure: the cap, the
+// token parse/strip, and the ranker are unit-testable without React/Obsidian.
+// See [[Agent Console Quick Prompts UX Refinement]] § Next steps → slice 3.
+// ============================================================================
+
+/** Result of capping the resting chip row to keep it single-line. */
+export interface CappedRestingChips {
+	/** Chips to render (first `max`, or all when uncapped). */
+	shown: QuickPrompt[];
+	/** How many matched prompts folded out of the row (0 when none). */
+	overflowCount: number;
+}
+
+/**
+ * Cap the resting chip row to a single line. The first `max` matched chips
+ * render; the remainder fold into the `+N` affordance (which focuses the
+ * composer and inserts `!` to search). `max <= 0` disables the cap.
+ */
+export function capRestingChips(
+	matched: QuickPrompt[],
+	max: number,
+): CappedRestingChips {
+	if (max <= 0 || matched.length <= max) {
+		return { shown: matched, overflowCount: 0 };
+	}
+	return {
+		shown: matched.slice(0, max),
+		overflowCount: matched.length - max,
+	};
+}
+
+/**
+ * Parse the composer's quick-prompt `!` trigger from the text up to the caret.
+ * Returns the query after `!`, or null when no trigger is active.
+ *
+ * Fires ONLY at the start of a line — the start of the composer, or right
+ * after a newline — NOT after a space mid-line, so prose like "see you later !"
+ * does not false-trigger (maintainer steer 2026-06-28). `foo!bar` mid-word
+ * also doesn't trigger; `!foo ` (a space after the query) closes it; a bare
+ * `!` at line start yields an empty query (show all).
+ */
+export function parseQuickPromptTrigger(
+	textBeforeCaret: string,
+): string | null {
+	const m = /(?:^|\n)!([^\s!]*)$/.exec(textBeforeCaret);
+	return m ? m[1] : null;
+}
+
+/**
+ * Remove only the active `!` token (from its `!` to the caret), preserving any
+ * surrounding draft text (No-silent-data-loss / append-safe). Used when a
+ * prompt fires from the composer dropdown — the prompt is sent/staged via the
+ * engine, so its `!query` token is stripped from the composer.
+ */
+export function stripQuickPromptTrigger(
+	input: string,
+	cursorPos: number,
+): string {
+	const before = input.slice(0, cursorPos);
+	const after = input.slice(cursorPos);
+	const m = /(^|\n)!([^\s!]*)$/.exec(before);
+	if (!m) return input;
+	// Keep everything up to and including the leading newline (m[1]); drop
+	// from the `!` onward.
+	const keep = m.index + m[1].length;
+	return before.slice(0, keep) + after;
+}
+
+/**
+ * Rank prompts for the launcher dropdown. Empty query → all prompts in their
+ * stable library order. Non-empty → only prompts the `scorer` matches, sorted
+ * by descending score. In production the scorer is Obsidian's sanctioned
+ * `prepareFuzzySearch(query)` (a `(text) => SearchResult | null`); injecting it
+ * keeps this pure and unit-testable. Falls back to a case-insensitive substring
+ * match on the label when no scorer is supplied.
+ */
+export function rankLauncherPrompts(
+	prompts: QuickPrompt[],
+	query: string,
+	scorer?: (text: string) => { score: number } | null,
+): QuickPrompt[] {
+	const q = query.trim();
+	if (q === "") return prompts;
+	if (!scorer) {
+		const ql = q.toLowerCase();
+		return prompts.filter((prompt) =>
+			prompt.label.toLowerCase().includes(ql),
+		);
+	}
+	const scored: { prompt: QuickPrompt; score: number }[] = [];
+	for (const prompt of prompts) {
+		const result = scorer(prompt.label);
+		if (result) scored.push({ prompt, score: result.score });
+	}
+	scored.sort((a, b) => b.score - a.score);
+	return scored.map((s) => s.prompt);
+}

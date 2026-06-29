@@ -59,6 +59,7 @@ function makeView(
 		getTabHandles: () => tabs,
 		getActiveTabId: () => tabs[0]?.tabId ?? viewId,
 		runQuickPrompt: noop,
+		startQuickPromptSearch: noop,
 		getContainerEl: () => document.createElement("div"),
 	};
 }

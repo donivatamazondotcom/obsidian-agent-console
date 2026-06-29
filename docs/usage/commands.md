@@ -35,7 +35,7 @@ These appear only when a chat view is open.
 | **Restart session (fresh)** | Restart the agent and start a brand-new session (clears the transcript) |
 | **Cancel current message** | Stop the agent's current response |
 | **Export chat** | Export the current conversation to a note |
-| **Quick prompt picker** | Open a searchable list of your [quick prompts](/usage/quick-prompts) and fire one (⌥/⇧ to insert instead). Also reachable via the ⚡ button in the composer toolbar |
+| **Quick prompts: Search** | Focus the composer and start a `!` search of your [quick prompts](/usage/quick-prompts) — type to filter, Enter to fire (⌘↵ new tab, ⌘⇧↵ switch, ⌥↵ insert). Also reachable by typing `!` directly in the message box. |
 | **Toggle active note in context** | Pin or unpin the active note in the context strip |
 | **Approve active permission** | Approve the current permission request |
 | **Reject active permission** | Reject the current permission request |

@@ -18,10 +18,13 @@
  */
 
 import * as React from "react";
-const { useRef, useEffect } = React;
+const { useRef, useEffect, useState, useLayoutEffect } = React;
 import { setIcon } from "obsidian";
 import type { QuickPrompt } from "../types/quick-prompt";
-import { quickPromptButtonDisabled } from "../services/quick-prompts-logic";
+import {
+	quickPromptButtonDisabled,
+	capRestingChips,
+} from "../services/quick-prompts-logic";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import { quickPromptGestureFromEvent } from "../utils/quick-prompt-gesture";
 
@@ -47,18 +50,74 @@ export interface QuickPromptBarProps {
 	hasPendingQueue: boolean;
 	/** Fire / insert a prompt (routes through the engine in the hook). */
 	onFire: (prompt: QuickPrompt, gesture: QuickPromptGesture) => void;
+	/** Focus the composer and start a ! search (the overflow "+N" affordance). */
+	onSearchAll?: () => void;
 }
+
+/**
+ * Hard upper bound on chips rendered into the DOM. The VISIBLE count is then
+ * MEASURED against the row width (QP-I05) so pills stay readable in a narrow
+ * leaf — the rest fold into the `+N` overflow → a `!` search. This only bounds
+ * DOM size; it is NOT the visible cap.
+ */
+const MAX_RESTING_CHIPS = 12;
 
 export function QuickPromptBar({
 	prompts,
 	hasPendingQueue,
 	onFire,
+	onSearchAll,
 }: QuickPromptBarProps) {
+	const barRef = useRef<HTMLDivElement>(null);
+	const [overflowCount, setOverflowCount] = useState(0);
+	// Bound DOM size; the visible subset is measured below.
+	const { shown } = capRestingChips(prompts, MAX_RESTING_CHIPS);
+	const total = prompts.length;
+
+	// Width-aware single-line cap (QP-I05): show as many full-width pills as
+	// fit the row, hide the rest, fold them into `+N`. Pills never shrink to
+	// unreadable stubs (CSS flex-shrink:0); we trim by COUNT, not by squeezing.
+	useLayoutEffect(() => {
+		const bar = barRef.current;
+		if (!bar || typeof ResizeObserver === "undefined") return;
+		const RESERVE = 48; // room for the +N pill
+		const GAP = 6;
+		const FOLDED = "agent-client-quick-prompt-chip-folded";
+		const compute = () => {
+			const chips = Array.from(
+				bar.querySelectorAll<HTMLElement>(
+					".agent-client-quick-prompt-chip",
+				),
+			);
+			if (chips.length === 0) {
+				setOverflowCount(0);
+				return;
+			}
+			chips.forEach((c) => c.classList.remove(FOLDED));
+			const avail = bar.clientWidth - RESERVE;
+			let used = 0;
+			let fit = 0;
+			for (let i = 0; i < chips.length; i++) {
+				used += chips[i].offsetWidth + (i > 0 ? GAP : 0);
+				if (used > avail && fit > 0) break;
+				fit++;
+			}
+			chips.forEach((c, i) => {
+				c.classList.toggle(FOLDED, i >= fit);
+			});
+			setOverflowCount(total - fit);
+		};
+		compute();
+		const ro = new ResizeObserver(compute);
+		ro.observe(bar);
+		return () => ro.disconnect();
+	}, [shown, total]);
+
 	// Ephemeral: no matching prompts ⇒ no row at all.
-	if (prompts.length === 0) return null;
+	if (shown.length === 0) return null;
 	return (
-		<div className="agent-client-quick-prompt-bar">
-			{prompts.map((prompt) => (
+		<div className="agent-client-quick-prompt-bar" ref={barRef}>
+			{shown.map((prompt) => (
 				<QuickPromptChip
 					key={prompt.id}
 					prompt={prompt}
@@ -66,6 +125,19 @@ export function QuickPromptBar({
 					onFire={onFire}
 				/>
 			))}
+			{overflowCount > 0 && (
+				<button
+					type="button"
+					className="agent-client-quick-prompt-more"
+					aria-label={`Show ${overflowCount} more — search all quick prompts`}
+					onClick={(e) => {
+						e.preventDefault();
+						onSearchAll?.();
+					}}
+				>
+					{`+${overflowCount}`}
+				</button>
+			)}
 		</div>
 	);
 }
@@ -136,6 +208,14 @@ function QuickPromptChip({
 					className="agent-client-quick-prompt-chip-newtab"
 					aria-hidden="true"
 				/>
+			)}
+			{prompt.usesSelection && (
+				<span
+					className="agent-client-quick-prompt-chip-selection"
+					aria-hidden="true"
+				>
+					{"{ }"}
+				</span>
 			)}
 			{disabled && (
 				<span

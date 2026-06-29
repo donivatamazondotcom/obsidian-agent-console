@@ -20,6 +20,10 @@ import {
 	tagsMatch,
 	promptInRestingRow,
 	quickPromptButtonDisabled,
+	capRestingChips,
+	parseQuickPromptTrigger,
+	stripQuickPromptTrigger,
+	rankLauncherPrompts,
 } from "../quick-prompts-logic";
 import type { QuickPrompt, QuickPromptFileInput } from "../../types/quick-prompt";
 
@@ -703,6 +707,122 @@ describe("quick-prompts-logic — new-tab + foreground (slice 1)", () => {
 			expect(a.notify).toHaveBeenCalledWith(
 				'"Sum" needs a selection — dropped into the composer instead.',
 			);
+		});
+	});
+});
+
+// ============================================================================
+// S3-T1..T3 — Slice 3 (Option E): launcher pure helpers
+//
+// Borderless resting chips (count cap) + a composer `!`-trigger (token parse +
+// strip) + the dropdown ranker. See [[Agent Console Quick Prompts UX
+// Refinement]] § Next steps → slice 3 (Option E).
+// ============================================================================
+describe("quick-prompts-logic — slice 3 (launcher: chips + ! trigger)", () => {
+	function p(id: string): QuickPrompt {
+		return {
+			id,
+			label: id,
+			body: "b",
+			path: `Quick Prompts/${id}.md`,
+			usesSelection: false,
+		};
+	}
+
+	describe("S3-T1: capRestingChips — single-line count cap", () => {
+		const five = [p("a"), p("b"), p("c"), p("d"), p("e")];
+		it("under/equal cap → all shown, no overflow", () => {
+			expect(capRestingChips(five.slice(0, 3), 4)).toEqual({
+				shown: five.slice(0, 3),
+				overflowCount: 0,
+			});
+			expect(capRestingChips(five.slice(0, 4), 4)).toEqual({
+				shown: five.slice(0, 4),
+				overflowCount: 0,
+			});
+		});
+		it("over cap → first `max` shown + correct overflow count", () => {
+			const r = capRestingChips(five, 3);
+			expect(r.shown.map((x) => x.id)).toEqual(["a", "b", "c"]);
+			expect(r.overflowCount).toBe(2);
+		});
+		it("max <= 0 disables the cap", () => {
+			expect(capRestingChips(five, 0)).toEqual({
+				shown: five,
+				overflowCount: 0,
+			});
+		});
+	});
+
+	describe("S3-T2: parseQuickPromptTrigger — the ! token", () => {
+		it("fires at line-start: !foo → foo", () => {
+			expect(parseQuickPromptTrigger("!foo")).toBe("foo");
+		});
+		it("does NOT fire after a space mid-line: 'bar !foo' → null", () => {
+			expect(parseQuickPromptTrigger("bar !foo")).toBeNull();
+		});
+		it("fires after a newline (multiline composer)", () => {
+			expect(parseQuickPromptTrigger("line one\n!foo")).toBe("foo");
+		});
+		it("does NOT fire mid-word: foo!bar → null", () => {
+			expect(parseQuickPromptTrigger("foo!bar")).toBeNull();
+		});
+		it("null when there is no ! token", () => {
+			expect(parseQuickPromptTrigger("just typing")).toBeNull();
+		});
+		it("bare ! → empty query (show all)", () => {
+			expect(parseQuickPromptTrigger("!")).toBe("");
+		});
+		it("closes once a space follows the query: '!foo ' → null", () => {
+			expect(parseQuickPromptTrigger("!foo ")).toBeNull();
+		});
+	});
+
+	describe("S3-T2b: stripQuickPromptTrigger — remove only the ! token", () => {
+		it("clears a lone token", () => {
+			expect(stripQuickPromptTrigger("!summ", 5)).toBe("");
+		});
+		it("preserves the line before the token (append-safe)", () => {
+			expect(stripQuickPromptTrigger("hey\n!summ", 9)).toBe("hey\n");
+		});
+		it("no token → unchanged", () => {
+			expect(stripQuickPromptTrigger("nothing here", 12)).toBe(
+				"nothing here",
+			);
+		});
+		it("keeps text after the caret", () => {
+			expect(stripQuickPromptTrigger("!sum tail", 4)).toBe(" tail");
+		});
+	});
+
+	describe("S3-T3: rankLauncherPrompts — empty → all; query → matched, ranked", () => {
+		const prompts = [p("alpha"), p("beta"), p("gamma")];
+		it("empty query → all prompts in stable order", () => {
+			expect(rankLauncherPrompts(prompts, "").map((x) => x.id)).toEqual([
+				"alpha",
+				"beta",
+				"gamma",
+			]);
+			expect(rankLauncherPrompts(prompts, "   ").map((x) => x.id)).toEqual([
+				"alpha",
+				"beta",
+				"gamma",
+			]);
+		});
+		it("with an injected scorer → only matched, sorted by score desc", () => {
+			const scorer = (text: string) => {
+				if (text === "alpha") return { score: 1 };
+				if (text === "gamma") return { score: 5 };
+				return null; // beta excluded
+			};
+			expect(
+				rankLauncherPrompts(prompts, "a", scorer).map((x) => x.id),
+			).toEqual(["gamma", "alpha"]);
+		});
+		it("substring fallback when no scorer is supplied", () => {
+			expect(
+				rankLauncherPrompts(prompts, "AL", undefined).map((x) => x.id),
+			).toEqual(["alpha"]);
 		});
 	});
 });
