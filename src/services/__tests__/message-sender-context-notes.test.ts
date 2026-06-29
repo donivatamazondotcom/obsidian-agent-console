@@ -158,3 +158,34 @@ describe("preparePrompt context-notes path — title rubric recency (I111)", () 
 		expect(texts.some((t) => t.includes("wikilink"))).toBe(true);
 	});
 });
+
+describe("preparePrompt context-notes path — host-context briefing wrapping (slice 3)", () => {
+	it("emits the briefing as a single <obsidian_system_instruction> block on the first message", async () => {
+		const r = await preparePrompt(
+			{ ...base, isFirstMessage: true },
+			vaultAccess,
+			mentionService,
+		);
+		const wrapped = textBlocks(r.agentContent).filter((t) =>
+			t.startsWith("<obsidian_system_instruction>"),
+		);
+		expect(wrapped).toHaveLength(1);
+		expect(wrapped[0]).toContain("running inside Obsidian");
+		expect(wrapped[0]).toContain("wikilink");
+		expect(wrapped[0]).toMatch(/<\/obsidian_system_instruction>$/);
+	});
+
+	it("omits the vault-collaboration line when cwd is outside the vault", async () => {
+		const r = await preparePrompt(
+			{ ...base, isFirstMessage: true, workingDirectory: "/elsewhere" },
+			vaultAccess,
+			mentionService,
+		);
+		const wrapped = textBlocks(r.agentContent).find((t) =>
+			t.startsWith("<obsidian_system_instruction>"),
+		);
+		expect(wrapped).toBeDefined();
+		expect(wrapped).not.toContain("read and edit");
+		expect(wrapped).toContain("/elsewhere");
+	});
+});

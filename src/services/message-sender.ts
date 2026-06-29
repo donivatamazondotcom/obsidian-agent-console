@@ -37,12 +37,12 @@ import {
 	type IMentionService,
 } from "../utils/mention-parser";
 import type { TitleStrategy } from "../types/title-strategy";
+import { TITLE_RUBRIC } from "../utils/system-instructions";
 import {
-	WIKI_LINK_INSTRUCTION,
-	TABLE_INSTRUCTION,
-	LATEX_MATH_INSTRUCTION,
-	TITLE_RUBRIC,
-} from "../utils/system-instructions";
+	composeHostContextBriefing,
+	DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS,
+	type HostContextBriefingSettings,
+} from "../utils/host-context-briefing";
 import { convertWindowsPathToWsl } from "../utils/platform";
 import { buildFileUri } from "../utils/paths";
 import { buildContextBlocks } from "./context-builder";
@@ -87,6 +87,12 @@ export interface PreparePromptInput {
 
 	/** Whether this is the first message in the session */
 	isFirstMessage?: boolean;
+
+	/** Session working directory (cwd) for the host-context briefing; falls back to vaultBasePath when unset. */
+	workingDirectory?: string;
+
+	/** Host-context briefing settings (block selection + raw-edit escape). */
+	hostContextBriefing?: HostContextBriefingSettings;
 
 	/**
 	 * Session title strategy (F03). When `agent-suggested` and this is the
@@ -320,9 +326,21 @@ function buildAutoMentionPrefix(
  *
  * Exported for unit testing (pure function).
  */
-export function buildSystemInstructions(input: PreparePromptInput): string[] {
-	if (!input.isFirstMessage) return [];
-	return [WIKI_LINK_INSTRUCTION, TABLE_INSTRUCTION, LATEX_MATH_INSTRUCTION];
+export function buildHostContextBriefing(
+	input: PreparePromptInput,
+): string | null {
+	if (!input.isFirstMessage) return null;
+	return composeHostContextBriefing(
+		input.hostContextBriefing ?? DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS,
+		{
+			cwd: input.workingDirectory ?? input.vaultBasePath,
+			vaultRoot: input.vaultBasePath,
+		},
+	);
+}
+
+function wrapSystemInstruction(text: string): string {
+	return `<obsidian_system_instruction>\n${text}\n</obsidian_system_instruction>`;
 }
 
 /**
@@ -535,11 +553,10 @@ async function preparePromptWithContextNotes(
 	// this the real send path (which always provides contextNotes) sent no
 	// system instructions at all, so the title rubric never reached the agent
 	// and no <title> marker was ever emitted (T52 root cause, 2026-06-25).
-	const systemInstructions = buildSystemInstructions(input);
-	const systemBlocks: PromptContent[] = systemInstructions.map((text) => ({
-		type: "text" as const,
-		text,
-	}));
+	const briefing = buildHostContextBriefing(input);
+	const systemBlocks: PromptContent[] = briefing
+		? [{ type: "text" as const, text: wrapSystemInstruction(briefing) }]
+		: [];
 
 	// F03/I111: the title rubric is positioned LAST — immediately before the
 	// user message — not in the leading systemBlocks, so an injected context/
@@ -635,11 +652,10 @@ async function preparePromptWithEmbeddedContext(
 	);
 
 	// Build system prompt instructions (first message only)
-	const systemInstructions = buildSystemInstructions(input);
-	const systemBlocks: PromptContent[] = systemInstructions.map((text) => ({
-		type: "text" as const,
-		text,
-	}));
+	const briefing = buildHostContextBriefing(input);
+	const systemBlocks: PromptContent[] = briefing
+		? [{ type: "text" as const, text: wrapSystemInstruction(briefing) }]
+		: [];
 
 	// F03/I111: title rubric positioned last, immediately before the user
 	// message (see buildTitleRubric) — not buried in the leading systemBlocks.
@@ -725,11 +741,9 @@ async function preparePromptWithTextContext(
 	}
 
 	// Build system prompt instructions (first message only)
-	const systemInstructions = buildSystemInstructions(input);
-	for (const instruction of systemInstructions) {
-		contextBlocks.push(
-			`<obsidian_system_instruction>\n${instruction}\n</obsidian_system_instruction>`,
-		);
+	const briefing = buildHostContextBriefing(input);
+	if (briefing) {
+		contextBlocks.push(wrapSystemInstruction(briefing));
 	}
 
 	// F03/I111: title rubric appended LAST so it lands immediately before the

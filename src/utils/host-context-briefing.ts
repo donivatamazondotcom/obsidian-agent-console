@@ -163,10 +163,12 @@ export function normalizeHostContextBriefingSettings(
 		obj.blocks && typeof obj.blocks === "object" && !Array.isArray(obj.blocks)
 			? (obj.blocks as Record<string, unknown>)
 			: {};
-	const b = (k: keyof HostContextBriefingBlocks): boolean =>
-		typeof rawBlocks[k] === "boolean"
-			? (rawBlocks[k] as boolean)
+	const b = (k: keyof HostContextBriefingBlocks): boolean => {
+		const v = rawBlocks[k];
+		return typeof v === "boolean"
+			? v
 			: DEFAULT_HOST_CONTEXT_BRIEFING_BLOCKS[k];
+	};
 	return {
 		blocks: {
 			hostIdentity: b("hostIdentity"),

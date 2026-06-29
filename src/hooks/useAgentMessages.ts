@@ -58,6 +58,8 @@ export interface SendMessageOptions {
 	resourceLinks?: ResourceLinkPromptContent[];
 	/** Whether this is the first message in the session */
 	isFirstMessage?: boolean;
+	/** Session working directory (cwd) for the host-context briefing. */
+	workingDirectory?: string;
 	/** Crystallized context notes for this chat (activates the context-note path) */
 	contextNotes?: ContextNote[];
 	/** Raw selection from the last active markdown editor (0-based lines) */
@@ -428,6 +430,9 @@ export function useAgentMessages(
 						session.promptCapabilities?.embeddedContext ?? false,
 					isFirstMessage: options.isFirstMessage,
 					titleStrategy: settingsAccess.getSnapshot().titleStrategy,
+					hostContextBriefing:
+						settingsAccess.getSnapshot().hostContextBriefing,
+					workingDirectory: options.workingDirectory,
 					contextNotes: options.contextNotes,
 					selectionContext,
 				},
