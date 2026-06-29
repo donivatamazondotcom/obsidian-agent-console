@@ -91,6 +91,9 @@ export interface PreparePromptInput {
 	/** Session working directory (cwd) for the host-context briefing; falls back to vaultBasePath when unset. */
 	workingDirectory?: string;
 
+	/** True vault root for the host-context vault-collaboration gate; falls back to vaultBasePath. */
+	vaultRootPath?: string;
+
 	/** Host-context briefing settings (block selection + raw-edit escape). */
 	hostContextBriefing?: HostContextBriefingSettings;
 
@@ -334,7 +337,7 @@ export function buildHostContextBriefing(
 		input.hostContextBriefing ?? DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS,
 		{
 			cwd: input.workingDirectory ?? input.vaultBasePath,
-			vaultRoot: input.vaultBasePath,
+			vaultRoot: input.vaultRootPath ?? input.vaultBasePath,
 		},
 	);
 }

@@ -49,6 +49,28 @@ describe("buildHostContextBriefing — composed briefing (slice 3)", () => {
 		expect(out).not.toContain("read and edit");
 		expect(out).toContain("/somewhere/else");
 	});
+
+	it("gates on the true vault root (vaultRootPath), not vaultBasePath", () => {
+		const out = buildHostContextBriefing({
+			...base,
+			isFirstMessage: true,
+			vaultBasePath: "/realvault/sub",
+			workingDirectory: "/realvault/sub",
+			vaultRootPath: "/realvault",
+		});
+		expect(out).toContain("read and edit");
+	});
+
+	it("hides the vault line when cwd is outside the true vault root", () => {
+		const out = buildHostContextBriefing({
+			...base,
+			isFirstMessage: true,
+			vaultBasePath: "/external",
+			workingDirectory: "/external",
+			vaultRootPath: "/realvault",
+		});
+		expect(out).not.toContain("read and edit");
+	});
 });
 
 describe("buildTitleRubric — gating (S2/I111)", () => {

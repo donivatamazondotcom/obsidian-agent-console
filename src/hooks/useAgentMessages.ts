@@ -60,6 +60,8 @@ export interface SendMessageOptions {
 	isFirstMessage?: boolean;
 	/** Session working directory (cwd) for the host-context briefing. */
 	workingDirectory?: string;
+	/** True vault root for the host-context vault-collaboration gate. */
+	vaultRootPath?: string;
 	/** Crystallized context notes for this chat (activates the context-note path) */
 	contextNotes?: ContextNote[];
 	/** Raw selection from the last active markdown editor (0-based lines) */
@@ -433,6 +435,7 @@ export function useAgentMessages(
 					hostContextBriefing:
 						settingsAccess.getSnapshot().hostContextBriefing,
 					workingDirectory: options.workingDirectory,
+					vaultRootPath: options.vaultRootPath,
 					contextNotes: options.contextNotes,
 					selectionContext,
 				},

@@ -105,6 +105,7 @@ export function useChatActions(
 	 * is created before useLazySession in ChatPanel; assigned post-mount.
 	 */
 	lazyAcquireNowRef: { current: (() => Promise<void>) | null },
+	vaultRoot: string = "",
 ): UseChatActionsReturn {
 	const logger = getLogger();
 
@@ -270,6 +271,8 @@ export function useChatActions(
 
 				await agent.sendMessage(content, {
 					vaultBasePath: vaultPath,
+					workingDirectory: vaultPath,
+					vaultRootPath: vaultRoot,
 					contextNotes: notesToSend,
 					selection,
 					images: images.length > 0 ? images : undefined,
@@ -319,6 +322,7 @@ export function useChatActions(
 			activeNotePath,
 			shouldConvertToWsl,
 			vaultPath,
+			vaultRoot,
 		],
 	);
 
