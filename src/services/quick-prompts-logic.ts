@@ -48,13 +48,15 @@ function firstStringField(
 }
 
 /**
- * Label fallback chain: `description` → `name` → `title` → filename basename.
+ * Label fallback chain: `label` → `name` → `title` → filename basename.
+ * (`description` is intentionally NOT used — it clashes with the common
+ * note-summary frontmatter convention.)
  */
 export function deriveLabel(
 	fm: Record<string, unknown> | null,
 	basename: string,
 ): string {
-	return firstStringField(fm, ["description", "name", "title"]) ?? basename;
+	return firstStringField(fm, ["label", "name", "title"]) ?? basename;
 }
 
 /**

@@ -30,7 +30,7 @@ describe("quick-prompts-logic", () => {
 	describe("T01: parse a prompt note", () => {
 		it("strips the leading frontmatter block, leaving the body", () => {
 			const raw =
-				'---\ndescription: "🗓️ Debrief meeting"\n---\nDebrief this meeting.';
+				'---\nlabel: "🗓️ Debrief meeting"\n---\nDebrief this meeting.';
 			expect(stripFrontmatter(raw)).toBe("Debrief this meeting.");
 		});
 
@@ -40,11 +40,11 @@ describe("quick-prompts-logic", () => {
 			);
 		});
 
-		it("label = description (emoji preserved), body carried through", () => {
+		it("label = label field (emoji preserved), body carried through", () => {
 			const prompt = buildQuickPrompt({
 				path: "Quick Prompts/Debrief.md",
 				basename: "Debrief",
-				frontmatter: { description: "🗓️ Debrief meeting" },
+				frontmatter: { label: "🗓️ Debrief meeting" },
 				body: "Debrief this meeting.",
 			});
 			expect(prompt.label).toBe("🗓️ Debrief meeting");
@@ -56,13 +56,13 @@ describe("quick-prompts-logic", () => {
 	// ========================================================================
 	// T02 — Label fallback chain
 	// ========================================================================
-	describe("T02: label fallback chain description → name → title → basename", () => {
-		it("uses name when description is absent", () => {
+	describe("T02: label fallback chain label → name → title → basename", () => {
+		it("uses name when label is absent", () => {
 			expect(deriveLabel({ name: "Sync opps" }, "file-base")).toBe(
 				"Sync opps",
 			);
 		});
-		it("uses title when description and name are absent", () => {
+		it("uses title when label and name are absent", () => {
 			expect(deriveLabel({ title: "Daily brief" }, "file-base")).toBe(
 				"Daily brief",
 			);
@@ -72,7 +72,7 @@ describe("quick-prompts-logic", () => {
 			expect(deriveLabel({}, "My Prompt")).toBe("My Prompt");
 		});
 		it("ignores empty/whitespace label fields", () => {
-			expect(deriveLabel({ description: "   ", name: "Real" }, "b")).toBe(
+			expect(deriveLabel({ label: "   ", name: "Real" }, "b")).toBe(
 				"Real",
 			);
 		});
@@ -87,7 +87,7 @@ describe("quick-prompts-logic", () => {
 				path: "Quick Prompts/Debrief.md",
 				basename: "Debrief",
 				frontmatter: {
-					description: "Debrief",
+					label: "Debrief",
 					"show on tags": ["NoteType/MeetingNote"],
 					agent: "kiro-cli",
 					mode: "default",
@@ -113,7 +113,7 @@ describe("quick-prompts-logic", () => {
 			const prompt = buildQuickPrompt({
 				path: "Quick Prompts/x.md",
 				basename: "x",
-				frontmatter: { description: "x", "open in new tab": false },
+				frontmatter: { label: "x", "open in new tab": false },
 				body: "x",
 			});
 			expect(prompt.showOnTags).toBeUndefined();

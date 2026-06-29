@@ -2,7 +2,7 @@
 
 Save the prompts you type over and over — "debrief this meeting", "summarize the selection", "get the latest on this project" — as little markdown notes, then fire them in one click. No more retyping the same kickoff every session.
 
-A quick prompt is just a note in a folder. The note's description is the button label; the note body is the prompt that gets sent. Add a note, and the prompt shows up right away — no restart.
+A quick prompt is just a note in a folder. The note's `label` is the button text; the note body is the prompt that gets sent. Add a note, and the prompt shows up right away — no restart.
 
 ## Set up the folder
 
@@ -12,12 +12,12 @@ Make a note in that folder for each prompt:
 
 ````markdown
 ---
-description: "🗓️ Debrief meeting"
+label: "🗓️ Debrief meeting"
 ---
 Debrief this meeting — pull the AI summary, extract action items, and update the vault note.
 ````
 
-- **Label** comes from the `description` field (emoji welcome). If there's no `description`, Agent Console falls back to `name`, then `title`, then the filename.
+- **Label** comes from the `label` field (emoji welcome). If there's no `label`, Agent Console falls back to `name`, then `title`, then the filename. (`description` is intentionally not used — it clashes with the common note-summary field.)
 - **Prompt text** is everything below the frontmatter.
 
 ## Fire a prompt
@@ -40,7 +40,7 @@ Reference the text you have highlighted with the `{{selection}}` placeholder:
 
 ````markdown
 ---
-description: "Summarize selection"
+label: "Summarize selection"
 ---
 Summarize the following concisely:
 
@@ -55,7 +55,7 @@ Some prompts kick off a whole new conversation — "debrief this meeting", "get 
 
 ````markdown
 ---
-description: "🗓️ Debrief meeting"
+label: "🗓️ Debrief meeting"
 open in new tab: true
 ---
 Debrief this meeting — pull the AI summary, extract action items, and update the vault note.
@@ -75,7 +75,7 @@ Prompts can show up as **chips right above the composer**. There are two ways to
 
 ````markdown
 ---
-description: "🗓️ Daily brief"
+label: "🗓️ Daily brief"
 show on tags: [NoteType/DailyNote]
 ---
 Give me the daily brief for this note.
@@ -85,7 +85,7 @@ Give me the daily brief for this note.
 
 ````markdown
 ---
-description: "🚀 Start a debrief"
+label: "🚀 Start a debrief"
 always show: true
 ---
 Debrief the meeting I just had.
@@ -111,5 +111,5 @@ Quick prompts behave exactly like typing a message and pressing Enter, so they f
 ## Tips
 
 - Keep prompt notes short and action-oriented — they're kickoffs, not essays.
-- Use emoji in the `description` to make chips and the picker easy to scan.
+- Use emoji in the `label` to make chips and the picker easy to scan.
 - Prompts are plain notes, so you can version them, grep them, and share them like any other note.
