@@ -65,12 +65,54 @@
     "showEmojis": true,
     "fontSize": null
   },
-  "savedSessions": [],
+  "savedSessions": [
+    {
+      "sessionId": "seed-ci-pipeline",
+      "agentId": "claude-code-acp",
+      "cwd": "/Users/me/notes",
+      "title": "Debug the failing CI pipeline",
+      "createdAt": "2026-06-24T09:05:00.000Z",
+      "updatedAt": "2026-06-27T16:40:00.000Z"
+    },
+    {
+      "sessionId": "seed-docs-site",
+      "agentId": "claude-code-acp",
+      "cwd": "/Users/me/notes",
+      "title": "Set up the VitePress docs site",
+      "createdAt": "2026-06-25T11:00:00.000Z",
+      "updatedAt": "2026-06-26T10:15:00.000Z"
+    },
+    {
+      "sessionId": "seed-japan",
+      "agentId": "claude-code-acp",
+      "cwd": "/Users/me/notes",
+      "title": "Plan the Japan itinerary",
+      "createdAt": "2026-06-20T08:00:00.000Z",
+      "updatedAt": "2026-06-22T19:30:00.000Z"
+    },
+    {
+      "sessionId": "seed-q3-planning",
+      "agentId": "claude-code-acp",
+      "cwd": "/Users/me/notes",
+      "title": "Summarize Q3 planning notes",
+      "createdAt": "2026-06-18T14:00:00.000Z",
+      "updatedAt": "2026-06-19T09:12:00.000Z"
+    },
+    {
+      "sessionId": "seed-auth-refactor",
+      "agentId": "claude-code-acp",
+      "cwd": "/Users/me/notes",
+      "title": "Refactor the auth middleware",
+      "createdAt": "2026-06-15T13:00:00.000Z",
+      "updatedAt": "2026-06-16T11:45:00.000Z"
+    }
+  ],
   "lastUsedModels": {},
   "lastUsedModes": {},
   "maxSessionTabs": 10,
   "restoreTabsOnStartup": false,
   "perLeafTabStates": [],
   "legacySessionsMigrated": true,
-  "settingsImportOfferShown": true
+  "settingsImportOfferShown": true,
+  "defaultWorkingDirectory": "/Users/Shared/notes"
 }

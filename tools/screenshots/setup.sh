@@ -35,6 +35,21 @@ sleep 1
 if [ -f "$PLUGIN_DIR/data.template.json" ]; then
 	cp "$PLUGIN_DIR/data.template.json" "$PLUGIN_DIR/data.json"
 fi
+# Restore the tracked seed transcripts so the session-history-search and
+# shared-links shots (and any future shot needing a populated local library)
+# start from real, searchable sessions. The live sessions/ dir is gitignored;
+# sessions.seed/ is the tracked source of truth, copied fresh each run so a
+# capture can't mutate the baseline. data.template.json's savedSessions index
+# points at exactly these ids.
+if [ -d "$PLUGIN_DIR/sessions.seed" ]; then
+	rm -rf "$PLUGIN_DIR/sessions"
+	cp -R "$PLUGIN_DIR/sessions.seed" "$PLUGIN_DIR/sessions"
+fi
+
+# Create a clean, username-free demo working directory so the "Default working
+# directory" settings hint resolves to it (e.g. "Resolved: /Users/Shared/notes")
+# instead of leaking the real vault-root absolute path in settings screenshots.
+mkdir -p /Users/Shared/notes 2>/dev/null || true
 # Enable loads the freshly-built main.js (symlinked above) AND the template
 # data.json. Scoped to the fixtures vault ONLY; the daily-driver vault is never
 # touched (see learned/skill-rules/agent-console.md "never reload").

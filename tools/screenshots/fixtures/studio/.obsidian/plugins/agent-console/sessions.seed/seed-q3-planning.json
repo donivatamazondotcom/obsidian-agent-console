@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "sessionId": "seed-q3-planning",
+  "agentId": "claude-code-acp",
+  "messages": [
+    {
+      "id": "m7",
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Summarize the Q3 planning notes into the top themes and the deployment milestones."
+        }
+      ],
+      "timestamp": "2026-06-19T09:10:00.000Z"
+    },
+    {
+      "id": "m8",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Top themes for Q3: (1) ship the durability suite, (2) settings overhaul, (3) docs deployment automation. The key milestones are the v1.3.0 release and the docs-site cutover."
+        }
+      ],
+      "timestamp": "2026-06-19T09:12:00.000Z"
+    }
+  ],
+  "contextNotes": [],
+  "savedAt": "2026-06-19T09:12:00.000Z"
+}

@@ -98,6 +98,12 @@ export interface InitialState {
 	 */
 	typeQuery?: string;
 	/**
+	 * Optional CSS selector for the input `typeQuery` types into (default
+	 * `.prompt-input`). Use to drive a non-palette input, e.g. the
+	 * session-history search box `.agent-client-session-history-search-input`.
+	 */
+	typeQuerySelector?: string;
+	/**
 	 * Force the chat header "update available" pill by stubbing the plugin's
 	 * checkForUpdates() to resolve true before the panel mounts. Deterministic
 	 * substitute for a real newer GitHub release.
@@ -113,6 +119,27 @@ export interface InitialState {
 		detectedAgentIds: string[];
 	};
 	/**
+	 * Force a perpetual "connecting" session by rewriting the default agent's
+	 * command so its process never completes the ACP handshake. A message sent
+	 * into a connecting session is held in the locked composer (queue-of-one,
+	 * #82 Decision 9) — drives the queue-next-message shot. setup.sh restores
+	 * the real command from the template on the next run.
+	 */
+	forceConnectingHold?: boolean;
+	/**
+	 * Disable native menus before capture so an Obsidian `Menu` popover renders
+	 * as a window-capturable DOM `.menu` instead of an OS popup (which would
+	 * otherwise need screen-mode). Mirrors the forceTabStates path.
+	 */
+	disableNativeMenus?: boolean;
+	/**
+	 * Ordered click steps for multi-click drives. Each step clicks `selector`
+	 * then waits for `waitFor` (or a brief settle if omitted). Use when a shot
+	 * needs more than one click — e.g. load a saved session from the history
+	 * modal, then open the shared-links dropdown on the now-active tab.
+	 */
+	clickSequence?: { selector: string; waitFor?: string }[];
+	/**
 	 * Seed the tab bar with an exact set of labeled tabs, each forced into a
 	 * specific visual state, so the tab-list dropdown shows the full glyph
 	 * legend (● ready / ◐ busy / △ permission / ✕ error / ○ disconnected)
@@ -127,6 +154,22 @@ export interface InitialState {
 		label: string;
 		state: "ready" | "busy" | "permission" | "error" | "disconnected";
 	}[];
+	/**
+	 * CSS selectors whose `<details>` accordion to collapse (set `open=false`)
+	 * before capture — e.g. collapse the built-in-agent sections so the compact
+	 * accordion row is the subject (collapsible-agent-sections).
+	 */
+	collapseSelectors?: string[];
+	/**
+	 * Settings-pane text target: the visible name of a `.setting-item` or the
+	 * summary of a `details.agent-client-agent-section`. The driver finds the
+	 * matching element, expands it if it is a collapsed accordion, then
+	 * `scrollIntoView({ block: "center" })`s it so a section below the
+	 * settings-pane fold is captured (obsidian-system-prompt,
+	 * settings-working-directory). Matches on the rendered label, so it is
+	 * robust to section reordering and class churn (no positional CSS).
+	 */
+	scrollToSettingText?: string;
 }
 
 /**

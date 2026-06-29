@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "sessionId": "seed-ci-pipeline",
+  "agentId": "claude-code-acp",
+  "messages": [
+    {
+      "id": "m1",
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "The deploy workflow is failing on the lint-and-build step. Can you help me debug the CI pipeline?"
+        }
+      ],
+      "timestamp": "2026-06-27T16:38:00.000Z"
+    },
+    {
+      "id": "m2",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "I looked at the failing run. The lint step fails because eslint-plugin-obsidianmd flags a static style assignment. See the [CI run](https://github.com/example/agent-console/actions/runs/4815162342) and the [deployment guide](https://example.com/docs/deploy); the rule source is at https://example.com/eslint-rules."
+        },
+        {
+          "type": "tool_call",
+          "toolCallId": "tc-1",
+          "title": "Create CI fix notes.md",
+          "status": "completed",
+          "content": [
+            {
+              "type": "diff",
+              "path": "CI fix notes.md",
+              "oldText": null,
+              "newText": "# CI fix notes\n\n- Root cause: static style assignment flagged by eslint-plugin-obsidianmd 0.3.0\n- Fix: assign from a variable or use a CSS class\n- Re-run the deploy workflow after the lint gate is green\n"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "I captured the root cause and the fix in [[CI fix notes]] so the team has it for next time."
+        }
+      ],
+      "timestamp": "2026-06-27T16:40:00.000Z"
+    }
+  ],
+  "contextNotes": [],
+  "savedAt": "2026-06-27T16:40:00.000Z"
+}
