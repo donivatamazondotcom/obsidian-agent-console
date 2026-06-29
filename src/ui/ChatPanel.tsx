@@ -2196,14 +2196,16 @@ export function ChatPanel({
 		}
 	}, [initialPrompt, quickPromptBridge, returnFocusToComposer]);
 
-	// Contextual chips: prompts matching the active note's tags (untagged
-	// always match). Recomputed on editor-note switch (activeNotePath) and on
-	// library reconcile, so the matched set stays live.
+	// Contextual chips: prompts whose `show when:` conditions match the active
+	// note (its tags + frontmatter), plus `always show` prompts. Recomputed on
+	// editor-note switch (activeNotePath) and on library reconcile, so the
+	// matched set stays live.
 	const matchedQuickPrompts = useMemo(() => {
 		const path = selectionTracker.activeNotePath;
 		const cache = path ? plugin.app.metadataCache.getCache(path) : null;
 		const tags = cache ? (getAllTags(cache) ?? []) : [];
-		return matchPromptsForNote(quickPrompts.prompts, tags);
+		const frontmatter = cache?.frontmatter ?? null;
+		return matchPromptsForNote(quickPrompts.prompts, { tags, frontmatter });
 	}, [
 		quickPrompts.prompts,
 		selectionTracker.activeNotePath,
