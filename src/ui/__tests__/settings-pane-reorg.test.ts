@@ -302,13 +302,14 @@ beforeEach(() => {
 });
 
 describe("Settings Pane Reorganization — render (T1)", () => {
-	it("emits the six intent-group headings in the documented order", () => {
+	it("emits the seven intent-group headings in the documented order", () => {
 		const { settings } = renderPane();
 		expect(headingOrder(settings)).toEqual([
 			"Agents",
 			"Built-in agents",
 			"Custom agents",
 			"Chat behavior",
+			"Obsidian context",
 			"Appearance & notifications",
 			"Tabs",
 			"Permissions",

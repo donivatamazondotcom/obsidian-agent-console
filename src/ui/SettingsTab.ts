@@ -21,6 +21,10 @@ import {
 	resolveAgentWorkingDirectory,
 } from "../utils/working-directory";
 import {
+	composeHostContextBriefing,
+	DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS,
+} from "../utils/host-context-briefing";
+import {
 	TITLE_STRATEGY_OPTIONS,
 	type TitleStrategy,
 } from "../types/title-strategy";
@@ -269,6 +273,110 @@ export class AgentClientSettingTab extends PluginSettingTab {
 							sendMessageShortcut: value as "enter" | "cmd-enter",
 						});
 					}),
+			);
+
+		// Obsidian context: the host-context briefing sent on a chat's first
+		// message. See the Obsidian Host Context Briefing spec.
+		new Setting(containerEl).setName("Obsidian context").setHeading();
+
+		const hcb = this.plugin.settings.hostContextBriefing;
+		const hcbVaultRoot = resolveVaultRoot();
+
+		new Setting(containerEl).setDesc(
+			"On the first message of each chat, the plugin tells the agent a few things about its surroundings so it works well in Obsidian. Pick what to include, or write your own briefing below.",
+		);
+
+		const setHcbBlock = async (
+			key: keyof typeof hcb.blocks,
+			value: boolean,
+		): Promise<void> => {
+			await this.plugin.settingsService.updateSettings({
+				hostContextBriefing: {
+					...hcb,
+					blocks: { ...hcb.blocks, [key]: value },
+				},
+			});
+			this.display();
+		};
+
+		new Setting(containerEl)
+			.setName("Say it's running in Obsidian")
+			.setDesc("Lets the agent know it's working inside your Obsidian app.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(hcb.blocks.hostIdentity)
+					.onChange((value) => void setHcbBlock("hostIdentity", value)),
+			);
+
+		new Setting(containerEl)
+			.setName("Explain how replies are shown")
+			.setDesc(
+				"Tells the agent your replies render as Obsidian Markdown – clickable links, math, and diagrams – so it formats them that way.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(hcb.blocks.rendering)
+					.onChange((value) => void setHcbBlock("rendering", value)),
+			);
+
+		new Setting(containerEl)
+			.setName("Share the working folder")
+			.setDesc("Tells the agent which folder this chat is working in.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(hcb.blocks.workingDirectory)
+					.onChange(
+						(value) => void setHcbBlock("workingDirectory", value),
+					),
+			);
+
+		new Setting(containerEl)
+			.setName("Let it work with your notes")
+			.setDesc(
+				"Tells the agent it can read and edit your notes to work on them with you. Only sent when the chat is running inside your vault.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(hcb.blocks.vaultCollaboration)
+					.onChange(
+						(value) => void setHcbBlock("vaultCollaboration", value),
+					),
+			);
+
+		const hcbPreview =
+			composeHostContextBriefing(hcb, {
+				cwd: hcbVaultRoot,
+				vaultRoot: hcbVaultRoot,
+			}) ?? "";
+
+		const hcbCustom = new Setting(containerEl)
+			.setName("Custom briefing")
+			.setDesc(
+				"Advanced: type your own briefing to send the agent exactly this text instead of the options above. Leave blank to use the options – the box shows what gets sent by default.",
+			);
+		hcbCustom.addTextArea((ta) => {
+			ta.setPlaceholder(hcbPreview)
+				.setValue(hcb.customText ?? "")
+				.onChange(async (value) => {
+					await this.plugin.settingsService.updateSettings({
+						hostContextBriefing: { ...hcb, customText: value },
+					});
+				});
+			ta.inputEl.rows = 8;
+		});
+
+		new Setting(containerEl)
+			.setName("Reset Obsidian context")
+			.setDesc("Restore the options above and clear any custom briefing.")
+			.addButton((btn) =>
+				btn.setButtonText("Reset to defaults").onClick(async () => {
+					await this.plugin.settingsService.updateSettings({
+						hostContextBriefing: structuredClone(
+							DEFAULT_HOST_CONTEXT_BRIEFING_SETTINGS,
+						),
+					});
+					this.display();
+				}),
 			);
 
 		new Setting(containerEl)
