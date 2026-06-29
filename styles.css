@@ -479,6 +479,16 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	overflow: hidden;
 }
 
+/* Off-screen probe used by Settings to measure the effective chat font size
+   (carries .agent-client-chat-view-container so it inherits the same
+   --ac-chat-font-size cascade as real chat messages). */
+.agent-client-font-size-probe {
+	position: absolute;
+	left: -99999px;
+	top: 0;
+	visibility: hidden;
+}
+
 /* Main container */
 .agent-client-chat-view-container {
 	--ac-chat-font-size: var(--font-text-size);
