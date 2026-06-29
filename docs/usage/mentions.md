@@ -4,7 +4,7 @@ Pull any note into a conversation by mentioning it with `@` — the agent reads 
 
 ## Mention a note with @
 
-Type `@` in the message box and a list of your notes appears. Keep typing to filter, then pick one — Agent Console inserts an `@[[Note Name]]` mention.
+Type `@` in the message box and a list of your notes appears. Keep typing to filter — spaces are fine, so `agent con` finds **Agent Console**, the same way Obsidian's quick switcher works. Pick a note and Agent Console inserts an `@[[Note Name]]` mention. Press **Esc** if you'd rather dismiss the list and keep typing; it stays closed until you start a new `@`.
 
 When you send the message, the mentioned note becomes part of the chat's context: it appears as a pill in the [context strip](/usage/context-strip) and stays there for the rest of the conversation.
 

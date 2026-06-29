@@ -60,13 +60,14 @@ export function detectMention(
 			endPos = closingBracketsPos + 1; // Include closing ]]
 		}
 	} else {
-		// Simple @query format - use everything after @
-		// But end at whitespace (space, tab, newline)
-		if (
-			afterAt.includes(" ") ||
-			afterAt.includes("\t") ||
-			afterAt.includes("\n")
-		) {
+		// Simple @query format - use everything after @.
+		// Allow spaces so multi-word note titles are searchable (the quick
+		// switcher matches "agent con" → "Agent Console"; the bare @ form must
+		// too). A mention cannot span lines, so a newline still ends it. The
+		// runaway case (an @ left in prose keeping the dropdown open) is
+		// handled by Esc-to-dismiss in the suggestions hook, not by truncating
+		// the query at the first space.
+		if (afterAt.includes("\n")) {
 			return null;
 		}
 		query = afterAt;

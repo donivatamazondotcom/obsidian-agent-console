@@ -1000,7 +1000,10 @@ export function InputArea({
 				} else if (isSlashCommandActive) {
 					slashCommands.close();
 				} else {
-					mentions.close();
+					// dismiss() keeps the mention closed for this @ run so it
+					// does not immediately reopen on the next keystroke (the
+					// query now allows spaces, so the run persists in the text).
+					mentions.dismiss();
 				}
 				return true;
 			}
