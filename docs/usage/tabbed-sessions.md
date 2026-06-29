@@ -20,7 +20,7 @@ Status icons on each tab tell you at a glance which agent needs attention.
 
 The tab bar appears at the top of the chat sidebar. Each tab shows:
 
-- **Label** — generated for each new chat; how it's generated is configurable (see [Tab titles](#tab-titles) below). Editable any time via right-click rename.
+- **Label** — generated for each new chat; how it's generated is configurable (see [Tab titles](#tab-titles) below). Editable any time via right-click rename. Long titles are shortened to fit the tab — hover over a tab to see its full title.
 - **Status icon** — at-a-glance signal:
   - 🟢 Ready (waiting for your next message)
   - ⏳ Busy (agent is generating)

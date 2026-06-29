@@ -12,7 +12,7 @@
 
 import * as React from "react";
 const { useRef, useEffect, useCallback } = React;
-import { Menu, setIcon, type MenuItem } from "obsidian";
+import { Menu, setIcon, setTooltip, type MenuItem } from "obsidian";
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import type { TabInfo, TabState } from "../types/tab";
 
@@ -102,6 +102,7 @@ function TabItem({
 	onDragOver,
 	onDrop,
 }: TabItemProps) {
+	const tabRef = useRef<HTMLDivElement>(null);
 	const closeRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
@@ -109,6 +110,19 @@ function TabItem({
 			setIcon(closeRef.current, "x");
 		}
 	}, []);
+
+	// Full label as a hover tooltip. The label is CSS-truncated
+	// (text-overflow: ellipsis; max-width), so a long note title shows as
+	// "Long note titl…" with no way to read it. Obsidian's native leaf tabs
+	// reveal the full title on hover; mirror that with setTooltip (themed,
+	// consistent with ChatHeader/SettingsTab) rather than the raw `title`
+	// attribute. Re-runs when the label changes (e.g. AI rename) so the
+	// tooltip never goes stale.
+	useEffect(() => {
+		if (tabRef.current) {
+			setTooltip(tabRef.current, tab.label);
+		}
+	}, [tab.label]);
 
 	const handleMouseDown = useCallback(
 		(e: React.MouseEvent) => {
@@ -123,6 +137,7 @@ function TabItem({
 
 	return (
 		<div
+			ref={tabRef}
 			className={`agent-client-tab${isActive ? " agent-client-tab-active" : ""}`}
 			role="tab"
 			tabIndex={0}
