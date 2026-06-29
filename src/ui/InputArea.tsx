@@ -23,6 +23,7 @@ import {
 	SLASH_INSTRUCTIONS,
 	quickPromptInstructions,
 } from "../utils/picker-sources";
+import type { ActivePicker } from "../types/picker";
 import { SuggestionPopup } from "./SuggestionPopup";
 import { QuickPromptBar } from "./QuickPromptBar";
 import {
@@ -376,7 +377,12 @@ export function InputArea({
 	onCreateQuickPrompt,
 	quickPromptSearchSignal,
 }: InputAreaProps) {
-	const { mentions, commands: slashCommands, quickPrompts } = suggestions;
+	const {
+		mentions,
+		commands: slashCommands,
+		quickPrompts,
+		activePicker: resolvedPicker,
+	} = suggestions;
 	const logger = getLogger();
 	const settings = useSettings(plugin);
 	const showEmojis = plugin.settings.displaySettings.showEmojis;
@@ -1034,64 +1040,88 @@ export function InputArea({
 	/**
 	 * Handle dropdown keyboard navigation.
 	 */
+	/**
+	 * The single open picker, with `select` bound to the composer-side
+	 * selection effects (the hook owns navigation/dismiss; selection touches
+	 * composer text, caret/focus, the slash hint overlay, and the quick-prompt
+	 * engine fire — all InputArea concerns). Tier 2: this is what collapses the
+	 * former 3-way handleDropdownKeyPress ladder into one routed object.
+	 */
+	const activePicker = useMemo<ActivePicker | null>(() => {
+		if (!resolvedPicker) return null;
+		return {
+			...resolvedPicker,
+			select: (evt) => {
+				switch (resolvedPicker.kind) {
+					case "quick-prompt":
+						activateQuickPromptSelection(evt);
+						break;
+					case "slash": {
+						const command =
+							slashCommands.suggestions[
+								slashCommands.selectedIndex
+							];
+						if (command) handleSelectSlashCommand(command);
+						break;
+					}
+					case "mention": {
+						const note =
+							mentions.suggestions[mentions.selectedIndex];
+						if (note) selectMention(note);
+						break;
+					}
+				}
+			},
+		};
+	}, [
+		resolvedPicker,
+		activateQuickPromptSelection,
+		slashCommands,
+		handleSelectSlashCommand,
+		mentions,
+		selectMention,
+	]);
+
+	/**
+	 * Handle dropdown keyboard navigation. Routes every key through the single
+	 * priority-resolved {@link ActivePicker} (Tier 2) instead of a 3-way
+	 * per-source ladder; source-specific key rules read from `capabilities`.
+	 */
 	const handleDropdownKeyPress = useCallback(
 		(e: React.KeyboardEvent): boolean => {
-			const isQuickPromptActive = quickPrompts.isOpen;
-			const isSlashCommandActive = slashCommands.isOpen;
-			const isMentionActive = mentions.isOpen;
-
-			if (
-				!isQuickPromptActive &&
-				!isSlashCommandActive &&
-				!isMentionActive
-			) {
+			if (!activePicker) {
 				return false;
 			}
 
-			// Arrow navigation
+			// Arrow navigation — each source owns its clamp-vs-wrap policy
+			// (mention/slash clamp, quick-prompt wraps around its create row).
 			if (e.key === "ArrowDown") {
 				e.preventDefault();
-				if (isQuickPromptActive) {
-					quickPrompts.navigate("down");
-				} else if (isSlashCommandActive) {
-					slashCommands.navigate("down");
-				} else {
-					mentions.navigate("down");
-				}
+				activePicker.navigate("down");
 				return true;
 			}
 
 			if (e.key === "ArrowUp") {
 				e.preventDefault();
-				if (isQuickPromptActive) {
-					quickPrompts.navigate("up");
-				} else if (isSlashCommandActive) {
-					slashCommands.navigate("up");
-				} else {
-					mentions.navigate("up");
-				}
+				activePicker.navigate("up");
 				return true;
 			}
 
-			// Shift+Enter bypasses the mention suggestion, keeping the literal
-			// typed text (e.g. "@agent con" stays as-is). This matches
-			// Obsidian's link-autocomplete convention (desktop v1.3.5+): while
-			// the suggester is open, Shift+Enter closes it WITHOUT selecting and
-			// does NOT insert a newline. dismiss() also keeps it closed for this
-			// @ run. Scoped to the mention dropdown — the slash/quick-prompt
-			// dropdowns have no Obsidian-native equivalent, so their behavior is
-			// unchanged. When no dropdown is open, Shift+Enter still inserts a
-			// newline via the normal handler below.
+			// Shift+Enter dismisses WITHOUT selecting and WITHOUT inserting a
+			// newline, for sources that declare it (mention only — matches
+			// Obsidian's link-autocomplete convention, desktop v1.3.5+).
+			// dismiss() also keeps the mention closed for this @ run. The slash
+			// and quick-prompt pickers do not declare this, so their behavior is
+			// unchanged. When no picker is open, the early return above lets
+			// Shift+Enter fall through to the normal handler and insert a newline.
 			if (
 				e.key === "Enter" &&
 				e.shiftKey &&
 				!e.nativeEvent.isComposing &&
-				isMentionActive &&
-				!isQuickPromptActive &&
-				!isSlashCommandActive
+				activePicker.capabilities.dismissOnShiftEnter
 			) {
 				e.preventDefault();
-				mentions.dismiss();
+				activePicker.dismiss();
 				return true;
 			}
 
@@ -1102,13 +1132,13 @@ export function InputArea({
 					return false;
 				}
 				// QP-I14: the ⌥ / ⌘ / ⌘⌥ / ⌘⌥⇧ + Enter combos are owned by the
-				// pushed Scope (it beats Obsidian’s editor link-open hotkeys). If
-				// such a keydown also bubbles to React while the quick-prompt
-				// dropdown is open, swallow it here so we neither double-fire nor
+				// source's pushed Scope (it beats Obsidian’s editor link-open
+				// hotkeys). If such a keydown also bubbles to React while that
+				// source is open, swallow it here so we neither double-fire nor
 				// fall through to the send path. Plain Enter and ⌘⇧Enter are not
-				// scope-owned and proceed normally below.
+				// scope-owned and proceed to select normally below.
 				if (
-					isQuickPromptActive &&
+					activePicker.capabilities.ownsEnterScopeCombos &&
 					e.key === "Enter" &&
 					isQuickPromptScopeCombo(e)
 				) {
@@ -1116,50 +1146,23 @@ export function InputArea({
 					return true;
 				}
 				e.preventDefault();
-				if (isQuickPromptActive) {
-					activateQuickPromptSelection(e);
-				} else if (isSlashCommandActive) {
-					const selectedCommand =
-						slashCommands.suggestions[slashCommands.selectedIndex];
-					if (selectedCommand) {
-						handleSelectSlashCommand(selectedCommand);
-					}
-				} else {
-					const selectedSuggestion =
-						mentions.suggestions[mentions.selectedIndex];
-					if (selectedSuggestion) {
-						selectMention(selectedSuggestion);
-					}
-				}
+				activePicker.select(e);
 				return true;
 			}
 
-			// Close dropdown (Escape)
+			// Close dropdown (Escape). dismiss() for the mention keeps it closed
+			// for this @ run so it does not immediately reopen on the next
+			// keystroke (the query now allows spaces, so the run persists in the
+			// text); slash/quick-prompt simply close.
 			if (e.key === "Escape") {
 				e.preventDefault();
-				if (isQuickPromptActive) {
-					quickPrompts.close();
-				} else if (isSlashCommandActive) {
-					slashCommands.close();
-				} else {
-					// dismiss() keeps the mention closed for this @ run so it
-					// does not immediately reopen on the next keystroke (the
-					// query now allows spaces, so the run persists in the text).
-					mentions.dismiss();
-				}
+				activePicker.dismiss();
 				return true;
 			}
 
 			return false;
 		},
-		[
-			quickPrompts,
-			slashCommands,
-			mentions,
-			handleSelectSlashCommand,
-			selectMention,
-			activateQuickPromptSelection,
-		],
+		[activePicker],
 	);
 
 	// Button disabled state — single source of truth (deriveSendAffordance).

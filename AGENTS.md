@@ -32,7 +32,7 @@ src/
 │   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref)
 │   ├── title-strategy.ts        # TitleStrategy union + dropdown options (F03 session-title setting)
 │   ├── quick-prompt.ts          # QuickPrompt + QuickPromptFileInput (Quick Prompts feature)
-│   ├── picker.ts                # Unified picker view model: PickerItem / PickerInstruction / PickerMarker (Unified Picker Control)
+│   ├── picker.ts                # Unified picker view model: PickerItem / PickerInstruction / PickerMarker (view) + ActivePicker / ResolvedPicker / PickerKeyCapabilities (keyboard routing) (Unified Picker Control)
 │   └── obsidian-internals.d.ts  # Obsidian API declarations not in @types/obsidian
 ├── acp/                         # ACP protocol (SDK dependency confined here)
 │   ├── acp-client.ts            # Process lifecycle, UI-facing API (AcpClient class)
