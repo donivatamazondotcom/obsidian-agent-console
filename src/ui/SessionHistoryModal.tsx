@@ -1083,8 +1083,12 @@ export class SessionHistoryModal extends Modal {
 		// Add modal title
 		contentEl.createEl("h2", { text: "Session history" });
 
-		// Create container for React content
-		const reactContainer = contentEl.createDiv();
+		// Create container for React content. The class makes it a flex column
+		// that fills the fixed-height modal frame so the list flexes and header
+		// rows can't re-center the modal (I146).
+		const reactContainer = contentEl.createDiv({
+			cls: "agent-client-session-history-react-root",
+		});
 
 		// Create React root and render
 		this.root = createRoot(reactContainer);
