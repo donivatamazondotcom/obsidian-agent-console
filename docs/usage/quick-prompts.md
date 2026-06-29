@@ -20,6 +20,16 @@ Debrief this meeting — pull the AI summary, extract action items, and update t
 - **Label** comes from the `label` field (emoji welcome). If there's no `label`, Agent Console falls back to `name`, then `title`, then the filename. (`description` is intentionally not used — it clashes with the common note-summary field.)
 - **Prompt text** is everything below the frontmatter.
 
+## Create a quick prompt
+
+You don't have to hand-write a note — Agent Console can make one for you and open it so you just fill in the prompt.
+
+- **Make one from scratch** — run **Quick prompts: New prompt** from the command palette. It creates a templated note (with the `open in new tab` and `always show` toggles ready to flip) and opens it. This works even when you have no prompts yet, so it's the way in on a fresh setup.
+- **Create while you search** — type `!` at the start of a line and keep typing. If nothing matches, the last row becomes **Create quick prompt "your text"** — pick it to make a prompt with that name and open it.
+- **Save what you've drafted** — typed a message you'll want again? Run **Quick prompts: Save composer as a prompt**. It saves your message-box text as a new prompt and opens it; your draft stays in the box.
+
+New prompts start quiet — they don't show as a chip until you turn on `always show` or add `show on tags`, so making one never clutters your composer. If a prompt with the same name already exists, Agent Console adds a number instead of overwriting it.
+
 ## Fire a prompt
 
 Two ways, depending on whether you can already see the prompt:

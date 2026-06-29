@@ -4,6 +4,7 @@ import type { NoteMetadata } from "../services/vault-service";
 import type { SlashCommand } from "../types/session";
 import type { QuickPrompt } from "../types/quick-prompt";
 import { MOD_KEY, ALT_KEY, SHIFT_KEY, ENTER_KEY, modCombo } from "../utils/platform";
+import type { CreatePromptRow } from "../services/quick-prompts-logic";
 
 /**
  * Dropdown type for suggestion display.
@@ -34,6 +35,11 @@ interface SuggestionPopupProps {
 
 	/** Callback to close the dropdown */
 	onClose: () => void;
+
+	/** Quick-prompt only: the "create" row appended when the query has no match. */
+	createRow?: CreatePromptRow | null;
+	/** Quick-prompt only: invoked when the create row is chosen. */
+	onCreate?: () => void;
 }
 
 /**
@@ -51,6 +57,8 @@ export function SuggestionPopup({
 	selectedIndex,
 	onSelect,
 	onClose,
+	createRow,
+	onCreate,
 }: SuggestionPopupProps) {
 	const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -81,7 +89,7 @@ export function SuggestionPopup({
 		selectedElement?.scrollIntoView({ block: "nearest" });
 	}, [selectedIndex]);
 
-	if (items.length === 0) {
+	if (items.length === 0 && !createRow) {
 		return null;
 	}
 
@@ -192,6 +200,25 @@ export function SuggestionPopup({
 	return (
 		<div ref={dropdownRef} className="agent-client-mention-dropdown" role="listbox">
 			{items.map((item, index) => renderItem(item, index))}
+			{type === "quick-prompt" && createRow && (
+				<div
+					role="option"
+					tabIndex={-1}
+					aria-selected={selectedIndex === items.length}
+					className={`agent-client-mention-dropdown-item agent-client-quick-prompt-create-row ${selectedIndex === items.length ? "agent-client-selected" : ""}`}
+					onClick={() => onCreate?.()}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") {
+							e.preventDefault();
+							onCreate?.();
+						}
+					}}
+				>
+					<div className="agent-client-mention-dropdown-item-name">
+						{createRow.label}
+					</div>
+				</div>
+			)}
 			{type === "quick-prompt" && (
 				<div
 					className="agent-client-quick-prompt-legend"

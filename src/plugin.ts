@@ -501,6 +501,20 @@ export default class AgentClientPlugin extends Plugin {
 			},
 		});
 
+		this.addCommand({
+			id: "quick-prompt-save-composer",
+			name: "Quick prompts: Save composer as a prompt",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.viewRegistry.toFocused((view) =>
+						view.saveComposerAsQuickPrompt(),
+					);
+				}
+				return true;
+			},
+		});
+
 		// Register agent-specific commands
 		this.registerAgentCommands();
 		this.registerPermissionCommands();

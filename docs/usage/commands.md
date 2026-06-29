@@ -16,6 +16,7 @@ Always available, including from a cold start with no chat view open. **New chat
 | **Open new view** | Open a fresh, empty chat panel — does *not* restore the last-closed tabs. The deliberate "clean slate" counterpart to **Open chat**. Also in the tab-bar ⌄ menu |
 | **New chat** | Open a new tab with a fresh chat — opens a panel first if none is open |
 | **New chat with agent…** | Pick an agent from a list, then open a new tab with a fresh chat on it |
+| **Quick prompts: New prompt** | Create a new [quick prompt](/usage/quick-prompts) note (templated) and open it to edit — works even with no prompts yet |
 
 <p align="center">
   <img src="/images/command-palette.webp" alt="Obsidian command palette filtered to Agent Console, showing Open chat, New chat, and New chat with agent" width="560" />
@@ -36,6 +37,7 @@ These appear only when a chat view is open.
 | **Cancel current message** | Stop the agent's current response |
 | **Export chat** | Export the current conversation to a note |
 | **Quick prompts: Search** | Focus the composer and start a `!` search of your [quick prompts](/usage/quick-prompts) — type to filter, Enter to fire (⌘↵ new tab, ⌘⇧↵ switch, ⌥↵ insert — Ctrl/Alt/Shift on Windows/Linux). Also reachable by typing `!` directly in the message box. |
+| **Quick prompts: Save composer as a prompt** | Save the current message-box draft as a new quick prompt note and open it — your draft stays in the box |
 | **Toggle active note in context** | Pin or unpin the active note in the context strip |
 | **Approve active permission** | Approve the current permission request |
 | **Reject active permission** | Reject the current permission request |

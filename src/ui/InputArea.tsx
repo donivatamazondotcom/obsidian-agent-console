@@ -291,6 +291,8 @@ export interface InputAreaProps {
 	hasQuickPrompts?: boolean;
 	/** Fire/insert a quick prompt from the composer ! trigger (engine 2×2). */
 	onRunQuickPrompt?: (prompt: QuickPrompt, gesture: QuickPromptGesture) => void;
+	/** Create a new quick prompt from the ! create-on-no-match row. */
+	onCreateQuickPrompt?: (query: string) => void;
 	/** Bumps when the "Quick prompts: Search" command fires — focuses + inserts !. */
 	quickPromptSearchSignal?: number;
 }
@@ -355,6 +357,7 @@ export function InputArea({
 	quickPromptHasPendingQueue,
 	hasQuickPrompts,
 	onRunQuickPrompt,
+	onCreateQuickPrompt,
 	quickPromptSearchSignal,
 }: InputAreaProps) {
 	const { mentions, commands: slashCommands, quickPrompts } = suggestions;
@@ -747,6 +750,18 @@ export function InputArea({
 	);
 
 	/**
+	 * Create a new quick prompt from the ! create-on-no-match row, then strip
+	 * the ! token from the composer (preserving any surrounding draft).
+	 */
+	const handleCreateQuickPrompt = useCallback(() => {
+		const row = quickPrompts.createRow;
+		if (!row) return;
+		onCreateQuickPrompt?.(row.query);
+		const newText = quickPrompts.selectSuggestion(inputValue);
+		setTextAndFocus(newText);
+	}, [quickPrompts, onCreateQuickPrompt, inputValue, setTextAndFocus]);
+
+	/**
 	 * Overflow "+N" affordance: focus the composer and start a ! search. Inserts
 	 * a `!` at line start (a newline is prepended when there is existing draft text) and opens
 	 * the quick-prompt dropdown.
@@ -971,10 +986,20 @@ export function InputArea({
 				}
 				e.preventDefault();
 				if (isQuickPromptActive) {
-					const selectedPrompt =
-						quickPrompts.suggestions[quickPrompts.selectedIndex];
-					if (selectedPrompt) {
-						selectQuickPrompt(selectedPrompt, e);
+					if (
+						quickPrompts.createRow &&
+						quickPrompts.selectedIndex ===
+							quickPrompts.suggestions.length
+					) {
+						handleCreateQuickPrompt();
+					} else {
+						const selectedPrompt =
+							quickPrompts.suggestions[
+								quickPrompts.selectedIndex
+							];
+						if (selectedPrompt) {
+							selectQuickPrompt(selectedPrompt, e);
+						}
 					}
 				} else if (isSlashCommandActive) {
 					const selectedCommand =
@@ -1305,6 +1330,8 @@ export function InputArea({
 					onSelect={(item, evt) =>
 						selectQuickPrompt(item as QuickPrompt, evt)
 					}
+					createRow={quickPrompts.createRow}
+					onCreate={handleCreateQuickPrompt}
 					onClose={quickPrompts.close}
 				/>
 			)}

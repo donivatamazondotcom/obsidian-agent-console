@@ -182,6 +182,7 @@ export interface IChatViewContainer {
 	 */
 	runQuickPrompt(prompt: QuickPrompt, gesture: QuickPromptGesture): void;
 	startQuickPromptSearch(): void;
+	saveComposerAsQuickPrompt(): void;
 
 	// ============================================================
 	// Container Access
