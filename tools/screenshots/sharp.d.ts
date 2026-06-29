@@ -12,7 +12,7 @@ declare module "sharp" {
 		webp(opts?: { quality?: number }): SharpInstance;
 		png(): SharpInstance;
 		blur(sigma?: number): SharpInstance;
-		composite(images: Array<{ input: string | Buffer; left?: number; top?: number }>): SharpInstance;
+		composite(images: Array<{ input: string | Buffer; left?: number; top?: number; blend?: string }>): SharpInstance;
 		metadata(): Promise<{ width?: number; height?: number; hasAlpha?: boolean }>;
 		toBuffer(opts: { resolveWithObject: true }): Promise<{ data: Buffer; info: { width: number; height: number; channels: number } }>;
 		toBuffer(): Promise<Buffer>;

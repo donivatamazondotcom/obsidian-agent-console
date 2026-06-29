@@ -1597,3 +1597,34 @@ describe("captureEntry — layout overrides (collapseLeftSidebar / rightSplitWid
 		expect(evals.some((e) => e.includes("mod-right-split"))).toBe(false);
 	});
 });
+
+
+describe("framing (Decision 11)", () => {
+	it("a framed entry calls frameImage instead of the flat postProcess shadow", async () => {
+		const postProcess = vi.fn().mockResolvedValue(undefined);
+		const frameImage = vi.fn().mockResolvedValue(undefined);
+		const deps = makeDeps({ postProcess, frameImage });
+
+		await captureEntry(makeEntry({ frame: true, placement: "hero" }), deps);
+
+		expect(frameImage).toHaveBeenCalledTimes(1);
+		// frameImage receives the output path + the resolved hero config.
+		const [outPath, cfg] = frameImage.mock.calls[0];
+		expect(outPath).toBe(
+			path.join("/fake/repo", "docs", "public", "images", "test-shot.webp"),
+		);
+		expect(cfg.chrome).toBe("macos");
+		expect(postProcess).not.toHaveBeenCalled();
+	});
+
+	it("an unframed entry calls postProcess, not frameImage", async () => {
+		const postProcess = vi.fn().mockResolvedValue(undefined);
+		const frameImage = vi.fn().mockResolvedValue(undefined);
+		const deps = makeDeps({ postProcess, frameImage });
+
+		await captureEntry(makeEntry(), deps);
+
+		expect(postProcess).toHaveBeenCalledTimes(1);
+		expect(frameImage).not.toHaveBeenCalled();
+	});
+});
