@@ -930,9 +930,17 @@ describe("quick-prompts-logic — slice 4 (creation flow, D4)", () => {
 		it("null when matches exist (Quick Switcher Enter-creates branch only)", () => {
 			expect(decideCreateOnNoMatch("daily", 2)).toBeNull();
 		});
-		it("null for a blank query", () => {
-			expect(decideCreateOnNoMatch("   ", 0)).toBeNull();
-			expect(decideCreateOnNoMatch("", 0)).toBeNull();
+		it("QP-I07: blank query + zero matches → 'Create your first quick prompt' (on-ramp)", () => {
+			const onramp = {
+				kind: "create-prompt",
+				query: "",
+				label: "Create your first quick prompt",
+			};
+			expect(decideCreateOnNoMatch("   ", 0)).toEqual(onramp);
+			expect(decideCreateOnNoMatch("", 0)).toEqual(onramp);
+		});
+		it("still null for a blank query when matches exist", () => {
+			expect(decideCreateOnNoMatch("", 3)).toBeNull();
 		});
 	});
 

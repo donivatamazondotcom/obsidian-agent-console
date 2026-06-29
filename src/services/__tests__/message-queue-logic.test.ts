@@ -246,10 +246,16 @@ describe("isQueuedSendBlocked (smoke-test issue 3)", () => {
 describe("buildComposerPlaceholder (streaming hint)", () => {
 	const base = { agentLabel: "Auto SA", hasCommands: true, isStreaming: false, isQueued: false };
 
-	it("idle: teaches mention/command affordances", () => {
+	it("idle: teaches mention/command/quick-prompt affordances", () => {
 		expect(buildComposerPlaceholder(base)).toBe(
-			"Message Auto SA - @ to mention notes, / for commands",
+			"Message Auto SA - @ to mention notes, / for commands, ! for quick prompts",
 		);
+	});
+
+	it("QP-I07: advertises ! even at zero prompts (the on-ramp affordance)", () => {
+		expect(
+			buildComposerPlaceholder({ ...base, hasQuickPrompts: false }),
+		).toContain("! for quick prompts");
 	});
 
 	it("streaming: teaches the Enter-to-queue keybinding", () => {

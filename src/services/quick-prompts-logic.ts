@@ -664,16 +664,29 @@ export interface CreatePromptRow {
 
 /**
  * Decide whether the launcher `!` dropdown should show a "create" row. Mirrors
- * Quick Switcher's Enter-creates-on-no-match idiom: the row appears ONLY when
- * the query matched nothing (call 2a) and is non-blank. (At zero prompts every
- * query yields zero matches, so this is also the empty-state on-ramp — call 1.)
+ * Quick Switcher's Enter-creates-on-no-match idiom: the row appears whenever the
+ * query matched nothing (call 2a). A non-blank query offers
+ * `Create quick prompt "<query>"`; a blank query at zero prompts offers the
+ * empty-state on-ramp ("Create your first quick prompt", call 1) so a bare `!`
+ * at first-open is never a dead end.
  */
 export function decideCreateOnNoMatch(
 	query: string,
 	matchCount: number,
 ): CreatePromptRow | null {
+	if (matchCount > 0) return null;
 	const q = query.trim();
-	if (q.length === 0 || matchCount > 0) return null;
+	// Blank query + zero matches ⟹ zero prompts total (a blank query ranks all
+	// prompts, so any existing prompt would make matchCount > 0). Show the
+	// empty-state on-ramp row (QP-I07) so a bare `!` at first-open isn't a dead
+	// end; selecting it creates a "New prompt" note (deriveFilenameBase("")).
+	if (q.length === 0) {
+		return {
+			kind: "create-prompt",
+			query: "",
+			label: "Create your first quick prompt",
+		};
+	}
 	return {
 		kind: "create-prompt",
 		query: q,
