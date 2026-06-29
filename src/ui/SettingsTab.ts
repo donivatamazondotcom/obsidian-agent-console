@@ -35,6 +35,7 @@ import {
 	CHAT_FONT_SIZE_MAX,
 	CHAT_FONT_SIZE_MIN,
 	parseChatFontSize,
+	parseComputedFontSizePx,
 } from "../services/settings-normalizer";
 import {
 	collectAgentIdsExcept,
@@ -304,6 +305,35 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						: String(currentFontSize);
 				};
 
+				// When no explicit size is set (fontSize === null), the field
+				// is empty and the chat area follows whatever the active theme
+				// resolves --ac-chat-font-size to (the plugin default is
+				// var(--font-text-size), but themes/snippets can scale it, e.g.
+				// calc(var(--font-text-size) * 0.85)). Reading --font-text-size
+				// directly would report the wrong number, so measure the real
+				// resolved size off an off-screen replica that uses the same
+				// chat-view classes, and surface it in the placeholder.
+				const getEffectiveChatFontSizePx = (): number | null => {
+					const probe = document.createElement("div");
+					probe.addClass("agent-client-chat-view-container");
+					probe.addClass("agent-client-font-size-probe");
+					const messages = document.createElement("div");
+					messages.addClass("agent-client-chat-view-messages");
+					probe.appendChild(messages);
+					document.body.appendChild(probe);
+					const computedFontSize =
+						getComputedStyle(messages).fontSize;
+					probe.remove();
+					return parseComputedFontSizePx(computedFontSize);
+				};
+
+				const getPlaceholder = (): string => {
+					const effectivePx = getEffectiveChatFontSizePx();
+					return effectivePx === null
+						? `${CHAT_FONT_SIZE_MIN}-${CHAT_FONT_SIZE_MAX}`
+						: `${effectivePx} (current)`;
+				};
+
 				const persistChatFontSize = async (
 					fontSize: number | null,
 				): Promise<void> => {
@@ -324,9 +354,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettingsAndNotify(nextSettings);
 				};
 
-				text.setPlaceholder(
-					`${CHAT_FONT_SIZE_MIN}-${CHAT_FONT_SIZE_MAX}`,
-				)
+				text.setPlaceholder(getPlaceholder())
 					.setValue(getCurrentDisplayValue())
 					.onChange(async (value) => {
 						if (value.trim().length === 0) {

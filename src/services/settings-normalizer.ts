@@ -61,6 +61,31 @@ export const parseChatFontSize = (value: unknown): number | null => {
 	);
 };
 
+/**
+ * Parse a computed CSS font-size value (e.g. `"13.6px"` read back from
+ * `getComputedStyle(el).fontSize`) into whole pixels. Used to show the chat
+ * area's *effective* size in the settings field's placeholder when the user
+ * has not set an explicit override (`fontSize === null`), so the field always
+ * communicates the size actually in use rather than just a range hint.
+ *
+ * Returns the rounded px, or `null` when the value can't be parsed (caller
+ * then falls back to the range hint). NOT clamped to CHAT_FONT_SIZE_MIN/MAX —
+ * the display must reflect the true rendered size even if a theme pushes it
+ * outside the range allowed for a manual override.
+ */
+export const parseComputedFontSizePx = (
+	value: string | number | null | undefined,
+): number | null => {
+	const numericValue =
+		typeof value === "number" ? value : Number.parseFloat(String(value));
+
+	if (!Number.isFinite(numericValue) || numericValue <= 0) {
+		return null;
+	}
+
+	return Math.round(numericValue);
+};
+
 // ============================================================================
 // Settings Utilities
 // ============================================================================
