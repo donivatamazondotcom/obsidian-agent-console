@@ -1298,6 +1298,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		if (this.plugin.settings.customAgents.length === 0) {
 			containerEl.createEl("p", {
 				text: "No custom agents configured yet.",
+				cls: "agent-client-empty-state",
 			});
 		} else {
 			this.plugin.settings.customAgents.forEach((agent, index) => {

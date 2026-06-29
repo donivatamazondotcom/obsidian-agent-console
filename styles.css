@@ -3094,3 +3094,11 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	white-space: pre-wrap;
 	word-break: break-word;
 }
+/* Empty-state text (e.g. "No custom agents configured yet.") aligned to
+ * the settings column instead of sitting flush at the container edge. */
+.agent-client-empty-state {
+	margin: 0.75em 0;
+	padding-left: 16px;
+	padding-right: 16px;
+	color: var(--text-muted);
+}
