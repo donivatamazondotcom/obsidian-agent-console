@@ -60,6 +60,7 @@ function makeView(
 		getActiveTabId: () => tabs[0]?.tabId ?? viewId,
 		runQuickPrompt: noop,
 		startQuickPromptSearch: noop,
+		saveComposerAsQuickPrompt: noop,
 		getContainerEl: () => document.createElement("div"),
 	};
 }

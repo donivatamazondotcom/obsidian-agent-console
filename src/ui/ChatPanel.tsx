@@ -77,7 +77,7 @@ import {
 } from "../hooks/useQuickPrompts";
 import type { QuickPrompt } from "../types/quick-prompt";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
-import { matchPromptsForNote } from "../services/quick-prompts-logic";
+import { deriveLabelFromComposer, matchPromptsForNote } from "../services/quick-prompts-logic";
 
 // Domain model imports
 import {
@@ -125,6 +125,8 @@ export interface ChatPanelCallbacks {
 	runQuickPrompt: (prompt: QuickPrompt, gesture: QuickPromptGesture) => void;
 	/** Focus this tab's composer and start a ! quick-prompt search. */
 	startQuickPromptSearch: () => void;
+	/** Save the current composer draft as a new quick-prompt note. */
+	saveComposerAsQuickPrompt: () => void;
 	/** Current resolved working directory for this tab (persisted for restore). */
 	getWorkingDirectory: () => string;
 }
@@ -2323,6 +2325,13 @@ export function ChatPanel({
 			runQuickPrompt: (prompt, opts) =>
 				runQuickPromptRef.current(prompt, opts),
 			startQuickPromptSearch: () => setQpSearchSignal((n) => n + 1),
+			saveComposerAsQuickPrompt: () => {
+				const text = inputValueRef.current;
+				void plugin.createQuickPromptNote({
+					label: deriveLabelFromComposer(text),
+					body: text,
+				});
+			},
 			getWorkingDirectory: () => agentCwd,
 		});
 	}, [onRegisterCallbacks, activeAgentLabel, agentCwd]);
@@ -2620,7 +2629,27 @@ export function ChatPanel({
 			isActive={isActive}
 			quickPromptSearchSignal={qpSearchSignal}
 			hasQuickPrompts={quickPrompts.prompts.length > 0}
-			onRunQuickPrompt={quickPrompts.runQuickPrompt}
+			onRunQuickPrompt={(prompt, gesture, composerAfterStrip) => {
+				// QP-I13: a ! picker fire still has the `!query` token in the
+				// composer. Sync the composer + its ref (read synchronously by
+				// the engine) to the stripped text BEFORE running, so the token
+				// doesn't mis-route the fire into the unsent-draft insert and any
+				// insert lands in the stripped composer. Chip fires pass no
+				// stripped value, so the real composer is used untouched.
+				if (composerAfterStrip !== undefined) {
+					inputValueRef.current = composerAfterStrip;
+					setInputValue(composerAfterStrip);
+				}
+				quickPrompts.runQuickPrompt(prompt, gesture);
+			}}
+			onCreateQuickPrompt={(opts) =>
+				void plugin.createQuickPromptNote({
+					label:
+						opts.query.trim() ||
+						(opts.body ? deriveLabelFromComposer(opts.body) : ""),
+					body: opts.body,
+				})
+			}
 			quickPromptPrompts={matchedQuickPrompts}
 			quickPromptHasPendingQueue={queue.isQueued}
 		/>

@@ -927,6 +927,8 @@ function ChatComponent({
 				activeCallbacksRef.current?.runQuickPrompt(prompt, opts),
 			startQuickPromptSearch: () =>
 				activeCallbacksRef.current?.startQuickPromptSearch(),
+			saveComposerAsQuickPrompt: () =>
+				activeCallbacksRef.current?.saveComposerAsQuickPrompt(),
 			getWorkingDirectory: () =>
 				activeCallbacksRef.current?.getWorkingDirectory() ?? "",
 		});
@@ -1396,6 +1398,10 @@ export class ChatView extends ItemView implements IChatViewContainer {
 
 	startQuickPromptSearch(): void {
 		this.callbacks?.startQuickPromptSearch();
+	}
+
+	saveComposerAsQuickPrompt(): void {
+		this.callbacks?.saveComposerAsQuickPrompt();
 	}
 
 	// ============================================================

@@ -32,3 +32,36 @@ export function quickPromptGestureFromEvent(
 		insert: evt.altKey === true,
 	};
 }
+
+/**
+ * Whether a composer `Enter` keydown carries a modifier combo that Obsidian's
+ * DEFAULT editor hotkeys steal before the textarea's React `onKeyDown` sees it
+ * (QP-I14). The bound combos (verified against the live keymap) are:
+ *
+ * - `⌥Enter`        → `editor:follow-link`
+ * - `⌘/⌃ Enter`     → `editor:open-link-in-new-leaf`
+ * - `⌘⌥ Enter`      → `editor:open-link-in-new-split`
+ * - `⌘⌥⇧ Enter`     → `editor:open-link-in-new-window`
+ *
+ * Because they live in the global/editor scope, they never reach the composer,
+ * so the `!` quick-prompt dropdown can't act on `⌘Enter` (new-tab background)
+ * or `⌥Enter` (insert). A pushed Obsidian `Scope` claims exactly these while
+ * the dropdown is open (mirrors ChatView's `Mod+W` scope), routing them to the
+ * same selection path. Plain `Enter` and `⌘⇧Enter` are NOT bound by Obsidian,
+ * so they reach React normally — this predicate excludes them (the disjoint set
+ * the React `handleDropdownKeyPress` path keeps owning).
+ *
+ * Platform-correct: includes `ctrlKey` so the Windows/Linux `Ctrl`-as-Mod
+ * combos are covered the same way (Obsidian binds these editor hotkeys to
+ * `Mod`, which is `Ctrl` off macOS).
+ */
+export function isQuickPromptScopeCombo(e: {
+	altKey: boolean;
+	metaKey: boolean;
+	ctrlKey: boolean;
+	shiftKey: boolean;
+}): boolean {
+	if (e.altKey) return true; // ⌥, ⌘⌥, ⌘⌥⇧ (Alt is held in all alt-combos)
+	if ((e.metaKey || e.ctrlKey) && !e.shiftKey) return true; // ⌘/⌃ without ⇧
+	return false; // plain Enter or ⌘⇧Enter — not stolen; React keeps these
+}

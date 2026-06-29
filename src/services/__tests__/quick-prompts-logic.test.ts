@@ -24,6 +24,13 @@ import {
 	parseQuickPromptTrigger,
 	stripQuickPromptTrigger,
 	rankLauncherPrompts,
+	deriveFilenameBase,
+	disambiguateFilename,
+	buildNewPromptNote,
+	deriveLabelFromComposer,
+	buildCreatePromptRow,
+	SELECTION_TOKEN,
+	NEW_PROMPT_BODY_PLACEHOLDER,
 } from "../quick-prompts-logic";
 import type { QuickPrompt, QuickPromptFileInput } from "../../types/quick-prompt";
 
@@ -773,8 +780,14 @@ describe("quick-prompts-logic — slice 3 (launcher: chips + ! trigger)", () => 
 		it("bare ! → empty query (show all)", () => {
 			expect(parseQuickPromptTrigger("!")).toBe("");
 		});
-		it("closes once a space follows the query: '!foo ' → null", () => {
-			expect(parseQuickPromptTrigger("!foo ")).toBeNull();
+		it("QP-I15: keeps spaces in the query — '!foo ' → 'foo '", () => {
+			expect(parseQuickPromptTrigger("!foo ")).toBe("foo ");
+		});
+		it("QP-I15: multi-word query — '!Daily brief' → 'Daily brief'", () => {
+			expect(parseQuickPromptTrigger("!Daily brief")).toBe("Daily brief");
+		});
+		it("QP-I15: query still terminates at a second ! — '!a !b' → null", () => {
+			expect(parseQuickPromptTrigger("!a !b")).toBeNull();
 		});
 	});
 
@@ -792,6 +805,14 @@ describe("quick-prompts-logic — slice 3 (launcher: chips + ! trigger)", () => 
 		});
 		it("keeps text after the caret", () => {
 			expect(stripQuickPromptTrigger("!sum tail", 4)).toBe(" tail");
+		});
+		it("QP-I15: strips a multi-word token — '!Daily brief' → ''", () => {
+			expect(stripQuickPromptTrigger("!Daily brief", 12)).toBe("");
+		});
+		it("QP-I15: preserves the line before a multi-word token", () => {
+			expect(stripQuickPromptTrigger("hey\n!Daily brief", 16)).toBe(
+				"hey\n",
+			);
 		});
 	});
 
@@ -823,6 +844,177 @@ describe("quick-prompts-logic — slice 3 (launcher: chips + ! trigger)", () => 
 			expect(
 				rankLauncherPrompts(prompts, "AL", undefined).map((x) => x.id),
 			).toEqual(["alpha"]);
+		});
+	});
+});
+
+// ============================================================================
+// S4-T1..T6 — Slice 4: creation flow (D4) pure helpers
+//
+// Filename derivation + collision disambiguation + templated-note builder +
+// create-on-no-match decision + composer-label derivation. All pure; the file
+// write + open is the service/UI layer (S4-T7/T8 svc; S4-T9 component;
+// S4-T10..T12 human-smoke). See [[Agent Console Quick Prompts UX Refinement]]
+// § Creating quick prompts (D4) + § Prior art + UX grounding.
+// ============================================================================
+describe("quick-prompts-logic — slice 4 (creation flow, D4)", () => {
+	describe("S4-T1: deriveFilenameBase — strip illegal chars, keep emoji/spaces", () => {
+		it("strips the Note-Refactor illegal set # : \\ / * ? \" < > |", () => {
+			expect(deriveFilenameBase("Summarize: the #thing")).toBe(
+				"Summarize the thing",
+			);
+			expect(deriveFilenameBase('a/b\\c:d*e?f"g<h>i|j')).toBe("abcdefghij");
+		});
+		it("preserves emoji and internal single spaces", () => {
+			expect(deriveFilenameBase("🗓️ Daily brief")).toBe("🗓️ Daily brief");
+		});
+		it("collapses whitespace runs and trims", () => {
+			expect(deriveFilenameBase("  Get    latest  ")).toBe("Get latest");
+		});
+		it("blank / symbol-only → 'New prompt'", () => {
+			expect(deriveFilenameBase("   ")).toBe("New prompt");
+			expect(deriveFilenameBase("///")).toBe("New prompt");
+			expect(deriveFilenameBase("")).toBe("New prompt");
+		});
+	});
+
+	describe("S4-T2: disambiguateFilename — never returns an existing name", () => {
+		it("returns the desired name when free", () => {
+			expect(disambiguateFilename("Daily brief", [])).toBe("Daily brief");
+			expect(disambiguateFilename("Daily brief", ["Other"])).toBe(
+				"Daily brief",
+			);
+		});
+		it("appends ' 1', ' 2' … on collision (Obsidian convention)", () => {
+			expect(disambiguateFilename("Daily brief", ["Daily brief"])).toBe(
+				"Daily brief 1",
+			);
+			expect(
+				disambiguateFilename("Daily brief", [
+					"Daily brief",
+					"Daily brief 1",
+				]),
+			).toBe("Daily brief 2");
+		});
+		it("is case-insensitive (macOS filesystem safety)", () => {
+			expect(disambiguateFilename("Daily Brief", ["daily brief"])).toBe(
+				"Daily Brief 1",
+			);
+		});
+		it("never returns a name already in the existing set", () => {
+			const existing = ["X", "X 1", "X 2"];
+			const out = disambiguateFilename("X", existing);
+			expect(existing.includes(out)).toBe(false);
+			expect(out).toBe("X 3");
+		});
+	});
+
+	describe("S4-T3: buildNewPromptNote — templated frontmatter + body", () => {
+		it("seeds label + unchecked checkboxes + empty show-on-tags, placeholder body", () => {
+			const note = buildNewPromptNote({ label: "Daily brief" });
+			expect(note.frontmatter).toEqual({
+				label: "Daily brief",
+				"open in new tab": false,
+				"always show": false,
+				"show on tags": [],
+			});
+			expect(note.body).toBe(NEW_PROMPT_BODY_PLACEHOLDER);
+		});
+		it("QP-I08: blank label is prefilled with 'New prompt' (no empty label)", () => {
+			expect(buildNewPromptNote({ label: "" }).frontmatter.label).toBe(
+				"New prompt",
+			);
+			expect(buildNewPromptNote({ label: "   " }).frontmatter.label).toBe(
+				"New prompt",
+			);
+		});
+		it("preserves a captured body verbatim when provided", () => {
+			const note = buildNewPromptNote({
+				label: "X",
+				body: "captured composer text",
+			});
+			expect(note.frontmatter.label).toBe("X");
+			expect(note.body).toBe("captured composer text");
+		});
+		it("an empty/whitespace captured body falls back to the placeholder", () => {
+			expect(buildNewPromptNote({ label: "X", body: "   " }).body).toBe(
+				NEW_PROMPT_BODY_PLACEHOLDER,
+			);
+		});
+	});
+
+	describe("QP-I12: default placeholder is not itself a {{selection}} prompt", () => {
+		it("the placeholder body contains no live selection token (no dead-end fire)", () => {
+			expect(NEW_PROMPT_BODY_PLACEHOLDER).not.toContain(SELECTION_TOKEN);
+		});
+		it("a freshly-created prompt (placeholder body) fires normally, not as a selection prompt", () => {
+			const p = buildQuickPrompt({
+				path: "Quick Prompts/New prompt.md",
+				basename: "New prompt",
+				frontmatter: { label: "New prompt" },
+				body: NEW_PROMPT_BODY_PLACEHOLDER,
+			});
+			expect(p.usesSelection).toBe(false);
+		});
+	});
+
+	describe("S4-T4/QP-I10/I11: buildCreatePromptRow — always offered; composer-aware", () => {
+		const cqp = (q: string) => ({
+			kind: "create-prompt",
+			query: q,
+			label: `Create quick prompt "${q}"`,
+		});
+		it("non-blank query, no draft → Create quick prompt row whether or not matches exist", () => {
+			expect(buildCreatePromptRow("  daily  ", 0, false)).toEqual(
+				cqp("daily"),
+			);
+			expect(buildCreatePromptRow("daily", 5, false)).toEqual(cqp("daily"));
+		});
+		it("QP-I07: blank query + zero prompts, no draft → 'Create your first quick prompt'", () => {
+			const onramp = {
+				kind: "create-prompt",
+				query: "",
+				label: "Create your first quick prompt",
+			};
+			expect(buildCreatePromptRow("   ", 0, false)).toEqual(onramp);
+			expect(buildCreatePromptRow("", 0, false)).toEqual(onramp);
+		});
+		it("QP-I10: blank query + prompts exist, no draft → 'Create a quick prompt'", () => {
+			expect(buildCreatePromptRow("", 3, false)).toEqual({
+				kind: "create-prompt",
+				query: "",
+				label: "Create a quick prompt",
+			});
+		});
+		it("QP-I11: composer has a draft → 'from this message' + fromComposer flag", () => {
+			expect(buildCreatePromptRow("", 0, true)).toEqual({
+				kind: "create-prompt",
+				query: "",
+				label: "Create quick prompt from this message",
+				fromComposer: true,
+			});
+			expect(buildCreatePromptRow("foo", 5, true)).toEqual({
+				kind: "create-prompt",
+				query: "foo",
+				label: "Create quick prompt from this message",
+				fromComposer: true,
+			});
+		});
+	});
+
+	describe("S4-T6: deriveLabelFromComposer — first non-empty line, capped", () => {
+		it("uses the first non-empty line, trimmed", () => {
+			expect(deriveLabelFromComposer("Summarize this\n\nmore")).toBe(
+				"Summarize this",
+			);
+			expect(deriveLabelFromComposer("\n\n  hi there  ")).toBe("hi there");
+		});
+		it("caps long first lines to 60 chars", () => {
+			expect(deriveLabelFromComposer("a".repeat(80))).toHaveLength(60);
+		});
+		it("blank composer → 'New prompt'", () => {
+			expect(deriveLabelFromComposer("   \n  ")).toBe("New prompt");
+			expect(deriveLabelFromComposer("")).toBe("New prompt");
 		});
 	});
 });

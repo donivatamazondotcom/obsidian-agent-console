@@ -513,14 +513,17 @@ export function capRestingChips(
  *
  * Fires ONLY at the start of a line — the start of the composer, or right
  * after a newline — NOT after a space mid-line, so prose like "see you later !"
- * does not false-trigger (maintainer steer 2026-06-28). `foo!bar` mid-word
- * also doesn't trigger; `!foo ` (a space after the query) closes it; a bare
- * `!` at line start yields an empty query (show all).
+ * does not false-trigger (maintainer steer 2026-06-28). `foo!bar` mid-word also
+ * doesn't trigger. Once triggered, the query spans the rest of the line
+ * INCLUDING spaces (QP-I15: a `!` at line start is clear quick-prompt intent,
+ * so `!Daily brief` yields the query "Daily brief" — needed to find or create
+ * multi-word-named prompts inline); it terminates only at a newline or a second
+ * `!`. A bare `!` at line start yields an empty query (show all).
  */
 export function parseQuickPromptTrigger(
 	textBeforeCaret: string,
 ): string | null {
-	const m = /(?:^|\n)!([^\s!]*)$/.exec(textBeforeCaret);
+	const m = /(?:^|\n)!([^\n!]*)$/.exec(textBeforeCaret);
 	return m ? m[1] : null;
 }
 
@@ -536,7 +539,7 @@ export function stripQuickPromptTrigger(
 ): string {
 	const before = input.slice(0, cursorPos);
 	const after = input.slice(cursorPos);
-	const m = /(^|\n)!([^\s!]*)$/.exec(before);
+	const m = /(^|\n)!([^\n!]*)$/.exec(before);
 	if (!m) return input;
 	// Keep everything up to and including the leading newline (m[1]); drop
 	// from the `!` onward.
@@ -572,4 +575,184 @@ export function rankLauncherPrompts(
 	}
 	scored.sort((a, b) => b.score - a.score);
 	return scored.map((s) => s.prompt);
+}
+
+// ============================================================================
+// Slice 4 — creation flow (D4): filename derivation, collision disambiguation,
+// templated-note builder, create-on-no-match decision, composer-label
+// derivation. All pure; the file write + open is the service/UI layer.
+// See [[Agent Console Quick Prompts UX Refinement]] § Creating quick prompts
+// (D4) + § Prior art + UX grounding.
+// ============================================================================
+
+/** Placeholder body seeded into a brand-new prompt note (no captured text). */
+export const NEW_PROMPT_BODY_PLACEHOLDER =
+	"Write your prompt here. (Tip: you can pull in text you've selected in a note — see the [Quick Prompts docs](https://donivatamazondotcom.github.io/obsidian-agent-console/usage/quick-prompts) for the selection placeholder.)";
+
+/** Cap on a label derived from composer text (first line can be long). */
+export const MAX_DERIVED_LABEL_LENGTH = 60;
+
+/** Fallback name when a label yields no usable filename / no composer text. */
+const FALLBACK_PROMPT_NAME = "New prompt";
+
+/**
+ * Derive a filesystem-safe basename (no extension, no folder) from a label.
+ * Strips the characters Obsidian / Note Refactor reject in filenames
+ * (`# : \ / * ? " < > |`), collapses whitespace runs to a single space, and
+ * trims. Emoji and ordinary spaces are preserved. A blank / symbol-only result
+ * falls back to "New prompt". (Note Refactor strips the same set — see
+ * [[Agent Console Quick Prompts UX Refinement]] § Prior art.)
+ */
+export function deriveFilenameBase(label: string): string {
+	const cleaned = label
+		.replace(/[#:\\/*?"<>|]/g, "")
+		.replace(/\s+/g, " ")
+		.trim();
+	return cleaned.length > 0 ? cleaned : FALLBACK_PROMPT_NAME;
+}
+
+/**
+ * Disambiguate a desired basename against existing basenames so a create never
+ * overwrites an existing note (No-silent-data-loss). Returns the desired name
+ * when free, else appends " 1", " 2", … (Obsidian's new-file convention).
+ * Comparison is case-insensitive (macOS filesystem safety).
+ */
+export function disambiguateFilename(
+	desired: string,
+	existing: string[],
+): string {
+	const taken = new Set(existing.map((n) => n.toLowerCase()));
+	if (!taken.has(desired.toLowerCase())) return desired;
+	let n = 1;
+	while (taken.has(`${desired} ${n}`.toLowerCase())) n++;
+	return `${desired} ${n}`;
+}
+
+/** A templated new-prompt note: typed frontmatter + body. */
+export interface NewPromptNote {
+	frontmatter: Record<string, unknown>;
+	body: string;
+}
+
+/**
+ * Build a templated new-prompt note. Seeds `label` plus the two unchecked
+ * toggle properties (`open in new tab`, `always show`) so the author just flips
+ * them, and a body — the captured text when provided (verbatim), else the
+ * placeholder. The adapter applies the frontmatter via
+ * FileManager.processFrontMatter so Obsidian renders real typed toggles.
+ */
+export function buildNewPromptNote(opts: {
+	label: string;
+	body?: string;
+}): NewPromptNote {
+	const hasBody = (opts.body?.trim().length ?? 0) > 0;
+	return {
+		frontmatter: {
+			// Never write an empty label (QP-I08) — a blank label renders as an
+			// "Empty" property dead end; fall back to the standard name.
+			label:
+				opts.label.trim().length > 0 ? opts.label : FALLBACK_PROMPT_NAME,
+			"open in new tab": false,
+			"always show": false,
+			// Seed the contextual-scope property (QP-I09) so it shows in the
+			// note's properties for the author to fill in (empty = search-only).
+			"show on tags": [],
+		},
+		body: hasBody ? (opts.body as string) : NEW_PROMPT_BODY_PLACEHOLDER,
+	};
+}
+
+/** The "create quick prompt" row appended to the `!` dropdown on no match. */
+export interface CreatePromptRow {
+	kind: "create-prompt";
+	/** The trimmed query → the new prompt's label. */
+	query: string;
+	/** Row label shown in the dropdown. */
+	label: string;
+	/**
+	 * Set when the composer holds a draft (QP-I11): selecting the row captures
+	 * the composer text as the new prompt's body (the save-composer flow,
+	 * reachable right in the `!` list).
+	 */
+	fromComposer?: boolean;
+}
+
+/**
+ * The "create" row that ALWAYS sits at the bottom of the launcher `!` dropdown
+ * (QP-I10) — so creation is reachable on every `!`, with matches or not (mirrors
+ * Quick Switcher always offering a "Create" option). Labels:
+ * - composer holds a draft → `Create quick prompt from this message`, with
+ *   `fromComposer` set so the handler captures the draft as the body (QP-I11);
+ * - non-blank query → `Create quick prompt "<query>"`;
+ * - blank query, zero prompts → `Create your first quick prompt` (on-ramp, QP-I07);
+ * - blank query, prompts exist → `Create a quick prompt`.
+ * A blank query creates the `New prompt` fallback note (QP-I08).
+ */
+export function buildCreatePromptRow(
+	query: string,
+	matchCount: number,
+	hasDraft: boolean,
+): CreatePromptRow {
+	const q = query.trim();
+	if (hasDraft) {
+		return {
+			kind: "create-prompt",
+			query: q,
+			label: "Create quick prompt from this message",
+			fromComposer: true,
+		};
+	}
+	if (q.length === 0) {
+		return {
+			kind: "create-prompt",
+			query: "",
+			label:
+				matchCount > 0
+					? "Create a quick prompt"
+					: "Create your first quick prompt",
+		};
+	}
+	return {
+		kind: "create-prompt",
+		query: q,
+		label: `Create quick prompt "${q}"`,
+	};
+}
+
+/**
+ * Derive a provisional label from composer text for "save composer as a
+ * prompt": the first non-empty line, trimmed and capped. Blank composer →
+ * "New prompt". The author renames in the opened note (Note Refactor's
+ * first-line-as-name idiom).
+ */
+export function deriveLabelFromComposer(text: string): string {
+	const firstLine = text
+		.split("\n")
+		.map((line) => line.trim())
+		.find((line) => line.length > 0);
+	if (!firstLine) return FALLBACK_PROMPT_NAME;
+	return firstLine.slice(0, MAX_DERIVED_LABEL_LENGTH);
+}
+
+// ============================================================================
+// Launcher dropdown — circular keyboard navigation (QP-I17)
+// ============================================================================
+
+/**
+ * Next selected index for wrap-around (circular) `!` dropdown navigation. The
+ * Create row is always the last row (`maxIndex`), so wrapping makes it reachable
+ * with a single `up` from the top — predictable, since it's always last (QP-I17).
+ *
+ * - `down` past the last row → `0` (top); otherwise `prev + 1`.
+ * - `up` past `0` → `maxIndex` (the Create row); otherwise `prev - 1`.
+ * - `maxIndex < 0` (nothing to select) → `0`.
+ */
+export function wrapSelectionIndex(
+	prev: number,
+	maxIndex: number,
+	direction: "up" | "down",
+): number {
+	if (maxIndex < 0) return 0;
+	if (direction === "down") return prev >= maxIndex ? 0 : prev + 1;
+	return prev <= 0 ? maxIndex : prev - 1;
 }

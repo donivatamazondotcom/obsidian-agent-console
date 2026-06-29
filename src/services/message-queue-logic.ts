@@ -114,7 +114,7 @@ export function buildComposerPlaceholder(params: {
 	if (params.isStreaming && !params.isQueued) {
 		return `Queue a message – hit Enter to send when ${params.agentLabel} is done`;
 	}
-	return `Message ${params.agentLabel} - @ to mention notes${params.hasCommands ? ", / for commands" : ""}${params.hasQuickPrompts ? ", ! for quick prompts" : ""}`;
+	return `Message ${params.agentLabel} - @ to mention notes${params.hasCommands ? ", / for commands" : ""}, ! for quick prompts`;
 }
 
 export interface FlushDecisionParams {

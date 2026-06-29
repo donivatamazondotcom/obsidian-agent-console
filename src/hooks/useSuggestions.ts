@@ -12,6 +12,9 @@ import {
 	parseQuickPromptTrigger,
 	stripQuickPromptTrigger,
 	rankLauncherPrompts,
+	buildCreatePromptRow,
+	wrapSelectionIndex,
+	type CreatePromptRow,
 } from "../services/quick-prompts-logic";
 import type { QuickPrompt } from "../types/quick-prompt";
 import type { QuickPromptLibrary } from "../services/quick-prompts";
@@ -70,6 +73,8 @@ export interface CommandsState {
 export interface QuickPromptsState {
 	/** Ranked quick-prompt suggestions for the current ! query */
 	suggestions: QuickPrompt[];
+	/** The "create" row to show when the ! query matches nothing (else null). */
+	createRow: CreatePromptRow | null;
 	/** Currently selected index in the dropdown */
 	selectedIndex: number;
 	/** Whether the dropdown is open */
@@ -318,6 +323,7 @@ export function useSuggestions(
 	const [qpContext, setQpContext] = useState<{ cursorPos: number } | null>(
 		null,
 	);
+	const [qpCreateRow, setQpCreateRow] = useState<CreatePromptRow | null>(null);
 	const [qpPrompts, setQpPrompts] = useState<QuickPrompt[]>(() =>
 		quickPromptLibrary ? quickPromptLibrary.getPrompts() : [],
 	);
@@ -332,7 +338,8 @@ export function useSuggestions(
 		);
 	}, [quickPromptLibrary]);
 
-	const quickPromptIsOpen = qpSuggestions.length > 0 && qpContext !== null;
+	const quickPromptIsOpen =
+		(qpSuggestions.length > 0 || qpCreateRow !== null) && qpContext !== null;
 
 	const quickPromptUpdateSuggestions = useCallback(
 		(input: string, cursorPosition: number) => {
@@ -341,13 +348,25 @@ export function useSuggestions(
 			);
 			if (query === null) {
 				setQpSuggestions([]);
+				setQpCreateRow(null);
 				setQpSelectedIndex(0);
 				setQpContext(null);
 				return;
 			}
 			const trimmed = query.trim();
 			const scorer = trimmed ? prepareFuzzySearch(trimmed) : undefined;
-			setQpSuggestions(rankLauncherPrompts(qpPrompts, query, scorer));
+			const ranked = rankLauncherPrompts(qpPrompts, query, scorer);
+			setQpSuggestions(ranked);
+			// QP-I11: if the composer holds a draft beyond the `!` token, the
+			// create row captures it as the new prompt's body.
+			const draftText = stripQuickPromptTrigger(input, cursorPosition);
+			setQpCreateRow(
+				buildCreatePromptRow(
+					query,
+					ranked.length,
+					draftText.trim().length > 0,
+				),
+			);
 			setQpSelectedIndex(0);
 			setQpContext({ cursorPos: cursorPosition });
 		},
@@ -359,6 +378,7 @@ export function useSuggestions(
 			const cursorPos = qpContext ? qpContext.cursorPos : input.length;
 			const newText = stripQuickPromptTrigger(input, cursorPos);
 			setQpSuggestions([]);
+			setQpCreateRow(null);
 			setQpSelectedIndex(0);
 			setQpContext(null);
 			return newText;
@@ -369,18 +389,20 @@ export function useSuggestions(
 	const quickPromptNavigate = useCallback(
 		(direction: "up" | "down") => {
 			if (!quickPromptIsOpen) return;
-			const maxIndex = qpSuggestions.length - 1;
+			const maxIndex =
+				qpSuggestions.length - 1 + (qpCreateRow !== null ? 1 : 0);
+			// Circular (QP-I17): down past the last row wraps to the top; up
+			// past the top wraps to the always-last Create row.
 			setQpSelectedIndex((prev) =>
-				direction === "down"
-					? Math.min(prev + 1, maxIndex)
-					: Math.max(prev - 1, 0),
+				wrapSelectionIndex(prev, maxIndex, direction),
 			);
 		},
-		[quickPromptIsOpen, qpSuggestions.length],
+		[quickPromptIsOpen, qpSuggestions.length, qpCreateRow],
 	);
 
 	const quickPromptClose = useCallback(() => {
 		setQpSuggestions([]);
+		setQpCreateRow(null);
 		setQpSelectedIndex(0);
 		setQpContext(null);
 	}, []);
@@ -444,6 +466,7 @@ export function useSuggestions(
 	const quickPrompts = useMemo(
 		() => ({
 			suggestions: qpSuggestions,
+			createRow: qpCreateRow,
 			selectedIndex: qpSelectedIndex,
 			isOpen: quickPromptIsOpen,
 			updateSuggestions: quickPromptUpdateSuggestions,
@@ -453,6 +476,7 @@ export function useSuggestions(
 		}),
 		[
 			qpSuggestions,
+			qpCreateRow,
 			qpSelectedIndex,
 			quickPromptIsOpen,
 			quickPromptUpdateSuggestions,

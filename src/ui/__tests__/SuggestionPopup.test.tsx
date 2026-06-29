@@ -88,3 +88,75 @@ describe("SuggestionPopup — quick-prompt type (S3-T4)", () => {
 		expect(markers.length).toBe(2);
 	});
 });
+
+describe("SuggestionPopup — quick-prompt create-on-no-match row (S4-T9)", () => {
+	const createRow = {
+		kind: "create-prompt" as const,
+		query: "daily",
+		label: 'Create quick prompt "daily"',
+	};
+
+	it("renders the create row when items are empty (zero-match / zero-prompt)", () => {
+		render(
+			<SuggestionPopup
+				type="quick-prompt"
+				items={[]}
+				selectedIndex={0}
+				createRow={createRow}
+				onCreate={vi.fn()}
+				onSelect={vi.fn()}
+				onClose={vi.fn()}
+			/>,
+		);
+		expect(screen.getByText('Create quick prompt "daily"')).toBeTruthy();
+	});
+
+	it("returns null when there are no items AND no create row", () => {
+		const { container } = render(
+			<SuggestionPopup
+				type="quick-prompt"
+				items={[]}
+				selectedIndex={0}
+				createRow={null}
+				onSelect={vi.fn()}
+				onClose={vi.fn()}
+			/>,
+		);
+		expect(container.firstChild).toBeNull();
+	});
+
+	it("clicking the create row invokes onCreate", () => {
+		const onCreate = vi.fn();
+		render(
+			<SuggestionPopup
+				type="quick-prompt"
+				items={[]}
+				selectedIndex={0}
+				createRow={createRow}
+				onCreate={onCreate}
+				onSelect={vi.fn()}
+				onClose={vi.fn()}
+			/>,
+		);
+		fireEvent.click(screen.getByText('Create quick prompt "daily"'));
+		expect(onCreate).toHaveBeenCalledTimes(1);
+	});
+
+	it("marks the create row selected when selectedIndex === items.length", () => {
+		const { container } = render(
+			<SuggestionPopup
+				type="quick-prompt"
+				items={[qp({ id: "a", label: "Daily brief" })]}
+				selectedIndex={1}
+				createRow={createRow}
+				onCreate={vi.fn()}
+				onSelect={vi.fn()}
+				onClose={vi.fn()}
+			/>,
+		);
+		const row = container.querySelector(
+			".agent-client-quick-prompt-create-row",
+		);
+		expect(row?.classList.contains("agent-client-selected")).toBe(true);
+	});
+});

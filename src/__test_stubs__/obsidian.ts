@@ -58,7 +58,13 @@ export class Modal {
 	close() {}
 }
 
-export class App {}
+export class App {
+	scope = new Scope();
+	keymap = {
+		pushScope: vi.fn(),
+		popScope: vi.fn(),
+	};
+}
 
 export class Scope {
 	register(
