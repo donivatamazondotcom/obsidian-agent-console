@@ -15,10 +15,9 @@ import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
 import {
 	resolveDefaultWorkingDirectory,
-	resolveAgentWorkingDirectory,
 	deriveCwdBanner,
 } from "../utils/working-directory";
-import { findAgentSettings } from "../services/session-helpers";
+import { resolveCwdForAgent } from "../services/session-helpers";
 import { deriveNewLeaf } from "../utils/link-leaf";
 import { deriveSendAffordance, isSessionLive } from "../utils/send-affordance";
 import { extractLinks, type SharedLink } from "../utils/link-extract";
@@ -344,13 +343,9 @@ export function ChatPanel({
 				fellBack: false,
 			};
 		}
-		const agentSettings = findAgentSettings(
+		return resolveCwdForAgent(
 			plugin.settings,
 			initialAgentId ?? plugin.settings.defaultAgentId,
-		);
-		return resolveAgentWorkingDirectory(
-			agentSettings?.defaultWorkingDirectory ?? "",
-			plugin.settings.defaultWorkingDirectory,
 			vaultRoot,
 		);
 	}, [plugin, workingDirectory, initialAgentId, vaultRoot]);
@@ -813,6 +808,22 @@ export function ChatPanel({
 				// creating a session and reset the lazy machine to idle. The
 				// next send acquires (via useLazySession) against decision.agentId,
 				// the now-current source of truth (session.agentId).
+				// I131: on a real agent switch, re-resolve the working directory
+				// for the NEW agent first, so the lazy acquisition launches in
+				// that agent's configured cwd (per-agent default → global →
+				// vault root) instead of the previous agent's. Mirrors the
+				// setAgentCwd call in handleNewChatInDirectory; gated to a real
+				// switch so a plain new-chat on the same agent keeps any
+				// user-set cwd.
+				if (requestedAgentId && requestedAgentId !== session.agentId) {
+					setAgentCwd(
+						resolveCwdForAgent(
+							plugin.settings,
+							decision.agentId,
+							vaultRoot,
+						).dir,
+					);
+				}
 				agent.setAgentWithoutSession(decision.agentId);
 				lazyResetRef.current?.();
 				labelReportedRef.current = false;
@@ -836,6 +847,9 @@ export function ChatPanel({
 			suggestions.mentions.toggleAutoMention,
 			sessionHistory.invalidateCache,
 			onAgentIdChanged,
+			setAgentCwd,
+			plugin,
+			vaultRoot,
 		],
 	);
 

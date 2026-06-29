@@ -12,8 +12,10 @@ import { describe, it, expect } from "vitest";
 import {
 	resolveSessionIdForSave,
 	resolveRenamedSessionWrite,
+	resolveCwdForAgent,
 } from "../session-helpers";
 import type { SavedSessionInfo } from "../../types/session";
+import type { AgentClientPluginSettings } from "../../plugin";
 
 describe("resolveSessionIdForSave (I59)", () => {
 	it("falls back to the persisted id when the live id is null (restored, pre-reconnect)", () => {
@@ -82,5 +84,82 @@ describe("resolveRenamedSessionWrite (I73)", () => {
 		expect(
 			resolveRenamedSessionWrite(null, "sess-UNKNOWN", [saved], "X", NOW),
 		).toBeNull();
+	});
+});
+
+describe("resolveCwdForAgent (I131)", () => {
+	const VAULT = "/Users/me/vault";
+	const AGENT_DIR = "/Users/me/repos/claude-work";
+	const GLOBAL_DIR = "/Users/me/repos/global-work";
+
+	// Minimal settings shape consumed by findAgentSettings +
+	// resolveAgentWorkingDirectory. Per-agent + global defaults are the only
+	// fields under test; the rest is cast through unknown.
+	function makeSettings(opts: {
+		claudeDir?: string;
+		globalDir?: string;
+	}): AgentClientPluginSettings {
+		return {
+			claude: { id: "claude", defaultWorkingDirectory: opts.claudeDir },
+			codex: { id: "codex" },
+			gemini: { id: "gemini" },
+			kiro: { id: "kiro" },
+			customAgents: [],
+			defaultAgentId: "claude",
+			defaultWorkingDirectory: opts.globalDir ?? "",
+		} as unknown as AgentClientPluginSettings;
+	}
+
+	// Hermetic existence predicate — every configured dir "exists".
+	const existsAll = () => true;
+
+	it("returns the agent's configured dir when valid (source: agent)", () => {
+		const settings = makeSettings({
+			claudeDir: AGENT_DIR,
+			globalDir: GLOBAL_DIR,
+		});
+		const r = resolveCwdForAgent(settings, "claude", VAULT, existsAll);
+		expect(r).toEqual({ dir: AGENT_DIR, source: "agent", fellBack: false });
+	});
+
+	it("falls back to the global default when the agent dir is unset (source: global)", () => {
+		const settings = makeSettings({ globalDir: GLOBAL_DIR });
+		const r = resolveCwdForAgent(settings, "claude", VAULT, existsAll);
+		expect(r).toEqual({
+			dir: GLOBAL_DIR,
+			source: "global",
+			fellBack: false,
+		});
+	});
+
+	it("falls back to the vault root when neither agent nor global dir is set (source: vault)", () => {
+		const settings = makeSettings({});
+		const r = resolveCwdForAgent(settings, "claude", VAULT, existsAll);
+		expect(r).toEqual({ dir: VAULT, source: "vault", fellBack: false });
+	});
+
+	it("treats an unknown agentId as having no per-agent default (uses global)", () => {
+		const settings = makeSettings({
+			claudeDir: AGENT_DIR,
+			globalDir: GLOBAL_DIR,
+		});
+		const r = resolveCwdForAgent(settings, "no-such-agent", VAULT, existsAll);
+		expect(r).toEqual({
+			dir: GLOBAL_DIR,
+			source: "global",
+			fellBack: false,
+		});
+	});
+
+	it("switching agents resolves to the NEW agent's dir, not the old one's (the I131 behavior)", () => {
+		// codex has no configured dir → a switch from claude (AGENT_DIR) to
+		// codex must resolve to the global default, NOT stay at AGENT_DIR.
+		const settings = makeSettings({
+			claudeDir: AGENT_DIR,
+			globalDir: GLOBAL_DIR,
+		});
+		const r = resolveCwdForAgent(settings, "codex", VAULT, existsAll);
+		expect(r.dir).toBe(GLOBAL_DIR);
+		expect(r.dir).not.toBe(AGENT_DIR);
 	});
 });
