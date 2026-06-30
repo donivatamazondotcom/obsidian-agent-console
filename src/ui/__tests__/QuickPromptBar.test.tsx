@@ -108,3 +108,61 @@ describe("QuickPromptBar — T21", () => {
 		expect(onFire).toHaveBeenCalledWith(newTab, PLAIN);
 	});
 });
+
+describe("QuickPromptBar — S5-T4 (chip context menu)", () => {
+	it("right-click (contextmenu) a chip fires onChipContextMenu with the prompt", () => {
+		const onChipContextMenu = vi.fn();
+		const prompt = p({ id: "sync", label: "Sync opps" });
+		render(
+			<QuickPromptBar
+				prompts={[prompt]}
+				hasPendingQueue={false}
+				onFire={vi.fn()}
+				onChipContextMenu={onChipContextMenu}
+			/>,
+		);
+		const chip = screen.getByText("Sync opps").closest("button")!;
+		fireEvent.contextMenu(chip);
+		expect(onChipContextMenu).toHaveBeenCalledTimes(1);
+		expect(onChipContextMenu.mock.calls[0][0]).toBe(prompt);
+	});
+
+	// Keyboard parity is free: the context-menu key / Shift+F10 dispatches a
+	// native `contextmenu` event on the focused chip, which React routes to the
+	// same onContextMenu handler (jsdom can't synthesize the key → covered in
+	// the human smoke test).
+
+	it("context menu works even while the chip is queue-disabled (managing ≠ firing)", () => {
+		const onChipContextMenu = vi.fn();
+		const prompt = p({ id: "sync", label: "Sync opps" });
+		render(
+			<QuickPromptBar
+				prompts={[prompt]}
+				hasPendingQueue={true}
+				onFire={vi.fn()}
+				onChipContextMenu={onChipContextMenu}
+			/>,
+		);
+		const chip = screen.getByText("Sync opps").closest("button")!;
+		fireEvent.contextMenu(chip);
+		expect(onChipContextMenu).toHaveBeenCalledTimes(1);
+	});
+
+	it("left-click still fires the 2×2 gesture (regression), not the context menu", () => {
+		const onChipContextMenu = vi.fn();
+		const onFire = vi.fn();
+		const prompt = p({ id: "sync", label: "Sync opps" });
+		render(
+			<QuickPromptBar
+				prompts={[prompt]}
+				hasPendingQueue={false}
+				onFire={onFire}
+				onChipContextMenu={onChipContextMenu}
+			/>,
+		);
+		const chip = screen.getByText("Sync opps").closest("button")!;
+		fireEvent.click(chip);
+		expect(onFire).toHaveBeenCalledWith(prompt, PLAIN);
+		expect(onChipContextMenu).not.toHaveBeenCalled();
+	});
+});

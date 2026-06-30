@@ -136,6 +136,7 @@ src/
 │   ├── ImportSettingsModal.ts  # Cross-plugin settings-import preview + apply dialog
 │   ├── AgentPickerModal.ts      # FuzzySuggestModal agent picker for "New chat with agent…"
 │   ├── QuickPromptBar.tsx       # Ephemeral contextual quick-prompt chips row above the composer
+│   ├── RenamePromptModal.ts    # Rename a quick prompt's pill label (chip context menu → Rename)
 │   ├── SettingsTab.ts           # Plugin settings UI
 │   ├── SharedLinksButton.tsx    # Header shared-links indicator (count badge + grouped New/Earlier popover)
 │   ├── view-host.ts             # IChatViewHost interface

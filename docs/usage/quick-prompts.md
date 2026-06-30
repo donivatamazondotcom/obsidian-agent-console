@@ -117,6 +117,14 @@ Debrief the meeting I just had.
 
 Click a chip to fire it in the current chat. Hold **⌘** to send it in a new tab (⌘⇧ to switch there), or **⌥** to drop it into the composer to edit first — the same keys as the `!` search. When the row runs out of space, a **+N** at the end folds the rest into the `!` search.
 
+## Manage a prompt (right-click a chip)
+
+Right-click a chip — or focus it and press the context-menu key — to open a small menu for the prompt behind it:
+
+- **Edit prompt** — opens the prompt's note in a new tab, so you can change its text without losing your place in the chat.
+- **Copy prompt** — copies the prompt's text to the clipboard.
+- **Rename** — changes the chip's label. This renames what you see on the chip; the note's filename stays the same.
+
 ## How it works with a busy agent
 
 Quick prompts behave exactly like typing a message and pressing Enter, so they follow the same rules as the [queue-next-message](/usage/tabbed-sessions) behavior:

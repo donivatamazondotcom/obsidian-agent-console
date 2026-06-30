@@ -151,6 +151,7 @@ describe("createQuickPrompt — S4-T7/T8 (clobber-safe creation)", () => {
 				store.set(basename, { body, frontmatter });
 				return `Quick Prompts/${basename}.md`;
 			}),
+			setLabel: vi.fn(async () => undefined),
 		};
 		return { writer, store };
 	}

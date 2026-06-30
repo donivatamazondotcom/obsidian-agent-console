@@ -1486,6 +1486,9 @@ export function InputArea({
 					hasPendingQueue={quickPromptHasPendingQueue ?? false}
 					onFire={onRunQuickPrompt ?? (() => undefined)}
 					onSearchAll={handleSearchAll}
+					onChipContextMenu={(prompt, evt) =>
+						plugin.showQuickPromptChipMenu(prompt, evt)
+					}
 				/>
 			)}
 

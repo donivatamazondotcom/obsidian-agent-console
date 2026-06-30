@@ -51,6 +51,8 @@ export interface QuickPromptBarProps {
 	onFire: (prompt: QuickPrompt, gesture: QuickPromptGesture) => void;
 	/** Focus the composer and start a ! search (the overflow "+N" affordance). */
 	onSearchAll?: () => void;
+	/** Open the right-click context menu (Edit / Copy / Rename) for a chip. */
+	onChipContextMenu?: (prompt: QuickPrompt, evt: React.MouseEvent) => void;
 }
 
 /**
@@ -66,6 +68,7 @@ export function QuickPromptBar({
 	hasPendingQueue,
 	onFire,
 	onSearchAll,
+	onChipContextMenu,
 }: QuickPromptBarProps) {
 	const barRef = useRef<HTMLDivElement>(null);
 	const [overflowCount, setOverflowCount] = useState(0);
@@ -122,6 +125,7 @@ export function QuickPromptBar({
 					prompt={prompt}
 					hasPendingQueue={hasPendingQueue}
 					onFire={onFire}
+					onChipContextMenu={onChipContextMenu}
 				/>
 			))}
 			{overflowCount > 0 && (
@@ -145,12 +149,14 @@ interface QuickPromptChipProps {
 	prompt: QuickPrompt;
 	hasPendingQueue: boolean;
 	onFire: (prompt: QuickPrompt, gesture: QuickPromptGesture) => void;
+	onChipContextMenu?: (prompt: QuickPrompt, evt: React.MouseEvent) => void;
 }
 
 function QuickPromptChip({
 	prompt,
 	hasPendingQueue,
 	onFire,
+	onChipContextMenu,
 }: QuickPromptChipProps) {
 	const lockRef = useRef<HTMLSpanElement>(null);
 	const newTabRef = useRef<HTMLSpanElement>(null);
@@ -196,6 +202,10 @@ function QuickPromptChip({
 					e.preventDefault();
 					activate(quickPromptGestureFromEvent(e.nativeEvent));
 				}
+			}}
+			onContextMenu={(e) => {
+				e.preventDefault();
+				onChipContextMenu?.(prompt, e);
 			}}
 		>
 			<span className="agent-client-quick-prompt-chip-label">
