@@ -20,6 +20,7 @@ import {
 	deriveFilenameBase,
 	disambiguateFilename,
 	isQuickPromptFile,
+	normalizeRenameLabel,
 	stripFrontmatter,
 } from "./quick-prompts-logic";
 import type { QuickPrompt, QuickPromptFileInput } from "../types/quick-prompt";
@@ -204,6 +205,12 @@ export interface QuickPromptWriter {
 		body: string,
 		frontmatter: Record<string, unknown>,
 	): Promise<string>;
+	/**
+	 * Set the display label (`label:` frontmatter) of an existing prompt
+	 * note (slice 5 chip context menu → Rename). MUST NOT touch the filename
+	 * (Obsidian owns file renames) — only the `label` field.
+	 */
+	setLabel(path: string, label: string): Promise<void>;
 }
 
 /**
@@ -226,6 +233,24 @@ export async function createQuickPrompt(
 	// `collided` ⟺ the desired name was taken and we disambiguated (QP-I03/#3),
 	// so the caller can explain the rename instead of a silent " 1" suffix.
 	return { path, basename, collided: basename !== desired };
+}
+
+/**
+ * Rename a quick prompt's display label (slice 5 chip context menu → Rename).
+ * `normalizeRenameLabel` (pure) decides whether the submission is a real change;
+ * on a change, writes ONLY the `label:` frontmatter through the writer port
+ * (filename + id untouched — Obsidian owns file renames). A no-op
+ * (empty / whitespace / unchanged) never touches the note (No-silent-data-loss).
+ */
+export async function renamePromptLabel(
+	writer: QuickPromptWriter,
+	prompt: Pick<QuickPrompt, "path" | "label">,
+	raw: string,
+): Promise<{ changed: boolean; label: string | null }> {
+	const next = normalizeRenameLabel(raw, prompt.label);
+	if (next == null) return { changed: false, label: null };
+	await writer.setLabel(prompt.path, next);
+	return { changed: true, label: next };
 }
 
 /**
@@ -262,6 +287,19 @@ export class VaultQuickPromptWriter implements QuickPromptWriter {
 			Object.assign(fm, frontmatter);
 		});
 		return file.path;
+	}
+
+	async setLabel(path: string, label: string): Promise<void> {
+		const file = this.plugin.app.vault.getAbstractFileByPath(path);
+		if (!(file instanceof TFile)) {
+			getLogger().warn(
+				`[QuickPrompts] setLabel: not a prompt file: ${path}`,
+			);
+			return;
+		}
+		await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
+			Object.assign(fm, { label });
+		});
 	}
 
 	private async ensureFolder(folder: string): Promise<void> {

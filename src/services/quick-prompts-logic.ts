@@ -64,6 +64,49 @@ export function deriveLabel(
 }
 
 /**
+ * Normalize a Rename submission (slice 5 chip context menu → Rename). Trims the
+ * raw input and returns it as the new label, or `null` when the rename is a
+ * no-op — empty / whitespace-only, or unchanged from the current label. The
+ * `null` case lets the caller skip a pointless `label:` frontmatter write
+ * (No-silent-data-loss: never touch the note for a no-op).
+ *
+ * Pure: keeps the Rename decision out of the React component and the Obsidian
+ * `Modal`. See [[Agent Console Quick Prompts UX Refinement]] § Slice 5.
+ */
+export function normalizeRenameLabel(
+	raw: string,
+	current: string,
+): string | null {
+	const trimmed = raw.trim();
+	if (trimmed.length === 0) return null;
+	if (trimmed === current) return null;
+	return trimmed;
+}
+
+/**
+ * The right-click chip context-menu contract (slice 5). A static set of action
+ * descriptors: `action` is the dispatch tag, `title` the menu label, `icon` the
+ * lucide id for `MenuItem.setIcon`. Pure (no Obsidian `Menu`), so the menu
+ * contents are unit-testable; the adapter maps each descriptor to a
+ * `menu.addItem` and dispatches on `action`. No Delete (maintainer call).
+ */
+export type QuickPromptMenuAction = "edit" | "copy" | "rename";
+
+export interface QuickPromptMenuItem {
+	action: QuickPromptMenuAction;
+	title: string;
+	icon: string;
+}
+
+export function buildChipMenuItems(): QuickPromptMenuItem[] {
+	return [
+		{ action: "edit", title: "Edit prompt", icon: "file-pen" },
+		{ action: "copy", title: "Copy prompt text", icon: "copy" },
+		{ action: "rename", title: "Rename", icon: "text-cursor-input" },
+	];
+}
+
+/**
  * Stable, filename-derived slug id. Lowercased, non-alphanumeric runs collapse
  * to single hyphens, leading/trailing hyphens trimmed. Deterministic for a
  * given basename, so the id survives a folder re-scan (load-bearing for

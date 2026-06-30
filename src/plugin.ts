@@ -1,5 +1,13 @@
 import { migrateContextNoteSettings } from "./services/settings-migration";
-import { addIcon, Plugin, TFile, WorkspaceLeaf, Notice } from "obsidian";
+import {
+	addIcon,
+	Menu,
+	MenuItem,
+	Plugin,
+	TFile,
+	WorkspaceLeaf,
+	Notice,
+} from "obsidian";
 import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
@@ -53,7 +61,11 @@ import type { SessionListSource } from "./utils/session-history-view";
 import type { PerLeafTabState } from "./types/tab";
 import type { TitleStrategy } from "./types/title-strategy";
 import { initializeLogger, getLogger } from "./utils/logger";
-import { closeOpenMenus } from "./utils/menu-registry";
+import {
+	closeOpenMenus,
+	registerOpenMenu,
+	showMenuAtEvent,
+} from "./utils/menu-registry";
 import { ImportSettingsModal } from "./ui/ImportSettingsModal";
 import { AgentPickerModal } from "./ui/AgentPickerModal";
 import {
@@ -61,7 +73,14 @@ import {
 	VaultQuickPromptSource,
 	VaultQuickPromptWriter,
 	createQuickPrompt,
+	renamePromptLabel,
 } from "./services/quick-prompts";
+import {
+	buildChipMenuItems,
+	type QuickPromptMenuAction,
+} from "./services/quick-prompts-logic";
+import type { QuickPrompt } from "./types/quick-prompt";
+import { RenamePromptModal } from "./ui/RenamePromptModal";
 import {
 	computeStartChat,
 	isChatCommandAvailable,
@@ -274,17 +293,7 @@ export default class AgentClientPlugin extends Plugin {
 		label: string;
 		body?: string;
 	}): Promise<void> {
-		const writer = new VaultQuickPromptWriter(
-			this,
-			() => this.settings.quickPromptsFolder,
-			() =>
-				this.quickPromptLibrary
-					.getPrompts()
-					.map(
-						(p) =>
-							p.path.split("/").pop()?.replace(/\.md$/i, "") ?? "",
-					),
-		);
+		const writer = this.makeQuickPromptWriter();
 		try {
 			const { path, basename, collided } = await createQuickPrompt(
 				writer,
@@ -305,6 +314,104 @@ export default class AgentClientPlugin extends Plugin {
 				"[Agent Console] Could not create the quick prompt — see the console.",
 			);
 		}
+	}
+
+	/**
+	 * Build the quick-prompt note writer (clobber-safe creation + label
+	 * rename). Shared by `createQuickPromptNote` and the chip Rename.
+	 */
+	private makeQuickPromptWriter(): VaultQuickPromptWriter {
+		return new VaultQuickPromptWriter(
+			this,
+			() => this.settings.quickPromptsFolder,
+			() =>
+				this.quickPromptLibrary
+					.getPrompts()
+					.map(
+						(p) =>
+							p.path.split("/").pop()?.replace(/\.md$/i, "") ?? "",
+					),
+		);
+	}
+
+	/**
+	 * Right-click (or the context-menu key) on a quick-prompt chip → a menu
+	 * to manage the prompt behind it: Edit (open the note in a new tab),
+	 * Copy (prompt text → clipboard), Rename (relabel the pill). Built where
+	 * `app` is available; the chip just forwards the event. `showMenuAtEvent`
+	 * anchors correctly for both mouse and keyboard activation.
+	 */
+	showQuickPromptChipMenu(
+		prompt: QuickPrompt,
+		evt: {
+			detail: number;
+			clientX: number;
+			clientY: number;
+			currentTarget: Element;
+			nativeEvent: MouseEvent;
+		},
+	): void {
+		const menu = new Menu();
+		registerOpenMenu(menu);
+		for (const entry of buildChipMenuItems()) {
+			menu.addItem((item: MenuItem) => {
+				item.setTitle(entry.title)
+					.setIcon(entry.icon)
+					.onClick(() => {
+						void this.runQuickPromptChipAction(
+							entry.action,
+							prompt,
+						);
+					});
+			});
+		}
+		showMenuAtEvent(menu, evt);
+	}
+
+	private async runQuickPromptChipAction(
+		action: QuickPromptMenuAction,
+		prompt: QuickPrompt,
+	): Promise<void> {
+		if (action === "edit") {
+			const file = this.app.vault.getAbstractFileByPath(prompt.path);
+			if (file instanceof TFile) {
+				// New foreground tab (getLeaf(true)) — don't clobber the
+				// current pane (tab-only per D-3a).
+				await this.app.workspace.getLeaf(true).openFile(file);
+			} else {
+				new Notice(
+					`[Agent Console] Could not open "${prompt.label}" — the note was not found.`,
+				);
+			}
+			return;
+		}
+		if (action === "copy") {
+			try {
+				await navigator.clipboard.writeText(prompt.body);
+				new Notice("[Agent Console] Copied prompt text.");
+			} catch (error) {
+				getLogger().error("[QuickPrompts] copy failed", error);
+				new Notice(
+					"[Agent Console] Could not copy the prompt text — see the console.",
+				);
+			}
+			return;
+		}
+		// action === "rename" — relabel the PILL (`label:` frontmatter); the
+		// filename is Obsidian's concern, so the prompt id stays stable.
+		const writer = this.makeQuickPromptWriter();
+		new RenamePromptModal(this.app, prompt.label, async (raw) => {
+			try {
+				await renamePromptLabel(writer, prompt, raw);
+				// The library reconciles on the metadataCache change, so the
+				// chip relabels live — no manual refresh.
+			} catch (error) {
+				getLogger().error("[QuickPrompts] rename failed", error);
+				new Notice(
+					"[Agent Console] Could not rename the quick prompt — see the console.",
+				);
+			}
+		}).open();
 	}
 
 	async onload() {
