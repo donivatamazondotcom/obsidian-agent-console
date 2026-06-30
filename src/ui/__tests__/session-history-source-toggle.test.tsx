@@ -258,7 +258,10 @@ describe("SessionHistoryContent — disconnected Agent view (cache + affordance)
 				})}
 			/>,
 		);
-		expect(screen.getByText(/send a message to reconnect/)).toBeTruthy();
+		expect(
+			screen.getByText("Send a message to reconnect and refresh"),
+		).toBeTruthy();
+		expect(screen.getByText(/^Synced /)).toBeTruthy();
 		expect(screen.getByText("server row")).toBeTruthy();
 	});
 

@@ -695,11 +695,15 @@ export function SessionHistoryContent({
 		[currentCwd],
 	);
 
-	// I150: the disconnected-Agent affordance text, rendered inline in the
-	// source-toggle row (with a tooltip, since it truncates).
-	const syncAffordanceText = agentSessionCache
-		? `Synced ${formatRelativeTime(new Date(agentSessionCache.syncedAt))} – send a message to reconnect and refresh`
-		: "Send a message to connect, then this list loads from the agent";
+	// I153: two-line disconnected-Agent affordance shown beside the agent pill
+	// — line 1 = sync freshness, line 2 = the action. Full text, no
+	// truncation; lives in the toggle row so the controls below don't shift.
+	const syncLine1 = agentSessionCache
+		? `Synced ${formatRelativeTime(new Date(agentSessionCache.syncedAt))}`
+		: "Not synced yet";
+	const syncLine2 = agentSessionCache
+		? "Send a message to reconnect and refresh"
+		: "Send a message to connect";
 
 	// I94: focus the search box when the modal opens so the user can type
 	// immediately. Index build is NOT triggered here — it fires on first
@@ -921,6 +925,12 @@ export function SessionHistoryContent({
 							</button>
 						</div>
 
+						{agentViewDisconnected && (
+							<div className="agent-client-session-history-sync-affordance">
+								<span>{syncLine1}</span>
+								<span>{syncLine2}</span>
+							</div>
+						)}
 					</div>
 
 					{/* Full-text search */}
@@ -974,18 +984,6 @@ export function SessionHistoryContent({
 								</span>
 							</span>
 						</label>
-					)}
-
-					{/* Disconnected-Agent freshness affordance — its own
-					    full-width line just below the controls (D6). At full
-					    width the text fits on one line (no truncation), and
-					    placing it below the toggle/search/filter means toggling
-					    it resizes only the list, never shifting those controls
-					    (preserves the I150 no-jump win). */}
-					{agentViewDisconnected && (
-						<div className="agent-client-session-history-sync-affordance">
-							{syncAffordanceText}
-						</div>
 					)}
 
 					{/* Error state */}

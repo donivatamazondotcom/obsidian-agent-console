@@ -2080,9 +2080,20 @@ button.agent-client-message-tool-call-summary:focus-visible {
 /* "Synced N ago — connect to refresh" affordance on the disconnected Agent
    view. */
 .agent-client-session-history-sync-affordance {
-	margin-bottom: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 0;
 	font-size: var(--font-ui-smaller);
+	line-height: 1.25;
 	color: var(--text-muted);
+}
+
+.agent-client-session-history-sync-affordance > span {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
 }
 
 /* Per-row agent badge on the unified Local view. */
