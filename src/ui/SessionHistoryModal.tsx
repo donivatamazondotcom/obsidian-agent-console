@@ -921,14 +921,6 @@ export function SessionHistoryContent({
 							</button>
 						</div>
 
-						{agentViewDisconnected && (
-							<span
-								className="agent-client-session-history-sync-affordance"
-								ref={(el) => el && setTooltip(el, syncAffordanceText)}
-							>
-								{syncAffordanceText}
-							</span>
-						)}
 					</div>
 
 					{/* Full-text search */}
@@ -982,6 +974,18 @@ export function SessionHistoryContent({
 								</span>
 							</span>
 						</label>
+					)}
+
+					{/* Disconnected-Agent freshness affordance — its own
+					    full-width line just below the controls (D6). At full
+					    width the text fits on one line (no truncation), and
+					    placing it below the toggle/search/filter means toggling
+					    it resizes only the list, never shifting those controls
+					    (preserves the I150 no-jump win). */}
+					{agentViewDisconnected && (
+						<div className="agent-client-session-history-sync-affordance">
+							{syncAffordanceText}
+						</div>
 					)}
 
 					{/* Error state */}

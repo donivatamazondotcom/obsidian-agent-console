@@ -2080,13 +2080,9 @@ button.agent-client-message-tool-call-summary:focus-visible {
 /* "Synced N ago — connect to refresh" affordance on the disconnected Agent
    view. */
 .agent-client-session-history-sync-affordance {
-	margin-left: auto;
-	min-width: 0;
+	margin-bottom: 12px;
 	font-size: var(--font-ui-smaller);
 	color: var(--text-muted);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
 }
 
 /* Per-row agent badge on the unified Local view. */
@@ -2159,6 +2155,10 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	padding: 12px;
 	/* E: stable row height across Local (badge) and Agent (no badge) views. */
 	min-height: 56px;
+	/* D5: never let the flex column compress rows when the list overflows —
+	   otherwise a filtered (short) list renders taller rows than the
+	   unfiltered (overflowing) one. Natural height always; overflow scrolls. */
+	flex-shrink: 0;
 	background: var(--background-secondary);
 	border-radius: var(--radius-m);
 	border: 1px solid var(--background-modifier-border);
