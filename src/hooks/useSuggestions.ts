@@ -1,29 +1,19 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import type { NoteMetadata, IVaultAccess } from "../services/vault-service";
-import {
-	detectMention,
-	replaceMention,
-	type MentionContext,
-} from "../utils/mention-parser";
+import type { MentionContext } from "../utils/mention-parser";
 import type { SlashCommand } from "../types/session";
 import type AgentClientPlugin from "../plugin";
 import { prepareFuzzySearch } from "obsidian";
-import {
-	parseQuickPromptTrigger,
-	stripQuickPromptTrigger,
-	rankLauncherPrompts,
-	buildCreatePromptRow,
-	wrapSelectionIndex,
-	type CreatePromptRow,
-} from "../services/quick-prompts-logic";
+import type { CreatePromptRow } from "../services/quick-prompts-logic";
 import type { QuickPrompt } from "../types/quick-prompt";
 import type { QuickPromptLibrary } from "../services/quick-prompts";
 import type { ResolvedPicker } from "../types/picker";
+import { usePicker } from "./usePicker";
 import {
-	noteToPickerItem,
-	slashCommandToPickerItem,
-	quickPromptToPickerItem,
-} from "../utils/picker-sources";
+	makeMentionSource,
+	makeSlashSource,
+	makeQuickPromptSource,
+} from "../utils/picker-source-configs";
 
 // ============================================================================
 // Types
@@ -122,16 +112,26 @@ export interface UseSuggestionsReturn {
 // ============================================================================
 
 /**
- * Hook for managing input suggestions (mentions + slash commands).
+ * Hook for managing input suggestions (mentions + slash commands + quick
+ * prompts).
  *
- * Handles:
- * - @-mention detection, note searching, and dropdown interaction
- * - /-command filtering and selection
- * - Auto-mention toggle coordination (slash commands disable auto-mention)
+ * Tier 3 (Unified Picker Control): the three former hand-rolled state machines
+ * are now three instances of one generic {@link usePicker} state machine, each
+ * driven by a per-source {@link makeMentionSource} / {@link makeSlashSource} /
+ * {@link makeQuickPromptSource} config. This hook is thin source wiring: it
+ * builds the sources from live deps, runs a `usePicker` per source, and adapts
+ * each into the existing `MentionsState` / `CommandsState` / `QuickPromptsState`
+ * contract (so `InputArea` is unchanged). It also re-derives the Tier-2
+ * priority-resolved {@link ResolvedPicker} the keyboard handler routes through.
+ *
+ * Auto-mention (active note + enable/disable toggle) is orthogonal to the
+ * picker state machine and stays here as plain hook state.
  *
  * @param vaultAccess - Vault access for note searching
- * @param plugin - Plugin instance for settings and configuration
+ * @param plugin - Plugin instance (reserved; kept for signature stability)
  * @param availableCommands - Available slash commands from the agent session
+ * @param autoMentionDefault - Default auto-mention enabled state
+ * @param quickPromptLibrary - Optional quick-prompt library (live ! set)
  */
 export function useSuggestions(
 	vaultAccess: IVaultAccess,
@@ -141,48 +141,33 @@ export function useSuggestions(
 	quickPromptLibrary?: QuickPromptLibrary,
 ): UseSuggestionsReturn {
 	// ============================================================
-	// Mention State
+	// Quick-prompt library (live ! set)
+	// ============================================================
+	// Subscribe so the ! picker filters the live set (read-only — firing is
+	// owned by useQuickPrompts/ChatPanel).
+	const [qpPrompts, setQpPrompts] = useState<QuickPrompt[]>(() =>
+		quickPromptLibrary ? quickPromptLibrary.getPrompts() : [],
+	);
+	useEffect(() => {
+		if (!quickPromptLibrary) return;
+		setQpPrompts(quickPromptLibrary.getPrompts());
+		return quickPromptLibrary.subscribe(() =>
+			setQpPrompts(quickPromptLibrary.getPrompts()),
+		);
+	}, [quickPromptLibrary]);
+
+	// ============================================================
+	// Auto-mention toggle (orthogonal to the picker state machine)
 	// ============================================================
 
-	const [mentionSuggestions, setMentionSuggestions] = useState<
-		NoteMetadata[]
-	>([]);
-	const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
-	const [mentionContext, setMentionContext] = useState<MentionContext | null>(
-		null,
-	);
 	const [activeNote, setActiveNote] = useState<NoteMetadata | null>(null);
-	// When the user dismisses the mention dropdown with Esc, remember the
-	// dismissed mention's @ start index so the dropdown stays closed for that
-	// run (even as more chars are typed). It reopens only when a different @
-	// becomes the active mention, or the caret leaves the mention entirely.
-	const dismissedMentionStartRef = useRef<number | null>(null);
 	const [isAutoMentionDisabled, setIsAutoMentionDisabled] = useState(
 		!autoMentionDefault,
 	);
-
 	// Sync toggle when the setting changes at runtime (e.g. from plugin settings)
 	useEffect(() => {
 		setIsAutoMentionDisabled(!autoMentionDefault);
 	}, [autoMentionDefault]);
-
-	const mentionIsOpen =
-		mentionSuggestions.length > 0 && mentionContext !== null;
-
-	// ============================================================
-	// Command State
-	// ============================================================
-
-	const [commandSuggestions, setCommandSuggestions] = useState<
-		SlashCommand[]
-	>([]);
-	const [commandSelectedIndex, setCommandSelectedIndex] = useState(0);
-
-	const commandIsOpen = commandSuggestions.length > 0;
-
-	// ============================================================
-	// Auto-mention toggle (shared between mentions and commands)
-	// ============================================================
 
 	const toggleAutoMention = useCallback((disabled?: boolean) => {
 		if (disabled === undefined) {
@@ -192,417 +177,174 @@ export function useSuggestions(
 		}
 	}, []);
 
-	// ============================================================
-	// Mention Callbacks
-	// ============================================================
-
-	const mentionUpdateSuggestions = useCallback(
-		async (input: string, cursorPosition: number) => {
-			const ctx = detectMention(input, cursorPosition);
-
-			if (!ctx) {
-				// Caret left the mention — clear any Esc dismissal so a
-				// future mention can open.
-				dismissedMentionStartRef.current = null;
-				setMentionSuggestions([]);
-				setMentionSelectedIndex(0);
-				setMentionContext(null);
-				return;
-			}
-
-			// Stay closed if this exact @ run was dismissed via Esc.
-			if (dismissedMentionStartRef.current === ctx.start) {
-				setMentionSuggestions([]);
-				setMentionSelectedIndex(0);
-				setMentionContext(null);
-				return;
-			}
-			// A different mention than the dismissed one — clear the guard.
-			dismissedMentionStartRef.current = null;
-
-			const results = await vaultAccess.searchNotes(ctx.query);
-			setMentionSuggestions(results);
-			setMentionSelectedIndex(0);
-			setMentionContext(ctx);
-		},
-		[vaultAccess, plugin],
-	);
-
-	const mentionSelectSuggestion = useCallback(
-		(input: string, suggestion: NoteMetadata): string => {
-			if (!mentionContext) {
-				return input;
-			}
-
-			const { newText } = replaceMention(
-				input,
-				mentionContext,
-				suggestion.name,
-			);
-
-			setMentionSuggestions([]);
-			setMentionSelectedIndex(0);
-			setMentionContext(null);
-
-			return newText;
-		},
-		[mentionContext],
-	);
-
-	const mentionNavigate = useCallback(
-		(direction: "up" | "down") => {
-			if (!mentionIsOpen) return;
-
-			const maxIndex = mentionSuggestions.length - 1;
-			setMentionSelectedIndex((prev) => {
-				if (direction === "down") {
-					return Math.min(prev + 1, maxIndex);
-				} else {
-					return Math.max(prev - 1, 0);
-				}
-			});
-		},
-		[mentionIsOpen, mentionSuggestions.length],
-	);
-
-	const mentionClose = useCallback(() => {
-		dismissedMentionStartRef.current = null;
-		setMentionSuggestions([]);
-		setMentionSelectedIndex(0);
-		setMentionContext(null);
-	}, []);
-
-	const mentionDismiss = useCallback(() => {
-		// Esc: remember the current mention's @ start so it stays closed for
-		// this run, then clear the open dropdown.
-		dismissedMentionStartRef.current = mentionContext?.start ?? null;
-		setMentionSuggestions([]);
-		setMentionSelectedIndex(0);
-		setMentionContext(null);
-	}, [mentionContext]);
-
 	const updateActiveNote = useCallback(async () => {
 		const note = await vaultAccess.getActiveNote();
 		setActiveNote(note);
 	}, [vaultAccess]);
 
 	// ============================================================
-	// Command Callbacks
+	// The three sources (all variance lives here) + one state machine each
 	// ============================================================
-
-	const commandUpdateSuggestions = useCallback(
-		(input: string, cursorPosition: number) => {
-			// Slash commands only trigger at the very beginning of input
-			if (!input.startsWith("/")) {
-				setCommandSuggestions([]);
-				setCommandSelectedIndex(0);
-				return;
-			}
-
-			// Extract query after '/'
-			const textUpToCursor = input.slice(0, cursorPosition);
-			const afterSlash = textUpToCursor.slice(1);
-
-			// If there's a space, the command is complete and user is typing arguments
-			if (afterSlash.includes(" ")) {
-				setCommandSuggestions([]);
-				setCommandSelectedIndex(0);
-				return;
-			}
-
-			const query = afterSlash.toLowerCase();
-
-			// Filter available commands
-			const filtered = availableCommands.filter((cmd) =>
-				cmd.name.toLowerCase().includes(query),
-			);
-
-			setCommandSuggestions(filtered);
-			setCommandSelectedIndex(0);
-		},
-		[availableCommands],
+	// Stable callbacks so the memoized source configs don't churn every render.
+	const searchNotes = useCallback(
+		(query: string) => vaultAccess.searchNotes(query),
+		[vaultAccess],
 	);
-
-	const commandSelectSuggestion = useCallback(
-		(_input: string, command: SlashCommand): string => {
-			const commandText = `/${command.name} `;
-
-			setCommandSuggestions([]);
-			setCommandSelectedIndex(0);
-
-			return commandText;
-		},
+	// Obsidian's sanctioned fuzzy scorer, injected so the ! source stays pure.
+	const makeScorer = useCallback(
+		(query: string) => prepareFuzzySearch(query),
 		[],
 	);
 
-	const commandNavigate = useCallback(
-		(direction: "up" | "down") => {
-			if (commandSuggestions.length === 0) return;
-
-			const maxIndex = commandSuggestions.length - 1;
-			setCommandSelectedIndex((current) => {
-				if (direction === "down") {
-					return Math.min(current + 1, maxIndex);
-				} else {
-					return Math.max(current - 1, 0);
-				}
-			});
-		},
-		[commandSuggestions.length],
+	const mentionSource = useMemo(
+		() => makeMentionSource(searchNotes),
+		[searchNotes],
+	);
+	const slashSource = useMemo(
+		() => makeSlashSource(availableCommands),
+		[availableCommands],
+	);
+	const quickPromptSource = useMemo(
+		() => makeQuickPromptSource(qpPrompts, makeScorer),
+		[qpPrompts, makeScorer],
 	);
 
-	const commandClose = useCallback(() => {
-		setCommandSuggestions([]);
-		setCommandSelectedIndex(0);
-	}, []);
+	const mentionPicker = usePicker(mentionSource);
+	const slashPicker = usePicker(slashSource);
+	const quickPromptPicker = usePicker(quickPromptSource);
 
 	// ============================================================
-	// Quick Prompt (! trigger) State
+	// Active picker (Tier 2) — priority-resolve the single open source
 	// ============================================================
-
-	const [qpSuggestions, setQpSuggestions] = useState<QuickPrompt[]>([]);
-	const [qpSelectedIndex, setQpSelectedIndex] = useState(0);
-	const [qpContext, setQpContext] = useState<{ cursorPos: number } | null>(
-		null,
-	);
-	const [qpCreateRow, setQpCreateRow] = useState<CreatePromptRow | null>(null);
-	const [qpPrompts, setQpPrompts] = useState<QuickPrompt[]>(() =>
-		quickPromptLibrary ? quickPromptLibrary.getPrompts() : [],
-	);
-
-	// Subscribe to the quick-prompt library so the ! dropdown filters the live
-	// set (read-only — firing is owned by useQuickPrompts/ChatPanel).
-	useEffect(() => {
-		if (!quickPromptLibrary) return;
-		setQpPrompts(quickPromptLibrary.getPrompts());
-		return quickPromptLibrary.subscribe(() =>
-			setQpPrompts(quickPromptLibrary.getPrompts()),
-		);
-	}, [quickPromptLibrary]);
-
-	const quickPromptIsOpen =
-		(qpSuggestions.length > 0 || qpCreateRow !== null) && qpContext !== null;
-
-	const quickPromptUpdateSuggestions = useCallback(
-		(input: string, cursorPosition: number) => {
-			const query = parseQuickPromptTrigger(
-				input.slice(0, cursorPosition),
-			);
-			if (query === null) {
-				setQpSuggestions([]);
-				setQpCreateRow(null);
-				setQpSelectedIndex(0);
-				setQpContext(null);
-				return;
-			}
-			const trimmed = query.trim();
-			const scorer = trimmed ? prepareFuzzySearch(trimmed) : undefined;
-			const ranked = rankLauncherPrompts(qpPrompts, query, scorer);
-			setQpSuggestions(ranked);
-			// QP-I11: if the composer holds a draft beyond the `!` token, the
-			// create row captures it as the new prompt's body.
-			const draftText = stripQuickPromptTrigger(input, cursorPosition);
-			setQpCreateRow(
-				buildCreatePromptRow(
-					query,
-					ranked.length,
-					draftText.trim().length > 0,
-				),
-			);
-			setQpSelectedIndex(0);
-			setQpContext({ cursorPos: cursorPosition });
-		},
-		[qpPrompts],
-	);
-
-	const quickPromptSelectSuggestion = useCallback(
-		(input: string): string => {
-			const cursorPos = qpContext ? qpContext.cursorPos : input.length;
-			const newText = stripQuickPromptTrigger(input, cursorPos);
-			setQpSuggestions([]);
-			setQpCreateRow(null);
-			setQpSelectedIndex(0);
-			setQpContext(null);
-			return newText;
-		},
-		[qpContext],
-	);
-
-	const quickPromptNavigate = useCallback(
-		(direction: "up" | "down") => {
-			if (!quickPromptIsOpen) return;
-			const maxIndex =
-				qpSuggestions.length - 1 + (qpCreateRow !== null ? 1 : 0);
-			// Circular (QP-I17): down past the last row wraps to the top; up
-			// past the top wraps to the always-last Create row.
-			setQpSelectedIndex((prev) =>
-				wrapSelectionIndex(prev, maxIndex, direction),
-			);
-		},
-		[quickPromptIsOpen, qpSuggestions.length, qpCreateRow],
-	);
-
-	const quickPromptClose = useCallback(() => {
-		setQpSuggestions([]);
-		setQpCreateRow(null);
-		setQpSelectedIndex(0);
-		setQpContext(null);
-	}, []);
-
-	// ============================================================
-	// Active picker (Tier 2)
-	// ============================================================
-	// Priority-resolve the single open source into one
-	// ActivePicker-shaped object so InputArea's keyboard handler
-	// routes through it instead of a 3-way source ladder. The
-	// quick-prompt > slash > mention order mirrors the prior
-	// handleDropdownKeyPress branch order; only one is ever open
-	// (the @ / / / ! triggers are mutually exclusive at the caret).
-	// `select` is bound by InputArea (composer-side effects), so the
-	// hook exposes the ResolvedPicker (everything but select).
+	// quick-prompt > slash > mention; only one is ever open (the @ / / / !
+	// triggers are mutually exclusive at the caret). `select` is bound by
+	// InputArea (composer-side effects), so the hook exposes the ResolvedPicker.
 	const activePicker = useMemo<ResolvedPicker | null>(() => {
-		if (quickPromptIsOpen) {
+		if (quickPromptPicker.isOpen) {
 			return {
 				kind: "quick-prompt",
 				isOpen: true,
-				items: qpSuggestions.map(quickPromptToPickerItem),
-				selectedIndex: qpSelectedIndex,
-				navigate: quickPromptNavigate,
-				dismiss: quickPromptClose,
-				capabilities: {
-					dismissOnShiftEnter: false,
-					ownsEnterScopeCombos: true,
-				},
+				items: quickPromptPicker.items.map((item) =>
+					quickPromptSource.toPickerItem(item),
+				),
+				selectedIndex: quickPromptPicker.selectedIndex,
+				navigate: quickPromptPicker.navigate,
+				dismiss: quickPromptPicker.dismiss,
+				capabilities: quickPromptSource.capabilities,
 			};
 		}
-		if (commandIsOpen) {
+		if (slashPicker.isOpen) {
 			return {
 				kind: "slash",
 				isOpen: true,
-				items: commandSuggestions.map(slashCommandToPickerItem),
-				selectedIndex: commandSelectedIndex,
-				navigate: commandNavigate,
-				dismiss: commandClose,
-				capabilities: {
-					dismissOnShiftEnter: false,
-					ownsEnterScopeCombos: false,
-				},
+				items: slashPicker.items.map((item) =>
+					slashSource.toPickerItem(item),
+				),
+				selectedIndex: slashPicker.selectedIndex,
+				navigate: slashPicker.navigate,
+				dismiss: slashPicker.dismiss,
+				capabilities: slashSource.capabilities,
 			};
 		}
-		if (mentionIsOpen) {
+		if (mentionPicker.isOpen) {
 			return {
 				kind: "mention",
 				isOpen: true,
-				items: mentionSuggestions.map(noteToPickerItem),
-				selectedIndex: mentionSelectedIndex,
-				navigate: mentionNavigate,
-				// mention Escape keeps the run-dismiss guard (QP/slash close).
-				dismiss: mentionDismiss,
-				capabilities: {
-					dismissOnShiftEnter: true,
-					ownsEnterScopeCombos: false,
-				},
+				items: mentionPicker.items.map((item) =>
+					mentionSource.toPickerItem(item),
+				),
+				selectedIndex: mentionPicker.selectedIndex,
+				navigate: mentionPicker.navigate,
+				// mention Escape keeps the run-dismiss guard (slash/! just close).
+				dismiss: mentionPicker.dismiss,
+				capabilities: mentionSource.capabilities,
 			};
 		}
 		return null;
 	}, [
-		quickPromptIsOpen,
-		qpSuggestions,
-		qpSelectedIndex,
-		quickPromptNavigate,
-		quickPromptClose,
-		commandIsOpen,
-		commandSuggestions,
-		commandSelectedIndex,
-		commandNavigate,
-		commandClose,
-		mentionIsOpen,
-		mentionSuggestions,
-		mentionSelectedIndex,
-		mentionNavigate,
-		mentionDismiss,
+		quickPromptPicker,
+		quickPromptSource,
+		slashPicker,
+		slashSource,
+		mentionPicker,
+		mentionSource,
 	]);
+
+	// ============================================================
+	// Adapt each picker into the existing exposed contract
+	// ============================================================
+	// InputArea/ChatPanel/useChatActions read these exact shapes — the adapters
+	// keep them byte-identical while the state machine underneath is unified.
+
+	const mentions = useMemo<MentionsState>(
+		() => ({
+			suggestions: mentionPicker.items,
+			selectedIndex: mentionPicker.selectedIndex,
+			isOpen: mentionPicker.isOpen,
+			context: mentionPicker.context,
+			// Async vault search → Promise<void> (InputArea voids it; tests await it).
+			updateSuggestions: async (input, cursorPosition) => {
+				await mentionPicker.updateSuggestions(input, cursorPosition);
+			},
+			selectSuggestion: (input, suggestion) =>
+				mentionPicker.selectSuggestion(input, suggestion),
+			navigate: mentionPicker.navigate,
+			close: mentionPicker.close,
+			dismiss: mentionPicker.dismiss,
+			activeNote,
+			isAutoMentionDisabled,
+			toggleAutoMention,
+			updateActiveNote,
+		}),
+		[
+			mentionPicker,
+			activeNote,
+			isAutoMentionDisabled,
+			toggleAutoMention,
+			updateActiveNote,
+		],
+	);
+
+	const commands = useMemo<CommandsState>(
+		() => ({
+			suggestions: slashPicker.items,
+			selectedIndex: slashPicker.selectedIndex,
+			isOpen: slashPicker.isOpen,
+			// Sync filter → void (explicit `void` so no floating-promise lint).
+			updateSuggestions: (input, cursorPosition) => {
+				void slashPicker.updateSuggestions(input, cursorPosition);
+			},
+			selectSuggestion: (input, command) =>
+				slashPicker.selectSuggestion(input, command),
+			navigate: slashPicker.navigate,
+			close: slashPicker.close,
+		}),
+		[slashPicker],
+	);
+
+	const quickPrompts = useMemo<QuickPromptsState>(
+		() => ({
+			suggestions: quickPromptPicker.items,
+			// The ! source is the only one with a create row, and it always
+			// returns a CreatePromptRow — narrow the hook's structural type.
+			createRow: quickPromptPicker.createRow as CreatePromptRow | null,
+			selectedIndex: quickPromptPicker.selectedIndex,
+			isOpen: quickPromptPicker.isOpen,
+			// Sync rank → void (explicit `void` so no floating-promise lint).
+			updateSuggestions: (input, cursorPosition) => {
+				void quickPromptPicker.updateSuggestions(input, cursorPosition);
+			},
+			selectSuggestion: (input) =>
+				quickPromptPicker.selectSuggestion(input),
+			navigate: quickPromptPicker.navigate,
+			close: quickPromptPicker.close,
+		}),
+		[quickPromptPicker],
+	);
 
 	// ============================================================
 	// Return
 	// ============================================================
-
-	const mentions = useMemo(
-		() => ({
-			suggestions: mentionSuggestions,
-			selectedIndex: mentionSelectedIndex,
-			isOpen: mentionIsOpen,
-			context: mentionContext,
-			updateSuggestions: mentionUpdateSuggestions,
-			selectSuggestion: mentionSelectSuggestion,
-			navigate: mentionNavigate,
-			close: mentionClose,
-			dismiss: mentionDismiss,
-			activeNote,
-			isAutoMentionDisabled,
-			toggleAutoMention,
-			updateActiveNote,
-		}),
-		[
-			mentionSuggestions,
-			mentionSelectedIndex,
-			mentionIsOpen,
-			mentionContext,
-			mentionUpdateSuggestions,
-			mentionSelectSuggestion,
-			mentionNavigate,
-			mentionClose,
-			mentionDismiss,
-			activeNote,
-			isAutoMentionDisabled,
-			toggleAutoMention,
-			updateActiveNote,
-		],
-	);
-
-	const commands = useMemo(
-		() => ({
-			suggestions: commandSuggestions,
-			selectedIndex: commandSelectedIndex,
-			isOpen: commandIsOpen,
-			updateSuggestions: commandUpdateSuggestions,
-			selectSuggestion: commandSelectSuggestion,
-			navigate: commandNavigate,
-			close: commandClose,
-		}),
-		[
-			commandSuggestions,
-			commandSelectedIndex,
-			commandIsOpen,
-			commandUpdateSuggestions,
-			commandSelectSuggestion,
-			commandNavigate,
-			commandClose,
-		],
-	);
-
-	const quickPrompts = useMemo(
-		() => ({
-			suggestions: qpSuggestions,
-			createRow: qpCreateRow,
-			selectedIndex: qpSelectedIndex,
-			isOpen: quickPromptIsOpen,
-			updateSuggestions: quickPromptUpdateSuggestions,
-			selectSuggestion: quickPromptSelectSuggestion,
-			navigate: quickPromptNavigate,
-			close: quickPromptClose,
-		}),
-		[
-			qpSuggestions,
-			qpCreateRow,
-			qpSelectedIndex,
-			quickPromptIsOpen,
-			quickPromptUpdateSuggestions,
-			quickPromptSelectSuggestion,
-			quickPromptNavigate,
-			quickPromptClose,
-		],
-	);
 
 	return useMemo(
 		() => ({ mentions, commands, quickPrompts, activePicker }),

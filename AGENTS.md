@@ -32,7 +32,7 @@ src/
 │   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref)
 │   ├── title-strategy.ts        # TitleStrategy union + dropdown options (F03 session-title setting)
 │   ├── quick-prompt.ts          # QuickPrompt + QuickPromptFileInput (Quick Prompts feature)
-│   ├── picker.ts                # Unified picker view model: PickerItem / PickerInstruction / PickerMarker (view) + ActivePicker / ResolvedPicker / PickerKeyCapabilities (keyboard routing) (Unified Picker Control)
+│   ├── picker.ts                # Unified picker view model: PickerItem / PickerInstruction / PickerMarker (view) + ActivePicker / ResolvedPicker / PickerKeyCapabilities (keyboard routing) + PickerSource / PickerState / PickerTriggerContext (Tier 3 state machine) (Unified Picker Control)
 │   └── obsidian-internals.d.ts  # Obsidian API declarations not in @types/obsidian
 ├── acp/                         # ACP protocol (SDK dependency confined here)
 │   ├── acp-client.ts            # Process lifecycle, UI-facing API (AcpClient class)
@@ -89,7 +89,8 @@ src/
 │   ├── useSelectionTracker.ts   # Editor selection capture for the context strip
 │   ├── useAgentSession.ts       # Session lifecycle, config options, optimistic updates
 │   ├── useAgentMessages.ts      # Message state, streaming (RAF batch), permissions
-│   ├── useSuggestions.ts        # @[[note]] mentions + /command suggestions (unified)
+│   ├── useSuggestions.ts        # Thin source wiring: runs usePicker per source (mention/slash/quick-prompt), adapts to the mentions/commands/quickPrompts contract + the Tier-2 activePicker (Unified Picker Control Tier 3)
+│   ├── usePicker.ts             # One generic suggestion-picker state machine driven by a PickerSource: items/selection/open, clamp-vs-wrap nav, async/sync fetch, dismiss guard (Unified Picker Control Tier 3)
 │   ├── useSessionHistory.ts     # Session list/load/resume/fork
 │   ├── useSessionSearch.ts      # Session search state: query debounce + lazy content index
 │   ├── useChatActions.ts        # Business callbacks (send, newChat, export, restart, etc.)
@@ -156,6 +157,8 @@ src/
 │   ├── error-utils.ts           # ACP error conversion
 │   ├── mention-parser.ts        # @[[note]] detection/extraction
 │   ├── picker-sources.ts        # Pure projections of mentions / slash / quick-prompts into the unified PickerItem model + per-source footer instructions (Unified Picker Control)
+│   ├── slash-command-logic.ts   # Pure / trigger detection (start-of-line only) + command filtering (Unified Picker Control Tier 3)
+│   ├── picker-source-configs.ts # The three PickerSource configs (mention/slash/quick-prompt) that drive usePicker — all variance as pure, dependency-injected config (Unified Picker Control Tier 3)
 │   ├── link-leaf.ts             # Resolve click modifiers → Obsidian leaf/pane (Keymap.isModEvent) for internal links
 │   ├── quick-prompt-gesture.ts  # Map a click/keypress → the Quick Prompts 2×2 gesture (openElsewhere/foreground/insert) via Keymap.isModEvent + shift/alt
 │   ├── link-extract.ts          # Derive per-tab shared-link set from messages (Shared Links Bubble) + new/old classification
