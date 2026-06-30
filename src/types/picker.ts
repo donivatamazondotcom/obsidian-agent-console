@@ -138,3 +138,128 @@ export interface ActivePicker {
  * binding `select` (whose effects are composer-side).
  */
 export type ResolvedPicker = Omit<ActivePicker, "select">;
+
+
+// ============================================================================
+// Tier 3 — PickerSource (one usePicker state machine, variance in config)
+// ============================================================================
+
+/**
+ * Minimal trigger context every source produces. `start` is the index of the
+ * trigger character in the composer text (the `@` for mentions). Only the
+ * mention source consults it — `usePicker` reads `ctx.start` to drive the
+ * dismiss guard when {@link PickerSource.dismissGuard} is set; other sources
+ * carry it for completeness. Sources extend this with whatever their
+ * `fetchItems` / `onSelect` / `createRow` need (mention adds `end`/`query`,
+ * quick-prompt adds `caret`/`query`, slash adds `query`).
+ */
+export interface PickerTriggerContext {
+	/** Index of the trigger character (mention `@` index; used by the dismiss guard). */
+	start: number;
+}
+
+/**
+ * Per-source configuration that drives the one generic {@link
+ * "../hooks/usePicker".usePicker} state machine. All variance between the three
+ * composer pickers (`@` / `/` / `!`) lives here; the hook owns the shared
+ * mechanics (item/selection/open state, navigation, the dismiss guard).
+ *
+ * Every member is pure (no React, no Obsidian) so the source configs unit-test
+ * directly — runtime dependencies (vault access, the command list, the prompt
+ * library, the fuzzy scorer) are injected by the factory in
+ * `utils/picker-source-configs.ts`.
+ *
+ * Spec: [[Unified Picker Control]] (Tier 3 — one picker state machine).
+ *
+ * @typeParam T   The source's domain item (NoteMetadata / SlashCommand / QuickPrompt).
+ * @typeParam Ctx The source's trigger context (extends {@link PickerTriggerContext}).
+ */
+export interface PickerSource<
+	T,
+	Ctx extends PickerTriggerContext = PickerTriggerContext,
+> {
+	/** Which source this is — feeds {@link ActivePicker.kind} + diagnostics. */
+	kind: PickerKind;
+	/**
+	 * Detect whether this source's trigger is active at the caret and return its
+	 * context, or `null` when it is not (caret left the trigger, slash not at
+	 * line start, etc.). Pure — the parse decision only.
+	 */
+	detectTrigger(input: string, caret: number): Ctx | null;
+	/**
+	 * Produce the candidate items for a context. Synchronous for slash
+	 * (in-memory filter) and quick-prompt (in-memory rank); a Promise for
+	 * mentions (async vault search). `usePicker` awaits a Promise and applies
+	 * an array directly, so the sync sources update state synchronously.
+	 */
+	fetchItems(ctx: Ctx): T[] | Promise<T[]>;
+	/** Project a domain item into a unified {@link PickerItem} row (Tier-1 mappers). */
+	toPickerItem(item: T): PickerItem;
+	/**
+	 * Navigation policy. `clamp` stops at the ends (mention/slash — a pure
+	 * fuzzy list); `wrap` is circular (quick-prompt — earns it via the
+	 * deterministic bottom create-row anchor). Intentionally per-source — NOT
+	 * harmonized (spec Tier-1 smoke decision).
+	 */
+	navPolicy: "clamp" | "wrap";
+	/**
+	 * Compute the new composer text when `item` is selected. Pure text rewrite
+	 * only — the composer-side effects (focus, hint overlay, engine fire) stay
+	 * in `InputArea`. Quick-prompt ignores `item` (it strips the `!` token; the
+	 * engine fires the prompt separately).
+	 */
+	onSelect(input: string, ctx: Ctx, item: T): string;
+	/** Footer hints for the current state (quick-prompt varies on create-row selection). */
+	instructions(state: { isCreateSelected: boolean }): PickerInstruction[];
+	/**
+	 * When true, Escape (and Shift+Enter, via {@link
+	 * PickerKeyCapabilities.dismissOnShiftEnter}) remembers the dismissed
+	 * trigger's `start` so the picker stays closed for that run, reopening only
+	 * when a different trigger becomes active or the caret leaves it. Mention-only.
+	 */
+	dismissGuard?: boolean;
+	/**
+	 * Build the optional "create" row appended after the items (quick-prompt
+	 * only). Returns `null` when there is no create affordance. Receives the
+	 * fetched items and the full composer input so it can detect a draft.
+	 */
+	createRow?(ctx: Ctx, items: T[], input: string): PickerCreateRow | null;
+	/** Source-declared keyboard rules (Tier 2) carried through to {@link ActivePicker}. */
+	capabilities: PickerKeyCapabilities;
+}
+
+/**
+ * The normalized state + operations one {@link
+ * "../hooks/usePicker".usePicker} instance exposes for a single source. The
+ * field shapes mirror the legacy per-source state objects so `useSuggestions`
+ * adapts them into the existing `MentionsState` / `CommandsState` /
+ * `QuickPromptsState` contracts without changing what `InputArea` reads.
+ *
+ * @typeParam T   The source's domain item.
+ * @typeParam Ctx The source's trigger context.
+ */
+export interface PickerState<
+	T,
+	Ctx extends PickerTriggerContext = PickerTriggerContext,
+> {
+	/** Current candidate items (excludes the create row). */
+	items: T[];
+	/** The active trigger context, or `null` when closed (the mention adapter exposes this). */
+	context: Ctx | null;
+	/** Highlighted index (indexes `items`, or the create row just past the end). */
+	selectedIndex: number;
+	/** Whether the picker is open: `(items.length>0 || createRow!=null) && triggerActive`. */
+	isOpen: boolean;
+	/** The optional create row (quick-prompt only; `null` otherwise). */
+	createRow: PickerCreateRow | null;
+	/** Re-detect the trigger and refresh items/createRow. Async only when the source's fetch is. */
+	updateSuggestions: (input: string, caret: number) => void | Promise<void>;
+	/** Compute the new composer text for selecting `item` (delegates to {@link PickerSource.onSelect}). */
+	selectSuggestion: (input: string, item?: T) => string;
+	/** Move the highlight per the source's {@link PickerSource.navPolicy}. */
+	navigate: (direction: "up" | "down") => void;
+	/** Close the picker and clear any dismiss guard. */
+	close: () => void;
+	/** Escape behavior: guarded sources keep the run closed; others just close. */
+	dismiss: () => void;
+}
