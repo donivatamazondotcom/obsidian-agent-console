@@ -882,3 +882,109 @@ export function wrapSelectionIndex(
 	if (direction === "down") return prev >= maxIndex ? 0 : prev + 1;
 	return prev <= 0 ? maxIndex : prev - 1;
 }
+
+// ============================================================================
+// Slice 6 — first-creation folder prompt
+//
+// On a user's FIRST quick-prompt creation, when no prompts exist yet AND the
+// folder is still the default, ask once where prompts should live, persist the
+// choice, then never ask again. Both gate conditions self-latch (count -> >=1
+// after the first note; folder != default once a choice is persisted), so no
+// extra "hasPrompted" flag is needed. All pure: the modal/suggester is a thin
+// Obsidian adapter over these functions.
+// See [[Agent Console Quick Prompts UX Refinement]] § Slice 6.
+// ============================================================================
+
+/**
+ * Normalize a folder path for comparison and persistence: trim, convert
+ * backslashes to `/`, collapse repeated slashes, and strip leading/trailing
+ * slashes. Empty / root (`/`) normalize to `""` (the vault root). Mirrors the
+ * essentials of Obsidian's `normalizePath` but stays Obsidian-free so the
+ * logic module remains pure.
+ */
+export function normalizeFolderChoice(raw: string): string {
+	return raw
+		.trim()
+		.replace(/\\/g, "/")
+		.replace(/\/+/g, "/")
+		.replace(/^\/+|\/+$/g, "");
+}
+
+/**
+ * The first-creation folder-prompt gate (pure). Returns true iff there are no
+ * prompts yet AND the configured folder is (still) the default. A power user
+ * who already set a custom folder never sees the prompt; once the first prompt
+ * is created the count latches the gate shut.
+ */
+export function shouldPromptForQuickPromptFolder(input: {
+	/** Current number of parsed prompts in the library. */
+	promptCount: number;
+	/** The configured `quickPromptsFolder` setting. */
+	folder: string;
+	/** `DEFAULT_SETTINGS.quickPromptsFolder` — sourced, never hardcoded. */
+	defaultFolder: string;
+}): boolean {
+	if (input.promptCount > 0) return false;
+	return (
+		normalizeFolderChoice(input.folder) ===
+		normalizeFolderChoice(input.defaultFolder)
+	);
+}
+
+/**
+ * Filter vault folder paths for the folder suggester. Empty/whitespace query
+ * returns all folders (in their given order); otherwise a case-insensitive
+ * substring match on the path. Pure, so the suggester's `getSuggestions` is
+ * unit-testable without an Obsidian harness.
+ */
+export function filterFolderSuggestions(
+	folders: string[],
+	query: string,
+): string[] {
+	const q = query.trim().toLowerCase();
+	if (q === "") return folders;
+	return folders.filter((folder) => folder.toLowerCase().includes(q));
+}
+
+/** Injected dependencies for the first-creation folder-prompt orchestration. */
+export interface CreateFolderGateDeps {
+	/** Current number of parsed prompts in the library. */
+	promptCount: number;
+	/** The configured `quickPromptsFolder` setting. */
+	folder: string;
+	/** `DEFAULT_SETTINGS.quickPromptsFolder`. */
+	defaultFolder: string;
+	/** Open the folder-choice modal; resolves the chosen folder, or null on Cancel. */
+	chooseFolder: () => Promise<string | null>;
+	/** Persist the chosen folder (single settings writer) + rescan. */
+	persistFolder: (folder: string) => Promise<void>;
+	/** Create the prompt note (the existing clobber-safe path). */
+	create: () => Promise<void>;
+}
+
+/**
+ * Orchestrate creation behind the first-creation folder-prompt gate (pure
+ * control flow over injected side effects, so it is unit-testable without an
+ * Obsidian harness — the same testability tenet as the resolvers above):
+ *
+ * - Gate closed (prompts exist, or folder already non-default) → create directly.
+ * - Gate open → open the folder modal. **Cancel (null) aborts the whole
+ *   creation** — no persist, no note written (No-silent-data-loss). A choice
+ *   is normalized, persisted via the single settings writer, then the note is
+ *   created.
+ */
+export async function runCreateWithFolderGate(
+	deps: CreateFolderGateDeps,
+): Promise<void> {
+	const gateOpen = shouldPromptForQuickPromptFolder({
+		promptCount: deps.promptCount,
+		folder: deps.folder,
+		defaultFolder: deps.defaultFolder,
+	});
+	if (gateOpen) {
+		const chosen = await deps.chooseFolder();
+		if (chosen === null) return; // Cancel — abort creation entirely.
+		await deps.persistFolder(normalizeFolderChoice(chosen));
+	}
+	await deps.create();
+}

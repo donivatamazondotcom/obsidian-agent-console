@@ -3321,3 +3321,19 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	width: 100%;
 	margin-bottom: var(--size-4-3);
 }
+
+/* First-creation folder prompt (Slice 6): narrower modal + full-width folder input. */
+.modal.agent-client-qp-folder-modal {
+	width: 480px;
+	min-width: unset;
+}
+
+.agent-client-qp-folder-desc {
+	color: var(--text-muted);
+	margin-top: 0;
+}
+
+.agent-client-qp-folder-input {
+	width: 100%;
+	margin-bottom: var(--size-4-3);
+}
