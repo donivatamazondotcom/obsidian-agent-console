@@ -188,6 +188,11 @@ export function useAgentSession(
 						suggestion: update.error.suggestion,
 					});
 					break;
+
+				default:
+					// Message-level updates are handled elsewhere; this
+					// session-level handler intentionally ignores them.
+					break;
 			}
 		},
 		[setErrorInfo],
