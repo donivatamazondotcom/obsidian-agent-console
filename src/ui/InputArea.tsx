@@ -35,7 +35,7 @@ import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import { ErrorBanner } from "./ErrorBanner";
 import { AttachmentStrip } from "./shared/AttachmentStrip";
 import { InputToolbar } from "./InputToolbar";
-import { deriveSendAffordance } from "../utils/send-affordance";
+import { deriveSendAffordance } from "../resolvers/send-affordance";
 import type { TabSessionState } from "../hooks/useTabSessionState";
 import { focusComposerAtEnd } from "./composer-focus";
 import { getLogger } from "../utils/logger";

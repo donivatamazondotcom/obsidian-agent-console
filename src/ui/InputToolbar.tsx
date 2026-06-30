@@ -3,7 +3,7 @@ const { useRef, useEffect, useCallback, useMemo } = React;
 import { setIcon, Menu } from "obsidian";
 
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
-import { isSessionLive } from "../utils/send-affordance";
+import { isSessionLive } from "../resolvers/send-affordance";
 import type { TabSessionState } from "../hooks/useTabSessionState";
 import {
 	flattenConfigSelectOptions,

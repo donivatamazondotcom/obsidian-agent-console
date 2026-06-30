@@ -36,7 +36,7 @@ import { ConfirmCloseModal } from "./ConfirmCloseModal";
 import { useTabManager, truncateLabel, suffixOnCollision } from "../hooks/useTabManager";
 import { useTabPersistence, type TabPersistenceStorage } from "../hooks/useTabPersistence";
 import { useRecentlyClosedTabs } from "../hooks/useRecentlyClosedTabs";
-import { resolveInitialAgentId } from "../utils/resolveInitialAgentId";
+import { resolveInitialAgentId } from "../resolvers/resolveInitialAgentId";
 import {
 	resolveSeededMessages,
 	resolveSeededContextNotes,

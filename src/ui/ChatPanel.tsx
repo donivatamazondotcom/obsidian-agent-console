@@ -20,13 +20,13 @@ import {
 } from "../utils/working-directory";
 import { resolveCwdForAgent } from "../services/session-helpers";
 import { deriveNewLeaf, shouldOpenFromActivation } from "../utils/link-leaf";
-import { deriveSendAffordance, isSessionLive } from "../utils/send-affordance";
+import { deriveSendAffordance, isSessionLive } from "../resolvers/send-affordance";
 import { extractLinks, type SharedLink } from "../utils/link-extract";
 import {
 	decideSessionIntent,
 	selectAcquisitionAgent,
 	type SessionIntent,
-} from "../utils/agent-switch";
+} from "../resolvers/agent-switch";
 import { useHistoryModal } from "../hooks/useHistoryModal";
 import { useComposerFocusReturn } from "../hooks/useComposerFocusReturn";
 import { useChatActions } from "../hooks/useChatActions";
@@ -41,7 +41,7 @@ import { CarriedOverPreview } from "./CarriedOverPreview";
 
 // Service imports
 import { getLogger } from "../utils/logger";
-import { deriveTabLabel, labelAlreadyReportedOnMount, shouldReportInterimLabel } from "../utils/deriveTabLabel";
+import { deriveTabLabel, labelAlreadyReportedOnMount, shouldReportInterimLabel } from "../resolvers/deriveTabLabel";
 import { buildCompletionNotificationContent } from "../utils/notification-content";
 import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";

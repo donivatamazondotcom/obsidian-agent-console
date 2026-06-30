@@ -26,7 +26,7 @@ import {
 	deriveHeaderSlot,
 	type HeaderSlotInput,
 	type HeaderSlot,
-} from "../header-slot";
+} from "../../resolvers/header-slot";
 
 interface Row {
 	name: string;

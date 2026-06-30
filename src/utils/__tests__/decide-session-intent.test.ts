@@ -4,7 +4,7 @@ import {
 	decideSessionIntent,
 	type SessionIntent,
 	type SessionIntentDecision,
-} from "../agent-switch";
+} from "../../resolvers/agent-switch";
 
 /**
  * Exhaustive transition + property tests for `decideSessionIntent` — the

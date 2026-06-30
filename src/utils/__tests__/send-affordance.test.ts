@@ -25,7 +25,7 @@ import {
 	isSessionLive,
 	type SendAffordanceInput,
 	type SendAffordanceReason,
-} from "../send-affordance";
+} from "../../resolvers/send-affordance";
 import type { TabSessionState } from "../../hooks/useTabSessionState";
 
 const ALL_STATES: TabSessionState[] = [

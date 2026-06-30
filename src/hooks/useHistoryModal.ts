@@ -5,7 +5,7 @@ import { getLogger } from "../utils/logger";
 import type AgentClientPlugin from "../plugin";
 import type { UseAgentReturn } from "./useAgent";
 import type { UseSessionHistoryReturn } from "./useSessionHistory";
-import type { SessionListSource } from "../utils/session-history-view";
+import type { SessionListSource } from "../resolvers/session-history-view";
 
 /**
  * Hook for managing the session history modal lifecycle.

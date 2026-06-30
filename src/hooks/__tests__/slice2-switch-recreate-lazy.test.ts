@@ -5,7 +5,7 @@ import { useLazySession } from "../useLazySession";
 import {
 	decideSessionIntent,
 	selectAcquisitionAgent,
-} from "../../utils/agent-switch";
+} from "../../resolvers/agent-switch";
 import { checkTabAgentInvariant } from "../../utils/tab-agent-invariant";
 
 /**

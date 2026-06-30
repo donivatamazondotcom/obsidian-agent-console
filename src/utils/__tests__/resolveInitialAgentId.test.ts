@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { resolveInitialAgentId } from "../resolveInitialAgentId";
+import { resolveInitialAgentId } from "../../resolvers/resolveInitialAgentId";
 
 describe("resolveInitialAgentId — restore-OFF honors the Default agent", () => {
 	it("restore OFF → Default agent, even with a persisted view-state last-agent", () => {

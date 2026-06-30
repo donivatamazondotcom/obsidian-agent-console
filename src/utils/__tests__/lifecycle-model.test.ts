@@ -4,7 +4,7 @@ import {
 	decideSessionIntent,
 	selectAcquisitionAgent,
 	type SessionIntent,
-} from "../agent-switch";
+} from "../../resolvers/agent-switch";
 import { checkTabAgentInvariant } from "../tab-agent-invariant";
 
 /**

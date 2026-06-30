@@ -3,7 +3,7 @@ import {
 	deriveSessionHistoryView,
 	type SessionHistoryView,
 	type SessionListSource,
-} from "../session-history-view";
+} from "../../resolvers/session-history-view";
 import type { AgentCapabilities } from "../../types/session";
 
 // ============================================================================

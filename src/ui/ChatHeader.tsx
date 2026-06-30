@@ -3,7 +3,7 @@ const { useRef, useEffect, useState } = React;
 import { setIcon, setTooltip } from "obsidian";
 import { SharedLinksButton } from "./SharedLinksButton";
 import type { SharedLink } from "../utils/link-extract";
-import { deriveHeaderSlot } from "../utils/header-slot";
+import { deriveHeaderSlot } from "../resolvers/header-slot";
 
 // ============================================================================
 // Types
