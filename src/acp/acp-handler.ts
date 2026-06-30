@@ -163,6 +163,11 @@ export class AcpHandler {
 					),
 				});
 				break;
+
+			default:
+				// Unhandled session updates (e.g. plan_update/plan_removed) are
+				// intentionally ignored by this router. break keeps prior behavior.
+				break;
 		}
 		return Promise.resolve();
 	}

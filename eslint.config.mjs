@@ -91,6 +91,16 @@ export default defineConfig([
 			"@typescript-eslint/no-unused-vars": ["error", { args: "none" }],
 			"@typescript-eslint/ban-ts-comment": "off",
 			"@typescript-eslint/no-empty-function": "off",
+			// Tagged-union exhaustiveness: a switch over a union that omits a
+			// case (and has no default) fails the build, so a decision point
+			// can't silently miss a new union member. considerDefaultExhaustive:
+			// true lets event routers opt out with a `default`; decision points
+			// (resolvers/reducers) stay strict by omitting one. See "Lint
+			// Enforcement for Design Patterns" (Phase 3).
+			"@typescript-eslint/switch-exhaustiveness-check": [
+				"error",
+				{ considerDefaultExhaustiveForUnions: true },
+			],
 			// 58 pre-existing violations across SettingsTab, ChatPanel, ChatView,
 			// InputArea — many are legitimate proper nouns (e.g. "Windows Subsystem
 			// for Linux", "Gemini API key") or technical UI strings. Demote to
