@@ -133,6 +133,7 @@ src/
 │   ├── SessionHistoryModal.tsx  # Session history modal (Local/Agent source toggle, per-row agent badge, search, confirm delete, migration empty-state, disconnected-Agent sync affordance)
 │   ├── session-intent-confirm.ts # SEAM (Track 1↔2): shared confirm/carry-over modal interface — Track 2 owns the component, Track 1 defines the contract
 │   ├── ChangeDirectoryModal.ts  # Per-tab cwd change modal (sets working dir for agent process)
+│   ├── ChooseQuickPromptFolderModal.ts # First-creation folder prompt: pick where quick prompts live (Slice 6)
 │   ├── ImportSettingsModal.ts  # Cross-plugin settings-import preview + apply dialog
 │   ├── AgentPickerModal.ts      # FuzzySuggestModal agent picker for "New chat with agent…"
 │   ├── QuickPromptBar.tsx       # Ephemeral contextual quick-prompt chips row above the composer

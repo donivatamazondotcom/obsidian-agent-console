@@ -77,10 +77,12 @@ import {
 } from "./services/quick-prompts";
 import {
 	buildChipMenuItems,
+	runCreateWithFolderGate,
 	type QuickPromptMenuAction,
 } from "./services/quick-prompts-logic";
 import type { QuickPrompt } from "./types/quick-prompt";
 import { RenamePromptModal } from "./ui/RenamePromptModal";
+import { ChooseQuickPromptFolderModal } from "./ui/ChooseQuickPromptFolderModal";
 import {
 	computeStartChat,
 	isChatCommandAvailable,
@@ -294,26 +296,53 @@ export default class AgentClientPlugin extends Plugin {
 		body?: string;
 	}): Promise<void> {
 		const writer = this.makeQuickPromptWriter();
-		try {
-			const { path, basename, collided } = await createQuickPrompt(
-				writer,
-				opts,
-			);
-			const file = this.app.vault.getAbstractFileByPath(path);
-			if (file instanceof TFile) {
-				await this.app.workspace.getLeaf(true).openFile(file);
+		const doCreate = async (): Promise<void> => {
+			try {
+				const { path, basename, collided } = await createQuickPrompt(
+					writer,
+					opts,
+				);
+				const file = this.app.vault.getAbstractFileByPath(path);
+				if (file instanceof TFile) {
+					await this.app.workspace.getLeaf(true).openFile(file);
+				}
+				new Notice(
+					collided
+						? `[Agent Console] A quick prompt with that name already existed — saved as "${basename}".`
+						: `[Agent Console] Created quick prompt "${basename}".`,
+				);
+			} catch (error) {
+				getLogger().error("[QuickPrompts] create failed", error);
+				new Notice(
+					"[Agent Console] Could not create the quick prompt — see the console.",
+				);
 			}
-			new Notice(
-				collided
-					? `[Agent Console] A quick prompt with that name already existed — saved as "${basename}".`
-					: `[Agent Console] Created quick prompt "${basename}".`,
-			);
-		} catch (error) {
-			getLogger().error("[QuickPrompts] create failed", error);
-			new Notice(
-				"[Agent Console] Could not create the quick prompt — see the console.",
-			);
-		}
+		};
+		// Slice 6: on the very first creation (no prompts yet AND the folder is
+		// still the default), ask once where prompts should live, persist the
+		// choice, then never ask again. Cancel aborts the whole creation
+		// (No-silent-data-loss). The gate self-latches, so power users who set a
+		// folder never see it and it never reappears after the first note.
+		await runCreateWithFolderGate({
+			promptCount: this.quickPromptLibrary.getPrompts().length,
+			folder: this.settings.quickPromptsFolder,
+			defaultFolder: DEFAULT_SETTINGS.quickPromptsFolder,
+			chooseFolder: () =>
+				new Promise<string | null>((resolve) => {
+					new ChooseQuickPromptFolderModal(
+						this.app,
+						this.settings.quickPromptsFolder,
+						resolve,
+					).open();
+				}),
+			persistFolder: async (folder) => {
+				await this.settingsService.updateSettings({
+					quickPromptsFolder: folder,
+				});
+				await this.quickPromptLibrary.rescan();
+			},
+			create: doCreate,
+		});
 	}
 
 	/**

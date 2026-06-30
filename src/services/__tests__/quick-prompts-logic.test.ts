@@ -33,6 +33,10 @@ import {
 	buildNewPromptNote,
 	deriveLabelFromComposer,
 	buildCreatePromptRow,
+	shouldPromptForQuickPromptFolder,
+	normalizeFolderChoice,
+	filterFolderSuggestions,
+	runCreateWithFolderGate,
 	SELECTION_TOKEN,
 	NEW_PROMPT_BODY_PLACEHOLDER,
 } from "../quick-prompts-logic";
@@ -1180,5 +1184,133 @@ describe("quick-prompts-logic — prompt/help separator (---)", () => {
 	});
 	it("SEP-T4: matches 3+ dashes", () => {
 		expect(extractPromptBody("a\n----\nb")).toBe("a");
+	});
+});
+
+
+// ============================================================================
+// Slice 6 — first-creation folder prompt (S6-T1..T5)
+// ============================================================================
+
+describe("Slice 6 — shouldPromptForQuickPromptFolder (S6-T1)", () => {
+	const D = "Quick Prompts";
+	it("prompts only at zero prompts AND the default folder", () => {
+		expect(
+			shouldPromptForQuickPromptFolder({
+				promptCount: 0,
+				folder: "Quick Prompts",
+				defaultFolder: D,
+			}),
+		).toBe(true);
+	});
+	it("does not prompt once any prompt exists (any folder)", () => {
+		expect(
+			shouldPromptForQuickPromptFolder({
+				promptCount: 1,
+				folder: "Quick Prompts",
+				defaultFolder: D,
+			}),
+		).toBe(false);
+		expect(
+			shouldPromptForQuickPromptFolder({
+				promptCount: 3,
+				folder: "00-metadata/quick-prompts",
+				defaultFolder: D,
+			}),
+		).toBe(false);
+	});
+	it("does not prompt when the folder was changed from the default (even at zero)", () => {
+		expect(
+			shouldPromptForQuickPromptFolder({
+				promptCount: 0,
+				folder: "00-metadata/quick-prompts",
+				defaultFolder: D,
+			}),
+		).toBe(false);
+	});
+	it("treats trailing-slash / spacing variants of the default as the default", () => {
+		expect(
+			shouldPromptForQuickPromptFolder({
+				promptCount: 0,
+				folder: "Quick Prompts/",
+				defaultFolder: D,
+			}),
+		).toBe(true);
+	});
+});
+
+describe("Slice 6 — normalizeFolderChoice (S6-T2)", () => {
+	it("trims, converts backslashes, collapses + strips slashes", () => {
+		expect(normalizeFolderChoice("  Quick Prompts/  ")).toBe("Quick Prompts");
+		expect(normalizeFolderChoice("a\\b")).toBe("a/b");
+		expect(normalizeFolderChoice("/a//b/")).toBe("a/b");
+	});
+	it("maps empty / root to an empty string", () => {
+		expect(normalizeFolderChoice("")).toBe("");
+		expect(normalizeFolderChoice("   ")).toBe("");
+		expect(normalizeFolderChoice("/")).toBe("");
+	});
+});
+
+describe("Slice 6 — filterFolderSuggestions (S6-T3)", () => {
+	const folders = ["Quick Prompts", "00-metadata/quick-prompts", "Projects/Notes"];
+	it("returns all folders for an empty query", () => {
+		expect(filterFolderSuggestions(folders, "")).toEqual(folders);
+		expect(filterFolderSuggestions(folders, "   ")).toEqual(folders);
+	});
+	it("filters case-insensitively by substring", () => {
+		expect(filterFolderSuggestions(folders, "quick")).toEqual([
+			"Quick Prompts",
+			"00-metadata/quick-prompts",
+		]);
+		expect(filterFolderSuggestions(folders, "META")).toEqual([
+			"00-metadata/quick-prompts",
+		]);
+	});
+});
+
+describe("Slice 6 — runCreateWithFolderGate (S6-T4/T5)", () => {
+	function makeDeps(over: Partial<Parameters<typeof runCreateWithFolderGate>[0]> = {}) {
+		return {
+			promptCount: 0,
+			folder: "Quick Prompts",
+			defaultFolder: "Quick Prompts",
+			chooseFolder: vi.fn(async () => "00-metadata/quick-prompts" as string | null),
+			persistFolder: vi.fn(async (_f: string) => {}),
+			create: vi.fn(async () => {}),
+			...over,
+		};
+	}
+	it("S6-T4 gate fires at zero prompts + default: choose -> persist -> create", async () => {
+		const deps = makeDeps();
+		await runCreateWithFolderGate(deps);
+		expect(deps.chooseFolder).toHaveBeenCalledTimes(1);
+		expect(deps.persistFolder).toHaveBeenCalledWith("00-metadata/quick-prompts");
+		expect(deps.create).toHaveBeenCalledTimes(1);
+	});
+	it("S6-T4 gate skipped once prompts exist: create directly, no modal", async () => {
+		const deps = makeDeps({ promptCount: 2 });
+		await runCreateWithFolderGate(deps);
+		expect(deps.chooseFolder).not.toHaveBeenCalled();
+		expect(deps.persistFolder).not.toHaveBeenCalled();
+		expect(deps.create).toHaveBeenCalledTimes(1);
+	});
+	it("S6-T4 gate skipped when the folder is already non-default: create directly", async () => {
+		const deps = makeDeps({ folder: "00-metadata/quick-prompts" });
+		await runCreateWithFolderGate(deps);
+		expect(deps.chooseFolder).not.toHaveBeenCalled();
+		expect(deps.create).toHaveBeenCalledTimes(1);
+	});
+	it("S6-T5 Cancel aborts: no persist, no create", async () => {
+		const deps = makeDeps({ chooseFolder: vi.fn(async () => null as string | null) });
+		await runCreateWithFolderGate(deps);
+		expect(deps.chooseFolder).toHaveBeenCalledTimes(1);
+		expect(deps.persistFolder).not.toHaveBeenCalled();
+		expect(deps.create).not.toHaveBeenCalled();
+	});
+	it("S6-T5 persists the normalized choice (trailing slash stripped)", async () => {
+		const deps = makeDeps({ chooseFolder: vi.fn(async () => "My Prompts/" as string | null) });
+		await runCreateWithFolderGate(deps);
+		expect(deps.persistFolder).toHaveBeenCalledWith("My Prompts");
 	});
 });
