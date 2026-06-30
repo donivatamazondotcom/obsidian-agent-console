@@ -1,5 +1,5 @@
 import type { ChatMessage } from "../types/chat";
-import { SYSTEM_INSTRUCTION_SENTINELS } from "./system-instructions";
+import { SYSTEM_INSTRUCTION_SENTINELS } from "../utils/system-instructions";
 import type { TitleStrategy } from "../types/title-strategy";
 
 /**

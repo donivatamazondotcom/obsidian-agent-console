@@ -15,7 +15,7 @@ import {
 	deriveSessionHistoryView,
 	type SessionHistoryView,
 	type SessionListSource,
-} from "../utils/session-history-view";
+} from "../resolvers/session-history-view";
 import { useSessionSearch } from "../hooks/useSessionSearch";
 import type { SearchSnippet } from "../services/session-search";
 import { formatSessionTitle } from "../utils/format-session-title";

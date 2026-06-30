@@ -12,7 +12,7 @@
  * leading `<obsidian_*>...</obsidian_*>` context blocks.
  */
 import { describe, it, expect } from "vitest";
-import { deriveTabLabel } from "../deriveTabLabel";
+import { deriveTabLabel } from "../../resolvers/deriveTabLabel";
 import type { ChatMessage } from "../../types/chat";
 
 function userMsg(text: string): ChatMessage {
@@ -144,7 +144,7 @@ describe("TS-I02 / F03: deriveTabLabel strips leaked bare instructions + title m
 import {
 	labelAlreadyReportedOnMount,
 	shouldReportInterimLabel,
-} from "../deriveTabLabel";
+} from "../../resolvers/deriveTabLabel";
 
 describe("TS-I03: restored tabs keep their persisted label (no interim re-derive)", () => {
 	it("labelAlreadyReportedOnMount → true for a restored tab (has a session id)", () => {

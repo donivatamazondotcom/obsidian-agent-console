@@ -8,7 +8,7 @@ import type { IChatViewHost } from "./view-host";
 import { setIcon } from "obsidian";
 import { MessageBubble } from "./MessageBubble";
 import { LossyFallbackNotice } from "./LossyFallbackNotice";
-import { isSessionLive } from "../utils/send-affordance";
+import { isSessionLive } from "../resolvers/send-affordance";
 import type { TabSessionState } from "../hooks/useTabSessionState";
 import { useAutoScrollPin } from "./use-auto-scroll-pin";
 import {

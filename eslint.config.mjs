@@ -135,4 +135,43 @@ export default defineConfig([
 		files: ["src/acp/**"],
 		rules: { "no-restricted-imports": "off" },
 	},
+	{
+		// src/resolvers/ is the functional core — pure decision functions
+		// (derive*/decide*) that take plain inputs and return tagged unions.
+		// They must not import the imperative shell (React, Obsidian) or the raw
+		// ACP SDK, so the core stays framework-free and exhaustively unit-testable
+		// (functional-core / imperative-shell). Totality is covered by the
+		// exhaustiveness rule + tests, not a throw ban. See "Lint Enforcement for
+		// Design Patterns".
+		files: ["src/resolvers/**"],
+		rules: {
+			"no-restricted-imports": [
+				"error",
+				{
+					paths: [
+						{
+							name: "react",
+							message:
+								"Resolvers are pure — no React. Keep the functional core framework-free; let the imperative shell (ui/, hooks/) render.",
+						},
+						{
+							name: "react-dom",
+							message:
+								"Resolvers are pure — no React. Keep the functional core framework-free.",
+						},
+						{
+							name: "obsidian",
+							message:
+								"Resolvers are pure — no Obsidian. Take plain inputs (and types from src/types); let the imperative shell touch the platform.",
+						},
+						{
+							name: "@agentclientprotocol/sdk",
+							message:
+								"ACP SDK types must not escape src/acp/. Resolvers speak domain types.",
+						},
+					],
+				},
+			],
+		},
+	},
 ]);

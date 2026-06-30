@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
 	decideAgentSwitch,
 	selectAcquisitionAgent,
-} from "../agent-switch";
+} from "../../resolvers/agent-switch";
 
 /**
  * Reproduce-first guard for the "new tab → switch agent → first message

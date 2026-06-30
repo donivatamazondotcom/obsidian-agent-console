@@ -57,7 +57,7 @@ import type {
 	SavedSessionInfo,
 	AgentSessionMetaCacheEntry,
 } from "./types/session";
-import type { SessionListSource } from "./utils/session-history-view";
+import type { SessionListSource } from "./resolvers/session-history-view";
 import type { PerLeafTabState } from "./types/tab";
 import type { TitleStrategy } from "./types/title-strategy";
 import { initializeLogger, getLogger } from "./utils/logger";

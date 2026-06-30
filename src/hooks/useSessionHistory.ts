@@ -13,7 +13,7 @@ import type {
 } from "../types/session";
 import { SessionStore } from "../services/session-store";
 import { NO_AGENT_CAPABILITIES } from "../types/session";
-import type { SessionListSource } from "../utils/session-history-view";
+import type { SessionListSource } from "../resolvers/session-history-view";
 import type { ChatMessage } from "../types/chat";
 import { extractErrorMessage } from "../utils/error-utils";
 import type { ContextNote } from "../types/context";
