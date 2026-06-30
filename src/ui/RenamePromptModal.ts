@@ -6,12 +6,13 @@ import { App, Modal } from "obsidian";
  * Relabels the PILL only: the caller writes the note's `label:` frontmatter, so
  * the filename — and the prompt's filename-derived `id` — stay put (Obsidian
  * owns file renames). Prefilled with the current label; Enter or the Rename
- * button submits the raw input. Whether the submission is a real change (vs an
- * empty / unchanged no-op) is decided by the caller via `normalizeRenameLabel`.
+ * button submits, Cancel (or Escape) dismisses. Whether the submission is a
+ * real change (vs an empty / unchanged no-op) is decided by the caller via
+ * `normalizeRenameLabel`.
  *
- * Layout (QP-I24): title, a full-width text input, then a standard
- * `modal-button-container` button row — no right-aligned `Setting` rows, which
- * left large empty gutters.
+ * Layout (QP-I24): a narrower modal (`.agent-client-rename-prompt-modal`) with
+ * a title, full-width input, then a standard `modal-button-container` row
+ * (Cancel + Rename) — no right-aligned `Setting` rows leaving empty gutters.
  *
  * See [[Agent Console Quick Prompts UX Refinement]] § Slice 5 — Chip context menu.
  */
@@ -27,7 +28,8 @@ export class RenamePromptModal extends Modal {
 	}
 
 	onOpen(): void {
-		const { contentEl } = this;
+		const { contentEl, modalEl } = this;
+		modalEl.addClass("agent-client-rename-prompt-modal");
 		this.titleEl.setText("Rename quick prompt");
 
 		this.inputEl = contentEl.createEl("input", {
@@ -43,6 +45,10 @@ export class RenamePromptModal extends Modal {
 		});
 
 		const buttons = contentEl.createDiv({ cls: "modal-button-container" });
+		const cancel = buttons.createEl("button", { text: "Cancel" });
+		cancel.addEventListener("click", () => {
+			this.close();
+		});
 		const rename = buttons.createEl("button", {
 			text: "Rename",
 			cls: "mod-cta",
