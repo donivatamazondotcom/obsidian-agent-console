@@ -57,6 +57,36 @@ export default defineConfig([
 					message:
 						"Don't hardcode Mac modifier glyphs (⌘ ⌥ ⇧ ⌃) in template strings — route through utils/platform.ts (I134).",
 				},
+				{
+					// Platform branching is owned by utils/platform.ts (MOD_KEY /
+					// prepareShellCommand / WSL + Windows-PATH helpers). Reading
+					// process.platform elsewhere re-introduces the variance the
+					// platform util normalizes once at the edge. platform.ts is
+					// exempt below. (Design-pattern guard; sibling of I134.)
+					selector:
+						"MemberExpression[object.name='process'][property.name='platform']",
+					message:
+						"Don't read process.platform directly — branch via utils/platform.ts so the platform check lives in one place (I134 sibling).",
+				},
+			],
+			// The ACP SDK (@agentclientprotocol/sdk) is the system's external
+			// contract and must stay behind the anti-corruption boundary in
+			// src/acp/ (AcpClient port + AcpHandler/type-converter adapters). Any
+			// other module must speak domain types, never the raw SDK shape, so a
+			// change to the SDK can't ripple across the app. src/acp/** is exempt
+			// below. (Anti-corruption boundary tenet — see "Lint Enforcement for
+			// Design Patterns".)
+			"no-restricted-imports": [
+				"error",
+				{
+					paths: [
+						{
+							name: "@agentclientprotocol/sdk",
+							message:
+								"ACP SDK types must not escape src/acp/. Speak domain types; route through AcpClient / AcpHandler / type-converter (anti-corruption boundary).",
+						},
+					],
+				},
 			],
 			"@typescript-eslint/no-unused-vars": ["error", { args: "none" }],
 			"@typescript-eslint/ban-ts-comment": "off",
@@ -97,5 +127,12 @@ export default defineConfig([
 		// safe (the I115 menu rule has nothing to catch in this file).
 		files: ["src/utils/platform.ts"],
 		rules: { "no-restricted-syntax": "off" },
+	},
+	{
+		// src/acp/ is the anti-corruption boundary — the only place allowed to
+		// import the raw ACP SDK (AcpClient port + AcpHandler/type-converter
+		// adapters). Exempt it from the SDK import ban.
+		files: ["src/acp/**"],
+		rules: { "no-restricted-imports": "off" },
 	},
 ]);
