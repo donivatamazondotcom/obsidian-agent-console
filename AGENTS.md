@@ -54,6 +54,8 @@ src/
 │   ├── settings-normalizer.ts   # Validation helpers + DEFAULT_SETTINGS + normalizeRawSettings (raw→typed mapping)
 │   ├── session-helpers.ts       # Agent config building, API key injection (pure functions)
 │   ├── agent-detection.ts       # First-run agent detection (probe commands) + default-by-priority selection (pure)
+│   ├── agent-installer.ts       # In-plugin agent install (first-run): one-line npm -g install via login-shell PATH; summarizeInstallFailure → guidance
+│   ├── agent-packages.ts        # Built-in agent install metadata (npm package, docs setup slug, install-command form) — single source of truth
 │   ├── session-state.ts         # Session state updates (legacy mode/model, config restore)
 │   ├── message-state.ts         # Message array transforms (upsert, merge, streaming apply)
 │   ├── message-sender.ts        # Prompt preparation + sending (pure functions)
@@ -67,6 +69,7 @@ src/
 │   ├── quick-prompts-logic.ts   # Quick Prompts pure logic: parse/label/slug-id/folder-scope/{{selection}}-resolve + the browser-true 2×2 action decision (where × commitment: fire/queue/insert/disabled/new-tab + foreground) + tag matching + launcher helpers (capRestingChips / parseQuickPromptTrigger / stripQuickPromptTrigger / rankLauncherPrompts)
 │   ├── quick-prompts.ts         # QuickPromptLibrary (scan/watch/reconcile) + VaultQuickPromptSource adapter
 │   ├── update-checker.ts        # Agent/plugin version checking
+│   ├── net.ts                   # The ONLY module permitted outbound network I/O (fixed ALLOWED_HOSTS; egress tripwire enforces it)
 │   ├── import/                   # Cross-plugin settings-import adapters
 │   │   ├── ImportSource.ts       # ImportSource interface + preview types
 │   │   ├── agentClientAdapter.ts # Reads agent-client data.json → normalizeRawSettings → slice
@@ -147,10 +150,12 @@ src/
 │   ├── close-confirm.ts         # Pure shouldConfirmClose predicate for the multi-tab close gate
 │   ├── activeNoteGrabToggle.ts  # Grab/ungrab active note in context strip (hotkey)
 │   ├── provisional-context.ts   # Provisional auto-default context pill (crystallize-on-send)
+│   ├── image-paste.ts           # classifyImagePaste — pure image-paste decision (connecting vs unsupported; separates unknown from false)
 │   ├── deriveTabLabel.ts        # Derive tab label from session / first message
 │   ├── titleMarker.ts           # F03: parse/strip <title>…</title> from the head of the first reply (parseLeadingTitle + TitleHeadBuffer)
 │   ├── system-instructions.ts   # First-message system-instruction constants + sentinels (injected by message-sender; stripped by deriveTabLabel)
 │   ├── host-context-briefing.ts # Compose the Obsidian host-context briefing (per-block selection + cwd-in-vault gate) injected on first message; folds in the system-instruction hints
+│   ├── obsidian-system-prompt.ts # Pure composer of the Obsidian system-prompt briefing (host identity / rendering / cwd / vault-collab blocks) injected on first message
 │   ├── toolCallSummary.ts       # One-row tool-call summary derivation
 │   ├── toolCallDiff.ts          # Pure unified-diff computation shared by ToolCallBlock + the line-count badge
 │   ├── paths.ts                 # Path resolution, file:// URI
@@ -162,19 +167,26 @@ src/
 │   ├── link-leaf.ts             # Resolve click modifiers → Obsidian leaf/pane (Keymap.isModEvent) for internal links
 │   ├── quick-prompt-gesture.ts  # Map a click/keypress → the Quick Prompts 2×2 gesture (openElsewhere/foreground/insert) via Keymap.isModEvent + shift/alt
 │   ├── link-extract.ts          # Derive per-tab shared-link set from messages (Shared Links Bubble) + new/old classification
+│   ├── notification-content.ts  # buildCompletionNotificationContent — pure turn-end notification title/body/tag (tab label in title)
 │   ├── menu-registry.ts         # Tracks open Menu popups; closes them on plugin unload (reload-safety)
 │   ├── agent-switch.ts          # Switch a lazy tab's agent so the first message connects to the switched agent
 │   ├── command-palette.ts       # Pure start-a-chat + context-gating decisions (computeStartChat, isChatCommandAvailable)
 │   ├── tab-agent-invariant.ts   # Pure fail-loud invariant: a tab's live session agent == its selected agent
 │   ├── resolveInitialAgentId.ts # Pure: agent a fresh (non-restored) tab opens on — Default agent when restore-tabs is off (TP-I05)
+│   ├── restored-tab-content.ts  # resolveSeededMessages/ContextNotes — single resolver for a tab's seeded transcript+notes (restore | fork | startup-restore)
 │   ├── send-affordance.ts       # Pure send-enablement resolver (deriveSendAffordance → canSend/buttonDisabled/reason) + isSessionLive; single source for ChatPanel/InputArea/InputToolbar/MessageList/broadcast
+│   ├── header-slot.ts           # deriveHeaderSlot — pure 4-way header secondary-slot resolver (model / connecting / idle / none)
 │   ├── session-history-view.ts  # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source) → listSource/agentViewAvailable/showFilters/restore/fork/banner); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
 │   ├── format-session-title.ts  # Pure display-formatter for session-history titles (renders markdown links/wikilinks to readable text, collapses whitespace; no truncation — CSS owns width); used by SessionHistoryModal, carries into HistoryRow
 │   ├── folder-picker.ts         # Shared Electron native folder picker (modal + settings Browse)
 │   ├── working-directory.ts     # Resolve/validate the default working directory for new chats
 │   ├── agent-expansion.ts       # Per-session expand/collapse state for settings agent sections
 │   ├── settings-layout.ts       # Pure settings-pane layout resolvers (deriveImportPlacement(hasCompletedSetup) → top-matter | advanced; D5)
+│   ├── textarea-autosize.ts     # decideTextareaResize/clampTextareaHeight — pure composer auto-resize (avoids scroll-pin jump, I-S13)
 │   └── logger.ts                # Debug-mode logger
+├── __test_stubs__/              # Test-only Obsidian/jsdom shims (not shipped)
+│   ├── obsidian.ts              # Obsidian module stub for vitest
+│   └── vitest.setup.ts          # jsdom setup: activeDocument/activeWindow + HTMLElement.setCssProps shims
 ├── plugin.ts                    # Obsidian plugin lifecycle, settings persistence
 └── main.ts                      # Entry point
 ```
