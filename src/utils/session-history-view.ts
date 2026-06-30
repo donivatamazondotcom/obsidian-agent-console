@@ -101,12 +101,6 @@ export interface SessionHistoryView {
 	 * shows the unified Local list with no toggle).
 	 */
 	agentViewAvailable: boolean;
-	/**
-	 * Whether the "This vault only" cwd filter is shown. The cwd filter applies
-	 * to the **Agent (server) view** only — the Local view is "your whole
-	 * history" across every agent and vault, so it carries no filter.
-	 */
-	showFilters: boolean;
 	/** Whether/how the restore (▶) action is available. */
 	restore: RestoreAvailability;
 	/** Whether the fork (git-branch) action is shown. */
@@ -148,9 +142,10 @@ export function deriveSessionHistoryView(
 	const listSource: SessionListSource =
 		source === "agent" && agentViewAvailable ? "agent" : "local";
 
-	// The "This vault only" cwd filter applies to the Agent (server) view only.
-	// The Local view spans every agent and every vault, so it has no filter.
-	const showFilters = listSource === "agent";
+	// NOTE: the "Only this folder" cwd filter is no longer gated here. It is
+	// universal (both sources, every agent); its visibility is decided in the
+	// component from the data — shown only when the library spans >1 folder, or
+	// while the filter is active (see SessionHistoryContent.showFolderFilter).
 
 	const canRestoreViaAgent =
 		capabilities.restoresViaLoad || capabilities.restoresViaResume;
@@ -184,5 +179,5 @@ export function deriveSessionHistoryView(
 				? "local-saved"
 				: "none";
 
-	return { listSource, agentViewAvailable, showFilters, restore, fork, banner };
+	return { listSource, agentViewAvailable, restore, fork, banner };
 }

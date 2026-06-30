@@ -97,29 +97,13 @@ describe("deriveSessionHistoryView — agentViewAvailable", () => {
 });
 
 // ============================================================================
-// showFilters — the "This vault only" cwd filter, Agent-view only
+// Folder filter visibility is NO LONGER a resolver concern (I147)
 // ============================================================================
-
-describe("deriveSessionHistoryView — showFilters", () => {
-	it("shows the filter only on the resolved Agent view", () => {
-		expect(
-			deriveSessionHistoryView(CLAUDE_CODE, true, true, "agent")
-				.showFilters,
-		).toBe(true);
-	});
-
-	it("hides the filter on the Local view (default), even for a listing agent", () => {
-		expect(
-			deriveSessionHistoryView(CLAUDE_CODE, true, true).showFilters,
-		).toBe(false);
-	});
-
-	it("hides the filter for plugin-local agents (Kiro has no filter)", () => {
-		expect(
-			deriveSessionHistoryView(KIRO_CLI, true, true, "agent").showFilters,
-		).toBe(false);
-	});
-});
+// The "Only this folder" cwd filter is universal (both sources, every agent);
+// its visibility is computed in the component from the data (>1 distinct cwd,
+// or while active) — see SessionHistoryContent.showFolderFilter and
+// session-history-vault-filter.test.tsx. The resolver no longer exposes
+// `showFilters`.
 
 // ============================================================================
 // restore — live / local-only / hidden (gated on data + capability, NOT connection)
@@ -370,19 +354,6 @@ describe("deriveSessionHistoryView — totality over the input cube", () => {
 					expect(listsSessions).toBe(true);
 					expect(source).toBe("agent");
 				}
-			}
-	});
-
-	it("showFilters ⇔ resolved Agent view (invariant)", () => {
-		for (const listsSessions of bools)
-			for (const source of sources) {
-				const v = deriveSessionHistoryView(
-					caps({ listsSessions }),
-					true,
-					true,
-					source,
-				);
-				expect(v.showFilters).toBe(v.listSource === "agent");
 			}
 	});
 

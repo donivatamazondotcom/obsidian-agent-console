@@ -5,7 +5,7 @@
  * and the confirmation modal for session deletion.
  */
 
-import { Modal, App, Notice, setIcon } from "obsidian";
+import { Modal, App, Notice, setIcon, setTooltip } from "obsidian";
 import * as React from "react";
 const { useState, useCallback } = React;
 import { createRoot, Root } from "react-dom/client";
@@ -612,8 +612,11 @@ export function SessionHistoryContent({
 	// The Local/Agent toggle choice (Decision 2 — seeded from the persisted
 	// last choice). Drives the resolver's source input and the fetch.
 	const [source, setSource] = useState<SessionListSource>(initialSource);
-	// The "This vault only" cwd filter — Agent view only.
-	const [filterByCurrentVault, setFilterByCurrentVault] = useState(true);
+	// The "Only this folder" cwd filter — universal (both sources, every
+	// agent). Defaults OFF so history opens unfiltered ("whole history",
+	// Local-first tenet); the user opts in to narrow to the current working
+	// folder.
+	const [filterByCurrentVault, setFilterByCurrentVault] = useState(false);
 
 	// Full-text search over the local session library (titles + content).
 	const {
@@ -660,6 +663,48 @@ export function SessionHistoryContent({
 	const agentViewDisconnected =
 		view.listSource === "agent" && !isAgentReady;
 
+	// The "Only this folder" filter operates over the full row set for the
+	// active view: the local store, the live agent list, or the disconnected
+	// metadata cache. The UNFILTERED set is needed so the ">1 folder"
+	// visibility check is meaningful (the live Agent view opens unfiltered —
+	// default off).
+	const folderRows = React.useMemo(
+		() =>
+			agentViewDisconnected
+				? (agentSessionCache?.sessions ?? [])
+				: sessions,
+		[agentViewDisconnected, agentSessionCache, sessions],
+	);
+	const distinctCwdCount = React.useMemo(
+		() => new Set(folderRows.map((s) => s.cwd)).size,
+		[folderRows],
+	);
+	// Show the folder filter only when there is more than one folder to choose
+	// between (mirrors showAgentBadges) — a single-folder library never sees an
+	// inert control. Stay visible while the filter is active even if that
+	// narrows the set to one folder, so it can always be turned back off.
+	const showFolderFilter = distinctCwdCount > 1 || filterByCurrentVault;
+
+	// I148: surface the full working-folder path via Obsidian's styled tooltip
+	// (the raw `title` attr did not). Callback ref re-applies on mount (the
+	// filter is conditionally rendered) and whenever currentCwd changes.
+	const setFolderTooltip = useCallback(
+		(el: HTMLSpanElement | null) => {
+			if (el) setTooltip(el, currentCwd);
+		},
+		[currentCwd],
+	);
+
+	// I153: two-line disconnected-Agent affordance shown beside the agent pill
+	// — line 1 = sync freshness, line 2 = the action. Full text, no
+	// truncation; lives in the toggle row so the controls below don't shift.
+	const syncLine1 = agentSessionCache
+		? `Synced ${formatRelativeTime(new Date(agentSessionCache.syncedAt))}`
+		: "Not synced yet";
+	const syncLine2 = agentSessionCache
+		? "Send a message to reconnect and refresh"
+		: "Send a message to connect";
+
 	// I94: focus the search box when the modal opens so the user can type
 	// immediately. Index build is NOT triggered here — it fires on first
 	// keystroke (below), keeping the open path cheap and avoiding a hint flash.
@@ -705,10 +750,15 @@ export function SessionHistoryContent({
 		(e: React.ChangeEvent<HTMLInputElement>) => {
 			const checked = e.target.checked;
 			setFilterByCurrentVault(checked);
-			// The filter is Agent-view only.
-			onFetchSessions("agent", checked ? currentCwd : undefined);
+			// The live Agent view narrows server-side (refetch with/without the
+			// cwd). The Local view and the disconnected metadata cache narrow
+			// client-side in displayItems — no refetch, and it works with no
+			// connection (Connection-free reading tenet).
+			if (view.listSource === "agent" && isAgentReady) {
+				onFetchSessions("agent", checked ? currentCwd : undefined);
+			}
 		},
-		[currentCwd, onFetchSessions],
+		[view.listSource, isAgentReady, currentCwd, onFetchSessions],
 	);
 
 	const handleRetry = useCallback(() => {
@@ -761,14 +811,20 @@ export function SessionHistoryContent({
 	// title-filtered by the query (no transcript search — the cache is
 	// metadata only).
 	const displayItems = React.useMemo(() => {
+		// Client-side cwd narrowing applies to the Local view and the
+		// disconnected metadata cache (the live Agent view is narrowed
+		// server-side via the fetch, so its rows already match).
+		const clientCwdFilter =
+			filterByCurrentVault &&
+			(view.listSource === "local" || agentViewDisconnected);
 		if (agentViewDisconnected) {
 			const q = query.trim().toLowerCase();
 			const rows = agentSessionCache?.sessions ?? [];
-			const filtered = q
-				? rows.filter((s) =>
-						(s.title ?? "").toLowerCase().includes(q),
-					)
-				: rows;
+			const filtered = rows.filter(
+				(s) =>
+					(!q || (s.title ?? "").toLowerCase().includes(q)) &&
+					(!clientCwdFilter || s.cwd === currentCwd),
+			);
 			return filtered.map((s) => ({
 				session: s,
 				snippet: undefined as SearchSnippet | undefined,
@@ -778,15 +834,19 @@ export function SessionHistoryContent({
 		for (const match of searchResults) {
 			const s = sessionById.get(match.sessionId);
 			if (!s) continue;
+			if (clientCwdFilter && s.cwd !== currentCwd) continue;
 			items.push({ session: s, snippet: match.snippet });
 		}
 		return items;
 	}, [
+		filterByCurrentVault,
+		view.listSource,
 		agentViewDisconnected,
 		agentSessionCache,
 		query,
 		searchResults,
 		sessionById,
+		currentCwd,
 	]);
 
 	return (
@@ -824,63 +884,54 @@ export function SessionHistoryContent({
 					    server sessions (D3 — e.g. Kiro CLI), rather than
 					    silently vanishing. Native buttons for keyboard
 					    activation + focus ring (Keyboard-first tenet). */}
-					<div
-						className="agent-client-session-history-source-toggle"
-						role="tablist"
-						aria-label="Session source"
-					>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={view.listSource === "local"}
-							className={`agent-client-session-history-source-pill${
-								view.listSource === "local" ? " is-active" : ""
-							}`}
-							onClick={() => handleSourceToggle("local")}
+					{/* Source-toggle row: Local / Agent pills, with the
+					    disconnected-Agent "synced N ago" affordance pulled inline
+					    to the right (I150) so switching Local↔Agent doesn't push
+					    the rows below it up and down. */}
+					<div className="agent-client-session-history-source-row">
+						<div
+							className="agent-client-session-history-source-toggle"
+							role="tablist"
+							aria-label="Session source"
 						>
-							Local
-						</button>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={view.listSource === "agent"}
-							aria-label={`Agent server sessions (${currentAgentLabel})`}
-							disabled={!view.agentViewAvailable}
-							title={
-								view.agentViewAvailable
-									? undefined
-									: `${currentAgentLabel} doesn't keep a session list on its server, so only your local history is available.`
-							}
-							className={`agent-client-session-history-source-pill${
-								view.listSource === "agent" ? " is-active" : ""
-							}`}
-							onClick={() => handleSourceToggle("agent")}
-						>
-							{currentAgentLabel}
-						</button>
-					</div>
-
-					{/* Disconnected Agent view — served from the last-synced
-					    metadata cache with a freshness affordance instead of
-					    forcing a connect (Decision 1). */}
-					{agentViewDisconnected && (
-						<div className="agent-client-session-history-sync-affordance">
-							{agentSessionCache ? (
-								<span>
-									Synced{" "}
-									{formatRelativeTime(
-										new Date(agentSessionCache.syncedAt),
-									)}{" "}
-									– send a message to reconnect and refresh
-								</span>
-							) : (
-								<span>
-									Send a message to connect, then this list
-									loads from the agent
-								</span>
-							)}
+							<button
+								type="button"
+								role="tab"
+								aria-selected={view.listSource === "local"}
+								className={`agent-client-session-history-source-pill${
+									view.listSource === "local" ? " is-active" : ""
+								}`}
+								onClick={() => handleSourceToggle("local")}
+							>
+								Local
+							</button>
+							<button
+								type="button"
+								role="tab"
+								aria-selected={view.listSource === "agent"}
+								aria-label={`Agent server sessions (${currentAgentLabel})`}
+								disabled={!view.agentViewAvailable}
+								title={
+									view.agentViewAvailable
+										? undefined
+										: `${currentAgentLabel} doesn't keep a session list on its server, so only your local history is available.`
+								}
+								className={`agent-client-session-history-source-pill${
+									view.listSource === "agent" ? " is-active" : ""
+								}`}
+								onClick={() => handleSourceToggle("agent")}
+							>
+								{currentAgentLabel}
+							</button>
 						</div>
-					)}
+
+						{agentViewDisconnected && (
+							<div className="agent-client-session-history-sync-affordance">
+								<span>{syncLine1}</span>
+								<span>{syncLine2}</span>
+							</div>
+						)}
+					</div>
 
 					{/* Full-text search */}
 					<div className="agent-client-session-history-search">
@@ -903,22 +954,36 @@ export function SessionHistoryContent({
 						)}
 					</div>
 
-					{/* "This vault only" — Agent view only (the cwd filter).
-					    Local spans every vault, so it carries no filter. */}
-					{view.showFilters && (
-						<div className="agent-client-session-history-filter">
-							<label
-								className="agent-client-session-history-filter-label"
-								title="Only show the agent's sessions whose working folder is this vault."
-							>
-								<input
-									type="checkbox"
-									checked={filterByCurrentVault}
-									onChange={handleFilterChange}
-								/>
-								<span>This vault only</span>
-							</label>
-						</div>
+					{/* "Only this folder" — universal cwd filter (both sources,
+					    every agent). Names the real working folder for
+					    transparency; that folder may not be the vault (it is
+					    whatever directory the agent runs in). Shown only when the
+					    library spans more than one folder, so a single-folder
+					    library never sees an inert control. The folder path is
+					    rendered as text (not tooltip-only) so it is reachable by
+					    screen readers. */}
+					{showFolderFilter && (
+						<label
+							className="agent-client-session-history-filter"
+							title="Show only sessions whose working folder is this one. Uncheck to show sessions from every folder."
+						>
+							<input
+								type="checkbox"
+								checked={filterByCurrentVault}
+								onChange={handleFilterChange}
+							/>
+							<span className="agent-client-session-history-filter-text">
+								<span className="agent-client-session-history-filter-title">
+									Only this folder
+								</span>
+								<span
+									className="agent-client-session-history-filter-folder"
+									ref={setFolderTooltip}
+								>
+									{currentCwd}
+								</span>
+							</span>
+						</label>
 					)}
 
 					{/* Error state */}
