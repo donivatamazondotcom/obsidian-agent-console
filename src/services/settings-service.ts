@@ -13,6 +13,7 @@ import type { ChatMessage } from "../types/chat";
 import type { SavedSessionInfo } from "../types/session";
 import type { PerLeafTabState } from "../types/tab";
 import { SessionStorage } from "./session-storage";
+import { SessionStore } from "./session-store";
 import type { ContextNote } from "../types/context";
 
 // ============================================================================
@@ -38,6 +39,16 @@ export interface ISettingsAccess {
 	 * @returns Current plugin settings
 	 */
 	getSnapshot(): AgentClientPluginSettings;
+
+	/**
+	 * The single serialized writer of record for `savedSessions` metadata
+	 * (I114). Every metadata/title write — turn-end, AI title, rename, fork,
+	 * first-message — routes through this one instance so no writer acts on a
+	 * stale snapshot. Shared across all consumers (every `useSessionHistory`
+	 * and the `ChatView` tab-rename path) so their writes serialize against one
+	 * another; a per-consumer instance would have independent queues that race.
+	 */
+	readonly sessionStore: SessionStore;
 
 	/**
 	 * Update plugin settings.
@@ -204,6 +215,13 @@ export class SettingsService implements ISettingsAccess {
 	private sessionStorage: SessionStorage;
 
 	/**
+	 * The single serialized writer of record for savedSessions metadata
+	 * (I114). See ISettingsAccess.sessionStore — constructed once here and
+	 * shared by every consumer so all metadata/title writes serialize.
+	 */
+	readonly sessionStore: SessionStore;
+
+	/**
 	 * Serialized owner of the data.json flush.
 	 *
 	 * The in-memory merge in `updateSettings` is synchronous and safe, but the
@@ -228,6 +246,8 @@ export class SettingsService implements ISettingsAccess {
 		this.state = initial;
 		this.plugin = plugin;
 		this.sessionStorage = new SessionStorage(plugin, this);
+		// `this` satisfies SessionStorePort (getSavedSessions + saveSession).
+		this.sessionStore = new SessionStore(this);
 	}
 
 	/**

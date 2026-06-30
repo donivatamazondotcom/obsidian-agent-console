@@ -239,3 +239,217 @@ describe("SessionStore — explicit fork title preservation", () => {
 		expect(titleOf(port)).toBe(FORK_TITLE);
 	});
 });
+
+// ============================================================================
+// Phase 4 / §2c — rename + first-message writes routed through the single
+// writer (the former "1b"). The 5 direct settingsService.saveSession sites in
+// ui/ + hooks/ raced the serialized turn-end / AI-title writers; routing them
+// through renameSession / recordFirstMessage on the ONE shared SessionStore
+// removes the clobber.
+// ============================================================================
+
+const RENAME = "Quarterly planning notes";
+
+describe("SessionStore.renameSession (explicit title wins)", () => {
+	it("an explicit rename survives a concurrent no-title turn-end save (both orders)", async () => {
+		for (const renameFirst of [true, false]) {
+			const port = new FakePort([
+				{
+					sessionId: SID,
+					agentId: AGENT,
+					cwd: CWD,
+					title: FIRST_MESSAGE,
+					createdAt: "2026-06-29T00:00:00.000Z",
+					updatedAt: "2026-06-29T00:00:00.000Z",
+				},
+			]);
+			const store = new SessionStore(port);
+
+			const rename = () =>
+				store.renameSession({
+					sessionId: SID,
+					agentId: AGENT,
+					cwd: CWD,
+					title: RENAME,
+					createIfMissing: false,
+				});
+			const turn = () =>
+				store.recordTurnSave({
+					sessionId: SID,
+					agentId: AGENT,
+					cwd: CWD,
+					messages: [userMsg(FIRST_MESSAGE)],
+				});
+
+			await Promise.all(renameFirst ? [rename(), turn()] : [turn(), rename()]);
+			expect(titleOf(port)).toBe(RENAME);
+		}
+	});
+
+	it("creates a record for an agent-side-only session when createIfMissing", async () => {
+		const port = new FakePort([]);
+		const store = new SessionStore(port);
+
+		await store.renameSession({
+			sessionId: SID,
+			agentId: AGENT,
+			cwd: CWD,
+			title: RENAME,
+			createIfMissing: true,
+		});
+
+		expect(port.sessions).toHaveLength(1);
+		expect(titleOf(port)).toBe(RENAME);
+	});
+
+	it("is a no-op when the session is not in history and createIfMissing is false (tab-rename contract)", async () => {
+		const port = new FakePort([]);
+		const store = new SessionStore(port);
+
+		await store.renameSession({
+			sessionId: SID,
+			agentId: AGENT,
+			cwd: CWD,
+			title: RENAME,
+			createIfMissing: false,
+		});
+
+		expect(port.sessions).toHaveLength(0);
+	});
+
+	it("keeps an explicit fork title across a concurrent and a later no-title turn save", async () => {
+		// Fork create routes through renameSession(createIfMissing) on the new
+		// session id; the restored transcript then triggers turn-end saves with
+		// no suggestedTitle. The explicit fork title must survive.
+		const FORK_TITLE = "Fork: hi";
+		const port = new FakePort([]);
+		const store = new SessionStore(port);
+
+		await Promise.all([
+			store.renameSession({
+				sessionId: SID,
+				agentId: AGENT,
+				cwd: CWD,
+				title: FORK_TITLE,
+				createIfMissing: true,
+			}),
+			store.recordTurnSave({
+				sessionId: SID,
+				agentId: AGENT,
+				cwd: CWD,
+				messages: [userMsg(FIRST_MESSAGE)],
+			}),
+		]);
+		expect(titleOf(port)).toBe(FORK_TITLE);
+
+		await store.recordTurnSave({
+			sessionId: SID,
+			agentId: AGENT,
+			cwd: CWD,
+			messages: [userMsg(FIRST_MESSAGE), userMsg("follow-up")],
+		});
+		expect(titleOf(port)).toBe(FORK_TITLE);
+	});
+
+	it("TWO independent SessionStore instances on one port clobber the rename (why the hoist is required)", async () => {
+		// Pre-hoist reality: ChatView's tab rename used a direct
+		// settingsService.saveSession while useSessionHistory's turn save went
+		// through its own per-hook SessionStore. Independent queues do NOT
+		// serialize against each other, so both read the same stale snapshot
+		// and the last writer wins — the rename is lost. This guards the
+		// rationale for one shared instance (settingsService.sessionStore).
+		const port = new FakePort([
+			{
+				sessionId: SID,
+				agentId: AGENT,
+				cwd: CWD,
+				title: FIRST_MESSAGE,
+				createdAt: "2026-06-29T00:00:00.000Z",
+				updatedAt: "2026-06-29T00:00:00.000Z",
+			},
+		]);
+		const renamer = new SessionStore(port);
+		const saver = new SessionStore(port);
+
+		await Promise.all([
+			renamer.renameSession({
+				sessionId: SID,
+				agentId: AGENT,
+				cwd: CWD,
+				title: RENAME,
+				createIfMissing: false,
+			}),
+			saver.recordTurnSave({
+				sessionId: SID,
+				agentId: AGENT,
+				cwd: CWD,
+				messages: [userMsg(FIRST_MESSAGE)],
+			}),
+		]);
+
+		// The turn-save (holding the pre-rename snapshot) clobbers the rename.
+		expect(titleOf(port)).toBe(FIRST_MESSAGE);
+	});
+});
+
+describe("SessionStore.recordFirstMessage (first-message title is a fallback)", () => {
+	it("creates a first-message title when no record exists", async () => {
+		const port = new FakePort([]);
+		const store = new SessionStore(port);
+
+		await store.recordFirstMessage({
+			sessionId: SID,
+			agentId: AGENT,
+			cwd: CWD,
+			firstMessageTitle: FIRST_MESSAGE,
+		});
+
+		expect(port.sessions).toHaveLength(1);
+		expect(titleOf(port)).toBe(FIRST_MESSAGE);
+	});
+
+	it("never downgrades an existing AI title (the saveSessionLocally race)", async () => {
+		// An AI title resolved before the first-message save landed. The direct
+		// saveSessionLocally used to overwrite it with the first-message text.
+		const port = new FakePort([]);
+		const store = new SessionStore(port);
+
+		await Promise.all([
+			store.applySuggestedTitle({
+				sessionId: SID,
+				agentId: AGENT,
+				cwd: CWD,
+				suggestedTitle: AI_TITLE,
+			}),
+			store.recordFirstMessage({
+				sessionId: SID,
+				agentId: AGENT,
+				cwd: CWD,
+				firstMessageTitle: FIRST_MESSAGE,
+			}),
+		]);
+
+		expect(titleOf(port)).toBe(AI_TITLE);
+	});
+
+	it("preserves a manual rename that landed first", async () => {
+		const port = new FakePort([]);
+		const store = new SessionStore(port);
+
+		await store.renameSession({
+			sessionId: SID,
+			agentId: AGENT,
+			cwd: CWD,
+			title: RENAME,
+			createIfMissing: true,
+		});
+		await store.recordFirstMessage({
+			sessionId: SID,
+			agentId: AGENT,
+			cwd: CWD,
+			firstMessageTitle: FIRST_MESSAGE,
+		});
+
+		expect(titleOf(port)).toBe(RENAME);
+	});
+});

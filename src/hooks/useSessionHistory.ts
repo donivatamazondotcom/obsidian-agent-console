@@ -315,8 +315,13 @@ export function useSessionHistory(
 	// I114: single serialized writer of record for savedSessions metadata.
 	// All metadata/title writes from the racing turn-end / debounced / AI-title
 	// paths go through this owner so no writer acts on a stale snapshot.
+	// Shared single writer of record (I114 / Phase 4 §2c). Prefer the one
+	// instance owned by SettingsService so every consumer — all
+	// useSessionHistory mounts AND ChatView's tab rename — serializes through
+	// the same queue. Fall back to a local instance only for minimal test
+	// fakes that don't supply one.
 	const sessionStore = useMemo(
-		() => new SessionStore(settingsAccess),
+		() => settingsAccess.sessionStore ?? new SessionStore(settingsAccess),
 		[settingsAccess],
 	);
 
@@ -697,15 +702,16 @@ export function useSessionHistory(
 							: originalTitle;
 					const newTitle = `${prefix}${truncatedTitle}`;
 
-					const now = new Date().toISOString();
-
-					await settingsAccess.saveSession({
+					// Route the fork-branch metadata create through the single
+					// writer (Phase 4 §2c) so the explicit fork title can't be
+					// clobbered by the restored transcript's turn-end save (the
+					// I121 fork race). The message file persists separately.
+					await sessionStore.renameSession({
 						sessionId: result.sessionId,
 						agentId: session.agentId,
 						cwd,
 						title: newTitle,
-						createdAt: now,
-						updatedAt: now,
+						createIfMissing: true,
 					});
 
 					// Save messages under new session ID for restore after restart
@@ -738,6 +744,7 @@ export function useSessionHistory(
 			invalidateCache,
 			session.agentId,
 			sessions,
+			sessionStore,
 		],
 	);
 
@@ -788,24 +795,17 @@ export function useSessionHistory(
 			);
 
 			try {
-				if (existing) {
-					await settingsAccess.saveSession({
-						...existing,
-						title: newTitle,
-						updatedAt: new Date().toISOString(),
-					});
-				} else {
-					// Session exists only on agent side — create local entry
-					// Use sessionCwd (from SessionInfo) instead of hook's cwd
-					await settingsAccess.saveSession({
-						sessionId,
-						agentId: session.agentId,
-						cwd: sessionCwd,
-						title: newTitle,
-						createdAt: new Date().toISOString(),
-						updatedAt: new Date().toISOString(),
-					});
-				}
+				// Explicit user rename → route through the single writer so it
+				// can't be clobbered by a concurrent turn-end save (Phase 4 §2c).
+				// createIfMissing creates a local entry for a session that exists
+				// only on the agent side, using sessionCwd.
+				await sessionStore.renameSession({
+					sessionId,
+					agentId: session.agentId,
+					cwd: sessionCwd,
+					title: newTitle,
+					createIfMissing: true,
+				});
 
 				invalidateCache();
 			} catch (err) {
@@ -822,7 +822,7 @@ export function useSessionHistory(
 				throw err;
 			}
 		},
-		[settingsAccess, session.agentId, invalidateCache],
+		[settingsAccess, session.agentId, invalidateCache, sessionStore],
 	);
 
 	/**
@@ -838,16 +838,17 @@ export function useSessionHistory(
 					? messageContent.substring(0, 50) + "..."
 					: messageContent;
 
-			await settingsAccess.saveSession({
+			// First-message metadata → single writer (Phase 4 §2c). The title
+			// is a fallback: recordFirstMessage preserves any existing AI title
+			// or rename instead of overwriting it with the first-message text.
+			await sessionStore.recordFirstMessage({
 				sessionId,
 				agentId: session.agentId,
 				cwd: agentCwd,
-				title,
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
+				firstMessageTitle: title,
 			});
 		},
-		[session.agentId, agentCwd, settingsAccess],
+		[session.agentId, agentCwd, settingsAccess, sessionStore],
 	);
 
 	/**

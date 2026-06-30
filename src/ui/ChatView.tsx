@@ -44,7 +44,7 @@ import {
 
 // Service imports
 import { VaultService } from "../services/vault-service";
-import { resolveSessionIdForSave, resolveRenamedSessionWrite } from "../services/session-helpers";
+import { resolveSessionIdForSave } from "../services/session-helpers";
 import {
 	buildClosedLeafRecord,
 	buildClosedTabRecord,
@@ -693,20 +693,25 @@ function ChatComponent({
 					}
 					tabManager.setTabLabel(tabId, newTitle, true);
 
-					// Persist to session history. Resolve the session id with
-					// the persisted fallback (I73) — a restored tab that has
-					// not reconnected yet has no entry in the live map, only
-					// in persistedSessionIdsRef. Mirrors resolveSessionIdForSave
-					// (I59); without it the rename is lost from history.
-					const updated = resolveRenamedSessionWrite(
+					// Persist to session history through the single writer
+					// (Phase 4 §2c) so the rename can't be clobbered by a
+					// concurrent turn-end save. Resolve the session id with the
+					// persisted fallback (I73) — a restored, not-yet-reconnected
+					// tab has no live-map entry, only persistedSessionIdsRef.
+					// createIfMissing:false keeps the prior skip-if-missing
+					// contract (a tab whose session isn't in history is a no-op).
+					const renameSessionId = resolveSessionIdForSave(
 						tabSessionIdsRef.current.get(tabId) ?? null,
 						persistedSessionIdsRef.current.get(tabId) ?? null,
-						plugin.settingsService.getSavedSessions(),
-						newTitle,
-						new Date().toISOString(),
 					);
-					if (updated) {
-						await plugin.settingsService.saveSession(updated);
+					if (renameSessionId) {
+						await plugin.settingsService.sessionStore.renameSession({
+							sessionId: renameSessionId,
+							agentId: tab.agentId,
+							cwd: "",
+							title: newTitle,
+							createIfMissing: false,
+						});
 					}
 				},
 			);

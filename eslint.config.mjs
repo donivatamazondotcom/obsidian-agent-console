@@ -15,6 +15,55 @@ const obsidianmdRulesOff = Object.fromEntries(
 	Object.keys(obsidianmd.rules).map((rule) => [`obsidianmd/${rule}`, "off"]),
 );
 
+// Shared no-restricted-syntax selectors (I115 menu routing + I134 platform
+// glyph / process.platform guards). Extracted so the persistence-stack
+// exemption below can reuse them WITHOUT the saveSession ban — keeping every
+// other guard active there. If you add a global selector, add it here so
+// services/** keeps it too.
+const baseRestrictedSyntax = [
+	{
+		selector: "CallExpression[callee.property.name='showAtMouseEvent']",
+		message:
+			"Route menus through showMenuAtEvent() (utils/menu-registry) instead of calling menu.showAtMouseEvent directly, so keyboard activation anchors to the trigger element (I115).",
+	},
+	{
+		selector: "CallExpression[callee.property.name='showAtPosition']",
+		message:
+			"Route menus through showMenuAtEvent() (utils/menu-registry) instead of calling menu.showAtPosition directly (I115).",
+	},
+	{
+		selector: "Literal[value=/[⌘⌥⇧⌃]/]",
+		message:
+			"Don't hardcode Mac modifier glyphs (⌘ ⌥ ⇧ ⌃) — route through MOD_KEY/ALT_KEY/SHIFT_KEY/modCombo in utils/platform.ts so Windows/Linux show Ctrl/Alt/Shift (I134).",
+	},
+	{
+		selector: "TemplateElement[value.raw=/[⌘⌥⇧⌃]/]",
+		message:
+			"Don't hardcode Mac modifier glyphs (⌘ ⌥ ⇧ ⌃) in template strings — route through utils/platform.ts (I134).",
+	},
+	{
+		// Platform branching is owned by utils/platform.ts (MOD_KEY /
+		// prepareShellCommand / WSL + Windows-PATH helpers). Reading
+		// process.platform elsewhere re-introduces the variance the platform util
+		// normalizes once at the edge. platform.ts is exempt below. (Sibling of I134.)
+		selector:
+			"MemberExpression[object.name='process'][property.name='platform']",
+		message:
+			"Don't read process.platform directly — branch via utils/platform.ts so the platform check lives in one place (I134 sibling).",
+	},
+];
+
+// Phase 4 §2c (the former "1b"): every savedSessions metadata/title write must
+// go through the single serialized writer (SessionStore via
+// settingsService.sessionStore). A direct .saveSession() in ui/ or hooks/ races
+// the turn-end / AI-title writers and clobbers titles (the I114/I121 class).
+// The persistence stack (src/services/**) is exempt below — it IS the writer.
+const saveSessionBan = {
+	selector: "CallExpression[callee.property.name='saveSession']",
+	message:
+		"Don't call .saveSession() directly — it races the serialized writers and clobbers titles (I114/I121). Route metadata/title writes through SessionStore (settingsService.sessionStore): recordTurnSave / applySuggestedTitle / renameSession / recordFirstMessage. (Phase 4 §2c — see 'Lint Enforcement for Design Patterns'.)",
+};
+
 export default defineConfig([
 	{
 		ignores: ["node_modules/", "main.js", "docs/", "vitest.config.ts", ".trees/", "tools/benchmark/token-efficiency.ts", "**/__tests__/**", "**/*.test.ts", "**/*.test.tsx", "**/*.bench.ts"],
@@ -35,39 +84,8 @@ export default defineConfig([
 			// the wrapper itself (exempted below).
 			"no-restricted-syntax": [
 				"error",
-				{
-					selector:
-						"CallExpression[callee.property.name='showAtMouseEvent']",
-					message:
-						"Route menus through showMenuAtEvent() (utils/menu-registry) instead of calling menu.showAtMouseEvent directly, so keyboard activation anchors to the trigger element (I115).",
-				},
-				{
-					selector:
-						"CallExpression[callee.property.name='showAtPosition']",
-					message:
-						"Route menus through showMenuAtEvent() (utils/menu-registry) instead of calling menu.showAtPosition directly (I115).",
-				},
-				{
-					selector: "Literal[value=/[⌘⌥⇧⌃]/]",
-					message:
-						"Don't hardcode Mac modifier glyphs (⌘ ⌥ ⇧ ⌃) — route through MOD_KEY/ALT_KEY/SHIFT_KEY/modCombo in utils/platform.ts so Windows/Linux show Ctrl/Alt/Shift (I134).",
-				},
-				{
-					selector: "TemplateElement[value.raw=/[⌘⌥⇧⌃]/]",
-					message:
-						"Don't hardcode Mac modifier glyphs (⌘ ⌥ ⇧ ⌃) in template strings — route through utils/platform.ts (I134).",
-				},
-				{
-					// Platform branching is owned by utils/platform.ts (MOD_KEY /
-					// prepareShellCommand / WSL + Windows-PATH helpers). Reading
-					// process.platform elsewhere re-introduces the variance the
-					// platform util normalizes once at the edge. platform.ts is
-					// exempt below. (Design-pattern guard; sibling of I134.)
-					selector:
-						"MemberExpression[object.name='process'][property.name='platform']",
-					message:
-						"Don't read process.platform directly — branch via utils/platform.ts so the platform check lives in one place (I134 sibling).",
-				},
+				...baseRestrictedSyntax,
+				saveSessionBan,
 			],
 			// The ACP SDK (@agentclientprotocol/sdk) is the system's external
 			// contract and must stay behind the anti-corruption boundary in
@@ -182,6 +200,16 @@ export default defineConfig([
 					],
 				},
 			],
+		},
+	},
+	{
+		// The persistence stack IS the single writer of record — it must call
+		// .saveSession() (SessionStore.port + SettingsService delegate +
+		// SessionStorage). Reuse the base selectors so the I115/I134 guards stay
+		// active here, but WITHOUT the saveSession ban. (Phase 4 §2c.)
+		files: ["src/services/**"],
+		rules: {
+			"no-restricted-syntax": ["error", ...baseRestrictedSyntax],
 		},
 	},
 ]);

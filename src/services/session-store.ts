@@ -148,4 +148,103 @@ export class SessionStore {
 			}
 		});
 	}
+
+	/**
+	 * Apply an EXPLICIT title (a user rename or a fork-branch title) to the
+	 * session-history record through the single serialized writer.
+	 *
+	 * Unlike `recordTurnSave` / `recordFirstMessage` — where the title is a
+	 * fallback that yields to an existing title — a rename/fork title is an
+	 * explicit user-intent write and therefore WINS: it overwrites whatever is
+	 * currently persisted. Routing it through the same queue as the turn-end /
+	 * first-message / AI-title writers is what closes the stale-snapshot
+	 * clobber a direct `settingsService.saveSession` caused (the I121 fork race;
+	 * the history-modal and tab renames racing a concurrent turn-end save).
+	 *
+	 * Read-modify-write happens INSIDE the serialized critical section:
+	 * - existing record → overwrite `title`, bump `updatedAt` (de-dupes a no-op).
+	 * - no record + `createIfMissing` → create one (history-modal rename of an
+	 *   agent-side-only session; fork-branch create). Needs `agentId`/`cwd`.
+	 * - no record + !createIfMissing → no-op (a tab whose session is not in
+	 *   history — nothing to sync; preserves the `resolveRenamedSessionWrite`
+	 *   skip-if-missing contract).
+	 */
+	renameSession(params: {
+		sessionId: string;
+		agentId: string;
+		cwd: string;
+		title: string;
+		createIfMissing: boolean;
+		now?: string;
+	}): Promise<void> {
+		return this.enqueue(async () => {
+			const title = params.title?.trim();
+			if (!params.sessionId || !title) return;
+			const now = params.now ?? new Date().toISOString();
+			const existing = this.port
+				.getSavedSessions()
+				.find((s) => s.sessionId === params.sessionId);
+			if (existing) {
+				if (existing.title === title) return; // de-dupe no-op
+				await this.port.saveSession({
+					...existing,
+					title,
+					updatedAt: now,
+				});
+			} else if (params.createIfMissing && params.agentId) {
+				await this.port.saveSession({
+					sessionId: params.sessionId,
+					agentId: params.agentId,
+					cwd: params.cwd,
+					title,
+					createdAt: now,
+					updatedAt: now,
+				});
+			}
+		});
+	}
+
+	/**
+	 * Persist first-message metadata for a brand-new session through the single
+	 * serialized writer (replaces the direct `saveSessionLocally`
+	 * `settingsService.saveSession`).
+	 *
+	 * The first-message title is a FALLBACK, never an override: if a record
+	 * already exists (an AI title or rename resolved before the first-message
+	 * save landed) its title is preserved and only `updatedAt` is bumped. This
+	 * is the existing-title > first-message branch of `deriveSessionRecordTitle`
+	 * applied inside the critical section, so a concurrent higher-precedence
+	 * write is never clobbered — the exact race the direct write caused.
+	 */
+	recordFirstMessage(params: {
+		sessionId: string;
+		agentId: string;
+		cwd: string;
+		firstMessageTitle: string;
+		now?: string;
+	}): Promise<void> {
+		return this.enqueue(async () => {
+			const fallback = params.firstMessageTitle?.trim();
+			if (!params.sessionId || !params.agentId || !fallback) return;
+			const now = params.now ?? new Date().toISOString();
+			const existing = this.port
+				.getSavedSessions()
+				.find((s) => s.sessionId === params.sessionId);
+			if (existing) {
+				// Preserve the existing (AI / manual / fork) title; bump only
+				// recency. Never downgrade to the first-message text.
+				if (existing.updatedAt === now) return; // de-dupe
+				await this.port.saveSession({ ...existing, updatedAt: now });
+			} else {
+				await this.port.saveSession({
+					sessionId: params.sessionId,
+					agentId: params.agentId,
+					cwd: params.cwd,
+					title: fallback,
+					createdAt: now,
+					updatedAt: now,
+				});
+			}
+		});
+	}
 }
