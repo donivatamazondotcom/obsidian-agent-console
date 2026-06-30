@@ -3310,3 +3310,9 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	color: var(--text-muted);
 	cursor: default;
 }
+
+/* Rename quick prompt modal (QP-I24): full-width input above the button row. */
+.agent-client-rename-prompt-input {
+	width: 100%;
+	margin-bottom: var(--size-4-3);
+}

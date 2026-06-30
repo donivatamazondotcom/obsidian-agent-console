@@ -101,7 +101,7 @@ export interface QuickPromptMenuItem {
 export function buildChipMenuItems(): QuickPromptMenuItem[] {
 	return [
 		{ action: "edit", title: "Edit prompt", icon: "file-pen" },
-		{ action: "copy", title: "Copy prompt text", icon: "copy" },
+		{ action: "copy", title: "Copy prompt", icon: "copy" },
 		{ action: "rename", title: "Rename", icon: "text-cursor-input" },
 	];
 }

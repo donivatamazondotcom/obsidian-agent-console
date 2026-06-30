@@ -1,4 +1,4 @@
-import { App, Modal, Setting } from "obsidian";
+import { App, Modal } from "obsidian";
 
 /**
  * Rename a quick prompt's display label (slice 5 chip context menu → Rename).
@@ -9,10 +9,14 @@ import { App, Modal, Setting } from "obsidian";
  * button submits the raw input. Whether the submission is a real change (vs an
  * empty / unchanged no-op) is decided by the caller via `normalizeRenameLabel`.
  *
+ * Layout (QP-I24): title, a full-width text input, then a standard
+ * `modal-button-container` button row — no right-aligned `Setting` rows, which
+ * left large empty gutters.
+ *
  * See [[Agent Console Quick Prompts UX Refinement]] § Slice 5 — Chip context menu.
  */
 export class RenamePromptModal extends Modal {
-	private value: string;
+	private inputEl!: HTMLInputElement;
 
 	constructor(
 		app: App,
@@ -20,43 +24,42 @@ export class RenamePromptModal extends Modal {
 		private onSubmit: (raw: string) => void | Promise<void>,
 	) {
 		super(app);
-		this.value = currentLabel;
 	}
 
 	onOpen(): void {
 		const { contentEl } = this;
 		this.titleEl.setText("Rename quick prompt");
 
-		new Setting(contentEl).setName("New name").addText((text) => {
-			text.setValue(this.currentLabel);
-			text.onChange((v) => {
-				this.value = v;
-			});
-			text.inputEl.addEventListener("keydown", (e) => {
-				if (e.key === "Enter") {
-					e.preventDefault();
-					this.submit();
-				}
-			});
-			// Focus + select so the user can overtype immediately.
-			window.setTimeout(() => {
-				text.inputEl.focus();
-				text.inputEl.select();
-			}, 0);
+		this.inputEl = contentEl.createEl("input", {
+			type: "text",
+			cls: "agent-client-rename-prompt-input",
+		});
+		this.inputEl.value = this.currentLabel;
+		this.inputEl.addEventListener("keydown", (e) => {
+			if (e.key === "Enter") {
+				e.preventDefault();
+				this.submit();
+			}
 		});
 
-		new Setting(contentEl).addButton((btn) =>
-			btn
-				.setButtonText("Rename")
-				.setCta()
-				.onClick(() => {
-					this.submit();
-				}),
-		);
+		const buttons = contentEl.createDiv({ cls: "modal-button-container" });
+		const rename = buttons.createEl("button", {
+			text: "Rename",
+			cls: "mod-cta",
+		});
+		rename.addEventListener("click", () => {
+			this.submit();
+		});
+
+		// Focus + select so the user can overtype immediately.
+		window.setTimeout(() => {
+			this.inputEl.focus();
+			this.inputEl.select();
+		}, 0);
 	}
 
 	private submit(): void {
-		const raw = this.value;
+		const raw = this.inputEl.value;
 		this.close();
 		void this.onSubmit(raw);
 	}

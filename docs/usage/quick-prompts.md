@@ -122,7 +122,7 @@ Click a chip to fire it in the current chat. Hold **⌘** to send it in a new ta
 Right-click a chip — or focus it and press the context-menu key — to open a small menu for the prompt behind it:
 
 - **Edit prompt** — opens the prompt's note in a new tab, so you can change its text without losing your place in the chat.
-- **Copy prompt text** — copies the prompt's text to the clipboard.
+- **Copy prompt** — copies the prompt's text to the clipboard.
 - **Rename** — changes the chip's label. This renames what you see on the chip; the note's filename stays the same.
 
 ## How it works with a busy agent
