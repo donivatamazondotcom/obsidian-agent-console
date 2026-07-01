@@ -140,6 +140,7 @@ export function useAutoScrollPin(
 	const escapedFromLockRef = useRef(false);
 	const scrollObserverRef = useRef<ResizeObserver | null>(null);
 	const contentObserverRef = useRef<ResizeObserver | null>(null);
+	const composerObserverRef = useRef<ResizeObserver | null>(null);
 	/**
 	 * Pending callback for the deferred initial-fire anchor (see I-S9 fix in
 	 * contentRef below). The callback is fired by the MessageChannel on
@@ -752,6 +753,38 @@ export function useAutoScrollPin(
 	}, [isSending, scrollToBottom, setEscapedFromLock]);
 
 	// ------------------------------------------------------------------------
+	// I149: re-anchor to the bottom when the composer grows. The messages
+	// container's ResizeObserver does NOT fire on the flex-reflow shrink
+	// caused by composer growth in Obsidian's Chromium, and neither does a
+	// ResizeObserver on the composer itself (verified empirically). So instead
+	// of a size observer we listen for the textarea's `input` events, which
+	// bubble reliably to the stable chat-view container. On input we defer one
+	// frame (so textarea autosize has applied) and, if still pinned, re-anchor
+	// the messages scroll to the new bottom — marking the anchor pending so
+	// handleScroll re-asserts it if the browser reverts the write.
+	useEffect(() => {
+		const scrollEl = scrollElRef.current;
+		if (!scrollEl) return;
+		const container = scrollEl.closest(".agent-client-chat-view-container");
+		if (!container) return;
+		const onInput = () => {
+			if (escapedFromLockRef.current) return;
+			if (!isAtBottomRef.current) return;
+			window.requestAnimationFrame(() => {
+				const sc = scrollElRef.current;
+				if (!sc) return;
+				if (escapedFromLockRef.current || !isAtBottomRef.current) return;
+				const target = bottomScrollTop(sc);
+				pendingAnchorTargetRef.current = target;
+				ignoreNextScrollEventRef.current = true;
+				setScrollTopInstant(sc, target);
+			});
+		};
+		container.addEventListener("input", onInput);
+		return () => container.removeEventListener("input", onInput);
+	}, []);
+
+	// ------------------------------------------------------------------------
 	// Cleanup on unmount
 	// ------------------------------------------------------------------------
 	useEffect(() => {
@@ -760,6 +793,8 @@ export function useAutoScrollPin(
 			contentObserverRef.current?.disconnect();
 			scrollObserverRef.current = null;
 			contentObserverRef.current = null;
+			composerObserverRef.current?.disconnect();
+			composerObserverRef.current = null;
 			pendingInitialDeferralRef.current = null;
 			if (initialDeferralChannelRef.current !== null) {
 				// Closing the port stops further deliveries. Any message in

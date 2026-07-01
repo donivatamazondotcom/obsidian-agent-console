@@ -2681,3 +2681,160 @@ describe("useAutoScrollPin — I149 pill-click then type unpins (reproduce-first
 		}
 	});
 });
+
+describe("useAutoScrollPin — I149 composer input re-anchor (real fix)", () => {
+	// The real production trigger: the messages container's ResizeObserver does
+	// NOT fire on the flex-reflow shrink caused by composer growth (verified in
+	// Obsidian's Chromium). The fix instead listens for the textarea's `input`
+	// events (which bubble to the stable .agent-client-chat-view-container) and,
+	// one rAF later (after autosize applies), re-anchors to the bottom if pinned.
+	//
+	// This harness reproduces that DOM shape: a view container wrapping the
+	// messages scroll element (scrollRef), its content (contentRef), and a
+	// sibling input container holding a textarea — so the hook's post-mount
+	// effect finds the container via scrollEl.closest(...).
+	function HarnessWithComposer(props: {
+		onMount: (h: {
+			scrollEl: HTMLDivElement;
+			textarea: HTMLTextAreaElement;
+		}) => void;
+	}) {
+		const result = useAutoScrollPin({
+			isActive: true,
+			isSending: false,
+			view: makeView(),
+		});
+		const scrollDivRef = React.useRef<HTMLDivElement | null>(null);
+		const taRef = React.useRef<HTMLTextAreaElement | null>(null);
+		const onMountRef = React.useRef(props.onMount);
+		onMountRef.current = props.onMount;
+		const fireIfReady = () => {
+			if (scrollDivRef.current && taRef.current) {
+				onMountRef.current({
+					scrollEl: scrollDivRef.current,
+					textarea: taRef.current,
+				});
+			}
+		};
+		const scrollComposite = React.useCallback(
+			(el: HTMLDivElement | null) => {
+				scrollDivRef.current = el;
+				result.scrollRef(el);
+				fireIfReady();
+			},
+			[result.scrollRef],
+		);
+		return React.createElement(
+			"div",
+			{ className: "agent-client-chat-view-container" },
+			React.createElement(
+				"div",
+				{ ref: scrollComposite, className: "agent-client-chat-view-messages" },
+				React.createElement("div", {
+					ref: result.contentRef,
+					className: "agent-client-chat-content",
+				}),
+			),
+			React.createElement(
+				"div",
+				{ className: "agent-client-chat-input-container" },
+				React.createElement("textarea", {
+					ref: (el: HTMLTextAreaElement | null) => {
+						taRef.current = el;
+						fireIfReady();
+					},
+				}),
+			),
+		);
+	}
+
+	function withSyncRaf(fn: () => void): void {
+		const savedRAF = globalThis.requestAnimationFrame;
+		globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+			cb(performance.now());
+			return 1;
+		}) as typeof globalThis.requestAnimationFrame;
+		try {
+			fn();
+		} finally {
+			globalThis.requestAnimationFrame = savedRAF;
+		}
+	}
+
+	it("re-anchors to the bottom on a composer input event while pinned", () => {
+		withSyncRaf(() => {
+			let handle: {
+				scrollEl: HTMLDivElement;
+				textarea: HTMLTextAreaElement;
+			} | null = null;
+			render(
+				React.createElement(HarnessWithComposer, {
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+			);
+			// biome-ignore lint/style/noNonNullAssertion: bound by render
+			const h = handle!;
+			// Pinned at bottom: scrollHeight 2000, clientHeight 800 → bottom = 1199.
+			const geom = setupScrollGeometry(h.scrollEl, {
+				scrollHeight: 2000,
+				clientHeight: 800,
+				scrollTop: 1199,
+			});
+			// Composer grew → messages viewport shrinks to 700 → new bottom = 1299.
+			Object.defineProperty(h.scrollEl, "clientHeight", {
+				configurable: true,
+				get: () => 700,
+			});
+			const writesBefore = geom.writes.length;
+
+			act(() => {
+				h.textarea.dispatchEvent(new Event("input", { bubbles: true }));
+			});
+
+			// input → rAF (synchronous here) → re-anchor to the new bottom.
+			expect(geom.writes.length).toBe(writesBefore + 1);
+			expect(geom.writes[geom.writes.length - 1]).toBe(1299);
+		});
+	});
+
+	it("does NOT re-anchor on composer input when escaped (user scrolled up)", () => {
+		withSyncRaf(() => {
+			let handle: {
+				scrollEl: HTMLDivElement;
+				textarea: HTMLTextAreaElement;
+			} | null = null;
+			render(
+				React.createElement(HarnessWithComposer, {
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+			);
+			// biome-ignore lint/style/noNonNullAssertion: bound by render
+			const h = handle!;
+			const geom = setupScrollGeometry(h.scrollEl, {
+				scrollHeight: 2000,
+				clientHeight: 800,
+				scrollTop: 500,
+			});
+			// User wheel-up → escaped.
+			act(() => {
+				fireWheel(h.scrollEl, -50);
+			});
+			const writesBefore = geom.writes.length;
+
+			Object.defineProperty(h.scrollEl, "clientHeight", {
+				configurable: true,
+				get: () => 700,
+			});
+			act(() => {
+				h.textarea.dispatchEvent(new Event("input", { bubbles: true }));
+			});
+
+			// Escaped → the input listener must NOT yank the user back to bottom.
+			expect(geom.writes.length).toBe(writesBefore);
+		});
+	});
+});
