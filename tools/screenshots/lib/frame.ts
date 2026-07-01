@@ -72,17 +72,21 @@ const BG_RADIUS = 32;
  */
 const HERO_DEFAULTS: FrameOptions = {
 	chrome: "macos",
-	background: { from: "#6d5efc", to: "#3a1f8f" },
+	// Fork palette (blue → cyan) — deliberately NOT upstream's purple/orange.
+	background: { from: "#1d4ed8", to: "#06b6d4" },
 	cornerRadius: 22,
-	padding: 180,
+	// Slim matte so the window fills the frame (maximizes visible UI); shadow
+	// trimmed to fit within the 60px padding.
+	padding: 60,
 	chromeHeight: 54,
-	shadow: { opacity: 0.45, blur: 55, offsetY: 30 },
+	shadow: { opacity: 0.4, blur: 30, offsetY: 16 },
 };
 const CARD_DEFAULTS: FrameOptions = {
 	chrome: "none",
-	background: { from: "#f7971e", to: "#d62976" },
+	// Fork palette (blue → cyan) — same cohesive gradient as the hero, NOT upstream.
+	background: { from: "#1d4ed8", to: "#06b6d4" },
 	cornerRadius: 16,
-	padding: 100,
+	padding: 60,
 	chromeHeight: 0,
 	shadow: { opacity: 0.4, blur: 30, offsetY: 16 },
 };

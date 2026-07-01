@@ -42,6 +42,7 @@
 					"Reading list.base"
 				],
 				"clickRibbon": true,
+				"rescanQuickPrompts": true,
 				"restoreSessions": {
 					"titles": [
 						"Japan trip",

@@ -79,19 +79,19 @@ describe("resolveFrameConfig", () => {
 		expect(resolveFrameConfig(entry({ frame: false }))).toBeNull();
 	});
 
-	it("hero + frame:true → full framed window (macos chrome, indigo gradient)", () => {
+	it("hero + frame:true → full framed window (macos chrome, fork blue→cyan gradient)", () => {
 		const cfg = resolveFrameConfig(entry({ frame: true, placement: "hero" }));
 		expect(cfg).not.toBeNull();
 		expect(cfg!.chrome).toBe("macos");
-		expect(cfg!.background.from).toBe("#6d5efc");
+		expect(cfg!.background.from).toBe("#1d4ed8");
 		expect(cfg!.chromeHeight).toBeGreaterThan(0);
 	});
 
 	it("feature/other + frame:true → chrome-less card", () => {
 		const cfg = resolveFrameConfig(entry({ frame: true, placement: "feature" }));
 		expect(cfg!.chrome).toBe("none");
-		// card gradient differs from the hero default
-		expect(cfg!.background.from).toBe("#f7971e");
+		// card shares the cohesive fork gradient (both non-upstream)
+		expect(cfg!.background.from).toBe("#1d4ed8");
 	});
 
 	it("object overrides win and merge over placement defaults", () => {
@@ -104,7 +104,7 @@ describe("resolveFrameConfig", () => {
 		expect(cfg!.chrome).toBe("none"); // overridden
 		expect(cfg!.padding).toBe(42); // overridden
 		expect(cfg!.background.from).toBe("#abcdef"); // overridden
-		expect(cfg!.background.to).toBe("#3a1f8f"); // merged from hero default
+		expect(cfg!.background.to).toBe("#06b6d4"); // merged from hero default
 		expect(cfg!.cornerRadius).toBe(22); // hero default retained
 	});
 });
