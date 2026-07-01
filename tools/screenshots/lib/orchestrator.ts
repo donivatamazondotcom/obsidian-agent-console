@@ -167,6 +167,14 @@ const HOVER_TOOLTIP_TIMEOUT_MS = 3000;
 const RESPONSE_TIMEOUT_MS = 120_000;
 /** Scopes selectors to the visible tab panel (inactive panels are display:none). */
 const ACTIVE_PANEL = '.agent-client-tab-panel:not([style*="none"])';
+
+/**
+ * Max full restore attempts for a guarded restoreSessions entry
+ * (requireActiveHeaderIncludes/requireActiveSelector). The restore/reset
+ * sequence can race and leave the wrong tab active; we verify the outcome
+ * and retry a bounded number of times before failing.
+ */
+const RESTORE_MAX_ATTEMPTS = 3;
 /**
  * Fixed window bounds (global logical points) used for captureMode "screen".
  * Pinned before driving the UI so the screencapture region and the static crop
@@ -585,75 +593,151 @@ export async function captureEntry(
 		// honored here so an async-rendered element (Mermaid renders on mount but
 		// not synchronously — N1) is present before capture.
 		if (entry.initialState?.restoreSessions?.titles?.length) {
-			const titles = entry.initialState.restoreSessions.titles;
-			const activeIndex =
-				entry.initialState.restoreSessions.activeIndex ??
-				titles.length - 1;
+			const rs = entry.initialState.restoreSessions;
+			const titles = rs.titles;
+			const activeIndex = rs.activeIndex ?? titles.length - 1;
 			const VIEW =
 				'app.workspace.getLeavesOfType("agent-client-chat-view")[0]?.view';
-			await deps.cdp
-				.waitForElement(
-					`${ACTIVE_PANEL} .agent-client-tab`,
-					HOVER_TOOLTIP_TIMEOUT_MS,
-				)
-				.catch(() => {});
-			const initialTabId = await deps.cdp
-				.evaluate<string>(`${VIEW}.tabManagerRef.tabs[0]?.tabId`)
-				.catch(() => null);
-			for (const title of titles) {
-				await deps.cdp.executeCommand(
-					"agent-console:open-session-history",
-				);
-				await deps.cdp.waitForElement(
-					".modal",
-					HOVER_TOOLTIP_TIMEOUT_MS,
-				);
-				const clicked = await deps.cdp.evaluate<boolean>(
-					`(() => { const items = Array.from(document.querySelectorAll("[class*=session-history-item],[class*=session-history-row]")); const row = items.find((r) => (r.textContent || "").includes(${JSON.stringify(
-						title,
-					)})); if (!row) return false; const b = row.querySelector("[class*=restore]"); if (!b) return false; b.click(); return true; })()`,
-				);
-				if (!clicked) {
-					throw new Error(
-						`restoreSessions: no session-history row matching "${title}"`,
+			const reqHeader = rs.requireActiveHeaderIncludes;
+			const reqSelector = rs.requireActiveSelector;
+			const guarded = Boolean(reqHeader || reqSelector);
+			// Bounded retry only when a guard is configured; otherwise a single
+			// pass (unchanged legacy behavior).
+			const maxAttempts = guarded ? RESTORE_MAX_ATTEMPTS : 1;
+
+			// One full restore pass: history-restore each title, drop the initial
+			// auto tab, activate the chosen index, honor awaitSelector.
+			const performRestore = async (): Promise<void> => {
+				await deps.cdp
+					.waitForElement(
+						`${ACTIVE_PANEL} .agent-client-tab`,
+						HOVER_TOOLTIP_TIMEOUT_MS,
+					)
+					.catch(() => {});
+				const initialTabId = await deps.cdp
+					.evaluate<string>(`${VIEW}.tabManagerRef.tabs[0]?.tabId`)
+					.catch(() => null);
+				for (const title of titles) {
+					await deps.cdp.executeCommand(
+						"agent-console:open-session-history",
+					);
+					await deps.cdp.waitForElement(
+						".modal",
+						HOVER_TOOLTIP_TIMEOUT_MS,
+					);
+					const clicked = await deps.cdp.evaluate<boolean>(
+						`(() => { const items = Array.from(document.querySelectorAll("[class*=session-history-item],[class*=session-history-row]")); const row = items.find((r) => (r.textContent || "").includes(${JSON.stringify(
+							title,
+						)})); if (!row) return false; const b = row.querySelector("[class*=restore]"); if (!b) return false; b.click(); return true; })()`,
+					);
+					if (!clicked) {
+						throw new Error(
+							`restoreSessions: no session-history row matching "${title}"`,
+						);
+					}
+					await deps.cdp.waitForElement(
+						`${ACTIVE_PANEL} .agent-client-message-assistant`,
+						RESPONSE_TIMEOUT_MS,
+					);
+					await sleep(SETTLE_MS);
+				}
+				// Drop the initial auto-labeled (empty) tab so only the restored
+				// sessions remain in the bar.
+				if (initialTabId) {
+					await deps.cdp.evaluate(
+						`(() => { const tm = ${VIEW}.tabManagerRef; if (tm.tabs.length > 1) tm.removeTab(${JSON.stringify(
+							initialTabId,
+						)}); return true; })()`,
+					);
+					await sleep(SETTLE_MS);
+				}
+				// Activate the chosen restored tab so its transcript is the visible panel.
+				const ids = JSON.parse(
+					(await deps.cdp.evaluate<string>(
+						`JSON.stringify(${VIEW}.tabManagerRef.tabs.map((t) => t.tabId))`,
+					)) ?? "[]",
+				) as string[];
+				const idx = Math.max(0, Math.min(activeIndex, ids.length - 1));
+				if (ids[idx]) {
+					await deps.cdp.evaluate(
+						`${VIEW}.tabManagerRef.setActiveTab(${JSON.stringify(ids[idx])})`,
+					);
+					await sleep(SETTLE_MS);
+				}
+				// Honor awaitSelector on the restore path (e.g. wait for the Mermaid
+				// SVG to render on the active transcript before capture — N1).
+				if (entry.awaitSelector) {
+					await deps.cdp.waitForElement(
+						`${ACTIVE_PANEL} ${entry.awaitSelector}`,
+						RESPONSE_TIMEOUT_MS,
 					);
 				}
-				await deps.cdp.waitForElement(
-					`${ACTIVE_PANEL} .agent-client-message-assistant`,
-					RESPONSE_TIMEOUT_MS,
+			};
+
+			// Assert the OUTCOME — the intended session is the visible panel — not
+			// merely that the sequence ran without error. Probe the active panel's
+			// chat-view header text and a required selector. This guards the
+			// restore/reset race that can leave the empty Claude Code auto tab
+			// active, which would capture an empty transcript (the note's flake).
+			const verifyActivePanel = async (): Promise<{
+				ok: boolean;
+				header: string;
+				sel: number;
+			}> => {
+				const selCount = reqSelector
+					? `ap.querySelectorAll(${JSON.stringify(reqSelector)}).length`
+					: "1";
+				const raw = await deps.cdp.evaluate<string>(
+					`(() => { const ap = document.querySelector('.agent-client-tab-panel:not([style*="none"])'); if (!ap) return JSON.stringify({ header: "", sel: 0 }); const h = ap.querySelector(".agent-client-chat-view-header"); const header = h ? (h.textContent || "").trim() : ""; return JSON.stringify({ header, sel: ${selCount} }); })()`,
 				);
-				await sleep(SETTLE_MS);
-			}
-			// Drop the initial auto-labeled (empty) tab so only the restored
-			// sessions remain in the bar.
-			if (initialTabId) {
-				await deps.cdp.evaluate(
-					`(() => { const tm = ${VIEW}.tabManagerRef; if (tm.tabs.length > 1) tm.removeTab(${JSON.stringify(
-						initialTabId,
-					)}); return true; })()`,
-				);
-				await sleep(SETTLE_MS);
-			}
-			// Activate the chosen restored tab so its transcript is the visible panel.
-			const ids = JSON.parse(
-				(await deps.cdp.evaluate<string>(
-					`JSON.stringify(${VIEW}.tabManagerRef.tabs.map((t) => t.tabId))`,
-				)) ?? "[]",
-			) as string[];
-			const idx = Math.max(0, Math.min(activeIndex, ids.length - 1));
-			if (ids[idx]) {
-				await deps.cdp.evaluate(
-					`${VIEW}.tabManagerRef.setActiveTab(${JSON.stringify(ids[idx])})`,
-				);
-				await sleep(SETTLE_MS);
-			}
-			// Honor awaitSelector on the restore path (e.g. wait for the Mermaid SVG
-			// to render on the active transcript before capture — N1).
-			if (entry.awaitSelector) {
-				await deps.cdp.waitForElement(
-					`${ACTIVE_PANEL} ${entry.awaitSelector}`,
-					RESPONSE_TIMEOUT_MS,
-				);
+				let header = "";
+				let sel = 0;
+				try {
+					const parsed = JSON.parse(raw ?? "{}") as {
+						header?: string;
+						sel?: number;
+					};
+					header = parsed.header ?? "";
+					sel = parsed.sel ?? 0;
+				} catch {
+					/* unparseable probe → treat as a failed check */
+				}
+				const headerOk = !reqHeader || header.includes(reqHeader);
+				const selOk = !reqSelector || sel > 0;
+				return { ok: headerOk && selOk, header, sel };
+			};
+
+			let lastProbe: {
+				ok: boolean;
+				header: string;
+				sel: number;
+			} | null = null;
+			for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+				if (attempt > 1) {
+					// Reset to a clean single-tab panel before retrying, so restore
+					// appends onto a fresh bar (not the failed attempt's tabs).
+					await deps.cdp.evaluate(
+						`app.workspace.detachLeavesOfType("agent-client-chat-view")`,
+					);
+					await deps.cdp.executeCommand(
+						"agent-console:open-chat-view",
+					);
+					await sleep(SETTLE_MS);
+				}
+				await performRestore();
+				if (!guarded) break;
+				lastProbe = await verifyActivePanel();
+				if (lastProbe.ok) break;
+				if (attempt >= maxAttempts) {
+					throw new Error(
+						`restoreSessions verification failed after ${maxAttempts} attempts: ` +
+							`active header="${lastProbe.header}" (want ~="${
+								reqHeader ?? "(any)"
+							}"), selector "${
+								reqSelector ?? "(none)"
+							}" count=${lastProbe.sel}`,
+					);
+				}
 			}
 		}
 

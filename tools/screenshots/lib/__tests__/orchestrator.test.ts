@@ -692,6 +692,100 @@ describe("captureEntry", () => {
 		).mock.calls.map((c) => c[0] as string);
 		expect(waitCalls.some((w) => w.includes(".mermaid svg"))).toBe(true);
 	});
+	it("retries the restore when the active panel fails the header/callout guard, then succeeds (restore-race)", async () => {
+		const deps = makeDeps();
+		let verifyCall = 0;
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) => {
+				if (expr.includes("chat-view-header")) {
+					verifyCall++;
+					// Attempt 1 lands on the empty Claude Code auto tab (no
+					// callout); the retry lands on the intended Kiro CLI session.
+					return Promise.resolve(
+						JSON.stringify(
+							verifyCall === 1
+								? { header: "Claude Code", sel: 0 }
+								: { header: "Kiro CLI", sel: 2 },
+						),
+					);
+				}
+				if (expr.includes("tabs[0]?.tabId"))
+					return Promise.resolve("tab-initial");
+				if (expr.includes("tabs.map"))
+					return Promise.resolve(
+						JSON.stringify(["t-japan", "t-launch", "t-news"]),
+					);
+				if (expr.includes("session-history-item"))
+					return Promise.resolve(true);
+				return Promise.resolve(undefined);
+			},
+		);
+		const entry = makeEntry({
+			initialState: {
+				clickRibbon: true,
+				restoreSessions: {
+					titles: ["Japan trip", "Launch check", "Newsletter"],
+					activeIndex: 1,
+					requireActiveHeaderIncludes: "Kiro CLI",
+					requireActiveSelector: ".callout",
+				},
+			},
+			awaitSelector: ".callout",
+		});
+
+		await captureEntry(entry, deps);
+
+		// Verified twice (attempt 1 failed the guard, attempt 2 passed).
+		expect(verifyCall).toBe(2);
+		// Two full restore attempts × 3 titles = 6 session-history opens.
+		const cmdCalls = (
+			deps.cdp.executeCommand as ReturnType<typeof vi.fn>
+		).mock.calls.map((c) => c[0] as string);
+		expect(
+			cmdCalls.filter(
+				(c) => c === "agent-console:open-session-history",
+			).length,
+		).toBe(6);
+	}, 20000);
+
+	it("throws when the restore guard never passes after the retry budget (restore-race)", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) => {
+				// Always the wrong (empty Claude Code) tab — guard never passes.
+				if (expr.includes("chat-view-header"))
+					return Promise.resolve(
+						JSON.stringify({ header: "Claude Code", sel: 0 }),
+					);
+				if (expr.includes("tabs[0]?.tabId"))
+					return Promise.resolve("tab-initial");
+				if (expr.includes("tabs.map"))
+					return Promise.resolve(
+						JSON.stringify(["t-japan", "t-launch", "t-news"]),
+					);
+				if (expr.includes("session-history-item"))
+					return Promise.resolve(true);
+				return Promise.resolve(undefined);
+			},
+		);
+		const entry = makeEntry({
+			initialState: {
+				clickRibbon: true,
+				restoreSessions: {
+					titles: ["Japan trip", "Launch check", "Newsletter"],
+					activeIndex: 1,
+					requireActiveHeaderIncludes: "Kiro CLI",
+					requireActiveSelector: ".callout",
+				},
+			},
+			awaitSelector: ".callout",
+		});
+
+		await expect(captureEntry(entry, deps)).rejects.toThrow(
+			/restoreSessions verification failed/,
+		);
+	}, 20000);
+
 
 	it("seeds labeled tabs and forces their states for forceTabStates (tab-status-dropdown)", async () => {
 		const deps = makeDeps();

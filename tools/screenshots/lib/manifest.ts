@@ -194,10 +194,31 @@ export interface InitialState {
 	 * message file in sessions/. Runs after clickRibbon/openChatView. Pair with
 	 * entry-level `awaitSelector` (e.g. ".mermaid svg") to wait for async
 	 * rendering on the active transcript before capture (N1).
+	 *
+	 * Restore-race guard (optional): the restore + reset sequence can race and
+	 * leave the WRONG tab active — most notably the initial empty auto tab
+	 * (Claude Code default agent) instead of the intended restored session.
+	 * When `requireActiveHeaderIncludes` and/or `requireActiveSelector` are set,
+	 * the orchestrator verifies the active panel after restoring (header text
+	 * contains the substring; the selector matches ≥1 element in the active
+	 * panel) and, if the check fails, resets the panel and retries the whole
+	 * restore up to a bounded number of attempts before throwing. This asserts
+	 * the outcome (the intended session is the visible one) rather than trusting
+	 * the sequence completed without error.
 	 */
 	restoreSessions?: {
 		titles: string[];
 		activeIndex?: number;
+		/**
+		 * Substring the active panel's chat-view header must contain after
+		 * restore (e.g. "Kiro CLI"). Enables the verify+retry guard.
+		 */
+		requireActiveHeaderIncludes?: string;
+		/**
+		 * Selector that must match ≥1 element in the active panel after restore
+		 * (e.g. ".callout"). Enables the verify+retry guard.
+		 */
+		requireActiveSelector?: string;
 	};
 }
 
