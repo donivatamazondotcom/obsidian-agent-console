@@ -52,10 +52,19 @@ export class QuickPromptLibrary {
 
 	/** Initial scan + start watching. Idempotent re-entrancy is guarded by seq. */
 	async init(): Promise<void> {
-		await this.refresh();
+		// Subscribe BEFORE the initial scan so a metadataCache "changed" event
+		// that fires while the first scan is in flight is not dropped (QP-I26).
+		// On a cold start a prompt's frontmatter may not be cached yet, so the
+		// initial scan falls back to the filename label (and loses
+		// `open in new tab`); the "changed" event that lands when the cache
+		// resolves is what reconciles it. If we subscribed only after the scan,
+		// an event in that window would be lost and the fallback entry would
+		// stick until a manual rescan. The refreshSeq guard makes the reconcile
+		// scan win over the stale initial scan regardless of resolution order.
 		this.unsubscribeSource = this.source.onChange(() => {
 			void this.refresh();
 		});
+		await this.refresh();
 	}
 
 	private async refresh(): Promise<void> {

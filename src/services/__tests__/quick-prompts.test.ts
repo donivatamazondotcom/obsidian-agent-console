@@ -124,6 +124,87 @@ function flush(): Promise<void> {
 }
 
 // ============================================================================
+// QP-I26 — scan/cache race: a metadataCache "changed" event that fires while
+// the initial scan is in flight must not be dropped.
+//
+// Cold start: the first scan reads a file whose frontmatter is not yet cached,
+// so `getFileCache(file)?.frontmatter` is null and the entry falls back to the
+// filename label (and loses `open in new tab`). When the frontmatter resolves,
+// a metadataCache "changed" event fires. If the library subscribes only AFTER
+// the initial load completes, that event is dropped and the filename-fallback
+// entry sticks until a manual rescan. The library must subscribe BEFORE the
+// initial scan so the reconcile is caught (refreshSeq makes it win over the
+// stale scan). See [[Agent Console Quick Prompts and Workflows]] § QP-I26.
+// ============================================================================
+describe("QuickPromptLibrary — QP-I26: reconciles a change during the initial scan", () => {
+	it("catches a metadata 'changed' event fired while the first scan is in flight", async () => {
+		let loadCall = 0;
+		let releaseFirstLoad!: () => void;
+		const firstLoadGate = new Promise<void>((resolve) => {
+			releaseFirstLoad = resolve;
+		});
+
+		// First scan sees an un-cached file → filename fallback, no newTab.
+		const stale: QuickPromptFileInput = {
+			path: "Quick Prompts/Translate to French.md",
+			basename: "Translate to French",
+			frontmatter: null,
+			body: "body",
+		};
+		// The frontmatter resolves before the reconcile scan reads it.
+		const resolved: QuickPromptFileInput = {
+			path: "Quick Prompts/Translate to French.md",
+			basename: "Translate to French",
+			frontmatter: {
+				label: "🇫🇷 Translate to French",
+				"open in new tab": true,
+			},
+			body: "body",
+		};
+
+		let changeCb: (() => void) | null = null;
+		const source: QuickPromptSource = {
+			load: vi.fn(async () => {
+				loadCall += 1;
+				if (loadCall === 1) {
+					await firstLoadGate; // hold the initial scan open
+					return [stale];
+				}
+				return [resolved];
+			}),
+			onChange: (cb) => {
+				changeCb = cb;
+				return () => {
+					changeCb = null;
+				};
+			},
+		};
+		// Closures keep the optional call inside a function body so TS uses the
+		// declared type (a direct `changeCb?.()` in linear flow narrows to null).
+		const hasSubscriber = () => changeCb != null;
+		const emitChange = () => changeCb?.();
+
+		const lib = new QuickPromptLibrary(source);
+		const initPromise = lib.init();
+		await flush(); // let init reach its first await (the load gate)
+
+		// The frontmatter resolves NOW, while the initial scan is still in
+		// flight. A robust library is already subscribed, so this reconciles.
+		expect(hasSubscriber()).toBe(true); // subscribe-before-scan invariant
+		emitChange();
+
+		releaseFirstLoad(); // initial (stale) scan completes
+		await initPromise;
+		await flush(); // let the reconcile scan settle
+
+		const prompts = lib.getPrompts();
+		expect(prompts).toHaveLength(1);
+		expect(prompts[0].label).toBe("🇫🇷 Translate to French");
+		expect(prompts[0].newTab).toBe(true);
+	});
+});
+
+// ============================================================================
 // S4-T7/T8 — Slice 4: createQuickPrompt (clobber-safe write orchestration)
 //
 // Derives a filesystem-safe basename from the label, disambiguates against the
