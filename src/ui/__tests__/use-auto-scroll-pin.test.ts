@@ -2543,3 +2543,298 @@ describe("useAutoScrollPin — I39 trackpad momentum scroll pill flicker", () =>
 		}
 	});
 });
+
+describe("useAutoScrollPin — I149 pill-click then type unpins (reproduce-first)", () => {
+	/**
+	 * User repro (2026-06-30, screen recording): "I clicked the scroll-to-bottom
+	 * button and when I started typing in the composer the scroll unpinned
+	 * itself automatically."
+	 *
+	 * This is the same family as I-S12 (composer grow shrinks the container;
+	 * Chromium's scroll-preservation reverts the hook's re-anchor write). The
+	 * I-S12 suite asserts the pin survives WHILE the resizeDifferenceRef guard
+	 * is set (it deliberately never flushes the rAF+setTimeout(1) clear). It
+	 * does NOT exercise the timing where the browser's revert scroll event
+	 * fires AFTER the guard window has elapsed — which is exactly when the
+	 * accumulating gap crosses STICK_OFFSET_PX and the direction classifier
+	 * (scrollingUp + gap>offset) unpins.
+	 *
+	 * This test forces the guard to clear (synchronous rAF override so
+	 * scheduleResizeDifferenceClear resolves within the act()) and then fires
+	 * the revert scroll event, modeling real-Chromium timing.
+	 */
+
+	/** Mutable geometry: scrollTop stays writable so the hook can re-anchor;
+	 * `revert()` models a browser-driven scrollTop change (not a hook write). */
+	function mutableGeom(
+		el: HTMLElement,
+		init: { scrollHeight: number; clientHeight: number; scrollTop: number },
+	) {
+		let sh = init.scrollHeight;
+		let ch = init.clientHeight;
+		let st = init.scrollTop;
+		const writes: number[] = [st];
+		Object.defineProperty(el, "scrollHeight", {
+			configurable: true,
+			get: () => sh,
+		});
+		Object.defineProperty(el, "clientHeight", {
+			configurable: true,
+			get: () => ch,
+		});
+		Object.defineProperty(el, "scrollTop", {
+			configurable: true,
+			get: () => st,
+			set: (v: number) => {
+				st = v;
+				writes.push(v);
+			},
+		});
+		return {
+			writes,
+			setClientHeight: (v: number) => {
+				ch = v;
+			},
+			revert: (v: number) => {
+				st = v;
+			},
+			getScrollTop: () => st,
+		};
+	}
+
+	it("FAILS on current main: pinned-via-pill then 4 composer keystrokes unpins once accumulated gap crosses STICK_OFFSET_PX", () => {
+		// Force the resize guard clear (rAF+setTimeout(1)) to resolve within
+		// act(), modeling real-Chromium timing where the scroll-preservation
+		// revert fires after the guard window has elapsed.
+		const savedRAF = globalThis.requestAnimationFrame;
+		globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+			cb(performance.now());
+			return 1;
+		}) as typeof globalThis.requestAnimationFrame;
+
+		try {
+			let handle: HarnessHandle | null = null;
+			render(
+				React.createElement(Harness, {
+					isActive: true,
+					isSending: false,
+					view: makeView(),
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+			);
+			// biome-ignore lint/style/noNonNullAssertion: bound by render
+			const h = handle!;
+			const geom = mutableGeom(h.scrollEl, {
+				scrollHeight: 2000,
+				clientHeight: 800,
+				scrollTop: 1199, // pinned at bottom (2000-800-1)
+			});
+
+			// Baseline container RO + scroll event → lastScrollTopRef=1199.
+			act(() => {
+				fireResize(h.scrollEl, 800);
+				fireScrollEvent(h.scrollEl);
+				flushTimers();
+			});
+			expect(h.getResult().isAtBottom).toBe(true);
+
+			// Pill click → smooth scroll-to-bottom (no ignoreNextScrollEventRef).
+			act(() => {
+				h.getResult().scrollToBottom();
+				fireScrollEvent(h.scrollEl);
+				flushTimers();
+			});
+			expect(h.getResult().isAtBottom).toBe(true);
+
+			// Type 4 keystrokes. Each: composer grows → container clientHeight
+			// shrinks → hook re-anchors → Chromium reverts scrollTop toward the
+			// preserved visual position (scrollingUp), leaving the bottom gap to
+			// accumulate as clientHeight keeps shrinking.
+			let ch = 800;
+			for (let k = 1; k <= 4; k += 1) {
+				ch -= 25;
+				act(() => {
+					geom.setClientHeight(ch);
+					// scrollRef RO fires: hook re-anchors to new bottom (writer),
+					// sets ignoreNextScrollEventRef, schedules resize-guard clear.
+					fireResize(h.scrollEl, ch);
+					// The hook's own re-anchor write echoes one scroll event
+					// (consumed by ignoreNextScrollEventRef).
+					fireScrollEvent(h.scrollEl);
+					// Guard window elapses (rAF is synchronous here + setTimeout(1)).
+					flushTimers();
+					// Chromium's scroll-preservation revert: scrollTop drifts back
+					// toward the pre-shrink visual position (small per keystroke).
+					geom.revert(1199 - k);
+					// Unguarded revert scroll event.
+					fireScrollEvent(h.scrollEl);
+					flushTimers();
+				});
+			}
+
+			// The whole point: typing while pinned must NOT unpin the chat.
+			expect(h.getResult().isAtBottom).toBe(true);
+		} finally {
+			globalThis.requestAnimationFrame = savedRAF;
+		}
+	});
+});
+
+describe("useAutoScrollPin — I149 composer input re-anchor (real fix)", () => {
+	// The real production trigger: the messages container's ResizeObserver does
+	// NOT fire on the flex-reflow shrink caused by composer growth (verified in
+	// Obsidian's Chromium). The fix instead listens for the textarea's `input`
+	// events (which bubble to the stable .agent-client-chat-view-container) and,
+	// one rAF later (after autosize applies), re-anchors to the bottom if pinned.
+	//
+	// This harness reproduces that DOM shape: a view container wrapping the
+	// messages scroll element (scrollRef), its content (contentRef), and a
+	// sibling input container holding a textarea — so the hook's post-mount
+	// effect finds the container via scrollEl.closest(...).
+	function HarnessWithComposer(props: {
+		onMount: (h: {
+			scrollEl: HTMLDivElement;
+			textarea: HTMLTextAreaElement;
+		}) => void;
+	}) {
+		const result = useAutoScrollPin({
+			isActive: true,
+			isSending: false,
+			view: makeView(),
+		});
+		const scrollDivRef = React.useRef<HTMLDivElement | null>(null);
+		const taRef = React.useRef<HTMLTextAreaElement | null>(null);
+		const onMountRef = React.useRef(props.onMount);
+		onMountRef.current = props.onMount;
+		const fireIfReady = () => {
+			if (scrollDivRef.current && taRef.current) {
+				onMountRef.current({
+					scrollEl: scrollDivRef.current,
+					textarea: taRef.current,
+				});
+			}
+		};
+		const scrollComposite = React.useCallback(
+			(el: HTMLDivElement | null) => {
+				scrollDivRef.current = el;
+				result.scrollRef(el);
+				fireIfReady();
+			},
+			[result.scrollRef],
+		);
+		return React.createElement(
+			"div",
+			{ className: "agent-client-chat-view-container" },
+			React.createElement(
+				"div",
+				{ ref: scrollComposite, className: "agent-client-chat-view-messages" },
+				React.createElement("div", {
+					ref: result.contentRef,
+					className: "agent-client-chat-content",
+				}),
+			),
+			React.createElement(
+				"div",
+				{ className: "agent-client-chat-input-container" },
+				React.createElement("textarea", {
+					ref: (el: HTMLTextAreaElement | null) => {
+						taRef.current = el;
+						fireIfReady();
+					},
+				}),
+			),
+		);
+	}
+
+	function withSyncRaf(fn: () => void): void {
+		const savedRAF = globalThis.requestAnimationFrame;
+		globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+			cb(performance.now());
+			return 1;
+		}) as typeof globalThis.requestAnimationFrame;
+		try {
+			fn();
+		} finally {
+			globalThis.requestAnimationFrame = savedRAF;
+		}
+	}
+
+	it("re-anchors to the bottom on a composer input event while pinned", () => {
+		withSyncRaf(() => {
+			let handle: {
+				scrollEl: HTMLDivElement;
+				textarea: HTMLTextAreaElement;
+			} | null = null;
+			render(
+				React.createElement(HarnessWithComposer, {
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+			);
+			// biome-ignore lint/style/noNonNullAssertion: bound by render
+			const h = handle!;
+			// Pinned at bottom: scrollHeight 2000, clientHeight 800 → bottom = 1199.
+			const geom = setupScrollGeometry(h.scrollEl, {
+				scrollHeight: 2000,
+				clientHeight: 800,
+				scrollTop: 1199,
+			});
+			// Composer grew → messages viewport shrinks to 700 → new bottom = 1299.
+			Object.defineProperty(h.scrollEl, "clientHeight", {
+				configurable: true,
+				get: () => 700,
+			});
+			const writesBefore = geom.writes.length;
+
+			act(() => {
+				h.textarea.dispatchEvent(new Event("input", { bubbles: true }));
+			});
+
+			// input → rAF (synchronous here) → re-anchor to the new bottom.
+			expect(geom.writes.length).toBe(writesBefore + 1);
+			expect(geom.writes[geom.writes.length - 1]).toBe(1299);
+		});
+	});
+
+	it("does NOT re-anchor on composer input when escaped (user scrolled up)", () => {
+		withSyncRaf(() => {
+			let handle: {
+				scrollEl: HTMLDivElement;
+				textarea: HTMLTextAreaElement;
+			} | null = null;
+			render(
+				React.createElement(HarnessWithComposer, {
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+			);
+			// biome-ignore lint/style/noNonNullAssertion: bound by render
+			const h = handle!;
+			const geom = setupScrollGeometry(h.scrollEl, {
+				scrollHeight: 2000,
+				clientHeight: 800,
+				scrollTop: 500,
+			});
+			// User wheel-up → escaped.
+			act(() => {
+				fireWheel(h.scrollEl, -50);
+			});
+			const writesBefore = geom.writes.length;
+
+			Object.defineProperty(h.scrollEl, "clientHeight", {
+				configurable: true,
+				get: () => 700,
+			});
+			act(() => {
+				h.textarea.dispatchEvent(new Event("input", { bubbles: true }));
+			});
+
+			// Escaped → the input listener must NOT yank the user back to bottom.
+			expect(geom.writes.length).toBe(writesBefore);
+		});
+	});
+});

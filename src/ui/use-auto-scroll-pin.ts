@@ -140,6 +140,7 @@ export function useAutoScrollPin(
 	const escapedFromLockRef = useRef(false);
 	const scrollObserverRef = useRef<ResizeObserver | null>(null);
 	const contentObserverRef = useRef<ResizeObserver | null>(null);
+	const composerObserverRef = useRef<ResizeObserver | null>(null);
 	/**
 	 * Pending callback for the deferred initial-fire anchor (see I-S9 fix in
 	 * contentRef below). The callback is fired by the MessageChannel on
@@ -173,6 +174,18 @@ export function useAutoScrollPin(
 	 * the one after that is the user's.
 	 */
 	const ignoreNextScrollEventRef = useRef(false);
+
+	/**
+	 * I149 fix: target scrollTop of a pending container-shrink re-anchor.
+	 * A composer (InputArea) grow shrinks the scroll container; the
+	 * scrollRef ResizeObserver re-anchors to the bottom, but Chromium's
+	 * scroll-preservation can REVERT that write AFTER the resizeDifferenceRef
+	 * guard window has cleared (rAF+setTimeout(1)). While this is non-null,
+	 * handleScroll treats an upward drift as that revert and re-asserts the
+	 * bottom instead of escaping, until scrollTop settles at the target. A
+	 * genuine wheel/touch/keyboard escape clears it via setEscapedFromLock(true).
+	 */
+	const pendingAnchorTargetRef = useRef<number | null>(null);
 
 	/**
 	 * I-S12 round-3 fix: tracks the most recent ResizeObserver-detected
@@ -219,6 +232,9 @@ export function useAutoScrollPin(
 	}, []);
 
 	const setEscapedFromLock = useCallback((next: boolean) => {
+		// I149: a real escape cancels any pending container-shrink re-anchor,
+		// so genuine user scroll-up intent is never re-asserted away.
+		if (next) pendingAnchorTargetRef.current = null;
 		if (escapedFromLockRef.current === next) return;
 		escapedFromLockRef.current = next;
 	}, []);
@@ -435,6 +451,26 @@ export function useAutoScrollPin(
 			const currentScrollEl = scrollElRef.current;
 			if (!currentScrollEl) return;
 
+			// I149: a container-shrink (composer grew) just re-anchored us. The
+			// browser's scroll-preservation can revert that write after the
+			// resizeDifferenceRef guard has already cleared. While an anchor is
+			// pending and we're still pinned, re-assert the bottom on the revert
+			// instead of letting the direction classifier read it as user escape,
+			// until scrollTop settles at the target.
+			const pendingTarget = pendingAnchorTargetRef.current;
+			if (pendingTarget !== null) {
+				if (Math.abs(scrollTop - pendingTarget) <= 1) {
+					pendingAnchorTargetRef.current = null;
+				} else if (isAtBottomRef.current && !escapedFromLockRef.current) {
+					const target = bottomScrollTop(currentScrollEl);
+					pendingAnchorTargetRef.current = target;
+					ignoreNextScrollEventRef.current = true;
+					setScrollTopInstant(currentScrollEl, target);
+					lastScrollTopRef.current = currentScrollEl.scrollTop;
+					return;
+				}
+			}
+
 			const isScrollingUp = scrollTop < lastScrollTop;
 			const isScrollingDown = scrollTop > lastScrollTop;
 
@@ -529,6 +565,9 @@ export function useAutoScrollPin(
 					if (!isAtBottomRef.current) return;
 					ignoreNextScrollEventRef.current = true;
 					setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
+					// I149: mark the anchor pending so handleScroll re-asserts the
+					// bottom if the browser reverts this write after the guard clears.
+					pendingAnchorTargetRef.current = bottomScrollTop(scrollEl);
 				} else if (height > previous) {
 					// I-S12 fix for grow symptom: container grew (e.g., textarea cleared).
 					// If the grow brought the bottom back into view (within
@@ -714,6 +753,38 @@ export function useAutoScrollPin(
 	}, [isSending, scrollToBottom, setEscapedFromLock]);
 
 	// ------------------------------------------------------------------------
+	// I149: re-anchor to the bottom when the composer grows. The messages
+	// container's ResizeObserver does NOT fire on the flex-reflow shrink
+	// caused by composer growth in Obsidian's Chromium, and neither does a
+	// ResizeObserver on the composer itself (verified empirically). So instead
+	// of a size observer we listen for the textarea's `input` events, which
+	// bubble reliably to the stable chat-view container. On input we defer one
+	// frame (so textarea autosize has applied) and, if still pinned, re-anchor
+	// the messages scroll to the new bottom — marking the anchor pending so
+	// handleScroll re-asserts it if the browser reverts the write.
+	useEffect(() => {
+		const scrollEl = scrollElRef.current;
+		if (!scrollEl) return;
+		const container = scrollEl.closest(".agent-client-chat-view-container");
+		if (!container) return;
+		const onInput = () => {
+			if (escapedFromLockRef.current) return;
+			if (!isAtBottomRef.current) return;
+			window.requestAnimationFrame(() => {
+				const sc = scrollElRef.current;
+				if (!sc) return;
+				if (escapedFromLockRef.current || !isAtBottomRef.current) return;
+				const target = bottomScrollTop(sc);
+				pendingAnchorTargetRef.current = target;
+				ignoreNextScrollEventRef.current = true;
+				setScrollTopInstant(sc, target);
+			});
+		};
+		container.addEventListener("input", onInput);
+		return () => container.removeEventListener("input", onInput);
+	}, []);
+
+	// ------------------------------------------------------------------------
 	// Cleanup on unmount
 	// ------------------------------------------------------------------------
 	useEffect(() => {
@@ -722,6 +793,8 @@ export function useAutoScrollPin(
 			contentObserverRef.current?.disconnect();
 			scrollObserverRef.current = null;
 			contentObserverRef.current = null;
+			composerObserverRef.current?.disconnect();
+			composerObserverRef.current = null;
 			pendingInitialDeferralRef.current = null;
 			if (initialDeferralChannelRef.current !== null) {
 				// Closing the port stops further deliveries. Any message in
