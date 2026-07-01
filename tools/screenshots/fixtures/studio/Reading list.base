@@ -1,0 +1,31 @@
+filters:
+  and:
+    - file.hasTag("book")
+formulas:
+  status_icon: 'if(status == "reading", "📖 Reading", if(status == "done", "✅ Finished", "📚 To read"))'
+properties:
+  author:
+    displayName: Author
+  genre:
+    displayName: Genre
+  stars:
+    displayName: Rating
+  formula.status_icon:
+    displayName: Status
+views:
+  - type: cards
+    name: Library
+    order:
+      - file.name
+      - author
+      - genre
+      - formula.status_icon
+      - stars
+  - type: table
+    name: All books
+    order:
+      - file.name
+      - author
+      - genre
+      - formula.status_icon
+      - stars

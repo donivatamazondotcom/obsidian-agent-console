@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "sessionId": "seed-hero-newsletter",
+  "agentId": "claude-code-acp",
+  "messages": [
+    {
+      "id": "m1",
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Draft a short newsletter intro from my notes on focus."
+        }
+      ],
+      "timestamp": "2026-06-29T18:14:00.000Z"
+    },
+    {
+      "id": "m2",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "## This week: protecting your focus\n\nWe spend our days reacting — pings, tabs, the next thing on the list. But the notes you've been keeping point at something simpler.\n\n> The work that matters rarely shouts. It waits for a quiet hour.\n\nSo start there this week: **one** protected hour, *before* the inbox. Everything below builds on it."
+        }
+      ],
+      "timestamp": "2026-06-29T18:14:35.000Z"
+    }
+  ],
+  "contextNotes": [],
+  "savedAt": "2026-06-29T18:14:35.000Z"
+}

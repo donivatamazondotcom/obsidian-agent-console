@@ -17,7 +17,7 @@
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 800,
 			"placement": "feature",
-			"purpose": "Shows where Agent Console lives — the ribbon entry point.",
+			"purpose": "Shows where Agent Console lives \u2014 the ribbon entry point.",
 			"differentiator": "Ribbon icon / one-click access",
 			"mustShow": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"]",
 			"caption": "Open the agent from the ribbon",
@@ -26,37 +26,42 @@
 		{
 			"name": "multi-session",
 			"frame": true,
-			"width": 300,
-			"height": 800,
+			"width": 1200,
+			"height": 760,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 900,
-				"height": 608
+				"width": 1400,
+				"height": 760
 			},
 			"cropSelector": ".workspace",
 			"cropPadding": 0,
 			"initialState": {
-				"openNote": "Welcome.md",
-				"clickRibbon": true
+				"openNote": "Reading list.base",
+				"clickRibbon": true,
+				"restoreSessions": {
+					"titles": [
+						"Plan a 5-day Japan trip",
+						"Explain vector embeddings",
+						"Draft the newsletter intro"
+					],
+					"activeIndex": 1
+				}
 			},
-			"prompts": [
-				"multi-session-1.txt",
-				"multi-session-2.txt",
-				"multi-session.txt"
-			],
-			"draftMessage": "Turn these ideas into a short intro paragraph",
 			"hideSelectors": [
 				".tooltip"
 			],
 			"approvalThreshold": 0.1,
 			"minDistinctColors": 1500,
 			"placement": "hero",
-			"purpose": "Run several agent sessions side by side, each tab showing its own live status.",
+			"purpose": "Run several agent sessions side by side, each tab showing its own status, with rich Obsidian-rendered replies.",
 			"differentiator": "Tabbed sessions with per-tab status",
 			"mustShow": ".agent-client-tab-state-icon",
 			"caption": "See every agent at a glance",
-			"altText": "Agent Console sidebar with multiple session tabs, each showing a per-tab status icon, beside an open note"
+			"altText": "Agent Console sidebar with multiple session tabs each showing a status icon, beside a Bases dashboard and a rich agent reply",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 680,
+			"awaitSelector": ".mermaid svg"
 		},
 		{
 			"name": "session-history-button",
@@ -156,7 +161,7 @@
 			"purpose": "Tune how much reasoning effort the agent spends per session.",
 			"differentiator": "Per-session reasoning effort",
 			"mustShow": ".agent-client-config-selector-thought_level",
-			"caption": "Dial the agent’s effort up or down",
+			"caption": "Dial the agent\u2019s effort up or down",
 			"altText": "Agent Console effort-level menu showing Default, Low, Medium, High, and Max"
 		},
 		{
@@ -479,7 +484,7 @@
 			"differentiator": "Context strip / @-mention notes",
 			"mustShow": ".context-strip",
 			"caption": "Pull notes into context with @",
-			"altText": "Typing an @ note mention, choosing a note, and sending — the mentioned notes appear as pills in the context strip",
+			"altText": "Typing an @ note mention, choosing a note, and sending \u2014 the mentioned notes appear as pills in the context strip",
 			"animation": {
 				"fps": 5,
 				"maxBytes": 1500000,
@@ -539,7 +544,7 @@
 			"differentiator": "Tabbed sessions with per-tab status",
 			"mustShow": ".agent-client-tab-state-icon",
 			"caption": "Run agents in parallel tabs",
-			"altText": "Sending a prompt in one session tab, opening a second tab, and sending another — each tab keeps its own conversation and status icon",
+			"altText": "Sending a prompt in one session tab, opening a second tab, and sending another \u2014 each tab keeps its own conversation and status icon",
 			"animation": {
 				"fps": 5,
 				"maxBytes": 2500000,
@@ -629,7 +634,7 @@
 			"differentiator": "Tabbed sessions with per-tab status",
 			"mustShow": ".agent-client-tab-state-icon",
 			"caption": "Run agents in parallel tabs",
-			"altText": "Three agent sessions in parallel tabs beside an open note in Obsidian — each tab keeps its own conversation and status icon",
+			"altText": "Three agent sessions in parallel tabs beside an open note in Obsidian \u2014 each tab keeps its own conversation and status icon",
 			"animation": {
 				"fps": 5,
 				"maxBytes": 3500000,
@@ -776,13 +781,13 @@
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 40,
 			"placement": "feature",
-			"purpose": "Per-tab status glyphs in the tab bar — spot the active, idle, or stuck session at a glance.",
+			"purpose": "Per-tab status glyphs in the tab bar \u2014 spot the active, idle, or stuck session at a glance.",
 			"differentiator": "Per-tab status glyphs in the tab-list dropdown",
 			"mustShow": ".menu-item",
 			"caption": "See every session's status at a glance",
 			"altText": "Agent Console tab-list dropdown: five sessions, each with a status glyph for ready, busy, awaiting permission, errored, and disconnected.",
 			"docPage": "docs/usage/tabbed-sessions.md",
-			"captureNote": "Driven by initialState.forceTabStates: seeds 5 nicely-labeled tabs forced into the five visual states with nativeMenus off (so the chevron opens a DOM .menu), then clickSelector opens the chevron. Window-mode, dpr-independent — no screen-mode crop.",
+			"captureNote": "Driven by initialState.forceTabStates: seeds 5 nicely-labeled tabs forced into the five visual states with nativeMenus off (so the chevron opens a DOM .menu), then clickSelector opens the chevron. Window-mode, dpr-independent \u2014 no screen-mode crop.",
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 680
 		},
@@ -1006,7 +1011,7 @@
 			"differentiator": "Queue next message (v1.3.0)",
 			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-queued-banner",
 			"caption": "Line up your next message without waiting",
-			"altText": "Agent Console composer locked with a 'Queued — sends when ready' banner and Edit and Delete controls, holding the next message until ready",
+			"altText": "Agent Console composer locked with a 'Queued \u2014 sends when ready' banner and Edit and Delete controls, holding the next message until ready",
 			"docPage": "docs/usage/tabbed-sessions.md",
 			"captureNote": "v1.3.0 PR #97. Confirm the queued-message element selector + final dims at capture; requires driving a session into streaming state with a queued message.",
 			"promptFile": "queue-next-message.txt",
@@ -1207,7 +1212,7 @@
 			},
 			"approvalThreshold": 0.05,
 			"placement": "feature",
-			"purpose": "Set the folder new chats start in — a global default, overridable per agent.",
+			"purpose": "Set the folder new chats start in \u2014 a global default, overridable per agent.",
 			"differentiator": "Configurable working directory (v1.3.0)",
 			"mustShow": ".vertical-tab-content",
 			"caption": "Choose where chats run",
@@ -1286,6 +1291,33 @@
 			"altText": "Agent Console confirm-close dialog warning that closing the panel closes all open chats, with Cancel and Close panel buttons",
 			"docPage": "docs/usage/tabbed-sessions.md",
 			"captureNote": "v1.3.0 #84. forceTabStates seeds 2 ready tabs; forceCloseConfirm invokes the panel close handler so the real ConfirmCloseModal opens; window-mode .modal crop."
+		},
+		{
+			"name": "bases-dashboard",
+			"pending": true,
+			"frame": true,
+			"width": 820,
+			"height": 640,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 940,
+				"height": 760
+			},
+			"cropSelector": ".bases-view",
+			"cropPadding": 16,
+			"minLegibilityScale": 1,
+			"initialState": {
+				"openNote": "Reading list.base"
+			},
+			"approvalThreshold": 0.05,
+			"minDistinctColors": 400,
+			"placement": "feature",
+			"purpose": "Turn property-rich notes into a live dashboard right inside Obsidian.",
+			"differentiator": "Renders like Obsidian (Bases, code, diagrams)",
+			"mustShow": ".bases-cards-item",
+			"caption": "Your vault, rendered live",
+			"altText": "A Reading list Bases dashboard in Obsidian showing book cards with status icons and star ratings"
 		}
 	]
 }

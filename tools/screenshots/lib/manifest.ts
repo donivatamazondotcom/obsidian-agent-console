@@ -180,6 +180,25 @@ export interface InitialState {
 	 * robust to section reordering and class churn (no positional CSS).
 	 */
 	scrollToSettingText?: string;
+
+	/**
+	 * Restore saved sessions (by title) into tabs, building a multi-session tab
+	 * bar where each tab carries its own seeded transcript. For each title, the
+	 * driver opens the session-history modal and clicks that session's restore
+	 * icon, which appends a NEW tab bound to the session and loads its messages
+	 * (verified 2026-06-30: each restore appends + activates a tab; the tab
+	 * label is the session title — diverse labels come for free). After
+	 * restoring, the initial auto-labeled tab is dropped and the session at
+	 * `activeIndex` (default: last) is activated so its rich transcript is the
+	 * visible panel. Requires each title to exist in savedSessions with a
+	 * message file in sessions/. Runs after clickRibbon/openChatView. Pair with
+	 * entry-level `awaitSelector` (e.g. ".mermaid svg") to wait for async
+	 * rendering on the active transcript before capture (N1).
+	 */
+	restoreSessions?: {
+		titles: string[];
+		activeIndex?: number;
+	};
 }
 
 /**
@@ -487,7 +506,7 @@ export interface ManifestEntry {
 				padding?: number;
 				chromeHeight?: number;
 				shadow?: { opacity?: number; blur?: number; offsetY?: number };
-			};
+		  };
 
 	/**
 	 * Animated-GIF spec (v2). When present, the entry is captured as a
@@ -726,6 +745,31 @@ export function validateManifest(
 			}
 		}
 
+		if (entry.initialState?.restoreSessions !== undefined) {
+			const rs = entry.initialState.restoreSessions;
+			if (
+				typeof rs !== "object" ||
+				rs === null ||
+				!Array.isArray(rs.titles) ||
+				rs.titles.length === 0 ||
+				!rs.titles.every(
+					(t) => typeof t === "string" && t.trim() !== "",
+				)
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid initialState.restoreSessions.titles: must be a non-empty array of non-empty strings`,
+				);
+			}
+			if (
+				rs.activeIndex !== undefined &&
+				(!Number.isInteger(rs.activeIndex) || rs.activeIndex < 0)
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid initialState.restoreSessions.activeIndex: must be a non-negative integer`,
+				);
+			}
+		}
+
 		const selectorStrings: Array<[string, string | undefined]> = [
 			["openSettings", entry.initialState?.openSettings],
 			["openNativeSelect", entry.initialState?.openNativeSelect],
@@ -801,7 +845,11 @@ export function validateManifest(
 				);
 			}
 			if (typeof fr === "object") {
-				if (fr.chrome !== undefined && fr.chrome !== "macos" && fr.chrome !== "none") {
+				if (
+					fr.chrome !== undefined &&
+					fr.chrome !== "macos" &&
+					fr.chrome !== "none"
+				) {
 					throw new Error(
 						`manifest entry "${entry.name}" has invalid frame.chrome: ${String(fr.chrome)} (must be "macos" or "none")`,
 					);
@@ -820,7 +868,10 @@ export function validateManifest(
 				}
 				if (fr.shadow !== undefined) {
 					const op = fr.shadow.opacity;
-					if (op !== undefined && (!Number.isFinite(op) || op < 0 || op > 1)) {
+					if (
+						op !== undefined &&
+						(!Number.isFinite(op) || op < 0 || op > 1)
+					) {
 						throw new Error(
 							`manifest entry "${entry.name}" has invalid frame.shadow.opacity: ${op} (must be in [0, 1])`,
 						);
@@ -843,7 +894,10 @@ export function validateManifest(
 						["to", fr.background.to],
 					];
 					for (const [k, v] of bg) {
-						if (v !== undefined && (typeof v !== "string" || v.trim() === "")) {
+						if (
+							v !== undefined &&
+							(typeof v !== "string" || v.trim() === "")
+						) {
 							throw new Error(
 								`manifest entry "${entry.name}" has invalid frame.background.${k}: must be a non-empty string`,
 							);
@@ -922,11 +976,14 @@ function validateAnimationAction(
 				typeof action.selector !== "string" ||
 				action.selector.trim() === ""
 			) {
-				throw new Error(`${where}: click action needs a non-empty selector`);
+				throw new Error(
+					`${where}: click action needs a non-empty selector`,
+				);
 			}
 			if (
 				action.waitFor !== undefined &&
-				(typeof action.waitFor !== "string" || action.waitFor.trim() === "")
+				(typeof action.waitFor !== "string" ||
+					action.waitFor.trim() === "")
 			) {
 				throw new Error(
 					`${where}: click action waitFor must be a non-empty string`,
@@ -938,7 +995,9 @@ function validateAnimationAction(
 				typeof action.selector !== "string" ||
 				action.selector.trim() === ""
 			) {
-				throw new Error(`${where}: wait action needs a non-empty selector`);
+				throw new Error(
+					`${where}: wait action needs a non-empty selector`,
+				);
 			}
 			break;
 		case "draft":

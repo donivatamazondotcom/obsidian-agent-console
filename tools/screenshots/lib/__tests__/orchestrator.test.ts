@@ -48,14 +48,32 @@ function makeMockCdp() {
 		clickWithCoords: vi.fn().mockResolvedValue(undefined),
 		focusWindow: vi.fn().mockResolvedValue(undefined),
 		openNativeSelect: vi.fn().mockResolvedValue(undefined),
-		getWindowBounds: vi.fn().mockResolvedValue({ x: 100, y: 50, width: 800, height: 600, scaleFactor: 2 }),
+		getWindowBounds: vi
+			.fn()
+			.mockResolvedValue({
+				x: 100,
+				y: 50,
+				width: 800,
+				height: 600,
+				scaleFactor: 2,
+			}),
 		setWindowBounds: vi.fn().mockResolvedValue(undefined),
 		setWindowAlwaysOnTop: vi.fn().mockResolvedValue(undefined),
-		getWorkArea: vi.fn().mockResolvedValue({ x: 0, y: 30, width: 3200, height: 1770, scaleFactor: 2 }),
+		getWorkArea: vi
+			.fn()
+			.mockResolvedValue({
+				x: 0,
+				y: 30,
+				width: 3200,
+				height: 1770,
+				scaleFactor: 2,
+			}),
 		screenCaptureRegion: vi.fn().mockResolvedValue(undefined),
 		screenshot: vi.fn().mockResolvedValue(undefined),
 		setMobileEmulation: vi.fn().mockResolvedValue(undefined),
-		getElementBounds: vi.fn().mockResolvedValue({ x: 0, y: 0, width: 100, height: 100 }),
+		getElementBounds: vi
+			.fn()
+			.mockResolvedValue({ x: 0, y: 0, width: 100, height: 100 }),
 	};
 }
 
@@ -69,14 +87,16 @@ function makeMockSharp() {
 		webp: vi.fn().mockReturnThis(),
 		toFile: vi.fn().mockResolvedValue(undefined),
 		metadata: vi.fn().mockResolvedValue({ width: 1400, height: 760 }),
-		toBuffer: vi.fn().mockImplementation((opts?: { resolveWithObject?: boolean }) =>
-			opts?.resolveWithObject
-				? Promise.resolve({
-						data: Buffer.from([20, 20, 20]),
-						info: { width: 1, height: 1, channels: 3 },
-					})
-				: Promise.resolve(Buffer.from("rawpng")),
-		),
+		toBuffer: vi
+			.fn()
+			.mockImplementation((opts?: { resolveWithObject?: boolean }) =>
+				opts?.resolveWithObject
+					? Promise.resolve({
+							data: Buffer.from([20, 20, 20]),
+							info: { width: 1, height: 1, channels: 3 },
+						})
+					: Promise.resolve(Buffer.from("rawpng")),
+			),
 	};
 	return vi.fn().mockReturnValue(instance);
 }
@@ -120,13 +140,29 @@ describe("captureEntry", () => {
 		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(1);
 		// Should call sharp pipeline: extract → resize → webp → toFile
 		expect(deps.sharp).toHaveBeenCalledTimes(1);
-		const sharpInstance = (deps.sharp as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
+		const sharpInstance = (
+			deps.sharp as unknown as ReturnType<typeof vi.fn>
+		).mock.results[0].value;
 		// Crop is scaled by DPR (2): floor(0*2)=0, ceil((0+1600)*2)-0=3200, etc.
-		expect(sharpInstance.extract).toHaveBeenCalledWith({ left: 0, top: 0, width: 3200, height: 2400 });
-		expect(sharpInstance.resize).toHaveBeenCalledWith(entry.width, entry.height);
+		expect(sharpInstance.extract).toHaveBeenCalledWith({
+			left: 0,
+			top: 0,
+			width: 3200,
+			height: 2400,
+		});
+		expect(sharpInstance.resize).toHaveBeenCalledWith(
+			entry.width,
+			entry.height,
+		);
 		expect(sharpInstance.webp).toHaveBeenCalled();
 		expect(sharpInstance.toFile).toHaveBeenCalledWith(
-			path.join("/fake/repo", "docs", "public", "images", "test-shot.webp"),
+			path.join(
+				"/fake/repo",
+				"docs",
+				"public",
+				"images",
+				"test-shot.webp",
+			),
 		);
 	});
 
@@ -152,10 +188,14 @@ describe("captureEntry", () => {
 
 		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
 		const execMock = deps.cdp.executeCommand as ReturnType<typeof vi.fn>;
-		const evalCalls = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
-		const detachIdx = evalCalls.findIndex((sel) => sel.includes("detachLeavesOfType"));
-		const openIdx = execMock.mock.calls.findIndex(
-			(c: unknown[]) => (c[0] as string).includes("open-chat-view"),
+		const evalCalls = evalMock.mock.calls.map(
+			(c: unknown[]) => c[0] as string,
+		);
+		const detachIdx = evalCalls.findIndex((sel) =>
+			sel.includes("detachLeavesOfType"),
+		);
+		const openIdx = execMock.mock.calls.findIndex((c: unknown[]) =>
+			(c[0] as string).includes("open-chat-view"),
 		);
 		// v1.1.0 restores the panel on reload and the ribbon is a TOGGLE, so
 		// clicking it is unreliable (closes a restored panel / races restore).
@@ -176,7 +216,11 @@ describe("captureEntry", () => {
 		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
 			(expr: string) =>
 				expr.includes("open-chat-view")
-					? Promise.reject(new Error("CDP evaluate: empty output from obsidian"))
+					? Promise.reject(
+							new Error(
+								"CDP evaluate: empty output from obsidian",
+							),
+						)
 					: Promise.resolve(undefined),
 		);
 		const entry = makeEntry({ initialState: { clickRibbon: true } });
@@ -196,8 +240,13 @@ describe("captureEntry", () => {
 		await captureEntry(entry, deps);
 
 		expect(deps.cdp.evaluate).toHaveBeenCalled();
-		const calls = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls;
-		const openCall = calls.find((c: string[]) => (c[0] as string).includes("openFile") || (c[0] as string).includes("Example"));
+		const calls = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock
+			.calls;
+		const openCall = calls.find(
+			(c: string[]) =>
+				(c[0] as string).includes("openFile") ||
+				(c[0] as string).includes("Example"),
+		);
 		expect(openCall).toBeDefined();
 	});
 
@@ -220,7 +269,9 @@ describe("captureEntry", () => {
 
 		await captureEntry(entry, deps);
 
-		expect(deps.cdp.hoverElement).toHaveBeenCalledWith('[aria-label="Agent Console"]');
+		expect(deps.cdp.hoverElement).toHaveBeenCalledWith(
+			'[aria-label="Agent Console"]',
+		);
 		const waitMock = deps.cdp.waitForElement as ReturnType<typeof vi.fn>;
 		const shotMock = deps.cdp.screenshot as ReturnType<typeof vi.fn>;
 		const tooltipIdx = waitMock.mock.calls.findIndex(
@@ -237,7 +288,10 @@ describe("captureEntry", () => {
 
 	it("reads and sends prompt when promptFile is set", async () => {
 		const fixtureRoot = makeFixtureRoot();
-		writeFileSync(path.join(fixtureRoot, "prompts", "hello.txt"), "Say hello");
+		writeFileSync(
+			path.join(fixtureRoot, "prompts", "hello.txt"),
+			"Say hello",
+		);
 		const deps = makeDeps({ fixtureRoot });
 		const entry = makeEntry({ promptFile: "hello.txt" });
 
@@ -248,8 +302,11 @@ describe("captureEntry", () => {
 			"utf-8",
 		);
 		// Should evaluate something that sends the prompt text
-		const calls = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls;
-		const sendCall = calls.find((c: string[]) => (c[0] as string).includes("prompt content"));
+		const calls = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock
+			.calls;
+		const sendCall = calls.find((c: string[]) =>
+			(c[0] as string).includes("prompt content"),
+		);
 		expect(sendCall).toBeDefined();
 	});
 
@@ -259,12 +316,14 @@ describe("captureEntry", () => {
 
 		await captureEntry(entry, deps);
 
-		const selectors = (deps.cdp.waitForElement as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c: string[]) => c[0] as string,
-		);
+		const selectors = (
+			deps.cdp.waitForElement as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: string[]) => c[0] as string);
 		expect(
 			selectors.some((s) =>
-				s.includes(".agent-client-loading-indicator.agent-client-hidden"),
+				s.includes(
+					".agent-client-loading-indicator.agent-client-hidden",
+				),
 			),
 		).toBe(true);
 	});
@@ -297,11 +356,12 @@ describe("captureEntry", () => {
 
 	it("propagates timeout when the response never completes", async () => {
 		const deps = makeDeps();
-		(deps.cdp.waitForElement as ReturnType<typeof vi.fn>).mockImplementation(
-			(selector: string) =>
-				selector.includes("loading-indicator")
-					? Promise.reject(new Error("waitForElement: timeout"))
-					: Promise.resolve(),
+		(
+			deps.cdp.waitForElement as ReturnType<typeof vi.fn>
+		).mockImplementation((selector: string) =>
+			selector.includes("loading-indicator")
+				? Promise.reject(new Error("waitForElement: timeout"))
+				: Promise.resolve(),
 		);
 		const entry = makeEntry({ promptFile: "hello.txt" });
 
@@ -315,16 +375,21 @@ describe("captureEntry", () => {
 
 		await captureEntry(entry, deps);
 
-		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c: string[]) => c[0] as string,
-		);
-		const newTabCalls = (deps.cdp.executeCommand as ReturnType<typeof vi.fn>).mock.calls.filter(
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: string[]) => c[0] as string);
+		const newTabCalls = (
+			deps.cdp.executeCommand as ReturnType<typeof vi.fn>
+		).mock.calls.filter(
 			// v1.2.0 rationalization removed `new-session-tab`; new tabs now
 			// open via the surviving `new-chat` command (browser-tab model).
-			(c: unknown[]) => (c[0] as string).includes("agent-console:new-chat"),
+			(c: unknown[]) =>
+				(c[0] as string).includes("agent-console:new-chat"),
 		);
 		expect(newTabCalls).toHaveLength(2); // 3 prompts -> 2 extra tabs
-		expect((deps.readFile as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(3);
+		expect(
+			(deps.readFile as ReturnType<typeof vi.fn>).mock.calls,
+		).toHaveLength(3);
 		expect(evals.some((e) => e.includes("scrollTop"))).toBe(true);
 	});
 
@@ -336,9 +401,9 @@ describe("captureEntry", () => {
 
 		await captureEntry(entry, deps);
 
-		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c: string[]) => c[0] as string,
-		);
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: string[]) => c[0] as string);
 		const hideCall = evals.find(
 			(e) =>
 				e.includes('style.display = "none"') &&
@@ -354,9 +419,9 @@ describe("captureEntry", () => {
 
 		await captureEntry(entry, deps);
 
-		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c: string[]) => c[0] as string,
-		);
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: string[]) => c[0] as string);
 		expect(evals.some((e) => e.includes("Draft this please"))).toBe(true);
 		// a draft is never sent (no send-button / ribbon click for this entry)
 		expect(deps.cdp.clickElement).not.toHaveBeenCalled();
@@ -368,9 +433,9 @@ describe("captureEntry", () => {
 
 		await captureEntry(entry, deps);
 
-		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c: string[]) => c[0] as string,
-		);
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: string[]) => c[0] as string);
 		// A drop event carrying a DataTransfer File built from the named asset
 		// is dispatched on the input box (the only JS-dispatchable attach path).
 		const dropEval = evals.find(
@@ -385,7 +450,9 @@ describe("captureEntry", () => {
 		// The thumbnail renders async (FileReader); the orchestrator waits for
 		// the strip's image element before the assert/capture.
 		expect(deps.cdp.waitForElement).toHaveBeenCalledWith(
-			expect.stringContaining(".agent-client-attachment-preview-thumbnail"),
+			expect.stringContaining(
+				".agent-client-attachment-preview-thumbnail",
+			),
 			expect.any(Number),
 		);
 	});
@@ -398,15 +465,15 @@ describe("captureEntry", () => {
 
 		await captureEntry(entry, deps);
 
-		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c: string[]) => c[0] as string,
-		);
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: string[]) => c[0] as string);
 		// A hover-gated control (opacity:0 until :hover) is surfaced
 		// declaratively since JS mouseover can't trigger CSS :hover.
 		expect(
 			evals.some(
 				(e) =>
-					e.includes('opacity') &&
+					e.includes("opacity") &&
 					e.includes(".agent-client-attachment-preview-remove"),
 			),
 		).toBe(true);
@@ -421,7 +488,9 @@ describe("captureEntry", () => {
 
 		expect(postProcess).toHaveBeenCalledTimes(1);
 		expect(postProcess).toHaveBeenCalledWith(
-			expect.stringContaining(path.join("docs", "public", "images", "shot.webp")),
+			expect.stringContaining(
+				path.join("docs", "public", "images", "shot.webp"),
+			),
 		);
 	});
 
@@ -434,19 +503,31 @@ describe("captureEntry", () => {
 		expect(deps.cdp.setMobileEmulation).toHaveBeenCalledWith(true);
 		expect(deps.cdp.setMobileEmulation).toHaveBeenCalledWith(false);
 		// on before screenshot, off after
-		const calls = (deps.cdp.setMobileEmulation as ReturnType<typeof vi.fn>).mock.calls;
+		const calls = (deps.cdp.setMobileEmulation as ReturnType<typeof vi.fn>)
+			.mock.calls;
 		expect(calls[0][0]).toBe(true);
 		expect(calls[1][0]).toBe(false);
 	});
 
 	it("scales crop by devicePixelRatio", async () => {
 		const deps = makeDeps({ devicePixelRatio: 2 });
-		const entry = makeEntry({ crop: { x: 10, y: 20, width: 100, height: 50 }, width: 200, height: 100 });
+		const entry = makeEntry({
+			crop: { x: 10, y: 20, width: 100, height: 50 },
+			width: 200,
+			height: 100,
+		});
 
 		await captureEntry(entry, deps);
 
-		const sharpInstance = (deps.sharp as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
-		const extractArg = sharpInstance.extract.mock.calls[0][0] as { left: number; top: number; width: number; height: number };
+		const sharpInstance = (
+			deps.sharp as unknown as ReturnType<typeof vi.fn>
+		).mock.results[0].value;
+		const extractArg = sharpInstance.extract.mock.calls[0][0] as {
+			left: number;
+			top: number;
+			width: number;
+			height: number;
+		};
 		// floor(10*2)=20, floor(20*2)=40, ceil((10+100)*2)-20=200, ceil((20+50)*2)-40=100
 		expect(extractArg.left).toBe(20);
 		expect(extractArg.top).toBe(40);
@@ -456,8 +537,13 @@ describe("captureEntry", () => {
 
 	it("uses cropSelector bounds when available", async () => {
 		const deps = makeDeps();
-		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockResolvedValue({
-			x: 10, y: 50, width: 30, height: 26,
+		(
+			deps.cdp.getElementBounds as ReturnType<typeof vi.fn>
+		).mockResolvedValue({
+			x: 10,
+			y: 50,
+			width: 30,
+			height: 26,
 		});
 		const entry = makeEntry({
 			cropSelector: ".my-icon",
@@ -468,11 +554,18 @@ describe("captureEntry", () => {
 		await captureEntry(entry, deps);
 
 		expect(deps.cdp.getElementBounds).toHaveBeenCalledWith(".my-icon");
-		const sharpInstance = (deps.sharp as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
+		const sharpInstance = (
+			deps.sharp as unknown as ReturnType<typeof vi.fn>
+		).mock.results[0].value;
 		// Bounds: x=10-16=-6→0, y=50-16=34, w=30+32=62, h=26+32=58, scaled by DPR 2
-		const extractArg = sharpInstance.extract.mock.calls[0][0] as { left: number; top: number; width: number; height: number };
-		expect(extractArg.left).toBe(0);    // max(0, (10-16)*2) = 0
-		expect(extractArg.top).toBe(68);    // floor(34*2)
+		const extractArg = sharpInstance.extract.mock.calls[0][0] as {
+			left: number;
+			top: number;
+			width: number;
+			height: number;
+		};
+		expect(extractArg.left).toBe(0); // max(0, (10-16)*2) = 0
+		expect(extractArg.top).toBe(68); // floor(34*2)
 		expect(extractArg.width).toBe(124); // ceil((0+62)*2) - 0 ... actually let's just check it's not 999*2
 		expect(extractArg.width).not.toBe(1998);
 		expect(sharpInstance.resize).not.toHaveBeenCalled();
@@ -480,9 +573,9 @@ describe("captureEntry", () => {
 
 	it("falls back to static crop when cropSelector matches nothing", async () => {
 		const deps = makeDeps();
-		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockRejectedValue(
-			new Error("no element matches"),
-		);
+		(
+			deps.cdp.getElementBounds as ReturnType<typeof vi.fn>
+		).mockRejectedValue(new Error("no element matches"));
 		const entry = makeEntry({
 			cropSelector: ".missing",
 			crop: { x: 5, y: 10, width: 100, height: 50 },
@@ -490,8 +583,13 @@ describe("captureEntry", () => {
 
 		await captureEntry(entry, deps);
 
-		const sharpInstance = (deps.sharp as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
-		const extractArg = sharpInstance.extract.mock.calls[0][0] as { left: number; top: number };
+		const sharpInstance = (
+			deps.sharp as unknown as ReturnType<typeof vi.fn>
+		).mock.results[0].value;
+		const extractArg = sharpInstance.extract.mock.calls[0][0] as {
+			left: number;
+			top: number;
+		};
 		// Should use static crop scaled by DPR: left = floor(5*2) = 10
 		expect(extractArg.left).toBe(10);
 		expect(extractArg.top).toBe(20);
@@ -504,7 +602,9 @@ describe("captureEntry", () => {
 		);
 		const entry = makeEntry();
 
-		await expect(captureEntry(entry, deps)).rejects.toThrow("screenshot timeout");
+		await expect(captureEntry(entry, deps)).rejects.toThrow(
+			"screenshot timeout",
+		);
 	});
 
 	it("propagates sharp errors", async () => {
@@ -516,10 +616,81 @@ describe("captureEntry", () => {
 			toFile: toFileMock,
 		};
 		const sharpFactory = vi.fn().mockReturnValue(sharpInstance);
-		const deps = makeDeps({ sharp: sharpFactory as unknown as OrchestratorDeps["sharp"] });
+		const deps = makeDeps({
+			sharp: sharpFactory as unknown as OrchestratorDeps["sharp"],
+		});
 		const entry = makeEntry();
 
 		await expect(captureEntry(entry, deps)).rejects.toThrow("disk full");
+	});
+
+	it("restores sessions into tabs, drops the initial tab, activates the chosen one, and waits for awaitSelector (restoreSessions)", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) => {
+				if (expr.includes("tabs[0]?.tabId"))
+					return Promise.resolve("tab-initial");
+				if (expr.includes("tabs.map"))
+					return Promise.resolve(JSON.stringify(["t-emb", "t-itin"]));
+				if (expr.includes("session-history-item"))
+					return Promise.resolve(true);
+				return Promise.resolve(undefined);
+			},
+		);
+		const entry = makeEntry({
+			initialState: {
+				clickRibbon: true,
+				restoreSessions: {
+					titles: [
+						"Explain vector embeddings",
+						"Plan a 5-day Japan trip",
+					],
+					activeIndex: 0,
+				},
+			},
+			awaitSelector: ".mermaid svg",
+		});
+
+		await captureEntry(entry, deps);
+
+		const cmdCalls = (
+			deps.cdp.executeCommand as ReturnType<typeof vi.fn>
+		).mock.calls.map((c) => c[0] as string);
+		expect(
+			cmdCalls.filter((c) => c === "agent-console:open-session-history")
+				.length,
+		).toBe(2);
+		const evalCalls = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c) => c[0] as string);
+		expect(
+			evalCalls.some(
+				(e) =>
+					e.includes("Explain vector embeddings") &&
+					e.includes("restore"),
+			),
+		).toBe(true);
+		expect(
+			evalCalls.some(
+				(e) =>
+					e.includes("Plan a 5-day Japan trip") &&
+					e.includes("restore"),
+			),
+		).toBe(true);
+		expect(
+			evalCalls.some(
+				(e) => e.includes("removeTab") && e.includes("tab-initial"),
+			),
+		).toBe(true);
+		expect(
+			evalCalls.some(
+				(e) => e.includes("setActiveTab") && e.includes("t-emb"),
+			),
+		).toBe(true);
+		const waitCalls = (
+			deps.cdp.waitForElement as ReturnType<typeof vi.fn>
+		).mock.calls.map((c) => c[0] as string);
+		expect(waitCalls.some((w) => w.includes(".mermaid svg"))).toBe(true);
 	});
 
 	it("seeds labeled tabs and forces their states for forceTabStates (tab-status-dropdown)", async () => {
@@ -615,16 +786,26 @@ describe("captureAll", () => {
 	it("continues on error and reports failures", async () => {
 		const deps = makeDeps();
 		let callCount = 0;
-		(deps.cdp.screenshot as ReturnType<typeof vi.fn>).mockImplementation(() => {
-			callCount++;
-			if (callCount === 1) return Promise.reject(new Error("first failed"));
-			return Promise.resolve();
-		});
-		const entries = [makeEntry({ name: "fail" }), makeEntry({ name: "pass" })];
+		(deps.cdp.screenshot as ReturnType<typeof vi.fn>).mockImplementation(
+			() => {
+				callCount++;
+				if (callCount === 1)
+					return Promise.reject(new Error("first failed"));
+				return Promise.resolve();
+			},
+		);
+		const entries = [
+			makeEntry({ name: "fail" }),
+			makeEntry({ name: "pass" }),
+		];
 
 		const results = await captureAll(entries, deps);
 
-		expect(results[0]).toEqual({ name: "fail", success: false, error: "first failed" });
+		expect(results[0]).toEqual({
+			name: "fail",
+			success: false,
+			error: "first failed",
+		});
 		expect(results[1]).toEqual({ name: "pass", success: true });
 	});
 
@@ -643,9 +824,9 @@ describe("captureAll", () => {
 		const deps = makeDeps();
 		const entries = [makeEntry({ name: "a" })];
 
-		await expect(captureAll(entries, deps, { filter: "zzz" })).rejects.toThrow(
-			/no manifest entry matches filter/i,
-		);
+		await expect(
+			captureAll(entries, deps, { filter: "zzz" }),
+		).rejects.toThrow(/no manifest entry matches filter/i);
 	});
 
 	it("brackets each capture with the acp-capturing body marker (set before, cleared after)", async () => {
@@ -695,13 +876,14 @@ describe("captureAll", () => {
 describe("captureEntry — group crop (cropSelectors)", () => {
 	it("unions selector bounds and center-pads to target dims via extend", async () => {
 		const deps = makeDeps({ devicePixelRatio: 1 });
-		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockImplementation(
-			(sel: string) =>
-				Promise.resolve(
-					sel === ".a"
-						? { x: 100, y: 80, width: 30, height: 26 }
-						: { x: 160, y: 80, width: 30, height: 26 },
-				),
+		(
+			deps.cdp.getElementBounds as ReturnType<typeof vi.fn>
+		).mockImplementation((sel: string) =>
+			Promise.resolve(
+				sel === ".a"
+					? { x: 100, y: 80, width: 30, height: 26 }
+					: { x: 160, y: 80, width: 30, height: 26 },
+			),
 		);
 		const entry = makeEntry({
 			name: "group-shot",
@@ -713,8 +895,9 @@ describe("captureEntry — group crop (cropSelectors)", () => {
 
 		await captureEntry(entry, deps);
 
-		const sharpInstance = (deps.sharp as unknown as ReturnType<typeof vi.fn>).mock
-			.results[0].value;
+		const sharpInstance = (
+			deps.sharp as unknown as ReturnType<typeof vi.fn>
+		).mock.results[0].value;
 		// union of .a/.b = {x:100,y:80,w:90,h:26}; +16 padding -> {x:84,y:64,w:122,h:58}
 		expect(sharpInstance.extract).toHaveBeenCalledWith({
 			left: 84,
@@ -740,13 +923,21 @@ describe("captureEntry — group crop (cropSelectors)", () => {
 		// group crops never resize (would distort the framed content)
 		expect(sharpInstance.resize).not.toHaveBeenCalled();
 		expect(sharpInstance.toFile).toHaveBeenCalledWith(
-			path.join("/fake/repo", "docs", "public", "images", "group-shot.webp"),
+			path.join(
+				"/fake/repo",
+				"docs",
+				"public",
+				"images",
+				"group-shot.webp",
+			),
 		);
 	});
 
 	it("throws when group-crop content exceeds the target dimensions", async () => {
 		const deps = makeDeps({ devicePixelRatio: 1 });
-		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockResolvedValue({
+		(
+			deps.cdp.getElementBounds as ReturnType<typeof vi.fn>
+		).mockResolvedValue({
 			x: 0,
 			y: 0,
 			width: 500,
@@ -759,12 +950,16 @@ describe("captureEntry — group crop (cropSelectors)", () => {
 			cropSelectors: [".big"],
 		});
 
-		await expect(captureEntry(entry, deps)).rejects.toThrow(/exceeds target/);
+		await expect(captureEntry(entry, deps)).rejects.toThrow(
+			/exceeds target/,
+		);
 	});
 
 	it("fails hard when a group selector matches nothing (no silent fallback)", async () => {
 		const deps = makeDeps({ devicePixelRatio: 1 });
-		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockRejectedValue(
+		(
+			deps.cdp.getElementBounds as ReturnType<typeof vi.fn>
+		).mockRejectedValue(
 			new Error("getElementBounds: no element matches selector .missing"),
 		);
 		const entry = makeEntry({
@@ -772,23 +967,35 @@ describe("captureEntry — group crop (cropSelectors)", () => {
 			cropSelectors: [".present", ".missing"],
 		});
 
-		await expect(captureEntry(entry, deps)).rejects.toThrow(/no element matches/);
+		await expect(captureEntry(entry, deps)).rejects.toThrow(
+			/no element matches/,
+		);
 	});
 });
 
 describe("captureEntry — single cropSelector clamp (bad-extract-area hardening)", () => {
 	it("clamps a single cropSelector crop to the captured image bounds (prevents sharp 'bad extract area')", async () => {
 		const deps = makeDeps(); // metadata 1400×760, devicePixelRatio 2
-		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockResolvedValue({
-			x: 660, y: 100, width: 120, height: 60,
+		(
+			deps.cdp.getElementBounds as ReturnType<typeof vi.fn>
+		).mockResolvedValue({
+			x: 660,
+			y: 100,
+			width: 120,
+			height: 60,
 		});
 		const entry = makeEntry({ cropSelector: ".edge-el", cropPadding: 12 });
 
 		await captureEntry(entry, deps);
 
-		const sharpInstance = (deps.sharp as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
+		const sharpInstance = (
+			deps.sharp as unknown as ReturnType<typeof vi.fn>
+		).mock.results[0].value;
 		const arg = sharpInstance.extract.mock.calls[0][0] as {
-			left: number; top: number; width: number; height: number;
+			left: number;
+			top: number;
+			width: number;
+			height: number;
 		};
 		const imgW = 1400;
 		const imgH = 760;
@@ -803,20 +1010,33 @@ describe("captureEntry — single cropSelector clamp (bad-extract-area hardening
 
 	it("leaves a single cropSelector crop unchanged when it fits within the image", async () => {
 		const deps = makeDeps();
-		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockResolvedValue({
-			x: 100, y: 100, width: 120, height: 60,
+		(
+			deps.cdp.getElementBounds as ReturnType<typeof vi.fn>
+		).mockResolvedValue({
+			x: 100,
+			y: 100,
+			width: 120,
+			height: 60,
 		});
 		const entry = makeEntry({ cropSelector: ".inner-el", cropPadding: 12 });
 
 		await captureEntry(entry, deps);
 
-		const sharpInstance = (deps.sharp as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
+		const sharpInstance = (
+			deps.sharp as unknown as ReturnType<typeof vi.fn>
+		).mock.results[0].value;
 		const arg = sharpInstance.extract.mock.calls[0][0] as {
-			left: number; top: number; width: number; height: number;
+			left: number;
+			top: number;
+			width: number;
+			height: number;
 		};
 		// Well within 1400×760 → clamp is a no-op; width/height equal the full
 		// padded crop scaled by DPR (cropRect {88,88,144,84} × 2).
-		const expected = scaleRectByDevicePixelRatio({ x: 88, y: 88, width: 144, height: 84 }, 2);
+		const expected = scaleRectByDevicePixelRatio(
+			{ x: 88, y: 88, width: 144, height: 84 },
+			2,
+		);
 		expect(arg.width).toBe(expected.width);
 		expect(arg.height).toBe(expected.height);
 		expect(arg.left + arg.width).toBeLessThanOrEqual(1400);
@@ -849,8 +1069,8 @@ describe("captureEntry — screen capture mode (popovers)", () => {
 			expect.stringContaining("mode-selection-raw.png"),
 			{ x: 100, y: 50, width: 800, height: 600 },
 		);
-		const sharpInstance = (deps.sharp as ReturnType<typeof vi.fn>).mock.results[0]
-			.value;
+		const sharpInstance = (deps.sharp as ReturnType<typeof vi.fn>).mock
+			.results[0].value;
 		// screen-mode crops are authored in raw px and applied as-is
 		// (effectiveDpr = 1), NOT scaled by the window scaleFactor — so the
 		// crop {x:10,y:20,w:100,h:50} extracts exactly that region.
@@ -882,8 +1102,9 @@ describe("captureEntry — screen capture mode (popovers)", () => {
 		expect(aot).toHaveBeenCalledWith(false);
 		// The float must precede the screencapture; the restore must follow it.
 		const order = aot.mock.invocationCallOrder;
-		const capOrder = (deps.cdp.screenCaptureRegion as ReturnType<typeof vi.fn>)
-			.mock.invocationCallOrder[0];
+		const capOrder = (
+			deps.cdp.screenCaptureRegion as ReturnType<typeof vi.fn>
+		).mock.invocationCallOrder[0];
 		expect(order[0]).toBeLessThan(capOrder); // setTrue before capture
 		expect(order[order.length - 1]).toBeGreaterThan(capOrder); // setFalse after
 	});
@@ -926,8 +1147,6 @@ describe("captureEntry — screen capture mode (popovers)", () => {
 		expect(deps.cdp.screenshot).toHaveBeenCalled();
 	});
 
-	
-	
 	it("clicks the dropdown via clickWithCoords and does NOT wait for .menu in screen mode", async () => {
 		const deps = makeDeps();
 		const entry = {
@@ -950,8 +1169,8 @@ describe("captureEntry — screen capture mode (popovers)", () => {
 		// .menu never resolves in the DOM for a native popup; screen mode must
 		// not block on it. waitForElement is only used to wait for the click
 		// target to exist (the dropdown), never for ".menu".
-		const waitCalls = (deps.cdp.waitForElement as ReturnType<typeof vi.fn>).mock
-			.calls;
+		const waitCalls = (deps.cdp.waitForElement as ReturnType<typeof vi.fn>)
+			.mock.calls;
 		expect(waitCalls.every((c: unknown[]) => c[0] !== ".menu")).toBe(true);
 	});
 
@@ -967,7 +1186,7 @@ describe("captureEntry — screen capture mode (popovers)", () => {
 			initialState: {
 				clickRibbon: true,
 				clickSelector:
-					".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-toolbar-dropdown:first-child",
+					'.agent-client-tab-panel:not([style*="none"]) .agent-client-toolbar-dropdown:first-child',
 			},
 		};
 
@@ -978,8 +1197,9 @@ describe("captureEntry — screen capture mode (popovers)", () => {
 		const idleIdx = calls.findIndex((sel) =>
 			sel.includes("agent-client-loading-indicator.agent-client-hidden"),
 		);
-		const screenMock = deps.cdp
-			.screenCaptureRegion as ReturnType<typeof vi.fn>;
+		const screenMock = deps.cdp.screenCaptureRegion as ReturnType<
+			typeof vi.fn
+		>;
 
 		// The connect prompt for a popover shot puts a turn in-flight; the
 		// send/stop button shows a red STOP square while isSending is true (the
@@ -1034,7 +1254,10 @@ describe("captureEntry — content guard (I11 follow-up)", () => {
 		const deps = makeDeps();
 		// 256 distinct (default mock) clears the global default (50) but must
 		// fail an 800 floor — the calibrated ribbon-icon case.
-		const entry = makeEntry({ name: "ribbon-icon", minDistinctColors: 800 });
+		const entry = makeEntry({
+			name: "ribbon-icon",
+			minDistinctColors: 800,
+		});
 
 		await expect(captureEntry(entry, deps)).rejects.toThrow(/800/);
 		expect(deps.unlink).toHaveBeenCalledWith(
@@ -1085,7 +1308,9 @@ describe("captureEntry — content guard (I11 follow-up)", () => {
 describe("captureEntry — mustShow assertion (rubric P2)", () => {
 	it("throws when the mustShow element is not in the DOM (window mode)", async () => {
 		const cdp = makeMockCdp();
-		cdp.getElementBounds = vi.fn().mockRejectedValue(new Error("not found"));
+		cdp.getElementBounds = vi
+			.fn()
+			.mockRejectedValue(new Error("not found"));
 		const deps = makeDeps({
 			cdp: cdp as unknown as OrchestratorDeps["cdp"],
 		});
@@ -1128,7 +1353,9 @@ describe("captureEntry — mustShow assertion (rubric P2)", () => {
 	it("skips the assert for screen-mode entries (popover not in DOM)", async () => {
 		const cdp = makeMockCdp();
 		// Would fail the assert if it ran — proves screen mode skips it.
-		cdp.getElementBounds = vi.fn().mockRejectedValue(new Error("not found"));
+		cdp.getElementBounds = vi
+			.fn()
+			.mockRejectedValue(new Error("not found"));
 		const deps = makeDeps({
 			cdp: cdp as unknown as OrchestratorDeps["cdp"],
 		});
@@ -1193,7 +1420,9 @@ describe("captureEntry — legibility floor (rubric P5)", () => {
 		// A tiny selector region would "upscale" if resized — but cropSelector
 		// entries emit at native captured size and never resize, so the floor
 		// must not fire.
-		(deps.cdp.getElementBounds as ReturnType<typeof vi.fn>).mockResolvedValue({
+		(
+			deps.cdp.getElementBounds as ReturnType<typeof vi.fn>
+		).mockResolvedValue({
 			x: 0,
 			y: 0,
 			width: 20,
@@ -1211,16 +1440,16 @@ describe("captureEntry — legibility floor (rubric P5)", () => {
 });
 
 describe("captureEntry — cleanliness assert (rubric P7)", () => {
-	function cdpWithProbe(probe: {
-		selectors: string[];
-		text: string[];
-	}) {
+	function cdpWithProbe(probe: { selectors: string[]; text: string[] }) {
 		const cdp = makeMockCdp();
-		cdp.evaluate = vi.fn().mockImplementation((expr: string) =>
-			typeof expr === "string" && expr.includes("__cleanliness_probe__")
-				? Promise.resolve(probe)
-				: Promise.resolve(undefined),
-		);
+		cdp.evaluate = vi
+			.fn()
+			.mockImplementation((expr: string) =>
+				typeof expr === "string" &&
+				expr.includes("__cleanliness_probe__")
+					? Promise.resolve(probe)
+					: Promise.resolve(undefined),
+			);
 		return cdp;
 	}
 
@@ -1229,7 +1458,9 @@ describe("captureEntry — cleanliness assert (rubric P7)", () => {
 			selectors: [".agent-client-error-overlay"],
 			text: [],
 		});
-		const deps = makeDeps({ cdp: cdp as unknown as OrchestratorDeps["cdp"] });
+		const deps = makeDeps({
+			cdp: cdp as unknown as OrchestratorDeps["cdp"],
+		});
 		const entry = makeEntry({ name: "dirty-error" });
 
 		await expect(captureEntry(entry, deps)).rejects.toThrow(/cleanliness/i);
@@ -1240,7 +1471,9 @@ describe("captureEntry — cleanliness assert (rubric P7)", () => {
 
 	it("throws when a forbidden internal-name string is present (leak guard)", async () => {
 		const cdp = cdpWithProbe({ selectors: [], text: ["Auto-SA"] });
-		const deps = makeDeps({ cdp: cdp as unknown as OrchestratorDeps["cdp"] });
+		const deps = makeDeps({
+			cdp: cdp as unknown as OrchestratorDeps["cdp"],
+		});
 		const entry = makeEntry({ name: "leaky" });
 
 		await expect(captureEntry(entry, deps)).rejects.toThrow(
@@ -1251,14 +1484,18 @@ describe("captureEntry — cleanliness assert (rubric P7)", () => {
 
 	it("runs the probe and captures when the frame is clean", async () => {
 		const cdp = cdpWithProbe({ selectors: [], text: [] });
-		const deps = makeDeps({ cdp: cdp as unknown as OrchestratorDeps["cdp"] });
+		const deps = makeDeps({
+			cdp: cdp as unknown as OrchestratorDeps["cdp"],
+		});
 		const entry = makeEntry({ name: "clean" });
 
 		await expect(captureEntry(entry, deps)).resolves.toBeUndefined();
 		const exprs = (cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
 			(c: unknown[]) => c[0] as string,
 		);
-		expect(exprs.some((e) => e.includes("__cleanliness_probe__"))).toBe(true);
+		expect(exprs.some((e) => e.includes("__cleanliness_probe__"))).toBe(
+			true,
+		);
 		expect(cdp.screenshot).toHaveBeenCalledTimes(1);
 	});
 
@@ -1267,7 +1504,9 @@ describe("captureEntry — cleanliness assert (rubric P7)", () => {
 			selectors: [".agent-client-tab-error"],
 			text: [],
 		});
-		const deps = makeDeps({ cdp: cdp as unknown as OrchestratorDeps["cdp"] });
+		const deps = makeDeps({
+			cdp: cdp as unknown as OrchestratorDeps["cdp"],
+		});
 		const entry = makeEntry({
 			name: "screen-dirty",
 			captureMode: "screen",
@@ -1281,7 +1520,6 @@ describe("captureEntry — cleanliness assert (rubric P7)", () => {
 	});
 });
 
-
 describe("captureEntry — settings / native select (switch-default-agent)", () => {
 	it("opens the settings tab when initialState.openSettings is set", async () => {
 		const deps = makeDeps();
@@ -1291,9 +1529,9 @@ describe("captureEntry — settings / native select (switch-default-agent)", () 
 
 		await captureEntry(entry, deps);
 
-		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c: unknown[]) => c[0] as string,
-		);
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
 		expect(
 			evals.some(
 				(e) =>
@@ -1319,12 +1557,14 @@ describe("captureEntry — settings / native select (switch-default-agent)", () 
 		expect(deps.cdp.openNativeSelect).toHaveBeenCalledWith(
 			".vertical-tab-content select",
 		);
-		const focusOrder = (deps.cdp.focusWindow as ReturnType<typeof vi.fn>).mock
-			.invocationCallOrder[0];
-		const openOrder = (deps.cdp.openNativeSelect as ReturnType<typeof vi.fn>)
+		const focusOrder = (deps.cdp.focusWindow as ReturnType<typeof vi.fn>)
 			.mock.invocationCallOrder[0];
-		const capOrder = (deps.cdp.screenCaptureRegion as ReturnType<typeof vi.fn>)
-			.mock.invocationCallOrder[0];
+		const openOrder = (
+			deps.cdp.openNativeSelect as ReturnType<typeof vi.fn>
+		).mock.invocationCallOrder[0];
+		const capOrder = (
+			deps.cdp.screenCaptureRegion as ReturnType<typeof vi.fn>
+		).mock.invocationCallOrder[0];
 		// focus must precede the showPicker open, which must precede the capture.
 		expect(focusOrder).toBeLessThan(openOrder);
 		expect(openOrder).toBeLessThan(capOrder);
@@ -1365,10 +1605,14 @@ describe("captureEntry — awaitSelector (paused-state shots, e.g. edit permissi
 		await captureEntry(entry, deps);
 
 		const waitMock = deps.cdp.waitForElement as ReturnType<typeof vi.fn>;
-		const calls = waitMock.mock.calls.map((cc: unknown[]) => cc[0] as string);
+		const calls = waitMock.mock.calls.map(
+			(cc: unknown[]) => cc[0] as string,
+		);
 		// Waits for the awaited element (the subject of the shot).
 		expect(
-			calls.some((s) => s.includes(".agent-client-message-permission-request")),
+			calls.some((s) =>
+				s.includes(".agent-client-message-permission-request"),
+			),
 		).toBe(true);
 		// The turn pauses at the permission card and never completes, so the
 		// two-phase wait (assistant element + indicator-hidden) must be SKIPPED
@@ -1378,7 +1622,9 @@ describe("captureEntry — awaitSelector (paused-state shots, e.g. edit permissi
 		).toBe(false);
 		expect(
 			calls.some((s) =>
-				s.includes("agent-client-loading-indicator.agent-client-hidden"),
+				s.includes(
+					"agent-client-loading-indicator.agent-client-hidden",
+				),
 			),
 		).toBe(false);
 	});
@@ -1392,9 +1638,9 @@ describe("captureEntry — awaitSelector (paused-state shots, e.g. edit permissi
 
 		await captureEntry(entry, deps);
 
-		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
-			(cc: unknown[]) => cc[0] as string,
-		);
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((cc: unknown[]) => cc[0] as string);
 		// The paused-state subject is at the transcript bottom — scrollIntoView
 		// it, never scrollTop = 0 (which would push it off-screen).
 		expect(
@@ -1422,8 +1668,8 @@ describe("captureEntry — agentId override + execCommand draft", () => {
 			(e) => e.includes("defaultAgentId") && e.includes("gemini-cli"),
 		);
 		const execMock = deps.cdp.executeCommand as ReturnType<typeof vi.fn>;
-		const openIdx = execMock.mock.calls.findIndex(
-			(c: unknown[]) => (c[0] as string).includes("open-chat-view"),
+		const openIdx = execMock.mock.calls.findIndex((c: unknown[]) =>
+			(c[0] as string).includes("open-chat-view"),
 		);
 		expect(setIdx).toBeGreaterThanOrEqual(0);
 		expect(openIdx).toBeGreaterThanOrEqual(0);
@@ -1438,13 +1684,15 @@ describe("captureEntry — agentId override + execCommand draft", () => {
 		const deps = makeDeps();
 		const entry = makeEntry({ draftMessage: "/" });
 		await captureEntry(entry, deps);
-		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c: unknown[]) => c[0] as string,
-		);
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
 		// The native-setter+input path does NOT fire React onChange’s slash/mention
 		// filter; execCommand insertText delivers a real InputEvent that does.
 		expect(
-			evals.some((e) => e.includes("execCommand") && e.includes("insertText")),
+			evals.some(
+				(e) => e.includes("execCommand") && e.includes("insertText"),
+			),
 		).toBe(true);
 	});
 });
@@ -1493,9 +1741,18 @@ describe("captureEntry — animation (v2)", () => {
 				maxBytes: 2_000_000,
 				frames: [
 					{ holdMs: 600 },
-					{ actions: [{ type: "click", selector: ".x-remove" }], holdMs: 600 },
 					{
-						actions: [{ type: "click", selector: ".grab", waitFor: ".pill" }],
+						actions: [{ type: "click", selector: ".x-remove" }],
+						holdMs: 600,
+					},
+					{
+						actions: [
+							{
+								type: "click",
+								selector: ".grab",
+								waitFor: ".pill",
+							},
+						],
 						holdMs: 600,
 					},
 				],
@@ -1512,10 +1769,13 @@ describe("captureEntry — animation (v2)", () => {
 
 		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(3);
 		expect(deps.encodeGif).toHaveBeenCalledTimes(1);
-		const opts = (deps.encodeGif as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		const opts = (deps.encodeGif as ReturnType<typeof vi.fn>).mock
+			.calls[0][0];
 		expect(opts.frames.length).toBe(3);
 		expect(opts.fps).toBe(4);
-		expect(String(opts.outPath).endsWith("temporary-disable.gif")).toBe(true);
+		expect(String(opts.outPath).endsWith("temporary-disable.gif")).toBe(
+			true,
+		);
 	});
 
 	it("drives click actions via clickElement and honors waitFor", async () => {
@@ -1541,16 +1801,24 @@ describe("captureEntry — animation (v2)", () => {
 				fps: 4,
 				maxBytes: 2_000_000,
 				frames: [
-					{ actions: [{ type: "draft", text: "What changed here?" }], holdMs: 400 },
-					{ actions: [{ type: "wait", selector: ".ready" }], holdMs: 400 },
+					{
+						actions: [
+							{ type: "draft", text: "What changed here?" },
+						],
+						holdMs: 400,
+					},
+					{
+						actions: [{ type: "wait", selector: ".ready" }],
+						holdMs: 400,
+					},
 				],
 			},
 		});
 		await captureEntry(entry, deps);
 
-		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c: unknown[]) => c[0] as string,
-		);
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
 		expect(evals.some((e) => e.includes("execCommand"))).toBe(true);
 		expect(deps.cdp.waitForElement).toHaveBeenCalledWith(
 			".ready",
@@ -1577,12 +1845,14 @@ describe("captureEntry — layout overrides (collapseLeftSidebar / rightSplitWid
 			rightSplitWidth: 680,
 		});
 		await captureEntry(entry, deps);
-		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c: unknown[]) => c[0] as string,
-		);
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
 		expect(evals.some((e) => e.includes("leftSplit.collapse"))).toBe(true);
 		expect(
-			evals.some((e) => e.includes("mod-right-split") && e.includes("680px")),
+			evals.some(
+				(e) => e.includes("mod-right-split") && e.includes("680px"),
+			),
 		).toBe(true);
 	});
 
@@ -1590,14 +1860,13 @@ describe("captureEntry — layout overrides (collapseLeftSidebar / rightSplitWid
 		const deps = makeDeps();
 		const entry = makeEntry({ initialState: { clickRibbon: true } });
 		await captureEntry(entry, deps);
-		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c: unknown[]) => c[0] as string,
-		);
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
 		expect(evals.some((e) => e.includes("leftSplit.collapse"))).toBe(false);
 		expect(evals.some((e) => e.includes("mod-right-split"))).toBe(false);
 	});
 });
-
 
 describe("framing (Decision 11)", () => {
 	it("a framed entry calls frameImage instead of the flat postProcess shadow", async () => {
@@ -1611,7 +1880,13 @@ describe("framing (Decision 11)", () => {
 		// frameImage receives the output path + the resolved hero config.
 		const [outPath, cfg] = frameImage.mock.calls[0];
 		expect(outPath).toBe(
-			path.join("/fake/repo", "docs", "public", "images", "test-shot.webp"),
+			path.join(
+				"/fake/repo",
+				"docs",
+				"public",
+				"images",
+				"test-shot.webp",
+			),
 		);
 		expect(cfg.chrome).toBe("macos");
 		expect(postProcess).not.toHaveBeenCalled();

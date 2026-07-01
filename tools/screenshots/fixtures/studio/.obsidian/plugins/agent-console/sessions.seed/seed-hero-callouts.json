@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "sessionId": "seed-hero-callouts",
+  "agentId": "kiro-cli",
+  "messages": [
+    {
+      "id": "m1",
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Anything blocking the release?"
+        }
+      ],
+      "timestamp": "2026-06-29T18:20:00.000Z"
+    },
+    {
+      "id": "m2",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Just one thing before you tag:\n\n> [!warning] Update the changelog\n> It still points at last week's version \u2014 bump it and you're clear to ship."
+        }
+      ],
+      "timestamp": "2026-06-29T18:20:30.000Z"
+    },
+    {
+      "id": "m3",
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Done \u2014 bumped it to v1.3.0."
+        }
+      ],
+      "timestamp": "2026-06-29T18:21:10.000Z"
+    },
+    {
+      "id": "m4",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "You're clear to ship. Here's the run of show:\n\n1. Tag `v1.3.0`\n2. Publish the docs site\n3. Post the announcement"
+        }
+      ],
+      "timestamp": "2026-06-29T18:21:40.000Z"
+    }
+  ],
+  "contextNotes": [
+    {
+      "path": "Weekly review.md",
+      "source": "user",
+      "seen": true
+    }
+  ],
+  "savedAt": "2026-06-29T18:21:40.000Z"
+}

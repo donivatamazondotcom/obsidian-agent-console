@@ -67,6 +67,38 @@
   },
   "savedSessions": [
     {
+      "sessionId": "seed-hero-callouts",
+      "agentId": "kiro-cli",
+      "cwd": "/tmp/notes",
+      "title": "Launch check",
+      "createdAt": "2026-06-29T18:20:00.000Z",
+      "updatedAt": "2026-06-29T18:20:30.000Z"
+    },
+    {
+      "sessionId": "seed-hero-itinerary",
+      "agentId": "claude-code-acp",
+      "cwd": "/tmp/notes",
+      "title": "Japan trip",
+      "createdAt": "2026-06-29T18:00:00.000Z",
+      "updatedAt": "2026-06-29T18:10:30.000Z"
+    },
+    {
+      "sessionId": "seed-hero-embeddings",
+      "agentId": "kiro-cli",
+      "cwd": "/tmp/notes",
+      "title": "Explain vector embeddings",
+      "createdAt": "2026-06-29T18:05:00.000Z",
+      "updatedAt": "2026-06-29T18:12:40.000Z"
+    },
+    {
+      "sessionId": "seed-hero-newsletter",
+      "agentId": "claude-code-acp",
+      "cwd": "/tmp/notes",
+      "title": "Newsletter",
+      "createdAt": "2026-06-29T18:08:00.000Z",
+      "updatedAt": "2026-06-29T18:14:35.000Z"
+    },
+    {
       "sessionId": "seed-ci-pipeline",
       "agentId": "claude-code-acp",
       "cwd": "/tmp/notes",
