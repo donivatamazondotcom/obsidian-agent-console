@@ -314,6 +314,12 @@ export async function captureEntry(
 			);
 		}
 		if (entry.initialState?.openNotes?.length) {
+			// Reset the editor area first so tabs are deterministic regardless of
+			// any pre-existing note/base leaves (the manual recipe's "reset editor
+			// leaves" — otherwise a stale tab from a prior state duplicates).
+			await deps.cdp.evaluate(
+				`(() => { app.workspace.getLeavesOfType("markdown").forEach((l) => l.detach()); app.workspace.getLeavesOfType("bases").forEach((l) => l.detach()); return true; })()`,
+			);
 			// Open multiple editor tabs: the first replaces the active leaf, each
 			// subsequent opens in a NEW tab (background editor tabs beside the
 			// active note — e.g. the hero's Weekly review + Reading list dashboard).

@@ -54,9 +54,7 @@
 				}
 			},
 			"hideSelectors": [
-				".tooltip",
-				".acp-header-branded-connecting",
-				".acp-header-branded-sep"
+				".tooltip"
 			],
 			"approvalThreshold": 0.1,
 			"minDistinctColors": 1500,

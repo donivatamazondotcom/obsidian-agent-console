@@ -46,3 +46,12 @@ body.acp-capturing .agent-client-scroll-to-bottom { display: none !important; }
    docs screenshots. Real error/warning overlays are NOT hidden. Same
    capture-time gate as above. */
 body.acp-capturing .agent-client-error-overlay--info { display: none !important; }
+
+/* Screenshot fixtures: drop the "· Not connected" branded-header suffix on
+   restored (agent-less) sessions. The hero restores saved sessions with no live
+   agent, so the header renders "<Agent> · Not connected"; the connecting state
+   re-renders periodically, so an inline display:none (manifest hideSelectors)
+   is wiped — this !important CSS persists across the re-render. Same
+   capture-time gate as above, so smoke testing still shows the real state. */
+body.acp-capturing .acp-header-branded-connecting,
+body.acp-capturing .acp-header-branded-sep { display: none !important; }
