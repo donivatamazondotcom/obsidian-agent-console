@@ -12,7 +12,7 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/donivatamazondotcom/obsidian-agent-console/ci.yaml?branch=main&label=build&color=8b5cf6)](https://github.com/donivatamazondotcom/obsidian-agent-console/actions/workflows/ci.yaml)
 [![Docs](https://img.shields.io/badge/docs-online-8b5cf6)](https://donivatamazondotcom.github.io/obsidian-agent-console/)
 
-<img src="docs/public/images/multi-session-animated.gif" alt="Three agent sessions in parallel tabs beside an open note in Obsidian – each tab keeps its own conversation and status icon" width="800">
+<img src="docs/public/images/multi-session.webp" alt="Agent Console in Obsidian – three agent tabs (Kiro CLI active) beside a live Reading list dashboard, with a warning callout and a release run-of-show in the active chat" width="800">
 
 **[📦 Install from Obsidian](https://community.obsidian.md/plugins/agent-console) &nbsp;·&nbsp; [📖 Documentation](https://donivatamazondotcom.github.io/obsidian-agent-console/) &nbsp;·&nbsp; [💬 Discussions](https://github.com/donivatamazondotcom/obsidian-agent-console/discussions)**
 
