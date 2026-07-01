@@ -1,5 +1,3 @@
-# Weekly review
-
 > [!tip] Focus for the week
 > Protect one deep-work block each morning before opening the inbox.
 
