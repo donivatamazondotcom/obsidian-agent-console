@@ -77,6 +77,7 @@ export interface CdpLike {
 	): Promise<void>;
 	screenshot(outputPath: string): Promise<void>;
 	setMobileEmulation(enabled: boolean): Promise<void>;
+	clearViewport(): Promise<void>;
 }
 
 /** sharp factory — matches `import sharp from "sharp"`. Accepts a file path or an in-memory buffer (the group-crop does a second pass over the extracted content buffer). */
@@ -89,7 +90,7 @@ interface SharpPipeline {
 		width: number;
 		height: number;
 	}): SharpPipeline;
-	resize(width: number, height: number): SharpPipeline;
+	resize(width: number, height?: number): SharpPipeline;
 	extend(opts: {
 		top: number;
 		bottom: number;
@@ -186,6 +187,15 @@ const RESTORE_MAX_ATTEMPTS = 3;
 const SCREEN_CAPTURE_WINDOW = { width: 1400, height: 820 };
 
 /**
+ * Reproducible window bounds for captureMode "screen-window" (the framed
+ * full-window hero). Pinned before driving the UI so the composition and the
+ * captured pixel size are stable across runs. Clamped to the work area at
+ * capture time; enlarge for more resolution (reflows the rule-of-thirds
+ * composition, so re-verify the shot after changing it).
+ */
+const SCREEN_WINDOW_HERO = { width: 1600, height: 1000 };
+
+/**
  * Capture a single manifest entry: drive UI state → screenshot → crop → write.
  */
 export async function captureEntry(
@@ -203,6 +213,10 @@ export async function captureEntry(
 	// only way to capture native popup menus), so the window must be a known,
 	// reproducible size — and pinned before the menu opens, since resizing
 	// afterward would dismiss it and reflow the layout.
+	const screenMode =
+		entry.captureMode === "screen" ||
+		entry.captureMode === "screen-window";
+
 	if (entry.captureMode === "screen") {
 		// Bottom-align a fixed-size window within the display work area so
 		// Obsidian flips popover menus UPWARD (over the transcript), keeping the
@@ -223,6 +237,25 @@ export async function captureEntry(
 		// race — only alwaysOnTop wins it. The native Menu popup renders above
 		// the floated window (verified), so popover shots capture correctly.
 		await deps.cdp.setWindowAlwaysOnTop(true);
+	} else if (entry.captureMode === "screen-window") {
+		// Full-window framed hero: capture the REAL OS window (real macOS chrome)
+		// as-is — no popover, no bottom-align. Clear any stale device-metrics
+		// override first (a leftover setDeviceMetricsOverride from a prior run
+		// makes the renderer smaller than the OS window, so screencapture would
+		// include desktop bleed on the right/bottom). Pin to a reproducible size,
+		// then float + focus so the capture composites the fixtures window with
+		// ACTIVE (colored) traffic lights, above the daily-driver.
+		await deps.cdp.clearViewport();
+		const wa = await deps.cdp.getWorkArea();
+		await deps.cdp.setWindowBounds({
+			x: wa.x + 40,
+			y: wa.y + 40,
+			width: Math.min(SCREEN_WINDOW_HERO.width, wa.width - 80),
+			height: Math.min(SCREEN_WINDOW_HERO.height, wa.height - 80),
+		});
+		await sleep(SETTLE_MS);
+		await deps.cdp.setWindowAlwaysOnTop(true);
+		await deps.cdp.focusWindow();
 	}
 
 	try {
@@ -279,6 +312,21 @@ export async function captureEntry(
 			await deps.cdp.evaluate(
 				`app.workspace.openLinkText("${notePath}", "", false)`,
 			);
+		}
+		if (entry.initialState?.openNotes?.length) {
+			// Open multiple editor tabs: the first replaces the active leaf, each
+			// subsequent opens in a NEW tab (background editor tabs beside the
+			// active note — e.g. the hero's Weekly review + Reading list dashboard).
+			const notes = entry.initialState.openNotes;
+			for (let n = 0; n < notes.length; n++) {
+				const where = n === 0 ? "false" : '"tab"';
+				await deps.cdp.evaluate(
+					`app.workspace.openLinkText(${JSON.stringify(
+						notes[n],
+					)}, "", ${where})`,
+				);
+				await sleep(SETTLE_MS);
+			}
 		}
 		if (entry.initialState?.openSettings) {
 			// Settings-surface shots (e.g. the Default-agent dropdown): open the
@@ -963,7 +1011,7 @@ export async function captureEntry(
 		// their bounds aren't queryable here. Assert the single delightful element
 		// this shot exists to showcase is (a) present in the DOM and (b) inside the
 		// crop region — so a regenerated shot can't silently drop what it sells.
-		if (entry.mustShow && entry.captureMode !== "screen") {
+		if (entry.mustShow && !screenMode) {
 			let mustShowBounds: Rect;
 			try {
 				mustShowBounds = await deps.cdp.getElementBounds(
@@ -1016,7 +1064,7 @@ export async function captureEntry(
 		// it); window captures keep the detected renderer DPR.
 		const tmpPath = path.join(deps.tmpDir, `${entry.name}-raw.png`);
 		let effectiveDpr = deps.devicePixelRatio;
-		if (entry.captureMode === "screen") {
+		if (screenMode) {
 			// I09: ensure the agent turn is idle so the composer send button shows
 			// its send glyph, not the in-flight red STOP square. The connect prompt
 			// for a popover shot puts a turn in-flight; the send/stop button and the
@@ -1060,7 +1108,19 @@ export async function captureEntry(
 		// single selector > static crop.
 		const outputPath = deriveOutputPath(entry, deps.repoRoot);
 
-		if (entry.cropSelectors?.length) {
+		if (entry.captureMode === "screen-window") {
+			// Full-window screen capture IS the content (real macOS chrome
+			// included) — no crop. Downscale to the target width if the raw
+			// capture is larger than entry.width; the frame step adds the
+			// gradient + soft shadow + rounded corners around the real chrome
+			// (frame:{chrome:"none"}). Height follows aspect.
+			const meta = await deps.sharp(tmpPath).metadata();
+			let pipeline = deps.sharp(tmpPath);
+			if (entry.width && (meta.width ?? 0) > entry.width) {
+				pipeline = pipeline.resize(entry.width);
+			}
+			await pipeline.webp({ quality: 90 }).toFile(outputPath);
+		} else if (entry.cropSelectors?.length) {
 			// Group crop: union the selectors' bounds (+ cropPadding) into a
 			// content region, then center that content on a width×height canvas
 			// padded with the header background color (sampled from the content's
@@ -1232,7 +1292,7 @@ export async function captureEntry(
 	} finally {
 		// I13: always un-float the fixtures window so it never lingers over the
 		// user's daily vault — even if an assert or the content guard threw.
-		if (entry.captureMode === "screen") {
+		if (screenMode) {
 			await deps.cdp.setWindowAlwaysOnTop(false);
 		}
 		// Tear down a modal this entry opened (forceCloseConfirm) so it never

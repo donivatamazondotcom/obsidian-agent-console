@@ -41,6 +41,13 @@ export interface InitialState {
 	 */
 	openNote?: string;
 	/**
+	 * Multiple editor tabs to open before capture. The first replaces the
+	 * active leaf; each subsequent note opens in a NEW editor tab (background
+	 * tabs beside the active note — e.g. the hero's Weekly review + Reading
+	 * list dashboard). Use instead of openNote when >1 editor tab is wanted.
+	 */
+	openNotes?: string[];
+	/**
 	 * When true, click the Agent Console ribbon icon to activate the
 	 * plugin's panel. Idempotent — clicking again with the panel already
 	 * open is a no-op.
@@ -423,7 +430,7 @@ export interface ManifestEntry {
 	 * `cropSelectors` cannot resolve it) and pin the window to a fixed size so
 	 * the crop region is reproducible.
 	 */
-	captureMode?: "window" | "screen";
+	captureMode?: "window" | "screen" | "screen-window";
 	/**
 	 * Approval-test threshold for `pixelmatch` — fraction of differing
 	 * pixels above which the test fails. Default 0.05 (loose enough for
@@ -637,6 +644,14 @@ export function validateManifest(
 			if (!existsSync(notePath)) {
 				throw new Error(
 					`manifest entry "${entry.name}" references missing note: ${entry.initialState.openNote} (looked under ${path.join(fixtureRoot, "studio")})`,
+				);
+			}
+		}
+		for (const n of entry.initialState?.openNotes ?? []) {
+			const notePath = path.join(fixtureRoot, "studio", n);
+			if (!existsSync(notePath)) {
+				throw new Error(
+					`manifest entry "${entry.name}" references missing note in openNotes: ${n} (looked under ${path.join(fixtureRoot, "studio")})`,
 				);
 			}
 		}

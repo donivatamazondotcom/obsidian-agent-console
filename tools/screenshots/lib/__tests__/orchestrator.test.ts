@@ -74,6 +74,7 @@ function makeMockCdp() {
 		getElementBounds: vi
 			.fn()
 			.mockResolvedValue({ x: 0, y: 0, width: 100, height: 100 }),
+		clearViewport: vi.fn().mockResolvedValue(undefined),
 	};
 }
 
@@ -1313,6 +1314,108 @@ describe("captureEntry — screen capture mode (popovers)", () => {
 			calls.some((sel) => sel.includes("agent-client-message-assistant")),
 		).toBe(false);
 	});
+});
+
+describe("captureEntry — screen-window (full-window framed hero)", () => {
+	it("captures the full OS window (real chrome), skips the crop, and frames chrome:none", async () => {
+		const sharpInstance = {
+			extract: vi.fn().mockReturnThis(),
+			resize: vi.fn().mockReturnThis(),
+			extend: vi.fn().mockReturnThis(),
+			raw: vi.fn().mockReturnThis(),
+			png: vi.fn().mockReturnThis(),
+			webp: vi.fn().mockReturnThis(),
+			toFile: vi.fn().mockResolvedValue(undefined),
+			// Raw capture larger than the target width → downscale-to-width.
+			metadata: vi.fn().mockResolvedValue({ width: 2400, height: 1500 }),
+			toBuffer: vi.fn().mockResolvedValue(Buffer.from("rawpng")),
+		};
+		const sharp = vi.fn().mockReturnValue(sharpInstance);
+		const frameImage = vi.fn().mockResolvedValue(undefined);
+		const deps = makeDeps({
+			sharp: sharp as unknown as OrchestratorDeps["sharp"],
+			frameImage,
+		});
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) => {
+				if (expr.includes("chat-view-header"))
+					return Promise.resolve(
+						JSON.stringify({ header: "Kiro CLI", sel: 2 }),
+					);
+				if (expr.includes("tabs[0]?.tabId"))
+					return Promise.resolve("tab-initial");
+				if (expr.includes("tabs.map"))
+					return Promise.resolve(
+						JSON.stringify(["t-japan", "t-launch", "t-news"]),
+					);
+				if (expr.includes("session-history-item"))
+					return Promise.resolve(true);
+				return Promise.resolve(undefined);
+			},
+		);
+		const entry = makeEntry({
+			width: 1200,
+			height: 750,
+			captureMode: "screen-window",
+			frame: { chrome: "none" },
+			placement: "hero",
+			initialState: {
+				openNotes: ["Weekly review.md", "Reading list.base"],
+				clickRibbon: true,
+				restoreSessions: {
+					titles: ["Japan trip", "Launch check", "Newsletter"],
+					activeIndex: 1,
+					requireActiveHeaderIncludes: "Kiro CLI",
+					requireActiveSelector: ".callout",
+				},
+			},
+			awaitSelector: ".callout",
+		});
+
+		await captureEntry(entry, deps);
+
+		// Setup: clears the stale device-metrics override, pins the window,
+		// floats + focuses it (active traffic lights).
+		expect(deps.cdp.clearViewport).toHaveBeenCalled();
+		expect(deps.cdp.setWindowBounds).toHaveBeenCalled();
+		expect(deps.cdp.setWindowAlwaysOnTop).toHaveBeenCalledWith(true);
+		expect(deps.cdp.focusWindow).toHaveBeenCalled();
+		// Capture: full OS window via screencapture, NOT dev:screenshot.
+		expect(deps.cdp.screenCaptureRegion).toHaveBeenCalled();
+		expect(deps.cdp.screenshot).not.toHaveBeenCalled();
+		// No crop — the full-window capture IS the content; downscaled to width.
+		expect(sharpInstance.extract).not.toHaveBeenCalled();
+		expect(sharpInstance.resize).toHaveBeenCalledWith(1200);
+		expect(sharpInstance.toFile).toHaveBeenCalled();
+		// Framed chrome-less (real macOS chrome already in the capture).
+		expect(frameImage).toHaveBeenCalled();
+		const frameOpts = (frameImage.mock.calls[0] as unknown[])[1] as {
+			chrome: string;
+		};
+		expect(frameOpts.chrome).toBe("none");
+		// openNotes: first replaces the leaf (false), the rest open as tabs.
+		const evalCalls = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c) => c[0] as string);
+		expect(
+			evalCalls.some(
+				(e) =>
+					e.includes("openLinkText") &&
+					e.includes("Weekly review.md") &&
+					e.includes("false"),
+			),
+		).toBe(true);
+		expect(
+			evalCalls.some(
+				(e) =>
+					e.includes("openLinkText") &&
+					e.includes("Reading list.base") &&
+					e.includes('"tab"'),
+			),
+		).toBe(true);
+		// un-floats afterward so the window never lingers over the daily vault.
+		expect(deps.cdp.setWindowAlwaysOnTop).toHaveBeenCalledWith(false);
+	}, 20000);
 });
 
 describe("captureEntry — content guard (I11 follow-up)", () => {
