@@ -67,6 +67,14 @@
   },
   "savedSessions": [
     {
+      "sessionId": "seed-hero-meetingprep",
+      "agentId": "kiro-cli",
+      "cwd": "/tmp/notes",
+      "title": "Meeting prep",
+      "createdAt": "2026-06-29T17:05:00.000Z",
+      "updatedAt": "2026-06-29T17:05:25.000Z"
+    },
+    {
       "sessionId": "seed-hero-callouts",
       "agentId": "kiro-cli",
       "cwd": "/tmp/notes",

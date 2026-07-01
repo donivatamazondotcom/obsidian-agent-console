@@ -55,3 +55,12 @@ body.acp-capturing .agent-client-error-overlay--info { display: none !important;
    capture-time gate as above, so smoke testing still shows the real state. */
 body.acp-capturing .acp-header-branded-connecting,
 body.acp-capturing .acp-header-branded-sep { display: none !important; }
+
+/* Screenshot fixtures: hide the "Session restored from history" lossy-fallback
+   notice (.agent-client-fallback-notice, LossyFallbackNotice.tsx). Restoring a
+   saved session with no live agent backend always fails session/load, so every
+   restored tab shows this transcript-only notice — a fixtures-only artifact a
+   real user (with a live agent) never sees. It leads the transcript and reads
+   as a degraded/error state, wrong for docs. Same capture-time gate, so smoke
+   testing still shows the real notice. */
+body.acp-capturing .agent-client-fallback-notice { display: none !important; }

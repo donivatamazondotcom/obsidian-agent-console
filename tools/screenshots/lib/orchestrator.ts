@@ -39,7 +39,10 @@ import { resolveFrameConfig, type FrameOptions } from "./frame";
 
 /** Subset of Cdp used by the orchestrator (for DI). */
 export interface CdpLike {
-	evaluate<T = unknown>(expression: string): Promise<T>;
+	evaluate<T = unknown>(
+		expression: string,
+		opts?: { awaitPromise?: boolean },
+	): Promise<T>;
 	executeCommand(commandId: string): Promise<void>;
 	clickElement(selector: string): Promise<void>;
 	waitForElement(selector: string, timeoutMs?: number): Promise<void>;
@@ -389,6 +392,18 @@ export async function captureEntry(
 			await deps.cdp.executeCommand("agent-console:open-chat-view");
 		}
 		await applyLayoutOverrides(entry, deps);
+		// Guard the quick-prompt scan/cache race (QP-I26): force a fresh
+		// library rescan so prompts reflect their current frontmatter labels
+		// (a prompt scanned before its frontmatter is cached falls back to its
+		// filename, dropping the emoji label + new-tab marker). Awaited so the
+		// popup/chip render sees the reconciled prompts. Remove once QP-I26 is
+		// fixed.
+		if (entry.initialState?.rescanQuickPrompts) {
+			await deps.cdp.evaluate(
+				`(async () => { const p = app.plugins.plugins["agent-console"]; if (p && p.quickPromptLibrary) { await p.quickPromptLibrary.rescan(); } return true; })()`,
+				{ awaitPromise: true },
+			);
+		}
 		if (entry.initialState?.hoverSelector) {
 			await deps.cdp.hoverElement(entry.initialState.hoverSelector);
 			// Obsidian's native tooltip renders after a show-delay; wait for the
@@ -498,9 +513,13 @@ export async function captureEntry(
 
 		// 3c. Type a draft into the active composer WITHOUT sending, so the shot
 		// shows the input box populated with its context-note pill(s) and example
-		// text instead of an empty placeholder.
-		if (entry.draftMessage) {
-			const draft = entry.draftMessage
+		// text instead of an empty placeholder. A leading suggestion trigger
+		// (`!` quick-prompt, `/` slash, `@` mention) opens the matching dropdown.
+		// Extracted to a closure because the restoreSessions path must draft AFTER
+		// it activates the restored tab (3c-septies) — typing here would land on
+		// the transient auto tab that restore then replaces.
+		const typeDraftIntoActiveComposer = async (raw: string): Promise<void> => {
+			const draft = raw
 				.replace(/\\/g, "\\\\")
 				.replace(/`/g, "\\`")
 				.replace(/\$/g, "\\$");
@@ -516,6 +535,22 @@ export async function captureEntry(
 				return true;
 			})()`,
 			);
+			if (/^[!/@]/.test(raw)) {
+				await deps.cdp
+					.waitForElement(
+						`${ACTIVE_PANEL} .agent-client-mention-dropdown`,
+						HOVER_TOOLTIP_TIMEOUT_MS,
+					)
+					.catch(() => {});
+			}
+		};
+		// Draft now only when NOT restoring sessions; the restore path drafts
+		// after it activates the chosen tab (3c-septies).
+		if (
+			entry.draftMessage &&
+			!entry.initialState?.restoreSessions?.titles?.length
+		) {
+			await typeDraftIntoActiveComposer(entry.draftMessage);
 		}
 
 		// 3c-bis. Run arbitrary Obsidian commands to open command-driven UI the
@@ -793,6 +828,17 @@ export async function captureEntry(
 					);
 				}
 			}
+		}
+
+		// 3c-septies. Draft into the RESTORED active composer (see the 3c
+		// helper). Runs after the restore loop so a `!`/`/`/`@` draft opens its
+		// suggestion popup on the correct restored tab, not the transient auto
+		// tab that restore replaced.
+		if (
+			entry.draftMessage &&
+			entry.initialState?.restoreSessions?.titles?.length
+		) {
+			await typeDraftIntoActiveComposer(entry.draftMessage);
 		}
 
 		// 3c-quinquies. Surface the ConfirmCloseModal for the confirm-close shot.

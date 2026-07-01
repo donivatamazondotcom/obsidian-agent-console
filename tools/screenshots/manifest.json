@@ -1318,21 +1318,33 @@
 				"openNotes": [
 					"Weekly review.md"
 				],
-				"clickRibbon": true
+				"clickRibbon": true,
+				"rescanQuickPrompts": true,
+				"restoreSessions": {
+					"titles": [
+						"Japan trip",
+						"Meeting prep",
+						"Newsletter"
+					],
+					"activeIndex": 1,
+					"requireActiveHeaderIncludes": "Kiro CLI",
+					"requireActiveSelector": ".callout"
+				}
 			},
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 530,
+			"draftMessage": "!",
 			"hideSelectors": [
 				".tooltip"
 			],
-			"awaitSelector": ".agent-client-quick-prompt-bar",
+			"awaitSelector": ".callout",
 			"approvalThreshold": 0.1,
 			"minDistinctColors": 1200,
 			"differentiator": "Grounded quick prompts on your notes",
-			"mustShow": ".agent-client-quick-prompt-chip",
+			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-mention-dropdown",
 			"caption": "One-tap prompts, grounded in the note you're on",
 			"purpose": "Kick off common asks — summarize, explain, draft — against the note you're viewing, without typing a prompt.",
-			"altText": "Agent Console in Obsidian beside a Weekly review note, its chat showing one-tap quick prompts like Summarize this note and Explain this code"
+			"altText": "Agent Console beside a Weekly review note: tabbed sessions, a meeting-prep chat, and the quick-prompt menu open with one-tap prompts"
 		}
 	]
 }

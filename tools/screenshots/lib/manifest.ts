@@ -59,6 +59,15 @@ export interface InitialState {
 	 */
 	openChatView?: boolean;
 	/**
+	 * When true, force `quickPromptLibrary.rescan()` after the panel opens so
+	 * quick prompts reflect their current frontmatter labels/flags. Guards the
+	 * scan/cache race (QP-I26) where a prompt scanned before its frontmatter is
+	 * cached falls back to its filename (losing the emoji `label:` + new-tab
+	 * marker); without this a fresh fixtures-vault load can capture the wrong
+	 * label non-deterministically. Remove once QP-I26 is fixed.
+	 */
+	rescanQuickPrompts?: boolean;
+	/**
 	 * CSS selector to hover before capture (triggers tooltips).
 	 * The driver dispatches mouseenter + mouseover on the element.
 	 */

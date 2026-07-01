@@ -167,6 +167,39 @@ describe("captureEntry", () => {
 		);
 	});
 
+	it("forces an awaited quick-prompt rescan when initialState.rescanQuickPrompts is true (QP-I26 guard)", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: { clickRibbon: true, rescanQuickPrompts: true },
+		});
+
+		await captureEntry(entry, deps);
+
+		const rescanCall = (
+			deps.cdp.evaluate as unknown as ReturnType<typeof vi.fn>
+		).mock.calls.find((c) =>
+			String(c[0]).includes("quickPromptLibrary.rescan"),
+		);
+		expect(rescanCall).toBeDefined();
+		// Async rescan MUST be awaited — the awaitPromise opt is set.
+		expect(rescanCall?.[1]).toEqual({ awaitPromise: true });
+	});
+
+	it("does not rescan quick prompts when the flag is absent", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({ initialState: { clickRibbon: true } });
+
+		await captureEntry(entry, deps);
+
+		const rescanCall = (
+			deps.cdp.evaluate as unknown as ReturnType<typeof vi.fn>
+		).mock.calls.find((c) =>
+			String(c[0]).includes("quickPromptLibrary.rescan"),
+		);
+		expect(rescanCall).toBeUndefined();
+	});
+
+
 	it("opens the chat panel when initialState.clickRibbon is true", async () => {
 		const deps = makeDeps();
 		const entry = makeEntry({ initialState: { clickRibbon: true } });
