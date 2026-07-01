@@ -1300,7 +1300,6 @@
 		},
 		{
 			"name": "bases-dashboard",
-			"pending": true,
 			"frame": true,
 			"width": 820,
 			"height": 640,
@@ -1323,7 +1322,8 @@
 			"differentiator": "Renders like Obsidian (Bases, code, diagrams)",
 			"mustShow": ".bases-cards-item",
 			"caption": "Your vault, rendered live",
-			"altText": "A Reading list Bases dashboard in Obsidian showing book cards with status icons and star ratings"
+			"altText": "A Reading list Bases dashboard in Obsidian showing book cards with status icons and star ratings",
+			"collapseLeftSidebar": true
 		}
 	]
 }
