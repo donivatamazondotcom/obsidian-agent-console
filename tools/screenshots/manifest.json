@@ -50,7 +50,8 @@
 						"Newsletter"
 					],
 					"activeIndex": 1,
-					"requireActiveHeaderIncludes": "Kiro CLI",
+					"requireActiveHeaderIncludes": "Claude Code",
+					"reconnectActive": true,
 					"requireActiveSelector": ".callout"
 				}
 			},
@@ -68,7 +69,8 @@
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 530,
 			"awaitSelector": ".callout",
-			"captureMode": "screen-window"
+			"captureMode": "screen-window",
+			"followUp": "Tab status indicators (.agent-client-tab-state-icon) are not lit up: only the active tab reconnects (reconnectActive), so the inactive restored tabs show unlit/idle status glyphs. Next cycle: reconnect all restored tabs (or seed a lit status) so every tab's state icon reads as connected."
 		},
 		{
 			"name": "session-history-button",
@@ -1276,7 +1278,8 @@
 						"Newsletter"
 					],
 					"activeIndex": 1,
-					"requireActiveHeaderIncludes": "Kiro CLI",
+					"requireActiveHeaderIncludes": "Claude Code",
+					"reconnectActive": true,
 					"requireActiveSelector": ".callout"
 				}
 			},
@@ -1293,7 +1296,8 @@
 			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-mention-dropdown",
 			"caption": "One-tap prompts, grounded in the note you're on",
 			"purpose": "Kick off common asks — summarize, explain, draft — against the note you're viewing, without typing a prompt.",
-			"altText": "Agent Console beside a Weekly review note: tabbed sessions, a meeting-prep chat, and the quick-prompt menu open with one-tap prompts"
+			"altText": "Agent Console beside a Weekly review note: tabbed sessions, a meeting-prep chat, and the quick-prompt menu open with one-tap prompts",
+			"followUp": "Tab status indicators (.agent-client-tab-state-icon) are not lit up: only the active tab reconnects (reconnectActive), so the inactive restored tabs show unlit/idle status glyphs. Next cycle: reconnect all restored tabs (or seed a lit status) so every tab's state icon reads as connected."
 		}
 	]
 }

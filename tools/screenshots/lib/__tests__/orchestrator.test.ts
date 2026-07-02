@@ -726,6 +726,59 @@ describe("captureEntry", () => {
 		).mock.calls.map((c) => c[0] as string);
 		expect(waitCalls.some((w) => w.includes(".mermaid svg"))).toBe(true);
 	});
+	it("reconnectActive clicks Reload on the active tab and waits for the model dropdown after restore", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) => {
+				if (expr.includes("chat-view-header"))
+					return Promise.resolve(
+						JSON.stringify({ header: "Claude Code", sel: 1 }),
+					);
+				if (expr.includes("tabs[0]?.tabId"))
+					return Promise.resolve("tab-initial");
+				if (expr.includes("tabs.map"))
+					return Promise.resolve(JSON.stringify(["t-japan", "t-launch"]));
+				if (expr.includes("session-history-item"))
+					return Promise.resolve(true);
+				// The Reload click probe returns Boolean(button-found).
+				if (expr.includes('aria-label^="Reload"'))
+					return Promise.resolve(true);
+				return Promise.resolve(undefined);
+			},
+		);
+		const entry = makeEntry({
+			initialState: {
+				clickRibbon: true,
+				restoreSessions: {
+					titles: ["Japan trip", "Launch check"],
+					activeIndex: 1,
+					requireActiveHeaderIncludes: "Claude Code",
+					reconnectActive: true,
+				},
+			},
+		});
+
+		await captureEntry(entry, deps);
+
+		const evalCalls = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c) => c[0] as string);
+		// The active tab is reconnected via a Reload click so its capability
+		// handshake renders the model/mode toolbar.
+		expect(
+			evalCalls.some(
+				(e) => e.includes('aria-label^="Reload"') && e.includes("click"),
+			),
+		).toBe(true);
+		const waitCalls = (
+			deps.cdp.waitForElement as ReturnType<typeof vi.fn>
+		).mock.calls.map((c) => c[0] as string);
+		expect(
+			waitCalls.some((w) =>
+				w.includes(".agent-client-toolbar-dropdown-label"),
+			),
+		).toBe(true);
+	});
 	it("retries the restore when the active panel fails the header/callout guard, then succeeds (restore-race)", async () => {
 		const deps = makeDeps();
 		let verifyCall = 0;

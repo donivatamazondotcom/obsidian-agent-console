@@ -235,6 +235,15 @@ export interface InitialState {
 		 * (e.g. ".callout"). Enables the verify+retry guard.
 		 */
 		requireActiveSelector?: string;
+		/**
+		 * After restoring + activating the chosen tab, click its Reload button
+		 * to resume the session (keeps the transcript) so the agent's capability
+		 * handshake renders the model/mode toolbar under the composer. A restored
+		 * session is otherwise disconnected and shows no model dropdown. The
+		 * transient "· Not connected" header text is hidden at capture time by
+		 * the Fixtures theme's `body.acp-capturing` rule.
+		 */
+		reconnectActive?: boolean;
 	};
 }
 
@@ -532,6 +541,13 @@ export interface ManifestEntry {
 	 * `validateManifest`.
 	 */
 	altText?: string;
+
+	/**
+	 * Known cosmetic follow-up for a future capture pass (not a release
+	 * blocker). Surfaced during release-cycle review of this shot so a
+	 * non-blocking nit isn't lost. Free text.
+	 */
+	followUp?: string;
 
 	/**
 	 * Presentation framing (Decision 11). `true` mounts the shot in a

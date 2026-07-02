@@ -365,6 +365,23 @@ async function restoreSessionsIntoTabs(
 				);
 			}
 		}
+
+		// reconnectActive: a restored session is disconnected (no capability
+		// handshake → no model/mode toolbar renders). Click Reload on the
+		// verified active tab to resume the session (keeps the transcript) so
+		// the model dropdown renders under the composer, then wait for it. The
+		// lingering "· Not connected" header text is hidden at capture time by
+		// the Fixtures theme's body.acp-capturing rule.
+		if (rs.reconnectActive) {
+			await deps.cdp.evaluate(
+				`(() => { const ap = document.querySelector('.agent-client-tab-panel:not([style*="none"])'); const b = ap && ap.querySelector('[aria-label^="Reload"]'); if (b) b.click(); return Boolean(b); })()`,
+			);
+			await deps.cdp.waitForElement(
+				`${ACTIVE_PANEL} .agent-client-toolbar-dropdown-label`,
+				RESPONSE_TIMEOUT_MS,
+			);
+			await sleep(SETTLE_MS);
+		}
 	}
 }
 

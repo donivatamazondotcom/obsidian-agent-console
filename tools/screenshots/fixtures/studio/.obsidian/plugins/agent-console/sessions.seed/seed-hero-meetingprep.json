@@ -1,7 +1,7 @@
 {
   "version": 1,
   "sessionId": "seed-hero-meetingprep",
-  "agentId": "kiro-cli",
+  "agentId": "claude-code-acp",
   "messages": [
     {
       "id": "m1",
