@@ -48,26 +48,22 @@ function makeMockCdp() {
 		clickWithCoords: vi.fn().mockResolvedValue(undefined),
 		focusWindow: vi.fn().mockResolvedValue(undefined),
 		openNativeSelect: vi.fn().mockResolvedValue(undefined),
-		getWindowBounds: vi
-			.fn()
-			.mockResolvedValue({
-				x: 100,
-				y: 50,
-				width: 800,
-				height: 600,
-				scaleFactor: 2,
-			}),
+		getWindowBounds: vi.fn().mockResolvedValue({
+			x: 100,
+			y: 50,
+			width: 800,
+			height: 600,
+			scaleFactor: 2,
+		}),
 		setWindowBounds: vi.fn().mockResolvedValue(undefined),
 		setWindowAlwaysOnTop: vi.fn().mockResolvedValue(undefined),
-		getWorkArea: vi
-			.fn()
-			.mockResolvedValue({
-				x: 0,
-				y: 30,
-				width: 3200,
-				height: 1770,
-				scaleFactor: 2,
-			}),
+		getWorkArea: vi.fn().mockResolvedValue({
+			x: 0,
+			y: 30,
+			width: 3200,
+			height: 1770,
+			scaleFactor: 2,
+		}),
 		screenCaptureRegion: vi.fn().mockResolvedValue(undefined),
 		screenshot: vi.fn().mockResolvedValue(undefined),
 		setMobileEmulation: vi.fn().mockResolvedValue(undefined),
@@ -198,7 +194,6 @@ describe("captureEntry", () => {
 		);
 		expect(rescanCall).toBeUndefined();
 	});
-
 
 	it("opens the chat panel when initialState.clickRibbon is true", async () => {
 		const deps = makeDeps();
@@ -737,7 +732,9 @@ describe("captureEntry", () => {
 				if (expr.includes("tabs[0]?.tabId"))
 					return Promise.resolve("tab-initial");
 				if (expr.includes("tabs.map"))
-					return Promise.resolve(JSON.stringify(["t-japan", "t-launch"]));
+					return Promise.resolve(
+						JSON.stringify(["t-japan", "t-launch"]),
+					);
 				if (expr.includes("session-history-item"))
 					return Promise.resolve(true);
 				// The Reload click probe returns Boolean(button-found).
@@ -767,7 +764,8 @@ describe("captureEntry", () => {
 		// handshake renders the model/mode toolbar.
 		expect(
 			evalCalls.some(
-				(e) => e.includes('aria-label^="Reload"') && e.includes("click"),
+				(e) =>
+					e.includes('aria-label^="Reload"') && e.includes("click"),
 			),
 		).toBe(true);
 		const waitCalls = (
@@ -829,9 +827,8 @@ describe("captureEntry", () => {
 			deps.cdp.executeCommand as ReturnType<typeof vi.fn>
 		).mock.calls.map((c) => c[0] as string);
 		expect(
-			cmdCalls.filter(
-				(c) => c === "agent-console:open-session-history",
-			).length,
+			cmdCalls.filter((c) => c === "agent-console:open-session-history")
+				.length,
 		).toBe(6);
 	}, 20000);
 
@@ -872,7 +869,6 @@ describe("captureEntry", () => {
 			/restoreSessions verification failed/,
 		);
 	}, 20000);
-
 
 	it("seeds labeled tabs and forces their states for forceTabStates (tab-status-dropdown)", async () => {
 		const deps = makeDeps();
@@ -2050,7 +2046,9 @@ describe("captureEntry — animation (v2)", () => {
 		});
 		await captureEntry(animEntry(), deps);
 
-		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(3);
+		// 2 screenshots per frame: a discarded warm-up shot (flushes the
+		// one-behind dev:screenshot buffer) + the real capture. 3 frames → 6.
+		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(6);
 		expect(deps.encodeGif).toHaveBeenCalledTimes(1);
 		const opts = (deps.encodeGif as ReturnType<typeof vi.fn>).mock
 			.calls[0][0];
@@ -2136,7 +2134,10 @@ describe("captureEntry — animation (v2)", () => {
 				maxBytes: 2_000_000,
 				frames: [
 					{ holdMs: 400 },
-					{ actions: [{ type: "activateTab", index: 2 }], holdMs: 400 },
+					{
+						actions: [{ type: "activateTab", index: 2 }],
+						holdMs: 400,
+					},
 				],
 			},
 		});
@@ -2147,9 +2148,7 @@ describe("captureEntry — animation (v2)", () => {
 		).mock.calls.map((c: unknown[]) => c[0] as string);
 		expect(evals.some((e) => e.includes("tabManagerRef.tabs"))).toBe(true);
 		expect(
-			evals.some(
-				(e) => e.includes("setActiveTab") && e.includes("t2"),
-			),
+			evals.some((e) => e.includes("setActiveTab") && e.includes("t2")),
 		).toBe(true);
 	});
 
@@ -2168,7 +2167,10 @@ describe("captureEntry — animation (v2)", () => {
 				fps: 4,
 				maxBytes: 2_000_000,
 				frames: [
-					{ actions: [{ type: "activateTab", index: 9 }], holdMs: 400 },
+					{
+						actions: [{ type: "activateTab", index: 9 }],
+						holdMs: 400,
+					},
 				],
 			},
 		});
@@ -2177,9 +2179,7 @@ describe("captureEntry — animation (v2)", () => {
 			deps.cdp.evaluate as ReturnType<typeof vi.fn>
 		).mock.calls.map((c: unknown[]) => c[0] as string);
 		expect(
-			evals.some(
-				(e) => e.includes("setActiveTab") && e.includes("t1"),
-			),
+			evals.some((e) => e.includes("setActiveTab") && e.includes("t1")),
 		).toBe(true);
 	});
 
@@ -2190,7 +2190,10 @@ describe("captureEntry — animation (v2)", () => {
 		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
 			(expr: string) => {
 				if (typeof expr !== "string") return Promise.resolve(undefined);
-				if (expr.includes("session-history") || expr.includes("restore"))
+				if (
+					expr.includes("session-history") ||
+					expr.includes("restore")
+				)
 					return Promise.resolve(true);
 				if (expr.includes("tabManagerRef.tabs"))
 					return Promise.resolve(JSON.stringify(["t0", "t1"]));
@@ -2307,6 +2310,162 @@ describe("captureEntry — animation (v2)", () => {
 			/cleanliness assert/,
 		);
 		expect(deps.encodeGif).not.toHaveBeenCalled();
+	});
+
+	// --- Per-frame content wait (fixes the "one hold late" tab-cycle bug) ---
+
+	it("waits on the active panel's content (awaitText) before capturing a frame", async () => {
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+		// The active-panel content probe is stale (false) for the first two
+		// polls, then the target text appears — modeling the async transcript
+		// re-render after a tab switch. The frame must not be captured until the
+		// probe returns true.
+		let contentPolls = 0;
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) => {
+				if (typeof expr !== "string") return Promise.resolve(undefined);
+				if (expr.includes("tabManagerRef.tabs"))
+					return Promise.resolve(JSON.stringify(["t0", "t1", "t2"]));
+				// The awaitText probe reads the active panel's textContent for
+				// the target phrase.
+				if (
+					expr.includes("agent-client-tab-panel") &&
+					expr.includes("textContent") &&
+					expr.includes("Newsletter body")
+				) {
+					contentPolls += 1;
+					return Promise.resolve(contentPolls >= 3);
+				}
+				return Promise.resolve(undefined);
+			},
+		);
+		const entry = animEntry({
+			animation: {
+				fps: 4,
+				maxBytes: 2_000_000,
+				frames: [
+					{
+						actions: [{ type: "activateTab", index: 2 }],
+						awaitText: "Newsletter body",
+						holdMs: 400,
+					},
+				],
+			},
+		});
+		await captureEntry(entry, deps);
+		// It polled through the stale states (≥ 2 misses) before the hit — proof
+		// the capture waited on content, not a fixed settle.
+		expect(contentPolls).toBeGreaterThanOrEqual(3);
+		// 2 shots for the single frame: warm-up (discarded) + real capture.
+		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(2);
+	});
+
+	it("throws when a frame's awaitText never appears in the active panel", async () => {
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) => {
+				if (typeof expr !== "string") return Promise.resolve(undefined);
+				if (expr.includes("tabManagerRef.tabs"))
+					return Promise.resolve(JSON.stringify(["t0", "t1"]));
+				if (
+					expr.includes("agent-client-tab-panel") &&
+					expr.includes("textContent")
+				)
+					return Promise.resolve(false); // never appears
+				return Promise.resolve(undefined);
+			},
+		);
+		const entry = animEntry({
+			animation: {
+				fps: 4,
+				maxBytes: 2_000_000,
+				frames: [
+					{
+						actions: [{ type: "activateTab", index: 1 }],
+						awaitText: "never-renders",
+						holdMs: 400,
+					},
+				],
+			},
+			// Tighten the wait so the test doesn't sit on the 120s default.
+		});
+		vi.useFakeTimers();
+		const p = captureEntry(entry, deps);
+		const assertion = expect(p).rejects.toThrow(/waitForActivePanelText/);
+		await vi.runAllTimersAsync();
+		await assertion;
+		vi.useRealTimers();
+		expect(deps.encodeGif).not.toHaveBeenCalled();
+	});
+
+	it("waits on a frame's awaitSelector inside the active panel before capture", async () => {
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) =>
+				typeof expr === "string" && expr.includes("tabManagerRef.tabs")
+					? Promise.resolve(JSON.stringify(["t0", "t1"]))
+					: Promise.resolve(undefined),
+		);
+		const entry = animEntry({
+			animation: {
+				fps: 4,
+				maxBytes: 2_000_000,
+				frames: [
+					{
+						actions: [{ type: "activateTab", index: 1 }],
+						awaitSelector: ".mermaid svg",
+						holdMs: 400,
+					},
+				],
+			},
+		});
+		await captureEntry(entry, deps);
+		expect(deps.cdp.waitForElement).toHaveBeenCalledWith(
+			expect.stringContaining(".mermaid svg"),
+			expect.any(Number),
+		);
+		// Scoped to the visible panel, not a global selector.
+		expect(deps.cdp.waitForElement).toHaveBeenCalledWith(
+			expect.stringContaining("agent-client-tab-panel"),
+			expect.any(Number),
+		);
+	});
+
+	it("resolves the animation crop from cropSelector when present (honors selector framing)", async () => {
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) =>
+				typeof expr === "string" && expr.includes("tabManagerRef.tabs")
+					? Promise.resolve(JSON.stringify(["t0", "t1", "t2"]))
+					: Promise.resolve(undefined),
+		);
+		const entry = animEntry({
+			cropSelector:
+				'.workspace-leaf-content[data-type="agent-client-chat-view"]',
+			cropPadding: 0,
+			animation: {
+				fps: 4,
+				maxBytes: 2_000_000,
+				frames: [
+					{
+						actions: [{ type: "activateTab", index: 0 }],
+						holdMs: 400,
+					},
+				],
+			},
+		});
+		await captureEntry(entry, deps);
+		expect(deps.cdp.getElementBounds).toHaveBeenCalledWith(
+			'.workspace-leaf-content[data-type="agent-client-chat-view"]',
+		);
 	});
 });
 

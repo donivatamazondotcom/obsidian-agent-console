@@ -1498,6 +1498,41 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Poll interval (ms) for the animation per-frame content wait. */
+const ANIM_CONTENT_POLL_MS = 100;
+
+/**
+ * Wait until the ACTIVE (visible) tab panel's rendered text contains `text`,
+ * or throw on timeout. This is the content-level signal the animation path
+ * needs after an `activateTab`: the tab-active class flips synchronously while
+ * the transcript re-renders a tick later, so a fixed settle can screenshot the
+ * PREVIOUS tab (the "one hold late" bug that dropped the last tab from the
+ * hero GIF). Polling the visible panel's textContent keys capture to the real
+ * content switch, not a proxy (sdlc.md § Assert the Outcome).
+ */
+async function waitForActivePanelText(
+	deps: OrchestratorDeps,
+	text: string,
+	timeoutMs: number,
+): Promise<void> {
+	const expr = `(() => { const p = document.querySelector(${JSON.stringify(
+		ACTIVE_PANEL,
+	)}); return !!p && (p.textContent || "").includes(${JSON.stringify(
+		text,
+	)}); })()`;
+	const deadline = Date.now() + timeoutMs;
+	for (;;) {
+		const ok = await deps.cdp.evaluate<boolean>(expr);
+		if (ok) return;
+		if (Date.now() >= deadline) {
+			throw new Error(
+				`waitForActivePanelText: timeout waiting for "${text}" in the active panel after ${timeoutMs}ms`,
+			);
+		}
+		await sleep(ANIM_CONTENT_POLL_MS);
+	}
+}
+
 /**
  * Animation capture path (v2): drive each frame, capture window-mode, crop each
  * to the SAME static crop (no jitter), then encode to `<name>.gif`. Window-mode
@@ -1577,10 +1612,12 @@ async function captureAnimationEntry(
 	// so the GIF can cycle the active tab — same helper the still hero uses.
 	await restoreSessionsIntoTabs(entry, deps);
 
-	// Static crop resolved ONCE (CSS px → device px), reused for every frame so
-	// the GIF doesn't jitter; clamped to the captured image bounds per frame.
+	// Crop resolved ONCE (from cropSelector/cropSelectors when present, else the
+	// static crop; CSS px → device px), reused for every frame so the GIF
+	// doesn't jitter; clamped to the captured image bounds per frame.
+	const cropCss = await resolveCropRectCss(entry, deps.cdp);
 	const scaledCrop = scaleRectByDevicePixelRatio(
-		entry.crop,
+		cropCss,
 		deps.devicePixelRatio,
 	);
 	const floor = entry.minDistinctColors ?? DEFAULT_MIN_DISTINCT_COLORS;
@@ -1597,6 +1634,33 @@ async function captureAnimationEntry(
 		for (const action of frame.actions ?? []) {
 			await applyAnimationAction(action, deps);
 		}
+		// Content-level wait: an action that switches the active tab flips the
+		// tab-active class synchronously while the transcript re-renders a tick
+		// later. Wait on the newly-visible panel's actual content (a selector
+		// and/or a text substring unique to the target tab) so the capture
+		// can't land one hold behind — the fixed settle below is only a final
+		// paint buffer, not the switch signal.
+		if (frame.awaitSelector) {
+			await deps.cdp.waitForElement(
+				`${ACTIVE_PANEL} ${frame.awaitSelector}`,
+				RESPONSE_TIMEOUT_MS,
+			);
+		}
+		if (frame.awaitText) {
+			await waitForActivePanelText(
+				deps,
+				frame.awaitText,
+				RESPONSE_TIMEOUT_MS,
+			);
+		}
+		// Foreground the window before capturing. A background Obsidian window's
+		// compositor throttles/defers repaints, so the OS-level window
+		// screenshot can lag one tab-switch behind the DOM (the "one hold late"
+		// bug — the DOM/content-wait above passes instantly since panels are
+		// pre-rendered, but the pixels still show the prior tab). Focusing forces
+		// the foreground repaint; the settle below lets it complete. Mirrors the
+		// still path (captureEntry), which focuses before its single shot.
+		await deps.cdp.focusWindow();
 		await sleep(SETTLE_MS);
 
 		// Dismiss transient Obsidian notices, then assert cleanliness — the
@@ -1625,6 +1689,14 @@ async function captureAnimationEntry(
 		}
 
 		const tmpPath = path.join(deps.tmpDir, `${entry.name}-frame-${fi}.png`);
+		// Warm-up shot (discarded): `dev:screenshot` captures the compositor
+		// state as of roughly the PREVIOUS invocation, so in a rapid cycle the
+		// first shot after a tab switch returns the prior tab (frame N showed
+		// state N-1 — awaitText + focus + settle did NOT fix it because the lag
+		// is in the capture buffer, not the DOM/paint). A throwaway shot flushes
+		// that buffer so the real shot below reflects the current tab.
+		await deps.cdp.screenshot(tmpPath);
+		await sleep(SETTLE_MS);
 		await deps.cdp.screenshot(tmpPath);
 
 		const meta = await deps.sharp(tmpPath).metadata();

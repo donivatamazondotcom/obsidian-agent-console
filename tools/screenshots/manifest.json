@@ -620,15 +620,11 @@
 		},
 		{
 			"name": "multi-session-animated",
-			"frame": {
-				"chrome": "macos",
-				"chromeHeight": 28
-			},
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 680,
-			"purpose": "Run several agent sessions in parallel tabs, each tab keeping its own conversation and status.",
-			"width": 1050,
-			"height": 570,
+			"purpose": "Run several agent sessions in parallel tabs, cycling the active tab to show each keeps its own conversation and status.",
+			"width": 680,
+			"height": 720,
 			"crop": {
 				"x": 0,
 				"y": 0,
@@ -636,10 +632,6 @@
 				"height": 760
 			},
 			"initialState": {
-				"openNotes": [
-					"Weekly review.md",
-					"Reading list.base"
-				],
 				"clickRibbon": true,
 				"rescanQuickPrompts": true,
 				"restoreSessions": {
@@ -656,7 +648,7 @@
 			"differentiator": "Tabbed sessions with per-tab status",
 			"mustShow": ".agent-client-tab-state-icon",
 			"caption": "Run agents in parallel tabs",
-			"altText": "Three agent sessions in parallel tabs beside an open note in Obsidian, each tab keeping its own conversation and status icon",
+			"altText": "Agent Console cycling three parallel session tabs — Japan trip, Launch check, Newsletter — each with its own conversation and status",
 			"animation": {
 				"fps": 5,
 				"maxBytes": 3500000,
@@ -668,6 +660,7 @@
 								"index": 0
 							}
 						],
+						"awaitText": "balanced first-timer route",
 						"holdMs": 1600
 					},
 					{
@@ -677,6 +670,7 @@
 								"index": 1
 							}
 						],
+						"awaitText": "run of show",
 						"holdMs": 1600
 					},
 					{
@@ -686,10 +680,13 @@
 								"index": 2
 							}
 						],
+						"awaitText": "protecting your focus",
 						"holdMs": 1600
 					}
 				]
-			}
+			},
+			"cropSelector": ".workspace-leaf-content[data-type=\"agent-client-chat-view\"]",
+			"cropPadding": 0
 		},
 		{
 			"name": "tab-status-dropdown",

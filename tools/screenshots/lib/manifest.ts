@@ -281,16 +281,35 @@ export interface AnimationFrame {
 	actions?: AnimationAction[];
 	/** How long this state is shown in the GIF, ms (> 0). */
 	holdMs: number;
+	/**
+	 * Wait for this selector inside the active tab panel to appear BEFORE the
+	 * frame is captured (scoped to the visible panel, like the still path's
+	 * entry-level `awaitSelector`). Use when a frame's action switches content
+	 * that renders asynchronously — a fixed settle can screenshot the prior
+	 * state (the "one hold late" tab-cycle bug).
+	 */
+	awaitSelector?: string;
+	/**
+	 * Wait until the active tab panel's rendered text CONTAINS this substring
+	 * before the frame is captured. This is the content-level signal (not the
+	 * tab-active class, which flips synchronously while the transcript renders
+	 * a tick later) — pin each `activateTab` frame to a phrase unique to that
+	 * tab's transcript so the capture never lands one hold behind.
+	 */
+	awaitText?: string;
 }
 
 /**
  * Animated-GIF spec (v2). When set on an entry, the orchestrator takes the
  * multi-frame path: drive each frame, capture (window mode), crop each to the
- * SAME static `crop` (so the GIF doesn't jitter), content-guard each frame,
- * then encode to `<name>.gif`. The entry's `width`/`height`/`crop` apply per
- * frame; `cropSelector`/`cropSelectors`/`captureMode:"screen"` are NOT used by
- * the animation path (both target GIFs are in-renderer DOM, window mode). The
- * drop shadow is NOT applied (the upstream GIFs are flat 856×480).
+ * SAME crop region (resolved ONCE before the loop — from `cropSelector` /
+ * `cropSelectors` when present, else the static `crop` — so the GIF doesn't
+ * jitter), content-guard each frame, then encode to `<name>.gif`. A frame may
+ * carry `awaitSelector` / `awaitText` to wait on the active panel's rendered
+ * content before capture (fixes async tab-switch renders). `captureMode:
+ * "screen"` is NOT used by the animation path. The drop shadow is NOT applied
+ * (a `frame.chrome:"macos"` synthetic title bar is applied per frame instead;
+ * `frame.chrome:"none"` or no `frame` yields a bare cropped panel).
  */
 export interface AnimationSpec {
 	/** Ordered frames; the first is usually the initial state (no actions). */
@@ -1009,6 +1028,24 @@ export function validateManifest(
 				if (!Number.isFinite(frame.holdMs) || frame.holdMs <= 0) {
 					throw new Error(
 						`manifest entry "${entry.name}" animation frame ${fi} has invalid holdMs: ${frame.holdMs} (must be a finite number > 0)`,
+					);
+				}
+				if (
+					frame.awaitSelector !== undefined &&
+					(typeof frame.awaitSelector !== "string" ||
+						frame.awaitSelector.trim() === "")
+				) {
+					throw new Error(
+						`manifest entry "${entry.name}" animation frame ${fi}: awaitSelector must be a non-empty string`,
+					);
+				}
+				if (
+					frame.awaitText !== undefined &&
+					(typeof frame.awaitText !== "string" ||
+						frame.awaitText.trim() === "")
+				) {
+					throw new Error(
+						`manifest entry "${entry.name}" animation frame ${fi}: awaitText must be a non-empty string`,
 					);
 				}
 				if (frame.actions !== undefined) {
