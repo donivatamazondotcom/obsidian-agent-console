@@ -150,6 +150,7 @@ src/
 ├── utils/                       # Shared utilities (pure functions)
 │   ├── platform.ts              # Shell, WSL, Windows env, command building
 │   ├── close-confirm.ts         # Pure shouldConfirmClose predicate for the multi-tab close gate
+│   ├── chat-scope-parent.ts     # Pure resolver: parent chat-UI pushed scopes to the view scope so Cmd+W reaches the close guard (I155)
 │   ├── activeNoteGrabToggle.ts  # Grab/ungrab active note in context strip (hotkey)
 │   ├── provisional-context.ts   # Provisional auto-default context pill (crystallize-on-send)
 │   ├── image-paste.ts           # classifyImagePaste — pure image-paste decision (connecting vs unsupported; separates unknown from false)

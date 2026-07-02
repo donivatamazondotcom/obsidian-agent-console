@@ -7,7 +7,7 @@
  * from the concrete view implementation.
  */
 
-import type { App } from "obsidian";
+import type { App, Scope } from "obsidian";
 
 /**
  * Minimal interface for components that need view-level DOM event registration.
@@ -24,6 +24,15 @@ import type { App } from "obsidian";
 export interface IChatViewHost {
 	/** Obsidian App instance for API access */
 	app: App;
+
+	/**
+	 * The view's key event scope, or null. `ChatView` registers its
+	 * confirm-before-closing Cmd+W handler here. Chat UI components parent the
+	 * scopes they `keymap.pushScope` to this one (via
+	 * `resolveChatPushScopeParent`) so an unhandled Cmd+W falls through to the
+	 * close guard instead of Obsidian's default panel-close (I155).
+	 */
+	readonly scope: Scope | null;
 
 	/**
 	 * Registry-recognized container ID. For sidebar (ChatView) this is

@@ -14,6 +14,7 @@ import {
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
+import { resolveChatPushScopeParent } from "../utils/chat-scope-parent";
 import {
 	resolveDefaultWorkingDirectory,
 	deriveCwdBanner,
@@ -720,7 +721,9 @@ export function ChatPanel({
 	// Obsidian's editor hotkeys still fire elsewhere.
 	useEffect(() => {
 		const keymap = plugin.app.keymap;
-		const scope = new Scope(plugin.app.scope);
+		const scope = new Scope(
+			resolveChatPushScopeParent(viewHost.scope, plugin.app.scope),
+		);
 		const handler = (evt: KeyboardEvent): false | void => {
 			const path =
 				activeDocument.activeElement?.getAttribute(PILL_PATH_ATTR);

@@ -39,6 +39,7 @@ import { deriveSendAffordance } from "../resolvers/send-affordance";
 import type { TabSessionState } from "../hooks/useTabSessionState";
 import { focusComposerAtEnd } from "./composer-focus";
 import { getLogger } from "../utils/logger";
+import { resolveChatPushScopeParent } from "../utils/chat-scope-parent";
 import { decideComposerEnterAction, buildComposerPlaceholder, buildQueuedBanner, isQueuedSendBlocked } from "../services/message-queue-logic";
 import type { ErrorInfo } from "../types/errors";
 import type { AgentUpdateNotification } from "../services/update-checker";
@@ -848,7 +849,9 @@ export function InputArea({
 	useEffect(() => {
 		if (!quickPromptDropdownOpen) return;
 		const keymap = plugin.app.keymap;
-		const scope = new Scope(plugin.app.scope);
+		const scope = new Scope(
+			resolveChatPushScopeParent(view.scope, plugin.app.scope),
+		);
 		const handler = (evt: KeyboardEvent): false | void => {
 			// Consume (preventDefault) when we acted on the dropdown; otherwise
 			// return void so Obsidian falls through to its editor hotkeys.
