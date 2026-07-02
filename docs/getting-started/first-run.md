@@ -31,6 +31,10 @@ If no agent is connectable yet — nothing installed, or the configured command 
 - An **Open settings** button that jumps straight to Agent Console's settings, where you can choose a provider or set a CLI path by hand.
 - A hint for the case where you installed a CLI somewhere custom — point Agent Console at it with an absolute path in settings.
 
+<p align="center">
+  <img src="/images/first-run-activation.webp" alt="Agent Console first-run panel with no agent installed, listing Claude Code, Codex, Gemini CLI and Kiro CLI with Install and Copy buttons" width="460" />
+</p>
+
 While this screen is up, the message box is turned off — there's no agent to send to yet. It turns back on the moment an agent is installed or picked.
 
 Detection here is the same login-shell-aware check used for the default pick, so it finds CLIs installed under version managers (mise, nvm, asdf) and `~/.local/bin`, not just the system path.

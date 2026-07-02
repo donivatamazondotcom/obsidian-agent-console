@@ -17,6 +17,10 @@ Open **Settings → Community plugins → Agent Console** and expand the **Obsid
 
 Each of the four items above has its own switch — turn off anything you'd rather not send. The agent still works either way; these just help it fit in better.
 
+<p align="center">
+  <img src="/images/obsidian-system-prompt.webp" alt="Agent Console settings showing the editable Obsidian system prompt with per-block include toggles and a reset-to-defaults button" width="520" />
+</p>
+
 ## Add your own context
 
 The **Your vault context** box is for your own notes to the agent — where things live, your naming and linking conventions, the tone you prefer. Whatever you type is added to the end of the prompt and sent the same way for every chat in this vault. It's the lightweight way to teach the agent about your vault without writing the whole prompt yourself.
