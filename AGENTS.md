@@ -142,6 +142,7 @@ src/
 │   ├── SharedLinksButton.tsx    # Header shared-links indicator (count badge + grouped New/Earlier popover)
 │   ├── view-host.ts             # IChatViewHost interface
 │   ├── use-auto-scroll-pin.ts   # Auto-scroll-to-bottom hook (pin state + native scroll + ResizeObserver/wheel/touch)
+│   ├── use-pill-open-scope.ts   # Active-tab-gated keymap scope to open focused context pills on Enter combos (I156)
 │   ├── use-auto-scroll-pin.types.ts  # PinState, params, result types for useAutoScrollPin
 │   └── shared/
 │       ├── IconButton.tsx       # Icon button + Lucide icon wrapper
