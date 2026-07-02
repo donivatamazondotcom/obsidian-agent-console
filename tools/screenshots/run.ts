@@ -25,7 +25,7 @@ import { parseManifest, validateManifest } from "./lib/manifest";
 import { captureAll, type OrchestratorDeps } from "./lib/orchestrator";
 import { Cdp } from "./lib/cdp";
 import { addDropShadow } from "./lib/shadow";
-import { frameImage as applyFrame } from "./lib/frame";
+import { frameImage as applyFrame, chromeOnlyFrame } from "./lib/frame";
 import { encodeGif, frameFileName } from "./lib/encode-gif";
 
 async function main() {
@@ -90,6 +90,7 @@ async function main() {
 		devicePixelRatio: dpr,
 		postProcess: (output) => addDropShadow(output),
 		frameImage: (output, opts) => applyFrame(output, opts),
+		chromeFrame: (input, opts) => chromeOnlyFrame(input, opts),
 		// Content guard: decode the final webp to raw RGB(A) pixels so the
 		// orchestrator can count distinct colors and reject blank/degraded
 		// captures (I11 follow-up). Read after postProcess (the shadow margin
@@ -109,7 +110,8 @@ async function main() {
 		// ffmpeg passes run, and the output size is asserted against maxBytes.
 		encodeGif: (opts) =>
 			encodeGif(opts, {
-				makeWorkDir: () => mkdtempSync(path.join(tmpdir(), "gif-frames-")),
+				makeWorkDir: () =>
+					mkdtempSync(path.join(tmpdir(), "gif-frames-")),
 				writeFrame: (dir, index, buffer) =>
 					writeFileSync(path.join(dir, frameFileName(index)), buffer),
 				runFfmpeg: (args) =>
@@ -118,7 +120,11 @@ async function main() {
 						proc.on("close", (code) =>
 							code === 0
 								? resolve()
-								: reject(new Error(`ffmpeg exited with code ${code}`)),
+								: reject(
+										new Error(
+											`ffmpeg exited with code ${code}`,
+										),
+									),
 						);
 						proc.on("error", reject);
 					}),

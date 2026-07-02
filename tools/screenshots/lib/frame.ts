@@ -72,17 +72,21 @@ const BG_RADIUS = 32;
  */
 const HERO_DEFAULTS: FrameOptions = {
 	chrome: "macos",
-	background: { from: "#6d5efc", to: "#3a1f8f" },
+	// Fork palette (blue → cyan) — deliberately NOT upstream's purple/orange.
+	background: { from: "#1d4ed8", to: "#06b6d4" },
 	cornerRadius: 22,
-	padding: 180,
+	// Slim matte so the window fills the frame (maximizes visible UI); shadow
+	// trimmed to fit within the 60px padding.
+	padding: 60,
 	chromeHeight: 54,
-	shadow: { opacity: 0.45, blur: 55, offsetY: 30 },
+	shadow: { opacity: 0.4, blur: 30, offsetY: 16 },
 };
 const CARD_DEFAULTS: FrameOptions = {
 	chrome: "none",
-	background: { from: "#f7971e", to: "#d62976" },
+	// Fork palette (blue → cyan) — same cohesive gradient as the hero, NOT upstream.
+	background: { from: "#1d4ed8", to: "#06b6d4" },
 	cornerRadius: 16,
-	padding: 100,
+	padding: 60,
 	chromeHeight: 0,
 	shadow: { opacity: 0.4, blur: 30, offsetY: 16 },
 };
@@ -208,7 +212,11 @@ export async function frameImage(
 			},
 		})
 			.composite([
-				{ input: Buffer.from(chromeBarSvg(cw, opts.chromeHeight)), top: 0, left: 0 },
+				{
+					input: Buffer.from(chromeBarSvg(cw, opts.chromeHeight)),
+					top: 0,
+					left: 0,
+				},
 				{ input: content, top: opts.chromeHeight, left: 0 },
 			])
 			.png()
@@ -219,7 +227,9 @@ export async function frameImage(
 	const rounded = await sharp(winBuf)
 		.composite([
 			{
-				input: Buffer.from(roundedRectMaskSvg(winW, winH, opts.cornerRadius)),
+				input: Buffer.from(
+					roundedRectMaskSvg(winW, winH, opts.cornerRadius),
+				),
 				blend: "dest-in",
 			},
 		])
@@ -257,4 +267,50 @@ export async function frameImage(
 		.webp({ quality: 90 })
 		.toFile(tmpOut);
 	renameSync(tmpOut, filePath);
+}
+
+/** Options for the animation-GIF chrome frame (no gradient matte / shadow). */
+export interface ChromeFrameOptions {
+	/** Synthetic macOS title-bar height in px, stacked above the content. */
+	chromeHeight: number;
+}
+
+/**
+ * Frame a single animation FRAME (buffer in → buffer out) with a synthetic
+ * macOS title bar stacked above the content — option (c) of the hero-GIF
+ * framing decision. Unlike `frameImage`, this deliberately adds NO gradient
+ * matte, NO soft shadow, and NO padding: the GIF encoder collapses to a 256-
+ * color palette, so a diagonal gradient background dithers badly and inflates
+ * the file. The chrome bar (dark strip + traffic-light dots) alone gives the
+ * "app window" read while keeping every frame's palette tight and identical
+ * (only the inner content differs across frames). Corners stay square and the
+ * output is fully opaque, so there are no 1-bit-transparency artifacts in the
+ * GIF. Width is unchanged; height grows by `chromeHeight`.
+ */
+export async function chromeOnlyFrame(
+	content: Buffer,
+	opts: ChromeFrameOptions,
+): Promise<Buffer> {
+	const { width, height } = await sharp(content).metadata();
+	if (!width || !height) {
+		throw new Error("chromeOnlyFrame: cannot read content dimensions");
+	}
+	return await sharp({
+		create: {
+			width,
+			height: height + opts.chromeHeight,
+			channels: 4,
+			background: { r: 0, g: 0, b: 0, alpha: 1 },
+		},
+	})
+		.composite([
+			{
+				input: Buffer.from(chromeBarSvg(width, opts.chromeHeight)),
+				top: 0,
+				left: 0,
+			},
+			{ input: content, top: opts.chromeHeight, left: 0 },
+		])
+		.png()
+		.toBuffer();
 }

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "sessionId": "seed-hero-embeddings",
+  "agentId": "kiro-cli",
+  "messages": [
+    {
+      "id": "m1",
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Explain how vector embeddings work."
+        }
+      ],
+      "timestamp": "2026-06-29T18:12:00.000Z"
+    },
+    {
+      "id": "m2",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Embeddings turn text into points in space, so \"similar meaning\" becomes \"close together.\"\n\n> [!note] The core idea\n> A model maps each piece of text to a list of numbers (a vector). Texts about the same topic land near each other \u2014 even when they share no words.\n\nYou measure closeness with cosine similarity:\n\n$$\\cos\\theta = \\frac{\\mathbf{a}\\cdot\\mathbf{b}}{\\lVert \\mathbf{a}\\rVert\\,\\lVert \\mathbf{b}\\rVert}$$\n\nHere's the flow end to end:\n\n```mermaid\nflowchart TD\n  A[Your text] --> B[Embedding model]\n  B --> C[Vector]\n  C --> D[Nearest notes]\n```"
+        }
+      ],
+      "timestamp": "2026-06-29T18:12:40.000Z"
+    }
+  ],
+  "contextNotes": [],
+  "savedAt": "2026-06-29T18:12:40.000Z"
+}

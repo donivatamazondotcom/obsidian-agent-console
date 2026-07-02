@@ -46,3 +46,27 @@ body.acp-capturing .agent-client-scroll-to-bottom { display: none !important; }
    docs screenshots. Real error/warning overlays are NOT hidden. Same
    capture-time gate as above. */
 body.acp-capturing .agent-client-error-overlay--info { display: none !important; }
+
+/* Screenshot fixtures: drop the "· Not connected" branded-header suffix on
+   restored (agent-less) sessions. The hero restores saved sessions with no live
+   agent, so the header renders "<Agent> · Not connected"; the connecting state
+   re-renders periodically, so an inline display:none (manifest hideSelectors)
+   is wiped — this !important CSS persists across the re-render. Same
+   capture-time gate as above, so smoke testing still shows the real state. */
+body.acp-capturing .acp-header-branded-connecting,
+body.acp-capturing .acp-header-branded-sep { display: none !important; }
+
+/* Screenshot fixtures: hide the "Session restored from history" lossy-fallback
+   notice (.agent-client-fallback-notice, LossyFallbackNotice.tsx). Restoring a
+   saved session with no live agent backend always fails session/load, so every
+   restored tab shows this transcript-only notice — a fixtures-only artifact a
+   real user (with a live agent) never sees. It leads the transcript and reads
+   as a degraded/error state, wrong for docs. Same capture-time gate, so smoke
+   testing still shows the real notice. */
+body.acp-capturing .agent-client-fallback-notice { display: none !important; }
+
+/* Screenshot fixtures: hide Obsidian's editor status bar (word count / backlinks)
+   at the window bottom. In leaf-cropped shots it overlaps the chat leaf's bottom
+   edge when a markdown note is left open in the workspace; it is Obsidian chrome,
+   never plugin UI. Same capture-time gate, so smoke testing is unaffected. */
+body.acp-capturing .status-bar { display: none !important; }

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "sessionId": "seed-hero-itinerary",
+  "agentId": "claude-code-acp",
+  "messages": [
+    {
+      "id": "m1",
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Plan a 5-day Japan trip — Tokyo and Kyoto, first time."
+        }
+      ],
+      "timestamp": "2026-06-29T18:10:00.000Z"
+    },
+    {
+      "id": "m2",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Here's a balanced first-timer route between Tokyo and Kyoto:\n\n| Day | Base | Highlights |\n| --- | --- | --- |\n| 1 | Tokyo | Asakusa, Senso-ji, an evening Sumida River walk |\n| 2 | Tokyo | teamLab Planets, Shibuya crossing, Shinjuku at night |\n| 3 | Kyoto | Morning bullet train, Fushimi Inari, Gion |\n| 4 | Kyoto | Arashiyama bamboo grove, Kinkaku-ji |\n| 5 | Kyoto | Nishiki Market, a slow morning, fly home |\n\n> [!tip] Save on rail\n> A 7-day Japan Rail Pass covers the Tokyo–Kyoto bullet train both ways and pays for itself by day 3.\n\nI saved the plan to [[Japan trip]] so you can tweak it as things firm up."
+        }
+      ],
+      "timestamp": "2026-06-29T18:10:30.000Z"
+    }
+  ],
+  "contextNotes": [],
+  "savedAt": "2026-06-29T18:10:30.000Z"
+}

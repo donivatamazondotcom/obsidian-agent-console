@@ -41,6 +41,13 @@ export interface InitialState {
 	 */
 	openNote?: string;
 	/**
+	 * Multiple editor tabs to open before capture. The first replaces the
+	 * active leaf; each subsequent note opens in a NEW editor tab (background
+	 * tabs beside the active note — e.g. the hero's Weekly review + Reading
+	 * list dashboard). Use instead of openNote when >1 editor tab is wanted.
+	 */
+	openNotes?: string[];
+	/**
 	 * When true, click the Agent Console ribbon icon to activate the
 	 * plugin's panel. Idempotent — clicking again with the panel already
 	 * open is a no-op.
@@ -51,6 +58,15 @@ export interface InitialState {
 	 * command. Required for floating-chat-view.webp.
 	 */
 	openChatView?: boolean;
+	/**
+	 * When true, force `quickPromptLibrary.rescan()` after the panel opens so
+	 * quick prompts reflect their current frontmatter labels/flags. Guards the
+	 * scan/cache race (QP-I26) where a prompt scanned before its frontmatter is
+	 * cached falls back to its filename (losing the emoji `label:` + new-tab
+	 * marker); without this a fresh fixtures-vault load can capture the wrong
+	 * label non-deterministically. Remove once QP-I26 is fixed.
+	 */
+	rescanQuickPrompts?: boolean;
 	/**
 	 * CSS selector to hover before capture (triggers tooltips).
 	 * The driver dispatches mouseenter + mouseover on the element.
@@ -180,6 +196,55 @@ export interface InitialState {
 	 * robust to section reordering and class churn (no positional CSS).
 	 */
 	scrollToSettingText?: string;
+
+	/**
+	 * Restore saved sessions (by title) into tabs, building a multi-session tab
+	 * bar where each tab carries its own seeded transcript. For each title, the
+	 * driver opens the session-history modal and clicks that session's restore
+	 * icon, which appends a NEW tab bound to the session and loads its messages
+	 * (verified 2026-06-30: each restore appends + activates a tab; the tab
+	 * label is the session title — diverse labels come for free). After
+	 * restoring, the initial auto-labeled tab is dropped and the session at
+	 * `activeIndex` (default: last) is activated so its rich transcript is the
+	 * visible panel. Requires each title to exist in savedSessions with a
+	 * message file in sessions/. Runs after clickRibbon/openChatView. Pair with
+	 * entry-level `awaitSelector` (e.g. ".mermaid svg") to wait for async
+	 * rendering on the active transcript before capture (N1).
+	 *
+	 * Restore-race guard (optional): the restore + reset sequence can race and
+	 * leave the WRONG tab active — most notably the initial empty auto tab
+	 * (Claude Code default agent) instead of the intended restored session.
+	 * When `requireActiveHeaderIncludes` and/or `requireActiveSelector` are set,
+	 * the orchestrator verifies the active panel after restoring (header text
+	 * contains the substring; the selector matches ≥1 element in the active
+	 * panel) and, if the check fails, resets the panel and retries the whole
+	 * restore up to a bounded number of attempts before throwing. This asserts
+	 * the outcome (the intended session is the visible one) rather than trusting
+	 * the sequence completed without error.
+	 */
+	restoreSessions?: {
+		titles: string[];
+		activeIndex?: number;
+		/**
+		 * Substring the active panel's chat-view header must contain after
+		 * restore (e.g. "Kiro CLI"). Enables the verify+retry guard.
+		 */
+		requireActiveHeaderIncludes?: string;
+		/**
+		 * Selector that must match ≥1 element in the active panel after restore
+		 * (e.g. ".callout"). Enables the verify+retry guard.
+		 */
+		requireActiveSelector?: string;
+		/**
+		 * After restoring + activating the chosen tab, click its Reload button
+		 * to resume the session (keeps the transcript) so the agent's capability
+		 * handshake renders the model/mode toolbar under the composer. A restored
+		 * session is otherwise disconnected and shows no model dropdown. The
+		 * transient "· Not connected" header text is hidden at capture time by
+		 * the Fixtures theme's `body.acp-capturing` rule.
+		 */
+		reconnectActive?: boolean;
+	};
 }
 
 /**
@@ -195,11 +260,17 @@ export interface InitialState {
  *   native-value-setter hack does not.
  * - "wait": poll for a selector before the next action (e.g. the send button
  *   enabling once a lazy session connects).
+ * - "activateTab": switch the active session tab by zero-based index (drives
+ *   `tabManagerRef.setActiveTab` on the id at that index, clamped to range).
+ *   Focus-independent (an in-renderer API call, no synthetic input). Used by
+ *   the hero GIF to cycle across restored session tabs without sending
+ *   anything live.
  */
 export type AnimationAction =
 	| { type: "click"; selector: string; waitFor?: string }
 	| { type: "draft"; text: string }
-	| { type: "wait"; selector: string };
+	| { type: "wait"; selector: string }
+	| { type: "activateTab"; index: number };
 
 /** One step of an animation: drive into a state, then hold it for the GIF. */
 export interface AnimationFrame {
@@ -210,16 +281,35 @@ export interface AnimationFrame {
 	actions?: AnimationAction[];
 	/** How long this state is shown in the GIF, ms (> 0). */
 	holdMs: number;
+	/**
+	 * Wait for this selector inside the active tab panel to appear BEFORE the
+	 * frame is captured (scoped to the visible panel, like the still path's
+	 * entry-level `awaitSelector`). Use when a frame's action switches content
+	 * that renders asynchronously — a fixed settle can screenshot the prior
+	 * state (the "one hold late" tab-cycle bug).
+	 */
+	awaitSelector?: string;
+	/**
+	 * Wait until the active tab panel's rendered text CONTAINS this substring
+	 * before the frame is captured. This is the content-level signal (not the
+	 * tab-active class, which flips synchronously while the transcript renders
+	 * a tick later) — pin each `activateTab` frame to a phrase unique to that
+	 * tab's transcript so the capture never lands one hold behind.
+	 */
+	awaitText?: string;
 }
 
 /**
  * Animated-GIF spec (v2). When set on an entry, the orchestrator takes the
  * multi-frame path: drive each frame, capture (window mode), crop each to the
- * SAME static `crop` (so the GIF doesn't jitter), content-guard each frame,
- * then encode to `<name>.gif`. The entry's `width`/`height`/`crop` apply per
- * frame; `cropSelector`/`cropSelectors`/`captureMode:"screen"` are NOT used by
- * the animation path (both target GIFs are in-renderer DOM, window mode). The
- * drop shadow is NOT applied (the upstream GIFs are flat 856×480).
+ * SAME crop region (resolved ONCE before the loop — from `cropSelector` /
+ * `cropSelectors` when present, else the static `crop` — so the GIF doesn't
+ * jitter), content-guard each frame, then encode to `<name>.gif`. A frame may
+ * carry `awaitSelector` / `awaitText` to wait on the active panel's rendered
+ * content before capture (fixes async tab-switch renders). `captureMode:
+ * "screen"` is NOT used by the animation path. The drop shadow is NOT applied
+ * (a `frame.chrome:"macos"` synthetic title bar is applied per frame instead;
+ * `frame.chrome:"none"` or no `frame` yields a bare cropped panel).
  */
 export interface AnimationSpec {
 	/** Ordered frames; the first is usually the initial state (no actions). */
@@ -383,7 +473,7 @@ export interface ManifestEntry {
 	 * `cropSelectors` cannot resolve it) and pin the window to a fixed size so
 	 * the crop region is reproducible.
 	 */
-	captureMode?: "window" | "screen";
+	captureMode?: "window" | "screen" | "screen-window";
 	/**
 	 * Approval-test threshold for `pixelmatch` — fraction of differing
 	 * pixels above which the test fails. Default 0.05 (loose enough for
@@ -472,6 +562,13 @@ export interface ManifestEntry {
 	altText?: string;
 
 	/**
+	 * Known cosmetic follow-up for a future capture pass (not a release
+	 * blocker). Surfaced during release-cycle review of this shot so a
+	 * non-blocking nit isn't lost. Free text.
+	 */
+	followUp?: string;
+
+	/**
 	 * Presentation framing (Decision 11). `true` mounts the shot in a
 	 * placement-appropriate frame (hero → synthetic macOS window + soft shadow +
 	 * gradient; else → chrome-less card); an object overrides specific fields.
@@ -487,7 +584,7 @@ export interface ManifestEntry {
 				padding?: number;
 				chromeHeight?: number;
 				shadow?: { opacity?: number; blur?: number; offsetY?: number };
-			};
+		  };
 
 	/**
 	 * Animated-GIF spec (v2). When present, the entry is captured as a
@@ -597,6 +694,14 @@ export function validateManifest(
 			if (!existsSync(notePath)) {
 				throw new Error(
 					`manifest entry "${entry.name}" references missing note: ${entry.initialState.openNote} (looked under ${path.join(fixtureRoot, "studio")})`,
+				);
+			}
+		}
+		for (const n of entry.initialState?.openNotes ?? []) {
+			const notePath = path.join(fixtureRoot, "studio", n);
+			if (!existsSync(notePath)) {
+				throw new Error(
+					`manifest entry "${entry.name}" references missing note in openNotes: ${n} (looked under ${path.join(fixtureRoot, "studio")})`,
 				);
 			}
 		}
@@ -726,6 +831,31 @@ export function validateManifest(
 			}
 		}
 
+		if (entry.initialState?.restoreSessions !== undefined) {
+			const rs = entry.initialState.restoreSessions;
+			if (
+				typeof rs !== "object" ||
+				rs === null ||
+				!Array.isArray(rs.titles) ||
+				rs.titles.length === 0 ||
+				!rs.titles.every(
+					(t) => typeof t === "string" && t.trim() !== "",
+				)
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid initialState.restoreSessions.titles: must be a non-empty array of non-empty strings`,
+				);
+			}
+			if (
+				rs.activeIndex !== undefined &&
+				(!Number.isInteger(rs.activeIndex) || rs.activeIndex < 0)
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid initialState.restoreSessions.activeIndex: must be a non-negative integer`,
+				);
+			}
+		}
+
 		const selectorStrings: Array<[string, string | undefined]> = [
 			["openSettings", entry.initialState?.openSettings],
 			["openNativeSelect", entry.initialState?.openNativeSelect],
@@ -801,7 +931,11 @@ export function validateManifest(
 				);
 			}
 			if (typeof fr === "object") {
-				if (fr.chrome !== undefined && fr.chrome !== "macos" && fr.chrome !== "none") {
+				if (
+					fr.chrome !== undefined &&
+					fr.chrome !== "macos" &&
+					fr.chrome !== "none"
+				) {
 					throw new Error(
 						`manifest entry "${entry.name}" has invalid frame.chrome: ${String(fr.chrome)} (must be "macos" or "none")`,
 					);
@@ -820,7 +954,10 @@ export function validateManifest(
 				}
 				if (fr.shadow !== undefined) {
 					const op = fr.shadow.opacity;
-					if (op !== undefined && (!Number.isFinite(op) || op < 0 || op > 1)) {
+					if (
+						op !== undefined &&
+						(!Number.isFinite(op) || op < 0 || op > 1)
+					) {
 						throw new Error(
 							`manifest entry "${entry.name}" has invalid frame.shadow.opacity: ${op} (must be in [0, 1])`,
 						);
@@ -843,7 +980,10 @@ export function validateManifest(
 						["to", fr.background.to],
 					];
 					for (const [k, v] of bg) {
-						if (v !== undefined && (typeof v !== "string" || v.trim() === "")) {
+						if (
+							v !== undefined &&
+							(typeof v !== "string" || v.trim() === "")
+						) {
 							throw new Error(
 								`manifest entry "${entry.name}" has invalid frame.background.${k}: must be a non-empty string`,
 							);
@@ -890,6 +1030,24 @@ export function validateManifest(
 						`manifest entry "${entry.name}" animation frame ${fi} has invalid holdMs: ${frame.holdMs} (must be a finite number > 0)`,
 					);
 				}
+				if (
+					frame.awaitSelector !== undefined &&
+					(typeof frame.awaitSelector !== "string" ||
+						frame.awaitSelector.trim() === "")
+				) {
+					throw new Error(
+						`manifest entry "${entry.name}" animation frame ${fi}: awaitSelector must be a non-empty string`,
+					);
+				}
+				if (
+					frame.awaitText !== undefined &&
+					(typeof frame.awaitText !== "string" ||
+						frame.awaitText.trim() === "")
+				) {
+					throw new Error(
+						`manifest entry "${entry.name}" animation frame ${fi}: awaitText must be a non-empty string`,
+					);
+				}
 				if (frame.actions !== undefined) {
 					if (!Array.isArray(frame.actions)) {
 						throw new Error(
@@ -922,11 +1080,14 @@ function validateAnimationAction(
 				typeof action.selector !== "string" ||
 				action.selector.trim() === ""
 			) {
-				throw new Error(`${where}: click action needs a non-empty selector`);
+				throw new Error(
+					`${where}: click action needs a non-empty selector`,
+				);
 			}
 			if (
 				action.waitFor !== undefined &&
-				(typeof action.waitFor !== "string" || action.waitFor.trim() === "")
+				(typeof action.waitFor !== "string" ||
+					action.waitFor.trim() === "")
 			) {
 				throw new Error(
 					`${where}: click action waitFor must be a non-empty string`,
@@ -938,12 +1099,21 @@ function validateAnimationAction(
 				typeof action.selector !== "string" ||
 				action.selector.trim() === ""
 			) {
-				throw new Error(`${where}: wait action needs a non-empty selector`);
+				throw new Error(
+					`${where}: wait action needs a non-empty selector`,
+				);
 			}
 			break;
 		case "draft":
 			if (typeof action.text !== "string" || action.text === "") {
 				throw new Error(`${where}: draft action needs non-empty text`);
+			}
+			break;
+		case "activateTab":
+			if (!Number.isInteger(action.index) || action.index < 0) {
+				throw new Error(
+					`${where}: activateTab action needs a non-negative integer index`,
+				);
 			}
 			break;
 		default:

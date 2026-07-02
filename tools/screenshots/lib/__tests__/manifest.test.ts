@@ -372,6 +372,71 @@ describe("validateManifest", () => {
 			/minDistinctColors/,
 		);
 	});
+
+	it("accepts animation frames carrying awaitText / awaitSelector", () => {
+		const root = makeFixtureRoot();
+		const entry: ManifestEntry = {
+			name: "anim-await-ok",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			animation: {
+				fps: 5,
+				maxBytes: 1_000_000,
+				frames: [
+					{
+						actions: [{ type: "activateTab", index: 0 }],
+						awaitText: "balanced first-timer route",
+						holdMs: 800,
+					},
+					{
+						actions: [{ type: "activateTab", index: 1 }],
+						awaitSelector: ".mermaid svg",
+						holdMs: 800,
+					},
+				],
+			},
+		};
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
+	});
+
+	it("rejects an empty animation frame awaitText", () => {
+		const root = makeFixtureRoot();
+		const entry = {
+			name: "anim-await-empty",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			animation: {
+				fps: 5,
+				maxBytes: 1_000_000,
+				frames: [{ awaitText: "   ", holdMs: 800 }],
+			},
+		} as ManifestEntry;
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/awaitText/,
+		);
+	});
+
+	it("rejects a non-string animation frame awaitSelector", () => {
+		const root = makeFixtureRoot();
+		const entry = {
+			name: "anim-await-bad-sel",
+			width: 200,
+			height: 200,
+			crop: { x: 0, y: 0, width: 10, height: 10 },
+			animation: {
+				fps: 5,
+				maxBytes: 1_000_000,
+				frames: [{ awaitSelector: 42, holdMs: 800 }],
+			},
+		} as unknown as ManifestEntry;
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/awaitSelector/,
+		);
+	});
 });
 
 describe("validateManifest — Tier-1 editorial fields (rubric)", () => {
@@ -542,7 +607,9 @@ describe("validateManifest — forbidden* cleanliness fields (rubric P7)", () =>
 				{
 					entries: [
 						base({
-							forbiddenSelectors: [".agent-client-unrelated-leaf"],
+							forbiddenSelectors: [
+								".agent-client-unrelated-leaf",
+							],
 							forbiddenText: ["SecretCodename"],
 						}),
 					],
@@ -613,7 +680,9 @@ describe("validateManifest — awaitSelector", () => {
 			crop: { x: 0, y: 0, width: 10, height: 10 },
 			awaitSelector: ".agent-client-message-permission-request",
 		};
-		expect(() => validateManifest({ entries: [entry] }, root)).not.toThrow();
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
 	});
 });
 
@@ -641,7 +710,9 @@ describe("validateManifest — agentId", () => {
 			crop: { x: 0, y: 0, width: 10, height: 10 },
 			agentId: "gemini-cli",
 		};
-		expect(() => validateManifest({ entries: [entry] }, root)).not.toThrow();
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
 	});
 });
 
@@ -746,7 +817,6 @@ describe("validateManifest — animation (v2)", () => {
 		);
 	});
 
-
 	it("rejects an unknown action type", () => {
 		const root = makeFixtureRoot();
 		const entry = withAnimation({
@@ -756,6 +826,49 @@ describe("validateManifest — animation (v2)", () => {
 		});
 		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
 			/unknown action type/,
+		);
+	});
+
+	it("accepts an activateTab action with a non-negative index", () => {
+		const root = makeFixtureRoot();
+		const entry = withAnimation({
+			fps: 4,
+			maxBytes: 1000,
+			frames: [
+				{ actions: [{ type: "activateTab", index: 0 }], holdMs: 100 },
+				{ actions: [{ type: "activateTab", index: 2 }], holdMs: 100 },
+			],
+		});
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
+	});
+
+	it("rejects an activateTab action with a negative index", () => {
+		const root = makeFixtureRoot();
+		const entry = withAnimation({
+			fps: 4,
+			maxBytes: 1000,
+			frames: [
+				{ actions: [{ type: "activateTab", index: -1 }], holdMs: 100 },
+			],
+		});
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/activateTab action needs a non-negative integer index/,
+		);
+	});
+
+	it("rejects an activateTab action with a non-integer index", () => {
+		const root = makeFixtureRoot();
+		const entry = withAnimation({
+			fps: 4,
+			maxBytes: 1000,
+			frames: [
+				{ actions: [{ type: "activateTab", index: 1.5 }], holdMs: 100 },
+			],
+		});
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/activateTab action needs a non-negative integer index/,
 		);
 	});
 });
@@ -770,7 +883,9 @@ describe("validateManifest — rightSplitWidth", () => {
 			crop: { x: 0, y: 0, width: 400, height: 400 },
 			rightSplitWidth: 680,
 		};
-		expect(() => validateManifest({ entries: [entry] }, root)).not.toThrow();
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
 	});
 
 	it("rejects a zero rightSplitWidth", () => {
@@ -787,7 +902,6 @@ describe("validateManifest — rightSplitWidth", () => {
 		);
 	});
 });
-
 
 describe("validateManifest — frame (Decision 11)", () => {
 	const root = makeFixtureRoot();
@@ -831,6 +945,8 @@ describe("validateManifest — frame (Decision 11)", () => {
 		expect(v(42)).toThrow(/invalid frame/);
 	});
 	it("rejects an empty background string", () => {
-		expect(v({ background: { from: "  " } })).toThrow(/frame\.background\.from/);
+		expect(v({ background: { from: "  " } })).toThrow(
+			/frame\.background\.from/,
+		);
 	});
 });

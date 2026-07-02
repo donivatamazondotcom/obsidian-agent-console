@@ -96,8 +96,15 @@ export class Cdp {
 	 * Run a JavaScript expression in Obsidian's renderer and return the
 	 * value. Throws on uncaught exceptions or unparseable output.
 	 */
-	async evaluate<T = unknown>(expression: string): Promise<T> {
-		const params = JSON.stringify({ expression, returnByValue: true });
+	async evaluate<T = unknown>(
+		expression: string,
+		opts?: { awaitPromise?: boolean },
+	): Promise<T> {
+		const params = JSON.stringify({
+			expression,
+			returnByValue: true,
+			awaitPromise: opts?.awaitPromise ?? false,
+		});
 		const stdout = await this.runRaw([
 			"dev:cdp",
 			"method=Runtime.evaluate",

@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sessionId": "seed-hero-meetingprep",
+  "agentId": "claude-code-acp",
+  "messages": [
+    {
+      "id": "m1",
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "My weekly review is in an hour — can you help me get my notes ready?"
+        }
+      ],
+      "timestamp": "2026-06-29T17:05:00.000Z"
+    },
+    {
+      "id": "m2",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Let's get you prepped. Your review note has two open tasks and this week's reading queue.\n\n> [!tip] Two quick wins before the meeting\n> Close out the open tasks, and add a line on the search-index migration you shipped.\n\nWant me to pull the action items, or summarize the whole note first?"
+        }
+      ],
+      "timestamp": "2026-06-29T17:05:25.000Z"
+    }
+  ],
+  "contextNotes": [
+    {
+      "path": "Weekly review.md",
+      "source": "user",
+      "seen": true
+    }
+  ],
+  "savedAt": "2026-06-29T17:05:25.000Z"
+}

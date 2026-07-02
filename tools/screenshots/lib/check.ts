@@ -13,9 +13,10 @@
  *   nor a docs page — e.g. a removed feature's leftover asset);
  * - no broken docs references (a docs page links an image that isn't on disk);
  * - animation gifs match their manifest dimensions exactly (gifs carry no drop
- *   shadow and never resize, so this is deterministic — unlike the webp shots,
- *   whose committed size depends on the shadow margin / cropSelector native
- *   size, left to the manual T05 check).
+ *   shadow and never resize, so this is deterministic — a chrome-framed GIF adds
+ *   the synthetic-bar height, folded into the expected height below — unlike the
+ *   webp shots, whose committed size depends on the shadow margin / cropSelector
+ *   native size, left to the manual T05 check).
  *
  * Runs in CI on every PR; see `.github/workflows/ci.yaml`.
  *
@@ -23,6 +24,7 @@
  * Test contract: tools/screenshots/lib/__tests__/check.test.ts.
  */
 import type { ManifestEntry } from "./manifest";
+import { resolveFrameConfig } from "./frame";
 
 /** Derived committed-image filename for an entry (gif for animation, else webp). */
 export function derivedImageName(entry: ManifestEntry): string {
@@ -103,10 +105,17 @@ export function findGifDimMismatches(
 		const name = derivedImageName(e);
 		const d = dims.get(name);
 		if (!d) continue;
-		if (d.width !== e.width || d.height !== e.height) {
+		// A chrome-framed GIF (option-c hero) is taller than its content by the
+		// synthetic macOS bar the animation path stacks on each frame; the
+		// manifest height stays the CONTENT height (as for still framed entries),
+		// so fold the chrome in when computing the expected file height.
+		const cfg = resolveFrameConfig(e);
+		const chromeH = cfg?.chrome === "macos" ? cfg.chromeHeight : 0;
+		const expectedHeight = e.height + chromeH;
+		if (d.width !== e.width || d.height !== expectedHeight) {
 			out.push({
 				name,
-				expected: { width: e.width, height: e.height },
+				expected: { width: e.width, height: expectedHeight },
 				actual: { width: d.width, height: d.height },
 			});
 		}
