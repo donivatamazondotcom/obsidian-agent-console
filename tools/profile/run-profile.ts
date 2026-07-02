@@ -15,11 +15,15 @@
  * against the daily vault (GB-T03).
  *
  * Usage:
- *   npm run profile                    # profile + diff vs baseline (warn-only)
- *   npm run profile -- --update        # ratchet/seed the baseline
- *   npm run profile -- --gate          # exit non-zero on a regression
- *   npm run profile -- --vault=studio  # target vault (default: studio)
- *   npm run profile -- --no-seed       # skip seeding (studio already seeded)
+ *   npm run profile                     # profile + diff vs baseline (warn-only)
+ *   npm run profile -- --update         # ratchet/seed the step baseline
+ *   npm run profile -- --record         # median-of-5, append a history point
+ *   npm run profile -- --record --runs=7  # median-of-7
+ *   npm run profile -- --trend          # print the over-time trend (offline)
+ *   npm run profile -- --update-golden  # (re)set the immutable drift anchor
+ *   npm run profile -- --gate           # exit non-zero on a step regression
+ *   npm run profile -- --vault=studio   # target vault (default: studio)
+ *   npm run profile -- --no-seed        # skip seeding (studio already seeded)
  *
  * Spec: [[Agent Console Release Quality Gates]] § Gate B-phase2.
  */
@@ -27,11 +31,13 @@ import { execSync } from "node:child_process";
 import {
 	readFileSync,
 	writeFileSync,
+	appendFileSync,
 	existsSync,
 	rmSync,
 	cpSync,
 	mkdirSync,
 } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { Cdp } from "../screenshots/lib/cdp";
 import { toSnapshot, type MetricSnapshot, type RawMetric } from "./metrics";
@@ -46,22 +52,48 @@ import {
 	generateHeavySession,
 	heavySavedSessionEntry,
 } from "./fixtures/heavy-session";
+import {
+	medianProfile,
+	parseHistory,
+	serializeEntry,
+	formatTrend,
+	TREND_METRICS,
+	type HistoryEntry,
+} from "./history";
 
 interface Args {
 	vault: string;
 	update: boolean;
 	gate: boolean;
 	seed: boolean;
+	record: boolean;
+	runs: number;
+	trend: boolean;
+	updateGolden: boolean;
 	threshold?: number;
 }
 
 function parseArgs(argv: string[]): Args {
-	const a: Args = { vault: "studio", update: false, gate: false, seed: true };
+	const a: Args = {
+		vault: "studio",
+		update: false,
+		gate: false,
+		seed: true,
+		record: false,
+		runs: 5,
+		trend: false,
+		updateGolden: false,
+	};
 	for (const arg of argv) {
 		if (arg === "--update") a.update = true;
 		else if (arg === "--gate") a.gate = true;
 		else if (arg === "--no-seed") a.seed = false;
+		else if (arg === "--record") a.record = true;
+		else if (arg === "--trend") a.trend = true;
+		else if (arg === "--update-golden") a.updateGolden = true;
 		else if (arg.startsWith("--vault=")) a.vault = arg.slice("--vault=".length);
+		else if (arg.startsWith("--runs="))
+			a.runs = Math.max(1, Number(arg.slice("--runs=".length)) || 5);
 		else if (arg.startsWith("--threshold="))
 			a.threshold = Number(arg.slice("--threshold=".length));
 	}
@@ -90,6 +122,88 @@ function loadBaseline(): Baseline | null {
 	} catch {
 		return null;
 	}
+}
+
+const HISTORY_PATH = path.join(
+	path.dirname(new URL(import.meta.url).pathname),
+	"profile-history.jsonl",
+);
+const GOLDEN_PATH = path.join(
+	path.dirname(new URL(import.meta.url).pathname),
+	"profile-golden.json",
+);
+/**
+ * Drift threshold vs the immutable golden anchor — looser than the step
+ * threshold and WARN-only: slow compounding drift is surfaced, never
+ * blocks a release. (Step regression vs the ratcheting baseline is what
+ * `--gate` blocks on.)
+ */
+const DRIFT_THRESHOLD = 0.5;
+
+function loadGolden(): Baseline | null {
+	if (!existsSync(GOLDEN_PATH)) return null;
+	try {
+		return JSON.parse(readFileSync(GOLDEN_PATH, "utf8")) as Baseline;
+	} catch {
+		return null;
+	}
+}
+
+/** Provenance for a history point — same-machine by construction (GB-T05). */
+function resolveProvenance(): {
+	gitSha: string;
+	appVersion: string;
+	host: string;
+} {
+	const root = mainCheckoutRoot();
+	let gitSha = "unknown";
+	try {
+		gitSha = execSync("git rev-parse --short HEAD", {
+			cwd: root,
+			encoding: "utf8",
+		}).trim();
+	} catch {
+		/* leave unknown */
+	}
+	let appVersion = "unknown";
+	try {
+		const manifest = JSON.parse(
+			readFileSync(path.join(root, "manifest.json"), "utf8"),
+		) as { version?: string };
+		appVersion = manifest.version ?? "unknown";
+	} catch {
+		/* leave unknown */
+	}
+	return { gitSha, appVersion, host: os.hostname() };
+}
+
+/** Read history and print the trend for every stable metric. No live run. */
+function printTrend(): void {
+	if (!existsSync(HISTORY_PATH)) {
+		console.log(
+			"No profile history yet — run `npm run profile -- --record` first.",
+		);
+		return;
+	}
+	const entries = parseHistory(readFileSync(HISTORY_PATH, "utf8"));
+	if (entries.length === 0) {
+		console.log("Profile history is empty or unreadable.");
+		return;
+	}
+	const lines: string[] = ["", "## Runtime profile — trend", ""];
+	for (const scen of SCENARIOS) {
+		const metrics = TREND_METRICS[scen.id] ?? [];
+		const rows: string[] = [];
+		for (const metric of metrics) {
+			const t = formatTrend(entries, scen.id, metric);
+			if (t) rows.push(`- ${metric}: ${t}`);
+		}
+		if (rows.length) lines.push(`### ${scen.title}`, ...rows, "");
+	}
+	lines.push(
+		`_${entries.length} recorded point(s); latest host ${entries[entries.length - 1].host}._`,
+	);
+	console.log(lines.join("\n"));
 }
 
 function sleep(ms: number): Promise<void> {
@@ -299,15 +413,61 @@ function renderReport(profile: Profile, verdict: Verdict): string {
 	return lines.join("\n");
 }
 
+/** Run all scenarios once against the attached Cdp, returning a Profile. */
+async function runOnce(cdp: Cdp): Promise<Profile> {
+	const profile: Profile = {};
+	for (const scen of SCENARIOS) {
+		console.error(`▶ ${scen.title}`);
+		const ctx = makeContext(cdp);
+		try {
+			profile[scen.id] = await scen.measure(ctx);
+		} catch (err) {
+			console.error(
+				`  ! scenario "${scen.id}" failed: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		}
+	}
+	return profile;
+}
+
+/** Format the golden-drift warning (never blocks — informational). */
+function renderDrift(verdict: Verdict): string {
+	if (verdict.kind !== "regression") return "";
+	const lines = [
+		"",
+		"## Drift vs golden anchor (WARNING — never blocks)",
+		"",
+		"| scenario | metric | golden | measured | change |",
+		"| --- | --- | --- | --- | --- |",
+	];
+	for (const o of verdict.offenders) {
+		lines.push(
+			`| ${o.scenario} | ${o.metric} | ${fmt(o.baseline)} | ${fmt(o.measured)} | +${(o.pctChange * 100).toFixed(1)}% |`,
+		);
+	}
+	return lines.join("\n");
+}
+
 async function main(): Promise<void> {
 	const args = parseArgs(process.argv.slice(2));
+
+	// --trend is offline: read the history file, print, done. No Obsidian.
+	if (args.trend) {
+		printTrend();
+		return;
+	}
+
 	const cdp = new Cdp({ vault: args.vault });
 
 	// GB-T03: never profile the daily vault. Resolve the attached vault name
 	// and abort if it is the working vault (or unresolvable).
 	let vaultName = "";
 	try {
-		vaultName = await cdp.evaluate<string>("app.vault.getName()");
+		const resp = await cdp.send<{ result?: { value?: string } }>(
+			"Runtime.evaluate",
+			{ expression: "app.vault.getName()", returnByValue: true },
+		);
+		vaultName = resp.result?.value ?? "";
 	} catch (err) {
 		console.error(
 			`FATAL: could not reach vault "${args.vault}" over dev:cdp — is the studio open? (${err instanceof Error ? err.message : String(err)})`,
@@ -320,7 +480,9 @@ async function main(): Promise<void> {
 		);
 		process.exit(2);
 	}
-	console.error(`Profiling vault "${vaultName}" (requested --vault=${args.vault}).`);
+	console.error(
+		`Profiling vault "${vaultName}" (requested --vault=${args.vault}).`,
+	);
 
 	if (args.seed) {
 		const studioRoot = path.join(
@@ -337,22 +499,44 @@ async function main(): Promise<void> {
 
 	await cdp.send("Performance.enable", {});
 
-	const profile: Profile = {};
-	for (const scen of SCENARIOS) {
-		console.error(`▶ ${scen.title}`);
-		const ctx = makeContext(cdp);
-		try {
-			profile[scen.id] = await scen.measure(ctx);
-		} catch (err) {
-			console.error(
-				`  ! scenario "${scen.id}" failed: ${err instanceof Error ? err.message : String(err)}`,
-			);
-		}
+	// median-of-N when recording (tames the sub-100ms duration jitter,
+	// GB-T05); a single pass otherwise.
+	const passes = args.record ? args.runs : 1;
+	const runs: Profile[] = [];
+	for (let p = 0; p < passes; p++) {
+		if (passes > 1) console.error(`— pass ${p + 1}/${passes} —`);
+		runs.push(await runOnce(cdp));
 	}
+	const profile = passes > 1 ? medianProfile(runs) : runs[0];
 
 	const baseline = loadBaseline();
 	const verdict = diffAgainstBaseline(profile, baseline, args.threshold);
 	console.log(renderReport(profile, verdict));
+
+	// Drift vs the immutable golden anchor — warn-only, never blocks.
+	const golden = loadGolden();
+	if (golden) {
+		const driftReport = renderDrift(
+			diffAgainstBaseline(profile, golden, DRIFT_THRESHOLD),
+		);
+		if (driftReport) console.log(driftReport);
+	}
+
+	if (args.record) {
+		const prov = resolveProvenance();
+		const entry: HistoryEntry = {
+			date: new Date().toISOString().slice(0, 10),
+			gitSha: prov.gitSha,
+			appVersion: prov.appVersion,
+			host: prov.host,
+			medianOf: passes,
+			scenarios: profile,
+		};
+		appendFileSync(HISTORY_PATH, serializeEntry(entry) + "\n");
+		console.error(
+			`\nRecorded history point (${prov.appVersion} @ ${prov.gitSha}, median-of-${passes}) -> ${HISTORY_PATH}`,
+		);
+	}
 
 	if (args.update) {
 		const next: Baseline = {
@@ -366,8 +550,22 @@ async function main(): Promise<void> {
 		console.error(`\nBaseline written to ${BASELINE_PATH}`);
 	}
 
+	if (args.updateGolden) {
+		const goldenNext: Baseline = {
+			thresholdPct: DRIFT_THRESHOLD,
+			capturedAt: new Date().toISOString(),
+			scenarios: profile,
+			floors: baseline?.floors,
+			gateExclude: baseline?.gateExclude ?? ["JSHeapUsedSize"],
+		};
+		writeFileSync(GOLDEN_PATH, JSON.stringify(goldenNext, null, "\t") + "\n");
+		console.error(
+			`\nGolden anchor written to ${GOLDEN_PATH} (immutable drift reference — update rarely, on purpose).`,
+		);
+	}
+
 	if (args.gate && verdict.kind === "regression") {
-		console.error("\nGate FAILED (regression).");
+		console.error("\nGate FAILED (step regression vs baseline).");
 		process.exit(1);
 	}
 }
