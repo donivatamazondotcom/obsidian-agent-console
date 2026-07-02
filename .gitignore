@@ -55,3 +55,6 @@ plan/
 
 # Per-worktree smoke-test studio vault copies (ST-<name>)
 tools/smoke-test/studios/
+
+# Local scratch for screenshot hero work (not tracked)
+tools/screenshots/_wip/
