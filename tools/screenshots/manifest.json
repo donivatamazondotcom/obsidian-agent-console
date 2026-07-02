@@ -422,8 +422,8 @@
 		},
 		{
 			"name": "temporary-disable",
-			"width": 628,
-			"height": 184,
+			"width": 620,
+			"height": 196,
 			"crop": {
 				"x": 772,
 				"y": 548,
@@ -468,7 +468,14 @@
 						"holdMs": 1200
 					}
 				]
-			}
+			},
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 620,
+			"cropSelectors": [
+				".context-strip",
+				".agent-client-chat-input-container"
+			],
+			"cropPadding": 0
 		},
 		{
 			"name": "mention-context",
