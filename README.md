@@ -106,7 +106,7 @@ Agent Console is in the [Obsidian Community Plugins store](https://community.obs
 2. Click **Browse** and search for "Agent Console"
 3. Click **Install**, then **Enable**
 
-Obsidian updates the plugin automatically when a new version is released. When an update is waiting, the chat header shows a **Plugin update available!** pill — click it to jump straight to **Settings → Community plugins**, where you can update with one more click.
+Obsidian updates the plugin automatically when a new version is released. When an update is waiting, the chat header shows a **Plugin update available!** pill – click it to jump straight to **Settings → Community plugins**, where you can update with one more click.
 
 ## Quick start
 
@@ -125,7 +125,7 @@ Once you’ve set up the agent:
 3. Click the robot icon in the ribbon to open the chat panel
 4. Click the **+** button to open more tabs as you need them
 
-> On a brand-new install, Agent Console detects an agent you already have, makes it the default, and opens the chat panel once — so steps 1–3 are often already done for you.
+> On a brand-new install, Agent Console detects an agent you already have, makes it the default, and opens the chat panel once – so steps 1–3 are often already done for you.
 
 ## Configuration
 
