@@ -145,6 +145,29 @@ describe("findGifDimMismatches", () => {
 		);
 		expect(m).toEqual([]);
 	});
+
+	it("accounts for a chrome frame — expected height = manifest height + chromeHeight", () => {
+		const g = entry("g", true);
+		g.width = 1050;
+		g.height = 570;
+		g.frame = { chrome: "macos", chromeHeight: 28 };
+		// The framed GIF file is content (570) + chrome bar (28) = 598 tall.
+		const pass = findGifDimMismatches(
+			[g],
+			new Map([["g.gif", { width: 1050, height: 598 }]]),
+		);
+		expect(pass).toEqual([]);
+		// A file at the bare content height (no chrome) is a mismatch.
+		const fail = findGifDimMismatches(
+			[g],
+			new Map([["g.gif", { width: 1050, height: 570 }]]),
+		);
+		expect(fail).toHaveLength(1);
+		expect(fail[0]).toMatchObject({
+			expected: { width: 1050, height: 598 },
+			actual: { width: 1050, height: 570 },
+		});
+	});
 });
 
 describe("formatProblems", () => {
