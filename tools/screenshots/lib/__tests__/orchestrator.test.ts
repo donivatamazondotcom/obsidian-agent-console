@@ -2064,6 +2064,197 @@ describe("captureEntry — animation (v2)", () => {
 		);
 		expect(deps.encodeGif).not.toHaveBeenCalled();
 	});
+
+	// --- Hero GIF: cycle the active tab (activateTab) + restore + chrome ---
+
+	it("activateTab reads the tab ids and activates the indexed tab", async () => {
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) =>
+				typeof expr === "string" && expr.includes("tabManagerRef.tabs")
+					? Promise.resolve(JSON.stringify(["t0", "t1", "t2"]))
+					: Promise.resolve(undefined),
+		);
+		const entry = animEntry({
+			animation: {
+				fps: 4,
+				maxBytes: 2_000_000,
+				frames: [
+					{ holdMs: 400 },
+					{ actions: [{ type: "activateTab", index: 2 }], holdMs: 400 },
+				],
+			},
+		});
+		await captureEntry(entry, deps);
+
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(evals.some((e) => e.includes("tabManagerRef.tabs"))).toBe(true);
+		expect(
+			evals.some(
+				(e) => e.includes("setActiveTab") && e.includes("t2"),
+			),
+		).toBe(true);
+	});
+
+	it("clamps an out-of-range activateTab index to the last tab", async () => {
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) =>
+				typeof expr === "string" && expr.includes("tabManagerRef.tabs")
+					? Promise.resolve(JSON.stringify(["t0", "t1"]))
+					: Promise.resolve(undefined),
+		);
+		const entry = animEntry({
+			animation: {
+				fps: 4,
+				maxBytes: 2_000_000,
+				frames: [
+					{ actions: [{ type: "activateTab", index: 9 }], holdMs: 400 },
+				],
+			},
+		});
+		await captureEntry(entry, deps);
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(
+			evals.some(
+				(e) => e.includes("setActiveTab") && e.includes("t1"),
+			),
+		).toBe(true);
+	});
+
+	it("runs restoreSessions on the animation path (opens session history per title)", async () => {
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) => {
+				if (typeof expr !== "string") return Promise.resolve(undefined);
+				if (expr.includes("session-history") || expr.includes("restore"))
+					return Promise.resolve(true);
+				if (expr.includes("tabManagerRef.tabs"))
+					return Promise.resolve(JSON.stringify(["t0", "t1"]));
+				return Promise.resolve(undefined);
+			},
+		);
+		const entry = animEntry({
+			initialState: {
+				clickRibbon: true,
+				restoreSessions: { titles: ["Japan trip", "Launch check"] },
+			},
+			animation: {
+				fps: 4,
+				maxBytes: 2_000_000,
+				frames: [{ holdMs: 400 }],
+			},
+		});
+		await captureEntry(entry, deps);
+
+		const cmds = (
+			deps.cdp.executeCommand as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(
+			cmds.filter((c) => c === "agent-console:open-session-history")
+				.length,
+		).toBeGreaterThanOrEqual(2);
+	});
+
+	it("opens every note in openNotes on the animation path", async () => {
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+		const entry = animEntry({
+			initialState: {
+				clickRibbon: true,
+				openNotes: ["Weekly review.md", "Reading list.base"],
+			},
+			animation: {
+				fps: 4,
+				maxBytes: 2_000_000,
+				frames: [{ holdMs: 400 }],
+			},
+		});
+		await captureEntry(entry, deps);
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(evals.some((e) => e.includes("Weekly review.md"))).toBe(true);
+		expect(evals.some((e) => e.includes("Reading list.base"))).toBe(true);
+	});
+
+	it("chrome-frames each animation frame when frame.chrome is macos", async () => {
+		const chromeFrame = vi
+			.fn()
+			.mockResolvedValue(Buffer.from("framed-frame"));
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+			chromeFrame,
+		});
+		const entry = animEntry({
+			frame: { chrome: "macos", chromeHeight: 28 },
+			animation: {
+				fps: 4,
+				maxBytes: 2_000_000,
+				frames: [{ holdMs: 400 }, { holdMs: 400 }],
+			},
+		});
+		await captureEntry(entry, deps);
+		expect(chromeFrame).toHaveBeenCalledTimes(2);
+		const opts = (deps.encodeGif as ReturnType<typeof vi.fn>).mock
+			.calls[0][0];
+		expect(opts.frames.length).toBe(2);
+	});
+
+	it("does NOT chrome-frame when the entry has no frame config", async () => {
+		const chromeFrame = vi.fn();
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+			chromeFrame,
+		});
+		await captureEntry(animEntry(), deps);
+		expect(chromeFrame).not.toHaveBeenCalled();
+	});
+
+	it("dismisses transient .notice toasts before each animation frame", async () => {
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+		await captureEntry(animEntry(), deps);
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(
+			evals.some(
+				(e) =>
+					e.includes('querySelectorAll(".notice")') &&
+					e.includes("remove"),
+			),
+		).toBe(true);
+	});
+
+	it("fails an animation frame when a forbidden element is visible (cleanliness guard)", async () => {
+		const deps = makeDeps({
+			sharp: makeHealthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) =>
+				typeof expr === "string" &&
+				expr.includes("__cleanliness_probe__")
+					? Promise.resolve({ selectors: [".notice"], text: [] })
+					: Promise.resolve(undefined),
+		);
+		await expect(captureEntry(animEntry(), deps)).rejects.toThrow(
+			/cleanliness assert/,
+		);
+		expect(deps.encodeGif).not.toHaveBeenCalled();
+	});
 });
 
 describe("captureEntry — layout overrides (collapseLeftSidebar / rightSplitWidth)", () => {

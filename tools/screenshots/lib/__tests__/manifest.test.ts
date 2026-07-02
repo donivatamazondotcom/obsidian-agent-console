@@ -758,6 +758,49 @@ describe("validateManifest — animation (v2)", () => {
 			/unknown action type/,
 		);
 	});
+
+	it("accepts an activateTab action with a non-negative index", () => {
+		const root = makeFixtureRoot();
+		const entry = withAnimation({
+			fps: 4,
+			maxBytes: 1000,
+			frames: [
+				{ actions: [{ type: "activateTab", index: 0 }], holdMs: 100 },
+				{ actions: [{ type: "activateTab", index: 2 }], holdMs: 100 },
+			],
+		});
+		expect(() =>
+			validateManifest({ entries: [entry] }, root),
+		).not.toThrow();
+	});
+
+	it("rejects an activateTab action with a negative index", () => {
+		const root = makeFixtureRoot();
+		const entry = withAnimation({
+			fps: 4,
+			maxBytes: 1000,
+			frames: [
+				{ actions: [{ type: "activateTab", index: -1 }], holdMs: 100 },
+			],
+		});
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/activateTab action needs a non-negative integer index/,
+		);
+	});
+
+	it("rejects an activateTab action with a non-integer index", () => {
+		const root = makeFixtureRoot();
+		const entry = withAnimation({
+			fps: 4,
+			maxBytes: 1000,
+			frames: [
+				{ actions: [{ type: "activateTab", index: 1.5 }], holdMs: 100 },
+			],
+		});
+		expect(() => validateManifest({ entries: [entry] }, root)).toThrow(
+			/activateTab action needs a non-negative integer index/,
+		);
+	});
 });
 
 describe("validateManifest — rightSplitWidth", () => {

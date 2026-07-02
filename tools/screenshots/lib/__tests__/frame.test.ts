@@ -21,6 +21,7 @@ import {
 	shadowLayerSvg,
 	resolveFrameConfig,
 	frameImage,
+	chromeOnlyFrame,
 } from "../frame";
 
 function entry(overrides: Partial<ManifestEntry>): ManifestEntry {
@@ -150,5 +151,36 @@ describe("frameImage (real sharp)", () => {
 		const m = await sharp(p).metadata();
 		expect(m.width).toBe(120); // 100 + 2*10
 		expect(m.height).toBe(100); // (60 + 20 chrome) + 2*10
+	});
+});
+
+describe("chromeOnlyFrame (animation-GIF chrome, no gradient matte)", () => {
+	it("stacks a macOS chrome bar above the content, same width, opaque", async () => {
+		// Content: a solid mid-tone tile so we can tell it apart from the
+		// dark chrome bar (#2c2c2e ≈ rgb(44,44,46)).
+		const content = await sharp({
+			create: {
+				width: 40,
+				height: 30,
+				channels: 4,
+				background: { r: 20, g: 120, b: 200, alpha: 1 },
+			},
+		})
+			.png()
+			.toBuffer();
+
+		const out = await chromeOnlyFrame(content, { chromeHeight: 12 });
+
+		const meta = await sharp(out).metadata();
+		expect(meta.width).toBe(40); // width unchanged
+		expect(meta.height).toBe(42); // 30 content + 12 chrome bar
+
+		// Row 0 is the chrome bar, not the content — green channel of the
+		// top-left pixel is the dark bar (~44), well below the content's 120.
+		const { data, info } = await sharp(out)
+			.raw()
+			.toBuffer({ resolveWithObject: true });
+		expect(info.channels).toBeGreaterThanOrEqual(3);
+		expect(data[1]).toBeLessThan(80);
 	});
 });

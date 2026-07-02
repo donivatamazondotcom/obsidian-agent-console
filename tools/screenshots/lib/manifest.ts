@@ -251,11 +251,17 @@ export interface InitialState {
  *   native-value-setter hack does not.
  * - "wait": poll for a selector before the next action (e.g. the send button
  *   enabling once a lazy session connects).
+ * - "activateTab": switch the active session tab by zero-based index (drives
+ *   `tabManagerRef.setActiveTab` on the id at that index, clamped to range).
+ *   Focus-independent (an in-renderer API call, no synthetic input). Used by
+ *   the hero GIF to cycle across restored session tabs without sending
+ *   anything live.
  */
 export type AnimationAction =
 	| { type: "click"; selector: string; waitFor?: string }
 	| { type: "draft"; text: string }
-	| { type: "wait"; selector: string };
+	| { type: "wait"; selector: string }
+	| { type: "activateTab"; index: number };
 
 /** One step of an animation: drive into a state, then hold it for the GIF. */
 export interface AnimationFrame {
@@ -1048,6 +1054,13 @@ function validateAnimationAction(
 		case "draft":
 			if (typeof action.text !== "string" || action.text === "") {
 				throw new Error(`${where}: draft action needs non-empty text`);
+			}
+			break;
+		case "activateTab":
+			if (!Number.isInteger(action.index) || action.index < 0) {
+				throw new Error(
+					`${where}: activateTab action needs a non-negative integer index`,
+				);
 			}
 			break;
 		default:
