@@ -490,4 +490,4 @@ If you're touching `src/` and your change introduces or changes any of the above
 
 ---
 
-**Last Updated**: June 2026 | **Architecture**: useAgent facade + sub-hooks + tab layer + context-note lifecycle + jsx-a11y keyboard-accessibility lint | **Version**: 1.2.0
+**Last Updated**: July 2026 | **Architecture**: useAgent facade + sub-hooks + tab layer + context-note lifecycle + jsx-a11y keyboard-accessibility lint | **Version**: 1.3.0
