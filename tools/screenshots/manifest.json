@@ -479,13 +479,13 @@
 		},
 		{
 			"name": "mention-context",
-			"width": 628,
-			"height": 192,
+			"width": 620,
+			"height": 280,
 			"crop": {
-				"x": 772,
-				"y": 540,
-				"width": 628,
-				"height": 192
+				"x": 780,
+				"y": 448,
+				"width": 620,
+				"height": 280
 			},
 			"initialState": {
 				"openNote": "Welcome.md",
@@ -535,7 +535,9 @@
 						"holdMs": 1600
 					}
 				]
-			}
+			},
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 620
 		},
 		{
 			"name": "parallel-sessions",
