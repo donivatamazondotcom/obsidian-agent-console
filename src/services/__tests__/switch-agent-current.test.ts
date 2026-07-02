@@ -51,7 +51,7 @@ describe("I105: configured agents stay visible (no dedup)", () => {
 		const settings = {
 			...baseBuiltins,
 			customAgents: [
-				{ id: "auto-sa", displayName: "Auto SA", command: "kiro-cli" },
+				{ id: "custom-agent", displayName: "Custom Agent", command: "kiro-cli" },
 			],
 		} as unknown as AgentClientPluginSettings;
 
@@ -62,7 +62,7 @@ describe("I105: configured agents stay visible (no dedup)", () => {
 			"codex-acp",
 			"gemini-cli",
 			"kiro-cli",
-			"auto-sa",
+			"custom-agent",
 		]);
 	});
 });

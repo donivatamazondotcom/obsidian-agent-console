@@ -14,7 +14,7 @@ describe("formatSessionTitle", () => {
 	it("renders a markdown link to its label (the screenshot case)", () => {
 		expect(
 			formatSessionTitle(
-				"[@Shared Links Bubble smoke tests.md](file:///Users/doniv/x.md)",
+				"[@Shared Links Bubble smoke tests.md](file:///Users/example/x.md)",
 			),
 		).toBe("@Shared Links Bubble smoke tests.md");
 	});
