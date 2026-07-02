@@ -87,7 +87,7 @@
 			},
 			"cropPadding": 0,
 			"cropSelectors": [
-				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"New chat\"]",
+				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label^=\"Reload\"]",
 				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Session history\"]",
 				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Export chat to Markdown\"]",
 				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"More\"]"
