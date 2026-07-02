@@ -147,7 +147,7 @@ Whatever your agent can do, Agent Console lets you do many of those at once.
 
 A plugin that runs live agent sessions in your vault has to be dependable. A few things keep it that way:
 
-* **Bugs come back with a test** – when something breaks, the fix ships with an automated test that reproduces the bug first, so it stays fixed. There are 700+ tests across the plugin’s core logic.
+* **Bugs come back with a test** – when something breaks, the fix ships with an automated test that reproduces the bug first, so it stays fixed. There are 1,800+ tests across the plugin’s core logic.
 * **Every change is checked before it lands** – each pull request runs linting, type-checking, and a full build before it can merge.
 * **The efficiency claim is measured, not asserted** – the “65–80% fewer context tokens” figure comes from a benchmark you can run yourself (`npm run bench:tokens`), with a test that keeps it honest against the shipped code.
 * **Performance is tracked against a baseline** – rendering and context-handling are benchmarked against a saved baseline on every change, so a slowdown gets flagged before it ships.

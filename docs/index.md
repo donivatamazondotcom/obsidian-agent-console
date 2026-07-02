@@ -58,7 +58,7 @@ features:
     details: From the first message, each agent gets a short system prompt about its surroundings – that it's in Obsidian, that your replies render links, math, and diagrams, and that it can work with your notes when the chat runs in your vault. It acts native out of the box, and you choose exactly what it's told.
   - icon: 🛡️
     title: Enterprise-Grade Quality
-    details: "Built with the rigor you'd expect from enterprise software: 700+ automated tests, lint and build checks on every change, a token-efficiency benchmark you can run yourself, and performance tracked against a baseline – so updates stay solid as the plugin grows."
+    details: "Built with the rigor you'd expect from enterprise software: 1,800+ automated tests, lint and build checks on every change, a token-efficiency benchmark you can run yourself, and performance tracked against a baseline – so updates stay solid as the plugin grows."
 ---
 
 <p align="center"><em>Agent Console was built start to finish this way – the plugin is its own proof.</em></p>
