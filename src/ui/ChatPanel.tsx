@@ -7,14 +7,13 @@ import {
 	Menu,
 	getAllTags,
 	setIcon,
-	Scope,
 	type MenuItem,
 } from "obsidian";
 
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
-import { resolveChatPushScopeParent } from "../utils/chat-scope-parent";
+import { usePillOpenScope } from "./use-pill-open-scope";
 import {
 	resolveDefaultWorkingDirectory,
 	deriveCwdBanner,
@@ -101,7 +100,7 @@ import { shouldShowGettingStarted } from "../services/agent-detection";
 import { installAgent } from "../services/agent-installer";
 import { indexOfCurrentAgent } from "../services/session-helpers";
 import { InputArea } from "./InputArea";
-import { ContextStrip, PILL_PATH_ATTR } from "./ContextStrip";
+import { ContextStrip } from "./ContextStrip";
 import { focusComposerAtEnd } from "./composer-focus";
 import { computeProvisionalPath } from "../utils/provisional-context";
 import type { IChatViewHost } from "./view-host";
@@ -712,32 +711,10 @@ export function ChatPanel({
 		[openContextNote],
 	);
 
-	// Obsidian's global editor hotkeys claim ⌥/⌘/⌃+Enter (editor:follow-link /
-	// open-link-in-new-leaf|split|window) before a focused pill's React onKeyDown
-	// can see them — so plain Enter opens but the modifier combos never reach the
-	// pill. Push a Scope (the quick-prompts QP-I14 pattern) that claims exactly
-	// those combos and, when a context pill is the focused element, opens it in
-	// the matching pane. When no pill is focused the handler returns void so
-	// Obsidian's editor hotkeys still fire elsewhere.
-	useEffect(() => {
-		const keymap = plugin.app.keymap;
-		const scope = new Scope(
-			resolveChatPushScopeParent(viewHost.scope, plugin.app.scope),
-		);
-		const handler = (evt: KeyboardEvent): false | void => {
-			const path =
-				activeDocument.activeElement?.getAttribute(PILL_PATH_ATTR);
-			if (!path) return; // not on a pill — fall through to Obsidian
-			openContextNote(path, evt);
-			return false; // consume
-		};
-		scope.register(["Alt"], "Enter", handler);
-		scope.register(["Mod"], "Enter", handler);
-		scope.register(["Mod", "Alt"], "Enter", handler);
-		scope.register(["Mod", "Alt", "Shift"], "Enter", handler);
-		keymap.pushScope(scope);
-		return () => keymap.popScope(scope);
-	}, [plugin, openContextNote]);
+	// Open the focused context pill on the ⌥/⌘/⌃/⇧+Enter combos. Gated on
+	// isActive so only the active tab's mounted panel pushes the scope (I156);
+	// scope parents to the view scope so unhandled keys fall through (I155).
+	usePillOpenScope(plugin, viewHost, isActive ?? false, openContextNote);
 
 	// Shared Links Bubble: derive the per-tab link set from the active tab's
 	// messages (spec [[Shared Links Bubble]] § "derive, don't store").
