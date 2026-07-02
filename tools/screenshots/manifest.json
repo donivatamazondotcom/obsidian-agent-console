@@ -541,17 +541,23 @@
 		},
 		{
 			"name": "parallel-sessions",
-			"width": 628,
-			"height": 576,
+			"width": 620,
+			"height": 720,
 			"crop": {
-				"x": 772,
-				"y": 34,
-				"width": 628,
-				"height": 576
+				"x": 0,
+				"y": 0,
+				"width": 1400,
+				"height": 760
 			},
 			"initialState": {
-				"openNote": "Welcome.md",
-				"clickRibbon": true
+				"clickRibbon": true,
+				"restoreSessions": {
+					"titles": [
+						"Japan trip",
+						"Launch check"
+					],
+					"activeIndex": 0
+				}
 			},
 			"minDistinctColors": 1500,
 			"placement": "feature",
@@ -559,73 +565,37 @@
 			"differentiator": "Tabbed sessions with per-tab status",
 			"mustShow": ".agent-client-tab-state-icon",
 			"caption": "Run agents in parallel tabs",
-			"altText": "Sending a prompt in one session tab, opening a second tab, and sending another — each tab keeps its own conversation and status icon",
+			"altText": "Two agent session tabs side by side — switching between them shows each keeps its own conversation and status icon",
 			"animation": {
 				"fps": 5,
-				"maxBytes": 2500000,
+				"maxBytes": 3000000,
 				"frames": [
 					{
 						"actions": [
 							{
-								"type": "draft",
-								"text": "Give me a one-line tip for organizing notes."
-							},
-							{
-								"type": "wait",
-								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button:not(.agent-client-disabled)"
-							},
-							{
-								"type": "click",
-								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button"
-							},
-							{
-								"type": "wait",
-								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-message-renderer.agent-client-message-assistant"
-							},
-							{
-								"type": "wait",
-								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-loading-indicator.agent-client-hidden"
+								"type": "activateTab",
+								"index": 0
 							}
 						],
-						"holdMs": 1500
+						"awaitText": "balanced first-timer route",
+						"holdMs": 1600
 					},
 					{
 						"actions": [
 							{
-								"type": "click",
-								"selector": ".agent-client-tab-bar-add",
-								"waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) textarea.agent-client-chat-input-textarea"
+								"type": "activateTab",
+								"index": 1
 							}
 						],
-						"holdMs": 1000
-					},
-					{
-						"actions": [
-							{
-								"type": "draft",
-								"text": "Suggest a short name for a personal wiki."
-							},
-							{
-								"type": "wait",
-								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button:not(.agent-client-disabled)"
-							},
-							{
-								"type": "click",
-								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button"
-							},
-							{
-								"type": "wait",
-								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-message-renderer.agent-client-message-assistant"
-							},
-							{
-								"type": "wait",
-								"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-loading-indicator.agent-client-hidden"
-							}
-						],
-						"holdMs": 1800
+						"awaitText": "run of show",
+						"holdMs": 1600
 					}
 				]
-			}
+			},
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 620,
+			"cropSelector": ".workspace-leaf-content[data-type=\"agent-client-chat-view\"]",
+			"cropPadding": 0
 		},
 		{
 			"name": "multi-session-animated",
