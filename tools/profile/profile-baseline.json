@@ -1,0 +1,55 @@
+{
+	"thresholdPct": 0.3,
+	"capturedAt": "2026-07-02T01:01:00.857Z",
+	"scenarios": {
+		"cold-start-restore": {
+			"longTaskCount": 4,
+			"longTaskTotalMs": 483.7,
+			"maxBlockingMs": 76.269,
+			"maxStyleLayoutMs": 0,
+			"wallMs": 263
+		},
+		"activate-background-tab": {
+			"LayoutCount": 4,
+			"RecalcStyleCount": 114,
+			"LayoutDuration": 0.01268,
+			"RecalcStyleDuration": 0.029943,
+			"ScriptDuration": 0.036602,
+			"TaskDuration": 0.150907,
+			"JSHeapUsedSize": 17221088,
+			"longTaskCount": 2,
+			"longTaskTotalMs": 132.4,
+			"maxBlockingMs": 17.307,
+			"maxStyleLayoutMs": 0
+		},
+		"stream-tokens": {
+			"LayoutCount": 51,
+			"RecalcStyleCount": 120,
+			"LayoutDuration": 0.005935,
+			"RecalcStyleDuration": 0.007668,
+			"ScriptDuration": 0.001803,
+			"TaskDuration": 0.048484,
+			"JSHeapUsedSize": 545888,
+			"longTaskCount": 0,
+			"longTaskTotalMs": 0,
+			"maxBlockingMs": 0,
+			"maxStyleLayoutMs": 0
+		},
+		"scroll-heavy-transcript": {
+			"LayoutCount": 1,
+			"RecalcStyleCount": 74,
+			"LayoutDuration": 0.000104,
+			"RecalcStyleDuration": 0.008623,
+			"ScriptDuration": 0.001786,
+			"TaskDuration": 0.044319,
+			"JSHeapUsedSize": 614488,
+			"longTaskCount": 0,
+			"longTaskTotalMs": 0,
+			"maxBlockingMs": 0,
+			"maxStyleLayoutMs": 0
+		}
+	},
+	"gateExclude": [
+		"JSHeapUsedSize"
+	]
+}
