@@ -807,14 +807,12 @@
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 300,
 			"placement": "feature",
-			"purpose": "The rationalized cold-start palette: only Open chat / New chat / New chat with agent.",
+			"purpose": "The cold-start command palette: Agent Console's top-level commands — new/open chat, open new view, the agent picker, quick prompts, and settings import.",
 			"differentiator": "Command-palette rationalization (v1.2.0)",
 			"mustShow": ".prompt",
 			"caption": "A palette you can actually scan",
-			"altText": "Obsidian command palette filtered to Agent Console, showing Open chat, New chat, and New chat with agent",
-			"docPage": "docs/usage/commands.md",
-			"manualCapture": true,
-			"captureNote": "Native command palette (Cmd/Ctrl+P, type 'Agent Console'); pipeline has no palette-open action yet -- capture manually or extend the driver."
+			"altText": "Obsidian command palette filtered to Agent Console, showing New chat, Open chat, Open new view, New chat with agent, and Quick prompts",
+			"docPage": "docs/usage/commands.md"
 		},
 		{
 			"name": "new-chat-agent-picker",
