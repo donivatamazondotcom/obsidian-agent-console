@@ -229,12 +229,12 @@
 		{
 			"name": "sending-messages",
 			"width": 1300,
-			"height": 380,
+			"height": 460,
 			"crop": {
 				"x": 0,
 				"y": 0,
 				"width": 1300,
-				"height": 380
+				"height": 460
 			},
 			"cropPadding": 12,
 			"cropSelectors": [
@@ -252,8 +252,7 @@
 			"differentiator": "Context strip / @-mention notes",
 			"mustShow": ".context-strip",
 			"caption": "Pin notes into the chat",
-			"altText": "Agent Console composer with the Welcome note pinned in the context strip, ready to chat",
-			"promptFile": "connect.txt"
+			"altText": "Agent Console composer with the Welcome note pinned in the context strip, ready to chat"
 		},
 		{
 			"name": "switch-default-agent",
@@ -363,13 +362,13 @@
 		},
 		{
 			"name": "sending-images",
-			"width": 1340,
-			"height": 560,
+			"width": 700,
+			"height": 620,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 1340,
-				"height": 560
+				"width": 700,
+				"height": 620
 			},
 			"cropPadding": 12,
 			"cropSelectors": [
@@ -380,7 +379,6 @@
 				"openNote": "Welcome.md",
 				"clickRibbon": true
 			},
-			"promptFile": "connect.txt",
 			"attachImage": "sample-diagram.png",
 			"approvalThreshold": 0.05,
 			"minDistinctColors": 800,
@@ -409,7 +407,6 @@
 				"openNote": "Welcome.md",
 				"clickRibbon": true
 			},
-			"promptFile": "connect.txt",
 			"attachImage": "sample-diagram.png",
 			"approvalThreshold": 0.05,
 			"minDistinctColors": 150,

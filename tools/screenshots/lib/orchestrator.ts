@@ -986,6 +986,14 @@ export async function captureEntry(
 		// AFTER the connect prompt so the agent's promptCapabilities.image is known
 		// and the AttachmentStrip renders an image thumbnail (not a file-link).
 		if (entry.attachImage) {
+			// Ensure the composer is mounted before the synthetic drop. With no
+			// preceding live send (reseeded image shots), attachImage can
+			// otherwise race the panel's first render and drop onto nothing.
+			await deps.cdp.waitForElement(
+				`${ACTIVE_PANEL} .agent-client-chat-input-box`,
+				HOVER_TOOLTIP_TIMEOUT_MS,
+			);
+			await sleep(SETTLE_MS);
 			const imgPath = path.join(
 				deps.fixtureRoot,
 				"assets",
