@@ -13,6 +13,10 @@ Open **Settings → Community plugins → Agent Console** and find **Default wor
 
 The setting shows the **resolved folder** right below the field, so you always know where new chats will start. If you type a path that isn't a valid folder, Agent Console keeps using your vault and tells you — it never launches a chat in a broken location.
 
+<p align="center">
+  <img src="/images/settings-working-directory.webp" alt="Agent Console settings showing the Default working directory option that sets where new chats start" width="520" />
+</p>
+
 This default only affects **new** chats. Chats you've already opened — and sessions you reopen from history — keep the folder they were started in.
 
 ::: tip

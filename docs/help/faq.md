@@ -54,7 +54,7 @@ To change the default agent for new chat views, go to **Settings → Agent Conso
 
 ### Can I run multiple agents at the same time?
 
-Yes. Open additional chat views from the **⋮** menu in the chat header, or drag a tab out to split the pane. Each view runs an independent agent process.
+Yes. Click the **+** in the tab bar to open a new tab – each tab runs an independent agent session. Right-click the **+** to start the new tab on a different agent, and use the Broadcast commands to drive several at once.
 
 See [Tabbed Sessions](/usage/tabbed-sessions) for details.
 
@@ -67,7 +67,7 @@ Use the **Broadcast** commands:
 
 ### Where do new chat views open?
 
-By default, new views open in the right pane. You can change this in **Settings → Agent Console → Display → Chat view location** to open in editor tabs or splits instead.
+Agent Console runs in the sidebar and multiplexes with in-panel tabs, so new chats open as tabs in the same panel – not as separate editor panes. Choose which sidebar it docks in under **Settings → Agent Console → Display → Sidebar side** (left or right).
 
 ### What is a custom agent?
 
@@ -123,17 +123,17 @@ Yes. In **Settings → Agent Console → Export → Frontmatter tag**, you can s
 
 ### How do I resume a previous conversation?
 
-Click the **History** button (clock icon) in the chat header to open the session history modal. Select a session and click the **Restore** button (play icon) to continue where you left off.
+Click the **History** button (clock icon) in the chat header to open the session history modal. Select a session and click **Restore** to reopen it in a new tab, right where you left off.
 
 See [Session History](/usage/session-history) for details.
 
 ### What's the difference between Restore and Fork?
 
-**Restore** continues the existing session—new messages are added to the same conversation. **Fork** creates a new session branching from that point, leaving the original session unchanged. Fork relies on an experimental agent capability and only appears when your agent supports it — many agents do not, so you may not see a Fork action at all.
+**Restore** reopens the session in a **new tab**, right where you left off – your current chat is untouched, and the agent reconnects when you send your first message. **Fork** branches the session into a **new tab** so you can explore a different direction without changing the original. Fork works with any agent: agents that support server-side forking keep the assistant's full context, while others start a fresh session that shows the earlier transcript for reference.
 
 ### The modal says "This agent does not support session restoration"
 
-Not all agents support session restoration. You can still view and delete locally saved sessions, but you won't be able to restore or fork them with that agent.
+This appears only when a session can't be reopened at all – the agent advertises no restore capability **and** Agent Console has no locally saved transcript to reopen from. Whenever a local transcript exists, Restore stays available: it reopens the session in a new tab and reconnects on your first message. You can always view and delete locally saved sessions.
 
 ### Are my sessions saved automatically?
 

@@ -90,6 +90,10 @@ Debrief this meeting — pull the AI summary, extract action items, and update t
 
 Prompts can show up as **chips right above the composer**. There are two ways to make a prompt appear as a chip — otherwise it stays search-only (you'll still find it by typing `!` in the composer, it just doesn't take up space in the row).
 
+<p align="center">
+  <img src="/images/editor-quickprompts.webp" alt="Agent Console beside a note: tabbed sessions, a meeting-prep chat, and the quick-prompt menu open with one-tap prompts" width="560" />
+</p>
+
 **Show a chip only on relevant notes** — add a `show when` field to scope a prompt to notes whose properties match. Each item is a `property=value` condition:
 
 ````markdown
