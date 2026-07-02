@@ -57,28 +57,30 @@ Because the agents live in your vault, you stay in control: you pin what they se
 
 ## Features
 
+* **Save your go-to prompts and fire them in one click** – turn the kickoffs you retype every session (“debrief this meeting”, “summarize the selection”) into notes, then launch them from context-aware chips above the composer, a `!` search right in the message box, or the command palette
 * **Work from the notes you’ve already written** – @mention a note and the agent reads it, and the notes it links to, as context. Drag in images, run slash commands – it starts from your knowledge, not a blank slate
 * **Let your second brain grow itself** – ask an agent to write back: capture decisions, draft notes, and link ideas straight into your vault, without the manual upkeep
 * **Stop waiting on one agent before starting the next** – run several agent chats side by side in one sidebar
 * **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol); on a fresh install Agent Console defaults to one it finds installed and opens the panel for you
+* **Your sessions are safe** – your tabs and conversations reopen after an Obsidian restart or a panel close, closing a panel with two or more chats checks first, you can undo a closed chat to bring it back with its full transcript, and half-typed messages survive a restart
+* **Search your whole chat history** – find a past conversation by title or by what was actually said inside it, then reopen it in a tab and pick up where you left off
+* **Take a conversation to another agent** – switch a chat to a different agent and bring the conversation along, shown as a collapsible read-only block; nothing is cleared without asking first
+* **Agents know they’re in Obsidian** – each agent gets a short briefing on the first message so it renders links, math, and diagrams and works with your notes; you choose exactly what it’s told
 * **Your context budget goes further** – context notes are referenced, not re-pasted into every message, so a long chat uses 65–80% fewer context tokens than re-sending the full note each turn
-* **Restart Obsidian without losing your place** – your open tabs and their conversations reopen exactly as you left them; each sidebar pane restores its own tabs independently
-* **Don’t lose a panel full of agents to one keystroke** – closing the panel with Cmd+W checks first when you have two or more chats open
-* **Scroll up to read while the agent is still typing** – the incoming stream won’t yank you back to the bottom, so you can reread earlier output mid-response; tabs also keep their scroll position when you switch away and back
-* **Tabs don’t spin up until you type** – opening a tab won’t start an agent session, or any of its MCP servers, until you actually type, so rereading past chats stays light
-* **Fire your recurring prompts in one click** – save kickoffs like “debrief this meeting” or “summarize the selection” as notes, then launch them from the ⚡ button, a hotkey, or context-aware chips that appear only on the notes they fit
+* **Drive it all from the keyboard** – every control is keyboard-operable with a clear focus ring; bind hotkeys to switch tabs, show the tab list, and fire quick prompts
 
 <details>
 <summary><strong>More features</strong></summary>
 
-* **See what every agent is doing without clicking around** – status icons show ready, busy, waiting on you, or stuck
-* **Find old chats and continue them** – browse session history and reopen any past conversation in a tab
-* **Rename tabs so you can find them** – give each tab a name that says what it’s for, so a wall of tabs stays searchable and memorable; drag to reorder, right-click to close
+* **See what every agent is doing without clicking around** – status icons show ready, busy, waiting on you, or stuck; the “agent finished” notification names the tab it came from, and clicking it jumps there
+* **Tabs name themselves** – each tab picks up a short title from what you’re working on, so a wall of tabs stays readable; rename any one yourself, drag to reorder, right-click to close
+* **Scroll up to read while the agent is still typing** – the incoming stream won’t yank you back to the bottom; tabs also keep their scroll position when you switch away and back
+* **Tabs don’t spin up until you type** – opening a tab won’t start an agent session, or any of its MCP servers, until you actually type, so rereading past chats stays light
+* **A working directory per chat** – point each chat, or a specific agent, at the folder it should work in, and that choice sticks across restarts
 * **Pick the right model for each task** – switch modes and models per chat without restarting
 * **Read the conversation, not the logs** – tool calls render as a single tappable summary row by default. Click to expand, click to collapse, errors auto-expand so you don’t miss them.
 * **Your MCP tools come along** – whatever MCP servers your agent uses keep working in Agent Console with no extra setup
 * **Switching from another agent plugin? Bring your setup** – import agent definitions, defaults, and API keys from another plugin (like Agent Client) in one click
-* **Switch tabs with a hotkey** – bind keys under Settings → Hotkeys
 * **Looks like part of your Obsidian** – it adopts Obsidian’s own styling and your theme’s variables instead of hardcoded colors and chrome, so any custom theme restyles it like a built-in panel
 
 </details>
