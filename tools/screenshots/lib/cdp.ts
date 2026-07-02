@@ -107,6 +107,64 @@ export class Cdp {
 	}
 
 	/**
+	 * Issue an arbitrary CDP command (any domain — e.g. `Performance.enable`,
+	 * `Performance.getMetrics`, `Page.reload`) and return the parsed JSON
+	 * response object. Unlike {@link evaluate}, this does NOT unwrap a
+	 * `Runtime.evaluate` `result.value` — it returns the raw CDP result for
+	 * the domain (e.g. `{ metrics: [...] }` for `Performance.getMetrics`).
+	 *
+	 * Retries on empty stdout, which `obsidian dev:cdp` intermittently
+	 * produces (a dropped response, not a failure — see class docblock).
+	 * Throws on a plaintext error line or a CDP `exceptionDetails` payload.
+	 */
+	async send<T = unknown>(
+		method: string,
+		params: Record<string, unknown> = {},
+		retries = 4,
+	): Promise<T> {
+		const paramsJson = JSON.stringify(params);
+		let lastErr: Error | undefined;
+		for (let attempt = 0; attempt <= retries; attempt++) {
+			const stdout = (
+				await this.runRaw([
+					"dev:cdp",
+					`method=${method}`,
+					`params=${paramsJson}`,
+				])
+			).trim();
+			if (stdout === "") {
+				lastErr = new Error(
+					`CDP ${method}: empty output (attempt ${attempt + 1}/${retries + 1})`,
+				);
+				await sleep(this.pollInterval * (attempt + 1));
+				continue;
+			}
+			if (!stdout.startsWith("{")) {
+				throw new Error(`CDP ${method}: ${stdout}`);
+			}
+			let parsed: CdpResponse & Record<string, unknown>;
+			try {
+				parsed = JSON.parse(stdout) as CdpResponse &
+					Record<string, unknown>;
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				throw new Error(
+					`CDP ${method}: failed to parse stdout as JSON: ${msg}`,
+				);
+			}
+			if (parsed.exceptionDetails) {
+				const desc =
+					parsed.exceptionDetails.exception?.description ??
+					parsed.exceptionDetails.text ??
+					"unknown error";
+				throw new Error(`CDP ${method} threw: ${desc}`);
+			}
+			return parsed as T;
+		}
+		throw lastErr ?? new Error(`CDP ${method}: exhausted retries`);
+	}
+
+	/**
 	 * Execute an Obsidian command by id as a fire-and-forget side effect.
 	 * Routes through {@link runRaw} and IGNORES the output — unlike
 	 * {@link evaluate}, which throws on empty stdout. Opening a chat view
