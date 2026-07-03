@@ -18,7 +18,7 @@ Open **Settings → Community plugins → Agent Console** and expand the **Obsid
 Each of the four items above has its own switch — turn off anything you'd rather not send. The agent still works either way; these just help it fit in better.
 
 <p align="center">
-  <img src="/images/obsidian-system-prompt.webp" alt="Agent Console settings showing the editable Obsidian system prompt with per-block include toggles and a reset-to-defaults button" width="520" />
+  <img src="/images/obsidian-system-prompt.webp" alt="Agent Console settings showing the editable Obsidian system prompt with per-block include toggles and a reset-to-defaults button" />
 </p>
 
 ## Add your own context

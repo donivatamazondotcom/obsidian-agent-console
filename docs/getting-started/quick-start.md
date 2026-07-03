@@ -37,7 +37,7 @@ On a brand-new install, Agent Console opens this panel for you once and defaults
 :::
 
 <p align="center">
-  <img src="/images/getting-started.webp" alt="Agent Console getting-started panel showing detected agents as one-click picks and an Open settings button" width="340" />
+  <img src="/images/getting-started.webp" alt="Agent Console getting-started panel showing detected agents as one-click picks and an Open settings button" />
 </p>
 
 ## What's Next?

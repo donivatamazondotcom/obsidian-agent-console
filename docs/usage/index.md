@@ -7,7 +7,7 @@ You can open the Agent Console chat panel in two ways:
 - **Ribbon Icon**: Click the robot icon in the left ribbon
 
 <p align="center">
-  <img src="/images/ribbon-icon.webp" alt="Ribbon Icon" />
+  <img src="/images/ribbon-icon.webp" alt="Ribbon Icon" class="inline-shot" width="240" />
 </p>
 
 - **Command Palette**: Open the command palette (`Cmd/Ctrl + P`) and search for **"Open chat"**
@@ -21,7 +21,7 @@ The chat panel opens in the right sidebar.
 3. Wait for the agent's response
 
 <p align="center">
-  <img src="/images/sending-messages.webp" alt="Sending Messages"  width="400" />
+  <img src="/images/sending-messages.webp" alt="Sending Messages" />
 </p>
 
 ## Sending Images and Files
@@ -34,7 +34,7 @@ You can attach images and files to your messages by pasting or dragging and drop
 Attached files appear as thumbnails or file icons below the text area. Click the **×** to remove.
 
 <p align="center">
-  <img src="/images/sending-images.webp" alt="Sending Images and Files" width="400" />
+  <img src="/images/sending-images.webp" alt="Sending Images and Files" />
 </p>
 
 ::: tip
@@ -53,7 +53,7 @@ To switch agents for the current view:
 This is a one-time change for that view only.
 
 <p align="center">
-  <img src="/images/switch-agent.webp" alt="Switch agent menu" width="400" />
+  <img src="/images/switch-agent.webp" alt="Switch agent menu" />
 </p>
 
 ::: tip

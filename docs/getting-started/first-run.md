@@ -32,7 +32,7 @@ If no agent is connectable yet — nothing installed, or the configured command 
 - A hint for the case where you installed a CLI somewhere custom — point Agent Console at it with an absolute path in settings.
 
 <p align="center">
-  <img src="/images/first-run-activation.webp" alt="Agent Console first-run panel with no agent installed, listing Claude Code, Codex, Gemini CLI and Kiro CLI with Install and Copy buttons" width="460" />
+  <img src="/images/first-run-activation.webp" alt="Agent Console first-run panel with no agent installed, listing Claude Code, Codex, Gemini CLI and Kiro CLI with Install and Copy buttons" />
 </p>
 
 While this screen is up, the message box is turned off — there's no agent to send to yet. It turns back on the moment an agent is installed or picked.
