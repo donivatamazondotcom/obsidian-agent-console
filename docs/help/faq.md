@@ -28,21 +28,21 @@ Type `@` in the input field and a dropdown appears with matching notes. Select a
 
 See [Note Mentions](/usage/mentions) for details.
 
-### Can I change the character limit for mentions?
+### Is there a length limit on notes I send?
 
-Yes. Configure **Max note length** and **Max selection length** in **Settings → Agent Console → Mentions**. The default is 10,000 characters each.
+Nothing to configure – long notes and selections are sent as a truncated preview (up to 10,000 characters) plus a link to the full note, so the agent can read the rest on demand. It's automatic.
 
-### What is auto-mention?
+### Is the note I'm looking at included automatically?
 
-When enabled (**Settings → Agent Console → Mentions → Auto-mention active note**), the currently open note is automatically included as context. Unlike manual mentions, auto-mention only sends the note's file path—not its content. The agent can use its Read tool to access the content if needed.
+Yes. On a fresh chat, the note you have open rides along as a provisional pill in the [context strip](/usage/context-strip) and pins into the conversation when you send your first message. Prefer to start every chat empty? Turn it off under **Settings → Agent Console → Chat behavior → Active note as default context**.
 
 ### Can I include just part of a note?
 
-Yes. If you select text in your note, only that selection is sent as context. The auto-mention badge shows the line range (e.g., `@My Note:5-10`).
+Yes. Select text in your note before sending and only that selection is sent as context. Long selections are sent as a truncated preview with a link back to the full note.
 
-### How do I temporarily disable auto-mention?
+### How do I drop the active note from one chat?
 
-Click the **×** button next to the auto-mention badge above the input field. Click **+** to re-enable it. This only affects the current message.
+Remove its pill in the [context strip](/usage/context-strip) – click the ✕ on the pill, or focus it and press Backspace. To stop the active note being added by default at all, turn off **Settings → Agent Console → Chat behavior → Active note as default context**.
 
 ## Agents
 

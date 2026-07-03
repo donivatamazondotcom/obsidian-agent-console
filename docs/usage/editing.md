@@ -42,18 +42,9 @@ The chat displays file changes with:
 - **Diff view**: What was added/removed (when available)
 - **Status**: Success or failure of the operation
 
-### Auto-Collapse Long Diffs
+### Collapsed tool calls and diffs
 
-Large diffs can be automatically collapsed to keep the chat readable. This feature is **disabled by default**.
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| **Auto-collapse long diffs** | Off | Enable automatic collapsing of large diffs |
-| **Collapse threshold** | 10 lines | Diffs exceeding this line count are collapsed |
-
-Configure these in **Settings → Agent Console → Appearance & notifications**.
-
-Collapsed diffs can be expanded by clicking on them.
+Tool calls – including file diffs – render as a single collapsed row showing the tool name, status, and line count. Click the row to expand it and read the full detail. Failed calls stay collapsed but are flagged so you can spot them, and pending permission requests expand automatically. See [MCP Tools](/usage/mcp-tools) for more on how tool calls appear.
 
 ## Best Practices
 
