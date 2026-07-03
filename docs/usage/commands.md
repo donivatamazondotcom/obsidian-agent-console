@@ -19,11 +19,11 @@ Always available, including from a cold start with no chat view open. **New chat
 | **Quick prompts: New prompt** | Create a new [quick prompt](/usage/quick-prompts) note (templated) and open it to edit — works even with no prompts yet |
 
 <p align="center">
-  <img src="/images/command-palette.webp" alt="Obsidian command palette filtered to Agent Console, showing Open chat, New chat, and New chat with agent" width="560" />
+  <img src="/images/command-palette.webp" alt="Obsidian command palette filtered to Agent Console, showing Open chat, New chat, and New chat with agent" />
 </p>
 
 <p align="center">
-  <img src="/images/new-chat-agent-picker.webp" alt="Agent Console New chat with agent picker listing the configured agents" width="460" />
+  <img src="/images/new-chat-agent-picker.webp" alt="Agent Console New chat with agent picker listing the configured agents" />
 </p>
 
 ## Act on the current chat

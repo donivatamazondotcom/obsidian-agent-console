@@ -11,7 +11,7 @@ Session history features are agent-specific. Not all agents support all features
 Click the **History** button (clock icon) in the chat header to open the session history modal. You can also run the **Open session history** command from the command palette, or bind it to a hotkey under **Settings → Hotkeys** for mouse-free access.
 
 <p align="center">
-  <img src="/images/session-history-button.webp" alt="Session history button in chat header" />
+  <img src="/images/session-history-button.webp" alt="Session history button in chat header" class="inline-shot" width="240" />
 </p>
 
 ## Local and Agent views
@@ -41,7 +41,7 @@ A search box sits at the top of the history modal. Type to filter the list as yo
 Matches that hit message content show a short snippet with the term highlighted, so you can confirm it's the right session before opening it. Search is fully local — no agent connection required.
 
 <p align="center">
-  <img src="/images/session-history-search.webp" alt="Agent Console session-history modal with a search box filtering sessions, showing highlighted title and snippet matches" width="520" />
+  <img src="/images/session-history-search.webp" alt="Agent Console session-history modal with a search box filtering sessions, showing highlighted title and snippet matches" />
 </p>
 
 When your saved sessions span more than one working folder, an **Only this folder** checkbox appears, with the current folder's path shown beneath it. Check it to narrow the list to sessions whose working folder is the one shown; uncheck (the default) to see sessions from every folder. The filter works on both the Local and Agent views and for every agent — the working folder is whatever directory the agent runs in, which may or may not be your vault root. Agent-view rows the plugin hasn't saved a transcript for can only be matched by their title — content search needs a local transcript.

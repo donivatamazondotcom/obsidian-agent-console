@@ -9,7 +9,7 @@ The button sits just left of the **↻ reload** button. A small count badge on i
 Click the link button to open the list. Every link the agent shared in this conversation is there, most-recent first. Internal links show up when they point to a real note in your vault, so passing mentions of notes that don't exist won't clutter the list; web links always show.
 
 <p align="center">
-  <img src="/images/shared-links-bubble.webp" alt="Agent Console shared-links bubble with an accent count badge and its open dropdown grouping links into New this session and Earlier" width="460" />
+  <img src="/images/shared-links-bubble.webp" alt="Agent Console shared-links bubble with an accent count badge and its open dropdown grouping links into New this session and Earlier" />
 </p>
 
 When the agent **created** a new file during the conversation, those new files float to the top, divided from the rest by a thin separator line so they are easy to spot. If nothing new was created, the list is one clean run of links – no divider. The distinction is shown by position and the separator, never by color, so it reads the same no matter how you see color.

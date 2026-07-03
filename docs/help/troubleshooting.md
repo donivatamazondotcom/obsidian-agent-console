@@ -217,7 +217,7 @@ Obsidian updates community plugins for you when a new version is released. When 
 The pill is a shortcut into Obsidian's own updater — it doesn't update in place, so your open conversations stay connected until you choose to update and reload.
 
 <p align="center">
-  <img src="/images/update-pill.webp" alt="The update-available pill in the Agent Console chat header" width="240" />
+  <img src="/images/update-pill.webp" alt="The update-available pill in the Agent Console chat header" />
 </p>
 
 ## Getting Help

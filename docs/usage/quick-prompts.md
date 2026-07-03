@@ -5,7 +5,7 @@ Save the prompts you type over and over — "debrief this meeting", "summarize t
 A quick prompt is just a note in a folder. The note's `label` is the button text; the note body is the prompt that gets sent. Add a note, and the prompt shows up right away — no restart.
 
 <p align="center">
-  <img src="/images/quick-prompts.webp" alt="Agent Console composer with quick-prompt chips above the box and the ! launcher dropdown open: prompts, a Create row, and a key legend" width="520" />
+  <img src="/images/quick-prompts.webp" alt="Agent Console composer with quick-prompt chips above the box and the ! launcher dropdown open: prompts, a Create row, and a key legend" />
 </p>
 
 ## Set up the folder
@@ -91,7 +91,7 @@ Debrief this meeting — pull the AI summary, extract action items, and update t
 Prompts can show up as **chips right above the composer**. There are two ways to make a prompt appear as a chip — otherwise it stays search-only (you'll still find it by typing `!` in the composer, it just doesn't take up space in the row).
 
 <p align="center">
-  <img src="/images/editor-quickprompts.webp" alt="Agent Console beside a note: tabbed sessions, a meeting-prep chat, and the quick-prompt menu open with one-tap prompts" width="560" />
+  <img src="/images/editor-quickprompts.webp" alt="Agent Console beside a note: tabbed sessions, a meeting-prep chat, and the quick-prompt menu open with one-tap prompts" />
 </p>
 
 **Show a chip only on relevant notes** — add a `show when` field to scope a prompt to notes whose properties match. Each item is a `property=value` condition:

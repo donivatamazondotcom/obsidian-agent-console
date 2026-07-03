@@ -20,11 +20,11 @@ If the input field placeholder shows `/ for commands`, the current agent support
 A hint bar along the bottom of the dropdown shows the keys — navigate, run, and dismiss — so the shortcuts stay visible.
 
 <p align="center">
-  <img src="/images/slash-commands-1.webp" alt="Slash commands dropdown" width="400" />
+  <img src="/images/slash-commands-1.webp" alt="Slash commands dropdown" />
 </p>
 
 <p align="center">
-  <img src="/images/slash-commands-2.webp" alt="Filtering slash commands" width="400" />
+  <img src="/images/slash-commands-2.webp" alt="Filtering slash commands" />
 </p>
 
 ## Available Commands

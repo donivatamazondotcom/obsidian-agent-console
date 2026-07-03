@@ -139,3 +139,16 @@
 .custom-block.warning {
   border-color: #e5a84b;
 }
+
+/* doc-screenshot-sizing */
+/* Docs screenshots are captured at 2x-3x DPR; render them at column width
+   (crisp) instead of at conservative fixed pixel sizes. Small UI chrome
+   (icons, single buttons, low-res element shots) opts out via .inline-shot. */
+.vp-doc p[align="center"] img:not(.inline-shot) {
+  width: 100%;
+  max-width: 768px;
+  height: auto;
+}
+.vp-doc p[align="center"] img.inline-shot {
+  height: auto;
+}

@@ -33,7 +33,7 @@ A `+` button on the right of the tab bar opens a new tab.
 A `˅` chevron beside it opens a dropdown listing **every** tab — including any scrolled out of view. Each entry is prefixed with the tab's status glyph (`●` ready, `◐` busy, `△` permission needed, `✕` error, `○` disconnected), with a checkmark on the active tab. Because it shows all sessions at once, it's the quickest way to spot which one is stuck or done when many tabs are open.
 
 <p align="center">
-  <img src="/images/tab-status-dropdown.webp" alt="Multiple Agent Console session tabs in the tab bar, each prefixed with its own status glyph" width="600" />
+  <img src="/images/tab-status-dropdown.webp" alt="Multiple Agent Console session tabs in the tab bar, each prefixed with its own status glyph" class="inline-shot" width="600" />
 </p>
 
 ## Creating tabs
@@ -69,7 +69,7 @@ Get a useful tab name without thinking about it. **Settings → Agent Console �
 You can rename any tab yourself at any time (see below) — a manual rename always wins and is never overwritten by a suggestion.
 
 <p align="center">
-  <img src="/images/ai-session-titles.webp" alt="Agent Console tab bar with chat tabs showing concise AI-generated session titles instead of generic labels" width="600" />
+  <img src="/images/ai-session-titles.webp" alt="Agent Console tab bar with chat tabs showing concise AI-generated session titles instead of generic labels" />
 </p>
 
 ## Renaming tabs
@@ -96,7 +96,7 @@ Closing a single tab is easy to undo, but closing the **whole panel** — `Cmd/C
 > [Cancel] [Close panel]
 
 <p align="center">
-  <img src="/images/confirm-close-multiple-tabs.webp" alt="Agent Console confirm-close dialog warning that closing the panel closes all open chats, with Cancel and Close panel buttons" width="520" />
+  <img src="/images/confirm-close-multiple-tabs.webp" alt="Agent Console confirm-close dialog warning that closing the panel closes all open chats, with Cancel and Close panel buttons" />
 </p>
 
 The prompt appears only when the panel has **2 or more** open chats. With a single chat, `Cmd/Ctrl + W` closes immediately — there's nothing ambiguous to confirm.
@@ -125,7 +125,7 @@ Switching tabs preserves all of this.
 You don't have to wait for the agent to finish before lining up your next message. **While a tab is streaming a reply, type your next message and press Enter — it gets queued and sends automatically the moment the turn finishes.** Keep your train of thought moving instead of waiting for the cursor. While the agent is working, the empty composer hints this: *"Queue a message – hit Enter to send when {agent} is done."*
 
 <p align="center">
-  <img src="/images/queue-next-message.webp" alt="Agent Console composer locked with a Queued — sends when ready banner and Edit and Delete controls, holding the next message until ready" width="460" />
+  <img src="/images/queue-next-message.webp" alt="Agent Console composer locked with a Queued — sends when ready banner and Edit and Delete controls, holding the next message until ready" />
 </p>
 
 - **One at a time.** You can queue exactly one message per tab. While a message is queued the composer locks and shows a **Queued — sends when the agent finishes** banner with **Edit** and **Delete** buttons. **Edit** brings the message back into the composer so you can adjust it and queue again; **Delete** discards it and gives you an empty composer. (Edit recovers, Delete removes — the message is never lost just by editing.)
