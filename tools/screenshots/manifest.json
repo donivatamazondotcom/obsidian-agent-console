@@ -916,18 +916,16 @@
 		{
 			"name": "queue-next-message",
 			"pending": false,
-			"width": 1380,
-			"height": 460,
+			"width": 696,
+			"height": 469,
 			"crop": {
 				"x": 0,
 				"y": 0,
 				"width": 1300,
 				"height": 380
 			},
-			"cropPadding": 12,
-			"cropSelectors": [
-				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-container"
-			],
+			"cropPadding": 16,
+			"cropSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-box",
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true,
