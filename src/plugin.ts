@@ -11,6 +11,7 @@ import {
 import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
+import { migrateLegacyChatViewType } from "./services/migrate-legacy-view-type";
 import { focusActiveTabComposer } from "./ui/composer-focus";
 import { HOVER_LINK_SOURCE } from "./utils/link-leaf";
 import type { ObsidianSystemPromptSettings } from "./utils/obsidian-system-prompt";
@@ -478,6 +479,22 @@ export default class AgentClientPlugin extends Plugin {
 		// saved tab state never matches. Obsidian auto-unregisters view
 		// types on unload, so registerView does not throw on reload.
 		this.registerView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
+
+		// I157: migrate leaves persisted under the legacy `agent-client-chat-view`
+		// type (the string shared with the upstream Agent Client plugin — the
+		// registerView collision that broke load when both were enabled).
+		// Deferred to onLayoutReady so the restored leaves exist; re-homing them
+		// preserves leaf.id, so tab state (keyed on leaf.id, I47) re-associates
+		// on remount. Registered before the first-run onboarding onLayoutReady
+		// below so it runs first.
+		this.app.workspace.onLayoutReady(() => {
+			const migrated = migrateLegacyChatViewType(this.app.workspace);
+			if (migrated > 0) {
+				getLogger().info(
+					`I157: migrated ${migrated} legacy chat view leaf(s) to ${VIEW_TYPE_CHAT}`,
+				);
+			}
+		});
 
 		// Register chat link surfaces with the Page Preview core plugin so
 		// hovering an internal link in a reply shows the file popover and the
