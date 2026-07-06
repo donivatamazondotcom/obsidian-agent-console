@@ -164,6 +164,14 @@ export interface InitialState {
 	 */
 	setInputValues?: { selector: string; value: string }[];
 	/**
+	 * Scroll a specific element to the TOP of the settings/scroll viewport just
+	 * before capture (block:"start"). Name-based `scrollToSettingText` centers a
+	 * setting-item, which can leave a tall or bottom-of-pane section out of view;
+	 * this scrolls an exact selector (e.g. a just-expanded last agent section's
+	 * summary) to the top so a `cropSelector` on it resolves inside the image.
+	 */
+	scrollIntoViewSelector?: string;
+	/**
 	 * Seed the tab bar with an exact set of labeled tabs, each forced into a
 	 * specific visual state, so the tab-list dropdown shows the full glyph
 	 * legend (● ready / ◐ busy / △ permission / ✕ error / ○ disconnected)

@@ -1331,6 +1331,40 @@
 			"docPage": "docs/agent-setup/claude-code.md",
 			"cropSelector": ".vertical-tab-content details.agent-client-agent-section[open]",
 			"cropPadding": 12
+		},
+		{
+			"name": "custom-agents-form",
+			"pending": false,
+			"width": 1632,
+			"height": 1457,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 780,
+				"height": 900
+			},
+			"cropSelector": ".vertical-tab-content details.agent-client-agent-section:nth-of-type(5)",
+			"cropPadding": 12,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"openSettings": "agent-console",
+				"clickSequence": [
+					{
+						"selector": ".vertical-tab-content button.mod-cta",
+						"waitFor": ".vertical-tab-content details.agent-client-agent-section:nth-of-type(5)"
+					},
+					{
+						"selector": ".vertical-tab-content details.agent-client-agent-section:nth-of-type(5) > summary",
+						"waitFor": ".vertical-tab-content details.agent-client-agent-section:nth-of-type(5)[open]"
+					}
+				],
+				"scrollIntoViewSelector": ".vertical-tab-content details.agent-client-agent-section:nth-of-type(5) > summary"
+			},
+			"approvalThreshold": 0.05,
+			"placement": "reference",
+			"purpose": "The Add-custom-agent form: Agent ID, Display name, Path, Arguments, and environment variables.",
+			"altText": "Agent Console settings showing the Add custom agent form with Agent ID, Display name, and Path fields",
+			"docPage": "docs/agent-setup/custom-agents.md"
 		}
 	]
 }

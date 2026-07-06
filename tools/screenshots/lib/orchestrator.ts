@@ -1122,6 +1122,20 @@ export async function captureEntry(
 			await sleep(SETTLE_MS);
 		}
 
+		// 4b-quinquies. Scroll an exact element to the top of the viewport just
+		// before capture (block:"start"). Runs after setInputValues and after any
+		// name-based scrollToSettingText, so it wins as the final positioning —
+		// used to bring a just-expanded, bottom-of-pane section fully into the
+		// captured image before its cropSelector resolves.
+		if (entry.initialState?.scrollIntoViewSelector) {
+			await deps.cdp.evaluate(
+				`(() => { const el = document.querySelector(${JSON.stringify(
+					entry.initialState.scrollIntoViewSelector,
+				)}); if (!el) return false; el.scrollIntoView({ block: "start", inline: "nearest" }); return true; })()`,
+			);
+			await sleep(SETTLE_MS);
+		}
+
 		// 4b-ter. Dismiss transient Obsidian notices (toasts) before the
 		// cleanliness assert + capture. A notice is never part of a docs shot
 		// (the cleanliness guard forbids `.notice`); loading a session or
