@@ -17,6 +17,10 @@ You can use any agent that implements the [Agent Client Protocol (ACP)](https://
    - **Arguments**: Command-line arguments, one per line (if required)
    - **Environment variables**: `KEY=VALUE` pairs, one per line (if required)
 
+<p align="center">
+  <img src="/images/custom-agents-form.webp" alt="Agent Console settings showing the Add custom agent form with Agent ID, Display name, and Path fields" />
+</p>
+
 ## Configuration Examples
 
 ### OpenCode
