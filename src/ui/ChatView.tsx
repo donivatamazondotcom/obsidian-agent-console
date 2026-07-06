@@ -51,8 +51,11 @@ import {
 	resolveRestoredLeaf,
 } from "../services/recently-closed-stack";
 import type { AcpClient } from "../acp/acp-client";
+import { VIEW_TYPE_CHAT } from "./chat-view-type";
 
-export const VIEW_TYPE_CHAT = "agent-client-chat-view";
+// VIEW_TYPE_CHAT is defined in ./chat-view-type (I157) and re-exported here so
+// existing importers of `{ VIEW_TYPE_CHAT } from "./ui/ChatView"` keep working.
+export { VIEW_TYPE_CHAT };
 
 /**
  * Debounce for persisting unsent draft text. Long enough to avoid a save per

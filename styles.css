@@ -472,7 +472,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 /* ===== Chat View Components ===== */
 
 /* Remove top padding on view-content so nav-header aligns with other sidebar panes */
-.workspace-leaf-content[data-type="agent-client-chat-view"] > .view-content {
+.workspace-leaf-content[data-type="agent-console-chat-view"] > .view-content {
 	padding-top: 0;
 	padding-left: 0;
 	padding-right: 0;
