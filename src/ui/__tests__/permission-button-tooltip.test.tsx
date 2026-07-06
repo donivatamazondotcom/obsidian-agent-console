@@ -2,8 +2,8 @@
  * Permission option button — full label as a hover tooltip (I158).
  *
  * The permission button renders the option name (e.g.
- * "Always Allow Bash(ls -la ~/Downloads/TripId-6353924127.pdf 2>&1),
- * Read(//Users/doniv/Downloads/**)") directly as its text. In a narrow
+ * "Always Allow Bash(ls -la ~/notes/reports/quarterly-summary.pdf 2>&1),
+ * Read(~/notes/reports/**)") directly as its text. In a narrow
  * sidebar the button overflows the leaf on both sides and the label is
  * unreadable. The fix CSS-truncates the label and mirrors the TabBar
  * precedent: reveal the full text with Obsidian's sanctioned setTooltip()
@@ -25,7 +25,7 @@ import { PermissionBanner } from "../PermissionBanner";
 import type { PermissionOption } from "../../types/chat";
 
 const LONG_NAME =
-	"Always Allow Bash(ls -la ~/Downloads/TripId-6353924127.pdf 2>&1), Read(//Users/doniv/Downloads/**)";
+	"Always Allow Bash(ls -la ~/notes/reports/quarterly-summary.pdf 2>&1), Read(~/notes/reports/**)";
 
 function opt(partial: Partial<PermissionOption>): PermissionOption {
 	return {
