@@ -12,6 +12,7 @@ import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
 import { migrateLegacyChatViewType } from "./services/migrate-legacy-view-type";
+import { registerChatViewSafely } from "./services/register-chat-view";
 import { focusActiveTabComposer } from "./ui/composer-focus";
 import { HOVER_LINK_SOURCE } from "./utils/link-leaf";
 import type { ObsidianSystemPromptSettings } from "./utils/obsidian-system-prompt";
@@ -478,7 +479,12 @@ export default class AgentClientPlugin extends Plugin {
 		// the restored leaf, so activateView() mints a fresh id and the
 		// saved tab state never matches. Obsidian auto-unregisters view
 		// types on unload, so registerView does not throw on reload.
-		this.registerView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
+		registerChatViewSafely(
+			this,
+			(leaf) => new ChatView(leaf, this),
+			(message) => new Notice(message),
+			(message, error) => getLogger().error(message, error),
+		);
 
 		// I157: migrate leaves persisted under the legacy `agent-client-chat-view`
 		// type (the string shared with the upstream Agent Client plugin — the
