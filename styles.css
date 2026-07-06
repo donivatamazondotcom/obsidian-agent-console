@@ -413,8 +413,21 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	font-weight: 500;
 	transition: all 0.2s ease;
 	min-width: 80px;
+	/* Never exceed the leaf width — in a narrow sidebar a long option name
+	   (e.g. "Always Allow Bash(<long command>), Read(<glob>)") would otherwise
+	   overflow the container on both sides. The label span truncates within. */
+	max-width: 100%;
 	text-align: center;
 	opacity: 1;
+}
+
+/* Truncate the (potentially very long) option label with an ellipsis so the
+   button stays within the leaf; the full text is available via setTooltip. */
+.agent-client-permission-option-label {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .agent-client-permission-option.agent-client-selected {

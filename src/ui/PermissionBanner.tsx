@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+import { setTooltip } from "obsidian";
 import { getLogger } from "../utils/logger";
 import type { PermissionOption } from "../types/chat";
 
@@ -33,10 +35,10 @@ export function PermissionBanner({
 	return (
 		<div className="agent-client-message-permission-request">
 			{permissionRequest.options.map((option) => (
-				<button
+				<PermissionOptionButton
 					key={option.optionId}
-					className={`agent-client-permission-option ${option.kind ? `agent-client-permission-kind-${option.kind}` : ""}`}
-					onClick={() => {
+					option={option}
+					onSelect={() => {
 						if (onOptionSelected) {
 							onOptionSelected(option.optionId);
 						}
@@ -52,10 +54,43 @@ export function PermissionBanner({
 							);
 						}
 					}}
-				>
-					{option.name}
-				</button>
+				/>
 			))}
 		</div>
+	);
+}
+
+interface PermissionOptionButtonProps {
+	option: PermissionOption;
+	onSelect: () => void;
+}
+
+function PermissionOptionButton({
+	option,
+	onSelect,
+}: PermissionOptionButtonProps) {
+	const buttonRef = useRef<HTMLButtonElement>(null);
+
+	// The option name can be very long (e.g. "Always Allow Bash(<long
+	// command>), Read(<glob>)"). The label span is CSS-truncated so the
+	// button never overflows a narrow sidebar; reveal the full text on hover
+	// with Obsidian's setTooltip — the sanctioned themed-tooltip mechanism,
+	// consistent with TabBar / ChatHeader / SettingsTab (not a raw `title`).
+	useEffect(() => {
+		if (buttonRef.current) {
+			setTooltip(buttonRef.current, option.name);
+		}
+	}, [option.name]);
+
+	return (
+		<button
+			ref={buttonRef}
+			className={`agent-client-permission-option ${option.kind ? `agent-client-permission-kind-${option.kind}` : ""}`}
+			onClick={onSelect}
+		>
+			<span className="agent-client-permission-option-label">
+				{option.name}
+			</span>
+		</button>
 	);
 }
