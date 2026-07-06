@@ -1296,6 +1296,41 @@
 			"hideSelectors": [
 				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-cwd-banner"
 			]
+		},
+		{
+			"name": "agent-settings-section",
+			"pending": false,
+			"width": 1632,
+			"height": 1323,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 780,
+				"height": 640
+			},
+			"initialState": {
+				"openNote": "Welcome.md",
+				"openSettings": "agent-console",
+				"scrollToSettingText": "Claude Code",
+				"setInputValues": [
+					{
+						"selector": ".vertical-tab-content details.agent-client-agent-section[open] input[placeholder=\"claude-agent-acp\"]",
+						"value": "claude-agent-acp"
+					},
+					{
+						"selector": ".vertical-tab-content details.agent-client-agent-section[open] textarea",
+						"value": ""
+					}
+				]
+			},
+			"approvalThreshold": 0.03,
+			"placement": "feature",
+			"purpose": "The Claude Code settings section: agent path, Auto-detect, and API key.",
+			"mustShow": ".vertical-tab-content details.agent-client-agent-section[open] .agent-client-agent-section-summary",
+			"altText": "Agent Console settings showing the Claude Code section with API key, path, and Auto-detect controls",
+			"docPage": "docs/agent-setup/claude-code.md",
+			"cropSelector": ".vertical-tab-content details.agent-client-agent-section[open]",
+			"cropPadding": 12
 		}
 	]
 }
