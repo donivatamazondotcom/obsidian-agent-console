@@ -156,6 +156,14 @@ export interface InitialState {
 	 */
 	clickSequence?: { selector: string; waitFor?: string }[];
 	/**
+	 * Set the displayed value of one or more inputs/textareas just before
+	 * capture — visual only (does NOT dispatch `input`, so no onChange/save/
+	 * reconnect side-effect). Use to replace a fixtures-hermetic value that
+	 * would be misleading in docs (e.g. the built-in agent Path field shows
+	 * the `sleep` no-op command; override it to the real default command).
+	 */
+	setInputValues?: { selector: string; value: string }[];
+	/**
 	 * Seed the tab bar with an exact set of labeled tabs, each forced into a
 	 * specific visual state, so the tab-list dropdown shows the full glyph
 	 * legend (● ready / ◐ busy / △ permission / ✕ error / ○ disconnected)
@@ -355,6 +363,14 @@ export interface ManifestEntry {
 	 * all sides. Default 16. Ignored when `cropSelector` is not set.
 	 */
 	cropPadding?: number;
+	/**
+	 * When `cropSelector` matches multiple elements, crop to the LAST match
+	 * instead of the first. Useful for "the element just added" (e.g. a newly
+	 * appended custom-agent section), which shares its class with siblings and
+	 * can't be targeted by a first-match CSS selector. Ignored without
+	 * `cropSelector`.
+	 */
+	cropSelectorLast?: boolean;
 	/**
 	 * Optional list of CSS selectors whose union bounding box (plus
 	 * `cropPadding`) defines the crop region — for framing a *group* of

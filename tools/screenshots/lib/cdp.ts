@@ -161,11 +161,12 @@ export class Cdp {
 	 * Get `getBoundingClientRect()` for the first element matching the
 	 * selector. Throws if no element matches.
 	 */
-	async getElementBounds(selector: string): Promise<Rect> {
+	async getElementBounds(selector: string, last = false): Promise<Rect> {
 		// We stringify the rect inside the page so we don't have to deal
 		// with DOMRect serialization quirks across Chromium versions.
 		const expr = `(() => {
-			const el = document.querySelector(${JSON.stringify(selector)});
+			const els = document.querySelectorAll(${JSON.stringify(selector)});
+			const el = ${last ? "els[els.length - 1]" : "els[0]"};
 			if (!el) return undefined;
 			const r = el.getBoundingClientRect();
 			return JSON.stringify({ x: r.x, y: r.y, width: r.width, height: r.height, top: r.top, right: r.right, bottom: r.bottom, left: r.left });

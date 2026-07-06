@@ -52,6 +52,7 @@ export interface CdpLike {
 	waitForElement(selector: string, timeoutMs?: number): Promise<void>;
 	getElementBounds(
 		selector: string,
+		last?: boolean,
 	): Promise<{ x: number; y: number; width: number; height: number }>;
 	hoverElement(selector: string): Promise<void>;
 	clickWithCoords(selector: string): Promise<void>;
@@ -1102,6 +1103,25 @@ export async function captureEntry(
 			await sleep(SETTLE_MS);
 		}
 
+		// 4b-quater. Override displayed input values (visual only). Runs late so
+		// the target inputs exist and are scrolled into view. Uses the native
+		// value setter WITHOUT dispatching `input`, so it changes only what the
+		// shot shows — no onChange/save/reconnect side-effect (e.g. replace the
+		// fixtures-hermetic `sleep` Path with the real default command).
+		if (entry.initialState?.setInputValues?.length) {
+			for (const { selector, value } of entry.initialState
+				.setInputValues) {
+				await deps.cdp.evaluate(
+					`(() => { const els = document.querySelectorAll(${JSON.stringify(
+						selector,
+					)}); if (!els.length) return false; els.forEach((el) => { const proto = el.tagName === "TEXTAREA" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype; const setter = Object.getOwnPropertyDescriptor(proto, "value").set; setter.call(el, ${JSON.stringify(
+						value,
+					)}); }); return true; })()`,
+				);
+			}
+			await sleep(SETTLE_MS);
+		}
+
 		// 4b-ter. Dismiss transient Obsidian notices (toasts) before the
 		// cleanliness assert + capture. A notice is never part of a docs shot
 		// (the cleanliness guard forbids `.notice`); loading a session or
@@ -1288,6 +1308,7 @@ export async function captureEntry(
 				try {
 					const bounds = await deps.cdp.getElementBounds(
 						entry.cropSelector,
+						entry.cropSelectorLast,
 					);
 					const padding = entry.cropPadding ?? 16;
 					cropRect = {

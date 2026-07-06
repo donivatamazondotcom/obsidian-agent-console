@@ -30,6 +30,10 @@ where.exe claude-agent-acp
 
 3. Open **Settings → Agent Console**. The default command (`claude-agent-acp`) works in many cases. If the agent is not found automatically, set the **Claude Code path** to the path found above, or click **Auto-detect**.
 
+<p align="center">
+  <img src="/images/agent-settings-section.webp" alt="Agent Console settings showing the Claude Code section with API key, path, and Auto-detect controls" />
+</p>
+
 ## Authentication
 
 Choose one of the following methods:

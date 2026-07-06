@@ -582,7 +582,7 @@ describe("captureEntry", () => {
 
 		await captureEntry(entry, deps);
 
-		expect(deps.cdp.getElementBounds).toHaveBeenCalledWith(".my-icon");
+		expect(deps.cdp.getElementBounds).toHaveBeenCalledWith(".my-icon", undefined);
 		const sharpInstance = (
 			deps.sharp as unknown as ReturnType<typeof vi.fn>
 		).mock.results[0].value;
@@ -598,6 +598,25 @@ describe("captureEntry", () => {
 		expect(extractArg.width).toBe(124); // ceil((0+62)*2) - 0 ... actually let's just check it's not 999*2
 		expect(extractArg.width).not.toBe(1998);
 		expect(sharpInstance.resize).not.toHaveBeenCalled();
+	});
+
+	it("passes cropSelectorLast to getElementBounds for last-match crop", async () => {
+		const deps = makeDeps();
+		(
+			deps.cdp.getElementBounds as ReturnType<typeof vi.fn>
+		).mockResolvedValue({ x: 10, y: 50, width: 30, height: 26 });
+		const entry = makeEntry({
+			cropSelector: ".repeated-section",
+			cropSelectorLast: true,
+			cropPadding: 16,
+		});
+
+		await captureEntry(entry, deps);
+
+		expect(deps.cdp.getElementBounds).toHaveBeenCalledWith(
+			".repeated-section",
+			true,
+		);
 	});
 
 	it("falls back to static crop when cropSelector matches nothing", async () => {
