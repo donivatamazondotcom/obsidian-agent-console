@@ -12,6 +12,12 @@ Agent Console supports multiple AI agents through the [Agent Client Protocol (AC
 | [Kiro CLI](./kiro-cli) | Amazon | Built-in ACP — install from [kiro.dev](https://kiro.dev) |
 | [Custom Agents](./custom-agents) | Various | Any ACP-compatible agent |
 
+Each agent is configured under **Settings → Agent Console**. Built-in agents appear as collapsible sections so the pane stays scannable:
+
+<p align="center">
+  <img src="/images/collapsible-agent-sections.webp" alt="Agent Console settings with each built-in agent shown as a collapsed accordion section under Built-in agents" />
+</p>
+
 ## Common Setup Steps
 
 All agents follow a similar setup pattern:

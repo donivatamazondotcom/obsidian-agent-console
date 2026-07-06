@@ -1267,6 +1267,35 @@
 			"purpose": "Kick off common asks — summarize, explain, draft — against the note you're viewing, without typing a prompt.",
 			"altText": "Agent Console beside a Weekly review note: tabbed sessions, a meeting-prep chat, and the quick-prompt menu open with one-tap prompts",
 			"followUp": "Tab status indicators (.agent-client-tab-state-icon) are not lit up: only the active tab reconnects (reconnectActive), so the inactive restored tabs show unlit/idle status glyphs. Next cycle: reconnect all restored tabs (or seed a lit status) so every tab's state icon reads as connected."
+		},
+		{
+			"name": "reload-control",
+			"pending": false,
+			"width": 1528,
+			"height": 180,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1528,
+				"height": 180
+			},
+			"cropSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-view-header",
+			"cropPadding": 4,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"approvalThreshold": 0.05,
+			"placement": "feature",
+			"purpose": "The header reload control: click to reload the session (keep the conversation), Shift-click to restart fresh.",
+			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-view-header",
+			"altText": "Agent Console chat header with the reload button among the header actions",
+			"docPage": "docs/usage/reload-session.md",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 720,
+			"hideSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-cwd-banner"
+			]
 		}
 	]
 }

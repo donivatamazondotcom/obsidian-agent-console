@@ -7,6 +7,10 @@ The **↻** button in the chat header gives the agent a clean process without lo
 
 It works alongside the other browser-style controls: **+** opens a new tab (a brand-new conversation), and the **history** button browses past sessions.
 
+<p align="center">
+  <img src="/images/reload-control.webp" alt="Agent Console chat header with the reload button among the header actions" />
+</p>
+
 ## Reload (click)
 
 Click the **↻** button to reload. Agent Console:
