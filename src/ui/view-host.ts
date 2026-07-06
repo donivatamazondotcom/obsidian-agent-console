@@ -53,6 +53,16 @@ export interface IChatViewHost {
 	revealOwningLeaf(): void;
 
 	/**
+	 * Whether keyboard focus is currently within this panel's container
+	 * (`ChatView`: `containerEl.contains(activeDocument.activeElement)`).
+	 * The chat UI pushes its keymap scopes onto the GLOBAL app keymap only
+	 * while the panel is focused, popping them the instant focus leaves.
+	 * Otherwise a Cmd+W in another leaf falls through the pushed scope to
+	 * ChatView's confirm-close guard (I161). See `utils/focus-scoped-push.ts`.
+	 */
+	hasFocus(): boolean;
+
+	/**
 	 * Register a DOM event listener that will be cleaned up when the view closes.
 	 *
 	 * In sidebar ChatView, this delegates to Obsidian's Component.registerDomEvent.
