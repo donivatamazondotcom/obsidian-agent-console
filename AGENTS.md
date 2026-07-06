@@ -146,7 +146,7 @@ src/
 │   ├── SharedLinksButton.tsx    # Header shared-links indicator (count badge + grouped New/Earlier popover)
 │   ├── view-host.ts             # IChatViewHost interface
 │   ├── use-auto-scroll-pin.ts   # Auto-scroll-to-bottom hook (pin state + native scroll + ResizeObserver/wheel/touch)
-│   ├── use-pill-open-scope.ts   # Active-tab-gated keymap scope to open focused context pills on Enter combos (I156)
+│   ├── use-pill-open-scope.ts   # Active-tab + focus-gated keymap scope to open focused context pills on Enter combos (I156; focus gate I161)
 │   ├── use-auto-scroll-pin.types.ts  # PinState, params, result types for useAutoScrollPin
 │   └── shared/
 │       ├── IconButton.tsx       # Icon button + Lucide icon wrapper
@@ -156,6 +156,7 @@ src/
 │   ├── platform.ts              # Shell, WSL, Windows env, command building
 │   ├── close-confirm.ts         # Pure shouldConfirmClose predicate for the multi-tab close gate
 │   ├── chat-scope-parent.ts     # Pure resolver: parent chat-UI pushed scopes to the view scope so Cmd+W reaches the close guard (I155)
+│   ├── focus-scoped-push.ts     # Push a chat-UI keymap scope onto the global keymap only while the panel is focused; pop on blur so Cmd+W can't leak to the close guard from other leaves (I161)
 │   ├── activeNoteGrabToggle.ts  # Grab/ungrab active note in context strip (hotkey)
 │   ├── provisional-context.ts   # Provisional auto-default context pill (crystallize-on-send)
 │   ├── image-paste.ts           # classifyImagePaste — pure image-paste decision (connecting vs unsupported; separates unknown from false)

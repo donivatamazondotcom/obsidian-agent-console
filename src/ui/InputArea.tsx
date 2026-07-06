@@ -1,7 +1,7 @@
 import * as React from "react";
 const { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } =
 	React;
-import { Notice, setIcon, Scope } from "obsidian";
+import { Notice, setIcon } from "obsidian";
 
 import type AgentClientPlugin from "../plugin";
 import type { IChatViewHost } from "./view-host";
@@ -39,7 +39,7 @@ import { deriveSendAffordance } from "../resolvers/send-affordance";
 import type { TabSessionState } from "../hooks/useTabSessionState";
 import { focusComposerAtEnd } from "./composer-focus";
 import { getLogger } from "../utils/logger";
-import { resolveChatPushScopeParent } from "../utils/chat-scope-parent";
+import { pushScopeWhileFocused } from "../utils/focus-scoped-push";
 import { decideComposerEnterAction, buildComposerPlaceholder, buildQueuedBanner, isQueuedSendBlocked } from "../services/message-queue-logic";
 import type { ErrorInfo } from "../types/errors";
 import type { AgentUpdateNotification } from "../services/update-checker";
@@ -848,22 +848,23 @@ export function InputArea({
 	const quickPromptDropdownOpen = quickPrompts.isOpen;
 	useEffect(() => {
 		if (!quickPromptDropdownOpen) return;
-		const keymap = plugin.app.keymap;
-		const scope = new Scope(
-			resolveChatPushScopeParent(view.scope, plugin.app.scope),
-		);
-		const handler = (evt: KeyboardEvent): false | void => {
-			// Consume (preventDefault) when we acted on the dropdown; otherwise
-			// return void so Obsidian falls through to its editor hotkeys.
-			if (activateQuickPromptSelectionRef.current(evt)) return false;
-		};
-		scope.register(["Alt"], "Enter", handler);
-		scope.register(["Mod"], "Enter", handler);
-		scope.register(["Mod", "Alt"], "Enter", handler);
-		scope.register(["Mod", "Alt", "Shift"], "Enter", handler);
-		keymap.pushScope(scope);
-		return () => keymap.popScope(scope);
-	}, [quickPromptDropdownOpen, plugin]);
+		// Push only while the panel is focused, pop the instant focus leaves
+		// (I161). The dropdown-open gate already implies focus, but routing
+		// through the focus-gated helper states the invariant once and keeps
+		// the view-scope fall-through (I155) from leaking Cmd+W to other leaves.
+		return pushScopeWhileFocused(plugin.app, view, (scope) => {
+			const handler = (evt: KeyboardEvent): false | void => {
+				// Consume (preventDefault) when we acted on the dropdown;
+				// otherwise return void so Obsidian falls through to its editor
+				// hotkeys.
+				if (activateQuickPromptSelectionRef.current(evt)) return false;
+			};
+			scope.register(["Alt"], "Enter", handler);
+			scope.register(["Mod"], "Enter", handler);
+			scope.register(["Mod", "Alt"], "Enter", handler);
+			scope.register(["Mod", "Alt", "Shift"], "Enter", handler);
+		});
+	}, [quickPromptDropdownOpen, plugin, view]);
 
 	/**
 	 * Overflow "+N" affordance: focus the composer and start a ! search. Inserts
