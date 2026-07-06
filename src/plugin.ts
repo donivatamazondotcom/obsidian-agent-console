@@ -13,6 +13,7 @@ import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
 import { migrateLegacyChatViewType } from "./services/migrate-legacy-view-type";
 import { registerChatViewSafely } from "./services/register-chat-view";
+import { runRegistrations } from "./services/run-registrations";
 import { focusActiveTabComposer } from "./ui/composer-focus";
 import { HOVER_LINK_SOURCE } from "./utils/link-leaf";
 import type { ObsidianSystemPromptSettings } from "./utils/obsidian-system-prompt";
@@ -502,203 +503,55 @@ export default class AgentClientPlugin extends Plugin {
 			}
 		});
 
-		// Register chat link surfaces with the Page Preview core plugin so
-		// hovering an internal link in a reply shows the file popover and the
-		// modifier hint (I94 part A). `defaultMod: true` requires Cmd/Ctrl,
-		// matching Obsidian's editor default; users can change it in the Page
-		// Preview plugin settings. The dispatched `hover-link` event in
-		// MarkdownRenderer uses this same HOVER_LINK_SOURCE id.
-		this.registerHoverLinkSource(HOVER_LINK_SOURCE, {
-			display: "Agent Console",
-			defaultMod: true,
-		});
-
-		// Register the Agent Console brand icon before adding the ribbon button.
-		// addIcon takes inner SVG content (no <svg> wrapper) and Obsidian renders
-		// it inside a 0 0 100 100 viewBox. See src/ui/branding.ts for the geometry.
-		addIcon("agent-console", AGENT_CONSOLE_SVG);
-
-		const ribbonIconEl = this.addRibbonIcon(
-			"agent-console",
-			"Agent Console",
-			(_evt: MouseEvent) => {
-				void this.activateView();
+		// I157 (onload resilience): route registrations through a guarded harness
+		// so one failing registration (e.g. a colliding view type or command id)
+		// degrades to a notice + one missing feature instead of aborting onload.
+		runRegistrations(
+			[
+				{
+					label: "note hover preview",
+					run: () =>
+						this.registerHoverLinkSource(HOVER_LINK_SOURCE, {
+							display: "Agent Console",
+							defaultMod: true,
+						}),
+				},
+				{
+					label: "ribbon button",
+					run: () => {
+						addIcon("agent-console", AGENT_CONSOLE_SVG);
+						const ribbonIconEl = this.addRibbonIcon(
+							"agent-console",
+							"Agent Console",
+							(_evt: MouseEvent) => {
+								void this.activateView();
+							},
+						);
+						ribbonIconEl.addClass("agent-console-ribbon-icon");
+					},
+				},
+				{
+					label: "commands",
+					run: () => {
+						this.registerCoreCommands();
+						this.registerAgentCommands();
+						this.registerPermissionCommands();
+						this.registerBroadcastCommands();
+					},
+				},
+				{
+					label: "settings tab",
+					run: () =>
+						this.addSettingTab(
+							new AgentClientSettingTab(this.app, this),
+						),
+				},
+			],
+			{
+				notify: (message) => new Notice(message),
+				logError: (message, error) => getLogger().error(message, error),
 			},
 		);
-		ribbonIconEl.addClass("agent-console-ribbon-icon");
-
-		this.addCommand({
-			id: "open-chat-view",
-			name: "Open chat",
-			callback: () => {
-				void this.activateView();
-			},
-		});
-
-		this.addCommand({
-			id: "focus-next-chat-view",
-			name: "Focus next chat view",
-			checkCallback: (checking: boolean) => {
-				if (!this.hasOpenChatView()) return false;
-				if (!checking) {
-					this.focusChatView("next");
-				}
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: "focus-previous-chat-view",
-			name: "Focus previous chat view",
-			checkCallback: (checking: boolean) => {
-				if (!this.hasOpenChatView()) return false;
-				if (!checking) {
-					this.focusChatView("previous");
-				}
-				return true;
-			},
-		});
-
-		// Tab commands
-		this.addCommand({
-			id: "close-session-tab",
-			name: "Close session tab",
-			checkCallback: (checking: boolean) => {
-				if (!this.hasOpenChatView()) return false;
-				if (!checking) {
-					this.getActiveChatView()?.closeActiveTab();
-				}
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: "next-session-tab",
-			name: "Next session tab",
-			checkCallback: (checking: boolean) => {
-				if (!this.hasOpenChatView()) return false;
-				if (!checking) {
-					this.getActiveChatView()?.nextTab();
-				}
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: "previous-session-tab",
-			name: "Previous session tab",
-			checkCallback: (checking: boolean) => {
-				if (!this.hasOpenChatView()) return false;
-				if (!checking) {
-					this.getActiveChatView()?.prevTab();
-				}
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: "show-tab-list",
-			name: "Show tab list",
-			checkCallback: (checking: boolean) => {
-				if (!this.hasOpenChatView()) return false;
-				if (!checking) {
-					this.getActiveChatView()?.showTabList();
-				}
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: "reopen-closed-session",
-			name: "Reopen closed session tab",
-			checkCallback: (checking: boolean) => {
-				if (!this.hasOpenChatView()) return false;
-				if (!checking) {
-					this.getActiveChatView()?.reopenClosedTab();
-				}
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: "open-session-history",
-			name: "Open session history",
-			checkCallback: (checking: boolean) => {
-				if (!this.hasOpenChatView()) return false;
-				if (!checking) {
-					this.getActiveChatView()?.openSessionHistory();
-				}
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: "open-new-view",
-			name: "Open new view",
-			callback: () => {
-				void this.openNewChatViewWithAgent(
-					this.settings.defaultAgentId,
-				);
-			},
-		});
-
-		this.addCommand({
-			id: "import-settings",
-			name: "Import settings from another agent plugin",
-			callback: () => {
-				this.openImportSettingsModal();
-			},
-		});
-
-		this.addCommand({
-			id: "quick-prompt-search",
-			name: "Quick prompts: Search",
-			checkCallback: (checking: boolean) => {
-				if (!this.hasOpenChatView()) return false;
-				if (!checking) {
-					const prompts = this.quickPromptLibrary.getPrompts();
-					if (prompts.length === 0) {
-						new Notice(
-							`[Agent Console] No quick prompts found. Add markdown notes to your "${this.settings.quickPromptsFolder}" folder.`,
-						);
-						return true;
-					}
-					this.viewRegistry.toFocused((view) =>
-						view.startQuickPromptSearch(),
-					);
-				}
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: "quick-prompt-new",
-			name: "Quick prompts: New prompt",
-			callback: () => {
-				void this.createQuickPromptNote({ label: "New prompt" });
-			},
-		});
-
-		this.addCommand({
-			id: "quick-prompt-save-composer",
-			name: "Quick prompts: Save composer as a prompt",
-			checkCallback: (checking: boolean) => {
-				if (!this.hasOpenChatView()) return false;
-				if (!checking) {
-					this.viewRegistry.toFocused((view) =>
-						view.saveComposerAsQuickPrompt(),
-					);
-				}
-				return true;
-			},
-		});
-
-		// Register agent-specific commands
-		this.registerAgentCommands();
-		this.registerPermissionCommands();
-		this.registerBroadcastCommands();
-
-		this.addSettingTab(new AgentClientSettingTab(this.app, this));
 
 		// First-run, one-shot offer to import settings from another agent plugin.
 		void this.maybeOfferSettingsImport();
@@ -1114,6 +967,174 @@ export default class AgentClientPlugin extends Plugin {
 	/**
 	 * Register commands for each configured agent
 	 */
+	private registerCoreCommands(): void {
+		this.addCommand({
+			id: "open-chat-view",
+			name: "Open chat",
+			callback: () => {
+				void this.activateView();
+			},
+		});
+
+		this.addCommand({
+			id: "focus-next-chat-view",
+			name: "Focus next chat view",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.focusChatView("next");
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: "focus-previous-chat-view",
+			name: "Focus previous chat view",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.focusChatView("previous");
+				}
+				return true;
+			},
+		});
+
+		// Tab commands
+		this.addCommand({
+			id: "close-session-tab",
+			name: "Close session tab",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.getActiveChatView()?.closeActiveTab();
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: "next-session-tab",
+			name: "Next session tab",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.getActiveChatView()?.nextTab();
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: "previous-session-tab",
+			name: "Previous session tab",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.getActiveChatView()?.prevTab();
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: "show-tab-list",
+			name: "Show tab list",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.getActiveChatView()?.showTabList();
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: "reopen-closed-session",
+			name: "Reopen closed session tab",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.getActiveChatView()?.reopenClosedTab();
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: "open-session-history",
+			name: "Open session history",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.getActiveChatView()?.openSessionHistory();
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: "open-new-view",
+			name: "Open new view",
+			callback: () => {
+				void this.openNewChatViewWithAgent(
+					this.settings.defaultAgentId,
+				);
+			},
+		});
+
+		this.addCommand({
+			id: "import-settings",
+			name: "Import settings from another agent plugin",
+			callback: () => {
+				this.openImportSettingsModal();
+			},
+		});
+
+		this.addCommand({
+			id: "quick-prompt-search",
+			name: "Quick prompts: Search",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					const prompts = this.quickPromptLibrary.getPrompts();
+					if (prompts.length === 0) {
+						new Notice(
+							`[Agent Console] No quick prompts found. Add markdown notes to your "${this.settings.quickPromptsFolder}" folder.`,
+						);
+						return true;
+					}
+					this.viewRegistry.toFocused((view) =>
+						view.startQuickPromptSearch(),
+					);
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: "quick-prompt-new",
+			name: "Quick prompts: New prompt",
+			callback: () => {
+				void this.createQuickPromptNote({ label: "New prompt" });
+			},
+		});
+
+		this.addCommand({
+			id: "quick-prompt-save-composer",
+			name: "Quick prompts: Save composer as a prompt",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.viewRegistry.toFocused((view) =>
+						view.saveComposerAsQuickPrompt(),
+					);
+				}
+				return true;
+			},
+		});
+	}
+
 	private registerAgentCommands(): void {
 		this.addCommand({
 			id: "new-chat-with-agent",
