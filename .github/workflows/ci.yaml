@@ -41,6 +41,21 @@ jobs:
           fi
           echo "OK — no absolute home paths in tracked fixture settings"
 
+      - name: Load-time registration guards (I157)
+        run: |
+          # 1. The chat view must never be registered directly — it must go
+          #    through registerChatViewSafely so a duplicate view-type collision
+          #    with another plugin (I157) degrades to a notice, not an onload crash.
+          if grep -rnE 'this\.registerView\(' src/ --include='*.ts' --include='*.tsx' | grep -v '__tests__'; then
+            echo "::error::Direct this.registerView() found — use registerChatViewSafely (I157)."
+            exit 1
+          fi
+          # 2. onload must keep routing registrations through the guarded harness.
+          if ! grep -q 'runRegistrations(' src/plugin.ts; then
+            echo "::error::plugin.ts no longer calls runRegistrations() — onload registration harness (I157) removed."
+            exit 1
+          fi
+          echo "OK — chat view guarded; onload registration harness present"
       - name: Build
         run: npm run build
 
