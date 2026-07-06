@@ -43,6 +43,7 @@ import { CarriedOverPreview } from "./CarriedOverPreview";
 import { getLogger } from "../utils/logger";
 import { deriveTabLabel, labelAlreadyReportedOnMount, shouldReportInterimLabel } from "../resolvers/deriveTabLabel";
 import { buildCompletionNotificationContent } from "../utils/notification-content";
+import { runCompletionNotificationClick } from "../utils/notification-click";
 import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";
 import { loadExistingSessionFlow } from "../hooks/loadExistingSessionFlow";
@@ -1701,8 +1702,14 @@ export function ChatPanel({
 					tag,
 				});
 				completionNotification.onclick = () => {
+					// Retained Electron fallback for the OS window raise (I52);
+					// revealOwningLeaf runs last so the sanctioned path wins the race.
 					focusOwningWindow();
-					onSwitchToTabRef.current?.(viewId);
+					runCompletionNotificationClick({
+						tabId: viewId,
+						onSwitchToTab: onSwitchToTabRef.current,
+						revealOwningLeaf: () => viewHost.revealOwningLeaf(),
+					});
 				};
 			}
 		}
@@ -1749,7 +1756,10 @@ export function ChatPanel({
 			const permissionNotification = new Notification("Agent Console", {
 				body: `${activeAgentLabel} is requesting permission.`,
 			});
-			permissionNotification.onclick = () => focusOwningWindow();
+			permissionNotification.onclick = () => {
+				focusOwningWindow();
+				viewHost.revealOwningLeaf();
+			};
 		}
 	}, [
 		agent.hasActivePermission,

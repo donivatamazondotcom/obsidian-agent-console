@@ -43,6 +43,16 @@ export interface IChatViewHost {
 	readonly viewId: string;
 
 	/**
+	 * Foreground the vault window that owns this leaf and make the leaf
+	 * active, so a completion/permission notification click lands on the
+	 * correct window and leaf rather than Electron's most-recently-active
+	 * window (I52 recurrence, 2026-07-06). `ChatView` implements this via
+	 * `workspace.revealLeaf` + `setActiveLeaf({ focus: true })`; non-view
+	 * hosts (e.g. test stubs) may no-op.
+	 */
+	revealOwningLeaf(): void;
+
+	/**
 	 * Register a DOM event listener that will be cleaned up when the view closes.
 	 *
 	 * In sidebar ChatView, this delegates to Obsidian's Component.registerDomEvent.

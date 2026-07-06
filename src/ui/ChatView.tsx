@@ -1431,6 +1431,18 @@ export class ChatView extends ItemView implements IChatViewContainer {
 		this.logger.log(`Deactivated: ${this.viewId}`);
 	}
 
+	revealOwningLeaf(): void {
+		void this.app.workspace.revealLeaf(this.leaf).then(() => {
+			// revealLeaf surfaces the leaf and its owning vault window;
+			// setActiveLeaf({ focus: true }) moves keyboard focus and
+			// foregrounds that window via Obsidian's own machinery, instead
+			// of the race-prone Electron BrowserWindow.focus() (I52
+			// recurrence 2026-07-06). No composer focus here — a
+			// notification click should surface the tab, not steal the caret.
+			this.app.workspace.setActiveLeaf(this.leaf, { focus: true });
+		});
+	}
+
 	focus(): void {
 		void this.app.workspace.revealLeaf(this.leaf).then(() => {
 			// revealLeaf shows the leaf but does not move keyboard focus to it
