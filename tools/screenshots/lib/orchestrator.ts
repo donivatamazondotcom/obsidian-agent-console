@@ -542,13 +542,17 @@ export async function captureEntry(
 				);
 			}
 		}
-		// Stub plugin runtime state for shots that depend on a condition we can't
-		// reproduce hermetically (an available update / a no-working-agent machine).
-		// MUST run BEFORE clickRibbon/openChatView so the freshly-mounted ChatPanel
-		// reads the stub on its first effect pass.
-		if (entry.initialState?.forceUpdateAvailable) {
+		// Neutralize the live update check so shots are deterministically pill-free
+		// regardless of the published release vs studio's installed version, or
+		// GitHub API availability at capture time. Default: stub checkForUpdates()
+		// to false so the ChatPanel mount effect resolves "no update" without a
+		// network fetch. `forceUpdateAvailable: true` opts a shot back into the pill
+		// (only the update-pill shot does). MUST run BEFORE clickRibbon/openChatView
+		// so the freshly-mounted ChatPanel reads the stub on its first effect pass.
+		{
+			const forceUpdate = entry.initialState?.forceUpdateAvailable === true;
 			await deps.cdp.evaluate(
-				`(() => { app.plugins.plugins["agent-console"].checkForUpdates = async () => true; return true; })()`,
+				`(() => { app.plugins.plugins["agent-console"].checkForUpdates = async () => ${forceUpdate}; return ${forceUpdate}; })()`,
 			);
 		}
 		if (entry.initialState?.forceGettingStarted) {
