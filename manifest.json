@@ -1,7 +1,7 @@
 {
 	"id": "agent-console",
 	"name": "Agent Console",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"minAppVersion": "1.11.4",
 	"description": "Finally put your second brain to work. Connect your vault to the best AI models and build alongside them – docs, slides, projects, even code. Each project leaves your notes richer for the next.",
 	"author": "Vinod Panicker",
