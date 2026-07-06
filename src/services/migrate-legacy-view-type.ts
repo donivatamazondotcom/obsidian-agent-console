@@ -48,9 +48,28 @@ export interface MigratableWorkspace {
  * migratable. Verified end-to-end by the update-path smoke test on a real
  * pre-2.0.1 workspace.
  */
+export interface MigrateOptions {
+	/**
+	 * True when a plugin currently registers {@link LEGACY_CHAT_VIEW_TYPE} —
+	 * i.e. the upstream Agent Client is installed and enabled. When true, the
+	 * legacy-type leaves are that plugin's LIVE views, not our orphaned
+	 * pre-2.0.1 leaves, so the migration MUST NOT touch them (re-homing them
+	 * would hijack Agent Client's panels — the exact case an existing Agent
+	 * Client user installing Agent Console would hit).
+	 */
+	legacyTypeRegistered: boolean;
+}
+
 export function migrateLegacyChatViewType(
 	workspace: MigratableWorkspace,
+	options: MigrateOptions,
 ): number {
+	// Only ORPHANED legacy leaves (the type is no longer registered by anyone)
+	// are ours to migrate. If Agent Client still owns `agent-client-chat-view`,
+	// its leaves are live — leave them alone.
+	if (options.legacyTypeRegistered) {
+		return 0;
+	}
 	const toMigrate: {
 		leaf: MigratableLeaf;
 		prev: ReturnType<MigratableLeaf["getViewState"]>;

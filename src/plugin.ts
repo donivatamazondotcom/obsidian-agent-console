@@ -11,7 +11,10 @@ import {
 import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
-import { migrateLegacyChatViewType } from "./services/migrate-legacy-view-type";
+import {
+	migrateLegacyChatViewType,
+	LEGACY_CHAT_VIEW_TYPE,
+} from "./services/migrate-legacy-view-type";
 import { registerChatViewSafely } from "./services/register-chat-view";
 import { runRegistrations } from "./services/run-registrations";
 import { focusActiveTabComposer } from "./ui/composer-focus";
@@ -495,7 +498,19 @@ export default class AgentClientPlugin extends Plugin {
 		// on remount. Registered before the first-run onboarding onLayoutReady
 		// below so it runs first.
 		this.app.workspace.onLayoutReady(() => {
-			const migrated = migrateLegacyChatViewType(this.app.workspace);
+			// Only migrate ORPHANED legacy leaves. If the upstream Agent Client
+			// is enabled it still registers agent-client-chat-view, so those
+			// leaves are ITS live panels — re-homing them would hijack the
+			// incumbent (the exact case an existing Agent Client user installing
+			// Agent Console would hit). Skip the migration entirely then.
+			const legacyTypeRegistered = !!(
+				this.app as unknown as {
+					viewRegistry?: { viewByType?: Record<string, unknown> };
+				}
+			).viewRegistry?.viewByType?.[LEGACY_CHAT_VIEW_TYPE];
+			const migrated = migrateLegacyChatViewType(this.app.workspace, {
+				legacyTypeRegistered,
+			});
 			if (migrated > 0) {
 				getLogger().info(
 					`I157: migrated ${migrated} legacy chat view leaf(s) to ${VIEW_TYPE_CHAT}`,
