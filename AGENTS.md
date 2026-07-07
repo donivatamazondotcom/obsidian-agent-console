@@ -168,6 +168,7 @@ src/
 │   ├── obsidian-system-prompt.ts # Pure composer of the Obsidian system-prompt briefing (host identity / rendering / cwd / vault-collab blocks) injected on first message
 │   ├── toolCallSummary.ts       # One-row tool-call summary derivation
 │   ├── toolCallDiff.ts          # Pure unified-diff computation shared by ToolCallBlock + the line-count badge
+│   ├── args.ts                  # Forgiving Arguments-field parse/format (shell-tokenize spaces+newlines, round-trip quoting) — I162
 │   ├── paths.ts                 # Path resolution, file:// URI
 │   ├── error-utils.ts           # ACP error conversion
 │   ├── mention-parser.ts        # @[[note]] detection/extraction

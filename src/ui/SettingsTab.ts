@@ -20,6 +20,7 @@ import {
 	resolveDefaultWorkingDirectory,
 	resolveAgentWorkingDirectory,
 } from "../utils/working-directory";
+import { parseAgentArgs, formatAgentArgs } from "../utils/args";
 import {
 	composeObsidianSystemPrompt,
 	obsidianSystemPromptIsCustomized,
@@ -1239,7 +1240,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		new Setting(sectionEl)
 			.setName("Arguments")
 			.setDesc(
-				'Enter one argument per line. Leave empty to run without arguments.(Currently, the Gemini CLI requires the "--experimental-acp" option.)',
+				'Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments. (Currently, the Gemini CLI requires the "--experimental-acp" option.)',
 			)
 			.addTextArea((text) => {
 				text.setPlaceholder("")
@@ -1326,7 +1327,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		new Setting(sectionEl)
 			.setName("Arguments")
 			.setDesc(
-				'Enter one argument per line. Kiro CLI requires the "acp" subcommand.',
+				'Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Kiro CLI requires the "acp" subcommand.',
 			)
 			.addTextArea((text) => {
 				text.setPlaceholder("acp")
@@ -1430,7 +1431,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		new Setting(sectionEl)
 			.setName("Arguments")
 			.setDesc(
-				"Enter one argument per line. Leave empty to run without arguments.",
+				"Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments.",
 			)
 			.addTextArea((text) => {
 				text.setPlaceholder("")
@@ -1534,7 +1535,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		new Setting(sectionEl)
 			.setName("Arguments")
 			.setDesc(
-				"Enter one argument per line. Leave empty to run without arguments.",
+				"Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments.",
 			)
 			.addTextArea((text) => {
 				text.setPlaceholder("")
@@ -1764,7 +1765,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		new Setting(blockEl)
 			.setName("Arguments")
 			.setDesc(
-				"Enter one argument per line. Leave empty to run without arguments.",
+				"Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments.",
 			)
 			.addTextArea((text) => {
 				text.setPlaceholder("--flag\n--another=value")
@@ -2086,14 +2087,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	}
 
 	private formatArgs(args: string[]): string {
-		return args.join("\n");
+		return formatAgentArgs(args);
 	}
 
 	private parseArgs(value: string): string[] {
-		return value
-			.split(/\r?\n/)
-			.map((line) => line.trim())
-			.filter((line) => line.length > 0);
+		return parseAgentArgs(value);
 	}
 
 	private formatEnv(env: AgentEnvVar[]): string {
