@@ -43,6 +43,23 @@ export function focusActiveTabComposer(container: HTMLElement): void {
 	focusComposerAtEnd(active);
 }
 
+/**
+ * Return focus to the active tab's composer on the next animation frame, caret
+ * at end. Used by Send-type actions that run while DOM focus is on a control
+ * outside the composer — e.g. firing a quick-prompt chip (focus on the chip
+ * button) or a picker mouse-pick. The rAF defers past React's state flush so
+ * the (freshly cleared / seeded) textarea is focused after it re-renders,
+ * mirroring the quick-prompt bridge's insertAtCursor refocus.
+ *
+ * Unconditional by design: Send-type actions own their focus (the
+ * composer-focus-return cluster guard deliberately excludes them), so this does
+ * NOT consult `composerHadFocus`. No-ops when the container is absent.
+ */
+export function scheduleComposerRefocus(container: HTMLElement | null): void {
+	if (!container) return;
+	window.requestAnimationFrame(() => focusActiveTabComposer(container));
+}
+
 /** True when the element or any ancestor is hidden via an inline display:none. */
 function isHiddenByDisplay(el: HTMLElement): boolean {
 	let node: HTMLElement | null = el;
