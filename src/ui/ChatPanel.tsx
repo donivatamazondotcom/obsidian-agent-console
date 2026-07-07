@@ -103,6 +103,7 @@ import { indexOfCurrentAgent } from "../services/session-helpers";
 import { InputArea } from "./InputArea";
 import { ContextStrip } from "./ContextStrip";
 import { focusComposerAtEnd } from "./composer-focus";
+import { createQuickPromptBridge } from "./quick-prompt-bridge";
 import { computeProvisionalPath } from "../utils/provisional-context";
 import type { IChatViewHost } from "./view-host";
 
@@ -2128,75 +2129,30 @@ export function ChatPanel({
 	// fire/insert effects to the pure engine. Built once from stable refs +
 	// setters; every method reads `.current` so it never goes stale.
 	const quickPromptBridge = useMemo<QuickPromptComposerBridge>(
-		() => ({
-			getComposerText: () => inputValueRef.current,
-			// Read the eagerly-captured selection text from VaultService. The
-			// chat panel becoming active nulls getActiveViewOfType(MarkdownView)
-			// AND workspace.activeEditor, and an unfocused leaf's getSelection()
-			// returns "" — so the selection cannot be read lazily here; it is
-			// captured while the editor was focused (QP-I03).
-			getSelectionText: () => vaultService.getActiveSelectionText(),
-			isStreaming: () => isSendingRef.current,
-			isQueued: () => isQueuedRef.current,
-			// fire/queue: dispatch the resolved text through the same send path
-			// the composer uses (queues while streaming / pre-ready). The
-			// engine only routes here when the composer is empty, so passing
-			// the text directly never clobbers a draft.
-			fireOrQueue: (text) => {
-				if (isSendingRef.current || !isSessionLive(lazyStateRef.current)) {
-					if (isQueuedRef.current) return; // slot full (defensive)
-					// Seed the composer so it mirrors the queued content. The
-					// composer is the single source of truth the Edit flow
-					// relies on — handleEditQueued only unlocks it, it does not
-					// repopulate. Without this the quick prompt queues but the
-					// composer is empty, so Edit shows no draft (QP-I04). Safe:
-					// the engine only routes here when the composer was empty
-					// (unsent-draft guard), and the turn-end flush both consumes
-					// the queue entry once AND clears the composer.
-					setInputValue(text);
-					handleQueueMessageRef.current(text, undefined);
-					return;
-				}
-				setInputValue("");
-				void handleSendMessageRef.current(text, undefined);
-			},
-			// insert: splice the resolved text at the caret, preserving the
-			// existing draft. Reads the composer textarea from this view's
-			// container (same selector ChatView.focus uses).
-			insertAtCursor: (text) => {
-				const el = containerRef.current?.querySelector(
-					"textarea.agent-client-chat-input-textarea",
-				);
-				const current = inputValueRef.current;
-				let next: string;
-				let caret: number;
-				if (el instanceof HTMLTextAreaElement) {
-					const start = el.selectionStart ?? current.length;
-					const end = el.selectionEnd ?? current.length;
-					next = current.slice(0, start) + text + current.slice(end);
-					caret = start + text.length;
-				} else {
-					next = current.length > 0 ? `${current}\n${text}` : text;
-					caret = next.length;
-				}
-				setInputValue(next);
-				window.requestAnimationFrame(() => {
-					if (el instanceof HTMLTextAreaElement) {
-						el.focus();
-						el.setSelectionRange(caret, caret);
-					}
-				});
-			},
-			// newTab quick prompts route up to ChatView (which owns the tab
-			// manager) to spawn a sibling tab and seed/send into it. Never
-			// touches this tab's composer.
-			openInNewTab: (text, opts) => {
-				onOpenInNewTab?.(text, opts);
-			},
-			notify: (message) => {
-				new Notice(`[Agent Console] ${message}`);
-			},
-		}),
+		() =>
+			createQuickPromptBridge({
+				getComposerText: () => inputValueRef.current,
+				// Read the eagerly-captured selection text from VaultService.
+				// The chat panel becoming active nulls
+				// getActiveViewOfType(MarkdownView) AND workspace.activeEditor,
+				// and an unfocused leaf's getSelection() returns "" — so the
+				// selection cannot be read lazily here; it is captured while the
+				// editor was focused (QP-I03).
+				getSelectionText: () => vaultService.getActiveSelectionText(),
+				isSending: () => isSendingRef.current,
+				isSessionLive: () => isSessionLive(lazyStateRef.current),
+				isQueued: () => isQueuedRef.current,
+				setComposerText: (text) => setInputValue(text),
+				queueMessage: (text) =>
+					handleQueueMessageRef.current(text, undefined),
+				sendMessage: (text) => {
+					void handleSendMessageRef.current(text, undefined);
+				},
+				openInNewTab: (text, opts) => onOpenInNewTab?.(text, opts),
+				getContainer: () => containerRef.current,
+				notify: (message) =>
+					new Notice(`[Agent Console] ${message}`),
+			}),
 		[plugin, onOpenInNewTab],
 	);
 
