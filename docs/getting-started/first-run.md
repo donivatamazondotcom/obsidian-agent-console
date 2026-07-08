@@ -29,6 +29,7 @@ If no agent is connectable yet — nothing installed, or the configured command 
 - **Install an agent without leaving Obsidian.** When nothing is detected, each supported agent shows an **Install** button that runs the one-line install for you and streams the output right there. If your setup needs a permission the plugin doesn't have (some system Node installs do), the install stops with a plain explanation and a **Copy command** button so you can finish in your terminal. Kiro links to its setup guide instead, since it isn't an npm package.
 - Each agent name links to its **setup guide** on this site, so you can read the details first.
 - An **Open settings** button that jumps straight to Agent Console's settings, where you can choose a provider or set a CLI path by hand.
+- A **Re-detect** button that re-runs the scan. If you installed an agent outside Obsidian – or set it up with environment variables only – it may not show up until you click Re-detect, which refreshes the list without restarting Obsidian.
 - A hint for the case where you installed a CLI somewhere custom — point Agent Console at it with an absolute path in settings.
 
 <p align="center">

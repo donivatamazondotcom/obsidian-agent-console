@@ -63,6 +63,7 @@ describe("T5: getting-started empty state (Layer 2)", () => {
 					],
 					onPickAgent,
 					onOpenSettings,
+					onRedetect: vi.fn(),
 					onInstall: vi.fn().mockResolvedValue({ ok: false, exitCode: 1 }),
 				}}
 			/>,
@@ -106,6 +107,7 @@ describe("T5: getting-started empty state (Layer 2)", () => {
 					detectedAgents: [],
 					onPickAgent: vi.fn(),
 					onOpenSettings: vi.fn(),
+					onRedetect: vi.fn(),
 					onInstall: vi.fn().mockResolvedValue({ ok: false, exitCode: 1 }),
 				}}
 			/>,
@@ -154,5 +156,38 @@ describe("T5: getting-started empty state (Layer 2)", () => {
 		expect(
 			container.querySelector(".agent-client-getting-started-pick"),
 		).toBeNull();
+	});
+
+	it("offers a keyboard-accessible Re-detect control that re-runs detection", () => {
+		const onRedetect = vi.fn();
+		const { container } = render(
+			<MessageList
+				messages={[]}
+				isSending={false}
+				lazyState="connecting"
+				isRestoringSession={false}
+				agentLabel="Codex"
+				plugin={makePlugin()}
+				view={makeView()}
+				hasActivePermission={false}
+				gettingStarted={{
+					detectedAgents: [],
+					onPickAgent: vi.fn(),
+					onOpenSettings: vi.fn(),
+					onRedetect,
+					onInstall: vi
+						.fn()
+						.mockResolvedValue({ ok: false, exitCode: 1 }),
+				}}
+			/>,
+		);
+		const redetectBtn = container.querySelector(
+			".agent-client-getting-started-redetect",
+		) as HTMLButtonElement | null;
+		expect(redetectBtn).not.toBeNull();
+		// Native <button> → keyboard-activatable (Enter/Space) for free.
+		expect(redetectBtn?.tagName).toBe("BUTTON");
+		redetectBtn?.click();
+		expect(onRedetect).toHaveBeenCalledTimes(1);
 	});
 });
