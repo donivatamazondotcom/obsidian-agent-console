@@ -42,6 +42,10 @@ export interface GettingStartedInfo {
 	onPickAgent: (agentId: string) => void;
 	/** Open the plugin settings tab. */
 	onOpenSettings: () => void;
+	/** Re-run agent detection (clears the cached probe). Clears a stale
+	 * getting-started dead end when an agent was installed outside the plugin
+	 * or configured via env only, so its command never changed (I-FRO6). */
+	onRedetect: () => void;
 	/**
 	 * Run the one-line install for an npm-backed built-in agent, streaming
 	 * output to `onOutput`. Resolves with a structured result (never throws).
@@ -145,7 +149,7 @@ function InstallRow({
 }
 
 function GettingStarted({ info }: { info: GettingStartedInfo }) {
-	const { detectedAgents, onPickAgent, onOpenSettings, onInstall } = info;
+	const { detectedAgents, onPickAgent, onOpenSettings, onRedetect, onInstall } = info;
 	return (
 		<div className="agent-client-chat-empty-state agent-client-getting-started">
 			<div className="agent-client-getting-started-heading">
@@ -208,6 +212,13 @@ function GettingStarted({ info }: { info: GettingStartedInfo }) {
 				onClick={onOpenSettings}
 			>
 				Open settings
+			</button>
+			<button
+				type="button"
+				className="agent-client-getting-started-redetect"
+				onClick={onRedetect}
+			>
+				Re-detect
 			</button>
 			<div className="agent-client-getting-started-hint">
 				Already have one installed elsewhere? Set its path in settings.

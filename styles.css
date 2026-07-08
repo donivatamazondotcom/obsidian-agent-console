@@ -947,7 +947,8 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	cursor: pointer;
 }
 
-.agent-client-getting-started-settings {
+.agent-client-getting-started-settings,
+.agent-client-getting-started-redetect {
 	cursor: pointer;
 }
 

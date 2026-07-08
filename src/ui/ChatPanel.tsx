@@ -2466,6 +2466,14 @@ export function ChatPanel({
 				void handleNewChatWithPersist(agentId);
 			},
 			onOpenSettings: handleOpenSettings,
+			onRedetect: () => {
+				// I-FRO6: user-initiated re-probe for an agent installed outside
+				// the plugin or configured via env only (command unchanged, so the
+				// command-key effect never fires) — same invalidate+refetch as the
+				// Install-success path below.
+				plugin.clearAgentDetectionCache();
+				setDetectedAgentIds(null);
+			},
 			onInstall: async (
 				npmPackage: string,
 				onOutput: (chunk: string) => void,
