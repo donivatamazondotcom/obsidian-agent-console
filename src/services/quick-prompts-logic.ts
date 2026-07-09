@@ -750,7 +750,7 @@ export const NEW_PROMPT_BODY_PLACEHOLDER = [
 	"- open in new tab: runs in a new chat tab instead of this one.",
 	"- always show: the chip shows on every note.",
 	"- show when: the chip shows only on matching notes. Add one list item per condition, like type=meeting, tags=people, or status=open.",
-	"- order: a number that sorts this prompt in the chip row and ! list — lower comes first (order: 0 pins it leftmost). Leave it off to sort after pinned prompts, alphabetically.",
+	"- order: a number that sorts this prompt in the chip row and ! list — lower comes first (order: 0 pins it leftmost). Leave it blank to sort after pinned prompts, alphabetically.",
 	"",
 	"Set none of these and the prompt stays out of the chip row — type ! in the composer to run it.",
 	"",
@@ -828,6 +828,11 @@ export function buildNewPromptNote(opts: {
 			// shows in the note's Properties for the author to fill in. Each
 			// item is a `property=value` condition (e.g. `type=meeting`).
 			"show when": [],
+			// Seed an empty `order` (discoverability parity with `show when`)
+			// so the sort-key slot shows in Properties. `null` renders blank and
+			// parseOrder treats it as unset — a new prompt sorts alphabetically,
+			// never auto-pinned. Author types a number (0 = leftmost) to pin.
+			order: null,
 		},
 		body: hasBody ? (opts.body as string) : NEW_PROMPT_BODY_PLACEHOLDER,
 	};
