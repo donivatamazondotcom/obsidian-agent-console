@@ -58,6 +58,7 @@ import {
 	CodexAgentSettings,
 	CustomAgentSettings,
 	KiroAgentSettings,
+	OpenCodeAgentSettings,
 } from "./types/agent";
 import type {
 	SavedSessionInfo,
@@ -121,6 +122,7 @@ export interface AgentClientPluginSettings {
 	claude: ClaudeAgentSettings;
 	codex: CodexAgentSettings;
 	kiro: KiroAgentSettings;
+	opencode: OpenCodeAgentSettings;
 	customAgents: CustomAgentSettings[];
 	/** Default agent ID for new views (renamed from activeAgentId for multi-session) */
 	defaultAgentId: string;
@@ -1612,6 +1614,10 @@ export default class AgentClientPlugin extends Plugin {
 				id: this.settings.gemini.id,
 				command: this.settings.gemini.command,
 			},
+			{
+				id: this.settings.opencode.id,
+				command: this.settings.opencode.command,
+			},
 		];
 		return detectAvailableAgents(candidates);
 	}
@@ -1821,6 +1827,7 @@ export default class AgentClientPlugin extends Plugin {
 		ids.add(this.settings.codex.id);
 		ids.add(this.settings.gemini.id);
 		ids.add(this.settings.kiro.id);
+		ids.add(this.settings.opencode.id);
 		for (const agent of this.settings.customAgents) {
 			if (agent.id && agent.id.length > 0) {
 				ids.add(agent.id);

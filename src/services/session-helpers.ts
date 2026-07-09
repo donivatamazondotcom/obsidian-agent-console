@@ -66,11 +66,44 @@ export function getAvailableAgentsFromSettings(
 			id: settings.kiro.id,
 			displayName: settings.kiro.displayName || settings.kiro.id,
 		},
+		{
+			id: settings.opencode.id,
+			displayName: settings.opencode.displayName || settings.opencode.id,
+		},
 		...settings.customAgents.map((agent) => ({
 			id: agent.id,
 			displayName: agent.displayName || agent.id,
 		})),
 	];
+}
+
+/**
+ * Build the option list for the "Default agent" settings dropdown from the
+ * single agent-enumeration source ({@link getAvailableAgentsFromSettings}), so
+ * the dropdown can never drift from the header agent picker. Each option is
+ * `{ id, label }` where the label is `"<Display Name> (<id>)"`. Deduplicates by
+ * id (a custom agent whose id collides with a built-in yields one option — the
+ * dropdown value must be unique), keeping the first occurrence.
+ *
+ * Pure + exported so the enumeration is unit-testable without a SettingsTab /
+ * Obsidian harness. See I167 (OpenCode built-in absent from the Default-agent
+ * dropdown) — the bug was a second, hardcoded built-in list in SettingsTab.
+ */
+export function agentOptionsFromSettings(
+	settings: AgentClientPluginSettings,
+): { id: string; label: string }[] {
+	const seen = new Set<string>();
+	return getAvailableAgentsFromSettings(settings)
+		.filter((a) => a.id && a.id.length > 0)
+		.map(({ id, displayName }) => ({
+			id,
+			label: `${displayName} (${id})`,
+		}))
+		.filter(({ id }) => {
+			if (seen.has(id)) return false;
+			seen.add(id);
+			return true;
+		});
 }
 
 /**
@@ -176,6 +209,9 @@ export function findAgentSettings(
 	}
 	if (agentId === settings.kiro.id) {
 		return settings.kiro;
+	}
+	if (agentId === settings.opencode.id) {
+		return settings.opencode;
 	}
 	// Search in custom agents
 	const customAgent = settings.customAgents.find(

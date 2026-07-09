@@ -61,7 +61,7 @@ Because the agents live in your vault, you stay in control: you pin what they se
 * **Work from the notes you’ve already written** – @mention a note and the agent reads it, and the notes it links to, as context. Drag in images, run slash commands – it starts from your knowledge, not a blank slate
 * **Let your second brain grow itself** – ask an agent to write back: capture decisions, draft notes, and link ideas straight into your vault, without the manual upkeep
 * **Stop waiting on one agent before starting the next** – run several agent chats side by side in one sidebar
-* **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol); on a fresh install Agent Console defaults to one it finds installed and opens the panel for you
+* **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, OpenCode, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol); on a fresh install Agent Console defaults to one it finds installed and opens the panel for you
 * **Your sessions are safe** – your tabs and conversations reopen after an Obsidian restart or a panel close, closing a panel with two or more chats checks first, you can undo a closed chat to bring it back with its full transcript, and half-typed messages survive a restart
 * **Search your whole chat history** – find a past conversation by title or by what was actually said inside it, then reopen it in a tab and pick up where you left off
 * **Take a conversation to another agent** – switch a chat to a different agent and bring the conversation along, shown as a collapsible read-only block; nothing is cleared without asking first
@@ -116,7 +116,8 @@ You’ll need an AI agent installed on your computer. Popular choices:
 * [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) – Anthropic’s coding agent
 * [Codex](https://github.com/zed-industries/codex-acp) – Zed’s reference agent
 * [Gemini CLI](https://github.com/google-gemini/gemini-cli) – Google’s command-line agent
-* Custom agents like OpenCode, Qwen Code, and others
+* [OpenCode](https://opencode.ai) – open-source agent; runs local models via ollama
+* Custom agents like Qwen Code and others
 
 Once you’ve set up the agent:
 

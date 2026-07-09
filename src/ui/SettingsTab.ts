@@ -45,6 +45,7 @@ import {
 	parseComputedFontSizePx,
 } from "../services/settings-normalizer";
 import {
+	agentOptionsFromSettings,
 	collectAgentIdsExcept,
 	resolveUniqueAgentId,
 } from "../services/session-helpers";
@@ -208,6 +209,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			this.plugin.settings.kiro.id,
 			this.plugin.settings.kiro.displayName || "Kiro CLI",
 			(el) => this.renderKiroSettings(el),
+		);
+		this.renderCollapsibleAgentSection(
+			containerEl,
+			this.plugin.settings.opencode.id,
+			this.plugin.settings.opencode.displayName || "OpenCode",
+			(el) => this.renderOpenCodeSettings(el),
 		);
 
 		new Setting(containerEl).setName("Custom agents").setHeading();
@@ -1146,49 +1153,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	}
 
 	private getAgentOptions(): { id: string; label: string }[] {
-		const toOption = (id: string, displayName: string) => ({
-			id,
-			label: `${displayName} (${id})`,
-		});
-		const options: { id: string; label: string }[] = [
-			toOption(
-				this.plugin.settings.claude.id,
-				this.plugin.settings.claude.displayName ||
-					this.plugin.settings.claude.id,
-			),
-			toOption(
-				this.plugin.settings.codex.id,
-				this.plugin.settings.codex.displayName ||
-					this.plugin.settings.codex.id,
-			),
-			toOption(
-				this.plugin.settings.gemini.id,
-				this.plugin.settings.gemini.displayName ||
-					this.plugin.settings.gemini.id,
-			),
-			toOption(
-				this.plugin.settings.kiro.id,
-				this.plugin.settings.kiro.displayName ||
-					this.plugin.settings.kiro.id,
-			),
-		];
-		for (const agent of this.plugin.settings.customAgents) {
-			if (agent.id && agent.id.length > 0) {
-				const labelSource =
-					agent.displayName && agent.displayName.length > 0
-						? agent.displayName
-						: agent.id;
-				options.push(toOption(agent.id, labelSource));
-			}
-		}
-		const seen = new Set<string>();
-		return options.filter(({ id }) => {
-			if (seen.has(id)) {
-				return false;
-			}
-			seen.add(id);
-			return true;
-		});
+		return agentOptionsFromSettings(this.plugin.settings);
 	}
 
 	private renderGeminiSettings(sectionEl: HTMLElement) {
@@ -1371,6 +1336,93 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				await this.plugin.settingsService.updateSettings({
 					kiro: {
 						...this.plugin.settings.kiro,
+						defaultWorkingDirectory: value,
+					},
+				});
+			},
+		);
+	}
+
+	private renderOpenCodeSettings(sectionEl: HTMLElement) {
+		const opencode = this.plugin.settings.opencode;
+
+		new Setting(sectionEl)
+			.setName("Setup")
+			.setDesc(
+				'OpenCode picks its own model and sign-in through its config, so no API key is needed here. Install it with the one-line installer from opencode.ai, then select OpenCode. To run local models offline, point OpenCode at ollama in its own config — see the OpenCode setup guide.',
+			);
+
+		const opencodePathSetting = new Setting(sectionEl)
+			.setName("Path")
+			.setDesc(
+				'Command name or path to opencode. Use just "opencode" to let the login shell resolve it, or enter an absolute path (commonly ~/.opencode/bin/opencode).',
+			)
+			.addText((text) => {
+				text.setPlaceholder("opencode")
+					.setValue(opencode.command)
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							opencode: {
+								...this.plugin.settings.opencode,
+								command: value.trim(),
+							},
+						});
+					});
+			});
+		this.addAutoDetectButton(opencodePathSetting, "opencode", async (path) => {
+			await this.plugin.settingsService.updateSettings({
+				opencode: {
+					...this.plugin.settings.opencode,
+					command: path,
+				},
+			});
+		});
+
+		new Setting(sectionEl)
+			.setName("Arguments")
+			.setDesc(
+				'Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. OpenCode requires the "acp" subcommand.',
+			)
+			.addTextArea((text) => {
+				text.setPlaceholder("acp")
+					.setValue(this.formatArgs(opencode.args))
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							opencode: {
+								...this.plugin.settings.opencode,
+								args: this.parseArgs(value),
+							},
+						});
+					});
+				text.inputEl.rows = 3;
+			});
+
+		new Setting(sectionEl)
+			.setName("Environment variables")
+			.setDesc(
+				"Enter KEY=VALUE pairs, one per line. These apply to the OpenCode process only — not the model backend. For example, a local model's context length is set on the ollama server (OLLAMA_CONTEXT_LENGTH), not here. Leave empty unless your setup requires it.",
+			)
+			.addTextArea((text) => {
+				text.setPlaceholder("")
+					.setValue(this.formatEnv(opencode.env))
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							opencode: {
+								...this.plugin.settings.opencode,
+								env: this.parseEnv(value),
+							},
+						});
+					});
+				text.inputEl.rows = 3;
+			});
+
+		this.addAgentWorkingDirectoryRow(
+			sectionEl,
+			() => this.plugin.settings.opencode.defaultWorkingDirectory ?? "",
+			async (value) => {
+				await this.plugin.settingsService.updateSettings({
+					opencode: {
+						...this.plugin.settings.opencode,
 						defaultWorkingDirectory: value,
 					},
 				});

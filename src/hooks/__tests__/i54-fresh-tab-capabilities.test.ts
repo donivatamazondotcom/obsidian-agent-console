@@ -29,6 +29,7 @@ function makeSettings() {
 		codex: { id: "codex", displayName: "Codex" },
 		gemini: { id: "gemini", displayName: "Gemini" },
 		kiro: { id: "kiro", displayName: "Kiro" },
+		opencode: { id: "opencode-acp", displayName: "OpenCode" },
 		customAgents: [],
 	};
 }

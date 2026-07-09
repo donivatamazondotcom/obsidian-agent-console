@@ -10,6 +10,7 @@ Agent Console supports multiple AI agents through the [Agent Client Protocol (AC
 | [Codex](./codex) | OpenAI | `@zed-industries/codex-acp` |
 | [Gemini CLI](./gemini-cli) | Google | `@google/gemini-cli` |
 | [Kiro CLI](./kiro-cli) | Amazon | Built-in ACP — install from [kiro.dev](https://kiro.dev) |
+| [OpenCode](./opencode) | Open source | Built-in ACP — install from [opencode.ai](https://opencode.ai); runs local models via ollama |
 | [Custom Agents](./custom-agents) | Various | Any ACP-compatible agent |
 
 Each agent is configured under **Settings → Agent Console**. Built-in agents appear as collapsible sections so the pane stays scannable:
