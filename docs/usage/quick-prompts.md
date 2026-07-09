@@ -123,6 +123,23 @@ Debrief the meeting I just had.
 
 Click a chip to fire it in the current chat. Hold **⌘** to send it in a new tab (⌘⇧ to switch there), or **⌥** to drop it into the composer to edit first — the same keys as the `!` search. When the row runs out of space, a **+N** at the end folds the rest into the `!` search.
 
+## Order the chips
+
+By default, chips and the `!` list are ordered alphabetically by label — so adding or renaming a prompt can shuffle the row. To pin the ones you reach for most, add an **`order`** number to their notes. Lower numbers come first, so `order: 0` puts a prompt at the very left and keeps it there:
+
+````markdown
+---
+label: "🚀 go"
+always show: true
+order: 0
+---
+Go.
+````
+
+- `order` is a number — lower sorts first (`order: 0` is leftmost, `order: 1` next, and so on).
+- Prompts without an `order` sort **after** every ordered prompt, alphabetically by label — so you only number the few you want pinned.
+- The same order applies to the `!` search list, so a prompt sits in the same place wherever you reach for it.
+
 ## Manage a prompt (right-click a chip)
 
 Right-click a chip — or focus it and press the context-menu key — to open a small menu for the prompt behind it:

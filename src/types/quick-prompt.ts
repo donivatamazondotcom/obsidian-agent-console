@@ -52,6 +52,13 @@ export interface QuickPrompt {
 	mode?: string;
 	/** Fire into a fresh tab/session (later slice). */
 	newTab?: boolean;
+	/**
+	 * Resting-row / launcher sort key. Lower sorts first (`order: 0`
+	 * leftmost). Absent/non-numeric ⇒ sorts after all numeric-`order`
+	 * prompts, alphabetically by label. Parsed with `Number.isFinite`
+	 * so `0` is kept.
+	 */
+	order?: number;
 }
 
 /**
