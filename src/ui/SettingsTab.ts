@@ -1439,7 +1439,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		new Setting(sectionEl)
 			.setName("Environment variables")
 			.setDesc(
-				"Enter KEY=VALUE pairs, one per line. Leave empty unless your setup requires it.",
+				"Enter KEY=VALUE pairs, one per line. These apply to the OpenCode process only — not the model backend. For example, a local model's context length is set on the ollama server (OLLAMA_CONTEXT_LENGTH), not here. Leave empty unless your setup requires it.",
 			)
 			.addTextArea((text) => {
 				text.setPlaceholder("")

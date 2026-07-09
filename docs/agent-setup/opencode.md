@@ -84,11 +84,11 @@ OpenCode can talk to a local model server, so your chats never leave your machin
 3. Run `opencode`, then `/models`, and pick the local model.
 
 ::: tip
-Give the model plenty of context — a 64k+ context window keeps long chats and tool calls working. In ollama, raise `num_ctx` if tool calls misbehave (start around 16k–32k). See OpenCode's [providers guide](https://opencode.ai/docs/providers/) for the full list of options.
+Give the model plenty of context — agent and coding work wants a **64k+** window. Context length is set on the **ollama server**, not in Agent Console or OpenCode: ollama defaults to ~4k and ignores the value until you raise it at the server. On macOS run `launchctl setenv OLLAMA_CONTEXT_LENGTH 65536` and restart Ollama (or add `PARAMETER num_ctx 65536` to a Modelfile). The `limit.context` in `opencode.json` only tells OpenCode how much it may send — it can't raise the server's window.
 :::
 
 ::: info
-Agent Console spawns `opencode acp` and speaks the protocol; the model backend lives entirely in OpenCode. That separation is deliberate — the plugin stays model-agnostic, so the same OpenCode setup works whether you point it at ollama, a cloud provider, or anything else OpenCode supports.
+Agent Console spawns `opencode acp` and speaks the protocol; the model backend lives entirely in OpenCode. That separation is deliberate — the plugin stays model-agnostic, so the same OpenCode setup works whether you point it at ollama, a cloud provider, or anything else OpenCode supports. Any **environment variables** you set in the OpenCode section apply to the OpenCode process only, not to the model backend — so a server-side setting like `OLLAMA_CONTEXT_LENGTH` belongs on the ollama server, not in that field.
 :::
 
 ## Verify Setup
