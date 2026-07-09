@@ -139,3 +139,43 @@ describe("suffixOnCollision (F03 — auto-applied label disambiguation)", () => 
 		);
 	});
 });
+
+describe("close-last-tab reset (feature: Close Last Tab to Empty State)", () => {
+	// ChatView.handleCloseTab's last-tab branch relies on two useTabManager
+	// facts: (1) removeTab refuses to remove the sole tab (guard), so (2) an
+	// add-then-remove sequence collapses to exactly one FRESH tab. ChatView's
+	// full wiring (session teardown + empty-state render) has no unit harness
+	// and is verified by human smoke (T15/T30 precedent). This guards the
+	// tab-manager mechanism the fix depends on.
+
+	it("removeTab is a no-op on the sole tab (the guard the reset works around)", () => {
+		const { result } = renderHook(() => useTabManager("kiro"));
+		const originalId = result.current.tabs[0].tabId;
+
+		act(() => {
+			result.current.removeTab(originalId);
+		});
+
+		expect(result.current.tabs).toHaveLength(1);
+		expect(result.current.tabs[0].tabId).toBe(originalId);
+	});
+
+	it("add-then-remove replaces the sole tab with a fresh blank tab on the default agent", () => {
+		const { result } = renderHook(() => useTabManager("kiro"));
+		const originalId = result.current.tabs[0].tabId;
+
+		// Mirror handleCloseTab's last-tab branch: spawn a blank default-agent
+		// tab, THEN remove the old one. With two tabs present, removeTab's
+		// length<=1 guard no longer blocks, so the leaf lands on one fresh tab.
+		act(() => {
+			result.current.addTab("claude-code-acp");
+			result.current.removeTab(originalId);
+		});
+
+		expect(result.current.tabs).toHaveLength(1);
+		const remaining = result.current.tabs[0];
+		expect(remaining.tabId).not.toBe(originalId); // fresh tab, not the closed one
+		expect(remaining.agentId).toBe("claude-code-acp"); // default agent
+		expect(result.current.activeTabId).toBe(remaining.tabId); // active
+	});
+});

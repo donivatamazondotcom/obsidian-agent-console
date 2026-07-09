@@ -570,7 +570,6 @@ function ChatComponent({
 
 	const handleCloseTab = useCallback(
 		(tabId: string) => {
-			if (tabs.length <= 1) return; // Don't close last tab
 			const idx = tabs.findIndex((t) => t.tabId === tabId);
 			const tab = tabs[idx];
 			if (tab) {
@@ -583,9 +582,26 @@ function ChatComponent({
 				);
 			}
 			void removeClient(tabId);
+			// Closing the last tab resets to a fresh blank tab rather than
+			// no-op'ing. The leaf lands on the empty state + live composer, so
+			// the user can type a prompt (or fire a quick prompt) to start a
+			// new session — the browser "close the last tab → new tab page"
+			// model. Spawn the blank tab BEFORE removing so the count never
+			// reaches zero (removeTab guards length<=1) and there is no
+			// zero-tab render window.
+			if (tabs.length <= 1) {
+				tabManager.addTab(plugin.settings.defaultAgentId);
+			}
 			tabManager.removeTab(tabId);
 		},
-		[tabs, removeClient, tabManager, recentlyClosed, getSessionIdForTab],
+		[
+			tabs,
+			removeClient,
+			tabManager,
+			recentlyClosed,
+			getSessionIdForTab,
+			plugin.settings.defaultAgentId,
+		],
 	);
 
 	const handleCloseOtherTabs = useCallback(

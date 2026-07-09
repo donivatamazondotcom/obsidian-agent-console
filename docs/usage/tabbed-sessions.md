@@ -84,7 +84,7 @@ Right-click a tab → **Rename**. Names must be unique within the session (dupli
 - **Right-click → Close Others** — closes every tab except this one
 - **Right-click → Close to the Right** — closes all tabs to the right of this one
 
-You can't close the last tab — at least one tab always remains. The chat sidebar always has an active session.
+Closing the last tab is fine — it clears the panel back to a fresh, empty chat. Just type a prompt (or pick a quick prompt) to start a new session, the same way a browser opens a new-tab page. The panel always keeps one chat ready for you.
 
 ## Confirm before closing the whole panel
 
