@@ -1030,6 +1030,10 @@ export function ChatPanel({
 				agent.setAgentWithoutSession(decision.agentId);
 				lazyResetRef.current?.();
 				sessionHistory.invalidateCache();
+
+				// I166: new-chat-in-directory is composer-terminal (in place,
+				// same agent) — the user types next, so return focus.
+				focusAfter("new-chat");
 			} catch (error) {
 				console.error("[Agent Console] New chat in directory error:", error);
 			}
@@ -1044,6 +1048,7 @@ export function ChatPanel({
 			agent.clearMessages,
 			agent.setAgentWithoutSession,
 			sessionHistory.invalidateCache,
+			focusAfter,
 		],
 	);
 
