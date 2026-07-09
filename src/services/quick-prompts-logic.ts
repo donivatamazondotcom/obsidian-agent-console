@@ -152,6 +152,31 @@ function normalizeString(value: unknown): string | undefined {
 }
 
 /**
+ * Parse the `order:` frontmatter into a finite number, else undefined.
+ *
+ * Accepts a real number AND a numeric string: a number typed into an
+ * Obsidian **Text-typed** property (which is what an empty seeded `order:`
+ * infers to) arrives as a string like "0", so string coercion is required
+ * for `order: 0` to pin regardless of the property's inferred type
+ * (QPO-I01). Guards against the empty/whitespace string coercing to 0
+ * (`Number("") === 0`) — a blank order is unset, not the pinning baseline.
+ * `Number.isFinite` keeps `0` while rejecting NaN / Infinity / booleans /
+ * non-numeric strings / null.
+ */
+export function parseOrder(value: unknown): number | undefined {
+	if (typeof value === "number") {
+		return Number.isFinite(value) ? value : undefined;
+	}
+	if (typeof value === "string") {
+		const trimmed = value.trim();
+		if (trimmed === "") return undefined;
+		const n = Number(trimmed);
+		return Number.isFinite(n) ? n : undefined;
+	}
+	return undefined;
+}
+
+/**
  * Build a `QuickPrompt` from a parsed file. Pure — label fallback, stable id,
  * `usesSelection`, and the parsed-and-carried optional fields (`showWhen`,
  * `alwaysShow`, `agent`, `mode`, `newTab`). Core does not act on the carried
@@ -192,7 +217,40 @@ export function buildQuickPrompt(input: QuickPromptFileInput): QuickPrompt {
 		// Default target = new tab, via the `open in new tab` checkbox (D5).
 		// No `newTab` back-compat — that key was never in a released build.
 		newTab: fm ? fm["open in new tab"] === true : undefined,
+		// Resting-row / launcher sort key (lower first; `order: 0` leftmost).
+		// Number.isFinite keeps `0`; absent/non-numeric ⇒ undefined.
+		order: parseOrder(fm?.["order"]),
 	};
+}
+
+// ============================================================================
+// Ordering — resting-row / launcher sort (single sort point)
+// ============================================================================
+
+/**
+ * Sort prompts for the resting chip row AND the `!` launcher (one sort
+ * point; both surfaces inherit it). Total and deterministic:
+ *
+ * 1. Prompts with a numeric `order` come first, ascending (`order: 0` first).
+ * 2. Prompts without `order` come after, alphabetically by label.
+ * 3. Equal `order` breaks alphabetically by label — stable, never dependent
+ *    on file-scan order.
+ *
+ * Pure; returns a new array (does not mutate the input).
+ */
+export function sortQuickPrompts(prompts: QuickPrompt[]): QuickPrompt[] {
+	const byLabel = (a: QuickPrompt, b: QuickPrompt) =>
+		a.label.localeCompare(b.label, undefined, { sensitivity: "base" });
+	return [...prompts].sort((a, b) => {
+		const ao = a.order;
+		const bo = b.order;
+		const aHas = ao !== undefined;
+		const bHas = bo !== undefined;
+		if (aHas && bHas) return ao !== bo ? ao - bo : byLabel(a, b);
+		if (aHas) return -1;
+		if (bHas) return 1;
+		return byLabel(a, b);
+	});
 }
 
 // ============================================================================
@@ -706,6 +764,7 @@ export const NEW_PROMPT_BODY_PLACEHOLDER = [
 	"- open in new tab: runs in a new chat tab instead of this one.",
 	"- always show: the chip shows on every note.",
 	"- show when: the chip shows only on matching notes. Add one list item per condition, like type=meeting, tags=people, or status=open.",
+	"- order: a number that sorts this prompt in the chip row and ! list — lower comes first (order: 0 pins it leftmost). Leave it blank to sort after pinned prompts, alphabetically.",
 	"",
 	"Set none of these and the prompt stays out of the chip row — type ! in the composer to run it.",
 	"",
@@ -783,6 +842,11 @@ export function buildNewPromptNote(opts: {
 			// shows in the note's Properties for the author to fill in. Each
 			// item is a `property=value` condition (e.g. `type=meeting`).
 			"show when": [],
+			// Seed an empty `order` (discoverability parity with `show when`)
+			// so the sort-key slot shows in Properties. `null` renders blank and
+			// parseOrder treats it as unset — a new prompt sorts alphabetically,
+			// never auto-pinned. Author types a number (0 = leftmost) to pin.
+			order: null,
 		},
 		body: hasBody ? (opts.body as string) : NEW_PROMPT_BODY_PLACEHOLDER,
 	};

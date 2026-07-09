@@ -1049,6 +1049,7 @@ describe("quick-prompts-logic — slice 4 (creation flow, D4)", () => {
 				"open in new tab": false,
 				"always show": false,
 				"show when": [],
+				order: null,
 			});
 			expect(note.body).toBe(NEW_PROMPT_BODY_PLACEHOLDER);
 		});

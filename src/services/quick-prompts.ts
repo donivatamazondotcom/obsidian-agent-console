@@ -21,6 +21,7 @@ import {
 	disambiguateFilename,
 	isQuickPromptFile,
 	normalizeRenameLabel,
+	sortQuickPrompts,
 	stripFrontmatter,
 } from "./quick-prompts-logic";
 import type { QuickPrompt, QuickPromptFileInput } from "../types/quick-prompt";
@@ -78,7 +79,7 @@ export class QuickPromptLibrary {
 		}
 		// A newer refresh started while we awaited — discard this stale result.
 		if (seq !== this.refreshSeq) return;
-		this.prompts = files.map(buildQuickPrompt);
+		this.prompts = sortQuickPrompts(files.map(buildQuickPrompt));
 		this.notify();
 	}
 

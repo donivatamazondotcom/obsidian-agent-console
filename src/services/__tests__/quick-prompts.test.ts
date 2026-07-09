@@ -256,6 +256,7 @@ describe("createQuickPrompt — S4-T7/T8 (clobber-safe creation)", () => {
 				"open in new tab": false,
 				"always show": false,
 				"show when": [],
+				order: null,
 			},
 		);
 		expect(store.get("Daily brief")?.body).toBe("Give me the latest on X.");
