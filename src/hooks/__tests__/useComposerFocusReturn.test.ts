@@ -97,3 +97,73 @@ describe("useComposerFocusReturn", () => {
 		expect(() => result.current.returnFocusToComposer()).not.toThrow();
 	});
 });
+
+describe("focusAfter — contract-routed focus return (I166)", () => {
+	it("send refocuses the composer even when it NEVER had focus (button-click case)", () => {
+		// The I166 crux: a mouse click on the Send button parks focus on the
+		// button (outside the composer cluster), so composerHadFocus stays false.
+		// A guarded return would no-op here — send must refocus unconditionally.
+		const composer = makeComposer("");
+		const button = document.createElement("button");
+		document.body.appendChild(button);
+
+		const { result } = renderHook(() => useComposerFocusReturn());
+		result.current.composerElRef.current = composer;
+
+		// Focus lands on the button (the click target), NOT the composer.
+		button.focus();
+		focusInOn(button);
+		expect(document.activeElement).toBe(button);
+
+		result.current.focusAfter("send");
+
+		expect(document.activeElement).toBe(composer);
+	});
+
+	it("stop refocuses the composer unconditionally too", () => {
+		const composer = makeComposer("");
+		const button = document.createElement("button");
+		document.body.appendChild(button);
+		const { result } = renderHook(() => useComposerFocusReturn());
+		result.current.composerElRef.current = composer;
+
+		button.focus();
+		focusInOn(button);
+		result.current.focusAfter("stop");
+
+		expect(document.activeElement).toBe(composer);
+	});
+
+	it("guarded action (set-model) does NOT refocus when the composer never had focus", () => {
+		const composer = makeComposer("draft");
+		const note = document.createElement("div");
+		note.tabIndex = 0;
+		document.body.appendChild(note);
+		const { result } = renderHook(() => useComposerFocusReturn());
+		result.current.composerElRef.current = composer;
+
+		note.focus();
+		focusInOn(note);
+		result.current.focusAfter("set-model");
+
+		expect(document.activeElement).toBe(note);
+		expect(document.activeElement).not.toBe(composer);
+	});
+
+	it("guarded action (set-model) refocuses when the user was in the composer", () => {
+		const composer = makeComposer("half-typed");
+		const trigger = document.createElement("button");
+		trigger.setAttribute(FOCUS_CLUSTER_ATTR, "");
+		document.body.appendChild(trigger);
+		const { result } = renderHook(() => useComposerFocusReturn());
+		result.current.composerElRef.current = composer;
+
+		// User was in the composer, then activated a tagged trigger control.
+		focusInOn(composer);
+		focusInOn(trigger);
+		result.current.focusAfter("set-model");
+
+		expect(document.activeElement).toBe(composer);
+		expect(composer.selectionStart).toBe("half-typed".length);
+	});
+});
