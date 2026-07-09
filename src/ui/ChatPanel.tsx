@@ -689,7 +689,7 @@ export function ChatPanel({
 	} = actions;
 
 	// Focus-return after in-panel state changes — [[Composer Focus Return After State Change]].
-	const { composerElRef, returnFocusToComposer } = useComposerFocusReturn();
+	const { composerElRef, focusAfter } = useComposerFocusReturn();
 
 	// Open a context-pill note, honoring left/middle-click, Enter, and the
 	// ⌘/⌃/⌥/⇧ pane modifiers. Button-based gate so keyboard activation (no
@@ -946,6 +946,10 @@ export function ChatPanel({
 					// preview left from a prior switch on this tab.
 					setCarriedOver(null);
 				}
+
+				// I166: new chat is composer-terminal; the user types next, so
+				// return focus to the composer.
+				focusAfter("new-chat");
 			} catch (error) {
 				console.error("[Agent Console] New chat error:", error);
 			}
@@ -971,6 +975,7 @@ export function ChatPanel({
 			setCarryOverBlocks,
 			session.promptCapabilities,
 			activeAgentLabel,
+			focusAfter,
 		],
 	);
 
@@ -2213,9 +2218,9 @@ export function ChatPanel({
 			quickPromptBridge.fireOrQueue(initialPrompt.text);
 		} else {
 			setInputValue(initialPrompt.text);
-			returnFocusToComposer();
+			focusAfter("seed-initial-prompt");
 		}
-	}, [initialPrompt, quickPromptBridge, returnFocusToComposer]);
+	}, [initialPrompt, quickPromptBridge, focusAfter]);
 
 	// Recompute the matched set when the ACTIVE note's metadata cache changes —
 	// not just on path change. `metadataCache` is a stable ref, so on a
@@ -2398,7 +2403,7 @@ export function ChatPanel({
 			onUpdateClick={handleOpenCommunityPlugins}
 			onReload={(hard) => {
 				void handleReloadWithQueue(hard);
-				returnFocusToComposer();
+				focusAfter("reload");
 			}}
 			isReloading={isReloading}
 			onExportChat={() => void handleExportChat()}
@@ -2557,11 +2562,11 @@ export function ChatPanel({
 			activeNoteName={selectionTracker.activeNoteName}
 			onAdd={(path, source) => {
 				contextNotes.add(path, source);
-				returnFocusToComposer();
+				focusAfter("context-add");
 			}}
 			onRemove={(path) => {
 				contextNotes.remove(path);
-				returnFocusToComposer();
+				focusAfter("context-remove");
 			}}
 			onPillClick={handleContextPillClick}
 			onFocusComposer={() => focusComposerAtEnd(composerElRef.current)}
@@ -2574,7 +2579,7 @@ export function ChatPanel({
 			})}
 			onSuppressProvisional={() => {
 				setAutoDefaultSuppressed(true);
-				returnFocusToComposer();
+				focusAfter("suppress-provisional");
 			}}
 		/>
 	);
@@ -2619,8 +2624,14 @@ export function ChatPanel({
 			plugin={plugin}
 			view={viewHost}
 			composerElRef={composerElRef}
-			onSendMessage={handleSendWithLazyAcquisition}
-			onStopGeneration={handleStopWithCancelFlag}
+			onSendMessage={async (content, attachments) => {
+				await handleSendWithLazyAcquisition(content, attachments);
+				focusAfter("send");
+			}}
+			onStopGeneration={async () => {
+				await handleStopWithCancelFlag();
+				focusAfter("stop");
+			}}
 			onRestoredMessageConsumed={handleRestoredMessageConsumed}
 			// Queue Next Message (#82)
 			isStreaming={isSending}
@@ -2634,17 +2645,17 @@ export function ChatPanel({
 			modes={session.modes}
 			onModeChange={(modeId) => {
 				void handleSetMode(modeId);
-				returnFocusToComposer();
+				focusAfter("set-mode");
 			}}
 			models={session.models}
 			onModelChange={(modelId) => {
 				void handleSetModel(modelId);
-				returnFocusToComposer();
+				focusAfter("set-model");
 			}}
 			configOptions={session.configOptions}
 			onConfigOptionChange={(configId, value) => {
 				void handleSetConfigOption(configId, value);
-				returnFocusToComposer();
+				focusAfter("set-config-option");
 			}}
 			usage={session.usage}
 			supportsImages={session.promptCapabilities?.image ?? false}
