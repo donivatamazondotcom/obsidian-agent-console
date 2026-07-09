@@ -78,6 +78,35 @@ export function getAvailableAgentsFromSettings(
 }
 
 /**
+ * Build the option list for the "Default agent" settings dropdown from the
+ * single agent-enumeration source ({@link getAvailableAgentsFromSettings}), so
+ * the dropdown can never drift from the header agent picker. Each option is
+ * `{ id, label }` where the label is `"<Display Name> (<id>)"`. Deduplicates by
+ * id (a custom agent whose id collides with a built-in yields one option — the
+ * dropdown value must be unique), keeping the first occurrence.
+ *
+ * Pure + exported so the enumeration is unit-testable without a SettingsTab /
+ * Obsidian harness. See I167 (OpenCode built-in absent from the Default-agent
+ * dropdown) — the bug was a second, hardcoded built-in list in SettingsTab.
+ */
+export function agentOptionsFromSettings(
+	settings: AgentClientPluginSettings,
+): { id: string; label: string }[] {
+	const seen = new Set<string>();
+	return getAvailableAgentsFromSettings(settings)
+		.filter((a) => a.id && a.id.length > 0)
+		.map(({ id, displayName }) => ({
+			id,
+			label: `${displayName} (${id})`,
+		}))
+		.filter(({ id }) => {
+			if (seen.has(id)) return false;
+			seen.add(id);
+			return true;
+		});
+}
+
+/**
  * Index of the agent that is the tab's *current* selection, for marking the
  * switch-agent menu (I105). Returns the FIRST entry whose id matches, so a
  * duplicate id (e.g. a custom agent colliding a built-in id) can never produce
