@@ -23,6 +23,7 @@ function makeHandlers(): QueueEffectHandlers & { log: string[] } {
 		acquire: vi.fn(() => log.push("acquire")),
 		flushDispatch: vi.fn((m: QueuedMessage) => log.push(`flush:${m.content}`)),
 		clearComposer: vi.fn(() => log.push("clearComposer")),
+		cancelTurn: vi.fn(() => log.push("cancelTurn")),
 	};
 }
 
@@ -50,6 +51,42 @@ describe("useQueueOrchestration — state + effects", () => {
 		expect(result.current.isQueued).toBe(true);
 		expect(h.acquire).toHaveBeenCalledTimes(1);
 		expect(h.log).toEqual(["acquire"]);
+	});
+
+	it("steerWhileStreaming holds flagged steering and fires cancelTurn (#81)", () => {
+		const h = makeHandlers();
+		const { result } = renderHook(() => useQueueOrchestration(h));
+		act(() =>
+			result.current.dispatch({ type: "steerWhileStreaming", message: MSG }),
+		);
+		expect(result.current.isQueued).toBe(true);
+		expect(result.current.isSteering).toBe(true);
+		expect(h.cancelTurn).toHaveBeenCalledTimes(1);
+		expect(h.log).toEqual(["cancelTurn"]);
+	});
+
+	it("a steer-held message flushes on steerCancelSettled (after the cancel settles) (#81)", () => {
+		const h = makeHandlers();
+		const { result } = renderHook(() => useQueueOrchestration(h));
+		act(() =>
+			result.current.dispatch({ type: "steerWhileStreaming", message: MSG }),
+		);
+		// The mid-cancel turn-end must HOLD (flush deferred), so cleanup can't
+		// clobber the redirect turn's isSending (I165).
+		act(() =>
+			result.current.dispatch({
+				type: "turnEnded",
+				hadError: false,
+				wasCancelled: true,
+			}),
+		);
+		expect(result.current.isQueued).toBe(true); // still held
+		expect(h.log).toEqual(["cancelTurn"]); // no flush yet
+		// Cancel fully settled → flush the redirect now.
+		act(() => result.current.dispatch({ type: "steerCancelSettled" }));
+		expect(result.current.isQueued).toBe(false);
+		expect(result.current.isSteering).toBe(false);
+		expect(h.log).toEqual(["cancelTurn", "clearComposer", `flush:${MSG.content}`]);
 	});
 
 	it("turnEnded (normal) flushes raw: clearComposer BEFORE flushDispatch, slot emptied", () => {

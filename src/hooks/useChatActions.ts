@@ -41,7 +41,7 @@ export interface UseChatActionsReturn {
 		content: string,
 		attachments?: AttachedFile[],
 	) => Promise<void>;
-	handleStopGeneration: () => Promise<void>;
+	handleStopGeneration: (options?: { suppressRestore?: boolean }) => Promise<void>;
 	handleNewChat: (requestedAgentId?: string) => Promise<void>;
 	handleExportChat: () => Promise<void>;
 	handleSwitchAgent: (agentId: string) => Promise<void>;
@@ -326,18 +326,25 @@ export function useChatActions(
 		],
 	);
 
-	const handleStopGeneration = useCallback(async () => {
-		logger.log("Cancelling current operation...");
-		const lastMessage = agent.lastUserMessage;
-		try {
-			await agent.cancelOperation();
-		} catch (error) {
-			logger.error("[ChatPanel] Cancel operation error:", error);
-		}
-		if (lastMessage) {
-			setRestoredMessage(lastMessage);
-		}
-	}, [logger, agent.cancelOperation, agent.lastUserMessage]);
+	const handleStopGeneration = useCallback(
+		async (options?: { suppressRestore?: boolean }) => {
+			logger.log("Cancelling current operation...");
+			const lastMessage = agent.lastUserMessage;
+			try {
+				await agent.cancelOperation();
+			} catch (error) {
+				logger.error("[ChatPanel] Cancel operation error:", error);
+			}
+			// #81 (I163): a steer's cancel must NOT restore the cancelled prompt
+			// into the composer — the composer was just cleared for the redirect,
+			// and refilling it with the old prompt reads as "the composer didn't
+			// clear." Only a plain Stop restores (so the user can resend).
+			if (lastMessage && !options?.suppressRestore) {
+				setRestoredMessage(lastMessage);
+			}
+		},
+		[logger, agent.cancelOperation, agent.lastUserMessage],
+	);
 
 	const handleNewChat = useCallback(
 		async (requestedAgentId?: string) => {

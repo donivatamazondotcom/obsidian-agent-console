@@ -40,7 +40,8 @@ import type { TabSessionState } from "../hooks/useTabSessionState";
 import { focusComposerAtEnd } from "./composer-focus";
 import { getLogger } from "../utils/logger";
 import { pushScopeWhileFocused } from "../utils/focus-scoped-push";
-import { decideComposerEnterAction, buildComposerPlaceholder, buildQueuedBanner, isQueuedSendBlocked } from "../services/message-queue-logic";
+import { decideComposerEnterAction, buildComposerPlaceholder, buildQueuedBanner, isQueuedSendBlocked, isSteerGesture } from "../services/message-queue-logic";
+import { MOD_KEY, SHIFT_KEY, ENTER_KEY, modCombo } from "../utils/platform";
 import type { ErrorInfo } from "../types/errors";
 import type { AgentUpdateNotification } from "../services/update-checker";
 import { useSettings } from "../hooks/useSettings";
@@ -253,6 +254,11 @@ export interface InputAreaProps {
 	onEditQueued?: () => void;
 	/** Delete the queued message and empty the composer. */
 	onDeleteQueued?: () => void;
+	// Mid-Stream Steering (#81)
+	/** Whether a steer (cancel-then-redirect) is in flight — shows a distinct banner. */
+	isSteering?: boolean;
+	/** Steer: cancel the live turn and send the composer text as the next prompt. */
+	onSteerMessage?: (content: string, attachments?: AttachedFile[]) => void;
 	/** Session mode state (available modes and current mode) */
 	modes?: SessionModeState;
 	/** Callback when mode is changed */
@@ -347,6 +353,8 @@ export function InputArea({
 	onQueueMessage,
 	onEditQueued,
 	onDeleteQueued,
+	isSteering = false,
+	onSteerMessage,
 	modes,
 	onModeChange,
 	models,
@@ -1207,6 +1215,14 @@ export function InputArea({
 
 				if (shouldSend) {
 					e.preventDefault();
+					// #81: is this the (mode-aware) steer gesture? Both steer
+					// combos carry the Mod key, so they always pass the
+					// shouldSend gate above and reach here.
+					const steerRequested = isSteerGesture({
+						hasCmdCtrl,
+						shiftKey: e.shiftKey,
+						sendShortcut: settings.sendMessageShortcut,
+					});
 					const action = decideComposerEnterAction({
 						isStreaming,
 						isSessionReady,
@@ -1215,6 +1231,7 @@ export function InputArea({
 						hasContent:
 							inputValue.trim() !== "" ||
 							attachedFiles.length > 0,
+						steerRequested,
 					});
 					if (action === "send") {
 						void handleSendOrStop();
@@ -1226,6 +1243,13 @@ export function InputArea({
 						// toolbar button remains Stop so cancelling the live
 						// turn stays reachable.
 						onQueueMessage?.(inputValue.trim(), attachedFiles);
+					} else if (action === "steer") {
+						// Mid-Stream Steering (#81): the steer gesture while a
+						// turn is streaming interrupts it and sends the composer
+						// text as the next prompt. The composer text stays in
+						// place (locked, showing the steering banner) until the
+						// cancel settles and the redirect flushes.
+						onSteerMessage?.(inputValue.trim(), attachedFiles);
 					}
 				}
 				// If not shouldSend, allow default behavior (newline)
@@ -1242,6 +1266,7 @@ export function InputArea({
 			isSessionReady,
 			isQueued,
 			onQueueMessage,
+			onSteerMessage,
 			inputValue,
 			attachedFiles,
 		],
@@ -1398,13 +1423,25 @@ export function InputArea({
 		}
 	}, [restoredMessage, onRestoredMessageConsumed, inputValue, onInputChange]);
 
-	// Placeholder text — while streaming, teach the queue keybinding (#82).
+	// Placeholder text — while streaming, teach BOTH keybindings (#82 queue +
+	// #81 steer). The labels are mode-aware (so they never show the send key as
+	// the steer key) and platform-labeled via utils/platform.ts (⌘ on macOS,
+	// Ctrl elsewhere).
+	const enterModeSend = settings.sendMessageShortcut === "enter";
+	const queueKeyLabel = enterModeSend
+		? ENTER_KEY
+		: modCombo(MOD_KEY, ENTER_KEY);
+	const steerKeyLabel = enterModeSend
+		? modCombo(MOD_KEY, ENTER_KEY)
+		: modCombo(MOD_KEY, SHIFT_KEY, ENTER_KEY);
 	const placeholder = buildComposerPlaceholder({
 		agentLabel,
 		hasCommands: availableCommands.length > 0,
 		hasQuickPrompts: hasQuickPrompts ?? false,
 		isStreaming,
 		isQueued,
+		queueKeyLabel,
+		steerKeyLabel,
 	});
 
 	return (
@@ -1505,10 +1542,11 @@ export function InputArea({
 				onDragLeave={handleDragLeave}
 				onDrop={(e) => void handleDrop(e)}
 			>
-				{/* Queued banner (#82) — distinct from connecting/streaming
-				    disabled states. Shown when a message is queued; the
-				    composer below is locked (read-only) showing the queued text. */}
-				{isQueued && (
+				{/* Queued banner (#82). Not shown during a steer (#81): the
+				    steer window is instant, so the transient "stopping…" banner
+				    was imperceptible and confusing (I164) — the composer just
+				    locks briefly with no banner, and the redirect sends. */}
+				{isQueued && !isSteering && (
 					<div
 						className="agent-client-queued-banner"
 						role="status"

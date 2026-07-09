@@ -944,6 +944,36 @@
 			"awaitSelector": ".agent-client-queued-banner"
 		},
 		{
+			"name": "mid-stream-steering",
+			"pending": true,
+			"width": 696,
+			"height": 469,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1300,
+				"height": 380
+			},
+			"cropPadding": 16,
+			"cropSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-box",
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"forceConnectingHold": true
+			},
+			"approvalThreshold": 0.05,
+			"placement": "feature",
+			"purpose": "Redirect the agent mid-reply — one keypress stops the current reply and sends your message instead of waiting for the turn to finish.",
+			"differentiator": "Mid-stream steering (v2.1.0)",
+			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-box",
+			"caption": "Redirect the agent the moment it goes sideways",
+			"altText": "Agent Console composer while the agent is replying, showing the hint to press Enter to queue or Mod+Enter to send now",
+			"docPage": "docs/usage/queue-and-steering.md",
+			"captureNote": "v2.1.0. PENDING — capture the streaming composer showing the queue/steer keybinding hint (empty composer while streaming), or the steering banner. Confirm the selector + final dims at capture; requires driving a session into streaming state.",
+			"promptFile": "mid-stream-steering.txt",
+			"awaitSelector": ".agent-client-chat-input-box"
+		},
+		{
 			"name": "shared-links-bubble",
 			"pending": false,
 			"width": 680,

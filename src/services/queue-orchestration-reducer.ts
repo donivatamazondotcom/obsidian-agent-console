@@ -51,6 +51,14 @@ export interface QueueOrchestrationState {
 	 * splitting the reply.
 	 */
 	readonly awaitingAcquire?: boolean;
+	/**
+	 * #81: the held message is a **steer** — the user asked to interrupt the
+	 * live turn and redirect. Set by `steerWhileStreaming`, which also emits a
+	 * `cancelTurn` effect. On `turnEnded` a steer flushes REGARDLESS of the
+	 * hold-on-error/cancel gate (the cancel it triggered IS the intent), which
+	 * is the one way a cancelled turn's pending message fires rather than holds.
+	 */
+	readonly steering?: boolean;
 }
 
 export const initialQueueState: QueueOrchestrationState = { pending: null };
@@ -78,12 +86,25 @@ export type QueueEvent =
 	/** A send while a turn is streaming. Hold as the one pending message;
 	 *  flushes on `turnEnded`. */
 	| { type: "sendWhileStreaming"; message: QueuedMessage }
+	/** #81: the user pressed the steer gesture while a turn is streaming. Hold
+	 *  the message flagged `steering` and emit `cancelTurn`; on `turnEnded` it
+	 *  flushes regardless of the hold-on-error/cancel gate (the cancel is the
+	 *  intent). Queue-of-one still applies — a steer while a message is held is
+	 *  a no-op (the composer is locked; Edit/Delete first). */
+	| { type: "steerWhileStreaming"; message: QueuedMessage }
 	/** A send while connecting/idle (session not yet acquired). Hold + trigger
 	 *  acquisition; flushes on `acquisitionComplete`. */
 	| { type: "sendWhilePreReady"; message: QueuedMessage }
 	/** The streaming turn ended (isSending true -> false). Flush the pending
 	 *  message ONLY if the turn completed normally (Decision 5). */
 	| { type: "turnEnded"; hadError: boolean; wasCancelled: boolean }
+	/** #81: the steer's cancel has fully settled (handleStopGeneration resolved,
+	 *  including cancelOperation's trailing clearPendingUpdates). Flush the
+	 *  steer-held redirect NOW so its send is the last `isSending` write — the
+	 *  turn-end edge fires mid-cancel (optimistic), before cleanup, and flushing
+	 *  there lets clearPendingUpdates clobber the redirect turn's isSending back
+	 *  to false (no working animation / no Stop — I165). */
+	| { type: "steerCancelSettled" }
 	/** Session acquisition reached `ready` ((connecting|idle)->ready). Flush
 	 *  the pending message once a sessionId is committed (I69 guard). */
 	| { type: "acquisitionComplete"; hasSessionId: boolean }
@@ -124,6 +145,11 @@ export type QueueEffect =
 	/** Trigger lazy session acquisition (replaces the old
 	 *  `lazySession.onSendClick` acquisition-trigger side effect). */
 	| { kind: "acquire" }
+	/** #81: cancel the in-flight turn (the adapter maps this to the RAW stop —
+	 *  `handleStopGeneration`). Emitted by `steerWhileStreaming`; the turn-end
+	 *  transition it produces is what flushes the steer message (settle before
+	 *  send, by construction). */
+	| { kind: "cancelTurn" }
 	/** Dispatch this message via the RAW send. Always raw, by construction. */
 	| { kind: "flushDispatch"; message: QueuedMessage }
 	/** Clear the composer (text + attachments). Emitted with a flush so
@@ -198,11 +224,36 @@ export function queueOrchestrationReducer(
 			// Turn in flight: hold; flushes on turnEnded. No acquisition needed.
 			return enqueue(state, event.message, /* withAcquire */ false);
 
+		case "steerWhileStreaming":
+			// #81: hold the message flagged as a steer and cancel the live turn.
+			// Queue-of-one guard: a steer while a message is already held is a
+			// no-op (the composer is locked; Edit/Delete first). On the turn-end
+			// the cancel produces, the `steering` flag flushes it regardless of
+			// the hold-on-cancel gate.
+			if (state.pending !== null) {
+				return { state, effects: NO_EFFECTS };
+			}
+			return {
+				state: { pending: event.message, steering: true },
+				effects: [{ kind: "cancelTurn" }],
+			};
+
 		case "sendWhilePreReady":
 			// Connecting/idle: hold + kick off acquisition; flushes on connect.
 			return enqueue(state, event.message, /* withAcquire */ true);
 
 		case "turnEnded": {
+			// #81 steer: a steer-held message must NOT flush on the turn-end
+			// edge. That edge fires MID-cancel — on the optimistic
+			// `discardPendingTurn` isSending=false, BEFORE cancelOperation's
+			// trailing `clearPendingUpdates` runs. Flushing there starts the
+			// redirect turn, then clearPendingUpdates clobbers its isSending
+			// back to false (no working animation / no Stop — I165). Hold here;
+			// the redirect flushes on `steerCancelSettled` (after the cancel
+			// fully settles). This is also the genuine settle-before-send (Q1).
+			if (state.pending !== null && state.steering) {
+				return { state, effects: NO_EFFECTS };
+			}
 			const shouldFlush =
 				state.pending !== null && !event.hadError && !event.wasCancelled;
 			if (shouldFlush) {
@@ -212,6 +263,16 @@ export function queueOrchestrationReducer(
 			// preserved draft on a later respawn/close, not into the dead turn.
 			return { state, effects: NO_EFFECTS };
 		}
+
+		case "steerCancelSettled":
+			// The steer's cancel has fully settled. Flush the redirect NOW so
+			// its send is the last isSending write — the redirect turn's
+			// streaming state (working animation + Stop) is not clobbered by
+			// cancelOperation's cleanup, which has already run.
+			if (state.pending !== null && state.steering) {
+				return flush(state.pending);
+			}
+			return { state, effects: NO_EFFECTS };
 
 		case "acquisitionComplete": {
 			// Flush only once a sessionId is committed (I69): handleSendMessage

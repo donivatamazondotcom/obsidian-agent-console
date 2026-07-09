@@ -87,6 +87,7 @@ Agent Console is based on [Agent Client](https://github.com/RAIT-09/obsidian-age
 - **Keep a working log** – let an agent capture decisions and action items as you talk a problem through.
 - **Run parallel trains of thought** – keep one tab digging into research while another drafts the summary.
 - **Line up your next message while the agent works** – type your follow-up and press Enter; it queues and sends the moment the current reply finishes, so you never wait on the cursor.
+- **Redirect the agent the moment it goes sideways** – one keypress stops the current reply and sends your correction instead, without losing the conversation.
 - **Fire a saved prompt in one click** – keep your recurring kickoffs as notes and launch them from context-aware chips above the composer, or a quick `!` search right in the message box.
 
 ### Why parallel?
