@@ -570,13 +570,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				// resolved size off an off-screen replica that uses the same
 				// chat-view classes, and surface it in the placeholder.
 				const getEffectiveChatFontSizePx = (): number | null => {
-					const probe = document.createElement("div");
-					probe.addClass("agent-client-chat-view-container");
-					probe.addClass("agent-client-font-size-probe");
-					const messages = document.createElement("div");
-					messages.addClass("agent-client-chat-view-messages");
-					probe.appendChild(messages);
-					document.body.appendChild(probe);
+					const probe = activeDocument.body.createDiv({
+						cls: [
+							"agent-client-chat-view-container",
+							"agent-client-font-size-probe",
+						],
+					});
+					const messages = probe.createDiv({
+						cls: "agent-client-chat-view-messages",
+					});
 					const computedFontSize =
 						getComputedStyle(messages).fontSize;
 					probe.remove();
