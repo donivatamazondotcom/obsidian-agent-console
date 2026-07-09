@@ -24,6 +24,7 @@ const baseBuiltins = {
 	codex: { id: "codex-acp", displayName: "Codex" },
 	gemini: { id: "gemini-cli", displayName: "Gemini CLI" },
 	kiro: { id: "kiro-cli", displayName: "Kiro CLI" },
+	opencode: { id: "opencode-acp", displayName: "OpenCode" },
 };
 
 describe("I105: configured agents stay visible (no dedup)", () => {
@@ -36,12 +37,13 @@ describe("I105: configured agents stay visible (no dedup)", () => {
 		} as unknown as AgentClientPluginSettings;
 
 		const agents = getAvailableAgentsFromSettings(settings);
-		// All five present — the colliding custom "Kiro" is NOT dropped.
+		// All present — the colliding custom "Kiro" is NOT dropped.
 		expect(agents.map((a) => a.displayName)).toEqual([
 			"Claude Code",
 			"Codex",
 			"Gemini CLI",
 			"Kiro CLI",
+			"OpenCode",
 			"Kiro",
 		]);
 		expect(agents.filter((a) => a.id === "kiro-cli")).toHaveLength(2);
@@ -62,6 +64,7 @@ describe("I105: configured agents stay visible (no dedup)", () => {
 			"codex-acp",
 			"gemini-cli",
 			"kiro-cli",
+			"opencode-acp",
 			"custom-agent",
 		]);
 	});

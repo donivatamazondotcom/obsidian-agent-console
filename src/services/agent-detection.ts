@@ -39,6 +39,7 @@ export const DEFAULT_AGENT_PRIORITY: readonly string[] = [
 	"claude-code-acp",
 	"codex-acp",
 	"gemini-cli",
+	"opencode-acp",
 ];
 
 /** Resolve a command to an absolute path, or null when not found. */

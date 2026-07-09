@@ -104,6 +104,7 @@ describe("resolveCwdForAgent (I131)", () => {
 			codex: { id: "codex" },
 			gemini: { id: "gemini" },
 			kiro: { id: "kiro" },
+			opencode: { id: "opencode-acp" },
 			customAgents: [],
 			defaultAgentId: "claude",
 			defaultWorkingDirectory: opts.globalDir ?? "",

@@ -22,6 +22,7 @@ describe("agent-packages", () => {
 	it("Kiro is link-only (no npm package); the npm agents have packages", () => {
 		const byId = new Map(BUILTIN_AGENT_INSTALLS.map((a) => [a.id, a]));
 		expect(byId.get("kiro-cli")?.npmPackage).toBeNull();
+		expect(byId.get("opencode-acp")?.npmPackage).toBeNull();
 		expect(byId.get("claude-code-acp")?.npmPackage).toBeTruthy();
 		expect(byId.get("codex-acp")?.npmPackage).toBeTruthy();
 		expect(byId.get("gemini-cli")?.npmPackage).toBeTruthy();

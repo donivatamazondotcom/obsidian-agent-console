@@ -66,6 +66,10 @@ export function getAvailableAgentsFromSettings(
 			id: settings.kiro.id,
 			displayName: settings.kiro.displayName || settings.kiro.id,
 		},
+		{
+			id: settings.opencode.id,
+			displayName: settings.opencode.displayName || settings.opencode.id,
+		},
 		...settings.customAgents.map((agent) => ({
 			id: agent.id,
 			displayName: agent.displayName || agent.id,
@@ -176,6 +180,9 @@ export function findAgentSettings(
 	}
 	if (agentId === settings.kiro.id) {
 		return settings.kiro;
+	}
+	if (agentId === settings.opencode.id) {
+		return settings.opencode;
 	}
 	// Search in custom agents
 	const customAgent = settings.customAgents.find(

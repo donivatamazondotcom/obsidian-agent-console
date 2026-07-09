@@ -65,6 +65,7 @@ export default defineConfig({
           { text: "Codex", link: "/agent-setup/codex" },
           { text: "Gemini CLI", link: "/agent-setup/gemini-cli" },
           { text: "Kiro CLI", link: "/agent-setup/kiro-cli" },
+          { text: "OpenCode", link: "/agent-setup/opencode" },
           { text: "Custom Agents", link: "/agent-setup/custom-agents" },
         ],
       },

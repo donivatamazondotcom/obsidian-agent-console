@@ -58,6 +58,12 @@ export const BUILTIN_AGENT_INSTALLS: readonly BuiltInAgentInstall[] = [
 		docsSlug: "kiro-cli",
 		npmPackage: null,
 	},
+	{
+		id: "opencode-acp",
+		displayName: "OpenCode",
+		docsSlug: "opencode",
+		npmPackage: null,
+	},
 ];
 
 /** The one-line global install command for an npm package. */

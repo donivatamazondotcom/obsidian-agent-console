@@ -4,7 +4,11 @@ You can use any agent that implements the [Agent Client Protocol (ACP)](https://
 
 ## Install and Configure
 
-1. Install your ACP-compatible agent (e.g., [OpenCode](https://github.com/anomalyco/opencode), [Qwen Code](https://github.com/QwenLM/qwen-code)).
+1. Install your ACP-compatible agent (e.g., [Qwen Code](https://github.com/QwenLM/qwen-code)).
+
+::: tip
+[OpenCode](./opencode) is now a **built-in** agent — you don't need to add it as a custom agent. See its setup page.
+:::
 
 2. Open **Settings → Agent Console** and scroll to **Custom Agents** section.
 
@@ -13,7 +17,7 @@ You can use any agent that implements the [Agent Client Protocol (ACP)](https://
 4. Configure the agent:
    - **Agent ID**: Unique identifier (e.g., `my-agent`). Must be unique — if you enter an ID already used by another agent (including a built-in like `kiro-cli`), it's automatically given a numbered suffix (e.g., `kiro-cli-2`) when you leave the field, and a notice tells you it was changed.
    - **Display name**: Name shown in menus (e.g., `My Agent`)
-   - **Path**: Command name or absolute path to the agent executable. The command name alone (e.g., `opencode`) works in many cases. If the agent is not found automatically, set the full path, or click **Auto-detect**.
+   - **Path**: Command name or absolute path to the agent executable. The command name alone (e.g., `qwen`) works in many cases. If the agent is not found automatically, set the full path, or click **Auto-detect**.
    - **Arguments**: Command-line arguments, separated by spaces or new lines — quote any argument that contains a space (if required)
    - **Environment variables**: `KEY=VALUE` pairs, one per line (if required)
 
@@ -22,16 +26,6 @@ You can use any agent that implements the [Agent Client Protocol (ACP)](https://
 </p>
 
 ## Configuration Examples
-
-### OpenCode
-
-| Field | Value |
-|-------|-------|
-| **Agent ID** | `opencode` |
-| **Display name** | `OpenCode` |
-| **Path** | `opencode` |
-| **Arguments** | `acp` |
-| **Environment variables** | (optional) |
 
 ### Qwen Code
 
