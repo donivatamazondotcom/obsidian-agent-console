@@ -82,6 +82,13 @@ describe("quick-prompt ordering", () => {
 			expect(sortQuickPrompts([])).toEqual([]);
 		});
 
+		it("QPO-I01: a string-typed order still sorts numerically", () => {
+			// buildQuickPrompt coerces "0" -> 0 upstream; sort receives a number.
+			const first = { ...qp("New prompt"), order: 0 };
+			const out = sortQuickPrompts([qp("go"), first, qp("Prep now")]);
+			expect(out.map((p) => p.label)).toEqual(["New prompt", "go", "Prep now"]);
+		});
+
 		it("is deterministic regardless of input order and does not mutate the input", () => {
 			const input = [qp("B", 2), qp("A", 1), qp("z"), qp("a")];
 			const snapshot = input.map((p) => p.label);
@@ -107,10 +114,22 @@ describe("quick-prompt ordering", () => {
 		it("parseOrder rejects non-finite, non-number, and missing values", () => {
 			expect(parseOrder(NaN)).toBeUndefined();
 			expect(parseOrder(Infinity)).toBeUndefined();
-			expect(parseOrder("3")).toBeUndefined();
 			expect(parseOrder(true)).toBeUndefined();
 			expect(parseOrder(null)).toBeUndefined();
 			expect(parseOrder(undefined)).toBeUndefined();
+		});
+
+		it("QPO-I01: coerces numeric strings (Obsidian Text-typed order property)", () => {
+			// A number typed into a Text-typed frontmatter property arrives as a
+			// string. Coerce it so `order: 0` pins regardless of property type.
+			expect(parseOrder("0")).toBe(0);
+			expect(parseOrder("3")).toBe(3);
+			expect(parseOrder("  5 ")).toBe(5);
+			expect(parseOrder("-2")).toBe(-2);
+			// Guard: an empty / whitespace / non-numeric string is NOT 0 — unset.
+			expect(parseOrder("")).toBeUndefined();
+			expect(parseOrder("   ")).toBeUndefined();
+			expect(parseOrder("abc")).toBeUndefined();
 		});
 
 		it("buildQuickPrompt carries a numeric order (including 0)", () => {
@@ -122,7 +141,8 @@ describe("quick-prompt ordering", () => {
 			});
 			expect(buildQuickPrompt(mk({ order: 5 })).order).toBe(5);
 			expect(buildQuickPrompt(mk({ order: 0 })).order).toBe(0);
-			expect(buildQuickPrompt(mk({ order: "3" })).order).toBeUndefined();
+			expect(buildQuickPrompt(mk({ order: "3" })).order).toBe(3);
+			expect(buildQuickPrompt(mk({ order: "abc" })).order).toBeUndefined();
 			expect(buildQuickPrompt(mk({})).order).toBeUndefined();
 			expect(buildQuickPrompt(mk(null)).order).toBeUndefined();
 		});

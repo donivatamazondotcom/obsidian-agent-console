@@ -153,13 +153,27 @@ function normalizeString(value: unknown): string | undefined {
 
 /**
  * Parse the `order:` frontmatter into a finite number, else undefined.
- * `Number.isFinite` keeps `0` (the pinning baseline) while rejecting
- * NaN / Infinity / strings / booleans.
+ *
+ * Accepts a real number AND a numeric string: a number typed into an
+ * Obsidian **Text-typed** property (which is what an empty seeded `order:`
+ * infers to) arrives as a string like "0", so string coercion is required
+ * for `order: 0` to pin regardless of the property's inferred type
+ * (QPO-I01). Guards against the empty/whitespace string coercing to 0
+ * (`Number("") === 0`) — a blank order is unset, not the pinning baseline.
+ * `Number.isFinite` keeps `0` while rejecting NaN / Infinity / booleans /
+ * non-numeric strings / null.
  */
 export function parseOrder(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isFinite(value)
-		? value
-		: undefined;
+	if (typeof value === "number") {
+		return Number.isFinite(value) ? value : undefined;
+	}
+	if (typeof value === "string") {
+		const trimmed = value.trim();
+		if (trimmed === "") return undefined;
+		const n = Number(trimmed);
+		return Number.isFinite(n) ? n : undefined;
+	}
+	return undefined;
 }
 
 /**
