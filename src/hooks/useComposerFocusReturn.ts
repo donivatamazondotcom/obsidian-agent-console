@@ -40,9 +40,12 @@ export function useComposerFocusReturn(): ComposerFocusReturn {
 			stateRef.current = composerFocusReducer(stateRef.current, zone);
 		};
 		// focusin bubbles, so a single document-level listener also catches
-		// Obsidian Menu popovers (rendered at document body, outside the panel).
-		document.addEventListener("focusin", onFocusIn);
-		return () => document.removeEventListener("focusin", onFocusIn);
+		// Obsidian Menu popovers (rendered at the document body, outside the
+		// panel). Bind to activeDocument (not the main-window document) for
+		// popout-window compatibility — same pattern as the document-level
+		// listeners in use-auto-scroll-pin.ts.
+		activeDocument.addEventListener("focusin", onFocusIn);
+		return () => activeDocument.removeEventListener("focusin", onFocusIn);
 	}, []);
 
 	const returnFocusToComposer = useCallback(() => {
