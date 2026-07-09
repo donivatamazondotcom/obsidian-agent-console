@@ -3351,3 +3351,27 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	width: 100%;
 	margin-bottom: var(--size-4-3);
 }
+
+/* Zero-tab landing — neutral resting screen shown when every tab is closed.
+   Minimal placeholder in Slice 1; Slice 2 replaces the inner shell with the
+   shared reason-tagged empty-state. */
+.agent-client-zero-tab-landing {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	justify-content: center;
+	padding: var(--size-4-8);
+}
+
+.agent-client-zero-tab-landing-inner {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--size-4-4);
+	text-align: center;
+}
+
+.agent-client-zero-tab-landing-message {
+	margin: 0;
+	color: var(--text-muted);
+}

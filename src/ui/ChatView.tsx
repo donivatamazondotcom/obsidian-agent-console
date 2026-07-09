@@ -27,6 +27,7 @@ import { ChatContextProvider } from "./ChatContext";
 // Component imports
 import { ChatPanel, type ChatPanelCallbacks } from "./ChatPanel";
 import { TabBar } from "./TabBar";
+import { ZeroTabLanding } from "./ZeroTabLanding";
 import { TabErrorBoundary } from "./TabErrorBoundary";
 import { EditTitleModal } from "./SessionHistoryModal";
 import { CorruptionRecoveryModal } from "./CorruptionRecoveryModal";
@@ -570,7 +571,8 @@ function ChatComponent({
 
 	const handleCloseTab = useCallback(
 		(tabId: string) => {
-			if (tabs.length <= 1) return; // Don't close last tab
+			// Closing the last tab is allowed — it lands on the zero-tab
+			// landing screen (Decision 1). No single-tab guard here.
 			const idx = tabs.findIndex((t) => t.tabId === tabId);
 			const tab = tabs[idx];
 			if (tab) {
@@ -844,7 +846,10 @@ function ChatComponent({
 			// falling back to the active tab's agent when unknown.
 			const savedSessions = plugin.settingsService.getSavedSessions();
 			const saved = savedSessions.find((s) => s.sessionId === sessionId);
-			const agentId = saved?.agentId ?? activeTab.agentId;
+			const agentId =
+				saved?.agentId ??
+				activeTab?.agentId ??
+				plugin.settings.defaultAgentId;
 			const baseLabel = saved?.title ?? "Session";
 			// Forks can't earn an AI title (the rubric fires only on a tab's
 			// first message and a fork is seeded with the transcript), so they
@@ -904,7 +909,8 @@ function ChatComponent({
 			findTabBySessionId,
 			tabManager,
 			plugin.settingsService,
-			activeTab.agentId,
+			activeTab?.agentId,
+			plugin.settings.defaultAgentId,
 			persistenceStorage,
 		],
 	);
@@ -961,8 +967,9 @@ function ChatComponent({
 	// Persist agent ID when active tab changes
 	// ============================================================
 	useEffect(() => {
-		view.setAgentId(activeTab.agentId);
-	}, [view, activeTab.agentId]);
+		// No active tab (zero-tab landing) → nothing to mirror.
+		if (activeTab) view.setAgentId(activeTab.agentId);
+	}, [view, activeTab?.agentId]);
 
 	// Expose tabManager to the view class for commands
 	useEffect(() => {
@@ -1002,6 +1009,23 @@ function ChatComponent({
 	// ============================================================
 	// Render
 	// ============================================================
+	// Zero-tab landing (Decision 1): every tab is closed → show a neutral
+	// resting screen and hide the tab bar. A restart restores here too, since
+	// useTabManager honors a restored empty tab set (Decision 5).
+	if (tabs.length === 0) {
+		return (
+			<div
+				style={{
+					display: "flex",
+					flexDirection: "column",
+					height: "100%",
+				}}
+			>
+				<ZeroTabLanding onNewChat={handleAddTab} />
+			</div>
+		);
+	}
+
 	return (
 		<div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
 			<TabBar

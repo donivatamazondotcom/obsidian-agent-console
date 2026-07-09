@@ -19,8 +19,8 @@ export interface UseTabManagerReturn {
 	tabs: TabInfo[];
 	/** Currently active tab ID */
 	activeTabId: string;
-	/** Currently active tab info */
-	activeTab: TabInfo;
+	/** Currently active tab info, or null when no tabs are open (zero-tab landing). */
+	activeTab: TabInfo | null;
 	/** Add a new tab. Activates it unless `activate` is false (background open). */
 	addTab: (agentId: string, label?: string, activate?: boolean) => string;
 	/** Remove a tab by ID. Returns the new active tab ID. */
@@ -114,14 +114,17 @@ export function useTabManager(
 	initialActiveTabId?: string,
 ): UseTabManagerReturn {
 	const [tabs, setTabs] = useState<TabInfo[]>(() => {
-		if (initialTabs && initialTabs.length > 0) {
+		// `undefined` = no persisted state → fresh mount, create one tab.
+		// `[]` = a restored, intentional zero-tab landing (Decision 5) → honor
+		// it so a restart lands on the landing screen instead of auto-spawning.
+		if (initialTabs !== undefined) {
 			return initialTabs;
 		}
 		const first = createTab(initialAgentId);
 		return [first];
 	});
 	const [activeTabId, setActiveTabId] = useState<string>(
-		() => initialActiveTabId ?? tabs[0].tabId,
+		() => initialActiveTabId ?? tabs[0]?.tabId ?? "",
 	);
 
 	const addTab = useCallback(
@@ -142,10 +145,17 @@ export function useTabManager(
 		(tabId: string): string | null => {
 			let newActiveId: string | null = null;
 			setTabs((prev) => {
-				if (prev.length <= 1) return prev; // Don't remove last tab
 				const idx = prev.findIndex((t) => t.tabId === tabId);
 				if (idx === -1) return prev;
 				const next = prev.filter((t) => t.tabId !== tabId);
+				// Closing the last tab is allowed: fall back to a zero-tab
+				// landing state with no active tab (Decision 1). removeTab
+				// returns null so callers know nothing is active.
+				if (next.length === 0) {
+					newActiveId = null;
+					setActiveTabId("");
+					return next;
+				}
 				// If removing the active tab, activate the nearest neighbor
 				if (tabId === activeTabId) {
 					const newIdx = Math.min(idx, next.length - 1);
@@ -268,6 +278,7 @@ export function useTabManager(
 
 	const nextTab = useCallback(() => {
 		setTabs((prev) => {
+			if (prev.length === 0) return prev; // No tabs → nothing to cycle.
 			const idx = prev.findIndex((t) => t.tabId === activeTabId);
 			const nextIdx = (idx + 1) % prev.length;
 			setActiveTabId(prev[nextIdx].tabId);
@@ -277,6 +288,7 @@ export function useTabManager(
 
 	const prevTab = useCallback(() => {
 		setTabs((prev) => {
+			if (prev.length === 0) return prev; // No tabs → nothing to cycle.
 			const idx = prev.findIndex((t) => t.tabId === activeTabId);
 			const prevIdx = (idx - 1 + prev.length) % prev.length;
 			setActiveTabId(prev[prevIdx].tabId);
@@ -286,7 +298,7 @@ export function useTabManager(
 
 	const activeTab = useMemo(
 		() =>
-			tabs.find((t) => t.tabId === activeTabId) ?? tabs[0],
+			tabs.find((t) => t.tabId === activeTabId) ?? tabs[0] ?? null,
 		[tabs, activeTabId],
 	);
 

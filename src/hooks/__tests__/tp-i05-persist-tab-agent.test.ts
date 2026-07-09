@@ -25,7 +25,7 @@ describe("TP-I05 — setTabAgent updates the persisted tab agent", () => {
 	it("a switched agent becomes the tab's agentId (the value perLeafTabStates persists)", () => {
 		const { result } = renderHook(() => useTabManager("test-agent"));
 		const t1 = result.current.activeTabId;
-		expect(result.current.activeTab.agentId).toBe("test-agent");
+		expect(result.current.activeTab!.agentId).toBe("test-agent");
 
 		// User switches the tab to Kiro CLI. The tab's agentId — the value
 		// buildPerLeafState persists and restore reads — MUST become kiro-cli.
@@ -39,7 +39,7 @@ describe("TP-I05 — setTabAgent updates the persisted tab agent", () => {
 		});
 
 		expect(result.current.tabs[0].agentId).toBe("kiro-cli");
-		expect(result.current.activeTab.agentId).toBe("kiro-cli");
+		expect(result.current.activeTab!.agentId).toBe("kiro-cli");
 	});
 
 	it("setTabAgent only touches the targeted tab", () => {
