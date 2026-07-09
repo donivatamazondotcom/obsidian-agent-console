@@ -1190,11 +1190,13 @@ export function ChatPanel({
 		acquire: () => {},
 		flushDispatch: () => {},
 		clearComposer: () => {},
+		cancelTurn: () => {},
 	});
 	const queue = useQueueOrchestration({
 		acquire: () => queueEffectsRef.current.acquire(),
 		flushDispatch: (message) => queueEffectsRef.current.flushDispatch(message),
 		clearComposer: () => queueEffectsRef.current.clearComposer(),
+		cancelTurn: () => queueEffectsRef.current.cancelTurn(),
 	});
 
 	// Tracks whether the in-flight turn was cancelled by the user so the
@@ -1415,6 +1417,19 @@ export function ChatPanel({
 			setInputValue("");
 			setAttachedFiles([]);
 		},
+		// #81: steer cancels the live turn via the RAW stop (NOT the
+		// cancel-flag wrapper). handleStopGeneration awaits the FULL cancel
+		// (discardPendingTurn → session/cancel → clearPendingUpdates); only once
+		// it resolves do we dispatch `steerCancelSettled` to flush the redirect.
+		// Flushing on the earlier turn-end edge would race clearPendingUpdates,
+		// which would clobber the redirect turn's isSending back to false
+		// (no working animation / no Stop — I165). This is the genuine
+		// settle-before-send (Q1).
+		cancelTurn: () => {
+			void handleStopGeneration({ suppressRestore: true }).then(() => {
+				queue.dispatch({ type: "steerCancelSettled" });
+			});
+		},
 	};
 
 	// Connect-flush effect (#82 Decision 9): when session acquisition completes
@@ -1509,6 +1524,25 @@ export function ChatPanel({
 	const handleDeleteQueued = useCallback(() => {
 		queue.dispatch({ type: "deleteQueued" });
 	}, [queue.dispatch]);
+
+	// Steer (#81): interrupt the live turn and redirect. Dispatches
+	// steerWhileStreaming — the reducer holds the composer text flagged as a
+	// steer and emits cancelTurn (raw stop). The composer stays locked showing
+	// the steering banner; on the turn-end the cancel produces, the reducer
+	// flushes the held message through the raw send (settle-before-send by
+	// construction). Queue-of-one still applies — the resolver only yields
+	// "steer" when nothing is queued.
+	const handleSteerMessage = useCallback(
+		(content: string, attachments?: AttachedFile[]) => {
+			const trimmed = content.trim();
+			if (!trimmed && (attachments?.length ?? 0) === 0) return;
+			queue.dispatch({
+				type: "steerWhileStreaming",
+				message: { content: trimmed, attachments },
+			});
+		},
+		[queue.dispatch],
+	);
 
 	// Stop wrapper: mark the in-flight turn as user-cancelled so the flush
 	// effect HOLDS any queued message (Decision 5) instead of firing it into
@@ -2594,6 +2628,9 @@ export function ChatPanel({
 			onQueueMessage={handleQueueMessage}
 			onEditQueued={handleEditQueued}
 			onDeleteQueued={handleDeleteQueued}
+			// Mid-Stream Steering (#81)
+			isSteering={queue.isSteering}
+			onSteerMessage={handleSteerMessage}
 			modes={session.modes}
 			onModeChange={(modeId) => {
 				void handleSetMode(modeId);

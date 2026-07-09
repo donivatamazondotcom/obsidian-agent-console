@@ -31,11 +31,15 @@ export interface QueueEffectHandlers {
 	flushDispatch: (message: QueuedMessage) => void;
 	/** Clear the composer (text + attachments). */
 	clearComposer: () => void;
+	/** #81: cancel the in-flight turn (RAW stop) so steer can redirect on turn-end. */
+	cancelTurn: () => void;
 }
 
 export interface UseQueueOrchestrationReturn {
 	/** True when a message is held — drives the locked-input UI + broadcast skip-guard. */
 	isQueued: boolean;
+	/** #81: true when the held message is a steer (cancel-then-redirect in flight). */
+	isSteering: boolean;
 	/** The pending message, or null. */
 	pending: QueuedMessage | null;
 	/** Feed an event to the reducer; applies the next state and runs its effects. */
@@ -50,8 +54,20 @@ export function useQueueOrchestration(
 	// The slot is read from a ref so `dispatch` decides against the committed
 	// slot value, never a stale render snapshot — this is what keeps the queue
 	// decision immune to the Q4 commit-ordering race.
+	//
+	// The ref is **dispatch-authoritative**: it is initialized once and
+	// thereafter advanced ONLY inside `dispatch` (below). It is deliberately
+	// NOT re-synced from `state` on every render (`stateRef.current = state`).
+	// That re-sync was the #81 steer double-send bug: the steer sequence
+	// (cancel → flush → send → a rapid second turn-end edge) fires a second
+	// `turnEnded` while flush #1's `setState(pending:null)` is still mid-commit;
+	// an intervening render (from an unrelated state change, e.g. isSending
+	// toggling) carries the STALE `state` (the un-flushed slot), so the resync
+	// clobbered the ref back to the consumed message and the second `turnEnded`
+	// flushed it again → duplicate send. Since `state` only ever changes via
+	// `setState` inside `dispatch` — which also advances this ref — the ref is
+	// always current and the resync was redundant as well as harmful.
 	const stateRef = useRef(state);
-	stateRef.current = state;
 
 	// Stable ref to the latest handlers so `dispatch` keeps a stable identity
 	// (it's passed through effect deps and callbacks across the chat panel).
@@ -73,12 +89,16 @@ export function useQueueOrchestration(
 				case "clearComposer":
 					handlersRef.current.clearComposer();
 					break;
+				case "cancelTurn":
+					handlersRef.current.cancelTurn();
+					break;
 			}
 		}
 	}, []);
 
 	return {
 		isQueued: state.pending !== null,
+		isSteering: state.pending !== null && (state.steering ?? false),
 		pending: state.pending,
 		dispatch,
 	};

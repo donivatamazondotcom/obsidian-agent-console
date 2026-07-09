@@ -23,16 +23,25 @@ export function shouldQueueOnSend(params: { isSending: boolean }): boolean {
 }
 
 /** What pressing the send key (Enter) in the composer should do. */
-export type ComposerEnterAction = "send" | "queue" | "none";
+export type ComposerEnterAction = "send" | "queue" | "steer" | "none";
+
+/** The configured send-key mode (Settings → "Send message with"). */
+export type SendMessageShortcut = "enter" | "cmd-enter";
 
 /**
- * Decide the Enter-key action in the composer (#82).
+ * Decide the Enter-key action in the composer (#82 queue + #81 steer).
  *
+ * - **steer** — a live turn is streaming, the steer gesture was pressed, and
+ *   there is content to redirect with → cancel-then-redirect ([[Agent Console
+ *   Mid-Stream Steering]]). Takes precedence over queue while streaming.
  * - **send** — not streaming and the send button is enabled → normal dispatch.
- * - **queue** — streaming, nothing queued yet, and there is content → queue the
- *   next message (the locked-input affordance).
- * - **none** — streaming with a message already queued (queue-of-one), empty
- *   composer, or the send button is disabled (connecting/restoring).
+ * - **queue** — streaming (plain send key) or the session isn't ready yet,
+ *   nothing queued, and there is content → queue the next message.
+ * - **none** — a message is already queued (queue-of-one), empty composer, or
+ *   the send button is disabled (connecting/restoring).
+ *
+ * `steerRequested` is optional (defaults to "not a steer") so existing callers
+ * that only queue keep their behavior unchanged.
  */
 export function decideComposerEnterAction(params: {
 	isStreaming: boolean;
@@ -40,8 +49,14 @@ export function decideComposerEnterAction(params: {
 	isButtonDisabled: boolean;
 	isQueued: boolean;
 	hasContent: boolean;
+	/** The steer gesture (mode-aware, see {@link isSteerGesture}) was pressed. */
+	steerRequested?: boolean;
 }): ComposerEnterAction {
 	if (params.isQueued || !params.hasContent) return "none";
+	// Steer beats queue while a live turn is in flight: the user deliberately
+	// asked to interrupt-and-redirect. Only meaningful while streaming — a
+	// steer gesture on an idle/ready composer falls through to a normal send.
+	if (params.isStreaming && params.steerRequested) return "steer";
 	// Queue when a turn is streaming OR the session isn't ready yet
 	// (connecting/idle acquisition) — both are "the message can't dispatch
 	// right now, hold it as the one pending message" (#82 Decision 9). The
@@ -49,6 +64,29 @@ export function decideComposerEnterAction(params: {
 	if (params.isStreaming || !params.isSessionReady) return "queue";
 	if (params.isButtonDisabled) return "none";
 	return "send";
+}
+
+/**
+ * Whether a key event's modifiers mean **steer** (#81), given the configured
+ * send-key mode. Steer must never collide with the user's send key:
+ *
+ * - **enter mode** (plain Enter sends/queues): the Mod key is free, so
+ *   **Mod+Enter** is the steer gesture.
+ * - **cmd-enter mode** (Mod+Enter sends/queues): Mod+Enter is taken, so steer
+ *   is **Mod+Shift+Enter**.
+ *
+ * Both combos always satisfy InputArea's existing `shouldSend` gate (they carry
+ * the Mod key), so the resolver sees them; the mode branch here is the only
+ * place send-mode is consulted for steer. Pure — no platform/DOM access.
+ */
+export function isSteerGesture(params: {
+	hasCmdCtrl: boolean;
+	shiftKey: boolean;
+	sendShortcut: SendMessageShortcut;
+}): boolean {
+	return params.sendShortcut === "enter"
+		? params.hasCmdCtrl && !params.shiftKey
+		: params.hasCmdCtrl && params.shiftKey;
 }
 
 /**
@@ -110,8 +148,18 @@ export function buildComposerPlaceholder(params: {
 	hasQuickPrompts?: boolean;
 	isStreaming: boolean;
 	isQueued: boolean;
+	/** Platform-labeled key that queues while streaming (e.g. "Enter", "⌘Enter"). */
+	queueKeyLabel?: string;
+	/** Platform-labeled key that steers while streaming (e.g. "⌘Enter", "⌘⇧Enter"). */
+	steerKeyLabel?: string;
 }): string {
 	if (params.isStreaming && !params.isQueued) {
+		// #81: once both keybinding labels are supplied, teach queue AND steer.
+		// Falls back to the queue-only wording when labels aren't provided, so
+		// callers that predate steering keep their behavior.
+		if (params.queueKeyLabel && params.steerKeyLabel) {
+			return `${params.queueKeyLabel} to queue · ${params.steerKeyLabel} to send now`;
+		}
 		return `Queue a message – hit Enter to send when ${params.agentLabel} is done`;
 	}
 	return `Message ${params.agentLabel} - @ to mention notes${params.hasCommands ? ", / for commands" : ""}, ! for quick prompts`;

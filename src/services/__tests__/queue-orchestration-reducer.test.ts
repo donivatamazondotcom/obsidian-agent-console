@@ -296,6 +296,111 @@ describe("Q4 guard — flush is raw-by-construction, independent of any busy sna
 });
 
 // ============================================================================
+// #81 mid-stream steering — hold-flagged, cancel, flush-despite-cancel
+// ============================================================================
+
+describe("queueOrchestrationReducer — steerWhileStreaming (#81)", () => {
+	it("empty slot → hold flagged `steering` + emit cancelTurn (no flush yet)", () => {
+		const r = queueOrchestrationReducer(EMPTY, {
+			type: "steerWhileStreaming",
+			message: MSG,
+		});
+		expect(r.state.pending).toBe(MSG);
+		expect(r.state.steering).toBe(true);
+		expect(r.effects).toEqual([{ kind: "cancelTurn" }]);
+	});
+
+	it("queue-of-one: a steer while a message is already held is a no-op", () => {
+		const r = queueOrchestrationReducer(FULL, {
+			type: "steerWhileStreaming",
+			message: MSG2,
+		});
+		expect(r.state.pending).toBe(MSG); // original preserved
+		expect(r.effects).toEqual([]);
+	});
+
+	it("turnEnded HOLDS a steer-held message (flush deferred to steerCancelSettled)", () => {
+		// The turn-end edge fires mid-cancel (optimistic isSending=false), before
+		// cancelOperation's clearPendingUpdates cleanup. Flushing there would let
+		// cleanup clobber the redirect turn's isSending → no animation/Stop
+		// (I165). So a steer holds here and flushes on steerCancelSettled.
+		const held = queueOrchestrationReducer(EMPTY, {
+			type: "steerWhileStreaming",
+			message: MSG,
+		}).state;
+		for (const [hadError, wasCancelled] of [
+			[false, false],
+			[false, true],
+			[true, false],
+		] as const) {
+			const r = queueOrchestrationReducer(held, {
+				type: "turnEnded",
+				hadError,
+				wasCancelled,
+			});
+			expect(r.state.pending).toBe(MSG); // still held
+			expect(r.state.steering).toBe(true);
+			expect(r.effects).toEqual([]); // no flush
+		}
+	});
+
+	it("steerCancelSettled flushes the steer-held message (after the cancel settles)", () => {
+		const held = queueOrchestrationReducer(EMPTY, {
+			type: "steerWhileStreaming",
+			message: MSG,
+		}).state;
+		const r = queueOrchestrationReducer(held, {
+			type: "steerCancelSettled",
+		});
+		expect(r.state.pending).toBeNull();
+		expect(r.state.steering).toBeUndefined(); // flag cleared with the slot
+		expect(r.effects).toEqual([
+			{ kind: "clearComposer" },
+			{ kind: "flushDispatch", message: MSG },
+		]);
+	});
+
+	it("steerCancelSettled on an empty slot is a no-op", () => {
+		const r = queueOrchestrationReducer(EMPTY, {
+			type: "steerCancelSettled",
+		});
+		expect(r.state.pending).toBeNull();
+		expect(r.effects).toEqual([]);
+	});
+
+	it("steerCancelSettled does NOT flush a plain (non-steer) queued message", () => {
+		const r = queueOrchestrationReducer(FULL, {
+			type: "steerCancelSettled",
+		});
+		expect(r.state.pending).toBe(MSG); // untouched (not a steer)
+		expect(r.effects).toEqual([]);
+	});
+
+	it("contrast: a NON-steer hold still HOLDS on cancel (Decision 5 unchanged)", () => {
+		const r = queueOrchestrationReducer(FULL, {
+			type: "turnEnded",
+			hadError: false,
+			wasCancelled: true,
+		});
+		expect(r.state.pending).toBe(MSG); // held, not flushed
+		expect(r.effects).toEqual([]);
+	});
+
+	it("a steer hold is NOT flushed by acquisitionComplete (steer flushes only on turnEnded)", () => {
+		const held = queueOrchestrationReducer(EMPTY, {
+			type: "steerWhileStreaming",
+			message: MSG,
+		}).state;
+		const r = queueOrchestrationReducer(held, {
+			type: "acquisitionComplete",
+			hasSessionId: true,
+		});
+		expect(r.state.pending).toBe(MSG); // still held (awaitingAcquire is false)
+		expect(r.effects).toEqual([]);
+	});
+});
+
+// ============================================================================
 // Property tests (fast-check) — totality, single-slot, ordering, no-orphan
 // ============================================================================
 
@@ -312,11 +417,13 @@ const stateArb: fc.Arbitrary<QueueOrchestrationState> = fc.oneof(
 const eventArb: fc.Arbitrary<QueueEvent> = fc.oneof(
 	msgArb.map((m) => ({ type: "sendWhileReady" as const, message: m })),
 	msgArb.map((m) => ({ type: "sendWhileStreaming" as const, message: m })),
+	msgArb.map((m) => ({ type: "steerWhileStreaming" as const, message: m })),
 	msgArb.map((m) => ({ type: "sendWhilePreReady" as const, message: m })),
 	fc.record({ hadError: fc.boolean(), wasCancelled: fc.boolean() }).map((c) => ({
 		type: "turnEnded" as const,
 		...c,
 	})),
+	fc.constant({ type: "steerCancelSettled" as const }),
 	fc.boolean().map((b) => ({ type: "acquisitionComplete" as const, hasSessionId: b })),
 	fc.constant({ type: "acquisitionFailed" as const }),
 	fc.constant({ type: "editQueued" as const }),
@@ -325,7 +432,12 @@ const eventArb: fc.Arbitrary<QueueEvent> = fc.oneof(
 	fc.constant({ type: "respawn" as const }),
 );
 
-const KNOWN_EFFECT_KINDS = new Set(["acquire", "flushDispatch", "clearComposer"]);
+const KNOWN_EFFECT_KINDS = new Set([
+	"acquire",
+	"flushDispatch",
+	"clearComposer",
+	"cancelTurn",
+]);
 
 describe("queueOrchestrationReducer — properties", () => {
 	it("totality: every (state, event) → a valid result; never throws", () => {
@@ -347,8 +459,11 @@ describe("queueOrchestrationReducer — properties", () => {
 		fc.assert(
 			fc.property(msgArb, eventArb, (held, event) => {
 				const r = queueOrchestrationReducer({ pending: held }, event);
-				// A send event must never replace the held message.
-				if (event.type.startsWith("sendWhile")) {
+				// A send/steer event must never replace the held message.
+				if (
+					event.type.startsWith("sendWhile") ||
+					event.type === "steerWhileStreaming"
+				) {
 					expect(r.state.pending).toBe(held);
 				}
 				// pending is never anything other than null or a QueuedMessage.

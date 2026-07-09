@@ -12,6 +12,7 @@ import {
 	shouldQueueOnSend,
 	shouldFlushQueue,
 	decideComposerEnterAction,
+	isSteerGesture,
 	buildComposerPlaceholder,
 	buildQueuedBanner,
 	shouldFlushOnReady,
@@ -438,5 +439,126 @@ describe("broadcast-cancel does not flush queued messages (T12)", () => {
 			wasCancelled: true,
 		};
 		expect(shouldFlushQueue(afterBroadcastCancel)).toBe(false);
+	});
+});
+
+// --- #81 mid-stream steering: resolver + gesture --------------------------
+
+describe("decideComposerEnterAction — steer (#81)", () => {
+	const base = {
+		isStreaming: true,
+		isSessionReady: true,
+		isButtonDisabled: false,
+		isQueued: false,
+		hasContent: true,
+		steerRequested: true,
+	};
+
+	it("steers when streaming + steer gesture + content + nothing queued", () => {
+		expect(decideComposerEnterAction(base)).toBe("steer");
+	});
+
+	it("queues (not steers) while streaming when the steer gesture is absent", () => {
+		expect(
+			decideComposerEnterAction({ ...base, steerRequested: false }),
+		).toBe("queue");
+	});
+
+	it("does NOT steer when not streaming — a steer gesture on an idle composer sends", () => {
+		// Mod+Enter while idle stays a normal send (preserves alt-send); steer
+		// is only meaningful mid-turn.
+		expect(
+			decideComposerEnterAction({ ...base, isStreaming: false }),
+		).toBe("send");
+	});
+
+	it("does nothing when a message is already queued (Edit/Delete first — Q#4)", () => {
+		expect(
+			decideComposerEnterAction({ ...base, isQueued: true }),
+		).toBe("none");
+	});
+
+	it("does nothing with an empty composer even if the steer gesture fired", () => {
+		expect(
+			decideComposerEnterAction({ ...base, hasContent: false }),
+		).toBe("none");
+	});
+
+	it("steerRequested defaults to false (backward-compatible callers keep queueing)", () => {
+		const { steerRequested: _omit, ...noSteer } = base;
+		expect(decideComposerEnterAction(noSteer)).toBe("queue");
+	});
+});
+
+describe("isSteerGesture — mode-aware, never collides with the send key (#81)", () => {
+	it("enter mode: Mod+Enter is steer", () => {
+		expect(
+			isSteerGesture({ hasCmdCtrl: true, shiftKey: false, sendShortcut: "enter" }),
+		).toBe(true);
+	});
+
+	it("enter mode: plain Enter is NOT steer (it's the send/queue key)", () => {
+		expect(
+			isSteerGesture({ hasCmdCtrl: false, shiftKey: false, sendShortcut: "enter" }),
+		).toBe(false);
+	});
+
+	it("enter mode: Mod+Shift+Enter is NOT steer", () => {
+		expect(
+			isSteerGesture({ hasCmdCtrl: true, shiftKey: true, sendShortcut: "enter" }),
+		).toBe(false);
+	});
+
+	it("cmd-enter mode: Mod+Shift+Enter is steer (Mod+Enter is the send key)", () => {
+		expect(
+			isSteerGesture({ hasCmdCtrl: true, shiftKey: true, sendShortcut: "cmd-enter" }),
+		).toBe(true);
+	});
+
+	it("cmd-enter mode: Mod+Enter is NOT steer (it's the send/queue key)", () => {
+		expect(
+			isSteerGesture({ hasCmdCtrl: true, shiftKey: false, sendShortcut: "cmd-enter" }),
+		).toBe(false);
+	});
+
+	it("cmd-enter mode: plain Enter is NOT steer", () => {
+		expect(
+			isSteerGesture({ hasCmdCtrl: false, shiftKey: false, sendShortcut: "cmd-enter" }),
+		).toBe(false);
+	});
+});
+
+describe("buildComposerPlaceholder — teaches both keybindings when labeled (#81)", () => {
+	const base = {
+		agentLabel: "Auto SA",
+		hasCommands: true,
+		isStreaming: true,
+		isQueued: false,
+	};
+
+	it("streaming with both labels: teaches queue AND steer keys", () => {
+		expect(
+			buildComposerPlaceholder({
+				...base,
+				queueKeyLabel: "Enter",
+				steerKeyLabel: "⌘Enter",
+			}),
+		).toBe("Enter to queue · ⌘Enter to send now");
+	});
+
+	it("cmd-enter labels flow through unchanged", () => {
+		expect(
+			buildComposerPlaceholder({
+				...base,
+				queueKeyLabel: "Ctrl+Enter",
+				steerKeyLabel: "Ctrl+Shift+Enter",
+			}),
+		).toBe("Ctrl+Enter to queue · Ctrl+Shift+Enter to send now");
+	});
+
+	it("falls back to queue-only wording when labels are absent (backward compatible)", () => {
+		expect(buildComposerPlaceholder(base)).toBe(
+			"Queue a message – hit Enter to send when Auto SA is done",
+		);
 	});
 });
