@@ -38,6 +38,8 @@ import { useTabManager, truncateLabel, suffixOnCollision } from "../hooks/useTab
 import { useTabPersistence, type TabPersistenceStorage } from "../hooks/useTabPersistence";
 import { useRecentlyClosedTabs } from "../hooks/useRecentlyClosedTabs";
 import { useLandingHistoryModal } from "../hooks/useLandingHistoryModal";
+import { GettingStarted, type GettingStartedInfo } from "./MessageList";
+import { installAgent } from "../services/agent-installer";
 import { resolveInitialAgentId } from "../resolvers/resolveInitialAgentId";
 import {
 	resolveSeededMessages,
@@ -942,6 +944,59 @@ function ChatComponent({
 	// which spawns a matched-or-new tab (works at zero tabs).
 	const landingHistory = useLandingHistoryModal(plugin, openSessionInTab);
 
+	// ── Zero-tab landing: view-level agent detection (no ChatPanel host) ──
+	// Probe once; re-probe when reset to null (Re-detect / post-install).
+	// Optimistic: while probing (null) assume an agent is present so a
+	// returning user sees the composer landing, not a flash of install rows.
+	const [landingDetectedAgentIds, setLandingDetectedAgentIds] = useState<
+		Set<string> | null
+	>(null);
+	useEffect(() => {
+		if (landingDetectedAgentIds !== null) return;
+		let cancelled = false;
+		void plugin.detectAgents().then((ids) => {
+			if (!cancelled) setLandingDetectedAgentIds(ids);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [plugin, landingDetectedAgentIds]);
+
+	// Getting-started info for the no-agent landing (no-tabs-no-agent): the
+	// shared shell (install rows + Re-detect + settings). Pick spawns a tab on
+	// the chosen agent; install / redetect re-probe. See § UX review + § Harmonization.
+	const landingGettingStarted = useMemo<GettingStartedInfo>(() => {
+		const installed = landingDetectedAgentIds ?? new Set<string>();
+		return {
+			location: "no-tabs",
+			detectedAgents: plugin
+				.getAvailableAgents()
+				.filter((a) => installed.has(a.id)),
+			onPickAgent: (agentId: string) => {
+				tabManager.addTab(agentId);
+			},
+			onOpenSettings: () => {
+				const s = plugin.app as unknown as {
+					setting: { open(): void; openTabById(id: string): void };
+				};
+				s.setting.open();
+				s.setting.openTabById(plugin.manifest.id);
+			},
+			onRedetect: () => {
+				plugin.clearAgentDetectionCache();
+				setLandingDetectedAgentIds(null);
+			},
+			onInstall: async (npmPackage, onOutput) => {
+				const result = await installAgent(npmPackage, { onOutput });
+				if (result.ok) {
+					plugin.clearAgentDetectionCache();
+					setLandingDetectedAgentIds(null);
+				}
+				return result;
+			},
+		};
+	}, [landingDetectedAgentIds, plugin, tabManager]);
+
 	// ============================================================
 	// Register callbacks for IChatViewContainer (active tab only)
 	// (activeCallbacksRef / tabHandlesRef are declared earlier so
@@ -1040,10 +1095,13 @@ function ChatComponent({
 	// resting screen and hide the tab bar. A restart restores here too, since
 	// useTabManager honors a restored empty tab set (Decision 5).
 	if (tabs.length === 0) {
-		// Quick prompts matched to the active note; both the composer and a
-		// fired chip launch a NEW session via handleOpenInNewTab — a fresh tab
-		// on the default agent, message sent (Decision 4). resolvePromptText
-		// resolves {{selection}} to empty (the landing has no live selection).
+		// Detection-gated (§ UX review): no agent → the shared getting-started
+		// shell (install first, no dead-end launcher); agent (or still probing
+		// → optimistic) → the composer landing. Both faces of the same
+		// reason-tagged empty state.
+		const hasDetectedAgent =
+			landingDetectedAgentIds === null ||
+			landingDetectedAgentIds.size > 0;
 		const landingPrompts = matchPromptsForNote(
 			plugin.quickPromptLibrary.getPrompts(),
 			buildLandingNoteContext(plugin),
@@ -1056,24 +1114,28 @@ function ChatComponent({
 					height: "100%",
 				}}
 			>
-				<ZeroTabLanding
-					onSubmitPrompt={(text) =>
-						handleOpenInNewTab(text, {
-							send: true,
-							foreground: true,
-						})
-					}
-					quickPrompts={landingPrompts}
-					onFireQuickPrompt={(prompt) =>
-						handleOpenInNewTab(
-							resolvePromptText(prompt.body, null),
-							{ send: true, foreground: true },
-						)
-					}
-					onNewChat={handleAddTab}
-					onNewChatWithAgent={handleAddTabWithAgent}
-					onOpenHistory={landingHistory.openLandingHistory}
-				/>
+				{hasDetectedAgent ? (
+					<ZeroTabLanding
+						onSubmitPrompt={(text) =>
+							handleOpenInNewTab(text, {
+								send: true,
+								foreground: true,
+							})
+						}
+						quickPrompts={landingPrompts}
+						onFireQuickPrompt={(prompt) =>
+							handleOpenInNewTab(
+								resolvePromptText(prompt.body, null),
+								{ send: true, foreground: true },
+							)
+						}
+						onNewChat={handleAddTab}
+						onNewChatWithAgent={handleAddTabWithAgent}
+						onOpenHistory={landingHistory.openLandingHistory}
+					/>
+				) : (
+					<GettingStarted info={landingGettingStarted} />
+				)}
 			</div>
 		);
 	}

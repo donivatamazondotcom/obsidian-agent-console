@@ -158,7 +158,7 @@ function InstallRow({
 	);
 }
 
-function GettingStarted({ info }: { info: GettingStartedInfo }) {
+export function GettingStarted({ info }: { info: GettingStartedInfo }) {
 	const { detectedAgents, onPickAgent, onOpenSettings, onRedetect, onInstall } = info;
 	// Single source of truth for which affordances this empty state shows
 	// (deriveEmptyStateView / § Harmonization with I-FRO6). The in-tab
