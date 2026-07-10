@@ -37,6 +37,7 @@ import { ConfirmCloseModal } from "./ConfirmCloseModal";
 import { useTabManager, truncateLabel, suffixOnCollision } from "../hooks/useTabManager";
 import { useTabPersistence, type TabPersistenceStorage } from "../hooks/useTabPersistence";
 import { useRecentlyClosedTabs } from "../hooks/useRecentlyClosedTabs";
+import { useLandingHistoryModal } from "../hooks/useLandingHistoryModal";
 import { resolveInitialAgentId } from "../resolvers/resolveInitialAgentId";
 import {
 	resolveSeededMessages,
@@ -936,6 +937,11 @@ function ChatComponent({
 		],
 	);
 
+	// Session history opened from the zero-tab landing (no ChatPanel host).
+	// Local source only; restore/fork route through openSessionInTab above,
+	// which spawns a matched-or-new tab (works at zero tabs).
+	const landingHistory = useLandingHistoryModal(plugin, openSessionInTab);
+
 	// ============================================================
 	// Register callbacks for IChatViewContainer (active tab only)
 	// (activeCallbacksRef / tabHandlesRef are declared earlier so
@@ -1066,6 +1072,7 @@ function ChatComponent({
 					}
 					onNewChat={handleAddTab}
 					onNewChatWithAgent={handleAddTabWithAgent}
+					onOpenHistory={landingHistory.openLandingHistory}
 				/>
 			</div>
 		);

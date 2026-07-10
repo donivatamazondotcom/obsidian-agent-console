@@ -101,6 +101,7 @@ src/
 │   ├── useSessionSearch.ts      # Session search state: query debounce + lazy content index
 │   ├── useChatActions.ts        # Business callbacks (send, newChat, export, restart, etc.)
 │   ├── useHistoryModal.ts       # Session history modal lifecycle
+│   ├── useLandingHistoryModal.ts # View-level Local-only session-history modal opener for the zero-tab landing (no ChatPanel host); restore/fork route through openSessionInTab
 │   ├── useComposerFocusReturn.ts # Return focus to composer after in-panel state changes (guarded by composer-cluster focus)
 │   ├── useSettings.ts           # Settings subscription (useSyncExternalStore)
 │   ├── useRecentlyClosedTabs.ts # F13 undo-close: per-leaf in-memory recently-closed stack

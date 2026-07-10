@@ -25,6 +25,7 @@ function makeProps(overrides: Partial<React.ComponentProps<typeof ZeroTabLanding
 		onFireQuickPrompt: vi.fn(),
 		onNewChat: vi.fn(),
 		onNewChatWithAgent: vi.fn(),
+		onOpenHistory: vi.fn(),
 		...overrides,
 	};
 }
@@ -125,16 +126,18 @@ describe("ZeroTabLanding — quick prompts + actions", () => {
 		).toBeNull();
 	});
 
-	it("wires New chat and New chat with an agent", () => {
+	it("wires New chat, New chat with an agent, and Open session history", () => {
 		const props = makeProps();
 		const { container } = render(<ZeroTabLanding {...props} />);
 		const actions = container.querySelectorAll(
 			".agent-client-zero-tab-landing-action",
 		);
-		expect(actions.length).toBe(2);
+		expect(actions.length).toBe(3);
 		fireEvent.click(actions[0]);
 		expect(props.onNewChat).toHaveBeenCalledTimes(1);
 		fireEvent.click(actions[1]);
 		expect(props.onNewChatWithAgent).toHaveBeenCalledTimes(1);
+		fireEvent.click(actions[2]);
+		expect(props.onOpenHistory).toHaveBeenCalledTimes(1);
 	});
 });
