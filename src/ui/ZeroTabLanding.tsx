@@ -75,35 +75,15 @@ export function ZeroTabLanding({
 
 	return (
 		<div className="agent-client-zero-tab-landing">
-			<div className="agent-client-zero-tab-landing-inner">
+			{/*
+			 * Center: the landing's action set — where a conversation (or the
+			 * getting-started picks) would otherwise render. Closing the last
+			 * tab swaps THIS area, not the composer.
+			 */}
+			<div className="agent-client-zero-tab-landing-center">
 				<p className="agent-client-zero-tab-landing-message">
-					Type a prompt to start a new chat.
+					No chat is open. Start a new one:
 				</p>
-				<div className="agent-client-zero-tab-landing-composer">
-					<textarea
-						className="agent-client-zero-tab-landing-input"
-						value={text}
-						placeholder="Send a message to start a new chat…"
-						aria-label="Start a new chat"
-						rows={3}
-						autoFocus
-						onChange={(e) => setText(e.target.value)}
-						onKeyDown={handleKeyDown}
-					/>
-					<button
-						type="button"
-						className="mod-cta agent-client-zero-tab-landing-send"
-						disabled={text.trim() === ""}
-						onClick={submit}
-					>
-						Send
-					</button>
-				</div>
-				<QuickPromptBar
-					prompts={quickPrompts}
-					hasPendingQueue={false}
-					onFire={(prompt) => onFireQuickPrompt(prompt)}
-				/>
 				<div className="agent-client-zero-tab-landing-actions">
 					<button
 						type="button"
@@ -127,6 +107,36 @@ export function ZeroTabLanding({
 						Open session history
 					</button>
 				</div>
+			</div>
+			{/*
+			 * Bottom dock: quick-prompt chips + composer, kept in the SAME
+			 * position they occupy inside a live tab, so the layout doesn't
+			 * jump when the last tab closes.
+			 */}
+			<QuickPromptBar
+				prompts={quickPrompts}
+				hasPendingQueue={false}
+				onFire={(prompt) => onFireQuickPrompt(prompt)}
+			/>
+			<div className="agent-client-zero-tab-landing-composer">
+				<textarea
+					className="agent-client-zero-tab-landing-input"
+					value={text}
+					placeholder="Send a message to start a new chat…"
+					aria-label="Start a new chat"
+					rows={3}
+					autoFocus
+					onChange={(e) => setText(e.target.value)}
+					onKeyDown={handleKeyDown}
+				/>
+				<button
+					type="button"
+					className="mod-cta agent-client-zero-tab-landing-send"
+					disabled={text.trim() === ""}
+					onClick={submit}
+				>
+					Send
+				</button>
 			</div>
 		</div>
 	);
