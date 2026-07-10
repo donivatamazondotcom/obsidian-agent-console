@@ -1194,7 +1194,9 @@ function ChatComponent({
 						onOpenHistory={landingHistory.openLandingHistory}
 					/>
 				) : (
-					<GettingStarted info={landingGettingStarted} />
+					<div className="agent-client-zero-tab-landing-center">
+						<GettingStarted info={landingGettingStarted} />
+					</div>
 				)}
 			</div>
 		);
