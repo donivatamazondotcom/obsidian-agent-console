@@ -21,11 +21,13 @@
  * drift.
  *
  * DESIGN
- *  - The send TARGET keys off `surface`, NOT `lazyState`. That is precisely the
- *    fix: the old landing inferred "launch" from `lazyState:"idle"`, coupling
- *    the target to the session state machine. Send *enablement* remains
- *    `deriveSendAffordance`'s job (keyed on `lazyState`); this resolver owns
- *    send *target* + control composition. No overlap.
+ *  - The send TARGET keys off `surface`, and this resolver is entirely
+ *    connection-state-independent — it does NOT read `lazyState`. That is
+ *    precisely the fix: the old landing inferred "launch" from
+ *    `lazyState:"idle"`, coupling the target to the session state machine.
+ *    Send *enablement* (which DOES depend on `lazyState`) remains
+ *    `deriveSendAffordance`'s job; this resolver owns send *target* + control
+ *    composition. No overlap.
  *  - `context:"carry"` on the landing (Decision, 2026-07-10): the launch
  *    carries the typed text AND pinned/`@`-mentioned notes into the spawned tab
  *    as first-message context. `"off"` would suppress the pin affordance;
@@ -37,20 +39,21 @@
  *    are driven by per-session `modes`/`models`/`configOptions` being
  *    non-empty — neither lives in the initialize-time `AgentCapabilities`
  *    record (whose `reportsModels` is always `false` at this SDK version).
- *  - `showConfigSelectors` additionally requires a LIVE session
- *    (`isSessionLive`, reused from `send-affordance`): changing a model/mode is
- *    *acting on the agent*, which the "Connection-free reading" tenet says may
- *    require a connection — reading is free, acting is not. `showAttachments`
- *    does NOT gate on liveness: attaching before connect is valid (the
- *    send-while-idle path triggers lazy acquisition), and `supportsImages` is
- *    already `false` until the session reports its prompt capabilities.
+ *  - `showConfigSelectors` gates on data/capability ONLY, never on connection
+ *    state. An earlier draft gated it on `isSessionLive(lazyState)` — that was
+ *    the exact "gate on connection state" anti-pattern the tenets forbid, and
+ *    it baked in the model-selection capability gap under lazy acquisition
+ *    (the picker was hidden until a session went live, so you couldn't pick a
+ *    model before the first send). Presence keys off data/capability; ENGAGING
+ *    the selector is what should trigger lazy acquisition — the consumer's job,
+ *    not a visibility precondition here. See [[Model Selection Under Lazy
+ *    Acquisition]] and [[Agent Console]] § Tenets → "Gate on data + intent, not
+ *    connection state".
  *  - `quickPromptFire:"none"` when there are no quick prompts, so "fire with
  *    nothing to fire" is unrepresentable (tagged-union tenet).
  *
  * Pure — no React, no Obsidian. Exhaustively unit-testable.
  */
-import type { TabSessionState } from "../hooks/useTabSessionState";
-import { isSessionLive } from "./send-affordance";
 
 /** Which surface hosts the composer. */
 export type ComposerSurface = "landing" | "tab";
@@ -71,8 +74,6 @@ export interface ComposerCapabilities {
 export interface ComposerAffordancesInput {
 	/** Which surface the composer renders on. */
 	surface: ComposerSurface;
-	/** Per-tab lazy session state (drives selector liveness on a tab). */
-	lazyState: TabSessionState;
 	/** Composer-facing capabilities (see {@link ComposerCapabilities}). */
 	capabilities: ComposerCapabilities;
 	/** Whether the composer has any quick prompts to fire. */
@@ -119,7 +120,7 @@ export interface ComposerAffordances {
 export function deriveComposerAffordances(
 	input: ComposerAffordancesInput,
 ): ComposerAffordances {
-	const { surface, lazyState, capabilities, hasQuickPrompts } = input;
+	const { surface, capabilities, hasQuickPrompts } = input;
 
 	if (surface === "landing") {
 		// The landing is always a launcher: send + quick prompts spawn a new
@@ -135,14 +136,14 @@ export function deriveComposerAffordances(
 	}
 
 	// surface === "tab": send + quick prompts run in the tab's session; context
-	// attaches to it. Attachments follow the image capability; selectors follow
-	// their data AND require a live session (changing a model acts on the agent).
+	// attaches to it. Satellite controls follow data/capability only — never
+	// connection state (engaging a hidden-until-live selector is impossible, and
+	// that was the model-selection gap; engaging IS the acquisition trigger).
 	return {
 		sendMode: "session",
 		quickPromptFire: hasQuickPrompts ? "current" : "none",
 		context: "session",
 		showAttachments: capabilities.supportsImages,
-		showConfigSelectors:
-			isSessionLive(lazyState) && capabilities.hasConfigSelectors,
+		showConfigSelectors: capabilities.hasConfigSelectors,
 	};
 }

@@ -1,10 +1,10 @@
 /**
  * Exhaustive truth table for deriveComposerAffordances.
  *
- * Enumerates every input combination (2 surfaces × 6 lazyStates × 2
- * supportsImages × 2 hasConfigSelectors × 2 hasQuickPrompts = 96) and asserts
- * the resolved affordances against independent per-surface invariants, plus a
- * handful of landmark full-output cases for readability.
+ * The resolver is connection-state-independent (it does NOT read lazyState), so
+ * the input space is 2 surfaces × 2 supportsImages × 2 hasConfigSelectors × 2
+ * hasQuickPrompts = 16 combinations, all enumerated below, plus landmark
+ * full-output cases for readability.
  */
 
 import { describe, expect, it } from "vitest";
@@ -13,71 +13,49 @@ import {
 	type ComposerAffordancesInput,
 	type ComposerSurface,
 } from "../composer-affordances";
-import type { TabSessionState } from "../../hooks/useTabSessionState";
 
 const SURFACES: ComposerSurface[] = ["landing", "tab"];
-const STATES: TabSessionState[] = [
-	"idle",
-	"connecting",
-	"ready",
-	"busy",
-	"permission",
-	"error",
-];
 const BOOLS = [true, false];
-
-// Independent restatement of send-affordance's `isSessionLive` so the oracle
-// does not import the implementation under test's helper.
-const LIVE_STATES = new Set<TabSessionState>(["ready", "busy", "permission"]);
 
 describe("deriveComposerAffordances — exhaustive truth table", () => {
 	for (const surface of SURFACES) {
-		for (const lazyState of STATES) {
-			for (const supportsImages of BOOLS) {
-				for (const hasConfigSelectors of BOOLS) {
-					for (const hasQuickPrompts of BOOLS) {
-						const input: ComposerAffordancesInput = {
-							surface,
-							lazyState,
-							capabilities: {
-								supportsImages,
+		for (const supportsImages of BOOLS) {
+			for (const hasConfigSelectors of BOOLS) {
+				for (const hasQuickPrompts of BOOLS) {
+					const input: ComposerAffordancesInput = {
+						surface,
+						capabilities: { supportsImages, hasConfigSelectors },
+						hasQuickPrompts,
+					};
+					const label = `${surface}/img=${supportsImages}/cfg=${hasConfigSelectors}/qp=${hasQuickPrompts}`;
+
+					it(label, () => {
+						const r = deriveComposerAffordances(input);
+
+						if (surface === "landing") {
+							// The landing is always a launcher.
+							expect(r.sendMode).toBe("launch");
+							expect(r.context).toBe("carry");
+							expect(r.showAttachments).toBe(false);
+							expect(r.showConfigSelectors).toBe(false);
+							expect(r.quickPromptFire).toBe(
+								hasQuickPrompts ? "launch" : "none",
+							);
+						} else {
+							// Tab: send + quick prompts run in-session.
+							expect(r.sendMode).toBe("session");
+							expect(r.context).toBe("session");
+							expect(r.quickPromptFire).toBe(
+								hasQuickPrompts ? "current" : "none",
+							);
+							// Satellite controls follow data/capability ONLY —
+							// no connection-state gate.
+							expect(r.showAttachments).toBe(supportsImages);
+							expect(r.showConfigSelectors).toBe(
 								hasConfigSelectors,
-							},
-							hasQuickPrompts,
-						};
-						const label = `${surface}/${lazyState}/img=${supportsImages}/cfg=${hasConfigSelectors}/qp=${hasQuickPrompts}`;
-
-						it(label, () => {
-							const r = deriveComposerAffordances(input);
-
-							if (surface === "landing") {
-								// The landing is always a launcher.
-								expect(r.sendMode).toBe("launch");
-								expect(r.context).toBe("carry");
-								expect(r.showAttachments).toBe(false);
-								expect(r.showConfigSelectors).toBe(false);
-								expect(r.quickPromptFire).toBe(
-									hasQuickPrompts ? "launch" : "none",
-								);
-							} else {
-								// Tab: send + quick prompts run in-session.
-								expect(r.sendMode).toBe("session");
-								expect(r.context).toBe("session");
-								expect(r.quickPromptFire).toBe(
-									hasQuickPrompts ? "current" : "none",
-								);
-								// Attachments follow the image capability, no
-								// liveness gate.
-								expect(r.showAttachments).toBe(supportsImages);
-								// Selectors follow their data AND require a live
-								// session (acting on the agent).
-								expect(r.showConfigSelectors).toBe(
-									LIVE_STATES.has(lazyState) &&
-										hasConfigSelectors,
-								);
-							}
-						});
-					}
+							);
+						}
+					});
 				}
 			}
 		}
@@ -89,7 +67,6 @@ describe("deriveComposerAffordances — landmark cases", () => {
 		expect(
 			deriveComposerAffordances({
 				surface: "landing",
-				lazyState: "idle",
 				capabilities: { supportsImages: true, hasConfigSelectors: true },
 				hasQuickPrompts: true,
 			}),
@@ -105,18 +82,16 @@ describe("deriveComposerAffordances — landmark cases", () => {
 	it("landing without quick prompts: fire is 'none'", () => {
 		const r = deriveComposerAffordances({
 			surface: "landing",
-			lazyState: "idle",
 			capabilities: { supportsImages: false, hasConfigSelectors: false },
 			hasQuickPrompts: false,
 		});
 		expect(r.quickPromptFire).toBe("none");
 	});
 
-	it("live tab: session send/fire, attachments + selectors per capability", () => {
+	it("tab: session send/fire, attachments + selectors per capability", () => {
 		expect(
 			deriveComposerAffordances({
 				surface: "tab",
-				lazyState: "ready",
 				capabilities: { supportsImages: true, hasConfigSelectors: true },
 				hasQuickPrompts: true,
 			}),
@@ -129,41 +104,26 @@ describe("deriveComposerAffordances — landmark cases", () => {
 		});
 	});
 
-	it("idle tab hides config selectors even when data exists (not live) but keeps attachments", () => {
+	it("tab shows config selectors purely on data — no connection-state gate", () => {
+		// Selectors show whenever there is data, regardless of any session
+		// liveness (which this resolver deliberately does not read). This is the
+		// fold-now #3 correction: presence keys off data, engaging triggers
+		// acquisition (see Model Selection Under Lazy Acquisition).
 		const r = deriveComposerAffordances({
 			surface: "tab",
-			lazyState: "idle",
-			capabilities: { supportsImages: true, hasConfigSelectors: true },
+			capabilities: { supportsImages: false, hasConfigSelectors: true },
 			hasQuickPrompts: false,
 		});
-		expect(r.showConfigSelectors).toBe(false); // idle is not live
-		expect(r.showAttachments).toBe(true); // attachments not liveness-gated
-		expect(r.quickPromptFire).toBe("none");
+		expect(r.showConfigSelectors).toBe(true);
 	});
 
-	it("error tab hides config selectors (acting on a dead session)", () => {
+	it("tab hides selectors when there is no selector data", () => {
 		const r = deriveComposerAffordances({
 			surface: "tab",
-			lazyState: "error",
-			capabilities: { supportsImages: false, hasConfigSelectors: true },
+			capabilities: { supportsImages: true, hasConfigSelectors: false },
 			hasQuickPrompts: true,
 		});
 		expect(r.showConfigSelectors).toBe(false);
-	});
-
-	it("permission and busy count as live for selectors", () => {
-		for (const lazyState of ["busy", "permission"] as TabSessionState[]) {
-			expect(
-				deriveComposerAffordances({
-					surface: "tab",
-					lazyState,
-					capabilities: {
-						supportsImages: false,
-						hasConfigSelectors: true,
-					},
-					hasQuickPrompts: false,
-				}).showConfigSelectors,
-			).toBe(true);
-		}
+		expect(r.showAttachments).toBe(true);
 	});
 });
