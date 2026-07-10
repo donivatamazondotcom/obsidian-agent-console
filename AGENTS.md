@@ -122,6 +122,7 @@ src/
 │   ├── chat-view-type.ts        # I157: namespaced "agent-console-chat-view" view-type constant (avoids collision with upstream Agent Client)
 │   ├── TabBar.tsx               # Tab bar UI for parallel agent sessions (drag-reorder, +button, status icons)
 │   ├── TabErrorBoundary.tsx     # Per-tab React error boundary with Retry
+│   ├── ZeroTabLanding.tsx       # Zero-tab landing screen shown when every tab is closed (minimal placeholder in Slice 1; reason-tagged empty-state shell in Slice 2)
 │   ├── ChatHeader.tsx           # Header (sidebar chat view)
 │   ├── MessageList.tsx          # Message list (native browser scroll, content-visibility:auto for off-screen render skipping)
 │   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button)
@@ -189,6 +190,7 @@ src/
 │   ├── send-affordance.ts       # Pure send-enablement resolver (deriveSendAffordance → canSend/buttonDisabled/reason) + isSessionLive; single source for ChatPanel/InputArea/InputToolbar/MessageList/broadcast
 │   ├── header-slot.ts           # deriveHeaderSlot — pure 4-way header secondary-slot resolver (model / connecting / idle / none)
 │   ├── session-history-view.ts  # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source) → listSource/agentViewAvailable/showFilters/restore/fork/banner); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
+│   ├── empty-state-view.ts      # deriveEmptyStateView — pure empty-state affordance resolver (location × hasDetectedAgent → reason + redetect/installRows/agentPicks/landingActions/settings/hint); shared by GettingStarted (in-tab) and the zero-tab landing so the two can't drift
 │   ├── format-session-title.ts  # Pure display-formatter for session-history titles (renders markdown links/wikilinks to readable text, collapses whitespace; no truncation — CSS owns width); used by SessionHistoryModal, carries into HistoryRow
 │   ├── folder-picker.ts         # Shared Electron native folder picker (modal + settings Browse)
 │   ├── working-directory.ts     # Resolve/validate the default working directory for new chats
