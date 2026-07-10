@@ -10,9 +10,15 @@
 import { describe, expect, it } from "vitest";
 import {
 	deriveComposerAffordances,
+	composerCapabilitiesFromSession,
 	type ComposerAffordancesInput,
 	type ComposerSurface,
 } from "../composer-affordances";
+import type {
+	SessionModeState,
+	SessionModelState,
+	SessionConfigOption,
+} from "../../types/session";
 
 const SURFACES: ComposerSurface[] = ["landing", "tab"];
 const BOOLS = [true, false];
@@ -125,5 +131,75 @@ describe("deriveComposerAffordances — landmark cases", () => {
 		});
 		expect(r.showConfigSelectors).toBe(false);
 		expect(r.showAttachments).toBe(true);
+	});
+});
+
+
+const modeState = (n: number): SessionModeState =>
+	({
+		availableModes: Array.from({ length: n }, (_, i) => ({
+			id: `m${i}`,
+			name: `M${i}`,
+		})),
+		currentModeId: null,
+	}) as unknown as SessionModeState;
+
+const modelState = (n: number): SessionModelState =>
+	({
+		availableModels: Array.from({ length: n }, (_, i) => ({
+			modelId: `x${i}`,
+			name: `X${i}`,
+		})),
+		currentModelId: null,
+	}) as unknown as SessionModelState;
+
+const cfg = (n: number): SessionConfigOption[] =>
+	Array.from({ length: n }, () => ({}) as unknown as SessionConfigOption);
+
+describe("composerCapabilitiesFromSession — session → composer capabilities", () => {
+	it("an empty session offers neither images nor selectors", () => {
+		expect(composerCapabilitiesFromSession({})).toEqual({
+			supportsImages: false,
+			hasConfigSelectors: false,
+		});
+	});
+
+	it("supportsImages tracks session.promptCapabilities.image", () => {
+		expect(
+			composerCapabilitiesFromSession({ promptCapabilities: { image: true } })
+				.supportsImages,
+		).toBe(true);
+		expect(
+			composerCapabilitiesFromSession({ promptCapabilities: {} })
+				.supportsImages,
+		).toBe(false);
+	});
+
+	it("hasConfigSelectors is true when modes, models, OR configOptions have entries", () => {
+		expect(
+			composerCapabilitiesFromSession({ modes: modeState(2) }).hasConfigSelectors,
+		).toBe(true);
+		expect(
+			composerCapabilitiesFromSession({ models: modelState(2) }).hasConfigSelectors,
+		).toBe(true);
+		expect(
+			composerCapabilitiesFromSession({ configOptions: cfg(1) }).hasConfigSelectors,
+		).toBe(true);
+	});
+
+	it("hasConfigSelectors is false when all selector sources are empty", () => {
+		expect(
+			composerCapabilitiesFromSession({
+				modes: modeState(0),
+				models: modelState(0),
+				configOptions: cfg(0),
+			}).hasConfigSelectors,
+		).toBe(false);
+	});
+
+	it("COARSE by design: a single-option mode still reports hasConfigSelectors true — InputToolbar's >1 fine-gate is the final arbiter of what renders, so routing this coarse flag is byte-identical", () => {
+		expect(
+			composerCapabilitiesFromSession({ modes: modeState(1) }).hasConfigSelectors,
+		).toBe(true);
 	});
 });

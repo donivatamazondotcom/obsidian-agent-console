@@ -55,6 +55,12 @@
  * Pure — no React, no Obsidian. Exhaustively unit-testable.
  */
 
+import type {
+	SessionModeState,
+	SessionModelState,
+	SessionConfigOption,
+} from "../types/session";
+
 /** Which surface hosts the composer. */
 export type ComposerSurface = "landing" | "tab";
 
@@ -145,5 +151,37 @@ export function deriveComposerAffordances(
 		context: "session",
 		showAttachments: capabilities.supportsImages,
 		showConfigSelectors: capabilities.hasConfigSelectors,
+	};
+}
+
+
+/**
+ * Map a live session's state to the {@link ComposerCapabilities} shape the
+ * resolver reads. This is the in-tab bridge: the composer-facing capability
+ * flags are DERIVED from per-session data, NOT the ACP `AgentCapabilities`
+ * record (see the module doc) —
+ *   - `supportsImages` ← `session.promptCapabilities?.image`
+ *   - `hasConfigSelectors` ← any of `modes` / `models` / `configOptions` has
+ *     entries. This is the COARSE "does this surface offer selectors at all"
+ *     signal; `InputToolbar` keeps the FINE per-selector gating (a mode/model
+ *     selector renders only with >1 option), so routing the coarse flag through
+ *     the resolver is behavior-identical — the fine gate is always the final
+ *     arbiter.
+ *
+ * Extracted so the session→capabilities mapping is unit-testable without
+ * mounting ChatPanel (which has no render harness). Pure.
+ */
+export function composerCapabilitiesFromSession(session: {
+	promptCapabilities?: { image?: boolean } | undefined;
+	modes?: SessionModeState | undefined;
+	models?: SessionModelState | undefined;
+	configOptions?: SessionConfigOption[] | undefined;
+}): ComposerCapabilities {
+	return {
+		supportsImages: session.promptCapabilities?.image ?? false,
+		hasConfigSelectors:
+			(session.configOptions?.length ?? 0) > 0 ||
+			(session.modes?.availableModes?.length ?? 0) > 0 ||
+			(session.models?.availableModels?.length ?? 0) > 0,
 	};
 }
