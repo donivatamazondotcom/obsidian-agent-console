@@ -95,6 +95,8 @@ Close the last tab and the chat sidebar shows a neutral landing screen — a lau
 - **New chat** / **New chat with an agent** — start an empty chat on your default agent, or pick the agent first.
 - **Open session history** — browse your saved chats and reopen any of them in a fresh tab.
 
+**Bring notes along.** The landing has the same note bar as a normal chat. Pin the note you're working on with the **+** button (or mention others with `@`), and the notes you pin come along into the new chat as its starting context — so the agent has them from the very first message.
+
 Nothing connects on its own — the landing just waits for you. Restart Obsidian while you're on the landing and it comes back to the landing, not a surprise new session.
 
 Changed your mind about closing? The **Reopen closed session tab** command (see [Commands](/usage/commands)) brings back the chat you just closed — including the last one — with its full conversation.

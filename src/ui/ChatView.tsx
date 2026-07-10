@@ -326,7 +326,10 @@ function ChatComponent({
 	// new tabId. The new tab's ChatPanel consumes it on mount (send through the
 	// lazy-acquisition path, or just seed the composer). Mirrors reopenPayload.
 	const [pendingPromptByTab, setPendingPromptByTab] = useState<
-		Record<string, { text: string; send: boolean }>
+		Record<
+			string,
+			{ text: string; send: boolean; contextNotes?: ContextNote[] }
+		>
 	>({});
 
 	// Track C — fork payload, keyed by new tabId. Seeds the ORIGINAL session's
@@ -579,7 +582,15 @@ function ChatComponent({
 	// background open (foreground:false) appends without switching — the tab
 	// still mounts and sends, the user stays on their current tab.
 	const handleOpenInNewTab = useCallback(
-		(text: string, opts: { send: boolean; foreground: boolean }) => {
+		(
+			text: string,
+			opts: {
+				send: boolean;
+				foreground: boolean;
+				/** Context notes to carry into the spawned tab (landing carry). */
+				contextNotes?: ContextNote[];
+			},
+		) => {
 			const newTabId = tabManager.addTab(
 				plugin.settings.defaultAgentId,
 				undefined,
@@ -587,7 +598,11 @@ function ChatComponent({
 			);
 			setPendingPromptByTab((prev) => ({
 				...prev,
-				[newTabId]: { text, send: opts.send },
+				[newTabId]: {
+					text,
+					send: opts.send,
+					contextNotes: opts.contextNotes,
+				},
 			}));
 		},
 		[tabManager, plugin.settings.defaultAgentId],
@@ -1167,10 +1182,11 @@ function ChatComponent({
 						}
 						agentId={plugin.settings.defaultAgentId}
 						quickPrompts={landingPrompts}
-						onLaunch={(text) =>
+						onLaunch={(text, notes) =>
 							handleOpenInNewTab(text, {
 								send: true,
 								foreground: true,
+								contextNotes: notes,
 							})
 						}
 						showAgentPicker={agentPicker.show}
@@ -1303,6 +1319,8 @@ function ChatComponent({
 											tabPersistence.restoredContextNotes[
 												tab.tabId
 											],
+										launchContextNotes:
+											pendingPromptByTab[tab.tabId]?.contextNotes,
 									},
 								)}
 								historyRecoverable={
