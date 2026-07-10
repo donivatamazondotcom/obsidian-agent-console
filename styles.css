@@ -3368,12 +3368,14 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .agent-client-zero-tab-landing-center {
 	flex: 1;
 	min-height: 0;
+	overflow-y: auto;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	justify-content: center;
-	gap: var(--size-4-4);
+	justify-content: flex-start;
+	gap: var(--size-4-2);
 	text-align: center;
+	padding: 24px 16px 0;
 }
 
 .agent-client-zero-tab-landing-message {
