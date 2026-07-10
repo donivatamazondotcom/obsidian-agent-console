@@ -1395,6 +1395,34 @@
 			"purpose": "The Add-custom-agent form: Agent ID, Display name, Path, Arguments, and environment variables.",
 			"altText": "Agent Console settings showing the Add custom agent form with Agent ID, Display name, and Path fields",
 			"docPage": "docs/agent-setup/custom-agents.md"
+		},
+		{
+			"name": "zero-tab-landing",
+			"pending": true,
+			"width": 760,
+			"height": 620,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 760,
+				"height": 620
+			},
+			"cropSelector": ".agent-client-zero-tab-landing",
+			"cropPadding": 16,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"approvalThreshold": 0.05,
+			"minDistinctColors": 300,
+			"placement": "feature",
+			"purpose": "Closing every tab lands on a neutral launcher — a live composer, quick prompts, and actions — instead of being blocked.",
+			"differentiator": "Close last tab to a blank landing (new-tab-page model)",
+			"mustShow": ".agent-client-zero-tab-landing",
+			"caption": "Close everything to a blank slate",
+			"altText": "Agent Console zero-tab landing: a launcher composer, quick-prompt chips, and New chat / with an agent / Open session history actions",
+			"docPage": "docs/usage/tabbed-sessions.md",
+			"captureNote": "Close all tabs (or start with none) so ChatView renders ZeroTabLanding; crop .agent-client-zero-tab-landing. Confirm final dims at capture. Registered pending 2026-07-09."
 		}
 	]
 }

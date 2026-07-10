@@ -187,3 +187,26 @@ describe("Close-last-tab — zero-tab landing is a stable, restorable state", ()
 		expect(result.current.activeTab).toBeNull();
 	});
 });
+
+
+describe("Close-last-tab — reopen / undo-close from the zero-tab landing (F13)", () => {
+	// Decision 6: closing the last tab (now allowed) must still be undoable.
+	// handleCloseTab captures the closed record before removeTab, and
+	// reopenClosed re-adds a tab. This pins the hook-level reopen half: addTab
+	// from a restored zero-tab set creates and activates a tab.
+	it("addTab from zero tabs creates and activates the reopened tab", () => {
+		const { result } = renderHook(() => useTabManager("kiro", [], ""));
+		expect(result.current.tabs.length).toBe(0);
+		expect(result.current.activeTab).toBeNull();
+
+		let newId = "";
+		act(() => {
+			newId = result.current.addTab("kiro-cli", "Reopened session");
+		});
+
+		expect(result.current.tabs.length).toBe(1);
+		expect(result.current.activeTabId).toBe(newId);
+		expect(result.current.activeTab?.label).toBe("Reopened session");
+		expect(result.current.activeTab?.agentId).toBe("kiro-cli");
+	});
+});

@@ -84,7 +84,20 @@ Right-click a tab → **Rename**. Names must be unique within the session (dupli
 - **Right-click → Close Others** — closes every tab except this one
 - **Right-click → Close to the Right** — closes all tabs to the right of this one
 
-You can't close the last tab — at least one tab always remains. The chat sidebar always has an active session.
+**You can close every tab, including the last one.** Closing the final tab clears the workspace to a blank landing screen (below) instead of being blocked — the same way closing the last tab in a browser lands you on a new-tab page. Right-click the only open tab and **Close** is available there too.
+
+## The blank landing screen
+
+Close the last tab and the chat sidebar shows a neutral landing screen — a launcher, not a dead end. Nothing is running; you start a new chat whenever you're ready:
+
+- **Type a prompt and send** — starts a new chat on your default agent and sends the message, just like typing in a normal composer.
+- **Fire a quick prompt** — any quick prompt that matches the note you're on starts a new chat and runs it.
+- **New chat** / **New chat with an agent** — start an empty chat on your default agent, or pick the agent first.
+- **Open session history** — browse your saved chats and reopen any of them in a fresh tab.
+
+Nothing connects on its own — the landing just waits for you. Restart Obsidian while you're on the landing and it comes back to the landing, not a surprise new session.
+
+Changed your mind about closing? The **Reopen closed session tab** command (see [Commands](/usage/commands)) brings back the chat you just closed — including the last one — with its full conversation.
 
 ## Confirm before closing the whole panel
 
