@@ -3375,3 +3375,29 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	margin: 0;
 	color: var(--text-muted);
 }
+
+/* Zero-tab landing — launcher composer + actions (Slice 3). */
+.agent-client-zero-tab-landing-composer {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	width: min(100%, 32rem);
+}
+
+.agent-client-zero-tab-landing-input {
+	width: 100%;
+	resize: vertical;
+	font-family: inherit;
+	padding: var(--size-4-2);
+}
+
+.agent-client-zero-tab-landing-send {
+	align-self: flex-end;
+}
+
+.agent-client-zero-tab-landing-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-4-2);
+	justify-content: center;
+}

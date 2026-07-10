@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Menu, Notice, Scope, type MenuItem } from "obsidian";
+import { ItemView, WorkspaceLeaf, Menu, Notice, Scope, getAllTags, type MenuItem } from "obsidian";
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import { focusActiveTabComposer } from "./composer-focus";
 import type {
@@ -51,6 +51,11 @@ import {
 	buildClosedTabRecord,
 	resolveRestoredLeaf,
 } from "../services/recently-closed-stack";
+import {
+	matchPromptsForNote,
+	resolvePromptText,
+	type NoteMatchContext,
+} from "../services/quick-prompts-logic";
 import type { AcpClient } from "../acp/acp-client";
 import { VIEW_TYPE_CHAT } from "./chat-view-type";
 
@@ -172,6 +177,22 @@ function persistedToRuntime(persisted: PersistedTabInfo[]): TabInfo[] {
 		state: "disconnected",
 		createdAt: new Date(),
 	}));
+}
+
+/**
+ * Build the quick-prompt match context from the workspace's active note, for
+ * the zero-tab landing's quick-prompt chips. No active note → empty context
+ * (only `always show` prompts surface). Read once at render — the landing is
+ * transient, so it does not subscribe to live metadata changes.
+ */
+function buildLandingNoteContext(plugin: AgentClientPlugin): NoteMatchContext {
+	const file = plugin.app.workspace.getActiveFile();
+	if (!file) return { tags: [], frontmatter: null };
+	const cache = plugin.app.metadataCache.getFileCache(file);
+	return {
+		tags: cache ? getAllTags(cache) ?? [] : [],
+		frontmatter: cache?.frontmatter ?? null,
+	};
 }
 
 // ============================================================================
@@ -1013,6 +1034,14 @@ function ChatComponent({
 	// resting screen and hide the tab bar. A restart restores here too, since
 	// useTabManager honors a restored empty tab set (Decision 5).
 	if (tabs.length === 0) {
+		// Quick prompts matched to the active note; both the composer and a
+		// fired chip launch a NEW session via handleOpenInNewTab — a fresh tab
+		// on the default agent, message sent (Decision 4). resolvePromptText
+		// resolves {{selection}} to empty (the landing has no live selection).
+		const landingPrompts = matchPromptsForNote(
+			plugin.quickPromptLibrary.getPrompts(),
+			buildLandingNoteContext(plugin),
+		);
 		return (
 			<div
 				style={{
@@ -1021,7 +1050,23 @@ function ChatComponent({
 					height: "100%",
 				}}
 			>
-				<ZeroTabLanding onNewChat={handleAddTab} />
+				<ZeroTabLanding
+					onSubmitPrompt={(text) =>
+						handleOpenInNewTab(text, {
+							send: true,
+							foreground: true,
+						})
+					}
+					quickPrompts={landingPrompts}
+					onFireQuickPrompt={(prompt) =>
+						handleOpenInNewTab(
+							resolvePromptText(prompt.body, null),
+							{ send: true, foreground: true },
+						)
+					}
+					onNewChat={handleAddTab}
+					onNewChatWithAgent={handleAddTabWithAgent}
+				/>
 			</div>
 		);
 	}
