@@ -1,143 +1,146 @@
 /**
- * ZeroTabLanding — neutral resting screen shown when every tab is closed.
+ * ZeroTabLanding — neutral resting screen shown when every tab is closed AND at
+ * least one agent is detected (the no-agent case renders the shared
+ * GettingStarted shell instead; ChatView gates on detection).
  *
  * Part of "Close Last Tab to Empty State" ([[Agent Console Close Last Tab to
- * Empty State]]). Closing the last tab lands here instead of being blocked.
- * Mirrors a browser's new-tab page: the workspace is never a dead end.
+ * Empty State]]). Mirrors a browser new-tab page: the workspace is never a dead
+ * end. Per the § UX review, this reuses the REAL composer (`InputArea`) as the
+ * launcher — same inline send, `@`-mentions, and `!` quick prompts as a live
+ * tab — rather than a bespoke composer. Typing + send (or firing a quick
+ * prompt) launches a NEW session: a fresh tab on the default agent, message
+ * sent (via `onLaunch` → ChatView's new-tab-and-send path).
  *
- * Slice 3: the landing carries a LIVE launcher composer plus the quick-prompt
- * bar and explicit actions. Typing a prompt and sending — or firing a quick
- * prompt — launches a NEW session (a fresh tab on the default agent, message
- * sent). The composer is intentionally a minimal launcher, NOT the full in-tab
- * composer (which is session-coupled): its only job is to start a chat, after
- * which the spawned tab owns the real, full-featured composer. The composer
- * starts blank (locked design call — no predecessor tab to inherit from).
+ * The composer stays docked at the bottom (its usual position); the center
+ * holds only a secondary "Open session history" affordance — the redundant
+ * New chat / New-chat-with-an-agent buttons were dropped (§ UX review: an empty
+ * New chat is just the composer un-typed; agent choice is folded into the
+ * default-agent launch + the agent-picker command).
  *
- * The no-agent-detected face (install rows) is handled by the spawned tab's
- * first-run panel for now; a landing-level detection split is future work.
- * "Open session history" arrives in Slice 4.
+ * Session-only `InputArea` inputs are inert here: no live session (`lazyState:
+ * "idle"`), empty slash commands, no messages/modes/models/queue/steer, images
+ * off. `@`-mention *context carryover* into the spawned tab is a follow-up;
+ * auto-mention is off so the composer doesn't imply context it won't carry yet.
  */
 
 import * as React from "react";
 const { useState, useCallback } = React;
-import { QuickPromptBar } from "./QuickPromptBar";
+import { InputArea } from "./InputArea";
+import { useSuggestions } from "../hooks/useSuggestions";
+import { resolvePromptText } from "../services/quick-prompts-logic";
 import type { QuickPrompt } from "../types/quick-prompt";
+import type { QuickPromptGesture } from "../services/quick-prompts-logic";
+import type { SlashCommand } from "../types/session";
+import type AgentClientPlugin from "../plugin";
+import type { IChatViewHost } from "./view-host";
+import type { VaultService } from "../services/vault-service";
+
+const NO_COMMANDS: SlashCommand[] = [];
 
 export interface ZeroTabLandingProps {
-	/**
-	 * Launch a new chat from the composer: spawns a tab on the default agent
-	 * and sends `text`. Wired by ChatView to the shared new-tab-and-send path.
-	 */
-	onSubmitPrompt: (text: string) => void;
-	/** Quick prompts matched to the active note (may be empty → no chip row). */
+	plugin: AgentClientPlugin;
+	/** View host (for InputArea event registration). */
+	view: IChatViewHost;
+	/** Vault access for @-mention search inside the composer. */
+	vaultService: VaultService;
+	/** Display name of the default agent (composer placeholder / launch target). */
+	agentLabel: string;
+	/** Default agent id — the agent a launched chat opens on (Decision 4). */
+	agentId: string;
+	/** Quick prompts matched to the active note (InputArea's chip bar + `!`). */
 	quickPrompts: QuickPrompt[];
-	/** Fire a quick prompt: spawns a tab on the default agent and runs it. */
-	onFireQuickPrompt: (prompt: QuickPrompt) => void;
-	/** Start a new chat with the default agent (mirrors the tab bar's "+"). */
-	onNewChat: () => void;
-	/** Open the agent picker to start a new chat with a specific agent. */
-	onNewChatWithAgent: (e: React.MouseEvent) => void;
+	/** Launch a new chat: spawn a tab on the default agent and send `text`. */
+	onLaunch: (text: string) => void;
 	/** Open the session-history modal (Local source) to reopen a past session. */
 	onOpenHistory: () => void;
 }
 
 export function ZeroTabLanding({
-	onSubmitPrompt,
+	plugin,
+	view,
+	vaultService,
+	agentLabel,
+	agentId,
 	quickPrompts,
-	onFireQuickPrompt,
-	onNewChat,
-	onNewChatWithAgent,
+	onLaunch,
 	onOpenHistory,
 }: ZeroTabLandingProps) {
-	const [text, setText] = useState("");
+	const [inputValue, setInputValue] = useState("");
 
-	const submit = useCallback(() => {
-		const trimmed = text.trim();
-		if (trimmed === "") return;
-		onSubmitPrompt(text);
-		setText("");
-	}, [text, onSubmitPrompt]);
+	// Auto-mention OFF on the landing: there's no session to carry the mention
+	// context into yet (carryover is a follow-up), so we don't imply context
+	// the launch won't preserve. `@` search still works; slash commands are
+	// empty (no connected agent).
+	const suggestions = useSuggestions(
+		vaultService,
+		plugin,
+		NO_COMMANDS,
+		false,
+		plugin.quickPromptLibrary,
+	);
 
-	const handleKeyDown = useCallback(
-		(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-			// Enter sends; Shift+Enter inserts a newline. Ignore IME composition.
-			if (
-				e.key === "Enter" &&
-				!e.shiftKey &&
-				!e.nativeEvent.isComposing
-			) {
-				e.preventDefault();
-				submit();
-			}
+	const launch = useCallback(
+		(text: string) => {
+			const trimmed = text.trim();
+			if (trimmed === "") return;
+			onLaunch(text);
+			setInputValue("");
 		},
-		[submit],
+		[onLaunch],
 	);
 
 	return (
 		<div className="agent-client-zero-tab-landing">
-			{/*
-			 * Center: the landing's action set — where a conversation (or the
-			 * getting-started picks) would otherwise render. Closing the last
-			 * tab swaps THIS area, not the composer.
-			 */}
 			<div className="agent-client-zero-tab-landing-center">
 				<p className="agent-client-zero-tab-landing-message">
-					No chat is open. Start a new one:
+					No chat open. Type below to start a new one.
 				</p>
-				<div className="agent-client-zero-tab-landing-actions">
-					<button
-						type="button"
-						className="agent-client-zero-tab-landing-action"
-						onClick={onNewChat}
-					>
-						New chat
-					</button>
-					<button
-						type="button"
-						className="agent-client-zero-tab-landing-action"
-						onClick={onNewChatWithAgent}
-					>
-						New chat with an agent
-					</button>
-					<button
-						type="button"
-						className="agent-client-zero-tab-landing-action"
-						onClick={onOpenHistory}
-					>
-						Open session history
-					</button>
-				</div>
-			</div>
-			{/*
-			 * Bottom dock: quick-prompt chips + composer, kept in the SAME
-			 * position they occupy inside a live tab, so the layout doesn't
-			 * jump when the last tab closes.
-			 */}
-			<QuickPromptBar
-				prompts={quickPrompts}
-				hasPendingQueue={false}
-				onFire={(prompt) => onFireQuickPrompt(prompt)}
-			/>
-			<div className="agent-client-zero-tab-landing-composer">
-				<textarea
-					className="agent-client-zero-tab-landing-input"
-					value={text}
-					placeholder="Send a message to start a new chat…"
-					aria-label="Start a new chat"
-					rows={3}
-					autoFocus
-					onChange={(e) => setText(e.target.value)}
-					onKeyDown={handleKeyDown}
-				/>
 				<button
 					type="button"
-					className="mod-cta agent-client-zero-tab-landing-send"
-					disabled={text.trim() === ""}
-					onClick={submit}
+					className="agent-client-zero-tab-landing-history"
+					onClick={onOpenHistory}
 				>
-					Send
+					Open session history
 				</button>
 			</div>
+			<InputArea
+				isSending={false}
+				isSessionReady={false}
+				lazyState="idle"
+				isRestoringSession={false}
+				agentLabel={agentLabel}
+				availableCommands={NO_COMMANDS}
+				restoredMessage={null}
+				suggestions={suggestions}
+				plugin={plugin}
+				view={view}
+				onSendMessage={async (content) => {
+					launch(content);
+				}}
+				onStopGeneration={async () => {}}
+				onRestoredMessageConsumed={() => {}}
+				supportsImages={false}
+				imageCapabilityKnown={true}
+				agentId={agentId}
+				inputValue={inputValue}
+				onInputChange={setInputValue}
+				attachedFiles={[]}
+				onAttachedFilesChange={() => {}}
+				errorInfo={null}
+				onClearError={() => {}}
+				agentUpdateNotification={null}
+				onClearAgentUpdate={() => {}}
+				messages={[]}
+				isActive={true}
+				quickPromptPrompts={quickPrompts}
+				quickPromptHasPendingQueue={false}
+				hasQuickPrompts={quickPrompts.length > 0}
+				onRunQuickPrompt={(prompt: QuickPrompt, _gesture: QuickPromptGesture) => {
+					// On the landing every fire is a launch (no current session);
+					// gesture collapses to spawn-a-tab-and-send the resolved text.
+					launch(resolvePromptText(prompt.body, null));
+				}}
+			/>
 		</div>
 	);
 }

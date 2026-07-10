@@ -56,7 +56,6 @@ import {
 } from "../services/recently-closed-stack";
 import {
 	matchPromptsForNote,
-	resolvePromptText,
 	type NoteMatchContext,
 } from "../services/quick-prompts-logic";
 import type { AcpClient } from "../acp/acp-client";
@@ -1116,21 +1115,27 @@ function ChatComponent({
 			>
 				{hasDetectedAgent ? (
 					<ZeroTabLanding
-						onSubmitPrompt={(text) =>
+						plugin={plugin}
+						view={view}
+						vaultService={vaultService}
+						agentLabel={
+							plugin
+								.getAvailableAgents()
+								.find(
+									(a) =>
+										a.id ===
+										plugin.settings.defaultAgentId,
+								)?.displayName ??
+							plugin.settings.defaultAgentId
+						}
+						agentId={plugin.settings.defaultAgentId}
+						quickPrompts={landingPrompts}
+						onLaunch={(text) =>
 							handleOpenInNewTab(text, {
 								send: true,
 								foreground: true,
 							})
 						}
-						quickPrompts={landingPrompts}
-						onFireQuickPrompt={(prompt) =>
-							handleOpenInNewTab(
-								resolvePromptText(prompt.body, null),
-								{ send: true, foreground: true },
-							)
-						}
-						onNewChat={handleAddTab}
-						onNewChatWithAgent={handleAddTabWithAgent}
 						onOpenHistory={landingHistory.openLandingHistory}
 					/>
 				) : (
