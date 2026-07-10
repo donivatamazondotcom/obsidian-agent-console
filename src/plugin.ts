@@ -460,16 +460,27 @@ export default class AgentClientPlugin extends Plugin {
 		this.settingsService = createSettingsService(this.settings, this);
 
 		// Quick Prompts library — scan + watch the configured folder. Created
-		// before registerView so any ChatPanel that mounts can read it. The
-		// initial scan is async (reads note bodies); prompts populate shortly
-		// after and the watch keeps them live.
+		// before registerView so any ChatPanel that mounts can read it (it
+		// starts empty and populates via the subscribe/notify path once the
+		// initial scan runs).
 		this.quickPromptLibrary = new QuickPromptLibrary(
 			new VaultQuickPromptSource(
 				this,
 				() => this.settings.quickPromptsFolder,
 			),
 		);
-		void this.quickPromptLibrary.init();
+		// QP-I27: defer the initial scan + watcher subscription to
+		// onLayoutReady so the metadata cache is populated before the first
+		// scan (a scan at onload reads not-yet-cached frontmatter as null →
+		// filename-fallback labels + lost `open in new tab`) and to skip the
+		// create-on-load event storm (vault "create" fires for every existing
+		// file during load — see docs.obsidian.md .../Vault/on('create')). The
+		// source additionally reconciles on the first metadataCache "resolved"
+		// as a safety net if the cache resolves after layout-ready. Runs
+		// immediately if layout is already ready (warm plugin enable).
+		this.app.workspace.onLayoutReady(() => {
+			void this.quickPromptLibrary.init();
+		});
 
 		// One-time migration of session files from the legacy
 		// `agent-client` plugin dir into this plugin's own dir (I68).

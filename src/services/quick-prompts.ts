@@ -184,15 +184,41 @@ export class VaultQuickPromptSource implements QuickPromptSource {
 				}
 			}),
 		);
-		// Frontmatter edits land in the metadata cache; reconcile so label/tags
-		// stay current even when the body did not change.
-		const metaRef = this.plugin.app.metadataCache.on("changed", (file) => {
-			if (file instanceof TFile && inFolder(file.path)) cb();
-		});
+		// Frontmatter edits during the session land in the metadata cache as a
+		// per-file "changed" event; reconcile so label/tags stay current even
+		// when the body did not change. NOTE: "changed" does NOT fire on cold
+		// start for files loaded from the persisted cache (obsidian.d.ts:
+		// "changed" fires when a file is *indexed*; the Tasks plugin's Cache.ts
+		// documents "Does not fire when starting up obsidian and only works for
+		// changes"), so it cannot correct a startup filename-fallback entry on
+		// its own — see the "resolved" handler below (QP-I27).
+		const metadataCache = this.plugin.app.metadataCache;
+		const metaRefs: EventRef[] = [];
+		metaRefs.push(
+			metadataCache.on("changed", (file) => {
+				if (file instanceof TFile && inFolder(file.path)) cb();
+			}),
+		);
+		// Cold-start reconcile (QP-I27, residual of QP-I26): the initial scan
+		// can read a not-yet-cached file's frontmatter as null → filename-
+		// fallback label + lost `open in new tab`, and "changed" never fires for
+		// that (unchanged) file. "resolved" fires once the whole metadata cache
+		// has loaded — the same signal the Tasks plugin loads its vault from —
+		// so a single reconcile then reads the real frontmatter. One-shot: after
+		// the first "resolved", the folder-scoped "changed" handler owns live
+		// edits, so we do not rescan on every subsequent vault-wide "resolved".
+		let reconciledOnResolved = false;
+		metaRefs.push(
+			metadataCache.on("resolved", () => {
+				if (reconciledOnResolved) return;
+				reconciledOnResolved = true;
+				cb();
+			}),
+		);
 
 		return () => {
 			for (const ref of refs) vault.offref(ref);
-			this.plugin.app.metadataCache.offref(metaRef);
+			for (const ref of metaRefs) metadataCache.offref(ref);
 		};
 	}
 }
