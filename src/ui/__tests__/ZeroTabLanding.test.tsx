@@ -63,6 +63,7 @@ function makeProps(overrides: Partial<React.ComponentProps<typeof ZeroTabLanding
 		quickPrompts: [] as QuickPrompt[],
 		onLaunch: vi.fn(),
 		onOpenHistory: vi.fn(),
+		onNewChatWithAgent: vi.fn(),
 		...overrides,
 	};
 }
@@ -113,14 +114,16 @@ describe("ZeroTabLanding — InputArea launcher wiring", () => {
 		expect(props.onLaunch).toHaveBeenCalledWith("Summarize this note");
 	});
 
-	it("wires the secondary Open session history", () => {
+	it("wires New chat with an agent and Open session history", () => {
 		const props = makeProps();
 		const { container } = render(<ZeroTabLanding {...props} />);
-		const btn = container.querySelector(
-			".agent-client-zero-tab-landing-history",
-		) as HTMLButtonElement | null;
-		expect(btn).not.toBeNull();
-		btn!.click();
+		const actions = container.querySelectorAll(
+			".agent-client-zero-tab-landing-action",
+		);
+		expect(actions.length).toBe(2);
+		(actions[0] as HTMLButtonElement).click();
+		expect(props.onNewChatWithAgent).toHaveBeenCalledTimes(1);
+		(actions[1] as HTMLButtonElement).click();
 		expect(props.onOpenHistory).toHaveBeenCalledTimes(1);
 	});
 });

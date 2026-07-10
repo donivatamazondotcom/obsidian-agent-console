@@ -1136,6 +1136,7 @@ function ChatComponent({
 								foreground: true,
 							})
 						}
+						onNewChatWithAgent={handleAddTabWithAgent}
 						onOpenHistory={landingHistory.openLandingHistory}
 					/>
 				) : (

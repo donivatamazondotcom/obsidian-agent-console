@@ -3352,11 +3352,11 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	margin-bottom: var(--size-4-3);
 }
 
-/* Zero-tab landing — the neutral screen shown when every tab is closed.
-   Mirrors a live tab's layout: the composer + quick-prompt chips stay docked
-   at the BOTTOM (their usual position), and the center area — where a
-   conversation would be — holds the action set. Closing the last tab swaps the
-   center, not the composer. */
+/* Zero-tab landing — the neutral screen shown when every tab is closed and an
+   agent is available (the no-agent case renders the shared getting-started
+   shell). The composer stays docked at the BOTTOM (its usual tab position);
+   the center block (message + actions) sits on the UPPER-THIRD line per the
+   rule-of-thirds composition tenet — a ::before/::after flex 1:2 spacer pair. */
 .agent-client-zero-tab-landing {
 	display: flex;
 	flex-direction: column;
@@ -3366,14 +3366,28 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .agent-client-zero-tab-landing-center {
 	flex: 1;
 	min-height: 0;
-	overflow-y: auto;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	justify-content: flex-start;
-	gap: var(--size-4-2);
+}
+
+/* Rule of thirds: 1 unit of space above, 2 below → content on the upper third. */
+.agent-client-zero-tab-landing-center::before {
+	content: "";
+	flex: 1;
+}
+.agent-client-zero-tab-landing-center::after {
+	content: "";
+	flex: 2;
+}
+
+.agent-client-zero-tab-landing-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--size-4-3);
 	text-align: center;
-	padding: 24px 16px 0;
+	padding: 0 16px;
 }
 
 .agent-client-zero-tab-landing-message {
@@ -3383,24 +3397,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 
 .agent-client-zero-tab-landing-actions {
 	display: flex;
-	flex-wrap: wrap;
-	gap: var(--size-4-2);
-	justify-content: center;
-}
-
-.agent-client-zero-tab-landing-composer {
-	display: flex;
 	flex-direction: column;
 	gap: var(--size-4-2);
-}
-
-.agent-client-zero-tab-landing-input {
-	width: 100%;
-	resize: vertical;
-	font-family: inherit;
-	padding: var(--size-4-2);
-}
-
-.agent-client-zero-tab-landing-send {
-	align-self: flex-end;
+	align-items: center;
 }

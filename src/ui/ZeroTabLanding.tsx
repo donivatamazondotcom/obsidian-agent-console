@@ -53,6 +53,8 @@ export interface ZeroTabLandingProps {
 	onLaunch: (text: string) => void;
 	/** Open the session-history modal (Local source) to reopen a past session. */
 	onOpenHistory: () => void;
+	/** Open the agent picker to start a new chat with a chosen agent (fresh tab). */
+	onNewChatWithAgent: (e: React.MouseEvent) => void;
 }
 
 export function ZeroTabLanding({
@@ -64,6 +66,7 @@ export function ZeroTabLanding({
 	quickPrompts,
 	onLaunch,
 	onOpenHistory,
+	onNewChatWithAgent,
 }: ZeroTabLandingProps) {
 	const [inputValue, setInputValue] = useState("");
 
@@ -92,16 +95,27 @@ export function ZeroTabLanding({
 	return (
 		<div className="agent-client-zero-tab-landing">
 			<div className="agent-client-zero-tab-landing-center">
-				<p className="agent-client-zero-tab-landing-message">
-					No chat open. Type below to start a new one.
-				</p>
-				<button
-					type="button"
-					className="agent-client-zero-tab-landing-history"
-					onClick={onOpenHistory}
-				>
-					Open session history
-				</button>
+				<div className="agent-client-zero-tab-landing-content">
+					<p className="agent-client-zero-tab-landing-message">
+						No chat open. Type below to start a new one.
+					</p>
+					<div className="agent-client-zero-tab-landing-actions">
+						<button
+							type="button"
+							className="agent-client-zero-tab-landing-action"
+							onClick={onNewChatWithAgent}
+						>
+							New chat with an agent
+						</button>
+						<button
+							type="button"
+							className="agent-client-zero-tab-landing-action"
+							onClick={onOpenHistory}
+						>
+							Open session history
+						</button>
+					</div>
+				</div>
 			</div>
 			<InputArea
 				isSending={false}
