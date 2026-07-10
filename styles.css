@@ -3361,8 +3361,6 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	display: flex;
 	flex-direction: column;
 	height: 100%;
-	padding: var(--size-4-4);
-	gap: var(--size-4-2);
 }
 
 .agent-client-zero-tab-landing-center {
