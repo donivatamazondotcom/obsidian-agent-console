@@ -168,6 +168,41 @@ describe("decideComposerEnterAction (T1, T13, Q2)", () => {
 	});
 });
 
+
+describe("decideComposerEnterAction — landing launcher (send-bug reproduce-first)", () => {
+	// The zero-tab landing composer is a LAUNCHER: isSessionReady is false (no
+	// session), but Enter must LAUNCH a new tab, not queue for a session that
+	// will never connect. Before the fix, !isSessionReady routed to "queue" and
+	// the landing has no onQueueMessage handler → silent no-op ("Send doesn't
+	// work after typing"). deriveComposerAffordances sendMode:"launch" →
+	// launches:true.
+	const landing = {
+		isStreaming: false,
+		isSessionReady: false,
+		isButtonDisabled: false,
+		isQueued: false,
+		hasContent: true,
+		launches: true,
+	};
+
+	it("sends (launches) when not ready but the composer is a launcher", () => {
+		expect(decideComposerEnterAction(landing)).toBe("send");
+	});
+
+	it("still queues for an in-tab connecting session (launches falsy)", () => {
+		// Regression guard: the in-tab lazy send-while-connecting path is
+		// unchanged — not-ready + not-a-launcher still queues.
+		expect(
+			decideComposerEnterAction({ ...landing, launches: false }),
+		).toBe("queue");
+	});
+
+	it("empty launcher composer does nothing", () => {
+		expect(
+			decideComposerEnterAction({ ...landing, hasContent: false }),
+		).toBe("none");
+	});
+});
 describe("buildQueuedBanner (Q2)", () => {
 	it("streaming (ready): sends when the agent is done", () => {
 		expect(

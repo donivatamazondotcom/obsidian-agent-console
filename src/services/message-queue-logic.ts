@@ -51,6 +51,14 @@ export function decideComposerEnterAction(params: {
 	hasContent: boolean;
 	/** The steer gesture (mode-aware, see {@link isSteerGesture}) was pressed. */
 	steerRequested?: boolean;
+	/**
+	 * The composer is a LAUNCHER (zero-tab landing): the send target is a
+	 * new-tab launch, not this session (deriveComposerAffordances
+	 * sendMode:"launch"). When true, `!isSessionReady` must NOT route to queue —
+	 * there is no session to connect/flush; Enter dispatches (→ launch).
+	 * Defaults to false (in-tab composer).
+	 */
+	launches?: boolean;
 }): ComposerEnterAction {
 	if (params.isQueued || !params.hasContent) return "none";
 	// Steer beats queue while a live turn is in flight: the user deliberately
@@ -61,7 +69,11 @@ export function decideComposerEnterAction(params: {
 	// (connecting/idle acquisition) — both are "the message can't dispatch
 	// right now, hold it as the one pending message" (#82 Decision 9). The
 	// composer locks; the message flushes on turn-end or on connect.
-	if (params.isStreaming || !params.isSessionReady) return "queue";
+	// EXCEPT a launcher composer (zero-tab landing): "not ready" there means
+	// "no session to connect/flush" — Enter must dispatch (→ launch), not queue
+	// into a dead handler. sendMode:"launch" → launches:true.
+	if (params.isStreaming || (!params.isSessionReady && !params.launches))
+		return "queue";
 	if (params.isButtonDisabled) return "none";
 	return "send";
 }

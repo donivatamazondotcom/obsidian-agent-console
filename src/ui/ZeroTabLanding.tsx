@@ -28,6 +28,7 @@ const { useState, useCallback } = React;
 import { InputArea } from "./InputArea";
 import { useSuggestions } from "../hooks/useSuggestions";
 import { resolvePromptText } from "../services/quick-prompts-logic";
+import { deriveComposerAffordances } from "../resolvers/composer-affordances";
 import type { QuickPrompt } from "../types/quick-prompt";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import type { SlashCommand } from "../types/session";
@@ -72,6 +73,18 @@ export function ZeroTabLanding({
 	showAgentPicker,
 }: ZeroTabLandingProps) {
 	const [inputValue, setInputValue] = useState("");
+
+	// The landing composer's behavior is resolved ONCE by the shared composer
+	// resolver so the landing and in-tab composers cannot drift. On the landing
+	// the send TARGET is a new-tab launch (sendMode:"launch"); that resolved
+	// `launches` flag is what makes Enter dispatch instead of dead-queueing
+	// (I169). Attachments/selectors resolve off here (no live session yet);
+	// context-carry is a follow-up.
+	const composerAffordances = deriveComposerAffordances({
+		surface: "landing",
+		capabilities: { supportsImages: false, hasConfigSelectors: false },
+		hasQuickPrompts: quickPrompts.length > 0,
+	});
 
 	// Auto-mention OFF on the landing: there's no session to carry the mention
 	// context into yet (carryover is a follow-up), so we don't imply context
@@ -126,6 +139,7 @@ export function ZeroTabLanding({
 				isSending={false}
 				isSessionReady={false}
 				lazyState="idle"
+				launches={composerAffordances.sendMode === "launch"}
 				isRestoringSession={false}
 				agentLabel={agentLabel}
 				availableCommands={NO_COMMANDS}

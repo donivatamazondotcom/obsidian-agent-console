@@ -80,6 +80,16 @@ describe("ZeroTabLanding — InputArea launcher wiring", () => {
 		expect(h.props!.lazyState).toBe("idle");
 	});
 
+	it("threads launches from deriveComposerAffordances (landing sendMode:launch)", () => {
+		// The landing READS the shared composer resolver; surface:"landing"
+		// resolves sendMode:"launch", so InputArea receives launches:true. That
+		// is the wiring that makes Enter dispatch a launch instead of
+		// dead-queueing on a launcher composer (I169). Pins Seam A: resolver →
+		// InputArea prop.
+		render(<ZeroTabLanding {...makeProps()} />);
+		expect(h.props!.launches).toBe(true);
+	});
+
 	it("send launches with the content; whitespace is a no-op", async () => {
 		const props = makeProps();
 		render(<ZeroTabLanding {...props} />);
