@@ -55,6 +55,8 @@ export interface ZeroTabLandingProps {
 	onOpenHistory: () => void;
 	/** Open the agent picker to start a new chat with a chosen agent (fresh tab). */
 	onNewChatWithAgent: (e: React.MouseEvent) => void;
+	/** Whether to show the picker at all (deriveAgentPickerOptions.show — >1 choice). */
+	showAgentPicker: boolean;
 }
 
 export function ZeroTabLanding({
@@ -67,6 +69,7 @@ export function ZeroTabLanding({
 	onLaunch,
 	onOpenHistory,
 	onNewChatWithAgent,
+	showAgentPicker,
 }: ZeroTabLandingProps) {
 	const [inputValue, setInputValue] = useState("");
 
@@ -100,13 +103,15 @@ export function ZeroTabLanding({
 						No chat open. Type below to start a new one.
 					</p>
 					<div className="agent-client-zero-tab-landing-actions">
-						<button
-							type="button"
-							className="agent-client-zero-tab-landing-action"
-							onClick={onNewChatWithAgent}
-						>
-							New chat with an agent
-						</button>
+						{showAgentPicker && (
+							<button
+								type="button"
+								className="agent-client-zero-tab-landing-action"
+								onClick={onNewChatWithAgent}
+							>
+								New chat with an agent
+							</button>
+						)}
 						<button
 							type="button"
 							className="agent-client-zero-tab-landing-action"

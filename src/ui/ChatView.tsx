@@ -40,6 +40,7 @@ import { useRecentlyClosedTabs } from "../hooks/useRecentlyClosedTabs";
 import { useLandingHistoryModal } from "../hooks/useLandingHistoryModal";
 import { GettingStarted, type GettingStartedInfo } from "./MessageList";
 import { installAgent } from "../services/agent-installer";
+import { deriveAgentPickerOptions } from "../resolvers/agent-picker-options";
 import { resolveInitialAgentId } from "../resolvers/resolveInitialAgentId";
 import {
 	resolveSeededMessages,
@@ -996,6 +997,37 @@ function ChatComponent({
 		};
 	}, [landingDetectedAgentIds, plugin, tabManager]);
 
+	// Landing "New chat with an agent" — resolver-gated (detected agents only,
+	// default-marked, shown only on a real choice). The decision lives in
+	// deriveAgentPickerOptions; this only renders its options as a menu.
+	const handleLandingAddTabWithAgent = useCallback(
+		(e: React.MouseEvent) => {
+			e.preventDefault();
+			const picker = deriveAgentPickerOptions({
+				available: plugin.getAvailableAgents(),
+				detected: landingDetectedAgentIds,
+				defaultAgentId: plugin.settings.defaultAgentId,
+			});
+			const menu = new Menu();
+			registerOpenMenu(menu);
+			for (const opt of picker.options) {
+				menu.addItem((item: MenuItem) => {
+					item
+						.setTitle(
+							opt.isDefault
+								? `${opt.displayName} (default)`
+								: opt.displayName,
+						)
+						.onClick(() => {
+							tabManager.addTab(opt.id);
+						});
+				});
+			}
+			showMenuAtEvent(menu, e);
+		},
+		[plugin, landingDetectedAgentIds, tabManager],
+	);
+
 	// ============================================================
 	// Register callbacks for IChatViewContainer (active tab only)
 	// (activeCallbacksRef / tabHandlesRef are declared earlier so
@@ -1105,6 +1137,11 @@ function ChatComponent({
 			plugin.quickPromptLibrary.getPrompts(),
 			buildLandingNoteContext(plugin),
 		);
+		const agentPicker = deriveAgentPickerOptions({
+			available: plugin.getAvailableAgents(),
+			detected: landingDetectedAgentIds,
+			defaultAgentId: plugin.settings.defaultAgentId,
+		});
 		return (
 			<div
 				style={{
@@ -1136,7 +1173,8 @@ function ChatComponent({
 								foreground: true,
 							})
 						}
-						onNewChatWithAgent={handleAddTabWithAgent}
+						showAgentPicker={agentPicker.show}
+						onNewChatWithAgent={handleLandingAddTabWithAgent}
 						onOpenHistory={landingHistory.openLandingHistory}
 					/>
 				) : (

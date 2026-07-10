@@ -64,6 +64,7 @@ function makeProps(overrides: Partial<React.ComponentProps<typeof ZeroTabLanding
 		onLaunch: vi.fn(),
 		onOpenHistory: vi.fn(),
 		onNewChatWithAgent: vi.fn(),
+		showAgentPicker: true,
 		...overrides,
 	};
 }
@@ -125,5 +126,17 @@ describe("ZeroTabLanding — InputArea launcher wiring", () => {
 		expect(props.onNewChatWithAgent).toHaveBeenCalledTimes(1);
 		(actions[1] as HTMLButtonElement).click();
 		expect(props.onOpenHistory).toHaveBeenCalledTimes(1);
+	});
+
+	it("hides New chat with an agent when the picker has no real choice", () => {
+		const props = makeProps({ showAgentPicker: false });
+		const { container } = render(<ZeroTabLanding {...props} />);
+		const actions = container.querySelectorAll(
+			".agent-client-zero-tab-landing-action",
+		);
+		expect(actions.length).toBe(1); // only Open session history
+		(actions[0] as HTMLButtonElement).click();
+		expect(props.onOpenHistory).toHaveBeenCalledTimes(1);
+		expect(props.onNewChatWithAgent).not.toHaveBeenCalled();
 	});
 });
