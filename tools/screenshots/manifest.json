@@ -945,9 +945,9 @@
 		},
 		{
 			"name": "mid-stream-steering",
-			"pending": true,
+			"pending": false,
 			"width": 696,
-			"height": 469,
+			"height": 380,
 			"crop": {
 				"x": 0,
 				"y": 0,
@@ -956,22 +956,20 @@
 			},
 			"cropPadding": 16,
 			"cropSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-box",
-			"initialState": {
-				"openNote": "Welcome.md",
-				"clickRibbon": true,
-				"forceConnectingHold": true
-			},
 			"approvalThreshold": 0.05,
 			"placement": "feature",
-			"purpose": "Redirect the agent mid-reply — one keypress stops the current reply and sends your message instead of waiting for the turn to finish.",
-			"differentiator": "Mid-stream steering (v2.1.0)",
+			"purpose": "While the agent streams a reply, the composer teaches both moves — press Enter to queue your next message, or Mod+Enter to stop the reply and send it right now.",
+			"differentiator": "Queue & steer while streaming (v2.1.0)",
 			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-box",
-			"caption": "Redirect the agent the moment it goes sideways",
-			"altText": "Agent Console composer while the agent is replying, showing the hint to press Enter to queue or Mod+Enter to send now",
+			"caption": "Redirect the agent while it's still replying",
+			"altText": "Agent Console composer while the agent streams a reply, showing the hint: Enter to queue, Mod+Enter to send now",
 			"docPage": "docs/usage/queue-and-steering.md",
-			"captureNote": "v2.1.0. PENDING — capture the streaming composer showing the queue/steer keybinding hint (empty composer while streaming), or the steering banner. Confirm the selector + final dims at capture; requires driving a session into streaming state.",
 			"promptFile": "mid-stream-steering.txt",
-			"awaitSelector": ".agent-client-chat-input-box"
+			"awaitSelector": ".agent-client-loading-indicator:not(.agent-client-hidden)",
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			}
 		},
 		{
 			"name": "shared-links-bubble",
@@ -1398,9 +1396,9 @@
 		},
 		{
 			"name": "zero-tab-landing",
-			"pending": true,
-			"width": 760,
-			"height": 620,
+			"pending": false,
+			"width": 712,
+			"height": 1520,
 			"crop": {
 				"x": 0,
 				"y": 0,
@@ -1411,7 +1409,9 @@
 			"cropPadding": 16,
 			"initialState": {
 				"openNote": "Welcome.md",
-				"clickRibbon": true
+				"clickRibbon": true,
+				"clickSelector": ".agent-client-tab-close",
+				"waitSelector": ".agent-client-zero-tab-landing"
 			},
 			"approvalThreshold": 0.05,
 			"minDistinctColors": 300,
@@ -1421,29 +1421,34 @@
 			"mustShow": ".agent-client-zero-tab-landing",
 			"caption": "Close everything to a blank slate",
 			"altText": "Agent Console zero-tab landing: a launcher composer, quick-prompt chips, and New chat / with an agent / Open session history actions",
-			"docPage": "docs/usage/tabbed-sessions.md",
-			"captureNote": "Close all tabs (or start with none) so ChatView renders ZeroTabLanding; crop .agent-client-zero-tab-landing. Confirm final dims at capture. Registered pending 2026-07-09."
+			"docPage": "docs/usage/tabbed-sessions.md"
 		},
 		{
 			"name": "opencode-builtin",
-			"pending": true,
-			"width": 720,
-			"height": 420,
+			"pending": false,
+			"width": 1632,
+			"height": 1264,
 			"cropPadding": 12,
-			"cropSelector": ".vertical-tab-content details.agent-client-agent-section",
+			"cropSelector": "[data-agent-id=\"opencode-acp\"][open]",
 			"initialState": {
 				"openNote": "Welcome.md",
-				"openSettings": "agent-console"
+				"openSettings": "agent-console",
+				"scrollToSettingText": "OpenCode"
 			},
 			"approvalThreshold": 0.05,
 			"placement": "feature",
 			"purpose": "OpenCode is a built-in agent — a link-only setup like Kiro CLI, and the way to run Agent Console offline against a local model.",
 			"differentiator": "OpenCode built-in (v2.1.0)",
-			"mustShow": ".vertical-tab-content details.agent-client-agent-section",
+			"mustShow": "[data-agent-id=\"opencode-acp\"][open]",
 			"caption": "OpenCode, built in",
 			"altText": "Agent Console settings showing the OpenCode built-in agent section with Path and Arguments fields",
 			"docPage": "docs/agent-setup/opencode.md",
-			"captureNote": "v2.1.0. PENDING — capture the OpenCode built-in section in Settings (open the OpenCode accordion), or the first-run empty state listing OpenCode. Confirm the section nth-of-type selector + final dims at capture."
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 780,
+				"height": 600
+			}
 		}
 	]
 }

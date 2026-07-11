@@ -1,1 +1,1 @@
-Actually, stop — refactor the auth module first before touching the UI
+List the numbers from 1 to 120, each on its own line, with a short word describing the number after it (e.g. "1 - one"). No preamble, just the list.

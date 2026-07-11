@@ -101,6 +101,11 @@ Nothing connects on its own — the landing just waits for you. Restart Obsidian
 
 Changed your mind about closing? The **Reopen closed session tab** command (see [Commands](/usage/commands)) brings back the chat you just closed — including the last one — with its full conversation.
 
+<p align="center">
+  <img src="/images/zero-tab-landing.webp" alt="Agent Console zero-tab landing: a launcher composer, quick-prompt chips, and New chat / with an agent / Open session history actions" />
+</p>
+
+
 ## Confirm before closing the whole panel
 
 Closing a single tab is easy to undo, but closing the **whole panel** — `Cmd/Ctrl + W` while the panel is focused — tears down every open chat at once, including any agents still running. To prevent losing several sessions to one accidental keystroke, Agent Console asks first:

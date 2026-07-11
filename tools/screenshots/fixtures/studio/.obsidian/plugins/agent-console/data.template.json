@@ -7,8 +7,16 @@
     "args": [],
     "env": [
       {
+        "key": "CLAUDE_CODE_USE_BEDROCK",
+        "value": "1"
+      },
+      {
         "key": "CLAUDE_CODE_EXECUTABLE",
         "value": "claude"
+      },
+      {
+        "key": "AWS_REGION",
+        "value": "us-west-2"
       }
     ]
   },
