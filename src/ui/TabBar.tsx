@@ -271,15 +271,18 @@ export function TabBar({
 				});
 			});
 
-			if (tabs.length > 1) {
-				menu.addSeparator();
+			menu.addSeparator();
 
-				menu.addItem((item: MenuItem) => {
-					item.setTitle("Close").setIcon("x").onClick(() => {
-						onCloseTab(tab.tabId);
-					});
+			// Close is always available — closing the last tab lands on the
+			// zero-tab landing screen (reverses T06/T41/I23 for this path).
+			menu.addItem((item: MenuItem) => {
+				item.setTitle("Close").setIcon("x").onClick(() => {
+					onCloseTab(tab.tabId);
 				});
+			});
 
+			// "Close others" / "Close to the right" only apply with >1 tab.
+			if (tabs.length > 1) {
 				menu.addItem((item: MenuItem) => {
 					item.setTitle("Close others").onClick(() => {
 						onCloseOtherTabs(tab.tabId);

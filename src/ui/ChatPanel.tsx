@@ -106,6 +106,10 @@ import { ContextStrip } from "./ContextStrip";
 import { focusComposerAtEnd } from "./composer-focus";
 import { createQuickPromptBridge } from "./quick-prompt-bridge";
 import { computeProvisionalPath } from "../utils/provisional-context";
+import {
+	deriveComposerAffordances,
+	composerCapabilitiesFromSession,
+} from "../resolvers/composer-affordances";
 import type { IChatViewHost } from "./view-host";
 
 // ============================================================================
@@ -2631,11 +2635,25 @@ export function ChatPanel({
 		</div>
 	) : null;
 
+	// Slice 3: the in-tab composer reads the SAME deriveComposerAffordances
+	// the zero-tab landing does, so the two surfaces cannot drift. For a tab
+	// it resolves to session-send (launches:false), in-session quick prompts,
+	// and session context; attachments/selectors follow the session's
+	// capabilities. InputToolbar keeps its fine per-selector (>1) gating, so
+	// showConfigSelectors is the coarse "offer selectors at all" signal and
+	// this stays byte-identical.
+	const composerAffordances = deriveComposerAffordances({
+		surface: "tab",
+		capabilities: composerCapabilitiesFromSession(session),
+		hasQuickPrompts: quickPrompts.prompts.length > 0,
+	});
+
 	const inputAreaElement = (
 		<InputArea
 			isSending={isSending}
 			isSessionReady={isSessionReady}
 			lazyState={lazySession.state}
+			launches={composerAffordances.sendMode === "launch"}
 			isRestoringSession={sessionHistory.loading}
 			agentLabel={activeAgentLabel}
 			availableCommands={session.availableCommands || []}
@@ -2662,23 +2680,35 @@ export function ChatPanel({
 			// Mid-Stream Steering (#81)
 			isSteering={queue.isSteering}
 			onSteerMessage={handleSteerMessage}
-			modes={session.modes}
+			modes={
+				composerAffordances.showConfigSelectors
+					? session.modes
+					: undefined
+			}
 			onModeChange={(modeId) => {
 				void handleSetMode(modeId);
 				focusAfter("set-mode");
 			}}
-			models={session.models}
+			models={
+				composerAffordances.showConfigSelectors
+					? session.models
+					: undefined
+			}
 			onModelChange={(modelId) => {
 				void handleSetModel(modelId);
 				focusAfter("set-model");
 			}}
-			configOptions={session.configOptions}
+			configOptions={
+				composerAffordances.showConfigSelectors
+					? session.configOptions
+					: undefined
+			}
 			onConfigOptionChange={(configId, value) => {
 				void handleSetConfigOption(configId, value);
 				focusAfter("set-config-option");
 			}}
 			usage={session.usage}
-			supportsImages={session.promptCapabilities?.image ?? false}
+			supportsImages={composerAffordances.showAttachments}
 			imageCapabilityKnown={session.promptCapabilities !== undefined}
 			agentId={session.agentId}
 			// Controlled component props (for broadcast commands)

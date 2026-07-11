@@ -101,6 +101,7 @@ src/
 │   ├── useSessionSearch.ts      # Session search state: query debounce + lazy content index
 │   ├── useChatActions.ts        # Business callbacks (send, newChat, export, restart, etc.)
 │   ├── useHistoryModal.ts       # Session history modal lifecycle
+│   ├── useLandingHistoryModal.ts # View-level Local-only session-history modal opener for the zero-tab landing (no ChatPanel host); restore/fork route through openSessionInTab
 │   ├── useComposerFocusReturn.ts # Return focus to composer after in-panel state changes (guarded by composer-cluster focus)
 │   ├── useSettings.ts           # Settings subscription (useSyncExternalStore)
 │   ├── useRecentlyClosedTabs.ts # F13 undo-close: per-leaf in-memory recently-closed stack
@@ -122,6 +123,7 @@ src/
 │   ├── chat-view-type.ts        # I157: namespaced "agent-console-chat-view" view-type constant (avoids collision with upstream Agent Client)
 │   ├── TabBar.tsx               # Tab bar UI for parallel agent sessions (drag-reorder, +button, status icons)
 │   ├── TabErrorBoundary.tsx     # Per-tab React error boundary with Retry
+│   ├── ZeroTabLanding.tsx       # Zero-tab landing screen shown when every tab is closed (minimal placeholder in Slice 1; reason-tagged empty-state shell in Slice 2)
 │   ├── ChatHeader.tsx           # Header (sidebar chat view)
 │   ├── MessageList.tsx          # Message list (native browser scroll, content-visibility:auto for off-screen render skipping)
 │   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button)
@@ -189,6 +191,9 @@ src/
 │   ├── send-affordance.ts       # Pure send-enablement resolver (deriveSendAffordance → canSend/buttonDisabled/reason) + isSessionLive; single source for ChatPanel/InputArea/InputToolbar/MessageList/broadcast
 │   ├── header-slot.ts           # deriveHeaderSlot — pure 4-way header secondary-slot resolver (model / connecting / idle / none)
 │   ├── session-history-view.ts  # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source) → listSource/agentViewAvailable/showFilters/restore/fork/banner); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
+│   ├── empty-state-view.ts      # deriveEmptyStateView — pure empty-state affordance resolver (location × hasDetectedAgent → reason + redetect/installRows/agentPicks/landingActions/settings/hint); shared by GettingStarted (in-tab) and the zero-tab landing so the two can't drift
+│   ├── agent-picker-options.ts  # deriveAgentPickerOptions — pure landing agent-picker resolver (detection-gated, default-first, shown only on a real choice)
+│   ├── composer-affordances.ts  # deriveComposerAffordances — pure composer send-target + control-composition resolver (surface × composer-caps × hasQuickPrompts → sendMode/quickPromptFire/context/showAttachments/showConfigSelectors); connection-state-independent (does NOT read lazyState); shared by the landing + in-tab composer so they can't drift; layers with deriveSendAffordance (enablement) — no overlap
 │   ├── format-session-title.ts  # Pure display-formatter for session-history titles (renders markdown links/wikilinks to readable text, collapses whitespace; no truncation — CSS owns width); used by SessionHistoryModal, carries into HistoryRow
 │   ├── folder-picker.ts         # Shared Electron native folder picker (modal + settings Browse)
 │   ├── working-directory.ts     # Resolve/validate the default working directory for new chats

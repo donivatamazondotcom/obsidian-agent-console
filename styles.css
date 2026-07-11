@@ -3351,3 +3351,53 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	width: 100%;
 	margin-bottom: var(--size-4-3);
 }
+
+/* Zero-tab landing — the neutral screen shown when every tab is closed and an
+   agent is available (the no-agent case renders the shared getting-started
+   shell). The composer stays docked at the BOTTOM (its usual tab position);
+   the center block (message + actions) sits on the UPPER-THIRD line per the
+   rule-of-thirds composition tenet — a ::before/::after flex 1:2 spacer pair. */
+.agent-client-zero-tab-landing {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.agent-client-zero-tab-landing-center {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+/* Rule of thirds: 1 unit of space above, 2 below → content on the upper third. */
+.agent-client-zero-tab-landing-center::before {
+	content: "";
+	flex: 1;
+}
+.agent-client-zero-tab-landing-center::after {
+	content: "";
+	flex: 2;
+}
+
+.agent-client-zero-tab-landing-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--size-4-3);
+	text-align: center;
+	padding: 0 16px;
+}
+
+.agent-client-zero-tab-landing-message {
+	margin: 0;
+	color: var(--text-muted);
+}
+
+.agent-client-zero-tab-landing-actions {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	align-items: center;
+}

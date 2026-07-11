@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Menu, Notice, Scope, type MenuItem } from "obsidian";
+import { ItemView, WorkspaceLeaf, Menu, Notice, Scope, getAllTags, type MenuItem } from "obsidian";
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import { focusActiveTabComposer } from "./composer-focus";
 import type {
@@ -27,6 +27,7 @@ import { ChatContextProvider } from "./ChatContext";
 // Component imports
 import { ChatPanel, type ChatPanelCallbacks } from "./ChatPanel";
 import { TabBar } from "./TabBar";
+import { ZeroTabLanding } from "./ZeroTabLanding";
 import { TabErrorBoundary } from "./TabErrorBoundary";
 import { EditTitleModal } from "./SessionHistoryModal";
 import { CorruptionRecoveryModal } from "./CorruptionRecoveryModal";
@@ -36,6 +37,10 @@ import { ConfirmCloseModal } from "./ConfirmCloseModal";
 import { useTabManager, truncateLabel, suffixOnCollision } from "../hooks/useTabManager";
 import { useTabPersistence, type TabPersistenceStorage } from "../hooks/useTabPersistence";
 import { useRecentlyClosedTabs } from "../hooks/useRecentlyClosedTabs";
+import { useLandingHistoryModal } from "../hooks/useLandingHistoryModal";
+import { GettingStarted, type GettingStartedInfo } from "./MessageList";
+import { installAgent } from "../services/agent-installer";
+import { deriveAgentPickerOptions } from "../resolvers/agent-picker-options";
 import { resolveInitialAgentId } from "../resolvers/resolveInitialAgentId";
 import {
 	resolveSeededMessages,
@@ -50,6 +55,10 @@ import {
 	buildClosedTabRecord,
 	resolveRestoredLeaf,
 } from "../services/recently-closed-stack";
+import {
+	matchPromptsForNote,
+	type NoteMatchContext,
+} from "../services/quick-prompts-logic";
 import type { AcpClient } from "../acp/acp-client";
 import { VIEW_TYPE_CHAT } from "./chat-view-type";
 
@@ -171,6 +180,22 @@ function persistedToRuntime(persisted: PersistedTabInfo[]): TabInfo[] {
 		state: "disconnected",
 		createdAt: new Date(),
 	}));
+}
+
+/**
+ * Build the quick-prompt match context from the workspace's active note, for
+ * the zero-tab landing's quick-prompt chips. No active note → empty context
+ * (only `always show` prompts surface). Read once at render — the landing is
+ * transient, so it does not subscribe to live metadata changes.
+ */
+function buildLandingNoteContext(plugin: AgentClientPlugin): NoteMatchContext {
+	const file = plugin.app.workspace.getActiveFile();
+	if (!file) return { tags: [], frontmatter: null };
+	const cache = plugin.app.metadataCache.getFileCache(file);
+	return {
+		tags: cache ? getAllTags(cache) ?? [] : [],
+		frontmatter: cache?.frontmatter ?? null,
+	};
 }
 
 // ============================================================================
@@ -301,7 +326,10 @@ function ChatComponent({
 	// new tabId. The new tab's ChatPanel consumes it on mount (send through the
 	// lazy-acquisition path, or just seed the composer). Mirrors reopenPayload.
 	const [pendingPromptByTab, setPendingPromptByTab] = useState<
-		Record<string, { text: string; send: boolean }>
+		Record<
+			string,
+			{ text: string; send: boolean; contextNotes?: ContextNote[] }
+		>
 	>({});
 
 	// Track C — fork payload, keyed by new tabId. Seeds the ORIGINAL session's
@@ -554,7 +582,15 @@ function ChatComponent({
 	// background open (foreground:false) appends without switching — the tab
 	// still mounts and sends, the user stays on their current tab.
 	const handleOpenInNewTab = useCallback(
-		(text: string, opts: { send: boolean; foreground: boolean }) => {
+		(
+			text: string,
+			opts: {
+				send: boolean;
+				foreground: boolean;
+				/** Context notes to carry into the spawned tab (landing carry). */
+				contextNotes?: ContextNote[];
+			},
+		) => {
 			const newTabId = tabManager.addTab(
 				plugin.settings.defaultAgentId,
 				undefined,
@@ -562,7 +598,11 @@ function ChatComponent({
 			);
 			setPendingPromptByTab((prev) => ({
 				...prev,
-				[newTabId]: { text, send: opts.send },
+				[newTabId]: {
+					text,
+					send: opts.send,
+					contextNotes: opts.contextNotes,
+				},
 			}));
 		},
 		[tabManager, plugin.settings.defaultAgentId],
@@ -570,7 +610,8 @@ function ChatComponent({
 
 	const handleCloseTab = useCallback(
 		(tabId: string) => {
-			if (tabs.length <= 1) return; // Don't close last tab
+			// Closing the last tab is allowed — it lands on the zero-tab
+			// landing screen (Decision 1). No single-tab guard here.
 			const idx = tabs.findIndex((t) => t.tabId === tabId);
 			const tab = tabs[idx];
 			if (tab) {
@@ -844,7 +885,10 @@ function ChatComponent({
 			// falling back to the active tab's agent when unknown.
 			const savedSessions = plugin.settingsService.getSavedSessions();
 			const saved = savedSessions.find((s) => s.sessionId === sessionId);
-			const agentId = saved?.agentId ?? activeTab.agentId;
+			const agentId =
+				saved?.agentId ??
+				activeTab?.agentId ??
+				plugin.settings.defaultAgentId;
 			const baseLabel = saved?.title ?? "Session";
 			// Forks can't earn an AI title (the rubric fires only on a tab's
 			// first message and a fork is seeded with the transcript), so they
@@ -904,9 +948,99 @@ function ChatComponent({
 			findTabBySessionId,
 			tabManager,
 			plugin.settingsService,
-			activeTab.agentId,
+			activeTab?.agentId,
+			plugin.settings.defaultAgentId,
 			persistenceStorage,
 		],
+	);
+
+	// Session history opened from the zero-tab landing (no ChatPanel host).
+	// Local source only; restore/fork route through openSessionInTab above,
+	// which spawns a matched-or-new tab (works at zero tabs).
+	const landingHistory = useLandingHistoryModal(plugin, openSessionInTab);
+
+	// ── Zero-tab landing: view-level agent detection (no ChatPanel host) ──
+	// Probe once; re-probe when reset to null (Re-detect / post-install).
+	// Optimistic: while probing (null) assume an agent is present so a
+	// returning user sees the composer landing, not a flash of install rows.
+	const [landingDetectedAgentIds, setLandingDetectedAgentIds] = useState<
+		Set<string> | null
+	>(null);
+	useEffect(() => {
+		if (landingDetectedAgentIds !== null) return;
+		let cancelled = false;
+		void plugin.detectAgents().then((ids) => {
+			if (!cancelled) setLandingDetectedAgentIds(ids);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [plugin, landingDetectedAgentIds]);
+
+	// Getting-started info for the no-agent landing (no-tabs-no-agent): the
+	// shared shell (install rows + Re-detect + settings). Pick spawns a tab on
+	// the chosen agent; install / redetect re-probe. See § UX review + § Harmonization.
+	const landingGettingStarted = useMemo<GettingStartedInfo>(() => {
+		const installed = landingDetectedAgentIds ?? new Set<string>();
+		return {
+			location: "no-tabs",
+			detectedAgents: plugin
+				.getAvailableAgents()
+				.filter((a) => installed.has(a.id)),
+			onPickAgent: (agentId: string) => {
+				tabManager.addTab(agentId);
+			},
+			onOpenSettings: () => {
+				const s = plugin.app as unknown as {
+					setting: { open(): void; openTabById(id: string): void };
+				};
+				s.setting.open();
+				s.setting.openTabById(plugin.manifest.id);
+			},
+			onRedetect: () => {
+				plugin.clearAgentDetectionCache();
+				setLandingDetectedAgentIds(null);
+			},
+			onInstall: async (npmPackage, onOutput) => {
+				const result = await installAgent(npmPackage, { onOutput });
+				if (result.ok) {
+					plugin.clearAgentDetectionCache();
+					setLandingDetectedAgentIds(null);
+				}
+				return result;
+			},
+		};
+	}, [landingDetectedAgentIds, plugin, tabManager]);
+
+	// Landing "New chat with an agent" — resolver-gated (detected agents only,
+	// default-marked, shown only on a real choice). The decision lives in
+	// deriveAgentPickerOptions; this only renders its options as a menu.
+	const handleLandingAddTabWithAgent = useCallback(
+		(e: React.MouseEvent) => {
+			e.preventDefault();
+			const picker = deriveAgentPickerOptions({
+				available: plugin.getAvailableAgents(),
+				detected: landingDetectedAgentIds,
+				defaultAgentId: plugin.settings.defaultAgentId,
+			});
+			const menu = new Menu();
+			registerOpenMenu(menu);
+			for (const opt of picker.options) {
+				menu.addItem((item: MenuItem) => {
+					item
+						.setTitle(
+							opt.isDefault
+								? `${opt.displayName} (default)`
+								: opt.displayName,
+						)
+						.onClick(() => {
+							tabManager.addTab(opt.id);
+						});
+				});
+			}
+			showMenuAtEvent(menu, e);
+		},
+		[plugin, landingDetectedAgentIds, tabManager],
 	);
 
 	// ============================================================
@@ -961,8 +1095,9 @@ function ChatComponent({
 	// Persist agent ID when active tab changes
 	// ============================================================
 	useEffect(() => {
-		view.setAgentId(activeTab.agentId);
-	}, [view, activeTab.agentId]);
+		// No active tab (zero-tab landing) → nothing to mirror.
+		if (activeTab) view.setAgentId(activeTab.agentId);
+	}, [view, activeTab?.agentId]);
 
 	// Expose tabManager to the view class for commands
 	useEffect(() => {
@@ -1002,6 +1137,71 @@ function ChatComponent({
 	// ============================================================
 	// Render
 	// ============================================================
+	// Zero-tab landing (Decision 1): every tab is closed → show a neutral
+	// resting screen and hide the tab bar. A restart restores here too, since
+	// useTabManager honors a restored empty tab set (Decision 5).
+	if (tabs.length === 0) {
+		// Detection-gated (§ UX review): no agent → the shared getting-started
+		// shell (install first, no dead-end launcher); agent (or still probing
+		// → optimistic) → the composer landing. Both faces of the same
+		// reason-tagged empty state.
+		const hasDetectedAgent =
+			landingDetectedAgentIds === null ||
+			landingDetectedAgentIds.size > 0;
+		const landingPrompts = matchPromptsForNote(
+			plugin.quickPromptLibrary.getPrompts(),
+			buildLandingNoteContext(plugin),
+		);
+		const agentPicker = deriveAgentPickerOptions({
+			available: plugin.getAvailableAgents(),
+			detected: landingDetectedAgentIds,
+			defaultAgentId: plugin.settings.defaultAgentId,
+		});
+		return (
+			<div
+				style={{
+					display: "flex",
+					flexDirection: "column",
+					height: "100%",
+				}}
+			>
+				{hasDetectedAgent ? (
+					<ZeroTabLanding
+						plugin={plugin}
+						view={view}
+						vaultService={vaultService}
+						agentLabel={
+							plugin
+								.getAvailableAgents()
+								.find(
+									(a) =>
+										a.id ===
+										plugin.settings.defaultAgentId,
+								)?.displayName ??
+							plugin.settings.defaultAgentId
+						}
+						agentId={plugin.settings.defaultAgentId}
+						quickPrompts={landingPrompts}
+						onLaunch={(text, notes) =>
+							handleOpenInNewTab(text, {
+								send: true,
+								foreground: true,
+								contextNotes: notes,
+							})
+						}
+						showAgentPicker={agentPicker.show}
+						onNewChatWithAgent={handleLandingAddTabWithAgent}
+						onOpenHistory={landingHistory.openLandingHistory}
+					/>
+				) : (
+					<div className="agent-client-zero-tab-landing-center">
+						<GettingStarted info={landingGettingStarted} />
+					</div>
+				)}
+			</div>
+		);
+	}
+
 	return (
 		<div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
 			<TabBar
@@ -1121,6 +1321,8 @@ function ChatComponent({
 											tabPersistence.restoredContextNotes[
 												tab.tabId
 											],
+										launchContextNotes:
+											pendingPromptByTab[tab.tabId]?.contextNotes,
 									},
 								)}
 								historyRecoverable={

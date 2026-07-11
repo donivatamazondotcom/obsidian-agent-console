@@ -29,12 +29,12 @@ describe("I38 — handleAddTab default agent selection", () => {
 		// Setup: initial tab is "kiro" (simulating user switched to kiro)
 		const { result } = renderHook(() => useTabManager("kiro"));
 
-		expect(result.current.activeTab.agentId).toBe("kiro");
+		expect(result.current.activeTab!.agentId).toBe("kiro");
 
 		// Simulate what handleAddTab SHOULD do:
 		// Use defaultAgentId ("claude-code-acp"), not activeTab.agentId ("kiro")
 		const defaultAgentId = "claude-code-acp";
-		const activeTabAgentId = result.current.activeTab.agentId;
+		const activeTabAgentId = result.current.activeTab!.agentId;
 
 		// This is the value that handleAddTab in ChatView.tsx passes to addTab.
 		// BUG: it currently passes activeTabAgentId
@@ -53,8 +53,8 @@ describe("I38 — handleAddTab default agent selection", () => {
 		});
 
 		// The new tab MUST use the default agent, not inherit from active tab
-		expect(result.current.activeTab.agentId).toBe("claude-code-acp");
-		expect(result.current.activeTab.agentId).not.toBe("kiro");
+		expect(result.current.activeTab!.agentId).toBe("claude-code-acp");
+		expect(result.current.activeTab!.agentId).not.toBe("kiro");
 	});
 });
 
@@ -137,5 +137,76 @@ describe("suffixOnCollision (F03 — auto-applied label disambiguation)", () => 
 		expect(suffixOnCollision("Fix scroll jitter", [])).toBe(
 			"Fix scroll jitter",
 		);
+	});
+});
+
+describe("Close-last-tab — removeTab allows removing the last tab to empty", () => {
+	// Reproduce-first (RED against the current `prev.length <= 1` guard):
+	// removing the only tab must leave zero tabs and report no active tab.
+	// Slice 1 relaxes the guard so a true zero-tab landing state is reachable.
+	it("removing the only tab leaves zero tabs and returns null", () => {
+		const { result } = renderHook(() => useTabManager("kiro"));
+		expect(result.current.tabs.length).toBe(1);
+		const onlyId = result.current.tabs[0].tabId;
+
+		let ret: string | null = "unset" as unknown as string | null;
+		act(() => {
+			ret = result.current.removeTab(onlyId);
+		});
+
+		expect(result.current.tabs.length).toBe(0);
+		expect(ret).toBeNull();
+	});
+});
+
+
+describe("Close-last-tab — zero-tab landing is a stable, restorable state", () => {
+	// Item 4/5 of Slice 1: distinguish a fresh mount (create one tab) from a
+	// restored, intentional zero-tab set (stay empty → landing screen).
+	it("a fresh mount with no persisted tabs creates exactly one tab", () => {
+		const { result } = renderHook(() => useTabManager("kiro"));
+		expect(result.current.tabs.length).toBe(1);
+		expect(result.current.activeTab).not.toBeNull();
+	});
+
+	it("a restored empty tab set (intentional zero) stays at zero tabs, no active tab", () => {
+		// initialTabs === [] means "restore this exact (empty) set" — the
+		// restart-to-landing path (Decision 5). Contrast with undefined above.
+		const { result } = renderHook(() => useTabManager("kiro", [], ""));
+		expect(result.current.tabs.length).toBe(0);
+		expect(result.current.activeTab).toBeNull();
+	});
+
+	it("nextTab / prevTab are safe no-ops with zero tabs (no modulo-by-zero)", () => {
+		const { result } = renderHook(() => useTabManager("kiro", [], ""));
+		act(() => {
+			result.current.nextTab();
+			result.current.prevTab();
+		});
+		expect(result.current.tabs.length).toBe(0);
+		expect(result.current.activeTab).toBeNull();
+	});
+});
+
+
+describe("Close-last-tab — reopen / undo-close from the zero-tab landing (F13)", () => {
+	// Decision 6: closing the last tab (now allowed) must still be undoable.
+	// handleCloseTab captures the closed record before removeTab, and
+	// reopenClosed re-adds a tab. This pins the hook-level reopen half: addTab
+	// from a restored zero-tab set creates and activates a tab.
+	it("addTab from zero tabs creates and activates the reopened tab", () => {
+		const { result } = renderHook(() => useTabManager("kiro", [], ""));
+		expect(result.current.tabs.length).toBe(0);
+		expect(result.current.activeTab).toBeNull();
+
+		let newId = "";
+		act(() => {
+			newId = result.current.addTab("kiro-cli", "Reopened session");
+		});
+
+		expect(result.current.tabs.length).toBe(1);
+		expect(result.current.activeTabId).toBe(newId);
+		expect(result.current.activeTab?.label).toBe("Reopened session");
+		expect(result.current.activeTab?.agentId).toBe("kiro-cli");
 	});
 });

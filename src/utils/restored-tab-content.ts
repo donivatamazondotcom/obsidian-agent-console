@@ -38,6 +38,14 @@ export interface TabSeedSources {
 	persistedMessages?: ChatMessage[];
 	/** Startup-restore context notes (tabPersistence.restoredContextNotes[tabId]). */
 	persistedContextNotes?: ContextNote[];
+	/**
+	 * Context notes carried into a freshly-SPAWNED launch tab from the zero-tab
+	 * landing (pendingPromptByTab[tabId].contextNotes). A launch tab has none of
+	 * the other three sources, so this sits at the lowest precedence — it never
+	 * competes with a restore/fork/startup seed. See [[Agent Console Close Last
+	 * Tab to Empty State]] § carry-context (`context:"carry"`).
+	 */
+	launchContextNotes?: ContextNote[];
 }
 
 /** Resolve the seeded transcript: restore → fork → startup restore. */
@@ -47,13 +55,14 @@ export function resolveSeededMessages(
 	return s.restore?.messages ?? s.fork?.messages ?? s.persistedMessages;
 }
 
-/** Resolve the seeded context notes: restore → fork → startup restore. */
+/** Resolve the seeded context notes: restore → fork → startup restore → launch carry. */
 export function resolveSeededContextNotes(
 	s: TabSeedSources,
 ): ContextNote[] | undefined {
 	return (
 		s.restore?.contextNotes ??
 		s.fork?.contextNotes ??
-		s.persistedContextNotes
+		s.persistedContextNotes ??
+		s.launchContextNotes
 	);
 }

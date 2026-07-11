@@ -319,6 +319,16 @@ export interface InputAreaProps {
 	onCreateQuickPrompt?: (opts: { query: string; body?: string }) => void;
 	/** Bumps when the "Quick prompts: Search" command fires — focuses + inserts !. */
 	quickPromptSearchSignal?: number;
+	/**
+	 * The composer is a LAUNCHER (zero-tab landing): Enter dispatches a NEW-tab
+	 * launch, not a send into this (non-existent) session. Threaded from
+	 * `deriveComposerAffordances({surface:"landing"}).sendMode === "launch"` by
+	 * ZeroTabLanding. When true, `decideComposerEnterAction` must NOT route
+	 * `!isSessionReady` to "queue" (no session to connect/flush) — Enter
+	 * dispatches → onSendMessage → the landing launch. Defaults to false
+	 * (in-tab composer). See I169.
+	 */
+	launches?: boolean;
 }
 
 /**
@@ -385,6 +395,7 @@ export function InputArea({
 	onRunQuickPrompt,
 	onCreateQuickPrompt,
 	quickPromptSearchSignal,
+	launches = false,
 }: InputAreaProps) {
 	const {
 		mentions,
@@ -1232,6 +1243,7 @@ export function InputArea({
 							inputValue.trim() !== "" ||
 							attachedFiles.length > 0,
 						steerRequested,
+						launches,
 					});
 					if (action === "send") {
 						void handleSendOrStop();
@@ -1264,6 +1276,7 @@ export function InputArea({
 			settings.sendMessageShortcut,
 			isStreaming,
 			isSessionReady,
+			launches,
 			isQueued,
 			onQueueMessage,
 			onSteerMessage,

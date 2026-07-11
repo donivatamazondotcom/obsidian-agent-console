@@ -19,32 +19,32 @@ import { useTabManager } from "../useTabManager";
 describe("I128 — history rename must update an open tab with a custom label", () => {
 	it("setTabLabel with custom=true overwrites an existing custom label", () => {
 		const { result } = renderHook(() => useTabManager("test-agent"));
-		const tabId = result.current.activeTab.tabId;
+		const tabId = result.current.activeTab!.tabId;
 
 		// Step 1: Tab gets a custom label (e.g. from a prior rename)
 		act(() => result.current.setTabLabel(tabId, "Write debugging haiku", true));
-		expect(result.current.activeTab.label).toBe("Write debugging haiku");
-		expect(result.current.activeTab.labelIsCustom).toBe(true);
+		expect(result.current.activeTab!.label).toBe("Write debugging haiku");
+		expect(result.current.activeTab!.labelIsCustom).toBe(true);
 
 		// Step 2: A history-modal rename arrives with custom=true.
 		// This is the FIX path — it MUST succeed.
 		act(() => result.current.setTabLabel(tabId, "Write debugging haikus", true));
-		expect(result.current.activeTab.label).toBe("Write debugging haikus");
+		expect(result.current.activeTab!.label).toBe("Write debugging haikus");
 	});
 
 	it("setTabLabel WITHOUT custom=true is rejected on a custom-labeled tab (the bug)", () => {
 		const { result } = renderHook(() => useTabManager("test-agent"));
-		const tabId = result.current.activeTab.tabId;
+		const tabId = result.current.activeTab!.tabId;
 
 		// Tab has a custom label
 		act(() => result.current.setTabLabel(tabId, "Write debugging haiku", true));
-		expect(result.current.activeTab.label).toBe("Write debugging haiku");
+		expect(result.current.activeTab!.label).toBe("Write debugging haiku");
 
 		// History modal rename arrives WITHOUT custom — this is what
 		// the unfixed code does. It gets rejected by the guard.
 		act(() => result.current.setTabLabel(tabId, "Write debugging haikus"));
 		// BUG: the label is unchanged — the rename was dropped.
-		expect(result.current.activeTab.label).toBe("Write debugging haiku");
+		expect(result.current.activeTab!.label).toBe("Write debugging haiku");
 	});
 
 	it("the full chain: handleEditTitle must call setTabLabel with custom=true via findTabBySessionId", async () => {

@@ -82,6 +82,23 @@ describe("resolveSeededContextNotes — precedence restore → fork → startup"
 		).toEqual(["R.md"]);
 	});
 
+	it("carries launch context notes when no other source is set (landing carry)", () => {
+		expect(
+			resolveSeededContextNotes({
+				launchContextNotes: [note("Pinned.md")],
+			})?.map((n) => n.path),
+		).toEqual(["Pinned.md"]);
+	});
+
+	it("launch carry is the LOWEST precedence — any restore/fork/startup wins", () => {
+		expect(
+			resolveSeededContextNotes({
+				persistedContextNotes: [note("P.md")],
+				launchContextNotes: [note("Pinned.md")],
+			})?.map((n) => n.path),
+		).toEqual(["P.md"]);
+	});
+
 	it("is undefined for a fresh tab", () => {
 		expect(resolveSeededContextNotes({})).toBeUndefined();
 	});

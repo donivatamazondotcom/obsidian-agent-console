@@ -9,6 +9,10 @@ import { setIcon } from "obsidian";
 import { MessageBubble } from "./MessageBubble";
 import { LossyFallbackNotice } from "./LossyFallbackNotice";
 import { isSessionLive } from "../resolvers/send-affordance";
+import {
+	deriveEmptyStateView,
+	type EmptyStateLocation,
+} from "../resolvers/empty-state-view";
 import type { TabSessionState } from "../hooks/useTabSessionState";
 import { useAutoScrollPin } from "./use-auto-scroll-pin";
 import {
@@ -36,6 +40,12 @@ const MemoMessageBubble = memo(MessageBubble);
  * [[Agent Console Command Palette Rationalization]] § First-run / onboarding.
  */
 export interface GettingStartedInfo {
+	/**
+	 * Where this empty-state panel renders. Drives affordance gating via
+	 * deriveEmptyStateView. Defaults to "in-tab" (the first-run dead-end
+	 * panel); the zero-tab landing passes "no-tabs".
+	 */
+	location?: EmptyStateLocation;
 	/** Agents detected as installed on the machine, shown as one-click picks. */
 	detectedAgents: { id: string; displayName: string }[];
 	/** Switch the panel to the chosen agent and start a fresh chat. */
@@ -148,14 +158,23 @@ function InstallRow({
 	);
 }
 
-function GettingStarted({ info }: { info: GettingStartedInfo }) {
+export function GettingStarted({ info }: { info: GettingStartedInfo }) {
 	const { detectedAgents, onPickAgent, onOpenSettings, onRedetect, onInstall } = info;
+	// Single source of truth for which affordances this empty state shows
+	// (deriveEmptyStateView / § Harmonization with I-FRO6). The in-tab
+	// first-run panel passes location "in-tab" (default); the zero-tab landing
+	// passes "no-tabs". Re-detect, install rows, picks, settings, and the hint
+	// are all gated by the resolver so the two surfaces cannot drift.
+	const view = deriveEmptyStateView({
+		location: info.location ?? "in-tab",
+		hasDetectedAgent: detectedAgents.length > 0,
+	});
 	return (
 		<div className="agent-client-chat-empty-state agent-client-getting-started">
 			<div className="agent-client-getting-started-heading">
 				Pick an agent to get started
 			</div>
-			{detectedAgents.length > 0 ? (
+			{view.showAgentPicks && (
 				<>
 					<div className="agent-client-getting-started-subtext">
 						Detected on your machine:
@@ -173,7 +192,8 @@ function GettingStarted({ info }: { info: GettingStartedInfo }) {
 						))}
 					</div>
 				</>
-			) : (
+			)}
+			{view.showInstallRows && (
 				<>
 					<div className="agent-client-getting-started-subtext">
 						No agent is installed yet. Agent Console needs an AI agent
@@ -206,23 +226,29 @@ function GettingStarted({ info }: { info: GettingStartedInfo }) {
 					</div>
 				</>
 			)}
-			<button
-				type="button"
-				className="agent-client-getting-started-settings"
-				onClick={onOpenSettings}
-			>
-				Open settings
-			</button>
-			<button
-				type="button"
-				className="agent-client-getting-started-redetect"
-				onClick={onRedetect}
-			>
-				Re-detect
-			</button>
-			<div className="agent-client-getting-started-hint">
-				Already have one installed elsewhere? Set its path in settings.
-			</div>
+			{view.showSettings && (
+				<button
+					type="button"
+					className="agent-client-getting-started-settings"
+					onClick={onOpenSettings}
+				>
+					Open settings
+				</button>
+			)}
+			{view.showRedetect && (
+				<button
+					type="button"
+					className="agent-client-getting-started-redetect"
+					onClick={onRedetect}
+				>
+					Re-detect
+				</button>
+			)}
+			{view.showManualPathHint && (
+				<div className="agent-client-getting-started-hint">
+					Already have one installed elsewhere? Set its path in settings.
+				</div>
+			)}
 		</div>
 	);
 }

@@ -17,11 +17,11 @@ import { useTabManager } from "../useTabManager";
 describe("I56 — manual rename survives auto-derive", () => {
 	it("auto-derive does NOT overwrite a manually-renamed label", () => {
 		const { result } = renderHook(() => useTabManager("test-agent"));
-		const tabId = result.current.activeTab.tabId;
+		const tabId = result.current.activeTab!.tabId;
 
 		// User manually renames the tab (custom = true).
 		act(() => result.current.setTabLabel(tabId, "Agent defaults config", true));
-		expect(result.current.activeTab.label).toBe("Agent defaults config");
+		expect(result.current.activeTab!.label).toBe("Agent defaults config");
 
 		// Later, the first-message / session-title derivation fires
 		// (custom omitted -> auto path). It must be a no-op on a custom label.
@@ -33,14 +33,14 @@ describe("I56 — manual rename survives auto-derive", () => {
 		);
 
 		// The manual rename must survive (this is what breaks pre-fix).
-		expect(result.current.activeTab.label).toBe("Agent defaults config");
+		expect(result.current.activeTab!.label).toBe("Agent defaults config");
 	});
 
 	it("auto-derive still sets the label when the tab was never manually renamed", () => {
 		const { result } = renderHook(() => useTabManager("test-agent"));
-		const tabId = result.current.activeTab.tabId;
+		const tabId = result.current.activeTab!.tabId;
 
 		act(() => result.current.setTabLabel(tabId, "Derived from first message"));
-		expect(result.current.activeTab.label).toBe("Derived from first message");
+		expect(result.current.activeTab!.label).toBe("Derived from first message");
 	});
 });

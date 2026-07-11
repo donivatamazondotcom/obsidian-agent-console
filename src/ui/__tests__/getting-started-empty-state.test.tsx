@@ -191,3 +191,70 @@ describe("T5: getting-started empty state (Layer 2)", () => {
 		expect(onRedetect).toHaveBeenCalledTimes(1);
 	});
 });
+
+
+describe("empty-state shell — affordances gated per reason/location (Slice 2)", () => {
+	function renderAt(
+		location: "in-tab" | "no-tabs",
+		detectedAgents: { id: string; displayName: string }[],
+	) {
+		return render(
+			<MessageList
+				messages={[]}
+				isSending={false}
+				lazyState="connecting"
+				isRestoringSession={false}
+				agentLabel="Kiro CLI"
+				plugin={makePlugin()}
+				view={makeView()}
+				hasActivePermission={false}
+				gettingStarted={{
+					location,
+					detectedAgents,
+					onPickAgent: vi.fn(),
+					onOpenSettings: vi.fn(),
+					onRedetect: vi.fn(),
+					onInstall: vi
+						.fn()
+						.mockResolvedValue({ ok: false, exitCode: 1 }),
+				}}
+			/>,
+		);
+	}
+
+	it("no-tabs + agent detected hides Re-detect (the action set is the point)", () => {
+		const { container } = renderAt("no-tabs", [
+			{ id: "kiro-cli", displayName: "Kiro CLI" },
+		]);
+		expect(
+			container.querySelector(".agent-client-getting-started-redetect"),
+		).toBeNull();
+		// Neither picks nor install rows on the detected landing.
+		expect(
+			container.querySelectorAll(".agent-client-getting-started-pick")
+				.length,
+		).toBe(0);
+		expect(
+			container.querySelectorAll(".agent-client-install-run").length,
+		).toBe(0);
+	});
+
+	it("no-tabs + no agent shows Re-detect and install rows (stays on landing)", () => {
+		const { container } = renderAt("no-tabs", []);
+		expect(
+			container.querySelector(".agent-client-getting-started-redetect"),
+		).not.toBeNull();
+		expect(
+			container.querySelectorAll(".agent-client-install-run").length,
+		).toBe(3);
+	});
+
+	it("in-tab (default location) always offers Re-detect, even with an agent detected", () => {
+		const { container } = renderAt("in-tab", [
+			{ id: "kiro-cli", displayName: "Kiro CLI" },
+		]);
+		expect(
+			container.querySelector(".agent-client-getting-started-redetect"),
+		).not.toBeNull();
+	});
+});
