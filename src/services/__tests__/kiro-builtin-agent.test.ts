@@ -46,6 +46,13 @@ const settings = {
 		args: ["acp"],
 		env: [],
 	},
+	opencode: {
+		id: "opencode-acp",
+		displayName: "OpenCode",
+		command: "opencode",
+		args: ["acp"],
+		env: [],
+	},
 	customAgents: [],
 } as unknown as AgentClientPluginSettings;
 
@@ -57,6 +64,7 @@ describe("Kiro CLI built-in agent", () => {
 			"codex-acp",
 			"gemini-cli",
 			"kiro-cli",
+			"opencode-acp",
 		]);
 	});
 

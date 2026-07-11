@@ -343,6 +343,13 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 		args: ["acp"],
 		env: [],
 	},
+	opencode: {
+		id: "opencode-acp",
+		displayName: "OpenCode",
+		command: "opencode",
+		args: ["acp"],
+		env: [],
+	},
 	customAgents: [],
 	defaultAgentId: "claude-code-acp",
 	autoAllowPermissions: false,
@@ -429,6 +436,7 @@ export function normalizeRawSettings(
 	const rk = obj(raw.codex) ?? {};
 	const rg = obj(raw.gemini) ?? {};
 	const rki = obj(raw.kiro) ?? {};
+	const rop = obj(raw.opencode) ?? {};
 	const re = obj(raw.exportSettings) ?? {};
 	const rd = obj(raw.displaySettings) ?? {};
 
@@ -525,6 +533,17 @@ export function normalizeRawSettings(
 					: D.kiro.args,
 			env: normalizeEnvVars(rki.env),
 			defaultWorkingDirectory: str(rki.defaultWorkingDirectory, ""),
+		},
+		opencode: {
+			id: D.opencode.id,
+			displayName: str(rop.displayName, D.opencode.displayName),
+			command: str(rop.command, "") || D.opencode.command,
+			args:
+				sanitizeArgs(rop.args).length > 0
+					? sanitizeArgs(rop.args)
+					: D.opencode.args,
+			env: normalizeEnvVars(rop.env),
+			defaultWorkingDirectory: str(rop.defaultWorkingDirectory, ""),
 		},
 		customAgents,
 		defaultAgentId,

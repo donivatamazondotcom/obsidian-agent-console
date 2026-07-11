@@ -10,6 +10,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
 	QuickPromptLibrary,
+	VaultQuickPromptSource,
 	createQuickPrompt,
 	type QuickPromptSource,
 	type QuickPromptWriter,
@@ -300,3 +301,92 @@ describe("createQuickPrompt — S4-T7/T8 (clobber-safe creation)", () => {
 		);
 	});
 });
+
+
+// ============================================================================
+// QP-I27 — cold-start reconcile via metadataCache "resolved" (residual of
+// QP-I26). PR #193 reconciled the filename-fallback entry via metadataCache
+// "changed". But "changed" does NOT fire on startup for files loaded from the
+// persisted cache (obsidian.d.ts: "changed" fires when a file is *indexed*;
+// Tasks plugin Cache.ts: "Does not fire when starting up obsidian and only
+// works for changes"). So on a cold start the fallback entry has no event to
+// correct it and sticks until a manual rescan. The durable signal is
+// "resolved" (fires once the whole cache is populated — the same signal the
+// Tasks plugin loads its vault from). The adapter must subscribe to it and
+// reconcile ONCE (folder-scoped "changed" owns subsequent live edits, so a
+// second "resolved" must not trigger a vault-wide rescan).
+// See [[QP-I27 Cold-start quick-prompt label race]].
+// ============================================================================
+describe("VaultQuickPromptSource — QP-I27: cold-start reconcile on 'resolved'", () => {
+	function makeEmitter() {
+		const handlers = new Map<string, Set<(...a: unknown[]) => void>>();
+		return {
+			on(name: string, cb: (...a: unknown[]) => void) {
+				let set = handlers.get(name);
+				if (!set) handlers.set(name, (set = new Set()));
+				set.add(cb);
+				return { name, cb };
+			},
+			offref(ref: { name: string; cb: (...a: unknown[]) => void }) {
+				handlers.get(ref.name)?.delete(ref.cb);
+			},
+			emit(name: string, ...args: unknown[]) {
+				handlers.get(name)?.forEach((h) => h(...args));
+			},
+		};
+	}
+
+	function makeSource() {
+		const vault = Object.assign(makeEmitter(), {
+			getMarkdownFiles: () => [],
+			cachedRead: async () => "",
+		});
+		const metadataCache = Object.assign(makeEmitter(), {
+			getFileCache: () => null,
+		});
+		const plugin = { app: { vault, metadataCache } };
+		const source = new VaultQuickPromptSource(
+			plugin as unknown as ConstructorParameters<
+				typeof VaultQuickPromptSource
+			>[0],
+			() => "Quick Prompts",
+		);
+		return { source, vault, metadataCache };
+	}
+
+	it("fires the change callback on the first 'resolved' (changed doesn't fire on startup)", () => {
+		const { source, metadataCache } = makeSource();
+		const cb = vi.fn();
+		const unsub = source.onChange(cb);
+
+		// Cold start: only "resolved" fires once the persisted cache is loaded.
+		metadataCache.emit("resolved");
+		expect(cb).toHaveBeenCalledTimes(1);
+
+		unsub();
+	});
+
+	it("is one-shot — a second 'resolved' does not re-trigger (avoids vault-wide rescans)", () => {
+		const { source, metadataCache } = makeSource();
+		const cb = vi.fn();
+		const unsub = source.onChange(cb);
+
+		metadataCache.emit("resolved");
+		metadataCache.emit("resolved");
+		metadataCache.emit("resolved");
+		expect(cb).toHaveBeenCalledTimes(1);
+
+		unsub();
+	});
+
+	it("unsubscribes the 'resolved' handler on teardown", () => {
+		const { source, metadataCache } = makeSource();
+		const cb = vi.fn();
+		const unsub = source.onChange(cb);
+		unsub();
+
+		metadataCache.emit("resolved");
+		expect(cb).not.toHaveBeenCalled();
+	});
+});
+

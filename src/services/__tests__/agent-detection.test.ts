@@ -81,12 +81,13 @@ describe("T02: pickDefaultAgentId honors priority order", () => {
 		expect(pickDefaultAgentId(new Set(["some-custom-agent"]))).toBeNull();
 	});
 
-	it("default priority is kiro → claude → codex → gemini", () => {
+	it("default priority is kiro → claude → codex → gemini → opencode", () => {
 		expect(DEFAULT_AGENT_PRIORITY).toEqual([
 			"kiro-cli",
 			"claude-code-acp",
 			"codex-acp",
 			"gemini-cli",
+			"opencode-acp",
 		]);
 	});
 });

@@ -44,6 +44,7 @@ import { getLogger } from "../utils/logger";
 import { deriveTabLabel, labelAlreadyReportedOnMount, shouldReportInterimLabel } from "../resolvers/deriveTabLabel";
 import { buildCompletionNotificationContent } from "../utils/notification-content";
 import { runCompletionNotificationClick } from "../utils/notification-click";
+import { retainNotification } from "../utils/notification-registry";
 import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";
 import { loadExistingSessionFlow } from "../hooks/loadExistingSessionFlow";
@@ -1750,7 +1751,12 @@ export function ChatPanel({
 					body,
 					tag,
 				});
-				completionNotification.onclick = () => {
+				// Retain the Notification so its click handler survives GC
+				// (electron#12690/#16922) — a bare local const is collected once
+				// this effect run exits, and a later click (esp. from macOS
+				// Notification Center) then does nothing. See I52 recurrence
+				// 2026-07-09.
+				retainNotification(completionNotification, () => {
 					// Retained Electron fallback for the OS window raise (I52);
 					// revealOwningLeaf runs last so the sanctioned path wins the race.
 					focusOwningWindow();
@@ -1759,7 +1765,7 @@ export function ChatPanel({
 						onSwitchToTab: onSwitchToTabRef.current,
 						revealOwningLeaf: () => viewHost.revealOwningLeaf(),
 					});
-				};
+				});
 			}
 		}
 	}, [
@@ -1805,10 +1811,11 @@ export function ChatPanel({
 			const permissionNotification = new Notification("Agent Console", {
 				body: `${activeAgentLabel} is requesting permission.`,
 			});
-			permissionNotification.onclick = () => {
+			// Retain so the click handler survives GC (see completion site above).
+			retainNotification(permissionNotification, () => {
 				focusOwningWindow();
 				viewHost.revealOwningLeaf();
-			};
+			});
 		}
 	}, [
 		agent.hasActivePermission,

@@ -25,7 +25,7 @@ features:
     details: Agents don't just read – they write back. Let one capture decisions and draft notes as you work, so what you figure out lands back in your vault. Each project leaves your notes richer for the next.
   - icon: 🤖
     title: Any Agent, Several at Once
-    details: Claude Code, Codex, Gemini CLI, Kiro CLI, or any custom ACP-compatible agent. Run several side by side in a tabbed sidebar – each tab its own session, surviving an Obsidian restart and connecting to its agent only when you start typing. Tabs name themselves from what you're working on, so you can tell them apart at a glance – or rename any one yourself. Closed the panel? Just open it again – your tabs come back. On a fresh install it defaults to an agent you already have installed, so your first chat just works. Close the panel with multiple chats open and it checks before dropping them all. Close every tab, even the last, and you land on a blank launcher – type a prompt or fire a quick prompt to start fresh, like a browser's new-tab page.
+    details: Claude Code, Codex, Gemini CLI, Kiro CLI, OpenCode, or any custom ACP-compatible agent. Run several side by side in a tabbed sidebar – each tab its own session, surviving an Obsidian restart and connecting to its agent only when you start typing. Tabs name themselves from what you're working on, so you can tell them apart at a glance – or rename any one yourself. Closed the panel? Just open it again – your tabs come back. On a fresh install it defaults to an agent you already have installed, so your first chat just works. Close the panel with multiple chats open and it checks before dropping them all. Close every tab, even the last, and you land on a blank launcher – type a prompt or fire a quick prompt to start fresh, like a browser's new-tab page.
   - icon: 💻
     title: See and Approve What Runs
     details: When an agent runs a command, you see it and its output right in the chat – and anything that touches your system waits for your approval first. No black-box actions.
@@ -77,7 +77,8 @@ Agent Console is based on [Agent Client](https://github.com/RAIT-09/obsidian-age
 | **[Codex](https://github.com/openai/codex)** | OpenAI | via [Zed's adapter](https://github.com/zed-industries/codex-acp) |
 | **[Gemini CLI](https://github.com/google-gemini/gemini-cli)** | Google | with `--experimental-acp` option |
 | **[Kiro CLI](https://kiro.dev)** | Amazon | via built-in ACP support |
-| **Custom** | Various | [Any ACP-compatible agent](https://agentclientprotocol.com/overview/agents) (e.g., OpenCode, Qwen Code) |
+| **[OpenCode](https://opencode.ai)** | Open source | via built-in ACP support (runs local models via ollama) |
+| **Custom** | Various | [Any ACP-compatible agent](https://agentclientprotocol.com/overview/agents) (e.g., Qwen Code) |
 
 ### What you can do
 

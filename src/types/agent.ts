@@ -112,3 +112,13 @@ export type CustomAgentSettings = BaseAgentSettings;
  * base settings.
  */
 export type KiroAgentSettings = BaseAgentSettings;
+
+/**
+ * Configuration for the OpenCode agent.
+ *
+ * OpenCode is an open-source, single-binary ACP agent. It authenticates and
+ * chooses its model backend through its own config (`~/.config/opencode/`),
+ * not an API key here, so it needs no apiKeySecretId and uses only the base
+ * settings — the plugin configures only the ACP launch, never the model.
+ */
+export type OpenCodeAgentSettings = BaseAgentSettings;
