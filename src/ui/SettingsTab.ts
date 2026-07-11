@@ -2029,12 +2029,20 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		parentEl: HTMLElement,
 		title: string,
 		renderBody: (bodyEl: HTMLElement) => void,
-		options?: { open?: boolean; onToggle?: (open: boolean) => void },
+		options?: {
+			open?: boolean;
+			onToggle?: (open: boolean) => void;
+			/** When set, stamps `data-agent-id` on the <details> for stable targeting (tests, screenshots). */
+			agentId?: string;
+		},
 	): void {
 		const details = parentEl.createEl("details", {
 			cls: "agent-client-agent-section",
 		});
 		details.open = options?.open ?? false;
+		if (options?.agentId) {
+			details.dataset.agentId = options.agentId;
+		}
 		const summary = details.createEl("summary", {
 			cls: "agent-client-agent-section-summary",
 		});
@@ -2064,6 +2072,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		renderBody: (bodyEl: HTMLElement) => void,
 	): void {
 		this.renderCollapsibleSection(parentEl, displayName, renderBody, {
+			agentId,
 			open: this.agentExpansion.expanded.has(agentId),
 			onToggle: (open) => {
 				this.agentExpansion = toggleAgentExpansion(

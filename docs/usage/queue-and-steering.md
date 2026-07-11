@@ -8,6 +8,11 @@ Both work straight from the message box while the agent is streaming a reply. Yo
 
 Type your follow-up while the agent is working and press **Enter**. Your message is held and sent automatically the moment the current reply finishes.
 
+<p align="center">
+  <img src="/images/mid-stream-steering.webp" alt="Agent Console composer with a queued message banner reading Queued, sends when ready, shown while the agent is still replying" />
+</p>
+
+
 - The message box locks and shows a **Queued** banner so you know it is waiting.
 - Use **Edit** to change the message before it sends, or **Delete** to drop it.
 - Only one message can be queued at a time. This keeps things predictable — you always know exactly what will send next.

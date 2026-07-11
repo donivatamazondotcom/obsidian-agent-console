@@ -2,6 +2,11 @@
 
 [OpenCode](https://opencode.ai) is an open-source, single-binary AI coding agent with built-in ACP support — no adapter needed. It's the easiest way to run Agent Console fully offline against a local model.
 
+<p align="center">
+  <img src="/images/opencode-builtin.webp" alt="Agent Console settings showing the OpenCode built-in agent section with Path and Arguments fields" />
+</p>
+
+
 ## Install and Configure
 
 1. Install OpenCode with its one-line installer:
