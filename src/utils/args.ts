@@ -2,8 +2,8 @@
  * Agent argument parsing/formatting (the Arguments settings field).
  *
  * The Arguments textarea historically split on newlines ONLY, so a user who
- * typed a whole command line on one line — e.g. `acp --agent auto-sa` — got a
- * single argv token `"acp --agent auto-sa"`, which the agent process cannot
+ * typed a whole command line on one line — e.g. `acp --agent my-agent` — got a
+ * single argv token `"acp --agent my-agent"`, which the agent process cannot
  * interpret. The handshake then fails opaquely ("ACP connection closed"). Every
  * copy-paste example in the wild shows the space-separated one-line form, so
  * the newline-only parser trained users straight into the footgun (I162).
