@@ -17,7 +17,7 @@
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 800,
 			"placement": "feature",
-			"purpose": "Shows where Agent Console lives — the ribbon entry point.",
+			"purpose": "Shows where Agent Console lives \u2014 the ribbon entry point.",
 			"differentiator": "Ribbon icon / one-click access",
 			"mustShow": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"]",
 			"caption": "Open the agent from the ribbon",
@@ -170,7 +170,7 @@
 			"purpose": "Tune how much reasoning effort the agent spends per session.",
 			"differentiator": "Per-session reasoning effort",
 			"mustShow": ".agent-client-config-selector-thought_level",
-			"caption": "Dial the agent’s effort up or down",
+			"caption": "Dial the agent\u2019s effort up or down",
 			"altText": "Agent Console effort-level menu showing Default, Low, Medium, High, and Max"
 		},
 		{
@@ -497,7 +497,7 @@
 			"differentiator": "Context strip / @-mention notes",
 			"mustShow": ".context-strip",
 			"caption": "Pull notes into context with @",
-			"altText": "Typing an @ note mention, choosing a note, and sending — the mentioned notes appear as pills in the context strip",
+			"altText": "Typing an @ note mention, choosing a note, and sending \u2014 the mentioned notes appear as pills in the context strip",
 			"animation": {
 				"fps": 5,
 				"maxBytes": 1500000,
@@ -565,7 +565,7 @@
 			"differentiator": "Tabbed sessions with per-tab status",
 			"mustShow": ".agent-client-tab-state-icon",
 			"caption": "Run agents in parallel tabs",
-			"altText": "Two agent session tabs side by side — switching between them shows each keeps its own conversation and status icon",
+			"altText": "Two agent session tabs side by side \u2014 switching between them shows each keeps its own conversation and status icon",
 			"animation": {
 				"fps": 5,
 				"maxBytes": 3000000,
@@ -627,7 +627,7 @@
 			"differentiator": "Tabbed sessions with per-tab status",
 			"mustShow": ".agent-client-tab-state-icon",
 			"caption": "Run agents in parallel tabs",
-			"altText": "Agent Console cycling three parallel session tabs — Japan trip, Launch check, Newsletter — each with its own conversation and status",
+			"altText": "Agent Console cycling three parallel session tabs \u2014 Japan trip, Launch check, Newsletter \u2014 each with its own conversation and status",
 			"animation": {
 				"fps": 5,
 				"maxBytes": 3500000,
@@ -711,13 +711,13 @@
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 40,
 			"placement": "feature",
-			"purpose": "Per-tab status glyphs in the tab bar — spot the active, idle, or stuck session at a glance.",
+			"purpose": "Per-tab status glyphs in the tab bar \u2014 spot the active, idle, or stuck session at a glance.",
 			"differentiator": "Per-tab status glyphs in the tab-list dropdown",
 			"mustShow": ".menu-item",
 			"caption": "See every session's status at a glance",
 			"altText": "Agent Console tab-list dropdown: five sessions, each with a status glyph for ready, busy, awaiting permission, errored, and disconnected.",
 			"docPage": "docs/usage/tabbed-sessions.md",
-			"captureNote": "Driven by initialState.forceTabStates: seeds 5 nicely-labeled tabs forced into the five visual states with nativeMenus off (so the chevron opens a DOM .menu), then clickSelector opens the chevron. Window-mode, dpr-independent — no screen-mode crop.",
+			"captureNote": "Driven by initialState.forceTabStates: seeds 5 nicely-labeled tabs forced into the five visual states with nativeMenus off (so the chevron opens a DOM .menu), then clickSelector opens the chevron. Window-mode, dpr-independent \u2014 no screen-mode crop.",
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 680
 		},
@@ -780,7 +780,7 @@
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 300,
 			"placement": "feature",
-			"purpose": "The cold-start command palette: Agent Console's top-level commands — new/open chat, open new view, the agent picker, quick prompts, and settings import.",
+			"purpose": "The cold-start command palette: Agent Console's top-level commands \u2014 new/open chat, open new view, the agent picker, quick prompts, and settings import.",
 			"differentiator": "Command-palette rationalization (v1.2.0)",
 			"mustShow": ".prompt",
 			"caption": "A palette you can actually scan",
@@ -937,7 +937,7 @@
 			"differentiator": "Queue next message (v1.3.0)",
 			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-queued-banner",
 			"caption": "Line up your next message without waiting",
-			"altText": "Agent Console composer locked with a 'Queued — sends when ready' banner and Edit and Delete controls, holding the next message until ready",
+			"altText": "Agent Console composer locked with a 'Queued \u2014 sends when ready' banner and Edit and Delete controls, holding the next message until ready",
 			"docPage": "docs/usage/tabbed-sessions.md",
 			"captureNote": "v1.3.0 PR #97. Confirm the queued-message element selector + final dims at capture; requires driving a session into streaming state with a queued message.",
 			"promptFile": "queue-next-message.txt",
@@ -958,7 +958,7 @@
 			"cropSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-box",
 			"approvalThreshold": 0.05,
 			"placement": "feature",
-			"purpose": "While the agent streams a reply, the composer teaches both moves — press Enter to queue your next message, or Mod+Enter to stop the reply and send it right now.",
+			"purpose": "While the agent streams a reply, the composer teaches both moves \u2014 press Enter to queue your next message, or Mod+Enter to stop the reply and send it right now.",
 			"differentiator": "Queue & steer while streaming (v2.1.0)",
 			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-box",
 			"caption": "Redirect the agent while it's still replying",
@@ -1166,7 +1166,7 @@
 			},
 			"approvalThreshold": 0.05,
 			"placement": "feature",
-			"purpose": "Set the folder new chats start in — a global default, overridable per agent.",
+			"purpose": "Set the folder new chats start in \u2014 a global default, overridable per agent.",
 			"differentiator": "Configurable working directory (v1.3.0)",
 			"mustShow": ".vertical-tab-content",
 			"caption": "Choose where chats run",
@@ -1292,7 +1292,7 @@
 			"differentiator": "Grounded quick prompts on your notes",
 			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-mention-dropdown",
 			"caption": "One-tap prompts, grounded in the note you're on",
-			"purpose": "Kick off common asks — summarize, explain, draft — against the note you're viewing, without typing a prompt.",
+			"purpose": "Kick off common asks \u2014 summarize, explain, draft \u2014 against the note you're viewing, without typing a prompt.",
 			"altText": "Agent Console beside a Weekly review note: tabbed sessions, a meeting-prep chat, and the quick-prompt menu open with one-tap prompts",
 			"followUp": "Tab status indicators (.agent-client-tab-state-icon) are not lit up: only the active tab reconnects (reconnectActive), so the inactive restored tabs show unlit/idle status glyphs. Next cycle: reconnect all restored tabs (or seed a lit status) so every tab's state icon reads as connected."
 		},
@@ -1416,7 +1416,7 @@
 			"approvalThreshold": 0.05,
 			"minDistinctColors": 300,
 			"placement": "feature",
-			"purpose": "Closing every tab lands on a neutral launcher — a live composer, quick prompts, and actions — instead of being blocked.",
+			"purpose": "Closing every tab lands on a neutral launcher \u2014 a live composer, quick prompts, and actions \u2014 instead of being blocked.",
 			"differentiator": "Close last tab to a blank landing (new-tab-page model)",
 			"mustShow": ".agent-client-zero-tab-landing",
 			"caption": "Close everything to a blank slate",
@@ -1437,7 +1437,7 @@
 			},
 			"approvalThreshold": 0.05,
 			"placement": "feature",
-			"purpose": "OpenCode is a built-in agent — a link-only setup like Kiro CLI, and the way to run Agent Console offline against a local model.",
+			"purpose": "OpenCode is a built-in agent \u2014 a link-only setup like Kiro CLI, and the way to run Agent Console offline against a local model.",
 			"differentiator": "OpenCode built-in (v2.1.0)",
 			"mustShow": "[data-agent-id=\"opencode-acp\"][open]",
 			"caption": "OpenCode, built in",
@@ -1448,6 +1448,27 @@
 				"y": 0,
 				"width": 780,
 				"height": 600
+			}
+		},
+		{
+			"name": "mcp-oauth-signin-notice",
+			"pending": true,
+			"placement": "feature",
+			"purpose": "Shows the MCP server sign-in prompt: server name, target host, Sign in / Copy link buttons, queue position.",
+			"mustShow": "Sign-in Notice with server name, target host line (Opens accounts.google.com), Sign in + Copy link buttons, queue line when more servers wait",
+			"altText": "Corner prompt saying an MCP server needs sign-in, showing the sign-in page's address with Sign in and Copy link buttons",
+			"docPage": "usage/mcp-tools",
+			"width": 400,
+			"height": 220,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 400,
+				"height": 220
+			},
+			"cropSelector": ".notice:has(.agent-client-mcp-auth-notice)",
+			"initialState": {
+				"openNote": "Welcome.md"
 			}
 		}
 	]

@@ -18,6 +18,7 @@ import {
 	isNewFile,
 	type DiffLine,
 } from "../utils/toolCallDiff";
+import { McpAuthBanner } from "./McpAuthBanner";
 // import { MarkdownRenderer } from "./shared/MarkdownRenderer";
 
 // Re-exported so existing importers (e.g. the I78 word-diff test) keep their
@@ -148,14 +149,15 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 
 	if (!isExpanded) {
 		return (
-			<button
-				type="button"
-				className="agent-client-message-tool-call agent-client-message-tool-call-summary"
-				aria-expanded={false}
-				aria-controls={contentId}
-				aria-label={ariaLabel}
-				onClick={toggleExpanded}
-			>
+			<>
+				<button
+					type="button"
+					className="agent-client-message-tool-call agent-client-message-tool-call-summary"
+					aria-expanded={false}
+					aria-controls={contentId}
+					aria-label={ariaLabel}
+					onClick={toggleExpanded}
+				>
 				<LucideIcon
 					name="chevron-right"
 					className="agent-client-message-tool-call-summary-caret"
@@ -178,7 +180,9 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 				<span className="agent-client-message-tool-call-summary-lines">
 					{lineCount > 0 ? `${lineCount} lines` : ""}
 				</span>
-			</button>
+				</button>
+				<McpAuthBanner content={content} plugin={plugin} />
+			</>
 		);
 	}
 
@@ -296,6 +300,7 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 				/>
 			)}
 			</div>
+			<McpAuthBanner content={content} plugin={plugin} />
 		</div>
 	);
 });

@@ -32,11 +32,13 @@ src/
 │   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref)
 │   ├── title-strategy.ts        # TitleStrategy union + dropdown options (F03 session-title setting)
 │   ├── quick-prompt.ts          # QuickPrompt + QuickPromptFileInput (Quick Prompts feature)
+│   ├── mcp-auth.ts              # MCP OAuth domain events (McpAuthEvent, PendingMcpAuth) — connection-scoped, dedicated channel
 │   ├── picker.ts                # Unified picker view model: PickerItem / PickerInstruction / PickerMarker (view) + ActivePicker / ResolvedPicker / PickerKeyCapabilities (keyboard routing) + PickerSource / PickerState / PickerTriggerContext (Tier 3 state machine) (Unified Picker Control)
 │   └── obsidian-internals.d.ts  # Obsidian API declarations not in @types/obsidian
 ├── acp/                         # ACP protocol (SDK dependency confined here)
 │   ├── acp-client.ts            # Process lifecycle, UI-facing API (AcpClient class)
 │   ├── acp-handler.ts           # SDK event handler + sessionId filter + listener broadcast
+│   ├── mcp-auth-parsers.ts      # Params parsers for _kiro.dev/mcp/* extension notifications (validate at edge)
 │   ├── type-converter.ts        # ACP SDK ↔ internal type conversion; capability normalizer (toAgentCapabilities)
 │   ├── permission-handler.ts    # Permission queue, auto-approve, Promise resolution
 │   └── terminal-handler.ts      # Terminal process create/output/kill
@@ -51,6 +53,7 @@ src/
 │   ├── settings-service.ts      # Reactive settings store (observer pattern only)
 │   ├── session-storage.ts       # Session metadata + message file I/O (sessions/*.json)
 │   ├── session-store.ts         # Single serialized writer of record for savedSessions metadata/title (I114)
+│   ├── mcp-auth-manager.ts      # Single owner of pending MCP sign-in state + queue-aware Notice lifecycle
 │   ├── settings-normalizer.ts   # Validation helpers + DEFAULT_SETTINGS + normalizeRawSettings (raw→typed mapping)
 │   ├── session-helpers.ts       # Agent config building, API key injection (pure functions)
 │   ├── agent-detection.ts       # First-run agent detection (probe commands) + default-by-priority selection (pure)
@@ -135,6 +138,8 @@ src/
 │   ├── InputToolbar.tsx         # Config/mode/model selectors, usage, send button
 │   ├── SuggestionPopup.tsx      # Unified suggestion picker: one PickerItem render path for mention / slash / quick-prompt (! trigger) + pinned instruction footer
 │   ├── PermissionBanner.tsx     # Permission request buttons
+│   ├── McpAuthBanner.tsx        # Inline re-auth affordance under auth-failed tool calls
+│   ├── McpAuthModal.ts          # "Re-authenticate MCP servers" picker + confirm-gated reconnect modal
 │   ├── ErrorBanner.tsx          # Error/notification overlay
 │   ├── SessionHistoryModal.tsx  # Session history modal (Local/Agent source toggle, per-row agent badge, search, confirm delete, migration empty-state, disconnected-Agent sync affordance)
 │   ├── session-intent-confirm.ts # SEAM (Track 1↔2): shared confirm/carry-over modal interface — Track 2 owns the component, Track 1 defines the contract
@@ -184,6 +189,7 @@ src/
 │   ├── notification-click.ts    # Pure orchestrator for a completion-notification click (reveal owning leaf/window + switch to producing tab); I52 recurrence
 │   ├── menu-registry.ts         # Tracks open Menu popups; closes them on plugin unload (reload-safety)
 │   ├── agent-switch.ts          # Switch a lazy tab's agent so the first message connects to the switched agent
+│   ├── mcp-auth-affordance.ts   # Pure resolver: auth-failed tool call → inline re-auth affordance decision
 │   ├── command-palette.ts       # Pure start-a-chat + context-gating decisions (computeStartChat, isChatCommandAvailable)
 │   ├── tab-agent-invariant.ts   # Pure fail-loud invariant: a tab's live session agent == its selected agent
 │   ├── resolveInitialAgentId.ts # Pure: agent a fresh (non-restored) tab opens on — Default agent when restore-tabs is off (TP-I05)

@@ -30,12 +30,10 @@ export const setIcon = vi.fn();
 // Minimal prepareFuzzySearch stub: substring match, score = -len (shorter
 // labels rank higher), matches[] unused by our ranker. Mirrors the real
 // signature `(query) => (text) => SearchResult | null`.
-export const prepareFuzzySearch =
-	(query: string) =>
-	(text: string) =>
-		text.toLowerCase().includes(query.toLowerCase())
-			? { score: -text.length, matches: [] as number[][] }
-			: null;
+export const prepareFuzzySearch = (query: string) => (text: string) =>
+	text.toLowerCase().includes(query.toLowerCase())
+		? { score: -text.length, matches: [] as number[][] }
+		: null;
 
 export const setTooltip = vi.fn();
 
@@ -95,7 +93,19 @@ export class FuzzySuggestModal<T> {
 }
 
 export class Notice {
-	constructor(_message: string) {}
+	/** Messages/fragments passed to the constructor, for test assertions. */
+	static instances: Notice[] = [];
+	message: string | DocumentFragment;
+	duration: number | undefined;
+	hidden = false;
+	constructor(message: string | DocumentFragment, duration?: number) {
+		this.message = message;
+		this.duration = duration;
+		Notice.instances.push(this);
+	}
+	hide(): void {
+		this.hidden = true;
+	}
 }
 
 export const Platform = {
