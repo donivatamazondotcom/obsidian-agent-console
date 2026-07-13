@@ -3,33 +3,33 @@ import { parseAgentArgs, formatAgentArgs } from "../args";
 
 /**
  * I162 — the Arguments field footgun. The old parser split on newlines ONLY,
- * so a single-line `acp --agent auto-sa` became ONE token
- * (`["acp --agent auto-sa"]`) and the agent failed to start
+ * so a single-line `acp --agent my-agent` became ONE token
+ * (`["acp --agent my-agent"]`) and the agent failed to start
  * ("ACP connection closed"). These tests pin the forgiving behavior.
  */
 describe("parseAgentArgs — I162 forgiving parser", () => {
 	it("splits a single space-separated line into separate args (the bug)", () => {
-		// Old newline-only parser returned ["acp --agent auto-sa"] here.
-		expect(parseAgentArgs("acp --agent auto-sa")).toEqual([
+		// Old newline-only parser returned ["acp --agent my-agent"] here.
+		expect(parseAgentArgs("acp --agent my-agent")).toEqual([
 			"acp",
 			"--agent",
-			"auto-sa",
+			"my-agent",
 		]);
 	});
 
 	it("still parses one-argument-per-line identically", () => {
-		expect(parseAgentArgs("acp\n--agent\nauto-sa")).toEqual([
+		expect(parseAgentArgs("acp\n--agent\nmy-agent")).toEqual([
 			"acp",
 			"--agent",
-			"auto-sa",
+			"my-agent",
 		]);
 	});
 
 	it("mixes lines and spaces, collapsing blank lines and extra whitespace", () => {
-		expect(parseAgentArgs("acp   --agent auto-sa\n\n  --verbose ")).toEqual([
+		expect(parseAgentArgs("acp   --agent my-agent\n\n  --verbose ")).toEqual([
 			"acp",
 			"--agent",
-			"auto-sa",
+			"my-agent",
 			"--verbose",
 		]);
 	});
@@ -74,8 +74,8 @@ describe("parseAgentArgs — I162 forgiving parser", () => {
 
 describe("formatAgentArgs — round-trip stable", () => {
 	it("renders simple args one per line", () => {
-		expect(formatAgentArgs(["acp", "--agent", "auto-sa"])).toBe(
-			"acp\n--agent\nauto-sa",
+		expect(formatAgentArgs(["acp", "--agent", "my-agent"])).toBe(
+			"acp\n--agent\nmy-agent",
 		);
 	});
 
@@ -91,7 +91,7 @@ describe("formatAgentArgs — round-trip stable", () => {
 
 	// The invariant that matters: format then parse yields the original array.
 	it.each([
-		[["acp", "--agent", "auto-sa"]],
+		[["acp", "--agent", "my-agent"]],
 		[["--msg", "hello world"]],
 		[["--path", "/a b/c"]],
 		[["--say", 'he said "hi"']],
