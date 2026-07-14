@@ -25,12 +25,17 @@
 		"docs:screenshots": "npm run build && bash tools/screenshots/setup.sh && npx tsx tools/screenshots/run.ts",
 		"docs:screenshots:check": "npx tsx tools/screenshots/check.ts",
 		"docs:screenshots:check:strict": "npx tsx tools/screenshots/check.ts --strict",
-		"invariants": "tsx tools/invariant-suite/run.ts"
+"invariants": "tsx tools/invariant-suite/run.ts",
+		"mutation:resolvers": "stryker run",
+		"mutation:services": "stryker run --mutate 'src/services/**/*.ts,!src/services/**/__tests__/**'",
+		"mutation:hooks": "stryker run --mutate 'src/hooks/**/*.ts,!src/hooks/**/__tests__/**'"
 	},
 	"keywords": [],
 	"author": "",
 	"license": "Apache-2.0",
 	"devDependencies": {
+		"@stryker-mutator/core": "9.6.1",
+		"@stryker-mutator/vitest-runner": "9.6.1",
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/react": "^16.3.2",
 		"@types/node": "^18.19.130",

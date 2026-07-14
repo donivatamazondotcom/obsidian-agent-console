@@ -1,0 +1,19 @@
+{
+	"$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+	"_comment": "Mutation-testing audit tool (Verification Overhaul, Pillar 1). Audit-only — NOT a CI gate (decision D2). Default target is the resolvers layer (pure, fast); use npm run mutation:services / mutation:hooks for the other layers. Reports land in reports/mutation/ (gitignored).",
+	"testRunner": "vitest",
+	"vitest": {
+		"configFile": "vitest.config.ts"
+	},
+	"mutate": [
+		"src/resolvers/**/*.ts",
+		"!src/resolvers/**/__tests__/**"
+	],
+	"coverageAnalysis": "perTest",
+	"reporters": ["clear-text", "progress", "html", "json"],
+	"htmlReporter": { "fileName": "reports/mutation/index.html" },
+	"jsonReporter": { "fileName": "reports/mutation/report.json" },
+	"tempDirName": ".stryker-tmp",
+	"ignorePatterns": ["tools", "docs", "reports", "main.js", "*.log"],
+	"thresholds": { "high": 90, "low": 70, "break": null }
+}
