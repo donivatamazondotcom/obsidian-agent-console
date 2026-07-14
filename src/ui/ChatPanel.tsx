@@ -1833,6 +1833,10 @@ export function ChatPanel({
 				focusOwningWindow();
 				runNotificationClick({
 					tabId: viewId,
+					// Dispatch to the producing tab — the permission path never
+					// had tab dispatch (only completion got it in the reveal-leaf
+					// fix); caught by SF-6 smoke 2026-07-14.
+					onSwitchToTab: onSwitchToTabRef.current,
 					revealOwningLeaf: () => viewHost.revealOwningLeaf(),
 					owningWindowHasFocus: () =>
 						containerRef.current?.ownerDocument.hasFocus() ?? false,
