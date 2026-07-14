@@ -133,7 +133,7 @@ src/
 │   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting)
 │   ├── TerminalBlock.tsx        # Terminal output polling
 │   ├── InputArea.tsx            # Textarea, attachments, mentions, history
-│   ├── composer-focus.ts       # Focus composer textarea + caret at end (restored-draft mount, TP-I03)
+│   ├── composer-focus.ts       # Focus composer textarea + caret at end (restored-draft mount, TP-I03); send→refocus timing seam (I173)
 │   ├── composer-focus-tracker.ts # Pure composer-cluster focus reducer + classifier (focus-return guardrail)
 │   ├── InputToolbar.tsx         # Config/mode/model selectors, usage, send button
 │   ├── SuggestionPopup.tsx      # Unified suggestion picker: one PickerItem render path for mention / slash / quick-prompt (! trigger) + pinned instruction footer

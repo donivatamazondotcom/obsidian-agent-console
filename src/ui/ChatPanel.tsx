@@ -104,7 +104,7 @@ import { installAgent } from "../services/agent-installer";
 import { indexOfCurrentAgent } from "../services/session-helpers";
 import { InputArea } from "./InputArea";
 import { ContextStrip } from "./ContextStrip";
-import { focusComposerAtEnd } from "./composer-focus";
+import { focusComposerAtEnd, sendAndReturnFocus } from "./composer-focus";
 import { createQuickPromptBridge } from "./quick-prompt-bridge";
 import { computeProvisionalPath } from "../utils/provisional-context";
 import {
@@ -2640,8 +2640,11 @@ export function ChatPanel({
 			view={viewHost}
 			composerElRef={composerElRef}
 			onSendMessage={async (content, attachments) => {
-				await handleSendWithLazyAcquisition(content, attachments);
-				focusAfter("send");
+				sendAndReturnFocus(
+					() =>
+						handleSendWithLazyAcquisition(content, attachments),
+					focusAfter,
+				);
 			}}
 			onStopGeneration={async () => {
 				await handleStopWithCancelFlag();
