@@ -1,6 +1,11 @@
 import * as acp from "@agentclientprotocol/sdk";
 
 import type { SessionUpdate } from "../types/session";
+import type { McpAuthEvent } from "../types/mcp-auth";
+import type {
+	McpOauthRequestParams,
+	McpServerInitializedParams,
+} from "./mcp-auth-parsers";
 import { AcpTypeConverter } from "./type-converter";
 import type { PermissionManager } from "./permission-handler";
 import type { TerminalManager } from "./terminal-handler";
@@ -18,6 +23,14 @@ import type { Logger } from "../utils/logger";
  */
 export class AcpHandler {
 	private sessionUpdateListeners = new Set<(update: SessionUpdate) => void>();
+
+	/**
+	 * Listeners for MCP auth events (`_kiro.dev/mcp/*` extension
+	 * notifications). A dedicated channel, NOT emitSessionUpdate: auth is
+	 * connection-scoped, and the session-id filter there (I108) would drop an
+	 * oauth_request arriving before `session/new` resolves.
+	 */
+	private mcpAuthListeners = new Set<(event: McpAuthEvent) => void>();
 
 	/** Tracks session updates during a prompt. */
 	private promptSessionUpdateCount = 0;
@@ -106,6 +119,9 @@ export class AcpHandler {
 					rawInput: update.rawInput as
 						| { [k: string]: unknown }
 						| undefined,
+					rawOutput: update.rawOutput as
+						| { [k: string]: unknown }
+						| undefined,
 				});
 				break;
 
@@ -182,14 +198,40 @@ export class AcpHandler {
 	// ACP Extension Handlers
 	// ====================================================================
 
-	async extNotification(
-		method: string,
-		params: Record<string, unknown>,
-	): Promise<void> {
+	/** Register a callback for MCP auth events. Returns an unsubscribe fn. */
+	onMcpAuthEvent(callback: (event: McpAuthEvent) => void): () => void {
+		this.mcpAuthListeners.add(callback);
+		return () => this.mcpAuthListeners.delete(callback);
+	}
+
+	/** Emit an MCP auth event to all listeners. No session-id filtering. */
+	private emitMcpAuthEvent(event: McpAuthEvent): void {
+		for (const listener of this.mcpAuthListeners) {
+			listener(event);
+		}
+	}
+
+	/** `_kiro.dev/mcp/oauth_request` — an MCP server needs user sign-in. */
+	mcpOauthRequest(params: McpOauthRequestParams): void {
 		this.logger.log(
-			`Extension notification received: ${method}`,
-			params,
+			`MCP server "${params.serverName}" requested OAuth sign-in`,
 		);
+		this.emitMcpAuthEvent({
+			kind: "oauth_request",
+			sessionId: params.sessionId,
+			serverName: params.serverName,
+			oauthUrl: params.oauthUrl,
+		});
+	}
+
+	/** `_kiro.dev/mcp/server_initialized` — an MCP server finished init. */
+	mcpServerInitialized(params: McpServerInitializedParams): void {
+		this.logger.log(`MCP server "${params.serverName}" initialized`);
+		this.emitMcpAuthEvent({
+			kind: "server_initialized",
+			sessionId: params.sessionId,
+			serverName: params.serverName,
+		});
 	}
 
 	// ====================================================================

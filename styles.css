@@ -3401,3 +3401,72 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	gap: var(--size-4-2);
 	align-items: center;
 }
+
+/* ============================================================
+   MCP OAuth prompt surfacing (sign-in Notice, inline banner,
+   re-authenticate modal). See MCP OAuth Prompt Surfacing spec.
+   ============================================================ */
+
+.agent-client-mcp-auth-notice-title {
+	font-weight: 600;
+	margin-bottom: 4px;
+}
+
+.agent-client-mcp-auth-notice-host {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin-bottom: 8px;
+}
+
+.agent-client-mcp-auth-notice-buttons {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+.agent-client-mcp-auth-notice-queue {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin-bottom: 6px;
+}
+
+.agent-client-mcp-auth-notice-hint {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.agent-client-mcp-auth-suggestion-note {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.agent-client-mcp-auth-banner {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 12px;
+	margin-top: 6px;
+	border: 1px solid var(--background-modifier-border);
+	border-left: 3px solid var(--color-yellow);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+}
+
+.agent-client-mcp-auth-banner-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.agent-client-mcp-auth-banner-title {
+	font-weight: 600;
+	margin-bottom: 2px;
+}
+
+.agent-client-mcp-auth-banner-detail {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.agent-client-mcp-auth-banner > button {
+	flex-shrink: 0;
+}

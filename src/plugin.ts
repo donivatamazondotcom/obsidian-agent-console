@@ -39,6 +39,11 @@ import {
 } from "./services/recently-closed-stack";
 import { AgentClientSettingTab } from "./ui/SettingsTab";
 import { AcpClient } from "./acp/acp-client";
+import { McpAuthManager } from "./services/mcp-auth-manager";
+import {
+	McpAuthSuggestModal,
+	McpAuthReconnectModal,
+} from "./ui/McpAuthModal";
 import {
 	DEFAULT_SETTINGS,
 	normalizeRawSettings,
@@ -271,6 +276,13 @@ export default class AgentClientPlugin extends Plugin {
 
 	/** Map of viewId to AcpClient for multi-session support */
 	private _acpClients: Map<string, AcpClient> = new Map();
+
+	/**
+	 * Single owner of pending MCP sign-in state across all views.
+	 * See MCP OAuth Prompt Surfacing spec.
+	 */
+	mcpAuthManager = new McpAuthManager();
+	private mcpAuthUnsubscribers: Map<string, () => void> = new Map();
 
 	/**
 	 * True only on a genuine fresh install (no data.json yet). Gates the
@@ -627,6 +639,11 @@ export default class AgentClientPlugin extends Plugin {
 			client.disconnect().catch(() => {});
 		}
 		this._acpClients.clear();
+		for (const unsubscribe of this.mcpAuthUnsubscribers.values()) {
+			unsubscribe();
+		}
+		this.mcpAuthUnsubscribers.clear();
+		this.mcpAuthManager.destroy();
 	}
 
 	/**
@@ -638,6 +655,10 @@ export default class AgentClientPlugin extends Plugin {
 		if (!client) {
 			client = new AcpClient(this);
 			this._acpClients.set(viewId, client);
+			this.mcpAuthUnsubscribers.set(
+				viewId,
+				this.mcpAuthManager.trackClient(viewId, client),
+			);
 		}
 		return client;
 	}
@@ -657,6 +678,8 @@ export default class AgentClientPlugin extends Plugin {
 	 * Called when a ChatView is closed.
 	 */
 	async removeAcpClient(viewId: string): Promise<void> {
+		this.mcpAuthUnsubscribers.get(viewId)?.();
+		this.mcpAuthUnsubscribers.delete(viewId);
 		const client = this._acpClients.get(viewId);
 		if (client) {
 			try {
@@ -1292,6 +1315,37 @@ export default class AgentClientPlugin extends Plugin {
 				return true;
 			},
 		});
+
+		this.addCommand({
+			id: "reauthenticate-mcp-servers",
+			name: "Re-authenticate MCP servers",
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.openMcpReauthentication();
+				}
+				return true;
+			},
+		});
+	}
+
+	/**
+	 * Open the MCP re-authentication flow: a picker of servers waiting for
+	 * sign-in, or — when none are waiting (e.g. a token expired mid-session)
+	 * — a confirm-gated session restart that re-triggers sign-in prompts.
+	 * Also invoked by the inline transcript affordance (McpAuthBanner).
+	 */
+	openMcpReauthentication(): void {
+		if (this.mcpAuthManager.getPending().length > 0) {
+			new McpAuthSuggestModal(this.app, this.mcpAuthManager).open();
+		} else {
+			new McpAuthReconnectModal(this.app, () => {
+				this.app.workspace.trigger(
+					"agent-console:hard-reload-session",
+					this.getDispatchTargetId(),
+				);
+			}).open();
+		}
 	}
 
 	/**

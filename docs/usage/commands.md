@@ -34,6 +34,7 @@ These appear only when a chat view is open.
 |---------|-------------|
 | **Reload session** | Reload the current session under a fresh harness, resuming the same conversation (agent process respawned, MCP servers reloaded) |
 | **Restart session (fresh)** | Restart the agent and start a brand-new session (clears the transcript) |
+| **Re-authenticate MCP servers** | List MCP servers waiting for sign-in — open the sign-in page or copy its link. When none are waiting, offers a session restart to trigger fresh sign-in prompts (see [MCP Tools](/usage/mcp-tools#remote-servers-and-sign-in)) |
 | **Cancel current message** | Stop the agent's current response |
 | **Export chat** | Export the current conversation to a note |
 | **Quick prompts: Search** | Focus the composer and start a `!` search of your [quick prompts](/usage/quick-prompts) — type to filter, Enter to fire (⌘↵ new tab, ⌘⇧↵ switch, ⌥↵ insert — Ctrl/Alt/Shift on Windows/Linux). Also reachable by typing `!` directly in the message box. |

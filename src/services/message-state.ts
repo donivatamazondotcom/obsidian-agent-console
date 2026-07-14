@@ -68,6 +68,11 @@ export function mergeToolCallContent(
 			Object.keys(update.rawInput).length > 0
 				? update.rawInput
 				: existing.rawInput,
+		rawOutput:
+			update.rawOutput !== undefined &&
+			Object.keys(update.rawOutput).length > 0
+				? update.rawOutput
+				: existing.rawOutput,
 		permissionRequest:
 			update.permissionRequest !== undefined
 				? update.permissionRequest
@@ -314,6 +319,7 @@ export function applySingleUpdate(
 					content: update.content,
 					locations: update.locations,
 					rawInput: update.rawInput,
+					rawOutput: update.rawOutput,
 					permissionRequest: update.permissionRequest,
 				},
 				toolCallIndex,

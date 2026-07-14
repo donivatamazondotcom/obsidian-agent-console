@@ -37,3 +37,72 @@ if (
 		}
 	};
 }
+
+/**
+ * Obsidian's DOM-creation helpers (`createDiv`, `createEl`, `createFragment`
+ * globals plus `HTMLElement.prototype.createDiv`/`createEl`). Minimal shims
+ * matching the DomElementInfo subset the plugin uses (cls, text).
+ */
+type DomInfo = { cls?: string | string[]; text?: string } | string;
+
+function applyDomInfo(el: HTMLElement, o?: DomInfo): void {
+	if (typeof o === "string") {
+		el.className = o;
+		return;
+	}
+	if (!o) return;
+	if (o.cls) {
+		el.className = Array.isArray(o.cls) ? o.cls.join(" ") : o.cls;
+	}
+	if (o.text !== undefined) el.textContent = o.text;
+}
+
+type DomCreationGlobals = {
+	createEl: (tag: string, o?: DomInfo) => HTMLElement;
+	createDiv: (o?: DomInfo) => HTMLDivElement;
+	createFragment: (
+		callback?: (el: DocumentFragment) => void,
+	) => DocumentFragment;
+};
+
+const domGlobals = window as unknown as DomCreationGlobals;
+if (typeof domGlobals.createEl !== "function") {
+	domGlobals.createEl = (tag, o) => {
+		const el = window.document.createElement(tag);
+		applyDomInfo(el, o);
+		return el;
+	};
+	domGlobals.createDiv = (o) =>
+		domGlobals.createEl("div", o) as HTMLDivElement;
+	domGlobals.createFragment = (callback) => {
+		const fragment = window.document.createDocumentFragment();
+		callback?.(fragment);
+		return fragment;
+	};
+}
+
+type ElementCreators = {
+	createEl?: (tag: string, o?: DomInfo) => HTMLElement;
+	createDiv?: (o?: DomInfo) => HTMLDivElement;
+};
+
+const elementProto = HTMLElement.prototype as unknown as ElementCreators;
+if (typeof elementProto.createEl !== "function") {
+	elementProto.createEl = function (
+		this: HTMLElement,
+		tag: string,
+		o?: DomInfo,
+	): HTMLElement {
+		const el = domGlobals.createEl(tag, o);
+		this.appendChild(el);
+		return el;
+	};
+	elementProto.createDiv = function (
+		this: HTMLElement,
+		o?: DomInfo,
+	): HTMLDivElement {
+		const el = domGlobals.createDiv(o);
+		this.appendChild(el);
+		return el;
+	};
+}

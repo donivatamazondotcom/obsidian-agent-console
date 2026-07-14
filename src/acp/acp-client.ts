@@ -15,6 +15,13 @@ import { AcpTypeConverter } from "./type-converter";
 import { TerminalManager } from "./terminal-handler";
 import { PermissionManager } from "./permission-handler";
 import { AcpHandler } from "./acp-handler";
+import {
+	MCP_OAUTH_REQUEST_METHOD,
+	MCP_SERVER_INITIALIZED_METHOD,
+	parseMcpOauthRequest,
+	parseMcpServerInitialized,
+} from "./mcp-auth-parsers";
+import type { McpAuthEvent } from "../types/mcp-auth";
 import { getLogger, Logger } from "../utils/logger";
 import type AgentClientPlugin from "../plugin";
 import {
@@ -428,6 +435,20 @@ export class AcpClient {
 			.client({ name: "agent-console" })
 			.onNotification(acp.methods.client.session.update, (ctx) =>
 				this.handler.sessionUpdate(ctx.params),
+			)
+			// kiro-cli ACP extension notifications (custom-method overload:
+			// method string + params parser + handler). Without an explicit
+			// registration the SDK silently drops them — which is exactly the
+			// bug this fixes for MCP OAuth. See types/mcp-auth.ts.
+			.onNotification(
+				MCP_OAUTH_REQUEST_METHOD,
+				parseMcpOauthRequest,
+				(ctx) => this.handler.mcpOauthRequest(ctx.params),
+			)
+			.onNotification(
+				MCP_SERVER_INITIALIZED_METHOD,
+				parseMcpServerInitialized,
+				(ctx) => this.handler.mcpServerInitialized(ctx.params),
 			)
 			.onRequest(acp.methods.client.session.requestPermission, (ctx) =>
 				this.handler.requestPermission(ctx.params),
@@ -861,6 +882,15 @@ export class AcpClient {
 	 */
 	onSessionUpdate(callback: (update: SessionUpdate) => void): () => void {
 		return this.handler.onSessionUpdate(callback);
+	}
+
+	/**
+	 * Register a callback for MCP auth events (sign-in requests and server
+	 * initialization from `_kiro.dev/mcp/*` extension notifications).
+	 * Connection-scoped — not filtered by session id.
+	 */
+	onMcpAuthEvent(callback: (event: McpAuthEvent) => void): () => void {
+		return this.handler.onMcpAuthEvent(callback);
 	}
 
 	/**

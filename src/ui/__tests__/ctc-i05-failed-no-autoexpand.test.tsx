@@ -58,6 +58,11 @@ vi.mock("../PermissionBanner", () => ({
 const mockPlugin = {
 	app: { vault: { adapter: {} } },
 	settings: { displaySettings: { showEmojis: true } },
+	// Minimal manager stub: McpAuthBanner reads pending state on mount.
+	mcpAuthManager: {
+		getPending: () => [],
+		onChange: () => () => {},
+	},
 } as unknown as AgentClientPlugin;
 
 type ToolCall = Extract<MessageContent, { type: "tool_call" }>;
