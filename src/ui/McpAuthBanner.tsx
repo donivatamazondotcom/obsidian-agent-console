@@ -69,7 +69,7 @@ export function McpAuthBanner({ content, plugin }: McpAuthBannerProps) {
 				className="mod-cta"
 				onClick={() => plugin.openMcpReauthentication()}
 			>
-				Re-authenticate
+				Re-authenticate…
 			</button>
 		</div>
 	);
