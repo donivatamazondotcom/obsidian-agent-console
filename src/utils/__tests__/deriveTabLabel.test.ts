@@ -236,3 +236,126 @@ describe("deriveTabLabel — strips a wrapped host-context briefing (T05 / slice
 		expect(deriveTabLabel([msg])).toBe("implement the feature");
 	});
 });
+
+describe("Mutation-audit hardening (2026-07-14): kill the resolvers-run survivors", () => {
+	// Each test targets ≥1 mutant that SURVIVED the 2026-07-14 Stryker run
+	// (see vault note "Mutation Audit" § Run 1 triage). R1 evidence is the
+	// mutation report itself: these assertions fail under the listed mutant.
+
+	function assistantMsg(text: string): ChatMessage {
+		return {
+			id: "a1",
+			role: "assistant",
+			content: [{ type: "text", text }],
+			timestamp: new Date(),
+		};
+	}
+
+	function userMsgWithContent(
+		content: ChatMessage["content"],
+	): ChatMessage {
+		return { id: "u1", role: "user", content, timestamp: new Date() };
+	}
+
+	it("does NOT strip an obsidian block that is not at the head (regex ^ anchor)", () => {
+		// Kills: leadingBlock ^ removal (22:23) — anchorless regex strips mid-string blocks.
+		expect(
+			deriveTabLabel([
+				userMsg("Hello <obsidian_note>ctx</obsidian_note> world"),
+			]),
+		).toBe("Hello <obsidian_note>ctx</obsidian_note> world");
+	});
+
+	it("strips a head block glued directly to the user text (trailing \\s* semantics)", () => {
+		// Kills: leadingBlock \s* → \S* (22:23) — the mutant eats the user text.
+		expect(
+			deriveTabLabel([userMsg("<obsidian_x>ctx</obsidian_x>Hello")]),
+		).toBe("Hello");
+	});
+
+	it("strips a title marker glued directly to the user text", () => {
+		// Kills: leadingTitle \s* → \s (23:23, requires whitespace → marker retained)
+		// and \s* → \S* (23:23, eats the user text).
+		expect(deriveTabLabel([userMsg("<title>t</title>Hello")])).toBe(
+			"Hello",
+		);
+	});
+
+	it("strips a title marker carrying attributes", () => {
+		// Kills: leadingTitle [^>]* → [>]* (23:23) — attributed <title …> no longer matches.
+		expect(
+			deriveTabLabel([userMsg('<title data-x="1">t</title> Hello')]),
+		).toBe("Hello");
+	});
+
+	it("strips a head block preceded by leading whitespace (initial trimStart)", () => {
+		// Kills: text.trimStart() → trimEnd() (25:15) — leading spaces break the ^ anchor.
+		expect(
+			deriveTabLabel([userMsg("   <obsidian_x>ctx</obsidian_x> Hello")]),
+		).toBe("Hello");
+	});
+
+	it("keeps stripping when a title marker precedes a wrapped block (title branch sets changed)", () => {
+		// Kills: changed = true → false in the title branch (38:14) — the loop
+		// must take another iteration AFTER a title strip to remove the block.
+		expect(
+			deriveTabLabel([
+				userMsg("<title>t</title><obsidian_x>ctx</obsidian_x>Hello"),
+			]),
+		).toBe("Hello");
+	});
+
+	it("derives from the first USER message, not an earlier assistant message", () => {
+		// Kills: m.role === "user" → true (65:44) — mutant derives from the assistant turn.
+		expect(
+			deriveTabLabel([
+				assistantMsg("Greetings from the agent"),
+				userMsg("Real question"),
+			]),
+		).toBe("Real question");
+	});
+
+	it("skips a leading non-text block and derives from the text block", () => {
+		// Kills: block-type find condition → true (70:4) — mutant picks the
+		// agent_thought block (which also carries a text property).
+		expect(
+			deriveTabLabel([
+				userMsgWithContent([
+					{ type: "agent_thought", text: "internal reasoning" },
+					{ type: "text", text: "Real" },
+				]),
+			]),
+		).toBe("Real");
+	});
+
+	it("derives from a text_with_context block", () => {
+		// Kills: the no-coverage cluster on the text_with_context arm
+		// (70:29 || → false, 70:44 string-literal mutants).
+		expect(
+			deriveTabLabel([
+				userMsgWithContent([
+					{ type: "text_with_context", text: "From context" },
+				]),
+			]),
+		).toBe("From context");
+	});
+
+	it("trims trailing whitespace from the derived label (final .trim)", () => {
+		// Kills: stripContextBlocks(text).trim() → no .trim() (73:18) —
+		// stripContextBlocks only trims the head, so trailing spaces leak
+		// into the label without the final trim.
+		expect(deriveTabLabel([userMsg("Hello   ")])).toBe("Hello");
+	});
+
+	it("returns null when the user message has no text-bearing block", () => {
+		// Kills: textBlock && "text" in textBlock → true (72:15, mutant throws on
+		// undefined), && → || (72:15), and the "" fallback string literal (72:67).
+		expect(
+			deriveTabLabel([
+				userMsgWithContent([
+					{ type: "agent_thought", text: "internal only" },
+				]),
+			]),
+		).toBeNull();
+	});
+});
