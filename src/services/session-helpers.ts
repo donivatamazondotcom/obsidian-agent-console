@@ -11,6 +11,7 @@ import type {
 	CodexAgentSettings,
 } from "../types/agent";
 import type { ChatSession, SavedSessionInfo } from "../types/session";
+import type { AgentCandidate } from "./agent-detection";
 import { toAgentConfig } from "./settings-normalizer";
 import {
 	resolveAgentWorkingDirectory,
@@ -75,6 +76,34 @@ export function getAvailableAgentsFromSettings(
 			displayName: agent.displayName || agent.id,
 		})),
 	];
+}
+
+/**
+ * Build the agent-detection candidate list (id + command) from the SINGLE
+ * agent-enumeration source ({@link getAvailableAgentsFromSettings}), so the set
+ * of agents detection probes can never drift from the set the landing
+ * "New chat with an agent" picker offers.
+ *
+ * This covers every built-in AND every custom agent. Before I171, the probe in
+ * plugin.ts hardcoded its own built-in-only candidate list, so custom agents
+ * were never detection candidates and the detection-gated picker
+ * (deriveAgentPickerOptions) always filtered them out — same class of bug as
+ * I167 (a second hardcoded built-in list drifting from the enumeration source).
+ *
+ * Blank-command agents are dropped here (detectAvailableAgents also skips them,
+ * but excluding them keeps the candidate list honest). Pure — unit-testable
+ * without a plugin/Obsidian harness.
+ */
+export function buildAgentDetectionCandidates(
+	settings: AgentClientPluginSettings,
+): AgentCandidate[] {
+	return getAvailableAgentsFromSettings(settings)
+		.map((a) => {
+			const agentSettings = findAgentSettings(settings, a.id);
+			const command = agentSettings?.command ?? "";
+			return { id: a.id, command };
+		})
+		.filter((c) => c.id.length > 0 && c.command.trim().length > 0);
 }
 
 /**
