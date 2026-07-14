@@ -90,15 +90,20 @@ export class McpAuthReconnectModal extends Modal {
 			cls: "modal-button-container",
 		});
 		const confirm = buttons.createEl("button", {
-			cls: "mod-cta",
 			text: "Restart session",
 		});
 		confirm.addEventListener("click", () => {
 			this.close();
 			this.onConfirm();
 		});
-		const cancel = buttons.createEl("button", { text: "Cancel" });
+		const cancel = buttons.createEl("button", {
+			cls: "mod-cta",
+			text: "Cancel",
+		});
 		cancel.addEventListener("click", () => this.close());
+		// Cancel is the safe default: restarting interrupts in-flight work,
+		// so a stray Enter must not trigger it (smoke finding 2026-07-14).
+		window.setTimeout(() => cancel.focus(), 0);
 	}
 
 	onClose(): void {

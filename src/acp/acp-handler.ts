@@ -119,6 +119,9 @@ export class AcpHandler {
 					rawInput: update.rawInput as
 						| { [k: string]: unknown }
 						| undefined,
+					rawOutput: update.rawOutput as
+						| { [k: string]: unknown }
+						| undefined,
 				});
 				break;
 
