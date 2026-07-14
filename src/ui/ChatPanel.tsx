@@ -44,7 +44,7 @@ import { CarriedOverPreview } from "./CarriedOverPreview";
 import { getLogger } from "../utils/logger";
 import { deriveTabLabel, labelAlreadyReportedOnMount, shouldReportInterimLabel } from "../resolvers/deriveTabLabel";
 import { buildCompletionNotificationContent } from "../utils/notification-content";
-import { runCompletionNotificationClick } from "../utils/notification-click";
+import { runNotificationClick } from "../utils/notification-click";
 import { shouldNotifySystem } from "../resolvers/notify-gate";
 import { retainNotification } from "../utils/notification-registry";
 import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
@@ -1766,12 +1766,18 @@ export function ChatPanel({
 				// 2026-07-09.
 				retainNotification(completionNotification, () => {
 					// Retained Electron fallback for the OS window raise (I52);
-					// revealOwningLeaf runs last so the sanctioned path wins the race.
+					// the sanctioned reveal follows, plus one bounded post-
+					// activation re-assert — the macOS activation lands async
+					// AFTER this handler, so a single reveal can lose the race
+					// (I52 recurrence 2026-07-14).
 					focusOwningWindow();
-					runCompletionNotificationClick({
+					runNotificationClick({
 						tabId: viewId,
 						onSwitchToTab: onSwitchToTabRef.current,
 						revealOwningLeaf: () => viewHost.revealOwningLeaf(),
+						owningWindowHasFocus: () =>
+							containerRef.current?.ownerDocument.hasFocus() ?? false,
+						schedule: (fn, ms) => window.setTimeout(fn, ms),
 					});
 				});
 			}
@@ -1825,7 +1831,13 @@ export function ChatPanel({
 			// Retain so the click handler survives GC (see completion site above).
 			retainNotification(permissionNotification, () => {
 				focusOwningWindow();
-				viewHost.revealOwningLeaf();
+				runNotificationClick({
+					tabId: viewId,
+					revealOwningLeaf: () => viewHost.revealOwningLeaf(),
+					owningWindowHasFocus: () =>
+						containerRef.current?.ownerDocument.hasFocus() ?? false,
+					schedule: (fn, ms) => window.setTimeout(fn, ms),
+				});
 			});
 		}
 	}, [
