@@ -123,9 +123,12 @@ export function chooseFirstRunDefault(
  * that detection did not find installed — i.e. a genuine "no working agent"
  * situation for a fresh install. It must NOT show for:
  *  - a chat that already has messages,
- *  - a **custom** agent the user configured deliberately (custom agents are
- *    never in the built-in detected set, so membership alone would wrongly
- *    flag every custom-agent default as a dead end — the I-FRO2 bug), or
+ *  - a **custom** agent the user configured deliberately. The guard is the
+ *    `builtInIds` membership check below, NOT the detected set: since I171
+ *    detection probes custom agents too, a custom id CAN appear in
+ *    `detectedIds`, so gating on detection membership alone would be wrong.
+ *    Short-circuiting on `!builtInIds.has(currentAgentId)` keeps a custom-agent
+ *    default from ever being flagged as a dead end (the I-FRO2 bug), or
  *  - while detection is still pending (`detectedIds === null`).
  *
  * A custom agent with a broken command still surfaces the normal inline

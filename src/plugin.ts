@@ -48,7 +48,10 @@ import {
 	DEFAULT_SETTINGS,
 	normalizeRawSettings,
 } from "./services/settings-normalizer";
-import { getAvailableAgentsFromSettings } from "./services/session-helpers";
+import {
+	getAvailableAgentsFromSettings,
+	buildAgentDetectionCandidates,
+} from "./services/session-helpers";
 import {
 	detectAvailableAgents,
 	createDetectionCache,
@@ -1644,7 +1647,11 @@ export default class AgentClientPlugin extends Plugin {
 	}
 
 	/**
-	 * Probe which built-in agents are installed.
+	 * Probe which configured agents are installed — built-in AND custom.
+	 *
+	 * Candidates come from {@link buildAgentDetectionCandidates}, the single
+	 * enumeration source shared with the landing picker, so a configured agent
+	 * can never be dropped from the detection-gated picker (I171).
 	 *
 	 * Dev/test affordance: a vault-local marker file (`.force-no-agents` in the
 	 * plugin dir) forces an empty result, so the no-agent first-run experience
@@ -1662,28 +1669,14 @@ export default class AgentClientPlugin extends Plugin {
 		} catch {
 			/* ignore — fall through to real detection */
 		}
-		const candidates: AgentCandidate[] = [
-			{
-				id: this.settings.kiro.id,
-				command: this.settings.kiro.command,
-			},
-			{
-				id: this.settings.claude.id,
-				command: this.settings.claude.command,
-			},
-			{
-				id: this.settings.codex.id,
-				command: this.settings.codex.command,
-			},
-			{
-				id: this.settings.gemini.id,
-				command: this.settings.gemini.command,
-			},
-			{
-				id: this.settings.opencode.id,
-				command: this.settings.opencode.command,
-			},
-		];
+		// Probe EVERY configured agent (built-in + custom) via the single
+		// enumeration source, so detection can never drop a configured agent
+		// from the detection-gated landing picker (I171). Do NOT reintroduce a
+		// hardcoded built-in-only list here — that was the I171 bug and is the
+		// same class as I167.
+		const candidates: AgentCandidate[] = buildAgentDetectionCandidates(
+			this.settings,
+		);
 		return detectAvailableAgents(candidates);
 	}
 
