@@ -193,6 +193,18 @@ Before submitting, please verify:
 - [ ] Documentation updated if needed
 - [ ] No new network egress outside `src/services/net.ts` (`npm test` passes the egress tripwire)
 
+### Test quality rubric
+
+Tests exist to fail when the code is wrong. A test that would pass against broken code manufactures false confidence. Every PR that adds or modifies tests must satisfy all five gates (or state N/A with a reason):
+
+| # | Gate | What it means |
+|---|---|---|
+| R1 | **Red-first** | The test demonstrably fails against the pre-fix/pre-feature code. For bug fixes, cite the failing output. |
+| R2 | **Boundary honesty** | The test enters at the seam the runtime uses — the real send path, mount→persist→remount lifecycle, or the public hook API — never a private helper when a live path exists. |
+| R3 | **Outcome assertion** | Assert the user-visible or persisted outcome (rendered text, disk state, emitted event) — never only that a mock was called or that nothing threw. |
+| R4 | **Mock budget** | Mock only at architecture boundaries (the `acp/` port, the settings port, the Obsidian stub). Mocking a sibling module of the code under test defeats the test. |
+| R5 | **No tautology** | The test must not re-implement the production logic to compute its expected value. |
+
 ### CI
 
 Pull requests automatically run:
