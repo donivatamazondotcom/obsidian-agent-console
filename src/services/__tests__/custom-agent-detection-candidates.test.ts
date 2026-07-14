@@ -37,16 +37,16 @@ const base = {
 const withCustom = {
 	...base,
 	customAgents: [
-		{ id: "auto-sa", displayName: "Auto SA", command: "/Users/x/.toolbox/bin/kiro-cli" },
+		{ id: "my-custom-agent", displayName: "My Custom Agent", command: "/Users/x/bin/my-custom-cli" },
 	],
 } as unknown as AgentClientPluginSettings;
 
 describe("I171: buildAgentDetectionCandidates covers every configured agent", () => {
 	it("includes a candidate (id + command) for the custom agent", () => {
 		const candidates = buildAgentDetectionCandidates(withCustom);
-		const custom = candidates.find((c) => c.id === "auto-sa");
+		const custom = candidates.find((c) => c.id === "my-custom-agent");
 		expect(custom).toBeDefined();
-		expect(custom?.command).toBe("/Users/x/.toolbox/bin/kiro-cli");
+		expect(custom?.command).toBe("/Users/x/bin/my-custom-cli");
 	});
 
 	it("covers every id in the single enumeration source (no drift)", () => {
@@ -68,7 +68,7 @@ describe("I171: a resolvable custom agent reaches the landing picker", () => {
 		);
 
 		// The custom agent must now be in the detected set...
-		expect(detected.has("auto-sa")).toBe(true);
+		expect(detected.has("my-custom-agent")).toBe(true);
 
 		// ...and therefore survive the picker's detection gate.
 		const picker = deriveAgentPickerOptions({
@@ -77,6 +77,6 @@ describe("I171: a resolvable custom agent reaches the landing picker", () => {
 			defaultAgentId: "kiro-cli",
 		});
 		const ids = picker.options.map((o) => o.id);
-		expect(ids).toContain("auto-sa");
+		expect(ids).toContain("my-custom-agent");
 	});
 });
