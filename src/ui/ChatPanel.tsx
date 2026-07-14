@@ -21,6 +21,7 @@ import {
 import { resolveCwdForAgent } from "../services/session-helpers";
 import { deriveNewLeaf, shouldOpenFromActivation } from "../utils/link-leaf";
 import { deriveSendAffordance, isSessionLive } from "../resolvers/send-affordance";
+import { deriveTabState } from "../resolvers/tab-state";
 import { extractLinks, type SharedLink } from "../utils/link-extract";
 import {
 	decideSessionIntent,
@@ -1826,49 +1827,25 @@ export function ChatPanel({
 	// ============================================================
 	// Effects - Tab State & Label Reporting
 	// ============================================================
-	// Drive busy/permission transitions on the lazy session state machine
-	// from agent events. The state machine is the single source of truth
-	// (spec § Tab Session State Machine); these effects keep it in sync
-	// with the agent's response lifecycle.
-	const prevIsSendingForStateRef = useRef(false);
+	// The tab icon state is a PURE DERIVATION over the connection lifecycle
+	// plus intent signals, not a chain of edge-triggered state-machine
+	// transitions. The former approach dropped the busy glyph in two ways:
+	//   - `startBusy` was gated on `state === "ready"` at the `isSending`
+	//     rising edge, but a lazy tab's first send raises `isSending` while
+	//     still "connecting", so busy was never entered — the active tab
+	//     showed ● "ready" through the whole streamed reply instead of ◐.
+	//   - a mid-turn permission resolve returned the machine to "ready" while
+	//     the agent kept working, stranding the tab at ready.
+	// `deriveTabState` recomputes every render, so a missed edge can't strand
+	// the icon (see resolvers/tab-state.ts + its truth-table test).
+	const tabState = deriveTabState({
+		lifecycle: lazySession.state,
+		isSending,
+		hasActivePermission: agent.hasActivePermission,
+	});
 	useEffect(() => {
-		const was = prevIsSendingForStateRef.current;
-		prevIsSendingForStateRef.current = isSending;
-		if (!was && isSending && lazySession.state === "ready") {
-			lazySession.startBusy();
-		} else if (was && !isSending && lazySession.state === "busy") {
-			lazySession.endBusy();
-		}
-	}, [isSending, lazySession.state, lazySession.startBusy, lazySession.endBusy]);
-
-	const prevHasPermissionForStateRef = useRef(false);
-	useEffect(() => {
-		const was = prevHasPermissionForStateRef.current;
-		prevHasPermissionForStateRef.current = agent.hasActivePermission;
-		if (!was && agent.hasActivePermission) {
-			lazySession.requestPermission();
-		} else if (was && !agent.hasActivePermission && lazySession.state === "permission") {
-			lazySession.resolvePermission();
-		}
-	}, [agent.hasActivePermission, lazySession.state, lazySession.requestPermission, lazySession.resolvePermission]);
-
-	// Report lazySession.state to the parent (tab icon) via onStateChange.
-	// Maps TabSessionState → TabState for the existing TabBar contract.
-	useEffect(() => {
-		if (!onStateChangeRef.current) return;
-		const s = lazySession.state;
-		if (s === "idle" || s === "connecting") {
-			onStateChangeRef.current("disconnected");
-		} else if (s === "error") {
-			onStateChangeRef.current("error");
-		} else if (s === "permission") {
-			onStateChangeRef.current("permission");
-		} else if (s === "busy") {
-			onStateChangeRef.current("busy");
-		} else {
-			onStateChangeRef.current("ready");
-		}
-	}, [lazySession.state]);
+		onStateChangeRef.current?.(tabState);
+	}, [tabState]);
 
 	// Report label from first user message
 	useEffect(() => {
