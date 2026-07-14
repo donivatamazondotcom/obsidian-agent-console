@@ -1,3 +1,5 @@
+import type { ComposerAction } from "../resolvers/composer-focus";
+
 /**
  * Focus helper for the composer textarea.
  *
@@ -68,4 +70,31 @@ function isHiddenByDisplay(el: HTMLElement): boolean {
 		node = node.parentElement;
 	}
 	return false;
+}
+
+/**
+ * Dispatch a send and return focus to the composer.
+ *
+ * The single seam ChatPanel's Send wrapper routes through, so the send →
+ * refocus TIMING has a testable home (I173). Send is composer-terminal: the
+ * user types the next message immediately, so focus must return as soon as the
+ * send is dispatched — NOT after the assistant's turn ends.
+ *
+ * Why this matters: `dispatchSend` chains through `agent.sendMessage` → the ACP
+ * `session/prompt` RPC, which resolves only at turn-end. Awaiting it before
+ * refocusing left the composer unfocused for the entire streamed response
+ * (I173). See [[Composer Focus Return After State Change]] / [[I173 …]].
+ */
+export function sendAndReturnFocus(
+	dispatchSend: () => Promise<void>,
+	focusAfter: (action: ComposerAction) => void,
+): void {
+	// Fire the send; do NOT await it. `agent.sendMessage` resolves only at
+	// turn-end (the ACP session/prompt RPC), so awaiting here delayed the
+	// refocus until the whole streamed response finished (I173). Errors are
+	// owned by handleSendMessage's internal try/catch, so `void` is safe.
+	void dispatchSend();
+	// Composer-terminal: refocus now (rAF-deferred inside focusAfter) and let
+	// the turn stream in the background.
+	focusAfter("send");
 }
