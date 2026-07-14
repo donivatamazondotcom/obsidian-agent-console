@@ -58,3 +58,8 @@ tools/smoke-test/studios/
 
 # Local scratch for screenshot hero work (not tracked)
 tools/screenshots/_wip/
+
+# Mutation-testing audit artifacts (Verification Overhaul)
+.stryker-tmp/
+reports/
+stryker.log
