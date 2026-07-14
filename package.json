@@ -24,7 +24,8 @@
 		"docs:preview": "vitepress preview docs",
 		"docs:screenshots": "npm run build && bash tools/screenshots/setup.sh && npx tsx tools/screenshots/run.ts",
 		"docs:screenshots:check": "npx tsx tools/screenshots/check.ts",
-		"docs:screenshots:check:strict": "npx tsx tools/screenshots/check.ts --strict"
+		"docs:screenshots:check:strict": "npx tsx tools/screenshots/check.ts --strict",
+		"invariants": "tsx tools/invariant-suite/run.ts"
 	},
 	"keywords": [],
 	"author": "",
