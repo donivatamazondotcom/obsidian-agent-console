@@ -33,7 +33,7 @@ Some probes mutate disposable UI state (INV-1 opens a new chat tab). The runner 
 | INV-2 | Keymap scope returns to root scope on blur (no lingering chat-UI scopes) | scope-leak class |
 | INV-3 | Saved-session index ⇔ disk artifacts ⇔ per-leaf tab slices all resolve | restore / session-store-split class |
 | INV-4 | `getAvailableAgents()` is non-empty, unique, includes enabled custom agents and the default agent | picker/dropdown wiring class |
-| INV-5 | Notification firing + click routing — **todo** (not probeable from renderer eval yet; covered by SF-6 human flow) | notification class |
+| INV-5 | Notification click reveal path: `revealOwningLeaf` wiring exists and reactivates the chat leaf from a background state (cross-window OS race stays human via SF-6) | notification class |
 | INV-6 | Quick-prompt chips all carry non-empty labels | cold-start label race |
 
 Statuses: `pass` / `fail` / `skip` (precondition absent in this vault) / `todo` (probe not implemented). Only `fail` sets a non-zero exit code.

@@ -273,20 +273,95 @@ const agentListsComplete: Invariant = {
 };
 
 /**
- * INV-5 — Notification firing + click routing. System-level Notification
- * behavior (GC retention, window focus routing) is not reliably probeable
- * via renderer evaluation alone. Tracked as a TODO probe; the regression
- * class is covered by SF-6 in the human flow catalog until this lands.
+ * INV-5 — Notification click reveal path. The onclick's foregrounding
+ * mechanism is ChatView.revealOwningLeaf() (revealLeaf + setActiveLeaf);
+ * every I52-class fix depends on it. Probes (1) the wiring — the chat view
+ * exposes revealOwningLeaf (the missing-leaf-handle class), and (2) the
+ * behavior — with another leaf active, revealOwningLeaf() reactivates the
+ * chat leaf. The cross-window macOS activation race itself remains
+ * human-verified (SF-6 / I52 T-recur repeated clicks).
  */
 const notificationRouting: Invariant = {
 	id: "INV-5",
-	name: "Notification firing + click routing",
-	guards: "notification class (I52 ×2, I168)",
-	async run() {
-		return {
-			status: "todo",
-			detail: "system Notification not probeable from renderer eval; covered by SF-6 (human) — candidate: stub Notification constructor and assert retention",
+	name: "Notification click reveal path (revealOwningLeaf)",
+	guards: "notification class (I52 ×3, I168)",
+	async run(cdp) {
+		const evalTolerant = async (expr: string) => {
+			try {
+				await cdp.evaluate(expr);
+			} catch {
+				/* focus-shifting evaluate may drop its response; side effect lands */
+			}
 		};
+		// Wiring check first (read-only).
+		const wiring = await evalJson<{ hasLeaf: boolean; hasReveal: boolean }>(
+			cdp,
+			`const chat = window.app.workspace.getLeavesOfType("${VIEW_TYPE}")[0];
+			 return {
+				hasLeaf: !!chat,
+				hasReveal: !!chat && typeof chat.view.revealOwningLeaf === "function",
+			 };`,
+		);
+		if (!wiring.hasLeaf) {
+			return { status: "skip", detail: "no chat view open; wiring unprobeable" };
+		}
+		if (!wiring.hasReveal) {
+			return {
+				status: "fail",
+				detail: "ChatView does not expose revealOwningLeaf() — notification clicks have no sanctioned foregrounding path",
+			};
+		}
+		// Behavior check: activate a temp leaf, reveal, expect the chat leaf back.
+		await evalTolerant(
+			`(() => {
+				const ws = window.app.workspace;
+				const tmp = ws.getLeaf("tab");
+				window.__invariantSuiteInv5Leaf = tmp;
+				ws.setActiveLeaf(tmp, { focus: true });
+				return true;
+			})()`,
+		);
+		await new Promise((res) => setTimeout(res, 300));
+		try {
+			await evalTolerant(
+				`(() => {
+					const chat = window.app.workspace.getLeavesOfType("${VIEW_TYPE}")[0];
+					chat.view.revealOwningLeaf();
+					return true;
+				})()`,
+			);
+			// revealOwningLeaf resolves async (revealLeaf then setActiveLeaf);
+			// poll for the reactivation instead of a single blind read.
+			const deadline = Date.now() + 3000;
+			let lastActive = "";
+			while (Date.now() < deadline) {
+				const r = await evalJson<{ active: string }>(
+					cdp,
+					`const ws = window.app.workspace;
+					 return { active: ws.activeLeaf ? ws.activeLeaf.view.getViewType() : "none" };`,
+				);
+				if (r.active === VIEW_TYPE) {
+					return {
+						status: "pass",
+						detail: "revealOwningLeaf() reactivated the chat leaf from a background state (cross-window OS race stays human-verified per SF-6)",
+					};
+				}
+				lastActive = r.active;
+				await new Promise((res) => setTimeout(res, 100));
+			}
+			return {
+				status: "fail",
+				detail: `revealOwningLeaf() did not reactivate the chat leaf (active view stayed ${lastActive})`,
+			};
+		} finally {
+			await evalTolerant(
+				`(() => {
+					const tmp = window.__invariantSuiteInv5Leaf;
+					if (tmp) { tmp.detach(); delete window.__invariantSuiteInv5Leaf; }
+					return true;
+				})()`,
+			);
+		}
 	},
 };
 
