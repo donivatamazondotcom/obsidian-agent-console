@@ -56,16 +56,22 @@ export function decideMcpAuthAffordance(
 ): McpAuthAffordance {
 	if (content.status !== "failed") return { kind: "none" };
 
+	// Primary signal: a pending sign-in whose server name appears in the
+	// tool title (kiro titles MCP tools like "Running: @sheets/get_…").
+	// This match deliberately does NOT require auth-shaped error text:
+	// kiro's failed tool_call_update carries no error payload at all
+	// (verified against live traffic 2026-07-13 — rawOutput/content absent),
+	// and the pending sign-in itself is stronger evidence than any string.
+	const title = content.title ?? "";
+	const named = pending.find((p) => title.includes(p.serverName));
+	if (named) return { kind: "sign_in", entry: named };
+
+	// Fallback: auth-shaped error text, for agents that DO surface error
+	// text on failed tool calls (kiro currently does not).
 	const text = errorText(content);
 	if (!AUTH_ERROR_PATTERNS.some((p) => p.test(text))) {
 		return { kind: "none" };
 	}
-
-	// Prefer the pending server whose name appears in the tool title
-	// (kiro titles MCP tools like "sheets · read_values").
-	const title = content.title ?? "";
-	const named = pending.find((p) => title.includes(p.serverName));
-	if (named) return { kind: "sign_in", entry: named };
 
 	// Unambiguous single pending sign-in — offer it.
 	if (pending.length === 1) return { kind: "sign_in", entry: pending[0] };

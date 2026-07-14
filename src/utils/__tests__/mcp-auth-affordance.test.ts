@@ -45,10 +45,34 @@ describe("decideMcpAuthAffordance (T06)", () => {
 		expect(result.kind).toBe("none");
 	});
 
-	it("failed without auth-shaped error text gets none", () => {
+	it("REAL KIRO SHAPE: failed with NO error payload + pending server in title → sign_in", () => {
+		// kiro's failed tool_call_update carries no rawOutput/content at all
+		// (verified 2026-07-13). The pending sign-in + title match must be
+		// sufficient on their own.
+		const result = decideMcpAuthAffordance(
+			toolCall({
+				title: "Running: @sheets/get_spreadsheet",
+				// no rawOutput, no content — exactly what kiro sends
+			}),
+			[pendingSheets],
+		);
+		expect(result).toEqual({ kind: "sign_in", entry: pendingSheets });
+	});
+
+	it("failed without error text and WITHOUT pending server in title gets none", () => {
+		// Guards against misfiring on unrelated failures while a sign-in is
+		// pending: no title match + no auth text = no banner.
+		const result = decideMcpAuthAffordance(
+			toolCall({ title: "Running: fs_read" }),
+			[pendingSheets],
+		);
+		expect(result.kind).toBe("none");
+	});
+
+	it("failed without auth-shaped error text gets none (no pending)", () => {
 		const result = decideMcpAuthAffordance(
 			toolCall({ rawOutput: { error: "file not found" } }),
-			[pendingSheets],
+			[],
 		);
 		expect(result.kind).toBe("none");
 	});
