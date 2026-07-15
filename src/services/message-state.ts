@@ -339,6 +339,50 @@ export function applySingleUpdate(
 // ============================================================================
 
 /**
+ * Deactivate every active permission request in the transcript (I174).
+ *
+ * Used by the stop/interrupt path: `PermissionManager.cancelAll()` emits its
+ * `isActive: false` cancellation through the batched update queue, but the
+ * interrupt wipes that queue (`discardPendingTurn` / `clearPendingUpdates`),
+ * so the cancellation could be lost and the stale block kept
+ * `hasActivePermission` stuck true — killing the inactive→active transition
+ * that fires permission notifications for the rest of the session. Applying
+ * the deactivation directly to the messages source of truth makes Stop
+ * deterministic regardless of queue timing.
+ *
+ * Returns the same array reference when nothing was active (no re-render).
+ */
+export function cancelActivePermissions(
+	messages: ChatMessage[],
+): ChatMessage[] {
+	let changed = false;
+	const next = messages.map((message) => {
+		let msgChanged = false;
+		const content = message.content.map((block) => {
+			if (
+				block.type === "tool_call" &&
+				block.permissionRequest?.isActive
+			) {
+				msgChanged = true;
+				return {
+					...block,
+					permissionRequest: {
+						...block.permissionRequest,
+						isActive: false,
+						isCancelled: true,
+					},
+				};
+			}
+			return block;
+		});
+		if (!msgChanged) return message;
+		changed = true;
+		return { ...message, content };
+	});
+	return changed ? next : messages;
+}
+
+/**
  * Find the active permission request from messages.
  */
 export function findActivePermission(
