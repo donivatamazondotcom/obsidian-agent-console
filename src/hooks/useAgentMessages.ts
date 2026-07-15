@@ -35,6 +35,7 @@ import {
 	applySingleUpdate,
 	findActivePermission,
 	selectOption,
+	cancelActivePermissions,
 } from "../services/message-state";
 import { TitleHeadBuffer } from "../utils/titleMarker";
 import {
@@ -281,6 +282,10 @@ export function useAgentMessages(
 		pendingUpdatesRef.current = [];
 		// Scheduler flag intentionally untouched: its parked flush no-ops on
 		// the emptied queue and self-resets when it fires (I168 scheduler).
+		// I174: wiping the queue may discard PermissionManager.cancelAll()'s
+		// in-flight `isActive: false` cancellation — deactivate directly in the
+		// source of truth so hasActivePermission deterministically resets.
+		setMessages((prev) => cancelActivePermissions(prev));
 		setIsSending(false);
 		// F03: a cancelled turn discards its pending updates — drop the title
 		// head buffer too (held head text belongs to the cancelled turn).
@@ -306,6 +311,8 @@ export function useAgentMessages(
 	const discardPendingTurn = useCallback((): void => {
 		generationRef.current++;
 		pendingUpdatesRef.current = [];
+		// I174: same deterministic permission deactivation as clearPendingUpdates.
+		setMessages((prev) => cancelActivePermissions(prev));
 		setIsSending(false);
 		titleBufferRef.current = null;
 		// I107: drop the (possibly never-settling) prior-send promise so the
