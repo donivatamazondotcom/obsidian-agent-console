@@ -45,6 +45,7 @@ import { getLogger } from "../utils/logger";
 import { deriveTabLabel, labelAlreadyReportedOnMount, shouldReportInterimLabel } from "../resolvers/deriveTabLabel";
 import { buildCompletionNotificationContent } from "../utils/notification-content";
 import { runCompletionNotificationClick } from "../utils/notification-click";
+import { shouldNotifySystem } from "../resolvers/notify-gate";
 import { retainNotification } from "../utils/notification-registry";
 import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";
@@ -1742,7 +1743,13 @@ export function ChatPanel({
 			// tab label (which tab finished); a click focuses the owning vault
 			// window (I52) AND switches to that tab. Per-tab tag prevents the OS
 			// from coalescing back-to-back completions from different tabs.
-			if (settings.enableSystemNotifications && !activeDocument.hasFocus()) {
+			if (
+				shouldNotifySystem({
+					visibilityState: activeDocument.visibilityState,
+					hasFocus: activeDocument.hasFocus(),
+					enabled: settings.enableSystemNotifications,
+				})
+			) {
 				const { title, body, tag } = buildCompletionNotificationContent({
 					tabLabel: tabLabelRef.current,
 					agentLabel: activeAgentLabel,
@@ -1804,8 +1811,11 @@ export function ChatPanel({
 		if (
 			!wasActive &&
 			agent.hasActivePermission &&
-			settings.enableSystemNotifications &&
-			!activeDocument.hasFocus()
+			shouldNotifySystem({
+				visibilityState: activeDocument.visibilityState,
+				hasFocus: activeDocument.hasFocus(),
+				enabled: settings.enableSystemNotifications,
+			})
 		) {
 			// I52: bind onclick so a click focuses the vault window that owns
 			// this panel, not Electron's most-recently-active window.
