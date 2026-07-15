@@ -37,6 +37,11 @@ import {
 	selectOption,
 } from "../services/message-state";
 import { TitleHeadBuffer } from "../utils/titleMarker";
+import {
+	createDomFlushSchedulerDeps,
+	createUpdateFlushScheduler,
+	type UpdateFlushScheduler,
+} from "../utils/update-flush-scheduler";
 
 // ============================================================================
 // Types
@@ -166,10 +171,9 @@ export function useAgentMessages(
 	// ============================================================
 
 	const pendingUpdatesRef = useRef<SessionUpdate[]>([]);
-	const flushScheduledRef = useRef(false);
+	const flushSchedulerRef = useRef<UpdateFlushScheduler | null>(null);
 
 	const flushPendingUpdates = useCallback(() => {
-		flushScheduledRef.current = false;
 		const updates = pendingUpdatesRef.current;
 		if (updates.length === 0) return;
 		pendingUpdatesRef.current = [];
@@ -208,10 +212,17 @@ export function useAgentMessages(
 			}
 
 			pendingUpdatesRef.current.push(u);
-			if (!flushScheduledRef.current) {
-				flushScheduledRef.current = true;
-				window.requestAnimationFrame(flushPendingUpdates);
+			// Visibility-immune scheduling (I168): rAF never fires in a hidden
+			// window, which froze permission-request commits until refocus —
+			// suppressing their OS notification. The scheduler keeps rAF while
+			// visible and falls back to a MessageChannel macrotask while hidden.
+			if (!flushSchedulerRef.current) {
+				flushSchedulerRef.current = createUpdateFlushScheduler(
+					flushPendingUpdates,
+					createDomFlushSchedulerDeps(window, document),
+				);
 			}
+			flushSchedulerRef.current.schedule();
 		},
 		[flushPendingUpdates],
 	);
@@ -247,7 +258,8 @@ export function useAgentMessages(
 	useEffect(() => {
 		return () => {
 			pendingUpdatesRef.current = [];
-			flushScheduledRef.current = false;
+			flushSchedulerRef.current?.dispose();
+			flushSchedulerRef.current = null;
 			toolCallIndexRef.current.clear();
 		};
 	}, []);
@@ -264,10 +276,11 @@ export function useAgentMessages(
 		ignoreUpdatesRef.current = ignore;
 	}, []);
 
-	/** Discard any pending RAF updates and reset the streaming flag. */
+	/** Discard any pending batched updates and reset the streaming flag. */
 	const clearPendingUpdates = useCallback((): void => {
 		pendingUpdatesRef.current = [];
-		flushScheduledRef.current = false;
+		// Scheduler flag intentionally untouched: its parked flush no-ops on
+		// the emptied queue and self-resets when it fires (I168 scheduler).
 		setIsSending(false);
 		// F03: a cancelled turn discards its pending updates — drop the title
 		// head buffer too (held head text belongs to the cancelled turn).
@@ -293,7 +306,6 @@ export function useAgentMessages(
 	const discardPendingTurn = useCallback((): void => {
 		generationRef.current++;
 		pendingUpdatesRef.current = [];
-		flushScheduledRef.current = false;
 		setIsSending(false);
 		titleBufferRef.current = null;
 		// I107: drop the (possibly never-settling) prior-send promise so the
