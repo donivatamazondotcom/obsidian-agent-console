@@ -1489,6 +1489,33 @@
 			"placement": "reference",
 			"altText": "Language dropdown in Agent Console's Advanced settings, showing Auto, English, and Korean options",
 			"caption": "Pick a language under Advanced settings \u2014 Auto follows Obsidian's language."
+		},
+		{
+			"name": "interactive-buttons",
+			"pending": true,
+			"width": 700,
+			"height": 360,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 700,
+				"height": 360
+			},
+			"cropSelector": ".agent-client-a2ui-surface",
+			"cropPadding": 16,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"approvalThreshold": 0.05,
+			"placement": "feature",
+			"purpose": "An agent reply offering a choice as clickable buttons; clicking sends the pick as a visible message.",
+			"differentiator": "Agent-offered clickable choices",
+			"mustShow": ".agent-client-a2ui-button",
+			"caption": "Answer the agent's question with one click",
+			"altText": "An agent reply in Agent Console showing two choice buttons rendered natively below the explanation text",
+			"docPage": "docs/usage/interactive-buttons.md",
+			"captureNote": "Needs an agent-produced a2ui fence: drive with a prompt file that asks for a two-option fork under the briefing, await .agent-client-a2ui-surface after turn end (buttons enabled at idle)."
 		}
 	]
 }

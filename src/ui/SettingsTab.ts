@@ -399,6 +399,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						t("settings.obsidianPrompt.vaultCollaboration.desc"),
 						"vaultCollaboration",
 					);
+					blockToggle(
+						t("settings.obsidianPrompt.interactiveButtons.name"),
+						t("settings.obsidianPrompt.interactiveButtons.desc"),
+						"interactiveButtons",
+					);
 
 					new Setting(body)
 						.setName(t("settings.yourVaultContext.name"))

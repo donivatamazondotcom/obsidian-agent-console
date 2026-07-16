@@ -11,6 +11,16 @@ import {
 } from "obsidian";
 
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
+import { scheduleComposerRefocus } from "./composer-focus";
+import { createSessionDispatchPort } from "../services/session-dispatch-port";
+import {
+	deriveLatestSurfaceId,
+	deriveSurfaceAnswers,
+	deriveSurfaceDefinitions,
+	type A2uiSurfaceDefinitionSite,
+} from "../services/a2ui/surface-state";
+import { activateA2uiButton } from "../services/a2ui/activate";
+import type { A2uiBubbleContext } from "./MessageBubble";
 import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
 import { usePillOpenScope } from "./use-pill-open-scope";
@@ -2561,6 +2571,122 @@ export function ChatPanel({
 	// The optimistic pre-ready "Sending…" bubble (pendingMessage) was retired in
 	// #82 Decision 9 — a pre-ready message now shows in the locked composer, not
 	// the transcript. The transcript is just the real messages.
+	// ============================================================
+	// A2UI (agent-emitted interactive prompts) — dispatch + context
+	// ============================================================
+	// Detached send seam (D8): reads live tab state through the same refs the
+	// quick-prompt bridge uses, but has NO composer thunks — an action send
+	// can never clobber an unsent draft. Never queues (D7): canSendNow gates
+	// on ready+idle, and refused sends re-enable the surface.
+	const a2uiDispatchPort = useMemo(
+		() =>
+			createSessionDispatchPort({
+				lazyState: () => lazyStateRef.current,
+				isSending: () => isSendingRef.current,
+				isQueued: () => isQueuedRef.current,
+				isRestoringSession: () => sessionHistoryLoadingRef.current,
+				sendMessage: (text) => handleSendMessageRef.current(text, undefined),
+				notify: (message) => {
+					new Notice(`[Agent Console] ${message}`);
+				},
+			}),
+		[],
+	);
+
+	// Transcript projection for the pure surface-state resolvers (role + text).
+	const a2uiTranscript = useMemo(
+		() =>
+			messages.map((m) => ({
+				role: m.role,
+				text: m.content
+					.filter(
+						(c) => c.type === "text" || c.type === "text_with_context",
+					)
+					.map((c) => ("text" in c ? c.text : ""))
+					.join("\n"),
+			})),
+		[messages],
+	);
+
+	// Content-stable identities: the maps recompute per message change, but
+	// keep their previous identity when the contents are unchanged, so the
+	// memoized bubbles don't mass-re-render on every streamed chunk.
+	const a2uiAnswersRef = useRef<ReadonlyMap<string, string>>(new Map());
+	const a2uiAnswers = useMemo(() => {
+		const next = deriveSurfaceAnswers(a2uiTranscript);
+		const prev = a2uiAnswersRef.current;
+		if (
+			prev.size === next.size &&
+			Array.from(next).every(([k, v]) => prev.get(k) === v)
+		) {
+			return prev;
+		}
+		a2uiAnswersRef.current = next;
+		return next;
+	}, [a2uiTranscript]);
+
+	const a2uiDefinitionsRef = useRef<
+		ReadonlyMap<string, A2uiSurfaceDefinitionSite>
+	>(new Map());
+	const a2uiDefinitions = useMemo(() => {
+		const next = deriveSurfaceDefinitions(a2uiTranscript);
+		const prev = a2uiDefinitionsRef.current;
+		if (
+			prev.size === next.size &&
+			Array.from(next).every(([k, v]) => {
+				const p = prev.get(k);
+				return (
+					p !== undefined &&
+					p.messageIndex === v.messageIndex &&
+					p.surfaceIndex === v.surfaceIndex
+				);
+			})
+		) {
+			return prev;
+		}
+		a2uiDefinitionsRef.current = next;
+		return next;
+	}, [a2uiTranscript]);
+
+	const a2uiContext = useMemo<A2uiBubbleContext>(
+		() => ({
+			answers: a2uiAnswers,
+			isFirstDefinition: (surfaceId, site) => {
+				const first = a2uiDefinitions.get(surfaceId);
+				return (
+					first !== undefined &&
+					first.messageIndex === site.messageIndex &&
+					first.surfaceIndex === site.surfaceIndex
+				);
+			},
+			latestSurfaceId: deriveLatestSurfaceId(a2uiDefinitions),
+			isSending,
+			isQueued: queue.isQueued,
+			isRestoringSession: sessionHistory.loading,
+			// Refocus fires at DISPATCH inside the orchestrator — never awaited
+			// behind the send promise, which resolves only at turn end (the
+			// I173 class; round-1 awaited it and the caret came back minutes
+			// late — A2UI-I01).
+			onActivate: (surface, button) =>
+				activateA2uiButton({
+					port: a2uiDispatchPort,
+					surfaceId: surface.surfaceId,
+					button,
+					now: () => new Date().toISOString(),
+					refocusComposer: () =>
+						scheduleComposerRefocus(containerRef.current),
+				}),
+		}),
+		[
+			a2uiAnswers,
+			a2uiDefinitions,
+			isSending,
+			queue.isQueued,
+			sessionHistory.loading,
+			a2uiDispatchPort,
+		],
+	);
+
 	const displayMessages = messages;
 
 	const messageListElement = (
@@ -2578,6 +2704,7 @@ export function ChatPanel({
 			isActive={isActive}
 			isFallbackRecovery={lazySession.isFallbackRecovery}
 			gettingStarted={gettingStarted}
+			a2ui={a2uiContext}
 		/>
 	);
 

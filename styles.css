@@ -3470,3 +3470,108 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .agent-client-mcp-auth-banner > button {
 	flex-shrink: 0;
 }
+
+/* ============================================================
+   A2UI surfaces (agent-emitted interactive prompts, buttons-v0)
+   Native theming only — agent-supplied styling is ignored by design.
+   ============================================================ */
+
+.agent-client-a2ui-surface {
+	margin: var(--size-4-2) 0;
+	padding: var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.agent-client-a2ui-row {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: var(--size-4-2);
+	align-items: center;
+}
+
+.agent-client-a2ui-column {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	align-items: stretch;
+}
+
+.agent-client-a2ui-card {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	padding: var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+}
+
+.agent-client-a2ui-text {
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	white-space: pre-wrap;
+}
+
+.agent-client-a2ui-divider {
+	width: 100%;
+	margin: var(--size-2-2) 0;
+	border: none;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.agent-client-a2ui-button {
+	/* Real <button>: platform owns focus ring + Enter/Space activation. */
+	cursor: pointer;
+}
+
+.agent-client-a2ui-button:disabled {
+	cursor: default;
+	opacity: 0.6;
+}
+
+/* Answered surface: chosen button keeps emphasis (mod-cta), others fade. */
+.agent-client-a2ui-button-chosen:disabled {
+	opacity: 1;
+}
+
+.agent-client-a2ui-button-muted:disabled {
+	opacity: 0.35;
+}
+
+.agent-client-a2ui-inert-reason {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin-top: var(--size-2-2);
+}
+
+.agent-client-a2ui-action-details {
+	margin: var(--size-2-1) 0 0;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+/* Smoke findings 2026-07-16 (rounds 1+2): the Selected message hugged the
+   bubble's bottom edge, and round 2 flagged the asymmetry — more space above
+   the summary line than below the disclosure. Keep the gap between summary
+   and disclosure tight (margin above) and give the bottom clear breathing
+   room (padding below). */
+.agent-client-a2ui-action-message {
+	padding-bottom: var(--size-4-3);
+}
+
+.agent-client-a2ui-action-details summary {
+	cursor: pointer;
+}
+
+.agent-client-a2ui-action-envelope {
+	overflow-x: auto;
+	padding: var(--size-4-1);
+	background: var(--background-primary-alt);
+	border-radius: var(--radius-s);
+	font-size: var(--font-ui-smaller);
+	white-space: pre-wrap;
+	word-break: break-all;
+}

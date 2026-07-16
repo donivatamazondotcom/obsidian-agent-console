@@ -73,6 +73,7 @@ src/
 │   ├── register-chat-view.ts    # I157: guarded chat-view registration — a duplicate-view-type collision degrades to a notice, not an onload crash
 │   ├── run-registrations.ts     # I157: onload resilience harness — runs each registration isolated so one failure can't abort the whole load
 │   ├── migrate-legacy-view-type.ts # I157: lossless in-place re-home of panels persisted under the legacy "agent-client-chat-view" type (skipped when Agent Client owns it)
+│   ├── session-dispatch-port.ts # Detached composer-independent send seam (canSendNow via ready+idle gate; a2ui actions dispatch here, never fireOrQueue)
 │   ├── recently-closed-stack.ts # F13 undo-close: closed-tab record + LIFO push/pop/build (pure)
 │   ├── message-queue-logic.ts   # #82 queue-of-one pure decisions: queue/flush/Enter-action/broadcast-skip
 │   ├── queue-orchestration-reducer.ts # #82 dispatch-owning single-slot reducer: (state,event)->{state,effects}; flush is raw-by-construction (closes Q4)
@@ -80,6 +81,14 @@ src/
 │   ├── quick-prompts.ts         # QuickPromptLibrary (scan/watch/reconcile) + VaultQuickPromptSource adapter
 │   ├── update-checker.ts        # Agent/plugin version checking
 │   ├── net.ts                   # The ONLY module permitted outbound network I/O (fixed ALLOWED_HOSTS; egress tripwire enforces it)
+│   ├── a2ui/                    # A2UI buttons-v0 trust boundary (agent-emitted interactive prompts)
+│   │   ├── spec-snapshot.ts     # Frozen A2UI v1.0-candidate profile constants (version, catalog ids, component allowlist, limits)
+│   │   ├── types.ts             # Fence candidate + validated-surface tagged unions (literal-only component model)
+│   │   ├── fence-extractor.ts   # ```a2ui fence extraction from markdown; nesting-safe, streaming-aware (open fences stay inert)
+│   │   ├── segmenter.ts         # Assistant-message segmentation (markdown | a2ui-surface) upstream of MarkdownRenderer; lossless (segments rebuild the text)
+│   │   ├── action.ts            # v1.0 action envelope + sent user message + payload-derived display summary (label is decoration)
+│   │   ├── surface-state.ts     # Pure resolvers: answered state from transcript (restore/replay); idle-only action enablement
+│   │   └── validator.ts         # Total no-throw envelope/profile/graph/limits validation (probe checks V02–V14)
 │   ├── import/                   # Cross-plugin settings-import adapters
 │   │   ├── ImportSource.ts       # ImportSource interface + preview types
 │   │   ├── agentClientAdapter.ts # Reads agent-client data.json → normalizeRawSettings → slice
@@ -133,6 +142,7 @@ src/
 │   ├── ZeroTabLanding.tsx       # Zero-tab landing screen shown when every tab is closed (minimal placeholder in Slice 1; reason-tagged empty-state shell in Slice 2)
 │   ├── ChatHeader.tsx           # Header (sidebar chat view)
 │   ├── MessageList.tsx          # Message list (native browser scroll, content-visibility:auto for off-screen render skipping)
+│   ├── A2uiSurfaceHost.tsx      # Agent-emitted buttons-v0 surface host: validate-at-edge, native buttons, resolver-gated enablement, inert fallback
 │   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button)
 │   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting)
 │   ├── TerminalBlock.tsx        # Terminal output polling

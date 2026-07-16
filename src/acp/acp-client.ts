@@ -12,6 +12,10 @@ import type {
 import type { PromptContent } from "../types/chat";
 import type { ProcessError } from "../types/errors";
 import { AcpTypeConverter } from "./type-converter";
+import {
+	A2UI_CAPABILITY_META_KEY,
+	buildA2uiCapabilityMeta,
+} from "../services/a2ui/capability";
 import { TerminalManager } from "./terminal-handler";
 import { PermissionManager } from "./permission-handler";
 import { AcpHandler } from "./acp-handler";
@@ -487,6 +491,12 @@ export class AcpClient {
 						writeTextFile: false,
 					},
 					terminal: true,
+					// D9: advertise the a2ui markdown-JSONL binding for future
+					// native agents (generic harnesses learn it from the
+					// system-prompt briefing instead).
+					_meta: {
+						[A2UI_CAPABILITY_META_KEY]: buildA2uiCapabilityMeta(),
+					},
 				},
 				clientInfo: {
 					name: "agent-console",

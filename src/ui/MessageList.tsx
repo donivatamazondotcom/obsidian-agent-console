@@ -6,7 +6,7 @@ import type { AcpClient } from "../acp/acp-client";
 import type AgentClientPlugin from "../plugin";
 import type { IChatViewHost } from "./view-host";
 import { setIcon } from "obsidian";
-import { MessageBubble } from "./MessageBubble";
+import { MessageBubble, type A2uiBubbleContext } from "./MessageBubble";
 import { LossyFallbackNotice } from "./LossyFallbackNotice";
 import { isSessionLive } from "../resolvers/send-affordance";
 import {
@@ -280,6 +280,11 @@ export interface MessageListProps {
 	) => Promise<void>;
 	/** Whether a permission request is currently pending */
 	hasActivePermission: boolean;
+	/**
+	 * a2ui wiring for agent-emitted interactive prompts (optional — absent
+	 * renders a2ui fences as plain markdown).
+	 */
+	a2ui?: A2uiBubbleContext;
 	/** Whether this tab is currently active (visible) */
 	isActive?: boolean;
 	/**
@@ -365,6 +370,7 @@ export function MessageList({
 	terminalClient,
 	onApprovePermission,
 	hasActivePermission,
+	a2ui,
 	isActive = true,
 	isFallbackRecovery = false,
 	gettingStarted,
@@ -429,13 +435,20 @@ export function MessageList({
 				<LossyFallbackNotice
 					isFallbackRecovery={isFallbackRecovery}
 				/>
-				{messages.map((message) => (
+				{messages.map((message, messageIndex) => (
 					<div key={message.id} className={`agent-client-message-row${message.pending ? " agent-client-message-pending" : ""}`}>
 						<MemoMessageBubble
 							message={message}
 							plugin={plugin}
 							terminalClient={terminalClient}
 							onApprovePermission={onApprovePermission}
+							a2ui={a2ui}
+							a2uiIsStreamingTurn={
+								isSending &&
+								messageIndex === messages.length - 1 &&
+								message.role === "assistant"
+							}
+							a2uiMessageIndex={messageIndex}
 						/>
 						{message.pending && (
 							<span className="agent-client-pending-label">Sending…</span>

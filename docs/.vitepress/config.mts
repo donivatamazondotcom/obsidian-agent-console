@@ -88,6 +88,7 @@ export default defineConfig({
           { text: "Shared Links", link: "/usage/shared-links" },
           { text: "Working Directory", link: "/usage/working-directory" },
           { text: "Obsidian system prompt", link: "/usage/obsidian-context" },
+          { text: "Clickable Choices", link: "/usage/interactive-buttons" },
           { text: "Tabbed Sessions", link: "/usage/tabbed-sessions" },
           { text: "Editing", link: "/usage/editing" },
           { text: "Chat Export", link: "/usage/chat-export" },

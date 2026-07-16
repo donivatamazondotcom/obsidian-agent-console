@@ -9,6 +9,12 @@ import { MarkdownRenderer } from "./shared/MarkdownRenderer";
 import { TerminalBlock } from "./TerminalBlock";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { LucideIcon } from "./shared/IconButton";
+import { A2uiSurfaceHost } from "./A2uiSurfaceHost";
+import { segmentAssistantMessage } from "../services/a2ui/segmenter";
+import { extractA2uiFences } from "../services/a2ui/fence-extractor";
+import { summarizeA2uiActionBody } from "../services/a2ui/action";
+import type { A2uiButton } from "../services/a2ui/action";
+import type { A2uiValidatedSurface } from "../services/a2ui/types";
 
 // ---------------------------------------------------------------------------
 // TextWithMentions (internal helper)
@@ -210,6 +216,159 @@ function CollapsibleThought({ text, plugin }: CollapsibleThoughtProps) {
 }
 
 // ---------------------------------------------------------------------------
+// A2UI (agent-emitted interactive prompts) wiring
+// ---------------------------------------------------------------------------
+
+/**
+ * Everything the a2ui surface hosts need from the tab, threaded through
+ * MessageList from ChatPanel. Optional on MessageBubbleProps: consumers that
+ * don't wire it (exports, previews) render fences as ordinary markdown —
+ * the T07 graceful-degradation path by construction.
+ */
+export interface A2uiBubbleContext {
+	/** surfaceId → chosen componentId, derived from the transcript. */
+	answers: ReadonlyMap<string, string>;
+	/**
+	 * First-valid-definition check (duplicate surfaceIds render inert). The
+	 * site identifies WHICH fence asks: transcript message index + surface
+	 * ordinal within the message (segmenter index).
+	 */
+	isFirstDefinition: (
+		surfaceId: string,
+		site: { messageIndex: number; surfaceIndex: number },
+	) => boolean;
+	/** The latest validly-defined surfaceId in the session (null = none). */
+	latestSurfaceId: string | null;
+	isSending: boolean;
+	isQueued: boolean;
+	isRestoringSession: boolean;
+	/** Build + dispatch the action; resolves false to re-enable (T11). */
+	onActivate: (
+		surface: A2uiValidatedSurface,
+		button: A2uiButton,
+	) => Promise<boolean>;
+}
+
+/**
+ * Assistant text with a2ui segmentation (D11): markdown segments go through
+ * MarkdownRenderer as before; closed a2ui fences mount surface hosts as
+ * SIBLINGS so streaming re-renders never unmount them.
+ */
+function AssistantTextWithSurfaces({
+	text,
+	plugin,
+	a2ui,
+	isStreamingTurn,
+	messageIndex,
+}: {
+	text: string;
+	plugin: AgentClientPlugin;
+	a2ui: A2uiBubbleContext;
+	isStreamingTurn: boolean;
+	messageIndex: number;
+}): React.ReactElement {
+	const segments = segmentAssistantMessage(text);
+	return (
+		<>
+			{segments.map((segment, i) =>
+				segment.kind === "markdown" ? (
+					<MarkdownRenderer
+						key={`md-${i}`}
+						text={segment.text}
+						plugin={plugin}
+					/>
+				) : (
+					<A2uiSurfaceHost
+						key={`a2ui-${segment.index}`}
+						body={segment.body}
+						fenceText={segment.fenceText}
+						plugin={plugin}
+						answeredComponentId={answeredFor(a2ui.answers, segment.body)}
+						isFirstDefinition={(surfaceId) =>
+							a2ui.isFirstDefinition(surfaceId, {
+								messageIndex,
+								surfaceIndex: segment.index,
+							})
+						}
+						isLatestDefinition={(surfaceId) =>
+							a2ui.latestSurfaceId === null ||
+							a2ui.latestSurfaceId === surfaceId
+						}
+						isSending={a2ui.isSending}
+						isQueued={a2ui.isQueued}
+						isRestoringSession={a2ui.isRestoringSession}
+						isStreamingTurn={isStreamingTurn}
+						onActivate={a2ui.onActivate}
+					/>
+				),
+			)}
+		</>
+	);
+}
+
+/** Read the surfaceId off a fence body without full validation (answers lookup). */
+function answeredFor(
+	answers: ReadonlyMap<string, string>,
+	body: string,
+): string | null {
+	try {
+		const parsed = JSON.parse(body.trim()) as {
+			createSurface?: { surfaceId?: unknown };
+		};
+		const surfaceId = parsed?.createSurface?.surfaceId;
+		return typeof surfaceId === "string"
+			? (answers.get(surfaceId) ?? null)
+			: null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * A user message that carries an a2ui action fence renders compactly (D14):
+ * the human-readable summary line stays visible; the canonical envelope sits
+ * behind a native disclosure whose summary is derived from the PAYLOAD, so a
+ * deceptive label is inspectable. Fences in user messages never activate
+ * (T08) — this is display only.
+ */
+function UserTextWithActions({
+	text,
+	plugin,
+	autoMentionContext,
+}: TextWithMentionsProps): React.ReactElement {
+	const fences = extractA2uiFences(text).filter((f) => f.closed);
+	const actionFence = fences.find(
+		(f) => summarizeA2uiActionBody(f.body) !== null,
+	);
+	if (actionFence === undefined) {
+		return (
+			<TextWithMentions
+				text={text}
+				plugin={plugin}
+				autoMentionContext={autoMentionContext}
+			/>
+		);
+	}
+	const before = text.slice(0, actionFence.start).trimEnd();
+	const after = text.slice(actionFence.end).trimStart();
+	const payloadSummary = summarizeA2uiActionBody(actionFence.body) as string;
+	return (
+		<div className="agent-client-a2ui-action-message">
+			{before.length > 0 && (
+				<TextWithMentions text={before} plugin={plugin} />
+			)}
+			<details className="agent-client-a2ui-action-details">
+				<summary>{payloadSummary}</summary>
+				<pre className="agent-client-a2ui-action-envelope">
+					{actionFence.body}
+				</pre>
+			</details>
+			{after.length > 0 && <TextWithMentions text={after} plugin={plugin} />}
+		</div>
+	);
+}
+
+// ---------------------------------------------------------------------------
 // ContentBlock (internal helper, formerly MessageContentRenderer)
 // ---------------------------------------------------------------------------
 
@@ -218,6 +377,12 @@ interface ContentBlockProps {
 	plugin: AgentClientPlugin;
 	messageRole?: "user" | "assistant";
 	terminalClient?: AcpClient;
+	/** a2ui wiring (optional — absent for consumers without the feature). */
+	a2ui?: A2uiBubbleContext;
+	/** The assistant turn containing this content is still streaming. */
+	a2uiIsStreamingTurn?: boolean;
+	/** This message's index in the transcript (for the definition registry). */
+	a2uiMessageIndex?: number;
 	/** Callback to approve a permission request */
 	onApprovePermission?: (
 		requestId: string,
@@ -231,13 +396,37 @@ function ContentBlock({
 	messageRole,
 	terminalClient,
 	onApprovePermission,
+	a2ui,
+	a2uiIsStreamingTurn,
+	a2uiMessageIndex,
 }: ContentBlockProps) {
 	switch (content.type) {
 		case "text":
-			// User messages: render with mention support
-			// Assistant messages: render as markdown
+			// User messages: render with mention support (a2ui action fences
+			// display compactly but never activate — T08).
 			if (messageRole === "user") {
+				if (a2ui !== undefined) {
+					return (
+						<UserTextWithActions
+							text={content.text}
+							plugin={plugin}
+						/>
+					);
+				}
 				return <TextWithMentions text={content.text} plugin={plugin} />;
+			}
+			// Assistant messages: markdown, with a2ui fences mounted as
+			// sibling surface hosts when the feature is wired (D11).
+			if (a2ui !== undefined) {
+				return (
+					<AssistantTextWithSurfaces
+						text={content.text}
+						plugin={plugin}
+						a2ui={a2ui}
+						isStreamingTurn={a2uiIsStreamingTurn ?? false}
+						messageIndex={a2uiMessageIndex ?? 0}
+					/>
+				);
 			}
 			return <MarkdownRenderer text={content.text} plugin={plugin} />;
 
@@ -356,6 +545,12 @@ export interface MessageBubbleProps {
 		requestId: string,
 		optionId: string,
 	) => Promise<void>;
+	/** a2ui wiring (optional — absent renders fences as plain markdown). */
+	a2ui?: A2uiBubbleContext;
+	/** The assistant turn this message belongs to is still streaming. */
+	a2uiIsStreamingTurn?: boolean;
+	/** This message's index in the transcript (for the definition registry). */
+	a2uiMessageIndex?: number;
 }
 
 /**
@@ -450,6 +645,9 @@ export const MessageBubble = React.memo(function MessageBubble({
 	plugin,
 	terminalClient,
 	onApprovePermission,
+	a2ui,
+	a2uiIsStreamingTurn,
+	a2uiMessageIndex,
 }: MessageBubbleProps) {
 	const groups = groupContent(message.content);
 
@@ -473,6 +671,9 @@ export const MessageBubble = React.memo(function MessageBubble({
 									messageRole={message.role}
 									terminalClient={terminalClient}
 									onApprovePermission={onApprovePermission}
+									a2ui={a2ui}
+									a2uiIsStreamingTurn={a2uiIsStreamingTurn}
+									a2uiMessageIndex={a2uiMessageIndex}
 								/>
 							))}
 						</div>
@@ -487,6 +688,9 @@ export const MessageBubble = React.memo(function MessageBubble({
 								messageRole={message.role}
 								terminalClient={terminalClient}
 								onApprovePermission={onApprovePermission}
+								a2ui={a2ui}
+								a2uiIsStreamingTurn={a2uiIsStreamingTurn}
+								a2uiMessageIndex={a2uiMessageIndex}
 							/>
 						</div>
 					);
