@@ -5,6 +5,7 @@ import {
 	HOST_IDENTITY_BLOCK,
 	RENDERING_AFFORDANCES_BLOCK,
 	VAULT_COLLABORATION_BLOCK,
+	INTERACTIVE_BUTTONS_BLOCK,
 	workingDirectoryBlock,
 	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS,
 	type ObsidianSystemPromptBlocks,
@@ -53,7 +54,7 @@ describe("isCwdInsideVault", () => {
 });
 
 describe("composeObsidianSystemPrompt", () => {
-	it("assembles all four blocks in order when all are enabled and cwd is the vault", () => {
+	it("assembles all five blocks in order when all are enabled and cwd is the vault", () => {
 		const out = composeObsidianSystemPrompt(
 			{ blocks: allOn() },
 			{ cwd: VAULT, vaultRoot: VAULT },
@@ -64,6 +65,7 @@ describe("composeObsidianSystemPrompt", () => {
 				RENDERING_AFFORDANCES_BLOCK,
 				workingDirectoryBlock(VAULT),
 				VAULT_COLLABORATION_BLOCK,
+				INTERACTIVE_BUTTONS_BLOCK,
 			].join("\n\n"),
 		);
 	});
@@ -148,6 +150,7 @@ describe("composeObsidianSystemPrompt", () => {
 					rendering: false,
 					workingDirectory: false,
 					vaultCollaboration: false,
+					interactiveButtons: false,
 				},
 			},
 			{ cwd: VAULT, vaultRoot: VAULT },
@@ -183,6 +186,7 @@ describe("composeObsidianSystemPrompt", () => {
 						rendering: false,
 						workingDirectory: false,
 						vaultCollaboration: false,
+						interactiveButtons: false,
 					},
 					appendText: "Only my context.",
 				},
@@ -250,6 +254,7 @@ describe("normalizeObsidianSystemPromptSettings", () => {
 				rendering: true,
 				workingDirectory: true,
 				vaultCollaboration: true,
+				interactiveButtons: true,
 			},
 			appendText: "",
 			customText: "",
@@ -264,6 +269,7 @@ describe("normalizeObsidianSystemPromptSettings", () => {
 				rendering: true,
 				workingDirectory: true,
 				vaultCollaboration: true,
+				interactiveButtons: true,
 			},
 			appendText: "",
 			customText: "",
@@ -280,6 +286,7 @@ describe("normalizeObsidianSystemPromptSettings", () => {
 			rendering: true,
 			workingDirectory: true,
 			vaultCollaboration: false,
+			interactiveButtons: true,
 		});
 	});
 

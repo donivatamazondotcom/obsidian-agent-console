@@ -45,6 +45,61 @@ export const VAULT_COLLABORATION_BLOCK =
 	"conventions: callouts (`> [!note]`), task lists (`- [ ]`), tags (`#tag`), " +
 	"and YAML frontmatter.";
 
+/**
+ * Interactive buttons (agent-emitted interactive prompts, buttons-v0).
+ * Teaches the model the fenced-A2UI convention: when to offer clickable
+ * choices, the exact envelope shape, and how the answer comes back. The
+ * restraint wording implements the spec's D16 decision: buttons never attach
+ * to an open-ended question itself, but a concrete clarifying choice that
+ * unblocks one is legitimate.
+ */
+export const INTERACTIVE_BUTTONS_BLOCK = `<interactive_controls>
+You can offer the user clickable choices by adding an A2UI surface to your reply.
+
+WHEN TO USE: only when you are offering a small set of concrete, mutually
+exclusive choices (2–5 options). Never attach buttons to an open-ended or
+opinion question itself. If answering an open-ended request first requires
+a concrete decision from the user (a clarifying choice — which file, which
+scope, where's the doc), buttons for that clarifying choice are fine.
+When in doubt, reply in prose with no fence. At most one surface per reply
+unless the user asks for more.
+
+HOW: emit a fenced code block with language \`a2ui\` containing EXACTLY ONE
+line of JSON — a single A2UI v1.0 createSurface envelope with inline
+components. Keep normal prose around the fence; the buttons supplement your
+words, they don't replace them. A reader without buttons must still be able
+to answer by typing.
+
+RULES:
+- One line of JSON inside the fence. No comments, no extra text, no wrapping.
+- "version" must be "v1.0".
+- "surfaceId": a unique kebab-case id ending in 4 random hex characters
+  (example: "migration-scope-7f3a"). Never reuse an id in a conversation.
+- "catalogId" must be exactly
+  "https://agentconsole.dev/a2ui/catalogs/buttons-v0".
+- "components" is a flat array. Exactly one component has "id": "root".
+- Allowed component types ONLY: Text, Row, Column, Card, Button, Divider.
+- Every Button has "child" (the id of a Text component holding its label)
+  and "action": {"event": {"name": "...", "context": {...}}} — context
+  values are literal strings, numbers, or booleans.
+- Every value is a literal. No {"path": ...} bindings, no function calls,
+  no "checks", no "dataModel", no URLs, no images.
+- Text components hold plain text, not markdown.
+
+EXAMPLE:
+
+\`\`\`a2ui
+{"version":"v1.0","createSurface":{"surfaceId":"migration-scope-7f3a","catalogId":"https://agentconsole.dev/a2ui/catalogs/buttons-v0","components":[{"id":"root","component":"Row","children":["minimal","complete"]},{"id":"minimal-label","component":"Text","text":"Minimal migration"},{"id":"minimal","component":"Button","child":"minimal-label","action":{"event":{"name":"choose_scope","context":{"scope":"minimal"}}}},{"id":"complete-label","component":"Text","text":"Complete migration"},{"id":"complete","component":"Button","child":"complete-label","action":{"event":{"name":"choose_scope","context":{"scope":"complete"}}}}]}}
+\`\`\`
+
+THE ANSWER: when the user clicks a button, their next message will contain
+an \`a2ui\` fence with an "action" envelope naming your surfaceId and that
+button's event name and context. Treat it as their answer and proceed —
+do not re-ask.
+
+If you are not offering concrete choices, reply normally with no a2ui fence.
+</interactive_controls>`;
+
 /** Working-directory block is parameterized by the resolved cwd. */
 export function workingDirectoryBlock(cwd: string): string {
 	return `Your working directory is ${cwd}.`;
@@ -57,6 +112,8 @@ export interface ObsidianSystemPromptBlocks {
 	rendering: boolean;
 	workingDirectory: boolean;
 	vaultCollaboration: boolean;
+	/** Teach the agent to offer clickable choices (fenced A2UI buttons). */
+	interactiveButtons: boolean;
 }
 
 export type ObsidianSystemPromptMode = "options" | "full";
@@ -91,6 +148,7 @@ export const DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS: ObsidianSystemPromptBlocks =
 	rendering: true,
 	workingDirectory: true,
 	vaultCollaboration: true,
+	interactiveButtons: true,
 };
 
 // ── Gating ────────────────────────────────────────────────────────────────────
@@ -144,6 +202,9 @@ export function composeObsidianSystemPrompt(
 	}
 	if (blocks.vaultCollaboration && isCwdInsideVault(ctx.cwd, ctx.vaultRoot)) {
 		parts.push(VAULT_COLLABORATION_BLOCK);
+	}
+	if (blocks.interactiveButtons) {
+		parts.push(INTERACTIVE_BUTTONS_BLOCK);
 	}
 
 	const append = (settings.appendText ?? "").trim();
@@ -208,6 +269,7 @@ export function normalizeObsidianSystemPromptSettings(
 			rendering: b("rendering"),
 			workingDirectory: b("workingDirectory"),
 			vaultCollaboration: b("vaultCollaboration"),
+			interactiveButtons: b("interactiveButtons"),
 		},
 		appendText,
 		customText,
