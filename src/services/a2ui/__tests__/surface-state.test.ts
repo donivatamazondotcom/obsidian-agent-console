@@ -76,6 +76,7 @@ describe("deriveSurfaceActionAffordance (D7)", () => {
 		isRestoringSession: false,
 		surfaceStatus: "unanswered" as const,
 		isStreamingTurn: false,
+		isSuperseded: false,
 	};
 
 	it("enables on an idle tab with an unanswered surface", () => {
@@ -122,6 +123,22 @@ describe("deriveSurfaceActionAffordance (D7)", () => {
 		expect(
 			deriveSurfaceActionAffordance({ ...IDLE, surfaceStatus: "pending" }),
 		).toEqual({ enabled: false, reason: "pending" });
+	});
+
+	it("disables an earlier unanswered surface once a newer one exists (superseded)", () => {
+		expect(
+			deriveSurfaceActionAffordance({ ...IDLE, isSuperseded: true }),
+		).toEqual({ enabled: false, reason: "superseded" });
+	});
+
+	it("answered outranks superseded (an answered old surface keeps its answered look)", () => {
+		expect(
+			deriveSurfaceActionAffordance({
+				...IDLE,
+				isSuperseded: true,
+				surfaceStatus: "answered",
+			}).reason,
+		).toBe("answered");
 	});
 
 	it("pending/answered outrank turn state (status is the closer reason)", () => {

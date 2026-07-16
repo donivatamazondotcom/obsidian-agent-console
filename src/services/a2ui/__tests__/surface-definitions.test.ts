@@ -5,7 +5,10 @@
  * no-separate-store principle as answered state (T05).
  */
 import { describe, expect, it } from "vitest";
-import { deriveSurfaceDefinitions } from "../surface-state";
+import {
+	deriveLatestSurfaceId,
+	deriveSurfaceDefinitions,
+} from "../surface-state";
 
 const FENCE = (surfaceId: string): string =>
 	`\`\`\`a2ui\n{"version":"v1.0","createSurface":{"surfaceId":"${surfaceId}","catalogId":"https://agentconsole.dev/a2ui/catalogs/buttons-v0","components":[{"id":"root","component":"Row","children":["l","b"]},{"id":"l","component":"Text","text":"Go"},{"id":"b","component":"Button","child":"l","action":{"event":{"name":"go","context":{}}}}]}}\n\`\`\``;
@@ -69,5 +72,19 @@ describe("deriveSurfaceDefinitions", () => {
 			messageIndex: 1,
 			surfaceIndex: 0,
 		});
+	});
+});
+
+describe("deriveLatestSurfaceId", () => {
+	it("returns the last validly-defined surface in transcript order", () => {
+		const definitions = deriveSurfaceDefinitions([
+			{ role: "assistant", text: FENCE("s-first-1a2b") },
+			{ role: "assistant", text: FENCE("s-second-3c4d") },
+		]);
+		expect(deriveLatestSurfaceId(definitions)).toBe("s-second-3c4d");
+	});
+
+	it("returns null when no surfaces exist", () => {
+		expect(deriveLatestSurfaceId(new Map())).toBeNull();
 	});
 });

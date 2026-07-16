@@ -65,6 +65,7 @@ function makeA2ui(
 	return {
 		answers: new Map(),
 		isFirstDefinition: () => true,
+		latestSurfaceId: null,
 		isSending: false,
 		isQueued: false,
 		isRestoringSession: false,

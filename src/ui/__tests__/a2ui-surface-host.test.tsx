@@ -80,6 +80,7 @@ function renderHost(
 			plugin={PLUGIN}
 			answeredComponentId={overrides.answeredComponentId ?? null}
 			isFirstDefinition={overrides.isFirstDefinition}
+			isLatestDefinition={overrides.isLatestDefinition}
 			isSending={overrides.isSending ?? false}
 			isQueued={overrides.isQueued ?? false}
 			isRestoringSession={overrides.isRestoringSession ?? false}
@@ -168,6 +169,23 @@ describe("A2uiSurfaceHost — activation (T02/T03)", () => {
 		expect((button as HTMLButtonElement).disabled).toBe(false);
 		fireEvent.click(button);
 		expect(onActivate).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("A2uiSurfaceHost — superseded surfaces", () => {
+	it("disables an earlier surface when a newer one exists, with a reason", () => {
+		renderHost({ isLatestDefinition: () => false });
+		for (const b of screen.getAllByRole("button")) {
+			expect((b as HTMLButtonElement).disabled).toBe(true);
+			expect(b.getAttribute("aria-label")).toContain("Newer choices");
+		}
+	});
+
+	it("stays enabled when it IS the latest surface", () => {
+		renderHost({ isLatestDefinition: () => true });
+		for (const b of screen.getAllByRole("button")) {
+			expect((b as HTMLButtonElement).disabled).toBe(false);
+		}
 	});
 });
 

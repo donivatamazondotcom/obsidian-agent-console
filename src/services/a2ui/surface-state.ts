@@ -82,6 +82,7 @@ export type A2uiActionAffordanceReason =
 	| "ready"
 	| "answered" // single-shot: this surface already submitted
 	| "pending" // dispatch in flight for this surface
+	| "superseded" // a newer surface exists — enablement tracks the conversation frontier
 	| "streaming" // the surface's own turn is still streaming (activate at turn end)
 	| "sending" // another turn is in flight
 	| "queued" // queue slot occupied — actions never queue in v0
@@ -94,6 +95,12 @@ export interface A2uiActionAffordanceInput {
 	surfaceStatus: A2uiSurfaceStatus;
 	/** True while the assistant turn containing this surface is still streaming. */
 	isStreamingTurn: boolean;
+	/**
+	 * True when a NEWER surface has been defined after this one. Earlier
+	 * unanswered surfaces disable — the user answers the conversation's
+	 * current fork, not a stale one (smoke finding, 2026-07-16).
+	 */
+	isSuperseded: boolean;
 }
 
 export interface A2uiActionAffordance {
@@ -113,6 +120,8 @@ export function deriveSurfaceActionAffordance(
 		reason = "answered";
 	} else if (input.surfaceStatus === "pending") {
 		reason = "pending";
+	} else if (input.isSuperseded) {
+		reason = "superseded";
 	} else if (input.isStreamingTurn) {
 		reason = "streaming";
 	} else if (input.isSending) {
@@ -164,4 +173,17 @@ export function deriveSurfaceDefinitions(
 		});
 	});
 	return definitions;
+}
+
+/**
+ * The most recently defined valid surface in the session, or null. Relies on
+ * Map insertion order — deriveSurfaceDefinitions registers in transcript
+ * order, so the last key is the conversation's current fork.
+ */
+export function deriveLatestSurfaceId(
+	definitions: ReadonlyMap<string, A2uiSurfaceDefinitionSite>,
+): string | null {
+	let latest: string | null = null;
+	for (const key of definitions.keys()) latest = key;
+	return latest;
 }

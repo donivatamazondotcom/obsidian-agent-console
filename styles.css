@@ -3548,9 +3548,19 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 .agent-client-a2ui-action-details {
-	margin: var(--size-2-2) 0;
+	margin: var(--size-2-2) 0 var(--size-4-2);
 	font-size: var(--font-ui-smaller);
 	color: var(--text-muted);
+}
+
+/* Smoke finding 2026-07-16: the Selected message hugged the bubble's bottom
+   edge — give the action message breathing room below its last element. */
+.agent-client-a2ui-action-message {
+	padding-bottom: var(--size-4-1);
+}
+
+.agent-client-a2ui-action-message > :last-child {
+	margin-bottom: 0;
 }
 
 .agent-client-a2ui-action-details summary {

@@ -11,8 +11,10 @@ import {
 } from "obsidian";
 
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
+import { scheduleComposerRefocus } from "./composer-focus";
 import { createSessionDispatchPort } from "../services/session-dispatch-port";
 import {
+	deriveLatestSurfaceId,
 	deriveSurfaceAnswers,
 	deriveSurfaceDefinitions,
 	type A2uiSurfaceDefinitionSite,
@@ -2657,17 +2659,25 @@ export function ChatPanel({
 					first.surfaceIndex === site.surfaceIndex
 				);
 			},
+			latestSurfaceId: deriveLatestSurfaceId(a2uiDefinitions),
 			isSending,
 			isQueued: queue.isQueued,
 			isRestoringSession: sessionHistory.loading,
-			onActivate: async (surface, button) =>
-				a2uiDispatchPort.sendDetached(
+			onActivate: async (surface, button) => {
+				const sent = await a2uiDispatchPort.sendDetached(
 					buildA2uiActionUserMessage({
 						surfaceId: surface.surfaceId,
 						button,
 						timestamp: new Date().toISOString(),
 					}),
-				),
+				);
+				// Return focus to the composer after a button activation —
+				// same contract as quick-prompt fires (QP-I20): the click
+				// leaves DOM focus on the (now-disabled) button, so without
+				// this the caret never comes back.
+				if (sent) scheduleComposerRefocus(containerRef.current);
+				return sent;
+			},
 		}),
 		[
 			a2uiAnswers,

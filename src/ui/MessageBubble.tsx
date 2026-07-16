@@ -237,6 +237,8 @@ export interface A2uiBubbleContext {
 		surfaceId: string,
 		site: { messageIndex: number; surfaceIndex: number },
 	) => boolean;
+	/** The latest validly-defined surfaceId in the session (null = none). */
+	latestSurfaceId: string | null;
 	isSending: boolean;
 	isQueued: boolean;
 	isRestoringSession: boolean;
@@ -287,6 +289,10 @@ function AssistantTextWithSurfaces({
 								messageIndex,
 								surfaceIndex: segment.index,
 							})
+						}
+						isLatestDefinition={(surfaceId) =>
+							a2ui.latestSurfaceId === null ||
+							a2ui.latestSurfaceId === surfaceId
 						}
 						isSending={a2ui.isSending}
 						isQueued={a2ui.isQueued}

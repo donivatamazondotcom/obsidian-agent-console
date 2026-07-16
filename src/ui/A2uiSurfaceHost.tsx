@@ -27,10 +27,7 @@ import {
 	type A2uiActionAffordanceReason,
 	type A2uiSurfaceStatus,
 } from "../services/a2ui/surface-state";
-import type {
-	A2uiComponent,
-	A2uiValidatedSurface,
-} from "../services/a2ui/types";
+import type { A2uiValidatedSurface } from "../services/a2ui/types";
 import type { A2uiButton } from "../services/a2ui/action";
 import { MarkdownRenderer } from "./shared/MarkdownRenderer";
 
@@ -48,6 +45,12 @@ export interface A2uiSurfaceHostProps {
 	 * post-validation with the actual surfaceId; default true (no registry).
 	 */
 	isFirstDefinition?: (surfaceId: string) => boolean;
+	/**
+	 * Is this surface the LATEST defined in the session? Earlier unanswered
+	 * surfaces disable ("superseded") so choices track the conversation
+	 * frontier. Default true (single-surface consumers).
+	 */
+	isLatestDefinition?: (surfaceId: string) => boolean;
 	/** A turn is streaming somewhere in this tab. */
 	isSending: boolean;
 	/** The queue-of-one slot is occupied. */
@@ -77,6 +80,7 @@ const DISABLED_COPY: Record<
 	restoring: "Loading the conversation first",
 	pending: "Sending your choice…",
 	answered: "Already answered",
+	superseded: "Newer choices are below",
 };
 
 const INERT_REASON =
@@ -115,6 +119,9 @@ export function A2uiSurfaceHost(props: A2uiSurfaceHostProps): React.JSX.Element 
 		isRestoringSession: props.isRestoringSession,
 		isStreamingTurn: props.isStreamingTurn,
 		surfaceStatus: status,
+		isSuperseded:
+			props.isLatestDefinition !== undefined &&
+			!props.isLatestDefinition(surface.surfaceId),
 	});
 
 	const handleActivate = (button: A2uiButton): void => {
