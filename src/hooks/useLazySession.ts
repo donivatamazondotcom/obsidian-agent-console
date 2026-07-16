@@ -1,11 +1,11 @@
 /**
- * `useLazySession` — typing-as-intent debounced session acquisition for
- * [[ACP Tab Persistence Across Restarts]] § Session Lifecycle.
+ * `useLazySession` — single owner of eager and interaction-triggered ACP
+ * session acquisition for [[ACP Tab Persistence Across Restarts]].
  *
- * Composes Slice 2's `useTabSessionState` (the per-tab state machine)
- * with the trigger logic that makes opening a tab cheap: no ACP session
- * is acquired until the user signals send-intent by typing in the
- * composer (or clicking send while in `idle`/`error`).
+ * Composes Slice 2's `useTabSessionState` with origin-aware triggers:
+ * deliberately fresh tabs may acquire once readiness is known, while restored
+ * tabs stay idle until typing/send intent. Every path converges on the same
+ * `fireAcquisition` pipeline.
  *
  * Lifecycle (Decisions #2, #6, #7, #8):
  *
@@ -64,10 +64,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-	useTabSessionState,
-	type TabSessionState,
-} from "./useTabSessionState";
+import { useTabSessionState, type TabSessionState } from "./useTabSessionState";
 
 // ============================================================================
 // Public types
@@ -96,7 +93,9 @@ export interface UseLazySessionOptions {
 	acquireNewSession: () => Promise<SessionAcquisitionResult>;
 
 	/** Resume an existing session. Wraps `acpClient.loadSession(id, cwd)`. */
-	loadExistingSession: (sessionId: string) => Promise<SessionAcquisitionResult>;
+	loadExistingSession: (
+		sessionId: string,
+	) => Promise<SessionAcquisitionResult>;
 
 	/**
 	 * Session to FORK from on first acquisition (Track C — restore/fork in a
@@ -118,11 +117,9 @@ export interface UseLazySessionOptions {
 	) => Promise<SessionAcquisitionResult>;
 
 	/**
-	 * Acquire eagerly on mount (instead of waiting for the first send). Used
-	 * for fork tabs — fork is an explicit "branch now" intent, so the branch
-	 * is minted immediately (visible in history, renamable pre-send). The
-	 * consumer flips this true only once the agent is initialized
-	 * (capabilities known) so the fork/new call doesn't race the handshake.
+	 * Acquire eagerly once readiness is known. Used for deliberately fresh
+	 * tabs and forks; restored/read-only tabs leave this false. The request is
+	 * consumed once so reset() does not accidentally make agent switching eager.
 	 */
 	eagerAcquire?: boolean;
 
@@ -232,11 +229,21 @@ export function useLazySession(
 	// Imperative state (read inside async callbacks; refs avoid stale closures).
 	const debounceTimerRef = useRef<number | null>(null);
 	const isAcquiringRef = useRef(false);
+	// Monotonic acquisition generation. reset() bumps it; an acquisition
+	// captures the generation at its start and, on resolve, discards its result
+	// when the generation has moved on (a reset / agent-swap happened while it
+	// was in flight). Without this guard a mid-flight acquisition against the
+	// prior agent would bind after the swap, leaving the tab persisted as the
+	// new agent while its live session belongs to the old one (I175).
+	const acquisitionGenerationRef = useRef(0);
 	const restoredSessionIdRef = useRef<string | null>(restoredSessionId);
 	// Init-once (NOT re-synced every render) — mirrors restoredSessionIdRef.
 	// reset() clears this; a per-render resync would immediately undo that,
 	// letting a new-chat on a fork tab re-fork (caught by the reset test).
 	const forkFromSessionIdRef = useRef<string | null>(forkFromSessionId);
+	// Eager acquisition is a one-shot mount/readiness request. reset() must not
+	// silently re-fire it (agent switching deliberately remains lazy).
+	const eagerAcquireHandledRef = useRef(false);
 
 	// Stable refs to the latest callbacks. Recreating useCallbacks on every
 	// callback identity change would invalidate timer cleanup; refs sidestep.
@@ -262,6 +269,10 @@ export function useLazySession(
 	const fireAcquisition = useCallback(async () => {
 		if (isAcquiringRef.current) return;
 		isAcquiringRef.current = true;
+		// Snapshot the generation for this run. A reset() (e.g. an agent swap)
+		// while we await below bumps the ref; on resolve we compare and discard
+		// a stale result rather than binding it (I175).
+		const generation = acquisitionGenerationRef.current;
 
 		tabStateRef.current.startConnect();
 
@@ -299,6 +310,14 @@ export function useLazySession(
 			}
 		} else {
 			result = await acquireNewSessionRef.current();
+		}
+
+		// Superseded mid-flight (reset / agent swap). Discard the result — do
+		// not bind a session that belongs to a prior generation (I175). The
+		// reset already drove the machine to idle and cleared isAcquiringRef,
+		// so leave both untouched.
+		if (generation !== acquisitionGenerationRef.current) {
+			return;
 		}
 
 		if (result.ok) {
@@ -414,6 +433,9 @@ export function useLazySession(
 			debounceTimerRef.current = null;
 		}
 		isAcquiringRef.current = false;
+		// Supersede any in-flight acquisition so its resolve is discarded
+		// instead of binding a session from before this reset (I175).
+		acquisitionGenerationRef.current += 1;
 		// Forget any restored / fork-pending sessionId — "new chat" means brand
 		// new from now on.
 		restoredSessionIdRef.current = null;
@@ -451,17 +473,21 @@ export function useLazySession(
 		};
 	}, []);
 
-	// Eager acquisition for fork tabs: once `eagerAcquire` flips true (the
-	// consumer gates it on the agent being initialized), mint the branch
-	// immediately rather than waiting for the first send. Idempotent — the
-	// sessionId / isAcquiring guards prevent a double-fire.
+	// One-shot eager acquisition for any explicitly eager origin. The
+	// consumer gates this on agent initialization; fireAcquisition retains the
+	// shared fork > restore > fresh precedence. Mark handled before firing so
+	// rerenders, capability updates, and reset() cannot duplicate session/new.
 	useEffect(() => {
-		if (
-			eagerAcquire &&
-			forkFromSessionIdRef.current &&
-			sessionId === null &&
-			!isAcquiringRef.current
-		) {
+		if (!eagerAcquire || eagerAcquireHandledRef.current) return;
+		eagerAcquireHandledRef.current = true;
+		// A user may type while initialize is still resolving, before the consumer
+		// can enable eagerAcquire. Cancel that older lazy timer so it cannot fire
+		// a second session/new after this eager request completes.
+		if (debounceTimerRef.current !== null) {
+			window.clearTimeout(debounceTimerRef.current);
+			debounceTimerRef.current = null;
+		}
+		if (sessionId === null && !isAcquiringRef.current) {
 			void fireAcquisition();
 		}
 	}, [eagerAcquire, sessionId, fireAcquisition]);

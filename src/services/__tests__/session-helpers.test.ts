@@ -26,6 +26,15 @@ describe("resolveSessionIdForSave (I59)", () => {
 		expect(resolveSessionIdForSave("live-B", "sess-A")).toBe("live-B");
 	});
 
+	it("does not persist a fresh eager session before it has messages", () => {
+		expect(resolveSessionIdForSave("live-eager", null, false)).toBeNull();
+	});
+
+	it("persists a fresh eager session after its first message", () => {
+		expect(resolveSessionIdForSave("live-eager", null, true)).toBe(
+			"live-eager",
+		);
+	});
 	it("returns null when neither is present (fresh tab never sent a message)", () => {
 		expect(resolveSessionIdForSave(null, null)).toBe(null);
 	});
@@ -144,7 +153,12 @@ describe("resolveCwdForAgent (I131)", () => {
 			claudeDir: AGENT_DIR,
 			globalDir: GLOBAL_DIR,
 		});
-		const r = resolveCwdForAgent(settings, "no-such-agent", VAULT, existsAll);
+		const r = resolveCwdForAgent(
+			settings,
+			"no-such-agent",
+			VAULT,
+			existsAll,
+		);
 		expect(r).toEqual({
 			dir: GLOBAL_DIR,
 			source: "global",

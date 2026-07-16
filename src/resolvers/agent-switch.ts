@@ -95,9 +95,9 @@ export function selectAcquisitionAgent(
 export type SessionIntent =
 	/** User picked a (possibly different) agent from the switch menu. */
 	| "switch-agent"
-	/** "New chat" — clear the transcript, same agent, defer re-acquire. */
+	/** "New chat" — clear the transcript and acquire a fresh session now. */
 	| "new-chat"
-	/** "New chat in directory…" — same agent, new cwd, defer re-acquire. */
+	/** "New chat in directory…" — same agent, new cwd, acquire now. */
 	| "new-chat-in-directory"
 	/** "Restart agent" — respawn the subprocess (disconnect), same agent. */
 	| "restart-agent"
@@ -117,6 +117,9 @@ export type SessionIntentDecision =
 	 *  acquisition to first send. No subprocess respawn. `agentId` is the
 	 *  agent the next acquisition must bind to. */
 	| { kind: "recreate-lazy"; agentId: string }
+	/** Clear the transcript + acquire a fresh session immediately through the
+	 *  lazy-session owner. Used by deliberate New chat actions. */
+	| { kind: "recreate-eager"; agentId: string }
 	/** Disconnect the subprocess (genuine respawn) + reset the lazy machine
 	 *  + defer acquisition. Used by Restart agent / hard reload. */
 	| { kind: "respawn-lazy"; agentId: string }
@@ -151,8 +154,13 @@ export interface DecideSessionIntentParams {
 export function decideSessionIntent(
 	params: DecideSessionIntentParams,
 ): SessionIntentDecision {
-	const { intent, currentAgentId, requestedAgentId, hasSession, messageCount } =
-		params;
+	const {
+		intent,
+		currentAgentId,
+		requestedAgentId,
+		hasSession,
+		messageCount,
+	} = params;
 
 	const targetAgent = requestedAgentId || currentAgentId;
 	const isSwitch = targetAgent !== currentAgentId;
@@ -169,12 +177,18 @@ export function decideSessionIntent(
 			return { kind: "respawn-lazy", agentId: targetAgent };
 
 		case "new-chat-in-directory":
-			// Directory change always re-acquires (the caller sets the cwd);
-			// keep the current agent, defer to first send.
-			return { kind: "recreate-lazy", agentId: targetAgent };
+			// Directory change is deliberate fresh-chat intent. The caller sets
+			// the cwd, then acquires through useLazySession immediately.
+			return { kind: "recreate-eager", agentId: targetAgent };
 
-		case "switch-agent":
-		case "new-chat": {
+		case "new-chat":
+			// A no-op on an already-new tab; otherwise deliberately start the
+			// fresh conversation now.
+			return isIdleEmpty && !isSwitch
+				? { kind: "noop" }
+				: { kind: "recreate-eager", agentId: targetAgent };
+
+		case "switch-agent": {
 			if (!isSwitch) {
 				// Same agent. "New chat" on an already-empty idle tab is a noop;
 				// otherwise clear + reset + defer.

@@ -67,7 +67,11 @@ import {
 	type TabPersistenceStorage,
 	type UseTabPersistenceProps,
 } from "../useTabPersistence";
-import type { TabInfo, PerLeafTabState, PersistedTabInfo } from "../../types/tab";
+import type {
+	TabInfo,
+	PerLeafTabState,
+	PersistedTabInfo,
+} from "../../types/tab";
 
 // ============================================================================
 // Helpers
@@ -77,6 +81,7 @@ function makeRuntimeTab(overrides: Partial<TabInfo> = {}): TabInfo {
 	return {
 		tabId: "T1",
 		agentId: "claude-code-acp",
+		origin: "fresh",
 		label: "Tab 1",
 		state: "ready",
 		createdAt: new Date("2026-05-26T10:00:00Z"),
@@ -191,8 +196,7 @@ describe("useTabPersistence — save triggers", () => {
 		await waitFor(() =>
 			expect(storage.saveTabStateForLeaf).toHaveBeenCalledTimes(1),
 		);
-		const [leafIdArg, stateArg] =
-			saveCalls(storage)[0];
+		const [leafIdArg, stateArg] = saveCalls(storage)[0];
 		expect(leafIdArg).toBe("leaf-1");
 		expect(stateArg.tabs.map((t: PersistedTabInfo) => t.tabId)).toEqual([
 			"T1",
@@ -347,8 +351,7 @@ describe("useTabPersistence — save triggers", () => {
 		});
 
 		expect(storage.saveTabStateForLeaf).toHaveBeenCalledTimes(1);
-		const [leafIdArg, stateArg] =
-			saveCalls(storage)[0];
+		const [leafIdArg, stateArg] = saveCalls(storage)[0];
 		expect(leafIdArg).toBe("leaf-1");
 		expect(stateArg.tabs[0].tabId).toBe("T1");
 	});
@@ -463,9 +466,7 @@ describe("useTabPersistence — restore", () => {
 			activeTabId: "",
 		});
 		const { result } = renderHook(() =>
-			useTabPersistence(
-				makeProps({ leafId: "leaf-1", storage }),
-			),
+			useTabPersistence(makeProps({ leafId: "leaf-1", storage })),
 		);
 
 		await waitForRestoreReady(() => result.current);
@@ -836,9 +837,9 @@ describe("useTabPersistence — I57 session acquisition persistence gap", () => 
 				],
 				activeTabId: "T1",
 			} satisfies PerLeafTabState),
-			loadSessionMessages: vi.fn().mockResolvedValue([
-				{ role: "user", content: "hello" },
-			]),
+			loadSessionMessages: vi
+				.fn()
+				.mockResolvedValue([{ role: "user", content: "hello" }]),
 		});
 
 		const { result } = renderHook(
@@ -1030,9 +1031,9 @@ describe("useTabPersistence — draft persistence (write side)", () => {
 		});
 
 		const [, leafState] = saveCalls(storage).at(-1)!;
-		expect(
-			leafState.tabs.find((t) => t.tabId === "T1")?.draftText,
-		).toBe("draft captured at flush");
+		expect(leafState.tabs.find((t) => t.tabId === "T1")?.draftText).toBe(
+			"draft captured at flush",
+		);
 	});
 
 	it("persists an empty draft as '' (e.g., after a send clears the composer)", async () => {
@@ -1055,9 +1056,9 @@ describe("useTabPersistence — draft persistence (write side)", () => {
 		});
 
 		const [, leafState] = saveCalls(storage).at(-1)!;
-		expect(
-			leafState.tabs.find((t) => t.tabId === "T1")?.draftText,
-		).toBe("");
+		expect(leafState.tabs.find((t) => t.tabId === "T1")?.draftText).toBe(
+			"",
+		);
 	});
 
 	it("captures distinct drafts per tab (no cross-contamination)", async () => {
@@ -1087,12 +1088,12 @@ describe("useTabPersistence — draft persistence (write side)", () => {
 		});
 
 		const [, leafState] = saveCalls(storage).at(-1)!;
-		expect(
-			leafState.tabs.find((t) => t.tabId === "T1")?.draftText,
-		).toBe("draft for tab one");
-		expect(
-			leafState.tabs.find((t) => t.tabId === "T2")?.draftText,
-		).toBe("different draft for tab two");
+		expect(leafState.tabs.find((t) => t.tabId === "T1")?.draftText).toBe(
+			"draft for tab one",
+		);
+		expect(leafState.tabs.find((t) => t.tabId === "T2")?.draftText).toBe(
+			"different draft for tab two",
+		);
 	});
 });
 
@@ -1135,8 +1136,9 @@ describe("useTabPersistence — draft change triggers a save (restart fix)", () 
 			expect(saveCalls(storage).length).toBeGreaterThan(0),
 		);
 		expect(
-			saveCalls(storage).at(-1)![1].tabs.find((t) => t.tabId === "T1")
-				?.draftText,
+			saveCalls(storage)
+				.at(-1)![1]
+				.tabs.find((t) => t.tabId === "T1")?.draftText,
 		).toBe("typed but never switched away");
 	});
 });
@@ -1188,7 +1190,9 @@ describe("useTabPersistence — restoreSource override", () => {
 		expect(result.current.restoredLeafState).toEqual(restoreSource);
 		// Message history loaded by the snapshot's sessionId.
 		expect(storage.loadSessionMessages).toHaveBeenCalledWith("S9");
-		expect(result.current.restoredMessages).toEqual({ T9: adoptedMessages });
+		expect(result.current.restoredMessages).toEqual({
+			T9: adoptedMessages,
+		});
 	});
 
 	it("falls back to loadTabStateForLeaf when restoreSource is undefined (restart path unchanged)", async () => {
@@ -1201,7 +1205,11 @@ describe("useTabPersistence — restoreSource override", () => {
 
 		const { result } = renderHook(() =>
 			useTabPersistence(
-				makeProps({ leafId: "leaf-1", storage, restoreSource: undefined }),
+				makeProps({
+					leafId: "leaf-1",
+					storage,
+					restoreSource: undefined,
+				}),
 			),
 		);
 

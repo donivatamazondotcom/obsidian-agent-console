@@ -129,7 +129,7 @@ See [Session History](/usage/session-history) for details.
 
 ### What's the difference between Restore and Fork?
 
-**Restore** reopens the session in a **new tab**, right where you left off – your current chat is untouched, and the agent reconnects when you send your first message. **Fork** branches the session into a **new tab** so you can explore a different direction without changing the original. Fork works with any agent: agents that support server-side forking keep the assistant's full context, while others start a fresh session that shows the earlier transcript for reference.
+**Restore** reopens the session in a **new tab**, right where you left off – your current chat is untouched, and the agent reconnects when you send your first message. **Fork** branches the session into a **new tab** and starts creating that branch immediately, so you can explore a different direction without changing the original. Fork works with any agent: agents that support server-side forking keep the assistant's full context, while others start a fresh session that shows the earlier transcript for reference.
 
 ### The modal says "This agent does not support session restoration"
 

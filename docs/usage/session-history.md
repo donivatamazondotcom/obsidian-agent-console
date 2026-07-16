@@ -59,7 +59,7 @@ Depending on the agent's capabilities, you can perform the following actions:
 | **Delete** | Remove the session from history |
 
 ::: tip
-Restore and Fork don't require a connected agent — opening a session reconnects automatically on your first message. Both are offered whenever a session can be reopened (from the agent or from local data).
+Restore and Fork don't require a connected agent. **Restore** opens the conversation for reading and reconnects on your first message. **Fork** starts creating the branch immediately because choosing Fork is already interaction intent. Both are offered whenever a session can be reopened (from the agent or from local data).
 :::
 
 ## Session Storage
@@ -90,7 +90,7 @@ Use restore when you want to **continue where you left off** without losing your
 
 Forking opens a **new tab** that branches from a previous session:
 
-1. The new tab opens immediately, showing the conversation up to that point
+1. The new tab opens immediately, shows the conversation up to that point, and starts creating the branch
 2. The original session and your current chat both remain unchanged
 3. New messages go to the forked branch
 

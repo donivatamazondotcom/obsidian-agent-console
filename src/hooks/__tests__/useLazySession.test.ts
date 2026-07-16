@@ -40,10 +40,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import {
-	useLazySession,
-	type UseLazySessionOptions,
-} from "../useLazySession";
+import { useLazySession, type UseLazySessionOptions } from "../useLazySession";
 
 // ============================================================================
 // Helpers
@@ -263,15 +260,16 @@ describe("useLazySession — restored tab", () => {
 
 	it("U08: session/load failure falls through to session/new automatically; no user prompt; isFallbackRecovery=true", async () => {
 		const options = makeOptions({
-			loadExistingSession: vi
-				.fn()
-				.mockResolvedValue({
-					ok: false,
-					error: new Error("session expired"),
-				}),
+			loadExistingSession: vi.fn().mockResolvedValue({
+				ok: false,
+				error: new Error("session expired"),
+			}),
 			acquireNewSession: vi
 				.fn()
-				.mockResolvedValue({ ok: true, sessionId: "session-new-fallback" }),
+				.mockResolvedValue({
+					ok: true,
+					sessionId: "session-new-fallback",
+				}),
 		});
 		const { result } = renderHook(() =>
 			useLazySession({
@@ -315,7 +313,9 @@ describe("useLazySession — send-while-connecting (acquisition trigger only)", 
 		// Slow-resolving acquireNewSession lets us click send during the
 		// `connecting` window.
 		let resolveAcquire!: (
-			result: { ok: true; sessionId: string } | { ok: false; error: Error },
+			result:
+				| { ok: true; sessionId: string }
+				| { ok: false; error: Error },
 		) => void;
 		const acquireNewSession = vi.fn().mockImplementation(
 			() =>
@@ -355,7 +355,9 @@ describe("useLazySession — send-while-connecting (acquisition trigger only)", 
 
 	it("U10: send-while-connecting then connecting → error: error surfaces; sendPrompt NOT called", async () => {
 		let resolveAcquire!: (
-			result: { ok: true; sessionId: string } | { ok: false; error: Error },
+			result:
+				| { ok: true; sessionId: string }
+				| { ok: false; error: Error },
 		) => void;
 		const acquireNewSession = vi.fn().mockImplementation(
 			() =>
@@ -461,6 +463,46 @@ describe("useLazySession — sticky session and reset", () => {
 		expect(result.current.sessionId).toBeNull();
 		expect(result.current.isFallbackRecovery).toBe(false);
 	});
+
+	it("I175: reset() DURING an in-flight acquisition discards the stale result (no bind after swap)", async () => {
+		// Reproduces the mid-flight agent-switch race found in the origin-aware
+		// smoke run: an empty fresh tab eagerly acquires against agent A, the
+		// user switches to agent B (which resets the lazy machine) while that
+		// acquisition is still connecting, then A's acquisition resolves. The
+		// resolved-but-stale session must NOT bind — otherwise the tab is
+		// persisted as B while its live session belongs to A.
+		let resolveAcquire!: (result: { ok: true; sessionId: string }) => void;
+		const acquireNewSession = vi.fn().mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					resolveAcquire = resolve;
+				}),
+		);
+		const options = makeOptions({ acquireNewSession });
+		const { result } = renderHook(() => useLazySession(options));
+
+		// Start acquisition (agent A), leave it connecting.
+		act(() => result.current.onComposerChange("h"));
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(200);
+		});
+		expect(result.current.state).toBe("connecting");
+		expect(acquireNewSession).toHaveBeenCalledTimes(1);
+
+		// Agent switch mid-flight → reset() drives the machine back to idle.
+		act(() => result.current.reset());
+		expect(result.current.state).toBe("idle");
+		expect(result.current.sessionId).toBeNull();
+
+		// A's acquisition now resolves. Its result belongs to a superseded
+		// generation and must be discarded — the tab stays idle with no session.
+		await act(async () => {
+			resolveAcquire({ ok: true, sessionId: "stale-agent-a-session" });
+			await vi.runAllTimersAsync();
+		});
+		expect(result.current.sessionId).toBeNull();
+		expect(result.current.state).toBe("idle");
+	});
 });
 
 // ============================================================================
@@ -479,7 +521,10 @@ describe("useLazySession — error retry", () => {
 		// First call fails, second call (retry) succeeds.
 		const acquireNewSession = vi
 			.fn()
-			.mockResolvedValueOnce({ ok: false, error: new Error("first fail") })
+			.mockResolvedValueOnce({
+				ok: false,
+				error: new Error("first fail"),
+			})
 			.mockResolvedValueOnce({
 				ok: true,
 				sessionId: "session-retry-success",
@@ -585,10 +630,17 @@ describe("useLazySession — fork acquisition (Track C / RC-2)", () => {
 	it("forks via forkExistingSession on send; a server branch is NOT lossy", async () => {
 		const forkExistingSession = vi
 			.fn()
-			.mockResolvedValue({ ok: true, sessionId: "branch-1", lossy: false });
+			.mockResolvedValue({
+				ok: true,
+				sessionId: "branch-1",
+				lossy: false,
+			});
 		const { result } = renderHook(() =>
 			useLazySession(
-				makeOptions({ forkFromSessionId: "orig-1", forkExistingSession }),
+				makeOptions({
+					forkFromSessionId: "orig-1",
+					forkExistingSession,
+				}),
 			),
 		);
 		await act(async () => {
@@ -608,7 +660,10 @@ describe("useLazySession — fork acquisition (Track C / RC-2)", () => {
 		});
 		const { result } = renderHook(() =>
 			useLazySession(
-				makeOptions({ forkFromSessionId: "orig-1", forkExistingSession }),
+				makeOptions({
+					forkFromSessionId: "orig-1",
+					forkExistingSession,
+				}),
 			),
 		);
 		await act(async () => {
@@ -622,7 +677,11 @@ describe("useLazySession — fork acquisition (Track C / RC-2)", () => {
 	it("eagerAcquire forks on mount, without waiting for a send", async () => {
 		const forkExistingSession = vi
 			.fn()
-			.mockResolvedValue({ ok: true, sessionId: "branch-eager", lossy: true });
+			.mockResolvedValue({
+				ok: true,
+				sessionId: "branch-eager",
+				lossy: true,
+			});
 		const { result } = renderHook(() =>
 			useLazySession(
 				makeOptions({

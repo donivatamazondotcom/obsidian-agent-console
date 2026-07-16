@@ -20,6 +20,8 @@ export type TabState =
 	| "error" // ✕ red — session error
 	| "disconnected"; // ○ gray — session closed
 
+/** Runtime acquisition provenance. Reconstructed on restore; never persisted. */
+export type TabOrigin = "fresh" | "restored";
 /**
  * Metadata for a single tab in the tab bar.
  */
@@ -28,6 +30,8 @@ export interface TabInfo {
 	tabId: string;
 	/** Agent ID running in this tab */
 	agentId: string;
+	/** Whether this runtime tab was deliberately created or restored for reading. */
+	origin: TabOrigin;
 	/** Short label displayed on the tab (≤25 chars) */
 	label: string;
 	/** True when the user manually renamed this tab; auto-derived labels must not overwrite it (I56). */
@@ -63,9 +67,9 @@ export interface PersistedTabInfo {
 	/** True when the user manually renamed this tab (I56). Persisted so the rename survives restart. */
 	labelIsCustom?: boolean;
 	/**
-	 * ACP session ID for this tab. Explicitly null for tabs that have
-	 * never had a message sent (lazy session lifecycle per spec
-	 * Decision #2). Null is preserved on save (spec U33).
+	 * ACP session ID for this tab. Explicitly null when no live session was
+	 * acquired (for example, a restored read-only tab or failed initialization).
+	 * Null is preserved on save (spec U33).
 	 */
 	sessionId: string | null;
 	/** Display order within the leaf (0-indexed) */

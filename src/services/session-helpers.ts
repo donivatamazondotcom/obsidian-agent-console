@@ -367,15 +367,19 @@ export function createInitialSession(
 /**
  * Resolve the sessionId to persist for a tab.
  *
- * Prefers the live session id; falls back to the persisted id so a
- * restored, not-yet-reconnected tab keeps its prior sessionId instead of
- * being clobbered to null by the post-restore save (I59).
+ * A restored id always survives while its tab is inert. A live id supersedes
+ * that restored id after reconnect. For a deliberately fresh tab, however,
+ * eager acquisition may create a live session before any transcript exists;
+ * keep that id runtime-only until the first message so restart does not create
+ * an orphan tab slice or a false "history not stored locally" recovery state.
  */
 export function resolveSessionIdForSave(
 	liveId: string | null,
 	persistedId: string | null,
+	hasMessages = true,
 ): string | null {
-	return liveId ?? persistedId;
+	if (liveId !== null && (persistedId !== null || hasMessages)) return liveId;
+	return persistedId;
 }
 
 /**
