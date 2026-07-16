@@ -136,16 +136,16 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		};
 		const describeCwd = (value: string): string => {
 			const vaultRoot = resolveVaultRoot();
-			const base =
-				"Directory new chats start in. Leave blank to use the vault root. Existing and restored chats keep their own directory.";
+			const base = t("settings.defaultWorkingDirectory.desc");
+			const root = vaultRoot ? ` (${vaultRoot})` : "";
 			if (!value.trim()) {
-				return `${base} Currently: vault root${vaultRoot ? ` (${vaultRoot})` : ""}.`;
+				return `${base} ${t("settings.defaultWorkingDirectory.statusVaultRoot", { root })}`;
 			}
 			const resolved = resolveDefaultWorkingDirectory(value, vaultRoot);
 			if (resolved.fellBack) {
-				return `${base} ⚠ "${value}" is not a valid absolute directory — new chats will use the vault root${vaultRoot ? ` (${vaultRoot})` : ""}.`;
+				return `${base} ${t("settings.defaultWorkingDirectory.statusInvalid", { value, root })}`;
 			}
-			return `${base} Resolved: ${resolved.dir}.`;
+			return `${base} ${t("settings.defaultWorkingDirectory.statusResolved", { dir: resolved.dir })}`;
 		};
 		const cwdSetting = new Setting(containerEl)
 			.setName(t("settings.defaultWorkingDirectory.name"))
@@ -241,8 +241,19 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			.setName(t("settings.sessionTitle.name"))
 			.setDesc(t("settings.sessionTitle.desc"))
 			.addDropdown((dropdown) => {
-				for (const { value, label } of TITLE_STRATEGY_OPTIONS) {
-					dropdown.addOption(value, label);
+				const titleStrategyLabels: Record<TitleStrategy, string> = {
+					"agent-suggested": t(
+						"settings.sessionTitle.optionAgentSuggested",
+					),
+					"prompt-derived": t(
+						"settings.sessionTitle.optionPromptDerived",
+					),
+					"agent-timestamp": t(
+						"settings.sessionTitle.optionAgentTimestamp",
+					),
+				};
+				for (const { value } of TITLE_STRATEGY_OPTIONS) {
+					dropdown.addOption(value, titleStrategyLabels[value]);
 				}
 				dropdown
 					.setValue(this.plugin.settings.titleStrategy)
@@ -274,11 +285,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				dropdown
 					.addOption(
 						"enter",
-						"Enter to send, Shift+Enter for newline",
+						t("settings.sendMessageShortcut.optionEnter"),
 					)
 					.addOption(
 						"cmd-enter",
-						"Cmd/Ctrl+Enter to send, Enter for newline",
+						t("settings.sendMessageShortcut.optionCmdEnter"),
 					)
 					.setValue(this.plugin.settings.sendMessageShortcut)
 					.onChange(async (value) => {
@@ -318,7 +329,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		};
 		this.renderCollapsibleSection(
 			containerEl,
-			"Obsidian system prompt",
+			t("settings.section.obsidianSystemPrompt"),
 			(body) => {
 				let previewTa: import("obsidian").TextAreaComponent | null = null;
 				let appendTa: import("obsidian").TextAreaComponent | null = null;
@@ -334,7 +345,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					if (!previewTa) return;
 					previewTa.setValue(
 						liveText() ||
-							"(No system prompt will be sent — the agent gets no Obsidian context.)",
+							t("settings.obsidianPrompt.previewEmpty"),
 					);
 				};
 				new Setting(body).setDesc(t("settings.sendMessageShortcut.desc2"));
@@ -369,23 +380,23 @@ export class AgentClientSettingTab extends PluginSettingTab {
 							);
 					};
 					blockToggle(
-						"Say it's running in Obsidian",
-						"Lets the agent know it's working inside your Obsidian app.",
+						t("settings.obsidianPrompt.hostIdentity.name"),
+						t("settings.obsidianPrompt.hostIdentity.desc"),
 						"hostIdentity",
 					);
 					blockToggle(
-						"Explain how replies are shown",
-						"Tells the agent how to format replies so links, math, and diagrams render correctly, and which Obsidian conventions to use when writing notes.",
+						t("settings.obsidianPrompt.rendering.name"),
+						t("settings.obsidianPrompt.rendering.desc"),
 						"rendering",
 					);
 					blockToggle(
-						"Share the working folder",
-						"Tells the agent which folder this chat is working in.",
+						t("settings.obsidianPrompt.workingDirectory.name"),
+						t("settings.obsidianPrompt.workingDirectory.desc"),
 						"workingDirectory",
 					);
 					blockToggle(
-						"Let it work with your notes",
-						"Tells the agent it can read and edit your notes. Only sent when the chat runs inside your vault.",
+						t("settings.obsidianPrompt.vaultCollaboration.name"),
+						t("settings.obsidianPrompt.vaultCollaboration.desc"),
 						"vaultCollaboration",
 					);
 
@@ -521,8 +532,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			.setDesc(t("settings.sidebarSide.desc"))
 			.addDropdown((dropdown) =>
 				dropdown
-					.addOption("right", "Right sidebar")
-					.addOption("left", "Left sidebar")
+					.addOption("right", t("settings.sidebarSide.optionRight"))
+					.addOption("left", t("settings.sidebarSide.optionLeft"))
 					.setValue(this.plugin.settings.chatViewLocation)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -576,7 +587,9 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					const effectivePx = getEffectiveChatFontSizePx();
 					return effectivePx === null
 						? `${CHAT_FONT_SIZE_MIN}-${CHAT_FONT_SIZE_MAX}`
-						: `${effectivePx} (current)`;
+						: t("settings.chatFontSize.placeholderCurrent", {
+								px: effectivePx,
+							});
 				};
 
 				const persistChatFontSize = async (
@@ -734,7 +747,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		this.renderCollapsibleSection(containerEl, "Export", (containerEl) => {
+		this.renderCollapsibleSection(
+			containerEl,
+			t("settings.section.export"),
+			(containerEl) => {
 			new Setting(containerEl)
 				.setName(t("settings.exportFolder.name"))
 				.setDesc(t("settings.exportFolder.desc"))
@@ -820,12 +836,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						dropdown
 							.addOption(
 								"obsidian",
-								"Use Obsidian's attachment setting",
+								t("settings.imageLocation.optionObsidian"),
 							)
-							.addOption("custom", "Save to custom folder")
+							.addOption(
+								"custom",
+								t("settings.imageLocation.optionCustom"),
+							)
 							.addOption(
 								"base64",
-								"Embed as Base64 (not recommended)",
+								t("settings.imageLocation.optionBase64"),
 							)
 							.setValue(
 								this.plugin.settings.exportSettings
@@ -937,7 +956,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 
 		this.renderCollapsibleSection(
 			containerEl,
-			"Advanced",
+			t("settings.section.advanced"),
 			(containerEl) => {
 				const nodePathSetting = new Setting(containerEl)
 					.setName(t("settings.nodeJsPath.name"))
