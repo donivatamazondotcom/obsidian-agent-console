@@ -9,6 +9,7 @@ import {
 	FileSystemAdapter,
 } from "obsidian";
 import type AgentClientPlugin from "../plugin";
+import { t, SUPPORTED_LOCALES, LOCALE_DISPLAY_NAMES } from "../i18n";
 import type {
 	CustomAgentSettings,
 	AgentEnvVar,
@@ -107,15 +108,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		const docContainer = containerEl.createDiv({
 			cls: "agent-client-doc-link",
 		});
-		docContainer.createSpan({ text: "Need help? Check out the " });
+		docContainer.createSpan({ text: t("settings.docLink.prefix") });
 		docContainer.createEl("a", {
-			text: "documentation",
+			text: t("settings.docLink.linkText"),
 			href: "https://donivatamazondotcom.github.io/obsidian-agent-console/",
 			attr: { target: "_blank" },
 		});
-		docContainer.createSpan({ text: "." });
+		docContainer.createSpan({ text: t("settings.docLink.suffix") });
 
-		new Setting(containerEl).setName("Agents").setHeading();
+		new Setting(containerEl).setName(t("settings.heading.agents")).setHeading();
 
 		this.renderAgentSelector(containerEl);
 
@@ -147,11 +148,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			return `${base} Resolved: ${resolved.dir}.`;
 		};
 		const cwdSetting = new Setting(containerEl)
-			.setName("Default working directory")
+			.setName(t("settings.defaultWorkingDirectory.name"))
 			.setDesc(describeCwd(this.plugin.settings.defaultWorkingDirectory));
 		cwdSetting.addText((text) =>
 			text
-				.setPlaceholder("Leave blank for vault root")
+				.setPlaceholder(t("settings.defaultWorkingDirectory.placeholder"))
 				.setValue(this.plugin.settings.defaultWorkingDirectory)
 				.onChange(async (value) => {
 					await this.plugin.settingsService.updateSettings({
@@ -162,8 +163,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		);
 		cwdSetting.addButton((btn) =>
 			btn
-				.setButtonText("Browse…")
-				.setTooltip("Choose a folder")
+				.setButtonText(t("settings.defaultWorkingDirectory.button"))
+				.setTooltip(t("settings.defaultWorkingDirectory.tooltip"))
 				.onClick(async () => {
 					const picked = await pickFolder({
 						title: "Select default working directory",
@@ -180,7 +181,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				}),
 		);
 
-		new Setting(containerEl).setName("Built-in agents").setHeading();
+		new Setting(containerEl).setName(t("settings.heading.builtInAgents")).setHeading();
 
 		this.agentExpansion = syncAgentExpansion(
 			this.agentExpansion,
@@ -217,17 +218,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			(el) => this.renderOpenCodeSettings(el),
 		);
 
-		new Setting(containerEl).setName("Custom agents").setHeading();
+		new Setting(containerEl).setName(t("settings.heading.customAgents")).setHeading();
 
 		this.renderCustomAgents(containerEl);
 
-		new Setting(containerEl).setName("Chat behavior").setHeading();
+		new Setting(containerEl).setName(t("settings.heading.chatBehavior")).setHeading();
 
 		new Setting(containerEl)
-			.setName("Active note as default context")
-			.setDesc(
-				"Automatically add the active note to a new chat's context strip. You can always pin notes manually with the grab button.",
-			)
+			.setName(t("settings.activeNoteAsDefault.name"))
+			.setDesc(t("settings.activeNoteAsDefault.desc"))
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.activeNoteAsDefaultContext)
@@ -239,10 +238,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Session title")
-			.setDesc(
-				"How a new chat's tab label is generated. Agent-suggested asks the agent for a short title on its first reply and falls back to your first message while it arrives. You can always rename a tab manually.",
-			)
+			.setName(t("settings.sessionTitle.name"))
+			.setDesc(t("settings.sessionTitle.desc"))
 			.addDropdown((dropdown) => {
 				for (const { value, label } of TITLE_STRATEGY_OPTIONS) {
 					dropdown.addOption(value, label);
@@ -257,12 +254,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Quick prompts folder")
-			.setDesc(
-				"Vault folder scanned for quick prompts — one markdown note per prompt. The note's description (or name/title/filename) is the label; the body is the prompt text. Changes are picked up live.",
-			)
+			.setName(t("settings.quickPromptsFolder.name"))
+			.setDesc(t("settings.quickPromptsFolder.desc"))
 			.addText((text) => {
-				text.setPlaceholder("Quick Prompts")
+				text.setPlaceholder(t("settings.quickPromptsFolder.placeholder"))
 					.setValue(this.plugin.settings.quickPromptsFolder)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -273,10 +268,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Send message shortcut")
-			.setDesc(
-				"Choose the keyboard shortcut to send messages. Note: If using Cmd/Ctrl+Enter, you may need to remove any hotkeys assigned to Cmd/Ctrl+Enter (Settings → Hotkeys).",
-			)
+			.setName(t("settings.sendMessageShortcut.name"))
+			.setDesc(t("settings.sendMessageShortcut.desc"))
 			.addDropdown((dropdown) =>
 				dropdown
 					.addOption(
@@ -344,9 +337,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 							"(No system prompt will be sent — the agent gets no Obsidian context.)",
 					);
 				};
-				new Setting(body).setDesc(
-					"Sent to the agent on the first message of each chat so it works naturally in Obsidian. Most people can leave this alone.",
-				);
+				new Setting(body).setDesc(t("settings.sendMessageShortcut.desc2"));
 
 				if ((hcb().mode ?? "options") === "options") {
 					const blockToggle = (
@@ -399,10 +390,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					);
 
 					new Setting(body)
-						.setName("Your vault context")
-						.setDesc(
-							"Your own notes for the agent — where things live, naming and linking conventions, the tone you prefer. Added to the end of the prompt, and the same for every chat in this vault.",
-						)
+						.setName(t("settings.yourVaultContext.name"))
+						.setDesc(t("settings.yourVaultContext.desc"))
 						.addTextArea((ta) => {
 							appendTa = ta;
 							ta.setValue(hcb().appendText ?? "");
@@ -415,12 +404,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						});
 
 					new Setting(body)
-						.setName("Edit the full prompt")
-						.setDesc(
-							"Advanced: take over the whole prompt by hand. Opens pre-filled with the text shown below.",
-						)
+						.setName(t("settings.editTheFullPrompt.name"))
+						.setDesc(t("settings.editTheFullPrompt.desc"))
 						.addButton((btn) =>
-							btn.setButtonText("Edit full prompt…").onClick(async () => {
+							btn.setButtonText(t("settings.editTheFullPrompt.button")).onClick(async () => {
 								const seeded = hcbComposed(appendTa?.inputEl?.value);
 								this.pendingFocusObsidianFullPrompt = true;
 								await setHcb({ mode: "full", customText: seeded });
@@ -429,10 +416,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						);
 				} else {
 					new Setting(body)
-						.setName("Full prompt")
-						.setDesc(
-							"You're editing the entire prompt by hand. Your switches are baked into this text and no longer apply; the preview below shows exactly what gets sent.",
-						)
+						.setName(t("settings.fullPrompt.name"))
+						.setDesc(t("settings.fullPrompt.desc"))
 						.addTextArea((ta) => {
 							fullTa = ta;
 							ta.setValue(hcb().customText ?? "");
@@ -458,12 +443,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 							}
 						});
 					new Setting(body)
-						.setName("Back to options")
-						.setDesc(
-							"Return to the switches. Your hand-edited text is kept in case you come back.",
-						)
+						.setName(t("settings.backToOptions.name"))
+						.setDesc(t("settings.backToOptions.desc"))
 						.addButton((btn) =>
-							btn.setButtonText("Back to options").onClick(async () => {
+							btn.setButtonText(t("settings.backToOptions.button")).onClick(async () => {
 								await setHcb({ mode: "options" });
 								this.display();
 							}),
@@ -478,10 +461,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				// mode). Rendering it after the mode-specific section keeps the
 				// input-above-output reading order in both modes.
 				new Setting(body)
-					.setName("What gets sent")
-					.setDesc(
-						"Read-only preview of the exact text the agent receives on the first message.",
-					)
+					.setName(t("settings.whatGetsSent.name"))
+					.setDesc(t("settings.whatGetsSent.desc"))
 					.addTextArea((ta) => {
 						previewTa = ta;
 						ta.inputEl.rows = 8;
@@ -494,18 +475,14 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					(hcb().mode ?? "options") === "options" &&
 					hcb().blocks.vaultCollaboration
 				) {
-					new Setting(body).setDesc(
-						"The notes line is only sent when a chat's folder is inside your vault.",
-					);
+					new Setting(body).setDesc(t("settings.whatGetsSent.desc2"));
 				}
 
 				new Setting(body)
-					.setName("Reset to defaults")
-					.setDesc(
-						"Turn all switches on, clear your vault context and any full prompt, and return to the options view.",
-					)
+					.setName(t("settings.resetToDefaults.name"))
+					.setDesc(t("settings.resetToDefaults.desc"))
 					.addButton((btn) =>
-						btn.setButtonText("Reset to defaults").onClick(async () => {
+						btn.setButtonText(t("settings.resetToDefaults.button")).onClick(async () => {
 							const doReset = async (): Promise<void> => {
 								await setHcb(
 									structuredClone(
@@ -536,12 +513,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		);
 
 				new Setting(containerEl)
-			.setName("Appearance & notifications")
+			.setName(t("settings.heading.appearanceNotifications"))
 			.setHeading();
 
 		new Setting(containerEl)
-			.setName("Sidebar side")
-			.setDesc("Which sidebar new chat views open in")
+			.setName(t("settings.sidebarSide.name"))
+			.setDesc(t("settings.sidebarSide.desc"))
 			.addDropdown((dropdown) =>
 				dropdown
 					.addOption("right", "Right sidebar")
@@ -555,9 +532,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Chat font size")
+			.setName(t("settings.chatFontSize.name"))
 			.setDesc(
-				`Adjust the font size of the chat message area (${CHAT_FONT_SIZE_MIN}-${CHAT_FONT_SIZE_MAX}px).`,
+				t("settings.fontSize.desc", {
+					min: CHAT_FONT_SIZE_MIN,
+					max: CHAT_FONT_SIZE_MAX,
+				}),
 			)
 			.addText((text) => {
 				const getCurrentDisplayValue = (): string => {
@@ -681,10 +661,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Show emojis")
-			.setDesc(
-				"Display emoji icons in tool calls, thoughts, plans, and terminal blocks.",
-			)
+			.setName(t("settings.showEmojis.name"))
+			.setDesc(t("settings.showEmojis.desc"))
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.displaySettings.showEmojis)
@@ -699,10 +677,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("System notifications")
-			.setDesc(
-				"Show a notification when the agent finishes a reply or asks for permission. Completion notifications name the tab and switch to it when clicked. Notifications stay quiet while Obsidian is focused.",
-			)
+			.setName(t("settings.systemNotifications.name"))
+			.setDesc(t("settings.systemNotifications.desc"))
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.enableSystemNotifications)
@@ -713,13 +689,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(containerEl).setName("Tabs").setHeading();
+		new Setting(containerEl).setName(t("settings.heading.tabs")).setHeading();
 
 		new Setting(containerEl)
-			.setName("Restore tabs on startup")
-			.setDesc(
-				"Save open tabs when Obsidian quits and restore them on next launch. Each view restores its own tabs independently.",
-			)
+			.setName(t("settings.restoreTabsOnStartup.name"))
+			.setDesc(t("settings.restoreTabsOnStartup.desc"))
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.restoreTabsOnStartup)
@@ -731,10 +705,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Confirm before closing multiple chats")
-			.setDesc(
-				"Warn before closing the panel with Cmd+W when it has 2 or more open chats, so you don't lose several running agents at once.",
-			)
+			.setName(t("settings.confirmBeforeClosingMultiple.name"))
+			.setDesc(t("settings.confirmBeforeClosingMultiple.desc"))
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.confirmCloseWithMultipleTabs)
@@ -745,13 +717,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(containerEl).setName("Permissions").setHeading();
+		new Setting(containerEl).setName(t("settings.heading.permissions")).setHeading();
 
 		new Setting(containerEl)
-			.setName("Auto-allow permissions")
-			.setDesc(
-				"Automatically allow all permission requests from agents. ⚠️ Use with caution - this gives agents full access to your system.",
-			)
+			.setName(t("settings.autoAllowPermissions.name"))
+			.setDesc(t("settings.autoAllowPermissions.desc"))
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.autoAllowPermissions)
@@ -766,11 +736,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 
 		this.renderCollapsibleSection(containerEl, "Export", (containerEl) => {
 			new Setting(containerEl)
-				.setName("Export folder")
-				.setDesc("Folder where chat exports will be saved")
+				.setName(t("settings.exportFolder.name"))
+				.setDesc(t("settings.exportFolder.desc"))
 				.addText((text) =>
 					text
-						.setPlaceholder("Agent Console")
+						.setPlaceholder(t("settings.exportFolder.placeholder"))
 						.setValue(
 							this.plugin.settings.exportSettings.defaultFolder,
 						)
@@ -785,13 +755,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				);
 
 			new Setting(containerEl)
-				.setName("Filename")
-				.setDesc(
-					"Template for exported filenames. Use {date} for date and {time} for time",
-				)
+				.setName(t("settings.filename.name"))
+				.setDesc(t("settings.filename.desc"))
 				.addText((text) =>
 					text
-						.setPlaceholder("agent_console_{date}_{time}")
+						.setPlaceholder(t("settings.filename.placeholder"))
 						.setValue(
 							this.plugin.settings.exportSettings
 								.filenameTemplate,
@@ -807,13 +775,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				);
 
 			new Setting(containerEl)
-				.setName("Frontmatter tag")
-				.setDesc(
-					"Tag to add to exported notes. Supports nested tags (e.g., projects/agent-console). Leave empty to disable.",
-				)
+				.setName(t("settings.frontmatterTag.name"))
+				.setDesc(t("settings.frontmatterTag.desc"))
 				.addText((text) =>
 					text
-						.setPlaceholder("agent-console")
+						.setPlaceholder(t("settings.frontmatterTag.placeholder"))
 						.setValue(
 							this.plugin.settings.exportSettings.frontmatterTag,
 						)
@@ -828,8 +794,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				);
 
 			new Setting(containerEl)
-				.setName("Include images")
-				.setDesc("Include images in exported markdown files")
+				.setName(t("settings.includeImages.name"))
+				.setDesc(t("settings.includeImages.desc"))
 				.addToggle((toggle) =>
 					toggle
 						.setValue(
@@ -848,8 +814,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 
 			if (this.plugin.settings.exportSettings.includeImages) {
 				new Setting(containerEl)
-					.setName("Image location")
-					.setDesc("Where to save exported images")
+					.setName(t("settings.imageLocation.name"))
+					.setDesc(t("settings.imageLocation.desc"))
 					.addDropdown((dropdown) =>
 						dropdown
 							.addOption(
@@ -887,13 +853,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					"custom"
 				) {
 					new Setting(containerEl)
-						.setName("Custom image folder")
-						.setDesc(
-							"Folder path for exported images (relative to vault root)",
-						)
+						.setName(t("settings.customImageFolder.name"))
+						.setDesc(t("settings.customImageFolder.desc"))
 						.addText((text) =>
 							text
-								.setPlaceholder("Agent Console")
+								.setPlaceholder(t("settings.customImageFolder.placeholder"))
 								.setValue(
 									this.plugin.settings.exportSettings
 										.imageCustomFolder,
@@ -914,10 +878,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			}
 
 			new Setting(containerEl)
-				.setName("Auto-export on new chat")
-				.setDesc(
-					"Automatically export the current chat when starting a new chat",
-				)
+				.setName(t("settings.autoExportOnNew.name"))
+				.setDesc(t("settings.autoExportOnNew.desc"))
 				.addToggle((toggle) =>
 					toggle
 						.setValue(
@@ -935,10 +897,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				);
 
 			new Setting(containerEl)
-				.setName("Auto-export on close chat")
-				.setDesc(
-					"Automatically export the current chat when closing the chat view",
-				)
+				.setName(t("settings.autoExportOnClose.name"))
+				.setDesc(t("settings.autoExportOnClose.desc"))
 				.addToggle((toggle) =>
 					toggle
 						.setValue(
@@ -956,8 +916,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				);
 
 			new Setting(containerEl)
-				.setName("Open note after export")
-				.setDesc("Automatically open the exported note after exporting")
+				.setName(t("settings.openNoteAfterExport.name"))
+				.setDesc(t("settings.openNoteAfterExport.desc"))
 				.addToggle((toggle) =>
 					toggle
 						.setValue(
@@ -980,14 +940,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			"Advanced",
 			(containerEl) => {
 				const nodePathSetting = new Setting(containerEl)
-					.setName("Node.js path")
-					.setDesc(
-						"Path to Node.js. Usually leave blank. Only needed if node is in a non-standard location (enter absolute path, e.g. /usr/local/bin/node).",
-					)
+					.setName(t("settings.nodeJsPath.name"))
+					.setDesc(t("settings.nodeJsPath.desc"))
 					.addText((text) => {
-						text.setPlaceholder(
-							"Leave blank (login shell auto-resolves)",
-						)
+						text.setPlaceholder(t("settings.nodeJsPath.placeholder"))
 							.setValue(this.plugin.settings.nodePath)
 							.onChange(async (value) => {
 								await this.plugin.settingsService.updateSettings(
@@ -1009,14 +965,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 
 				if (Platform.isWin) {
 					new Setting(containerEl)
-						.setName("Windows Subsystem for Linux")
+						.setName(t("settings.heading.windowsSubsystemForLinux"))
 						.setHeading();
 
 					new Setting(containerEl)
-						.setName("Enable WSL mode")
-						.setDesc(
-							"Run agents inside Windows Subsystem for Linux. Recommended for agents like Codex that don't work well in native Windows environments.",
-						)
+						.setName(t("settings.enableWslMode.name"))
+						.setDesc(t("settings.enableWslMode.desc"))
 						.addToggle((toggle) =>
 							toggle
 								.setValue(this.plugin.settings.windowsWslMode)
@@ -1032,13 +986,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 
 					if (this.plugin.settings.windowsWslMode) {
 						new Setting(containerEl)
-							.setName("WSL distribution")
-							.setDesc(
-								"Specify WSL distribution name (leave empty for default). Example: Ubuntu, Debian",
-							)
+							.setName(t("settings.wslDistribution.name"))
+							.setDesc(t("settings.wslDistribution.desc"))
 							.addText((text) =>
 								text
-									.setPlaceholder("Leave empty for default")
+									.setPlaceholder(t("settings.wslDistribution.placeholder"))
 									.setValue(
 										this.plugin.settings
 											.windowsWslDistribution || "",
@@ -1056,10 +1008,35 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				}
 
 				new Setting(containerEl)
-					.setName("Debug mode")
-					.setDesc(
-						"Enable debug logging to console. Useful for development and troubleshooting.",
-					)
+					.setName(t("settings.language.name"))
+					.setDesc(t("settings.language.desc"))
+					.addDropdown((dropdown) => {
+						dropdown.addOption(
+							"auto",
+							t("settings.language.optionAuto"),
+						);
+						for (const locale of SUPPORTED_LOCALES) {
+							dropdown.addOption(
+								locale,
+								LOCALE_DISPLAY_NAMES[locale],
+							);
+						}
+						dropdown
+							.setValue(this.plugin.settings.language)
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings(
+									{
+										language:
+											value as typeof this.plugin.settings.language,
+									},
+								);
+								new Notice(t("settings.language.reloadNotice"));
+							});
+					});
+
+				new Setting(containerEl)
+					.setName(t("settings.debugMode.name"))
+					.setDesc(t("settings.debugMode.desc"))
 					.addToggle((toggle) =>
 						toggle
 							.setValue(this.plugin.settings.debugMode)
@@ -1117,8 +1094,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		this.plugin.ensureDefaultAgentId();
 
 		new Setting(containerEl)
-			.setName("Default agent")
-			.setDesc("Choose which agent is used when opening a new chat view.")
+			.setName(t("settings.defaultAgent.name"))
+			.setDesc(t("settings.defaultAgent.desc"))
 			.addDropdown((dropdown) => {
 				this.agentSelector = dropdown;
 				this.populateAgentDropdown(dropdown);
@@ -1160,10 +1137,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		const gemini = this.plugin.settings.gemini;
 
 		new Setting(sectionEl)
-			.setName("API key")
-			.setDesc(
-				"Gemini API key. Required if not logging in with a Google account. Select from Obsidian's Keychain or create a new secret.",
-			)
+			.setName(t("settings.apiKey.name"))
+			.setDesc(t("settings.apiKey.desc"))
 			.addComponent((el) =>
 				new SecretComponent(this.app, el)
 					.setValue(gemini.apiKeySecretId)
@@ -1178,12 +1153,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			);
 
 		const geminiPathSetting = new Setting(sectionEl)
-			.setName("Path")
-			.setDesc(
-				'Command name or path to the Gemini CLI. Use just "gemini" to let the login shell resolve it, or enter an absolute path for a specific version.',
-			)
+			.setName(t("settings.path.name"))
+			.setDesc(t("settings.path.desc"))
 			.addText((text) => {
-				text.setPlaceholder("gemini")
+				text.setPlaceholder(t("settings.path.placeholder"))
 					.setValue(gemini.command)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1205,12 +1178,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		this.addInstallHint(sectionEl, "@google/gemini-cli");
 
 		new Setting(sectionEl)
-			.setName("Arguments")
-			.setDesc(
-				'Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments. (Currently, the Gemini CLI requires the "--experimental-acp" option.)',
-			)
+			.setName(t("settings.arguments.name"))
+			.setDesc(t("settings.arguments.desc"))
 			.addTextArea((text) => {
-				text.setPlaceholder("")
+				text.setPlaceholder(t("settings.arguments.placeholder"))
 					.setValue(this.formatArgs(gemini.args))
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1224,12 +1195,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(sectionEl)
-			.setName("Environment variables")
-			.setDesc(
-				"Enter KEY=VALUE pairs, one per line. Required to authenticate with Vertex AI. GEMINI_API_KEY is derived from the field above.",
-			)
+			.setName(t("settings.environmentVariables.name"))
+			.setDesc(t("settings.environmentVariables.desc"))
 			.addTextArea((text) => {
-				text.setPlaceholder("GOOGLE_CLOUD_PROJECT=...")
+				text.setPlaceholder(t("settings.environmentVariables.placeholder"))
 					.setValue(this.formatEnv(gemini.env))
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1260,18 +1229,14 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		const kiro = this.plugin.settings.kiro;
 
 		new Setting(sectionEl)
-			.setName("Authentication")
-			.setDesc(
-				'Kiro CLI signs in with your Kiro account, so no API key is needed. Run "kiro-cli" once in a terminal to sign in, then select Kiro CLI here.',
-			);
+			.setName(t("settings.authentication.name"))
+			.setDesc(t("settings.authentication.desc2"));
 
 		const kiroPathSetting = new Setting(sectionEl)
-			.setName("Path")
-			.setDesc(
-				'Command name or path to kiro-cli. Use just "kiro-cli" to let the login shell resolve it, or enter an absolute path (commonly ~/.local/bin/kiro-cli).',
-			)
+			.setName(t("settings.path.name2"))
+			.setDesc(t("settings.path.desc2"))
 			.addText((text) => {
-				text.setPlaceholder("kiro-cli")
+				text.setPlaceholder(t("settings.path.placeholder2"))
 					.setValue(kiro.command)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1292,12 +1257,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		});
 
 		new Setting(sectionEl)
-			.setName("Arguments")
-			.setDesc(
-				'Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Kiro CLI requires the "acp" subcommand.',
-			)
+			.setName(t("settings.arguments.name2"))
+			.setDesc(t("settings.arguments.desc2"))
 			.addTextArea((text) => {
-				text.setPlaceholder("acp")
+				text.setPlaceholder(t("settings.arguments.placeholder2"))
 					.setValue(this.formatArgs(kiro.args))
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1311,12 +1274,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(sectionEl)
-			.setName("Environment variables")
-			.setDesc(
-				"Enter KEY=VALUE pairs, one per line. Leave empty unless your setup requires it.",
-			)
+			.setName(t("settings.environmentVariables.name2"))
+			.setDesc(t("settings.authentication.desc"))
 			.addTextArea((text) => {
-				text.setPlaceholder("")
+				text.setPlaceholder(t("settings.environmentVariables.placeholder2"))
 					.setValue(this.formatEnv(kiro.env))
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1347,18 +1308,14 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		const opencode = this.plugin.settings.opencode;
 
 		new Setting(sectionEl)
-			.setName("Setup")
-			.setDesc(
-				'OpenCode picks its own model and sign-in through its config, so no API key is needed here. Install it with the one-line installer from opencode.ai, then select OpenCode. To run local models offline, point OpenCode at ollama in its own config — see the OpenCode setup guide.',
-			);
+			.setName(t("settings.setup.name"))
+			.setDesc(t("settings.setup.desc8"));
 
 		const opencodePathSetting = new Setting(sectionEl)
-			.setName("Path")
-			.setDesc(
-				'Command name or path to opencode. Use just "opencode" to let the login shell resolve it, or enter an absolute path (commonly ~/.opencode/bin/opencode).',
-			)
+			.setName(t("settings.path.name3"))
+			.setDesc(t("settings.path.desc3"))
 			.addText((text) => {
-				text.setPlaceholder("opencode")
+				text.setPlaceholder(t("settings.path.placeholder3"))
 					.setValue(opencode.command)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1379,12 +1336,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		});
 
 		new Setting(sectionEl)
-			.setName("Arguments")
-			.setDesc(
-				'Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. OpenCode requires the "acp" subcommand.',
-			)
+			.setName(t("settings.arguments.name3"))
+			.setDesc(t("settings.arguments.desc3"))
 			.addTextArea((text) => {
-				text.setPlaceholder("acp")
+				text.setPlaceholder(t("settings.arguments.placeholder3"))
 					.setValue(this.formatArgs(opencode.args))
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1398,12 +1353,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(sectionEl)
-			.setName("Environment variables")
-			.setDesc(
-				"Enter KEY=VALUE pairs, one per line. These apply to the OpenCode process only — not the model backend. For example, a local model's context length is set on the ollama server (OLLAMA_CONTEXT_LENGTH), not here. Leave empty unless your setup requires it.",
-			)
+			.setName(t("settings.environmentVariables.name3"))
+			.setDesc(t("settings.setup.desc"))
 			.addTextArea((text) => {
-				text.setPlaceholder("")
+				text.setPlaceholder(t("settings.environmentVariables.placeholder3"))
 					.setValue(this.formatEnv(opencode.env))
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1434,10 +1387,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		const claude = this.plugin.settings.claude;
 
 		new Setting(sectionEl)
-			.setName("API key")
-			.setDesc(
-				"Anthropic API key. Required if not logging in with an Anthropic account. Select from Obsidian's Keychain or create a new secret.",
-			)
+			.setName(t("settings.apiKey.name2"))
+			.setDesc(t("settings.setup.desc2"))
 			.addComponent((el) =>
 				new SecretComponent(this.app, el)
 					.setValue(claude.apiKeySecretId)
@@ -1452,12 +1403,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			);
 
 		const claudePathSetting = new Setting(sectionEl)
-			.setName("Path")
-			.setDesc(
-				'Command name or path to claude-agent-acp. Use just "claude-agent-acp" to let the login shell resolve it, or enter an absolute path.',
-			)
+			.setName(t("settings.path.name4"))
+			.setDesc(t("settings.path.desc4"))
 			.addText((text) => {
-				text.setPlaceholder("claude-agent-acp")
+				text.setPlaceholder(t("settings.path.placeholder4"))
 					.setValue(claude.command)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1483,12 +1432,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		this.addInstallHint(sectionEl, "@agentclientprotocol/claude-agent-acp");
 
 		new Setting(sectionEl)
-			.setName("Arguments")
-			.setDesc(
-				"Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments.",
-			)
+			.setName(t("settings.arguments.name4"))
+			.setDesc(t("settings.setup.desc3"))
 			.addTextArea((text) => {
-				text.setPlaceholder("")
+				text.setPlaceholder(t("settings.arguments.placeholder4"))
 					.setValue(this.formatArgs(claude.args))
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1502,12 +1449,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(sectionEl)
-			.setName("Environment variables")
-			.setDesc(
-				"Enter KEY=VALUE pairs, one per line. ANTHROPIC_API_KEY is derived from the field above.",
-			)
+			.setName(t("settings.environmentVariables.name4"))
+			.setDesc(t("settings.setup.desc4"))
 			.addTextArea((text) => {
-				text.setPlaceholder("")
+				text.setPlaceholder(t("settings.environmentVariables.placeholder4"))
 					.setValue(this.formatEnv(claude.env))
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1538,10 +1483,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		const codex = this.plugin.settings.codex;
 
 		new Setting(sectionEl)
-			.setName("API key")
-			.setDesc(
-				"OpenAI API key. Required if not logging in with an OpenAI account. Select from Obsidian's Keychain or create a new secret.",
-			)
+			.setName(t("settings.apiKey.name3"))
+			.setDesc(t("settings.setup.desc5"))
 			.addComponent((el) =>
 				new SecretComponent(this.app, el)
 					.setValue(codex.apiKeySecretId)
@@ -1556,12 +1499,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			);
 
 		const codexPathSetting = new Setting(sectionEl)
-			.setName("Path")
-			.setDesc(
-				'Command name or path to codex-acp. Use just "codex-acp" to let the login shell resolve it, or enter an absolute path.',
-			)
+			.setName(t("settings.path.name5"))
+			.setDesc(t("settings.path.desc5"))
 			.addText((text) => {
-				text.setPlaceholder("codex-acp")
+				text.setPlaceholder(t("settings.path.placeholder5"))
 					.setValue(codex.command)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1587,12 +1528,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		this.addInstallHint(sectionEl, "@zed-industries/codex-acp");
 
 		new Setting(sectionEl)
-			.setName("Arguments")
-			.setDesc(
-				"Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments.",
-			)
+			.setName(t("settings.arguments.name5"))
+			.setDesc(t("settings.setup.desc6"))
 			.addTextArea((text) => {
-				text.setPlaceholder("")
+				text.setPlaceholder(t("settings.arguments.placeholder5"))
 					.setValue(this.formatArgs(codex.args))
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1606,12 +1545,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(sectionEl)
-			.setName("Environment variables")
-			.setDesc(
-				"Enter KEY=VALUE pairs, one per line. OPENAI_API_KEY is derived from the field above.",
-			)
+			.setName(t("settings.environmentVariables.name5"))
+			.setDesc(t("settings.setup.desc7"))
 			.addTextArea((text) => {
-				text.setPlaceholder("")
+				text.setPlaceholder(t("settings.environmentVariables.placeholder5"))
 					.setValue(this.formatEnv(codex.env))
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1641,7 +1578,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	private renderCustomAgents(containerEl: HTMLElement) {
 		if (this.plugin.settings.customAgents.length === 0) {
 			containerEl.createEl("p", {
-				text: "No custom agents configured yet.",
+				text: t("settings.customAgents.emptyState"),
 				cls: "agent-client-empty-state",
 			});
 		} else {
@@ -1657,7 +1594,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl).addButton((button) => {
 			button
-				.setButtonText("Add custom agent")
+				.setButtonText(t("settings.environmentVariables.button"))
 				.setCta()
 				.onClick(async () => {
 					const newId = this.generateCustomAgentId();
@@ -1696,10 +1633,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		});
 
 		const idSetting = new Setting(blockEl)
-			.setName("Agent ID")
-			.setDesc("Unique identifier used to reference this agent.")
+			.setName(t("settings.agentId.name"))
+			.setDesc(t("settings.agentId.desc"))
 			.addText((text) => {
-				text.setPlaceholder("custom-agent")
+				text.setPlaceholder(t("settings.agentId.placeholder"))
 					.setValue(agent.id)
 					.onChange(async (value) => {
 						const previousId =
@@ -1742,7 +1679,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						if (unique === previousId) return;
 						if (unique !== desired) {
 							new Notice(
-								`Agent ID "${desired}" is already in use — changed to "${unique}".`,
+								t("notices.agentIdInUse", {
+									desired,
+									unique,
+								}),
 							);
 						}
 						text.setValue(unique);
@@ -1775,7 +1715,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		idSetting.addExtraButton((button) => {
 			button
 				.setIcon("trash")
-				.setTooltip("Delete this agent")
+				.setTooltip(t("settings.agentId.tooltip"))
 				.onClick(async () => {
 					this.plugin.settings.customAgents.splice(index, 1);
 					this.plugin.ensureDefaultAgentId();
@@ -1785,10 +1725,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		});
 
 		new Setting(blockEl)
-			.setName("Display name")
-			.setDesc("Shown in menus and headers.")
+			.setName(t("settings.displayName.name"))
+			.setDesc(t("settings.displayName.desc"))
 			.addText((text) => {
-				text.setPlaceholder("Custom agent")
+				text.setPlaceholder(t("settings.displayName.placeholder"))
 					.setValue(agent.displayName || agent.id)
 					.onChange(async (value) => {
 						const trimmed = value.trim();
@@ -1802,12 +1742,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(blockEl)
-			.setName("Path")
-			.setDesc(
-				"Command name or path to the custom agent. Use just the command name to let the login shell resolve it, or enter an absolute path.",
-			)
+			.setName(t("settings.path.name6"))
+			.setDesc(t("settings.displayName.desc2"))
 			.addText((text) => {
-				text.setPlaceholder("Command name or path")
+				text.setPlaceholder(t("settings.path.placeholder6"))
 					.setValue(agent.command)
 					.onChange(async (value) => {
 						this.plugin.settings.customAgents[index].command =
@@ -1817,12 +1755,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(blockEl)
-			.setName("Arguments")
-			.setDesc(
-				"Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments.",
-			)
+			.setName(t("settings.arguments.name6"))
+			.setDesc(t("settings.displayName.desc3"))
 			.addTextArea((text) => {
-				text.setPlaceholder("--flag\n--another=value")
+				text.setPlaceholder(t("settings.arguments.placeholder6"))
 					.setValue(this.formatArgs(agent.args))
 					.onChange(async (value) => {
 						this.plugin.settings.customAgents[index].args =
@@ -1833,12 +1769,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(blockEl)
-			.setName("Environment variables")
-			.setDesc(
-				"Enter KEY=VALUE pairs, one per line. (Stored as plain text)",
-			)
+			.setName(t("settings.environmentVariables.name6"))
+			.setDesc(t("settings.displayName.desc4"))
 			.addTextArea((text) => {
-				text.setPlaceholder("TOKEN=...")
+				text.setPlaceholder(t("settings.environmentVariables.placeholder6"))
 					.setValue(this.formatEnv(agent.env))
 					.onChange(async (value) => {
 						this.plugin.settings.customAgents[index].env =
@@ -1934,12 +1868,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		frag.appendText("Not installed? Run in terminal: ");
 		frag.createEl("code", { text: command });
 		new Setting(containerEl).setDesc(frag).addButton((btn) => {
-			btn.setButtonText("Copy").onClick(() => {
+			btn.setButtonText(t("settings.environmentVariables.button2")).onClick(() => {
 				void navigator.clipboard.writeText(command).then(
 					() => {
-						btn.setButtonText("Copied!");
+						btn.setButtonText(t("settings.environmentVariables.button3"));
 						window.setTimeout(() => {
-							btn.setButtonText("Copy");
+							btn.setButtonText(t("settings.environmentVariables.button4"));
 						}, 1500);
 					},
 					() => undefined,
@@ -1961,12 +1895,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		setting.addButton((btn) => {
 			const isWsl = Platform.isWin && this.plugin.settings.windowsWslMode;
 			const lookupCmd = Platform.isWin && !isWsl ? "where" : "which";
-			btn.setButtonText("Auto-detect")
+			btn.setButtonText(t("settings.environmentVariables.button5"))
 				.setTooltip(
-					`Run \`${lookupCmd} ${commandName}\` to find the path`,
+					t("settings.autoDetect.tooltip", {
+						lookupCmd,
+						commandName,
+					}),
 				)
 				.onClick(async () => {
-					btn.setButtonText("Detecting…");
+					btn.setButtonText(t("settings.environmentVariables.button6"));
 					btn.setDisabled(true);
 					try {
 						const found = isWsl
@@ -1980,16 +1917,16 @@ export class AgentClientSettingTab extends PluginSettingTab {
 							await onResolved(found);
 							this.display();
 						} else {
-							btn.setButtonText("Not found");
+							btn.setButtonText(t("settings.environmentVariables.button7"));
 							window.setTimeout(() => {
-								btn.setButtonText("Auto-detect");
+								btn.setButtonText(t("settings.environmentVariables.button8"));
 								btn.setDisabled(false);
 							}, 2000);
 						}
 					} catch {
-						btn.setButtonText("Error");
+						btn.setButtonText(t("settings.environmentVariables.button9"));
 						window.setTimeout(() => {
-							btn.setButtonText("Auto-detect");
+							btn.setButtonText(t("settings.environmentVariables.button10"));
 							btn.setDisabled(false);
 						}, 2000);
 					}
@@ -2004,12 +1941,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	 */
 	private renderImportSetting(containerEl: HTMLElement): void {
 		new Setting(containerEl)
-			.setName("Import settings from another plugin")
-			.setDesc(
-				"Bring over agent definitions, defaults, and API keys from another agent plugin (e.g. Agent Client). Shows a preview before applying.",
-			)
+			.setName(t("settings.importSettingsFromAnother.name"))
+			.setDesc(t("settings.importSettingsFromAnother.desc"))
 			.addButton((btn) =>
-				btn.setButtonText("Import…").onClick(() => {
+				btn.setButtonText(t("settings.importSettingsFromAnother.button")).onClick(() => {
 					this.plugin.openImportSettingsModal();
 				}),
 			);
@@ -2118,11 +2053,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			return `${base} Resolved: ${resolved.dir}.`;
 		};
 		const setting = new Setting(sectionEl)
-			.setName("Working directory")
+			.setName(t("settings.workingDirectory.name"))
 			.setDesc(describe(read()));
 		setting.addText((text) =>
 			text
-				.setPlaceholder("Leave blank for the global default")
+				.setPlaceholder(t("settings.workingDirectory.placeholder"))
 				.setValue(read())
 				.onChange(async (value) => {
 					await write(value.trim());
@@ -2131,8 +2066,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		);
 		setting.addButton((btn) =>
 			btn
-				.setButtonText("Browse…")
-				.setTooltip("Choose a folder")
+				.setButtonText(t("settings.workingDirectory.button"))
+				.setTooltip(t("settings.workingDirectory.tooltip"))
 				.onClick(async () => {
 					const picked = await pickFolder({
 						title: "Select working directory",

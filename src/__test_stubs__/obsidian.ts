@@ -127,3 +127,7 @@ export class FileSystemAdapter {
 		return "";
 	}
 }
+
+export function getLanguage(): string {
+	return "en";
+}

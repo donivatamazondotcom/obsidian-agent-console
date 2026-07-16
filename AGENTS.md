@@ -42,6 +42,10 @@ src/
 │   ├── type-converter.ts        # ACP SDK ↔ internal type conversion; capability normalizer (toAgentCapabilities)
 │   ├── permission-handler.ts    # Permission queue, auto-approve, Promise resolution
 │   └── terminal-handler.ts      # Terminal process create/output/kill
+├── i18n/                        # UI string localization boundary ([[Agent Console I18N]])
+│   ├── index.ts                 # t(key, params) + initLocale + resolveLocale; locale resolved once at load (getLanguage or the Advanced language override)
+│   ├── en.ts                    # Canonical English catalog (the key contract; as const)
+│   └── ko.ts                    # Korean catalog (factory-wrapped, partial, per-key English fallback)
 ├── services/                    # Business logic (non-React, no React imports)
 │   ├── vault-service.ts         # Vault access + fuzzy search + CM6 selection tracking
 │   ├── context-builder.ts       # Builds prompt context from crystallized notes
