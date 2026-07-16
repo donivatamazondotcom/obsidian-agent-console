@@ -73,6 +73,7 @@ src/
 │   ├── register-chat-view.ts    # I157: guarded chat-view registration — a duplicate-view-type collision degrades to a notice, not an onload crash
 │   ├── run-registrations.ts     # I157: onload resilience harness — runs each registration isolated so one failure can't abort the whole load
 │   ├── migrate-legacy-view-type.ts # I157: lossless in-place re-home of panels persisted under the legacy "agent-client-chat-view" type (skipped when Agent Client owns it)
+│   ├── session-dispatch-port.ts # Detached composer-independent send seam (canSendNow via ready+idle gate; a2ui actions dispatch here, never fireOrQueue)
 │   ├── recently-closed-stack.ts # F13 undo-close: closed-tab record + LIFO push/pop/build (pure)
 │   ├── message-queue-logic.ts   # #82 queue-of-one pure decisions: queue/flush/Enter-action/broadcast-skip
 │   ├── queue-orchestration-reducer.ts # #82 dispatch-owning single-slot reducer: (state,event)->{state,effects}; flush is raw-by-construction (closes Q4)

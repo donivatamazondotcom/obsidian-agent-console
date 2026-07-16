@@ -12,6 +12,7 @@
  *    in place with a reason (same pattern as queued quick-prompt chips).
  */
 import { extractA2uiFences } from "./fence-extractor";
+import { validateA2uiFence } from "./validator";
 
 /** The transcript slice this module needs — role + text only. */
 export interface TranscriptMessageLike {
@@ -124,4 +125,43 @@ export function deriveSurfaceActionAffordance(
 		reason = "ready";
 	}
 	return { enabled: reason === "ready", reason };
+}
+
+/** Where a surface was first validly defined in the transcript. */
+export interface A2uiSurfaceDefinitionSite {
+	/** Index of the assistant message in the transcript array. */
+	messageIndex: number;
+	/** 0-based surface ordinal within that message (segmenter index). */
+	surfaceIndex: number;
+}
+
+/**
+ * Map of surfaceId → first VALID definition site, in transcript order
+ * (spec § Fence robustness: duplicate `surfaceId` follows the v1.0 rule —
+ * first valid definition wins, later duplicates render inert). Invalid
+ * fences never claim an id. Derived purely from the transcript, so restore
+ * and replay rebuild it with no separate store.
+ */
+export function deriveSurfaceDefinitions(
+	messages: readonly TranscriptMessageLike[],
+): ReadonlyMap<string, A2uiSurfaceDefinitionSite> {
+	const definitions = new Map<string, A2uiSurfaceDefinitionSite>();
+	const claimed = new Set<string>();
+	messages.forEach((message, messageIndex) => {
+		// Only assistant messages define surfaces (T08 scope guard).
+		if (message.role !== "assistant") return;
+		extractA2uiFences(message.text).forEach((fence, surfaceIndex) => {
+			if (!fence.closed) return;
+			const result = validateA2uiFence(fence.body, {
+				existingSurfaceIds: claimed,
+			});
+			if (result.kind !== "valid") return;
+			claimed.add(result.surface.surfaceId);
+			definitions.set(result.surface.surfaceId, {
+				messageIndex,
+				surfaceIndex,
+			});
+		});
+	});
+	return definitions;
 }
