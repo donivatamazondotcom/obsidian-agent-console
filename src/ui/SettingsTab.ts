@@ -167,7 +167,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				.setTooltip(t("settings.defaultWorkingDirectory.tooltip"))
 				.onClick(async () => {
 					const picked = await pickFolder({
-						title: "Select default working directory",
+						title: t("settings.defaultWorkingDirectory.pickerTitle"),
 						defaultPath:
 							this.plugin.settings.defaultWorkingDirectory ||
 							resolveVaultRoot(),
@@ -1831,7 +1831,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	}
 
 	private generateCustomAgentDisplayName(): string {
-		const base = "Custom agent";
+		const base = t("settings.customAgents.defaultName");
 		const existing = new Set<string>();
 		existing.add(
 			this.plugin.settings.claude.displayName ||
@@ -1884,7 +1884,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	private addInstallHint(containerEl: HTMLElement, npmPackage: string): void {
 		const command = `npm install -g ${npmPackage}@latest`;
 		const frag = createFragment();
-		frag.appendText("Not installed? Run in terminal: ");
+		frag.appendText(t("settings.installHint.prefix"));
 		frag.createEl("code", { text: command });
 		new Setting(containerEl).setDesc(frag).addButton((btn) => {
 			btn.setButtonText(t("settings.environmentVariables.button2")).onClick(() => {
@@ -2052,8 +2052,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			adapter instanceof FileSystemAdapter ? adapter.getBasePath() : "";
 		const describe = (value: string): string => {
 			const globalDefault = this.plugin.settings.defaultWorkingDirectory;
-			const base =
-				"Folder new chats with this agent start in. Leave blank to use the global default working directory, then the vault root.";
+			const base = t("settings.agentWorkingDirectory.desc");
 			const resolved = resolveAgentWorkingDirectory(
 				value,
 				globalDefault,
@@ -2062,14 +2061,14 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			if (!value.trim()) {
 				const label =
 					resolved.source === "global"
-						? " (global default)"
-						: " (vault root)";
-				return `${base} Currently: ${resolved.dir}${label}.`;
+						? t("settings.agentWorkingDirectory.sourceGlobal")
+						: t("settings.agentWorkingDirectory.sourceVaultRoot");
+				return `${base} ${t("settings.agentWorkingDirectory.statusCurrent", { dir: resolved.dir, label })}`;
 			}
 			if (resolved.source !== "agent") {
-				return `${base} ⚠ "${value}" is not a valid absolute directory — falling back to ${resolved.dir}.`;
+				return `${base} ${t("settings.agentWorkingDirectory.statusInvalid", { value, dir: resolved.dir })}`;
 			}
-			return `${base} Resolved: ${resolved.dir}.`;
+			return `${base} ${t("settings.agentWorkingDirectory.statusResolved", { dir: resolved.dir })}`;
 		};
 		const setting = new Setting(sectionEl)
 			.setName(t("settings.workingDirectory.name"))
@@ -2089,7 +2088,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				.setTooltip(t("settings.workingDirectory.tooltip"))
 				.onClick(async () => {
 					const picked = await pickFolder({
-						title: "Select working directory",
+						title: t("settings.workingDirectory.pickerTitle"),
 						defaultPath:
 							read() ||
 							this.plugin.settings.defaultWorkingDirectory ||
