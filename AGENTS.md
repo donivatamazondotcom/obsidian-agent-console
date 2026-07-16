@@ -80,6 +80,11 @@ src/
 │   ├── quick-prompts.ts         # QuickPromptLibrary (scan/watch/reconcile) + VaultQuickPromptSource adapter
 │   ├── update-checker.ts        # Agent/plugin version checking
 │   ├── net.ts                   # The ONLY module permitted outbound network I/O (fixed ALLOWED_HOSTS; egress tripwire enforces it)
+│   ├── a2ui/                    # A2UI buttons-v0 trust boundary (agent-emitted interactive prompts)
+│   │   ├── spec-snapshot.ts     # Frozen A2UI v1.0-candidate profile constants (version, catalog ids, component allowlist, limits)
+│   │   ├── types.ts             # Fence candidate + validated-surface tagged unions (literal-only component model)
+│   │   ├── fence-extractor.ts   # ```a2ui fence extraction from markdown; nesting-safe, streaming-aware (open fences stay inert)
+│   │   └── validator.ts         # Total no-throw envelope/profile/graph/limits validation (probe checks V02–V14)
 │   ├── import/                   # Cross-plugin settings-import adapters
 │   │   ├── ImportSource.ts       # ImportSource interface + preview types
 │   │   ├── agentClientAdapter.ts # Reads agent-client data.json → normalizeRawSettings → slice
