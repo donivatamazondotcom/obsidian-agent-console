@@ -142,6 +142,7 @@ src/
 │   ├── ZeroTabLanding.tsx       # Zero-tab landing screen shown when every tab is closed (minimal placeholder in Slice 1; reason-tagged empty-state shell in Slice 2)
 │   ├── ChatHeader.tsx           # Header (sidebar chat view)
 │   ├── MessageList.tsx          # Message list (native browser scroll, content-visibility:auto for off-screen render skipping)
+│   ├── A2uiSurfaceHost.tsx      # Agent-emitted buttons-v0 surface host: validate-at-edge, native buttons, resolver-gated enablement, inert fallback
 │   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button)
 │   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting)
 │   ├── TerminalBlock.tsx        # Terminal output polling
