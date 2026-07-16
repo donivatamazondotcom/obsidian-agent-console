@@ -84,6 +84,7 @@ src/
 │   │   ├── spec-snapshot.ts     # Frozen A2UI v1.0-candidate profile constants (version, catalog ids, component allowlist, limits)
 │   │   ├── types.ts             # Fence candidate + validated-surface tagged unions (literal-only component model)
 │   │   ├── fence-extractor.ts   # ```a2ui fence extraction from markdown; nesting-safe, streaming-aware (open fences stay inert)
+│   │   ├── segmenter.ts         # Assistant-message segmentation (markdown | a2ui-surface) upstream of MarkdownRenderer; lossless (segments rebuild the text)
 │   │   └── validator.ts         # Total no-throw envelope/profile/graph/limits validation (probe checks V02–V14)
 │   ├── import/                   # Cross-plugin settings-import adapters
 │   │   ├── ImportSource.ts       # ImportSource interface + preview types
