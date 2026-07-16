@@ -3546,3 +3546,23 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	font-size: var(--font-ui-smaller);
 	margin-top: var(--size-2-2);
 }
+
+.agent-client-a2ui-action-details {
+	margin: var(--size-2-2) 0;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+.agent-client-a2ui-action-details summary {
+	cursor: pointer;
+}
+
+.agent-client-a2ui-action-envelope {
+	overflow-x: auto;
+	padding: var(--size-4-1);
+	background: var(--background-primary-alt);
+	border-radius: var(--radius-s);
+	font-size: var(--font-ui-smaller);
+	white-space: pre-wrap;
+	word-break: break-all;
+}

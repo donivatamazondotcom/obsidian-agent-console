@@ -63,3 +63,36 @@ export function formatA2uiActionSummary(button: A2uiButton): string {
 	const label = button.label.trim();
 	return label.length > 0 ? `${label} — ${payload}` : payload;
 }
+
+/**
+ * Payload-derived summary for a STORED action fence body (the user message
+ * in the transcript): "name (k: v, …)". Returns null when the body is not a
+ * single-line action envelope — callers fall back to plain rendering.
+ * Total: never throws.
+ */
+export function summarizeA2uiActionBody(body: string): string | null {
+	const lines = body
+		.split("\n")
+		.map((l) => l.trim())
+		.filter((l) => l.length > 0);
+	if (lines.length !== 1) return null;
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(lines[0]);
+	} catch {
+		return null;
+	}
+	if (typeof parsed !== "object" || parsed === null) return null;
+	const action = (parsed as Record<string, unknown>).action;
+	if (typeof action !== "object" || action === null) return null;
+	const { name, context } = action as Record<string, unknown>;
+	if (typeof name !== "string") return null;
+	const pairs =
+		typeof context === "object" && context !== null
+			? Object.entries(context as Record<string, unknown>)
+					.filter(([, v]) => typeof v !== "object")
+					.map(([k, v]) => `${k}: ${String(v)}`)
+					.join(", ")
+			: "";
+	return pairs.length > 0 ? `${name} (${pairs})` : name;
+}
