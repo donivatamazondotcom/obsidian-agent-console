@@ -9,7 +9,12 @@ import {
 	FileSystemAdapter,
 } from "obsidian";
 import type AgentClientPlugin from "../plugin";
-import { t, SUPPORTED_LOCALES, LOCALE_DISPLAY_NAMES } from "../i18n";
+import {
+	t,
+	SUPPORTED_LOCALES,
+	LOCALE_DISPLAY_NAMES,
+	languageReloadNotice,
+} from "../i18n";
 import type {
 	CustomAgentSettings,
 	AgentEnvVar,
@@ -1054,7 +1059,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 											value as typeof this.plugin.settings.language,
 									},
 								);
-								new Notice(t("settings.language.reloadNotice"));
+								new Notice(languageReloadNotice(value));
 							});
 					});
 

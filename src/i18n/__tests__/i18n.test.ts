@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import {
 	t,
+	languageReloadNotice,
 	initLocale,
 	resolveLocale,
 	resetLocaleForTests,
@@ -207,5 +208,34 @@ describe("catalog integrity — cross-locale", () => {
 			expect(LANGUAGE_SETTING_VALUES).toContain(locale);
 		}
 		expect(LANGUAGE_SETTING_VALUES).toContain("auto");
+	});
+});
+
+describe("languageReloadNotice (I18N-I02)", () => {
+	// Shown at change time, while the OLD locale is still active — must
+	// read correctly on both sides of the switch.
+	const EN = "Language will change after Obsidian reloads.";
+	const ZH = "\u8bed\u8a00\u5c06\u5728 Obsidian \u91cd\u65b0\u52a0\u8f7d\u540e\u751f\u6548\u3002";
+	const JA = "\u8a00\u8a9e\u306f Obsidian \u306e\u518d\u8aad\u307f\u8fbc\u307f\u5f8c\u306b\u5207\u308a\u66ff\u308f\u308a\u307e\u3059\u3002";
+
+	it("English active, switching to Chinese: shows both, current first", () => {
+		expect(languageReloadNotice("zh")).toBe(`${EN}\n${ZH}`);
+	});
+
+	it("Chinese active, switching to Japanese: shows both", () => {
+		initLocale("zh");
+		expect(languageReloadNotice("ja")).toBe(`${ZH}\n${JA}`);
+	});
+
+	it("Japanese active, switching to auto: resolves auto and shows both (stub app language: en)", () => {
+		initLocale("ja");
+		expect(languageReloadNotice("auto")).toBe(`${JA}\n${EN}`);
+	});
+
+	it("no duplicate line when both sides resolve to the same locale", () => {
+		expect(languageReloadNotice("auto")).toBe(EN);
+		expect(languageReloadNotice("en")).toBe(EN);
+		initLocale("zh");
+		expect(languageReloadNotice("zh")).toBe(ZH);
 	});
 });

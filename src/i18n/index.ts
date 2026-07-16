@@ -126,3 +126,23 @@ export function t(
 	const template = activeCatalog?.[key] ?? en[key];
 	return params ? interpolate(template, params) : template;
 }
+
+/**
+ * The "language will change after reload" notice, composed in both the
+ * currently-active language and the newly selected one, so it reads
+ * correctly on either side of the switch (I18N-I02). Single line when
+ * both resolve to the same locale.
+ */
+export function languageReloadNotice(target: string): string {
+	const key = "settings.language.reloadNotice";
+	const current = t(key);
+	const targetTag = target === "auto" ? getLanguage() : target;
+	const targetLocale = resolveLocale(targetTag);
+	const targetString =
+		targetLocale === "en"
+			? en[key]
+			: (localeFactories[targetLocale]?.()[key] ?? en[key]);
+	return current === targetString
+		? current
+		: `${current}\n${targetString}`;
+}
