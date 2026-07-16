@@ -19,6 +19,8 @@
 import { getLanguage } from "obsidian";
 import { en } from "./en";
 import { ko } from "./ko";
+import { zh } from "./zh";
+import { ja } from "./ja";
 
 /** A key into the canonical English catalog. */
 export type TranslationKey = keyof typeof en;
@@ -30,7 +32,7 @@ export type LocaleCatalog = Partial<Record<TranslationKey, string>>;
  * Locales the plugin ships. English is the baseline; the rest grow here
  * as catalogs land (spec Decision 3: ko, zh, ja, de, es, fr, pt-BR).
  */
-export const SUPPORTED_LOCALES = ["en", "ko"] as const;
+export const SUPPORTED_LOCALES = ["en", "ko", "zh", "ja"] as const;
 export type LocaleCode = (typeof SUPPORTED_LOCALES)[number];
 
 /** Valid values for the `language` setting ("auto" = follow Obsidian). */
@@ -47,6 +49,8 @@ export type LanguageSetting = (typeof LANGUAGE_SETTING_VALUES)[number];
 export const LOCALE_DISPLAY_NAMES: Record<LocaleCode, string> = {
 	en: "English",
 	ko: "한국어",
+	zh: "中文",
+	ja: "日本語",
 };
 
 /**
@@ -56,6 +60,8 @@ export const LOCALE_DISPLAY_NAMES: Record<LocaleCode, string> = {
 const localeFactories: Record<Exclude<LocaleCode, "en">, () => LocaleCatalog> =
 	{
 		ko,
+		zh,
+		ja,
 	};
 
 /** Active non-English catalog, or null when English is active. */
@@ -119,4 +125,24 @@ export function t(
 ): string {
 	const template = activeCatalog?.[key] ?? en[key];
 	return params ? interpolate(template, params) : template;
+}
+
+/**
+ * The "language will change after reload" notice, composed in both the
+ * currently-active language and the newly selected one, so it reads
+ * correctly on either side of the switch (I18N-I02). Single line when
+ * both resolve to the same locale.
+ */
+export function languageReloadNotice(target: string): string {
+	const key = "settings.language.reloadNotice";
+	const current = t(key);
+	const targetTag = target === "auto" ? getLanguage() : target;
+	const targetLocale = resolveLocale(targetTag);
+	const targetString =
+		targetLocale === "en"
+			? en[key]
+			: (localeFactories[targetLocale]?.()[key] ?? en[key]);
+	return current === targetString
+		? current
+		: `${current}\n${targetString}`;
 }
