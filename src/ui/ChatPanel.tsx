@@ -19,7 +19,7 @@ import {
 	deriveSurfaceDefinitions,
 	type A2uiSurfaceDefinitionSite,
 } from "../services/a2ui/surface-state";
-import { buildA2uiActionUserMessage } from "../services/a2ui/action";
+import { activateA2uiButton } from "../services/a2ui/activate";
 import type { A2uiBubbleContext } from "./MessageBubble";
 import type { AttachedFile, ChatInputState, ChatMessage } from "../types/chat";
 import { isSameDirectory } from "../utils/platform";
@@ -2663,21 +2663,19 @@ export function ChatPanel({
 			isSending,
 			isQueued: queue.isQueued,
 			isRestoringSession: sessionHistory.loading,
-			onActivate: async (surface, button) => {
-				const sent = await a2uiDispatchPort.sendDetached(
-					buildA2uiActionUserMessage({
-						surfaceId: surface.surfaceId,
-						button,
-						timestamp: new Date().toISOString(),
-					}),
-				);
-				// Return focus to the composer after a button activation —
-				// same contract as quick-prompt fires (QP-I20): the click
-				// leaves DOM focus on the (now-disabled) button, so without
-				// this the caret never comes back.
-				if (sent) scheduleComposerRefocus(containerRef.current);
-				return sent;
-			},
+			// Refocus fires at DISPATCH inside the orchestrator — never awaited
+			// behind the send promise, which resolves only at turn end (the
+			// I173 class; round-1 awaited it and the caret came back minutes
+			// late — A2UI-I01).
+			onActivate: (surface, button) =>
+				activateA2uiButton({
+					port: a2uiDispatchPort,
+					surfaceId: surface.surfaceId,
+					button,
+					now: () => new Date().toISOString(),
+					refocusComposer: () =>
+						scheduleComposerRefocus(containerRef.current),
+				}),
 		}),
 		[
 			a2uiAnswers,

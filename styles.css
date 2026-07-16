@@ -3548,19 +3548,18 @@ button.agent-client-message-tool-call-summary:focus-visible {
 }
 
 .agent-client-a2ui-action-details {
-	margin: var(--size-2-2) 0 var(--size-4-2);
+	margin: var(--size-2-1) 0 0;
 	font-size: var(--font-ui-smaller);
 	color: var(--text-muted);
 }
 
-/* Smoke finding 2026-07-16: the Selected message hugged the bubble's bottom
-   edge — give the action message breathing room below its last element. */
+/* Smoke findings 2026-07-16 (rounds 1+2): the Selected message hugged the
+   bubble's bottom edge, and round 2 flagged the asymmetry — more space above
+   the summary line than below the disclosure. Keep the gap between summary
+   and disclosure tight (margin above) and give the bottom clear breathing
+   room (padding below). */
 .agent-client-a2ui-action-message {
-	padding-bottom: var(--size-4-1);
-}
-
-.agent-client-a2ui-action-message > :last-child {
-	margin-bottom: 0;
+	padding-bottom: var(--size-4-3);
 }
 
 .agent-client-a2ui-action-details summary {
