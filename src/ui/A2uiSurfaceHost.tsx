@@ -42,8 +42,12 @@ export interface A2uiSurfaceHostProps {
 	plugin: AgentClientPlugin;
 	/** Chosen componentId from the transcript, or null when unanswered. */
 	answeredComponentId: string | null;
-	/** True when this fence is NOT the first valid definition of its surfaceId. */
-	duplicate: boolean;
+	/**
+	 * Is this fence the FIRST valid definition of the given surfaceId in the
+	 * session? Later duplicates render inert (first wins — v1.0 rule). Called
+	 * post-validation with the actual surfaceId; default true (no registry).
+	 */
+	isFirstDefinition?: (surfaceId: string) => boolean;
 	/** A turn is streaming somewhere in this tab. */
 	isSending: boolean;
 	/** The queue-of-one slot is occupied. */
@@ -79,10 +83,15 @@ const INERT_REASON =
 	"These buttons couldn't be shown safely, so the content is left as code.";
 
 export function A2uiSurfaceHost(props: A2uiSurfaceHostProps): React.JSX.Element {
-	const { body, fenceText, plugin, answeredComponentId, duplicate } = props;
+	const { body, fenceText, plugin, answeredComponentId } = props;
 
 	const validation = useMemo(() => validateA2uiFence(body), [body]);
 	const [pending, setPending] = useState(false);
+
+	const duplicate =
+		validation.kind === "valid" &&
+		props.isFirstDefinition !== undefined &&
+		!props.isFirstDefinition(validation.surface.surfaceId);
 
 	if (validation.kind !== "valid" || duplicate) {
 		return (

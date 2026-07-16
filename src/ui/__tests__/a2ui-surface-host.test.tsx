@@ -79,7 +79,7 @@ function renderHost(
 			fenceText={overrides.fenceText ?? "```a2ui\n" + body + "\n```"}
 			plugin={PLUGIN}
 			answeredComponentId={overrides.answeredComponentId ?? null}
-			duplicate={overrides.duplicate ?? false}
+			isFirstDefinition={overrides.isFirstDefinition}
 			isSending={overrides.isSending ?? false}
 			isQueued={overrides.isQueued ?? false}
 			isRestoringSession={overrides.isRestoringSession ?? false}
@@ -194,7 +194,7 @@ describe("A2uiSurfaceHost — inert fallbacks (T06)", () => {
 	});
 
 	it("renders a duplicate surfaceId inert (first definition wins)", () => {
-		const { container } = renderHost({ duplicate: true });
+		const { container } = renderHost({ isFirstDefinition: () => false });
 		expect(screen.queryAllByRole("button")).toHaveLength(0);
 		expect(
 			container.querySelector(".agent-client-a2ui-inert-reason"),
