@@ -1,4 +1,6 @@
 import { migrateContextNoteSettings } from "./services/settings-migration";
+import { initLocale } from "./i18n";
+import type { LanguageSetting } from "./i18n";
 import {
 	addIcon,
 	Menu,
@@ -140,6 +142,13 @@ export interface AgentClientPluginSettings {
 	migrationNoticeShown: boolean;
 	/** Show OS system notifications on response completion and permission requests */
 	enableSystemNotifications: boolean;
+	/**
+	 * Display language for the plugin's UI. "auto" (default) follows
+	 * Obsidian's app language via getLanguage(); a locale code forces that
+	 * language. Applied at load — changes take effect after an app reload.
+	 * See [[Agent Console I18N]] § Decisions.
+	 */
+	language: LanguageSetting;
 	debugMode: boolean;
 	nodePath: string;
 	/** Directory new chats launch in; blank = vault root. See Configurable Working Directory spec. */
@@ -468,6 +477,10 @@ export default class AgentClientPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
+
+		// Resolve the display locale before any UI, commands, or views
+		// register, so every t() call renders in the right language.
+		initLocale(this.settings.language);
 
 		initializeLogger(this.settings);
 

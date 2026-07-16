@@ -93,6 +93,7 @@ export default defineConfig({
           { text: "Chat Export", link: "/usage/chat-export" },
           { text: "Commands & Hotkeys", link: "/usage/commands" },
           { text: "Importing Settings", link: "/usage/importing-settings" },
+          { text: "Language", link: "/usage/language" },
           { text: "Context Files", link: "/usage/context-files" },
           { text: "MCP Tools", link: "/usage/mcp-tools" },
         ],

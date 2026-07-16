@@ -19,6 +19,7 @@ import {
 	DEFAULT_TITLE_STRATEGY,
 	TITLE_STRATEGY_VALUES,
 } from "../types/title-strategy";
+import { LANGUAGE_SETTING_VALUES } from "../i18n";
 import {
 	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
 	normalizeObsidianSystemPromptSettings,
@@ -260,7 +261,7 @@ export function num(raw: unknown, fallback: number, min?: number): number {
 /** Extract a value that must be one of the valid options */
 export function enumVal<T extends string>(
 	raw: unknown,
-	valid: T[],
+	valid: readonly T[],
 	fallback: T,
 ): T {
 	return valid.includes(raw as T) ? (raw as T) : fallback;
@@ -357,6 +358,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	activeNoteAsDefaultContext: true,
 	migrationNoticeShown: false,
 	enableSystemNotifications: true,
+	language: "auto",
 	debugMode: false,
 	nodePath: "",
 	defaultWorkingDirectory: "",
@@ -558,6 +560,7 @@ export function normalizeRawSettings(
 			raw.enableSystemNotifications,
 			D.enableSystemNotifications,
 		),
+		language: enumVal(raw.language, LANGUAGE_SETTING_VALUES, D.language),
 		debugMode: bool(raw.debugMode, D.debugMode),
 		nodePath: str(raw.nodePath, D.nodePath),
 		defaultWorkingDirectory: str(

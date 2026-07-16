@@ -328,3 +328,37 @@ describe("parseComputedFontSizePx — effective chat font size for placeholder",
 		expect(parseComputedFontSizePx(-5)).toBeNull();
 	});
 });
+
+describe("normalizeRawSettings — language ([[Agent Console I18N]])", () => {
+	it("missing language falls back to auto", () => {
+		const s = normalizeRawSettings({}, DEFAULT_SETTINGS, idKey);
+		expect(s.language).toBe("auto");
+	});
+
+	it("valid language value is preserved", () => {
+		const s = normalizeRawSettings(
+			{ language: "ko" },
+			DEFAULT_SETTINGS,
+			idKey,
+		);
+		expect(s.language).toBe("ko");
+	});
+
+	it("unknown language value is dropped to auto (trust boundary)", () => {
+		const s = normalizeRawSettings(
+			{ language: "klingon" },
+			DEFAULT_SETTINGS,
+			idKey,
+		);
+		expect(s.language).toBe("auto");
+	});
+
+	it("non-string language value is dropped to auto", () => {
+		const s = normalizeRawSettings(
+			{ language: 42 },
+			DEFAULT_SETTINGS,
+			idKey,
+		);
+		expect(s.language).toBe("auto");
+	});
+});
