@@ -81,7 +81,7 @@ describe("decideSessionIntent — new-chat", () => {
 		).toEqual({ kind: "noop" });
 	});
 
-	it("same agent, has messages → recreate-lazy (clear + reset + defer)", () => {
+	it("same agent, has messages → recreate-eager (clear + acquire now)", () => {
 		expect(
 			decideSessionIntent({
 				intent: "new-chat",
@@ -89,10 +89,10 @@ describe("decideSessionIntent — new-chat", () => {
 				hasSession: true,
 				messageCount: 4,
 			}),
-		).toEqual({ kind: "recreate-lazy", agentId: CUR });
+		).toEqual({ kind: "recreate-eager", agentId: CUR });
 	});
 
-	it("new-chat carrying a different agent behaves like a switch (idle+empty → swap-idle)", () => {
+	it("new-chat carrying a different agent is still deliberate fresh intent", () => {
 		expect(
 			decideSessionIntent({
 				intent: "new-chat",
@@ -101,12 +101,12 @@ describe("decideSessionIntent — new-chat", () => {
 				hasSession: false,
 				messageCount: 0,
 			}),
-		).toEqual({ kind: "swap-idle", agentId: OTHER });
+		).toEqual({ kind: "recreate-eager", agentId: OTHER });
 	});
 });
 
 describe("decideSessionIntent — new-chat-in-directory", () => {
-	it("always recreate-lazy on the current agent (caller sets the cwd)", () => {
+	it("always recreate-eager on the current agent (caller sets the cwd)", () => {
 		for (const [hasSession, messageCount] of [
 			[false, 0],
 			[true, 3],
@@ -119,7 +119,7 @@ describe("decideSessionIntent — new-chat-in-directory", () => {
 					hasSession,
 					messageCount,
 				}),
-			).toEqual({ kind: "recreate-lazy", agentId: CUR });
+			).toEqual({ kind: "recreate-eager", agentId: CUR });
 		}
 	});
 });
@@ -205,6 +205,7 @@ const KNOWN_KINDS: ReadonlyArray<SessionIntentDecision["kind"]> = [
 	"noop",
 	"swap-idle",
 	"recreate-lazy",
+	"recreate-eager",
 	"respawn-lazy",
 	"resume",
 ];
@@ -226,6 +227,7 @@ describe("decideSessionIntent — properties", () => {
 				if (
 					d.kind === "swap-idle" ||
 					d.kind === "recreate-lazy" ||
+					d.kind === "recreate-eager" ||
 					d.kind === "respawn-lazy"
 				) {
 					const target =
@@ -246,10 +248,7 @@ describe("decideSessionIntent — properties", () => {
 					expect(target).not.toBe(params.currentAgentId);
 					expect(params.hasSession).toBe(false);
 					expect(params.messageCount).toBe(0);
-					expect(
-						params.intent === "switch-agent" ||
-							params.intent === "new-chat",
-					).toBe(true);
+					expect(params.intent).toBe("switch-agent");
 				}
 			}),
 		);

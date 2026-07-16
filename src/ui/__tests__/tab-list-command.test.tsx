@@ -25,8 +25,11 @@ const h = vi.hoisted(() => {
 		checked?: boolean;
 		click?: (e: unknown) => void;
 	}
-	const menus: Array<{ items: FakeItem[]; shown: boolean; via: string | null }> =
-		[];
+	const menus: Array<{
+		items: FakeItem[];
+		shown: boolean;
+		via: string | null;
+	}> = [];
 	return { menus };
 });
 
@@ -37,7 +40,11 @@ vi.mock("obsidian", () => {
 			checked?: boolean;
 			click?: (e: unknown) => void;
 		}> = [];
-		_record = { items: this.items, shown: false, via: null as string | null };
+		_record = {
+			items: this.items,
+			shown: false,
+			via: null as string | null,
+		};
 		constructor() {
 			h.menus.push(this._record);
 		}
@@ -97,6 +104,7 @@ function tab(partial: Partial<TabInfo>): TabInfo {
 	return {
 		tabId: partial.tabId ?? "t1",
 		agentId: partial.agentId ?? "kiro-cli",
+		origin: "fresh",
 		label: partial.label ?? "Tab",
 		state: partial.state ?? "ready",
 		createdAt: partial.createdAt ?? new Date(0),

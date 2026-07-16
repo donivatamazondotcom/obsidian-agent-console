@@ -8,7 +8,7 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
-import type { TabInfo, TabState } from "../types/tab";
+import type { TabInfo, TabOrigin, TabState } from "../types/tab";
 
 // ============================================================================
 // Types
@@ -22,7 +22,12 @@ export interface UseTabManagerReturn {
 	/** Currently active tab info, or null when no tabs are open (zero-tab landing). */
 	activeTab: TabInfo | null;
 	/** Add a new tab. Activates it unless `activate` is false (background open). */
-	addTab: (agentId: string, label?: string, activate?: boolean) => string;
+	addTab: (
+		agentId: string,
+		label?: string,
+		activate?: boolean,
+		origin?: TabOrigin,
+	) => string;
 	/** Remove a tab by ID. Returns the new active tab ID. */
 	removeTab: (tabId: string) => string | null;
 	/** Remove all tabs except the given one */
@@ -59,10 +64,15 @@ function defaultLabel(agentId: string): string {
 	return `${agentId} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-function createTab(agentId: string, label?: string): TabInfo {
+function createTab(
+	agentId: string,
+	label?: string,
+	origin: TabOrigin = "fresh",
+): TabInfo {
 	return {
 		tabId: generateTabId(),
 		agentId,
+		origin,
 		label: label || defaultLabel(agentId),
 		labelIsCustom: false,
 		state: "disconnected",
@@ -128,8 +138,13 @@ export function useTabManager(
 	);
 
 	const addTab = useCallback(
-		(agentId: string, label?: string, activate = true): string => {
-			const tab = createTab(agentId, label);
+		(
+			agentId: string,
+			label?: string,
+			activate = true,
+			origin: TabOrigin = "fresh",
+		): string => {
+			const tab = createTab(agentId, label, origin);
 			setTabs((prev) => [...prev, tab]);
 			// Background open (activate:false) appends without switching — the
 			// new tab still mounts (all tabs render) and consumes its
@@ -171,13 +186,10 @@ export function useTabManager(
 		[activeTabId],
 	);
 
-	const removeOtherTabs = useCallback(
-		(tabId: string) => {
-			setTabs((prev) => prev.filter((t) => t.tabId === tabId));
-			setActiveTabId(tabId);
-		},
-		[],
-	);
+	const removeOtherTabs = useCallback((tabId: string) => {
+		setTabs((prev) => prev.filter((t) => t.tabId === tabId));
+		setActiveTabId(tabId);
+	}, []);
 
 	const removeTabsToRight = useCallback(
 		(tabId: string) => {
@@ -219,26 +231,19 @@ export function useTabManager(
 		[],
 	);
 
-	const setTabState = useCallback(
-		(tabId: string, state: TabState) => {
-			setTabs((prev) => {
-				const tab = prev.find((t) => t.tabId === tabId);
-				if (!tab || tab.state === state) return prev;
-				return prev.map((t) =>
-					t.tabId === tabId ? { ...t, state } : t,
-				);
-			});
-		},
-		[],
-	);
+	const setTabState = useCallback((tabId: string, state: TabState) => {
+		setTabs((prev) => {
+			const tab = prev.find((t) => t.tabId === tabId);
+			if (!tab || tab.state === state) return prev;
+			return prev.map((t) => (t.tabId === tabId ? { ...t, state } : t));
+		});
+	}, []);
 
 	const setTabAgent = useCallback((tabId: string, agentId: string) => {
 		setTabs((prev) => {
 			const tab = prev.find((t) => t.tabId === tabId);
 			if (!tab || tab.agentId === agentId) return prev;
-			return prev.map((t) =>
-				t.tabId === tabId ? { ...t, agentId } : t,
-			);
+			return prev.map((t) => (t.tabId === tabId ? { ...t, agentId } : t));
 		});
 	}, []);
 
@@ -251,30 +256,27 @@ export function useTabManager(
 							label: defaultLabel(t.agentId),
 							labelIsCustom: false,
 							state: "disconnected",
-					  }
+						}
 					: t,
 			),
 		);
 	}, []);
 
-	const moveTab = useCallback(
-		(fromIndex: number, toIndex: number) => {
-			setTabs((prev) => {
-				if (
-					fromIndex < 0 ||
-					fromIndex >= prev.length ||
-					toIndex < 0 ||
-					toIndex >= prev.length
-				)
-					return prev;
-				const next = [...prev];
-				const [moved] = next.splice(fromIndex, 1);
-				next.splice(toIndex, 0, moved);
-				return next;
-			});
-		},
-		[],
-	);
+	const moveTab = useCallback((fromIndex: number, toIndex: number) => {
+		setTabs((prev) => {
+			if (
+				fromIndex < 0 ||
+				fromIndex >= prev.length ||
+				toIndex < 0 ||
+				toIndex >= prev.length
+			)
+				return prev;
+			const next = [...prev];
+			const [moved] = next.splice(fromIndex, 1);
+			next.splice(toIndex, 0, moved);
+			return next;
+		});
+	}, []);
 
 	const nextTab = useCallback(() => {
 		setTabs((prev) => {
@@ -297,8 +299,7 @@ export function useTabManager(
 	}, [activeTabId]);
 
 	const activeTab = useMemo(
-		() =>
-			tabs.find((t) => t.tabId === activeTabId) ?? tabs[0] ?? null,
+		() => tabs.find((t) => t.tabId === activeTabId) ?? tabs[0] ?? null,
 		[tabs, activeTabId],
 	);
 

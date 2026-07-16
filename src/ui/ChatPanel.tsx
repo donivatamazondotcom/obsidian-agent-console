@@ -28,9 +28,16 @@ import {
 	resolveDefaultWorkingDirectory,
 	deriveCwdBanner,
 } from "../utils/working-directory";
-import { resolveCwdForAgent } from "../services/session-helpers";
+import {
+	indexOfCurrentAgent,
+	resolveCwdForAgent,
+	resolveSessionIdForSave,
+} from "../services/session-helpers";
 import { deriveNewLeaf, shouldOpenFromActivation } from "../utils/link-leaf";
-import { deriveSendAffordance, isSessionLive } from "../resolvers/send-affordance";
+import {
+	deriveSendAffordance,
+	isSessionLive,
+} from "../resolvers/send-affordance";
 import { deriveTabState } from "../resolvers/tab-state";
 import { extractLinks, type SharedLink } from "../utils/link-extract";
 import {
@@ -52,7 +59,11 @@ import { CarriedOverPreview } from "./CarriedOverPreview";
 
 // Service imports
 import { getLogger } from "../utils/logger";
-import { deriveTabLabel, labelAlreadyReportedOnMount, shouldReportInterimLabel } from "../resolvers/deriveTabLabel";
+import {
+	deriveTabLabel,
+	labelAlreadyReportedOnMount,
+	shouldReportInterimLabel,
+} from "../resolvers/deriveTabLabel";
 import { buildCompletionNotificationContent } from "../utils/notification-content";
 import { runNotificationClick } from "../utils/notification-click";
 import { shouldNotifySystem } from "../resolvers/notify-gate";
@@ -85,14 +96,20 @@ import {
 	useQueueOrchestration,
 	type QueueEffectHandlers,
 } from "../hooks/useQueueOrchestration";
-import { decideConnectFlush, decideQueuedSendKind } from "../services/message-queue-logic";
+import {
+	decideConnectFlush,
+	decideQueuedSendKind,
+} from "../services/message-queue-logic";
 import {
 	useQuickPrompts,
 	type QuickPromptComposerBridge,
 } from "../hooks/useQuickPrompts";
 import type { QuickPrompt } from "../types/quick-prompt";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
-import { deriveLabelFromComposer, matchPromptsForNote } from "../services/quick-prompts-logic";
+import {
+	deriveLabelFromComposer,
+	matchPromptsForNote,
+} from "../services/quick-prompts-logic";
 
 // Domain model imports
 import {
@@ -112,7 +129,6 @@ import { ChatHeader } from "./ChatHeader";
 import { MessageList, type GettingStartedInfo } from "./MessageList";
 import { shouldShowGettingStarted } from "../services/agent-detection";
 import { installAgent } from "../services/agent-installer";
-import { indexOfCurrentAgent } from "../services/session-helpers";
 import { InputArea } from "./InputArea";
 import { ContextStrip } from "./ContextStrip";
 import { focusComposerAtEnd, sendAndReturnFocus } from "./composer-focus";
@@ -160,6 +176,8 @@ export interface ChatPanelCallbacks {
 
 export interface ChatPanelProps {
 	viewId: string;
+	/** Runtime acquisition provenance supplied synchronously before mount. */
+	tabOrigin: import("../types/tab").TabOrigin;
 	workingDirectory?: string;
 	initialAgentId?: string;
 	config?: { agent?: string; model?: string };
@@ -184,7 +202,9 @@ export interface ChatPanelProps {
 	 */
 	tabLabel?: string;
 	/** Look up whether a session is already open in another tab (I20) */
-	findTabBySessionId?: (sessionId: string) => { tabId: string; label: string } | null;
+	findTabBySessionId?: (
+		sessionId: string,
+	) => { tabId: string; label: string } | null;
 	/** Switch to a specific tab by ID (I20) */
 	onSwitchToTab?: (tabId: string) => void;
 	/** Close a specific tab by ID (used when its session is deleted) */
@@ -308,6 +328,7 @@ function focusOwningWindow(): void {
 
 export function ChatPanel({
 	viewId,
+	tabOrigin,
 	workingDirectory,
 	initialAgentId,
 	config,
@@ -482,10 +503,7 @@ export function ChatPanel({
 		onRename: contextNotes.rename,
 		onRemove: (path) => {
 			contextNotes.remove(path);
-			const name = (path.split("/").pop() ?? path).replace(
-				/\.md$/,
-				"",
-			);
+			const name = (path.split("/").pop() ?? path).replace(/\.md$/, "");
 			new Notice(
 				`[Agent Console] Context note "${name}" was deleted and removed from chat context.`,
 			);
@@ -612,9 +630,7 @@ export function ChatPanel({
 			);
 		}
 		if (activeId === plugin.settings.kiro.id) {
-			return (
-				plugin.settings.kiro.displayName || plugin.settings.kiro.id
-			);
+			return plugin.settings.kiro.displayName || plugin.settings.kiro.id;
 		}
 		const custom = plugin.settings.customAgents.find(
 			(agent) => agent.id === activeId,
@@ -742,7 +758,8 @@ export function ChatPanel({
 	// external URLs are unaffected.
 	const resolveInternalLink = useCallback(
 		(linkpath: string): boolean =>
-			plugin.app.metadataCache.getFirstLinkpathDest(linkpath, "") !== null,
+			plugin.app.metadataCache.getFirstLinkpathDest(linkpath, "") !==
+			null,
 		[plugin.app.metadataCache],
 	);
 	const sharedLinks = useMemo(
@@ -782,6 +799,9 @@ export function ChatPanel({
 	// above the lazySession hook) drives the lazy machine back to idle on a
 	// recreate-lazy/swap-idle intent. Assigned right after useLazySession runs.
 	const lazyResetRef = useRef<(() => void) | null>(null);
+	// New-chat-in-directory sets this before eager acquisition so the existing
+	// createSession override is used even before agentCwd re-renders.
+	const acquisitionCwdOverrideRef = useRef<string | null>(null);
 
 	// Stable refs for tab callbacks (avoid re-render loops from inline arrow props)
 	const onStateChangeRef = useRef(onStateChange);
@@ -789,13 +809,10 @@ export function ChatPanel({
 	const onLabelChangeRef = useRef(onLabelChange);
 	onLabelChangeRef.current = onLabelChange;
 
-	const handleLabelChangeFromRestore = useCallback(
-		(label: string) => {
-			onLabelChangeRef.current?.(label);
-			labelReportedRef.current = true;
-		},
-		[],
-	);
+	const handleLabelChangeFromRestore = useCallback((label: string) => {
+		onLabelChangeRef.current?.(label);
+		labelReportedRef.current = true;
+	}, []);
 
 	const { handleOpenHistory } = useHistoryModal(
 		plugin,
@@ -824,12 +841,10 @@ export function ChatPanel({
 	// ============================================================
 	// Intent dispatcher for switch-agent / new-chat against the CURRENT tab
 	// ([[Tab Agent Identity and Session Acquisition Unification]] design #1).
-	// No path here calls agent.createSession: a switch/new-chat either swaps
-	// the idle agent in place (swap-idle) or tears down the transcript and
-	// RESETS the lazy machine (recreate-lazy), deferring acquisition to the
-	// next send. useLazySession is the sole owner of session/new, so the first
-	// message connects to the just-selected agent — no eager session to clobber
-	// and no second session/new (the I53 flicker for this trigger).
+	// No path here calls agent.createSession directly. Agent switching resets
+	// and remains lazy; deliberate New chat resets and asks useLazySession to
+	// acquire immediately. Both converge on the same owner, preventing the I53
+	// duplicate-session race.
 	const handleNewChatWithPersist = useCallback(
 		async (requestedAgentId?: string) => {
 			try {
@@ -851,7 +866,8 @@ export function ChatPanel({
 				// so the decision.agentId access below is type-safe.
 				if (
 					decision.kind !== "swap-idle" &&
-					decision.kind !== "recreate-lazy"
+					decision.kind !== "recreate-lazy" &&
+					decision.kind !== "recreate-eager"
 				) {
 					return;
 				}
@@ -860,14 +876,14 @@ export function ChatPanel({
 				// session/transcript before rebinding (auto-export first).
 				let carriedMessages: typeof messages | null = null;
 				let carriedFromAgent = "";
-				if (decision.kind === "recreate-lazy") {
+				if (
+					decision.kind === "recreate-lazy" ||
+					decision.kind === "recreate-eager"
+				) {
 					// --- No silent data loss guard (Track 2) ---
 					if (messages.length > 0) {
-						const isSwitch =
-							decision.agentId !== session.agentId;
-						const kind = isSwitch
-							? "switch-agent"
-							: "new-chat";
+						const isSwitch = decision.agentId !== session.agentId;
+						const kind = isSwitch ? "switch-agent" : "new-chat";
 
 						// Optimistically set carry-over blocks BEFORE the
 						// modal opens — the user may type and send while
@@ -887,19 +903,19 @@ export function ChatPanel({
 						}
 
 						const agentName = isSwitch
-							? (agent.getAvailableAgents().find(
-									(a) => a.id === decision.agentId,
-								)?.displayName || decision.agentId)
+							? agent
+									.getAvailableAgents()
+									.find((a) => a.id === decision.agentId)
+									?.displayName || decision.agentId
 							: undefined;
-						const confirmResult =
-							await confirmSessionIntent(
-								plugin.app,
-								{
-									kind: kind,
-									canCarryOver: isSwitch,
-								},
-								agentName,
-							);
+						const confirmResult = await confirmSessionIntent(
+							plugin.app,
+							{
+								kind: kind,
+								canCarryOver: isSwitch,
+							},
+							agentName,
+						);
 						if (confirmResult === "cancel") {
 							// Clear optimistic carry-over on cancel
 							setCarryOverBlocks(null);
@@ -918,9 +934,9 @@ export function ChatPanel({
 					sessionHistory.invalidateCache();
 				}
 
-				// swap-idle | recreate-lazy: rebind the tab's agent WITHOUT
-				// creating a session and reset the lazy machine to idle. The
-				// next send acquires (via useLazySession) against decision.agentId,
+				// Rebind without creating a session directly. Lazy decisions reset
+				// to idle; eager decisions call useLazySession.acquireNow(). Both
+				// acquire against decision.agentId,
 				// the now-current source of truth (session.agentId).
 				// I131: on a real agent switch, re-resolve the working directory
 				// for the NEW agent first, so the lazy acquisition launches in
@@ -939,7 +955,11 @@ export function ChatPanel({
 					);
 				}
 				agent.setAgentWithoutSession(decision.agentId);
-				lazyResetRef.current?.();
+				if (decision.kind === "recreate-eager") {
+					void lazyAcquireNowRef.current?.();
+				} else {
+					lazyResetRef.current?.();
+				}
 				labelReportedRef.current = false;
 				onLabelChangeRef.current?.("");
 				// Persist agent ID for this view (survives Obsidian restart).
@@ -956,7 +976,10 @@ export function ChatPanel({
 					// preserved). It persists for the session (user-collapsible)
 					// and is delivered to the new agent on the first send.
 					setCarriedOver(
-						buildCarriedOverPreview(carriedMessages, carriedFromAgent),
+						buildCarriedOverPreview(
+							carriedMessages,
+							carriedFromAgent,
+						),
 					);
 				} else {
 					// New chat / switch with nothing to carry — drop any stale
@@ -1025,11 +1048,11 @@ export function ChatPanel({
 					hasSession: !!session.sessionId,
 					messageCount: messages.length,
 				});
-				// new-chat-in-directory always resolves to recreate-lazy on the
+				// new-chat-in-directory always resolves to recreate-eager on the
 				// CURRENT agent. (Previously restartSession(undefined, dir) ran
 				// createSession(undefined) → the DEFAULT agent, silently dropping
 				// the tab's agent. Keeping decision.agentId fixes that.)
-				if (decision.kind !== "recreate-lazy") return;
+				if (decision.kind !== "recreate-eager") return;
 
 				if (agent.isSending) {
 					await agent.cancelOperation();
@@ -1040,19 +1063,22 @@ export function ChatPanel({
 				suggestions.mentions.toggleAutoMention(false);
 				agent.clearMessages();
 				setCarriedOver(null);
-				// Change the cwd the lazy acquisition will read, rebind the SAME
-				// agent without creating a session, and reset the lazy machine.
-				// The next send acquires in the new directory via the sole owner.
+				// Change cwd, rebind the same agent, then acquire immediately through
+				// the sole owner. The override ref covers the pre-render state window.
 				setAgentCwd(directory);
+				acquisitionCwdOverrideRef.current = directory;
 				agent.setAgentWithoutSession(decision.agentId);
-				lazyResetRef.current?.();
+				void lazyAcquireNowRef.current?.();
 				sessionHistory.invalidateCache();
 
 				// I166: new-chat-in-directory is composer-terminal (in place,
 				// same agent) — the user types next, so return focus.
 				focusAfter("new-chat");
 			} catch (error) {
-				console.error("[Agent Console] New chat in directory error:", error);
+				console.error(
+					"[Agent Console] New chat in directory error:",
+					error,
+				);
 			}
 		},
 		[
@@ -1155,16 +1181,14 @@ export function ChatPanel({
 	// Effects - Session Lifecycle
 	// ============================================================
 
-	// Lazy session lifecycle — Decisions #2, #6, #7, #8 of
-	// [[ACP Tab Persistence Across Restarts]]. No eager `session/new`
-	// fires on mount. Agent initialize + session creation defer until
-	// the user signals intent (typing in the composer with 200ms
-	// debounce, or clicking send).
+	// Origin-aware session lifecycle: deliberately fresh tabs acquire once
+	// initialize exposes capabilities; restored/read-only tabs wait for typing
+	// or send. useLazySession remains the sole session/new owner.
 	//
 	// Decision #10: Eager initialize on mount for composer affordances.
 	// Spawns the agent process so that slash commands, model list, and
 	// mode list are available before the user types. The subsequent
-	// createSession call (on first keystroke) sees isInitialized()=true
+	// createSession call (eager or interaction-triggered) sees isInitialized()=true
 	// and skips re-initialization, going straight to newSession.
 	useEffect(() => {
 		if (acpClient.isInitialized()) return;
@@ -1190,10 +1214,16 @@ export function ChatPanel({
 				// I54: propagate the just-fetched capabilities into session
 				// state so image paste works on a fresh tab before connecting.
 				agent.applyInitCapabilities();
-				logger.log("[ChatPanel] Eager initialize complete for:", agentId);
+				logger.log(
+					"[ChatPanel] Eager initialize complete for:",
+					agentId,
+				);
 			} catch (e) {
 				// Non-fatal: lazy path will retry on first keystroke
-				logger.log("[ChatPanel] Eager initialize failed (non-fatal):", e);
+				logger.log(
+					"[ChatPanel] Eager initialize failed (non-fatal):",
+					e,
+				);
 			}
 		})();
 		// Run once on mount only. Re-eager-init on swap was reverted: model/mode
@@ -1221,7 +1251,8 @@ export function ChatPanel({
 	});
 	const queue = useQueueOrchestration({
 		acquire: () => queueEffectsRef.current.acquire(),
-		flushDispatch: (message) => queueEffectsRef.current.flushDispatch(message),
+		flushDispatch: (message) =>
+			queueEffectsRef.current.flushDispatch(message),
 		clearComposer: () => queueEffectsRef.current.clearComposer(),
 		cancelTurn: () => queueEffectsRef.current.cancelTurn(),
 	});
@@ -1239,9 +1270,11 @@ export function ChatPanel({
 		// Track C: when set, acquisition forks a NEW branch from this id
 		// instead of loading/creating (restore/fork-in-new-tab).
 		forkFromSessionId: restoredForkSessionId ?? null,
-		// Fork is eager — but only once the agent is initialized (capabilities
-		// known) so the fork/new call doesn't race the ACP handshake.
-		eagerAcquire: !!restoredForkSessionId && !!session.capabilities,
+		// Deliberately fresh tabs and forks acquire as soon as initialize has
+		// supplied capabilities. Restored/read-only tabs stay lazy.
+		eagerAcquire:
+			(tabOrigin === "fresh" || !!restoredForkSessionId) &&
+			!!session.capabilities,
 
 		acquireNewSession: useCallback(async () => {
 			try {
@@ -1272,7 +1305,13 @@ export function ChatPanel({
 				// The setState inside createSession has not propagated to
 				// this closure's `agent` reference yet, so the old read
 				// returned null and left the message stuck in "Sending…".
-				const sid = await agent.createSession(effectiveAgent);
+				const overrideCwd =
+					acquisitionCwdOverrideRef.current ?? undefined;
+				acquisitionCwdOverrideRef.current = null;
+				const sid = await agent.createSession(
+					effectiveAgent,
+					overrideCwd,
+				);
 				if (!sid) {
 					return {
 						ok: false as const,
@@ -1285,50 +1324,48 @@ export function ChatPanel({
 			} catch (err) {
 				return {
 					ok: false as const,
-					error:
-						err instanceof Error ? err : new Error(String(err)),
+					error: err instanceof Error ? err : new Error(String(err)),
 				};
 			}
-		}, [
-			agent.createSession,
-			agent.session.agentId,
-			logger,
-		]),
+		}, [agent.createSession, agent.session.agentId, logger]),
 
-		loadExistingSession: useCallback(async (sessionId: string) => {
-			logger.log("[Lazy] Loading existing session:", sessionId);
-			const result = await loadExistingSessionFlow({
-				sessionId,
-				cwd: agentCwd,
-				// Suppress the agent's replay only when local history is
-				// already displayed; otherwise let it through (I43 #12).
-				haveLocalHistory:
-					!!restoredMessages && restoredMessages.length > 0,
-				loadSession: (id, cwd) => acpClient.loadSession(id, cwd),
-				onLoaded: (r) =>
-					void agent.updateSessionFromLoad(
-						r.sessionId,
-						r.modes,
-						r.models,
-						r.configOptions,
-					),
-				setIgnoreUpdates: agent.setIgnoreUpdates,
-			});
-			if (!result.ok) {
-				logger.log(
-					"[Lazy] loadSession failed, falling through to new session:",
-					result.error,
-				);
-			}
-			return result;
-		}, [
-			restoredMessages,
-			acpClient,
-			agentCwd,
-			agent.updateSessionFromLoad,
-			agent.setIgnoreUpdates,
-			logger,
-		]),
+		loadExistingSession: useCallback(
+			async (sessionId: string) => {
+				logger.log("[Lazy] Loading existing session:", sessionId);
+				const result = await loadExistingSessionFlow({
+					sessionId,
+					cwd: agentCwd,
+					// Suppress the agent's replay only when local history is
+					// already displayed; otherwise let it through (I43 #12).
+					haveLocalHistory:
+						!!restoredMessages && restoredMessages.length > 0,
+					loadSession: (id, cwd) => acpClient.loadSession(id, cwd),
+					onLoaded: (r) =>
+						void agent.updateSessionFromLoad(
+							r.sessionId,
+							r.modes,
+							r.models,
+							r.configOptions,
+						),
+					setIgnoreUpdates: agent.setIgnoreUpdates,
+				});
+				if (!result.ok) {
+					logger.log(
+						"[Lazy] loadSession failed, falling through to new session:",
+						result.error,
+					);
+				}
+				return result;
+			},
+			[
+				restoredMessages,
+				acpClient,
+				agentCwd,
+				agent.updateSessionFromLoad,
+				agent.setIgnoreUpdates,
+				logger,
+			],
+		),
 
 		// Track C (RC-2) — agent-agnostic fork for a tab opened via Session
 		// History "fork". `session/fork`-capable agents branch server-side
@@ -1373,9 +1410,7 @@ export function ChatPanel({
 					return {
 						ok: false as const,
 						error:
-							err instanceof Error
-								? err
-								: new Error(String(err)),
+							err instanceof Error ? err : new Error(String(err)),
 					};
 				}
 
@@ -1508,7 +1543,12 @@ export function ChatPanel({
 				message: { content, attachments },
 			});
 		},
-		[lazySession.state, agent.session.sessionId, handleSendMessage, queue.dispatch],
+		[
+			lazySession.state,
+			agent.session.sessionId,
+			handleSendMessage,
+			queue.dispatch,
+		],
 	);
 
 	// ============================================================
@@ -1760,11 +1800,13 @@ export function ChatPanel({
 					enabled: settings.enableSystemNotifications,
 				})
 			) {
-				const { title, body, tag } = buildCompletionNotificationContent({
-					tabLabel: tabLabelRef.current,
-					agentLabel: activeAgentLabel,
-					tabId: viewId,
-				});
+				const { title, body, tag } = buildCompletionNotificationContent(
+					{
+						tabLabel: tabLabelRef.current,
+						agentLabel: activeAgentLabel,
+						tabId: viewId,
+					},
+				);
 				const completionNotification = new Notification(title, {
 					body,
 					tag,
@@ -1786,7 +1828,8 @@ export function ChatPanel({
 						onSwitchToTab: onSwitchToTabRef.current,
 						revealOwningLeaf: () => viewHost.revealOwningLeaf(),
 						owningWindowHasFocus: () =>
-							containerRef.current?.ownerDocument.hasFocus() ?? false,
+							containerRef.current?.ownerDocument.hasFocus() ??
+							false,
 						schedule: (fn, ms) => window.setTimeout(fn, ms),
 					});
 				});
@@ -1945,15 +1988,25 @@ export function ChatPanel({
 		sessionHistory.applySessionTitle,
 	]);
 
-	// Report session ID changes to parent (for tab rename persistence)
+	// Report the session ID that is safe to persist and use for history lookup.
 	useEffect(() => {
-		// Report the live session id, or fall back to the restored (persisted)
-		// id for an inert tab that hasn't lazily connected yet — so history
-		// operations (I20 restore-switch, TS-I01 delete-close) can match the tab
-		// before connection. Without this, a restored-but-unconnected tab is
-		// absent from the tab→session map and delete/restore can't find it.
-		onSessionIdChange?.(session.sessionId ?? restoredSessionId ?? null);
-	}, [onSessionIdChange, session.sessionId, restoredSessionId]);
+		// Restored IDs survive while their tabs are inert, and a reconnected live
+		// ID supersedes them. A fresh eager session stays runtime-only until its
+		// first message: before then there is no saved-session record or transcript
+		// for restart to restore, so persisting the ID would create an orphan slice.
+		onSessionIdChange?.(
+			resolveSessionIdForSave(
+				session.sessionId ?? null,
+				restoredSessionId ?? null,
+				messages.length > 0,
+			),
+		);
+	}, [
+		onSessionIdChange,
+		session.sessionId,
+		restoredSessionId,
+		messages.length,
+	]);
 
 	// ============================================================
 	// Auto-default context crystallizes on FIRST SEND in useChatActions
@@ -2016,7 +2069,9 @@ export function ChatPanel({
 	const handleReloadWithQueue = useCallback(
 		(hard: boolean) => {
 			queue.dispatch(
-				hard ? { type: "respawn" } : { type: "resume", canResume: true },
+				hard
+					? { type: "respawn" }
+					: { type: "resume", canResume: true },
 			);
 			return handleReload(hard);
 		},
@@ -2073,7 +2128,10 @@ export function ChatPanel({
 								);
 							}
 						} catch (error) {
-							console.error("[Agent Console] Approve permission error:", error);
+							console.error(
+								"[Agent Console] Approve permission error:",
+								error,
+							);
 						}
 					})();
 				},
@@ -2094,7 +2152,10 @@ export function ChatPanel({
 								);
 							}
 						} catch (error) {
-							console.error("[Agent Console] Reject permission error:", error);
+							console.error(
+								"[Agent Console] Reject permission error:",
+								error,
+							);
 						}
 					})();
 				},
@@ -2133,11 +2194,7 @@ export function ChatPanel({
 				workspace.offref(ref);
 			}
 		};
-	}, [
-		plugin.app.workspace,
-		plugin.lastActiveChatViewId,
-		viewId,
-	]);
+	}, [plugin.app.workspace, plugin.lastActiveChatViewId, viewId]);
 
 	// ============================================================
 	// Effects - Focus Tracking
@@ -2218,8 +2275,7 @@ export function ChatPanel({
 				},
 				openInNewTab: (text, opts) => onOpenInNewTab?.(text, opts),
 				getContainer: () => containerRef.current,
-				notify: (message) =>
-					new Notice(`[Agent Console] ${message}`),
+				notify: (message) => new Notice(`[Agent Console] ${message}`),
 			}),
 		[plugin, onOpenInNewTab],
 	);
@@ -2368,7 +2424,10 @@ export function ChatPanel({
 				// triggers acquisition so it flushes on connect. A tab already
 				// holding a queued message is skipped upstream by broadcast; the
 				// queue-of-one cap is the defensive backstop here.
-				if (isSendingRef.current || !isSessionLive(lazyStateRef.current)) {
+				if (
+					isSendingRef.current ||
+					!isSessionLive(lazyStateRef.current)
+				) {
 					if (isQueuedRef.current) return false;
 					handleQueueMessageRef.current(messageToSend, filesToSend);
 					return true;
@@ -2379,7 +2438,10 @@ export function ChatPanel({
 				setAttachedFiles([]);
 
 				try {
-					await handleSendMessageRef.current(messageToSend, filesToSend);
+					await handleSendMessageRef.current(
+						messageToSend,
+						filesToSend,
+					);
 				} catch (error) {
 					console.error("[Agent Console] Send message error:", error);
 				}
@@ -2390,7 +2452,10 @@ export function ChatPanel({
 					try {
 						await handleStopGenerationRef.current();
 					} catch (error) {
-						console.error("[Agent Console] Cancel operation error:", error);
+						console.error(
+							"[Agent Console] Cancel operation error:",
+							error,
+						);
 					}
 				}
 			},
@@ -2443,27 +2508,25 @@ export function ChatPanel({
 		/>
 	);
 
-	const cwdBanner =
-		deriveCwdBanner(agentCwd, vaultRoot) ? (
-			<div className="agent-client-cwd-banner" aria-label={agentCwd}>
-				<span
-					className="agent-client-cwd-banner-icon"
-					ref={(el) => {
-						if (el) setIcon(el, "folder-open");
-					}}
-				/>
-				<span className="agent-client-cwd-banner-path">{agentCwd}</span>
-			</div>
-		) : null;
+	const cwdBanner = deriveCwdBanner(agentCwd, vaultRoot) ? (
+		<div className="agent-client-cwd-banner" aria-label={agentCwd}>
+			<span
+				className="agent-client-cwd-banner-icon"
+				ref={(el) => {
+					if (el) setIcon(el, "folder-open");
+				}}
+			/>
+			<span className="agent-client-cwd-banner-path">{agentCwd}</span>
+		</div>
+	) : null;
 
 	// Layer 2 — getting-started empty state. Lazily detect installed agents
 	// the first time an empty, not-yet-ready panel renders; if the current
 	// agent is not among them, surface one-click picks + open-settings instead
 	// of a dead-end "Connecting..." that never resolves. Detection is the
 	// session-cached, login-shell-aware plugin probe (never on the load path).
-	const [detectedAgentIds, setDetectedAgentIds] = useState<
-		Set<string> | null
-	>(null);
+	const [detectedAgentIds, setDetectedAgentIds] =
+		useState<Set<string> | null>(null);
 
 	const isEmptyAndIdle =
 		messages.length === 0 && !isSessionReady && !sessionHistory.loading;
@@ -2527,9 +2590,7 @@ export function ChatPanel({
 		}
 		const installed = detectedAgentIds ?? new Set<string>();
 		return {
-			detectedAgents: availableAgents.filter((a) =>
-				installed.has(a.id),
-			),
+			detectedAgents: availableAgents.filter((a) => installed.has(a.id)),
 			onPickAgent: (agentId: string) => {
 				void handleNewChatWithPersist(agentId);
 			},
@@ -2794,8 +2855,7 @@ export function ChatPanel({
 			composerElRef={composerElRef}
 			onSendMessage={async (content, attachments) => {
 				sendAndReturnFocus(
-					() =>
-						handleSendWithLazyAcquisition(content, attachments),
+					() => handleSendWithLazyAcquisition(content, attachments),
 					focusAfter,
 				);
 			}}
@@ -2892,7 +2952,6 @@ export function ChatPanel({
 			quickPromptHasPendingQueue={queue.isQueued}
 		/>
 	);
-
 
 	return (
 		<div

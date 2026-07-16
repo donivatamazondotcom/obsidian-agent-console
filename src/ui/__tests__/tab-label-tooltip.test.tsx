@@ -45,6 +45,7 @@ function tab(partial: Partial<TabInfo>): TabInfo {
 	return {
 		tabId: partial.tabId ?? "t1",
 		agentId: partial.agentId ?? "kiro-cli",
+		origin: "fresh",
 		label: partial.label ?? "Tab",
 		state: partial.state ?? "ready",
 		createdAt: partial.createdAt ?? new Date(0),
@@ -81,10 +82,11 @@ describe("tab label hover tooltip (TS-I05)", () => {
 		);
 
 		// setTooltip(el, fullLabel) was called with the tab element.
-		const call = setTooltipMock.mock.calls.find(
-			(c) => c[1] === LONG_LABEL,
-		);
-		expect(call, "setTooltip should be called with the full tab label").toBeTruthy();
+		const call = setTooltipMock.mock.calls.find((c) => c[1] === LONG_LABEL);
+		expect(
+			call,
+			"setTooltip should be called with the full tab label",
+		).toBeTruthy();
 		const el = call![0] as HTMLElement;
 		expect(el).toBeInstanceOf(HTMLElement);
 		expect(el.classList.contains("agent-client-tab")).toBe(true);

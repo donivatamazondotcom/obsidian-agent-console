@@ -1,4 +1,12 @@
-import { ItemView, WorkspaceLeaf, Menu, Notice, Scope, getAllTags, type MenuItem } from "obsidian";
+import {
+	ItemView,
+	WorkspaceLeaf,
+	Menu,
+	Notice,
+	Scope,
+	getAllTags,
+	type MenuItem,
+} from "obsidian";
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import { focusActiveTabComposer } from "./composer-focus";
 import type {
@@ -13,7 +21,12 @@ import { createRoot, Root } from "react-dom/client";
 import type AgentClientPlugin from "../plugin";
 import type { ChatInputState, ChatMessage } from "../types/chat";
 import type { ContextNote } from "../types/context";
-import type { TabInfo, TabState, PerLeafTabState, PersistedTabInfo } from "../types/tab";
+import type {
+	TabInfo,
+	TabState,
+	PerLeafTabState,
+	PersistedTabInfo,
+} from "../types/tab";
 import type { QuickPrompt } from "../types/quick-prompt";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 
@@ -34,8 +47,15 @@ import { CorruptionRecoveryModal } from "./CorruptionRecoveryModal";
 import { ConfirmCloseModal } from "./ConfirmCloseModal";
 
 // Hook imports
-import { useTabManager, truncateLabel, suffixOnCollision } from "../hooks/useTabManager";
-import { useTabPersistence, type TabPersistenceStorage } from "../hooks/useTabPersistence";
+import {
+	useTabManager,
+	truncateLabel,
+	suffixOnCollision,
+} from "../hooks/useTabManager";
+import {
+	useTabPersistence,
+	type TabPersistenceStorage,
+} from "../hooks/useTabPersistence";
 import { useRecentlyClosedTabs } from "../hooks/useRecentlyClosedTabs";
 import { useLandingHistoryModal } from "../hooks/useLandingHistoryModal";
 import { GettingStarted, type GettingStartedInfo } from "./MessageList";
@@ -160,7 +180,10 @@ function hasCorruptedLeafState(
 	if (!Array.isArray(all)) return false;
 	// Check if there's a raw entry with matching leafId
 	const rawEntry = all.find(
-		(s) => typeof s === "object" && s !== null && (s as unknown as Record<string, unknown>).leafId === leafId,
+		(s) =>
+			typeof s === "object" &&
+			s !== null &&
+			(s as unknown as Record<string, unknown>).leafId === leafId,
 	);
 	if (!rawEntry) return false;
 	// If readPersistedLeafState would return null for this entry, it's corrupted
@@ -171,10 +194,11 @@ function hasCorruptedLeafState(
  * Convert persisted tab records to runtime TabInfo[].
  * Restored tabs start in "disconnected" state per spec § Restore.
  */
-function persistedToRuntime(persisted: PersistedTabInfo[]): TabInfo[] {
+export function persistedToRuntime(persisted: PersistedTabInfo[]): TabInfo[] {
 	return persisted.map((p) => ({
 		tabId: p.tabId,
 		agentId: p.agentId,
+		origin: "restored",
 		label: p.label,
 		labelIsCustom: p.labelIsCustom ?? false,
 		state: "disconnected",
@@ -193,7 +217,7 @@ function buildLandingNoteContext(plugin: AgentClientPlugin): NoteMatchContext {
 	if (!file) return { tags: [], frontmatter: null };
 	const cache = plugin.app.metadataCache.getFileCache(file);
 	return {
-		tags: cache ? getAllTags(cache) ?? [] : [],
+		tags: cache ? (getAllTags(cache) ?? []) : [],
 		frontmatter: cache?.frontmatter ?? null,
 	};
 }
@@ -240,7 +264,8 @@ function ChatComponent({
 	//     See [[ACP Restore Tabs on View Reopen]].
 	const [restoredLeaf] = useState<PerLeafTabState | null>(() =>
 		resolveRestoredLeaf(readPersistedLeafState(plugin, viewId), () =>
-			!plugin.consumeForceFreshView() && plugin.settings.restoreTabsOnStartup
+			!plugin.consumeForceFreshView() &&
+			plugin.settings.restoreTabsOnStartup
 				? plugin.adoptClosedLeaf()
 				: null,
 		),
@@ -258,7 +283,8 @@ function ChatComponent({
 		[restoredLeaf, viewId],
 	);
 	const restoredTabs = useMemo(
-		() => (restoredLeaf ? persistedToRuntime(restoredLeaf.tabs) : undefined),
+		() =>
+			restoredLeaf ? persistedToRuntime(restoredLeaf.tabs) : undefined,
 		[restoredLeaf],
 	);
 
@@ -284,7 +310,10 @@ function ChatComponent({
 	const restoredCwdByTabId = useMemo(() => {
 		const map: Record<string, string> = {};
 		for (const t of restoredLeaf?.tabs ?? []) {
-			if (typeof t.workingDirectory === "string" && t.workingDirectory !== "") {
+			if (
+				typeof t.workingDirectory === "string" &&
+				t.workingDirectory !== ""
+			) {
 				map[t.tabId] = t.workingDirectory;
 			}
 		}
@@ -371,9 +400,7 @@ function ChatComponent({
 
 	// Per-tab persisted session IDs (for lazy session restore on first keystroke)
 	const persistedSessionIdsRef = useRef<Map<string, string | null>>(
-		new Map(
-			restoredLeaf?.tabs.map((t) => [t.tabId, t.sessionId]) ?? [],
-		),
+		new Map(restoredLeaf?.tabs.map((t) => [t.tabId, t.sessionId]) ?? []),
 	);
 
 	// ============================================================
@@ -409,8 +436,11 @@ function ChatComponent({
 							enablePlugin: (id: string) => Promise<void>;
 						};
 					};
-					void appAny.plugins.disablePlugin(plugin.manifest.id)
-						.then(() => appAny.plugins.enablePlugin(plugin.manifest.id));
+					void appAny.plugins
+						.disablePlugin(plugin.manifest.id)
+						.then(() =>
+							appAny.plugins.enablePlugin(plugin.manifest.id),
+						);
 				},
 				async () => {
 					// Discard: clear tab state via settings service
@@ -454,10 +484,7 @@ function ChatComponent({
 	}, [plugin]);
 
 	// Shared VaultService (one per view, not per tab)
-	const vaultService = useMemo(
-		() => view.vaultService,
-		[view.vaultService],
-	);
+	const vaultService = useMemo(() => view.vaultService, [view.vaultService]);
 
 	// ============================================================
 	// Tab Persistence — save side + async message loading
@@ -684,7 +711,12 @@ function ChatComponent({
 		// Recreate the tab. addTab appends and activates it; capture the
 		// pre-add length so we can best-effort reinsert at the prior index.
 		const priorLength = tabs.length;
-		const newTabId = tabManager.addTab(record.agentId, record.label);
+		const newTabId = tabManager.addTab(
+			record.agentId,
+			record.label,
+			true,
+			"restored",
+		);
 		if (record.labelIsCustom) {
 			tabManager.setTabLabel(newTabId, record.label, true);
 		}
@@ -749,13 +781,15 @@ function ChatComponent({
 						persistedSessionIdsRef.current.get(tabId) ?? null,
 					);
 					if (renameSessionId) {
-						await plugin.settingsService.sessionStore.renameSession({
-							sessionId: renameSessionId,
-							agentId: tab.agentId,
-							cwd: "",
-							title: newTitle,
-							createIfMissing: false,
-						});
+						await plugin.settingsService.sessionStore.renameSession(
+							{
+								sessionId: renameSessionId,
+								agentId: tab.agentId,
+								cwd: "",
+								title: newTitle,
+								createIfMissing: false,
+							},
+						);
 					}
 				},
 			);
@@ -844,14 +878,13 @@ function ChatComponent({
 		[tabs],
 	);
 
-
 	// Track C — open a history session in a tab (restore or fork). The
 	// session-history modal routes its restore/fork actions here (via the
 	// onOpenSessionInTab prop threaded through ChatPanel) instead of restoring
 	// INTO the current tab, so the active session is never clobbered ("safe
 	// defaults — no surprise data loss", [[Restore-fork gated on agent
-	// connection]]). Gated on data + intent, not connection — the new tab
-	// reconnects lazily on first send (supersedes I09/I41).
+	// connection]]). Gated on data + intent, not connection — Restore stays
+	// lazy for reading; Fork eagerly branches as an explicit action.
 	//
 	// Target-tab decision:
 	//   - target already open in another tab → switch to it (I20)
@@ -909,7 +942,12 @@ function ChatComponent({
 				persistenceStorage.loadSessionContextNotes(sessionId),
 			]);
 
-			const newTabId = tabManager.addTab(agentId, label);
+			const newTabId = tabManager.addTab(
+				agentId,
+				label,
+				true,
+				mode === "restore" ? "restored" : "fresh",
+			);
 			// RC-1: mark the seeded label custom so ChatPanel's auto-derivation
 			// (first-message-derived label / AI-title swap) doesn't clobber it.
 			// The restored saved title (already the AI title) and the "Fork: …"
@@ -963,9 +1001,8 @@ function ChatComponent({
 	// Probe once; re-probe when reset to null (Re-detect / post-install).
 	// Optimistic: while probing (null) assume an agent is present so a
 	// returning user sees the composer landing, not a flash of install rows.
-	const [landingDetectedAgentIds, setLandingDetectedAgentIds] = useState<
-		Set<string> | null
-	>(null);
+	const [landingDetectedAgentIds, setLandingDetectedAgentIds] =
+		useState<Set<string> | null>(null);
 	useEffect(() => {
 		if (landingDetectedAgentIds !== null) return;
 		let cancelled = false;
@@ -1027,15 +1064,13 @@ function ChatComponent({
 			registerOpenMenu(menu);
 			for (const opt of picker.options) {
 				menu.addItem((item: MenuItem) => {
-					item
-						.setTitle(
-							opt.isDefault
-								? `${opt.displayName} (default)`
-								: opt.displayName,
-						)
-						.onClick(() => {
-							tabManager.addTab(opt.id);
-						});
+					item.setTitle(
+						opt.isDefault
+							? `${opt.displayName} (default)`
+							: opt.displayName,
+					).onClick(() => {
+						tabManager.addTab(opt.id);
+					});
 				});
 			}
 			showMenuAtEvent(menu, e);
@@ -1056,11 +1091,9 @@ function ChatComponent({
 				activeCallbacksRef.current?.getInputState() ?? null,
 			setInputState: (state) =>
 				activeCallbacksRef.current?.setInputState(state),
-			canSend: () =>
-				activeCallbacksRef.current?.canSend() ?? false,
+			canSend: () => activeCallbacksRef.current?.canSend() ?? false,
 			sendMessage: async () =>
-				(await activeCallbacksRef.current?.sendMessage()) ??
-				false,
+				(await activeCallbacksRef.current?.sendMessage()) ?? false,
 			cancelOperation: async () =>
 				activeCallbacksRef.current?.cancelOperation(),
 			hasPendingQueue: () =>
@@ -1073,21 +1106,18 @@ function ChatComponent({
 				activeCallbacksRef.current?.saveComposerAsQuickPrompt(),
 			getWorkingDirectory: () =>
 				activeCallbacksRef.current?.getWorkingDirectory() ?? "",
-			openHistory: () =>
-				activeCallbacksRef.current?.openHistory(),
+			openHistory: () => activeCallbacksRef.current?.openHistory(),
 		});
 		view.setTabHandlesAccessor(() =>
-			Array.from(tabHandlesRef.current.entries()).map(
-				([tabId, cb]) => ({
-					tabId,
-					getInputState: cb.getInputState,
-					setInputState: cb.setInputState,
-					canSend: cb.canSend,
-					sendMessage: cb.sendMessage,
-					cancelOperation: cb.cancelOperation,
-					hasPendingQueue: cb.hasPendingQueue,
-				}),
-			),
+			Array.from(tabHandlesRef.current.entries()).map(([tabId, cb]) => ({
+				tabId,
+				getInputState: cb.getInputState,
+				setInputState: cb.setInputState,
+				canSend: cb.canSend,
+				sendMessage: cb.sendMessage,
+				cancelOperation: cb.cancelOperation,
+				hasPendingQueue: cb.hasPendingQueue,
+			})),
 		);
 	}, [view]);
 
@@ -1175,10 +1205,8 @@ function ChatComponent({
 								.getAvailableAgents()
 								.find(
 									(a) =>
-										a.id ===
-										plugin.settings.defaultAgentId,
-								)?.displayName ??
-							plugin.settings.defaultAgentId
+										a.id === plugin.settings.defaultAgentId,
+								)?.displayName ?? plugin.settings.defaultAgentId
 						}
 						agentId={plugin.settings.defaultAgentId}
 						quickPrompts={landingPrompts}
@@ -1203,7 +1231,9 @@ function ChatComponent({
 	}
 
 	return (
-		<div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+		<div
+			style={{ display: "flex", flexDirection: "column", height: "100%" }}
+		>
 			<TabBar
 				tabs={tabs}
 				activeTabId={activeTabId}
@@ -1222,10 +1252,7 @@ function ChatComponent({
 					key={tab.tabId}
 					className="agent-client-tab-panel"
 					style={{
-						display:
-							tab.tabId === activeTabId
-								? "flex"
-								: "none",
+						display: tab.tabId === activeTabId ? "flex" : "none",
 						flexDirection: "column" as const,
 						flex: 1,
 						minHeight: 0,
@@ -1245,6 +1272,7 @@ function ChatComponent({
 						>
 							<ChatPanel
 								viewId={tab.tabId}
+								tabOrigin={tab.origin}
 								tabLabel={tab.label}
 								workingDirectory={restoredCwdByTabId[tab.tabId]}
 								initialAgentId={tab.agentId}
@@ -1256,36 +1284,23 @@ function ChatComponent({
 										callbacks,
 									);
 									if (tab.tabId === activeTabId) {
-										activeCallbacksRef.current =
-											callbacks;
+										activeCallbacksRef.current = callbacks;
 									}
 								}}
 								onAgentIdChanged={(agentId) => {
 									// Update the persisted source of truth, then
 									// mirror to Obsidian view-state (TP-I05 / D1).
-									tabManager.setTabAgent(
-										tab.tabId,
-										agentId,
-									);
+									tabManager.setTabAgent(tab.tabId, agentId);
 									view.setAgentId(agentId);
 								}}
 								onStateChange={(state) =>
-									handleTabStateChange(
-										tab.tabId,
-										state,
-									)
+									handleTabStateChange(tab.tabId, state)
 								}
 								onLabelChange={(label) =>
-									handleTabLabelChange(
-										tab.tabId,
-										label,
-									)
+									handleTabLabelChange(tab.tabId, label)
 								}
 								onSessionIdChange={(sessionId) =>
-									handleSessionIdChange(
-										tab.tabId,
-										sessionId,
-									)
+									handleSessionIdChange(tab.tabId, sessionId)
 								}
 								findTabBySessionId={findTabBySessionId}
 								onSwitchToTab={tabManager.setActiveTab}
@@ -1296,7 +1311,9 @@ function ChatComponent({
 								}
 								restoredSessionId={
 									reopenPayload[tab.tabId]?.sessionId ??
-									persistedSessionIdsRef.current.get(tab.tabId) ??
+									persistedSessionIdsRef.current.get(
+										tab.tabId,
+									) ??
 									null
 								}
 								restoredForkSessionId={
@@ -1322,20 +1339,17 @@ function ChatComponent({
 												tab.tabId
 											],
 										launchContextNotes:
-											pendingPromptByTab[tab.tabId]?.contextNotes,
+											pendingPromptByTab[tab.tabId]
+												?.contextNotes,
 									},
 								)}
 								historyRecoverable={
 									!!tabPersistence.recoverableTabs[tab.tabId]
 								}
-								restoredDraft={
-									restoredDraftByTabId[tab.tabId]
-								}
+								restoredDraft={restoredDraftByTabId[tab.tabId]}
 								onDraftChange={bumpDraftSignature}
 								onOpenInNewTab={handleOpenInNewTab}
-								initialPrompt={
-									pendingPromptByTab[tab.tabId]
-								}
+								initialPrompt={pendingPromptByTab[tab.tabId]}
 							/>
 						</TabPanel>
 					</TabErrorBoundary>
@@ -1458,9 +1472,7 @@ export class ChatView extends ItemView implements IChatViewContainer {
 	// Tab Manager (set by React component)
 	// ============================================================
 
-	setTabManager(
-		manager: ReturnType<typeof useTabManager> | null,
-	): void {
+	setTabManager(manager: ReturnType<typeof useTabManager> | null): void {
 		this.tabManagerRef = manager;
 	}
 
@@ -1527,9 +1539,7 @@ export class ChatView extends ItemView implements IChatViewContainer {
 			return;
 		}
 		if (this.tabManagerRef) {
-			this.tabManagerRef.removeTab(
-				this.tabManagerRef.activeTabId,
-			);
+			this.tabManagerRef.removeTab(this.tabManagerRef.activeTabId);
 		}
 	}
 

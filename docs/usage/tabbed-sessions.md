@@ -44,7 +44,7 @@ Three ways:
 2. **Right-click the +** to pick a different agent for the new tab (agent picker)
 3. **Command palette** → "New tab" — same as the + button
 
-Each new tab starts a fresh agent process. The tab inherits the active note as context if `Active note as default context` is enabled.
+Each new tab starts connecting to a fresh agent session immediately, so pasted text is ready to send without typing an extra character first. The tab inherits the active note as context if `Active note as default context` is enabled.
 
 ## Switching tabs
 
@@ -206,11 +206,13 @@ A half-typed prompt you never sent is restored with its tab. Whether you switch 
 
 Once in a while a restored tab can't find its saved messages on disk – rare, but it can happen if a write was interrupted while Obsidian was closing. When that happens the tab no longer comes back blank. It shows a short note, **"History for this tab is not stored locally,"** with a **Reload from agent** button. Click it and the agent replays the earlier conversation, so your history comes back. Nothing reconnects on its own – the reload happens only when you ask for it.
 
-## Lazy sessions
+## When chats connect
 
-Opening a tab no longer starts an agent session immediately. The session connects the moment you start typing, so you can open a tab just to reread an old conversation without starting an agent. A restored tab reconnects to its previous session on your first keystroke. If that session is gone — the agent restarted or it expired — the tab transparently continues from a transcript of the earlier conversation and shows a one-time notice that the agent's internal state from before wasn't recovered.
+A chat you deliberately create starts connecting immediately. That includes a new tab, **New chat**, **Open new view**, and **Fork**. You can paste a prompt into a fresh tab and send it directly – there is no extra “wake-up” keystroke.
 
-Switching the agent for a tab follows the same rule: it rebinds the tab to the new agent without starting a session, so the connection happens against the agent you picked when you next start typing.
+Chats brought back for reading stay disconnected until you interact. This includes tabs restored after a restart or panel reopen, **Reopen closed session tab**, and **Restore** from session history. Their saved conversation is visible right away; typing or sending reconnects the agent. If the previous session is gone – the agent restarted or it expired – the tab transparently continues from the earlier transcript and shows a one-time notice that the agent's internal state was not recovered.
+
+Switching the agent for an existing tab also waits for interaction. It rebinds the tab without starting another session, so your next typed or sent message connects to the agent you picked.
 
 ## See also
 
