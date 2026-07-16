@@ -25,7 +25,7 @@
 		"docs:screenshots": "npm run build && bash tools/screenshots/setup.sh && npx tsx tools/screenshots/run.ts",
 		"docs:screenshots:check": "npx tsx tools/screenshots/check.ts",
 		"docs:screenshots:check:strict": "npx tsx tools/screenshots/check.ts --strict",
-"invariants": "tsx tools/invariant-suite/run.ts",
+		"invariants": "tsx tools/invariant-suite/run.ts",
 		"mutation:resolvers": "stryker run",
 		"mutation:services": "stryker run --mutate 'src/services/**/*.ts,!src/services/**/__tests__/**'",
 		"mutation:hooks": "stryker run --mutate 'src/hooks/**/*.ts,!src/hooks/**/__tests__/**'"
@@ -54,6 +54,7 @@
 		"obsidian": "latest",
 		"prettier": "^3.4.2",
 		"tslib": "2.4.0",
+		"tsx": "^4.23.1",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.0.0",
 		"vitepress": "^1.6.4",
