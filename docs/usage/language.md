@@ -8,8 +8,10 @@ Use Agent Console in your own language. The plugin's buttons, menus, settings, a
 |---|---|
 | English | Source language |
 | 한국어 (Korean) | Settings translated; more surfaces coming |
+| 中文 (Chinese, Simplified) | Settings translated (machine-translated); more surfaces coming |
+| 日本語 (Japanese) | Settings translated (machine-translated); more surfaces coming |
 
-More languages (Chinese, Japanese, German, Spanish, French, Brazilian Portuguese) are planned. Translation is rolling out surface by surface, starting with the settings pane — anything not yet translated shows in English.
+More languages (German, Spanish, French, Brazilian Portuguese) are planned. Translation is rolling out surface by surface, starting with the settings pane — anything not yet translated shows in English. If Obsidian runs in Traditional Chinese, the plugin shows the Simplified Chinese catalog.
 
 ## How it works
 

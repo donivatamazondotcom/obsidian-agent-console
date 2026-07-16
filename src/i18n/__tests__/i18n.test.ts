@@ -10,6 +10,8 @@ import {
 } from "../index";
 import { en } from "../en";
 import { ko } from "../ko";
+import { zh } from "../zh";
+import { ja } from "../ja";
 
 /**
  * i18n boundary tests ([[Agent Console I18N]] slice 1).
@@ -31,11 +33,20 @@ describe("resolveLocale", () => {
 
 	it("maps a regional tag to its base language (ko-KR → ko)", () => {
 		expect(resolveLocale("ko-KR")).toBe("ko");
+		expect(resolveLocale("ja-JP")).toBe("ja");
+	});
+
+	it("maps Chinese regional tags to the shipped zh catalog", () => {
+		// Obsidian reports zh / zh-TW; base-language match routes both to
+		// the Simplified catalog (closer than English for zh-TW users).
+		expect(resolveLocale("zh")).toBe("zh");
+		expect(resolveLocale("zh-CN")).toBe("zh");
+		expect(resolveLocale("zh-TW")).toBe("zh");
 	});
 
 	it("falls back to English for unsupported languages", () => {
 		expect(resolveLocale("fr")).toBe("en");
-		expect(resolveLocale("zh-TW")).toBe("en");
+		expect(resolveLocale("de")).toBe("en");
 		expect(resolveLocale("")).toBe("en");
 	});
 });
@@ -81,6 +92,46 @@ describe("t — Korean active", () => {
 	});
 });
 
+describe("t — Chinese active", () => {
+	it("returns the Chinese string for a translated key", () => {
+		initLocale("zh");
+		expect(t("settings.debugMode.name")).toBe("调试模式");
+	});
+
+	it("falls back to English for a key Chinese does not translate", () => {
+		initLocale("zh");
+		// Literal command placeholder — intentionally untranslated.
+		expect(t("settings.path.placeholder")).toBe("gemini");
+	});
+
+	it("interpolates params inside Chinese strings", () => {
+		initLocale("zh");
+		expect(t("settings.fontSize.desc", { min: 10, max: 30 })).toBe(
+			"调整聊天消息区域的字体大小（10-30px）。",
+		);
+	});
+});
+
+describe("t — Japanese active", () => {
+	it("returns the Japanese string for a translated key", () => {
+		initLocale("ja");
+		expect(t("settings.debugMode.name")).toBe("デバッグモード");
+	});
+
+	it("falls back to English for a key Japanese does not translate", () => {
+		initLocale("ja");
+		// Literal command placeholder — intentionally untranslated.
+		expect(t("settings.path.placeholder")).toBe("gemini");
+	});
+
+	it("interpolates params inside Japanese strings", () => {
+		initLocale("ja");
+		expect(t("settings.fontSize.desc", { min: 10, max: 30 })).toBe(
+			"チャットメッセージ領域のフォントサイズを調整します（10〜30px）。",
+		);
+	});
+});
+
 describe("initLocale", () => {
 	it('"auto" follows the app language (stub: en)', () => {
 		initLocale("auto");
@@ -98,29 +149,57 @@ describe("initLocale", () => {
 	});
 });
 
-describe("catalog integrity", () => {
-	it("every Korean key exists in the English contract (no orphans)", () => {
-		const enKeys = new Set(Object.keys(en));
-		const orphans = Object.keys(ko()).filter((k) => !enKeys.has(k));
-		expect(orphans).toEqual([]);
-	});
+const NON_ENGLISH_CATALOGS = { ko, zh, ja } as const;
 
-	it("no catalog value is empty in a locale when English is non-empty", () => {
-		const koCatalog = ko();
-		const empty = Object.entries(koCatalog).filter(
-			([k, v]) =>
-				v?.trim() === "" && en[k as keyof typeof en].trim() !== "",
-		);
-		expect(empty).toEqual([]);
-	});
+describe.each(Object.entries(NON_ENGLISH_CATALOGS))(
+	"catalog integrity — %s",
+	(_name, factory) => {
+		it("every key exists in the English contract (no orphans)", () => {
+			const enKeys = new Set(Object.keys(en));
+			const orphans = Object.keys(factory()).filter(
+				(k) => !enKeys.has(k),
+			);
+			expect(orphans).toEqual([]);
+		});
 
-	it("reports Korean coverage of the settings surface (informational)", () => {
-		const total = Object.keys(en).length;
-		const covered = Object.keys(ko()).length;
-		// Literal placeholders are intentionally untranslated; coverage
-		// floor guards against an accidentally-truncated catalog.
-		expect(covered / total).toBeGreaterThan(0.8);
-	});
+		it("no catalog value is empty where English is non-empty", () => {
+			const catalog = factory();
+			const empty = Object.entries(catalog).filter(
+				([k, v]) =>
+					v?.trim() === "" &&
+					en[k as keyof typeof en].trim() !== "",
+			);
+			expect(empty).toEqual([]);
+		});
+
+		it("covers the settings surface (coverage floor)", () => {
+			const total = Object.keys(en).length;
+			const covered = Object.keys(factory()).length;
+			// Literal placeholders are intentionally untranslated; the
+			// floor guards against an accidentally-truncated catalog.
+			expect(covered / total).toBeGreaterThan(0.8);
+		});
+
+		it("interpolation placeholders match the English contract", () => {
+			// A translation must keep every {token} its English source has
+			// (missing tokens silently drop runtime data from the UI).
+			const catalog = factory();
+			const mismatches = Object.entries(catalog).filter(([k, v]) => {
+				const enTokens = new Set(
+					en[k as keyof typeof en].match(/\{\w+\}/g) ?? [],
+				);
+				const locTokens = new Set(v?.match(/\{\w+\}/g) ?? []);
+				return (
+					enTokens.size !== locTokens.size ||
+					[...enTokens].some((t2) => !locTokens.has(t2))
+				);
+			});
+			expect(mismatches.map(([k]) => k)).toEqual([]);
+		});
+	},
+);
+
+describe("catalog integrity — cross-locale", () => {
 
 	it("every supported locale has a display name and a setting value", () => {
 		for (const locale of SUPPORTED_LOCALES) {
