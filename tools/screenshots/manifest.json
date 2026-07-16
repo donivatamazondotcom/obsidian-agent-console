@@ -1470,6 +1470,25 @@
 			"initialState": {
 				"openNote": "Welcome.md"
 			}
+		},
+		{
+			"name": "language-setting",
+			"pending": true,
+			"width": 800,
+			"height": 220,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 800,
+				"height": 220
+			},
+			"cropSelector": ".agent-client-settings-language, .setting-item:has(.dropdown)",
+			"initialState": {
+				"openSettings": "agent-console"
+			},
+			"placement": "reference",
+			"altText": "Language dropdown in Agent Console's Advanced settings, showing Auto, English, and Korean options",
+			"caption": "Pick a language under Advanced settings \u2014 Auto follows Obsidian's language."
 		}
 	]
 }
