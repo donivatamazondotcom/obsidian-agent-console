@@ -228,8 +228,15 @@ function CollapsibleThought({ text, plugin }: CollapsibleThoughtProps) {
 export interface A2uiBubbleContext {
 	/** surfaceId → chosen componentId, derived from the transcript. */
 	answers: ReadonlyMap<string, string>;
-	/** First-valid-definition check (duplicate surfaceIds render inert). */
-	isFirstDefinition: (surfaceId: string) => boolean;
+	/**
+	 * First-valid-definition check (duplicate surfaceIds render inert). The
+	 * site identifies WHICH fence asks: transcript message index + surface
+	 * ordinal within the message (segmenter index).
+	 */
+	isFirstDefinition: (
+		surfaceId: string,
+		site: { messageIndex: number; surfaceIndex: number },
+	) => boolean;
 	isSending: boolean;
 	isQueued: boolean;
 	isRestoringSession: boolean;
@@ -250,11 +257,13 @@ function AssistantTextWithSurfaces({
 	plugin,
 	a2ui,
 	isStreamingTurn,
+	messageIndex,
 }: {
 	text: string;
 	plugin: AgentClientPlugin;
 	a2ui: A2uiBubbleContext;
 	isStreamingTurn: boolean;
+	messageIndex: number;
 }): React.ReactElement {
 	const segments = segmentAssistantMessage(text);
 	return (
@@ -273,7 +282,12 @@ function AssistantTextWithSurfaces({
 						fenceText={segment.fenceText}
 						plugin={plugin}
 						answeredComponentId={answeredFor(a2ui.answers, segment.body)}
-						isFirstDefinition={a2ui.isFirstDefinition}
+						isFirstDefinition={(surfaceId) =>
+							a2ui.isFirstDefinition(surfaceId, {
+								messageIndex,
+								surfaceIndex: segment.index,
+							})
+						}
 						isSending={a2ui.isSending}
 						isQueued={a2ui.isQueued}
 						isRestoringSession={a2ui.isRestoringSession}
@@ -361,6 +375,8 @@ interface ContentBlockProps {
 	a2ui?: A2uiBubbleContext;
 	/** The assistant turn containing this content is still streaming. */
 	a2uiIsStreamingTurn?: boolean;
+	/** This message's index in the transcript (for the definition registry). */
+	a2uiMessageIndex?: number;
 	/** Callback to approve a permission request */
 	onApprovePermission?: (
 		requestId: string,
@@ -376,6 +392,7 @@ function ContentBlock({
 	onApprovePermission,
 	a2ui,
 	a2uiIsStreamingTurn,
+	a2uiMessageIndex,
 }: ContentBlockProps) {
 	switch (content.type) {
 		case "text":
@@ -401,6 +418,7 @@ function ContentBlock({
 						plugin={plugin}
 						a2ui={a2ui}
 						isStreamingTurn={a2uiIsStreamingTurn ?? false}
+						messageIndex={a2uiMessageIndex ?? 0}
 					/>
 				);
 			}
@@ -525,6 +543,8 @@ export interface MessageBubbleProps {
 	a2ui?: A2uiBubbleContext;
 	/** The assistant turn this message belongs to is still streaming. */
 	a2uiIsStreamingTurn?: boolean;
+	/** This message's index in the transcript (for the definition registry). */
+	a2uiMessageIndex?: number;
 }
 
 /**
@@ -621,6 +641,7 @@ export const MessageBubble = React.memo(function MessageBubble({
 	onApprovePermission,
 	a2ui,
 	a2uiIsStreamingTurn,
+	a2uiMessageIndex,
 }: MessageBubbleProps) {
 	const groups = groupContent(message.content);
 
@@ -646,6 +667,7 @@ export const MessageBubble = React.memo(function MessageBubble({
 									onApprovePermission={onApprovePermission}
 									a2ui={a2ui}
 									a2uiIsStreamingTurn={a2uiIsStreamingTurn}
+									a2uiMessageIndex={a2uiMessageIndex}
 								/>
 							))}
 						</div>
@@ -662,6 +684,7 @@ export const MessageBubble = React.memo(function MessageBubble({
 								onApprovePermission={onApprovePermission}
 								a2ui={a2ui}
 								a2uiIsStreamingTurn={a2uiIsStreamingTurn}
+								a2uiMessageIndex={a2uiMessageIndex}
 							/>
 						</div>
 					);
