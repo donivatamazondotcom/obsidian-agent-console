@@ -538,6 +538,33 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			.setHeading();
 
 		new Setting(containerEl)
+			.setName(t("settings.language.name"))
+			.setDesc(t("settings.language.desc"))
+			.addDropdown((dropdown) => {
+				dropdown.addOption(
+					"auto",
+					t("settings.language.optionAuto"),
+				);
+				for (const locale of SUPPORTED_LOCALES) {
+					dropdown.addOption(
+						locale,
+						LOCALE_DISPLAY_NAMES[locale],
+					);
+				}
+				dropdown
+					.setValue(this.plugin.settings.language)
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings(
+							{
+								language:
+									value as typeof this.plugin.settings.language,
+							},
+						);
+						new Notice(languageReloadNotice(value));
+					});
+			});
+
+		new Setting(containerEl)
 			.setName(t("settings.sidebarSide.name"))
 			.setDesc(t("settings.sidebarSide.desc"))
 			.addDropdown((dropdown) =>
@@ -1035,33 +1062,6 @@ export class AgentClientSettingTab extends PluginSettingTab {
 							);
 					}
 				}
-
-				new Setting(containerEl)
-					.setName(t("settings.language.name"))
-					.setDesc(t("settings.language.desc"))
-					.addDropdown((dropdown) => {
-						dropdown.addOption(
-							"auto",
-							t("settings.language.optionAuto"),
-						);
-						for (const locale of SUPPORTED_LOCALES) {
-							dropdown.addOption(
-								locale,
-								LOCALE_DISPLAY_NAMES[locale],
-							);
-						}
-						dropdown
-							.setValue(this.plugin.settings.language)
-							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										language:
-											value as typeof this.plugin.settings.language,
-									},
-								);
-								new Notice(languageReloadNotice(value));
-							});
-					});
 
 				new Setting(containerEl)
 					.setName(t("settings.debugMode.name"))
