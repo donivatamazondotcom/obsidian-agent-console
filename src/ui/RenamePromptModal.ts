@@ -1,4 +1,5 @@
 import { App, Modal } from "obsidian";
+import { t } from "../i18n";
 
 /**
  * Rename a quick prompt's display label (slice 5 chip context menu → Rename).
@@ -30,7 +31,7 @@ export class RenamePromptModal extends Modal {
 	onOpen(): void {
 		const { contentEl, modalEl } = this;
 		modalEl.addClass("agent-client-rename-prompt-modal");
-		this.titleEl.setText("Rename quick prompt");
+		this.titleEl.setText(t("modals.renamePrompt.title"));
 
 		this.inputEl = contentEl.createEl("input", {
 			type: "text",
@@ -45,12 +46,12 @@ export class RenamePromptModal extends Modal {
 		});
 
 		const buttons = contentEl.createDiv({ cls: "modal-button-container" });
-		const cancel = buttons.createEl("button", { text: "Cancel" });
+		const cancel = buttons.createEl("button", { text: t("modals.common.cancel") });
 		cancel.addEventListener("click", () => {
 			this.close();
 		});
 		const rename = buttons.createEl("button", {
-			text: "Rename",
+			text: t("modals.renamePrompt.confirm"),
 			cls: "mod-cta",
 		});
 		rename.addEventListener("click", () => {

@@ -1,5 +1,6 @@
 import { App, Modal } from "obsidian";
 
+import { t } from "../i18n";
 import type {
 	SessionIntentConfirmRequest,
 	SessionIntentDecision,
@@ -27,26 +28,26 @@ interface ModalCopy {
 }
 
 function getCopy(request: SessionIntentConfirmRequest, agentName?: string): ModalCopy {
-	const agent = agentName || "the new agent";
+	const agent = agentName || t("modals.sessionIntent.agentFallback");
 
 	switch (request.kind) {
 		case "switch-agent":
 			return {
-				title: `Switch to ${agent}?`,
-				body: `Switching to ${agent} starts a fresh chat. We'll give ${agent} the earlier messages so it has the context\u2009—\u2009but it won't have the first agent's tools or working memory.\n\nYour current conversation stays saved in History.`,
-				confirmLabel: "Switch and bring messages",
+				title: t("modals.sessionIntent.switchTitle", { agent }),
+				body: t("modals.sessionIntent.switchBody", { agent }),
+				confirmLabel: t("modals.sessionIntent.switchConfirm"),
 			};
 		case "new-chat":
 			return {
-				title: "Start a new chat?",
-				body: "Your current conversation stays saved in History.",
-				confirmLabel: "New chat",
+				title: t("modals.sessionIntent.newChatTitle"),
+				body: t("modals.sessionIntent.newChatBody"),
+				confirmLabel: t("modals.sessionIntent.newChatConfirm"),
 			};
 		case "reload":
 			return {
-				title: `Reload ${agent}?`,
-				body: `This starts the conversation fresh. The current one stays saved in History.`,
-				confirmLabel: "Reload",
+				title: t("modals.sessionIntent.reloadTitle", { agent }),
+				body: t("modals.sessionIntent.reloadBody"),
+				confirmLabel: t("modals.sessionIntent.reloadConfirm"),
 				confirmCls: "mod-warning",
 			};
 	}
@@ -109,7 +110,7 @@ class SessionIntentModal extends Modal {
 		});
 
 		const cancelButton = buttonContainer.createEl("button", {
-			text: "Cancel",
+			text: t("modals.common.cancel"),
 		});
 		cancelButton.addEventListener("click", () => {
 			this.resolveAndClose("cancel");

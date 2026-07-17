@@ -25,6 +25,7 @@ import {
 } from "../ui/SessionHistoryModal";
 import { NO_AGENT_CAPABILITIES, type SessionInfo } from "../types/session";
 import type AgentClientPlugin from "../plugin";
+import { t } from "../i18n";
 
 export interface UseLandingHistoryModalReturn {
 	/** Open the session-history modal from the zero-tab landing (Local source). */
@@ -102,7 +103,7 @@ export function useLandingHistoryModal(
 					await plugin.settingsService.deleteSession(sessionId);
 					refresh();
 				} catch {
-					new Notice("[Agent Console] Failed to delete session");
+					new Notice(t("notices.sessionDeleteFailed"));
 				}
 			},
 			onEditTitle: async (
@@ -123,7 +124,7 @@ export function useLandingHistoryModal(
 					});
 					refresh();
 				} catch {
-					new Notice("[Agent Console] Failed to update title");
+					new Notice(t("notices.titleUpdateFailed"));
 				}
 			},
 			// Local source is the whole store — no pagination, no server fetch.

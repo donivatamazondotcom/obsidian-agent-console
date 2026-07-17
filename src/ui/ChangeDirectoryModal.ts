@@ -8,6 +8,7 @@
 
 import { Modal, App } from "obsidian";
 import { pickFolder } from "../utils/folder-picker";
+import { t } from "../i18n";
 
 export class ChangeDirectoryModal extends Modal {
 	private currentPath: string;
@@ -27,10 +28,10 @@ export class ChangeDirectoryModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		contentEl.createEl("h2", { text: "New chat in directory" });
+		contentEl.createEl("h2", { text: t("modals.changeDirectory.title") });
 
 		contentEl.createEl("p", {
-			text: "Start a new chat session with the agent working in the specified directory.",
+			text: t("modals.changeDirectory.body"),
 			cls: "agent-client-change-dir-description",
 		});
 
@@ -42,12 +43,12 @@ export class ChangeDirectoryModal extends Modal {
 		const inputEl = inputRow.createEl("input", {
 			type: "text",
 			cls: "agent-client-change-dir-input",
-			placeholder: "/path/to/directory",
+			placeholder: t("modals.changeDirectory.placeholder"),
 		});
 		inputEl.value = this.currentPath;
 
 		const browseButton = inputRow.createEl("button", {
-			text: "Browse...",
+			text: t("modals.changeDirectory.browse"),
 		});
 		browseButton.addEventListener("click", () => {
 			void this.openFolderPicker().then((selectedPath) => {
@@ -77,14 +78,14 @@ export class ChangeDirectoryModal extends Modal {
 		});
 
 		buttonContainer
-			.createEl("button", { text: "Cancel" })
+			.createEl("button", { text: t("modals.common.cancel") })
 			.addEventListener("click", () => {
 				this.close();
 			});
 
 		buttonContainer
 			.createEl("button", {
-				text: "Start",
+				text: t("modals.changeDirectory.start"),
 				cls: "mod-cta",
 			})
 			.addEventListener("click", () => {
@@ -94,7 +95,7 @@ export class ChangeDirectoryModal extends Modal {
 
 	private async openFolderPicker(): Promise<string | null> {
 		return pickFolder({
-			title: "Select working directory",
+			title: t("settings.workingDirectory.pickerTitle"),
 			defaultPath: this.currentPath,
 		});
 	}

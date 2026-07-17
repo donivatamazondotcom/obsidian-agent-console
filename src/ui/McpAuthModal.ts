@@ -3,6 +3,7 @@ import { App, Modal, SuggestModal } from "obsidian";
 import type { PendingMcpAuth } from "../types/mcp-auth";
 import type { McpAuthManager } from "../services/mcp-auth-manager";
 import { modCombo, ENTER_KEY } from "../utils/platform";
+import { t } from "../i18n";
 
 /**
  * "Re-authenticate MCP servers" — lists servers waiting for sign-in.
@@ -17,14 +18,14 @@ export class McpAuthSuggestModal extends SuggestModal<PendingMcpAuth> {
 		private manager: McpAuthManager,
 	) {
 		super(app);
-		this.setPlaceholder("Re-authenticate MCP servers\u2026");
+		this.setPlaceholder(t("modals.mcpAuth.placeholder"));
 		this.setInstructions([
-			{ command: ENTER_KEY, purpose: "to open sign-in page" },
+			{ command: ENTER_KEY, purpose: t("modals.mcpAuth.instructionOpen") },
 			{
 				command: modCombo(ENTER_KEY),
-				purpose: "to copy link",
+				purpose: t("modals.mcpAuth.instructionCopy"),
 			},
-			{ command: "esc", purpose: "to dismiss" },
+			{ command: "esc", purpose: t("modals.mcpAuth.instructionDismiss") },
 		]);
 	}
 
@@ -36,7 +37,7 @@ export class McpAuthSuggestModal extends SuggestModal<PendingMcpAuth> {
 	}
 
 	renderSuggestion(item: PendingMcpAuth, el: HTMLElement): void {
-		el.createDiv({ text: `${item.serverName} \u2013 needs sign-in` });
+		el.createDiv({ text: t("modals.mcpAuth.needsSignIn", { server: item.serverName }) });
 		const when = new Date(item.receivedAt).toLocaleTimeString([], {
 			hour: "numeric",
 			minute: "2-digit",
@@ -44,8 +45,8 @@ export class McpAuthSuggestModal extends SuggestModal<PendingMcpAuth> {
 		el.createDiv({
 			cls: "agent-client-mcp-auth-suggestion-note",
 			text: item.host
-				? `Opens ${item.host} \u00B7 waiting since ${when}`
-				: `Waiting since ${when}`,
+				? t("modals.mcpAuth.opensWaiting", { host: item.host, when })
+				: t("modals.mcpAuth.waitingSince", { when }),
 		});
 	}
 
@@ -77,20 +78,20 @@ export class McpAuthReconnectModal extends Modal {
 	}
 
 	onOpen(): void {
-		this.titleEl.setText("No sign-in requests waiting");
+		this.titleEl.setText(t("modals.mcpAuth.emptyTitle"));
 		this.contentEl.createEl("p", {
-			text: "MCP servers only ask for sign-in while the agent is starting up. Restart the session to check again \u2013 if a server's sign-in has expired, a fresh prompt will appear.",
+			text: t("modals.mcpAuth.emptyBody"),
 		});
 		this.contentEl.createEl("p", {
 			cls: "mod-warning",
-			text: "Restarting interrupts anything the agent is currently doing in this tab.",
+			text: t("modals.mcpAuth.emptyWarning"),
 		});
 
 		const buttons = this.contentEl.createDiv({
 			cls: "modal-button-container",
 		});
 		const confirm = buttons.createEl("button", {
-			text: "Restart session",
+			text: t("modals.mcpAuth.restartSession"),
 		});
 		confirm.addEventListener("click", () => {
 			this.close();
@@ -98,7 +99,7 @@ export class McpAuthReconnectModal extends Modal {
 		});
 		const cancel = buttons.createEl("button", {
 			cls: "mod-cta",
-			text: "Cancel",
+			text: t("modals.common.cancel"),
 		});
 		cancel.addEventListener("click", () => this.close());
 		// Cancel is the safe default: restarting interrupts in-flight work,

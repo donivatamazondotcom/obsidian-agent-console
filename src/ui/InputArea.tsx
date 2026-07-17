@@ -45,11 +45,8 @@ import { MOD_KEY, SHIFT_KEY, ENTER_KEY, modCombo } from "../utils/platform";
 import type { ErrorInfo } from "../types/errors";
 import type { AgentUpdateNotification } from "../services/update-checker";
 import { useSettings } from "../hooks/useSettings";
-import {
-	classifyImagePaste,
-	IMAGE_PASTE_CONNECTING_NOTICE,
-	IMAGE_PASTE_UNSUPPORTED_NOTICE,
-} from "../utils/image-paste";
+import { classifyImagePaste } from "../utils/image-paste";
+import { t } from "../i18n";
 import {
 	clampTextareaHeight,
 	decideTextareaResize,
@@ -449,14 +446,14 @@ export function InputArea({
 			const remaining = MAX_ATTACHMENT_COUNT - attachedFiles.length;
 			if (remaining <= 0) {
 				new Notice(
-					`[Agent Console] Maximum ${MAX_ATTACHMENT_COUNT} attachments allowed`,
+					t("notices.maxAttachments", { count: MAX_ATTACHMENT_COUNT }),
 				);
 				return;
 			}
 			const toAdd = newFiles.slice(0, remaining);
 			if (toAdd.length < newFiles.length) {
 				new Notice(
-					`[Agent Console] Maximum ${MAX_ATTACHMENT_COUNT} attachments allowed`,
+					t("notices.maxAttachments", { count: MAX_ATTACHMENT_COUNT }),
 				);
 			}
 			onAttachedFilesChange([...attachedFiles, ...toAdd]);
@@ -502,7 +499,7 @@ export function InputArea({
 			for (const file of files) {
 				if (file.size > MAX_IMAGE_SIZE_BYTES) {
 					new Notice(
-						`[Agent Console] Image too large (max ${MAX_IMAGE_SIZE_MB}MB)`,
+						t("notices.imageTooLarge", { size: MAX_IMAGE_SIZE_MB }),
 					);
 					continue;
 				}
@@ -516,7 +513,7 @@ export function InputArea({
 					});
 				} catch (error) {
 					getLogger().error("Failed to convert image:", error);
-					new Notice("[Agent Console] Failed to attach image");
+					new Notice(t("notices.imageAttachFailed"));
 				}
 			}
 			return result;
@@ -539,7 +536,7 @@ export function InputArea({
 			for (const file of files) {
 				const filePath = webUtils.getPathForFile(file);
 				if (!filePath) {
-					new Notice("[Agent Console] Could not determine file path");
+					new Notice(t("notices.filePathUndetermined"));
 					continue;
 				}
 				result.push({
@@ -605,7 +602,7 @@ export function InputArea({
 					// I72: capabilities not loaded yet — show an accurate
 					// transient notice and skip these images (avoids the
 					// spurious "Could not determine file path" fallback).
-					new Notice(IMAGE_PASTE_CONNECTING_NOTICE);
+					new Notice(t("notices.imagePasteConnecting"));
 				} else {
 					// Caps known, images unsupported: try resource_link
 					// fallback (works for files copied from Finder, not for
@@ -614,7 +611,7 @@ export function InputArea({
 					if (converted.length > 0) {
 						newAttachments.push(...converted);
 					} else {
-						new Notice(IMAGE_PASTE_UNSUPPORTED_NOTICE);
+						new Notice(t("notices.imagePasteUnsupported"));
 					}
 				}
 			}
@@ -715,7 +712,7 @@ export function InputArea({
 					);
 				} else if (imageOutcome === "connecting") {
 					// I72: capabilities not loaded yet — transient notice.
-					new Notice(IMAGE_PASTE_CONNECTING_NOTICE);
+					new Notice(t("notices.imagePasteConnecting"));
 				} else {
 					// Dropped files have paths, so resource_link works even
 					// for no-image agents.

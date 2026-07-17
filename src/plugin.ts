@@ -1,5 +1,5 @@
 import { migrateContextNoteSettings } from "./services/settings-migration";
-import { initLocale } from "./i18n";
+import { initLocale, t } from "./i18n";
 import type { LanguageSetting } from "./i18n";
 import {
 	addIcon,
@@ -340,13 +340,13 @@ export default class AgentClientPlugin extends Plugin {
 				}
 				new Notice(
 					collided
-						? `[Agent Console] A quick prompt with that name already existed — saved as "${basename}".`
-						: `[Agent Console] Created quick prompt "${basename}".`,
+						? t("notices.quickPromptCollided", { basename })
+						: t("notices.quickPromptCreated", { basename }),
 				);
 			} catch (error) {
 				getLogger().error("[QuickPrompts] create failed", error);
 				new Notice(
-					"[Agent Console] Could not create the quick prompt — see the console.",
+					t("notices.quickPromptCreateFailed"),
 				);
 			}
 		};
@@ -441,7 +441,7 @@ export default class AgentClientPlugin extends Plugin {
 				await this.app.workspace.getLeaf(true).openFile(file);
 			} else {
 				new Notice(
-					`[Agent Console] Could not open "${prompt.label}" — the note was not found.`,
+					t("notices.quickPromptNoteNotFound", { label: prompt.label }),
 				);
 			}
 			return;
@@ -449,11 +449,11 @@ export default class AgentClientPlugin extends Plugin {
 		if (action === "copy") {
 			try {
 				await navigator.clipboard.writeText(prompt.body);
-				new Notice("[Agent Console] Copied prompt text.");
+				new Notice(t("notices.promptTextCopied"));
 			} catch (error) {
 				getLogger().error("[QuickPrompts] copy failed", error);
 				new Notice(
-					"[Agent Console] Could not copy the prompt text — see the console.",
+					t("notices.promptTextCopyFailed"),
 				);
 			}
 			return;
@@ -469,7 +469,7 @@ export default class AgentClientPlugin extends Plugin {
 			} catch (error) {
 				getLogger().error("[QuickPrompts] rename failed", error);
 				new Notice(
-					"[Agent Console] Could not rename the quick prompt — see the console.",
+					t("notices.quickPromptRenameFailed"),
 				);
 			}
 		}).open();
@@ -1167,7 +1167,7 @@ export default class AgentClientPlugin extends Plugin {
 					const prompts = this.quickPromptLibrary.getPrompts();
 					if (prompts.length === 0) {
 						new Notice(
-							`[Agent Console] No quick prompts found. Add markdown notes to your "${this.settings.quickPromptsFolder}" folder.`,
+							t("notices.noQuickPromptsFound", { folder: this.settings.quickPromptsFolder }),
 						);
 						return true;
 					}
@@ -1414,7 +1414,7 @@ export default class AgentClientPlugin extends Plugin {
 	private broadcastPrompt(): void {
 		const allTabs = this.viewRegistry.getAllTabHandles();
 		if (allTabs.length === 0) {
-			new Notice("[Agent Console] No chat tabs open");
+			new Notice(t("notices.noChatTabsOpen"));
 			return;
 		}
 
@@ -1425,7 +1425,7 @@ export default class AgentClientPlugin extends Plugin {
 			!inputState ||
 			(inputState.text.trim() === "" && inputState.files.length === 0)
 		) {
-			new Notice("[Agent Console] No prompt to broadcast");
+			new Notice(t("notices.noPromptToBroadcast"));
 			return;
 		}
 
@@ -1435,7 +1435,7 @@ export default class AgentClientPlugin extends Plugin {
 		const { targets: targetTabs, skippedQueued } =
 			selectBroadcastPromptTargets(allTabs, sourceTabId ?? "");
 		if (targetTabs.length === 0 && skippedQueued.length === 0) {
-			new Notice("[Agent Console] No other chat tabs to broadcast to");
+			new Notice(t("notices.noOtherTabsToBroadcast"));
 			return;
 		}
 
@@ -1447,10 +1447,10 @@ export default class AgentClientPlugin extends Plugin {
 		// F11 decision #4 for queued, not loose-draft, messages).
 		const promptSkipNote =
 			skippedQueued.length > 0
-				? ` (${skippedQueued.length} skipped — pending queued message)`
+				? t("notices.broadcastSkipNote", { count: skippedQueued.length })
 				: "";
 		new Notice(
-			`[Agent Console] Prompt broadcast to ${targetTabs.length} tab(s)${promptSkipNote}`,
+			t("notices.promptBroadcast", { count: targetTabs.length, skipNote: promptSkipNote }),
 		);
 	}
 
@@ -1460,14 +1460,14 @@ export default class AgentClientPlugin extends Plugin {
 	private async broadcastSend(): Promise<void> {
 		const allTabs = this.viewRegistry.getAllTabHandles();
 		if (allTabs.length === 0) {
-			new Notice("[Agent Console] No chat tabs open");
+			new Notice(t("notices.noChatTabsOpen"));
 			return;
 		}
 
 		const { targets: sendableTabs, skippedQueued } =
 			selectBroadcastSendTargets(allTabs);
 		if (sendableTabs.length === 0 && skippedQueued.length === 0) {
-			new Notice("[Agent Console] No tabs ready to send");
+			new Notice(t("notices.noTabsReadyToSend"));
 			return;
 		}
 
@@ -1476,10 +1476,10 @@ export default class AgentClientPlugin extends Plugin {
 		// can't add a second), reported in the summary.
 		const sendSkipNote =
 			skippedQueued.length > 0
-				? ` (${skippedQueued.length} skipped — pending queued message)`
+				? t("notices.broadcastSkipNote", { count: skippedQueued.length })
 				: "";
 		new Notice(
-			`[Agent Console] Sent in ${sendableTabs.length} tab(s)${sendSkipNote}`,
+			t("notices.sentInTabs", { count: sendableTabs.length, skipNote: sendSkipNote }),
 		);
 	}
 
@@ -1489,13 +1489,13 @@ export default class AgentClientPlugin extends Plugin {
 	private async broadcastCancel(): Promise<void> {
 		const allTabs = this.viewRegistry.getAllTabHandles();
 		if (allTabs.length === 0) {
-			new Notice("[Agent Console] No chat tabs open");
+			new Notice(t("notices.noChatTabsOpen"));
 			return;
 		}
 
 		await Promise.allSettled(allTabs.map((t) => t.cancelOperation()));
 		new Notice(
-			`[Agent Console] Cancel broadcast to ${allTabs.length} tab(s)`,
+			t("notices.cancelBroadcast", { count: allTabs.length }),
 		);
 	}
 
@@ -1546,7 +1546,7 @@ export default class AgentClientPlugin extends Plugin {
 		const ctxMig = migrateContextNoteSettings(raw, DEFAULT_SETTINGS);
 		if (ctxMig.shouldShowNotice) {
 			new Notice(
-				"Agent Console: the active note no longer follows the chat. Use the new context strip to pin notes into context.",
+				t("notices.contextStripMigration"),
 				10000,
 			);
 			this.settings.migrationNoticeShown = true;
@@ -1619,7 +1619,7 @@ export default class AgentClientPlugin extends Plugin {
 			);
 			if (!detected) return; // nothing to offer; re-check on a later launch
 			const notice = new Notice(
-				`Agent Console: found ${detected.displayName} settings — click to import them.`,
+				t("notices.importSettingsFound", { plugin: detected.displayName }),
 				0,
 			);
 			notice.containerEl.addClass("agent-client-import-notice");
@@ -1782,7 +1782,7 @@ export default class AgentClientPlugin extends Plugin {
 			// No collision — create the secret with the preferred ID
 			this.app.secretStorage.setSecret(defaultSecretId, trimmed);
 			new Notice(
-				`[Agent Console] Your ${agentLabel} API key has been migrated to Obsidian's Keychain as "${defaultSecretId}".`,
+				t("notices.apiKeyMigrated", { agent: agentLabel, secretId: defaultSecretId }),
 			);
 			onMigrate();
 			return defaultSecretId;
@@ -1799,7 +1799,7 @@ export default class AgentClientPlugin extends Plugin {
 		// the user's key without overwriting other plugins' secrets.
 		this.app.secretStorage.setSecret(fallbackSecretId, trimmed);
 		new Notice(
-			`[Agent Console] "${defaultSecretId}" was already in use. Your ${agentLabel} API key was migrated to "${fallbackSecretId}". You can rename it in Obsidian's Keychain settings.`,
+			t("notices.apiKeyMigratedFallback", { defaultId: defaultSecretId, agent: agentLabel, fallbackId: fallbackSecretId }),
 		);
 		onMigrate();
 		return fallbackSecretId;
@@ -1863,7 +1863,7 @@ export default class AgentClientPlugin extends Plugin {
 					? latestStable
 					: latestPrerelease;
 				new Notice(
-					`[Agent Console] Update available: v${newestVersion}`,
+					t("notices.updateAvailable", { version: newestVersion ?? "" }),
 				);
 				return true;
 			}
@@ -1872,7 +1872,7 @@ export default class AgentClientPlugin extends Plugin {
 			const latestStable = await this.fetchLatestStable();
 			if (latestStable && semver.gt(latestStable, currentVersion)) {
 				new Notice(
-					`[Agent Console] Update available: v${latestStable}`,
+					t("notices.updateAvailable", { version: latestStable }),
 				);
 				return true;
 			}

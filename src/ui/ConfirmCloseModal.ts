@@ -1,4 +1,5 @@
 import { App, Modal } from "obsidian";
+import { t } from "../i18n";
 
 /**
  * Confirmation modal shown before closing the Agent Console panel when it has
@@ -28,15 +29,15 @@ export class ConfirmCloseModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		contentEl.createEl("h2", { text: "Close Agent Console?" });
+		contentEl.createEl("h2", { text: t("modals.confirmClose.title") });
 
 		contentEl.createEl("p", {
-			text: `You have ${this.tabCount} open chats. Closing this panel will close all of them.`,
+			text: t("modals.confirmClose.body", { count: this.tabCount }),
 			cls: "agent-client-confirm-close-message",
 		});
 
 		contentEl.createEl("p", {
-			text: "Closed chats can be reopened from session history.",
+			text: t("modals.confirmClose.hint"),
 			cls: "agent-client-confirm-close-warning",
 		});
 
@@ -45,14 +46,14 @@ export class ConfirmCloseModal extends Modal {
 		});
 
 		const cancelButton = buttonContainer.createEl("button", {
-			text: "Cancel",
+			text: t("modals.common.cancel"),
 		});
 		cancelButton.addEventListener("click", () => {
 			this.close();
 		});
 
 		const closeButton = buttonContainer.createEl("button", {
-			text: "Close panel",
+			text: t("modals.confirmClose.confirm"),
 			cls: "mod-warning",
 		});
 		closeButton.addEventListener("click", () => {

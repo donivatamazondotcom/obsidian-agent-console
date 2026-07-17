@@ -13,6 +13,7 @@
  * plugin — the regression guard for the "plugin silently fails to start" class
  * lives in the cheap unit layer, not an E2E harness.
  */
+import { t } from "../i18n";
 export interface RegistrationStep {
 	/** Human-readable, user-facing label (shown in the failure notice). */
 	label: string;
@@ -46,9 +47,7 @@ export function runRegistrations(
 	}
 	if (failed.length > 0) {
 		deps.notify(
-			`Agent Console loaded, but these parts are unavailable: ` +
-				`${failed.join(", ")}. Try reloading Obsidian; if it keeps ` +
-				`happening, another plugin may be conflicting.`,
+			t("notices.partialLoad", { parts: failed.join(", ") }),
 		);
 	}
 	return { ok, failed };

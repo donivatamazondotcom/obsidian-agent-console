@@ -1,4 +1,5 @@
 import { App, Modal } from "obsidian";
+import { t } from "../i18n";
 
 /**
  * Confirmation modal shown before resetting the Obsidian system prompt to
@@ -25,15 +26,15 @@ export class ConfirmResetModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		contentEl.createEl("h2", { text: "Reset Obsidian system prompt?" });
+		contentEl.createEl("h2", { text: t("modals.confirmReset.title") });
 
 		contentEl.createEl("p", {
-			text: "This turns all switches back on and clears your vault context and any prompt you've edited by hand.",
+			text: t("modals.confirmReset.body"),
 			cls: "agent-client-confirm-reset-message",
 		});
 
 		contentEl.createEl("p", {
-			text: "This can't be undone.",
+			text: t("modals.confirmReset.warning"),
 			cls: "agent-client-confirm-reset-warning",
 		});
 
@@ -42,14 +43,14 @@ export class ConfirmResetModal extends Modal {
 		});
 
 		const cancelButton = buttonContainer.createEl("button", {
-			text: "Cancel",
+			text: t("modals.common.cancel"),
 		});
 		cancelButton.addEventListener("click", () => {
 			this.close();
 		});
 
 		const resetButton = buttonContainer.createEl("button", {
-			text: "Reset to defaults",
+			text: t("modals.confirmReset.confirm"),
 			cls: "mod-warning",
 		});
 		resetButton.addEventListener("click", () => {

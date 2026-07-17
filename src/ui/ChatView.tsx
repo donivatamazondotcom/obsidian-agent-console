@@ -81,6 +81,7 @@ import {
 } from "../services/quick-prompts-logic";
 import type { AcpClient } from "../acp/acp-client";
 import { VIEW_TYPE_CHAT } from "./chat-view-type";
+import { t } from "../i18n";
 
 // VIEW_TYPE_CHAT is defined in ./chat-view-type (I157) and re-exported here so
 // existing importers of `{ VIEW_TYPE_CHAT } from "./ui/ChatView"` keep working.
@@ -409,12 +410,12 @@ function ChatComponent({
 	useEffect(() => {
 		if (!hasCorruptedLeafState(plugin, viewId)) return;
 		const notice = new Notice(
-			"Could not restore previous tabs — saved state was corrupted.",
+			t("notices.tabRestoreCorrupted"),
 			0, // persistent until dismissed
 		);
 		// Add "View details" link to the notice
 		const fragment = notice.messageEl.createEl("a", {
-			text: " View details",
+			text: ` ${t("notices.viewDetails")}`,
 			cls: "agent-client-corruption-link",
 		});
 		fragment.addEventListener("click", (e) => {
@@ -697,7 +698,7 @@ function ChatComponent({
 	const reopenClosed = useCallback(async () => {
 		const record = recentlyClosed.reopenLast();
 		if (!record) {
-			new Notice("No recently closed session to reopen");
+			new Notice(t("notices.noRecentlyClosedSession"));
 			return;
 		}
 
@@ -763,7 +764,7 @@ function ChatComponent({
 					);
 					if (duplicate) {
 						new Notice(
-							"[Agent Console] A tab with that name already exists",
+							t("notices.duplicateTabName"),
 						);
 						return;
 					}

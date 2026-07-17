@@ -15,14 +15,6 @@
  * drop handlers can show an accurate transient message during the init window.
  */
 
-/** Notice shown when an image is pasted/dropped before the agent's capabilities have loaded. */
-export const IMAGE_PASTE_CONNECTING_NOTICE =
-	"[Agent Console] Still connecting to the agent – paste the image again in a moment.";
-
-/** Notice shown when the connected agent genuinely does not support image input. */
-export const IMAGE_PASTE_UNSUPPORTED_NOTICE =
-	"[Agent Console] This agent does not support image paste. Try drag & drop instead.";
-
 /**
  * Outcome of classifying pasted/dropped image files against the agent's
  * (possibly not-yet-known) image capability.

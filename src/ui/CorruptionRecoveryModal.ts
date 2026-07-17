@@ -10,6 +10,7 @@
  */
 
 import { Modal, App } from "obsidian";
+import { t } from "../i18n";
 
 export class CorruptionRecoveryModal extends Modal {
 	private rawState: string;
@@ -33,10 +34,10 @@ export class CorruptionRecoveryModal extends Modal {
 		contentEl.empty();
 		contentEl.addClass("agent-client-corruption-modal");
 
-		contentEl.createEl("h2", { text: "Tab state corruption" });
+		contentEl.createEl("h2", { text: t("modals.corruptionRecovery.title") });
 
 		contentEl.createEl("p", {
-			text: "The saved tab state could not be restored. The raw data is shown below for manual inspection.",
+			text: t("modals.corruptionRecovery.body"),
 		});
 
 		// Raw state (read-only text block)
@@ -51,7 +52,7 @@ export class CorruptionRecoveryModal extends Modal {
 		});
 
 		buttonContainer
-			.createEl("button", { text: "Retry restore" })
+			.createEl("button", { text: t("modals.corruptionRecovery.retry") })
 			.addEventListener("click", () => {
 				this.close();
 				this.onRetry();
@@ -59,7 +60,7 @@ export class CorruptionRecoveryModal extends Modal {
 
 		buttonContainer
 			.createEl("button", {
-				text: "Discard saved state",
+				text: t("modals.corruptionRecovery.discard"),
 				cls: "mod-warning",
 			})
 			.addEventListener("click", () => {
@@ -68,7 +69,7 @@ export class CorruptionRecoveryModal extends Modal {
 			});
 
 		buttonContainer
-			.createEl("button", { text: "Close" })
+			.createEl("button", { text: t("modals.common.close") })
 			.addEventListener("click", () => {
 				this.close();
 			});

@@ -30,6 +30,7 @@ import { buildFileUri } from "../utils/paths";
 import { convertWindowsPathToWsl } from "../utils/platform";
 import { confirmSessionIntent } from "../ui/ConfirmSessionIntentModal";
 import { buildCarryOverBlocks } from "../services/carry-over-builder";
+import { t } from "../i18n";
 
 // ============================================================================
 // Types
@@ -161,11 +162,11 @@ export function useChatActions(
 				if (filePath) {
 					const context =
 						trigger === "newChat" ? "new session" : "closing chat";
-					new Notice(`[Agent Console] Chat exported to ${filePath}`);
+					new Notice(t("notices.chatExported", { path: filePath }));
 					logger.log(`Chat auto-exported before ${context}`);
 				}
 			} catch {
-				new Notice("[Agent Console] Failed to export chat");
+				new Notice(t("notices.chatExportFailed"));
 			}
 		},
 		[plugin, logger],
@@ -353,7 +354,7 @@ export function useChatActions(
 
 			// Skip if already empty AND not switching agents
 			if (messages.length === 0 && !isAgentSwitch) {
-				new Notice("[Agent Console] Already a new session");
+				new Notice(t("notices.alreadyNewSession"));
 				return;
 			}
 
@@ -395,7 +396,7 @@ export function useChatActions(
 				sessionHistory.invalidateCache();
 			} catch (error) {
 				logger.error("[ChatPanel] New chat error:", error);
-				new Notice("[Agent Console] Failed to create new session");
+				new Notice(t("notices.newSessionFailed"));
 			}
 		},
 		[
@@ -415,7 +416,7 @@ export function useChatActions(
 
 	const handleExportChat = useCallback(async () => {
 		if (messages.length === 0) {
-			new Notice("[Agent Console] No messages to export");
+			new Notice(t("notices.noMessagesToExport"));
 			return;
 		}
 
@@ -430,9 +431,9 @@ export function useChatActions(
 				session.createdAt,
 				openFile,
 			);
-			new Notice(`[Agent Console] Chat exported to ${filePath}`);
+			new Notice(t("notices.chatExported", { path: filePath }));
 		} catch (error) {
-			new Notice("[Agent Console] Failed to export chat");
+			new Notice(t("notices.chatExportFailed"));
 			logger.error("Export error:", error);
 		}
 	}, [messages, session, plugin, logger]);
@@ -502,7 +503,7 @@ export function useChatActions(
 					await agent.closeSession();
 					await lazyAcquireNowRef.current?.();
 					sessionHistory.invalidateCache();
-					new Notice("[Agent Console] Session restarted (fresh)");
+					new Notice(t("notices.sessionRestartedFresh"));
 					return;
 				}
 
@@ -510,19 +511,19 @@ export function useChatActions(
 				// fresh harness. Transcript is never cleared. Announce up front
 				// because the resume is async (subprocess respawn) and otherwise
 				// gives no feedback until it completes.
-				new Notice("[Agent Console] Reloading session…");
+				new Notice(t("notices.sessionReloading"));
 				const { resumed } = await agent.reloadSession();
 				if (resumed) {
-					new Notice("[Agent Console] Session reloaded");
+					new Notice(t("notices.sessionReloaded"));
 				} else {
 					sessionHistory.invalidateCache();
 					new Notice(
-						"[Agent Console] This agent can't resume — reloaded as a fresh session (history shown is local)",
+						t("notices.sessionReloadedFresh"),
 					);
 				}
 			} catch (error) {
 				logger.error("[ChatPanel] Reload error:", error);
-				new Notice("[Agent Console] Failed to reload session");
+				new Notice(t("notices.sessionReloadFailed"));
 			} finally {
 				setIsReloading(false);
 			}

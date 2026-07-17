@@ -1,5 +1,6 @@
 import { AbstractInputSuggest, App, Modal, TFolder } from "obsidian";
 import { filterFolderSuggestions } from "../services/quick-prompts-logic";
+import { t } from "../i18n";
 
 /**
  * Vault-folder autocomplete for the folder-choice input. Built on Obsidian's
@@ -65,10 +66,10 @@ export class ChooseQuickPromptFolderModal extends Modal {
 	onOpen(): void {
 		const { contentEl, modalEl } = this;
 		modalEl.addClass("agent-client-qp-folder-modal");
-		this.titleEl.setText("Where should quick prompts live?");
+		this.titleEl.setText(t("modals.quickPromptFolder.title"));
 
 		contentEl.createEl("p", {
-			text: "Pick a folder for your quick prompt notes. They are saved here so you can find and edit them later — you can change this any time in settings.",
+			text: t("modals.quickPromptFolder.body"),
 			cls: "agent-client-qp-folder-desc",
 		});
 
@@ -88,12 +89,12 @@ export class ChooseQuickPromptFolderModal extends Modal {
 		});
 
 		const buttons = contentEl.createDiv({ cls: "modal-button-container" });
-		const cancel = buttons.createEl("button", { text: "Cancel" });
+		const cancel = buttons.createEl("button", { text: t("modals.common.cancel") });
 		cancel.addEventListener("click", () => {
 			this.finish(null);
 		});
 		const confirm = buttons.createEl("button", {
-			text: "Use this folder",
+			text: t("modals.quickPromptFolder.confirm"),
 			cls: "mod-cta",
 		});
 		confirm.addEventListener("click", () => {

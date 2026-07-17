@@ -1,5 +1,5 @@
 /**
- * Japanese (日本語) string catalog — settings surface.
+ * Japanese (日本語) string catalog — settings, notices, and modals (phases 1–2).
  *
  * Factory-wrapped: instantiated only when Japanese is the active locale.
  * Partial against the English contract; missing keys fall back to English.
@@ -300,4 +300,195 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 		"デフォルトの作業ディレクトリを選択",
 	"settings.workingDirectory.pickerTitle": "作業ディレクトリを選択",
 	"settings.customAgents.defaultName": "カスタムエージェント",
+	// --- Phase 2: notices ---
+	"notices.quickPromptCollided":
+		"[Agent Console] 同じ名前のクイックプロンプトが既にあるため、「{basename}」として保存しました。",
+	"notices.quickPromptCreated":
+		"[Agent Console] クイックプロンプト「{basename}」を作成しました。",
+	"notices.quickPromptCreateFailed":
+		"[Agent Console] クイックプロンプトを作成できませんでした — コンソールを確認してください。",
+	"notices.quickPromptNoteNotFound":
+		"[Agent Console] 「{label}」を開けませんでした — ノートが見つかりません。",
+	"notices.promptTextCopied": "[Agent Console] プロンプトのテキストをコピーしました。",
+	"notices.promptTextCopyFailed":
+		"[Agent Console] プロンプトのテキストをコピーできませんでした — コンソールを確認してください。",
+	"notices.quickPromptRenameFailed":
+		"[Agent Console] クイックプロンプトの名前を変更できませんでした — コンソールを確認してください。",
+	"notices.noQuickPromptsFound":
+		"[Agent Console] クイックプロンプトが見つかりません。「{folder}」フォルダーに Markdown ノートを追加してください。",
+	"notices.noChatTabsOpen": "[Agent Console] 開いているチャットタブがありません",
+	"notices.noPromptToBroadcast":
+		"[Agent Console] ブロードキャストするプロンプトがありません",
+	"notices.noOtherTabsToBroadcast":
+		"[Agent Console] ブロードキャスト先の他のチャットタブがありません",
+	"notices.broadcastSkipNote":
+		"（{count} 件スキップ — 送信待ちのメッセージあり）",
+	"notices.promptBroadcast":
+		"[Agent Console] {count} 個のタブにプロンプトをブロードキャストしました{skipNote}",
+	"notices.noTabsReadyToSend": "[Agent Console] 送信できるタブがありません",
+	"notices.sentInTabs":
+		"[Agent Console] {count} 個のタブで送信しました{skipNote}",
+	"notices.cancelBroadcast":
+		"[Agent Console] {count} 個のタブにキャンセルをブロードキャストしました",
+	"notices.contextStripMigration":
+		"Agent Console: アクティブなノートはチャットに追従しなくなりました。新しいコンテキストストリップでノートをコンテキストに固定してください。",
+	"notices.importSettingsFound":
+		"Agent Console: {plugin} の設定が見つかりました — クリックしてインポートします。",
+	"notices.apiKeyMigrated":
+		"[Agent Console] {agent} の API キーを Obsidian のキーチェーンに「{secretId}」として移行しました。",
+	"notices.apiKeyMigratedFallback":
+		"[Agent Console] 「{defaultId}」は既に使用されていたため、{agent} の API キーを「{fallbackId}」として移行しました。Obsidian のキーチェーン設定で名前を変更できます。",
+	"notices.updateAvailable": "[Agent Console] アップデートがあります: v{version}",
+	"notices.chatExported": "[Agent Console] チャットを {path} に書き出しました",
+	"notices.chatExportFailed": "[Agent Console] チャットの書き出しに失敗しました",
+	"notices.alreadyNewSession": "[Agent Console] 既に新しいセッションです",
+	"notices.newSessionFailed":
+		"[Agent Console] 新しいセッションを作成できませんでした",
+	"notices.noMessagesToExport": "[Agent Console] 書き出すメッセージがありません",
+	"notices.sessionRestartedFresh":
+		"[Agent Console] セッションを最初からやり直しました",
+	"notices.sessionReloading": "[Agent Console] セッションを再読み込み中…",
+	"notices.sessionReloaded": "[Agent Console] セッションを再読み込みしました",
+	"notices.sessionReloadedFresh":
+		"[Agent Console] このエージェントは再開に対応していないため、新しいセッションとして再読み込みしました（表示中の履歴はローカルのものです）",
+	"notices.sessionReloadFailed":
+		"[Agent Console] セッションの再読み込みに失敗しました",
+	"notices.invalidWorkingDirectory":
+		"Agent Console: 設定された作業ディレクトリが有効な絶対パスではありません。新しいチャットを {dir} で開始しました。",
+	"notices.newChatStartedIn":
+		"Agent Console: 新しいチャットを {dir} で開始しました",
+	"notices.contextNoteDeleted":
+		"[Agent Console] コンテキストノート「{name}」が削除されたため、チャットのコンテキストから取り除きました。",
+	"notices.noActivePermissionRequest":
+		"[Agent Console] 処理待ちの権限リクエストはありません",
+	"notices.maxAttachments": "[Agent Console] 添付できるのは最大 {count} 件です",
+	"notices.imageTooLarge":
+		"[Agent Console] 画像が大きすぎます（最大 {size}MB）",
+	"notices.imageAttachFailed": "[Agent Console] 画像を添付できませんでした",
+	"notices.filePathUndetermined":
+		"[Agent Console] ファイルパスを特定できませんでした",
+	"notices.imagePasteConnecting":
+		"[Agent Console] エージェントに接続中です – 少し待ってから画像を貼り付け直してください。",
+	"notices.imagePasteUnsupported":
+		"[Agent Console] このエージェントは画像の貼り付けに対応していません。ドラッグ＆ドロップをお試しください。",
+	"notices.tabRestoreCorrupted":
+		"以前のタブを復元できませんでした — 保存された状態が壊れています。",
+	"notices.viewDetails": "詳細を表示",
+	"notices.noRecentlyClosedSession": "再び開ける最近閉じたセッションがありません",
+	"notices.duplicateTabName": "[Agent Console] 同じ名前のタブが既にあります",
+	"notices.sessionRestoreFailed": "[Agent Console] セッションを復元できませんでした",
+	"notices.sessionForkFailed": "[Agent Console] セッションを分岐できませんでした",
+	"notices.sessionDeleted": "[Agent Console] セッションを削除しました",
+	"notices.sessionDeleteFailed": "[Agent Console] セッションを削除できませんでした",
+	"notices.titleUpdated": "[Agent Console] タイトルを更新しました",
+	"notices.titleUpdateFailed": "[Agent Console] タイトルを更新できませんでした",
+	"notices.titleEmpty": "タイトルは空にできません",
+	"notices.settingsImported":
+		"Agent Console: {source} から設定をインポートしました。{relinkMsg}",
+	"notices.settingsImportedRelink":
+		" 設定で {count} 件の API キーを再リンクしてください。",
+	"notices.settingsImportFailed":
+		"Agent Console: インポートに失敗しました。{error}",
+	"notices.mcpSignInLinkCopied": "「{server}」のサインインリンクをコピーしました",
+	"notices.mcpNeedsSignInTitle":
+		"MCP サーバー「{server}」はサインインが必要です",
+	"notices.mcpOpensHost": "{host} を開きます",
+	"notices.mcpSignIn": "サインイン",
+	"notices.mcpCopyLink": "リンクをコピー",
+	"notices.mcpMoreWaiting": "この後 {count} 件が待機中: {names}",
+	"notices.noActiveNoteToGrab":
+		"[Agent Console] 取り込めるアクティブなノートがありません",
+	"notices.removedFromContext":
+		"[Agent Console] 「{name}」をコンテキストから取り除きました",
+	"notices.contextFull":
+		"[Agent Console] コンテキストが上限です（ノート {max} 件）— 1 件取り除いてから追加してください",
+	"notices.addedToContext":
+		"[Agent Console] 「{name}」をコンテキストに追加しました",
+	"notices.viewRegistrationConflict":
+		"別のプラグインが同じビューを使用しているため、Agent Console のパネルを開けません。どちらかのプラグインを無効にして Obsidian を再読み込みしてください。",
+	"notices.partialLoad":
+		"Agent Console は読み込まれましたが、次の部分が利用できません: {parts}。Obsidian を再読み込みしてください。繰り返す場合は、他のプラグインと競合している可能性があります。",
+	"notices.cantSendNow":
+		"今は送信できません — エージェントが待機中になってからお試しください。",
+	"notices.unknownError": "不明なエラー",
+	// --- Phase 2: modals ---
+	"modals.common.cancel": "キャンセル",
+	"modals.common.close": "閉じる",
+	"modals.renamePrompt.title": "クイックプロンプトの名前を変更",
+	"modals.renamePrompt.confirm": "名前を変更",
+	"modals.agentPicker.placeholder": "新しいチャットで使うエージェントを選択",
+	"modals.confirmClose.title": "Agent Console を閉じますか？",
+	"modals.confirmClose.body":
+		"{count} 件のチャットが開いています。このパネルを閉じるとすべて閉じられます。",
+	"modals.confirmClose.hint":
+		"閉じたチャットはセッション履歴から再び開けます。",
+	"modals.confirmClose.confirm": "パネルを閉じる",
+	"modals.quickPromptFolder.title": "クイックプロンプトの保存先は？",
+	"modals.quickPromptFolder.body":
+		"クイックプロンプトのノートを保存するフォルダーを選んでください。ここに保存されるので、後から探して編集できます — 設定でいつでも変更できます。",
+	"modals.quickPromptFolder.confirm": "このフォルダーを使う",
+	"modals.importSettings.title": "設定をインポート",
+	"modals.importSettings.searching": "インポートできる設定を探しています…",
+	"modals.importSettings.noneFound":
+		"対応プラグインからインポートできる設定が見つかりませんでした。",
+	"modals.importSettings.found":
+		"{source} が見つかりました。そのエージェント構成を Agent Console にインポートしますか？",
+	"modals.importSettings.defaultCommand": "（既定のコマンド）",
+	"modals.importSettings.keyPorted": "キー移行済み",
+	"modals.importSettings.keyMigrated": "キー移動済み",
+	"modals.importSettings.needsRelink": "再リンクが必要",
+	"modals.importSettings.defaultAgentWithCustom":
+		"既定のエージェント: {agent} · カスタムエージェント {count} 件",
+	"modals.importSettings.defaultAgent": "既定のエージェント: {agent}",
+	"modals.importSettings.relinkWarning":
+		"{count} 件の API キーは自動では移行できません — インポート後に設定で再リンクしてください。",
+	"modals.importSettings.confirm": "インポート",
+	"modals.mcpAuth.placeholder": "MCP サーバーを再認証…",
+	"modals.mcpAuth.instructionOpen": "サインインページを開く",
+	"modals.mcpAuth.instructionCopy": "リンクをコピー",
+	"modals.mcpAuth.instructionDismiss": "閉じる",
+	"modals.mcpAuth.needsSignIn": "{server} – サインインが必要",
+	"modals.mcpAuth.opensWaiting": "{host} を開きます · {when} から待機中",
+	"modals.mcpAuth.waitingSince": "{when} から待機中",
+	"modals.mcpAuth.emptyTitle": "待機中のサインインリクエストはありません",
+	"modals.mcpAuth.emptyBody":
+		"MCP サーバーがサインインを求めるのはエージェントの起動中だけです。セッションを再起動して再確認してください – サーバーのサインインが期限切れの場合、新しいリクエストが表示されます。",
+	"modals.mcpAuth.emptyWarning":
+		"再起動すると、このタブでエージェントが実行中の処理は中断されます。",
+	"modals.mcpAuth.restartSession": "セッションを再起動",
+	"modals.changeDirectory.title": "ディレクトリで新しいチャット",
+	"modals.changeDirectory.body":
+		"指定したディレクトリでエージェントが作業する新しいチャットセッションを開始します。",
+	"modals.changeDirectory.browse": "参照...",
+	"modals.changeDirectory.start": "開始",
+	"modals.corruptionRecovery.title": "タブ状態の破損",
+	"modals.corruptionRecovery.body":
+		"保存されたタブの状態を復元できませんでした。手動で確認できるよう、元のデータを以下に表示します。",
+	"modals.corruptionRecovery.retry": "復元を再試行",
+	"modals.corruptionRecovery.discard": "保存された状態を破棄",
+	"modals.confirmReset.title": "Obsidian システムプロンプトをリセットしますか？",
+	"modals.confirmReset.body":
+		"すべてのスイッチがオンに戻り、ボールトのコンテキストと手動で編集したプロンプトが消去されます。",
+	"modals.confirmReset.warning": "この操作は取り消せません。",
+	"modals.confirmReset.confirm": "既定値にリセット",
+	"modals.sessionIntent.agentFallback": "新しいエージェント",
+	"modals.sessionIntent.switchTitle": "{agent} に切り替えますか？",
+	"modals.sessionIntent.switchBody":
+		"{agent} に切り替えると新しいチャットが始まります。これまでのメッセージを {agent} に渡して文脈を引き継ぎますが、前のエージェントのツールや作業記憶は引き継がれません。\n\n現在の会話は履歴に保存されます。",
+	"modals.sessionIntent.switchConfirm": "メッセージを引き継いで切り替え",
+	"modals.sessionIntent.newChatTitle": "新しいチャットを始めますか？",
+	"modals.sessionIntent.newChatBody": "現在の会話は履歴に保存されます。",
+	"modals.sessionIntent.newChatConfirm": "新しいチャット",
+	"modals.sessionIntent.reloadTitle": "{agent} を再読み込みしますか？",
+	"modals.sessionIntent.reloadBody":
+		"会話を最初からやり直します。現在の会話は履歴に保存されます。",
+	"modals.sessionIntent.reloadConfirm": "再読み込み",
+	"modals.deleteSession.title": "セッションを削除しますか？",
+	"modals.deleteSession.body": "「{title}」を削除してもよろしいですか？",
+	"modals.deleteSession.hint":
+		"このプラグインからセッションが取り除かれるだけです。セッションのデータはエージェント側に残ります。",
+	"modals.deleteSession.confirm": "削除",
+	"modals.editTitle.title": "セッションタイトルを編集",
+	"modals.editTitle.save": "保存",
+	"modals.sessionHistory.title": "セッション履歴",
 });

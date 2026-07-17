@@ -6,6 +6,7 @@ import type AgentClientPlugin from "../plugin";
 import type { UseAgentReturn } from "./useAgent";
 import type { UseSessionHistoryReturn } from "./useSessionHistory";
 import type { SessionListSource } from "../resolvers/session-history-view";
+import { t } from "../i18n";
 
 /**
  * Hook for managing the session history modal lifecycle.
@@ -86,7 +87,7 @@ export function useHistoryModal(
 					"restore",
 				);
 			} catch (error) {
-				new Notice("[Agent Console] Failed to restore session");
+				new Notice(t("notices.sessionRestoreFailed"));
 				logger.error("Session restore error:", error);
 			}
 		},
@@ -104,7 +105,7 @@ export function useHistoryModal(
 				);
 				await onOpenSessionInTabRef.current?.(sessionId, cwd, "fork");
 			} catch (error) {
-				new Notice("[Agent Console] Failed to fork session");
+				new Notice(t("notices.sessionForkFailed"));
 				logger.error("Session fork error:", error);
 			}
 		},
@@ -123,9 +124,9 @@ export function useHistoryModal(
 				if (openTab) {
 					onCloseTabRef.current?.(openTab.tabId);
 				}
-				new Notice("[Agent Console] Session deleted");
+				new Notice(t("notices.sessionDeleted"));
 			} catch (error) {
-				new Notice("[Agent Console] Failed to delete session");
+				new Notice(t("notices.sessionDeleteFailed"));
 				logger.error("Session delete error:", error);
 			}
 		},
@@ -147,9 +148,9 @@ export function useHistoryModal(
 				if (openTab) {
 					onSetTabLabelCustomRef.current?.(openTab.tabId, newTitle);
 				}
-				new Notice("[Agent Console] Title updated");
+				new Notice(t("notices.titleUpdated"));
 			} catch (error) {
-				new Notice("[Agent Console] Failed to update title");
+				new Notice(t("notices.titleUpdateFailed"));
 				logger.error("Title update error:", error);
 			}
 		},
