@@ -3562,6 +3562,18 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	padding-bottom: var(--size-4-3);
 }
 
+/* A2UI-I04: align the "Selected: …" action bubble's bordered box to the
+   assistant surface boundary (16px) instead of the default 8px user-bubble
+   margin, so the answer card lines up under the button card that produced it.
+   Scoped by :has() to action-message bubbles only — ordinary user messages
+   keep the 8px inset. */
+.agent-client-message-renderer.agent-client-message-user:has(
+		.agent-client-a2ui-action-message
+	) {
+	margin-left: 16px;
+	margin-right: 16px;
+}
+
 .agent-client-a2ui-action-details summary {
 	cursor: pointer;
 }
