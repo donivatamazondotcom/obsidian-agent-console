@@ -1103,7 +1103,7 @@ export function ChatPanel({
 
 			// -- Switch agent section --
 			menu.addItem((item: MenuItem) => {
-				item.setTitle("Switch agent").setIsLabel(true);
+				item.setTitle(t("chat.menu.switchAgent")).setIsLabel(true);
 			});
 
 			// Read the agent list fresh at click time so settings edits (added
@@ -1132,7 +1132,7 @@ export function ChatPanel({
 
 			// -- Actions section --
 			menu.addItem((item: MenuItem) => {
-				item.setTitle("Open new view")
+				item.setTitle(t("chat.menu.openNewView"))
 					.setIcon("copy-plus")
 					.onClick(() => {
 						void plugin.openNewChatViewWithAgent(
@@ -1142,7 +1142,7 @@ export function ChatPanel({
 			});
 
 			menu.addItem((item: MenuItem) => {
-				item.setTitle("New chat in directory...")
+				item.setTitle(t("chat.menu.newChatInDirectory"))
 					.setIcon("folder-open")
 					.onClick(() => {
 						const modal = new ChangeDirectoryModal(
@@ -1159,7 +1159,7 @@ export function ChatPanel({
 			menu.addSeparator();
 
 			menu.addItem((item: MenuItem) => {
-				item.setTitle("Plugin settings")
+				item.setTitle(t("chat.menu.pluginSettings"))
 					.setIcon("settings")
 					.onClick(() => {
 						handleOpenSettings();
@@ -1427,7 +1427,10 @@ export function ChatPanel({
 					newId,
 					restoredMessages ?? [],
 					restoredContextNotes ?? undefined,
-					restoredForkTitle ?? "Fork: Session",
+					restoredForkTitle ??
+						t("chat.tabs.forkPrefix", {
+							label: t("chat.tabs.sessionFallback"),
+						}),
 				);
 				// Invalidate the session-list cache so reopening Session History
 				// re-fetches and shows the new branch. The 5-min cache was
@@ -1880,7 +1883,9 @@ export function ChatPanel({
 			// I52: bind onclick so a click focuses the vault window that owns
 			// this panel, not Electron's most-recently-active window.
 			const permissionNotification = new Notification("Agent Console", {
-				body: `${activeAgentLabel} is requesting permission.`,
+				body: t("chat.notifications.permissionBody", {
+					agent: activeAgentLabel,
+				}),
 			});
 			// Retain so the click handler survives GC (see completion site above).
 			retainNotification(permissionNotification, () => {
@@ -2813,7 +2818,7 @@ export function ChatPanel({
 	const recoverableHistoryBanner = showRecoverableHistory ? (
 		<div className="agent-client-recoverable-history" role="status">
 			<span className="agent-client-recoverable-history-text">
-				History for this tab is not stored locally.
+				{t("chat.historyBanner.notStored")}
 			</span>
 			<button
 				type="button"
@@ -2822,8 +2827,8 @@ export function ChatPanel({
 				disabled={lazySession.state === "connecting"}
 			>
 				{lazySession.state === "connecting"
-					? "Reloading…"
-					: "Reload from agent"}
+					? t("chat.historyBanner.reloading")
+					: t("chat.historyBanner.reloadFromAgent")}
 			</button>
 		</div>
 	) : null;

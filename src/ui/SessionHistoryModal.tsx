@@ -317,15 +317,19 @@ function formatRelativeTime(date: Date): string {
 	const diffDays = Math.floor(diffHours / 24);
 
 	if (diffMinutes < 1) {
-		return "just now";
+		return t("chat.history.justNow");
 	} else if (diffMinutes < 60) {
-		return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`;
+		return diffMinutes === 1
+			? t("chat.history.minutesAgo_one")
+			: t("chat.history.minutesAgo_other", { count: diffMinutes });
 	} else if (diffHours < 24) {
-		return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+		return diffHours === 1
+			? t("chat.history.hoursAgo_one")
+			: t("chat.history.hoursAgo_other", { count: diffHours });
 	} else if (diffDays === 1) {
-		return "yesterday";
+		return t("chat.history.yesterday");
 	} else if (diffDays < 7) {
-		return `${diffDays} days ago`;
+		return t("chat.history.daysAgo", { count: diffDays });
 	} else {
 		const month = date.toLocaleString("default", { month: "short" });
 		const day = date.getDate();
@@ -502,7 +506,7 @@ function SessionItem({
 					{showAgentBadge && agentLabel && (
 						<span
 							className="agent-client-session-history-item-agent-badge"
-							aria-label={`Agent: ${agentLabel}`}
+							aria-label={t("chat.history.agentBadge", { label: agentLabel })}
 						>
 							{agentLabel}
 						</span>
@@ -540,14 +544,14 @@ function SessionItem({
 			<div className="agent-client-session-history-item-actions">
 				<IconButton
 					iconName="pencil"
-					label="Edit session title"
+					label={t("chat.history.editTitle")}
 					className="agent-client-session-history-action-icon agent-client-session-history-edit-icon"
 					onClick={handleEditTitle}
 				/>
 				{canRestore && (
 					<IconButton
 						iconName="play"
-						label="Restore session"
+						label={t("chat.history.restoreSession")}
 						className="agent-client-session-history-action-icon agent-client-session-history-restore-icon"
 						onClick={handleRestore}
 					/>
@@ -555,7 +559,7 @@ function SessionItem({
 				{canFork && (
 					<IconButton
 						iconName="git-branch"
-						label="Fork session into a new tab"
+						label={t("chat.history.forkSession")}
 						className="agent-client-session-history-action-icon agent-client-session-history-fork-icon"
 						onClick={handleFork}
 					/>
@@ -566,7 +570,7 @@ function SessionItem({
 				/>
 				<IconButton
 					iconName="trash-2"
-					label="Delete session"
+					label={t("chat.history.deleteSession")}
 					className="agent-client-session-history-action-icon agent-client-session-history-delete-icon"
 					onClick={handleDelete}
 				/>
@@ -700,11 +704,15 @@ export function SessionHistoryContent({
 	// — line 1 = sync freshness, line 2 = the action. Full text, no
 	// truncation; lives in the toggle row so the controls below don't shift.
 	const syncLine1 = agentSessionCache
-		? `Synced ${formatRelativeTime(new Date(agentSessionCache.syncedAt))}`
-		: "Not synced yet";
+		? t("chat.history.synced", {
+				when: formatRelativeTime(
+					new Date(agentSessionCache.syncedAt),
+				),
+			})
+		: t("chat.history.notSynced");
 	const syncLine2 = agentSessionCache
-		? "Send a message to reconnect and refresh"
-		: "Send a message to connect";
+		? t("chat.history.reconnectRefresh")
+		: t("chat.history.sendToConnect");
 
 	// I94: focus the search box when the modal opens so the user can type
 	// immediately. Index build is NOT triggered here — it fires on first
@@ -775,7 +783,7 @@ export function SessionHistoryContent({
 			const targetSession = sessions.find(
 				(s) => s.sessionId === sessionId,
 			);
-			const sessionTitle = targetSession?.title ?? "Untitled Session";
+			const sessionTitle = targetSession?.title ?? t("chat.history.untitled");
 
 			const confirmModal = new ConfirmDeleteModal(
 				app,
@@ -796,7 +804,7 @@ export function SessionHistoryContent({
 			const targetSession = sessions.find(
 				(s) => s.sessionId === sessionId,
 			);
-			const currentTitle = targetSession?.title ?? "Untitled Session";
+			const currentTitle = targetSession?.title ?? t("chat.history.untitled");
 			const sessionCwd = targetSession?.cwd ?? currentCwd;
 
 			const modal = new EditTitleModal(app, currentTitle, (newTitle) => {
@@ -868,7 +876,7 @@ export function SessionHistoryContent({
 			    exists). */}
 			{view.banner === "no-restore-capability" && (
 				<div className="agent-client-session-history-warning-banner">
-					<p>This agent does not support restoring sessions.</p>
+					<p>{t("chat.history.noRestoreSupport")}</p>
 				</div>
 			)}
 
@@ -893,7 +901,7 @@ export function SessionHistoryContent({
 						<div
 							className="agent-client-session-history-source-toggle"
 							role="tablist"
-							aria-label="Session source"
+							aria-label={t("chat.history.sessionSource")}
 						>
 							<button
 								type="button"
@@ -904,18 +912,22 @@ export function SessionHistoryContent({
 								}`}
 								onClick={() => handleSourceToggle("local")}
 							>
-								Local
+								{t("chat.history.local")}
 							</button>
 							<button
 								type="button"
 								role="tab"
 								aria-selected={view.listSource === "agent"}
-								aria-label={`Agent server sessions (${currentAgentLabel})`}
+								aria-label={t("chat.history.agentSessions", {
+									agent: currentAgentLabel,
+								})}
 								disabled={!view.agentViewAvailable}
 								title={
 									view.agentViewAvailable
 										? undefined
-										: `${currentAgentLabel} doesn't keep a session list on its server, so only your local history is available.`
+										: t("chat.history.noServerList", {
+												agent: currentAgentLabel,
+											})
 								}
 								className={`agent-client-session-history-source-pill${
 									view.listSource === "agent" ? " is-active" : ""
@@ -940,9 +952,9 @@ export function SessionHistoryContent({
 							ref={searchInputRef}
 							type="text"
 							className="agent-client-session-history-search-input"
-							placeholder="Search sessions…"
+							placeholder={t("chat.history.searchPlaceholder")}
 							value={query}
-							aria-label="Search sessions"
+							aria-label={t("chat.history.searchAria")}
 							onChange={(e) => {
 								ensureIndex();
 								setQuery(e.target.value);
@@ -950,7 +962,7 @@ export function SessionHistoryContent({
 						/>
 						{showBuildingHint && (
 							<span className="agent-client-session-history-search-status">
-								Searching transcripts…
+								{t("chat.history.searchingTranscripts")}
 							</span>
 						)}
 					</div>
@@ -966,7 +978,7 @@ export function SessionHistoryContent({
 					{showFolderFilter && (
 						<label
 							className="agent-client-session-history-filter"
-							title="Show only sessions whose working folder is this one. Uncheck to show sessions from every folder."
+							title={t("chat.history.onlyThisFolderTitle")}
 						>
 							<input
 								type="checkbox"
@@ -975,7 +987,7 @@ export function SessionHistoryContent({
 							/>
 							<span className="agent-client-session-history-filter-text">
 								<span className="agent-client-session-history-filter-title">
-									Only this folder
+									{t("chat.history.onlyThisFolder")}
 								</span>
 								<span
 									className="agent-client-session-history-filter-folder"
@@ -997,7 +1009,7 @@ export function SessionHistoryContent({
 								className="agent-client-session-history-retry-button"
 								onClick={handleRetry}
 							>
-								Retry
+								{t("chat.history.retry")}
 							</button>
 						</div>
 					)}
@@ -1005,7 +1017,7 @@ export function SessionHistoryContent({
 					{/* Loading state */}
 					{!error && loading && displayItems.length === 0 && (
 						<div className="agent-client-session-history-loading">
-							<p>Loading sessions…</p>
+							<p>{t("chat.history.loadingSessions")}</p>
 						</div>
 					)}
 
@@ -1025,8 +1037,11 @@ export function SessionHistoryContent({
 									<p className="agent-client-session-history-empty-text">
 										{agentSessionCache &&
 										agentSessionCache.sessions.length > 0
-											? `No local sessions yet. Your agent has ${agentSessionCache.sessions.length} — view them under Agent.`
-											: "No local sessions yet. Your agent may have saved sessions — view them under Agent."}
+											? t("chat.history.noLocalWithCount", {
+												count: agentSessionCache.sessions
+													.length,
+											})
+											: t("chat.history.noLocalMaybe")}
 									</p>
 									<button
 										type="button"
@@ -1035,14 +1050,14 @@ export function SessionHistoryContent({
 											handleSourceToggle("agent")
 										}
 									>
-										View agent sessions
+										{t("chat.history.viewAgentSessions")}
 									</button>
 								</>
 							) : (
 								<p className="agent-client-session-history-empty-text">
 									{query.trim()
-										? "No sessions match your search"
-										: "No previous sessions"}
+										? t("chat.history.noMatch")
+										: t("chat.history.noPrevious")}
 								</p>
 							)}
 						</div>
@@ -1086,7 +1101,9 @@ export function SessionHistoryContent({
 								disabled={loading}
 								onClick={onLoadMore}
 							>
-								{loading ? "Loading…" : "Load more"}
+								{loading
+									? t("chat.history.loading")
+									: t("chat.history.loadMore")}
 							</button>
 						</div>
 					)}

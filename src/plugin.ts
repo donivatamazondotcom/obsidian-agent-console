@@ -565,7 +565,7 @@ export default class AgentClientPlugin extends Plugin {
 		runRegistrations(
 			[
 				{
-					label: "note hover preview",
+					label: t("notices.bootPartHoverPreview"),
 					run: () =>
 						this.registerHoverLinkSource(HOVER_LINK_SOURCE, {
 							display: "Agent Console",
@@ -573,7 +573,7 @@ export default class AgentClientPlugin extends Plugin {
 						}),
 				},
 				{
-					label: "ribbon button",
+					label: t("notices.bootPartRibbon"),
 					run: () => {
 						addIcon("agent-console", AGENT_CONSOLE_SVG);
 						const ribbonIconEl = this.addRibbonIcon(
@@ -587,7 +587,7 @@ export default class AgentClientPlugin extends Plugin {
 					},
 				},
 				{
-					label: "commands",
+					label: t("notices.bootPartCommands"),
 					run: () => {
 						this.registerCoreCommands();
 						this.registerAgentCommands();
@@ -596,7 +596,7 @@ export default class AgentClientPlugin extends Plugin {
 					},
 				},
 				{
-					label: "settings tab",
+					label: t("notices.bootPartSettingsTab"),
 					run: () =>
 						this.addSettingTab(
 							new AgentClientSettingTab(this.app, this),
@@ -1037,7 +1037,7 @@ export default class AgentClientPlugin extends Plugin {
 	private registerCoreCommands(): void {
 		this.addCommand({
 			id: "open-chat-view",
-			name: "Open chat",
+			name: t("commands.openChat"),
 			callback: () => {
 				void this.activateView();
 			},
@@ -1045,7 +1045,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "focus-next-chat-view",
-			name: "Focus next chat view",
+			name: t("commands.focusNextView"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1057,7 +1057,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "focus-previous-chat-view",
-			name: "Focus previous chat view",
+			name: t("commands.focusPreviousView"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1070,7 +1070,7 @@ export default class AgentClientPlugin extends Plugin {
 		// Tab commands
 		this.addCommand({
 			id: "close-session-tab",
-			name: "Close session tab",
+			name: t("commands.closeSessionTab"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1082,7 +1082,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "next-session-tab",
-			name: "Next session tab",
+			name: t("commands.nextSessionTab"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1094,7 +1094,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "previous-session-tab",
-			name: "Previous session tab",
+			name: t("commands.previousSessionTab"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1106,7 +1106,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "show-tab-list",
-			name: "Show tab list",
+			name: t("commands.showTabList"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1118,7 +1118,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "reopen-closed-session",
-			name: "Reopen closed session tab",
+			name: t("commands.reopenClosedTab"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1130,7 +1130,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "open-session-history",
-			name: "Open session history",
+			name: t("commands.openSessionHistory"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1142,7 +1142,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "open-new-view",
-			name: "Open new view",
+			name: t("commands.openNewView"),
 			callback: () => {
 				void this.openNewChatViewWithAgent(
 					this.settings.defaultAgentId,
@@ -1152,7 +1152,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "import-settings",
-			name: "Import settings from another agent plugin",
+			name: t("commands.importSettings"),
 			callback: () => {
 				this.openImportSettingsModal();
 			},
@@ -1160,7 +1160,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "quick-prompt-search",
-			name: "Quick prompts: Search",
+			name: t("commands.quickPromptsSearch"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1181,15 +1181,17 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "quick-prompt-new",
-			name: "Quick prompts: New prompt",
+			name: t("commands.quickPromptsNew"),
 			callback: () => {
-				void this.createQuickPromptNote({ label: "New prompt" });
+				void this.createQuickPromptNote({
+					label: t("chat.quickPrompts.newPromptName"),
+				});
 			},
 		});
 
 		this.addCommand({
 			id: "quick-prompt-save-composer",
-			name: "Quick prompts: Save composer as a prompt",
+			name: t("commands.quickPromptsSaveComposer"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1205,7 +1207,7 @@ export default class AgentClientPlugin extends Plugin {
 	private registerAgentCommands(): void {
 		this.addCommand({
 			id: "new-chat-with-agent",
-			name: "New chat with agent…",
+			name: t("commands.newChatWithAgent"),
 			callback: () => {
 				new AgentPickerModal(
 					this.app,
@@ -1221,7 +1223,7 @@ export default class AgentClientPlugin extends Plugin {
 	private registerPermissionCommands(): void {
 		this.addCommand({
 			id: "approve-active-permission",
-			name: "Approve active permission",
+			name: t("commands.approvePermission"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1236,7 +1238,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "reject-active-permission",
-			name: "Reject active permission",
+			name: t("commands.rejectPermission"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1251,7 +1253,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "toggle-auto-mention",
-			name: "Toggle active note in context",
+			name: t("commands.toggleActiveNote"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1266,7 +1268,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "new-chat",
-			name: "New chat",
+			name: t("commands.newChat"),
 			callback: () => {
 				void this.startChat();
 			},
@@ -1274,7 +1276,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "cancel-current-message",
-			name: "Cancel current message",
+			name: t("commands.cancelMessage"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1289,7 +1291,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "export-chat",
-			name: "Export chat",
+			name: t("commands.exportChat"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1304,7 +1306,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "reload-session",
-			name: "Reload session",
+			name: t("commands.reloadSession"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1319,7 +1321,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "hard-reload-session",
-			name: "Restart session (fresh)",
+			name: t("commands.restartSessionFresh"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1334,7 +1336,7 @@ export default class AgentClientPlugin extends Plugin {
 
 		this.addCommand({
 			id: "reauthenticate-mcp-servers",
-			name: "Re-authenticate MCP servers",
+			name: t("commands.reauthMcp"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1371,7 +1373,7 @@ export default class AgentClientPlugin extends Plugin {
 		// Broadcast prompt: Copy prompt from active view to all other views
 		this.addCommand({
 			id: "broadcast-prompt",
-			name: "Broadcast prompt",
+			name: t("commands.broadcastPrompt"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1384,7 +1386,7 @@ export default class AgentClientPlugin extends Plugin {
 		// Broadcast send: Send message in all views that can send
 		this.addCommand({
 			id: "broadcast-send",
-			name: "Broadcast send",
+			name: t("commands.broadcastSend"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
@@ -1397,7 +1399,7 @@ export default class AgentClientPlugin extends Plugin {
 		// Broadcast cancel: Cancel operation in all views
 		this.addCommand({
 			id: "broadcast-cancel",
-			name: "Broadcast cancel",
+			name: t("commands.broadcastCancel"),
 			checkCallback: (checking: boolean) => {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {

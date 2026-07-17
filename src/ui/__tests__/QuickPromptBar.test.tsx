@@ -14,8 +14,8 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { setIcon } from "obsidian";
 import {
 	QuickPromptBar,
-	NEW_TAB_CHIP_TOOLTIP,
-	THIS_TAB_CHIP_TOOLTIP,
+	newTabChipTooltip,
+	thisTabChipTooltip,
 } from "../QuickPromptBar";
 import type { QuickPrompt } from "../../types/quick-prompt";
 
@@ -67,10 +67,10 @@ describe("QuickPromptBar — T21", () => {
 		// mechanism (not the native `title`). new-tab vs this-tab matrix.
 		expect(
 			screen.getByText("Daily brief").closest("button")!.getAttribute("aria-label"),
-		).toBe(NEW_TAB_CHIP_TOOLTIP);
+		).toBe(newTabChipTooltip());
 		expect(
 			screen.getByText("Sync opps").closest("button")!.getAttribute("aria-label"),
-		).toBe(THIS_TAB_CHIP_TOOLTIP);
+		).toBe(thisTabChipTooltip());
 	});
 
 	it("fires the plain gesture on click; ⌥-click sets insert", () => {

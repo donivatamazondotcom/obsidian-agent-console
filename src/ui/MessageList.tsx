@@ -22,6 +22,7 @@ import {
 	type BuiltInAgentInstall,
 } from "../services/agent-packages";
 import type { InstallResult } from "../services/agent-installer";
+import { t } from "../i18n";
 
 /**
  * Memoized wrapper around MessageBubble. Skips re-rendering when the
@@ -97,7 +98,7 @@ function InstallRow({
 					target="_blank"
 					rel="noopener noreferrer"
 				>
-					Setup guide
+					{t("chat.landing.setupGuide")}
 				</a>
 			</div>
 		);
@@ -115,7 +116,7 @@ function InstallRow({
 		);
 		setInstalling(false);
 		if (!result.ok) {
-			setError(result.message ?? "The install didn't finish.");
+			setError(result.message ?? t("chat.landing.installDidntFinish"));
 		}
 		// On success the agent is detected on re-probe and this whole panel
 		// unmounts — nothing else to do here.
@@ -140,14 +141,18 @@ function InstallRow({
 				disabled={installing}
 				onClick={() => void runInstall()}
 			>
-				{installing ? "Installing…" : "Install"}
+				{installing
+					? t("chat.landing.installing")
+					: t("chat.landing.install")}
 			</button>
 			<button
 				type="button"
 				className="agent-client-install-copy"
 				onClick={copyCommand}
 			>
-				{copied ? "Copied!" : "Copy command"}
+				{copied
+					? t("chat.landing.copied")
+					: t("chat.landing.copyCommand")}
 			</button>
 			{(error || output) && (
 				<pre className="agent-client-install-output">
@@ -172,12 +177,12 @@ export function GettingStarted({ info }: { info: GettingStartedInfo }) {
 	return (
 		<div className="agent-client-chat-empty-state agent-client-getting-started">
 			<div className="agent-client-getting-started-heading">
-				Pick an agent to get started
+				{t("chat.landing.pickAgent")}
 			</div>
 			{view.showAgentPicks && (
 				<>
 					<div className="agent-client-getting-started-subtext">
-						Detected on your machine:
+						{t("chat.landing.detected")}
 					</div>
 					<div className="agent-client-getting-started-picks">
 						{detectedAgents.map((agent) => (
@@ -196,14 +201,13 @@ export function GettingStarted({ info }: { info: GettingStartedInfo }) {
 			{view.showInstallRows && (
 				<>
 					<div className="agent-client-getting-started-subtext">
-						No agent is installed yet. Agent Console needs an AI agent
-						on your computer –{" "}
+						{t("chat.landing.needAgentPrefix")}
 						{BUILTIN_AGENT_INSTALLS.map((agent, i) => (
 							<React.Fragment key={agent.id}>
 								{i > 0 &&
 									(i === BUILTIN_AGENT_INSTALLS.length - 1
-										? ", or "
-										: ", ")}
+										? t("chat.landing.orSeparator")
+										: t("chat.landing.listSeparator"))}
 								<a
 									href={docsSetupUrl(agent.docsSlug)}
 									target="_blank"
@@ -232,7 +236,7 @@ export function GettingStarted({ info }: { info: GettingStartedInfo }) {
 					className="agent-client-getting-started-settings"
 					onClick={onOpenSettings}
 				>
-					Open settings
+					{t("chat.landing.openSettings")}
 				</button>
 			)}
 			{view.showRedetect && (
@@ -241,12 +245,12 @@ export function GettingStarted({ info }: { info: GettingStartedInfo }) {
 					className="agent-client-getting-started-redetect"
 					onClick={onRedetect}
 				>
-					Re-detect
+					{t("chat.landing.redetect")}
 				</button>
 			)}
 			{view.showManualPathHint && (
 				<div className="agent-client-getting-started-hint">
-					Already have one installed elsewhere? Set its path in settings.
+					{t("chat.landing.pathHint")}
 				</div>
 			)}
 		</div>
@@ -416,12 +420,19 @@ export function MessageList({
 					) : (
 						<div className="agent-client-chat-empty-state">
 							{isRestoringSession
-								? "Restoring session..."
+								? t("chat.messages.restoringSession")
 								: lazyState === "idle"
-									? `Send a message to connect to ${agentLabel}...`
+									? t("chat.messages.sendToConnectTo", {
+											agent: agentLabel,
+										})
 									: !isSessionLive(lazyState)
-										? `Connecting to ${agentLabel}...`
-										: `Start a conversation with ${agentLabel}...`}
+										? t("chat.messages.connectingTo", {
+												agent: agentLabel,
+											})
+										: t(
+												"chat.messages.startConversation",
+												{ agent: agentLabel },
+											)}
 						</div>
 					)}
 				</div>
@@ -451,7 +462,9 @@ export function MessageList({
 							a2uiMessageIndex={messageIndex}
 						/>
 						{message.pending && (
-							<span className="agent-client-pending-label">Sending…</span>
+							<span className="agent-client-pending-label">
+								{t("chat.messages.sending")}
+							</span>
 						)}
 					</div>
 				))}
@@ -474,7 +487,7 @@ export function MessageList({
 				</div>
 				{hasActivePermission && (
 					<span className="agent-client-loading-status">
-						Waiting for permission...
+						{t("chat.messages.waitingForPermission")}
 					</span>
 				)}
 			</div>

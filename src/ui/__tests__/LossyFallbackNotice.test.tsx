@@ -24,7 +24,7 @@ import { render } from "@testing-library/react";
 
 import {
 	LossyFallbackNotice,
-	LOSSY_FALLBACK_NOTICE_COPY,
+	lossyFallbackNoticeCopy,
 } from "../LossyFallbackNotice";
 
 describe("LossyFallbackNotice — Decision #11", () => {
@@ -59,7 +59,7 @@ describe("LossyFallbackNotice — Decision #11", () => {
 		const rendered = (container.textContent ?? "")
 			.replace(/\s+/g, " ")
 			.trim();
-		const expected = LOSSY_FALLBACK_NOTICE_COPY.replace(
+		const expected = lossyFallbackNoticeCopy().replace(
 			/\s+/g,
 			" ",
 		).trim();

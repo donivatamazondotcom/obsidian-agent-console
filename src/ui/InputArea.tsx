@@ -1578,14 +1578,14 @@ export function InputArea({
 								className="agent-client-queued-edit"
 								onClick={() => onEditQueued?.()}
 							>
-								Edit
+								{t("chat.composer.edit")}
 							</button>
 							<button
 								type="button"
 								className="agent-client-queued-delete"
 								onClick={() => onDeleteQueued?.()}
 							>
-								Delete
+								{t("chat.composer.delete")}
 							</button>
 						</div>
 					</div>
@@ -1606,7 +1606,7 @@ export function InputArea({
 						readOnly={isQueued}
 						aria-label={
 							isQueued
-								? "Queued message (locked) — use Edit to change it"
+								? t("chat.composer.queuedLocked")
 								: undefined
 						}
 					/>

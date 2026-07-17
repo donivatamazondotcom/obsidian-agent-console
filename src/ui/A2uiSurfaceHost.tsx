@@ -30,6 +30,7 @@ import {
 import type { A2uiValidatedSurface } from "../services/a2ui/types";
 import type { A2uiButton } from "../services/a2ui/action";
 import { MarkdownRenderer } from "./shared/MarkdownRenderer";
+import { t, type TranslationKey } from "../i18n";
 
 export interface A2uiSurfaceHostProps {
 	/** Fence body (candidate envelope line). */
@@ -70,21 +71,18 @@ export interface A2uiSurfaceHostProps {
 }
 
 /** Plain-language disabled reasons (user-facing copy rule: no jargon). */
-const DISABLED_COPY: Record<
+const DISABLED_COPY_KEYS: Record<
 	Exclude<A2uiActionAffordanceReason, "ready">,
-	string
+	TranslationKey
 > = {
-	streaming: "Available when this reply finishes",
-	sending: "Wait for the current reply to finish",
-	queued: "A message is already waiting to send",
-	restoring: "Loading the conversation first",
-	pending: "Sending your choice…",
-	answered: "Already answered",
-	superseded: "Newer choices are below",
+	streaming: "chat.a2ui.disabledStreaming",
+	sending: "chat.a2ui.disabledSending",
+	queued: "chat.a2ui.disabledQueued",
+	restoring: "chat.a2ui.disabledRestoring",
+	pending: "chat.a2ui.disabledPending",
+	answered: "chat.a2ui.disabledAnswered",
+	superseded: "chat.a2ui.disabledSuperseded",
 };
-
-const INERT_REASON =
-	"These buttons couldn't be shown safely, so the content is left as code.";
 
 export function A2uiSurfaceHost(props: A2uiSurfaceHostProps): React.JSX.Element {
 	const { body, fenceText, plugin, answeredComponentId } = props;
@@ -101,7 +99,7 @@ export function A2uiSurfaceHost(props: A2uiSurfaceHostProps): React.JSX.Element 
 		return (
 			<div className="agent-client-a2ui-inert">
 				<MarkdownRenderer text={fenceText} plugin={plugin} />
-				<div className="agent-client-a2ui-inert-reason">{INERT_REASON}</div>
+				<div className="agent-client-a2ui-inert-reason">{t("chat.a2ui.inertReason")}</div>
 			</div>
 		);
 	}
@@ -167,7 +165,7 @@ export function A2uiSurfaceHost(props: A2uiSurfaceHostProps): React.JSX.Element 
 				const reason =
 					affordance.reason === "ready"
 						? undefined
-						: DISABLED_COPY[affordance.reason];
+						: t(DISABLED_COPY_KEYS[affordance.reason]);
 				const className = [
 					"agent-client-a2ui-button",
 					isChosen ? "agent-client-a2ui-button-chosen mod-cta" : "",

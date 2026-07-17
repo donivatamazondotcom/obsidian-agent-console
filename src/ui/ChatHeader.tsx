@@ -4,6 +4,7 @@ import { setIcon, setTooltip } from "obsidian";
 import { SharedLinksButton } from "./SharedLinksButton";
 import type { SharedLink } from "../utils/link-extract";
 import { deriveHeaderSlot } from "../resolvers/header-slot";
+import { t } from "../i18n";
 
 // ============================================================================
 // Types
@@ -138,7 +139,7 @@ function UpdatePill({ onClick }: { onClick: () => void }) {
 		if (ref.current) {
 			setTooltip(
 				ref.current,
-				"Open Community plugins to update Agent Console",
+				t("chat.header.updateTooltip"),
 			);
 		}
 	}, []);
@@ -150,7 +151,7 @@ function UpdatePill({ onClick }: { onClick: () => void }) {
 			className="agent-client-chat-view-header-update"
 			onClick={onClick}
 		>
-			Plugin update available!
+			{t("chat.header.updatePill")}
 		</button>
 	);
 }
@@ -299,7 +300,7 @@ function BrandedTitle({
 						{" · "}
 					</span>
 					<span className="acp-header-branded-connecting">
-						Connecting…
+						{t("chat.header.connecting")}
 					</span>
 				</>
 			)}
@@ -312,7 +313,7 @@ function BrandedTitle({
 						{" · "}
 					</span>
 					<span className="acp-header-branded-connecting">
-						Not connected
+						{t("chat.header.notConnected")}
 					</span>
 				</>
 			)}
@@ -330,10 +331,14 @@ function BrandedTitle({
  */
 function buildHeaderTooltip(segments: HeaderSegments): string {
 	const lines = [
-		`Plugin:  ${segments.plugin}`,
-		`Profile: ${segments.profile}`,
-		`Runtime: ${segments.runtime ?? "Connecting…"}`,
-		`Model:   ${segments.model ?? "Connecting…"}`,
+		t("chat.header.tooltipPlugin", { value: segments.plugin }),
+		t("chat.header.tooltipProfile", { value: segments.profile }),
+		t("chat.header.tooltipRuntime", {
+			value: segments.runtime ?? t("chat.header.connecting"),
+		}),
+		t("chat.header.tooltipModel", {
+			value: segments.model ?? t("chat.header.connecting"),
+		}),
 	];
 	return lines.join("\n");
 }
@@ -386,7 +391,7 @@ export function ChatHeader({
 				)}
 				<NavActionButton
 					icon="refresh-cw"
-					label="Reload — resume session, keep conversation. Shift-click: Restart — fresh session, clears conversation."
+					label={t("chat.header.reloadTooltip")}
 					onClick={(e) => onReload(e.shiftKey)}
 					spinning={isReloading}
 					focusCluster
@@ -394,18 +399,18 @@ export function ChatHeader({
 				{onOpenHistory && (
 					<NavActionButton
 						icon="history"
-						label="Session history"
+						label={t("chat.header.sessionHistory")}
 						onClick={onOpenHistory}
 					/>
 				)}
 				<NavActionButton
 					icon="save"
-					label="Export chat to Markdown"
+					label={t("chat.header.exportTooltip")}
 					onClick={onExportChat}
 				/>
 				<NavActionButton
 					icon="more-vertical"
-					label="More"
+					label={t("chat.header.more")}
 					onClick={onShowMenu}
 				/>
 			</div>

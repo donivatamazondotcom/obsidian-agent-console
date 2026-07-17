@@ -923,7 +923,7 @@ function ChatComponent({
 				saved?.agentId ??
 				activeTab?.agentId ??
 				plugin.settings.defaultAgentId;
-			const baseLabel = saved?.title ?? "Session";
+			const baseLabel = saved?.title ?? t("chat.tabs.sessionFallback");
 			// Forks can't earn an AI title (the rubric fires only on a tab's
 			// first message and a fork is seeded with the transcript), so they
 			// won't diverge on their own — suffix the "Fork: …" title against
@@ -931,7 +931,9 @@ function ChatComponent({
 			const label =
 				mode === "fork"
 					? suffixOnCollision(
-							truncateLabel(`Fork: ${baseLabel}`),
+							truncateLabel(
+								t("chat.tabs.forkPrefix", { label: baseLabel }),
+							),
 							savedSessions.map((s) => s.title ?? ""),
 						)
 					: truncateLabel(baseLabel);
@@ -1067,7 +1069,9 @@ function ChatComponent({
 				menu.addItem((item: MenuItem) => {
 					item.setTitle(
 						opt.isDefault
-							? `${opt.displayName} (default)`
+							? t("chat.tabs.defaultAgentSuffix", {
+									name: opt.displayName,
+								})
 							: opt.displayName,
 					).onClick(() => {
 						tabManager.addTab(opt.id);
@@ -1087,7 +1091,8 @@ function ChatComponent({
 	useEffect(() => {
 		view.setCallbacks({
 			getDisplayName: () =>
-				activeCallbacksRef.current?.getDisplayName() ?? "Chat",
+				activeCallbacksRef.current?.getDisplayName() ??
+				t("chat.tabs.chatFallback"),
 			getInputState: () =>
 				activeCallbacksRef.current?.getInputState() ?? null,
 			setInputState: (state) =>
@@ -1592,7 +1597,7 @@ export class ChatView extends ItemView implements IChatViewContainer {
 	}
 
 	getDisplayName(): string {
-		return this.callbacks?.getDisplayName() ?? "Chat";
+		return this.callbacks?.getDisplayName() ?? t("chat.tabs.chatFallback");
 	}
 
 	getInputState(): ChatInputState | null {

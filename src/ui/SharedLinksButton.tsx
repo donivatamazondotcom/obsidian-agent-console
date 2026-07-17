@@ -3,6 +3,7 @@ const { useRef, useEffect, useCallback } = React;
 import { Menu, setIcon } from "obsidian";
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import type { SharedLink } from "../utils/link-extract";
+import { t } from "../i18n";
 
 // ============================================================================
 // Props
@@ -107,8 +108,13 @@ export function SharedLinksButton({ links, onOpenLink }: SharedLinksButtonProps)
 			disabled={disabled}
 			aria-label={
 				disabled
-					? "No shared links yet"
-					: `Shared links (${count}${newCount > 0 ? `, ${newCount} new` : ""})`
+					? t("chat.sharedLinks.none")
+					: newCount > 0
+						? t("chat.sharedLinks.countWithNew", {
+								count,
+								new: newCount,
+							})
+						: t("chat.sharedLinks.count", { count })
 			}
 			onClick={openMenu}
 		>

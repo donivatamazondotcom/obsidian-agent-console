@@ -15,6 +15,7 @@ const { useRef, useEffect, useCallback } = React;
 import { Menu, setIcon, setTooltip, type MenuItem } from "obsidian";
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import type { TabInfo, TabState } from "../types/tab";
+import { t } from "../i18n";
 
 // ============================================================================
 // Props
@@ -174,7 +175,7 @@ function TabItem({
 						onClose();
 					}
 				}}
-				aria-label="Close tab"
+				aria-label={t("chat.tabBar.closeTab")}
 			/>
 		</div>
 	);
@@ -266,7 +267,7 @@ export function TabBar({
 			registerOpenMenu(menu);
 
 			menu.addItem((item: MenuItem) => {
-				item.setTitle("Rename").setIcon("pencil").onClick(() => {
+				item.setTitle(t("chat.tabBar.rename")).setIcon("pencil").onClick(() => {
 					onRenameTab(tab.tabId);
 				});
 			});
@@ -276,7 +277,7 @@ export function TabBar({
 			// Close is always available — closing the last tab lands on the
 			// zero-tab landing screen (reverses T06/T41/I23 for this path).
 			menu.addItem((item: MenuItem) => {
-				item.setTitle("Close").setIcon("x").onClick(() => {
+				item.setTitle(t("chat.tabBar.close")).setIcon("x").onClick(() => {
 					onCloseTab(tab.tabId);
 				});
 			});
@@ -284,7 +285,7 @@ export function TabBar({
 			// "Close others" / "Close to the right" only apply with >1 tab.
 			if (tabs.length > 1) {
 				menu.addItem((item: MenuItem) => {
-					item.setTitle("Close others").onClick(() => {
+					item.setTitle(t("chat.tabBar.closeOthers")).onClick(() => {
 						onCloseOtherTabs(tab.tabId);
 					});
 				});
@@ -294,7 +295,7 @@ export function TabBar({
 				);
 				if (tabIdx < tabs.length - 1) {
 					menu.addItem((item: MenuItem) => {
-						item.setTitle("Close to the right").onClick(
+						item.setTitle(t("chat.tabBar.closeToRight")).onClick(
 							() => {
 								onCloseTabsToRight(tab.tabId);
 							},
@@ -391,7 +392,7 @@ export function TabBar({
 				ref={addBtnRef}
 				type="button"
 				className="clickable-icon agent-client-tab-bar-add"
-				aria-label="New session tab"
+				aria-label={t("chat.tabBar.newSessionTab")}
 				onClick={onAddTab}
 				onContextMenu={onAddTabWithAgent}
 			/>
@@ -399,7 +400,7 @@ export function TabBar({
 				ref={chevronRef}
 				type="button"
 				className="clickable-icon agent-client-tab-bar-chevron"
-				aria-label="Tab list"
+				aria-label={t("chat.tabBar.tabList")}
 				onClick={handleChevronClick}
 			/>
 		</div>

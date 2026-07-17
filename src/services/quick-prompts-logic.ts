@@ -14,6 +14,7 @@ import type {
 	QuickPromptFileInput,
 	ShowWhenCondition,
 } from "../types/quick-prompt";
+import { t } from "../i18n";
 
 /** The single v1 placeholder. */
 export const SELECTION_TOKEN = "{{selection}}";
@@ -100,9 +101,21 @@ export interface QuickPromptMenuItem {
 
 export function buildChipMenuItems(): QuickPromptMenuItem[] {
 	return [
-		{ action: "edit", title: "Edit prompt", icon: "file-pen" },
-		{ action: "copy", title: "Copy prompt", icon: "copy" },
-		{ action: "rename", title: "Rename", icon: "text-cursor-input" },
+		{
+			action: "edit",
+			title: t("chat.quickPrompts.editPrompt"),
+			icon: "file-pen",
+		},
+		{
+			action: "copy",
+			title: t("chat.quickPrompts.copyPrompt"),
+			icon: "copy",
+		},
+		{
+			action: "rename",
+			title: t("chat.quickPrompts.rename"),
+			icon: "text-cursor-input",
+		},
 	];
 }
 
@@ -453,17 +466,19 @@ export function planQuickPromptFire(
 // ============================================================================
 
 /** Notice copy for the insert fallbacks (spec § Interaction model / Screen mocks). */
-export const UNSENT_DRAFT_NOTICE = "Added to your draft — review and send";
+export function unsentDraftNotice(): string {
+	return t("chat.quickPrompts.addedToDraft");
+}
 export function noSelectionNotice(label: string): string {
-	return `"${label}" needs a selection — dropped into the composer instead.`;
+	return t("chat.quickPrompts.needsSelection", { label });
 }
 /** Toast shown when a prompt is sent into a new **background** tab. */
 export function newTabStartedNotice(label: string): string {
-	return `Started "${label}" in a new tab.`;
+	return t("chat.quickPrompts.startedInNewTab", { label });
 }
 /** Toast shown when a prompt seeds a new **background** tab's composer (no send). */
 export function newTabSeedNotice(label: string): string {
-	return `Opened "${label}" in a new tab to edit.`;
+	return t("chat.quickPrompts.openedInNewTab", { label });
 }
 
 /** Side-effecting actions the executor invokes per the planned action. */
@@ -506,7 +521,7 @@ export function executeQuickPrompt(
 			if (plan.reason === "no-selection") {
 				actions.notify(noSelectionNotice(prompt.label));
 			} else if (plan.reason === "unsent-draft") {
-				actions.notify(UNSENT_DRAFT_NOTICE);
+				actions.notify(unsentDraftNotice());
 			}
 			break;
 		case "new-tab": {
@@ -777,7 +792,9 @@ export const NEW_PROMPT_BODY_PLACEHOLDER = [
 export const MAX_DERIVED_LABEL_LENGTH = 60;
 
 /** Fallback name when a label yields no usable filename / no composer text. */
-const FALLBACK_PROMPT_NAME = "New prompt";
+function fallbackPromptName(): string {
+	return t("chat.quickPrompts.newPromptName");
+}
 
 /**
  * Derive a filesystem-safe basename (no extension, no folder) from a label.
@@ -792,7 +809,7 @@ export function deriveFilenameBase(label: string): string {
 		.replace(/[#:\\/*?"<>|]/g, "")
 		.replace(/\s+/g, " ")
 		.trim();
-	return cleaned.length > 0 ? cleaned : FALLBACK_PROMPT_NAME;
+	return cleaned.length > 0 ? cleaned : fallbackPromptName();
 }
 
 /**
@@ -835,7 +852,7 @@ export function buildNewPromptNote(opts: {
 			// Never write an empty label (QP-I08) — a blank label renders as an
 			// "Empty" property dead end; fall back to the standard name.
 			label:
-				opts.label.trim().length > 0 ? opts.label : FALLBACK_PROMPT_NAME,
+				opts.label.trim().length > 0 ? opts.label : fallbackPromptName(),
 			"open in new tab": false,
 			"always show": false,
 			// Seed the contextual-scope property (empty = search-only) so it
@@ -888,7 +905,7 @@ export function buildCreatePromptRow(
 		return {
 			kind: "create-prompt",
 			query: q,
-			label: "Create quick prompt from this message",
+			label: t("chat.quickPrompts.createFromMessage"),
 			fromComposer: true,
 		};
 	}
@@ -898,14 +915,14 @@ export function buildCreatePromptRow(
 			query: "",
 			label:
 				matchCount > 0
-					? "Create a quick prompt"
-					: "Create your first quick prompt",
+					? t("chat.quickPrompts.create")
+					: t("chat.quickPrompts.createFirst"),
 		};
 	}
 	return {
 		kind: "create-prompt",
 		query: q,
-		label: `Create quick prompt "${q}"`,
+		label: t("chat.quickPrompts.createNamed", { query: q }),
 	};
 }
 
@@ -920,7 +937,7 @@ export function deriveLabelFromComposer(text: string): string {
 		.split("\n")
 		.map((line) => line.trim())
 		.find((line) => line.length > 0);
-	if (!firstLine) return FALLBACK_PROMPT_NAME;
+	if (!firstLine) return fallbackPromptName();
 	return firstLine.slice(0, MAX_DERIVED_LABEL_LENGTH);
 }
 

@@ -9,6 +9,7 @@
 
 import type { AttachedFile, QueuedMessage } from "../types/chat";
 import type { TabSessionState } from "../hooks/useTabSessionState";
+import { t } from "../i18n";
 
 /**
  * Whether a send action should QUEUE rather than dispatch a turn.
@@ -112,8 +113,8 @@ export function buildQueuedBanner(params: {
 	isSessionReady: boolean;
 }): string {
 	return params.isSessionReady
-		? `Queued — sends when ${params.agentLabel} is done`
-		: "Queued — sends when ready";
+		? t("chat.composer.queuedBannerReady", { agent: params.agentLabel })
+		: t("chat.composer.queuedBannerWaiting");
 }
 
 /** Lazy-session states relevant to the connect-flush transition. */
@@ -170,11 +171,21 @@ export function buildComposerPlaceholder(params: {
 		// Falls back to the queue-only wording when labels aren't provided, so
 		// callers that predate steering keep their behavior.
 		if (params.queueKeyLabel && params.steerKeyLabel) {
-			return `${params.queueKeyLabel} to queue · ${params.steerKeyLabel} to send now`;
+			return t("chat.composer.placeholderQueueSteer", {
+				queueKey: params.queueKeyLabel,
+				steerKey: params.steerKeyLabel,
+			});
 		}
-		return `Queue a message – hit Enter to send when ${params.agentLabel} is done`;
+		return t("chat.composer.placeholderStreaming", {
+			agent: params.agentLabel,
+		});
 	}
-	return `Message ${params.agentLabel} - @ to mention notes${params.hasCommands ? ", / for commands" : ""}, ! for quick prompts`;
+	return t("chat.composer.placeholder", {
+		agent: params.agentLabel,
+		commands: params.hasCommands
+			? t("chat.composer.placeholderCommands")
+			: "",
+	});
 }
 
 export interface FlushDecisionParams {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { ContextNote, ContextNoteSource } from "../types/context";
+import { t } from "../i18n";
 
 export interface ContextStripProps {
 	notes: ContextNote[];
@@ -132,11 +133,15 @@ export function ContextStrip({
 				aria-label={
 					grabDisabled
 						? !activeNotePath
-							? "No active note to pin"
+							? t("chat.contextStrip.noActiveNote")
 							: isAlreadyCrystallized
-								? `${activeNoteName} is already in context`
-								: "Maximum 8 context notes. Remove one to add another."
-						: `Pin: ${activeNoteName}`
+								? t("chat.contextStrip.alreadyInContext", {
+										name: activeNoteName ?? "",
+									})
+								: t("chat.contextStrip.maxNotes")
+						: t("chat.contextStrip.pin", {
+								name: activeNoteName ?? "",
+							})
 				}
 				onClick={handleGrabClick}
 			>
@@ -190,7 +195,7 @@ export function ContextStrip({
 							className="context-strip-pill-remove"
 							data-acp-focus-cluster=""
 							tabIndex={-1}
-							aria-label="Remove note from context"
+							aria-label={t("chat.contextStrip.removeNote")}
 							onClick={() => onRemove(note.path)}
 						>
 							×
@@ -230,7 +235,7 @@ export function ContextStrip({
 							className="context-strip-pill-remove"
 							data-acp-focus-cluster=""
 							tabIndex={-1}
-							aria-label="Don't add the active note as context for this chat"
+							aria-label={t("chat.contextStrip.dontAddActiveNote")}
 							onClick={onSuppressProvisional}
 						>
 							×

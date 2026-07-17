@@ -2,6 +2,7 @@ import * as React from "react";
 const { useState } = React;
 
 import type { CarriedOverPreview as CarriedOverPreviewData } from "../services/carried-over-preview";
+import { t } from "../i18n";
 
 /**
  * Read-only block rendered at the top of a freshly-switched tab, showing the
@@ -20,7 +21,7 @@ export function CarriedOverPreview({ data }: { data: CarriedOverPreviewData }) {
 		<div
 			className="agent-client-carried-over"
 			role="region"
-			aria-label={`Carried over from ${data.fromAgent}`}
+			aria-label={t("chat.carriedOver.title", { agent: data.fromAgent })}
 		>
 			<button
 				type="button"
@@ -29,10 +30,10 @@ export function CarriedOverPreview({ data }: { data: CarriedOverPreviewData }) {
 				onClick={() => setCollapsed((c) => !c)}
 			>
 				<span className="agent-client-carried-over-title">
-					Carried over from {data.fromAgent}
+					{t("chat.carriedOver.title", { agent: data.fromAgent })}
 				</span>
 				<span className="agent-client-carried-over-toggle">
-					{collapsed ? "Show" : "Hide"}
+					{collapsed ? t("chat.carriedOver.show") : t("chat.carriedOver.hide")}
 				</span>
 			</button>
 			{!collapsed && (
@@ -43,7 +44,9 @@ export function CarriedOverPreview({ data }: { data: CarriedOverPreviewData }) {
 							className="agent-client-carried-over-turn"
 						>
 							<span className="agent-client-carried-over-role">
-								{turn.role === "user" ? "You" : "Assistant"}
+								{turn.role === "user"
+									? t("chat.carriedOver.you")
+									: t("chat.carriedOver.assistant")}
 							</span>
 							<span className="agent-client-carried-over-text">
 								{turn.text}
