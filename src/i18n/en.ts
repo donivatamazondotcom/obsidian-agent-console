@@ -650,4 +650,97 @@ export const en = {
 	"notices.bootPartRibbon": "ribbon button",
 	"notices.bootPartCommands": "commands",
 	"notices.bootPartSettingsTab": "settings tab",
+	// ---- Phase 3 addendum: notification body, pickers, errors, installer ----
+	"chat.notifications.responseComplete": "{agent} · response complete",
+	"chat.picker.navigate": "navigate",
+	"chat.picker.addToContext": "add to context",
+	"chat.picker.dismiss": "dismiss",
+	"chat.picker.run": "run",
+	"chat.picker.create": "create",
+	"chat.picker.newTab": "new tab",
+	"chat.picker.switch": "switch",
+	"chat.picker.insert": "insert",
+	"chat.picker.opensInNewTab": "opens in a new tab",
+	"chat.picker.usesSelection": "uses your selected text",
+	"chat.folderPicker.selectDirectory": "Select directory",
+	"chat.acpErrors.titleProtocol": "Protocol Error",
+	"chat.acpErrors.titleInvalidRequest": "Invalid Request",
+	"chat.acpErrors.titleMethodNotSupported": "Method Not Supported",
+	"chat.acpErrors.titleInvalidParams": "Invalid Parameters",
+	"chat.acpErrors.titleInternal": "Internal Error",
+	"chat.acpErrors.titleAuthRequired": "Authentication Required",
+	"chat.acpErrors.titleResourceNotFound": "Resource Not Found",
+	"chat.acpErrors.titleAgent": "Agent Error",
+	"chat.acpErrors.unexpected": "An unexpected error occurred.",
+	"chat.acpErrors.suggestTooLong":
+		"The conversation is too long. Try using a compact command if available, or start a new chat.",
+	"chat.acpErrors.suggestBusy":
+		"The service is busy. Please wait a moment and try again.",
+	"chat.acpErrors.suggestRestart": "Try restarting the agent session.",
+	"chat.acpErrors.suggestCheckConfig":
+		"Check your agent configuration in settings.",
+	"chat.acpErrors.suggestTryAgainRestart":
+		"Try again or restart the agent session.",
+	"chat.acpErrors.suggestCheckAuth":
+		"Check if you are logged in or if your API key is set correctly.",
+	"chat.acpErrors.suggestCheckResource":
+		"Check if the file or resource exists.",
+	"chat.acpErrors.stderrApiKeyMissing":
+		"The agent's API key may be missing. For custom agents, add the required API key (e.g., ANTHROPIC_API_KEY) in the agent's Environment Variables setting.",
+	"chat.acpErrors.stderrAuth":
+		"The agent reported an authentication error. Check that your API key or credentials are valid.",
+	"chat.acpErrors.cantStartTitle": "Can't start {agent}",
+	"chat.acpErrors.notInstalled":
+		"{agent} doesn't look installed (couldn't run \"{command}\"). Install it, or open Settings to set its path.",
+	"chat.acpErrors.startupErrorTitle": "Agent Startup Error",
+	"chat.acpErrors.failedToStart": "Failed to start {agent}: {message}",
+	"chat.acpErrors.checkAgentConfig":
+		"Please check the agent configuration in settings.",
+	"chat.acpErrors.pathHintWsl":
+		"1. Verify the agent path: Use \"which {command}\" in your WSL terminal to find the correct path. 2. If the agent requires Node.js, also check that Node.js path is correctly set in General Settings (use \"which node\" to find it).",
+	"chat.acpErrors.pathHintWin":
+		"1. Verify the agent path: Use \"where {command}\" in Command Prompt to find the correct path. 2. If the agent requires Node.js, also check that Node.js path is correctly set in General Settings (use \"where node\" to find it).",
+	"chat.acpErrors.pathHintUnix":
+		"1. Verify the agent path: Use \"which {command}\" in Terminal to find the correct path. 2. If the agent requires Node.js, also check that Node.js path is correctly set in General Settings (use \"which node\" to find it).",
+	"chat.acpErrors.cannotSendTitle": "Cannot Send Message",
+	"chat.acpErrors.noActiveSession":
+		"No active session. Please wait for connection.",
+	"chat.acpErrors.sendFailedTitle": "Send Message Failed",
+	"chat.acpErrors.sendFailed": "Failed to send message",
+	"chat.acpErrors.permissionErrorTitle": "Permission Error",
+	"chat.acpErrors.permissionRespondFailed":
+		"Failed to respond to permission request: {message}",
+	"chat.acpErrors.errorOccurred": "An error occurred",
+	"chat.acpErrors.agentNotFoundTitle": "Agent Not Found",
+	"chat.acpErrors.agentNotFound":
+		"Agent with ID \"{agentId}\" not found in settings",
+	"chat.acpErrors.checkYourAgentConfig":
+		"Please check your agent configuration in settings.",
+	"chat.acpErrors.sessionCreationFailedTitle": "Session Creation Failed",
+	"chat.acpErrors.sessionCreationFailed":
+		"Failed to create new session: {message}",
+	"chat.acpErrors.checkConfigTryAgain":
+		"Please check the agent configuration and try again.",
+	"chat.history.failedFetch": "Failed to fetch sessions: {message}",
+	"chat.history.failedLoadMore": "Failed to load more sessions: {message}",
+	"chat.history.failedRestore": "Failed to restore session: {message}",
+	"chat.history.failedFork": "Failed to fork session: {message}",
+	"chat.history.failedDelete": "Failed to delete session: {message}",
+	"chat.history.failedUpdateTitle": "Failed to update title: {message}",
+	"chat.installer.noNpm":
+		"Couldn't find npm. Install Node.js (which includes npm), then try again — or copy the command and run it in your terminal.",
+	"chat.installer.needsPermission":
+		"This install needs a permission your account doesn't have here. Copy the command and run it in your terminal (you may need sudo).",
+	"chat.installer.noNetwork":
+		"Couldn't reach the network to install. Check your connection, then try again — or copy the command and run it in your terminal.",
+	"chat.installer.didntFinish":
+		"The install didn't finish. Copy the command and run it in your terminal to see the full error.",
+	"chat.updateBanner.migrationTitle": "Package Migration Required",
+	"chat.updateBanner.renamed":
+		"\"{old}\" has been renamed to \"{new}\".\nRun the following in your terminal:",
+	"chat.updateBanner.updateTitle": "Agent Update Available",
+	"chat.updateBanner.updateAvailable":
+		"{package}: {current} → {latest}.\nRun the following in your terminal:",
+	"modals.mcpAuth.linkExpiry":
+		"Sign-in links expire after a while – if the page shows an error, restart the session to get a fresh one.",
 } as const;

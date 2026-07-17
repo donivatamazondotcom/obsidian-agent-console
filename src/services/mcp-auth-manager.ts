@@ -241,7 +241,7 @@ export class McpAuthManager {
 
 		root.createDiv({
 			cls: "agent-client-mcp-auth-notice-hint",
-			text: "Sign-in links expire after a while \u2013 if the page shows an error, restart the session to get a fresh one.",
+			text: t("modals.mcpAuth.linkExpiry"),
 		});
 
 		return createFragment((fragment) => {

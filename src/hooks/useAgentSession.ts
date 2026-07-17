@@ -35,6 +35,7 @@ import {
 	restoreLegacyConfig,
 } from "../services/session-state";
 import { reloadSessionFlow } from "./reloadSessionFlow";
+import { t } from "../i18n";
 
 // ============================================================================
 // Types
@@ -183,8 +184,12 @@ export function useAgentSession(
 				case "process_error":
 					setSession((prev) => ({ ...prev, state: "error" }));
 					setErrorInfo({
-						title: update.error.title || "Agent Error",
-						message: update.error.message || "An error occurred",
+						title:
+							update.error.title ||
+							t("chat.acpErrors.titleAgent"),
+						message:
+							update.error.message ||
+							t("chat.acpErrors.errorOccurred"),
 						suggestion: update.error.suggestion,
 					});
 					break;
@@ -236,10 +241,11 @@ export function useAgentSession(
 				if (!agentSettings) {
 					setSession((prev) => ({ ...prev, state: "error" }));
 					setErrorInfo({
-						title: "Agent Not Found",
-						message: `Agent with ID "${agentId}" not found in settings`,
-						suggestion:
-							"Please check your agent configuration in settings.",
+						title: t("chat.acpErrors.agentNotFoundTitle"),
+						message: t("chat.acpErrors.agentNotFound", {
+							agentId,
+						}),
+						suggestion: t("chat.acpErrors.checkYourAgentConfig"),
 					});
 					return null;
 				}
@@ -330,10 +336,11 @@ export function useAgentSession(
 			} catch (error) {
 				setSession((prev) => ({ ...prev, state: "error" }));
 				setErrorInfo({
-					title: "Session Creation Failed",
-					message: `Failed to create new session: ${extractErrorMessage(error)}`,
-					suggestion:
-						"Please check the agent configuration and try again.",
+					title: t("chat.acpErrors.sessionCreationFailedTitle"),
+					message: t("chat.acpErrors.sessionCreationFailed", {
+						message: extractErrorMessage(error),
+					}),
+					suggestion: t("chat.acpErrors.checkConfigTryAgain"),
 				});
 				return null;
 			}

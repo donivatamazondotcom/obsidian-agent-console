@@ -19,8 +19,8 @@ import {
 	noteToPickerItem,
 	slashCommandToPickerItem,
 	quickPromptToPickerItem,
-	MENTION_INSTRUCTIONS,
-	SLASH_INSTRUCTIONS,
+	mentionInstructions,
+	slashInstructions,
 	quickPromptInstructions,
 } from "../utils/picker-sources";
 import type { ActivePicker } from "../types/picker";
@@ -1481,7 +1481,7 @@ export function InputArea({
 			{mentions.isOpen && (
 				<SuggestionPopup
 					items={mentions.suggestions.map(noteToPickerItem)}
-					instructions={MENTION_INSTRUCTIONS}
+					instructions={mentionInstructions()}
 					selectedIndex={mentions.selectedIndex}
 					onSelect={(index) => {
 						const note = mentions.suggestions[index];
@@ -1497,7 +1497,7 @@ export function InputArea({
 					items={slashCommands.suggestions.map(
 						slashCommandToPickerItem,
 					)}
-					instructions={SLASH_INSTRUCTIONS}
+					instructions={slashInstructions()}
 					selectedIndex={slashCommands.selectedIndex}
 					onSelect={(index) => {
 						const command = slashCommands.suggestions[index];

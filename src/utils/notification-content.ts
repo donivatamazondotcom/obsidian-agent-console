@@ -11,6 +11,8 @@
  * (see [[ACP AI Session Rename]]).
  */
 
+import { t } from "../i18n";
+
 export interface CompletionNotificationInput {
 	/**
 	 * Displayed label of the tab that finished. Undefined for a floating chat
@@ -46,7 +48,9 @@ export function buildCompletionNotificationContent(
 			: COMPLETION_NOTIFICATION_FALLBACK_TITLE;
 	return {
 		title,
-		body: `${input.agentLabel} · response complete`,
+		body: t("chat.notifications.responseComplete", {
+			agent: input.agentLabel,
+		}),
 		tag: input.tabId,
 	};
 }

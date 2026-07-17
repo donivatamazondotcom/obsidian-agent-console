@@ -740,4 +740,99 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"notices.bootPartRibbon": "リボンボタン",
 	"notices.bootPartCommands": "コマンド",
 	"notices.bootPartSettingsTab": "設定タブ",
+	// ---- Phase 3 addendum ----
+	"chat.notifications.responseComplete": "{agent} · 応答完了",
+	"chat.picker.navigate": "移動",
+	"chat.picker.addToContext": "コンテキストに追加",
+	"chat.picker.dismiss": "閉じる",
+	"chat.picker.run": "実行",
+	"chat.picker.create": "作成",
+	"chat.picker.newTab": "新しいタブ",
+	"chat.picker.switch": "切り替え",
+	"chat.picker.insert": "挿入",
+	"chat.picker.opensInNewTab": "新しいタブで開く",
+	"chat.picker.usesSelection": "選択中のテキストを使用",
+	"chat.folderPicker.selectDirectory": "ディレクトリを選択",
+	"chat.acpErrors.titleProtocol": "プロトコルエラー",
+	"chat.acpErrors.titleInvalidRequest": "無効なリクエスト",
+	"chat.acpErrors.titleMethodNotSupported": "未対応のメソッド",
+	"chat.acpErrors.titleInvalidParams": "無効なパラメーター",
+	"chat.acpErrors.titleInternal": "内部エラー",
+	"chat.acpErrors.titleAuthRequired": "認証が必要",
+	"chat.acpErrors.titleResourceNotFound": "リソースが見つかりません",
+	"chat.acpErrors.titleAgent": "エージェントエラー",
+	"chat.acpErrors.unexpected": "予期しないエラーが発生しました。",
+	"chat.acpErrors.suggestTooLong":
+		"会話が長すぎます。利用できる場合は compact コマンドを使うか、新しいチャットを始めてください。",
+	"chat.acpErrors.suggestBusy":
+		"サービスが混み合っています。しばらく待ってからもう一度お試しください。",
+	"chat.acpErrors.suggestRestart":
+		"エージェントセッションをやり直してみてください。",
+	"chat.acpErrors.suggestCheckConfig":
+		"設定でエージェント構成を確認してください。",
+	"chat.acpErrors.suggestTryAgainRestart":
+		"もう一度試すか、エージェントセッションをやり直してください。",
+	"chat.acpErrors.suggestCheckAuth":
+		"ログインしているか、API キーが正しく設定されているか確認してください。",
+	"chat.acpErrors.suggestCheckResource":
+		"ファイルやリソースが存在するか確認してください。",
+	"chat.acpErrors.stderrApiKeyMissing":
+		"エージェントの API キーがないようです。カスタムエージェントの場合は、エージェントの環境変数設定に必要な API キー（例: ANTHROPIC_API_KEY）を追加してください。",
+	"chat.acpErrors.stderrAuth":
+		"エージェントが認証エラーを報告しました。API キーや資格情報が有効か確認してください。",
+	"chat.acpErrors.cantStartTitle": "{agent} を起動できません",
+	"chat.acpErrors.notInstalled":
+		"{agent} はインストールされていないようです（\"{command}\" を実行できませんでした）。インストールするか、設定でパスを指定してください。",
+	"chat.acpErrors.startupErrorTitle": "エージェント起動エラー",
+	"chat.acpErrors.failedToStart": "{agent} の起動に失敗しました: {message}",
+	"chat.acpErrors.checkAgentConfig":
+		"設定でエージェント構成を確認してください。",
+	"chat.acpErrors.pathHintWsl":
+		"1. エージェントのパスを確認: WSL ターミナルで \"which {command}\" を実行して正しいパスを見つけてください。2. エージェントに Node.js が必要な場合は、一般設定の Node.js パスも確認してください（\"which node\" で見つかります）。",
+	"chat.acpErrors.pathHintWin":
+		"1. エージェントのパスを確認: コマンドプロンプトで \"where {command}\" を実行して正しいパスを見つけてください。2. エージェントに Node.js が必要な場合は、一般設定の Node.js パスも確認してください（\"where node\" で見つかります）。",
+	"chat.acpErrors.pathHintUnix":
+		"1. エージェントのパスを確認: ターミナルで \"which {command}\" を実行して正しいパスを見つけてください。2. エージェントに Node.js が必要な場合は、一般設定の Node.js パスも確認してください（\"which node\" で見つかります）。",
+	"chat.acpErrors.cannotSendTitle": "メッセージを送信できません",
+	"chat.acpErrors.noActiveSession":
+		"アクティブなセッションがありません。接続をお待ちください。",
+	"chat.acpErrors.sendFailedTitle": "メッセージ送信失敗",
+	"chat.acpErrors.sendFailed": "メッセージを送信できませんでした",
+	"chat.acpErrors.permissionErrorTitle": "権限エラー",
+	"chat.acpErrors.permissionRespondFailed":
+		"権限リクエストへの応答に失敗しました: {message}",
+	"chat.acpErrors.errorOccurred": "エラーが発生しました",
+	"chat.acpErrors.agentNotFoundTitle": "エージェントが見つかりません",
+	"chat.acpErrors.agentNotFound":
+		"ID \"{agentId}\" のエージェントが設定に見つかりません",
+	"chat.acpErrors.checkYourAgentConfig":
+		"設定でエージェント構成を確認してください。",
+	"chat.acpErrors.sessionCreationFailedTitle": "セッション作成失敗",
+	"chat.acpErrors.sessionCreationFailed":
+		"新しいセッションを作成できませんでした: {message}",
+	"chat.acpErrors.checkConfigTryAgain":
+		"エージェント構成を確認して、もう一度お試しください。",
+	"chat.history.failedFetch": "セッションの取得に失敗しました: {message}",
+	"chat.history.failedLoadMore":
+		"セッションの追加読み込みに失敗しました: {message}",
+	"chat.history.failedRestore": "セッションの復元に失敗しました: {message}",
+	"chat.history.failedFork": "セッションのフォークに失敗しました: {message}",
+	"chat.history.failedDelete": "セッションの削除に失敗しました: {message}",
+	"chat.history.failedUpdateTitle": "タイトルの更新に失敗しました: {message}",
+	"chat.installer.noNpm":
+		"npm が見つかりません。Node.js（npm を含む）をインストールしてから再試行するか、コマンドをコピーしてターミナルで実行してください。",
+	"chat.installer.needsPermission":
+		"このインストールには現在のアカウントにない権限が必要です。コマンドをコピーしてターミナルで実行してください（sudo が必要な場合があります）。",
+	"chat.installer.noNetwork":
+		"ネットワークに接続できずインストールできませんでした。接続を確認して再試行するか、コマンドをコピーしてターミナルで実行してください。",
+	"chat.installer.didntFinish":
+		"インストールが完了しませんでした。コマンドをコピーしてターミナルで実行すると、完全なエラーを確認できます。",
+	"chat.updateBanner.migrationTitle": "パッケージの移行が必要",
+	"chat.updateBanner.renamed":
+		"\"{old}\" は \"{new}\" に名前が変わりました。\nターミナルで次を実行してください:",
+	"chat.updateBanner.updateTitle": "エージェントの更新があります",
+	"chat.updateBanner.updateAvailable":
+		"{package}: {current} → {latest}。\nターミナルで次を実行してください:",
+	"modals.mcpAuth.linkExpiry":
+		"サインインリンクはしばらくすると期限切れになります – ページにエラーが表示されたら、セッションをやり直して新しいリンクを取得してください。",
 });

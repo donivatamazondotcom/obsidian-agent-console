@@ -695,4 +695,97 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"notices.bootPartRibbon": "리본 버튼",
 	"notices.bootPartCommands": "명령",
 	"notices.bootPartSettingsTab": "설정 탭",
+	// ---- Phase 3 addendum ----
+	"chat.notifications.responseComplete": "{agent} · 응답 완료",
+	"chat.picker.navigate": "이동",
+	"chat.picker.addToContext": "컨텍스트에 추가",
+	"chat.picker.dismiss": "닫기",
+	"chat.picker.run": "실행",
+	"chat.picker.create": "만들기",
+	"chat.picker.newTab": "새 탭",
+	"chat.picker.switch": "전환",
+	"chat.picker.insert": "삽입",
+	"chat.picker.opensInNewTab": "새 탭에서 열림",
+	"chat.picker.usesSelection": "선택한 텍스트 사용",
+	"chat.folderPicker.selectDirectory": "디렉터리 선택",
+	"chat.acpErrors.titleProtocol": "프로토콜 오류",
+	"chat.acpErrors.titleInvalidRequest": "잘못된 요청",
+	"chat.acpErrors.titleMethodNotSupported": "지원되지 않는 메서드",
+	"chat.acpErrors.titleInvalidParams": "잘못된 매개변수",
+	"chat.acpErrors.titleInternal": "내부 오류",
+	"chat.acpErrors.titleAuthRequired": "인증 필요",
+	"chat.acpErrors.titleResourceNotFound": "리소스를 찾을 수 없음",
+	"chat.acpErrors.titleAgent": "에이전트 오류",
+	"chat.acpErrors.unexpected": "예기치 않은 오류가 발생했습니다.",
+	"chat.acpErrors.suggestTooLong":
+		"대화가 너무 깁니다. 가능하면 압축(compact) 명령을 사용하거나 새 채팅을 시작하세요.",
+	"chat.acpErrors.suggestBusy":
+		"서비스가 혼잡합니다. 잠시 기다렸다가 다시 시도하세요.",
+	"chat.acpErrors.suggestRestart": "에이전트 세션을 다시 시작해 보세요.",
+	"chat.acpErrors.suggestCheckConfig":
+		"설정에서 에이전트 구성을 확인하세요.",
+	"chat.acpErrors.suggestTryAgainRestart":
+		"다시 시도하거나 에이전트 세션을 다시 시작하세요.",
+	"chat.acpErrors.suggestCheckAuth":
+		"로그인 상태이거나 API 키가 올바르게 설정되어 있는지 확인하세요.",
+	"chat.acpErrors.suggestCheckResource":
+		"파일이나 리소스가 존재하는지 확인하세요.",
+	"chat.acpErrors.stderrApiKeyMissing":
+		"에이전트의 API 키가 없는 것 같습니다. 사용자 지정 에이전트라면 에이전트의 환경 변수 설정에 필요한 API 키(예: ANTHROPIC_API_KEY)를 추가하세요.",
+	"chat.acpErrors.stderrAuth":
+		"에이전트가 인증 오류를 보고했습니다. API 키나 자격 증명이 유효한지 확인하세요.",
+	"chat.acpErrors.cantStartTitle": "{agent}을(를) 시작할 수 없음",
+	"chat.acpErrors.notInstalled":
+		"{agent}이(가) 설치되어 있지 않은 것 같습니다(\"{command}\"을(를) 실행할 수 없음). 설치하거나 설정에서 경로를 지정하세요.",
+	"chat.acpErrors.startupErrorTitle": "에이전트 시작 오류",
+	"chat.acpErrors.failedToStart": "{agent} 시작 실패: {message}",
+	"chat.acpErrors.checkAgentConfig":
+		"설정에서 에이전트 구성을 확인해 주세요.",
+	"chat.acpErrors.pathHintWsl":
+		"1. 에이전트 경로 확인: WSL 터미널에서 \"which {command}\"로 올바른 경로를 찾으세요. 2. 에이전트에 Node.js가 필요하다면 일반 설정의 Node.js 경로도 확인하세요(\"which node\"로 찾을 수 있습니다).",
+	"chat.acpErrors.pathHintWin":
+		"1. 에이전트 경로 확인: 명령 프롬프트에서 \"where {command}\"로 올바른 경로를 찾으세요. 2. 에이전트에 Node.js가 필요하다면 일반 설정의 Node.js 경로도 확인하세요(\"where node\"로 찾을 수 있습니다).",
+	"chat.acpErrors.pathHintUnix":
+		"1. 에이전트 경로 확인: 터미널에서 \"which {command}\"로 올바른 경로를 찾으세요. 2. 에이전트에 Node.js가 필요하다면 일반 설정의 Node.js 경로도 확인하세요(\"which node\"로 찾을 수 있습니다).",
+	"chat.acpErrors.cannotSendTitle": "메시지를 보낼 수 없음",
+	"chat.acpErrors.noActiveSession":
+		"활성 세션이 없습니다. 연결될 때까지 기다려 주세요.",
+	"chat.acpErrors.sendFailedTitle": "메시지 전송 실패",
+	"chat.acpErrors.sendFailed": "메시지를 보내지 못했습니다",
+	"chat.acpErrors.permissionErrorTitle": "권한 오류",
+	"chat.acpErrors.permissionRespondFailed":
+		"권한 요청에 응답하지 못했습니다: {message}",
+	"chat.acpErrors.errorOccurred": "오류가 발생했습니다",
+	"chat.acpErrors.agentNotFoundTitle": "에이전트를 찾을 수 없음",
+	"chat.acpErrors.agentNotFound":
+		"ID가 \"{agentId}\"인 에이전트를 설정에서 찾을 수 없습니다",
+	"chat.acpErrors.checkYourAgentConfig":
+		"설정에서 에이전트 구성을 확인해 주세요.",
+	"chat.acpErrors.sessionCreationFailedTitle": "세션 생성 실패",
+	"chat.acpErrors.sessionCreationFailed":
+		"새 세션을 만들지 못했습니다: {message}",
+	"chat.acpErrors.checkConfigTryAgain":
+		"에이전트 구성을 확인한 뒤 다시 시도해 주세요.",
+	"chat.history.failedFetch": "세션을 가져오지 못했습니다: {message}",
+	"chat.history.failedLoadMore": "세션을 더 불러오지 못했습니다: {message}",
+	"chat.history.failedRestore": "세션을 복원하지 못했습니다: {message}",
+	"chat.history.failedFork": "세션을 분기하지 못했습니다: {message}",
+	"chat.history.failedDelete": "세션을 삭제하지 못했습니다: {message}",
+	"chat.history.failedUpdateTitle": "제목을 변경하지 못했습니다: {message}",
+	"chat.installer.noNpm":
+		"npm을 찾을 수 없습니다. Node.js(npm 포함)를 설치한 뒤 다시 시도하거나, 명령을 복사해 터미널에서 실행하세요.",
+	"chat.installer.needsPermission":
+		"이 설치에는 현재 계정에 없는 권한이 필요합니다. 명령을 복사해 터미널에서 실행하세요(sudo가 필요할 수 있습니다).",
+	"chat.installer.noNetwork":
+		"네트워크에 연결할 수 없어 설치하지 못했습니다. 연결을 확인한 뒤 다시 시도하거나, 명령을 복사해 터미널에서 실행하세요.",
+	"chat.installer.didntFinish":
+		"설치가 끝나지 않았습니다. 명령을 복사해 터미널에서 실행하면 전체 오류를 볼 수 있습니다.",
+	"chat.updateBanner.migrationTitle": "패키지 이전 필요",
+	"chat.updateBanner.renamed":
+		"\"{old}\"의 이름이 \"{new}\"(으)로 바뀌었습니다.\n터미널에서 다음을 실행하세요:",
+	"chat.updateBanner.updateTitle": "에이전트 업데이트 가능",
+	"chat.updateBanner.updateAvailable":
+		"{package}: {current} → {latest}.\n터미널에서 다음을 실행하세요:",
+	"modals.mcpAuth.linkExpiry":
+		"로그인 링크는 일정 시간이 지나면 만료됩니다 – 페이지에 오류가 표시되면 세션을 다시 시작해 새 링크를 받으세요.",
 });

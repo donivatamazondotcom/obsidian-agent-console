@@ -17,6 +17,7 @@ import type { SessionListSource } from "../resolvers/session-history-view";
 import type { ChatMessage } from "../types/chat";
 import { extractErrorMessage } from "../utils/error-utils";
 import type { ContextNote } from "../types/context";
+import { t } from "../i18n";
 
 // ============================================================================
 // Types
@@ -458,7 +459,9 @@ export function useSessionHistory(
 				};
 			} catch (err) {
 				const errorMessage = extractErrorMessage(err);
-				setError(`Failed to fetch sessions: ${errorMessage}`);
+				setError(
+					t("chat.history.failedFetch", { message: errorMessage }),
+				);
 				setSessions([]);
 				setNextCursor(undefined);
 			} finally {
@@ -523,7 +526,9 @@ export function useSessionHistory(
 			}
 		} catch (err) {
 			const errorMessage = extractErrorMessage(err);
-			setError(`Failed to load more sessions: ${errorMessage}`);
+			setError(
+					t("chat.history.failedLoadMore", { message: errorMessage }),
+				);
 		} finally {
 			setLoading(false);
 		}
@@ -630,7 +635,9 @@ export function useSessionHistory(
 				}
 			} catch (err) {
 				const errorMessage = extractErrorMessage(err);
-				setError(`Failed to restore session: ${errorMessage}`);
+				setError(
+					t("chat.history.failedRestore", { message: errorMessage }),
+				);
 				throw err; // Re-throw to allow caller to handle
 			} finally {
 				setLoading(false);
@@ -729,7 +736,9 @@ export function useSessionHistory(
 				invalidateCache();
 			} catch (err) {
 				const errorMessage = extractErrorMessage(err);
-				setError(`Failed to fork session: ${errorMessage}`);
+				setError(
+					t("chat.history.failedFork", { message: errorMessage }),
+				);
 				throw err; // Re-throw to allow caller to handle
 			} finally {
 				setLoading(false);
@@ -767,7 +776,9 @@ export function useSessionHistory(
 				invalidateCache();
 			} catch (err) {
 				const errorMessage = extractErrorMessage(err);
-				setError(`Failed to delete session: ${errorMessage}`);
+				setError(
+					t("chat.history.failedDelete", { message: errorMessage }),
+				);
 				throw err; // Re-throw to allow caller to handle
 			}
 		},
@@ -818,7 +829,9 @@ export function useSessionHistory(
 					),
 				);
 				const errorMessage = extractErrorMessage(err);
-				setError(`Failed to update title: ${errorMessage}`);
+				setError(
+					t("chat.history.failedUpdateTitle", { message: errorMessage }),
+				);
 				throw err;
 			}
 		},

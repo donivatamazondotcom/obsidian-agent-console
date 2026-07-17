@@ -43,6 +43,7 @@ import {
 	createUpdateFlushScheduler,
 	type UpdateFlushScheduler,
 } from "../utils/update-flush-scheduler";
+import { t } from "../i18n";
 
 // ============================================================================
 // Types
@@ -381,8 +382,8 @@ export function useAgentMessages(
 		async (content: string, options: SendMessageOptions): Promise<void> => {
 			if (!session.sessionId) {
 				setErrorInfo({
-					title: "Cannot Send Message",
-					message: "No active session. Please wait for connection.",
+					title: t("chat.acpErrors.cannotSendTitle"),
+					message: t("chat.acpErrors.noActiveSession"),
 				});
 				return;
 			}
@@ -551,8 +552,12 @@ export function useAgentMessages(
 										suggestion: result.error.suggestion,
 									}
 								: {
-										title: "Send Message Failed",
-										message: "Failed to send message",
+										title: t(
+											"chat.acpErrors.sendFailedTitle",
+										),
+										message: t(
+											"chat.acpErrors.sendFailed",
+										),
 									},
 						);
 					}
@@ -607,8 +612,10 @@ export function useAgentMessages(
 				await agentClient.respondToPermission(requestId, optionId);
 			} catch (error) {
 				setErrorInfo({
-					title: "Permission Error",
-					message: `Failed to respond to permission request: ${extractErrorMessage(error)}`,
+					title: t("chat.acpErrors.permissionErrorTitle"),
+					message: t("chat.acpErrors.permissionRespondFailed", {
+						message: extractErrorMessage(error),
+					}),
 				});
 			}
 		},

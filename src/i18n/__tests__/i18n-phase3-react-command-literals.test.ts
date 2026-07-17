@@ -38,7 +38,15 @@ const SRC_ROOT = resolve(__dirname, "../..");
 const UI_DIR = join(SRC_ROOT, "ui");
 
 /** Extra non-React files that carry extracted phase-3 UI strings. */
-const EXTRA_FILES = ["services/quick-prompts-logic.ts"];
+const EXTRA_FILES = [
+	"services/quick-prompts-logic.ts",
+	"services/agent-installer.ts",
+	"services/update-checker.ts",
+	"utils/error-utils.ts",
+	"utils/notification-content.ts",
+	"utils/picker-sources.ts",
+	"utils/folder-picker.ts",
+];
 
 /**
  * Global allowlist — strings that legitimately stay literal anywhere.
@@ -115,6 +123,27 @@ const PER_FILE_ALLOW: Record<string, string[]> = {
 		"To pull in text you've selected in a note, write {{selection}} in your prompt above.",
 		"Guide: https://donivatamazondotcom.github.io/obsidian-agent-console/usage/quick-prompts",
 	],
+	// Detection patterns matched against agent stderr — not user copy.
+	"utils/error-utils.ts": [
+		"API key is missing",
+		"LoadAPIKeyError",
+		"empty response text",
+		"user aborted",
+		"too long",
+	],
+	// Detection patterns matched against npm output, plus literal npm
+	// command templates (correct in every language) — not user copy.
+	"services/agent-installer.ts": [
+		"npm: not found",
+		"permission denied",
+		"command not found",
+		"@latest",
+	],
+	"services/update-checker.ts": [
+		"npm uninstall -g   && npm install -g",
+		"npm install -g  @latest",
+		"https://registry.npmjs.org/ /latest",
+	],
 };
 
 function stripComments(src: string): string {
@@ -180,6 +209,17 @@ function tokenizeStrings(src: string): FoundString[] {
 	let i = 0;
 	while (i < src.length) {
 		const ch = src[i];
+		// Comment-aware: skip // and /* */ so an apostrophe inside a
+		// comment can never open a phantom string.
+		if (ch === "/" && src[i + 1] === "/") {
+			while (i < src.length && src[i] !== "\n") i++;
+			continue;
+		}
+		if (ch === "/" && src[i + 1] === "*") {
+			const end = src.indexOf("*/", i + 2);
+			i = end === -1 ? src.length : end + 2;
+			continue;
+		}
 		if (ch === '"' || ch === "'" || ch === "`") {
 			const quote = ch;
 			const start = i;

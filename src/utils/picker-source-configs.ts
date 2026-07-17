@@ -37,8 +37,8 @@ import {
 	noteToPickerItem,
 	slashCommandToPickerItem,
 	quickPromptToPickerItem,
-	MENTION_INSTRUCTIONS,
-	SLASH_INSTRUCTIONS,
+	mentionInstructions,
+	slashInstructions,
 	quickPromptInstructions,
 } from "./picker-sources";
 
@@ -61,7 +61,7 @@ export function makeMentionSource(
 		navPolicy: "clamp",
 		onSelect: (input, ctx, note) =>
 			replaceMention(input, ctx, note.name).newText,
-		instructions: () => MENTION_INSTRUCTIONS,
+		instructions: () => mentionInstructions(),
 		// Esc keeps the dropdown closed for the current @ run (multi-word
 		// queries allow spaces, so the run persists in the text).
 		dismissGuard: true,
@@ -90,7 +90,7 @@ export function makeSlashSource(
 		toPickerItem: slashCommandToPickerItem,
 		navPolicy: "clamp",
 		onSelect: (_input, _ctx, command) => `/${command.name} `,
-		instructions: () => SLASH_INSTRUCTIONS,
+		instructions: () => slashInstructions(),
 		capabilities: {
 			dismissOnShiftEnter: false,
 			ownsEnterScopeCombos: false,

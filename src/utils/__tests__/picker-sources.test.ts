@@ -10,8 +10,8 @@ import {
 	noteToPickerItem,
 	slashCommandToPickerItem,
 	quickPromptToPickerItem,
-	MENTION_INSTRUCTIONS,
-	SLASH_INSTRUCTIONS,
+	mentionInstructions,
+	slashInstructions,
 	quickPromptInstructions,
 } from "../picker-sources";
 
@@ -89,7 +89,7 @@ describe("quickPromptToPickerItem", () => {
 
 describe("instruction sets", () => {
 	it("mention + slash footers carry navigate / dismiss labels", () => {
-		for (const set of [MENTION_INSTRUCTIONS, SLASH_INSTRUCTIONS]) {
+		for (const set of [mentionInstructions(), slashInstructions()]) {
 			const labels = set.map((i) => i.label);
 			expect(labels).toContain("navigate");
 			expect(labels).toContain("dismiss");

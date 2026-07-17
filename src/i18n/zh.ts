@@ -675,4 +675,89 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"notices.bootPartRibbon": "侧边栏按钮",
 	"notices.bootPartCommands": "命令",
 	"notices.bootPartSettingsTab": "设置选项卡",
+	// ---- Phase 3 addendum ----
+	"chat.notifications.responseComplete": "{agent} · 回复完成",
+	"chat.picker.navigate": "导航",
+	"chat.picker.addToContext": "加入上下文",
+	"chat.picker.dismiss": "关闭",
+	"chat.picker.run": "运行",
+	"chat.picker.create": "创建",
+	"chat.picker.newTab": "新标签页",
+	"chat.picker.switch": "切换",
+	"chat.picker.insert": "插入",
+	"chat.picker.opensInNewTab": "在新标签页打开",
+	"chat.picker.usesSelection": "使用选中文本",
+	"chat.folderPicker.selectDirectory": "选择目录",
+	"chat.acpErrors.titleProtocol": "协议错误",
+	"chat.acpErrors.titleInvalidRequest": "无效请求",
+	"chat.acpErrors.titleMethodNotSupported": "不支持的方法",
+	"chat.acpErrors.titleInvalidParams": "无效参数",
+	"chat.acpErrors.titleInternal": "内部错误",
+	"chat.acpErrors.titleAuthRequired": "需要身份验证",
+	"chat.acpErrors.titleResourceNotFound": "找不到资源",
+	"chat.acpErrors.titleAgent": "代理错误",
+	"chat.acpErrors.unexpected": "发生了意外错误。",
+	"chat.acpErrors.suggestTooLong":
+		"对话太长。可尝试压缩命令（如可用），或开始新聊天。",
+	"chat.acpErrors.suggestBusy": "服务繁忙。请稍等片刻后重试。",
+	"chat.acpErrors.suggestRestart": "请尝试重新开始代理会话。",
+	"chat.acpErrors.suggestCheckConfig": "请在设置中检查代理配置。",
+	"chat.acpErrors.suggestTryAgainRestart":
+		"请重试，或重新开始代理会话。",
+	"chat.acpErrors.suggestCheckAuth":
+		"请检查是否已登录，或 API 密钥是否设置正确。",
+	"chat.acpErrors.suggestCheckResource": "请检查文件或资源是否存在。",
+	"chat.acpErrors.stderrApiKeyMissing":
+		"代理的 API 密钥可能缺失。若为自定义代理，请在其环境变量设置中添加所需的 API 密钥（如 ANTHROPIC_API_KEY）。",
+	"chat.acpErrors.stderrAuth":
+		"代理报告了身份验证错误。请检查你的 API 密钥或凭据是否有效。",
+	"chat.acpErrors.cantStartTitle": "无法启动 {agent}",
+	"chat.acpErrors.notInstalled":
+		"{agent} 似乎未安装（无法运行 \"{command}\"）。请安装它，或打开设置指定其路径。",
+	"chat.acpErrors.startupErrorTitle": "代理启动错误",
+	"chat.acpErrors.failedToStart": "启动 {agent} 失败：{message}",
+	"chat.acpErrors.checkAgentConfig": "请在设置中检查代理配置。",
+	"chat.acpErrors.pathHintWsl":
+		"1. 核对代理路径：在 WSL 终端运行 \"which {command}\" 找到正确路径。2. 如果代理需要 Node.js，请同时在常规设置中确认 Node.js 路径（用 \"which node\" 查找）。",
+	"chat.acpErrors.pathHintWin":
+		"1. 核对代理路径：在命令提示符运行 \"where {command}\" 找到正确路径。2. 如果代理需要 Node.js，请同时在常规设置中确认 Node.js 路径（用 \"where node\" 查找）。",
+	"chat.acpErrors.pathHintUnix":
+		"1. 核对代理路径：在终端运行 \"which {command}\" 找到正确路径。2. 如果代理需要 Node.js，请同时在常规设置中确认 Node.js 路径（用 \"which node\" 查找）。",
+	"chat.acpErrors.cannotSendTitle": "无法发送消息",
+	"chat.acpErrors.noActiveSession": "没有活动会话。请等待连接。",
+	"chat.acpErrors.sendFailedTitle": "消息发送失败",
+	"chat.acpErrors.sendFailed": "消息发送失败",
+	"chat.acpErrors.permissionErrorTitle": "权限错误",
+	"chat.acpErrors.permissionRespondFailed":
+		"响应权限请求失败：{message}",
+	"chat.acpErrors.errorOccurred": "发生了错误",
+	"chat.acpErrors.agentNotFoundTitle": "找不到代理",
+	"chat.acpErrors.agentNotFound":
+		"在设置中找不到 ID 为 \"{agentId}\" 的代理",
+	"chat.acpErrors.checkYourAgentConfig": "请在设置中检查你的代理配置。",
+	"chat.acpErrors.sessionCreationFailedTitle": "会话创建失败",
+	"chat.acpErrors.sessionCreationFailed": "创建新会话失败：{message}",
+	"chat.acpErrors.checkConfigTryAgain": "请检查代理配置后重试。",
+	"chat.history.failedFetch": "获取会话失败：{message}",
+	"chat.history.failedLoadMore": "加载更多会话失败：{message}",
+	"chat.history.failedRestore": "恢复会话失败：{message}",
+	"chat.history.failedFork": "分支会话失败：{message}",
+	"chat.history.failedDelete": "删除会话失败：{message}",
+	"chat.history.failedUpdateTitle": "更新标题失败：{message}",
+	"chat.installer.noNpm":
+		"找不到 npm。请安装 Node.js（自带 npm）后重试，或复制命令到终端运行。",
+	"chat.installer.needsPermission":
+		"此安装需要当前账户没有的权限。请复制命令到终端运行（可能需要 sudo）。",
+	"chat.installer.noNetwork":
+		"无法联网安装。请检查网络后重试，或复制命令到终端运行。",
+	"chat.installer.didntFinish":
+		"安装未完成。请复制命令到终端运行以查看完整错误。",
+	"chat.updateBanner.migrationTitle": "需要迁移软件包",
+	"chat.updateBanner.renamed":
+		"\"{old}\" 已更名为 \"{new}\"。\n请在终端运行以下命令：",
+	"chat.updateBanner.updateTitle": "代理有可用更新",
+	"chat.updateBanner.updateAvailable":
+		"{package}：{current} → {latest}。\n请在终端运行以下命令：",
+	"modals.mcpAuth.linkExpiry":
+		"登录链接会在一段时间后过期 – 如果页面显示错误，请重新开始会话获取新链接。",
 });
