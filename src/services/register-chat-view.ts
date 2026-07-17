@@ -1,5 +1,6 @@
 import type { View, WorkspaceLeaf } from "obsidian";
 import { VIEW_TYPE_CHAT } from "../ui/chat-view-type";
+import { t } from "../i18n";
 
 /** Minimal `Plugin.registerView` surface — test-seam. */
 export interface ChatViewRegistrar {
@@ -32,9 +33,7 @@ export function registerChatViewSafely(
 	} catch (error) {
 		logError?.(`registerView("${VIEW_TYPE_CHAT}") failed`, error);
 		notify(
-			"Agent Console couldn't open its panel because another plugin is " +
-				"using the same view. Please disable one of the two plugins and " +
-				"reload Obsidian.",
+			t("notices.viewRegistrationConflict"),
 		);
 		return false;
 	}

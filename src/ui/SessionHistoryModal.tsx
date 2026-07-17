@@ -19,6 +19,7 @@ import {
 import { useSessionSearch } from "../hooks/useSessionSearch";
 import type { SearchSnippet } from "../services/session-search";
 import { formatSessionTitle } from "../utils/format-session-title";
+import { t } from "../i18n";
 
 // ============================================================
 // ConfirmDeleteModal (internal)
@@ -49,16 +50,16 @@ class ConfirmDeleteModal extends Modal {
 		contentEl.empty();
 
 		// Title
-		contentEl.createEl("h2", { text: "Delete session?" });
+		contentEl.createEl("h2", { text: t("modals.deleteSession.title") });
 
 		// Message
 		contentEl.createEl("p", {
-			text: `Are you sure you want to delete "${this.sessionTitle}"?`,
+			text: t("modals.deleteSession.body", { title: this.sessionTitle }),
 			cls: "agent-client-confirm-delete-message",
 		});
 
 		contentEl.createEl("p", {
-			text: "This only removes the session from this plugin. The session data will remain on the agent side.",
+			text: t("modals.deleteSession.hint"),
 			cls: "agent-client-confirm-delete-warning",
 		});
 
@@ -69,7 +70,7 @@ class ConfirmDeleteModal extends Modal {
 
 		// Cancel button
 		const cancelButton = buttonContainer.createEl("button", {
-			text: "Cancel",
+			text: t("modals.common.cancel"),
 			cls: "agent-client-confirm-delete-cancel",
 		});
 		cancelButton.addEventListener("click", () => {
@@ -78,7 +79,7 @@ class ConfirmDeleteModal extends Modal {
 
 		// Delete button
 		const deleteButton = buttonContainer.createEl("button", {
-			text: "Delete",
+			text: t("modals.deleteSession.confirm"),
 			cls: "agent-client-confirm-delete-confirm mod-warning",
 		});
 		deleteButton.addEventListener("click", () => {
@@ -121,7 +122,7 @@ export class EditTitleModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		contentEl.createEl("h2", { text: "Edit session title" });
+		contentEl.createEl("h2", { text: t("modals.editTitle.title") });
 
 		const inputEl = contentEl.createEl("input", {
 			type: "text",
@@ -150,14 +151,14 @@ export class EditTitleModal extends Modal {
 		});
 
 		buttonContainer
-			.createEl("button", { text: "Cancel" })
+			.createEl("button", { text: t("modals.common.cancel") })
 			.addEventListener("click", () => {
 				this.close();
 			});
 
 		buttonContainer
 			.createEl("button", {
-				text: "Save",
+				text: t("modals.editTitle.save"),
 				cls: "mod-cta",
 			})
 			.addEventListener("click", () => {
@@ -168,7 +169,7 @@ export class EditTitleModal extends Modal {
 	private saveAndClose(rawValue: string) {
 		const value = rawValue.trim();
 		if (!value) {
-			new Notice("Title can't be empty");
+			new Notice(t("notices.titleEmpty"));
 			return;
 		}
 		this.close();
@@ -1146,7 +1147,7 @@ export class SessionHistoryModal extends Modal {
 		this.modalEl.addClass("agent-client-session-history-modal");
 
 		// Add modal title
-		contentEl.createEl("h2", { text: "Session history" });
+		contentEl.createEl("h2", { text: t("modals.sessionHistory.title") });
 
 		// Create container for React content. The class makes it a flex column
 		// that fills the fixed-height modal frame so the list flexes and header

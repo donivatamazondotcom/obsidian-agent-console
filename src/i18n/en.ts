@@ -230,4 +230,187 @@ export const en = {
 	"settings.defaultWorkingDirectory.pickerTitle": "Select default working directory",
 	"settings.workingDirectory.pickerTitle": "Select working directory",
 	"settings.customAgents.defaultName": "Custom agent",
+	// --- Phase 2: notices ---
+	"notices.quickPromptCollided":
+		'[Agent Console] A quick prompt with that name already existed — saved as "{basename}".',
+	"notices.quickPromptCreated":
+		'[Agent Console] Created quick prompt "{basename}".',
+	"notices.quickPromptCreateFailed":
+		"[Agent Console] Could not create the quick prompt — see the console.",
+	"notices.quickPromptNoteNotFound":
+		'[Agent Console] Could not open "{label}" — the note was not found.',
+	"notices.promptTextCopied": "[Agent Console] Copied prompt text.",
+	"notices.promptTextCopyFailed":
+		"[Agent Console] Could not copy the prompt text — see the console.",
+	"notices.quickPromptRenameFailed":
+		"[Agent Console] Could not rename the quick prompt — see the console.",
+	"notices.noQuickPromptsFound":
+		'[Agent Console] No quick prompts found. Add markdown notes to your "{folder}" folder.',
+	"notices.noChatTabsOpen": "[Agent Console] No chat tabs open",
+	"notices.noPromptToBroadcast": "[Agent Console] No prompt to broadcast",
+	"notices.noOtherTabsToBroadcast":
+		"[Agent Console] No other chat tabs to broadcast to",
+	"notices.broadcastSkipNote": " ({count} skipped — pending queued message)",
+	"notices.promptBroadcast":
+		"[Agent Console] Prompt broadcast to {count} tab(s){skipNote}",
+	"notices.noTabsReadyToSend": "[Agent Console] No tabs ready to send",
+	"notices.sentInTabs": "[Agent Console] Sent in {count} tab(s){skipNote}",
+	"notices.cancelBroadcast":
+		"[Agent Console] Cancel broadcast to {count} tab(s)",
+	"notices.contextStripMigration":
+		"Agent Console: the active note no longer follows the chat. Use the new context strip to pin notes into context.",
+	"notices.importSettingsFound":
+		"Agent Console: found {plugin} settings — click to import them.",
+	"notices.apiKeyMigrated":
+		'[Agent Console] Your {agent} API key has been migrated to Obsidian\'s Keychain as "{secretId}".',
+	"notices.apiKeyMigratedFallback":
+		'[Agent Console] "{defaultId}" was already in use. Your {agent} API key was migrated to "{fallbackId}". You can rename it in Obsidian\'s Keychain settings.',
+	"notices.updateAvailable": "[Agent Console] Update available: v{version}",
+	"notices.chatExported": "[Agent Console] Chat exported to {path}",
+	"notices.chatExportFailed": "[Agent Console] Failed to export chat",
+	"notices.alreadyNewSession": "[Agent Console] Already a new session",
+	"notices.newSessionFailed": "[Agent Console] Failed to create new session",
+	"notices.noMessagesToExport": "[Agent Console] No messages to export",
+	"notices.sessionRestartedFresh": "[Agent Console] Session restarted (fresh)",
+	"notices.sessionReloading": "[Agent Console] Reloading session…",
+	"notices.sessionReloaded": "[Agent Console] Session reloaded",
+	"notices.sessionReloadedFresh":
+		"[Agent Console] This agent can't resume — reloaded as a fresh session (history shown is local)",
+	"notices.sessionReloadFailed": "[Agent Console] Failed to reload session",
+	"notices.invalidWorkingDirectory":
+		"Agent Console: a configured working directory is not a valid absolute directory. New chat started in {dir}.",
+	"notices.newChatStartedIn": "Agent Console: new chat started in {dir}",
+	"notices.contextNoteDeleted":
+		'[Agent Console] Context note "{name}" was deleted and removed from chat context.',
+	"notices.noActivePermissionRequest":
+		"[Agent Console] No active permission request",
+	"notices.maxAttachments":
+		"[Agent Console] Maximum {count} attachments allowed",
+	"notices.imageTooLarge": "[Agent Console] Image too large (max {size}MB)",
+	"notices.imageAttachFailed": "[Agent Console] Failed to attach image",
+	"notices.filePathUndetermined":
+		"[Agent Console] Could not determine file path",
+	"notices.imagePasteConnecting":
+		"[Agent Console] Still connecting to the agent – paste the image again in a moment.",
+	"notices.imagePasteUnsupported":
+		"[Agent Console] This agent does not support image paste. Try drag & drop instead.",
+	"notices.tabRestoreCorrupted":
+		"Could not restore previous tabs — saved state was corrupted.",
+	"notices.viewDetails": "View details",
+	"notices.noRecentlyClosedSession": "No recently closed session to reopen",
+	"notices.duplicateTabName":
+		"[Agent Console] A tab with that name already exists",
+	"notices.sessionRestoreFailed": "[Agent Console] Failed to restore session",
+	"notices.sessionForkFailed": "[Agent Console] Failed to fork session",
+	"notices.sessionDeleted": "[Agent Console] Session deleted",
+	"notices.sessionDeleteFailed": "[Agent Console] Failed to delete session",
+	"notices.titleUpdated": "[Agent Console] Title updated",
+	"notices.titleUpdateFailed": "[Agent Console] Failed to update title",
+	"notices.titleEmpty": "Title can't be empty",
+	"notices.settingsImported":
+		"Agent Console: imported settings from {source}.{relinkMsg}",
+	"notices.settingsImportedRelink": " Re-link {count} API key(s) in settings.",
+	"notices.settingsImportFailed": "Agent Console: import failed. {error}",
+	"notices.mcpSignInLinkCopied": 'Sign-in link for "{server}" copied',
+	"notices.mcpNeedsSignInTitle": 'MCP server "{server}" needs sign-in',
+	"notices.mcpOpensHost": "Opens {host}",
+	"notices.mcpSignIn": "Sign in",
+	"notices.mcpCopyLink": "Copy link",
+	"notices.mcpMoreWaiting": "{count} more waiting after this: {names}",
+	"notices.noActiveNoteToGrab": "[Agent Console] No active note to grab",
+	"notices.removedFromContext":
+		'[Agent Console] Removed "{name}" from context',
+	"notices.contextFull":
+		"[Agent Console] Context is full ({max} notes) — remove one to add another",
+	"notices.addedToContext": '[Agent Console] Added "{name}" to context',
+	"notices.viewRegistrationConflict":
+		"Agent Console couldn't open its panel because another plugin is using the same view. Please disable one of the two plugins and reload Obsidian.",
+	"notices.partialLoad":
+		"Agent Console loaded, but these parts are unavailable: {parts}. Try reloading Obsidian; if it keeps happening, another plugin may be conflicting.",
+	"notices.cantSendNow":
+		"Can't send right now — try again when the agent is idle.",
+	"notices.prefixed": "[Agent Console] {message}",
+	"notices.unknownError": "Unknown error",
+	// --- Phase 2: modals ---
+	"modals.common.cancel": "Cancel",
+	"modals.common.close": "Close",
+	"modals.renamePrompt.title": "Rename quick prompt",
+	"modals.renamePrompt.confirm": "Rename",
+	"modals.agentPicker.placeholder": "Choose an agent for the new chat",
+	"modals.confirmClose.title": "Close Agent Console?",
+	"modals.confirmClose.body":
+		"You have {count} open chats. Closing this panel will close all of them.",
+	"modals.confirmClose.hint":
+		"Closed chats can be reopened from session history.",
+	"modals.confirmClose.confirm": "Close panel",
+	"modals.quickPromptFolder.title": "Where should quick prompts live?",
+	"modals.quickPromptFolder.body":
+		"Pick a folder for your quick prompt notes. They are saved here so you can find and edit them later — you can change this any time in settings.",
+	"modals.quickPromptFolder.confirm": "Use this folder",
+	"modals.importSettings.title": "Import settings",
+	"modals.importSettings.searching": "Looking for importable settings…",
+	"modals.importSettings.noneFound":
+		"No importable settings found from a supported plugin.",
+	"modals.importSettings.found":
+		"Found {source}. Import its agent configuration into Agent Console?",
+	"modals.importSettings.defaultCommand": "(default command)",
+	"modals.importSettings.keyPorted": "key ported",
+	"modals.importSettings.keyMigrated": "key migrated",
+	"modals.importSettings.needsRelink": "needs re-link",
+	"modals.importSettings.defaultAgentWithCustom":
+		"Default agent: {agent} · {count} custom agent(s)",
+	"modals.importSettings.defaultAgent": "Default agent: {agent}",
+	"modals.importSettings.relinkWarning":
+		"{count} API key(s) can't be ported automatically — re-link them in settings after importing.",
+	"modals.importSettings.confirm": "Import",
+	"modals.mcpAuth.placeholder": "Re-authenticate MCP servers…",
+	"modals.mcpAuth.instructionOpen": "to open sign-in page",
+	"modals.mcpAuth.instructionCopy": "to copy link",
+	"modals.mcpAuth.instructionDismiss": "to dismiss",
+	"modals.mcpAuth.needsSignIn": "{server} – needs sign-in",
+	"modals.mcpAuth.opensWaiting": "Opens {host} · waiting since {when}",
+	"modals.mcpAuth.waitingSince": "Waiting since {when}",
+	"modals.mcpAuth.emptyTitle": "No sign-in requests waiting",
+	"modals.mcpAuth.emptyBody":
+		"MCP servers only ask for sign-in while the agent is starting up. Restart the session to check again – if a server's sign-in has expired, a fresh prompt will appear.",
+	"modals.mcpAuth.emptyWarning":
+		"Restarting interrupts anything the agent is currently doing in this tab.",
+	"modals.mcpAuth.restartSession": "Restart session",
+	"modals.changeDirectory.title": "New chat in directory",
+	"modals.changeDirectory.body":
+		"Start a new chat session with the agent working in the specified directory.",
+	"modals.changeDirectory.placeholder": "/path/to/directory",
+	"modals.changeDirectory.browse": "Browse...",
+	"modals.changeDirectory.start": "Start",
+	"modals.corruptionRecovery.title": "Tab state corruption",
+	"modals.corruptionRecovery.body":
+		"The saved tab state could not be restored. The raw data is shown below for manual inspection.",
+	"modals.corruptionRecovery.retry": "Retry restore",
+	"modals.corruptionRecovery.discard": "Discard saved state",
+	"modals.confirmReset.title": "Reset Obsidian system prompt?",
+	"modals.confirmReset.body":
+		"This turns all switches back on and clears your vault context and any prompt you've edited by hand.",
+	"modals.confirmReset.warning": "This can't be undone.",
+	"modals.confirmReset.confirm": "Reset to defaults",
+	"modals.sessionIntent.agentFallback": "the new agent",
+	"modals.sessionIntent.switchTitle": "Switch to {agent}?",
+	"modals.sessionIntent.switchBody":
+		"Switching to {agent} starts a fresh chat. We'll give {agent} the earlier messages so it has the context\u2009—\u2009but it won't have the first agent's tools or working memory.\n\nYour current conversation stays saved in History.",
+	"modals.sessionIntent.switchConfirm": "Switch and bring messages",
+	"modals.sessionIntent.newChatTitle": "Start a new chat?",
+	"modals.sessionIntent.newChatBody":
+		"Your current conversation stays saved in History.",
+	"modals.sessionIntent.newChatConfirm": "New chat",
+	"modals.sessionIntent.reloadTitle": "Reload {agent}?",
+	"modals.sessionIntent.reloadBody":
+		"This starts the conversation fresh. The current one stays saved in History.",
+	"modals.sessionIntent.reloadConfirm": "Reload",
+	"modals.deleteSession.title": "Delete session?",
+	"modals.deleteSession.body": 'Are you sure you want to delete "{title}"?',
+	"modals.deleteSession.hint":
+		"This only removes the session from this plugin. The session data will remain on the agent side.",
+	"modals.deleteSession.confirm": "Delete",
+	"modals.editTitle.title": "Edit session title",
+	"modals.editTitle.save": "Save",
+	"modals.sessionHistory.title": "Session history",
 } as const;

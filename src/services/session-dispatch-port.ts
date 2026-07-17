@@ -23,6 +23,7 @@
  * Pure over injected thunks — no React, no Obsidian imports.
  */
 import type { TabSessionState } from "../hooks/useTabSessionState";
+import { t } from "../i18n";
 
 export interface SessionDispatchPortDeps {
 	/** Per-tab lazy session state (thunk — always fresh). */
@@ -66,7 +67,7 @@ export function createSessionDispatchPort(
 		canSendNow,
 		sendDetached: async (text: string): Promise<boolean> => {
 			if (!canSendNow()) {
-				deps.notify("Can't send right now — try again when the agent is idle.");
+				deps.notify(t("notices.cantSendNow"));
 				return false;
 			}
 			try {

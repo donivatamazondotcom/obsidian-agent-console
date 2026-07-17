@@ -11,6 +11,7 @@
  */
 
 import { App, FuzzySuggestModal } from "obsidian";
+import { t } from "../i18n";
 
 export interface AgentChoice {
 	id: string;
@@ -29,7 +30,7 @@ export class AgentPickerModal extends FuzzySuggestModal<AgentChoice> {
 		super(app);
 		this.agents = agents;
 		this.onChoose = onChoose;
-		this.setPlaceholder("Choose an agent for the new chat");
+		this.setPlaceholder(t("modals.agentPicker.placeholder"));
 	}
 
 	getItems(): AgentChoice[] {

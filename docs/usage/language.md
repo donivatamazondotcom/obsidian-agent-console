@@ -7,11 +7,11 @@ Use Agent Console in your own language. The plugin's buttons, menus, settings, a
 | Language | Status |
 |---|---|
 | English | Source language |
-| 한국어 (Korean) | Settings translated; more surfaces coming |
-| 中文 (Chinese, Simplified) | Settings translated (machine-translated); more surfaces coming |
-| 日本語 (Japanese) | Settings translated (machine-translated); more surfaces coming |
+| 한국어 (Korean) | Settings, notifications, and dialogs translated (newest strings machine-translated, under native-speaker review); more surfaces coming |
+| 中文 (Chinese, Simplified) | Settings, notifications, and dialogs translated (machine-translated); more surfaces coming |
+| 日本語 (Japanese) | Settings, notifications, and dialogs translated (machine-translated); more surfaces coming |
 
-More languages (German, Spanish, French, Brazilian Portuguese) are planned. Translation is rolling out surface by surface, starting with the settings pane — anything not yet translated shows in English. If Obsidian runs in Traditional Chinese, the plugin shows the Simplified Chinese catalog.
+More languages (German, Spanish, French, Brazilian Portuguese) are planned. Translation is rolling out surface by surface — settings, notifications, and dialogs are done; chat-panel text and command names are next. Anything not yet translated shows in English. If Obsidian runs in Traditional Chinese, the plugin shows the Simplified Chinese catalog.
 
 ## How it works
 
@@ -22,7 +22,7 @@ By default the plugin matches Obsidian's language (**Settings → General → La
 You can run the plugin in a different language than Obsidian:
 
 1. Open **Settings → Agent Console**
-2. Scroll to the **Advanced** section
+2. Scroll to the **Appearance & notifications** section
 3. Set **Language** to the one you want
 
 The change applies the next time Obsidian reloads.

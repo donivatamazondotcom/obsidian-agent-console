@@ -139,6 +139,7 @@ import {
 	composerCapabilitiesFromSession,
 } from "../resolvers/composer-affordances";
 import type { IChatViewHost } from "./view-host";
+import { t } from "../i18n";
 
 // ============================================================================
 // ChatPanelCallbacks - interface for class-level delegation
@@ -428,10 +429,10 @@ export function ChatPanel({
 		const { dir, fellBack } = initialCwdResolution;
 		if (fellBack) {
 			new Notice(
-				`Agent Console: a configured working directory is not a valid absolute directory. New chat started in ${dir}.`,
+				t("notices.invalidWorkingDirectory", { dir }),
 			);
 		} else if (!isSameDirectory(dir, vaultRoot)) {
-			new Notice(`Agent Console: new chat started in ${dir}`);
+			new Notice(t("notices.newChatStartedIn", { dir }));
 		}
 	}, []);
 
@@ -505,7 +506,7 @@ export function ChatPanel({
 			contextNotes.remove(path);
 			const name = (path.split("/").pop() ?? path).replace(/\.md$/, "");
 			new Notice(
-				`[Agent Console] Context note "${name}" was deleted and removed from chat context.`,
+				t("notices.contextNoteDeleted", { name }),
 			);
 		},
 	});
@@ -2124,7 +2125,7 @@ export function ChatPanel({
 								await approveActivePermissionRef.current();
 							if (!success) {
 								new Notice(
-									"[Agent Console] No active permission request",
+									t("notices.noActivePermissionRequest"),
 								);
 							}
 						} catch (error) {
@@ -2148,7 +2149,7 @@ export function ChatPanel({
 								await rejectActivePermissionRef.current();
 							if (!success) {
 								new Notice(
-									"[Agent Console] No active permission request",
+									t("notices.noActivePermissionRequest"),
 								);
 							}
 						} catch (error) {
@@ -2275,7 +2276,8 @@ export function ChatPanel({
 				},
 				openInNewTab: (text, opts) => onOpenInNewTab?.(text, opts),
 				getContainer: () => containerRef.current,
-				notify: (message) => new Notice(`[Agent Console] ${message}`),
+				notify: (message) =>
+					new Notice(t("notices.prefixed", { message })),
 			}),
 		[plugin, onOpenInNewTab],
 	);
@@ -2648,7 +2650,7 @@ export function ChatPanel({
 				isRestoringSession: () => sessionHistoryLoadingRef.current,
 				sendMessage: (text) => handleSendMessageRef.current(text, undefined),
 				notify: (message) => {
-					new Notice(`[Agent Console] ${message}`);
+					new Notice(t("notices.prefixed", { message }));
 				},
 			}),
 		[],

@@ -1,5 +1,5 @@
 /**
- * Simplified Chinese (中文) string catalog — settings surface.
+ * Simplified Chinese (中文) string catalog — settings, notices, and modals (phases 1–2).
  *
  * Factory-wrapped: instantiated only when Chinese is the active locale.
  * Partial against the English contract; missing keys fall back to English.
@@ -277,4 +277,171 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"settings.defaultWorkingDirectory.pickerTitle": "选择默认工作目录",
 	"settings.workingDirectory.pickerTitle": "选择工作目录",
 	"settings.customAgents.defaultName": "自定义代理",
+	// --- Phase 2: notices ---
+	"notices.quickPromptCollided":
+		"[Agent Console] 已存在同名的快速提示 — 已保存为“{basename}”。",
+	"notices.quickPromptCreated": "[Agent Console] 已创建快速提示“{basename}”。",
+	"notices.quickPromptCreateFailed":
+		"[Agent Console] 无法创建快速提示 — 请查看控制台。",
+	"notices.quickPromptNoteNotFound":
+		"[Agent Console] 无法打开“{label}” — 未找到该笔记。",
+	"notices.promptTextCopied": "[Agent Console] 已复制提示文本。",
+	"notices.promptTextCopyFailed":
+		"[Agent Console] 无法复制提示文本 — 请查看控制台。",
+	"notices.quickPromptRenameFailed":
+		"[Agent Console] 无法重命名快速提示 — 请查看控制台。",
+	"notices.noQuickPromptsFound":
+		"[Agent Console] 未找到快速提示。请在“{folder}”文件夹中添加 Markdown 笔记。",
+	"notices.noChatTabsOpen": "[Agent Console] 没有打开的聊天标签页",
+	"notices.noPromptToBroadcast": "[Agent Console] 没有可广播的提示",
+	"notices.noOtherTabsToBroadcast":
+		"[Agent Console] 没有其他可广播的聊天标签页",
+	"notices.broadcastSkipNote": "（跳过 {count} 个 — 有待发送的排队消息）",
+	"notices.promptBroadcast":
+		"[Agent Console] 已向 {count} 个标签页广播提示{skipNote}",
+	"notices.noTabsReadyToSend": "[Agent Console] 没有可发送的标签页",
+	"notices.sentInTabs": "[Agent Console] 已在 {count} 个标签页中发送{skipNote}",
+	"notices.cancelBroadcast": "[Agent Console] 已向 {count} 个标签页广播取消",
+	"notices.contextStripMigration":
+		"Agent Console：活动笔记不再跟随聊天。请使用新的上下文栏将笔记固定到上下文中。",
+	"notices.importSettingsFound":
+		"Agent Console：找到 {plugin} 的设置 — 点击导入。",
+	"notices.apiKeyMigrated":
+		"[Agent Console] 你的 {agent} API 密钥已迁移到 Obsidian 钥匙串，名称为“{secretId}”。",
+	"notices.apiKeyMigratedFallback":
+		"[Agent Console] “{defaultId}”已被占用。你的 {agent} API 密钥已迁移为“{fallbackId}”。可在 Obsidian 钥匙串设置中重命名。",
+	"notices.updateAvailable": "[Agent Console] 有可用更新：v{version}",
+	"notices.chatExported": "[Agent Console] 聊天已导出到 {path}",
+	"notices.chatExportFailed": "[Agent Console] 导出聊天失败",
+	"notices.alreadyNewSession": "[Agent Console] 已经是新会话",
+	"notices.newSessionFailed": "[Agent Console] 创建新会话失败",
+	"notices.noMessagesToExport": "[Agent Console] 没有可导出的消息",
+	"notices.sessionRestartedFresh": "[Agent Console] 会话已重新开始（全新）",
+	"notices.sessionReloading": "[Agent Console] 正在重新加载会话…",
+	"notices.sessionReloaded": "[Agent Console] 会话已重新加载",
+	"notices.sessionReloadedFresh":
+		"[Agent Console] 此代理不支持恢复 — 已作为新会话重新加载（显示的历史为本地记录）",
+	"notices.sessionReloadFailed": "[Agent Console] 重新加载会话失败",
+	"notices.invalidWorkingDirectory":
+		"Agent Console：配置的工作目录不是有效的绝对路径。新聊天已在 {dir} 中开始。",
+	"notices.newChatStartedIn": "Agent Console：新聊天已在 {dir} 中开始",
+	"notices.contextNoteDeleted":
+		"[Agent Console] 上下文笔记“{name}”已被删除，并已从聊天上下文中移除。",
+	"notices.noActivePermissionRequest": "[Agent Console] 没有待处理的权限请求",
+	"notices.maxAttachments": "[Agent Console] 最多允许 {count} 个附件",
+	"notices.imageTooLarge": "[Agent Console] 图片过大（最大 {size}MB）",
+	"notices.imageAttachFailed": "[Agent Console] 附加图片失败",
+	"notices.filePathUndetermined": "[Agent Console] 无法确定文件路径",
+	"notices.imagePasteConnecting":
+		"[Agent Console] 仍在连接代理 – 请稍后再粘贴图片。",
+	"notices.imagePasteUnsupported":
+		"[Agent Console] 此代理不支持粘贴图片。请尝试拖放。",
+	"notices.tabRestoreCorrupted": "无法恢复之前的标签页 — 保存的状态已损坏。",
+	"notices.viewDetails": "查看详情",
+	"notices.noRecentlyClosedSession": "没有可重新打开的最近关闭的会话",
+	"notices.duplicateTabName": "[Agent Console] 已存在同名标签页",
+	"notices.sessionRestoreFailed": "[Agent Console] 恢复会话失败",
+	"notices.sessionForkFailed": "[Agent Console] 分叉会话失败",
+	"notices.sessionDeleted": "[Agent Console] 会话已删除",
+	"notices.sessionDeleteFailed": "[Agent Console] 删除会话失败",
+	"notices.titleUpdated": "[Agent Console] 标题已更新",
+	"notices.titleUpdateFailed": "[Agent Console] 更新标题失败",
+	"notices.titleEmpty": "标题不能为空",
+	"notices.settingsImported":
+		"Agent Console：已从 {source} 导入设置。{relinkMsg}",
+	"notices.settingsImportedRelink": " 请在设置中重新关联 {count} 个 API 密钥。",
+	"notices.settingsImportFailed": "Agent Console：导入失败。{error}",
+	"notices.mcpSignInLinkCopied": "已复制“{server}”的登录链接",
+	"notices.mcpNeedsSignInTitle": "MCP 服务器“{server}”需要登录",
+	"notices.mcpOpensHost": "将打开 {host}",
+	"notices.mcpSignIn": "登录",
+	"notices.mcpCopyLink": "复制链接",
+	"notices.mcpMoreWaiting": "此后还有 {count} 个等待：{names}",
+	"notices.noActiveNoteToGrab": "[Agent Console] 没有可抓取的活动笔记",
+	"notices.removedFromContext": "[Agent Console] 已将“{name}”从上下文中移除",
+	"notices.contextFull":
+		"[Agent Console] 上下文已满（{max} 条笔记）— 请先移除一条再添加",
+	"notices.addedToContext": "[Agent Console] 已将“{name}”添加到上下文",
+	"notices.viewRegistrationConflict":
+		"另一个插件正在使用相同的视图，Agent Console 无法打开面板。请禁用两个插件中的一个并重新加载 Obsidian。",
+	"notices.partialLoad":
+		"Agent Console 已加载，但以下部分不可用：{parts}。请尝试重新加载 Obsidian；如果持续发生，可能是其他插件冲突。",
+	"notices.cantSendNow": "现在无法发送 — 请等代理空闲时再试。",
+	"notices.unknownError": "未知错误",
+	// --- Phase 2: modals ---
+	"modals.common.cancel": "取消",
+	"modals.common.close": "关闭",
+	"modals.renamePrompt.title": "重命名快速提示",
+	"modals.renamePrompt.confirm": "重命名",
+	"modals.agentPicker.placeholder": "为新聊天选择一个代理",
+	"modals.confirmClose.title": "关闭 Agent Console？",
+	"modals.confirmClose.body":
+		"你有 {count} 个打开的聊天。关闭此面板将全部关闭。",
+	"modals.confirmClose.hint": "关闭的聊天可以从会话历史中重新打开。",
+	"modals.confirmClose.confirm": "关闭面板",
+	"modals.quickPromptFolder.title": "快速提示应保存在哪里？",
+	"modals.quickPromptFolder.body":
+		"为你的快速提示笔记选择一个文件夹。它们会保存在这里，方便以后查找和编辑 — 你随时可以在设置中更改。",
+	"modals.quickPromptFolder.confirm": "使用此文件夹",
+	"modals.importSettings.title": "导入设置",
+	"modals.importSettings.searching": "正在查找可导入的设置…",
+	"modals.importSettings.noneFound": "未从支持的插件中找到可导入的设置。",
+	"modals.importSettings.found":
+		"找到 {source}。要将其代理配置导入 Agent Console 吗？",
+	"modals.importSettings.defaultCommand": "（默认命令）",
+	"modals.importSettings.keyPorted": "密钥已迁移",
+	"modals.importSettings.keyMigrated": "密钥已转移",
+	"modals.importSettings.needsRelink": "需要重新关联",
+	"modals.importSettings.defaultAgentWithCustom":
+		"默认代理：{agent} · {count} 个自定义代理",
+	"modals.importSettings.defaultAgent": "默认代理：{agent}",
+	"modals.importSettings.relinkWarning":
+		"{count} 个 API 密钥无法自动迁移 — 导入后请在设置中重新关联。",
+	"modals.importSettings.confirm": "导入",
+	"modals.mcpAuth.placeholder": "重新验证 MCP 服务器…",
+	"modals.mcpAuth.instructionOpen": "打开登录页面",
+	"modals.mcpAuth.instructionCopy": "复制链接",
+	"modals.mcpAuth.instructionDismiss": "关闭",
+	"modals.mcpAuth.needsSignIn": "{server} – 需要登录",
+	"modals.mcpAuth.opensWaiting": "将打开 {host} · 自 {when} 起等待",
+	"modals.mcpAuth.waitingSince": "自 {when} 起等待",
+	"modals.mcpAuth.emptyTitle": "没有等待中的登录请求",
+	"modals.mcpAuth.emptyBody":
+		"MCP 服务器只在代理启动时请求登录。请重新启动会话以再次检查 – 如果服务器的登录已过期，会出现新的提示。",
+	"modals.mcpAuth.emptyWarning": "重新启动会中断代理当前在此标签页中的所有操作。",
+	"modals.mcpAuth.restartSession": "重新启动会话",
+	"modals.changeDirectory.title": "在目录中新建聊天",
+	"modals.changeDirectory.body": "让代理在指定目录中工作，开始一个新的聊天会话。",
+	"modals.changeDirectory.browse": "浏览...",
+	"modals.changeDirectory.start": "开始",
+	"modals.corruptionRecovery.title": "标签页状态损坏",
+	"modals.corruptionRecovery.body":
+		"无法恢复保存的标签页状态。原始数据显示在下方，供手动检查。",
+	"modals.corruptionRecovery.retry": "重试恢复",
+	"modals.corruptionRecovery.discard": "丢弃保存的状态",
+	"modals.confirmReset.title": "重置 Obsidian 系统提示？",
+	"modals.confirmReset.body":
+		"这会重新打开所有开关，并清除你的仓库上下文和手动编辑过的提示。",
+	"modals.confirmReset.warning": "此操作无法撤销。",
+	"modals.confirmReset.confirm": "重置为默认值",
+	"modals.sessionIntent.agentFallback": "新代理",
+	"modals.sessionIntent.switchTitle": "切换到 {agent}？",
+	"modals.sessionIntent.switchBody":
+		"切换到 {agent} 会开始新的聊天。我们会把之前的消息交给 {agent}，让它了解上下文 — 但它不会拥有前一个代理的工具或工作记忆。\n\n当前对话会保存在历史中。",
+	"modals.sessionIntent.switchConfirm": "切换并带上消息",
+	"modals.sessionIntent.newChatTitle": "开始新聊天？",
+	"modals.sessionIntent.newChatBody": "当前对话会保存在历史中。",
+	"modals.sessionIntent.newChatConfirm": "新聊天",
+	"modals.sessionIntent.reloadTitle": "重新加载 {agent}？",
+	"modals.sessionIntent.reloadBody":
+		"这会重新开始对话。当前对话会保存在历史中。",
+	"modals.sessionIntent.reloadConfirm": "重新加载",
+	"modals.deleteSession.title": "删除会话？",
+	"modals.deleteSession.body": "确定要删除“{title}”吗？",
+	"modals.deleteSession.hint":
+		"这只会从此插件中移除该会话。会话数据仍会保留在代理端。",
+	"modals.deleteSession.confirm": "删除",
+	"modals.editTitle.title": "编辑会话标题",
+	"modals.editTitle.save": "保存",
+	"modals.sessionHistory.title": "会话历史",
 });

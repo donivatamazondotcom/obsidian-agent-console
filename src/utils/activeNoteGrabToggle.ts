@@ -15,6 +15,7 @@
  * and, on ungrab, also suppresses the per-chat auto-default so the ungrab sticks.
  */
 import { MAX_CONTEXT_NOTES, type ContextNote } from "../types/context";
+import { t } from "../i18n";
 
 export type GrabToggleAction =
 	| { kind: "none"; notice: string }
@@ -34,7 +35,7 @@ export function decideGrabToggle(args: {
 	const name = activeNoteName ?? "active note";
 
 	if (!activeNotePath) {
-		return { kind: "none", notice: "[Agent Console] No active note to grab" };
+		return { kind: "none", notice: t("notices.noActiveNoteToGrab") };
 	}
 
 	const isPresent =
@@ -46,18 +47,18 @@ export function decideGrabToggle(args: {
 		return {
 			kind: "ungrab",
 			path: activeNotePath,
-			notice: `[Agent Console] Removed "${name}" from context`,
+			notice: t("notices.removedFromContext", { name }),
 		};
 	}
 	if (committed.length >= MAX_CONTEXT_NOTES) {
 		return {
 			kind: "full",
-			notice: `[Agent Console] Context is full (${MAX_CONTEXT_NOTES} notes) — remove one to add another`,
+			notice: t("notices.contextFull", { max: MAX_CONTEXT_NOTES }),
 		};
 	}
 	return {
 		kind: "grab",
 		path: activeNotePath,
-		notice: `[Agent Console] Added "${name}" to context`,
+		notice: t("notices.addedToContext", { name }),
 	};
 }

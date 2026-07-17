@@ -18,6 +18,7 @@ import type {
 	ImportSource,
 } from "../services/import/ImportSource";
 import { firstDetectedSource } from "../services/import/registry";
+import { t } from "../i18n";
 
 export class ImportSettingsModal extends Modal {
 	private sources: ImportSource[];
@@ -38,14 +39,14 @@ export class ImportSettingsModal extends Modal {
 	onOpen() {
 		this.renderHeading();
 		this.contentEl.createEl("p", {
-			text: "Looking for importable settings…",
+			text: t("modals.importSettings.searching"),
 		});
 		void this.load();
 	}
 
 	private renderHeading() {
 		this.contentEl.empty();
-		this.contentEl.createEl("h2", { text: "Import settings" });
+		this.contentEl.createEl("h2", { text: t("modals.importSettings.title") });
 	}
 
 	private async load() {
@@ -69,19 +70,19 @@ export class ImportSettingsModal extends Modal {
 
 	private renderEmpty() {
 		this.contentEl.createEl("p", {
-			text: "No importable settings found from a supported plugin.",
+			text: t("modals.importSettings.noneFound"),
 		});
 		const buttons = this.contentEl.createDiv({
 			cls: "agent-client-import-buttons",
 		});
 		buttons
-			.createEl("button", { text: "Close" })
+			.createEl("button", { text: t("modals.common.close") })
 			.addEventListener("click", () => this.close());
 	}
 
 	private renderPreview(source: ImportSource, preview: ImportPreview) {
 		this.contentEl.createEl("p", {
-			text: `Found ${source.displayName}. Import its agent configuration into Agent Console?`,
+			text: t("modals.importSettings.found", { source: source.displayName }),
 		});
 
 		const list = this.contentEl.createEl("ul", {
@@ -96,7 +97,7 @@ export class ImportSettingsModal extends Modal {
 				cls: "agent-client-import-agent-name",
 			});
 			li.createSpan({
-				text: ` — ${agent.command || "(default command)"}`,
+				text: ` — ${agent.command || t("modals.importSettings.defaultCommand")}`,
 			});
 			const statusLabel = this.keyStatusLabel(agent.keyStatus);
 			if (statusLabel) {
@@ -109,14 +110,14 @@ export class ImportSettingsModal extends Modal {
 
 		const meta =
 			preview.customAgentCount > 0
-				? `Default agent: ${preview.defaultAgentId} · ${preview.customAgentCount} custom agent(s)`
-				: `Default agent: ${preview.defaultAgentId}`;
+				? t("modals.importSettings.defaultAgentWithCustom", { agent: preview.defaultAgentId, count: preview.customAgentCount })
+				: t("modals.importSettings.defaultAgent", { agent: preview.defaultAgentId });
 		this.contentEl.createEl("p", { text: meta });
 
 		if (relinkCount > 0) {
 			this.contentEl.createEl("p", {
 				cls: "agent-client-import-relink",
-				text: `${relinkCount} API key(s) can't be ported automatically — re-link them in settings after importing.`,
+				text: t("modals.importSettings.relinkWarning", { count: relinkCount }),
 			});
 		}
 
@@ -124,10 +125,10 @@ export class ImportSettingsModal extends Modal {
 			cls: "agent-client-import-buttons",
 		});
 		buttons
-			.createEl("button", { text: "Cancel" })
+			.createEl("button", { text: t("modals.common.cancel") })
 			.addEventListener("click", () => this.close());
 		const importBtn = buttons.createEl("button", {
-			text: "Import",
+			text: t("modals.importSettings.confirm"),
 			cls: "mod-cta",
 		});
 		importBtn.addEventListener("click", () => {
@@ -147,17 +148,15 @@ export class ImportSettingsModal extends Modal {
 			await this.onImport(slice);
 			const relinkMsg =
 				relinkCount > 0
-					? ` Re-link ${relinkCount} API key(s) in settings.`
+					? t("notices.settingsImportedRelink", { count: relinkCount })
 					: "";
 			new Notice(
-				`Agent Console: imported settings from ${source.displayName}.${relinkMsg}`,
+				t("notices.settingsImported", { source: source.displayName, relinkMsg }),
 			);
 			this.close();
 		} catch (error) {
 			new Notice(
-				`Agent Console: import failed. ${
-					error instanceof Error ? error.message : "Unknown error"
-				}`,
+				t("notices.settingsImportFailed", { error: error instanceof Error ? error.message : t("notices.unknownError") }),
 			);
 			importBtn.disabled = false;
 		}
@@ -166,11 +165,11 @@ export class ImportSettingsModal extends Modal {
 	private keyStatusLabel(status: ImportAgentPreview["keyStatus"]): string {
 		switch (status) {
 			case "by-reference":
-				return "key ported";
+				return t("modals.importSettings.keyPorted");
 			case "will-migrate-plaintext":
-				return "key migrated";
+				return t("modals.importSettings.keyMigrated");
 			case "needs-relink":
-				return "needs re-link";
+				return t("modals.importSettings.needsRelink");
 			default:
 				return "";
 		}

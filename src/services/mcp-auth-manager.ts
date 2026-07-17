@@ -2,6 +2,7 @@ import { Notice } from "obsidian";
 
 import type { McpAuthEvent, PendingMcpAuth } from "../types/mcp-auth";
 import { getLogger } from "../utils/logger";
+import { t } from "../i18n";
 
 /**
  * Single owner of pending MCP sign-in state (per the single-writer rule).
@@ -130,7 +131,7 @@ export class McpAuthManager {
 	/** Copy the sign-in link. User-initiated only. */
 	async copySignInLink(entry: PendingMcpAuth): Promise<void> {
 		await navigator.clipboard.writeText(entry.oauthUrl);
-		new Notice(`Sign-in link for "${entry.serverName}" copied`);
+		new Notice(t("notices.mcpSignInLinkCopied", { server: entry.serverName }));
 	}
 
 	/** Tear down the Notice and subscriptions (plugin unload). */
@@ -202,12 +203,12 @@ export class McpAuthManager {
 
 		root.createDiv({
 			cls: "agent-client-mcp-auth-notice-title",
-			text: `MCP server "${entry.serverName}" needs sign-in`,
+			text: t("notices.mcpNeedsSignInTitle", { server: entry.serverName }),
 		});
 		if (entry.host) {
 			root.createDiv({
 				cls: "agent-client-mcp-auth-notice-host",
-				text: `Opens ${entry.host}`,
+				text: t("notices.mcpOpensHost", { host: entry.host }),
 			});
 		}
 
@@ -216,7 +217,7 @@ export class McpAuthManager {
 		});
 		const signIn = buttons.createEl("button", {
 			cls: "mod-cta",
-			text: "Sign in",
+			text: t("notices.mcpSignIn"),
 		});
 		signIn.addEventListener("click", (e) => {
 			// The whole Notice dismisses on click — keep it up until the
@@ -224,7 +225,7 @@ export class McpAuthManager {
 			e.stopPropagation();
 			this.openSignIn(entry);
 		});
-		const copy = buttons.createEl("button", { text: "Copy link" });
+		const copy = buttons.createEl("button", { text: t("notices.mcpCopyLink") });
 		copy.addEventListener("click", (e) => {
 			e.stopPropagation();
 			void this.copySignInLink(entry);
@@ -234,7 +235,7 @@ export class McpAuthManager {
 			const names = queued.map((q) => q.serverName).join(", ");
 			root.createDiv({
 				cls: "agent-client-mcp-auth-notice-queue",
-				text: `${queued.length} more waiting after this: ${names}`,
+				text: t("notices.mcpMoreWaiting", { count: queued.length, names }),
 			});
 		}
 

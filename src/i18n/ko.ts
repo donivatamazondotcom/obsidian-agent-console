@@ -1,5 +1,5 @@
 /**
- * Korean (한국어) string catalog — settings surface (phase 1).
+ * Korean (한국어) string catalog — settings, notices, and modals (phases 1–2).
  *
  * Factory-wrapped: instantiated only when Korean is the active locale.
  * Partial against the English contract; missing keys fall back to English.
@@ -272,4 +272,185 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"settings.defaultWorkingDirectory.pickerTitle": "기본 작업 디렉터리 선택",
 	"settings.workingDirectory.pickerTitle": "작업 디렉터리 선택",
 	"settings.customAgents.defaultName": "사용자 지정 에이전트",
+	// --- Phase 2: notices ---
+	"notices.quickPromptCollided":
+		'[Agent Console] 같은 이름의 빠른 프롬프트가 이미 있어 "{basename}"(으)로 저장했습니다.',
+	"notices.quickPromptCreated":
+		'[Agent Console] 빠른 프롬프트 "{basename}"을(를) 만들었습니다.',
+	"notices.quickPromptCreateFailed":
+		"[Agent Console] 빠른 프롬프트를 만들 수 없습니다 — 콘솔을 확인하세요.",
+	"notices.quickPromptNoteNotFound":
+		'[Agent Console] "{label}"을(를) 열 수 없습니다 — 노트를 찾지 못했습니다.',
+	"notices.promptTextCopied": "[Agent Console] 프롬프트 텍스트를 복사했습니다.",
+	"notices.promptTextCopyFailed":
+		"[Agent Console] 프롬프트 텍스트를 복사할 수 없습니다 — 콘솔을 확인하세요.",
+	"notices.quickPromptRenameFailed":
+		"[Agent Console] 빠른 프롬프트의 이름을 바꿀 수 없습니다 — 콘솔을 확인하세요.",
+	"notices.noQuickPromptsFound":
+		'[Agent Console] 빠른 프롬프트가 없습니다. "{folder}" 폴더에 마크다운 노트를 추가하세요.',
+	"notices.noChatTabsOpen": "[Agent Console] 열린 채팅 탭이 없습니다",
+	"notices.noPromptToBroadcast": "[Agent Console] 전송할 프롬프트가 없습니다",
+	"notices.noOtherTabsToBroadcast":
+		"[Agent Console] 프롬프트를 전달할 다른 채팅 탭이 없습니다",
+	"notices.broadcastSkipNote": " ({count}개 건너뜀 — 대기 중인 메시지 있음)",
+	"notices.promptBroadcast":
+		"[Agent Console] {count}개 탭에 프롬프트를 전달했습니다{skipNote}",
+	"notices.noTabsReadyToSend": "[Agent Console] 보낼 준비가 된 탭이 없습니다",
+	"notices.sentInTabs": "[Agent Console] {count}개 탭에서 보냈습니다{skipNote}",
+	"notices.cancelBroadcast":
+		"[Agent Console] {count}개 탭에 취소를 전달했습니다",
+	"notices.contextStripMigration":
+		"Agent Console: 활성 노트가 더 이상 채팅을 따라가지 않습니다. 새 컨텍스트 스트립으로 노트를 컨텍스트에 고정하세요.",
+	"notices.importSettingsFound":
+		"Agent Console: {plugin} 설정을 찾았습니다 — 클릭하여 가져오세요.",
+	"notices.apiKeyMigrated":
+		'[Agent Console] {agent} API 키가 Obsidian 키체인에 "{secretId}"(으)로 이전되었습니다.',
+	"notices.apiKeyMigratedFallback":
+		'[Agent Console] "{defaultId}"이(가) 이미 사용 중이라 {agent} API 키를 "{fallbackId}"(으)로 이전했습니다. Obsidian 키체인 설정에서 이름을 바꿀 수 있습니다.',
+	"notices.updateAvailable": "[Agent Console] 업데이트 가능: v{version}",
+	"notices.chatExported": "[Agent Console] 채팅을 {path}에 내보냈습니다",
+	"notices.chatExportFailed": "[Agent Console] 채팅 내보내기에 실패했습니다",
+	"notices.alreadyNewSession": "[Agent Console] 이미 새 세션입니다",
+	"notices.newSessionFailed": "[Agent Console] 새 세션을 만들지 못했습니다",
+	"notices.noMessagesToExport": "[Agent Console] 내보낼 메시지가 없습니다",
+	"notices.sessionRestartedFresh": "[Agent Console] 세션을 새로 시작했습니다",
+	"notices.sessionReloading": "[Agent Console] 세션을 다시 불러오는 중…",
+	"notices.sessionReloaded": "[Agent Console] 세션을 다시 불러왔습니다",
+	"notices.sessionReloadedFresh":
+		"[Agent Console] 이 에이전트는 이어하기를 지원하지 않아 새 세션으로 다시 시작했습니다 (표시된 기록은 로컬입니다)",
+	"notices.sessionReloadFailed":
+		"[Agent Console] 세션을 다시 불러오지 못했습니다",
+	"notices.invalidWorkingDirectory":
+		"Agent Console: 설정된 작업 디렉터리가 유효한 절대 경로가 아닙니다. 새 채팅을 {dir}에서 시작했습니다.",
+	"notices.newChatStartedIn": "Agent Console: {dir}에서 새 채팅을 시작했습니다",
+	"notices.contextNoteDeleted":
+		'[Agent Console] 컨텍스트 노트 "{name}"이(가) 삭제되어 채팅 컨텍스트에서 제거했습니다.',
+	"notices.noActivePermissionRequest":
+		"[Agent Console] 대기 중인 권한 요청이 없습니다",
+	"notices.maxAttachments":
+		"[Agent Console] 첨부 파일은 최대 {count}개까지 가능합니다",
+	"notices.imageTooLarge": "[Agent Console] 이미지가 너무 큽니다 (최대 {size}MB)",
+	"notices.imageAttachFailed": "[Agent Console] 이미지를 첨부하지 못했습니다",
+	"notices.filePathUndetermined":
+		"[Agent Console] 파일 경로를 확인할 수 없습니다",
+	"notices.imagePasteConnecting":
+		"[Agent Console] 아직 에이전트에 연결 중입니다 – 잠시 후 이미지를 다시 붙여넣으세요.",
+	"notices.imagePasteUnsupported":
+		"[Agent Console] 이 에이전트는 이미지 붙여넣기를 지원하지 않습니다. 드래그 앤 드롭을 사용해 보세요.",
+	"notices.tabRestoreCorrupted":
+		"이전 탭을 복원할 수 없습니다 — 저장된 상태가 손상되었습니다.",
+	"notices.viewDetails": "자세히 보기",
+	"notices.noRecentlyClosedSession": "다시 열 최근 닫은 세션이 없습니다",
+	"notices.duplicateTabName": "[Agent Console] 같은 이름의 탭이 이미 있습니다",
+	"notices.sessionRestoreFailed": "[Agent Console] 세션을 복원하지 못했습니다",
+	"notices.sessionForkFailed": "[Agent Console] 세션을 분기하지 못했습니다",
+	"notices.sessionDeleted": "[Agent Console] 세션을 삭제했습니다",
+	"notices.sessionDeleteFailed": "[Agent Console] 세션을 삭제하지 못했습니다",
+	"notices.titleUpdated": "[Agent Console] 제목을 변경했습니다",
+	"notices.titleUpdateFailed": "[Agent Console] 제목을 변경하지 못했습니다",
+	"notices.titleEmpty": "제목을 비워 둘 수 없습니다",
+	"notices.settingsImported":
+		"Agent Console: {source}에서 설정을 가져왔습니다.{relinkMsg}",
+	"notices.settingsImportedRelink":
+		" 설정에서 API 키 {count}개를 다시 연결하세요.",
+	"notices.settingsImportFailed": "Agent Console: 가져오기에 실패했습니다. {error}",
+	"notices.mcpSignInLinkCopied": '"{server}" 로그인 링크를 복사했습니다',
+	"notices.mcpNeedsSignInTitle": 'MCP 서버 "{server}"에 로그인이 필요합니다',
+	"notices.mcpOpensHost": "{host} 열기",
+	"notices.mcpSignIn": "로그인",
+	"notices.mcpCopyLink": "링크 복사",
+	"notices.mcpMoreWaiting": "이후 대기 중 {count}개: {names}",
+	"notices.noActiveNoteToGrab": "[Agent Console] 가져올 활성 노트가 없습니다",
+	"notices.removedFromContext":
+		'[Agent Console] "{name}"을(를) 컨텍스트에서 제거했습니다',
+	"notices.contextFull":
+		"[Agent Console] 컨텍스트가 가득 찼습니다 (노트 {max}개) — 하나를 제거한 뒤 추가하세요",
+	"notices.addedToContext":
+		'[Agent Console] "{name}"을(를) 컨텍스트에 추가했습니다',
+	"notices.viewRegistrationConflict":
+		"다른 플러그인이 같은 뷰를 사용하고 있어 Agent Console 패널을 열 수 없습니다. 두 플러그인 중 하나를 비활성화하고 Obsidian을 다시 시작하세요.",
+	"notices.partialLoad":
+		"Agent Console을 불러왔지만 다음 부분을 사용할 수 없습니다: {parts}. Obsidian을 다시 시작해 보세요. 계속 발생하면 다른 플러그인과 충돌일 수 있습니다.",
+	"notices.cantSendNow":
+		"지금은 보낼 수 없습니다 — 에이전트가 대기 상태일 때 다시 시도하세요.",
+	"notices.unknownError": "알 수 없는 오류",
+	// --- Phase 2: modals ---
+	"modals.common.cancel": "취소",
+	"modals.common.close": "닫기",
+	"modals.renamePrompt.title": "빠른 프롬프트 이름 바꾸기",
+	"modals.renamePrompt.confirm": "이름 바꾸기",
+	"modals.agentPicker.placeholder": "새 채팅에 사용할 에이전트를 선택하세요",
+	"modals.confirmClose.title": "Agent Console을 닫을까요?",
+	"modals.confirmClose.body":
+		"열린 채팅이 {count}개 있습니다. 이 패널을 닫으면 모두 닫힙니다.",
+	"modals.confirmClose.hint": "닫은 채팅은 세션 기록에서 다시 열 수 있습니다.",
+	"modals.confirmClose.confirm": "패널 닫기",
+	"modals.quickPromptFolder.title": "빠른 프롬프트를 어디에 저장할까요?",
+	"modals.quickPromptFolder.body":
+		"빠른 프롬프트 노트를 저장할 폴더를 선택하세요. 여기에 저장되므로 나중에 찾아서 수정할 수 있고, 설정에서 언제든지 바꿀 수 있습니다.",
+	"modals.quickPromptFolder.confirm": "이 폴더 사용",
+	"modals.importSettings.title": "설정 가져오기",
+	"modals.importSettings.searching": "가져올 수 있는 설정을 찾는 중…",
+	"modals.importSettings.noneFound":
+		"지원되는 플러그인에서 가져올 수 있는 설정을 찾지 못했습니다.",
+	"modals.importSettings.found":
+		"{source}을(를) 찾았습니다. 에이전트 구성을 Agent Console로 가져올까요?",
+	"modals.importSettings.defaultCommand": "(기본 명령)",
+	"modals.importSettings.keyPorted": "키 이전됨",
+	"modals.importSettings.keyMigrated": "키 마이그레이션됨",
+	"modals.importSettings.needsRelink": "다시 연결 필요",
+	"modals.importSettings.defaultAgentWithCustom":
+		"기본 에이전트: {agent} · 사용자 지정 에이전트 {count}개",
+	"modals.importSettings.defaultAgent": "기본 에이전트: {agent}",
+	"modals.importSettings.relinkWarning":
+		"API 키 {count}개는 자동으로 이전할 수 없습니다 — 가져온 뒤 설정에서 다시 연결하세요.",
+	"modals.importSettings.confirm": "가져오기",
+	"modals.mcpAuth.placeholder": "MCP 서버 다시 인증…",
+	"modals.mcpAuth.instructionOpen": "로그인 페이지 열기",
+	"modals.mcpAuth.instructionCopy": "링크 복사",
+	"modals.mcpAuth.instructionDismiss": "닫기",
+	"modals.mcpAuth.needsSignIn": "{server} – 로그인 필요",
+	"modals.mcpAuth.opensWaiting": "{host} 열기 · {when}부터 대기 중",
+	"modals.mcpAuth.waitingSince": "{when}부터 대기 중",
+	"modals.mcpAuth.emptyTitle": "대기 중인 로그인 요청이 없습니다",
+	"modals.mcpAuth.emptyBody":
+		"MCP 서버는 에이전트가 시작될 때만 로그인을 요청합니다. 세션을 다시 시작하여 확인하세요 – 서버의 로그인이 만료되었다면 새 요청이 나타납니다.",
+	"modals.mcpAuth.emptyWarning":
+		"다시 시작하면 이 탭에서 에이전트가 하고 있는 작업이 중단됩니다.",
+	"modals.mcpAuth.restartSession": "세션 다시 시작",
+	"modals.changeDirectory.title": "디렉터리에서 새 채팅",
+	"modals.changeDirectory.body":
+		"지정한 디렉터리에서 에이전트가 작업하는 새 채팅 세션을 시작합니다.",
+	"modals.changeDirectory.browse": "찾아보기...",
+	"modals.changeDirectory.start": "시작",
+	"modals.corruptionRecovery.title": "탭 상태 손상",
+	"modals.corruptionRecovery.body":
+		"저장된 탭 상태를 복원할 수 없습니다. 직접 확인할 수 있도록 원본 데이터를 아래에 표시합니다.",
+	"modals.corruptionRecovery.retry": "복원 다시 시도",
+	"modals.corruptionRecovery.discard": "저장된 상태 버리기",
+	"modals.confirmReset.title": "Obsidian 시스템 프롬프트를 초기화할까요?",
+	"modals.confirmReset.body":
+		"모든 스위치가 다시 켜지고, 볼트 컨텍스트와 직접 수정한 프롬프트가 지워집니다.",
+	"modals.confirmReset.warning": "되돌릴 수 없습니다.",
+	"modals.confirmReset.confirm": "기본값으로 초기화",
+	"modals.sessionIntent.agentFallback": "새 에이전트",
+	"modals.sessionIntent.switchTitle": "{agent}(으)로 전환할까요?",
+	"modals.sessionIntent.switchBody":
+		"{agent}(으)로 전환하면 새 채팅이 시작됩니다. 지금까지의 메시지를 {agent}에 전달해 맥락을 이어가지만, 이전 에이전트의 도구나 작업 기억은 전달되지 않습니다.\n\n현재 대화는 기록에 저장됩니다.",
+	"modals.sessionIntent.switchConfirm": "메시지와 함께 전환",
+	"modals.sessionIntent.newChatTitle": "새 채팅을 시작할까요?",
+	"modals.sessionIntent.newChatBody": "현재 대화는 기록에 저장됩니다.",
+	"modals.sessionIntent.newChatConfirm": "새 채팅",
+	"modals.sessionIntent.reloadTitle": "{agent}을(를) 다시 시작할까요?",
+	"modals.sessionIntent.reloadBody":
+		"대화를 새로 시작합니다. 현재 대화는 기록에 저장됩니다.",
+	"modals.sessionIntent.reloadConfirm": "다시 시작",
+	"modals.deleteSession.title": "세션을 삭제할까요?",
+	"modals.deleteSession.body": '"{title}"을(를) 삭제하시겠습니까?',
+	"modals.deleteSession.hint":
+		"이 플러그인에서만 세션이 제거됩니다. 세션 데이터는 에이전트 쪽에 남아 있습니다.",
+	"modals.deleteSession.confirm": "삭제",
+	"modals.editTitle.title": "세션 제목 수정",
+	"modals.editTitle.save": "저장",
+	"modals.sessionHistory.title": "세션 기록",
 });

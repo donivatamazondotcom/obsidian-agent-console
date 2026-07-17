@@ -20,11 +20,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import {
-	classifyImagePaste,
-	IMAGE_PASTE_CONNECTING_NOTICE,
-	IMAGE_PASTE_UNSUPPORTED_NOTICE,
-} from "../image-paste";
+import { classifyImagePaste } from "../image-paste";
+import { en } from "../../i18n/en";
 
 describe("I72: classifyImagePaste — distinguish 'unknown' from 'unsupported'", () => {
 	// T-I72c: agent supports images → attach
@@ -68,11 +65,11 @@ describe("I72: classifyImagePaste — distinguish 'unknown' from 'unsupported'",
 	});
 
 	it("connecting and unsupported notices are distinct, accurate copy", () => {
-		expect(IMAGE_PASTE_CONNECTING_NOTICE).not.toBe(
-			IMAGE_PASTE_UNSUPPORTED_NOTICE,
+		expect(en["notices.imagePasteConnecting"]).not.toBe(
+			en["notices.imagePasteUnsupported"],
 		);
-		expect(IMAGE_PASTE_CONNECTING_NOTICE).toMatch(/connecting/i);
-		expect(IMAGE_PASTE_UNSUPPORTED_NOTICE).toMatch(
+		expect(en["notices.imagePasteConnecting"]).toMatch(/connecting/i);
+		expect(en["notices.imagePasteUnsupported"]).toMatch(
 			/does not support image/i,
 		);
 	});
