@@ -97,6 +97,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"settings.agentId.desc": "이 에이전트를 가리키는 고유 식별자입니다.",
 	"settings.agentId.tooltip": "이 에이전트 삭제",
 	"settings.displayName.name": "표시 이름",
+	"settings.displayName.placeholder": "사용자 지정 에이전트",
 	"settings.displayName.desc": "메뉴와 헤더에 표시됩니다.",
 	"settings.path.name6": "경로",
 	"settings.path.placeholder6": "명령 이름 또는 경로",
@@ -120,9 +121,9 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"settings.workingDirectory.button": "찾아보기…",
 	"settings.workingDirectory.tooltip": "폴더 선택",
 	"settings.activeNoteAsDefault.desc":
-		"새 채팅의 컨텍스트 스트립에 활성 노트를 자동으로 추가합니다. 잡기 버튼으로 언제든지 노트를 직접 고정할 수 있습니다.",
+		"새 채팅의 컨텍스트 스트립에 활성 노트를 자동으로 추가합니다. 고정 버튼으로 언제든지 노트를 직접 고정할 수 있습니다.",
 	"settings.sessionTitle.desc":
-		"새 채팅의 탭 이름을 만드는 방식입니다. '에이전트 제안'은 첫 응답에서 에이전트에게 짧은 제목을 요청하고, 제목이 도착할 때까지 첫 메시지를 임시로 사용합니다. 탭 이름은 언제든지 직접 바꿀 수 있습니다.",
+		"새 채팅의 탭 이름을 정하는 방식입니다. '에이전트 제안'을 선택하면 첫 응답에서 에이전트에게 짧은 제목을 요청하고, 제목을 받기 전까지는 첫 메시지를 임시로 사용합니다. 탭 이름은 언제든지 직접 바꿀 수 있습니다.",
 	"settings.quickPromptsFolder.desc":
 		"빠른 프롬프트를 검색할 보관소 폴더입니다. 프롬프트 하나당 마크다운 노트 하나를 사용합니다. 노트의 설명(또는 이름/제목/파일 이름)이 레이블이 되고 본문이 프롬프트 내용이 됩니다. 변경 사항은 실시간으로 반영됩니다.",
 	"settings.sendMessageShortcut.desc":
@@ -233,7 +234,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 		"아직 설정된 사용자 지정 에이전트가 없습니다.",
 	"settings.language.name": "언어",
 	"settings.language.desc": "이 플러그인의 버튼, 메뉴, 메시지에 사용할 언어입니다. '자동'은 Obsidian의 언어 설정을 따릅니다.",
-	"settings.language.optionAuto": "자동 (Obsidian과 동일)",
+	"settings.language.optionAuto": "자동(Obsidian과 동일)",
 	"settings.language.reloadNotice": "언어는 Obsidian을 다시 시작한 후에 바뀝니다.",
 	"settings.section.obsidianSystemPrompt": "Obsidian 시스템 프롬프트",
 	"settings.section.export": "내보내기",
@@ -244,7 +245,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"settings.sendMessageShortcut.optionCmdEnter": "Cmd/Ctrl+Enter로 전송, Enter로 줄 바꿈",
 	"settings.imageLocation.optionObsidian": "Obsidian의 첨부 파일 설정 사용",
 	"settings.imageLocation.optionCustom": "사용자 지정 폴더에 저장",
-	"settings.imageLocation.optionBase64": "Base64로 포함 (권장하지 않음)",
+	"settings.imageLocation.optionBase64": "Base64로 포함(권장하지 않음)",
 	"settings.sessionTitle.optionAgentSuggested": "에이전트가 첫 응답에서 제안",
 	"settings.sessionTitle.optionPromptDerived": "내 첫 메시지에서 생성",
 	"settings.sessionTitle.optionAgentTimestamp": "에이전트 이름과 시간",
@@ -261,7 +262,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"settings.defaultWorkingDirectory.statusVaultRoot": "현재: 보관소 루트{root}.",
 	"settings.defaultWorkingDirectory.statusInvalid": "⚠ \"{value}\"은(는) 유효한 절대 경로가 아니므로 새 채팅은 보관소 루트{root}를 사용합니다.",
 	"settings.defaultWorkingDirectory.statusResolved": "확인된 경로: {dir}.",
-	"settings.chatFontSize.placeholderCurrent": "{px} (현재 값)",
+	"settings.chatFontSize.placeholderCurrent": "{px}(현재 값)",
 	"settings.installHint.prefix": "설치가 안 되어 있나요? 터미널에서 실행하세요: ",
 	"settings.agentWorkingDirectory.desc": "이 에이전트의 새 채팅이 시작되는 폴더입니다. 비워 두면 전역 기본 작업 디렉터리를, 그다음 보관소 루트를 사용합니다.",
 	"settings.agentWorkingDirectory.sourceGlobal": " (전역 기본값)",
@@ -317,7 +318,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"notices.sessionReloading": "[Agent Console] 세션을 다시 불러오는 중…",
 	"notices.sessionReloaded": "[Agent Console] 세션을 다시 불러왔습니다",
 	"notices.sessionReloadedFresh":
-		"[Agent Console] 이 에이전트는 이어하기를 지원하지 않아 새 세션으로 다시 시작했습니다 (표시된 기록은 로컬입니다)",
+		"[Agent Console] 이 에이전트는 이어하기를 지원하지 않아 새 세션으로 다시 시작했습니다(표시된 기록은 로컬입니다)",
 	"notices.sessionReloadFailed":
 		"[Agent Console] 세션을 다시 불러오지 못했습니다",
 	"notices.invalidWorkingDirectory":
@@ -329,7 +330,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 		"[Agent Console] 대기 중인 권한 요청이 없습니다",
 	"notices.maxAttachments":
 		"[Agent Console] 첨부 파일은 최대 {count}개까지 가능합니다",
-	"notices.imageTooLarge": "[Agent Console] 이미지가 너무 큽니다 (최대 {size}MB)",
+	"notices.imageTooLarge": "[Agent Console] 이미지가 너무 큽니다(최대 {size}MB)",
 	"notices.imageAttachFailed": "[Agent Console] 이미지를 첨부하지 못했습니다",
 	"notices.filePathUndetermined":
 		"[Agent Console] 파일 경로를 확인할 수 없습니다",
@@ -364,7 +365,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"notices.removedFromContext":
 		'[Agent Console] "{name}"을(를) 컨텍스트에서 제거했습니다',
 	"notices.contextFull":
-		"[Agent Console] 컨텍스트가 가득 찼습니다 (노트 {max}개) — 하나를 제거한 뒤 추가하세요",
+		"[Agent Console] 컨텍스트가 가득 찼습니다(노트 {max}개) — 하나를 제거한 뒤 추가하세요",
 	"notices.addedToContext":
 		'[Agent Console] "{name}"을(를) 컨텍스트에 추가했습니다',
 	"notices.viewRegistrationConflict":
@@ -600,7 +601,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.history.noRestoreSupport":
 		"이 에이전트는 세션 복원을 지원하지 않습니다.",
 	"chat.history.sessionSource": "세션 출처",
-	"chat.history.agentSessions": "에이전트 서버 세션 ({agent})",
+	"chat.history.agentSessions": "에이전트 서버 세션({agent})",
 	"chat.history.noServerList":
 		"{agent}은(는) 서버에 세션 목록을 두지 않아 로컬 기록만 볼 수 있습니다.",
 	"chat.history.searchPlaceholder": "세션 검색…",
@@ -680,8 +681,8 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 		"MCP 서버에 다시 로그인해야 할 수 있습니다. 세션을 다시 시작하면 새 로그인 요청이 나타납니다.",
 	"chat.mcpBanner.reauthenticate": "다시 인증…",
 	"chat.sharedLinks.none": "아직 공유된 링크가 없습니다",
-	"chat.sharedLinks.count": "공유 링크 ({count})",
-	"chat.sharedLinks.countWithNew": "공유 링크 ({count}, 새 링크 {new}개)",
+	"chat.sharedLinks.count": "공유 링크({count})",
+	"chat.sharedLinks.countWithNew": "공유 링크({count}, 새 링크 {new}개)",
 	"chat.lossyFallback.title": "기록에서 복원된 세션",
 	"chat.lossyFallback.body":
 		"원래 세션을 에이전트에서 더 이상 사용할 수 없습니다. 이전 대화의 기록을 바탕으로 작업하지만, 원래 세션의 내부 상태나 이전의 추론에는 접근할 수 없습니다. 일부 도구 출력도 잘렸을 수 있습니다.",
