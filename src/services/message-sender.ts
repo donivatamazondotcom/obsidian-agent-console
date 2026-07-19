@@ -377,10 +377,14 @@ function wrapSystemInstruction(text: string): string {
 export function buildTitleRubric(input: PreparePromptInput): string | null {
 	if (!input.isFirstMessage) return null;
 	if (input.titleStrategy !== "agent-suggested") return null;
-	// Slice #4: when a non-English reply language is active, ask for the title
-	// in that language too — the rubric is our own instruction, so this
-	// deterministically localizes agent-suggested tab titles.
-	const lang = input.replyLanguageName;
+	// Slice #4: the language line is governed by the SAME respondInLanguage
+	// toggle as the reply-language block (spec D2 — one toggle, both effects).
+	// replyLanguageName is resolved from locale; the toggle gates whether we
+	// steer at all. Default on when the setting is absent (matches the block
+	// default), so a pre-feature input still localizes.
+	const respondInLanguage =
+		input.obsidianSystemPrompt?.blocks?.respondInLanguage ?? true;
+	const lang = respondInLanguage ? input.replyLanguageName : null;
 	return lang
 		? `${TITLE_RUBRIC} Write the title in ${lang}.`
 		: TITLE_RUBRIC;

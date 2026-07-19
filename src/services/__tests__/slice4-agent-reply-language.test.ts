@@ -140,6 +140,26 @@ describe("slice #4 — title rubric carries the language line", () => {
 		);
 		expect(rubric).toBeNull();
 	});
+
+	it("omits the language line when the respondInLanguage toggle is off (I18N-I05)", () => {
+		// The reply block gates on the toggle in compose; the title line must
+		// honor the SAME toggle (spec D2). Regression for the H4 smoke finding:
+		// toggle off + ko locale still asked for a Korean title.
+		const rubric = buildTitleRubric(
+			realSendInput({
+				titleStrategy: "agent-suggested",
+				replyLanguageName: "Korean",
+				obsidianSystemPrompt: {
+					blocks: { ...allOn(), respondInLanguage: false },
+					appendText: "",
+					customText: "",
+					mode: "options",
+				},
+			}),
+		);
+		expect(rubric).not.toBeNull();
+		expect(rubric).not.toContain("Write the title in");
+	});
 });
 
 describe("slice #4 — normalizer", () => {
