@@ -54,50 +54,23 @@ export const VAULT_COLLABORATION_BLOCK =
  * unblocks one is legitimate.
  */
 export const INTERACTIVE_BUTTONS_BLOCK = `<interactive_controls>
-You can offer the user clickable choices by adding an A2UI surface to your reply.
+You can offer clickable choices with an A2UI surface. Use ONLY for a small set (2–5) of concrete, mutually exclusive options. Never attach buttons to an open-ended or opinion question itself; a concrete clarifying choice that unblocks one is fine. When in doubt, reply in prose with no fence. Keep prose around it so a reader without buttons can still answer by typing. At most one surface per reply.
 
-WHEN TO USE: only when you are offering a small set of concrete, mutually
-exclusive choices (2–5 options). Never attach buttons to an open-ended or
-opinion question itself. If answering an open-ended request first requires
-a concrete decision from the user (a clarifying choice — which file, which
-scope, where's the doc), buttons for that clarifying choice are fine.
-When in doubt, reply in prose with no fence. At most one surface per reply
-unless the user asks for more.
+Emit a fenced \`a2ui\` block containing EXACTLY ONE line of JSON: a v1.0 createSurface envelope with inline components. Requirements:
+- "version":"v1.0"; "catalogId":"https://agentconsole.dev/a2ui/catalogs/buttons-v0"
+- unique kebab-case "surfaceId" (e.g. "scope-7f3a")
+- flat "components" array, exactly one with "id":"root"
+- component types ONLY: Text, Row, Column, Card, Button, Divider
+- each Button has "child" (a Text component's id) and "action":{"event":{"name":"...","context":{...}}}
+- every value is a literal — no paths, functions, checks, dataModel, URLs, or images; Text holds plain text
 
-HOW: emit a fenced code block with language \`a2ui\` containing EXACTLY ONE
-line of JSON — a single A2UI v1.0 createSurface envelope with inline
-components. Keep normal prose around the fence; the buttons supplement your
-words, they don't replace them. A reader without buttons must still be able
-to answer by typing.
-
-RULES:
-- One line of JSON inside the fence. No comments, no extra text, no wrapping.
-- "version" must be "v1.0".
-- "surfaceId": a unique kebab-case id ending in 4 random hex characters
-  (example: "migration-scope-7f3a"). Never reuse an id in a conversation.
-- "catalogId" must be exactly
-  "https://agentconsole.dev/a2ui/catalogs/buttons-v0".
-- "components" is a flat array. Exactly one component has "id": "root".
-- Allowed component types ONLY: Text, Row, Column, Card, Button, Divider.
-- Every Button has "child" (the id of a Text component holding its label)
-  and "action": {"event": {"name": "...", "context": {...}}} — context
-  values are literal strings, numbers, or booleans.
-- Every value is a literal. No {"path": ...} bindings, no function calls,
-  no "checks", no "dataModel", no URLs, no images.
-- Text components hold plain text, not markdown.
-
-EXAMPLE:
+Example:
 
 \`\`\`a2ui
-{"version":"v1.0","createSurface":{"surfaceId":"migration-scope-7f3a","catalogId":"https://agentconsole.dev/a2ui/catalogs/buttons-v0","components":[{"id":"root","component":"Row","children":["minimal","complete"]},{"id":"minimal-label","component":"Text","text":"Minimal migration"},{"id":"minimal","component":"Button","child":"minimal-label","action":{"event":{"name":"choose_scope","context":{"scope":"minimal"}}}},{"id":"complete-label","component":"Text","text":"Complete migration"},{"id":"complete","component":"Button","child":"complete-label","action":{"event":{"name":"choose_scope","context":{"scope":"complete"}}}}]}}
+{"version":"v1.0","createSurface":{"surfaceId":"scope-7f3a","catalogId":"https://agentconsole.dev/a2ui/catalogs/buttons-v0","components":[{"id":"root","component":"Row","children":["min","full"]},{"id":"min-l","component":"Text","text":"Minimal fix"},{"id":"min","component":"Button","child":"min-l","action":{"event":{"name":"scope","context":{"scope":"minimal"}}}},{"id":"full-l","component":"Text","text":"Full refactor"},{"id":"full","component":"Button","child":"full-l","action":{"event":{"name":"scope","context":{"scope":"full"}}}}]}}
 \`\`\`
 
-THE ANSWER: when the user clicks a button, their next message will contain
-an \`a2ui\` fence with an "action" envelope naming your surfaceId and that
-button's event name and context. Treat it as their answer and proceed —
-do not re-ask.
-
-If you are not offering concrete choices, reply normally with no a2ui fence.
+When the user clicks, their next message contains an \`a2ui\` "action" envelope with your surfaceId, the button's event name, and its context — treat it as their answer and proceed; don't re-ask.
 </interactive_controls>`;
 
 /** Working-directory block is parameterized by the resolved cwd. */
