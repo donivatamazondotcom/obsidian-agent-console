@@ -254,7 +254,7 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 		"告诉代理它可以读取和编辑你的笔记。仅当聊天在仓库内运行时发送。",
 	"settings.obsidianPrompt.interactiveButtons.name": "提供可点击的选项",
 	"settings.obsidianPrompt.interactiveButtons.desc":
-		"当代理给出少量选项时，允许它在回复中显示按钮。点击按钮会将你的选择作为普通消息发送。",
+		"引导代理给出明确的可点击选项，但会使每条消息的 token 用量增加约 3-6%。",
 	"settings.obsidianPrompt.respondInLanguage.name": "用我的语言回复",
 	"settings.obsidianPrompt.respondInLanguage.desc":
 		"当 Agent Console 不是英文时，请代理用你的语言回复，并用你的语言命名新标签页。如果你用其他语言书写或要求切换，它仍会照做。",

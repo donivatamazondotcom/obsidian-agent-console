@@ -213,7 +213,7 @@ export const en = {
 	"settings.obsidianPrompt.vaultCollaboration.name": "Let it work with your notes",
 	"settings.obsidianPrompt.vaultCollaboration.desc": "Tells the agent it can read and edit your notes. Only sent when the chat runs inside your vault.",
 	"settings.obsidianPrompt.interactiveButtons.name": "Offer clickable choices",
-	"settings.obsidianPrompt.interactiveButtons.desc": "Lets the agent show buttons in its replies when it offers you a small set of choices. Clicking a button sends your pick as a normal message.",
+	"settings.obsidianPrompt.interactiveButtons.desc": "Steers the agent towards unambiguous clickable choices, but increases per-message token use by roughly 3-6%.",
 	"settings.obsidianPrompt.respondInLanguage.name": "Reply in my language",
 	"settings.obsidianPrompt.respondInLanguage.desc":
 		"When Agent Console is not in English, ask the agent to reply — and name new tabs — in your language. It still follows along if you write in another language or ask it to switch.",
