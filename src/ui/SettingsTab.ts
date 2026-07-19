@@ -14,6 +14,7 @@ import {
 	SUPPORTED_LOCALES,
 	LOCALE_DISPLAY_NAMES,
 	languageReloadNotice,
+	getReplyLanguage,
 } from "../i18n";
 import type {
 	CustomAgentSettings,
@@ -322,7 +323,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			const base =
 				composeObsidianSystemPrompt(
 					{ blocks: cur.blocks, mode: "options" },
-					{ cwd: hcbVaultRoot, vaultRoot: hcbVaultRoot },
+					{
+						cwd: hcbVaultRoot,
+						vaultRoot: hcbVaultRoot,
+						replyLanguageName: getReplyLanguage()?.englishName ?? null,
+					},
 				) ?? "";
 			const add = (appendOverride ?? cur.appendText ?? "").trim();
 			return add ? base + "\n\n" + add : base;
@@ -408,6 +413,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						t("settings.obsidianPrompt.interactiveButtons.name"),
 						t("settings.obsidianPrompt.interactiveButtons.desc"),
 						"interactiveButtons",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.respondInLanguage.name"),
+						t("settings.obsidianPrompt.respondInLanguage.desc"),
+						"respondInLanguage",
 					);
 
 					new Setting(body)

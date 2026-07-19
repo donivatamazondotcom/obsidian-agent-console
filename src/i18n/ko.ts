@@ -257,6 +257,9 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"settings.obsidianPrompt.workingDirectory.desc": "이 채팅이 어느 폴더에서 작업 중인지 에이전트에게 알려 줍니다.",
 	"settings.obsidianPrompt.vaultCollaboration.name": "내 노트로 작업 허용하기",
 	"settings.obsidianPrompt.vaultCollaboration.desc": "에이전트가 노트를 읽고 편집할 수 있음을 알려 줍니다. 채팅이 보관소 안에서 실행될 때만 전송됩니다.",
+	"settings.obsidianPrompt.respondInLanguage.name": "내 언어로 응답",
+	"settings.obsidianPrompt.respondInLanguage.desc":
+		"Agent Console가 영어가 아닐 때, 에이전트가 내 언어로 응답하고 새 탭 이름도 내 언어로 짓도록 요청합니다. 다른 언어로 쓰거나 바꿔 달라고 하면 그대로 따릅니다.",
 	"settings.obsidianPrompt.previewEmpty": "(시스템 프롬프트가 전송되지 않습니다. 에이전트는 Obsidian 컨텍스트를 받지 않습니다.)",
 	"settings.defaultWorkingDirectory.desc": "새 채팅이 시작되는 디렉터리입니다. 비워 두면 보관소 루트를 사용합니다. 기존 채팅과 복원된 채팅은 자기 디렉터리를 유지합니다.",
 	"settings.defaultWorkingDirectory.statusVaultRoot": "현재: 보관소 루트{root}.",

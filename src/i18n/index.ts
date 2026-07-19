@@ -54,6 +54,24 @@ export const LOCALE_DISPLAY_NAMES: Record<LocaleCode, string> = {
 };
 
 /**
+ * English names of each locale — used in the agent reply-language hint
+ * (slice #4). English (not the endonym) so any model reliably understands
+ * the instruction "reply in Korean" regardless of its own training bias.
+ */
+export const LOCALE_ENGLISH_NAMES: Record<LocaleCode, string> = {
+	en: "English",
+	ko: "Korean",
+	zh: "Chinese (Simplified)",
+	ja: "Japanese",
+};
+
+/** The resolved reply language for the agent hint, or null when English. */
+export interface ReplyLanguage {
+	code: LocaleCode;
+	englishName: string;
+}
+
+/**
  * Factories for non-English catalogs. Wrapping in a function defers object
  * instantiation until the locale is actually active.
  */
@@ -63,6 +81,9 @@ const localeFactories: Record<Exclude<LocaleCode, "en">, () => LocaleCatalog> =
 		zh,
 		ja,
 	};
+
+/** The resolved active locale code (English until initLocale runs). */
+let activeLocale: LocaleCode = "en";
 
 /** Active non-English catalog, or null when English is active. */
 let activeCatalog: LocaleCatalog | null = null;
@@ -93,12 +114,14 @@ export function resolveLocale(raw: string): LocaleCode {
 export function initLocale(language: string): void {
 	const tag = language === "auto" ? getLanguage() : language;
 	const locale = resolveLocale(tag);
+	activeLocale = locale;
 	activeCatalog =
 		locale === "en" ? null : (localeFactories[locale]?.() ?? null);
 }
 
 /** Test-only: reset to English without going through initLocale. */
 export function resetLocaleForTests(): void {
+	activeLocale = "en";
 	activeCatalog = null;
 }
 
@@ -145,4 +168,16 @@ export function languageReloadNotice(target: string): string {
 	return current === targetString
 		? current
 		: `${current}\n${targetString}`;
+}
+
+/**
+ * The agent reply-language hint target (slice #4), or null when the active
+ * locale is English (so English users get no hint and no behavior change).
+ * Reads the module-level active locale set by initLocale — the same
+ * load-time-resolved state t() reads. Consumers pass the result into the
+ * pure prompt composers as PreparePromptInput.replyLanguage.
+ */
+export function getReplyLanguage(): ReplyLanguage | null {
+	if (activeLocale === "en") return null;
+	return { code: activeLocale, englishName: LOCALE_ENGLISH_NAMES[activeLocale] };
 }
