@@ -4,6 +4,7 @@ import { setIcon } from "obsidian";
 import type { ErrorInfo, OverlayVariant } from "../types/errors";
 import { LucideIcon } from "./shared/IconButton";
 import type { IChatViewHost } from "./view-host";
+import { t } from "../i18n";
 
 export interface ErrorBannerProps {
 	/** Error information to display */
@@ -60,7 +61,7 @@ export function ErrorBanner({
 				<button
 					className="clickable-icon agent-client-error-overlay-close"
 					onClick={onClose}
-					aria-label="Close"
+					aria-label={t("modals.common.close")}
 					type="button"
 					ref={(el) => {
 						if (el) {

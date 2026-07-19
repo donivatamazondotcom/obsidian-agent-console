@@ -25,11 +25,15 @@
  * width is owned by CSS ellipsis (see the Session History truncation fix).
  */
 
-export const DEFAULT_SESSION_TITLE = "Untitled Session";
+import { t } from "../i18n";
+
+export function defaultSessionTitle(): string {
+	return t("chat.history.untitled");
+}
 
 export function formatSessionTitle(
 	raw: string | null | undefined,
-	fallback: string = DEFAULT_SESSION_TITLE,
+	fallback: string = defaultSessionTitle(),
 ): string {
 	if (raw == null) return fallback;
 

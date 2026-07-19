@@ -1,4 +1,5 @@
 import * as React from "react";
+import { t } from "../i18n";
 
 /**
  * Lossy-fallback notice for sessions recovered via client-side replay.
@@ -39,8 +40,9 @@ import * as React from "react";
  *
  * Source: spec § Decisions #11 (2026-05-24).
  */
-export const LOSSY_FALLBACK_NOTICE_COPY =
-	"ℹ️ Session restored from history — The original session was no longer available on the agent. I'm working from a transcript of your previous conversation, but I don't have access to the original session's internal state or any reasoning from before. Some tool outputs may also have been truncated.";
+export function lossyFallbackNoticeCopy(): string {
+	return `ℹ️ ${t("chat.lossyFallback.title")} — ${t("chat.lossyFallback.body")}`;
+}
 
 export interface LossyFallbackNoticeProps {
 	/**
@@ -83,10 +85,8 @@ export function LossyFallbackNotice({
 			role="status"
 		>
 			{"ℹ️ "}
-			<strong>{"Session restored from history"}</strong>
-			{
-				" — The original session was no longer available on the agent. I'm working from a transcript of your previous conversation, but I don't have access to the original session's internal state or any reasoning from before. Some tool outputs may also have been truncated."
-			}
+			<strong>{t("chat.lossyFallback.title")}</strong>
+			{` — ${t("chat.lossyFallback.body")}`}
 		</div>
 	);
 }

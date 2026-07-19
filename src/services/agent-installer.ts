@@ -19,6 +19,7 @@ import { spawn } from "child_process";
 import { Platform } from "obsidian";
 import { getShellPath, prependPath } from "../utils/paths";
 import { getEnhancedWindowsEnv } from "../utils/platform";
+import { t } from "../i18n";
 
 export interface InstallResult {
 	/** True only on a clean exit (code 0). */
@@ -67,19 +68,19 @@ export function summarizeInstallFailure(
 		text.includes("npm: not found") ||
 		text.includes("enoent")
 	) {
-		return "Couldn't find npm. Install Node.js (which includes npm), then try again — or copy the command and run it in your terminal.";
+		return t("chat.installer.noNpm");
 	}
 	if (text.includes("eacces") || text.includes("permission denied")) {
-		return "This install needs a permission your account doesn't have here. Copy the command and run it in your terminal (you may need sudo).";
+		return t("chat.installer.needsPermission");
 	}
 	if (
 		text.includes("etimedout") ||
 		text.includes("enotfound") ||
 		text.includes("network")
 	) {
-		return "Couldn't reach the network to install. Check your connection, then try again — or copy the command and run it in your terminal.";
+		return t("chat.installer.noNetwork");
 	}
-	return "The install didn't finish. Copy the command and run it in your terminal to see the full error.";
+	return t("chat.installer.didntFinish");
 }
 
 /**

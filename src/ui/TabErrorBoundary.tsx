@@ -1,4 +1,5 @@
 import * as React from "react";
+import { t } from "../i18n";
 
 interface Props {
 	tabId: string;
@@ -43,16 +44,16 @@ export class TabErrorBoundary extends React.Component<Props, State> {
 				<div className="agent-client-tab-error">
 					<div className="agent-client-tab-error-icon">⚠</div>
 					<div className="agent-client-tab-error-title">
-						This tab encountered an error
+						{t("chat.errors.tabCrashTitle")}
 					</div>
 					<div className="agent-client-tab-error-message">
-						{this.state.error?.message ?? "Unknown error"}
+						{this.state.error?.message ?? t("notices.unknownError")}
 					</div>
 					<button
 						className="agent-client-tab-error-retry"
 						onClick={this.handleRetry}
 					>
-						Retry
+						{t("chat.errors.retry")}
 					</button>
 				</div>
 			);

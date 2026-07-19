@@ -47,6 +47,7 @@ import type { ContextNote, ContextNoteSource } from "../types/context";
 import type AgentClientPlugin from "../plugin";
 import type { IChatViewHost } from "./view-host";
 import type { VaultService } from "../services/vault-service";
+import { t } from "../i18n";
 
 const NO_COMMANDS: SlashCommand[] = [];
 
@@ -167,7 +168,7 @@ export function ZeroTabLanding({
 			<div className="agent-client-zero-tab-landing-center">
 				<div className="agent-client-zero-tab-landing-content">
 					<p className="agent-client-zero-tab-landing-message">
-						No chat open. Type below to start a new one.
+						{t("chat.landing.zeroTab")}
 					</p>
 					<div className="agent-client-zero-tab-landing-actions">
 						{showAgentPicker && (
@@ -176,7 +177,7 @@ export function ZeroTabLanding({
 								className="agent-client-zero-tab-landing-action"
 								onClick={onNewChatWithAgent}
 							>
-								New chat with an agent
+								{t("chat.landing.newChatWithAgent")}
 							</button>
 						)}
 						<button
@@ -184,7 +185,7 @@ export function ZeroTabLanding({
 							className="agent-client-zero-tab-landing-action"
 							onClick={onOpenHistory}
 						>
-							Open session history
+							{t("chat.landing.openSessionHistory")}
 						</button>
 					</div>
 				</div>

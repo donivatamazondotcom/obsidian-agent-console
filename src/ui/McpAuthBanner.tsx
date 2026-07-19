@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import type AgentClientPlugin from "../plugin";
 import type { MessageContent } from "../types/chat";
 import { decideMcpAuthAffordance } from "../utils/mcp-auth-affordance";
+import { t } from "../i18n";
 
 interface McpAuthBannerProps {
 	content: Extract<MessageContent, { type: "tool_call" }>;
@@ -34,12 +35,14 @@ export function McpAuthBanner({ content, plugin }: McpAuthBannerProps) {
 			<div className="agent-client-mcp-auth-banner">
 				<div className="agent-client-mcp-auth-banner-text">
 					<div className="agent-client-mcp-auth-banner-title">
-						{`MCP server "${entry.serverName}" needs sign-in`}
+						{t("notices.mcpNeedsSignInTitle", { server: entry.serverName })}
 					</div>
 					<div className="agent-client-mcp-auth-banner-detail">
 						{entry.host
-							? `This tool failed because the server is not signed in. Opens ${entry.host}.`
-							: "This tool failed because the server is not signed in."}
+							? t("chat.mcpBanner.toolFailedOpens", {
+									host: entry.host,
+								})
+							: t("chat.mcpBanner.toolFailed")}
 					</div>
 				</div>
 				<button
@@ -47,7 +50,7 @@ export function McpAuthBanner({ content, plugin }: McpAuthBannerProps) {
 					className="mod-cta"
 					onClick={() => manager.openSignIn(entry)}
 				>
-					Sign in
+					{t("notices.mcpSignIn")}
 				</button>
 			</div>
 		);
@@ -57,11 +60,10 @@ export function McpAuthBanner({ content, plugin }: McpAuthBannerProps) {
 		<div className="agent-client-mcp-auth-banner">
 			<div className="agent-client-mcp-auth-banner-text">
 				<div className="agent-client-mcp-auth-banner-title">
-					This looks like a sign-in problem
+					{t("chat.mcpBanner.looksLikeSignIn")}
 				</div>
 				<div className="agent-client-mcp-auth-banner-detail">
-					An MCP server may need to sign in again. Restart the session
-					to get a fresh sign-in prompt.
+					{t("chat.mcpBanner.mayNeedSignIn")}
 				</div>
 			</div>
 			<button
@@ -69,7 +71,7 @@ export function McpAuthBanner({ content, plugin }: McpAuthBannerProps) {
 				className="mod-cta"
 				onClick={() => plugin.openMcpReauthentication()}
 			>
-				Re-authenticate…
+				{t("chat.mcpBanner.reauthenticate")}
 			</button>
 		</div>
 	);

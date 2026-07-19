@@ -15,6 +15,7 @@ import { extractA2uiFences } from "../services/a2ui/fence-extractor";
 import { summarizeA2uiActionBody } from "../services/a2ui/action";
 import type { A2uiButton } from "../services/a2ui/action";
 import type { A2uiValidatedSurface } from "../services/a2ui/types";
+import { t } from "../i18n";
 
 // ---------------------------------------------------------------------------
 // TextWithMentions (internal helper)
@@ -506,7 +507,7 @@ function ContentBlock({
 				<div className="agent-client-message-image">
 					<img
 						src={`data:${content.mimeType};base64,${content.data}`}
-						alt="Attached image"
+						alt={t("chat.messages.attachedImage")}
 						className="agent-client-message-image-thumbnail"
 					/>
 				</div>
@@ -528,7 +529,7 @@ function ContentBlock({
 			);
 
 		default:
-			return <span>Unsupported content type</span>;
+			return <span>{t("chat.messages.unsupportedContent")}</span>;
 	}
 }
 
@@ -593,7 +594,7 @@ function CopyButton({ contents }: { contents: MessageContent[] }) {
 		<button
 			className="clickable-icon agent-client-message-action-button"
 			onClick={handleCopy}
-			aria-label="Copy message"
+			aria-label={t("chat.messages.copyMessage")}
 			ref={iconRef}
 		/>
 	);

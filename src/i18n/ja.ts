@@ -1,5 +1,5 @@
 /**
- * Japanese (日本語) string catalog — settings, notices, and modals (phases 1–2).
+ * Japanese (日本語) string catalog — settings, notices, and modals (phases 1–3).
  *
  * Factory-wrapped: instantiated only when Japanese is the active locale.
  * Partial against the English contract; missing keys fall back to English.
@@ -491,4 +491,348 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"modals.editTitle.title": "セッションタイトルを編集",
 	"modals.editTitle.save": "保存",
 	"modals.sessionHistory.title": "セッション履歴",
+
+	// ---- Phase 3: commands ----
+	"commands.openChat": "チャットを開く",
+	"commands.focusNextView": "次のチャットビューへ移動",
+	"commands.focusPreviousView": "前のチャットビューへ移動",
+	"commands.closeSessionTab": "セッションタブを閉じる",
+	"commands.nextSessionTab": "次のセッションタブ",
+	"commands.previousSessionTab": "前のセッションタブ",
+	"commands.showTabList": "タブ一覧を表示",
+	"commands.reopenClosedTab": "閉じたセッションタブを再度開く",
+	"commands.openSessionHistory": "セッション履歴を開く",
+	"commands.openNewView": "新しいビューを開く",
+	"commands.importSettings": "他のエージェントプラグインから設定をインポート",
+	"commands.quickPromptsSearch": "クイックプロンプト: 検索",
+	"commands.quickPromptsNew": "クイックプロンプト: 新規プロンプト",
+	"commands.quickPromptsSaveComposer":
+		"クイックプロンプト: 入力欄の内容をプロンプトとして保存",
+	"commands.newChatWithAgent": "エージェントを選んで新しいチャット…",
+	"commands.approvePermission": "保留中の権限を承認",
+	"commands.rejectPermission": "保留中の権限を拒否",
+	"commands.toggleActiveNote": "アクティブノートをコンテキストに追加/削除",
+	"commands.newChat": "新しいチャット",
+	"commands.cancelMessage": "現在のメッセージをキャンセル",
+	"commands.exportChat": "チャットをエクスポート",
+	"commands.reloadSession": "セッションを再読み込み",
+	"commands.restartSessionFresh": "セッションを最初からやり直す",
+	"commands.reauthMcp": "MCP サーバーを再認証",
+	"commands.broadcastPrompt": "プロンプトを一斉送信",
+	"commands.broadcastSend": "全タブで送信",
+	"commands.broadcastCancel": "全タブでキャンセル",
+	// ---- Phase 3: chat header ----
+	"chat.header.connecting": "接続中…",
+	"chat.header.notConnected": "未接続",
+	"chat.header.updatePill": "プラグインの更新があります！",
+	"chat.header.updateTooltip":
+		"コミュニティプラグインを開いて Agent Console を更新",
+	"chat.header.reloadTooltip":
+		"再読み込み — セッションを再開し会話を保持します。Shift クリック: 最初からやり直し — 新しいセッションで会話をクリアします。",
+	"chat.header.sessionHistory": "セッション履歴",
+	"chat.header.exportTooltip": "チャットを Markdown にエクスポート",
+	"chat.header.more": "その他",
+	"chat.header.tooltipPlugin": "プラグイン: {value}",
+	"chat.header.tooltipProfile": "プロファイル: {value}",
+	"chat.header.tooltipRuntime": "ランタイム: {value}",
+	"chat.header.tooltipModel": "モデル: {value}",
+	// ---- Phase 3: more-menu + tab bar ----
+	"chat.menu.switchAgent": "エージェントを切り替え",
+	"chat.menu.openNewView": "新しいビューを開く",
+	"chat.menu.newChatInDirectory": "ディレクトリで新しいチャット...",
+	"chat.menu.pluginSettings": "プラグイン設定",
+	"chat.tabBar.rename": "名前を変更",
+	"chat.tabBar.close": "閉じる",
+	"chat.tabBar.closeOthers": "他のタブを閉じる",
+	"chat.tabBar.closeToRight": "右側のタブを閉じる",
+	"chat.tabBar.closeTab": "タブを閉じる",
+	"chat.tabBar.newSessionTab": "新しいセッションタブ",
+	"chat.tabBar.tabList": "タブ一覧",
+	// ---- Phase 3: tab labels ----
+	"chat.tabs.forkPrefix": "フォーク: {label}",
+	"chat.tabs.sessionFallback": "セッション",
+	"chat.tabs.chatFallback": "チャット",
+	"chat.tabs.defaultAgentSuffix": "{name}（デフォルト）",
+	// ---- Phase 3: composer + toolbar ----
+	"chat.composer.queuedLocked":
+		"待機中のメッセージ（ロック中）— 変更するには「編集」を使ってください",
+	"chat.composer.edit": "編集",
+	"chat.composer.delete": "削除",
+	"chat.composer.mode": "モード",
+	"chat.composer.model": "モデル",
+	"chat.composer.selectMode": "モードを選択",
+	"chat.composer.selectModel": "モデルを選択",
+	"chat.composer.stopGeneration": "生成を停止",
+	"chat.composer.sendMessage": "メッセージを送信",
+	"chat.composer.sendToConnect": "送信して接続",
+	"chat.composer.connecting": "接続中...",
+	"chat.composer.usageTokens": "{used} / {size} トークン",
+	"chat.composer.placeholder":
+		"{agent} にメッセージ - @ でノートを参照{commands}、! でクイックプロンプト",
+	"chat.composer.placeholderCommands": "、/ でコマンド",
+	"chat.composer.placeholderStreaming":
+		"メッセージを待機列へ – Enter を押すと {agent} の完了後に送信されます",
+	"chat.composer.placeholderQueueSteer":
+		"{queueKey} で待機列へ · {steerKey} で今すぐ送信",
+	"chat.composer.queuedBannerReady": "待機中 — {agent} の完了後に送信されます",
+	"chat.composer.queuedBannerWaiting": "待機中 — 準備でき次第送信されます",
+	// ---- Phase 3: message list + landing ----
+	"chat.messages.sending": "送信中…",
+	"chat.messages.waitingForPermission": "権限を待っています...",
+	"chat.messages.restoringSession": "セッションを復元中...",
+	"chat.messages.connectingTo": "{agent} に接続中...",
+	"chat.messages.sendToConnectTo":
+		"メッセージを送信して {agent} に接続しましょう...",
+	"chat.messages.startConversation": "{agent} と会話を始めましょう...",
+	"chat.messages.copyMessage": "メッセージをコピー",
+	"chat.messages.attachedImage": "添付画像",
+	"chat.messages.unsupportedContent": "サポートされていないコンテンツ形式",
+	"chat.landing.zeroTab":
+		"開いているチャットがありません。下に入力して新しく始めましょう。",
+	"chat.landing.newChatWithAgent": "エージェントと新しいチャット",
+	"chat.landing.openSessionHistory": "セッション履歴を開く",
+	"chat.landing.pickAgent": "エージェントを選んで始めましょう",
+	"chat.landing.detected": "このマシンで検出済み:",
+	"chat.landing.install": "インストール",
+	"chat.landing.installing": "インストール中…",
+	"chat.landing.copyCommand": "コマンドをコピー",
+	"chat.landing.copied": "コピーしました！",
+	"chat.landing.setupGuide": "セットアップガイド",
+	"chat.landing.installDidntFinish": "インストールが完了しませんでした。",
+	"chat.landing.orSeparator": "、または ",
+	"chat.landing.listSeparator": "、",
+	"chat.landing.openSettings": "設定を開く",
+	"chat.landing.redetect": "再検出",
+	"chat.landing.pathHint":
+		"別の場所にインストール済みですか？設定でパスを指定してください。",
+	"chat.landing.needAgentPrefix":
+		"エージェントがまだインストールされていません。Agent Console にはパソコン上の AI エージェントが必要です – ",
+	// ---- Phase 3: context strip ----
+	"chat.contextStrip.noActiveNote": "ピン留めできるアクティブノートがありません",
+	"chat.contextStrip.alreadyInContext": "{name} はすでにコンテキストにあります",
+	"chat.contextStrip.maxNotes":
+		"コンテキストノートは最大 8 件です。1 件削除してから追加してください。",
+	"chat.contextStrip.pin": "ピン留め: {name}",
+	"chat.contextStrip.removeNote": "ノートをコンテキストから削除",
+	"chat.contextStrip.dontAddActiveNote":
+		"このチャットのコンテキストにアクティブノートを追加しない",
+	// ---- Phase 3: session history ----
+	"chat.history.justNow": "たった今",
+	"chat.history.minutesAgo_one": "1 分前",
+	"chat.history.minutesAgo_other": "{count} 分前",
+	"chat.history.hoursAgo_one": "1 時間前",
+	"chat.history.hoursAgo_other": "{count} 時間前",
+	"chat.history.daysAgo": "{count} 日前",
+	"chat.history.yesterday": "昨日",
+	"chat.history.editTitle": "セッションタイトルを編集",
+	"chat.history.restoreSession": "セッションを復元",
+	"chat.history.forkSession": "セッションを新しいタブにフォーク",
+	"chat.history.deleteSession": "セッションを削除",
+	"chat.history.restore": "復元",
+	"chat.history.retry": "再試行",
+	"chat.history.local": "ローカル",
+	"chat.history.agentBadge": "エージェント: {label}",
+	"chat.history.synced": "{when}に同期",
+	"chat.history.notSynced": "まだ同期されていません",
+	"chat.history.reconnectRefresh":
+		"メッセージを送信して再接続・更新してください",
+	"chat.history.sendToConnect": "メッセージを送信して接続してください",
+	"chat.history.untitled": "無題のセッション",
+	"chat.history.noRestoreSupport":
+		"このエージェントはセッションの復元をサポートしていません。",
+	"chat.history.sessionSource": "セッションのソース",
+	"chat.history.agentSessions": "エージェントサーバーのセッション（{agent}）",
+	"chat.history.noServerList":
+		"{agent} はサーバー上にセッション一覧を持たないため、ローカル履歴のみ表示できます。",
+	"chat.history.searchPlaceholder": "セッションを検索…",
+	"chat.history.searchAria": "セッションを検索",
+	"chat.history.searchingTranscripts": "会話記録を検索中…",
+	"chat.history.onlyThisFolder": "このフォルダのみ",
+	"chat.history.onlyThisFolderTitle":
+		"作業フォルダがこのフォルダのセッションだけを表示します。チェックを外すとすべてのフォルダのセッションが表示されます。",
+	"chat.history.loadingSessions": "セッションを読み込み中…",
+	"chat.history.noLocalWithCount":
+		"ローカルセッションはまだありません。エージェントに {count} 件あります — 「エージェント」で確認してください。",
+	"chat.history.noLocalMaybe":
+		"ローカルセッションはまだありません。エージェントに保存済みのセッションがあるかもしれません — 「エージェント」で確認してください。",
+	"chat.history.viewAgentSessions": "エージェントのセッションを表示",
+	"chat.history.noMatch": "検索に一致するセッションがありません",
+	"chat.history.noPrevious": "以前のセッションはありません",
+	"chat.history.loadMore": "さらに読み込む",
+	"chat.history.loading": "読み込み中…",
+	// ---- Phase 3: quick prompts ----
+	"chat.quickPrompts.queuedTooltip":
+		"メッセージが待機中です — 別の内容を送るには編集または削除してください",
+	"chat.quickPrompts.newTabTooltip":
+		"クリック: 新しいタブで開く · {mod}クリック: バックグラウンドで開く · {alt}クリック: 入力欄に入れて先に編集",
+	"chat.quickPrompts.thisTabTooltip":
+		"クリック: このチャットで送信 · {mod}クリック: 新しいバックグラウンドタブで送信（{shift} を足すとそのタブへ移動）· {alt}クリック: 入力欄に入れて先に編集",
+	"chat.quickPrompts.showMore":
+		"あと {count} 件を表示 — すべてのクイックプロンプトを検索",
+	"chat.quickPrompts.editPrompt": "プロンプトを編集",
+	"chat.quickPrompts.copyPrompt": "プロンプトをコピー",
+	"chat.quickPrompts.rename": "名前を変更",
+	"chat.quickPrompts.addedToDraft":
+		"下書きに追加しました — 確認して送信してください",
+	"chat.quickPrompts.needsSelection":
+		"「{label}」には選択範囲が必要です — 代わりに入力欄へ入れました。",
+	"chat.quickPrompts.startedInNewTab":
+		"「{label}」を新しいタブで開始しました。",
+	"chat.quickPrompts.openedInNewTab":
+		"「{label}」を編集できるよう新しいタブで開きました。",
+	"chat.quickPrompts.createFromMessage":
+		"このメッセージからクイックプロンプトを作成",
+	"chat.quickPrompts.create": "クイックプロンプトを作成",
+	"chat.quickPrompts.createFirst": "最初のクイックプロンプトを作成",
+	"chat.quickPrompts.createNamed": "クイックプロンプト「{query}」を作成",
+	"chat.quickPrompts.newPromptName": "新規プロンプト",
+	// ---- Phase 3: A2UI interactive buttons ----
+	"chat.a2ui.disabledStreaming": "この返信が終わると使えます",
+	"chat.a2ui.disabledSending": "現在の返信が終わるまでお待ちください",
+	"chat.a2ui.disabledQueued": "すでに送信待ちのメッセージがあります",
+	"chat.a2ui.disabledRestoring": "先に会話を読み込んでいます",
+	"chat.a2ui.disabledPending": "選択を送信中…",
+	"chat.a2ui.disabledAnswered": "回答済み",
+	"chat.a2ui.disabledSuperseded": "より新しい選択肢が下にあります",
+	"chat.a2ui.inertReason":
+		"ボタンを安全に表示できなかったため、内容をコードのまま残しています。",
+	// ---- Phase 3: banners, blocks, and errors ----
+	"chat.carriedOver.title": "{agent} から引き継いだ会話",
+	"chat.carriedOver.show": "表示",
+	"chat.carriedOver.hide": "非表示",
+	"chat.carriedOver.you": "あなた",
+	"chat.carriedOver.assistant": "アシスタント",
+	"chat.errors.tabCrashTitle": "このタブでエラーが発生しました",
+	"chat.errors.retry": "再試行",
+	"chat.terminal.waitingForOutput": "出力を待っています...",
+	"chat.terminal.noOutput": "出力なし",
+	"chat.terminal.exitCode": "終了コード: {code}",
+	"chat.terminal.signal": " | シグナル: {signal}",
+	"chat.toolCall.title": "ツール呼び出し",
+	"chat.toolCall.newFile": "新規ファイル",
+	"chat.toolCall.lines": "{count} 行",
+	"chat.toolCall.collapsed": "折りたたみ。",
+	"chat.toolCall.expanded": "展開。",
+	"chat.toolCall.contentRegion": "{title} の内容",
+	"chat.toolCall.input": "入力",
+	"chat.toolCall.output": "出力",
+	"chat.mcpBanner.toolFailed":
+		"サーバーにサインインしていないため、このツールは失敗しました。",
+	"chat.mcpBanner.toolFailedOpens":
+		"サーバーにサインインしていないため、このツールは失敗しました。{host} を開きます。",
+	"chat.mcpBanner.looksLikeSignIn": "サインインの問題のようです",
+	"chat.mcpBanner.mayNeedSignIn":
+		"MCP サーバーの再サインインが必要かもしれません。セッションをやり直すと新しいサインイン要求が表示されます。",
+	"chat.mcpBanner.reauthenticate": "再認証…",
+	"chat.sharedLinks.none": "共有リンクはまだありません",
+	"chat.sharedLinks.count": "共有リンク（{count}）",
+	"chat.sharedLinks.countWithNew": "共有リンク（{count}、新着 {new} 件）",
+	"chat.lossyFallback.title": "履歴から復元されたセッション",
+	"chat.lossyFallback.body":
+		"元のセッションはエージェント側で利用できなくなりました。以前の会話の記録をもとに作業しますが、元のセッションの内部状態や以前の推論にはアクセスできません。一部のツール出力も切り詰められている可能性があります。",
+	"chat.historyBanner.notStored":
+		"このタブの履歴はローカルに保存されていません。",
+	"chat.historyBanner.reloading": "再読み込み中…",
+	"chat.historyBanner.reloadFromAgent": "エージェントから再読み込み",
+	"chat.notifications.permissionBody": "{agent} が権限を要求しています。",
+	// ---- Phase 3: boot registration labels ----
+	"notices.bootPartHoverPreview": "ノートのホバープレビュー",
+	"notices.bootPartRibbon": "リボンボタン",
+	"notices.bootPartCommands": "コマンド",
+	"notices.bootPartSettingsTab": "設定タブ",
+	// ---- Phase 3 addendum ----
+	"chat.notifications.responseComplete": "{agent} · 応答完了",
+	"chat.picker.navigate": "移動",
+	"chat.picker.addToContext": "コンテキストに追加",
+	"chat.picker.dismiss": "閉じる",
+	"chat.picker.run": "実行",
+	"chat.picker.create": "作成",
+	"chat.picker.newTab": "新しいタブ",
+	"chat.picker.switch": "切り替え",
+	"chat.picker.insert": "挿入",
+	"chat.picker.opensInNewTab": "新しいタブで開く",
+	"chat.picker.usesSelection": "選択中のテキストを使用",
+	"chat.folderPicker.selectDirectory": "ディレクトリを選択",
+	"chat.acpErrors.titleProtocol": "プロトコルエラー",
+	"chat.acpErrors.titleInvalidRequest": "無効なリクエスト",
+	"chat.acpErrors.titleMethodNotSupported": "未対応のメソッド",
+	"chat.acpErrors.titleInvalidParams": "無効なパラメーター",
+	"chat.acpErrors.titleInternal": "内部エラー",
+	"chat.acpErrors.titleAuthRequired": "認証が必要",
+	"chat.acpErrors.titleResourceNotFound": "リソースが見つかりません",
+	"chat.acpErrors.titleAgent": "エージェントエラー",
+	"chat.acpErrors.unexpected": "予期しないエラーが発生しました。",
+	"chat.acpErrors.suggestTooLong":
+		"会話が長すぎます。利用できる場合は compact コマンドを使うか、新しいチャットを始めてください。",
+	"chat.acpErrors.suggestBusy":
+		"サービスが混み合っています。しばらく待ってからもう一度お試しください。",
+	"chat.acpErrors.suggestRestart":
+		"エージェントセッションをやり直してみてください。",
+	"chat.acpErrors.suggestCheckConfig":
+		"設定でエージェント構成を確認してください。",
+	"chat.acpErrors.suggestTryAgainRestart":
+		"もう一度試すか、エージェントセッションをやり直してください。",
+	"chat.acpErrors.suggestCheckAuth":
+		"ログインしているか、API キーが正しく設定されているか確認してください。",
+	"chat.acpErrors.suggestCheckResource":
+		"ファイルやリソースが存在するか確認してください。",
+	"chat.acpErrors.stderrApiKeyMissing":
+		"エージェントの API キーがないようです。カスタムエージェントの場合は、エージェントの環境変数設定に必要な API キー（例: ANTHROPIC_API_KEY）を追加してください。",
+	"chat.acpErrors.stderrAuth":
+		"エージェントが認証エラーを報告しました。API キーや資格情報が有効か確認してください。",
+	"chat.acpErrors.cantStartTitle": "{agent} を起動できません",
+	"chat.acpErrors.notInstalled":
+		"{agent} はインストールされていないようです（\"{command}\" を実行できませんでした）。インストールするか、設定でパスを指定してください。",
+	"chat.acpErrors.startupErrorTitle": "エージェント起動エラー",
+	"chat.acpErrors.failedToStart": "{agent} の起動に失敗しました: {message}",
+	"chat.acpErrors.checkAgentConfig":
+		"設定でエージェント構成を確認してください。",
+	"chat.acpErrors.pathHintWsl":
+		"1. エージェントのパスを確認: WSL ターミナルで \"which {command}\" を実行して正しいパスを見つけてください。2. エージェントに Node.js が必要な場合は、一般設定の Node.js パスも確認してください（\"which node\" で見つかります）。",
+	"chat.acpErrors.pathHintWin":
+		"1. エージェントのパスを確認: コマンドプロンプトで \"where {command}\" を実行して正しいパスを見つけてください。2. エージェントに Node.js が必要な場合は、一般設定の Node.js パスも確認してください（\"where node\" で見つかります）。",
+	"chat.acpErrors.pathHintUnix":
+		"1. エージェントのパスを確認: ターミナルで \"which {command}\" を実行して正しいパスを見つけてください。2. エージェントに Node.js が必要な場合は、一般設定の Node.js パスも確認してください（\"which node\" で見つかります）。",
+	"chat.acpErrors.cannotSendTitle": "メッセージを送信できません",
+	"chat.acpErrors.noActiveSession":
+		"アクティブなセッションがありません。接続をお待ちください。",
+	"chat.acpErrors.sendFailedTitle": "メッセージ送信失敗",
+	"chat.acpErrors.sendFailed": "メッセージを送信できませんでした",
+	"chat.acpErrors.permissionErrorTitle": "権限エラー",
+	"chat.acpErrors.permissionRespondFailed":
+		"権限リクエストへの応答に失敗しました: {message}",
+	"chat.acpErrors.errorOccurred": "エラーが発生しました",
+	"chat.acpErrors.agentNotFoundTitle": "エージェントが見つかりません",
+	"chat.acpErrors.agentNotFound":
+		"ID \"{agentId}\" のエージェントが設定に見つかりません",
+	"chat.acpErrors.checkYourAgentConfig":
+		"設定でエージェント構成を確認してください。",
+	"chat.acpErrors.sessionCreationFailedTitle": "セッション作成失敗",
+	"chat.acpErrors.sessionCreationFailed":
+		"新しいセッションを作成できませんでした: {message}",
+	"chat.acpErrors.checkConfigTryAgain":
+		"エージェント構成を確認して、もう一度お試しください。",
+	"chat.history.failedFetch": "セッションの取得に失敗しました: {message}",
+	"chat.history.failedLoadMore":
+		"セッションの追加読み込みに失敗しました: {message}",
+	"chat.history.failedRestore": "セッションの復元に失敗しました: {message}",
+	"chat.history.failedFork": "セッションのフォークに失敗しました: {message}",
+	"chat.history.failedDelete": "セッションの削除に失敗しました: {message}",
+	"chat.history.failedUpdateTitle": "タイトルの更新に失敗しました: {message}",
+	"chat.installer.noNpm":
+		"npm が見つかりません。Node.js（npm を含む）をインストールしてから再試行するか、コマンドをコピーしてターミナルで実行してください。",
+	"chat.installer.needsPermission":
+		"このインストールには現在のアカウントにない権限が必要です。コマンドをコピーしてターミナルで実行してください（sudo が必要な場合があります）。",
+	"chat.installer.noNetwork":
+		"ネットワークに接続できずインストールできませんでした。接続を確認して再試行するか、コマンドをコピーしてターミナルで実行してください。",
+	"chat.installer.didntFinish":
+		"インストールが完了しませんでした。コマンドをコピーしてターミナルで実行すると、完全なエラーを確認できます。",
+	"chat.updateBanner.migrationTitle": "パッケージの移行が必要",
+	"chat.updateBanner.renamed":
+		"\"{old}\" は \"{new}\" に名前が変わりました。\nターミナルで次を実行してください:",
+	"chat.updateBanner.updateTitle": "エージェントの更新があります",
+	"chat.updateBanner.updateAvailable":
+		"{package}: {current} → {latest}。\nターミナルで次を実行してください:",
+	"modals.mcpAuth.linkExpiry":
+		"サインインリンクはしばらくすると期限切れになります – ページにエラーが表示されたら、セッションをやり直して新しいリンクを取得してください。",
 });

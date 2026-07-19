@@ -11,6 +11,7 @@
 import { fetchJson } from "./net";
 import * as semver from "semver";
 import type { OverlayVariant } from "../types/errors";
+import { t } from "../i18n";
 
 // ============================================================================
 // Types
@@ -77,8 +78,11 @@ export async function checkAgentUpdate(agentInfo: {
 	if (replacement) {
 		return {
 			variant: "info",
-			title: "Package Migration Required",
-			message: `"${agentInfo.name}" has been renamed to "${replacement}".\nRun the following in your terminal:`,
+			title: t("chat.updateBanner.migrationTitle"),
+			message: t("chat.updateBanner.renamed", {
+				old: agentInfo.name,
+				new: replacement,
+			}),
 			suggestion: `npm uninstall -g ${agentInfo.name} && npm install -g ${replacement}`,
 		};
 	}
@@ -98,8 +102,12 @@ export async function checkAgentUpdate(agentInfo: {
 		) {
 			return {
 				variant: "info",
-				title: "Agent Update Available",
-				message: `${npmPackage}: ${agentInfo.version} → ${latestVersion}.\nRun the following in your terminal:`,
+				title: t("chat.updateBanner.updateTitle"),
+				message: t("chat.updateBanner.updateAvailable", {
+					package: npmPackage,
+					current: agentInfo.version,
+					latest: latestVersion,
+				}),
 				suggestion: `npm install -g ${npmPackage}@latest`,
 			};
 		}

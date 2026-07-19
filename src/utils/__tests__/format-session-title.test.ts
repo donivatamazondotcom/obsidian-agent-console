@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
 	formatSessionTitle,
-	DEFAULT_SESSION_TITLE,
+	defaultSessionTitle,
 } from "../format-session-title";
 
 describe("formatSessionTitle", () => {
@@ -40,10 +40,10 @@ describe("formatSessionTitle", () => {
 	});
 
 	it("falls back for null / undefined / empty / whitespace-only", () => {
-		expect(formatSessionTitle(undefined)).toBe(DEFAULT_SESSION_TITLE);
-		expect(formatSessionTitle(null)).toBe(DEFAULT_SESSION_TITLE);
-		expect(formatSessionTitle("")).toBe(DEFAULT_SESSION_TITLE);
-		expect(formatSessionTitle("   \n ")).toBe(DEFAULT_SESSION_TITLE);
+		expect(formatSessionTitle(undefined)).toBe(defaultSessionTitle());
+		expect(formatSessionTitle(null)).toBe(defaultSessionTitle());
+		expect(formatSessionTitle("")).toBe(defaultSessionTitle());
+		expect(formatSessionTitle("   \n ")).toBe(defaultSessionTitle());
 	});
 
 	it("honors a custom fallback", () => {

@@ -19,6 +19,7 @@ import {
 	type DiffLine,
 } from "../utils/toolCallDiff";
 import { McpAuthBanner } from "./McpAuthBanner";
+import { t } from "../i18n";
 // import { MarkdownRenderer } from "./shared/MarkdownRenderer";
 
 // Re-exported so existing importers (e.g. the I78 word-diff test) keep their
@@ -143,8 +144,8 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 	// Stable id for aria-controls so screen readers announce the
 	// toggle as controlling a specific content region.
 	const contentId = `agent-tool-call-content-${content.toolCallId}`;
-	const ariaLabel = `Tool call${kind ? `: ${kind}` : ""}. ${title || ""}. ${
-		isExpanded ? "Expanded." : "Collapsed."
+	const ariaLabel = `${t("chat.toolCall.title")}${kind ? `: ${kind}` : ""}. ${title || ""}. ${
+		isExpanded ? t("chat.toolCall.expanded") : t("chat.toolCall.collapsed")
 	}`;
 
 	if (!isExpanded) {
@@ -178,7 +179,9 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 					{title}
 				</span>
 				<span className="agent-client-message-tool-call-summary-lines">
-					{lineCount > 0 ? `${lineCount} lines` : ""}
+					{lineCount > 0
+						? t("chat.toolCall.lines", { count: lineCount })
+						: ""}
 				</span>
 				</button>
 				<McpAuthBanner content={content} plugin={plugin} />
@@ -253,7 +256,7 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 			</div>
 
 			{/* Expanded body — aria-controls target */}
-			<div id={contentId} role="region" aria-label={`${title || "Tool call"} content`}>
+			<div id={contentId} role="region" aria-label={t("chat.toolCall.contentRegion", { title: title || t("chat.toolCall.title") })}>
 			{/* Tool call content (diffs, terminal output, etc.) */}
 			{toolContent &&
 				toolContent.map((item, index) => {
@@ -415,7 +418,9 @@ function DiffRenderer({ diff }: DiffRendererProps) {
 	return (
 		<div className="agent-client-tool-call-diff">
 			{isNewFile(diff) ? (
-				<div className="agent-client-diff-line-info">New file</div>
+				<div className="agent-client-diff-line-info">
+					{t("chat.toolCall.newFile")}
+				</div>
 			) : null}
 			<div className="agent-client-tool-call-diff-content">
 				{diffLines.map((line, idx) => renderLine(line, idx))}
@@ -454,7 +459,7 @@ function RawPayloadBlock({ rawInput, rawOutput }: RawPayloadBlockProps) {
 			{input && (
 				<div className="agent-client-tool-call-raw-section">
 					<div className="agent-client-tool-call-raw-label">
-						Input
+						{t("chat.toolCall.input")}
 					</div>
 					<pre className="agent-client-tool-call-raw-content">
 						{input}
@@ -464,7 +469,7 @@ function RawPayloadBlock({ rawInput, rawOutput }: RawPayloadBlockProps) {
 			{output && (
 				<div className="agent-client-tool-call-raw-section">
 					<div className="agent-client-tool-call-raw-label">
-						Output
+						{t("chat.toolCall.output")}
 					</div>
 					<pre className="agent-client-tool-call-raw-content">
 						{output}

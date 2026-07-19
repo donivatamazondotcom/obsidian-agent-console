@@ -28,10 +28,12 @@ import {
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import { quickPromptGestureFromEvent } from "../utils/quick-prompt-gesture";
 import { MOD_KEY, ALT_KEY, SHIFT_KEY } from "../utils/platform";
+import { t } from "../i18n";
 
 /** Tooltip on a disabled current-tab chip — points at the queued banner. */
-export const QUEUED_CHIP_TOOLTIP =
-	"A message is queued — Edit or Delete it to send something else";
+export function queuedChipTooltip(): string {
+	return t("chat.quickPrompts.queuedTooltip");
+}
 
 /**
  * Guidance tooltips enumerating the modifier matrix (plain language). Set as
@@ -39,8 +41,19 @@ export const QUEUED_CHIP_TOOLTIP =
  * sanctioned mechanism — Obsidian reads tooltip text from `aria-label`), NOT
  * the native `title` attribute (inconsistent styling + long delay).
  */
-export const NEW_TAB_CHIP_TOOLTIP = `Click: open in a new tab · ${MOD_KEY}-click: open in the background · ${ALT_KEY}-click: drop into the box to edit first`;
-export const THIS_TAB_CHIP_TOOLTIP = `Click: send in this chat · ${MOD_KEY}-click: send in a new background tab (add ${SHIFT_KEY} to switch there) · ${ALT_KEY}-click: drop into the box to edit first`;
+export function newTabChipTooltip(): string {
+	return t("chat.quickPrompts.newTabTooltip", {
+		mod: MOD_KEY,
+		alt: ALT_KEY,
+	});
+}
+export function thisTabChipTooltip(): string {
+	return t("chat.quickPrompts.thisTabTooltip", {
+		mod: MOD_KEY,
+		shift: SHIFT_KEY,
+		alt: ALT_KEY,
+	});
+}
 
 export interface QuickPromptBarProps {
 	/** Prompts already matched to the active note (`matchPromptsForNote`). */
@@ -132,7 +145,9 @@ export function QuickPromptBar({
 				<button
 					type="button"
 					className="agent-client-quick-prompt-more"
-					aria-label={`Show ${overflowCount} more — search all quick prompts`}
+					aria-label={t("chat.quickPrompts.showMore", {
+						count: overflowCount,
+					})}
 					onClick={(e) => {
 						e.preventDefault();
 						onSearchAll?.();
@@ -188,10 +203,10 @@ function QuickPromptChip({
 			aria-disabled={disabled}
 			aria-label={
 				disabled
-					? `${prompt.label} — ${QUEUED_CHIP_TOOLTIP}`
+					? `${prompt.label} — ${queuedChipTooltip()}`
 					: prompt.newTab
-						? NEW_TAB_CHIP_TOOLTIP
-						: THIS_TAB_CHIP_TOOLTIP
+						? newTabChipTooltip()
+						: thisTabChipTooltip()
 			}
 			onClick={(e) => {
 				e.preventDefault();

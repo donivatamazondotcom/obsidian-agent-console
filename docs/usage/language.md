@@ -7,11 +7,11 @@ Use Agent Console in your own language. The plugin's buttons, menus, settings, a
 | Language | Status |
 |---|---|
 | English | Source language |
-| 한국어 (Korean) | Settings, notifications, and dialogs translated (newest strings machine-translated, under native-speaker review); more surfaces coming |
-| 中文 (Chinese, Simplified) | Settings, notifications, and dialogs translated (machine-translated); more surfaces coming |
-| 日本語 (Japanese) | Settings, notifications, and dialogs translated (machine-translated); more surfaces coming |
+| 한국어 (Korean) | Settings, notifications, dialogs, chat panel, and commands translated (newest strings machine-translated, under native-speaker review) |
+| 中文 (Chinese, Simplified) | Settings, notifications, dialogs, chat panel, and commands translated (machine-translated) |
+| 日本語 (Japanese) | Settings, notifications, dialogs, chat panel, and commands translated (machine-translated) |
 
-More languages (German, Spanish, French, Brazilian Portuguese) are planned. Translation is rolling out surface by surface — settings, notifications, and dialogs are done; chat-panel text and command names are next. Anything not yet translated shows in English. If Obsidian runs in Traditional Chinese, the plugin shows the Simplified Chinese catalog.
+More languages (German, Spanish, French, Brazilian Portuguese) are planned. The plugin's user-facing surfaces — settings, notifications, dialogs, the chat panel, and command names — are translated. Anything not yet translated shows in English. If Obsidian runs in Traditional Chinese, the plugin shows the Simplified Chinese catalog.
 
 ## How it works
 

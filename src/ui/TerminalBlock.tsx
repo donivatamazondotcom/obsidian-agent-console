@@ -2,6 +2,7 @@ import * as React from "react";
 const { useState, useRef, useEffect } = React;
 import type { AcpClient } from "../acp/acp-client";
 import { getLogger } from "../utils/logger";
+import { t } from "../i18n";
 interface TerminalBlockProps {
 	terminalId: string;
 	terminalClient: AcpClient | null;
@@ -92,14 +93,22 @@ export const TerminalBlock = React.memo(function TerminalBlock({
 
 	return (
 		<div className="agent-client-terminal-renderer">
-			{output || (isRunning ? "Waiting for output..." : "No output")}
+			{output ||
+				(isRunning
+					? t("chat.terminal.waitingForOutput")
+					: t("chat.terminal.noOutput"))}
 
 			{exitStatus && (
 				<div
 					className={`agent-client-terminal-renderer-exit ${exitStatus.exitCode === 0 ? "agent-client-success" : "agent-client-error"}`}
 				>
-					Exit Code: {exitStatus.exitCode}
-					{exitStatus.signal && ` | Signal: ${exitStatus.signal}`}
+					{t("chat.terminal.exitCode", {
+						code: exitStatus.exitCode ?? "",
+					})}
+					{exitStatus.signal &&
+						t("chat.terminal.signal", {
+							signal: exitStatus.signal,
+						})}
 				</div>
 			)}
 		</div>

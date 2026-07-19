@@ -14,6 +14,7 @@ import type { SlashCommand } from "../types/session";
 import type { QuickPrompt } from "../types/quick-prompt";
 import type { PickerItem, PickerInstruction } from "../types/picker";
 import { MOD_KEY, ALT_KEY, SHIFT_KEY, ENTER_KEY, modCombo } from "./platform";
+import { t } from "../i18n";
 
 // ── Item projections ────────────────────────────────────────────────────────
 
@@ -44,10 +45,13 @@ export function slashCommandToPickerItem(command: SlashCommand): PickerItem {
 export function quickPromptToPickerItem(prompt: QuickPrompt): PickerItem {
 	const markers = [];
 	if (prompt.newTab) {
-		markers.push({ glyph: "↗", label: "opens in a new tab" });
+		markers.push({ glyph: "↗", label: t("chat.picker.opensInNewTab") });
 	}
 	if (prompt.usesSelection) {
-		markers.push({ glyph: "{ }", label: "uses your selected text" });
+		markers.push({
+			glyph: "{ }",
+			label: t("chat.picker.usesSelection"),
+		});
 	}
 	return {
 		id: prompt.id,
@@ -60,18 +64,22 @@ export function quickPromptToPickerItem(prompt: QuickPrompt): PickerItem {
 // ── Footer instructions ──────────────────────────────────────────────────────
 
 /** `@` mention footer: navigate / add to context / dismiss. */
-export const MENTION_INSTRUCTIONS: PickerInstruction[] = [
-	{ keys: "↑↓", label: "navigate" },
-	{ keys: ENTER_KEY, label: "add to context" },
-	{ keys: "esc", label: "dismiss" },
-];
+export function mentionInstructions(): PickerInstruction[] {
+	return [
+		{ keys: "↑↓", label: t("chat.picker.navigate") },
+		{ keys: ENTER_KEY, label: t("chat.picker.addToContext") },
+		{ keys: "esc", label: t("chat.picker.dismiss") },
+	];
+}
 
 /** `/` slash-command footer: navigate / run / dismiss. */
-export const SLASH_INSTRUCTIONS: PickerInstruction[] = [
-	{ keys: "↑↓", label: "navigate" },
-	{ keys: ENTER_KEY, label: "run" },
-	{ keys: "esc", label: "dismiss" },
-];
+export function slashInstructions(): PickerInstruction[] {
+	return [
+		{ keys: "↑↓", label: t("chat.picker.navigate") },
+		{ keys: ENTER_KEY, label: t("chat.picker.run") },
+		{ keys: "esc", label: t("chat.picker.dismiss") },
+	];
+}
 
 /**
  * `!` quick-prompt footer. When the "create" row is selected, only the create
@@ -81,12 +89,15 @@ export function quickPromptInstructions(
 	isCreateSelected: boolean,
 ): PickerInstruction[] {
 	if (isCreateSelected) {
-		return [{ keys: ENTER_KEY, label: "create" }];
+		return [{ keys: ENTER_KEY, label: t("chat.picker.create") }];
 	}
 	return [
-		{ keys: ENTER_KEY, label: "run" },
-		{ keys: modCombo(MOD_KEY, ENTER_KEY), label: "new tab" },
-		{ keys: modCombo(MOD_KEY, SHIFT_KEY, ENTER_KEY), label: "switch" },
-		{ keys: modCombo(ALT_KEY, ENTER_KEY), label: "insert" },
+		{ keys: ENTER_KEY, label: t("chat.picker.run") },
+		{ keys: modCombo(MOD_KEY, ENTER_KEY), label: t("chat.picker.newTab") },
+		{
+			keys: modCombo(MOD_KEY, SHIFT_KEY, ENTER_KEY),
+			label: t("chat.picker.switch"),
+		},
+		{ keys: modCombo(ALT_KEY, ENTER_KEY), label: t("chat.picker.insert") },
 	];
 }

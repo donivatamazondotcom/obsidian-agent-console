@@ -5,6 +5,7 @@ import { setIcon, Menu } from "obsidian";
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import { isSessionLive } from "../resolvers/send-affordance";
 import type { TabSessionState } from "../hooks/useTabSessionState";
+import { t } from "../i18n";
 import {
 	flattenConfigSelectOptions,
 	type SessionModeState,
@@ -265,7 +266,8 @@ export function InputToolbar({
 	const currentModeLabel = useMemo(() => {
 		const id = modes?.currentModeId;
 		return (
-			modes?.availableModes?.find((m) => m.id === id)?.name ?? "Mode"
+			modes?.availableModes?.find((m) => m.id === id)?.name ??
+			t("chat.composer.mode")
 		);
 	}, [modes]);
 
@@ -273,7 +275,7 @@ export function InputToolbar({
 		const id = models?.currentModelId;
 		return (
 			models?.availableModels?.find((m) => m.modelId === id)?.name ??
-			"Model"
+			t("chat.composer.model")
 		);
 	}, [models]);
 
@@ -290,8 +292,11 @@ export function InputToolbar({
 					className={`agent-client-usage-indicator ${getUsageColorClass(Math.round((usage.used / usage.size) * 100))}`}
 					aria-label={
 						usage.cost
-							? `${formatTokenCount(usage.used)} / ${formatTokenCount(usage.size)} tokens\n$${usage.cost.amount.toFixed(2)}`
-							: `${formatTokenCount(usage.used)} / ${formatTokenCount(usage.size)} tokens`
+							? `${t("chat.composer.usageTokens", { used: formatTokenCount(usage.used), size: formatTokenCount(usage.size) })}\n$${usage.cost.amount.toFixed(2)}`
+							: t("chat.composer.usageTokens", {
+									used: formatTokenCount(usage.used),
+									size: formatTokenCount(usage.size),
+								})
 					}
 				>
 					{Math.round((usage.used / usage.size) * 100)}%
@@ -367,7 +372,7 @@ export function InputToolbar({
 								title={
 									modes.availableModes.find(
 										(m) => m.id === modes.currentModeId,
-									)?.description ?? "Select mode"
+									)?.description ?? t("chat.composer.selectMode")
 								}
 								items={modeItems}
 								currentValue={modes.currentModeId ?? undefined}
@@ -385,7 +390,7 @@ export function InputToolbar({
 											(m) =>
 												m.modelId ===
 												models.currentModelId,
-										)?.description ?? "Select model"
+										)?.description ?? t("chat.composer.selectModel")
 									}
 									items={modelItems}
 									currentValue={
@@ -405,12 +410,12 @@ export function InputToolbar({
 				className={`clickable-icon agent-client-chat-send-button ${isSending ? "sending" : ""} ${isButtonDisabled ? "agent-client-disabled" : ""}`}
 				aria-label={
 					isSending
-						? "Stop generation"
+						? t("chat.composer.stopGeneration")
 						: lazyState === "idle"
-							? "Send to connect"
+							? t("chat.composer.sendToConnect")
 							: !isSessionLive(lazyState)
-								? "Connecting..."
-								: "Send message"
+								? t("chat.composer.connecting")
+								: t("chat.composer.sendMessage")
 				}
 			></button>
 		</div>

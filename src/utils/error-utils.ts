@@ -10,6 +10,7 @@
 
 import { Platform } from "obsidian";
 import { AcpErrorCode, type AcpError, type ErrorInfo } from "../types/errors";
+import { t } from "../i18n";
 
 // ============================================================================
 // Error Extraction Functions
@@ -32,7 +33,7 @@ export function extractErrorCode(error: unknown): number | undefined {
  */
 export function extractErrorMessage(error: unknown): string {
 	if (!error || typeof error !== "object") {
-		return "An unexpected error occurred.";
+		return t("chat.acpErrors.unexpected");
 	}
 
 	// Check data.details first (some agents use this format)
@@ -50,7 +51,7 @@ export function extractErrorMessage(error: unknown): string {
 		if (typeof msg === "string") return msg;
 	}
 
-	return "An unexpected error occurred.";
+	return t("chat.acpErrors.unexpected");
 }
 
 /**
@@ -73,21 +74,21 @@ export function extractErrorData(error: unknown): unknown {
 export function getErrorTitle(code: number | undefined): string {
 	switch (code) {
 		case AcpErrorCode.PARSE_ERROR:
-			return "Protocol Error";
+			return t("chat.acpErrors.titleProtocol");
 		case AcpErrorCode.INVALID_REQUEST:
-			return "Invalid Request";
+			return t("chat.acpErrors.titleInvalidRequest");
 		case AcpErrorCode.METHOD_NOT_FOUND:
-			return "Method Not Supported";
+			return t("chat.acpErrors.titleMethodNotSupported");
 		case AcpErrorCode.INVALID_PARAMS:
-			return "Invalid Parameters";
+			return t("chat.acpErrors.titleInvalidParams");
 		case AcpErrorCode.INTERNAL_ERROR:
-			return "Internal Error";
+			return t("chat.acpErrors.titleInternal");
 		case AcpErrorCode.AUTHENTICATION_REQUIRED:
-			return "Authentication Required";
+			return t("chat.acpErrors.titleAuthRequired");
 		case AcpErrorCode.RESOURCE_NOT_FOUND:
-			return "Resource Not Found";
+			return t("chat.acpErrors.titleResourceNotFound");
 		default:
-			return "Agent Error";
+			return t("chat.acpErrors.titleAgent");
 	}
 }
 
@@ -108,10 +109,10 @@ export function getErrorSuggestion(
 			lowerMsg.includes("max_tokens") ||
 			lowerMsg.includes("too long")
 		) {
-			return "The conversation is too long. Try using a compact command if available, or start a new chat.";
+			return t("chat.acpErrors.suggestTooLong");
 		}
 		if (lowerMsg.includes("overloaded") || lowerMsg.includes("capacity")) {
-			return "The service is busy. Please wait a moment and try again.";
+			return t("chat.acpErrors.suggestBusy");
 		}
 	}
 
@@ -119,17 +120,17 @@ export function getErrorSuggestion(
 		case AcpErrorCode.PARSE_ERROR:
 		case AcpErrorCode.INVALID_REQUEST:
 		case AcpErrorCode.METHOD_NOT_FOUND:
-			return "Try restarting the agent session.";
+			return t("chat.acpErrors.suggestRestart");
 		case AcpErrorCode.INVALID_PARAMS:
-			return "Check your agent configuration in settings.";
+			return t("chat.acpErrors.suggestCheckConfig");
 		case AcpErrorCode.INTERNAL_ERROR:
-			return "Try again or restart the agent session.";
+			return t("chat.acpErrors.suggestTryAgainRestart");
 		case AcpErrorCode.AUTHENTICATION_REQUIRED:
-			return "Check if you are logged in or if your API key is set correctly.";
+			return t("chat.acpErrors.suggestCheckAuth");
 		case AcpErrorCode.RESOURCE_NOT_FOUND:
-			return "Check if the file or resource exists.";
+			return t("chat.acpErrors.suggestCheckResource");
 		default:
-			return "Try again or restart the agent session.";
+			return t("chat.acpErrors.suggestTryAgainRestart");
 	}
 }
 
@@ -199,7 +200,7 @@ export function extractStderrErrorHint(stderr: string): string | null {
 		stderr.includes("API key is missing") ||
 		stderr.includes("LoadAPIKeyError")
 	) {
-		return "The agent's API key may be missing. For custom agents, add the required API key (e.g., ANTHROPIC_API_KEY) in the agent's Environment Variables setting.";
+		return t("chat.acpErrors.stderrApiKeyMissing");
 	}
 
 	if (
@@ -207,7 +208,7 @@ export function extractStderrErrorHint(stderr: string): string | null {
 		stderr.includes("unauthorized") ||
 		stderr.includes("401")
 	) {
-		return "The agent reported an authentication error. Check that your API key or credentials are valid.";
+		return t("chat.acpErrors.stderrAuth");
 	}
 
 	return null;
@@ -241,16 +242,22 @@ export function getSpawnErrorInfo(
 ): { title: string; message: string; suggestion: string } {
 	if ((error as NodeJS.ErrnoException).code === "ENOENT") {
 		return {
-			title: `Can't start ${agentLabel}`,
-			message: `${agentLabel} doesn't look installed (couldn't run "${command}"). Install it, or open Settings to set its path.`,
+			title: t("chat.acpErrors.cantStartTitle", { agent: agentLabel }),
+			message: t("chat.acpErrors.notInstalled", {
+				agent: agentLabel,
+				command,
+			}),
 			suggestion: getCommandNotFoundSuggestion(command, wslMode),
 		};
 	}
 
 	return {
-		title: "Agent Startup Error",
-		message: `Failed to start ${agentLabel}: ${error.message}`,
-		suggestion: "Please check the agent configuration in settings.",
+		title: t("chat.acpErrors.startupErrorTitle"),
+		message: t("chat.acpErrors.failedToStart", {
+			agent: agentLabel,
+			message: error.message,
+		}),
+		suggestion: t("chat.acpErrors.checkAgentConfig"),
 	};
 }
 
@@ -265,10 +272,10 @@ export function getCommandNotFoundSuggestion(
 		command.split("/").pop()?.split("\\").pop() || "command";
 
 	if (Platform.isWin && wslMode) {
-		return `1. Verify the agent path: Use "which ${commandName}" in your WSL terminal to find the correct path. 2. If the agent requires Node.js, also check that Node.js path is correctly set in General Settings (use "which node" to find it).`;
+		return t("chat.acpErrors.pathHintWsl", { command: commandName });
 	} else if (Platform.isWin) {
-		return `1. Verify the agent path: Use "where ${commandName}" in Command Prompt to find the correct path. 2. If the agent requires Node.js, also check that Node.js path is correctly set in General Settings (use "where node" to find it).`;
+		return t("chat.acpErrors.pathHintWin", { command: commandName });
 	} else {
-		return `1. Verify the agent path: Use "which ${commandName}" in Terminal to find the correct path. 2. If the agent requires Node.js, also check that Node.js path is correctly set in General Settings (use "which node" to find it).`;
+		return t("chat.acpErrors.pathHintUnix", { command: commandName });
 	}
 }

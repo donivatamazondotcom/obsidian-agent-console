@@ -10,6 +10,8 @@
  * the Settings "Default working directory" Browse button, so the picker lives
  * in one place.
  */
+
+import { t } from "../i18n";
 export async function pickFolder(options?: {
 	title?: string;
 	defaultPath?: string;
@@ -32,7 +34,7 @@ export async function pickFolder(options?: {
 		};
 		const result = await remote.dialog.showOpenDialog({
 			properties: ["openDirectory"],
-			title: options?.title ?? "Select directory",
+			title: options?.title ?? t("chat.folderPicker.selectDirectory"),
 			defaultPath: options?.defaultPath,
 		});
 		if (!result.canceled && result.filePaths.length > 0) {

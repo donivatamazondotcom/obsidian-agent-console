@@ -18,8 +18,8 @@ import {
 	type FuzzyScorer,
 } from "../picker-source-configs";
 import {
-	MENTION_INSTRUCTIONS,
-	SLASH_INSTRUCTIONS,
+	mentionInstructions,
+	slashInstructions,
 } from "../picker-sources";
 import type { NoteMetadata } from "../../services/vault-service";
 import type { SlashCommand } from "../../types/session";
@@ -97,8 +97,8 @@ describe("makeMentionSource", () => {
 	});
 
 	it("returns the mention footer instructions", () => {
-		expect(source.instructions({ isCreateSelected: false })).toBe(
-			MENTION_INSTRUCTIONS,
+		expect(source.instructions({ isCreateSelected: false })).toEqual(
+			mentionInstructions(),
 		);
 	});
 
@@ -146,8 +146,8 @@ describe("makeSlashSource", () => {
 	});
 
 	it("returns the slash footer instructions", () => {
-		expect(source.instructions({ isCreateSelected: false })).toBe(
-			SLASH_INSTRUCTIONS,
+		expect(source.instructions({ isCreateSelected: false })).toEqual(
+			slashInstructions(),
 		);
 	});
 
