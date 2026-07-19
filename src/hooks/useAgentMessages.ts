@@ -43,7 +43,7 @@ import {
 	createUpdateFlushScheduler,
 	type UpdateFlushScheduler,
 } from "../utils/update-flush-scheduler";
-import { t } from "../i18n";
+import { t, getReplyLanguage } from "../i18n";
 
 // ============================================================================
 // Types
@@ -452,6 +452,7 @@ export function useAgentMessages(
 						session.promptCapabilities?.embeddedContext ?? false,
 					isFirstMessage: options.isFirstMessage,
 					titleStrategy: settingsAccess.getSnapshot().titleStrategy,
+					replyLanguageName: getReplyLanguage()?.englishName ?? null,
 					obsidianSystemPrompt:
 						settingsAccess.getSnapshot().obsidianSystemPrompt,
 					workingDirectory: options.workingDirectory,

@@ -255,6 +255,9 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"settings.obsidianPrompt.interactiveButtons.name": "提供可点击的选项",
 	"settings.obsidianPrompt.interactiveButtons.desc":
 		"当代理给出少量选项时，允许它在回复中显示按钮。点击按钮会将你的选择作为普通消息发送。",
+	"settings.obsidianPrompt.respondInLanguage.name": "用我的语言回复",
+	"settings.obsidianPrompt.respondInLanguage.desc":
+		"当 Agent Console 不是英文时，请代理用你的语言回复，并用你的语言命名新标签页。如果你用其他语言书写或要求切换，它仍会照做。",
 	"settings.obsidianPrompt.previewEmpty":
 		"（不会发送系统提示词——代理不会获得任何 Obsidian 上下文。）",
 	"settings.defaultWorkingDirectory.desc":

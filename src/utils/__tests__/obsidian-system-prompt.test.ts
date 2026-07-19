@@ -151,6 +151,7 @@ describe("composeObsidianSystemPrompt", () => {
 					workingDirectory: false,
 					vaultCollaboration: false,
 					interactiveButtons: false,
+					respondInLanguage: false,
 				},
 			},
 			{ cwd: VAULT, vaultRoot: VAULT },
@@ -187,6 +188,7 @@ describe("composeObsidianSystemPrompt", () => {
 						workingDirectory: false,
 						vaultCollaboration: false,
 						interactiveButtons: false,
+						respondInLanguage: false,
 					},
 					appendText: "Only my context.",
 				},
@@ -255,6 +257,7 @@ describe("normalizeObsidianSystemPromptSettings", () => {
 				workingDirectory: true,
 				vaultCollaboration: true,
 				interactiveButtons: true,
+				respondInLanguage: true,
 			},
 			appendText: "",
 			customText: "",
@@ -270,6 +273,7 @@ describe("normalizeObsidianSystemPromptSettings", () => {
 				workingDirectory: true,
 				vaultCollaboration: true,
 				interactiveButtons: true,
+				respondInLanguage: true,
 			},
 			appendText: "",
 			customText: "",
@@ -287,6 +291,7 @@ describe("normalizeObsidianSystemPromptSettings", () => {
 			workingDirectory: true,
 			vaultCollaboration: false,
 			interactiveButtons: true,
+			respondInLanguage: true,
 		});
 	});
 

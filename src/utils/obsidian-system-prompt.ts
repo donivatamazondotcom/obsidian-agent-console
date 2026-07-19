@@ -105,6 +105,21 @@ export function workingDirectoryBlock(cwd: string): string {
 	return `Your working directory is ${cwd}.`;
 }
 
+/**
+ * Reply-language block (slice #4) — parameterized by the English name of the
+ * user's resolved locale. Emitted only when a non-English reply language is
+ * active; the escape clause keeps mixed-language use working (a user who
+ * writes in another language, or asks for English, still gets it). This is a
+ * new English instruction about OUTPUT language — it does not translate the
+ * English chrome (Decision 7 stands).
+ */
+export function respondInLanguageBlock(englishName: string): string {
+	return (
+		`The user's language is ${englishName}. Reply in ${englishName} ` +
+		`unless the user writes to you in another language or asks otherwise.`
+	);
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface ObsidianSystemPromptBlocks {
@@ -114,6 +129,8 @@ export interface ObsidianSystemPromptBlocks {
 	vaultCollaboration: boolean;
 	/** Teach the agent to offer clickable choices (fenced A2UI buttons). */
 	interactiveButtons: boolean;
+	/** Ask the agent to reply (and title tabs) in the user's language. */
+	respondInLanguage: boolean;
 }
 
 export type ObsidianSystemPromptMode = "options" | "full";
@@ -141,6 +158,13 @@ export interface ObsidianSystemPromptContext {
 	cwd: string;
 	/** The vault base path. */
 	vaultRoot: string;
+	/**
+	 * English name of the user's reply language (slice #4), or null/undefined
+	 * when English is active — the respondInLanguage block is emitted only when
+	 * this is set. Resolved at the call site (i18n getReplyLanguage) so this
+	 * composer stays a pure resolver.
+	 */
+	replyLanguageName?: string | null;
 }
 
 export const DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS: ObsidianSystemPromptBlocks = {
@@ -149,6 +173,7 @@ export const DEFAULT_OBSIDIAN_SYSTEM_PROMPT_BLOCKS: ObsidianSystemPromptBlocks =
 	workingDirectory: true,
 	vaultCollaboration: true,
 	interactiveButtons: true,
+	respondInLanguage: true,
 };
 
 // ── Gating ────────────────────────────────────────────────────────────────────
@@ -205,6 +230,9 @@ export function composeObsidianSystemPrompt(
 	}
 	if (blocks.interactiveButtons) {
 		parts.push(INTERACTIVE_BUTTONS_BLOCK);
+	}
+	if (blocks.respondInLanguage && ctx.replyLanguageName) {
+		parts.push(respondInLanguageBlock(ctx.replyLanguageName));
 	}
 
 	const append = (settings.appendText ?? "").trim();
@@ -270,6 +298,7 @@ export function normalizeObsidianSystemPromptSettings(
 			workingDirectory: b("workingDirectory"),
 			vaultCollaboration: b("vaultCollaboration"),
 			interactiveButtons: b("interactiveButtons"),
+			respondInLanguage: b("respondInLanguage"),
 		},
 		appendText,
 		customText,

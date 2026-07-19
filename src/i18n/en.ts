@@ -214,6 +214,9 @@ export const en = {
 	"settings.obsidianPrompt.vaultCollaboration.desc": "Tells the agent it can read and edit your notes. Only sent when the chat runs inside your vault.",
 	"settings.obsidianPrompt.interactiveButtons.name": "Offer clickable choices",
 	"settings.obsidianPrompt.interactiveButtons.desc": "Lets the agent show buttons in its replies when it offers you a small set of choices. Clicking a button sends your pick as a normal message.",
+	"settings.obsidianPrompt.respondInLanguage.name": "Reply in my language",
+	"settings.obsidianPrompt.respondInLanguage.desc":
+		"When Agent Console is not in English, ask the agent to reply — and name new tabs — in your language. It still follows along if you write in another language or ask it to switch.",
 	"settings.obsidianPrompt.previewEmpty": "(No system prompt will be sent — the agent gets no Obsidian context.)",
 	"settings.defaultWorkingDirectory.desc": "Directory new chats start in. Leave blank to use the vault root. Existing and restored chats keep their own directory.",
 	"settings.defaultWorkingDirectory.statusVaultRoot": "Currently: vault root{root}.",

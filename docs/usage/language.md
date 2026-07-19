@@ -17,6 +17,12 @@ More languages (German, Spanish, French, Brazilian Portuguese) are planned. The 
 
 By default the plugin matches Obsidian's language (**Settings → General → Language**). If Obsidian runs in a language the plugin doesn't support yet, everything stays in English.
 
+## Replies and tab titles in your language
+
+When the plugin is set to a language other than English, it also asks the agent to **reply in your language** and to **name new tabs in your language** (for the "suggested by the agent" tab-title style). It stays flexible — if you write to the agent in another language or ask it to switch, it follows along.
+
+This is a single switch, **Reply in my language**, under **Settings → Agent Console → Obsidian system prompt**. It's on by default and does nothing while the plugin is in English. Turn it off if you'd rather the agent decide its own reply language.
+
 ## Picking a different language
 
 You can run the plugin in a different language than Obsidian:

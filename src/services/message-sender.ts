@@ -105,6 +105,16 @@ export interface PreparePromptInput {
 	 */
 	titleStrategy?: TitleStrategy;
 
+	/**
+	 * English name of the user's reply language (slice #4), or null/undefined
+	 * when English. When set on the first message: the Obsidian system prompt
+	 * gains a "reply in {language}" block, and the agent-suggested title rubric
+	 * gains a "write the title in {language}" line. Resolved at the call site
+	 * from the active locale (i18n getReplyLanguage) so this service and its
+	 * composers stay decoupled from i18n runtime state.
+	 */
+	replyLanguageName?: string | null;
+
 	// --- Context Note Lifecycle (new system) ---
 	// When contextNotes is provided, buildContextBlocks is used instead of autoMention.
 
@@ -338,6 +348,7 @@ export function buildObsidianSystemPrompt(
 		{
 			cwd: input.workingDirectory ?? input.vaultBasePath,
 			vaultRoot: input.vaultRootPath ?? input.vaultBasePath,
+			replyLanguageName: input.replyLanguageName ?? null,
 		},
 	);
 }
@@ -365,7 +376,18 @@ function wrapSystemInstruction(text: string): string {
  */
 export function buildTitleRubric(input: PreparePromptInput): string | null {
 	if (!input.isFirstMessage) return null;
-	return input.titleStrategy === "agent-suggested" ? TITLE_RUBRIC : null;
+	if (input.titleStrategy !== "agent-suggested") return null;
+	// Slice #4: the language line is governed by the SAME respondInLanguage
+	// toggle as the reply-language block (spec D2 — one toggle, both effects).
+	// replyLanguageName is resolved from locale; the toggle gates whether we
+	// steer at all. Default on when the setting is absent (matches the block
+	// default), so a pre-feature input still localizes.
+	const respondInLanguage =
+		input.obsidianSystemPrompt?.blocks?.respondInLanguage ?? true;
+	const lang = respondInLanguage ? input.replyLanguageName : null;
+	return lang
+		? `${TITLE_RUBRIC} Write the title in ${lang}.`
+		: TITLE_RUBRIC;
 }
 
 function buildAgentMessageText(
