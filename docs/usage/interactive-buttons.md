@@ -19,6 +19,15 @@ Buttons only work when the chat is ready for a new message. If a reply is still 
 
 The buttons are drawn entirely by Agent Console using your theme — agents can't inject their own styling, images, links, or code. A button can only ever do one thing: send a message you can see. And the label on the button is never trusted blindly — the sent message always shows the real underlying choice, so what you clicked and what was sent can't quietly differ.
 
+## Token cost
+
+Teaching this ability has a small, ongoing cost, so it's worth knowing what you're paying for:
+
+- **Always on:** the instruction that teaches agents to offer buttons rides in every message you send the agent (~460 tokens on Codex, ~730 on Claude), whether or not any buttons appear.
+- **Per use:** each choice group the agent shows (~150 tokens) and each button you click (~70 tokens, versus a word or two if you typed your answer) stay in the conversation and are re-sent as it grows.
+
+In total that's roughly a **3–6% increase in per-message token use** — the low end when no buttons are used, the high end when a choice is in play. All of it is cache-eligible, so the real cost is a fraction of that. If you rarely use clickable choices, turning the setting off (below) removes the cost.
+
 ## Turning it off
 
 Open **Settings → Community plugins → Agent Console → Obsidian system prompt** and switch off **Offer clickable choices**. New chats stop teaching agents the ability; any choice blocks in old replies simply show as code.

@@ -275,7 +275,7 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"settings.obsidianPrompt.interactiveButtons.name":
 		"クリックできる選択肢を提示する",
 	"settings.obsidianPrompt.interactiveButtons.desc":
-		"エージェントが少数の選択肢を示すとき、返信の中にボタンを表示できるようにします。ボタンをクリックすると、選んだ内容が通常のメッセージとして送信されます。",
+		"エージェントを明確なクリックできる選択肢へ誘導しますが、メッセージごとのトークン使用量が約 3〜6% 増加します。",
 	"settings.obsidianPrompt.respondInLanguage.name": "自分の言語で返信",
 	"settings.obsidianPrompt.respondInLanguage.desc":
 		"Agent Console が英語以外のとき、エージェントにあなたの言語で返信し、新しいタブもあなたの言語で名付けるよう求めます。別の言語で書いたり切り替えを頼んだりすれば、それに従います。",
