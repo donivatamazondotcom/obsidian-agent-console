@@ -143,6 +143,15 @@ export interface InitialState {
 	 */
 	forceConnectingHold?: boolean;
 	/**
+	 * Force the MCP OAuth sign-in Notice by injecting sample oauth_request
+	 * events into the plugin's mcpAuthManager (the same path a real remote
+	 * OAuth MCP server takes). Renders the `.agent-client-mcp-auth-notice`
+	 * toast with a primary server + one queued server (for the queue line).
+	 * The capture pipeline's `.notice` sweep + cleanliness guard both carve
+	 * out this specific notice (an intentional docs subject, not a stray toast).
+	 */
+	forceMcpAuthNotice?: boolean;
+	/**
 	 * Disable native menus before capture so an Obsidian `Menu` popover renders
 	 * as a window-capturable DOM `.menu` instead of an OS popup (which would
 	 * otherwise need screen-mode). Mirrors the forceTabStates path.

@@ -51,7 +51,9 @@ export const DEFAULT_FORBIDDEN_SELECTORS: string[] = [
 	".agent-client-error-overlay",
 	".agent-client-tab-error",
 	".agent-client-session-history-error",
-	".notice",
+	// Stray toasts are forbidden — EXCEPT the intentional MCP OAuth sign-in
+	// notice, a legitimate docs subject captured via forceMcpAuthNotice.
+	".notice:not(:has(.agent-client-mcp-auth-notice))",
 ];
 
 /**

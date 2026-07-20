@@ -1452,61 +1452,68 @@
 		},
 		{
 			"name": "mcp-oauth-signin-notice",
-			"pending": true,
+			"pending": false,
 			"placement": "feature",
 			"purpose": "Shows the MCP server sign-in prompt: server name, target host, Sign in / Copy link buttons, queue position.",
-			"mustShow": "Sign-in Notice with server name, target host line (Opens accounts.google.com), Sign in + Copy link buttons, queue line when more servers wait",
+			"mustShow": ".agent-client-mcp-auth-notice",
 			"altText": "Corner prompt saying an MCP server needs sign-in, showing the sign-in page's address with Sign in and Copy link buttons",
 			"docPage": "usage/mcp-tools",
-			"width": 400,
-			"height": 220,
+			"width": 648,
+			"height": 397,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 400,
-				"height": 220
+				"width": 648,
+				"height": 397
 			},
 			"cropSelector": ".notice:has(.agent-client-mcp-auth-notice)",
+			"cropPadding": 14,
+			"approvalThreshold": 0.02,
 			"initialState": {
-				"openNote": "Welcome.md"
+				"openNote": "Welcome.md",
+				"forceMcpAuthNotice": true
 			}
 		},
 		{
 			"name": "language-setting",
-			"pending": true,
-			"width": 800,
-			"height": 220,
+			"pending": false,
+			"width": 1640,
+			"height": 410,
 			"crop": {
-				"x": 0,
-				"y": 0,
-				"width": 800,
-				"height": 220
+				"x": 880,
+				"y": 585,
+				"width": 1640,
+				"height": 410
 			},
-			"cropSelector": ".agent-client-settings-language, .setting-item:has(.dropdown)",
+			"captureMode": "screen",
+			"approvalThreshold": 0.05,
 			"initialState": {
-				"openSettings": "agent-console"
+				"openSettings": "agent-console",
+				"openNativeSelect": ".agent-client-settings-language select"
 			},
 			"placement": "reference",
-			"altText": "Language dropdown in Agent Console's Advanced settings, showing Auto, English, and Korean options",
-			"caption": "Pick a language under Advanced settings \u2014 Auto follows Obsidian's language."
+			"altText": "Agent Console Language dropdown open under Appearance & notifications, showing Auto, English, and locale names in their own script",
+			"caption": "Pick a language under Appearance & notifications \u2014 Auto follows Obsidian's language."
 		},
 		{
 			"name": "interactive-buttons",
-			"pending": true,
+			"pending": false,
 			"width": 700,
-			"height": 360,
+			"height": 675,
 			"crop": {
 				"x": 0,
 				"y": 0,
 				"width": 700,
 				"height": 360
 			},
-			"cropSelector": ".agent-client-a2ui-surface",
-			"cropPadding": 16,
+			"cropSelector": ".agent-client-message-assistant",
+			"cropPadding": 18,
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true
 			},
+			"promptFile": "interactive-buttons.txt",
+			"awaitSelector": ".agent-client-a2ui-surface",
 			"approvalThreshold": 0.05,
 			"placement": "feature",
 			"purpose": "An agent reply offering a choice as clickable buttons; clicking sends the pick as a visible message.",

@@ -2589,6 +2589,40 @@ describe("captureEntry — v1.3.0 driving primitives", () => {
 		);
 	});
 
+	it("forceMcpAuthNotice injects sample oauth_request events into mcpAuthManager", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: { openNote: "Welcome.md", forceMcpAuthNotice: true },
+		});
+
+		await captureEntry(entry, deps);
+
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		// A primary + one queued server go through the real manager path
+		// (handleEvent -> reduceMcpAuth -> refreshNotice) so the notice renders
+		// with its queue line.
+		const inject = evals.find(
+			(e) =>
+				e.includes("mcpAuthManager") &&
+				e.includes('kind: "oauth_request"') &&
+				e.includes('serverName: "Google Drive"') &&
+				e.includes('serverName: "GitHub"'),
+		);
+		expect(inject).toBeDefined();
+		// It must run AFTER the 4b-ter stray-notice sweep so the forced notice
+		// survives.
+		const sweepIdx = evals.findIndex((e) =>
+			e.includes('querySelectorAll(".notice")'),
+		);
+		const injectIdx = evals.findIndex(
+			(e) => e.includes("mcpAuthManager") && e.includes("oauth_request"),
+		);
+		expect(sweepIdx).toBeGreaterThanOrEqual(0);
+		expect(injectIdx).toBeGreaterThan(sweepIdx);
+	});
+
 	it("disableNativeMenus turns native menus off so a Menu renders as a DOM .menu", async () => {
 		const deps = makeDeps();
 		const entry = makeEntry({

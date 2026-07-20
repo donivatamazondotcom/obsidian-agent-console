@@ -140,9 +140,13 @@ vi.mock("obsidian", () => {
 		name = "";
 		isHeading = false;
 		controlEl: HTMLElement;
+		settingEl: HTMLElement;
 		comps: Record<string, Comp> = {};
 		constructor(public containerEl: HTMLElement) {
 			this.controlEl = (
+				containerEl as unknown as { createDiv: () => HTMLElement }
+			).createDiv();
+			this.settingEl = (
 				containerEl as unknown as { createDiv: () => HTMLElement }
 			).createDiv();
 			reg.push(this as unknown as MockSetting);

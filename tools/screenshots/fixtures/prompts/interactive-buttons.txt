@@ -1,0 +1,1 @@
+I'm migrating my notes vault to a new database schema. In one or two short sentences, explain the tradeoff between a minimal migration (just what's needed now) and a complete migration (everything at once), then let me choose between the two.
