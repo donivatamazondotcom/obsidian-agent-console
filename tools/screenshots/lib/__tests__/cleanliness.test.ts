@@ -24,7 +24,11 @@ describe("defaults", () => {
 		expect(DEFAULT_FORBIDDEN_SELECTORS).toContain(
 			".agent-client-session-history-error",
 		);
-		expect(DEFAULT_FORBIDDEN_SELECTORS).toContain(".notice");
+		// The bare `.notice` is carved out for the intentional MCP OAuth sign-in
+		// notice (forceMcpAuthNotice shot); stray toasts are still forbidden.
+		expect(DEFAULT_FORBIDDEN_SELECTORS).toContain(
+			".notice:not(:has(.agent-client-mcp-auth-notice))",
+		);
 		// Connecting state is a P1/P3 freshness concern (response-wait gates),
 		// not P7 — and is mid-flight during screen-mode connects.
 		expect(DEFAULT_FORBIDDEN_SELECTORS).not.toContain(

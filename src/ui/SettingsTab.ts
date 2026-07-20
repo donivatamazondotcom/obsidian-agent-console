@@ -547,7 +547,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			.setName(t("settings.heading.appearanceNotifications"))
 			.setHeading();
 
-		new Setting(containerEl)
+		const languageSetting = new Setting(containerEl);
+		languageSetting
 			.setName(t("settings.language.name"))
 			.setDesc(t("settings.language.desc"))
 			.addDropdown((dropdown) => {
@@ -577,6 +578,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						new Notice(languageReloadNotice(value));
 					});
 			});
+		languageSetting.settingEl.addClass("agent-client-settings-language");
 
 		new Setting(containerEl)
 			.setName(t("settings.sidebarSide.name"))

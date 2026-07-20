@@ -1137,13 +1137,33 @@ export async function captureEntry(
 		}
 
 		// 4b-ter. Dismiss transient Obsidian notices (toasts) before the
-		// cleanliness assert + capture. A notice is never part of a docs shot
-		// (the cleanliness guard forbids `.notice`); loading a session or
-		// changing config can fire one (e.g. "new chat started in …"). Removing
-		// any present keeps a benign toast from failing the shot or leaking in.
+		// cleanliness assert + capture. A stray notice is never part of a docs shot
+		// (the cleanliness guard forbids `.notice`); loading a session or changing
+		// config can fire one. Remove any present — EXCEPT the intentional MCP OAuth
+		// sign-in notice (.agent-client-mcp-auth-notice), which the forceMcpAuthNotice
+		// shot below renders on purpose and the cleanliness guard also carves out.
 		await deps.cdp.evaluate(
-			`(() => { document.querySelectorAll(".notice").forEach((n) => n.remove()); return true; })()`,
+			`(() => { document.querySelectorAll(".notice").forEach((n) => { if (!n.querySelector(".agent-client-mcp-auth-notice")) n.remove(); }); return true; })()`,
 		);
+
+		// 4b-quater. Force the MCP OAuth sign-in notice with sample data — the same
+		// manager path a real remote OAuth MCP server takes (mcpAuthManager.handleEvent
+		// -> reduceMcpAuth -> refreshNotice). Runs AFTER the 4b-ter sweep so the forced
+		// notice survives; a primary server + one queued server so the queue line shows.
+		if (entry.initialState?.forceMcpAuthNotice) {
+			await deps.cdp.evaluate(
+				`(() => {
+					const p = app.plugins.plugins["agent-console"];
+					const mgr = p && p.mcpAuthManager;
+					if (!mgr || typeof mgr.handleEvent !== "function") return "no-manager";
+					const vid = "screenshot-mcp-auth";
+					mgr.handleEvent(vid, { kind: "oauth_request", sessionId: "s1", serverName: "Google Drive", oauthUrl: "https://accounts.google.com/o/oauth2/v2/auth?client_id=example.apps.googleusercontent.com&redirect_uri=http://localhost&response_type=code&scope=drive.readonly&state=xyz" });
+					mgr.handleEvent(vid, { kind: "oauth_request", sessionId: "s2", serverName: "GitHub", oauthUrl: "https://github.com/login/oauth/authorize?client_id=example&scope=repo&state=abc" });
+					return "ok";
+				})()`,
+			);
+			await sleep(SETTLE_MS);
+		}
 
 		// 4c. Tier-2 mustShow assertion (rubric P2). Window-mode only: screen-mode
 		// popovers render in a native popup window outside the renderer DOM, so
