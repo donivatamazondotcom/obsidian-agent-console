@@ -22,8 +22,6 @@ export function MarkdownRenderer({ text, plugin }: MarkdownRendererProps) {
 	useEffect(() => {
 		const el = containerRef.current;
 		if (!el) return;
-		el.empty?.();
-		el.classList.add("markdown-rendered");
 
 		// Create a temporary component for the markdown renderer lifecycle
 		const component = new Component();
@@ -34,22 +32,38 @@ export function MarkdownRenderer({ text, plugin }: MarkdownRendererProps) {
 		// backing file of its own; the active file is the natural source.
 		const sourcePath = plugin.app.workspace.getActiveFile()?.path ?? "";
 
-		// Render markdown. `MarkdownRenderer.render` does NOT run the
-		// reading-view post-processor that marks dead links `.is-unresolved`
-		// (verified: the programmatic API leaves them as plain
-		// `a.internal-link`). So after render, resolve each internal link
-		// against the metadata cache and add `.is-unresolved` ourselves to
-		// restore native styling. Click behavior is left entirely to Obsidian
-		// (openLinkText creates a missing note, exactly like reading view).
+		// Render into a detached staging element, then swap atomically once
+		// the async render completes (I176 / #251). Emptying `el` up front and
+		// rendering into it directly collapses the container height to ~0
+		// between clear and render completion; during streaming that feeds the
+		// ResizeObserver in use-auto-scroll-pin a rapid shrink→grow oscillation
+		// and the pin logic fights itself (violent jumping between the top of
+		// the response and the bottom). With the staging swap, the live
+		// container's height only ever grows or stays the same mid-stream.
+		//
+		// Note: `MarkdownRenderer.render` does NOT run the reading-view
+		// post-processor that marks dead links `.is-unresolved` (verified: the
+		// programmatic API leaves them as plain `a.internal-link`). So after
+		// the swap, resolve each internal link against the metadata cache and
+		// add `.is-unresolved` ourselves to restore native styling. Click
+		// behavior is left entirely to Obsidian (openLinkText creates a
+		// missing note, exactly like reading view).
+		const staging = createDiv({ cls: "markdown-rendered" });
+
 		let cancelled = false;
 		void ObsidianMarkdownRenderer.render(
 			plugin.app,
 			text,
-			el,
+			staging,
 			sourcePath,
 			component,
 		).then(() => {
 			if (cancelled) return;
+			// Atomic swap in one mutation: standard DOM `replaceChildren`
+			// avoids both the Obsidian-only `empty()` dependency and any
+			// empty-container intermediate state.
+			el.classList.add("markdown-rendered");
+			el.replaceChildren(...Array.from(staging.childNodes));
 			// Best-effort styling only — skip if the resolver isn't available
 			// rather than risk throwing or marking everything unresolved.
 			const cache = plugin.app.metadataCache;
