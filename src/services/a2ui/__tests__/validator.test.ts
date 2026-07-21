@@ -493,6 +493,70 @@ describe("validateA2uiFence — V12 forbidden keys and identity (D12)", () => {
 		);
 	});
 
+	it("accepts a Button context key named `path` with a literal value (I177)", () => {
+		// Regression: `path` is a forbidden data-model-binding key, but as a
+		// literal-valued key inside a button's event.context it is innocent.
+		const result = validateA2uiFence(
+			makeEnvelope({
+				components: [
+					{ id: "root", component: "Row", children: ["draft", "cionly"] },
+					{ id: "draft-label", component: "Text", text: "Draft review" },
+					{
+						id: "draft",
+						component: "Button",
+						child: "draft-label",
+						action: {
+							event: {
+								name: "choose_path",
+								context: { path: "request-changes" },
+							},
+						},
+					},
+					{ id: "cionly-label", component: "Text", text: "Approve CI" },
+					{
+						id: "cionly",
+						component: "Button",
+						child: "cionly-label",
+						action: {
+							event: { name: "choose_path", context: { path: "ci-only" } },
+						},
+					},
+				],
+			}),
+		);
+		expect(result.kind).toBe("valid");
+		if (result.kind === "valid") {
+			const draft = result.surface.components.get("draft");
+			expect(draft?.kind).toBe("button");
+			if (draft?.kind === "button") {
+				expect(draft.event.context).toEqual({ path: "request-changes" });
+			}
+		}
+	});
+
+	it("still rejects a context value that is an object (binding attempt)", () => {
+		// The context-key exemption is scoped to literal values: `path` as a
+		// KEY is fine, but an object VALUE is a binding attempt, rejected by
+		// the literal-only context contract.
+		expectInvalid(
+			makeEnvelope({
+				components: [
+					{ id: "root", component: "Column", children: ["b"] },
+					{ id: "b-label", component: "Text", text: "x" },
+					{
+						id: "b",
+						component: "Button",
+						child: "b-label",
+						action: {
+							event: { name: "go", context: { path: { ref: "user.name" } } },
+						},
+					},
+				],
+			}),
+			"bad-button",
+		);
+	});
+
 	it("rejects agent-supplied identity fields in surfaceProperties", () => {
 		expectInvalid(
 			makeEnvelope({

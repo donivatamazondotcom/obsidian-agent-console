@@ -62,8 +62,17 @@ function scanDeep(
 		return;
 	}
 	if (isPlainObject(value)) {
+		// A button's `event.context` is the one place the profile lets the
+		// agent choose free-form key names, and its values are constrained to
+		// literals by parseButton (isLiteral) — so a data-model binding (which
+		// needs an object/reference value) cannot hide there. Exempt that bag
+		// from the forbidden-key check so an innocent context key like `path`
+		// isn't mistaken for a binding. The exemption is key-name-only: string
+		// limits and deeper recursion still run, and forbidden keys anywhere
+		// else (Text `text: {path}`, createSurface `dataModel`, etc.) still fire.
+		const inButtonContext = keyPath.endsWith(".action.event.context");
 		for (const [key, v] of Object.entries(value)) {
-			if (BUTTONS_V0_FORBIDDEN_KEYS.includes(key)) {
+			if (!inButtonContext && BUTTONS_V0_FORBIDDEN_KEYS.includes(key)) {
 				violations.push({
 					code: "forbidden-key",
 					detail: `"${key}" at ${keyPath}`,
