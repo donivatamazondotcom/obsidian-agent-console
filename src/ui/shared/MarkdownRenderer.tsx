@@ -32,18 +32,23 @@ export function MarkdownRenderer({ text, plugin }: MarkdownRendererProps) {
 		// backing file of its own; the active file is the natural source.
 		const sourcePath = plugin.app.workspace.getActiveFile()?.path ?? "";
 
-		// FIX: Render into a detached staging element, then swap atomically.
-		// The previous approach (el.empty() + async render into el) caused a
-		// height collapse between clear and render completion. During streaming,
-		// this produced rapid height oscillation visible to the ResizeObserver
-		// in use-auto-scroll-pin, which fought between "content shrank" (scroll
-		// anchor to top of response) and "content grew" (scroll to bottom),
-		// creating a violent shaking/jumping effect.
+		// Render into a detached staging element, then swap atomically once
+		// the async render completes (I176 / #251). Emptying `el` up front and
+		// rendering into it directly collapses the container height to ~0
+		// between clear and render completion; during streaming that feeds the
+		// ResizeObserver in use-auto-scroll-pin a rapid shrink→grow oscillation
+		// and the pin logic fights itself (violent jumping between the top of
+		// the response and the bottom). With the staging swap, the live
+		// container's height only ever grows or stays the same mid-stream.
 		//
-		// By rendering off-DOM and swapping in one shot, the container's height
-		// only ever grows or stays the same — never collapses to zero mid-frame.
-		const staging = document.createElement("div");
-		staging.classList.add("markdown-rendered");
+		// Note: `MarkdownRenderer.render` does NOT run the reading-view
+		// post-processor that marks dead links `.is-unresolved` (verified: the
+		// programmatic API leaves them as plain `a.internal-link`). So after
+		// the swap, resolve each internal link against the metadata cache and
+		// add `.is-unresolved` ourselves to restore native styling. Click
+		// behavior is left entirely to Obsidian (openLinkText creates a
+		// missing note, exactly like reading view).
+		const staging = createDiv({ cls: "markdown-rendered" });
 
 		let cancelled = false;
 		void ObsidianMarkdownRenderer.render(
@@ -54,13 +59,11 @@ export function MarkdownRenderer({ text, plugin }: MarkdownRendererProps) {
 			component,
 		).then(() => {
 			if (cancelled) return;
-			// Atomic swap: replace all children in one layout pass.
-			// This avoids the height-collapse that triggers scroll fighting.
-			el.empty?.();
+			// Atomic swap in one mutation: standard DOM `replaceChildren`
+			// avoids both the Obsidian-only `empty()` dependency and any
+			// empty-container intermediate state.
 			el.classList.add("markdown-rendered");
-			while (staging.firstChild) {
-				el.appendChild(staging.firstChild);
-			}
+			el.replaceChildren(...Array.from(staging.childNodes));
 			// Best-effort styling only — skip if the resolver isn't available
 			// rather than risk throwing or marking everything unresolved.
 			const cache = plugin.app.metadataCache;
