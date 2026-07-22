@@ -7,8 +7,8 @@
  * samples) are intentionally omitted — the English/literal value is
  * correct for every locale.
  *
- * Machine-translated baseline pending native-speaker review (smoke test
- * tracked in the vault spec). Corrections welcome.
+ * Machine-translated baseline, reviewed and corrected by Michaela Kim
+ * (native Korean speaker). Corrections welcome.
  */
 import type { en } from "./en";
 

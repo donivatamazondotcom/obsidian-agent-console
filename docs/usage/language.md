@@ -7,7 +7,7 @@ Use Agent Console in your own language. The plugin's buttons, menus, settings, a
 | Language | Status |
 |---|---|
 | English | Source language |
-| 한국어 (Korean) | Settings, notifications, dialogs, chat panel, and commands translated (newest strings machine-translated, under native-speaker review) |
+| 한국어 (Korean) | Settings, notifications, dialogs, chat panel, and commands translated — reviewed by native speaker Michaela Kim (newest strings machine-translated) |
 | 中文 (Chinese, Simplified) | Settings, notifications, dialogs, chat panel, and commands translated (machine-translated) |
 | 日本語 (Japanese) | Settings, notifications, dialogs, chat panel, and commands translated (machine-translated) |
 
@@ -36,3 +36,7 @@ The change applies the next time Obsidian reloads.
 ## Found a wrong or awkward translation?
 
 Translations start out machine-generated and get refined by native speakers. If something reads wrong, [open an issue](https://github.com/donivatamazondotcom/obsidian-agent-console/issues) or send a pull request against the catalog files in `src/i18n/` — corrections are very welcome.
+
+## Credits
+
+- Korean (한국어) — reviewed and corrected by Michaela Kim.
