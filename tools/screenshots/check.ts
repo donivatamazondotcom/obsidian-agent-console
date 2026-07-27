@@ -14,6 +14,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
+import { log, logError } from "../lib/cli-log";
 import { parseManifest, validateManifest } from "./lib/manifest";
 import {
 	checkConsistency,
@@ -88,8 +89,8 @@ async function main() {
 
 	const problems = formatProblems(report, gifMismatches);
 	if (problems.length > 0) {
-		console.error("❌ Screenshot consistency check failed:");
-		for (const p of problems) console.error(`  - ${p}`);
+		logError("❌ Screenshot consistency check failed:");
+		for (const p of problems) logError(`  - ${p}`);
 		process.exit(1);
 	}
 
@@ -100,21 +101,21 @@ async function main() {
 	const strict = process.argv.includes("--strict");
 	const pending = pendingEntryNames(manifest.entries);
 	if (strict && pending.length > 0) {
-		console.error(
+		logError(
 			`❌ Release gate: ${pending.length} screenshot(s) still pending capture — capture them (drop "pending" + commit the image) or remove the entry before tagging:`,
 		);
-		for (const n of pending) console.error(`  - ${n}`);
+		for (const n of pending) logError(`  - ${n}`);
 		process.exit(1);
 	}
 
 	const pendingNote =
 		pending.length > 0 ? ` (${pending.length} pending capture)` : "";
-	console.log(
+	log(
 		`✅ Screenshot consistency OK — ${manifest.entries.length} manifest entries, ${presentImages.length} committed images, ${docRefs.length} docs references${pendingNote}.`,
 	);
 }
 
 main().catch((err) => {
-	console.error(err);
+	logError(err);
 	process.exit(1);
 });

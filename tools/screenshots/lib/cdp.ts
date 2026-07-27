@@ -25,6 +25,7 @@
  * Test contract: tools/screenshots/lib/__tests__/cdp.test.ts.
  */
 import { spawn, execSync } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
 import { existsSync } from "node:fs";
 
 export interface CdpOptions {
@@ -629,5 +630,5 @@ function parseEvaluateResponse<T>(stdout: string): T {
 }
 
 function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+	return delay(ms);
 }

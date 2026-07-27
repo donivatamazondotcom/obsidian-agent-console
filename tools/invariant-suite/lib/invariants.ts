@@ -13,6 +13,7 @@
  *
  * Spec: vault note "Verification Overhaul" (Pillar 3).
  */
+import { setTimeout as delay } from "node:timers/promises";
 import type { Cdp } from "../../screenshots/lib/cdp";
 
 export type InvariantStatus = "pass" | "fail" | "skip" | "todo";
@@ -76,7 +77,7 @@ const composerFocusNewChat: Invariant = {
 				return { status: "pass", detail: "activeElement is the composer textarea" };
 			}
 			detail = r.active;
-			await new Promise((res) => setTimeout(res, 100));
+			await delay(100);
 		}
 		return {
 			status: "fail",
@@ -117,7 +118,7 @@ const keymapScopeBalance: Invariant = {
 				return true;
 			})()`,
 		);
-		await new Promise((res) => setTimeout(res, 400));
+		await delay(400);
 		try {
 			const r = await evalJson<{
 				switched: boolean;
@@ -321,7 +322,7 @@ const notificationRouting: Invariant = {
 				return true;
 			})()`,
 		);
-		await new Promise((res) => setTimeout(res, 300));
+		await delay(300);
 		try {
 			await evalTolerant(
 				`(() => {
@@ -347,7 +348,7 @@ const notificationRouting: Invariant = {
 					};
 				}
 				lastActive = r.active;
-				await new Promise((res) => setTimeout(res, 100));
+				await delay(100);
 			}
 			return {
 				status: "fail",
