@@ -23,6 +23,20 @@ jobs:
       - name: Lint
         run: npx eslint src/
 
+      # Bot-parity gate (blocking) — predicts the Obsidian store review's
+      # verdict so a "Caution" label cannot land minutes after a clean lint.
+      # Runs the obsidianmd ruleset across the WHOLE repo (no tools/ carve-out,
+      # no token-efficiency.ts ignore) and reports warnings as well as errors,
+      # because warnings are what produce "Caution". Fails on any finding not in
+      # tools/quality-gates/bot-findings-exceptions.json, and on any exception
+      # entry that has gone stale.
+      #
+      # Deliberately separate from the Lint step above: that one is prescriptive
+      # code quality on shipped source, this one is a descriptive mirror of an
+      # external scanner. See [[Agent Console Review-Bot Parity Gate]] D1.
+      - name: Bot-parity gate
+        run: npm run gate:bot-parity
+
       - name: Fixture path leak guard
         run: |
           # Tracked smoke/screenshot fixture settings (data*.json under any

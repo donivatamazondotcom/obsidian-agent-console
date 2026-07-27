@@ -1,0 +1,25 @@
+[
+	{
+		"rule": "obsidianmd/prefer-create-el",
+		"file": "src/__test_stubs__/vitest.setup.ts",
+		"count": 3,
+		"reason": "false-positive-unreported",
+		"note": "The vitest setup stub deliberately calls raw DOM APIs (createElement, createEl, createDocumentFragment) in order to BUILD the very Obsidian helpers the rule wants callers to use. Rewriting these to createEl/createDiv/createFragment would make the shim call itself. Assessed as a rule defect; upstream report not yet filed.",
+		"link": "https://github.com/obsidianmd/eslint-plugin"
+	},
+	{
+		"rule": "obsidianmd/ui/sentence-case",
+		"file": "src/plugin.ts",
+		"count": 1,
+		"reason": "false-positive-unreported",
+		"note": "Rule wants 'Agent console'. 'Agent Console' is the product name — a proper noun — and is the string used on the store listing, the docs site and the manifest. Renaming it to satisfy sentence case would rename the product. Assessed as a rule defect; upstream report not yet filed.",
+		"link": "https://github.com/obsidianmd/eslint-plugin"
+	},
+	{
+		"rule": "obsidianmd/settings-tab/prefer-setting-definitions",
+		"file": "src/ui/SettingsTab.ts",
+		"count": 1,
+		"reason": "deferred",
+		"note": "Genuine finding with real user impact: without getSettingDefinitions() the plugin's settings do not appear in Obsidian's settings search on 1.13.0+. Migrating a ~2,100-line imperative settings tab to the declarative API is its own feature, not patch material — see [[Agent Console Review-Bot Parity Gate]] § What is actually in scope to fix. Remove this entry when that feature lands."
+	}
+]
