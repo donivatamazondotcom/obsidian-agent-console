@@ -119,13 +119,22 @@ describe("createDomFlushSchedulerDeps", () => {
 	 * `FlushSchedulerWindow` with no cast — which is the point of narrowing the
 	 * parameter type to the members actually used.
 	 */
-	function fakeWin() {
+	function fakeWin({ slowDelivery = false }: { slowDelivery?: boolean } = {}) {
 		let constructed = 0;
 		const rafCallbacks: FrameRequestCallback[] = [];
 		class SpyChannel extends MessageChannel {
 			constructor() {
 				super();
 				constructed += 1;
+				if (slowDelivery) {
+					// Defer the port message strictly past one `setTimeout(…, 0)`
+					// tick, reproducing the loaded-runner ordering deterministically
+					// (I182). The ports stay real, so the round-trip is still real.
+					const realPost = this.port2.postMessage.bind(this.port2);
+					this.port2.postMessage = (message: unknown) => {
+						setTimeout(() => setTimeout(() => realPost(message), 0), 0);
+					};
+				}
 			}
 		}
 		const win: FlushSchedulerWindow = {
@@ -141,6 +150,23 @@ describe("createDomFlushSchedulerDeps", () => {
 			fireRaf: () => rafCallbacks.splice(0).forEach((cb) => cb(0)),
 			rafCount: () => rafCallbacks.length,
 		};
+	}
+
+	/**
+	 * A spy plus a promise that settles when the spy runs.
+	 *
+	 * Waiting on the delivery ITSELF is what keeps these tests off task-source
+	 * ordering. A `MessagePort` message and a `setTimeout(…, 0)` are separate
+	 * task sources and the spec orders neither against the other, so awaiting one
+	 * timer tick and then asserting delivery encodes a guarantee the platform
+	 * never made — it passes locally and fails on a loaded runner (I182).
+	 */
+	function deliverySpy() {
+		let signalDelivered!: () => void;
+		const delivered = new Promise<void>((resolve) => {
+			signalDelivered = resolve;
+		});
+		return { cb: vi.fn(() => signalDelivered()), delivered };
 	}
 
 	it("constructs its channel from the injected window, not an ambient global", () => {
@@ -186,10 +212,28 @@ describe("createDomFlushSchedulerDeps", () => {
 	it("postMacrotask delivers the callback as a macrotask via the channel", async () => {
 		const f = fakeWin();
 		const deps = createDomFlushSchedulerDeps(f.win, document);
-		const cb = vi.fn();
+		const { cb, delivered } = deliverySpy();
 		deps.postMacrotask(cb);
 		expect(cb).not.toHaveBeenCalled(); // macrotask, not synchronous
+		await delivered;
+		expect(cb).toHaveBeenCalledTimes(1);
+	});
+
+	it("postMacrotask still delivers when the port lands after a timer tick", async () => {
+		// Regression guard for I182. The previous version of the test above
+		// awaited a single `setTimeout(…, 0)` and then asserted delivery, which
+		// is an ordering between two independent task sources that nothing
+		// guarantees; on a loaded CI runner the timer won and the suite went red
+		// with "expected spy to be called 1 times, but got 0 times". Delaying the
+		// port past a timer tick makes that ordering deterministic, so this test
+		// fails against the old wait and passes against the delivery-signal wait.
+		const f = fakeWin({ slowDelivery: true });
+		const deps = createDomFlushSchedulerDeps(f.win, document);
+		const { cb, delivered } = deliverySpy();
+		deps.postMacrotask(cb);
 		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(cb).not.toHaveBeenCalled(); // one timer tick is NOT sufficient
+		await delivered;
 		expect(cb).toHaveBeenCalledTimes(1);
 	});
 });
