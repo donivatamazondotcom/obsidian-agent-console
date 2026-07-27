@@ -99,12 +99,30 @@ export function createUpdateFlushScheduler(
 }
 
 /**
+ * The window surface {@link createDomFlushSchedulerDeps} needs — deliberately
+ * narrowed to the two members it actually touches.
+ *
+ * This module never reads an ambient global: the window is always supplied by
+ * the caller, which is what makes it popout-safe (a popout window satisfies
+ * this shape exactly as the main window does). Naming only the used members
+ * makes that contract enforced by the type rather than left to convention, and
+ * keeps a full-global-scope type out of a signature that needs two members.
+ *
+ * Member types are projected from lib.dom (`Window[...]`) rather than
+ * hand-written, so they stay in lockstep with the platform.
+ */
+export interface FlushSchedulerWindow {
+	MessageChannel: new () => MessageChannel;
+	requestAnimationFrame: Window["requestAnimationFrame"];
+}
+
+/**
  * Production deps: rAF + a MessageChannel-backed macrotask (visibility-immune)
  * + document visibility. One channel per scheduler instance; `cb` is stored
  * per-post so each post runs exactly one callback.
  */
 export function createDomFlushSchedulerDeps(
-	win: Window & typeof globalThis,
+	win: FlushSchedulerWindow,
 	doc: Document,
 ): FlushSchedulerDeps {
 	const channel = new win.MessageChannel();
