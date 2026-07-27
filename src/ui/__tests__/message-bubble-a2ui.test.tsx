@@ -189,3 +189,98 @@ describe("MessageBubble × a2ui — user action messages (T02/T08/D14)", () => {
 		expect(container.textContent).toContain("just a normal message");
 	});
 });
+
+/**
+ * I179 — the action-card alignment fix is keyed off a modifier class applied
+ * by React, NOT a `:has()` selector (the Obsidian store's CSS lint flags
+ * `:has()` for broad selector invalidation). These assertions pin the exact
+ * DOM condition the old `:has()` matched, so the A2UI-I04 alignment cannot
+ * regress: the renderer element carries
+ * `.agent-client-message-a2ui-action` iff a user bubble actually renders an
+ * a2ui action message.
+ */
+describe("MessageBubble × a2ui — action alignment modifier class (I179)", () => {
+	const MODIFIER = ".agent-client-message-a2ui-action";
+
+	function renderer(container: HTMLElement): HTMLElement | null {
+		return container.querySelector(".agent-client-message-renderer");
+	}
+
+	it("marks a user action message so the 16px alignment rule applies", () => {
+		const { container } = render(
+			<MessageBubble
+				message={makeMessage("user", ACTION_TEXT)}
+				plugin={PLUGIN}
+				a2ui={makeA2ui()}
+			/>,
+		);
+		// The compact action body is present — i.e. this is the case the old
+		// `:has(.agent-client-a2ui-action-message)` selector matched.
+		expect(
+			container.querySelector(".agent-client-a2ui-action-message"),
+		).not.toBeNull();
+		expect(container.querySelector(MODIFIER)).not.toBeNull();
+
+		// The CSS rule requires all three classes on the same element.
+		const el = renderer(container);
+		expect(el?.classList.contains("agent-client-message-user")).toBe(true);
+		expect(el?.classList.contains("agent-client-message-a2ui-action")).toBe(
+			true,
+		);
+	});
+
+	it("does not mark an ordinary user message (keeps the 8px bubble inset)", () => {
+		const { container } = render(
+			<MessageBubble
+				message={makeMessage("user", "just a normal message")}
+				plugin={PLUGIN}
+				a2ui={makeA2ui()}
+			/>,
+		);
+		expect(container.querySelector(MODIFIER)).toBeNull();
+	});
+
+	it("does not mark an assistant message that carries a surface fence", () => {
+		const { container } = render(
+			<MessageBubble
+				message={makeMessage("assistant", ASSISTANT_TEXT)}
+				plugin={PLUGIN}
+				a2ui={makeA2ui()}
+				a2uiIsStreamingTurn={false}
+			/>,
+		);
+		expect(container.querySelector(MODIFIER)).toBeNull();
+	});
+
+	it("does not mark a user action message when no a2ui context is wired", () => {
+		// Without the a2ui context the compact action body never renders, so
+		// the old `:has()` never matched either — parity matters here.
+		const { container } = render(
+			<MessageBubble
+				message={makeMessage("user", ACTION_TEXT)}
+				plugin={PLUGIN}
+			/>,
+		);
+		expect(
+			container.querySelector(".agent-client-a2ui-action-message"),
+		).toBeNull();
+		expect(container.querySelector(MODIFIER)).toBeNull();
+	});
+
+	it("marks the bubble when the action fence is not the only content block", () => {
+		// `:has()` matched any descendant, so a multi-block user message with
+		// an action fence in a later block must still align.
+		const message = {
+			id: "user-multi",
+			role: "user",
+			content: [
+				{ type: "text", text: "context line" },
+				{ type: "text", text: ACTION_TEXT },
+			],
+		} as ChatMessage;
+		const { container } = render(
+			<MessageBubble message={message} plugin={PLUGIN} a2ui={makeA2ui()} />,
+		);
+		expect(container.querySelector(MODIFIER)).not.toBeNull();
+	});
+});

@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildA2uiActionEnvelope,
 	buildA2uiActionUserMessage,
+	deriveA2uiActionMessageView,
 	formatA2uiActionSummary,
 } from "../action";
 import type { A2uiComponent } from "../types";
@@ -129,5 +130,69 @@ describe("formatA2uiActionSummary (D14 — payload-derived)", () => {
 		});
 		expect(summary).toContain("count: 3");
 		expect(summary).toContain("force: true");
+	});
+});
+
+/**
+ * I179 — `deriveA2uiActionMessageView` is the single resolver for "is this
+ * user text an a2ui action message, and how does it render compactly?" Two
+ * consumers read it: the compact renderer body, and the modifier class that
+ * carries the A2UI-I04 alignment (previously a `:has()` selector). They must
+ * never re-derive it independently, so the resolver owns the decision.
+ *
+ * Total: any string in, view-or-null out, never throws.
+ */
+describe("deriveA2uiActionMessageView (I179)", () => {
+	const ENVELOPE =
+		'{"version":"v1.0","action":{"name":"go","surfaceId":"pick-1","sourceComponentId":"b","timestamp":"2026-07-27T00:00:00Z","context":{"x":1}}}';
+
+	it("returns a view for a closed action fence, splitting the surrounding text", () => {
+		const view = deriveA2uiActionMessageView(
+			"Selected: Go\n\n```a2ui\n" + ENVELOPE + "\n```\n\ntrailing note",
+		);
+		expect(view).not.toBeNull();
+		expect(view?.before).toBe("Selected: Go");
+		expect(view?.after).toBe("trailing note");
+		expect(view?.body.trim()).toBe(ENVELOPE);
+		// Summary is payload-derived (D14), not label-derived.
+		expect(view?.summary).toBe("go (x: 1)");
+	});
+
+	it("returns null for plain text with no fence", () => {
+		expect(deriveA2uiActionMessageView("just a normal message")).toBeNull();
+	});
+
+	it("returns null for an unclosed (streaming partial) fence", () => {
+		expect(
+			deriveA2uiActionMessageView("Selected: Go\n\n```a2ui\n" + ENVELOPE),
+		).toBeNull();
+	});
+
+	it("returns null for an a2ui fence that is not an action envelope", () => {
+		const createSurface =
+			'{"version":"v1.0","createSurface":{"surfaceId":"s","catalogId":"c","components":[]}}';
+		expect(
+			deriveA2uiActionMessageView("```a2ui\n" + createSurface + "\n```"),
+		).toBeNull();
+	});
+
+	it("returns null for an action fence quoted inside an outer code block", () => {
+		// Fences do not nest in CommonMark — the inner fence is literal content.
+		const quoted = "````markdown\n```a2ui\n" + ENVELOPE + "\n```\n````";
+		expect(deriveA2uiActionMessageView(quoted)).toBeNull();
+	});
+
+	it("returns null for malformed JSON in the fence body", () => {
+		expect(
+			deriveA2uiActionMessageView("```a2ui\n{not json\n```"),
+		).toBeNull();
+	});
+
+	it("yields empty before/after when the fence is the whole message", () => {
+		const view = deriveA2uiActionMessageView(
+			"```a2ui\n" + ENVELOPE + "\n```",
+		);
+		expect(view?.before).toBe("");
+		expect(view?.after).toBe("");
 	});
 });

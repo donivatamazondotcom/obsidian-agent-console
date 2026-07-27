@@ -66,3 +66,30 @@ describe("tracked CSS files are syntactically valid", () => {
 		},
 	);
 });
+
+/**
+ * I179 — Obsidian's automated plugin review lints shipped CSS and flags
+ * `:has()`: "Avoid :has — it can cause significant performance issues due to
+ * broad selector invalidation." A `:has()` selector shipped in v2.2.0 (the
+ * A2UI-I04 action-card alignment fix) and contributed to the store marking
+ * the plugin "Caution".
+ *
+ * The sanctioned alternative is to compute the condition in code and apply a
+ * modifier class, then key the CSS off that class — identical specificity, no
+ * subtree invalidation. This guard keeps `:has()` from creeping back in, since
+ * neither esbuild (CSS is not a bundle input) nor jsdom tests apply stylesheets,
+ * so a store-flagged selector would otherwise ship green.
+ */
+describe("tracked CSS files avoid store-flagged selectors", () => {
+	it.each(cssFiles)("%s — no :has() selector", (rel) => {
+		const css = readFileSync(resolve(repoRoot, rel), "utf8");
+
+		// Report every offending line so a failure names the fix site directly.
+		const offenders = css
+			.split("\n")
+			.map((line, i) => ({ line: i + 1, text: line.trim() }))
+			.filter(({ text }) => /:has\s*\(/.test(text));
+
+		expect({ file: rel, offenders }).toEqual({ file: rel, offenders: [] });
+	});
+});

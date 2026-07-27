@@ -11,6 +11,7 @@
  * Pure — no React, no Obsidian, no clock (timestamp injected).
  */
 import { A2UI_VERSION } from "./spec-snapshot";
+import { extractA2uiFences } from "./fence-extractor";
 import type { A2uiComponent } from "./types";
 
 export type A2uiButton = Extract<A2uiComponent, { kind: "button" }>;
@@ -95,4 +96,55 @@ export function summarizeA2uiActionBody(body: string): string | null {
 					.join(", ")
 			: "";
 	return pairs.length > 0 ? `${name} (${pairs})` : name;
+}
+
+/**
+ * I179 — the single resolver for "is this user text an a2ui action message,
+ * and how does it render compactly?"
+ *
+ * TWO consumers read this and must never disagree:
+ *
+ *  1. `UserTextWithActions` — renders the compact body (summary line +
+ *     canonical envelope behind a disclosure, D14).
+ *  2. `MessageBubble` — applies the `agent-client-message-a2ui-action`
+ *     modifier class to the message-renderer element, which is what the
+ *     A2UI-I04 alignment rule keys off (16px margins so the answer card lines
+ *     up under the surface card that produced it).
+ *
+ * Consumer 2 previously read the DOM instead, via a CSS `:has` pseudo-class.
+ * Obsidian's plugin review lints that as a performance risk (broad selector
+ * invalidation), so the condition is resolved here in code and published as a
+ * class. Both consumers call this function — the decision is never re-derived.
+ *
+ * Returns null when the text is not a renderable action message (no fence, an
+ * unclosed streaming partial, a non-action envelope, or malformed JSON), so
+ * callers fall back to plain rendering.
+ *
+ * Pure and total: any string in, view-or-null out, never throws.
+ */
+export interface A2uiActionMessageView {
+	/** Text before the fence, trailing whitespace trimmed. */
+	before: string;
+	/** Text after the fence, leading whitespace trimmed. */
+	after: string;
+	/** Payload-derived disclosure summary: "name (k: v, …)" (D14). */
+	summary: string;
+	/** The canonical envelope body, verbatim. */
+	body: string;
+}
+
+export function deriveA2uiActionMessageView(
+	text: string,
+): A2uiActionMessageView | null {
+	const fence = extractA2uiFences(text)
+		.filter((f) => f.closed)
+		.find((f) => summarizeA2uiActionBody(f.body) !== null);
+	if (fence === undefined) return null;
+	return {
+		before: text.slice(0, fence.start).trimEnd(),
+		after: text.slice(fence.end).trimStart(),
+		// Non-null by the find predicate above.
+		summary: summarizeA2uiActionBody(fence.body) as string,
+		body: fence.body,
+	};
 }
