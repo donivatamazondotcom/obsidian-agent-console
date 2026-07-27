@@ -11,8 +11,7 @@ import { ToolCallBlock } from "./ToolCallBlock";
 import { LucideIcon } from "./shared/IconButton";
 import { A2uiSurfaceHost } from "./A2uiSurfaceHost";
 import { segmentAssistantMessage } from "../services/a2ui/segmenter";
-import { extractA2uiFences } from "../services/a2ui/fence-extractor";
-import { summarizeA2uiActionBody } from "../services/a2ui/action";
+import { deriveA2uiActionMessageView } from "../services/a2ui/action";
 import type { A2uiButton } from "../services/a2ui/action";
 import type { A2uiValidatedSurface } from "../services/a2ui/types";
 import { t } from "../i18n";
@@ -337,11 +336,10 @@ function UserTextWithActions({
 	plugin,
 	autoMentionContext,
 }: TextWithMentionsProps): React.ReactElement {
-	const fences = extractA2uiFences(text).filter((f) => f.closed);
-	const actionFence = fences.find(
-		(f) => summarizeA2uiActionBody(f.body) !== null,
-	);
-	if (actionFence === undefined) {
+	// One resolver owns this decision (I179) — MessageBubble reads the same one
+	// to publish the alignment modifier class, so the two cannot diverge.
+	const view = deriveA2uiActionMessageView(text);
+	if (view === null) {
 		return (
 			<TextWithMentions
 				text={text}
@@ -350,9 +348,7 @@ function UserTextWithActions({
 			/>
 		);
 	}
-	const before = text.slice(0, actionFence.start).trimEnd();
-	const after = text.slice(actionFence.end).trimStart();
-	const payloadSummary = summarizeA2uiActionBody(actionFence.body) as string;
+	const { before, after, summary: payloadSummary } = view;
 	return (
 		<div className="agent-client-a2ui-action-message">
 			{before.length > 0 && (
@@ -361,7 +357,7 @@ function UserTextWithActions({
 			<details className="agent-client-a2ui-action-details">
 				<summary>{payloadSummary}</summary>
 				<pre className="agent-client-a2ui-action-envelope">
-					{actionFence.body}
+					{view.body}
 				</pre>
 			</details>
 			{after.length > 0 && <TextWithMentions text={after} plugin={plugin} />}
@@ -652,9 +648,31 @@ export const MessageBubble = React.memo(function MessageBubble({
 }: MessageBubbleProps) {
 	const groups = groupContent(message.content);
 
+	// I179 — publish the A2UI action condition as a class so the A2UI-I04
+	// alignment rule can key off it instead of a CSS `:has` pseudo-class
+	// (flagged by Obsidian's plugin review for broad selector invalidation).
+	// This reproduces exactly what the old selector matched: a user bubble in
+	// which some text block actually renders the compact action body — which
+	// requires the a2ui feature to be wired, same as the rendering path below.
+	const isA2uiActionMessage =
+		message.role === "user" &&
+		a2ui !== undefined &&
+		message.content.some(
+			(content) =>
+				content.type === "text" &&
+				deriveA2uiActionMessageView(content.text) !== null,
+		);
+
+	const roleClass =
+		message.role === "user"
+			? "agent-client-message-user"
+			: "agent-client-message-assistant";
+
 	return (
 		<div
-			className={`agent-client-message-renderer ${message.role === "user" ? "agent-client-message-user" : "agent-client-message-assistant"}`}
+			className={`agent-client-message-renderer ${roleClass}${
+				isA2uiActionMessage ? " agent-client-message-a2ui-action" : ""
+			}`}
 		>
 			{groups.map((group, idx) => {
 				if (group.type === "attachments") {

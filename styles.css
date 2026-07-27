@@ -3565,11 +3565,17 @@ button.agent-client-message-tool-call-summary:focus-visible {
 /* A2UI-I04: align the "Selected: …" action bubble's bordered box to the
    assistant surface boundary (16px) instead of the default 8px user-bubble
    margin, so the answer card lines up under the button card that produced it.
-   Scoped by :has() to action-message bubbles only — ordinary user messages
-   keep the 8px inset. */
-.agent-client-message-renderer.agent-client-message-user:has(
-		.agent-client-a2ui-action-message
-	) {
+   Scoped to action-message bubbles by the `agent-client-message-a2ui-action`
+   modifier class, which MessageBubble applies from
+   `deriveA2uiActionMessageView` — ordinary user messages keep the 8px inset.
+
+   I179: this was originally scoped by the `:has` pseudo-class, which Obsidian's
+   plugin review lints as a performance risk (broad selector invalidation). The
+   class carries the same three-class specificity (0,3,0) at the same position in
+   the cascade, so the rendered result is unchanged. Do not reintroduce `:has`
+   here — the tracked-CSS guard in src/__tests__/styles-css-syntax.test.ts fails
+   the build on it. */
+.agent-client-message-renderer.agent-client-message-user.agent-client-message-a2ui-action {
 	margin-left: 16px;
 	margin-right: 16px;
 }
