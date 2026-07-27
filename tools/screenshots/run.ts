@@ -21,6 +21,7 @@ import {
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { log, logError } from "../lib/cli-log";
 import { parseManifest, validateManifest } from "./lib/manifest";
 import { captureAll, type OrchestratorDeps } from "./lib/orchestrator";
 import { Cdp } from "./lib/cdp";
@@ -132,7 +133,7 @@ async function main() {
 			}),
 	};
 
-	console.log(
+	log(
 		`📸 Capturing ${filter ? `"${filter}"` : `all ${manifest.entries.length} entries`}...`,
 	);
 
@@ -143,17 +144,17 @@ async function main() {
 	for (const r of results) {
 		const icon = r.success ? "✓" : "✗";
 		const suffix = r.error ? ` — ${r.error}` : "";
-		console.log(`  ${icon} ${r.name}${suffix}`);
+		log(`  ${icon} ${r.name}${suffix}`);
 	}
 
 	if (failures.length > 0) {
-		console.error(`\n❌ ${failures.length} screenshot(s) failed.`);
+		logError(`\n❌ ${failures.length} screenshot(s) failed.`);
 		process.exit(1);
 	}
-	console.log(`\n✅ Done. ${results.length} screenshot(s) written.`);
+	log(`\n✅ Done. ${results.length} screenshot(s) written.`);
 }
 
 main().catch((err) => {
-	console.error(err);
+	logError(err);
 	process.exit(1);
 });

@@ -11,6 +11,22 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+// The orchestrator's internal `sleep()` awaits `node:timers/promises` (I181 —
+// a bare global `setTimeout` is flagged by the Obsidian store's repo-wide scan).
+// Vitest's fake timers patch only the GLOBAL timer functions, never the
+// `node:timers*` module bindings, so re-express the promisified timer on top of
+// the global one here. Without this the fake-timer-driven poll-loop test below
+// ("awaitText never appears") waits on real time and trips the 5s test timeout.
+// Same builtin-mocking pattern as cdp.test.ts's `node:child_process` mock.
+vi.mock("node:timers/promises", () => {
+	const delay = (ms: number): Promise<void> =>
+		new Promise((resolve) => {
+			setTimeout(resolve, ms);
+		});
+	return { setTimeout: delay, default: { setTimeout: delay } };
+});
+
 import type { ManifestEntry } from "../manifest";
 import {
 	captureEntry,

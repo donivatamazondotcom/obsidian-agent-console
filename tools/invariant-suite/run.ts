@@ -20,6 +20,7 @@
  *
  * Spec: vault note "Verification Overhaul" (Pillar 3).
  */
+import { log, logError } from "../lib/cli-log";
 import { Cdp } from "../screenshots/lib/cdp";
 import {
 	ensureChatViewOpen,
@@ -80,13 +81,13 @@ export function formatReport(results: InvariantResult[]): string {
 async function main(): Promise<number> {
 	const args = parseArgs(process.argv.slice(2));
 	if (!args.vault) {
-		console.error(
+		logError(
 			"Usage: npx tsx tools/invariant-suite/run.ts --vault <studio|ST-name> [--only INV-1,INV-2] [--allow-vault]",
 		);
 		return 2;
 	}
 	if (!isAllowedVault(args.vault, args.allowVault)) {
-		console.error(
+		logError(
 			`Refusing to run against vault "${args.vault}" — invariant probes mutate disposable UI state and must only target smoke vaults (studio / ST-*). Pass --allow-vault to override if you are certain.`,
 		);
 		return 2;
@@ -99,13 +100,13 @@ async function main(): Promise<number> {
 	try {
 		name = await cdp.evaluate<string>("window.app.vault.getName()");
 	} catch (err) {
-		console.error(
+		logError(
 			`Cannot reach vault "${args.vault}" over CDP — is it open in Obsidian? (${err instanceof Error ? err.message : String(err)})`,
 		);
 		return 2;
 	}
 	if (name !== args.vault) {
-		console.error(
+		logError(
 			`Vault mismatch: asked for "${args.vault}" but CDP resolved "${name}". Aborting — the vault= scope did not land.`,
 		);
 		return 2;
@@ -117,7 +118,7 @@ async function main(): Promise<number> {
 		? invariants.filter((inv) => args.only?.includes(inv.id))
 		: invariants;
 	if (selected.length === 0) {
-		console.error(`--only matched no invariants (have: ${invariants.map((i) => i.id).join(", ")})`);
+		logError(`--only matched no invariants (have: ${invariants.map((i) => i.id).join(", ")})`);
 		return 2;
 	}
 
@@ -137,9 +138,9 @@ async function main(): Promise<number> {
 		}
 	}
 
-	console.log(`\nInvariant suite — vault "${args.vault}"\n`);
-	console.log(formatReport(results));
-	console.log("");
+	log(`\nInvariant suite — vault "${args.vault}"\n`);
+	log(formatReport(results));
+	log("");
 	return results.some((r) => r.status === "fail") ? 1 : 0;
 }
 
@@ -148,7 +149,7 @@ if (process.argv[1] && /run\.(ts|js)$/.test(process.argv[1])) {
 	main().then(
 		(code) => process.exit(code),
 		(err) => {
-			console.error(err);
+			logError(err);
 			process.exit(2);
 		},
 	);

@@ -8,6 +8,7 @@
  * Spec: [[Agent Console Screenshot Automation]] § Phase D.
  * Test contract: tools/screenshots/lib/__tests__/orchestrator.test.ts.
  */
+import { setTimeout as delay } from "node:timers/promises";
 import path from "node:path";
 import type { ManifestEntry, AnimationAction } from "./manifest";
 import type {
@@ -1554,7 +1555,7 @@ async function resolveCropRectCss(
 }
 
 function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+	return delay(ms);
 }
 
 /** Poll interval (ms) for the animation per-frame content wait. */
