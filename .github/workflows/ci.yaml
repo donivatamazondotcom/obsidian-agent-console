@@ -20,8 +20,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Lints the same scope as the local `npm run lint` script: shipped src/
+      # AND tools/**/*.ts. CI previously ran `npx eslint src/` only, so the
+      # quality-gate and invariant-suite tooling — the code that certifies every
+      # other check — was lint-checked on a contributor's machine and nowhere
+      # else. Widening is zero-violation today (0 errors, same 5 warnings), so
+      # this is a preventive guard, not a cleanup.
       - name: Lint
-        run: npx eslint src/
+        run: npm run lint
 
       # Bot-parity gate (blocking) — predicts the Obsidian store review's
       # verdict so a "Caution" label cannot land minutes after a clean lint.

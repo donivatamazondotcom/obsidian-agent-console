@@ -21,6 +21,7 @@
 - [ ] Tested in Obsidian
 - [ ] Existing functionality still works
 - [ ] Documentation updated if needed
+- [ ] Invariant suite run against the smoke vault (`npm run invariants -- --vault <target>`) — paste the pass/fail/skip summary, or N/A for an internal-only change
 
 ## Test quality (for PRs that add or modify tests)
 
