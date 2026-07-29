@@ -192,6 +192,7 @@ Before submitting, please verify:
 - [ ] Existing functionality still works
 - [ ] Documentation updated if needed
 - [ ] No new network egress outside `src/services/net.ts` (`npm test` passes the egress tripwire)
+- [ ] Invariant suite run against the smoke vault (`npm run invariants -- --vault <target>`) — paste the pass/fail/skip summary, or N/A for an internal-only change
 
 ### Test quality rubric
 
@@ -209,7 +210,7 @@ Tests exist to fail when the code is wrong. A test that would pass against broke
 
 Pull requests automatically run:
 
-- ESLint (`npx eslint src/`)
+- ESLint (`npm run lint` — covers `src/` and `tools/**/*.ts`)
 - Build (`npm run build`)
 - Test (`npm test`) — includes the network-egress tripwire
 - Dependency review (pull requests only)
