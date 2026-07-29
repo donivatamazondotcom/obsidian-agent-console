@@ -392,6 +392,7 @@ interface ISettingsAccess {
 4. **Types have zero deps**: No `obsidian`, no SDK, no React in `types/`
 5. **Single event channel**: All agent events (messages, session updates, permissions, errors) flow through `onSessionUpdate`. No special callback paths.
 6. **Context for services**: plugin, acpClient, vaultService, settingsService via ChatContext
+7. **Decision functions live in `resolvers/`**: a new `derive*`/`decide*` goes in `src/resolvers/` — that zone bans React/Obsidian/SDK imports and requires strictly exhaustive switches with no `default`. Writing one outside it fails `src/__tests__/resolver-zone.test.ts` unless grandfathered there with a reason.
 
 ### Performance Patterns
 1. **useMemo for return stability**: useAgent, useSuggestions, useSessionHistory wrap return objects in useMemo to prevent cascading re-renders

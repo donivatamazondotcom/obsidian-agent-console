@@ -173,6 +173,36 @@ export default defineConfig([
 		// Design Patterns".
 		files: ["src/resolvers/**"],
 		rules: {
+			// Decision points stay STRICTLY exhaustive. Globally the
+			// exhaustiveness rule runs with considerDefaultExhaustiveForUnions:
+			// true so event routers can opt out with a neutral `default` — but
+			// that same keyword is the silencing move: adding `default` to a
+			// resolver switch clears a genuine missing-case error and swallows
+			// the new union member. Two guards, both zero-violation today (the
+			// 4 switches in this zone carry no default):
+			//   1. the rule runs strict here, so a default does NOT count as
+			//      exhaustive;
+			//   2. a `default` clause in this zone is a lint error outright, so
+			//      the escape hatch has to be argued for rather than typed.
+			"@typescript-eslint/switch-exhaustiveness-check": [
+				"error",
+				{ considerDefaultExhaustiveForUnions: false },
+			],
+			// Spread the base selectors + saveSession ban: a bare
+			// no-restricted-syntax here would SHADOW the shared config and
+			// silently drop the I115 menu, I134 glyph/process.platform and
+			// single-writer guards for this zone (same hazard the services/**
+			// override documents).
+			"no-restricted-syntax": [
+				"error",
+				...baseRestrictedSyntax,
+				saveSessionBan,
+				{
+					selector: "SwitchCase[test=null]",
+					message:
+						"No `default` clause in src/resolvers/ — resolvers are total decision functions and must handle every union member explicitly, so a new member fails the build instead of falling through. Use assertNever for the impossible branch, or move the switch out of the resolver zone if it is a router rather than a decision point.",
+				},
+			],
 			"no-restricted-imports": [
 				"error",
 				{

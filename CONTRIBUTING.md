@@ -238,6 +238,7 @@ src/
 3. **ACP isolation** — All `@agentclientprotocol/sdk` imports confined to `acp/`
 4. **Types have zero deps** — No `obsidian`, no SDK, no React in `types/`
 5. **Single event channel** — All agent events flow through `onSessionUpdate`. No special callback paths.
+6. **Decision functions live in `src/resolvers/`** — a new `derive*` / `decide*` function belongs in the resolver zone, where lint bans React / Obsidian / raw-SDK imports and enforces strict switch exhaustiveness (no `default` escape hatch). Writing one elsewhere fails `src/__tests__/resolver-zone.test.ts` unless it is grandfathered there with a reason.
 
 For more details, see `ARCHITECTURE.md`.
 
