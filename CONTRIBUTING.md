@@ -213,6 +213,7 @@ Pull requests automatically run:
 - ESLint (`npm run lint` — covers `src/` and `tools/**/*.ts`)
 - Build (`npm run build`)
 - Test (`npm test`) — includes the network-egress tripwire
+- Test-quality rubric declared (pull requests that change test files) — the body must tick R1–R5 or state N/A
 - Dependency review (pull requests only)
 
 Please ensure these pass locally before submitting.

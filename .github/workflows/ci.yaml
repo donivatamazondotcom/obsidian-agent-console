@@ -98,6 +98,49 @@ jobs:
         continue-on-error: true
         run: npm run bench
 
+  rubric-declared:
+    runs-on: ubuntu-latest
+    # G7 (design-integrity audit): the R1-R5 test-quality rubric lives in the PR
+    # template, but a template section is skippable -- two merged PRs each
+    # modified a test file and shipped with no rubric statement at all, well
+    # after the template landed. This job asserts the section was *answered*
+    # whenever the diff touches tests.
+    #
+    # It deliberately checks PRESENCE, not truth: only human review or the
+    # mutation audit can tell whether an R1 claim is honest. What it removes is
+    # the silent-omission path, so skipping the rubric becomes a visible choice.
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need the merge base to diff against; the default depth-1 checkout
+          # cannot see it.
+          fetch-depth: 0
+
+      - name: Test-quality rubric declared when tests change
+        # PR body arrives via env, never interpolated into the script body --
+        # a title/body is attacker-controlled text and must not reach the shell.
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --quiet origin "$BASE_REF"
+          changed=$(git diff --name-only "origin/$BASE_REF...HEAD" \
+            | grep -E '(__tests__/|\.test\.tsx?$)' || true)
+          if [ -z "$changed" ]; then
+            echo "OK - no test files changed; rubric declaration not required."
+            exit 0
+          fi
+          echo "Test files changed in this PR:"
+          echo "$changed"
+          printf '%s' "$PR_BODY" > pr-body.txt
+          if grep -qE '(^|[^A-Za-z0-9])R1([^0-9]|$)|[Nn]/[Aa]' pr-body.txt; then
+            echo "OK - PR body carries a test-quality rubric statement."
+            exit 0
+          fi
+          echo "::error::This PR changes test files but its body has no test-quality rubric statement. Tick R1-R5 from the PR template, or state N/A with a reason. See CONTRIBUTING.md -> Test quality rubric."
+          exit 1
+
   dependency-review:
     runs-on: ubuntu-latest
     # Surfaces new/changed dependencies in the PR diff and flags
