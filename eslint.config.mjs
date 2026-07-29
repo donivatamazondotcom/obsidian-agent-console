@@ -58,6 +58,18 @@ const baseRestrictedSyntax = [
 // settingsService.sessionStore). A direct .saveSession() in ui/ or hooks/ races
 // the turn-end / AI-title writers and clobbers titles (the I114/I121 class).
 // The persistence stack (src/services/**) is exempt below — it IS the writer.
+// G4 (design-integrity audit): `savedSessions` lives inside the settings blob,
+// so `plugin.saveData(this.settings)` is a SECOND door onto the same persisted
+// store that the SessionStore single-writer guards. The saveSessionBan below
+// proves "one call-site name"; this proves the other door stays shut. The whole
+// -settings flush in plugin.ts is the one sanctioned caller (exempted below), so
+// any NEW saveData call has to be argued for rather than typed.
+const saveDataBan = {
+	selector: "CallExpression[callee.property.name='saveData']",
+	message:
+		"Don't call .saveData() outside src/plugin.ts — it writes the whole settings blob, which contains savedSessions, and races the serialized SessionStore writers (the I114/I121 class). Route session metadata through settingsService.sessionStore; route new settings fields through SettingsService.",
+};
+
 const saveSessionBan = {
 	selector: "CallExpression[callee.property.name='saveSession']",
 	message:
@@ -86,6 +98,7 @@ export default defineConfig([
 				"error",
 				...baseRestrictedSyntax,
 				saveSessionBan,
+				saveDataBan,
 			],
 			// The ACP SDK (@agentclientprotocol/sdk) is the system's external
 			// contract and must stay behind the anti-corruption boundary in
@@ -197,6 +210,7 @@ export default defineConfig([
 				"error",
 				...baseRestrictedSyntax,
 				saveSessionBan,
+				saveDataBan,
 				{
 					selector: "SwitchCase[test=null]",
 					message:
@@ -239,7 +253,20 @@ export default defineConfig([
 		// active here, but WITHOUT the saveSession ban. (Phase 4 §2c.)
 		files: ["src/services/**"],
 		rules: {
-			"no-restricted-syntax": ["error", ...baseRestrictedSyntax],
+			// Exempt from the saveSession ban (this layer IS the writer) but NOT
+			// from the saveData ban — the whole-settings flush belongs to plugin.ts.
+			"no-restricted-syntax": ["error", ...baseRestrictedSyntax, saveDataBan],
+		},
+	},
+	{
+		// plugin.ts owns the whole-settings flush (`this.saveData(this.settings)`
+		// in saveSettings), so it is the one sanctioned saveData caller. Re-list
+		// the other selectors rather than switching the rule off, so this file
+		// keeps the I115 menu, I134 glyph/process.platform and single-writer
+		// guards. (G4 — design-integrity audit.)
+		files: ["src/plugin.ts"],
+		rules: {
+			"no-restricted-syntax": ["error", ...baseRestrictedSyntax, saveSessionBan],
 		},
 	},
 ]);
