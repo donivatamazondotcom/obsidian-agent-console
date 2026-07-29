@@ -19,6 +19,39 @@ import { Compartment, StateEffect } from "@codemirror/state";
 import { getLogger, Logger } from "../utils/logger";
 
 // ============================================================================
+// Frontmatter trust boundary
+// ============================================================================
+
+/**
+ * Normalize a raw `aliases` frontmatter value into a string array.
+ *
+ * Frontmatter is untrusted external data: YAML permits any shape under
+ * `aliases`, so the value can be a bare scalar, a mapping, or a list with
+ * empty/`null` entries (e.g. `aliases:\n  -\n  - Valid`). Obsidian's fuzzy
+ * matcher lowercases whatever text it is handed, so a non-string reaching it
+ * throws and takes the whole mention dropdown down with it.
+ *
+ * Parse once at the edge and drop what is not a string — never coerce, since a
+ * `String(value)` would silently invent an alias like "[object Object]".
+ * Non-string entries are reported via `dropped` so the caller can log them.
+ *
+ * @param raw - Unvalidated `frontmatter.aliases` value
+ * @returns The string aliases plus a count of dropped non-string entries
+ */
+export function normalizeFrontmatterAliases(raw: unknown): {
+	aliases: string[];
+	dropped: number;
+} {
+	if (raw === null || raw === undefined) return { aliases: [], dropped: 0 };
+
+	const candidates: unknown[] = Array.isArray(raw) ? raw : [raw];
+	const aliases = candidates.filter(
+		(entry): entry is string => typeof entry === "string",
+	);
+	return { aliases, dropped: candidates.length - aliases.length };
+}
+
+// ============================================================================
 // Port Types (from vault-access.port.ts)
 // ============================================================================
 
@@ -214,15 +247,15 @@ export class VaultService implements IVaultAccess {
 				const path = file.path;
 				const fileCache =
 					this.plugin.app.metadataCache.getFileCache(file);
-				const aliases = fileCache?.frontmatter?.aliases as
-					| string[]
-					| string
-					| undefined;
-				const aliasArray: string[] = Array.isArray(aliases)
-					? aliases
-					: aliases
-						? [aliases]
-						: [];
+				const { aliases: aliasArray, dropped } =
+					normalizeFrontmatterAliases(
+						fileCache?.frontmatter?.aliases,
+					);
+				if (dropped > 0) {
+					this.logger.debug(
+						`Ignoring ${dropped} non-string alias entr${dropped === 1 ? "y" : "ies"} in frontmatter of ${path}`,
+					);
+				}
 
 				const searchFields = [basename, path, ...aliasArray];
 				let bestScore = -Infinity;
@@ -634,10 +667,9 @@ export class VaultService implements IVaultAccess {
 	 */
 	private convertToMetadata(file: TFile): NoteMetadata {
 		const cache = this.plugin.app.metadataCache.getFileCache(file);
-		const aliases = cache?.frontmatter?.aliases as
-			| string[]
-			| string
-			| undefined;
+		const { aliases } = normalizeFrontmatterAliases(
+			cache?.frontmatter?.aliases,
+		);
 
 		return {
 			path: file.path,
@@ -645,11 +677,7 @@ export class VaultService implements IVaultAccess {
 			extension: file.extension,
 			created: file.stat.ctime,
 			modified: file.stat.mtime,
-			aliases: Array.isArray(aliases)
-				? aliases
-				: aliases
-					? [aliases]
-					: undefined,
+			aliases: aliases.length > 0 ? aliases : undefined,
 		};
 	}
 }
