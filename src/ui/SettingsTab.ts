@@ -7,6 +7,7 @@ import {
 	SecretComponent,
 	Notice,
 	FileSystemAdapter,
+	type SettingDefinitionItem,
 } from "obsidian";
 import type AgentClientPlugin from "../plugin";
 import {
@@ -82,6 +83,50 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	constructor(app: App, plugin: AgentClientPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+	}
+
+	/**
+	 * PROTOTYPE (declarative settings spike — see vault note
+	 * [[Agent Console Declarative Settings Migration]]). Converts ONE group
+	 * (Tabs: two toggles) to Obsidian 1.13's declarative API to validate the
+	 * mapping. NOT shippable as-is: a non-empty return takes over rendering
+	 * entirely on 1.13+ (display() is skipped), so 1.13 users would see only
+	 * this group until the full conversion lands.
+	 */
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		return [
+			{
+				type: "group",
+				heading: t("settings.heading.tabs"),
+				items: [
+					{
+						name: t("settings.restoreTabsOnStartup.name"),
+						desc: t("settings.restoreTabsOnStartup.desc"),
+						control: { type: "toggle", key: "restoreTabsOnStartup" },
+					},
+					{
+						name: t("settings.confirmBeforeClosingMultiple.name"),
+						desc: t("settings.confirmBeforeClosingMultiple.desc"),
+						control: {
+							type: "toggle",
+							key: "confirmCloseWithMultipleTabs",
+						},
+					},
+				],
+			},
+		];
+	}
+
+	/**
+	 * Route declarative-control writes through the settings single writer
+	 * (settingsService.updateSettings) instead of the base implementation's
+	 * direct `this.plugin.settings` mutation + saveData — see
+	 * learned/skill-rules § single writer of record.
+	 */
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		await this.plugin.settingsService.updateSettings({
+			[key]: value,
+		});
 	}
 
 	display(): void {

@@ -53,7 +53,7 @@
 		"fast-check": "4.8.0",
 		"js-tiktoken": "1.0.21",
 		"jsdom": "^29.1.1",
-		"obsidian": "latest",
+		"obsidian": "^1.13.1",
 		"prettier": "^3.4.2",
 		"sharp": "^0.35.3",
 		"tslib": "2.4.0",
