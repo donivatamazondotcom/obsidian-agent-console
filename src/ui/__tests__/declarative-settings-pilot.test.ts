@@ -27,6 +27,7 @@ vi.mock("obsidian", () => {
 			this.app = app;
 			this.plugin = plugin;
 		}
+		refreshDomState() {}
 	}
 	class Comp {
 		setName() {
@@ -64,6 +65,7 @@ vi.mock("obsidian", () => {
 		}
 	}
 	return {
+		requireApiVersion: () => true,
 		PluginSettingTab,
 		Setting: Comp,
 		DropdownComponent: Comp,
@@ -92,10 +94,14 @@ type ToggleDef = {
 type GroupDef = { type: string; heading?: string; items: ToggleDef[] };
 
 function makeTab(updateSettings = vi.fn().mockResolvedValue(undefined)) {
+	const rescan = vi.fn();
+	const updateAllAutoAllow = vi.fn();
 	const plugin = {
-		settings: { ...DEFAULT_SETTINGS },
+		settings: structuredClone(DEFAULT_SETTINGS),
 		settingsService: { updateSettings },
 		saveData: vi.fn(),
+		quickPromptLibrary: { rescan },
+		updateAllAutoAllow,
 	} as unknown as AgentClientPlugin;
 	const tab = new AgentClientSettingTab(
 		{} as never,
@@ -104,7 +110,7 @@ function makeTab(updateSettings = vi.fn().mockResolvedValue(undefined)) {
 		getSettingDefinitions: () => GroupDef[];
 		setControlValue: (key: string, value: unknown) => Promise<void>;
 	};
-	return { tab, updateSettings, plugin };
+	return { tab, updateSettings, plugin, rescan, updateAllAutoAllow };
 }
 
 describe("declarative settings pilot (Obsidian 1.13)", () => {
@@ -114,8 +120,11 @@ describe("declarative settings pilot (Obsidian 1.13)", () => {
 		const { tab } = makeTab();
 		const defs = tab.getSettingDefinitions();
 
-		expect(defs).toHaveLength(1);
-		const group = defs[0] as unknown as GroupDef;
+		expect(defs).toHaveLength(7);
+		const group = defs.find(
+			(g) => (g as unknown as GroupDef).items?.some((i) => i.control?.key === "restoreTabsOnStartup"),
+		) as unknown as GroupDef;
+		expect(group).toBeTruthy();
 		expect(group.type).toBe("group");
 		expect(group.heading).toBeTruthy();
 
@@ -153,5 +162,87 @@ describe("declarative settings pilot (Obsidian 1.13)", () => {
 			(plugin as unknown as { saveData: ReturnType<typeof vi.fn> })
 				.saveData,
 		).not.toHaveBeenCalled();
+	});
+
+	// ── Slice 2 ──────────────────────────────────────────────────────────
+
+	function collectControls(defs: unknown[]): { key: string }[] {
+		const out: { key: string }[] = [];
+		for (const d of defs as Array<Record<string, unknown>>) {
+			if (d.control) out.push(d.control as { key: string });
+			if (Array.isArray(d.items)) out.push(...collectControls(d.items));
+		}
+		return out;
+	}
+
+	it("T3: every declarative control key (incl. dot paths) resolves on DEFAULT_SETTINGS", () => {
+		const { tab } = makeTab();
+		const controls = collectControls(
+			tab.getSettingDefinitions() as unknown as unknown[],
+		);
+		expect(controls.length).toBeGreaterThanOrEqual(20);
+		for (const { key } of controls) {
+			let v: unknown = DEFAULT_SETTINGS;
+			for (const part of key.split(".")) {
+				expect(
+					v != null && typeof v === "object" && part in (v as object),
+					`key "${key}" (part "${part}") missing on DEFAULT_SETTINGS`,
+				).toBe(true);
+				v = (v as Record<string, unknown>)[part];
+			}
+		}
+	});
+
+	it("T4: image-location rows gate on includeImages / imageLocation", () => {
+		const { tab, plugin } = makeTab();
+		const p = plugin as unknown as {
+			settings: typeof DEFAULT_SETTINGS;
+		};
+		const defs = tab.getSettingDefinitions() as unknown as Array<
+			Record<string, unknown>
+		>;
+		const flat: Array<Record<string, unknown>> = [];
+		for (const d of defs)
+			flat.push(d, ...((d.items as Array<Record<string, unknown>>) ?? []));
+		const byKey = (k: string) =>
+			flat.find(
+				(d) => (d.control as { key?: string } | undefined)?.key === k,
+			)!;
+		const imageLocation = byKey("exportSettings.imageLocation");
+		const customFolder = byKey("exportSettings.imageCustomFolder");
+
+		p.settings.exportSettings.includeImages = false;
+		expect((imageLocation.visible as () => boolean)()).toBe(false);
+		expect((customFolder.visible as () => boolean)()).toBe(false);
+
+		p.settings.exportSettings.includeImages = true;
+		expect((imageLocation.visible as () => boolean)()).toBe(true);
+		p.settings.exportSettings.imageLocation = "custom";
+		expect((customFolder.visible as () => boolean)()).toBe(true);
+	});
+
+	it("T5: dot-path setControlValue merges the nested partial through the single writer", async () => {
+		const { tab, updateSettings, plugin } = makeTab();
+		const before = (plugin as unknown as { settings: typeof DEFAULT_SETTINGS })
+			.settings.exportSettings;
+
+		await tab.setControlValue("exportSettings.includeImages", true);
+
+		expect(updateSettings).toHaveBeenCalledWith({
+			exportSettings: { ...before, includeImages: true },
+		});
+	});
+
+	it("T6: side effects fire after persist (autoAllow propagation, quick-prompt rescan + trim)", async () => {
+		const { tab, updateSettings, rescan, updateAllAutoAllow } = makeTab();
+
+		await tab.setControlValue("autoAllowPermissions", true);
+		expect(updateAllAutoAllow).toHaveBeenCalledWith(true);
+
+		await tab.setControlValue("quickPromptsFolder", "  prompts/  ");
+		expect(updateSettings).toHaveBeenCalledWith({
+			quickPromptsFolder: "prompts/",
+		});
+		expect(rescan).toHaveBeenCalledTimes(1);
 	});
 });

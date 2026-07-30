@@ -7,7 +7,9 @@ import {
 	SecretComponent,
 	Notice,
 	FileSystemAdapter,
+	requireApiVersion,
 	type SettingDefinitionItem,
+	type TextComponent,
 } from "obsidian";
 import type AgentClientPlugin from "../plugin";
 import {
@@ -86,46 +88,525 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	}
 
 	/**
-	 * PROTOTYPE (declarative settings spike — see vault note
-	 * [[Agent Console Declarative Settings Migration]]). Converts ONE group
-	 * (Tabs: two toggles) to Obsidian 1.13's declarative API to validate the
-	 * mapping. NOT shippable as-is: a non-empty return takes over rendering
-	 * entirely on 1.13+ (display() is skipped), so 1.13 users would see only
-	 * this group until the full conversion lands.
+	 * Declarative settings (Obsidian 1.13+) — Path B migration in progress.
+	 * See vault note "Agent Console Declarative Settings Migration".
+	 *
+	 * Slices 1-2: simple groups (Chat behavior, Appearance & notifications,
+	 * Tabs, Permissions, Export, Advanced, WSL). Agent sections (built-in,
+	 * custom agents, import, Obsidian system prompt) land in slice 3.
+	 *
+	 * NOT shippable until slice 3: a non-empty return takes over rendering
+	 * entirely on 1.13+ (display() then serves pre-1.13 users only), so 1.13
+	 * users would not see the agent sections yet.
 	 */
 	getSettingDefinitions(): SettingDefinitionItem[] {
 		return [
-			{
-				type: "group",
-				heading: t("settings.heading.tabs"),
-				items: [
-					{
-						name: t("settings.restoreTabsOnStartup.name"),
-						desc: t("settings.restoreTabsOnStartup.desc"),
-						control: { type: "toggle", key: "restoreTabsOnStartup" },
+			this.chatBehaviorGroup(),
+			this.appearanceGroup(),
+			this.tabsGroup(),
+			this.permissionsGroup(),
+			this.exportGroup(),
+			this.advancedGroup(),
+			this.wslGroup(),
+		];
+	}
+
+	private chatBehaviorGroup(): SettingDefinitionItem {
+		const titleStrategyLabels: Record<TitleStrategy, string> = {
+			"agent-suggested": t("settings.sessionTitle.optionAgentSuggested"),
+			"prompt-derived": t("settings.sessionTitle.optionPromptDerived"),
+			"agent-timestamp": t("settings.sessionTitle.optionAgentTimestamp"),
+		};
+		return {
+			type: "group",
+			heading: t("settings.heading.chatBehavior"),
+			items: [
+				{
+					name: t("settings.activeNoteAsDefault.name"),
+					desc: t("settings.activeNoteAsDefault.desc"),
+					control: {
+						type: "toggle",
+						key: "activeNoteAsDefaultContext",
 					},
-					{
-						name: t("settings.confirmBeforeClosingMultiple.name"),
-						desc: t("settings.confirmBeforeClosingMultiple.desc"),
-						control: {
-							type: "toggle",
-							key: "confirmCloseWithMultipleTabs",
+				},
+				{
+					name: t("settings.sessionTitle.name"),
+					desc: t("settings.sessionTitle.desc"),
+					control: {
+						type: "dropdown",
+						key: "titleStrategy",
+						options: Object.fromEntries(
+							TITLE_STRATEGY_OPTIONS.map(({ value }) => [
+								value,
+								titleStrategyLabels[value],
+							]),
+						),
+					},
+				},
+				{
+					name: t("settings.quickPromptsFolder.name"),
+					desc: t("settings.quickPromptsFolder.desc"),
+					control: {
+						type: "text",
+						key: "quickPromptsFolder",
+						placeholder: t("settings.quickPromptsFolder.placeholder"),
+					},
+				},
+				{
+					name: t("settings.sendMessageShortcut.name"),
+					desc: t("settings.sendMessageShortcut.desc"),
+					control: {
+						type: "dropdown",
+						key: "sendMessageShortcut",
+						options: {
+							enter: t("settings.sendMessageShortcut.optionEnter"),
+							"cmd-enter": t(
+								"settings.sendMessageShortcut.optionCmdEnter",
+							),
 						},
 					},
-				],
-			},
-		];
+				},
+			],
+		};
+	}
+
+	private appearanceGroup(): SettingDefinitionItem {
+		const languageOptions: Record<string, string> = {
+			auto: t("settings.language.optionAuto"),
+		};
+		for (const locale of [...SUPPORTED_LOCALES].sort()) {
+			languageOptions[locale] = LOCALE_DISPLAY_NAMES[locale];
+		}
+		return {
+			type: "group",
+			heading: t("settings.heading.appearanceNotifications"),
+			items: [
+				{
+					name: t("settings.language.name"),
+					desc: t("settings.language.desc"),
+					control: {
+						type: "dropdown",
+						key: "language",
+						options: languageOptions,
+					},
+				},
+				{
+					name: t("settings.chatFontSize.name"),
+					desc: t("settings.fontSize.desc", {
+						min: CHAT_FONT_SIZE_MIN,
+						max: CHAT_FONT_SIZE_MAX,
+					}),
+					render: (setting) => {
+						setting.addText((text) =>
+							this.configureChatFontSizeText(text),
+						);
+					},
+				},
+				{
+					name: t("settings.showEmojis.name"),
+					desc: t("settings.showEmojis.desc"),
+					control: {
+						type: "toggle",
+						key: "displaySettings.showEmojis",
+					},
+				},
+				{
+					name: t("settings.systemNotifications.name"),
+					desc: t("settings.systemNotifications.desc"),
+					control: {
+						type: "toggle",
+						key: "enableSystemNotifications",
+					},
+				},
+			],
+		};
+	}
+
+	private tabsGroup(): SettingDefinitionItem {
+		return {
+			type: "group",
+			heading: t("settings.heading.tabs"),
+			items: [
+				{
+					name: t("settings.restoreTabsOnStartup.name"),
+					desc: t("settings.restoreTabsOnStartup.desc"),
+					control: { type: "toggle", key: "restoreTabsOnStartup" },
+				},
+				{
+					name: t("settings.confirmBeforeClosingMultiple.name"),
+					desc: t("settings.confirmBeforeClosingMultiple.desc"),
+					control: {
+						type: "toggle",
+						key: "confirmCloseWithMultipleTabs",
+					},
+				},
+			],
+		};
+	}
+
+	private permissionsGroup(): SettingDefinitionItem {
+		return {
+			type: "group",
+			heading: t("settings.heading.permissions"),
+			items: [
+				{
+					name: t("settings.autoAllowPermissions.name"),
+					desc: t("settings.autoAllowPermissions.desc"),
+					control: { type: "toggle", key: "autoAllowPermissions" },
+				},
+			],
+		};
+	}
+
+	private exportGroup(): SettingDefinitionItem {
+		const exp = () => this.plugin.settings.exportSettings;
+		return {
+			type: "group",
+			heading: t("settings.section.export"),
+			items: [
+				{
+					name: t("settings.exportFolder.name"),
+					desc: t("settings.exportFolder.desc"),
+					control: {
+						type: "text",
+						key: "exportSettings.defaultFolder",
+						placeholder: t("settings.exportFolder.placeholder"),
+					},
+				},
+				{
+					name: t("settings.filename.name"),
+					desc: t("settings.filename.desc"),
+					control: {
+						type: "text",
+						key: "exportSettings.filenameTemplate",
+						placeholder: t("settings.filename.placeholder"),
+					},
+				},
+				{
+					name: t("settings.frontmatterTag.name"),
+					desc: t("settings.frontmatterTag.desc"),
+					control: {
+						type: "text",
+						key: "exportSettings.frontmatterTag",
+						placeholder: t("settings.frontmatterTag.placeholder"),
+					},
+				},
+				{
+					name: t("settings.includeImages.name"),
+					desc: t("settings.includeImages.desc"),
+					control: {
+						type: "toggle",
+						key: "exportSettings.includeImages",
+					},
+				},
+				{
+					name: t("settings.imageLocation.name"),
+					desc: t("settings.imageLocation.desc"),
+					visible: () => exp().includeImages,
+					control: {
+						type: "dropdown",
+						key: "exportSettings.imageLocation",
+						options: {
+							obsidian: t("settings.imageLocation.optionObsidian"),
+							custom: t("settings.imageLocation.optionCustom"),
+							base64: t("settings.imageLocation.optionBase64"),
+						},
+					},
+				},
+				{
+					name: t("settings.customImageFolder.name"),
+					desc: t("settings.customImageFolder.desc"),
+					visible: () =>
+						exp().includeImages && exp().imageLocation === "custom",
+					control: {
+						type: "text",
+						key: "exportSettings.imageCustomFolder",
+						placeholder: t("settings.customImageFolder.placeholder"),
+					},
+				},
+				{
+					name: t("settings.autoExportOnNew.name"),
+					desc: t("settings.autoExportOnNew.desc"),
+					control: {
+						type: "toggle",
+						key: "exportSettings.autoExportOnNewChat",
+					},
+				},
+				{
+					name: t("settings.autoExportOnClose.name"),
+					desc: t("settings.autoExportOnClose.desc"),
+					control: {
+						type: "toggle",
+						key: "exportSettings.autoExportOnCloseChat",
+					},
+				},
+				{
+					name: t("settings.openNoteAfterExport.name"),
+					desc: t("settings.openNoteAfterExport.desc"),
+					control: {
+						type: "toggle",
+						key: "exportSettings.openFileAfterExport",
+					},
+				},
+			],
+		};
+	}
+
+	private advancedGroup(): SettingDefinitionItem {
+		return {
+			type: "group",
+			heading: t("settings.section.advanced"),
+			items: [
+				{
+					name: t("settings.nodeJsPath.name"),
+					desc: t("settings.nodeJsPath.desc"),
+					render: (setting) => {
+						setting.addText((text) => {
+							text.setPlaceholder(
+								t("settings.nodeJsPath.placeholder"),
+							)
+								.setValue(this.plugin.settings.nodePath)
+								.onChange(async (value) => {
+									await this.plugin.settingsService.updateSettings(
+										{ nodePath: value.trim() },
+									);
+								});
+						});
+						this.addAutoDetectButton(setting, "node", async (path) => {
+							await this.plugin.settingsService.updateSettings({
+								nodePath: path,
+							});
+						});
+					},
+				},
+				{
+					name: t("settings.debugMode.name"),
+					desc: t("settings.debugMode.desc"),
+					control: { type: "toggle", key: "debugMode" },
+				},
+			],
+		};
+	}
+
+	private wslGroup(): SettingDefinitionItem {
+		return {
+			type: "group",
+			heading: t("settings.heading.windowsSubsystemForLinux"),
+			visible: () => Platform.isWin,
+			items: [
+				{
+					name: t("settings.enableWslMode.name"),
+					desc: t("settings.enableWslMode.desc"),
+					control: { type: "toggle", key: "windowsWslMode" },
+				},
+				{
+					name: t("settings.wslDistribution.name"),
+					desc: t("settings.wslDistribution.desc"),
+					visible: () => this.plugin.settings.windowsWslMode,
+					control: {
+						type: "text",
+						key: "windowsWslDistribution",
+						placeholder: t("settings.wslDistribution.placeholder"),
+					},
+				},
+			],
+		};
+	}
+
+	/**
+	 * Declarative controls bind by string key. Supports one level of nesting
+	 * via dot paths (e.g. "exportSettings.includeImages").
+	 */
+	getControlValue(key: string): unknown {
+		let value: unknown = this.plugin.settings;
+		for (const part of key.split(".")) {
+			if (value == null || typeof value !== "object") {
+				return undefined;
+			}
+			value = (value as Record<string, unknown>)[part];
+		}
+		return value;
 	}
 
 	/**
 	 * Route declarative-control writes through the settings single writer
-	 * (settingsService.updateSettings) instead of the base implementation's
-	 * direct `this.plugin.settings` mutation + saveData — see
-	 * learned/skill-rules § single writer of record.
+	 * (settingsService.updateSettings) — never the base implementation's
+	 * direct `this.plugin.settings` mutation + saveData. Runs per-key side
+	 * effects and re-evaluates `visible` predicates after persisting.
 	 */
 	async setControlValue(key: string, value: unknown): Promise<void> {
-		await this.plugin.settingsService.updateSettings({
-			[key]: value,
+		const normalized = this.normalizeControlValue(key, value);
+		const [root, ...rest] = key.split(".");
+		if (rest.length === 0) {
+			await this.plugin.settingsService.updateSettings({
+				[root]: normalized,
+			});
+		} else {
+			// One level of nesting is all current settings need.
+			const current = (
+				this.plugin.settings as unknown as Record<string, unknown>
+			)[root];
+			await this.plugin.settingsService.updateSettings({
+				[root]: {
+					...(current as Record<string, unknown>),
+					[rest.join(".")]: normalized,
+				},
+			});
+		}
+		this.runControlSideEffect(key, normalized);
+		// Only the 1.13+ declarative renderer calls setControlValue, so the
+		// guard is for the linter's benefit (minAppVersion is still 1.11.4).
+		if (requireApiVersion("1.13.0")) {
+			this.refreshDomState();
+		}
+	}
+
+	private normalizeControlValue(key: string, value: unknown): unknown {
+		switch (key) {
+			case "quickPromptsFolder":
+			case "nodePath":
+				return String(value).trim();
+			case "windowsWslDistribution":
+				return String(value).trim() || undefined;
+			default:
+				return value;
+		}
+	}
+
+	private runControlSideEffect(key: string, value: unknown): void {
+		switch (key) {
+			case "quickPromptsFolder":
+				void this.plugin.quickPromptLibrary.rescan();
+				break;
+			case "autoAllowPermissions":
+				this.plugin.updateAllAutoAllow(Boolean(value));
+				break;
+			case "language":
+				new Notice(languageReloadNotice(String(value)));
+				break;
+		}
+	}
+
+	private configureChatFontSizeText(text: TextComponent): void {
+		const getCurrentDisplayValue = (): string => {
+			const currentFontSize =
+				this.plugin.settings.displaySettings.fontSize;
+			return currentFontSize === null
+				? ""
+				: String(currentFontSize);
+		};
+
+		// When no explicit size is set (fontSize === null), the field
+		// is empty and the chat area follows whatever the active theme
+		// resolves --ac-chat-font-size to (the plugin default is
+		// var(--font-text-size), but themes/snippets can scale it, e.g.
+		// calc(var(--font-text-size) * 0.85)). Reading --font-text-size
+		// directly would report the wrong number, so measure the real
+		// resolved size off an off-screen replica that uses the same
+		// chat-view classes, and surface it in the placeholder.
+		const getEffectiveChatFontSizePx = (): number | null => {
+			const probe = activeDocument.body.createDiv({
+				cls: [
+					"agent-client-chat-view-container",
+					"agent-client-font-size-probe",
+				],
+			});
+			const messages = probe.createDiv({
+				cls: "agent-client-chat-view-messages",
+			});
+			const computedFontSize =
+				getComputedStyle(messages).fontSize;
+			probe.remove();
+			return parseComputedFontSizePx(computedFontSize);
+		};
+
+		const getPlaceholder = (): string => {
+			const effectivePx = getEffectiveChatFontSizePx();
+			return effectivePx === null
+				? `${CHAT_FONT_SIZE_MIN}-${CHAT_FONT_SIZE_MAX}`
+				: t("settings.chatFontSize.placeholderCurrent", {
+						px: effectivePx,
+					});
+		};
+
+		const persistChatFontSize = async (
+			fontSize: number | null,
+		): Promise<void> => {
+			if (
+				this.plugin.settings.displaySettings.fontSize ===
+				fontSize
+			) {
+				return;
+			}
+
+			const nextSettings = {
+				...this.plugin.settings,
+				displaySettings: {
+					...this.plugin.settings.displaySettings,
+					fontSize,
+				},
+			};
+			await this.plugin.saveSettingsAndNotify(nextSettings);
+		};
+
+		text.setPlaceholder(getPlaceholder())
+			.setValue(getCurrentDisplayValue())
+			.onChange(async (value) => {
+				if (value.trim().length === 0) {
+					await persistChatFontSize(null);
+					return;
+				}
+
+				const trimmedValue = value.trim();
+				if (!/^-?\d+$/.test(trimmedValue)) {
+					return;
+				}
+
+				const numericValue = Number.parseInt(trimmedValue, 10);
+				if (
+					numericValue < CHAT_FONT_SIZE_MIN ||
+					numericValue > CHAT_FONT_SIZE_MAX
+				) {
+					return;
+				}
+
+				const parsedFontSize = parseChatFontSize(numericValue);
+				if (parsedFontSize === null) {
+					return;
+				}
+
+				const hasChanged =
+					this.plugin.settings.displaySettings.fontSize !==
+					parsedFontSize;
+				if (hasChanged) {
+					await persistChatFontSize(parsedFontSize);
+				}
+			});
+
+		text.inputEl.addEventListener("blur", () => {
+			const currentInputValue = text.getValue();
+			const parsedFontSize = parseChatFontSize(currentInputValue);
+
+			if (
+				currentInputValue.trim().length > 0 &&
+				parsedFontSize === null
+			) {
+				text.setValue(getCurrentDisplayValue());
+				return;
+			}
+
+			if (parsedFontSize !== null) {
+				text.setValue(String(parsedFontSize));
+				const hasChanged =
+					this.plugin.settings.displaySettings.fontSize !==
+					parsedFontSize;
+				if (hasChanged) {
+					void persistChatFontSize(parsedFontSize);
+				}
+				return;
+			}
+
+			text.setValue("");
 		});
 	}
 
@@ -648,128 +1129,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					max: CHAT_FONT_SIZE_MAX,
 				}),
 			)
-			.addText((text) => {
-				const getCurrentDisplayValue = (): string => {
-					const currentFontSize =
-						this.plugin.settings.displaySettings.fontSize;
-					return currentFontSize === null
-						? ""
-						: String(currentFontSize);
-				};
-
-				// When no explicit size is set (fontSize === null), the field
-				// is empty and the chat area follows whatever the active theme
-				// resolves --ac-chat-font-size to (the plugin default is
-				// var(--font-text-size), but themes/snippets can scale it, e.g.
-				// calc(var(--font-text-size) * 0.85)). Reading --font-text-size
-				// directly would report the wrong number, so measure the real
-				// resolved size off an off-screen replica that uses the same
-				// chat-view classes, and surface it in the placeholder.
-				const getEffectiveChatFontSizePx = (): number | null => {
-					const probe = activeDocument.body.createDiv({
-						cls: [
-							"agent-client-chat-view-container",
-							"agent-client-font-size-probe",
-						],
-					});
-					const messages = probe.createDiv({
-						cls: "agent-client-chat-view-messages",
-					});
-					const computedFontSize =
-						getComputedStyle(messages).fontSize;
-					probe.remove();
-					return parseComputedFontSizePx(computedFontSize);
-				};
-
-				const getPlaceholder = (): string => {
-					const effectivePx = getEffectiveChatFontSizePx();
-					return effectivePx === null
-						? `${CHAT_FONT_SIZE_MIN}-${CHAT_FONT_SIZE_MAX}`
-						: t("settings.chatFontSize.placeholderCurrent", {
-								px: effectivePx,
-							});
-				};
-
-				const persistChatFontSize = async (
-					fontSize: number | null,
-				): Promise<void> => {
-					if (
-						this.plugin.settings.displaySettings.fontSize ===
-						fontSize
-					) {
-						return;
-					}
-
-					const nextSettings = {
-						...this.plugin.settings,
-						displaySettings: {
-							...this.plugin.settings.displaySettings,
-							fontSize,
-						},
-					};
-					await this.plugin.saveSettingsAndNotify(nextSettings);
-				};
-
-				text.setPlaceholder(getPlaceholder())
-					.setValue(getCurrentDisplayValue())
-					.onChange(async (value) => {
-						if (value.trim().length === 0) {
-							await persistChatFontSize(null);
-							return;
-						}
-
-						const trimmedValue = value.trim();
-						if (!/^-?\d+$/.test(trimmedValue)) {
-							return;
-						}
-
-						const numericValue = Number.parseInt(trimmedValue, 10);
-						if (
-							numericValue < CHAT_FONT_SIZE_MIN ||
-							numericValue > CHAT_FONT_SIZE_MAX
-						) {
-							return;
-						}
-
-						const parsedFontSize = parseChatFontSize(numericValue);
-						if (parsedFontSize === null) {
-							return;
-						}
-
-						const hasChanged =
-							this.plugin.settings.displaySettings.fontSize !==
-							parsedFontSize;
-						if (hasChanged) {
-							await persistChatFontSize(parsedFontSize);
-						}
-					});
-
-				text.inputEl.addEventListener("blur", () => {
-					const currentInputValue = text.getValue();
-					const parsedFontSize = parseChatFontSize(currentInputValue);
-
-					if (
-						currentInputValue.trim().length > 0 &&
-						parsedFontSize === null
-					) {
-						text.setValue(getCurrentDisplayValue());
-						return;
-					}
-
-					if (parsedFontSize !== null) {
-						text.setValue(String(parsedFontSize));
-						const hasChanged =
-							this.plugin.settings.displaySettings.fontSize !==
-							parsedFontSize;
-						if (hasChanged) {
-							void persistChatFontSize(parsedFontSize);
-						}
-						return;
-					}
-
-					text.setValue("");
-				});
-			});
+			.addText((text) => this.configureChatFontSizeText(text));
 
 		new Setting(containerEl)
 			.setName(t("settings.showEmojis.name"))
