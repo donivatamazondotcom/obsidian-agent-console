@@ -83,6 +83,7 @@ import {
 	registerOpenMenu,
 	showMenuAtEvent,
 } from "./utils/menu-registry";
+import { closeAllNotifications } from "./utils/notification-registry";
 import { ImportSettingsModal } from "./ui/ImportSettingsModal";
 import { AgentPickerModal } from "./ui/AgentPickerModal";
 import {
@@ -643,6 +644,12 @@ export default class AgentClientPlugin extends Plugin {
 		// native popup on screen — it would otherwise survive unload, and the
 		// next screenshot run would capture it.
 		closeOpenMenus();
+
+		// I52 round 6: sweep our OS notifications out of Notification Center.
+		// An entry that outlives this JS context (plugin reload / app quit)
+		// becomes an orphan whose click either does nothing (dead closures) or
+		// foregrounds the wrong vault window via macOS default app activation.
+		closeAllNotifications();
 
 		// Clear registry (sidebar views are managed by Obsidian workspace)
 		this.viewRegistry.clear();

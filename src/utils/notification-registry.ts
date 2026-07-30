@@ -28,6 +28,16 @@
 const liveNotifications = new Set<Notification>();
 
 /**
+ * Upper bound on retained notifications. Needed because the `close` event
+ * NEVER fires on macOS (verified empirically 2026-07-29: not on banner
+ * auto-dismiss after 45 s, not even on click) — so release-on-close alone
+ * cannot bound the set. Insertion order of the Set gives FIFO eviction; the
+ * evicted (oldest) notification is also `close()`d so its Notification Center
+ * entry cannot linger as a stale click target.
+ */
+export const MAX_RETAINED_NOTIFICATIONS = 10;
+
+/**
  * Retain `notification` and wire `onClick` as its click handler. The handler is
  * invoked on click, after which the notification is released from the registry.
  * The notification is also released when it is closed or errors, so an
@@ -43,6 +53,19 @@ export function retainNotification(
 ): void {
 	liveNotifications.add(notification);
 
+	// FIFO cap: evict-and-close the oldest entry once over the bound.
+	if (liveNotifications.size > MAX_RETAINED_NOTIFICATIONS) {
+		for (const oldest of liveNotifications) {
+			liveNotifications.delete(oldest);
+			try {
+				oldest.close();
+			} catch {
+				// Closing a long-dead OS entry may throw; eviction must not.
+			}
+			break;
+		}
+	}
+
 	const release = () => {
 		liveNotifications.delete(notification);
 	};
@@ -56,6 +79,28 @@ export function retainNotification(
 	};
 	notification.onclose = release;
 	notification.onerror = release;
+}
+
+/**
+ * Close and release every retained notification. Called from the plugin's
+ * `onunload` (I52 round 6, 2026-07-29): a Notification Center entry outlives
+ * the JS context that created it across a plugin reload or Obsidian restart,
+ * and clicking such an orphan either does nothing (its closures reference an
+ * unmounted React tree and a detached leaf) or falls through to macOS default
+ * app activation — foregrounding the most-recently-active window, i.e.
+ * possibly the wrong vault. Sweeping them at unload makes orphan clicks
+ * impossible. `.close()` verifiably removes an NC-resident entry on macOS
+ * (probe 2026-07-29). Residual gap: a force-quit/crash skips `onunload`.
+ */
+export function closeAllNotifications(): void {
+	for (const notification of liveNotifications) {
+		try {
+			notification.close();
+		} catch {
+			// Never let one bad entry abort the sweep.
+		}
+	}
+	liveNotifications.clear();
 }
 
 /** Test-only: number of notifications currently retained. */
