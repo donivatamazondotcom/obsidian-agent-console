@@ -2650,6 +2650,15 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	max-width: 160px;
 }
 
+/* Active tab label — greedy: show the full title, capped to the visible strip
+   width via --ac-active-label-max (set at runtime in TabBar; floors to 160px
+   in the resolver, 320px fallback before the first measure). Full title + close
+   button stay visible; longer-than-leaf titles fall back to ellipsis + tooltip.
+   See [[Greedy active tab label]]. */
+.agent-client-tab-active .agent-client-tab-label {
+	max-width: var(--ac-active-label-max, 320px);
+}
+
 /* Tab close button — Obsidian convention: visible on active, hover on others */
 .agent-client-tab-close {
 	display: none;

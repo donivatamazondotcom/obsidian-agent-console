@@ -15,6 +15,13 @@ const { useRef, useEffect, useCallback } = React;
 import { Menu, setIcon, setTooltip, type MenuItem } from "obsidian";
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import type { TabInfo, TabState } from "../types/tab";
+import {
+	deriveActiveTabLabelMax,
+	TAB_CHROME_WIDTH,
+	TAB_NEIGHBOR_PEEK,
+	ACTIVE_LABEL_FLOOR,
+} from "../resolvers/tab-label-width";
+import { deriveTabScrollLeft } from "../resolvers/tab-scroll";
 import { t } from "../i18n";
 
 // ============================================================================
@@ -235,8 +242,12 @@ export function TabBar({
 		onRegisterShowTabList?.(showTabList);
 	}, [onRegisterShowTabList, showTabList]);
 
-	// Scroll active tab into view — use rAF to ensure DOM class is applied
-	useEffect(() => {
+	// Keep the active tab fully in view — on activation AND on any strip resize
+	// (dragging the sidebar narrower must not push the active tab off the right
+	// edge, TS-I07). rAF so the active class / new label width are applied
+	// before measuring. Scroll math is the pure `deriveTabScrollLeft` resolver,
+	// shared with the ResizeObserver below so the two can't drift.
+	const scrollActiveIntoView = useCallback(() => {
 		window.requestAnimationFrame(() => {
 			const container = scrollRef.current;
 			if (!container) return;
@@ -245,19 +256,59 @@ export function TabBar({
 			);
 			if (!activeEl) return;
 
-			const containerRect = container.getBoundingClientRect();
-			const tabRect = activeEl.getBoundingClientRect();
-
-			// Only scroll if the tab is outside the visible area
-			if (tabRect.left < containerRect.left) {
-				container.scrollLeft -=
-					containerRect.left - tabRect.left;
-			} else if (tabRect.right > containerRect.right) {
-				container.scrollLeft +=
-					tabRect.right - containerRect.right;
-			}
+			const c = container.getBoundingClientRect();
+			const tr = activeEl.getBoundingClientRect();
+			container.scrollLeft = deriveTabScrollLeft({
+				containerLeft: c.left,
+				containerRight: c.right,
+				tabLeft: tr.left,
+				tabRight: tr.right,
+				scrollLeft: container.scrollLeft,
+			});
 		});
-	}, [activeTabId]);
+	}, []);
+
+	useEffect(() => {
+		scrollActiveIntoView();
+	}, [activeTabId, scrollActiveIntoView]);
+
+	// Greedy active tab: size the active tab's label so its full title shows
+	// while the whole active tab (glyph + label + close + padding) still fits
+	// inside the visible strip. Cap = container width − tab chrome − a small
+	// neighbor peek, floored for readability but clamped so label + chrome never
+	// exceeds the strip (close button always visible, TS-I06). Written as a CSS
+	// custom property the active-tab label rule consumes — `--…` keys are exempt
+	// from obsidianmd/no-static-styles-assignment. On resize the ResizeObserver
+	// re-applies the cap AND re-runs scroll-into-view so the active tab stays in
+	// view (TS-I07). See [[Greedy active tab label]].
+	useEffect(() => {
+		const container = scrollRef.current;
+		if (!container || typeof ResizeObserver === "undefined") return;
+
+		const applyMax = () => {
+			const max = deriveActiveTabLabelMax({
+				containerWidth: container.clientWidth,
+				chromeWidth: TAB_CHROME_WIDTH,
+				peek: TAB_NEIGHBOR_PEEK,
+				floor: ACTIVE_LABEL_FLOOR,
+			});
+			container.style.setProperty(
+				"--ac-active-label-max",
+				`${max}px`,
+			);
+		};
+
+		applyMax();
+		// On resize, re-apply the label cap AND keep the active tab in view
+		// (TS-I07) — dragging the sidebar narrower must not strand the active
+		// tab off the right edge.
+		const observer = new ResizeObserver(() => {
+			applyMax();
+			scrollActiveIntoView();
+		});
+		observer.observe(container);
+		return () => observer.disconnect();
+	}, [scrollActiveIntoView]);
 
 	// Right-click context menu on a tab (Obsidian Menu API)
 	const handleTabContextMenu = useCallback(
