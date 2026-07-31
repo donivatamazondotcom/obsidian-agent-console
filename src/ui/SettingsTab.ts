@@ -428,25 +428,38 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		getName: () => string,
 		renderBody: (el: HTMLElement) => void,
 	): SettingDefinitionPage {
-		const tab = this;
-		class BodyPage extends SettingPage {
-			display(): void {
-				this.title = getName();
-				tab.activeSettingPage = this;
-				this.redraw();
+		const notifyShown = (page: { redraw: () => void }): void => {
+			this.activeSettingPage = page;
+		};
+		const notifyHidden = (page: unknown): void => {
+			if (this.activeSettingPage === page) {
+				this.activeSettingPage = null;
 			}
-			redraw(): void {
-				this.containerEl.empty();
-				renderBody(this.containerEl);
-			}
-			hide(): void {
-				if (tab.activeSettingPage === this) {
-					tab.activeSettingPage = null;
+		};
+		const makePage = (): SettingPage => {
+			// Page factories are only invoked by the 1.13+ declarative
+			// renderer; the guard satisfies the minAppVersion lint.
+			if (requireApiVersion("1.13.0")) {
+				class BodyPage extends SettingPage {
+					display(): void {
+						this.title = getName();
+						notifyShown(this);
+						this.redraw();
+					}
+					redraw(): void {
+						this.containerEl.empty();
+						renderBody(this.containerEl);
+					}
+					hide(): void {
+						notifyHidden(this);
+						super.hide();
+					}
 				}
-				super.hide();
+				return new BodyPage();
 			}
-		}
-		return { type: "page", name: getName(), page: () => new BodyPage() };
+			throw new Error("Declarative settings pages require Obsidian 1.13");
+		};
+		return { type: "page", name: getName(), page: makePage };
 	}
 
 	private importSettingDef(
