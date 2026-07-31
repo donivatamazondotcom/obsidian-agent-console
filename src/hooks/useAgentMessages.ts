@@ -33,6 +33,7 @@ import { Platform } from "obsidian";
 import {
 	rebuildToolCallIndex,
 	applySingleUpdate,
+	createStreamContinuity,
 	findActivePermission,
 	selectOption,
 	cancelActivePermissions,
@@ -155,6 +156,10 @@ export function useAgentMessages(
 	// Tool call index: toolCallId → message index for O(1) lookup
 	const toolCallIndexRef = useRef<Map<string, number>>(new Map());
 
+	// Stream continuity for block-boundary detection (I185): mirrors the
+	// toolCallIndex lifetime — reset wherever the index is cleared/rebuilt.
+	const streamContinuityRef = useRef(createStreamContinuity());
+
 	// Ignore updates flag (used during session/load to skip history replay)
 	const ignoreUpdatesRef = useRef(false);
 
@@ -187,6 +192,7 @@ export function useAgentMessages(
 					result,
 					update,
 					toolCallIndexRef.current,
+					streamContinuityRef.current,
 				);
 			}
 			return result;
@@ -263,6 +269,7 @@ export function useAgentMessages(
 			flushSchedulerRef.current?.dispose();
 			flushSchedulerRef.current = null;
 			toolCallIndexRef.current.clear();
+			streamContinuityRef.current = createStreamContinuity();
 		};
 	}, []);
 
@@ -324,6 +331,7 @@ export function useAgentMessages(
 	const clearMessages = useCallback((): void => {
 		setMessages([]);
 		toolCallIndexRef.current.clear();
+		streamContinuityRef.current = createStreamContinuity();
 		setLastUserMessage(null);
 		setIsSending(false);
 		setErrorInfo(null);
@@ -353,6 +361,7 @@ export function useAgentMessages(
 
 			setMessages(chatMessages);
 			rebuildToolCallIndex(chatMessages, toolCallIndexRef.current);
+			streamContinuityRef.current = createStreamContinuity();
 			setIsSending(false);
 			setErrorInfo(null);
 		},
@@ -363,6 +372,7 @@ export function useAgentMessages(
 		(localMessages: ChatMessage[]): void => {
 			setMessages(localMessages);
 			rebuildToolCallIndex(localMessages, toolCallIndexRef.current);
+			streamContinuityRef.current = createStreamContinuity();
 			setIsSending(false);
 			setErrorInfo(null);
 		},

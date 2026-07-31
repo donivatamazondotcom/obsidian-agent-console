@@ -85,12 +85,37 @@ export function mergeToolCallContent(
 // ============================================================================
 
 /**
+ * I185 — join two streamed text fragments across a block boundary.
+ *
+ * Raw concatenation is only correct for contiguous stream fragments
+ * (mid-sentence chunks of the same block). When a non-text update (tool
+ * call, plan) interleaved between two text chunks, the second chunk is a
+ * new block: gluing it mid-line destroys line-anchored markdown (a2ui
+ * fences, headings, lists — a live ```a2ui fence rendered as raw prose).
+ * This join guarantees a paragraph boundary ("\n\n") without stacking
+ * extra blank lines when the fragments already carry newlines.
+ */
+export function joinAtBlockBoundary(a: string, b: string): string {
+	if (a === "" || b === "") return a + b;
+	const trailing = /\n*$/.exec(a)?.[0].length ?? 0;
+	const leading = /^\n*/.exec(b)?.[0].length ?? 0;
+	const missing = Math.max(0, 2 - trailing - leading);
+	return a + "\n".repeat(missing) + b;
+}
+
+/**
  * Apply a "last assistant message" update to the messages array.
  * Creates a new assistant message if needed.
+ *
+ * `atBlockBoundary` (I185): the incoming text/thought chunk is known to
+ * start a new block (a non-text update interleaved since the last text
+ * chunk), so merging into an existing item must preserve a paragraph
+ * boundary instead of raw-concatenating.
  */
 export function applyUpdateLastMessage(
 	prev: ChatMessage[],
 	content: MessageContent,
+	atBlockBoundary = false,
 ): ChatMessage[] {
 	if (prev.length === 0 || prev[prev.length - 1].role !== "assistant") {
 		const newMessage: ChatMessage = {
@@ -118,7 +143,12 @@ export function applyUpdateLastMessage(
 			) {
 				updatedMessage.content[existingContentIndex] = {
 					type: content.type,
-					text: existingContent.text + content.text,
+					text: atBlockBoundary
+						? joinAtBlockBoundary(
+								existingContent.text,
+								content.text,
+							)
+						: existingContent.text + content.text,
 				};
 			}
 		} else {
@@ -282,32 +312,76 @@ export function rebuildToolCallIndex(
 }
 
 /**
+ * Cross-update stream memory for block-boundary detection (I185).
+ *
+ * The messages array alone cannot distinguish "contiguous fragment of the
+ * same text block" from "new block after an interleaved tool call": a
+ * tool_call_update mutates an existing item in place, leaving the text item
+ * positionally unchanged. The caller owns one tracker per stream (same
+ * lifetime as the toolCallIndex) and threads it through applySingleUpdate.
+ */
+export interface StreamContinuity {
+	lastApplied: "agent_text" | "agent_thought" | "other" | null;
+}
+
+export function createStreamContinuity(): StreamContinuity {
+	return { lastApplied: null };
+}
+
+/**
  * Apply a single session update to the messages array.
  * Returns the same array reference if no change (session-level updates).
+ *
+ * `continuity` (optional, I185): mutable per-stream tracker enabling
+ * paragraph-boundary insertion when text chunks resume after a non-text
+ * update. Omitting it preserves legacy raw concatenation.
  */
 export function applySingleUpdate(
 	prev: ChatMessage[],
 	update: SessionUpdate,
 	toolCallIndex: Map<string, number>,
+	continuity?: StreamContinuity,
 ): ChatMessage[] {
 	switch (update.type) {
-		case "agent_message_chunk":
-			return applyUpdateLastMessage(prev, {
-				type: "text",
-				text: update.text,
-			});
-		case "agent_thought_chunk":
-			return applyUpdateLastMessage(prev, {
-				type: "agent_thought",
-				text: update.text,
-			});
+		case "agent_message_chunk": {
+			const atBoundary =
+				continuity !== undefined &&
+				continuity.lastApplied !== null &&
+				continuity.lastApplied !== "agent_text";
+			if (continuity) continuity.lastApplied = "agent_text";
+			return applyUpdateLastMessage(
+				prev,
+				{
+					type: "text",
+					text: update.text,
+				},
+				atBoundary,
+			);
+		}
+		case "agent_thought_chunk": {
+			const atBoundary =
+				continuity !== undefined &&
+				continuity.lastApplied !== null &&
+				continuity.lastApplied !== "agent_thought";
+			if (continuity) continuity.lastApplied = "agent_thought";
+			return applyUpdateLastMessage(
+				prev,
+				{
+					type: "agent_thought",
+					text: update.text,
+				},
+				atBoundary,
+			);
+		}
 		case "user_message_chunk":
+			if (continuity) continuity.lastApplied = "other";
 			return applyUpdateUserMessage(prev, {
 				type: "text",
 				text: update.text,
 			});
 		case "tool_call":
 		case "tool_call_update":
+			if (continuity) continuity.lastApplied = "other";
 			return applyUpsertToolCall(
 				prev,
 				{
@@ -325,11 +399,14 @@ export function applySingleUpdate(
 				toolCallIndex,
 			);
 		case "plan":
+			if (continuity) continuity.lastApplied = "other";
 			return applyUpdateLastMessage(prev, {
 				type: "plan",
 				entries: update.entries,
 			});
 		default:
+			// Session-level updates don't modify message content and don't
+			// break text-block continuity.
 			return prev;
 	}
 }
