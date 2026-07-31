@@ -8,7 +8,7 @@
  */
 
 import type { AttachedFile, QueuedMessage } from "../types/chat";
-import type { TabSessionState } from "../hooks/useTabSessionState";
+import type { TabSessionState } from "../types/tab";
 import { t } from "../i18n";
 
 /**

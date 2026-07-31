@@ -32,7 +32,7 @@
  * `src/resolvers/__tests__/tab-state.test.ts` for the exhaustive truth table.
  */
 
-import type { TabSessionState } from "../hooks/useTabSessionState";
+import type { TabSessionState } from "../types/tab";
 import type { TabState } from "../types/tab";
 
 export interface TabStateInput {

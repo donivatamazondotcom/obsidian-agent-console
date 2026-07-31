@@ -1,3 +1,7 @@
+import type { QuickPromptGesture } from "../types/quick-prompt";
+// Moved to types/quick-prompt.ts (utils-leaf refactor, G2); re-exported so the
+// existing ui/hooks/services consumers keep their import path.
+export type { QuickPromptGesture } from "../types/quick-prompt";
 /**
  * quick-prompts-logic — pure decision/parse helpers for the Quick Prompts
  * feature. Zero React, zero Obsidian: the load-bearing decisions (parse, label
@@ -326,14 +330,6 @@ export type QuickPromptReason = "no-selection" | "unsent-draft";
  *
  * Bare ⇧ (no ⌘) is inert: `foreground` only modifies a new-tab open.
  */
-export interface QuickPromptGesture {
-	/** ⌘/⌃/middle-click — open in a new tab. */
-	openElsewhere: boolean;
-	/** ⇧ — when opening a new tab, switch to it (foreground). */
-	foreground: boolean;
-	/** ⌥ — insert/stage instead of send. */
-	insert: boolean;
-}
 
 export interface QuickPromptDecisionInput extends QuickPromptGesture {
 	/** The prompt's `open in new tab` checkbox — default target is a new tab. */

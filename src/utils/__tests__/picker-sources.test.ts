@@ -3,7 +3,7 @@
  * Spec: [[Unified Picker Control]].
  */
 import { describe, it, expect } from "vitest";
-import type { NoteMetadata } from "../../services/vault-service";
+import type { NoteMetadata } from "../../types/vault";
 import type { SlashCommand } from "../../types/session";
 import type { QuickPrompt } from "../../types/quick-prompt";
 import {

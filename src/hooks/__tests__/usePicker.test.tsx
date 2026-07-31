@@ -20,7 +20,7 @@ import {
 	makeSlashSource,
 	makeQuickPromptSource,
 	type FuzzyScorer,
-} from "../../utils/picker-source-configs";
+} from "../../services/picker-source-configs";
 import type { NoteMetadata } from "../../services/vault-service";
 import type { SlashCommand } from "../../types/session";
 import type { QuickPrompt } from "../../types/quick-prompt";

@@ -36,7 +36,7 @@
 
 import { describe, expect, it } from "vitest";
 import { deriveTabState } from "../tab-state";
-import type { TabSessionState } from "../../hooks/useTabSessionState";
+import type { TabSessionState } from "../../types/tab";
 import type { TabState } from "../../types/tab";
 
 const LIFECYCLES: TabSessionState[] = [

@@ -167,7 +167,7 @@ export interface PickerTriggerContext {
  * Every member is pure (no React, no Obsidian) so the source configs unit-test
  * directly — runtime dependencies (vault access, the command list, the prompt
  * library, the fuzzy scorer) are injected by the factory in
- * `utils/picker-source-configs.ts`.
+ * `services/picker-source-configs.ts`.
  *
  * Spec: [[Unified Picker Control]] (Tier 3 — one picker state machine).
  *

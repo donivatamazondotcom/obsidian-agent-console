@@ -20,8 +20,8 @@ import {
 import {
 	mentionInstructions,
 	slashInstructions,
-} from "../picker-sources";
-import type { NoteMetadata } from "../../services/vault-service";
+} from "../../utils/picker-sources";
+import type { NoteMetadata } from "../../types/vault";
 import type { SlashCommand } from "../../types/session";
 import type { QuickPrompt } from "../../types/quick-prompt";
 import type { CreatePromptRow } from "../../services/quick-prompts-logic";

@@ -27,7 +27,7 @@
  *
  * Pure — no React, no Obsidian. Safe to unit-test exhaustively.
  */
-import type { TabSessionState } from "../hooks/useTabSessionState";
+import type { TabSessionState } from "../types/tab";
 
 /**
  * Why a send is or isn't available, in priority order. Consumers render

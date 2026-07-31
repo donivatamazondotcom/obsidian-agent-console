@@ -240,6 +240,7 @@ src/
 4. **Types have zero deps** — No `obsidian`, no SDK, no React in `types/`
 5. **Single event channel** — All agent events flow through `onSessionUpdate`. No special callback paths.
 6. **Decision functions live in `src/resolvers/`** — a new `derive*` / `decide*` function belongs in the resolver zone, where lint bans React / Obsidian / raw-SDK imports and enforces strict switch exhaustiveness (no `default` escape hatch). Writing one elsewhere fails `src/__tests__/resolver-zone.test.ts` unless it is grandfathered there with a reason.
+7. **`utils/` is a shared leaf, not a layer** — it may import only `types/` and `i18n/`, and is importable from every layer. The full layer order (types < i18n < utils as leaves, then acp|resolvers < services < hooks < ui) is enforced by `src/__tests__/layer-edges.test.ts`; a backwards import fails the suite unless grandfathered there with a reason.
 
 For more details, see `ARCHITECTURE.md`.
 

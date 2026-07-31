@@ -114,3 +114,17 @@ export interface PerLeafTabState {
 	/** Currently active tab in this leaf */
 	activeTabId: string;
 }
+
+/**
+ * Per-tab agent-session lifecycle state. Single source of truth read by the
+ * tab icon, send button, and header. Moved here from hooks/useTabSessionState
+ * (utils-leaf refactor, G2) so resolvers and services can name it without a
+ * hooks edge; the hook re-exports it for its ui consumers.
+ */
+export type TabSessionState =
+	| "idle"
+	| "connecting"
+	| "ready"
+	| "busy"
+	| "permission"
+	| "error";
