@@ -1523,6 +1523,46 @@
 			"altText": "An agent reply in Agent Console showing two choice buttons rendered natively below the explanation text",
 			"docPage": "docs/usage/interactive-buttons.md",
 			"captureNote": "Needs an agent-produced a2ui fence: drive with a prompt file that asks for a two-option fork under the briefing, await .agent-client-a2ui-surface after turn end (buttons enabled at idle)."
+		},
+		{
+			"name": "settings-root-declarative",
+			"pending": true,
+			"placement": "reference",
+			"purpose": "Replace collapsible-agent-sections.webp - agent-setup index shows the 1.13 root tab with agent page rows",
+			"mustShow": "Built-in agents group with the five agent page rows (chevrons) in the settings window",
+			"altText": "Agent Console settings on Obsidian 1.13 with each built-in agent shown as a navigable page row",
+			"width": 760,
+			"height": 560,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 760,
+				"height": 560
+			},
+			"initialState": {
+				"openNote": "Welcome.md"
+			},
+			"approvalThreshold": 0.05
+		},
+		{
+			"name": "settings-agent-page",
+			"pending": true,
+			"placement": "reference",
+			"purpose": "Replace agent-settings-section.webp - claude-code setup page shows the agent sub-page",
+			"mustShow": "Claude Code sub-page with API key, path with Auto-detect, arguments, environment variables",
+			"altText": "Claude Code settings page with API key, path, and Auto-detect controls",
+			"width": 760,
+			"height": 560,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 760,
+				"height": 560
+			},
+			"initialState": {
+				"openNote": "Welcome.md"
+			},
+			"approvalThreshold": 0.05
 		}
 	]
 }
