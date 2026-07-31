@@ -7,7 +7,8 @@
 	},
 	"mutate": [
 		"src/resolvers/**/*.ts",
-		"!src/resolvers/**/__tests__/**"
+		"!src/resolvers/**/__tests__/**",
+		"!src/**/__benchmarks__/**"
 	],
 	"coverageAnalysis": "perTest",
 	"reporters": ["clear-text", "progress", "html", "json"],

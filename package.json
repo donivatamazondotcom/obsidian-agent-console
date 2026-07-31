@@ -29,8 +29,8 @@
 		"docs:screenshots:check:strict": "npx tsx tools/screenshots/check.ts --strict",
 		"invariants": "tsx tools/invariant-suite/run.ts",
 		"mutation:resolvers": "stryker run",
-		"mutation:services": "stryker run --mutate 'src/services/**/*.ts,!src/services/**/__tests__/**'",
-		"mutation:hooks": "stryker run --mutate 'src/hooks/**/*.ts,!src/hooks/**/__tests__/**'"
+		"mutation:services": "stryker run --mutate 'src/services/**/*.ts,!src/services/**/__tests__/**,!src/services/**/__benchmarks__/**'",
+		"mutation:hooks": "stryker run --mutate 'src/hooks/**/*.ts,!src/hooks/**/__tests__/**,!src/hooks/**/__benchmarks__/**'"
 	},
 	"keywords": [],
 	"author": "",
