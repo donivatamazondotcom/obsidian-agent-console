@@ -3593,3 +3593,13 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	white-space: pre-wrap;
 	word-break: break-all;
 }
+
+/* Declarative settings (Obsidian 1.13): platform gives page rows
+   (mod-navigable) a background transition but no :hover trigger, while
+   action rows (mod-action) do hover — make our tab consistent. Scoped to
+   our groups; idempotent if Obsidian later adds the same rule. */
+@media (hover: hover) {
+	.agent-client-settings-group .setting-item.mod-navigable:hover {
+		background-color: var(--background-modifier-hover);
+	}
+}

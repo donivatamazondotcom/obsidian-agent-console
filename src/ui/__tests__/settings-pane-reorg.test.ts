@@ -229,9 +229,21 @@ vi.mock("obsidian", () => {
 		}
 	}
 	return {
+		// Pre-1.13 imperative path under test by default: rerender() falls back
+		// to display(). The drift guard flips the flag to invoke page factories.
+		requireApiVersion: () =>
+			(globalThis as unknown as { __obsidian113?: boolean }).__obsidian113 ===
+			true,
 		App,
 		Modal,
 		PluginSettingTab,
+		SettingPage: class {
+			rootEl = document.createElement("div");
+			titlebarEl = document.createElement("div");
+			containerEl = document.createElement("div");
+			title = "";
+			hide() {}
+		},
 		Setting: MockSettingImpl,
 		DropdownComponent: Comp,
 		SecretComponent,
@@ -246,6 +258,7 @@ vi.mock("../../utils/folder-picker", () => ({ pickFolder: vi.fn() }));
 
 import { App, FileSystemAdapter } from "obsidian";
 import { AgentClientSettingTab } from "../SettingsTab";
+import { t } from "../../i18n";
 import { DEFAULT_SETTINGS } from "../../services/settings-normalizer";
 
 function makePlugin(
@@ -674,5 +687,117 @@ describe("Obsidian system prompt — focus & no-jump on interaction", () => {
 			.toggle;
 		await (vault.onChangeCb as (v: unknown) => unknown)(false);
 		expect(settings.length).toBeGreaterThan(before);
+	});
+});
+
+// ── Declarative ⇔ imperative drift guard (Path B sync insurance) ────────────
+// Both rendering paths must expose the same setting set. A setting added to
+// display() without a declarative definition (or vice versa) fails here.
+describe("Declarative ⇔ imperative drift guard", () => {
+	type Def = {
+		name?: string;
+		heading?: string;
+		type?: string;
+		items?: Def[];
+		visible?: boolean | (() => boolean);
+		page?: () => { display: () => void; containerEl: HTMLElement };
+		control?: unknown;
+		render?: unknown;
+		action?: unknown;
+	};
+	const isVisible = (d: Def) =>
+		typeof d.visible === "function"
+			? d.visible()
+			: d.visible !== false;
+
+	it("every imperative setting has a declarative counterpart (and diffs are allowlisted)", () => {
+		const reg = (globalThis as unknown as { __settings: MockSetting[] })
+			.__settings;
+		// Fixture: make imperative conditionals render (image cascade), and
+		// include one custom agent so its body renders on both paths.
+		const { tab } = renderPane({
+			exportSettings: {
+				defaultFolder: "",
+				filenameTemplate: "",
+				frontmatterTag: "",
+				includeImages: true,
+				imageLocation: "custom",
+				imageCustomFolder: "",
+				autoExportOnNewChat: false,
+				autoExportOnCloseChat: false,
+				openFileAfterExport: false,
+			},
+			customAgents: [
+				{
+					id: "drift-agent",
+					displayName: "Drift Agent",
+					command: "x",
+					args: [],
+					env: [],
+				},
+			],
+		});
+		const imperative = new Set(
+			reg.map((s) => s.name).filter((n) => n && n.length > 0),
+		);
+
+		// Walk the declarative tree (respecting visible), rendering page
+		// bodies through the same mock-Setting registry.
+		reg.length = 0;
+		const defNames = new Set<string>();
+		const pageNames = new Set<string>();
+		const g = globalThis as unknown as { __obsidian113?: boolean };
+		g.__obsidian113 = true;
+		try {
+			const walk = (items: Def[]) => {
+				for (const d of items) {
+					if (!isVisible(d)) continue;
+					if (d.type === "page") {
+						if (d.name) pageNames.add(d.name);
+						if (d.items) {
+							// Declarative items-based page (Export/Advanced).
+							walk(d.items);
+						} else {
+							const page = d.page!();
+							page.display();
+						}
+						continue;
+					}
+					if (d.type === "group" || d.type === "list") {
+						if (d.heading) defNames.add(d.heading);
+						walk(d.items ?? []);
+						continue;
+					}
+					if (d.name) defNames.add(d.name);
+				}
+			};
+			walk(tab.getSettingDefinitions() as unknown as Def[]);
+		} finally {
+			g.__obsidian113 = false;
+		}
+		for (const s of reg) {
+			if (s.name && s.name.length > 0) defNames.add(s.name);
+		}
+
+		// Structural diffs that are correct by design:
+		// declarative-only — rows the imperative path draws without a Setting
+		// (raw DOM): the doc link, the custom-agents add button (unnamed
+		// Setting imperatively), and the Export/Advanced <details> summaries
+		// which became group headings.
+		const declarativeOnlyAllow = new Set([
+			t("settings.docLink.linkText"),
+			t("settings.environmentVariables.button"),
+		]);
+
+		const imperativeOnly = [...imperative].filter(
+			(n) => !defNames.has(n),
+		);
+		const declarativeOnly = [...defNames].filter(
+			(n) => !imperative.has(n) && !declarativeOnlyAllow.has(n),
+		);
+
+		expect(imperativeOnly, "settings rendered by display() but missing from the declarative tree").toEqual([]);
+		expect(declarativeOnly, "declarative defs with no imperative counterpart (extend the allowlist only for structural rows)").toEqual([]);
+		expect(pageNames.size).toBeGreaterThanOrEqual(7);
 	});
 });

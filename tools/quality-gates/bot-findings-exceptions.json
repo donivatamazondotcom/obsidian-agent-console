@@ -12,14 +12,14 @@
 		"file": "src/plugin.ts",
 		"count": 1,
 		"reason": "false-positive-unreported",
-		"note": "Rule wants 'Agent console'. 'Agent Console' is the product name — a proper noun — and is the string used on the store listing, the docs site and the manifest. Renaming it to satisfy sentence case would rename the product. Assessed as a rule defect; upstream report not yet filed.",
+		"note": "Rule wants 'Agent console'. 'Agent Console' is the product name \u2014 a proper noun \u2014 and is the string used on the store listing, the docs site and the manifest. Renaming it to satisfy sentence case would rename the product. Assessed as a rule defect; upstream report not yet filed.",
 		"link": "https://github.com/obsidianmd/eslint-plugin"
 	},
 	{
-		"rule": "obsidianmd/settings-tab/prefer-setting-definitions",
+		"rule": "@typescript-eslint/no-deprecated",
 		"file": "src/ui/SettingsTab.ts",
 		"count": 1,
 		"reason": "deferred",
-		"note": "Genuine finding with real user impact: without getSettingDefinitions() the plugin's settings do not appear in Obsidian's settings search on 1.13.0+. Migrating a ~2,100-line imperative settings tab to the declarative API is its own feature, not patch material — see [[Agent Console Review-Bot Parity Gate]] § What is actually in scope to fix. Remove this entry when that feature lands."
+		"note": "rerender()'s pre-1.13 fallback is the single intentional display() caller: minAppVersion is 1.11.4, so users below 1.13 still render the imperative tab. Remove this entry when minAppVersion bumps to 1.13.0 and display() is deleted (declarative migration Path A flip) \u2014 see vault note 'Agent Console Declarative Settings Migration' D3."
 	}
 ]

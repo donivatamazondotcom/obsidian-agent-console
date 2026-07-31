@@ -7,6 +7,12 @@ import {
 	SecretComponent,
 	Notice,
 	FileSystemAdapter,
+	requireApiVersion,
+	SettingPage,
+	type SettingDefinitionItem,
+	type SettingDefinitionPage,
+	type SettingGroupItem,
+	type TextComponent,
 } from "obsidian";
 import type AgentClientPlugin from "../plugin";
 import {
@@ -65,6 +71,13 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	private agentExpansion: AgentExpansionState = freshAgentExpansion();
 	// Obsidian system prompt — accordion open state (content persists in settings).
 	private hcbExpanded = false;
+	// Sub-page currently shown by the 1.13 declarative renderer (if any) —
+	// rerender() redraws it since update() only refreshes the root tab.
+	private activeSettingPage: { redraw: () => void } | null = null;
+	// Deferred update() scheduled when a sub-page closes, so root-list labels
+	// (page rows are addressed by name) refresh after a rename — past the
+	// ~200 ms page transition to stay out of its animation window (I184).
+	private pendingHideUpdate: number | null = null;
 	/**
 	 * Agent id whose first field should grab focus on the next render — set
 	 * when "Add custom agent" creates an agent, consumed (cleared) when that
@@ -82,6 +95,1122 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	constructor(app: App, plugin: AgentClientPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+	}
+
+	/**
+	 * Declarative settings (Obsidian 1.13+) — Path B migration in progress.
+	 * See vault note "Agent Console Declarative Settings Migration".
+	 *
+	 * Slices 1-2: simple groups (Chat behavior, Appearance & notifications,
+	 * Tabs, Permissions, Export, Advanced, WSL). Agent sections (built-in,
+	 * custom agents, import, Obsidian system prompt) land in slice 3.
+	 *
+	 * NOT shippable until slice 3: a non-empty return takes over rendering
+	 * entirely on 1.13+ (display() then serves pre-1.13 users only), so 1.13
+	 * users would not see the agent sections yet.
+	 */
+	/** Default working directory row (text + Browse) — shared by display()
+	 * and the declarative agents group. */
+	private configureCwdSetting(cwdSetting: Setting): void {
+		const describeCwd = (value: string): string => {
+			const vaultRoot = this.resolveVaultRootPath();
+			const base = t("settings.defaultWorkingDirectory.desc");
+			const root = vaultRoot ? ` (${vaultRoot})` : "";
+			if (!value.trim()) {
+				return `${base} ${t("settings.defaultWorkingDirectory.statusVaultRoot", { root })}`;
+			}
+			const resolved = resolveDefaultWorkingDirectory(value, vaultRoot);
+			if (resolved.fellBack) {
+				return `${base} ${t("settings.defaultWorkingDirectory.statusInvalid", { value, root })}`;
+			}
+			return `${base} ${t("settings.defaultWorkingDirectory.statusResolved", { dir: resolved.dir })}`;
+		};
+		cwdSetting
+			.setName(t("settings.defaultWorkingDirectory.name"))
+			.setDesc(describeCwd(this.plugin.settings.defaultWorkingDirectory));
+		cwdSetting.addText((text) =>
+			text
+				.setPlaceholder(t("settings.defaultWorkingDirectory.placeholder"))
+				.setValue(this.plugin.settings.defaultWorkingDirectory)
+				.onChange(async (value) => {
+					await this.plugin.settingsService.updateSettings({
+						defaultWorkingDirectory: value.trim(),
+					});
+					cwdSetting.setDesc(describeCwd(value));
+				}),
+		);
+		cwdSetting.addButton((btn) =>
+			btn
+				.setButtonText(t("settings.defaultWorkingDirectory.button"))
+				.setTooltip(t("settings.defaultWorkingDirectory.tooltip"))
+				.onClick(async () => {
+					const picked = await pickFolder({
+						title: t("settings.defaultWorkingDirectory.pickerTitle"),
+						defaultPath:
+							this.plugin.settings.defaultWorkingDirectory ||
+							this.resolveVaultRootPath(),
+					});
+					if (picked) {
+						await this.plugin.settingsService.updateSettings({
+							defaultWorkingDirectory: picked,
+						});
+						this.rerender();
+					}
+				}),
+		);
+	}
+
+	/**
+	 * @param wrap true (default): render as a collapsible accordion — the
+	 * pre-1.13 display() layout. false: render the body directly — used by
+	 * the 1.13 sub-page, where the page title already names the section and
+	 * an inner collapsed accordion would be redundant chrome.
+	 */
+	private renderObsidianSystemPromptSection(
+		containerEl: HTMLElement,
+		wrap = true,
+	): void {
+		// Obsidian system prompt — single-artifact model. All rows render via the
+		// Setting API so labels/controls share native alignment; textareas + the
+		// preview are made full-width by a stacking class on their .setting-item.
+		const hcbVaultRoot = this.resolveVaultRootPath();
+		const hcb = (): typeof this.plugin.settings.obsidianSystemPrompt =>
+			this.plugin.settings.obsidianSystemPrompt;
+		const setHcb = async (
+			patch: Partial<typeof this.plugin.settings.obsidianSystemPrompt>,
+		): Promise<void> => {
+			await this.plugin.settingsService.updateSettings({
+				obsidianSystemPrompt: { ...this.plugin.settings.obsidianSystemPrompt, ...patch },
+			});
+		};
+		const hcbComposed = (appendOverride?: string): string => {
+			const cur = hcb();
+			const base =
+				composeObsidianSystemPrompt(
+					{ blocks: cur.blocks, mode: "options" },
+					{
+						cwd: hcbVaultRoot,
+						vaultRoot: hcbVaultRoot,
+						replyLanguageName: getReplyLanguage()?.englishName ?? null,
+					},
+				) ?? "";
+			const add = (appendOverride ?? cur.appendText ?? "").trim();
+			return add ? base + "\n\n" + add : base;
+		};
+		const hcbFullWidth = (el: HTMLElement): void => {
+			el.closest(".setting-item")?.classList.add(
+				"agent-client-hcb-fullwidth",
+			);
+		};
+		const renderBody = (body: HTMLElement): void => {
+				let previewTa: import("obsidian").TextAreaComponent | null = null;
+				let appendTa: import("obsidian").TextAreaComponent | null = null;
+				let fullTa: import("obsidian").TextAreaComponent | null = null;
+				const liveText = (): string => {
+					const cur = hcb();
+					if ((cur.mode ?? "options") === "full") {
+						return (fullTa?.inputEl?.value ?? cur.customText ?? "").trim();
+					}
+					return hcbComposed(appendTa?.inputEl?.value).trim();
+				};
+				const refreshPreview = (): void => {
+					if (!previewTa) return;
+					previewTa.setValue(
+						liveText() ||
+							t("settings.obsidianPrompt.previewEmpty"),
+					);
+				};
+				new Setting(body).setDesc(t("settings.sendMessageShortcut.desc2"));
+
+				if ((hcb().mode ?? "options") === "options") {
+					const blockToggle = (
+						name: string,
+						desc: string,
+						key: keyof typeof this.plugin.settings.obsidianSystemPrompt.blocks,
+					): void => {
+						new Setting(body)
+							.setName(name)
+							.setDesc(desc)
+							.addToggle((toggle) =>
+								toggle
+									.setValue(hcb().blocks[key])
+									.onChange(async (value) => {
+										await setHcb({
+											blocks: { ...hcb().blocks, [key]: value },
+										});
+										// Avoid a full re-render (which scrolls the
+										// pane and jumps the view) — just refresh
+										// the live preview. The vault-note hint's
+										// visibility depends on the vaultCollaboration
+										// block, so only that toggle re-renders.
+										if (key === "vaultCollaboration") {
+											this.rerender();
+										} else {
+											refreshPreview();
+										}
+									}),
+							);
+					};
+					blockToggle(
+						t("settings.obsidianPrompt.hostIdentity.name"),
+						t("settings.obsidianPrompt.hostIdentity.desc"),
+						"hostIdentity",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.rendering.name"),
+						t("settings.obsidianPrompt.rendering.desc"),
+						"rendering",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.workingDirectory.name"),
+						t("settings.obsidianPrompt.workingDirectory.desc"),
+						"workingDirectory",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.vaultCollaboration.name"),
+						t("settings.obsidianPrompt.vaultCollaboration.desc"),
+						"vaultCollaboration",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.interactiveButtons.name"),
+						t("settings.obsidianPrompt.interactiveButtons.desc"),
+						"interactiveButtons",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.respondInLanguage.name"),
+						t("settings.obsidianPrompt.respondInLanguage.desc"),
+						"respondInLanguage",
+					);
+
+					new Setting(body)
+						.setName(t("settings.yourVaultContext.name"))
+						.setDesc(t("settings.yourVaultContext.desc"))
+						.addTextArea((ta) => {
+							appendTa = ta;
+							ta.setValue(hcb().appendText ?? "");
+							ta.inputEl.rows = 4;
+							hcbFullWidth(ta.inputEl);
+							ta.onChange(async (value) => {
+								await setHcb({ appendText: value });
+								refreshPreview();
+							});
+						});
+
+					new Setting(body)
+						.setName(t("settings.editTheFullPrompt.name"))
+						.setDesc(t("settings.editTheFullPrompt.desc"))
+						.addButton((btn) =>
+							btn.setButtonText(t("settings.editTheFullPrompt.button")).onClick(async () => {
+								const seeded = hcbComposed(appendTa?.inputEl?.value);
+								this.pendingFocusObsidianFullPrompt = true;
+								await setHcb({ mode: "full", customText: seeded });
+								this.rerender();
+							}),
+						);
+				} else {
+					new Setting(body)
+						.setName(t("settings.fullPrompt.name"))
+						.setDesc(t("settings.fullPrompt.desc"))
+						.addTextArea((ta) => {
+							fullTa = ta;
+							ta.setValue(hcb().customText ?? "");
+							ta.inputEl.rows = 10;
+							hcbFullWidth(ta.inputEl);
+							ta.onChange(async (value) => {
+								await setHcb({ customText: value });
+								refreshPreview();
+							});
+							// Just switched into full mode: focus the editable
+							// box, put the cursor at the end, and scroll it into
+							// view so the user doesn't land on the read-only
+							// "What gets sent" preview below.
+							if (this.pendingFocusObsidianFullPrompt) {
+								this.pendingFocusObsidianFullPrompt = false;
+								const inputEl = ta.inputEl;
+								window.requestAnimationFrame(() => {
+									inputEl.focus();
+									const end = inputEl.value.length;
+									inputEl.setSelectionRange(end, end);
+									inputEl.scrollIntoView({ block: "center" });
+								});
+							}
+						});
+					new Setting(body)
+						.setName(t("settings.backToOptions.name"))
+						.setDesc(t("settings.backToOptions.desc"))
+						.addButton((btn) =>
+							btn.setButtonText(t("settings.backToOptions.button")).onClick(async () => {
+								await setHcb({ mode: "options" });
+								this.rerender();
+							}),
+						);
+				}
+
+				// "What gets sent" is ALWAYS present — the constant, honest
+				// picture of the exact text the agent receives. In options mode
+				// it tracks the toggles + vault context; in full mode it mirrors
+				// the hand-edited prompt live (the full-prompt box's onChange
+				// calls refreshPreview, and liveText() reads that box in full
+				// mode). Rendering it after the mode-specific section keeps the
+				// input-above-output reading order in both modes.
+				new Setting(body)
+					.setName(t("settings.whatGetsSent.name"))
+					.setDesc(t("settings.whatGetsSent.desc"))
+					.addTextArea((ta) => {
+						previewTa = ta;
+						ta.inputEl.rows = 8;
+						ta.inputEl.readOnly = true;
+						ta.inputEl.classList.add("agent-client-hcb-readonly");
+						hcbFullWidth(ta.inputEl);
+						refreshPreview();
+					});
+				if (
+					(hcb().mode ?? "options") === "options" &&
+					hcb().blocks.vaultCollaboration
+				) {
+					new Setting(body).setDesc(t("settings.whatGetsSent.desc2"));
+				}
+
+				new Setting(body)
+					.setName(t("settings.resetToDefaults.name"))
+					.setDesc(t("settings.resetToDefaults.desc"))
+					.addButton((btn) =>
+						btn.setButtonText(t("settings.resetToDefaults.button")).onClick(async () => {
+							const doReset = async (): Promise<void> => {
+								await setHcb(
+									structuredClone(
+										DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
+									),
+								);
+								this.rerender();
+							};
+							// Confirm only when reset would discard customization
+							// (a block toggled off, full-prompt mode, or typed
+							// text). A pristine all-default state resets directly.
+							if (obsidianSystemPromptIsCustomized(hcb())) {
+								new ConfirmResetModal(this.plugin.app, () => {
+									void doReset();
+								}).open();
+							} else {
+								await doReset();
+							}
+						}),
+					);
+		};
+		if (wrap) {
+			this.renderCollapsibleSection(
+				containerEl,
+				t("settings.section.obsidianSystemPrompt"),
+				renderBody,
+				{
+					open: this.hcbExpanded,
+					onToggle: (open: boolean) => {
+						this.hcbExpanded = open;
+					},
+				},
+			);
+		} else {
+			renderBody(containerEl);
+		}
+	}
+
+	private resolveVaultRootPath(): string {
+		const adapter = this.plugin.app.vault.adapter;
+		return adapter instanceof FileSystemAdapter
+			? adapter.getBasePath()
+			: "";
+	}
+
+	/**
+	 * Self-re-render that works on both rendering paths: the declarative
+	 * renderer's update() on 1.13+ (plus redrawing any open sub-page, which
+	 * update() does not touch), display() below 1.13. Calling display()
+	 * directly on 1.13 would clobber the declarative DOM with the imperative
+	 * tab — never call it outside the <1.13 path.
+	 */
+	private rerender(): void {
+		if (requireApiVersion("1.13.0")) {
+			this.update();
+			this.activeSettingPage?.redraw();
+		} else {
+			this.display();
+		}
+	}
+
+	/**
+	 * Enter a page row by its displayed name (1.13 root list) by clicking the
+	 * framework's own navigable row — uses the renderer's page wiring, no
+	 * private APIs. Returns false when the row isn't rendered.
+	 */
+	private openSettingPageByName(pageName: string): boolean {
+		const rows = Array.from(
+			this.containerEl.querySelectorAll(".setting-item.mod-navigable"),
+		);
+		const row = rows.find(
+			(el) =>
+				el
+					.querySelector(".setting-item-name")
+					?.textContent?.trim() === pageName,
+		);
+		if (!(row instanceof HTMLElement)) {
+			return false;
+		}
+		row.click();
+		return true;
+	}
+
+	/**
+	 * Close the open sub-page by clicking the framework's back button (1.13).
+	 * No-op (returns false) when no sub-page is open — e.g. pre-1.13 where
+	 * the same body renders inline in an accordion.
+	 */
+	private closeActiveSettingPage(): boolean {
+		const back = this.containerEl.ownerDocument.querySelector(
+			".setting-page-back-button",
+		);
+		if (!(back instanceof HTMLElement)) {
+			return false;
+		}
+		back.click();
+		return true;
+	}
+
+	/**
+	 * Wrap an imperative section body as a 1.13 settings sub-page. The body
+	 * is reused wholesale (SecretComponent, auto-detect, env lists) — one
+	 * implementation shared with the pre-1.13 display() path.
+	 */
+	private settingPage(
+		getName: () => string,
+		renderBody: (el: HTMLElement) => void,
+	): SettingDefinitionPage {
+		const notifyShown = (page: { redraw: () => void }): void => {
+			this.activeSettingPage = page;
+		};
+		const notifyHidden = (page: unknown): void => {
+			if (this.activeSettingPage === page) {
+				this.activeSettingPage = null;
+			}
+			// Rebuild definitions after the close transition settles so root
+			// page-row labels pick up renames done inside the page.
+			if (this.pendingHideUpdate !== null) {
+				window.clearTimeout(this.pendingHideUpdate);
+			}
+			this.pendingHideUpdate = window.setTimeout(() => {
+				this.pendingHideUpdate = null;
+				// Page hide callbacks only fire under the 1.13+ declarative
+				// renderer; the guard satisfies the minAppVersion lint.
+				if (requireApiVersion("1.13.0")) {
+					this.update();
+				}
+			}, 300);
+		};
+		const makePage = (): SettingPage => {
+			// Page factories are only invoked by the 1.13+ declarative
+			// renderer; the guard satisfies the minAppVersion lint.
+			if (requireApiVersion("1.13.0")) {
+				class BodyPage extends SettingPage {
+					display(): void {
+						this.title = getName();
+						notifyShown(this);
+						this.redraw();
+					}
+					redraw(): void {
+						this.containerEl.empty();
+						renderBody(this.containerEl);
+					}
+					hide(): void {
+						notifyHidden(this);
+						super.hide();
+					}
+				}
+				return new BodyPage();
+			}
+			throw new Error("Declarative settings pages require Obsidian 1.13");
+		};
+		return { type: "page", name: getName(), page: makePage };
+	}
+
+	private importSettingDef(
+		placement: "top-matter" | "advanced",
+	): SettingGroupItem {
+		return {
+			name: t("settings.importSettingsFromAnother.name"),
+			desc: t("settings.importSettingsFromAnother.desc"),
+			visible: () =>
+				deriveImportPlacement(this.plugin.settings.hasCompletedSetup) ===
+				placement,
+			render: (setting) => {
+				setting.addButton((btn) =>
+					btn
+						.setButtonText(
+							t("settings.importSettingsFromAnother.button"),
+						)
+						.onClick(() => {
+							this.plugin.openImportSettingsModal();
+						}),
+				);
+			},
+		};
+	}
+
+	private agentsGroup(): SettingDefinitionItem {
+		return {
+			type: "group",
+			heading: t("settings.heading.agents"),
+			items: [
+				this.importSettingDef("top-matter"),
+				{
+					name: t("settings.docLink.linkText"),
+					searchable: false,
+					render: (setting) => {
+						setting.settingEl.addClass("agent-client-doc-link");
+						setting.infoEl.empty();
+						setting.infoEl.createSpan({
+							text: t("settings.docLink.prefix"),
+						});
+						setting.infoEl.createEl("a", {
+							text: t("settings.docLink.linkText"),
+							href: "https://donivatamazondotcom.github.io/obsidian-agent-console/",
+							attr: { target: "_blank" },
+						});
+						setting.infoEl.createSpan({
+							text: t("settings.docLink.suffix"),
+						});
+					},
+				},
+				{
+					name: t("settings.defaultAgent.name"),
+					desc: t("settings.defaultAgent.desc"),
+					render: (setting) => {
+						this.configureAgentSelector(setting);
+					},
+				},
+				{
+					name: t("settings.defaultWorkingDirectory.name"),
+					render: (setting) => {
+						this.configureCwdSetting(setting);
+					},
+				},
+			],
+		};
+	}
+
+	private builtInAgentsGroup(): SettingDefinitionItem {
+		const s = () => this.plugin.settings;
+		return {
+			type: "group",
+			heading: t("settings.heading.builtInAgents"),
+			cls: "agent-client-settings-group",
+			items: [
+				this.settingPage(
+					() => s().claude.displayName || "Claude Code",
+					(el) => this.renderClaudeSettings(el),
+				),
+				this.settingPage(
+					() => s().codex.displayName || "Codex",
+					(el) => this.renderCodexSettings(el),
+				),
+				this.settingPage(
+					() => s().gemini.displayName || "Gemini CLI",
+					(el) => this.renderGeminiSettings(el),
+				),
+				this.settingPage(
+					() => s().kiro.displayName || "Kiro CLI",
+					(el) => this.renderKiroSettings(el),
+				),
+				this.settingPage(
+					() => s().opencode.displayName || "OpenCode",
+					(el) => this.renderOpenCodeSettings(el),
+				),
+			] as SettingGroupItem[],
+		};
+	}
+
+	private customAgentsGroup(): SettingDefinitionItem {
+		return {
+			type: "group",
+			heading: t("settings.heading.customAgents"),
+			cls: "agent-client-settings-group",
+			items: [
+				{
+					name: t("settings.customAgents.emptyState"),
+					searchable: false,
+					visible: () =>
+						this.plugin.settings.customAgents.length === 0,
+				},
+				// Page names must be unique among siblings (the 1.13 framework
+				// navigates pages by name) — disambiguate duplicate display
+				// names with the agent id. Bodies resolve the agent by id at
+				// render time so a stale closure can never render a deleted or
+				// re-indexed agent.
+				...(() => {
+					const labelCounts = new Map<string, number>();
+					for (const a of this.plugin.settings.customAgents) {
+						const label = a.displayName || a.id;
+						labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+					}
+					return this.plugin.settings.customAgents.map((agent) => {
+						const label = agent.displayName || agent.id;
+						const pageName =
+							(labelCounts.get(label) ?? 0) > 1
+								? `${label} (${agent.id})`
+								: label;
+						const agentId = agent.id;
+						return this.settingPage(
+							() => pageName,
+							(el) => this.renderCustomAgentById(el, agentId),
+						);
+					});
+				})(),
+				{
+					name: t("settings.environmentVariables.button"),
+					searchable: false,
+					action: () => {
+						void this.addCustomAgent();
+					},
+				},
+			] as SettingGroupItem[],
+		};
+	}
+
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		return [
+			this.agentsGroup(),
+			this.builtInAgentsGroup(),
+			this.customAgentsGroup(),
+			this.chatBehaviorGroup(),
+			this.appearanceGroup(),
+			this.tabsGroup(),
+			this.permissionsGroup(),
+			{
+				// Heading-less wrapper so the page rows share the scoped hover
+				// style with the agent groups.
+				type: "group",
+				cls: "agent-client-settings-group",
+				items: [this.exportPage(), this.advancedPage()],
+			},
+		];
+	}
+
+	private chatBehaviorGroup(): SettingDefinitionItem {
+		const titleStrategyLabels: Record<TitleStrategy, string> = {
+			"agent-suggested": t("settings.sessionTitle.optionAgentSuggested"),
+			"prompt-derived": t("settings.sessionTitle.optionPromptDerived"),
+			"agent-timestamp": t("settings.sessionTitle.optionAgentTimestamp"),
+		};
+		return {
+			type: "group",
+			heading: t("settings.heading.chatBehavior"),
+			cls: "agent-client-settings-group",
+			items: [
+				{
+					name: t("settings.activeNoteAsDefault.name"),
+					desc: t("settings.activeNoteAsDefault.desc"),
+					control: {
+						type: "toggle",
+						key: "activeNoteAsDefaultContext",
+					},
+				},
+				{
+					name: t("settings.sessionTitle.name"),
+					desc: t("settings.sessionTitle.desc"),
+					control: {
+						type: "dropdown",
+						key: "titleStrategy",
+						options: Object.fromEntries(
+							TITLE_STRATEGY_OPTIONS.map(({ value }) => [
+								value,
+								titleStrategyLabels[value],
+							]),
+						),
+					},
+				},
+				{
+					name: t("settings.quickPromptsFolder.name"),
+					desc: t("settings.quickPromptsFolder.desc"),
+					control: {
+						type: "text",
+						key: "quickPromptsFolder",
+						placeholder: t("settings.quickPromptsFolder.placeholder"),
+					},
+				},
+				{
+					name: t("settings.sendMessageShortcut.name"),
+					desc: t("settings.sendMessageShortcut.desc"),
+					control: {
+						type: "dropdown",
+						key: "sendMessageShortcut",
+						options: {
+							enter: t("settings.sendMessageShortcut.optionEnter"),
+							"cmd-enter": t(
+								"settings.sendMessageShortcut.optionCmdEnter",
+							),
+						},
+					},
+				},
+				this.settingPage(
+					() => t("settings.section.obsidianSystemPrompt"),
+					// Unwrapped: the page title already names the section.
+					(el) => this.renderObsidianSystemPromptSection(el, false),
+				),
+			],
+		};
+	}
+
+	private appearanceGroup(): SettingDefinitionItem {
+		const languageOptions: Record<string, string> = {
+			auto: t("settings.language.optionAuto"),
+		};
+		for (const locale of [...SUPPORTED_LOCALES].sort()) {
+			languageOptions[locale] = LOCALE_DISPLAY_NAMES[locale];
+		}
+		return {
+			type: "group",
+			heading: t("settings.heading.appearanceNotifications"),
+			items: [
+				{
+					name: t("settings.language.name"),
+					desc: t("settings.language.desc"),
+					control: {
+						type: "dropdown",
+						key: "language",
+						options: languageOptions,
+					},
+				},
+				{
+					name: t("settings.sidebarSide.name"),
+					desc: t("settings.sidebarSide.desc"),
+					control: {
+						type: "dropdown",
+						key: "chatViewLocation",
+						options: {
+							right: t("settings.sidebarSide.optionRight"),
+							left: t("settings.sidebarSide.optionLeft"),
+						},
+					},
+				},
+				{
+					name: t("settings.chatFontSize.name"),
+					desc: t("settings.fontSize.desc", {
+						min: CHAT_FONT_SIZE_MIN,
+						max: CHAT_FONT_SIZE_MAX,
+					}),
+					render: (setting) => {
+						setting.addText((text) =>
+							this.configureChatFontSizeText(text),
+						);
+					},
+				},
+				{
+					name: t("settings.showEmojis.name"),
+					desc: t("settings.showEmojis.desc"),
+					control: {
+						type: "toggle",
+						key: "displaySettings.showEmojis",
+					},
+				},
+				{
+					name: t("settings.systemNotifications.name"),
+					desc: t("settings.systemNotifications.desc"),
+					control: {
+						type: "toggle",
+						key: "enableSystemNotifications",
+					},
+				},
+			],
+		};
+	}
+
+	private tabsGroup(): SettingDefinitionItem {
+		return {
+			type: "group",
+			heading: t("settings.heading.tabs"),
+			items: [
+				{
+					name: t("settings.restoreTabsOnStartup.name"),
+					desc: t("settings.restoreTabsOnStartup.desc"),
+					control: { type: "toggle", key: "restoreTabsOnStartup" },
+				},
+				{
+					name: t("settings.confirmBeforeClosingMultiple.name"),
+					desc: t("settings.confirmBeforeClosingMultiple.desc"),
+					control: {
+						type: "toggle",
+						key: "confirmCloseWithMultipleTabs",
+					},
+				},
+			],
+		};
+	}
+
+	private permissionsGroup(): SettingDefinitionItem {
+		return {
+			type: "group",
+			heading: t("settings.heading.permissions"),
+			items: [
+				{
+					name: t("settings.autoAllowPermissions.name"),
+					desc: t("settings.autoAllowPermissions.desc"),
+					control: { type: "toggle", key: "autoAllowPermissions" },
+				},
+			],
+		};
+	}
+
+	private exportPage(): SettingDefinitionPage {
+		const exp = () => this.plugin.settings.exportSettings;
+		return {
+			type: "page",
+			name: t("settings.section.export"),
+			items: [
+				{
+					name: t("settings.exportFolder.name"),
+					desc: t("settings.exportFolder.desc"),
+					control: {
+						type: "text",
+						key: "exportSettings.defaultFolder",
+						placeholder: t("settings.exportFolder.placeholder"),
+					},
+				},
+				{
+					name: t("settings.filename.name"),
+					desc: t("settings.filename.desc"),
+					control: {
+						type: "text",
+						key: "exportSettings.filenameTemplate",
+						placeholder: t("settings.filename.placeholder"),
+					},
+				},
+				{
+					name: t("settings.frontmatterTag.name"),
+					desc: t("settings.frontmatterTag.desc"),
+					control: {
+						type: "text",
+						key: "exportSettings.frontmatterTag",
+						placeholder: t("settings.frontmatterTag.placeholder"),
+					},
+				},
+				{
+					name: t("settings.includeImages.name"),
+					desc: t("settings.includeImages.desc"),
+					control: {
+						type: "toggle",
+						key: "exportSettings.includeImages",
+					},
+				},
+				{
+					name: t("settings.imageLocation.name"),
+					desc: t("settings.imageLocation.desc"),
+					visible: () => exp().includeImages,
+					control: {
+						type: "dropdown",
+						key: "exportSettings.imageLocation",
+						options: {
+							obsidian: t("settings.imageLocation.optionObsidian"),
+							custom: t("settings.imageLocation.optionCustom"),
+							base64: t("settings.imageLocation.optionBase64"),
+						},
+					},
+				},
+				{
+					name: t("settings.customImageFolder.name"),
+					desc: t("settings.customImageFolder.desc"),
+					visible: () =>
+						exp().includeImages && exp().imageLocation === "custom",
+					control: {
+						type: "text",
+						key: "exportSettings.imageCustomFolder",
+						placeholder: t("settings.customImageFolder.placeholder"),
+					},
+				},
+				{
+					name: t("settings.autoExportOnNew.name"),
+					desc: t("settings.autoExportOnNew.desc"),
+					control: {
+						type: "toggle",
+						key: "exportSettings.autoExportOnNewChat",
+					},
+				},
+				{
+					name: t("settings.autoExportOnClose.name"),
+					desc: t("settings.autoExportOnClose.desc"),
+					control: {
+						type: "toggle",
+						key: "exportSettings.autoExportOnCloseChat",
+					},
+				},
+				{
+					name: t("settings.openNoteAfterExport.name"),
+					desc: t("settings.openNoteAfterExport.desc"),
+					control: {
+						type: "toggle",
+						key: "exportSettings.openFileAfterExport",
+					},
+				},
+			],
+		};
+	}
+
+	private advancedPage(): SettingDefinitionPage {
+		return {
+			type: "page",
+			name: t("settings.section.advanced"),
+			items: [
+				{
+					name: t("settings.nodeJsPath.name"),
+					desc: t("settings.nodeJsPath.desc"),
+					render: (setting) => {
+						setting.addText((text) => {
+							text.setPlaceholder(
+								t("settings.nodeJsPath.placeholder"),
+							)
+								.setValue(this.plugin.settings.nodePath)
+								.onChange(async (value) => {
+									await this.plugin.settingsService.updateSettings(
+										{ nodePath: value.trim() },
+									);
+								});
+						});
+						this.addAutoDetectButton(setting, "node", async (path) => {
+							await this.plugin.settingsService.updateSettings({
+								nodePath: path,
+							});
+						});
+					},
+				},
+				// WSL lives inside Advanced (matches the pre-1.13 layout).
+				this.wslGroup(),
+				{
+					name: t("settings.debugMode.name"),
+					desc: t("settings.debugMode.desc"),
+					control: { type: "toggle", key: "debugMode" },
+				},
+				this.importSettingDef("advanced"),
+			],
+		};
+	}
+
+	private wslGroup(): SettingDefinitionItem {
+		return {
+			type: "group",
+			heading: t("settings.heading.windowsSubsystemForLinux"),
+			visible: () => Platform.isWin,
+			items: [
+				{
+					name: t("settings.enableWslMode.name"),
+					desc: t("settings.enableWslMode.desc"),
+					control: { type: "toggle", key: "windowsWslMode" },
+				},
+				{
+					name: t("settings.wslDistribution.name"),
+					desc: t("settings.wslDistribution.desc"),
+					visible: () => this.plugin.settings.windowsWslMode,
+					control: {
+						type: "text",
+						key: "windowsWslDistribution",
+						placeholder: t("settings.wslDistribution.placeholder"),
+					},
+				},
+			],
+		};
+	}
+
+	/**
+	 * Declarative controls bind by string key. Supports one level of nesting
+	 * via dot paths (e.g. "exportSettings.includeImages").
+	 */
+	getControlValue(key: string): unknown {
+		let value: unknown = this.plugin.settings;
+		for (const part of key.split(".")) {
+			if (value == null || typeof value !== "object") {
+				return undefined;
+			}
+			value = (value as Record<string, unknown>)[part];
+		}
+		return value;
+	}
+
+	/**
+	 * Route declarative-control writes through the settings single writer
+	 * (settingsService.updateSettings) — never the base implementation's
+	 * direct `this.plugin.settings` mutation + saveData. Runs per-key side
+	 * effects and re-evaluates `visible` predicates after persisting.
+	 */
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		const normalized = this.normalizeControlValue(key, value);
+		const [root, ...rest] = key.split(".");
+		if (rest.length === 0) {
+			await this.plugin.settingsService.updateSettings({
+				[root]: normalized,
+			});
+		} else {
+			// One level of nesting is all current settings need.
+			const current = (
+				this.plugin.settings as unknown as Record<string, unknown>
+			)[root];
+			await this.plugin.settingsService.updateSettings({
+				[root]: {
+					...(current as Record<string, unknown>),
+					[rest.join(".")]: normalized,
+				},
+			});
+		}
+		this.runControlSideEffect(key, normalized);
+		// Only the 1.13+ declarative renderer calls setControlValue, so the
+		// guard is for the linter's benefit (minAppVersion is still 1.11.4).
+		if (requireApiVersion("1.13.0")) {
+			this.refreshDomState();
+		}
+	}
+
+	private normalizeControlValue(key: string, value: unknown): unknown {
+		switch (key) {
+			case "quickPromptsFolder":
+			case "nodePath":
+				return String(value).trim();
+			case "windowsWslDistribution":
+				return String(value).trim() || undefined;
+			default:
+				return value;
+		}
+	}
+
+	private runControlSideEffect(key: string, value: unknown): void {
+		switch (key) {
+			case "quickPromptsFolder":
+				void this.plugin.quickPromptLibrary.rescan();
+				break;
+			case "autoAllowPermissions":
+				this.plugin.updateAllAutoAllow(Boolean(value));
+				break;
+			case "language":
+				new Notice(languageReloadNotice(String(value)));
+				break;
+		}
+	}
+
+	private configureChatFontSizeText(text: TextComponent): void {
+		const getCurrentDisplayValue = (): string => {
+			const currentFontSize =
+				this.plugin.settings.displaySettings.fontSize;
+			return currentFontSize === null
+				? ""
+				: String(currentFontSize);
+		};
+
+		// When no explicit size is set (fontSize === null), the field
+		// is empty and the chat area follows whatever the active theme
+		// resolves --ac-chat-font-size to (the plugin default is
+		// var(--font-text-size), but themes/snippets can scale it, e.g.
+		// calc(var(--font-text-size) * 0.85)). Reading --font-text-size
+		// directly would report the wrong number, so measure the real
+		// resolved size off an off-screen replica that uses the same
+		// chat-view classes, and surface it in the placeholder.
+		const getEffectiveChatFontSizePx = (): number | null => {
+			const probe = activeDocument.body.createDiv({
+				cls: [
+					"agent-client-chat-view-container",
+					"agent-client-font-size-probe",
+				],
+			});
+			const messages = probe.createDiv({
+				cls: "agent-client-chat-view-messages",
+			});
+			const computedFontSize =
+				getComputedStyle(messages).fontSize;
+			probe.remove();
+			return parseComputedFontSizePx(computedFontSize);
+		};
+
+		const getPlaceholder = (): string => {
+			const effectivePx = getEffectiveChatFontSizePx();
+			return effectivePx === null
+				? `${CHAT_FONT_SIZE_MIN}-${CHAT_FONT_SIZE_MAX}`
+				: t("settings.chatFontSize.placeholderCurrent", {
+						px: effectivePx,
+					});
+		};
+
+		const persistChatFontSize = async (
+			fontSize: number | null,
+		): Promise<void> => {
+			if (
+				this.plugin.settings.displaySettings.fontSize ===
+				fontSize
+			) {
+				return;
+			}
+
+			const nextSettings = {
+				...this.plugin.settings,
+				displaySettings: {
+					...this.plugin.settings.displaySettings,
+					fontSize,
+				},
+			};
+			await this.plugin.saveSettingsAndNotify(nextSettings);
+		};
+
+		text.setPlaceholder(getPlaceholder())
+			.setValue(getCurrentDisplayValue())
+			.onChange(async (value) => {
+				if (value.trim().length === 0) {
+					await persistChatFontSize(null);
+					return;
+				}
+
+				const trimmedValue = value.trim();
+				if (!/^-?\d+$/.test(trimmedValue)) {
+					return;
+				}
+
+				const numericValue = Number.parseInt(trimmedValue, 10);
+				if (
+					numericValue < CHAT_FONT_SIZE_MIN ||
+					numericValue > CHAT_FONT_SIZE_MAX
+				) {
+					return;
+				}
+
+				const parsedFontSize = parseChatFontSize(numericValue);
+				if (parsedFontSize === null) {
+					return;
+				}
+
+				const hasChanged =
+					this.plugin.settings.displaySettings.fontSize !==
+					parsedFontSize;
+				if (hasChanged) {
+					await persistChatFontSize(parsedFontSize);
+				}
+			});
+
+		text.inputEl.addEventListener("blur", () => {
+			const currentInputValue = text.getValue();
+			const parsedFontSize = parseChatFontSize(currentInputValue);
+
+			if (
+				currentInputValue.trim().length > 0 &&
+				parsedFontSize === null
+			) {
+				text.setValue(getCurrentDisplayValue());
+				return;
+			}
+
+			if (parsedFontSize !== null) {
+				text.setValue(String(parsedFontSize));
+				const hasChanged =
+					this.plugin.settings.displaySettings.fontSize !==
+					parsedFontSize;
+				if (hasChanged) {
+					void persistChatFontSize(parsedFontSize);
+				}
+				return;
+			}
+
+			text.setValue("");
+		});
 	}
 
 	display(): void {
@@ -133,59 +1262,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		// Also update immediately on display to sync with current settings
 		this.updateAgentDropdown();
 
-		// Default working directory — global default new chats launch in.
-		const resolveVaultRoot = (): string => {
-			const adapter = this.plugin.app.vault.adapter;
-			return adapter instanceof FileSystemAdapter
-				? adapter.getBasePath()
-				: "";
-		};
-		const describeCwd = (value: string): string => {
-			const vaultRoot = resolveVaultRoot();
-			const base = t("settings.defaultWorkingDirectory.desc");
-			const root = vaultRoot ? ` (${vaultRoot})` : "";
-			if (!value.trim()) {
-				return `${base} ${t("settings.defaultWorkingDirectory.statusVaultRoot", { root })}`;
-			}
-			const resolved = resolveDefaultWorkingDirectory(value, vaultRoot);
-			if (resolved.fellBack) {
-				return `${base} ${t("settings.defaultWorkingDirectory.statusInvalid", { value, root })}`;
-			}
-			return `${base} ${t("settings.defaultWorkingDirectory.statusResolved", { dir: resolved.dir })}`;
-		};
-		const cwdSetting = new Setting(containerEl)
-			.setName(t("settings.defaultWorkingDirectory.name"))
-			.setDesc(describeCwd(this.plugin.settings.defaultWorkingDirectory));
-		cwdSetting.addText((text) =>
-			text
-				.setPlaceholder(t("settings.defaultWorkingDirectory.placeholder"))
-				.setValue(this.plugin.settings.defaultWorkingDirectory)
-				.onChange(async (value) => {
-					await this.plugin.settingsService.updateSettings({
-						defaultWorkingDirectory: value.trim(),
-					});
-					cwdSetting.setDesc(describeCwd(value));
-				}),
-		);
-		cwdSetting.addButton((btn) =>
-			btn
-				.setButtonText(t("settings.defaultWorkingDirectory.button"))
-				.setTooltip(t("settings.defaultWorkingDirectory.tooltip"))
-				.onClick(async () => {
-					const picked = await pickFolder({
-						title: t("settings.defaultWorkingDirectory.pickerTitle"),
-						defaultPath:
-							this.plugin.settings.defaultWorkingDirectory ||
-							resolveVaultRoot(),
-					});
-					if (picked) {
-						await this.plugin.settingsService.updateSettings({
-							defaultWorkingDirectory: picked,
-						});
-						this.display();
-					}
-				}),
-		);
+		this.configureCwdSetting(new Setting(containerEl));
 
 		new Setting(containerEl).setName(t("settings.heading.builtInAgents")).setHeading();
 
@@ -305,243 +1382,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		// Obsidian system prompt — single-artifact model. All rows render via the
-		// Setting API so labels/controls share native alignment; textareas + the
-		// preview are made full-width by a stacking class on their .setting-item.
-		const hcbVaultRoot = resolveVaultRoot();
-		const hcb = (): typeof this.plugin.settings.obsidianSystemPrompt =>
-			this.plugin.settings.obsidianSystemPrompt;
-		const setHcb = async (
-			patch: Partial<typeof this.plugin.settings.obsidianSystemPrompt>,
-		): Promise<void> => {
-			await this.plugin.settingsService.updateSettings({
-				obsidianSystemPrompt: { ...this.plugin.settings.obsidianSystemPrompt, ...patch },
-			});
-		};
-		const hcbComposed = (appendOverride?: string): string => {
-			const cur = hcb();
-			const base =
-				composeObsidianSystemPrompt(
-					{ blocks: cur.blocks, mode: "options" },
-					{
-						cwd: hcbVaultRoot,
-						vaultRoot: hcbVaultRoot,
-						replyLanguageName: getReplyLanguage()?.englishName ?? null,
-					},
-				) ?? "";
-			const add = (appendOverride ?? cur.appendText ?? "").trim();
-			return add ? base + "\n\n" + add : base;
-		};
-		const hcbFullWidth = (el: HTMLElement): void => {
-			el.closest(".setting-item")?.classList.add(
-				"agent-client-hcb-fullwidth",
-			);
-		};
-		this.renderCollapsibleSection(
-			containerEl,
-			t("settings.section.obsidianSystemPrompt"),
-			(body) => {
-				let previewTa: import("obsidian").TextAreaComponent | null = null;
-				let appendTa: import("obsidian").TextAreaComponent | null = null;
-				let fullTa: import("obsidian").TextAreaComponent | null = null;
-				const liveText = (): string => {
-					const cur = hcb();
-					if ((cur.mode ?? "options") === "full") {
-						return (fullTa?.inputEl?.value ?? cur.customText ?? "").trim();
-					}
-					return hcbComposed(appendTa?.inputEl?.value).trim();
-				};
-				const refreshPreview = (): void => {
-					if (!previewTa) return;
-					previewTa.setValue(
-						liveText() ||
-							t("settings.obsidianPrompt.previewEmpty"),
-					);
-				};
-				new Setting(body).setDesc(t("settings.sendMessageShortcut.desc2"));
-
-				if ((hcb().mode ?? "options") === "options") {
-					const blockToggle = (
-						name: string,
-						desc: string,
-						key: keyof typeof this.plugin.settings.obsidianSystemPrompt.blocks,
-					): void => {
-						new Setting(body)
-							.setName(name)
-							.setDesc(desc)
-							.addToggle((toggle) =>
-								toggle
-									.setValue(hcb().blocks[key])
-									.onChange(async (value) => {
-										await setHcb({
-											blocks: { ...hcb().blocks, [key]: value },
-										});
-										// Avoid a full re-render (which scrolls the
-										// pane and jumps the view) — just refresh
-										// the live preview. The vault-note hint's
-										// visibility depends on the vaultCollaboration
-										// block, so only that toggle re-renders.
-										if (key === "vaultCollaboration") {
-											this.display();
-										} else {
-											refreshPreview();
-										}
-									}),
-							);
-					};
-					blockToggle(
-						t("settings.obsidianPrompt.hostIdentity.name"),
-						t("settings.obsidianPrompt.hostIdentity.desc"),
-						"hostIdentity",
-					);
-					blockToggle(
-						t("settings.obsidianPrompt.rendering.name"),
-						t("settings.obsidianPrompt.rendering.desc"),
-						"rendering",
-					);
-					blockToggle(
-						t("settings.obsidianPrompt.workingDirectory.name"),
-						t("settings.obsidianPrompt.workingDirectory.desc"),
-						"workingDirectory",
-					);
-					blockToggle(
-						t("settings.obsidianPrompt.vaultCollaboration.name"),
-						t("settings.obsidianPrompt.vaultCollaboration.desc"),
-						"vaultCollaboration",
-					);
-					blockToggle(
-						t("settings.obsidianPrompt.interactiveButtons.name"),
-						t("settings.obsidianPrompt.interactiveButtons.desc"),
-						"interactiveButtons",
-					);
-					blockToggle(
-						t("settings.obsidianPrompt.respondInLanguage.name"),
-						t("settings.obsidianPrompt.respondInLanguage.desc"),
-						"respondInLanguage",
-					);
-
-					new Setting(body)
-						.setName(t("settings.yourVaultContext.name"))
-						.setDesc(t("settings.yourVaultContext.desc"))
-						.addTextArea((ta) => {
-							appendTa = ta;
-							ta.setValue(hcb().appendText ?? "");
-							ta.inputEl.rows = 4;
-							hcbFullWidth(ta.inputEl);
-							ta.onChange(async (value) => {
-								await setHcb({ appendText: value });
-								refreshPreview();
-							});
-						});
-
-					new Setting(body)
-						.setName(t("settings.editTheFullPrompt.name"))
-						.setDesc(t("settings.editTheFullPrompt.desc"))
-						.addButton((btn) =>
-							btn.setButtonText(t("settings.editTheFullPrompt.button")).onClick(async () => {
-								const seeded = hcbComposed(appendTa?.inputEl?.value);
-								this.pendingFocusObsidianFullPrompt = true;
-								await setHcb({ mode: "full", customText: seeded });
-								this.display();
-							}),
-						);
-				} else {
-					new Setting(body)
-						.setName(t("settings.fullPrompt.name"))
-						.setDesc(t("settings.fullPrompt.desc"))
-						.addTextArea((ta) => {
-							fullTa = ta;
-							ta.setValue(hcb().customText ?? "");
-							ta.inputEl.rows = 10;
-							hcbFullWidth(ta.inputEl);
-							ta.onChange(async (value) => {
-								await setHcb({ customText: value });
-								refreshPreview();
-							});
-							// Just switched into full mode: focus the editable
-							// box, put the cursor at the end, and scroll it into
-							// view so the user doesn't land on the read-only
-							// "What gets sent" preview below.
-							if (this.pendingFocusObsidianFullPrompt) {
-								this.pendingFocusObsidianFullPrompt = false;
-								const inputEl = ta.inputEl;
-								window.requestAnimationFrame(() => {
-									inputEl.focus();
-									const end = inputEl.value.length;
-									inputEl.setSelectionRange(end, end);
-									inputEl.scrollIntoView({ block: "center" });
-								});
-							}
-						});
-					new Setting(body)
-						.setName(t("settings.backToOptions.name"))
-						.setDesc(t("settings.backToOptions.desc"))
-						.addButton((btn) =>
-							btn.setButtonText(t("settings.backToOptions.button")).onClick(async () => {
-								await setHcb({ mode: "options" });
-								this.display();
-							}),
-						);
-				}
-
-				// "What gets sent" is ALWAYS present — the constant, honest
-				// picture of the exact text the agent receives. In options mode
-				// it tracks the toggles + vault context; in full mode it mirrors
-				// the hand-edited prompt live (the full-prompt box's onChange
-				// calls refreshPreview, and liveText() reads that box in full
-				// mode). Rendering it after the mode-specific section keeps the
-				// input-above-output reading order in both modes.
-				new Setting(body)
-					.setName(t("settings.whatGetsSent.name"))
-					.setDesc(t("settings.whatGetsSent.desc"))
-					.addTextArea((ta) => {
-						previewTa = ta;
-						ta.inputEl.rows = 8;
-						ta.inputEl.readOnly = true;
-						ta.inputEl.classList.add("agent-client-hcb-readonly");
-						hcbFullWidth(ta.inputEl);
-						refreshPreview();
-					});
-				if (
-					(hcb().mode ?? "options") === "options" &&
-					hcb().blocks.vaultCollaboration
-				) {
-					new Setting(body).setDesc(t("settings.whatGetsSent.desc2"));
-				}
-
-				new Setting(body)
-					.setName(t("settings.resetToDefaults.name"))
-					.setDesc(t("settings.resetToDefaults.desc"))
-					.addButton((btn) =>
-						btn.setButtonText(t("settings.resetToDefaults.button")).onClick(async () => {
-							const doReset = async (): Promise<void> => {
-								await setHcb(
-									structuredClone(
-										DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
-									),
-								);
-								this.display();
-							};
-							// Confirm only when reset would discard customization
-							// (a block toggled off, full-prompt mode, or typed
-							// text). A pristine all-default state resets directly.
-							if (obsidianSystemPromptIsCustomized(hcb())) {
-								new ConfirmResetModal(this.plugin.app, () => {
-									void doReset();
-								}).open();
-							} else {
-								await doReset();
-							}
-						}),
-					);
-			},
-			{
-				open: this.hcbExpanded,
-				onToggle: (open: boolean) => {
-					this.hcbExpanded = open;
-				},
-			},
-		);
+		this.renderObsidianSystemPromptSection(containerEl);
 
 				new Setting(containerEl)
 			.setName(t("settings.heading.appearanceNotifications"))
@@ -603,128 +1444,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					max: CHAT_FONT_SIZE_MAX,
 				}),
 			)
-			.addText((text) => {
-				const getCurrentDisplayValue = (): string => {
-					const currentFontSize =
-						this.plugin.settings.displaySettings.fontSize;
-					return currentFontSize === null
-						? ""
-						: String(currentFontSize);
-				};
-
-				// When no explicit size is set (fontSize === null), the field
-				// is empty and the chat area follows whatever the active theme
-				// resolves --ac-chat-font-size to (the plugin default is
-				// var(--font-text-size), but themes/snippets can scale it, e.g.
-				// calc(var(--font-text-size) * 0.85)). Reading --font-text-size
-				// directly would report the wrong number, so measure the real
-				// resolved size off an off-screen replica that uses the same
-				// chat-view classes, and surface it in the placeholder.
-				const getEffectiveChatFontSizePx = (): number | null => {
-					const probe = activeDocument.body.createDiv({
-						cls: [
-							"agent-client-chat-view-container",
-							"agent-client-font-size-probe",
-						],
-					});
-					const messages = probe.createDiv({
-						cls: "agent-client-chat-view-messages",
-					});
-					const computedFontSize =
-						getComputedStyle(messages).fontSize;
-					probe.remove();
-					return parseComputedFontSizePx(computedFontSize);
-				};
-
-				const getPlaceholder = (): string => {
-					const effectivePx = getEffectiveChatFontSizePx();
-					return effectivePx === null
-						? `${CHAT_FONT_SIZE_MIN}-${CHAT_FONT_SIZE_MAX}`
-						: t("settings.chatFontSize.placeholderCurrent", {
-								px: effectivePx,
-							});
-				};
-
-				const persistChatFontSize = async (
-					fontSize: number | null,
-				): Promise<void> => {
-					if (
-						this.plugin.settings.displaySettings.fontSize ===
-						fontSize
-					) {
-						return;
-					}
-
-					const nextSettings = {
-						...this.plugin.settings,
-						displaySettings: {
-							...this.plugin.settings.displaySettings,
-							fontSize,
-						},
-					};
-					await this.plugin.saveSettingsAndNotify(nextSettings);
-				};
-
-				text.setPlaceholder(getPlaceholder())
-					.setValue(getCurrentDisplayValue())
-					.onChange(async (value) => {
-						if (value.trim().length === 0) {
-							await persistChatFontSize(null);
-							return;
-						}
-
-						const trimmedValue = value.trim();
-						if (!/^-?\d+$/.test(trimmedValue)) {
-							return;
-						}
-
-						const numericValue = Number.parseInt(trimmedValue, 10);
-						if (
-							numericValue < CHAT_FONT_SIZE_MIN ||
-							numericValue > CHAT_FONT_SIZE_MAX
-						) {
-							return;
-						}
-
-						const parsedFontSize = parseChatFontSize(numericValue);
-						if (parsedFontSize === null) {
-							return;
-						}
-
-						const hasChanged =
-							this.plugin.settings.displaySettings.fontSize !==
-							parsedFontSize;
-						if (hasChanged) {
-							await persistChatFontSize(parsedFontSize);
-						}
-					});
-
-				text.inputEl.addEventListener("blur", () => {
-					const currentInputValue = text.getValue();
-					const parsedFontSize = parseChatFontSize(currentInputValue);
-
-					if (
-						currentInputValue.trim().length > 0 &&
-						parsedFontSize === null
-					) {
-						text.setValue(getCurrentDisplayValue());
-						return;
-					}
-
-					if (parsedFontSize !== null) {
-						text.setValue(String(parsedFontSize));
-						const hasChanged =
-							this.plugin.settings.displaySettings.fontSize !==
-							parsedFontSize;
-						if (hasChanged) {
-							void persistChatFontSize(parsedFontSize);
-						}
-						return;
-					}
-
-					text.setValue("");
-				});
-			});
+			.addText((text) => this.configureChatFontSizeText(text));
 
 		new Setting(containerEl)
 			.setName(t("settings.showEmojis.name"))
@@ -877,7 +1597,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 									includeImages: value,
 								},
 							});
-							this.display();
+							this.rerender();
 						}),
 				);
 
@@ -916,7 +1636,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 										},
 									},
 								);
-								this.display();
+								this.rerender();
 							}),
 					);
 
@@ -1052,7 +1772,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 											windowsWslMode: value,
 										},
 									);
-									this.display(); // Refresh to show/hide distribution setting
+									this.rerender(); // Refresh to show/hide distribution setting
 								}),
 						);
 
@@ -1136,9 +1856,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	}
 
 	private renderAgentSelector(containerEl: HTMLElement) {
+		this.configureAgentSelector(new Setting(containerEl));
+	}
+
+	/** Default-agent dropdown — shared by display() and the declarative
+	 * agents group. */
+	private configureAgentSelector(setting: Setting): void {
 		this.plugin.ensureDefaultAgentId();
 
-		new Setting(containerEl)
+		setting
 			.setName(t("settings.defaultAgent.name"))
 			.setDesc(t("settings.defaultAgent.desc"))
 			.addDropdown((dropdown) => {
@@ -1154,7 +1880,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettingsAndNotify(nextSettings);
 					// Re-render so the collapsible auto-expand follows the new
 					// default agent (Collapsible Agent Sections, T03).
-					this.display();
+					this.rerender();
 				});
 			});
 	}
@@ -1642,6 +2368,17 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				.setButtonText(t("settings.environmentVariables.button"))
 				.setCta()
 				.onClick(async () => {
+					await this.addCustomAgent();
+				});
+		});
+	}
+
+	/** Create a blank custom agent — shared by display() and the declarative
+	 * custom-agents group. */
+	private async addCustomAgent(): Promise<void> {
+		{
+			{
+				{
 					const newId = this.generateCustomAgentId();
 					const newDisplayName =
 						this.generateCustomAgentDisplayName();
@@ -1663,9 +2400,43 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					this.pendingFocusAgentId = newId;
 					this.plugin.ensureDefaultAgentId();
 					await this.flushSettings();
-					this.display();
-				});
-		});
+					this.rerender();
+					// Page model: enter the new agent's page directly (the
+					// accordion model auto-expanded in place). Body render
+					// consumes pendingFocusAgentId to focus the first field.
+					if (requireApiVersion("1.13.0")) {
+						this.openSettingPageByName(newDisplayName);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Declarative-page body for a custom agent: resolves the agent by id at
+	 * render time (index/object captures go stale across delete/reorder). A
+	 * missing id (agent deleted while its page is open) renders the empty
+	 * state instead of crashing on a stale closure.
+	 */
+	private renderCustomAgentById(
+		containerEl: HTMLElement,
+		agentId: string,
+	): void {
+		const index = this.plugin.settings.customAgents.findIndex(
+			(a) => a.id === agentId,
+		);
+		if (index < 0) {
+			containerEl.createEl("p", {
+				text: t("settings.customAgents.emptyState"),
+				cls: "agent-client-empty-state",
+			});
+			return;
+		}
+		this.renderCustomAgent(
+			containerEl,
+			this.plugin.settings.customAgents[index],
+			index,
+		);
 	}
 
 	private renderCustomAgent(
@@ -1750,10 +2521,17 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				if (this.pendingFocusAgentId === agent.id) {
 					this.pendingFocusAgentId = null;
 					const inputEl = text.inputEl;
-					window.requestAnimationFrame(() => {
+					const focusIt = () => {
 						inputEl.focus();
 						inputEl.select();
-					});
+					};
+					if (requireApiVersion("1.13.0")) {
+						// openPage focuses the tab container when its ~200ms
+						// transition ends — focus after it so ours wins.
+						window.setTimeout(focusIt, 300);
+					} else {
+						window.requestAnimationFrame(focusIt);
+					}
 				}
 			});
 
@@ -1765,7 +2543,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					this.plugin.settings.customAgents.splice(index, 1);
 					this.plugin.ensureDefaultAgentId();
 					await this.flushSettings();
-					this.display();
+					this.rerender();
+					// Page model: the deleted agent's page is now meaningless —
+					// return to the root list instead of an empty page.
+					if (requireApiVersion("1.13.0")) {
+						this.closeActiveSettingPage();
+					}
 				});
 		});
 
@@ -1960,7 +2743,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 							: await resolveCommandPath(commandName);
 						if (found) {
 							await onResolved(found);
-							this.display();
+							this.rerender();
 						} else {
 							btn.setButtonText(t("settings.environmentVariables.button7"));
 							window.setTimeout(() => {
@@ -2122,7 +2905,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					});
 					if (picked) {
 						await write(picked);
-						this.display();
+						this.rerender();
 					}
 				}),
 		);
