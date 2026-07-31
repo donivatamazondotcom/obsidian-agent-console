@@ -587,6 +587,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		return {
 			type: "group",
 			heading: t("settings.heading.builtInAgents"),
+			cls: "agent-client-settings-group",
 			items: [
 				this.settingPage(
 					() => s().claude.displayName || "Claude Code",
@@ -616,6 +617,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		return {
 			type: "group",
 			heading: t("settings.heading.customAgents"),
+			cls: "agent-client-settings-group",
 			items: [
 				{
 					name: t("settings.customAgents.emptyState"),
@@ -682,6 +684,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		return {
 			type: "group",
 			heading: t("settings.heading.chatBehavior"),
+			cls: "agent-client-settings-group",
 			items: [
 				{
 					name: t("settings.activeNoteAsDefault.name"),
