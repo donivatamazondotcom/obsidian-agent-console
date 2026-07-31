@@ -2497,10 +2497,17 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				if (this.pendingFocusAgentId === agent.id) {
 					this.pendingFocusAgentId = null;
 					const inputEl = text.inputEl;
-					window.requestAnimationFrame(() => {
+					const focusIt = () => {
 						inputEl.focus();
 						inputEl.select();
-					});
+					};
+					if (requireApiVersion("1.13.0")) {
+						// openPage focuses the tab container when its ~200ms
+						// transition ends — focus after it so ours wins.
+						window.setTimeout(focusIt, 300);
+					} else {
+						window.requestAnimationFrame(focusIt);
+					}
 				}
 			});
 
