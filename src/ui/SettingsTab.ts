@@ -424,6 +424,44 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	}
 
 	/**
+	 * Enter a page row by its displayed name (1.13 root list) by clicking the
+	 * framework's own navigable row — uses the renderer's page wiring, no
+	 * private APIs. Returns false when the row isn't rendered.
+	 */
+	private openSettingPageByName(pageName: string): boolean {
+		const rows = Array.from(
+			this.containerEl.querySelectorAll(".setting-item.mod-navigable"),
+		);
+		const row = rows.find(
+			(el) =>
+				el
+					.querySelector(".setting-item-name")
+					?.textContent?.trim() === pageName,
+		);
+		if (!(row instanceof HTMLElement)) {
+			return false;
+		}
+		row.click();
+		return true;
+	}
+
+	/**
+	 * Close the open sub-page by clicking the framework's back button (1.13).
+	 * No-op (returns false) when no sub-page is open — e.g. pre-1.13 where
+	 * the same body renders inline in an accordion.
+	 */
+	private closeActiveSettingPage(): boolean {
+		const back = this.containerEl.ownerDocument.querySelector(
+			".setting-page-back-button",
+		);
+		if (!(back instanceof HTMLElement)) {
+			return false;
+		}
+		back.click();
+		return true;
+	}
+
+	/**
 	 * Wrap an imperative section body as a 1.13 settings sub-page. The body
 	 * is reused wholesale (SecretComponent, auto-detect, env lists) — one
 	 * implementation shared with the pre-1.13 display() path.
@@ -2339,6 +2377,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					this.plugin.ensureDefaultAgentId();
 					await this.flushSettings();
 					this.rerender();
+					// Page model: enter the new agent's page directly (the
+					// accordion model auto-expanded in place). Body render
+					// consumes pendingFocusAgentId to focus the first field.
+					if (requireApiVersion("1.13.0")) {
+						this.openSettingPageByName(newDisplayName);
+					}
 				}
 			}
 		}
@@ -2469,6 +2513,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					this.plugin.ensureDefaultAgentId();
 					await this.flushSettings();
 					this.rerender();
+					// Page model: the deleted agent's page is now meaningless —
+					// return to the root list instead of an empty page.
+					if (requireApiVersion("1.13.0")) {
+						this.closeActiveSettingPage();
+					}
 				});
 		});
 

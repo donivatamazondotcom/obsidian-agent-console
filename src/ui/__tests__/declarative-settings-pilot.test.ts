@@ -397,4 +397,54 @@ describe("declarative settings pilot (Obsidian 1.13)", () => {
 			vi.useRealTimers();
 		}
 	});
+
+	it("T13: adding a custom agent navigates into its page (clicks the framework row)", async () => {
+		const { tab } = makeTab();
+		const target = tab as unknown as {
+			addCustomAgent: () => Promise<void>;
+			containerEl: HTMLElement;
+			update: () => void;
+			refreshAgentDropdown?: () => void;
+		};
+		vi.spyOn(target, "update").mockImplementation(() => {});
+		// Simulate the framework-rendered root row for the agent about to be
+		// created ("Custom agent" is the first generated display name).
+		const row = document.createElement("div");
+		row.className = "setting-item mod-navigable";
+		const name = document.createElement("div");
+		name.className = "setting-item-name";
+		name.textContent = "Custom agent";
+		row.appendChild(name);
+		let navigated = false;
+		row.addEventListener("click", () => {
+			navigated = true;
+		});
+		target.containerEl.appendChild(row);
+
+		await target.addCustomAgent();
+
+		expect(navigated).toBe(true);
+	});
+
+	it("T14: closeActiveSettingPage clicks the framework back button when a page is open", () => {
+		const { tab } = makeTab();
+		const target = tab as unknown as {
+			closeActiveSettingPage: () => boolean;
+		};
+		const back = document.createElement("div");
+		back.className = "clickable-icon setting-page-back-button";
+		let closed = false;
+		back.addEventListener("click", () => {
+			closed = true;
+		});
+		document.body.appendChild(back);
+		try {
+			expect(target.closeActiveSettingPage()).toBe(true);
+			expect(closed).toBe(true);
+		} finally {
+			back.remove();
+		}
+		// No page open -> false, no throw.
+		expect(target.closeActiveSettingPage()).toBe(false);
+	});
 });
