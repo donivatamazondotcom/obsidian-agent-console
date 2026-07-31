@@ -10,7 +10,7 @@ You can use any agent that implements the [Agent Client Protocol (ACP)](https://
 [OpenCode](./opencode) is now a **built-in** agent — you don't need to add it as a custom agent. See its setup page.
 :::
 
-2. Open **Settings → Agent Console** and scroll to **Custom Agents** section.
+2. Open **Settings → Agent Console** and scroll to the **Custom Agents** section. On Obsidian 1.13+, each custom agent opens as its own page; on older versions it expands in place.
 
 3. Click **Add custom agent**.
 

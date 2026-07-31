@@ -684,6 +684,18 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					},
 				},
 				{
+					name: t("settings.sidebarSide.name"),
+					desc: t("settings.sidebarSide.desc"),
+					control: {
+						type: "dropdown",
+						key: "chatViewLocation",
+						options: {
+							right: t("settings.sidebarSide.optionRight"),
+							left: t("settings.sidebarSide.optionLeft"),
+						},
+					},
+				},
+				{
 					name: t("settings.chatFontSize.name"),
 					desc: t("settings.fontSize.desc", {
 						min: CHAT_FONT_SIZE_MIN,

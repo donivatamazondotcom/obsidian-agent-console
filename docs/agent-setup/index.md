@@ -13,7 +13,7 @@ Agent Console supports multiple AI agents through the [Agent Client Protocol (AC
 | [OpenCode](./opencode) | Open source | Built-in ACP — install from [opencode.ai](https://opencode.ai); runs local models via ollama |
 | [Custom Agents](./custom-agents) | Various | Any ACP-compatible agent |
 
-Each agent is configured under **Settings → Agent Console**. Built-in agents appear as collapsible sections so the pane stays scannable:
+Each agent is configured under **Settings → Agent Console**. On Obsidian 1.13 and later, each agent gets its own page — click the agent's name to open it, and use the settings search box to jump straight to any setting by name. On older Obsidian versions, agents appear as collapsible sections so the pane stays scannable:
 
 <p align="center">
   <img src="/images/collapsible-agent-sections.webp" alt="Agent Console settings with each built-in agent shown as a collapsed accordion section under Built-in agents" />
