@@ -74,6 +74,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	// Sub-page currently shown by the 1.13 declarative renderer (if any) —
 	// rerender() redraws it since update() only refreshes the root tab.
 	private activeSettingPage: { redraw: () => void } | null = null;
+	// Deferred update() scheduled when a sub-page closes, so root-list labels
+	// (page rows are addressed by name) refresh after a rename — past the
+	// ~200 ms page transition to stay out of its animation window (I184).
+	private pendingHideUpdate: number | null = null;
 	/**
 	 * Agent id whose first field should grab focus on the next render — set
 	 * when "Add custom agent" creates an agent, consumed (cleared) when that
@@ -435,6 +439,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			if (this.activeSettingPage === page) {
 				this.activeSettingPage = null;
 			}
+			// Rebuild definitions after the close transition settles so root
+			// page-row labels pick up renames done inside the page.
+			if (this.pendingHideUpdate !== null) {
+				window.clearTimeout(this.pendingHideUpdate);
+			}
+			this.pendingHideUpdate = window.setTimeout(() => {
+				this.pendingHideUpdate = null;
+				this.update();
+			}, 300);
 		};
 		const makePage = (): SettingPage => {
 			// Page factories are only invoked by the 1.13+ declarative
@@ -568,12 +581,30 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					visible: () =>
 						this.plugin.settings.customAgents.length === 0,
 				},
-				...this.plugin.settings.customAgents.map((agent, index) =>
-					this.settingPage(
-						() => agent.displayName || agent.id,
-						(el) => this.renderCustomAgent(el, agent, index),
-					),
-				),
+				// Page names must be unique among siblings (the 1.13 framework
+				// navigates pages by name) — disambiguate duplicate display
+				// names with the agent id. Bodies resolve the agent by id at
+				// render time so a stale closure can never render a deleted or
+				// re-indexed agent.
+				...(() => {
+					const labelCounts = new Map<string, number>();
+					for (const a of this.plugin.settings.customAgents) {
+						const label = a.displayName || a.id;
+						labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+					}
+					return this.plugin.settings.customAgents.map((agent) => {
+						const label = agent.displayName || agent.id;
+						const pageName =
+							(labelCounts.get(label) ?? 0) > 1
+								? `${label} (${agent.id})`
+								: label;
+						const agentId = agent.id;
+						return this.settingPage(
+							() => pageName,
+							(el) => this.renderCustomAgentById(el, agentId),
+						);
+					});
+				})(),
 				{
 					name: t("settings.environmentVariables.button"),
 					searchable: false,
@@ -2307,6 +2338,33 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Declarative-page body for a custom agent: resolves the agent by id at
+	 * render time (index/object captures go stale across delete/reorder). A
+	 * missing id (agent deleted while its page is open) renders the empty
+	 * state instead of crashing on a stale closure.
+	 */
+	private renderCustomAgentById(
+		containerEl: HTMLElement,
+		agentId: string,
+	): void {
+		const index = this.plugin.settings.customAgents.findIndex(
+			(a) => a.id === agentId,
+		);
+		if (index < 0) {
+			containerEl.createEl("p", {
+				text: t("settings.customAgents.emptyState"),
+				cls: "agent-client-empty-state",
+			});
+			return;
+		}
+		this.renderCustomAgent(
+			containerEl,
+			this.plugin.settings.customAgents[index],
+			index,
+		);
 	}
 
 	private renderCustomAgent(

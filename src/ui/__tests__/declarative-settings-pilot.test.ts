@@ -33,7 +33,11 @@ vi.mock("obsidian", () => {
 	class SettingPage {
 		rootEl = document.createElement("div");
 		titlebarEl = document.createElement("div");
-		containerEl = document.createElement("div");
+		containerEl = Object.assign(document.createElement("div"), {
+			empty(this: HTMLElement) {
+				this.innerHTML = "";
+			},
+		});
 		title = "";
 		hide() {}
 	}
@@ -328,5 +332,69 @@ describe("declarative settings pilot (Obsidian 1.13)", () => {
 		expect(topMatter.visible!()).toBe(false);
 		expect(advanced.visible!()).toBe(true);
 		void find;
+	});
+
+	// ── Custom-agent page fixes (found in SF-13 smoke, 2026-07-31) ───────
+
+	const agent = (id: string, displayName: string) => ({
+		id,
+		displayName,
+		command: "x",
+		args: [],
+		env: [],
+	});
+
+	it("T10: duplicate custom-agent display names get unique page names (framework navigates by name)", () => {
+		const { tab, plugin } = makeTab();
+		(plugin as unknown as { settings: { customAgents: unknown[] } }).settings.customAgents =
+			[agent("a1", "My Agent"), agent("a2", "My Agent"), agent("a3", "Other")];
+		const defs = tab.getSettingDefinitions() as unknown as Array<{
+			items?: Array<{ type?: string; name: string }>;
+		}>;
+		const pages = defs[2].items!.filter((i) => i.type === "page");
+		const names = pages.map((i) => i.name);
+		expect(new Set(names).size).toBe(names.length);
+		expect(names).toContain("My Agent (a1)");
+		expect(names).toContain("My Agent (a2)");
+		expect(names).toContain("Other");
+	});
+
+	it("T11: a custom-agent page body for a deleted agent renders the empty state, not a stale closure", () => {
+		const { tab, plugin } = makeTab();
+		(plugin as unknown as { settings: { customAgents: unknown[] } }).settings.customAgents =
+			[agent("gone-agent", "Doomed")];
+		const target = tab as unknown as {
+			renderCustomAgentById: (el: HTMLElement, id: string) => void;
+		};
+		expect(typeof target.renderCustomAgentById).toBe("function");
+		// Delete the agent, then render its (still-open) page body by id.
+		(plugin as unknown as { settings: { customAgents: unknown[] } }).settings.customAgents = [];
+		const el = document.createElement("div");
+		expect(() => target.renderCustomAgentById(el, "gone-agent")).not.toThrow();
+		expect(el.textContent).toContain("No custom agents");
+	});
+
+	it("T12: closing a sub-page schedules a definitions update so renamed labels refresh", () => {
+		vi.useFakeTimers();
+		try {
+			const { tab } = makeTab();
+			const target = tab as unknown as {
+				update: () => void;
+				settingPage: (
+					getName: () => string,
+					renderBody: (el: HTMLElement) => void,
+				) => { page: () => { display: () => void; hide: () => void } };
+			};
+			const update = vi.spyOn(target, "update").mockImplementation(() => {});
+			const def = target.settingPage(() => "P", () => {});
+			const page = def.page();
+			page.display();
+			page.hide();
+			expect(update).not.toHaveBeenCalled();
+			vi.advanceTimersByTime(400);
+			expect(update).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
