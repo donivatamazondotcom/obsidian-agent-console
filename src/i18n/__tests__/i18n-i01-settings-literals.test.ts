@@ -27,6 +27,10 @@ const ALLOWLIST = new Set<string>([
 	"Gemini CLI",
 	"Kiro CLI",
 	"OpenCode",
+	// Dev-invariant throw in settingPage(): unreachable in practice (page
+	// factories are only invoked by the 1.13+ declarative renderer) and
+	// never shown in UI — an Error message for maintainers, not users.
+	"Declarative settings pages require Obsidian 1.13",
 ]);
 
 function stripComments(src: string): string {
