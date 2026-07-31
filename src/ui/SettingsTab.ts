@@ -8,7 +8,10 @@ import {
 	Notice,
 	FileSystemAdapter,
 	requireApiVersion,
+	SettingPage,
 	type SettingDefinitionItem,
+	type SettingDefinitionPage,
+	type SettingGroupItem,
 	type TextComponent,
 } from "obsidian";
 import type AgentClientPlugin from "../plugin";
@@ -68,6 +71,9 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	private agentExpansion: AgentExpansionState = freshAgentExpansion();
 	// Obsidian system prompt — accordion open state (content persists in settings).
 	private hcbExpanded = false;
+	// Sub-page currently shown by the 1.13 declarative renderer (if any) —
+	// rerender() redraws it since update() only refreshes the root tab.
+	private activeSettingPage: { redraw: () => void } | null = null;
 	/**
 	 * Agent id whose first field should grab focus on the next render — set
 	 * when "Add custom agent" creates an agent, consumed (cleared) when that
@@ -99,8 +105,478 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	 * entirely on 1.13+ (display() then serves pre-1.13 users only), so 1.13
 	 * users would not see the agent sections yet.
 	 */
+	/** Default working directory row (text + Browse) — shared by display()
+	 * and the declarative agents group. */
+	private configureCwdSetting(cwdSetting: Setting): void {
+		const describeCwd = (value: string): string => {
+			const vaultRoot = this.resolveVaultRootPath();
+			const base = t("settings.defaultWorkingDirectory.desc");
+			const root = vaultRoot ? ` (${vaultRoot})` : "";
+			if (!value.trim()) {
+				return `${base} ${t("settings.defaultWorkingDirectory.statusVaultRoot", { root })}`;
+			}
+			const resolved = resolveDefaultWorkingDirectory(value, vaultRoot);
+			if (resolved.fellBack) {
+				return `${base} ${t("settings.defaultWorkingDirectory.statusInvalid", { value, root })}`;
+			}
+			return `${base} ${t("settings.defaultWorkingDirectory.statusResolved", { dir: resolved.dir })}`;
+		};
+		cwdSetting
+			.setName(t("settings.defaultWorkingDirectory.name"))
+			.setDesc(describeCwd(this.plugin.settings.defaultWorkingDirectory));
+		cwdSetting.addText((text) =>
+			text
+				.setPlaceholder(t("settings.defaultWorkingDirectory.placeholder"))
+				.setValue(this.plugin.settings.defaultWorkingDirectory)
+				.onChange(async (value) => {
+					await this.plugin.settingsService.updateSettings({
+						defaultWorkingDirectory: value.trim(),
+					});
+					cwdSetting.setDesc(describeCwd(value));
+				}),
+		);
+		cwdSetting.addButton((btn) =>
+			btn
+				.setButtonText(t("settings.defaultWorkingDirectory.button"))
+				.setTooltip(t("settings.defaultWorkingDirectory.tooltip"))
+				.onClick(async () => {
+					const picked = await pickFolder({
+						title: t("settings.defaultWorkingDirectory.pickerTitle"),
+						defaultPath:
+							this.plugin.settings.defaultWorkingDirectory ||
+							this.resolveVaultRootPath(),
+					});
+					if (picked) {
+						await this.plugin.settingsService.updateSettings({
+							defaultWorkingDirectory: picked,
+						});
+						this.rerender();
+					}
+				}),
+		);
+	}
+
+	private renderObsidianSystemPromptSection(containerEl: HTMLElement): void {
+		// Obsidian system prompt — single-artifact model. All rows render via the
+		// Setting API so labels/controls share native alignment; textareas + the
+		// preview are made full-width by a stacking class on their .setting-item.
+		const hcbVaultRoot = this.resolveVaultRootPath();
+		const hcb = (): typeof this.plugin.settings.obsidianSystemPrompt =>
+			this.plugin.settings.obsidianSystemPrompt;
+		const setHcb = async (
+			patch: Partial<typeof this.plugin.settings.obsidianSystemPrompt>,
+		): Promise<void> => {
+			await this.plugin.settingsService.updateSettings({
+				obsidianSystemPrompt: { ...this.plugin.settings.obsidianSystemPrompt, ...patch },
+			});
+		};
+		const hcbComposed = (appendOverride?: string): string => {
+			const cur = hcb();
+			const base =
+				composeObsidianSystemPrompt(
+					{ blocks: cur.blocks, mode: "options" },
+					{
+						cwd: hcbVaultRoot,
+						vaultRoot: hcbVaultRoot,
+						replyLanguageName: getReplyLanguage()?.englishName ?? null,
+					},
+				) ?? "";
+			const add = (appendOverride ?? cur.appendText ?? "").trim();
+			return add ? base + "\n\n" + add : base;
+		};
+		const hcbFullWidth = (el: HTMLElement): void => {
+			el.closest(".setting-item")?.classList.add(
+				"agent-client-hcb-fullwidth",
+			);
+		};
+		this.renderCollapsibleSection(
+			containerEl,
+			t("settings.section.obsidianSystemPrompt"),
+			(body) => {
+				let previewTa: import("obsidian").TextAreaComponent | null = null;
+				let appendTa: import("obsidian").TextAreaComponent | null = null;
+				let fullTa: import("obsidian").TextAreaComponent | null = null;
+				const liveText = (): string => {
+					const cur = hcb();
+					if ((cur.mode ?? "options") === "full") {
+						return (fullTa?.inputEl?.value ?? cur.customText ?? "").trim();
+					}
+					return hcbComposed(appendTa?.inputEl?.value).trim();
+				};
+				const refreshPreview = (): void => {
+					if (!previewTa) return;
+					previewTa.setValue(
+						liveText() ||
+							t("settings.obsidianPrompt.previewEmpty"),
+					);
+				};
+				new Setting(body).setDesc(t("settings.sendMessageShortcut.desc2"));
+
+				if ((hcb().mode ?? "options") === "options") {
+					const blockToggle = (
+						name: string,
+						desc: string,
+						key: keyof typeof this.plugin.settings.obsidianSystemPrompt.blocks,
+					): void => {
+						new Setting(body)
+							.setName(name)
+							.setDesc(desc)
+							.addToggle((toggle) =>
+								toggle
+									.setValue(hcb().blocks[key])
+									.onChange(async (value) => {
+										await setHcb({
+											blocks: { ...hcb().blocks, [key]: value },
+										});
+										// Avoid a full re-render (which scrolls the
+										// pane and jumps the view) — just refresh
+										// the live preview. The vault-note hint's
+										// visibility depends on the vaultCollaboration
+										// block, so only that toggle re-renders.
+										if (key === "vaultCollaboration") {
+											this.rerender();
+										} else {
+											refreshPreview();
+										}
+									}),
+							);
+					};
+					blockToggle(
+						t("settings.obsidianPrompt.hostIdentity.name"),
+						t("settings.obsidianPrompt.hostIdentity.desc"),
+						"hostIdentity",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.rendering.name"),
+						t("settings.obsidianPrompt.rendering.desc"),
+						"rendering",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.workingDirectory.name"),
+						t("settings.obsidianPrompt.workingDirectory.desc"),
+						"workingDirectory",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.vaultCollaboration.name"),
+						t("settings.obsidianPrompt.vaultCollaboration.desc"),
+						"vaultCollaboration",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.interactiveButtons.name"),
+						t("settings.obsidianPrompt.interactiveButtons.desc"),
+						"interactiveButtons",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.respondInLanguage.name"),
+						t("settings.obsidianPrompt.respondInLanguage.desc"),
+						"respondInLanguage",
+					);
+
+					new Setting(body)
+						.setName(t("settings.yourVaultContext.name"))
+						.setDesc(t("settings.yourVaultContext.desc"))
+						.addTextArea((ta) => {
+							appendTa = ta;
+							ta.setValue(hcb().appendText ?? "");
+							ta.inputEl.rows = 4;
+							hcbFullWidth(ta.inputEl);
+							ta.onChange(async (value) => {
+								await setHcb({ appendText: value });
+								refreshPreview();
+							});
+						});
+
+					new Setting(body)
+						.setName(t("settings.editTheFullPrompt.name"))
+						.setDesc(t("settings.editTheFullPrompt.desc"))
+						.addButton((btn) =>
+							btn.setButtonText(t("settings.editTheFullPrompt.button")).onClick(async () => {
+								const seeded = hcbComposed(appendTa?.inputEl?.value);
+								this.pendingFocusObsidianFullPrompt = true;
+								await setHcb({ mode: "full", customText: seeded });
+								this.rerender();
+							}),
+						);
+				} else {
+					new Setting(body)
+						.setName(t("settings.fullPrompt.name"))
+						.setDesc(t("settings.fullPrompt.desc"))
+						.addTextArea((ta) => {
+							fullTa = ta;
+							ta.setValue(hcb().customText ?? "");
+							ta.inputEl.rows = 10;
+							hcbFullWidth(ta.inputEl);
+							ta.onChange(async (value) => {
+								await setHcb({ customText: value });
+								refreshPreview();
+							});
+							// Just switched into full mode: focus the editable
+							// box, put the cursor at the end, and scroll it into
+							// view so the user doesn't land on the read-only
+							// "What gets sent" preview below.
+							if (this.pendingFocusObsidianFullPrompt) {
+								this.pendingFocusObsidianFullPrompt = false;
+								const inputEl = ta.inputEl;
+								window.requestAnimationFrame(() => {
+									inputEl.focus();
+									const end = inputEl.value.length;
+									inputEl.setSelectionRange(end, end);
+									inputEl.scrollIntoView({ block: "center" });
+								});
+							}
+						});
+					new Setting(body)
+						.setName(t("settings.backToOptions.name"))
+						.setDesc(t("settings.backToOptions.desc"))
+						.addButton((btn) =>
+							btn.setButtonText(t("settings.backToOptions.button")).onClick(async () => {
+								await setHcb({ mode: "options" });
+								this.rerender();
+							}),
+						);
+				}
+
+				// "What gets sent" is ALWAYS present — the constant, honest
+				// picture of the exact text the agent receives. In options mode
+				// it tracks the toggles + vault context; in full mode it mirrors
+				// the hand-edited prompt live (the full-prompt box's onChange
+				// calls refreshPreview, and liveText() reads that box in full
+				// mode). Rendering it after the mode-specific section keeps the
+				// input-above-output reading order in both modes.
+				new Setting(body)
+					.setName(t("settings.whatGetsSent.name"))
+					.setDesc(t("settings.whatGetsSent.desc"))
+					.addTextArea((ta) => {
+						previewTa = ta;
+						ta.inputEl.rows = 8;
+						ta.inputEl.readOnly = true;
+						ta.inputEl.classList.add("agent-client-hcb-readonly");
+						hcbFullWidth(ta.inputEl);
+						refreshPreview();
+					});
+				if (
+					(hcb().mode ?? "options") === "options" &&
+					hcb().blocks.vaultCollaboration
+				) {
+					new Setting(body).setDesc(t("settings.whatGetsSent.desc2"));
+				}
+
+				new Setting(body)
+					.setName(t("settings.resetToDefaults.name"))
+					.setDesc(t("settings.resetToDefaults.desc"))
+					.addButton((btn) =>
+						btn.setButtonText(t("settings.resetToDefaults.button")).onClick(async () => {
+							const doReset = async (): Promise<void> => {
+								await setHcb(
+									structuredClone(
+										DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
+									),
+								);
+								this.rerender();
+							};
+							// Confirm only when reset would discard customization
+							// (a block toggled off, full-prompt mode, or typed
+							// text). A pristine all-default state resets directly.
+							if (obsidianSystemPromptIsCustomized(hcb())) {
+								new ConfirmResetModal(this.plugin.app, () => {
+									void doReset();
+								}).open();
+							} else {
+								await doReset();
+							}
+						}),
+					);
+			},
+			{
+				open: this.hcbExpanded,
+				onToggle: (open: boolean) => {
+					this.hcbExpanded = open;
+				},
+			},
+		);
+	}
+
+	private resolveVaultRootPath(): string {
+		const adapter = this.plugin.app.vault.adapter;
+		return adapter instanceof FileSystemAdapter
+			? adapter.getBasePath()
+			: "";
+	}
+
+	/**
+	 * Self-re-render that works on both rendering paths: the declarative
+	 * renderer's update() on 1.13+ (plus redrawing any open sub-page, which
+	 * update() does not touch), display() below 1.13. Calling display()
+	 * directly on 1.13 would clobber the declarative DOM with the imperative
+	 * tab — never call it outside the <1.13 path.
+	 */
+	private rerender(): void {
+		if (requireApiVersion("1.13.0")) {
+			this.update();
+			this.activeSettingPage?.redraw();
+		} else {
+			this.display();
+		}
+	}
+
+	/**
+	 * Wrap an imperative section body as a 1.13 settings sub-page. The body
+	 * is reused wholesale (SecretComponent, auto-detect, env lists) — one
+	 * implementation shared with the pre-1.13 display() path.
+	 */
+	private settingPage(
+		getName: () => string,
+		renderBody: (el: HTMLElement) => void,
+	): SettingDefinitionPage {
+		const tab = this;
+		class BodyPage extends SettingPage {
+			display(): void {
+				this.title = getName();
+				tab.activeSettingPage = this;
+				this.redraw();
+			}
+			redraw(): void {
+				this.containerEl.empty();
+				renderBody(this.containerEl);
+			}
+			hide(): void {
+				if (tab.activeSettingPage === this) {
+					tab.activeSettingPage = null;
+				}
+				super.hide();
+			}
+		}
+		return { type: "page", name: getName(), page: () => new BodyPage() };
+	}
+
+	private importSettingDef(
+		placement: "top-matter" | "advanced",
+	): SettingGroupItem {
+		return {
+			name: t("settings.importSettingsFromAnother.name"),
+			desc: t("settings.importSettingsFromAnother.desc"),
+			visible: () =>
+				deriveImportPlacement(this.plugin.settings.hasCompletedSetup) ===
+				placement,
+			render: (setting) => {
+				setting.addButton((btn) =>
+					btn
+						.setButtonText(
+							t("settings.importSettingsFromAnother.button"),
+						)
+						.onClick(() => {
+							this.plugin.openImportSettingsModal();
+						}),
+				);
+			},
+		};
+	}
+
+	private agentsGroup(): SettingDefinitionItem {
+		return {
+			type: "group",
+			heading: t("settings.heading.agents"),
+			items: [
+				this.importSettingDef("top-matter"),
+				{
+					name: t("settings.docLink.linkText"),
+					searchable: false,
+					render: (setting) => {
+						setting.settingEl.addClass("agent-client-doc-link");
+						setting.infoEl.empty();
+						setting.infoEl.createSpan({
+							text: t("settings.docLink.prefix"),
+						});
+						setting.infoEl.createEl("a", {
+							text: t("settings.docLink.linkText"),
+							href: "https://donivatamazondotcom.github.io/obsidian-agent-console/",
+							attr: { target: "_blank" },
+						});
+						setting.infoEl.createSpan({
+							text: t("settings.docLink.suffix"),
+						});
+					},
+				},
+				{
+					name: t("settings.defaultAgent.name"),
+					desc: t("settings.defaultAgent.desc"),
+					render: (setting) => {
+						this.configureAgentSelector(setting);
+					},
+				},
+				{
+					name: t("settings.defaultWorkingDirectory.name"),
+					render: (setting) => {
+						this.configureCwdSetting(setting);
+					},
+				},
+			],
+		};
+	}
+
+	private builtInAgentsGroup(): SettingDefinitionItem {
+		const s = () => this.plugin.settings;
+		return {
+			type: "group",
+			heading: t("settings.heading.builtInAgents"),
+			items: [
+				this.settingPage(
+					() => s().claude.displayName || "Claude Code",
+					(el) => this.renderClaudeSettings(el),
+				),
+				this.settingPage(
+					() => s().codex.displayName || "Codex",
+					(el) => this.renderCodexSettings(el),
+				),
+				this.settingPage(
+					() => s().gemini.displayName || "Gemini CLI",
+					(el) => this.renderGeminiSettings(el),
+				),
+				this.settingPage(
+					() => s().kiro.displayName || "Kiro CLI",
+					(el) => this.renderKiroSettings(el),
+				),
+				this.settingPage(
+					() => s().opencode.displayName || "OpenCode",
+					(el) => this.renderOpenCodeSettings(el),
+				),
+			] as SettingGroupItem[],
+		};
+	}
+
+	private customAgentsGroup(): SettingDefinitionItem {
+		return {
+			type: "group",
+			heading: t("settings.heading.customAgents"),
+			items: [
+				{
+					name: t("settings.customAgents.emptyState"),
+					searchable: false,
+					visible: () =>
+						this.plugin.settings.customAgents.length === 0,
+				},
+				...this.plugin.settings.customAgents.map((agent, index) =>
+					this.settingPage(
+						() => agent.displayName || agent.id,
+						(el) => this.renderCustomAgent(el, agent, index),
+					),
+				),
+				{
+					name: t("settings.environmentVariables.button"),
+					searchable: false,
+					action: () => {
+						void this.addCustomAgent();
+					},
+				},
+			] as SettingGroupItem[],
+		};
+	}
+
 	getSettingDefinitions(): SettingDefinitionItem[] {
 		return [
+			this.agentsGroup(),
+			this.builtInAgentsGroup(),
+			this.customAgentsGroup(),
 			this.chatBehaviorGroup(),
 			this.appearanceGroup(),
 			this.tabsGroup(),
@@ -166,6 +642,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						},
 					},
 				},
+				this.settingPage(
+					() => t("settings.section.obsidianSystemPrompt"),
+					(el) => this.renderObsidianSystemPromptSection(el),
+				),
 			],
 		};
 	}
@@ -384,6 +864,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					desc: t("settings.debugMode.desc"),
 					control: { type: "toggle", key: "debugMode" },
 				},
+				this.importSettingDef("advanced"),
 			],
 		};
 	}
@@ -659,59 +1140,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		// Also update immediately on display to sync with current settings
 		this.updateAgentDropdown();
 
-		// Default working directory — global default new chats launch in.
-		const resolveVaultRoot = (): string => {
-			const adapter = this.plugin.app.vault.adapter;
-			return adapter instanceof FileSystemAdapter
-				? adapter.getBasePath()
-				: "";
-		};
-		const describeCwd = (value: string): string => {
-			const vaultRoot = resolveVaultRoot();
-			const base = t("settings.defaultWorkingDirectory.desc");
-			const root = vaultRoot ? ` (${vaultRoot})` : "";
-			if (!value.trim()) {
-				return `${base} ${t("settings.defaultWorkingDirectory.statusVaultRoot", { root })}`;
-			}
-			const resolved = resolveDefaultWorkingDirectory(value, vaultRoot);
-			if (resolved.fellBack) {
-				return `${base} ${t("settings.defaultWorkingDirectory.statusInvalid", { value, root })}`;
-			}
-			return `${base} ${t("settings.defaultWorkingDirectory.statusResolved", { dir: resolved.dir })}`;
-		};
-		const cwdSetting = new Setting(containerEl)
-			.setName(t("settings.defaultWorkingDirectory.name"))
-			.setDesc(describeCwd(this.plugin.settings.defaultWorkingDirectory));
-		cwdSetting.addText((text) =>
-			text
-				.setPlaceholder(t("settings.defaultWorkingDirectory.placeholder"))
-				.setValue(this.plugin.settings.defaultWorkingDirectory)
-				.onChange(async (value) => {
-					await this.plugin.settingsService.updateSettings({
-						defaultWorkingDirectory: value.trim(),
-					});
-					cwdSetting.setDesc(describeCwd(value));
-				}),
-		);
-		cwdSetting.addButton((btn) =>
-			btn
-				.setButtonText(t("settings.defaultWorkingDirectory.button"))
-				.setTooltip(t("settings.defaultWorkingDirectory.tooltip"))
-				.onClick(async () => {
-					const picked = await pickFolder({
-						title: t("settings.defaultWorkingDirectory.pickerTitle"),
-						defaultPath:
-							this.plugin.settings.defaultWorkingDirectory ||
-							resolveVaultRoot(),
-					});
-					if (picked) {
-						await this.plugin.settingsService.updateSettings({
-							defaultWorkingDirectory: picked,
-						});
-						this.display();
-					}
-				}),
-		);
+		this.configureCwdSetting(new Setting(containerEl));
 
 		new Setting(containerEl).setName(t("settings.heading.builtInAgents")).setHeading();
 
@@ -831,243 +1260,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		// Obsidian system prompt — single-artifact model. All rows render via the
-		// Setting API so labels/controls share native alignment; textareas + the
-		// preview are made full-width by a stacking class on their .setting-item.
-		const hcbVaultRoot = resolveVaultRoot();
-		const hcb = (): typeof this.plugin.settings.obsidianSystemPrompt =>
-			this.plugin.settings.obsidianSystemPrompt;
-		const setHcb = async (
-			patch: Partial<typeof this.plugin.settings.obsidianSystemPrompt>,
-		): Promise<void> => {
-			await this.plugin.settingsService.updateSettings({
-				obsidianSystemPrompt: { ...this.plugin.settings.obsidianSystemPrompt, ...patch },
-			});
-		};
-		const hcbComposed = (appendOverride?: string): string => {
-			const cur = hcb();
-			const base =
-				composeObsidianSystemPrompt(
-					{ blocks: cur.blocks, mode: "options" },
-					{
-						cwd: hcbVaultRoot,
-						vaultRoot: hcbVaultRoot,
-						replyLanguageName: getReplyLanguage()?.englishName ?? null,
-					},
-				) ?? "";
-			const add = (appendOverride ?? cur.appendText ?? "").trim();
-			return add ? base + "\n\n" + add : base;
-		};
-		const hcbFullWidth = (el: HTMLElement): void => {
-			el.closest(".setting-item")?.classList.add(
-				"agent-client-hcb-fullwidth",
-			);
-		};
-		this.renderCollapsibleSection(
-			containerEl,
-			t("settings.section.obsidianSystemPrompt"),
-			(body) => {
-				let previewTa: import("obsidian").TextAreaComponent | null = null;
-				let appendTa: import("obsidian").TextAreaComponent | null = null;
-				let fullTa: import("obsidian").TextAreaComponent | null = null;
-				const liveText = (): string => {
-					const cur = hcb();
-					if ((cur.mode ?? "options") === "full") {
-						return (fullTa?.inputEl?.value ?? cur.customText ?? "").trim();
-					}
-					return hcbComposed(appendTa?.inputEl?.value).trim();
-				};
-				const refreshPreview = (): void => {
-					if (!previewTa) return;
-					previewTa.setValue(
-						liveText() ||
-							t("settings.obsidianPrompt.previewEmpty"),
-					);
-				};
-				new Setting(body).setDesc(t("settings.sendMessageShortcut.desc2"));
-
-				if ((hcb().mode ?? "options") === "options") {
-					const blockToggle = (
-						name: string,
-						desc: string,
-						key: keyof typeof this.plugin.settings.obsidianSystemPrompt.blocks,
-					): void => {
-						new Setting(body)
-							.setName(name)
-							.setDesc(desc)
-							.addToggle((toggle) =>
-								toggle
-									.setValue(hcb().blocks[key])
-									.onChange(async (value) => {
-										await setHcb({
-											blocks: { ...hcb().blocks, [key]: value },
-										});
-										// Avoid a full re-render (which scrolls the
-										// pane and jumps the view) — just refresh
-										// the live preview. The vault-note hint's
-										// visibility depends on the vaultCollaboration
-										// block, so only that toggle re-renders.
-										if (key === "vaultCollaboration") {
-											this.display();
-										} else {
-											refreshPreview();
-										}
-									}),
-							);
-					};
-					blockToggle(
-						t("settings.obsidianPrompt.hostIdentity.name"),
-						t("settings.obsidianPrompt.hostIdentity.desc"),
-						"hostIdentity",
-					);
-					blockToggle(
-						t("settings.obsidianPrompt.rendering.name"),
-						t("settings.obsidianPrompt.rendering.desc"),
-						"rendering",
-					);
-					blockToggle(
-						t("settings.obsidianPrompt.workingDirectory.name"),
-						t("settings.obsidianPrompt.workingDirectory.desc"),
-						"workingDirectory",
-					);
-					blockToggle(
-						t("settings.obsidianPrompt.vaultCollaboration.name"),
-						t("settings.obsidianPrompt.vaultCollaboration.desc"),
-						"vaultCollaboration",
-					);
-					blockToggle(
-						t("settings.obsidianPrompt.interactiveButtons.name"),
-						t("settings.obsidianPrompt.interactiveButtons.desc"),
-						"interactiveButtons",
-					);
-					blockToggle(
-						t("settings.obsidianPrompt.respondInLanguage.name"),
-						t("settings.obsidianPrompt.respondInLanguage.desc"),
-						"respondInLanguage",
-					);
-
-					new Setting(body)
-						.setName(t("settings.yourVaultContext.name"))
-						.setDesc(t("settings.yourVaultContext.desc"))
-						.addTextArea((ta) => {
-							appendTa = ta;
-							ta.setValue(hcb().appendText ?? "");
-							ta.inputEl.rows = 4;
-							hcbFullWidth(ta.inputEl);
-							ta.onChange(async (value) => {
-								await setHcb({ appendText: value });
-								refreshPreview();
-							});
-						});
-
-					new Setting(body)
-						.setName(t("settings.editTheFullPrompt.name"))
-						.setDesc(t("settings.editTheFullPrompt.desc"))
-						.addButton((btn) =>
-							btn.setButtonText(t("settings.editTheFullPrompt.button")).onClick(async () => {
-								const seeded = hcbComposed(appendTa?.inputEl?.value);
-								this.pendingFocusObsidianFullPrompt = true;
-								await setHcb({ mode: "full", customText: seeded });
-								this.display();
-							}),
-						);
-				} else {
-					new Setting(body)
-						.setName(t("settings.fullPrompt.name"))
-						.setDesc(t("settings.fullPrompt.desc"))
-						.addTextArea((ta) => {
-							fullTa = ta;
-							ta.setValue(hcb().customText ?? "");
-							ta.inputEl.rows = 10;
-							hcbFullWidth(ta.inputEl);
-							ta.onChange(async (value) => {
-								await setHcb({ customText: value });
-								refreshPreview();
-							});
-							// Just switched into full mode: focus the editable
-							// box, put the cursor at the end, and scroll it into
-							// view so the user doesn't land on the read-only
-							// "What gets sent" preview below.
-							if (this.pendingFocusObsidianFullPrompt) {
-								this.pendingFocusObsidianFullPrompt = false;
-								const inputEl = ta.inputEl;
-								window.requestAnimationFrame(() => {
-									inputEl.focus();
-									const end = inputEl.value.length;
-									inputEl.setSelectionRange(end, end);
-									inputEl.scrollIntoView({ block: "center" });
-								});
-							}
-						});
-					new Setting(body)
-						.setName(t("settings.backToOptions.name"))
-						.setDesc(t("settings.backToOptions.desc"))
-						.addButton((btn) =>
-							btn.setButtonText(t("settings.backToOptions.button")).onClick(async () => {
-								await setHcb({ mode: "options" });
-								this.display();
-							}),
-						);
-				}
-
-				// "What gets sent" is ALWAYS present — the constant, honest
-				// picture of the exact text the agent receives. In options mode
-				// it tracks the toggles + vault context; in full mode it mirrors
-				// the hand-edited prompt live (the full-prompt box's onChange
-				// calls refreshPreview, and liveText() reads that box in full
-				// mode). Rendering it after the mode-specific section keeps the
-				// input-above-output reading order in both modes.
-				new Setting(body)
-					.setName(t("settings.whatGetsSent.name"))
-					.setDesc(t("settings.whatGetsSent.desc"))
-					.addTextArea((ta) => {
-						previewTa = ta;
-						ta.inputEl.rows = 8;
-						ta.inputEl.readOnly = true;
-						ta.inputEl.classList.add("agent-client-hcb-readonly");
-						hcbFullWidth(ta.inputEl);
-						refreshPreview();
-					});
-				if (
-					(hcb().mode ?? "options") === "options" &&
-					hcb().blocks.vaultCollaboration
-				) {
-					new Setting(body).setDesc(t("settings.whatGetsSent.desc2"));
-				}
-
-				new Setting(body)
-					.setName(t("settings.resetToDefaults.name"))
-					.setDesc(t("settings.resetToDefaults.desc"))
-					.addButton((btn) =>
-						btn.setButtonText(t("settings.resetToDefaults.button")).onClick(async () => {
-							const doReset = async (): Promise<void> => {
-								await setHcb(
-									structuredClone(
-										DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
-									),
-								);
-								this.display();
-							};
-							// Confirm only when reset would discard customization
-							// (a block toggled off, full-prompt mode, or typed
-							// text). A pristine all-default state resets directly.
-							if (obsidianSystemPromptIsCustomized(hcb())) {
-								new ConfirmResetModal(this.plugin.app, () => {
-									void doReset();
-								}).open();
-							} else {
-								await doReset();
-							}
-						}),
-					);
-			},
-			{
-				open: this.hcbExpanded,
-				onToggle: (open: boolean) => {
-					this.hcbExpanded = open;
-				},
-			},
-		);
+		this.renderObsidianSystemPromptSection(containerEl);
 
 				new Setting(containerEl)
 			.setName(t("settings.heading.appearanceNotifications"))
@@ -1282,7 +1475,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 									includeImages: value,
 								},
 							});
-							this.display();
+							this.rerender();
 						}),
 				);
 
@@ -1321,7 +1514,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 										},
 									},
 								);
-								this.display();
+								this.rerender();
 							}),
 					);
 
@@ -1457,7 +1650,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 											windowsWslMode: value,
 										},
 									);
-									this.display(); // Refresh to show/hide distribution setting
+									this.rerender(); // Refresh to show/hide distribution setting
 								}),
 						);
 
@@ -1541,9 +1734,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	}
 
 	private renderAgentSelector(containerEl: HTMLElement) {
+		this.configureAgentSelector(new Setting(containerEl));
+	}
+
+	/** Default-agent dropdown — shared by display() and the declarative
+	 * agents group. */
+	private configureAgentSelector(setting: Setting): void {
 		this.plugin.ensureDefaultAgentId();
 
-		new Setting(containerEl)
+		setting
 			.setName(t("settings.defaultAgent.name"))
 			.setDesc(t("settings.defaultAgent.desc"))
 			.addDropdown((dropdown) => {
@@ -1559,7 +1758,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettingsAndNotify(nextSettings);
 					// Re-render so the collapsible auto-expand follows the new
 					// default agent (Collapsible Agent Sections, T03).
-					this.display();
+					this.rerender();
 				});
 			});
 	}
@@ -2047,6 +2246,17 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				.setButtonText(t("settings.environmentVariables.button"))
 				.setCta()
 				.onClick(async () => {
+					await this.addCustomAgent();
+				});
+		});
+	}
+
+	/** Create a blank custom agent — shared by display() and the declarative
+	 * custom-agents group. */
+	private async addCustomAgent(): Promise<void> {
+		{
+			{
+				{
 					const newId = this.generateCustomAgentId();
 					const newDisplayName =
 						this.generateCustomAgentDisplayName();
@@ -2068,9 +2278,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					this.pendingFocusAgentId = newId;
 					this.plugin.ensureDefaultAgentId();
 					await this.flushSettings();
-					this.display();
-				});
-		});
+					this.rerender();
+				}
+			}
+		}
 	}
 
 	private renderCustomAgent(
@@ -2170,7 +2381,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					this.plugin.settings.customAgents.splice(index, 1);
 					this.plugin.ensureDefaultAgentId();
 					await this.flushSettings();
-					this.display();
+					this.rerender();
 				});
 		});
 
@@ -2365,7 +2576,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 							: await resolveCommandPath(commandName);
 						if (found) {
 							await onResolved(found);
-							this.display();
+							this.rerender();
 						} else {
 							btn.setButtonText(t("settings.environmentVariables.button7"));
 							window.setTimeout(() => {
@@ -2527,7 +2738,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					});
 					if (picked) {
 						await write(picked);
-						this.display();
+						this.rerender();
 					}
 				}),
 		);

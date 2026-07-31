@@ -229,9 +229,18 @@ vi.mock("obsidian", () => {
 		}
 	}
 	return {
+		// Pre-1.13 imperative path under test: rerender() must fall back to display().
+		requireApiVersion: () => false,
 		App,
 		Modal,
 		PluginSettingTab,
+		SettingPage: class {
+			rootEl = document.createElement("div");
+			titlebarEl = document.createElement("div");
+			containerEl = document.createElement("div");
+			title = "";
+			hide() {}
+		},
 		Setting: MockSettingImpl,
 		DropdownComponent: Comp,
 		SecretComponent,

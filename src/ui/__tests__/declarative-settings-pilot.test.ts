@@ -28,6 +28,14 @@ vi.mock("obsidian", () => {
 			this.plugin = plugin;
 		}
 		refreshDomState() {}
+		update() {}
+	}
+	class SettingPage {
+		rootEl = document.createElement("div");
+		titlebarEl = document.createElement("div");
+		containerEl = document.createElement("div");
+		title = "";
+		hide() {}
 	}
 	class Comp {
 		setName() {
@@ -67,6 +75,7 @@ vi.mock("obsidian", () => {
 	return {
 		requireApiVersion: () => true,
 		PluginSettingTab,
+		SettingPage,
 		Setting: Comp,
 		DropdownComponent: Comp,
 		SecretComponent: Comp,
@@ -102,6 +111,9 @@ function makeTab(updateSettings = vi.fn().mockResolvedValue(undefined)) {
 		saveData: vi.fn(),
 		quickPromptLibrary: { rescan },
 		updateAllAutoAllow,
+		ensureDefaultAgentId: vi.fn(),
+		openImportSettingsModal: vi.fn(),
+		app: { vault: { adapter: {} } },
 	} as unknown as AgentClientPlugin;
 	const tab = new AgentClientSettingTab(
 		{} as never,
@@ -120,7 +132,7 @@ describe("declarative settings pilot (Obsidian 1.13)", () => {
 		const { tab } = makeTab();
 		const defs = tab.getSettingDefinitions();
 
-		expect(defs).toHaveLength(7);
+		expect(defs).toHaveLength(10);
 		const group = defs.find(
 			(g) => (g as unknown as GroupDef).items?.some((i) => i.control?.key === "restoreTabsOnStartup"),
 		) as unknown as GroupDef;
@@ -244,5 +256,77 @@ describe("declarative settings pilot (Obsidian 1.13)", () => {
 			quickPromptsFolder: "prompts/",
 		});
 		expect(rescan).toHaveBeenCalledTimes(1);
+	});
+
+	// ── Slice 3 ──────────────────────────────────────────────────────────
+
+	it("T7: agent sections are pages; custom agents map to pages with add action", () => {
+		const { tab, plugin } = makeTab();
+		(plugin as unknown as {
+			settings: { customAgents: unknown[] };
+		}).settings.customAgents = [
+			{ id: "my-agent", displayName: "My Agent", command: "x", args: [], env: [] },
+		];
+		const defs = tab.getSettingDefinitions() as unknown as Array<
+			Record<string, unknown>
+		>;
+		expect(defs).toHaveLength(10);
+
+		const builtIn = defs[1] as { items: Array<{ type?: string; name: string }> };
+		const pageNames = builtIn.items.map((i) => i.name);
+		expect(builtIn.items.every((i) => i.type === "page")).toBe(true);
+		expect(pageNames).toEqual([
+			"Claude Code",
+			"Codex",
+			"Gemini CLI",
+			"Kiro CLI",
+			"OpenCode",
+		]);
+
+		const custom = defs[2] as {
+			items: Array<{ type?: string; name: string; action?: unknown; visible?: () => boolean }>;
+		};
+		const customPages = custom.items.filter((i) => i.type === "page");
+		expect(customPages.map((i) => i.name)).toEqual(["My Agent"]);
+		expect(custom.items.some((i) => typeof i.action === "function")).toBe(true);
+		const emptyState = custom.items.find((i) => i.visible && !i.type && !i.action);
+		expect(emptyState!.visible!()).toBe(false);
+	});
+
+	it("T8: rerender routes to update() on 1.13 and never calls display()", () => {
+		const { tab } = makeTab();
+		const target = tab as unknown as {
+			rerender: () => void;
+			update: () => void;
+			display: () => void;
+		};
+		const update = vi.spyOn(target, "update");
+		const display = vi.spyOn(target, "display").mockImplementation(() => {});
+		target.rerender();
+		expect(update).toHaveBeenCalledTimes(1);
+		expect(display).not.toHaveBeenCalled();
+	});
+
+	it("T9: import def placement gates on hasCompletedSetup", () => {
+		const { tab, plugin } = makeTab();
+		const p = plugin as unknown as {
+			settings: { hasCompletedSetup: boolean };
+		};
+		const defs = tab.getSettingDefinitions() as unknown as Array<{
+			items?: Array<{ name: string; visible?: () => boolean }>;
+		}>;
+		const find = (groupIdx: number) =>
+			defs[groupIdx].items!.find((i) => i.visible && i.name)!;
+		const topMatter = defs[0].items![0];
+		const advanced = defs[8].items!.at(-1)!;
+
+		p.settings.hasCompletedSetup = false;
+		expect(topMatter.visible!()).toBe(true);
+		expect(advanced.visible!()).toBe(false);
+
+		p.settings.hasCompletedSetup = true;
+		expect(topMatter.visible!()).toBe(false);
+		expect(advanced.visible!()).toBe(true);
+		void find;
 	});
 });
