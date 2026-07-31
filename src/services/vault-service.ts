@@ -39,31 +39,11 @@ export interface EditorPosition {
  * Contains essential information about a note file without
  * exposing Obsidian's internal TFile structure.
  */
-export interface NoteMetadata {
-	/** Full path to the note within the vault (e.g., "folder/note.md") */
-	path: string;
-
-	/** Filename without extension (e.g., "note") */
-	name: string;
-
-	/** File extension (usually "md") */
-	extension: string;
-
-	/** Creation timestamp (milliseconds since epoch) */
-	created: number;
-
-	/** Last modified timestamp (milliseconds since epoch) */
-	modified: number;
-
-	/** Optional aliases from frontmatter */
-	aliases?: string[];
-
-	/** Optional text selection range in the editor */
-	selection?: {
-		from: EditorPosition;
-		to: EditorPosition;
-	};
-}
+// NoteMetadata moved to types/vault.ts (utils-leaf refactor, G2) so leaf
+// modules can import it without a services edge. Re-exported here so existing
+// consumers (hooks, ui) keep their import path.
+import type { NoteMetadata } from "../types/vault";
+export type { NoteMetadata } from "../types/vault";
 
 /**
  * Interface for accessing vault notes and files.

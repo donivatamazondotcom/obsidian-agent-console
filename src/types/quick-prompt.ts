@@ -76,3 +76,17 @@ export interface QuickPromptFileInput {
 	/** Note body with the frontmatter block stripped. */
 	body: string;
 }
+
+/**
+ * The browser-true 2x2 activation axes for a quick-prompt gesture.
+ * Moved here from services/quick-prompts-logic (utils-leaf refactor, G2) so
+ * utils/quick-prompt-gesture — a leaf — can name it without a services edge.
+ */
+export interface QuickPromptGesture {
+	/** ⌘/⌃/middle-click — open in a new tab. */
+	openElsewhere: boolean;
+	/** ⇧ — when opening a new tab, switch to it (foreground). */
+	foreground: boolean;
+	/** ⌥ — insert/stage instead of send. */
+	insert: boolean;
+}

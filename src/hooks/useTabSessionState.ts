@@ -39,13 +39,10 @@ import { useCallback, useReducer } from "react";
 // Public types
 // ============================================================================
 
-export type TabSessionState =
-	| "idle"
-	| "connecting"
-	| "ready"
-	| "busy"
-	| "permission"
-	| "error";
+// TabSessionState moved to types/tab.ts (utils-leaf refactor, G2); re-exported
+// so ui consumers keep their import path. resolvers/services import types/tab.
+import type { TabSessionState } from "../types/tab";
+export type { TabSessionState } from "../types/tab";
 
 export interface UseTabSessionStateOptions {
 	/** Starting state. Defaults to `"idle"`. */

@@ -1,5 +1,5 @@
 import { Keymap } from "obsidian";
-import type { QuickPromptGesture } from "../services/quick-prompts-logic";
+import type { QuickPromptGesture } from "../types/quick-prompt";
 
 /**
  * Map a DOM event (mouse click, middle-click, or keyboard activation) onto the

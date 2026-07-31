@@ -26,7 +26,7 @@ import {
 	type SendAffordanceInput,
 	type SendAffordanceReason,
 } from "../../resolvers/send-affordance";
-import type { TabSessionState } from "../../hooks/useTabSessionState";
+import type { TabSessionState } from "../../types/tab";
 
 const ALL_STATES: TabSessionState[] = [
 	"idle",

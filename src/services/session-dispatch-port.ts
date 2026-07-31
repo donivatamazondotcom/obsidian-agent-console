@@ -22,7 +22,7 @@
  *
  * Pure over injected thunks — no React, no Obsidian imports.
  */
-import type { TabSessionState } from "../hooks/useTabSessionState";
+import type { TabSessionState } from "../types/tab";
 import { t } from "../i18n";
 
 export interface SessionDispatchPortDeps {

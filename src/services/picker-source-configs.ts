@@ -13,7 +13,7 @@
  *
  * Spec: [[Unified Picker Control]] (Tier 3 — one picker state machine).
  */
-import type { NoteMetadata } from "../services/vault-service";
+import type { NoteMetadata } from "../types/vault";
 import type { SlashCommand } from "../types/session";
 import type { QuickPrompt } from "../types/quick-prompt";
 import type { PickerSource, PickerTriggerContext } from "../types/picker";
@@ -21,18 +21,18 @@ import {
 	detectMention,
 	replaceMention,
 	type MentionContext,
-} from "./mention-parser";
+} from "../utils/mention-parser";
 import {
 	detectSlashTrigger,
 	filterSlashCommands,
 	type SlashTriggerContext,
-} from "./slash-command-logic";
+} from "../utils/slash-command-logic";
 import {
 	parseQuickPromptTrigger,
 	stripQuickPromptTrigger,
 	rankLauncherPrompts,
 	buildCreatePromptRow,
-} from "../services/quick-prompts-logic";
+} from "./quick-prompts-logic";
 import {
 	noteToPickerItem,
 	slashCommandToPickerItem,
@@ -40,7 +40,7 @@ import {
 	mentionInstructions,
 	slashInstructions,
 	quickPromptInstructions,
-} from "./picker-sources";
+} from "../utils/picker-sources";
 
 // ── Mention `@` ───────────────────────────────────────────────────────────
 

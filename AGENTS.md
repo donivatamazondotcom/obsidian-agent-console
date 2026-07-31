@@ -29,7 +29,8 @@ src/
 │   ├── session.ts               # ChatSession, SessionUpdate (12-type union), SessionInfo, AgentCapabilities (normalized) + RawAgentCapabilities
 │   ├── agent.ts                 # AgentConfig, agent settings (Claude/Codex/Gemini/Kiro/Custom)
 │   ├── errors.ts                # AcpError, ProcessError, ErrorInfo
-│   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref)
+│   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref) + TabSessionState lifecycle union (moved from hooks/ so resolvers/services need no hooks edge)
+│   ├── vault.ts                 # NoteMetadata — vault file metadata (moved from services/vault-service so leaf modules need no services edge; re-exported there)
 │   ├── title-strategy.ts        # TitleStrategy union + dropdown options (F03 session-title setting)
 │   ├── quick-prompt.ts          # QuickPrompt + QuickPromptFileInput (Quick Prompts feature)
 │   ├── mcp-auth.ts              # MCP OAuth domain events (McpAuthEvent, PendingMcpAuth) — connection-scoped, dedicated channel
@@ -78,6 +79,7 @@ src/
 │   ├── message-queue-logic.ts   # #82 queue-of-one pure decisions: queue/flush/Enter-action/broadcast-skip
 │   ├── queue-orchestration-reducer.ts # #82 dispatch-owning single-slot reducer: (state,event)->{state,effects}; flush is raw-by-construction (closes Q4)
 │   ├── quick-prompts-logic.ts   # Quick Prompts pure logic: parse/label/slug-id/folder-scope/{{selection}}-resolve + the browser-true 2×2 action decision (where × commitment: fire/queue/insert/disabled/new-tab + foreground) + tag matching + launcher helpers (capRestingChips / parseQuickPromptTrigger / stripQuickPromptTrigger / rankLauncherPrompts)
+│   ├── picker-source-configs.ts # The three PickerSource configs (mention/slash/quick-prompt) that drive usePicker — all variance as pure, dependency-injected config (moved from utils/: it wires domain services, so it lives in the services layer; utils is a shared leaf)
 │   ├── quick-prompts.ts         # QuickPromptLibrary (scan/watch/reconcile) + VaultQuickPromptSource adapter
 │   ├── update-checker.ts        # Agent/plugin version checking
 │   ├── net.ts                   # The ONLY module permitted outbound network I/O (fixed ALLOWED_HOSTS; egress tripwire enforces it)
@@ -195,7 +197,6 @@ src/
 │   ├── mention-parser.ts        # @[[note]] detection/extraction
 │   ├── picker-sources.ts        # Pure projections of mentions / slash / quick-prompts into the unified PickerItem model + per-source footer instructions (Unified Picker Control)
 │   ├── slash-command-logic.ts   # Pure / trigger detection (start-of-line only) + command filtering (Unified Picker Control Tier 3)
-│   ├── picker-source-configs.ts # The three PickerSource configs (mention/slash/quick-prompt) that drive usePicker — all variance as pure, dependency-injected config (Unified Picker Control Tier 3)
 │   ├── link-leaf.ts             # Resolve click modifiers → Obsidian leaf/pane (Keymap.isModEvent) for internal links
 │   ├── quick-prompt-gesture.ts  # Map a click/keypress → the Quick Prompts 2×2 gesture (openElsewhere/foreground/insert) via Keymap.isModEvent + shift/alt
 │   ├── link-extract.ts          # Derive per-tab shared-link set from messages (Shared Links Bubble) + new/old classification

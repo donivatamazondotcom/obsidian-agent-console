@@ -1,6 +1,5 @@
 import { Scope } from "obsidian";
 import type { App } from "obsidian";
-import type { IChatViewHost } from "../ui/view-host";
 import { resolveChatPushScopeParent } from "./chat-scope-parent";
 
 /**
@@ -29,9 +28,20 @@ import { resolveChatPushScopeParent } from "./chat-scope-parent";
  *
  * @returns cleanup that pops any live scope and unsubscribes the listeners.
  */
+/**
+ * The one slice of the chat view this util needs: its focus-gated keymap
+ * scope and its focus query. Structural on purpose — utils is a shared leaf and must not import
+ * the ui layer (G2); `IChatViewHost` satisfies this shape at every call site.
+ */
+export interface ScopeHost {
+	readonly scope: Scope | null;
+	/** Whether the owning panel currently holds keyboard focus. */
+	hasFocus(): boolean;
+}
+
 export function pushScopeWhileFocused(
 	app: App,
-	viewHost: IChatViewHost,
+	viewHost: ScopeHost,
 	register: (scope: Scope) => void,
 ): () => void {
 	const keymap = app.keymap;

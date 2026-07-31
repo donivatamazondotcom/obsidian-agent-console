@@ -9,7 +9,7 @@
  *
  * Spec: [[Unified Picker Control]].
  */
-import type { NoteMetadata } from "../services/vault-service";
+import type { NoteMetadata } from "../types/vault";
 import type { SlashCommand } from "../types/session";
 import type { QuickPrompt } from "../types/quick-prompt";
 import type { PickerItem, PickerInstruction } from "../types/picker";

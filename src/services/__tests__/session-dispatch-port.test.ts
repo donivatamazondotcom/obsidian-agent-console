@@ -13,7 +13,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createSessionDispatchPort } from "../session-dispatch-port";
 import type { SessionDispatchPortDeps } from "../session-dispatch-port";
-import type { TabSessionState } from "../../hooks/useTabSessionState";
+import type { TabSessionState } from "../../types/tab";
 
 function makeDeps(
 	overrides: Partial<{

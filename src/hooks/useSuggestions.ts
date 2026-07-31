@@ -13,7 +13,7 @@ import {
 	makeMentionSource,
 	makeSlashSource,
 	makeQuickPromptSource,
-} from "../utils/picker-source-configs";
+} from "../services/picker-source-configs";
 
 // ============================================================================
 // Types
