@@ -683,9 +683,13 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			this.appearanceGroup(),
 			this.tabsGroup(),
 			this.permissionsGroup(),
-			this.exportGroup(),
-			this.advancedGroup(),
-			this.wslGroup(),
+			{
+				// Heading-less wrapper so the page rows share the scoped hover
+				// style with the agent groups.
+				type: "group",
+				cls: "agent-client-settings-group",
+				items: [this.exportPage(), this.advancedPage()],
+			},
 		];
 	}
 
@@ -854,11 +858,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		};
 	}
 
-	private exportGroup(): SettingDefinitionItem {
+	private exportPage(): SettingDefinitionPage {
 		const exp = () => this.plugin.settings.exportSettings;
 		return {
-			type: "group",
-			heading: t("settings.section.export"),
+			type: "page",
+			name: t("settings.section.export"),
 			items: [
 				{
 					name: t("settings.exportFolder.name"),
@@ -948,10 +952,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		};
 	}
 
-	private advancedGroup(): SettingDefinitionItem {
+	private advancedPage(): SettingDefinitionPage {
 		return {
-			type: "group",
-			heading: t("settings.section.advanced"),
+			type: "page",
+			name: t("settings.section.advanced"),
 			items: [
 				{
 					name: t("settings.nodeJsPath.name"),
@@ -975,6 +979,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						});
 					},
 				},
+				// WSL lives inside Advanced (matches the pre-1.13 layout).
+				this.wslGroup(),
 				{
 					name: t("settings.debugMode.name"),
 					desc: t("settings.debugMode.desc"),

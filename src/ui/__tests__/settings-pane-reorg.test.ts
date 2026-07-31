@@ -754,8 +754,13 @@ describe("Declarative ⇔ imperative drift guard", () => {
 					if (!isVisible(d)) continue;
 					if (d.type === "page") {
 						if (d.name) pageNames.add(d.name);
-						const page = d.page!();
-						page.display();
+						if (d.items) {
+							// Declarative items-based page (Export/Advanced).
+							walk(d.items);
+						} else {
+							const page = d.page!();
+							page.display();
+						}
 						continue;
 					}
 					if (d.type === "group" || d.type === "list") {
@@ -782,8 +787,6 @@ describe("Declarative ⇔ imperative drift guard", () => {
 		const declarativeOnlyAllow = new Set([
 			t("settings.docLink.linkText"),
 			t("settings.environmentVariables.button"),
-			t("settings.section.export"),
-			t("settings.section.advanced"),
 		]);
 
 		const imperativeOnly = [...imperative].filter(
