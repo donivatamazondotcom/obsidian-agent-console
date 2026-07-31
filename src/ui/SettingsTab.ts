@@ -160,7 +160,16 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		);
 	}
 
-	private renderObsidianSystemPromptSection(containerEl: HTMLElement): void {
+	/**
+	 * @param wrap true (default): render as a collapsible accordion — the
+	 * pre-1.13 display() layout. false: render the body directly — used by
+	 * the 1.13 sub-page, where the page title already names the section and
+	 * an inner collapsed accordion would be redundant chrome.
+	 */
+	private renderObsidianSystemPromptSection(
+		containerEl: HTMLElement,
+		wrap = true,
+	): void {
 		// Obsidian system prompt — single-artifact model. All rows render via the
 		// Setting API so labels/controls share native alignment; textareas + the
 		// preview are made full-width by a stacking class on their .setting-item.
@@ -193,10 +202,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				"agent-client-hcb-fullwidth",
 			);
 		};
-		this.renderCollapsibleSection(
-			containerEl,
-			t("settings.section.obsidianSystemPrompt"),
-			(body) => {
+		const renderBody = (body: HTMLElement): void => {
 				let previewTa: import("obsidian").TextAreaComponent | null = null;
 				let appendTa: import("obsidian").TextAreaComponent | null = null;
 				let fullTa: import("obsidian").TextAreaComponent | null = null;
@@ -390,14 +396,22 @@ export class AgentClientSettingTab extends PluginSettingTab {
 							}
 						}),
 					);
-			},
-			{
-				open: this.hcbExpanded,
-				onToggle: (open: boolean) => {
-					this.hcbExpanded = open;
+		};
+		if (wrap) {
+			this.renderCollapsibleSection(
+				containerEl,
+				t("settings.section.obsidianSystemPrompt"),
+				renderBody,
+				{
+					open: this.hcbExpanded,
+					onToggle: (open: boolean) => {
+						this.hcbExpanded = open;
+					},
 				},
-			},
-		);
+			);
+		} else {
+			renderBody(containerEl);
+		}
 	}
 
 	private resolveVaultRootPath(): string {
@@ -733,7 +747,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				},
 				this.settingPage(
 					() => t("settings.section.obsidianSystemPrompt"),
-					(el) => this.renderObsidianSystemPromptSection(el),
+					// Unwrapped: the page title already names the section.
+					(el) => this.renderObsidianSystemPromptSection(el, false),
 				),
 			],
 		};
