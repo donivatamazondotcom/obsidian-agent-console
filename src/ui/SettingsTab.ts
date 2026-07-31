@@ -446,7 +446,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			}
 			this.pendingHideUpdate = window.setTimeout(() => {
 				this.pendingHideUpdate = null;
-				this.update();
+				// Page hide callbacks only fire under the 1.13+ declarative
+				// renderer; the guard satisfies the minAppVersion lint.
+				if (requireApiVersion("1.13.0")) {
+					this.update();
+				}
 			}, 300);
 		};
 		const makePage = (): SettingPage => {
