@@ -5,11 +5,12 @@
  * of which sub-gates exist. Runs each sub-gate, forwarding any args (e.g.
  * `--update` to ratchet baselines), and exits with the worst sub-gate code.
  *
- * Phase 1: warn-only — sub-gates exit 0 on regression. When a sub-gate flips
- * to blocking, its non-zero exit propagates here and fails the run. The
- * bot-parity sub-gate is blocking from the outset: it targets zero new findings
- * (the v2.2.0 tools/** findings were fixed, not baselined), so any delta is
- * actionable rather than noise to be calibrated.
+ * Both sub-gates are blocking; a non-zero exit propagates here and fails the
+ * run. bot-parity has been blocking from the outset (zero new findings). perf
+ * flipped to blocking 2026-07-31 after calibration (see run-perf-gate.mjs) —
+ * note the perf diff is meaningful only on the machine that seeded the
+ * committed baseline, so `npm run gate` is a release-time/maintainer command,
+ * not a CI one.
  */
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
