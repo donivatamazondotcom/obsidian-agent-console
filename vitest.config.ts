@@ -26,6 +26,14 @@ export default defineConfig({
 	},
 	test: {
 		environment: "jsdom",
+		// Benchmarks: explicit src-only include. Without it vitest's default
+		// bench glob walks .trees/** git worktrees, and because the perf gate
+		// keys results by benchmark NAME, a worktree's copy of a benchmark
+		// silently OVERWRITES the main checkout's measurement — the gate can
+		// end up diffing another branch's code against the baseline.
+		benchmark: {
+			include: ["src/**/__benchmarks__/**/*.bench.ts"],
+		},
 		globals: false,
 		include: [
 			"src/**/__tests__/**/*.test.{ts,tsx}",

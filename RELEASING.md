@@ -9,8 +9,11 @@ The release pipeline is automated via [`.github/workflows/release.yaml`](./.gith
 git checkout main
 git pull --ff-only
 
-# 1b. Perf gate (Gate B-v1, warn-only): surface any perf regression vs the
-#     committed baseline before releasing. Phase 1 warns, does not block.
+# 1b. Perf gate (Gate B-v1, BLOCKING since 2026-07-31): fails on any regression
+#     >15% vs the committed baseline (threshold calibrated at ~2x the measured
+#     same-machine noise). If a regression is an intended tradeoff, ratchet with
+#     `npm run gate -- --update` and commit the baseline. Only meaningful on the
+#     machine that seeded the baseline (the maintainer's).
 npm run gate
 
 # 1c. Screenshot gate (blocking): the `preversion` hook runs
