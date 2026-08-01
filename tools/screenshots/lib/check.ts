@@ -13,6 +13,10 @@
  *   nor a docs page — e.g. a removed feature's leftover asset);
  * - no broken docs references (a docs page links an image that isn't on disk);
  * - animation gifs match their manifest dimensions exactly (gifs carry no drop
+ * - no docs-embed gaps: an entry's committed image must actually be shown on
+ *   the page its `docPage` claims (and any entry without a `docPage` must be
+ *   referenced somewhere) — the class the orphan rule above cannot see, since
+ *   that rule ignores any image owning a manifest entry (see findDocEmbedGaps);
  *   shadow and never resize, so this is deterministic — a chrome-framed GIF adds
  *   the synthetic-bar height, folded into the expected height below — unlike the
  *   webp shots, whose committed size depends on the shadow margin / cropSelector
@@ -146,4 +150,116 @@ export function formatProblems(
 		);
 	}
 	return problems;
+}
+
+/**
+ * A docs-embed gap: a manifest entry whose committed image is not actually
+ * shown on the docs page it claims (or on any page at all).
+ *
+ * Why this is a separate check from {@link checkConsistency}: that function's
+ * `orphans` rule is `!derived.has(p) && !refs.has(p)` — an AND. Any image with
+ * a manifest entry satisfies `derived.has(p)`, so it is excluded from orphan
+ * detection REGARDLESS of whether a docs page references it. The class "entry
+ * exists + image committed + embedded nowhere" is therefore structurally
+ * invisible to it, and `docPage` was never read at all. Both gaps shipped
+ * undetected: `interactive-buttons` had a committed image and a real docs page
+ * that embedded nothing, while `mcp-oauth-signin-notice` pointed at
+ * "usage/mcp-tools" (no `docs/` prefix, no `.md`) — CI stayed green for both.
+ */
+export interface DocEmbedGap {
+	/** Manifest entry name. */
+	name: string;
+	kind:
+		| /** `docPage` is declared but no such file exists. */
+		"missing-doc-page"
+		| /** `docPage` exists but does not reference the entry's image. */
+		"not-embedded-in-doc-page"
+		| /** No `docPage`, and no docs page or README references the image. */
+		"unreferenced-image";
+	/** Human-readable specifics for the failure line. */
+	detail: string;
+}
+
+export interface DocEmbedInput {
+	entries: ManifestEntry[];
+	/** Repo-relative POSIX paths of docs pages that exist on disk. */
+	docPages: string[];
+	/** Repo-relative page path -> image basenames that page references. */
+	refsByPage: Record<string, string[]>;
+	/** Committed image basenames in docs/public/images (webp + gif). */
+	presentImages: string[];
+}
+
+/**
+ * Find entries whose image is committed but not actually embedded where the
+ * manifest says (or anywhere).
+ *
+ * At most ONE gap per entry, most specific first, so the output stays
+ * actionable: an entry declaring a `docPage` is judged against that page only
+ * (its non-embedding there is the actionable fact, and `unreferenced-image`
+ * would be redundant); an entry with no `docPage` is judged against every page.
+ *
+ * `pending` entries are skipped — their image is not committed yet by design,
+ * which is {@link pendingEntryNames}' concern, not this one.
+ */
+export function findDocEmbedGaps(input: DocEmbedInput): DocEmbedGap[] {
+	const present = new Set(input.presentImages);
+	const pages = new Set(input.docPages);
+	const gaps: DocEmbedGap[] = [];
+
+	// Every image referenced by any page, for the no-docPage case.
+	const allRefs = new Set<string>();
+	for (const refs of Object.values(input.refsByPage)) {
+		for (const r of refs) allRefs.add(r);
+	}
+
+	for (const entry of input.entries) {
+		if (entry.pending) continue;
+		const image = derivedImageName(entry);
+		// An uncommitted image is `missing`, reported by checkConsistency.
+		if (!present.has(image)) continue;
+
+		const declared = entry.docPage;
+		if (declared !== undefined) {
+			if (!pages.has(declared)) {
+				gaps.push({
+					name: entry.name,
+					kind: "missing-doc-page",
+					detail: `docPage "${declared}" does not exist (expected a repo-relative path like "docs/usage/<page>.md")`,
+				});
+				continue;
+			}
+			if (!(input.refsByPage[declared] ?? []).includes(image)) {
+				const elsewhere = Object.entries(input.refsByPage)
+					.filter(([, refs]) => refs.includes(image))
+					.map(([page]) => page)
+					.sort();
+				const where =
+					elsewhere.length > 0
+						? `; it is embedded in ${elsewhere.join(", ")} — fix docPage or add the embed`
+						: "";
+				gaps.push({
+					name: entry.name,
+					kind: "not-embedded-in-doc-page",
+					detail: `docPage "${declared}" does not embed ${image}${where}`,
+				});
+			}
+			continue;
+		}
+
+		if (!allRefs.has(image)) {
+			gaps.push({
+				name: entry.name,
+				kind: "unreferenced-image",
+				detail: `${image} is committed but no docs page or README references it — embed it and set docPage, or remove the entry`,
+			});
+		}
+	}
+
+	return gaps.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Flatten docs-embed gaps into human-readable problem lines (empty = clean). */
+export function formatDocEmbedGaps(gaps: DocEmbedGap[]): string[] {
+	return gaps.map((g) => `docs-embed gap [${g.kind}] ${g.name}: ${g.detail}`);
 }

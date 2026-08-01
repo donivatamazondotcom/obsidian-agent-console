@@ -602,6 +602,27 @@ export interface ManifestEntry {
 	followUp?: string;
 
 	/**
+	 * Repo-relative path of the docs page that must EMBED this entry's image
+	 * (e.g. "docs/usage/interactive-buttons.md"). Declaring it opts the entry
+	 * into the docs-embed gate (`findDocEmbedGaps`), which fails the
+	 * consistency check when the page is missing on disk or does not reference
+	 * `<name>.<ext>`. Omit for entries whose image intentionally lives outside
+	 * a usage page (the README hero, `docs/index.md`, `docs/usage/index.md`) —
+	 * those are still covered by the unreferenced-image rule.
+	 *
+	 * Must be a repo-relative path INCLUDING the `docs/` prefix and the `.md`
+	 * extension; a bare "usage/mcp-tools" does not resolve and is reported.
+	 */
+	docPage?: string;
+
+	/**
+	 * Free-text note on how this shot has to be driven (agent turn required,
+	 * awaited selector, idle/frontmost constraints). Documentation only — the
+	 * orchestrator does not read it.
+	 */
+	captureNote?: string;
+
+	/**
 	 * Presentation framing (Decision 11). `true` mounts the shot in a
 	 * placement-appropriate frame (hero → synthetic macOS window + soft shadow +
 	 * gradient; else → chrome-less card); an object overrides specific fields.

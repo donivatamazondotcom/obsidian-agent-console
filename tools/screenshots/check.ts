@@ -19,7 +19,9 @@ import { parseManifest, validateManifest } from "./lib/manifest";
 import {
 	checkConsistency,
 	findGifDimMismatches,
+	findDocEmbedGaps,
 	formatProblems,
+	formatDocEmbedGaps,
 	derivedImageName,
 	pendingEntryNames,
 } from "./lib/check";
@@ -39,8 +41,19 @@ function collectMarkdown(dir: string, acc: string[] = []): string[] {
 	return acc;
 }
 
-/** Image basenames referenced via `images/<name>.<ext>` across docs + README. */
-function collectDocImageRefs(repoRoot: string): string[] {
+/**
+ * Image references via `images/<name>.<ext>` across docs + README.
+ *
+ * Returns both the flat set (for {@link checkConsistency}) and the per-page
+ * breakdown keyed by repo-relative POSIX path plus the list of pages scanned
+ * (for {@link findDocEmbedGaps}, which must know WHICH page embeds what to
+ * judge an entry's `docPage`).
+ */
+function collectDocImageRefs(repoRoot: string): {
+	refs: string[];
+	refsByPage: Record<string, string[]>;
+	docPages: string[];
+} {
 	const files = collectMarkdown(path.join(repoRoot, "docs"));
 	const readme = path.join(repoRoot, "README.md");
 	try {
@@ -50,11 +63,22 @@ function collectDocImageRefs(repoRoot: string): string[] {
 		/* no README */
 	}
 	const refs = new Set<string>();
+	const refsByPage: Record<string, string[]> = {};
+	const docPages: string[] = [];
 	for (const f of files) {
 		const text = readFileSync(f, "utf-8");
-		for (const m of text.matchAll(IMAGE_REF)) refs.add(m[1]);
+		// Manifest docPage values are repo-relative POSIX paths; normalize so
+		// the comparison holds on Windows too.
+		const rel = path.relative(repoRoot, f).split(path.sep).join("/");
+		docPages.push(rel);
+		const perPage = new Set<string>();
+		for (const m of text.matchAll(IMAGE_REF)) {
+			refs.add(m[1]);
+			perPage.add(m[1]);
+		}
+		refsByPage[rel] = [...perPage];
 	}
-	return [...refs];
+	return { refs: [...refs], refsByPage, docPages };
 }
 
 async function main() {
@@ -68,12 +92,23 @@ async function main() {
 	validateManifest(manifest, fixtureRoot);
 
 	const presentImages = readdirSync(imagesDir).filter((f) => IMAGE_EXT.test(f));
-	const docRefs = collectDocImageRefs(repoRoot);
+	const { refs: docRefs, refsByPage, docPages } =
+		collectDocImageRefs(repoRoot);
 
 	const report = checkConsistency({
 		entries: manifest.entries,
 		presentImages,
 		docRefs,
+	});
+
+	// Docs-embed gate: a committed image must actually be SHOWN on the page its
+	// docPage claims. checkConsistency cannot see this class (its orphan rule
+	// skips any image owning a manifest entry), so it is checked separately.
+	const docEmbedGaps = findDocEmbedGaps({
+		entries: manifest.entries,
+		docPages,
+		refsByPage,
+		presentImages,
 	});
 
 	// Animation gifs: read actual dimensions for an exact match against manifest.
@@ -87,7 +122,10 @@ async function main() {
 	}
 	const gifMismatches = findGifDimMismatches(manifest.entries, dims);
 
-	const problems = formatProblems(report, gifMismatches);
+	const problems = [
+		...formatProblems(report, gifMismatches),
+		...formatDocEmbedGaps(docEmbedGaps),
+	];
 	if (problems.length > 0) {
 		logError("❌ Screenshot consistency check failed:");
 		for (const p of problems) logError(`  - ${p}`);

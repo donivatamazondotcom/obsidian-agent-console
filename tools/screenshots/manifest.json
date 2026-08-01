@@ -1008,7 +1008,7 @@
 			"mustShow": ".menu",
 			"caption": "Jump back to links shared in the chat",
 			"altText": "Agent Console shared-links bubble with an accent count badge and its open dropdown grouping links into New this session and Earlier",
-			"docPage": "docs/usage/tabbed-sessions.md",
+			"docPage": "docs/usage/shared-links.md",
 			"captureNote": "v1.3.0 PR #103 (focus ring PR #116). Confirm the shared-links bubble selector and final dims at capture; drive a session that has shared at least one link so the bubble renders.",
 			"cropSelectors": [
 				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-view-header",
@@ -1140,7 +1140,7 @@
 			"mustShow": ".vertical-tab-content",
 			"caption": "Choose where chats run",
 			"altText": "Agent Console settings showing the Default working directory option that sets where new chats start",
-			"docPage": "docs/usage/settings.md",
+			"docPage": "docs/usage/working-directory.md",
 			"captureNote": "v1.3.0 PR #100/#154. scrollToSettingText centers the Default working directory setting-item."
 		},
 		{
@@ -1391,7 +1391,7 @@
 			"purpose": "Shows the MCP server sign-in prompt: server name, target host, Sign in / Copy link buttons, queue position.",
 			"mustShow": ".agent-client-mcp-auth-notice",
 			"altText": "Corner prompt saying an MCP server needs sign-in, showing the sign-in page's address with Sign in and Copy link buttons",
-			"docPage": "usage/mcp-tools",
+			"docPage": "docs/usage/mcp-tools.md",
 			"width": 648,
 			"height": 397,
 			"crop": {
@@ -1427,6 +1427,7 @@
 			},
 			"placement": "reference",
 			"altText": "Agent Console Language dropdown open under Appearance & notifications, showing Auto, English, and locale names in their own script",
+			"docPage": "docs/usage/language.md",
 			"caption": "Pick a language under Appearance & notifications \u2014 Auto follows Obsidian's language."
 		},
 		{

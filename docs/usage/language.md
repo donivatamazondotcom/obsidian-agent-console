@@ -31,6 +31,10 @@ You can run the plugin in a different language than Obsidian:
 2. Scroll to the **Appearance & notifications** section
 3. Set **Language** to the one you want
 
+<p align="center">
+  <img src="/images/language-setting.webp" alt="Agent Console Language dropdown open under Appearance &amp; notifications, showing Auto, English, and locale names in their own script" />
+</p>
+
 The change applies the next time Obsidian reloads.
 
 ## Found a wrong or awkward translation?

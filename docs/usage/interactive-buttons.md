@@ -2,6 +2,10 @@
 
 When an agent offers you a small set of options — "minimal fix or full refactor?", "which file first?" — it can show them as **buttons right in the reply**. Click one and your pick is sent back as a normal message. No retyping the option you want.
 
+<p align="center">
+  <img src="/images/interactive-buttons.webp" alt="An agent reply in Agent Console showing two choice buttons rendered natively below the explanation text" />
+</p>
+
 ## How it works
 
 Agents learn this ability from the [Obsidian system prompt](/usage/obsidian-context): a default-on item teaches them to offer choices as buttons when it genuinely helps. The agent's reply still explains the options in words — the buttons are a faster way to answer, not a replacement for reading.

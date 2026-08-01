@@ -8,7 +8,9 @@ import {
 	derivedImageName,
 	checkConsistency,
 	findGifDimMismatches,
+	findDocEmbedGaps,
 	formatProblems,
+	formatDocEmbedGaps,
 	pendingEntryNames,
 } from "../check";
 import type { ManifestEntry } from "../manifest";
@@ -202,5 +204,198 @@ describe("formatProblems", () => {
 		expect(
 			p.some((x) => x.includes("g.gif") && x.includes("3x4") && x.includes("1x2")),
 		).toBe(true);
+	});
+});
+
+describe("findDocEmbedGaps", () => {
+	/** An entry whose image is committed and embedded on its declared docPage. */
+	const healthy = {
+		...entry("mid-stream-steering"),
+		docPage: "docs/usage/queue-and-steering.md",
+	} as ManifestEntry;
+
+	it("passes when the declared docPage embeds the entry's image", () => {
+		expect(
+			findDocEmbedGaps({
+				entries: [healthy],
+				docPages: ["docs/usage/queue-and-steering.md"],
+				refsByPage: {
+					"docs/usage/queue-and-steering.md": ["mid-stream-steering.webp"],
+				},
+				presentImages: ["mid-stream-steering.webp"],
+			}),
+		).toEqual([]);
+	});
+
+	// The regression this guard exists for: the page is real, the image is
+	// committed, and the page embeds NOTHING. checkConsistency reports clean.
+	it("flags a committed image whose real docPage embeds no image at all", () => {
+		const e = {
+			...entry("interactive-buttons"),
+			docPage: "docs/usage/interactive-buttons.md",
+		} as ManifestEntry;
+		const gaps = findDocEmbedGaps({
+			entries: [e],
+			docPages: ["docs/usage/interactive-buttons.md"],
+			refsByPage: { "docs/usage/interactive-buttons.md": [] },
+			presentImages: ["interactive-buttons.webp"],
+		});
+		expect(gaps).toHaveLength(1);
+		expect(gaps[0].kind).toBe("not-embedded-in-doc-page");
+		expect(gaps[0].name).toBe("interactive-buttons");
+
+		// Pin the blind spot: the same input is CLEAN per checkConsistency,
+		// because its orphan rule skips any image owning a manifest entry.
+		expect(
+			checkConsistency({
+				entries: [e],
+				presentImages: ["interactive-buttons.webp"],
+				docRefs: [],
+			}),
+		).toEqual({ missing: [], orphans: [], brokenDocRefs: [] });
+	});
+
+	it("names the page that DOES embed the image when docPage is wrong", () => {
+		const e = {
+			...entry("shared-links-bubble"),
+			docPage: "docs/usage/tabbed-sessions.md",
+		} as ManifestEntry;
+		const gaps = findDocEmbedGaps({
+			entries: [e],
+			docPages: [
+				"docs/usage/tabbed-sessions.md",
+				"docs/usage/shared-links.md",
+			],
+			refsByPage: {
+				"docs/usage/tabbed-sessions.md": ["parallel-sessions.gif"],
+				"docs/usage/shared-links.md": ["shared-links-bubble.webp"],
+			},
+			presentImages: ["shared-links-bubble.webp", "parallel-sessions.gif"],
+		});
+		expect(gaps).toHaveLength(1);
+		expect(gaps[0].kind).toBe("not-embedded-in-doc-page");
+		expect(gaps[0].detail).toContain("docs/usage/shared-links.md");
+	});
+
+	it("flags a docPage that does not resolve (missing docs/ prefix or .md)", () => {
+		const gaps = findDocEmbedGaps({
+			entries: [
+				{
+					...entry("mcp-oauth-signin-notice"),
+					docPage: "usage/mcp-tools",
+				} as ManifestEntry,
+			],
+			docPages: ["docs/usage/mcp-tools.md"],
+			refsByPage: { "docs/usage/mcp-tools.md": [] },
+			presentImages: ["mcp-oauth-signin-notice.webp"],
+		});
+		expect(gaps).toHaveLength(1);
+		expect(gaps[0].kind).toBe("missing-doc-page");
+	});
+
+	it("flags a committed image referenced by no page when docPage is absent", () => {
+		const gaps = findDocEmbedGaps({
+			entries: [entry("language-setting")],
+			docPages: ["docs/usage/language.md"],
+			refsByPage: { "docs/usage/language.md": [] },
+			presentImages: ["language-setting.webp"],
+		});
+		expect(gaps).toHaveLength(1);
+		expect(gaps[0].kind).toBe("unreferenced-image");
+	});
+
+	it("allows a no-docPage entry embedded on any page (README hero, index)", () => {
+		expect(
+			findDocEmbedGaps({
+				entries: [entry("multi-session")],
+				docPages: ["README.md", "docs/index.md"],
+				refsByPage: {
+					"README.md": ["multi-session.webp"],
+					"docs/index.md": ["multi-session-animated.gif"],
+				},
+				presentImages: ["multi-session.webp"],
+			}),
+		).toEqual([]);
+	});
+
+	it("resolves an animation entry against its .gif, not .webp", () => {
+		expect(
+			findDocEmbedGaps({
+				entries: [
+					{
+						...entry("parallel-sessions", true),
+						docPage: "docs/usage/tabbed-sessions.md",
+					} as ManifestEntry,
+				],
+				docPages: ["docs/usage/tabbed-sessions.md"],
+				refsByPage: {
+					"docs/usage/tabbed-sessions.md": ["parallel-sessions.gif"],
+				},
+				presentImages: ["parallel-sessions.gif"],
+			}),
+		).toEqual([]);
+	});
+
+	it("skips pending entries (their image is uncommitted by design)", () => {
+		expect(
+			findDocEmbedGaps({
+				entries: [
+					{
+						...entry("future-shot"),
+						pending: true,
+						docPage: "docs/usage/future.md",
+					} as ManifestEntry,
+				],
+				docPages: [],
+				refsByPage: {},
+				presentImages: [],
+			}),
+		).toEqual([]);
+	});
+
+	it("skips an entry whose image is not committed (checkConsistency's job)", () => {
+		expect(
+			findDocEmbedGaps({
+				entries: [
+					{
+						...entry("uncaptured"),
+						docPage: "docs/usage/uncaptured.md",
+					} as ManifestEntry,
+				],
+				docPages: ["docs/usage/uncaptured.md"],
+				refsByPage: { "docs/usage/uncaptured.md": [] },
+				presentImages: [],
+			}),
+		).toEqual([]);
+	});
+
+	it("reports at most one gap per entry, sorted by name", () => {
+		const gaps = findDocEmbedGaps({
+			entries: [
+				{ ...entry("zulu"), docPage: "docs/nope.md" } as ManifestEntry,
+				entry("alpha"),
+			],
+			docPages: ["docs/usage/x.md"],
+			refsByPage: { "docs/usage/x.md": [] },
+			presentImages: ["zulu.webp", "alpha.webp"],
+		});
+		expect(gaps.map((g) => g.name)).toEqual(["alpha", "zulu"]);
+	});
+});
+
+describe("formatDocEmbedGaps", () => {
+	it("renders one labeled line per gap and nothing when clean", () => {
+		expect(formatDocEmbedGaps([])).toEqual([]);
+		expect(
+			formatDocEmbedGaps([
+				{
+					name: "interactive-buttons",
+					kind: "not-embedded-in-doc-page",
+					detail: 'docPage "docs/usage/interactive-buttons.md" does not embed it',
+				},
+			]),
+		).toEqual([
+			'docs-embed gap [not-embedded-in-doc-page] interactive-buttons: docPage "docs/usage/interactive-buttons.md" does not embed it',
+		]);
 	});
 });
