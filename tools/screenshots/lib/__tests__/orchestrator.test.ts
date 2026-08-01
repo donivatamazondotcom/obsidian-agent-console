@@ -81,6 +81,7 @@ function makeMockCdp() {
 			scaleFactor: 2,
 		}),
 		screenCaptureRegion: vi.fn().mockResolvedValue(undefined),
+		captureSettingsWindow: vi.fn().mockResolvedValue(undefined),
 		screenshot: vi.fn().mockResolvedValue(undefined),
 		setMobileEmulation: vi.fn().mockResolvedValue(undefined),
 		getElementBounds: vi
@@ -2907,4 +2908,108 @@ describe("captureEntry — modal hygiene (leftover-modal leak fix)", () => {
 		// At least one teardown runs AFTER the capture (the finally).
 		expect(closeOrders.some((o) => o > shotOrder)).toBe(true);
 	}, 15000);
+});
+
+describe("captureEntry — settings-window mode (I187 durable CDP capture)", () => {
+	function makeSettingsDeps() {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) => {
+				// activeDocument waits (mustShow / clickSequence waitFor)
+				if (expr.startsWith("!!activeDocument.querySelector")) {
+					return Promise.resolve(true);
+				}
+				// clickSequence step against activeDocument
+				if (
+					expr.includes("activeDocument.querySelector") &&
+					expr.includes("el.click()")
+				) {
+					return Promise.resolve(true);
+				}
+				// geometry + cropSelector bounds read
+				if (expr.includes("getBoundingClientRect")) {
+					return Promise.resolve({
+						winX: 100,
+						winY: 50,
+						winW: 900,
+						winH: 700,
+						dpr: 1,
+						rect: { x: 225, y: 30, width: 675, height: 670 },
+					});
+				}
+				return Promise.resolve(undefined);
+			},
+		);
+		return deps;
+	}
+
+	function makeSettingsEntry(overrides: Partial<ManifestEntry> = {}) {
+		return makeEntry({
+			name: "settings-root-declarative",
+			captureMode: "settings-window",
+			cropSelector: ".vertical-tab-content",
+			cropPadding: 16,
+			mustShow: ".setting-item.mod-navigable.tappable",
+			initialState: { openSettings: "agent-console" },
+			...overrides,
+		});
+	}
+
+	it("captures via cdp.captureSettingsWindow — never screencapture or dev:screenshot", async () => {
+		const deps = makeSettingsDeps();
+
+		await captureEntry(makeSettingsEntry(), deps);
+
+		expect(deps.cdp.captureSettingsWindow).toHaveBeenCalledTimes(1);
+		expect(deps.cdp.screenCaptureRegion).not.toHaveBeenCalled();
+		expect(deps.cdp.screenshot).not.toHaveBeenCalled();
+	});
+
+	it("crops the CDP capture to the cropSelector rect (dpr-scaled, padded)", async () => {
+		const deps = makeSettingsDeps();
+
+		await captureEntry(makeSettingsEntry(), deps);
+
+		// rect {225,30,675,670} + padding 16 at dpr 1 → extract {209,14,707,702}
+		// (mock sharp metadata is 1400x760, so no clamping applies).
+		const sharpInstance = (
+			deps.sharp as unknown as ReturnType<typeof vi.fn>
+		).mock.results[0].value;
+		expect(sharpInstance.extract).toHaveBeenCalledWith({
+			left: 209,
+			top: 14,
+			width: 707,
+			height: 702,
+		});
+	});
+
+	it("does NOT raise the settings window to front (z-order independence)", async () => {
+		const deps = makeSettingsDeps();
+
+		await captureEntry(makeSettingsEntry(), deps);
+
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		// The interim path focused app.setting.win before screencapture; the
+		// CDP path must not — background capture is the whole point.
+		expect(evals.some((e) => e.includes("app.setting.win"))).toBe(false);
+		expect(deps.cdp.setWindowAlwaysOnTop).not.toHaveBeenCalled();
+	});
+
+	it("closes the settings window even when the capture fails", async () => {
+		const deps = makeSettingsDeps();
+		(
+			deps.cdp.captureSettingsWindow as ReturnType<typeof vi.fn>
+		).mockRejectedValueOnce(new Error("capture boom"));
+
+		await expect(
+			captureEntry(makeSettingsEntry(), deps),
+		).rejects.toThrow(/capture boom/);
+
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(evals.some((e) => e.includes("app.setting.close"))).toBe(true);
+	});
 });
