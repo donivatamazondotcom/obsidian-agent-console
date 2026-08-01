@@ -521,3 +521,147 @@ describe("Cdp.focusWindow (fire-and-forget; focus disrupts the IPC response)", (
 		expect(params).toContain("focus()");
 	});
 });
+
+// --- I187 durable fix: CDP-target capture of the settings window ---
+//
+// The interim settings-window capture used `screencapture` + raise-to-front,
+// which composites whatever is topmost per pixel and therefore only works when
+// the settings window is frontmost. The durable path captures the settings
+// window's OWN render buffer via Electron's `webContents.debugger`
+// (`Page.captureScreenshot`) from an in-renderer script — z-order independent.
+// Obsidian exposes no TCP inspector endpoint (no --remote-debugging-port), so
+// a socket CDP client has nothing to dial; webContents.debugger is the
+// in-process equivalent and needs no new dependency.
+
+import {
+	settingsWindowTitlePrefix,
+	extractCaptureError,
+} from "../cdp";
+
+describe("settingsWindowTitlePrefix", () => {
+	it("scopes the prefix to the vault when one is given", () => {
+		expect(settingsWindowTitlePrefix("studio")).toBe(
+			"Settings - studio - ",
+		);
+	});
+
+	it("falls back to the bare Settings prefix without a vault", () => {
+		expect(settingsWindowTitlePrefix(undefined)).toBe("Settings - ");
+		expect(settingsWindowTitlePrefix("")).toBe("Settings - ");
+	});
+});
+
+describe("extractCaptureError", () => {
+	function wrapValue(value: string): string {
+		return JSON.stringify({ result: { type: "string", value } });
+	}
+
+	it("returns the page-script error from a well-formed response", () => {
+		const stdout = wrapValue(
+			JSON.stringify({ err: "no settings window matches" }),
+		);
+		expect(extractCaptureError(stdout)).toBe("no settings window matches");
+	});
+
+	it("returns undefined for an ok response", () => {
+		const stdout = wrapValue(JSON.stringify({ ok: true }));
+		expect(extractCaptureError(stdout)).toBeUndefined();
+	});
+
+	it("returns undefined for empty stdout (dropped IPC response)", () => {
+		expect(extractCaptureError("")).toBeUndefined();
+		expect(extractCaptureError("   \n")).toBeUndefined();
+	});
+
+	it("returns undefined for plaintext output", () => {
+		expect(
+			extractCaptureError("Error: 'dev:cdp' wasn't found"),
+		).toBeUndefined();
+	});
+
+	it("surfaces CDP exceptionDetails as the error", () => {
+		const stdout = JSON.stringify({
+			exceptionDetails: {
+				exception: { description: "ReferenceError: boom" },
+			},
+		});
+		expect(extractCaptureError(stdout)).toBe("ReferenceError: boom");
+	});
+});
+
+describe("Cdp.captureSettingsWindow", () => {
+	it("sends a Runtime.evaluate that captures the settings target via webContents.debugger", async () => {
+		const dir = mkdtempSync(path.join(tmpdir(), "cdp-settings-"));
+		const out = path.join(dir, "settings.png");
+		// Page script "wrote" the file — simulate before the poll runs.
+		writeFileSync(out, "png-bytes");
+		spawnMock.mockReturnValueOnce(
+			makeFakeProc({
+				stdout: JSON.stringify({
+					result: {
+						type: "string",
+						value: JSON.stringify({ ok: true }),
+					},
+				}),
+			}),
+		);
+
+		const cdp = new Cdp({ vault: "studio" });
+		await cdp.captureSettingsWindow(out);
+
+		expect(spawnMock).toHaveBeenCalledTimes(1);
+		const args = spawnMock.mock.calls[0][1] as string[];
+		expect(args[0]).toBe("vault=studio");
+		expect(args).toContain("dev:cdp");
+		expect(args).toContain("method=Runtime.evaluate");
+		const params = args.find((a) => a.startsWith("params="))!;
+		expect(params).toContain("Page.captureScreenshot");
+		expect(params).toContain("Settings - studio - ");
+		expect(params).toContain('"awaitPromise":true');
+		unlinkSync(out);
+	});
+
+	it("rejects with the page-script error when the response carries one", async () => {
+		spawnMock.mockReturnValueOnce(
+			makeFakeProc({
+				stdout: JSON.stringify({
+					result: {
+						type: "string",
+						value: JSON.stringify({
+							err: "no settings window matches",
+						}),
+					},
+				}),
+			}),
+		);
+
+		const cdp = new Cdp({ vault: "studio", screenshotTimeout: 5000 });
+		await expect(
+			cdp.captureSettingsWindow("/tmp/never-written.png"),
+		).rejects.toThrow(/no settings window matches/);
+	});
+
+	it("tolerates a dropped stdout response when the output file appears", async () => {
+		const dir = mkdtempSync(path.join(tmpdir(), "cdp-settings-"));
+		const out = path.join(dir, "dropped.png");
+		writeFileSync(out, "png-bytes");
+		spawnMock.mockReturnValueOnce(makeFakeProc({ stdout: "" }));
+
+		const cdp = new Cdp({ vault: "studio" });
+		await expect(cdp.captureSettingsWindow(out)).resolves.toBeUndefined();
+		unlinkSync(out);
+	});
+
+	it("rejects on timeout when no response and no file", async () => {
+		spawnMock.mockReturnValueOnce(makeFakeProc({ stdout: "" }));
+
+		const cdp = new Cdp({
+			vault: "studio",
+			screenshotTimeout: 60,
+			pollInterval: 10,
+		});
+		await expect(
+			cdp.captureSettingsWindow("/tmp/never-appears-i187.png"),
+		).rejects.toThrow(/never appeared/);
+	});
+});

@@ -84,6 +84,7 @@ export interface CdpLike {
 		outputPath: string,
 		region: { x: number; y: number; width: number; height: number },
 	): Promise<void>;
+	captureSettingsWindow(outputPath: string): Promise<void>;
 	screenshot(outputPath: string): Promise<void>;
 	setMobileEmulation(enabled: boolean): Promise<void>;
 	clearViewport(): Promise<void>;
@@ -1974,27 +1975,19 @@ async function captureSettingsWindowEntry(
 				`settings-window entry "${entry.name}": cropSelector "${entry.cropSelector}" not found in the settings window`,
 			);
 		}
-		// Capture the WHOLE settings window (bounds read immediately before the
-		// shot so a post-transition reposition cannot misalign it), then crop to the
-		// content element's rect RELATIVE to the window - robust to the window's
-		// absolute screen position (I187). outerWidth==innerWidth on the frameless
-		// settings window, so the element client rect maps 1:1 into the window
-		// capture whose (0,0) is the window top-left.
-		// Raise the settings window to the front immediately before the OS-level
-		// screencapture (I187): screencapture composites the topmost window per
-		// pixel, so another window over this region would otherwise be captured.
-		// app.setting.win is the settings window object on Obsidian 1.13.
-		await deps.cdp.evaluate(
-			`(() => { const w = app.setting.win || activeWindow; if (w && typeof w.focus === "function") w.focus(); return true; })()`,
-		);
-		await sleep(SETTLE_MS);
+		// Capture the settings window's OWN render buffer via CDP
+		// Page.captureScreenshot on its webContents (I187 durable fix): unlike
+		// the interim `screencapture -R` path this is z-order independent — it
+		// works with the settings window in the background and needs no
+		// raise-to-front, so it never disrupts other windows. The capture is
+		// the full window viewport (frameless window: outerWidth==innerWidth,
+		// custom titlebar drawn in the web contents), so the element client
+		// rect maps 1:1 into the capture whose (0,0) is the window top-left —
+		// identical framing to the whole-window screencapture it replaces. The
+		// PNG is at backing-scale px (like screencapture output), so the DPR
+		// crop scaling below is unchanged.
 		const tmpPath = path.join(deps.tmpDir, `${entry.name}.png`);
-		await deps.cdp.screenCaptureRegion(tmpPath, {
-			x: geom.winX,
-			y: geom.winY,
-			width: geom.winW,
-			height: geom.winH,
-		});
+		await deps.cdp.captureSettingsWindow(tmpPath);
 		const contentCss = computeCropRect(geom.rect, {
 			padding: entry.cropPadding ?? 16,
 		});

@@ -411,6 +411,77 @@ export class Cdp {
 	}
 
 	/**
+	 * Capture the standalone Obsidian 1.13 settings window to a PNG by
+	 * screenshotting its OWN render buffer — z-order independent (I187).
+	 *
+	 * Obsidian exposes no TCP inspector endpoint (no --remote-debugging-port
+	 * in its process args, no listening port), so an external CDP socket
+	 * client has nothing to connect to. Instead, an in-renderer script (run
+	 * via the per-call `dev:cdp` Runtime.evaluate in the MAIN window) uses
+	 * `@electron/remote` to find the settings BrowserWindow by title, attaches
+	 * Electron's `webContents.debugger` to it, and issues
+	 * `Page.captureScreenshot` on that target — the in-process equivalent of
+	 * Target.attachToTarget + Page.captureScreenshot, with no new dependency.
+	 * The capture reads the window's compositor surface, so it works with the
+	 * settings window in the BACKGROUND (verified: byte-identical shot with
+	 * another vault window raised over it) and never needs raise-to-front.
+	 *
+	 * The page script writes the PNG itself (renderer has fs access). The
+	 * response can be dropped when window focus shifts mid-call (the known
+	 * empty-stdout pattern), so success is judged by the output file
+	 * appearing — same contract as {@link screenshot}. An explicit page-script
+	 * error (window not found, attach failure) short-circuits with a
+	 * descriptive throw instead of waiting out the file poll.
+	 *
+	 * Output is at the window's backing scale (physical px), matching the
+	 * `screencapture` output space this replaces, so callers' DPR crop math
+	 * is unchanged.
+	 */
+	async captureSettingsWindow(outputPath: string): Promise<void> {
+		const prefix = settingsWindowTitlePrefix(this.vault);
+		const expression = `(async () => {
+			try {
+				const remote = require("@electron/remote");
+				const win = remote.BrowserWindow.getAllWindows().find((w) => w.getTitle().startsWith(${JSON.stringify(prefix)}));
+				if (!win) return JSON.stringify({ err: "no settings window matches title prefix ${prefix}" });
+				const dbg = win.webContents.debugger;
+				const wasAttached = dbg.isAttached();
+				if (!wasAttached) dbg.attach("1.3");
+				try {
+					const shot = await dbg.sendCommand("Page.captureScreenshot", { format: "png" });
+					require("fs").writeFileSync(${JSON.stringify(outputPath)}, Buffer.from(shot.data, "base64"));
+				} finally {
+					if (!wasAttached) dbg.detach();
+				}
+				return JSON.stringify({ ok: true });
+			} catch (e) { return JSON.stringify({ err: String(e) }); }
+		})()`;
+		const params = JSON.stringify({
+			expression,
+			returnByValue: true,
+			awaitPromise: true,
+		});
+		const stdout = await this.runRaw([
+			"dev:cdp",
+			"method=Runtime.evaluate",
+			`params=${params}`,
+		]);
+		const explicitErr = extractCaptureError(stdout);
+		if (explicitErr !== undefined) {
+			throw new Error(`captureSettingsWindow: ${explicitErr}`);
+		}
+		const deadline = Date.now() + this.screenshotTimeout;
+		while (!existsSync(outputPath)) {
+			if (Date.now() >= deadline) {
+				throw new Error(
+					`captureSettingsWindow: file ${outputPath} never appeared within ${this.screenshotTimeout}ms (timeout)`,
+				);
+			}
+			await sleep(this.pollInterval);
+		}
+	}
+
+	/**
 	 * Poll `document.querySelector(selector)` until it returns truthy or
 	 * the timeout elapses. Resolves on success, rejects on timeout.
 	 */
@@ -596,6 +667,46 @@ export class Cdp {
 			});
 			proc.on("error", (err) => reject(err));
 		});
+	}
+}
+
+/**
+ * Title prefix identifying the standalone Obsidian 1.13 settings window for a
+ * vault. The window titles as "Settings - <vault> - Obsidian <version>";
+ * without a vault the match falls back to any settings window. Pure —
+ * unit-tested and embedded into the capture page script (I187).
+ */
+export function settingsWindowTitlePrefix(vault?: string): string {
+	return vault ? `Settings - ${vault} - ` : "Settings - ";
+}
+
+/**
+ * Extract an explicit error from a captureSettingsWindow response, if any.
+ * Returns undefined for anything that is NOT a definite error — empty stdout
+ * (the dropped-IPC-response pattern), plaintext, unparseable JSON, or an
+ * `{ok:true}` payload — because for those the output-file poll is the
+ * authoritative success signal. Only a well-formed CDP response carrying the
+ * page script's `{err}` payload, or CDP exceptionDetails, short-circuits the
+ * poll with a descriptive failure. Pure — unit-tested (I187).
+ */
+export function extractCaptureError(stdout: string): string | undefined {
+	const trimmed = stdout.trim();
+	if (!trimmed.startsWith("{")) return undefined;
+	try {
+		const parsed = JSON.parse(trimmed) as CdpResponse;
+		if (parsed.exceptionDetails) {
+			return (
+				parsed.exceptionDetails.exception?.description ??
+				parsed.exceptionDetails.text ??
+				"unknown CDP exception"
+			);
+		}
+		const value = parsed.result?.value;
+		if (typeof value !== "string") return undefined;
+		const inner = JSON.parse(value) as { ok?: boolean; err?: string };
+		return typeof inner.err === "string" ? inner.err : undefined;
+	} catch {
+		return undefined;
 	}
 }
 
