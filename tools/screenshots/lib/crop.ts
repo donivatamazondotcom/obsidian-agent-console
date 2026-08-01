@@ -148,3 +148,4 @@ export function rectIntersects(a: Rect, b: Rect): boolean {
 		b.y < a.y + a.height
 	);
 }
+

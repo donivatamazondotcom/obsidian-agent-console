@@ -400,6 +400,14 @@ export async function captureEntry(
 		return;
 	}
 
+	// I187: Obsidian 1.13 declarative settings open in a standalone window the
+	// main-window capture path can't reach. This branch drives + captures that
+	// window via activeWindow/activeDocument + screencapture -R.
+	if (entry.captureMode === "settings-window") {
+		await captureSettingsWindowEntry(entry, deps);
+		return;
+	}
+
 	// 0. Screen-capture mode: pin the real OS window to a fixed size/position
 	// BEFORE driving any UI. screencapture grabs the real window region (the
 	// only way to capture native popup menus), so the window must be a known,
@@ -1868,5 +1876,141 @@ async function applyAnimationAction(
 			);
 			break;
 		}
+	}
+}
+
+/**
+ * Poll `activeDocument.querySelector(selector)` (the focused settings window on
+ * Obsidian 1.13) until truthy or timeout. The stock waitForElement targets the
+ * main-window `document`, which is empty while settings are popped out. See I187.
+ */
+async function waitForActiveDocumentSelector(
+	deps: OrchestratorDeps,
+	selector: string,
+	timeoutMs = 10000,
+): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	const expr = `!!activeDocument.querySelector(${JSON.stringify(selector)})`;
+	while (true) {
+		const ok = await deps.cdp.evaluate<boolean>(expr);
+		if (ok) return;
+		if (Date.now() >= deadline) {
+			throw new Error(
+				`settings-window: timeout waiting for activeDocument selector ${selector} after ${timeoutMs}ms`,
+			);
+		}
+		await sleep(200);
+	}
+}
+
+/**
+ * Capture an entry whose subject is Obsidian 1.13's standalone declarative
+ * settings window (I187). Drives `openSettings` + optional `clickSequence`
+ * (evaluated against `activeDocument`), asserts `mustShow` there, then reads the
+ * window's screen origin + the `cropSelector` element's bounds and screencaptures
+ * exactly that region. The captured PNG is already the content crop; run.ts adds
+ * the shared drop shadow. Leaves the settings window closed (cleanliness).
+ */
+async function captureSettingsWindowEntry(
+	entry: ManifestEntry,
+	deps: OrchestratorDeps,
+): Promise<void> {
+	const tabId = entry.initialState?.openSettings;
+	if (!tabId) {
+		throw new Error(
+			`settings-window entry "${entry.name}" requires initialState.openSettings`,
+		);
+	}
+	if (!entry.cropSelector) {
+		throw new Error(
+			`settings-window entry "${entry.name}" requires cropSelector`,
+		);
+	}
+	if (entry.initialState?.openNote) {
+		await deps.cdp.evaluate(
+			`app.workspace.openLinkText("${entry.initialState.openNote}", "", false)`,
+		);
+	}
+	try {
+		await deps.cdp.evaluate(
+			`(app.setting.open(), app.setting.openTabById(${JSON.stringify(tabId)}), "opened")`,
+		);
+		await sleep(SETTLE_MS);
+
+		for (const step of entry.initialState?.clickSequence ?? []) {
+			await deps.cdp.evaluate<boolean>(
+				`(() => { const el = activeDocument.querySelector(${JSON.stringify(step.selector)}); if (el) el.click(); return Boolean(el); })()`,
+			);
+			if (step.waitFor) {
+				await waitForActiveDocumentSelector(deps, step.waitFor);
+			}
+		}
+
+		if (entry.mustShow) {
+			await waitForActiveDocumentSelector(deps, entry.mustShow);
+		}
+		await sleep(SETTLE_MS);
+		// I184: the Obsidian 1.13 sub-page transition paints async after the DOM
+		// lands (the waitFor above passes pre-paint), so a navigated capture needs
+		// an extra settle for the fade/slide to finish before screencapture.
+		if (entry.initialState?.clickSequence?.length) {
+			await sleep(1200);
+		}
+
+		const geom = await deps.cdp.evaluate<{
+			winX: number;
+			winY: number;
+			winW: number;
+			winH: number;
+			dpr: number;
+			rect: Rect | null;
+		}>(
+			`(() => { const e = activeDocument.querySelector(${JSON.stringify(
+				entry.cropSelector,
+			)}); const r = e ? e.getBoundingClientRect() : null; return { winX: activeWindow.screenX, winY: activeWindow.screenY, winW: activeWindow.outerWidth, winH: activeWindow.outerHeight, dpr: activeWindow.devicePixelRatio, rect: r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null }; })()`,
+		);
+		if (!geom.rect) {
+			throw new Error(
+				`settings-window entry "${entry.name}": cropSelector "${entry.cropSelector}" not found in the settings window`,
+			);
+		}
+		// Capture the WHOLE settings window (bounds read immediately before the
+		// shot so a post-transition reposition cannot misalign it), then crop to the
+		// content element's rect RELATIVE to the window - robust to the window's
+		// absolute screen position (I187). outerWidth==innerWidth on the frameless
+		// settings window, so the element client rect maps 1:1 into the window
+		// capture whose (0,0) is the window top-left.
+		// Raise the settings window to the front immediately before the OS-level
+		// screencapture (I187): screencapture composites the topmost window per
+		// pixel, so another window over this region would otherwise be captured.
+		// app.setting.win is the settings window object on Obsidian 1.13.
+		await deps.cdp.evaluate(
+			`(() => { const w = app.setting.win || activeWindow; if (w && typeof w.focus === "function") w.focus(); return true; })()`,
+		);
+		await sleep(SETTLE_MS);
+		const tmpPath = path.join(deps.tmpDir, `${entry.name}.png`);
+		await deps.cdp.screenCaptureRegion(tmpPath, {
+			x: geom.winX,
+			y: geom.winY,
+			width: geom.winW,
+			height: geom.winH,
+		});
+		const contentCss = computeCropRect(geom.rect, {
+			padding: entry.cropPadding ?? 16,
+		});
+		const scaled = scaleRectByDevicePixelRatio(contentCss, geom.dpr);
+		const meta = await deps.sharp(tmpPath).metadata();
+		const imgW = meta.width ?? scaled.x + scaled.width;
+		const imgH = meta.height ?? scaled.y + scaled.height;
+		const cw = Math.min(scaled.width, imgW - scaled.x);
+		const ch = Math.min(scaled.height, imgH - scaled.y);
+		const outputPath = deriveOutputPath(entry, deps.repoRoot);
+		await deps
+			.sharp(tmpPath)
+			.extract({ left: scaled.x, top: scaled.y, width: cw, height: ch })
+			.webp({ quality: 90 })
+			.toFile(outputPath);
+	} finally {
+		await deps.cdp.evaluate(`(app.setting.close(), "closed")`);
 	}
 }
