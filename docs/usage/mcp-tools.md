@@ -58,6 +58,10 @@ Nothing opens on its own — click **Sign in** to open the page in your
 browser, or **Copy link** to open it elsewhere. Once you finish signing in,
 the prompt goes away by itself and the server's tools start working.
 
+<p align="center">
+  <img src="/images/mcp-oauth-signin-notice.webp" alt="Corner prompt saying an MCP server needs sign-in, showing the sign-in page's address with Sign in and Copy link buttons" />
+</p>
+
 If several servers need sign-in, they take turns: finish one and the next
 prompt appears. The prompt shows how many are still waiting.
 
