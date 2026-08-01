@@ -1116,37 +1116,6 @@
 			"captureNote": "v1.3.0 PRs #168/#170 (shipped as Obsidian System Prompt). Confirm the Obsidian-system-prompt settings-section selector + final dims at capture; scroll the settings pane to that accordion first."
 		},
 		{
-			"name": "collapsible-agent-sections",
-			"pending": false,
-			"width": 760,
-			"height": 560,
-			"crop": {
-				"x": 0,
-				"y": 0,
-				"width": 760,
-				"height": 560
-			},
-			"cropSelector": ".vertical-tab-content",
-			"cropPadding": 16,
-			"initialState": {
-				"openNote": "Welcome.md",
-				"openSettings": "agent-console",
-				"collapseSelectors": [
-					".agent-client-agent-section"
-				],
-				"scrollToSettingText": "Built-in agents"
-			},
-			"approvalThreshold": 0.05,
-			"placement": "feature",
-			"purpose": "Built-in agent settings collapse into accordions so the pane stays scannable.",
-			"differentiator": "Collapsible agent sections (v1.3.0)",
-			"mustShow": ".vertical-tab-content",
-			"caption": "Keep the settings pane tidy",
-			"altText": "Agent Console settings with each built-in agent shown as a collapsed accordion section under Built-in agents",
-			"docPage": "docs/usage/settings.md",
-			"captureNote": "v1.3.0 PR #104. collapseSelectors collapses every .agent-client-agent-section; scrollToSettingText leads with the Built-in agents heading."
-		},
-		{
 			"name": "settings-working-directory",
 			"pending": false,
 			"width": 760,
@@ -1326,41 +1295,6 @@
 			]
 		},
 		{
-			"name": "agent-settings-section",
-			"pending": false,
-			"width": 1632,
-			"height": 1323,
-			"crop": {
-				"x": 0,
-				"y": 0,
-				"width": 780,
-				"height": 640
-			},
-			"initialState": {
-				"openNote": "Welcome.md",
-				"openSettings": "agent-console",
-				"scrollToSettingText": "Claude Code",
-				"setInputValues": [
-					{
-						"selector": ".vertical-tab-content details.agent-client-agent-section[open] input[placeholder=\"claude-agent-acp\"]",
-						"value": "claude-agent-acp"
-					},
-					{
-						"selector": ".vertical-tab-content details.agent-client-agent-section[open] textarea",
-						"value": ""
-					}
-				]
-			},
-			"approvalThreshold": 0.03,
-			"placement": "feature",
-			"purpose": "The Claude Code settings section: agent path, Auto-detect, and API key.",
-			"mustShow": ".vertical-tab-content details.agent-client-agent-section[open] .agent-client-agent-section-summary",
-			"altText": "Agent Console settings showing the Claude Code section with API key, path, and Auto-detect controls",
-			"docPage": "docs/agent-setup/claude-code.md",
-			"cropSelector": ".vertical-tab-content details.agent-client-agent-section[open]",
-			"cropPadding": 12
-		},
-		{
 			"name": "custom-agents-form",
 			"pending": false,
 			"width": 1632,
@@ -1526,43 +1460,68 @@
 		},
 		{
 			"name": "settings-root-declarative",
-			"pending": true,
+			"pending": false,
 			"placement": "reference",
-			"purpose": "Replace collapsible-agent-sections.webp - agent-setup index shows the 1.13 root tab with agent page rows",
-			"mustShow": "Built-in agents group with the five agent page rows (chevrons) in the settings window",
-			"altText": "Agent Console settings on Obsidian 1.13 with each built-in agent shown as a navigable page row",
-			"width": 760,
-			"height": 560,
+			"purpose": "The Obsidian 1.13 declarative settings root: built-in agents shown as navigable page rows.",
+			"mustShow": ".setting-item.mod-navigable.tappable",
+			"altText": "Agent Console settings on Obsidian 1.13 with built-in agents listed as navigable page rows",
+			"width": 691,
+			"height": 686,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 760,
-				"height": 560
+				"width": 691,
+				"height": 686
 			},
 			"initialState": {
-				"openNote": "Welcome.md"
+				"openNote": "Welcome.md",
+				"openSettings": "agent-console",
+				"scrollToSettingText": "Built-in agents"
 			},
-			"approvalThreshold": 0.05
+			"approvalThreshold": 0.05,
+			"cropSelector": ".vertical-tab-content",
+			"cropPadding": 16,
+			"minDistinctColors": 300,
+			"differentiator": "Declarative settings (Obsidian 1.13)",
+			"caption": "Settings you can search and navigate",
+			"docPage": "docs/agent-setup/index.md",
+			"captureNote": "v2.3.0 #270. Declarative root: openSettings agent-console + scrollToSettingText 'Built-in agents'; crop the .vertical-tab-content. Set width/height to the captured native size after the first run.",
+			"captureMode": "settings-window"
 		},
 		{
 			"name": "settings-agent-page",
-			"pending": true,
+			"pending": false,
 			"placement": "reference",
-			"purpose": "Replace agent-settings-section.webp - claude-code setup page shows the agent sub-page",
-			"mustShow": "Claude Code sub-page with API key, path with Auto-detect, arguments, environment variables",
-			"altText": "Claude Code settings page with API key, path, and Auto-detect controls",
-			"width": 760,
-			"height": 560,
+			"purpose": "A built-in agent's settings sub-page (Claude Code): API key, path with Auto-detect, arguments, environment variables.",
+			"mustShow": ".setting-page-back-button",
+			"altText": "Claude Code settings sub-page with API key, path and Auto-detect, arguments, and environment variables",
+			"width": 691,
+			"height": 686,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 760,
-				"height": 560
+				"width": 691,
+				"height": 686
 			},
 			"initialState": {
-				"openNote": "Welcome.md"
+				"openNote": "Welcome.md",
+				"openSettings": "agent-console",
+				"clickSequence": [
+					{
+						"selector": ".vertical-tab-content .setting-item.mod-navigable.tappable",
+						"waitFor": ".vertical-tab-content .setting-page-back-button"
+					}
+				]
 			},
-			"approvalThreshold": 0.05
+			"approvalThreshold": 0.05,
+			"cropSelector": ".vertical-tab-content",
+			"cropPadding": 16,
+			"minDistinctColors": 300,
+			"differentiator": "Declarative settings (Obsidian 1.13)",
+			"caption": "Each agent gets its own settings page",
+			"docPage": "docs/agent-setup/claude-code.md",
+			"captureNote": "v2.3.0 #270. Clicks the first navigable row (Claude Code) and waits for .setting-page-back-button; crop .vertical-tab-content. Set width/height to the captured native size after the first run.",
+			"captureMode": "settings-window"
 		}
 	]
 }

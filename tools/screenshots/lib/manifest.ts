@@ -506,7 +506,7 @@ export interface ManifestEntry {
 	 * `cropSelectors` cannot resolve it) and pin the window to a fixed size so
 	 * the crop region is reproducible.
 	 */
-	captureMode?: "window" | "screen" | "screen-window";
+	captureMode?: "window" | "screen" | "screen-window" | "settings-window";
 	/**
 	 * Approval-test threshold for `pixelmatch` — fraction of differing
 	 * pixels above which the test fails. Default 0.05 (loose enough for
