@@ -82,6 +82,7 @@ function makeMockCdp() {
 		}),
 		screenCaptureRegion: vi.fn().mockResolvedValue(undefined),
 		captureSettingsWindow: vi.fn().mockResolvedValue(undefined),
+		openSettingsHidden: vi.fn().mockResolvedValue(undefined),
 		screenshot: vi.fn().mockResolvedValue(undefined),
 		setMobileEmulation: vi.fn().mockResolvedValue(undefined),
 		getElementBounds: vi
@@ -3011,5 +3012,27 @@ describe("captureEntry — settings-window mode (I187 durable CDP capture)", () 
 			deps.cdp.evaluate as ReturnType<typeof vi.fn>
 		).mock.calls.map((c: unknown[]) => c[0] as string);
 		expect(evals.some((e) => e.includes("app.setting.close"))).toBe(true);
+	});
+
+	it("opens settings via the hidden-open path — never a visible app.setting.open evaluate", async () => {
+		const deps = makeSettingsDeps();
+
+		await captureEntry(makeSettingsEntry(), deps);
+
+		// Open must route through openSettingsHidden (keeps the window off-screen
+		// for the shot) — not a raw evaluate that shows+focuses the window.
+		expect(deps.cdp.openSettingsHidden).toHaveBeenCalledWith("agent-console");
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(evals.some((e) => e.includes("app.setting.open()"))).toBe(false);
+		// And the hidden-open must precede the capture.
+		const openOrder = (
+			deps.cdp.openSettingsHidden as ReturnType<typeof vi.fn>
+		).mock.invocationCallOrder[0];
+		const capOrder = (
+			deps.cdp.captureSettingsWindow as ReturnType<typeof vi.fn>
+		).mock.invocationCallOrder[0];
+		expect(openOrder).toBeLessThan(capOrder);
 	});
 });

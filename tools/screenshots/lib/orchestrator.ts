@@ -85,6 +85,7 @@ export interface CdpLike {
 		region: { x: number; y: number; width: number; height: number },
 	): Promise<void>;
 	captureSettingsWindow(outputPath: string): Promise<void>;
+	openSettingsHidden(tabId: string): Promise<void>;
 	screenshot(outputPath: string): Promise<void>;
 	setMobileEmulation(enabled: boolean): Promise<void>;
 	clearViewport(): Promise<void>;
@@ -1933,9 +1934,13 @@ async function captureSettingsWindowEntry(
 		);
 	}
 	try {
-		await deps.cdp.evaluate(
-			`(app.setting.open(), app.setting.openTabById(${JSON.stringify(tabId)}), "opened")`,
-		);
+		// Open settings to the target tab but keep the standalone 1.13 settings
+		// window off-screen for the whole shot (I187): the capture reads the
+		// window's own render buffer, so it never needs to be visible or focused.
+		// This bounds any on-screen appearance to ~one frame instead of the full
+		// capture duration. activeDocument still resolves to the hidden window,
+		// so the drive below is unchanged.
+		await deps.cdp.openSettingsHidden(tabId);
 		await sleep(SETTLE_MS);
 
 		for (const step of entry.initialState?.clickSequence ?? []) {

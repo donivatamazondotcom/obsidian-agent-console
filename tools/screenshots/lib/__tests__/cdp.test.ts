@@ -589,6 +589,45 @@ describe("extractCaptureError", () => {
 	});
 });
 
+describe("Cdp.openSettingsHidden", () => {
+	it("opens the tab and hides the settings window, tolerating a dropped response", async () => {
+		spawnMock.mockReturnValueOnce(
+			makeFakeProc({
+				stdout: JSON.stringify({
+					result: { type: "string", value: "hidden" },
+				}),
+			}),
+		);
+
+		const cdp = new Cdp({ vault: "studio" });
+		await expect(
+			cdp.openSettingsHidden("agent-console"),
+		).resolves.toBeUndefined();
+
+		const args = spawnMock.mock.calls[0][1] as string[];
+		expect(args[0]).toBe("vault=studio");
+		expect(args).toContain("method=Runtime.evaluate");
+		const params = args.find((a) => a.startsWith("params="))!;
+		expect(params).toContain("app.setting.open()");
+		expect(params).toContain("openTabById(");
+		expect(params).toContain("agent-console");
+		// Conceals the window via opacity 0 (poll + show-listener) and scopes to
+		// the vault's title. Opacity (not hide) keeps it as activeWindow so the
+		// cross-call activeDocument drive still resolves to it.
+		expect(params).toContain("setOpacity(0)");
+		expect(params).toContain("Settings - studio - ");
+		expect(params).toContain('"awaitPromise":true');
+	});
+
+	it("does not throw on an empty (dropped) response", async () => {
+		spawnMock.mockReturnValueOnce(makeFakeProc({ stdout: "" }));
+		const cdp = new Cdp({ vault: "studio" });
+		await expect(
+			cdp.openSettingsHidden("agent-console"),
+		).resolves.toBeUndefined();
+	});
+});
+
 describe("Cdp.captureSettingsWindow", () => {
 	it("sends a Runtime.evaluate that captures the settings target via webContents.debugger", async () => {
 		const dir = mkdtempSync(path.join(tmpdir(), "cdp-settings-"));
