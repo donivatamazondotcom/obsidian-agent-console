@@ -46,7 +46,9 @@ src/
 ├── i18n/                        # UI string localization boundary ([[Agent Console I18N]])
 │   ├── index.ts                 # t(key, params) + initLocale + resolveLocale; locale resolved once at load (getLanguage or the Advanced language override)
 │   ├── en.ts                    # Canonical English catalog (the key contract; as const)
-│   └── ko.ts                    # Korean catalog (factory-wrapped, partial, per-key English fallback)
+│   ├── ko.ts                    # Korean catalog (factory-wrapped, partial, per-key English fallback)
+│   ├── ja.ts                    # Japanese catalog (factory-wrapped, partial, per-key English fallback)
+│   └── zh.ts                    # Simplified Chinese catalog (factory-wrapped, partial, per-key English fallback)
 ├── services/                    # Business logic (non-React, no React imports)
 │   ├── vault-service.ts         # Vault access + fuzzy search + CM6 selection tracking
 │   ├── context-builder.ts       # Builds prompt context from crystallized notes
@@ -90,6 +92,8 @@ src/
 │   │   ├── segmenter.ts         # Assistant-message segmentation (markdown | a2ui-surface) upstream of MarkdownRenderer; lossless (segments rebuild the text)
 │   │   ├── action.ts            # v1.0 action envelope + sent user message + payload-derived display summary (label is decoration)
 │   │   ├── surface-state.ts     # Pure resolvers: answered state from transcript (restore/replay); idle-only action enablement
+│   │   ├── activate.ts          # Button-activation orchestration: refocus fires at DISPATCH time, not turn-end (A2UI-I01)
+│   │   ├── capability.ts        # D9 ACP-init capability advertisement for the a2ui binding (a2uiClientCapabilities under namespaced _meta)
 │   │   └── validator.ts         # Total no-throw envelope/profile/graph/limits validation (probe checks V02–V14)
 │   ├── import/                   # Cross-plugin settings-import adapters
 │   │   ├── ImportSource.ts       # ImportSource interface + preview types
@@ -149,7 +153,6 @@ src/
 │   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting)
 │   ├── TerminalBlock.tsx        # Terminal output polling
 │   ├── InputArea.tsx            # Textarea, attachments, mentions, history
-│   ├── composer-focus.ts       # Focus composer textarea + caret at end (restored-draft mount, TP-I03); send→refocus timing seam (I173)
 │   ├── composer-focus-tracker.ts # Pure composer-cluster focus reducer + classifier (focus-return guardrail)
 │   ├── InputToolbar.tsx         # Config/mode/model selectors, usage, send button
 │   ├── SuggestionPopup.tsx      # Unified suggestion picker: one PickerItem render path for mention / slash / quick-prompt (! trigger) + pinned instruction footer
@@ -176,6 +179,21 @@ src/
 │       ├── IconButton.tsx       # Icon button + Lucide icon wrapper
 │       ├── MarkdownRenderer.tsx # Obsidian markdown rendering
 │       └── AttachmentStrip.tsx  # Attachment preview strip
+├── resolvers/                   # Pure decision functions (derive*/decide*) — no React/Obsidian/SDK imports; exhaustive switches (resolver-zone.test.ts)
+│   ├── agent-picker-options.ts     # deriveAgentPickerOptions — pure landing agent-picker resolver (detection-gated, default-first, shown only on a real choice)
+│   ├── agent-switch.ts             # Switch a lazy tab's agent so the first message connects to the switched agent
+│   ├── composer-affordances.ts     # deriveComposerAffordances — pure composer send-target + control-composition resolver (surface × composer-caps × hasQuickPrompts → sendMode/quickPromptFire/context/showAttachments/showConfigSelectors); connection-state-independent (does NOT read lazyState); shared by the landing + in-tab composer so they can't drift; layers with deriveSendAffordance (enablement) — no overlap
+│   ├── composer-focus.ts           # Focus composer textarea + caret at end (restored-draft mount, TP-I03); send→refocus timing seam (I173)
+│   ├── deriveTabLabel.ts           # Derive tab label from session / first message
+│   ├── empty-state-view.ts         # deriveEmptyStateView — pure empty-state affordance resolver (location × hasDetectedAgent → reason + redetect/installRows/agentPicks/landingActions/settings/hint); shared by GettingStarted (in-tab) and the zero-tab landing so the two can't drift
+│   ├── header-slot.ts              # deriveHeaderSlot — pure 4-way header secondary-slot resolver (model / connecting / idle / none)
+│   ├── notify-gate.ts              # shouldNotifySystem — pure resolver: should an OS notification fire for a backgrounded panel; gates on the flush signal, not an instantaneous focus read (I168)
+│   ├── resolveInitialAgentId.ts    # Pure: agent a fresh (non-restored) tab opens on — Default agent when restore-tabs is off (TP-I05)
+│   ├── send-affordance.ts          # Pure send-enablement resolver (deriveSendAffordance → canSend/buttonDisabled/reason) + isSessionLive; single source for ChatPanel/InputArea/InputToolbar/MessageList/broadcast
+│   ├── session-history-view.ts     # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source) → listSource/agentViewAvailable/showFilters/restore/fork/banner); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
+│   ├── tab-label-width.ts          # deriveActiveTabLabelMax — pure resolver for the active tab's label max-width so the whole active tab stays visible in the strip
+│   ├── tab-scroll.ts               # deriveTabScrollLeft — pure resolver for the horizontal scrollLeft that keeps the active tab in view on tab-change and strip resize (TS-I07)
+│   └── tab-state.ts                # deriveTabState — pure tab-icon-state resolver (lifecycle × isSending × hasActivePermission → ready/busy/permission/error/disconnected); gates busy on intent, not a connect-edge, so a lazy first-send or mid-turn permission can't strand the icon (I172)
 ├── utils/                       # Shared utilities (pure functions)
 │   ├── platform.ts              # Shell, WSL, Windows env, command building
 │   ├── close-confirm.ts         # Pure shouldConfirmClose predicate for the multi-tab close gate
@@ -184,7 +202,6 @@ src/
 │   ├── activeNoteGrabToggle.ts  # Grab/ungrab active note in context strip (hotkey)
 │   ├── provisional-context.ts   # Provisional auto-default context pill (crystallize-on-send)
 │   ├── image-paste.ts           # classifyImagePaste — pure image-paste decision (connecting vs unsupported; separates unknown from false)
-│   ├── deriveTabLabel.ts        # Derive tab label from session / first message
 │   ├── titleMarker.ts           # F03: parse/strip <title>…</title> from the head of the first reply (parseLeadingTitle + TitleHeadBuffer)
 │   ├── system-instructions.ts   # First-message system-instruction constants + sentinels (injected by message-sender; stripped by deriveTabLabel)
 │   ├── host-context-briefing.ts # Compose the Obsidian host-context briefing (per-block selection + cwd-in-vault gate) injected on first message; folds in the system-instruction hints
@@ -202,20 +219,13 @@ src/
 │   ├── link-extract.ts          # Derive per-tab shared-link set from messages (Shared Links Bubble) + new/old classification
 │   ├── notification-content.ts  # buildCompletionNotificationContent — pure turn-end notification title/body/tag (tab label in title)
 │   ├── notification-click.ts    # Pure orchestrator for a completion-notification click (reveal owning leaf/window + switch to producing tab); I52 recurrence
+│   ├── notification-registry.ts # Retains OS Notification objects so their onclick survives GC until user/OS dismissal (I52)
+│   ├── update-flush-scheduler.ts # createUpdateFlushScheduler — visibility-immune session-update flush (rAF stalls in backgrounded windows) (I168)
 │   ├── menu-registry.ts         # Tracks open Menu popups; closes them on plugin unload (reload-safety)
-│   ├── agent-switch.ts          # Switch a lazy tab's agent so the first message connects to the switched agent
 │   ├── mcp-auth-affordance.ts   # Pure resolver: auth-failed tool call → inline re-auth affordance decision
 │   ├── command-palette.ts       # Pure start-a-chat + context-gating decisions (computeStartChat, isChatCommandAvailable)
 │   ├── tab-agent-invariant.ts   # Pure fail-loud invariant: a tab's live session agent == its selected agent
-│   ├── resolveInitialAgentId.ts # Pure: agent a fresh (non-restored) tab opens on — Default agent when restore-tabs is off (TP-I05)
 │   ├── restored-tab-content.ts  # resolveSeededMessages/ContextNotes — single resolver for a tab's seeded transcript+notes (restore | fork | startup-restore)
-│   ├── send-affordance.ts       # Pure send-enablement resolver (deriveSendAffordance → canSend/buttonDisabled/reason) + isSessionLive; single source for ChatPanel/InputArea/InputToolbar/MessageList/broadcast
-│   ├── header-slot.ts           # deriveHeaderSlot — pure 4-way header secondary-slot resolver (model / connecting / idle / none)
-│   ├── tab-state.ts            # deriveTabState — pure tab-icon-state resolver (lifecycle × isSending × hasActivePermission → ready/busy/permission/error/disconnected); gates busy on intent, not a connect-edge, so a lazy first-send or mid-turn permission can't strand the icon (I172)
-│   ├── session-history-view.ts  # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source) → listSource/agentViewAvailable/showFilters/restore/fork/banner); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
-│   ├── empty-state-view.ts      # deriveEmptyStateView — pure empty-state affordance resolver (location × hasDetectedAgent → reason + redetect/installRows/agentPicks/landingActions/settings/hint); shared by GettingStarted (in-tab) and the zero-tab landing so the two can't drift
-│   ├── agent-picker-options.ts  # deriveAgentPickerOptions — pure landing agent-picker resolver (detection-gated, default-first, shown only on a real choice)
-│   ├── composer-affordances.ts  # deriveComposerAffordances — pure composer send-target + control-composition resolver (surface × composer-caps × hasQuickPrompts → sendMode/quickPromptFire/context/showAttachments/showConfigSelectors); connection-state-independent (does NOT read lazyState); shared by the landing + in-tab composer so they can't drift; layers with deriveSendAffordance (enablement) — no overlap
 │   ├── format-session-title.ts  # Pure display-formatter for session-history titles (renders markdown links/wikilinks to readable text, collapses whitespace; no truncation — CSS owns width); used by SessionHistoryModal, carries into HistoryRow
 │   ├── folder-picker.ts         # Shared Electron native folder picker (modal + settings Browse)
 │   ├── working-directory.ts     # Resolve/validate the default working directory for new chats
