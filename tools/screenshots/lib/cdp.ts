@@ -411,6 +411,69 @@ export class Cdp {
 	}
 
 	/**
+	 * Open Obsidian's settings to a tab and make the standalone 1.13 settings
+	 * window INVISIBLE for the whole capture (I187 focus/flash minimization).
+	 *
+	 * `app.setting.open()` shows AND focuses the settings BrowserWindow
+	 * *asynchronously* — a synchronous change in the same tick loses the race
+	 * and the OS still shows the window. There is no "always-on-bottom" window
+	 * level and we don't control the creation flags of a window Obsidian opens,
+	 * so it cannot be prevented from appearing outright. Instead we set its
+	 * opacity to 0 the instant it becomes visible: a bounded poll on
+	 * `isVisible()` plus a `show` listener that re-applies opacity 0 (covers any
+	 * later re-show, e.g. a sub-page transition). This bounds any perceptible
+	 * on-screen appearance to ~one frame (~80-110ms measured) instead of the
+	 * full multi-second shot.
+	 *
+	 * Opacity 0 (not `hide()`) is deliberate: the window stays "visible" in
+	 * Electron's sense, so it remains Obsidian's `activeWindow` and
+	 * `activeDocument` keeps resolving to it across the SEPARATE per-call
+	 * `dev:cdp` invocations that drive clickSequence / mustShow / crop-bounds.
+	 * A hidden (`hide()`) window loses focus, `activeWindow` reverts to the main
+	 * window, and the activeDocument-scoped drive breaks on the next CLI call
+	 * (a clickSequence sub-page navigation then never lands). A still-shown
+	 * window is also not background-throttled, so transitions render at full
+	 * speed. The capture (`captureSettingsWindow`) reads the compositor surface
+	 * via `Page.captureScreenshot`, which paints correctly at opacity 0
+	 * (verified). Opacity is not restored — the entry's `finally` closes
+	 * (destroys) the window.
+	 *
+	 * Fire-and-forget like {@link executeCommand}: opening settings can drop the
+	 * CDP response when window focus shifts, so the result is ignored and
+	 * readiness is gated by the caller's subsequent `activeDocument` waits.
+	 */
+	async openSettingsHidden(tabId: string): Promise<void> {
+		const expression = `(async () => {
+			try {
+				const remote = require("@electron/remote");
+				app.setting.open();
+				app.setting.openTabById(${JSON.stringify(tabId)});
+				const prefix = ${JSON.stringify(settingsWindowTitlePrefix(this.vault))};
+				const sw = remote.BrowserWindow.getAllWindows().find((w) => w.getTitle().startsWith(prefix));
+				if (!sw) return "no-window";
+				const conceal = () => { try { sw.setOpacity(0); } catch (e) {} };
+				sw.on("show", conceal);
+				for (let i = 0; i < 150; i++) {
+					if (sw.isVisible()) { conceal(); break; }
+					await new Promise((r) => setTimeout(r, 8));
+				}
+				conceal();
+				return "concealed";
+			} catch (e) { return "err:" + String(e); }
+		})()`;
+		const params = JSON.stringify({
+			expression,
+			returnByValue: true,
+			awaitPromise: true,
+		});
+		await this.runRaw([
+			"dev:cdp",
+			"method=Runtime.evaluate",
+			`params=${params}`,
+		]);
+	}
+
+	/**
 	 * Capture the standalone Obsidian 1.13 settings window to a PNG by
 	 * screenshotting its OWN render buffer — z-order independent (I187).
 	 *
