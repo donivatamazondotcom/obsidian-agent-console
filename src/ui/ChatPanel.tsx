@@ -701,6 +701,7 @@ export function ChatPanel({
 		autoDefaultSuppressed,
 		lazyAcquireNowRef,
 		vaultRoot,
+		agentCwd,
 	);
 
 	const {

@@ -107,6 +107,15 @@ export function useChatActions(
 	 */
 	lazyAcquireNowRef: { current: (() => Promise<void>) | null },
 	vaultRoot: string = "",
+	/**
+	 * The tab's resolved session working directory (per-agent → global default
+	 * → vault root; see ChatPanel `agentCwd`). This is the SAME value handed to
+	 * the ACP `session/new` call, so the host-context briefing describes the
+	 * agent's real cwd. Distinct from `vaultPath`, which resolves only the
+	 * GLOBAL default and ignores the per-agent setting (#277). Falls back to
+	 * `vaultPath` when unset so pre-existing callers keep prior behavior.
+	 */
+	agentCwd: string = "",
 ): UseChatActionsReturn {
 	const logger = getLogger();
 
@@ -272,7 +281,14 @@ export function useChatActions(
 
 				await agent.sendMessage(content, {
 					vaultBasePath: vaultPath,
-					workingDirectory: vaultPath,
+					// #277: the host-context briefing must describe the agent's
+					// REAL session cwd (agentCwd — per-agent → global → vault),
+					// the same value handed to session/new. Feeding vaultPath
+					// here ignored the per-agent setting, so the briefing told
+					// the agent its cwd was the vault and fired the
+					// vault-collaboration block. Fall back to vaultPath when
+					// agentCwd is unset (pre-existing callers).
+					workingDirectory: agentCwd || vaultPath,
 					vaultRootPath: vaultRoot,
 					contextNotes: notesToSend,
 					selection,
@@ -324,6 +340,7 @@ export function useChatActions(
 			shouldConvertToWsl,
 			vaultPath,
 			vaultRoot,
+			agentCwd,
 		],
 	);
 
