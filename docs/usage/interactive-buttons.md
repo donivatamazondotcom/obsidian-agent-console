@@ -13,6 +13,7 @@ Agents learn this ability from the [Obsidian system prompt](/usage/obsidian-cont
 - **Buttons activate when the reply finishes.** While the agent is still writing, they show up but stay off.
 - **One click, one answer.** After you pick, your choice is highlighted and the other buttons fade. The choice group is answered once — the agent's next reply carries on from your pick.
 - **Your pick is a visible message.** Clicking sends a regular message that starts with a line like `Selected: Complete migration`, with the machine-readable details tucked behind a small expander. Nothing is sent invisibly.
+- **Long labels wrap.** A label too long for the panel wraps onto more lines and the button grows to fit, so the text always stays inside the button.
 - **Keyboard works everywhere.** Tab to a button, press Enter or Space — same as clicking.
 
 ## When buttons wait
