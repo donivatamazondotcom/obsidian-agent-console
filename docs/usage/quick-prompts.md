@@ -105,6 +105,19 @@ show when:
 Give me the daily brief for this note.
 ````
 
+**Match any note that has a property** — write just the property name, with no `=`. Handy when the value is different on every note, like an id or a link:
+
+````markdown
+---
+label: "🔗 Summarize the source"
+show when:
+  - source-url
+---
+Summarize the article this note was clipped from.
+````
+
+That chip shows on every note carrying a `source-url` property, whatever its value.
+
 **Show a chip everywhere** — tick the **`always show`** checkbox for prompts you reach for on any note ("new chat", "debrief"):
 
 ````markdown
@@ -116,7 +129,7 @@ Debrief the meeting I just had.
 ````
 
 - A prompt with **`always show`** is a chip on every note.
-- A prompt with **`show when`** is a chip only on notes whose properties match **every** listed condition. Use any frontmatter property — `type=meeting`, `status=open`, `initiatives=[[Project]]`. The special **`tags=`** key matches the note's tags instead, with nested matching (`tags=NoteType` matches a note tagged `NoteType/DailyNote`).
+- A prompt with **`show when`** is a chip only on notes whose properties match **every** listed condition. Use any frontmatter property — `type=meeting`, `status=open`, `initiatives=[[Project]]`. A bare property name with no `=` — `source-url` — matches any note that *has* that property (an empty value doesn't count; `false` and `0` do). The special **`tags=`** key matches the note's tags instead, with nested matching (`tags=NoteType` matches a note tagged `NoteType/DailyNote`), and a bare `tags` matches any note that has at least one tag.
 - A prompt with **neither** is **search-only** — never in the chip row, always one keystroke away by typing `!`. This is the default, so new prompts don't clutter the row until you opt them in.
 - `always show` is a checkbox property and `show when` is a list property — both edit in the note's Properties view.
 - When no prompts apply to the note you're in, there's **no chip row at all** — the space is reclaimed.
