@@ -93,3 +93,63 @@ describe("tracked CSS files avoid store-flagged selectors", () => {
 		expect({ file: rel, offenders }).toEqual({ file: rel, offenders: [] });
 	});
 });
+
+/**
+ * A2UI-I06 — long A2UI button labels painted OUTSIDE the button's background
+ * box. Root cause is a platform-default interaction, not our markup:
+ * Obsidian's `button` style sets `white-space: nowrap`, a fixed
+ * `height: var(--input-height)` (30px) and `overflow: visible`, while
+ * `.agent-client-a2ui-column` uses `align-items: stretch` — so a surface
+ * button's width is the CONTAINER width regardless of its content. A label
+ * wider than the panel has nowhere to wrap to and overflows the box. In a
+ * `Row` the same defaults let a long unbroken label grow the button PAST the
+ * surface card's edge.
+ *
+ * Measured in a real Obsidian window (off-screen replica, 420px panel):
+ * clientWidth 420 vs scrollWidth 438 before; 420 vs 420 after (2 lines, 38px).
+ *
+ * This guard pins the declarations that neutralise those defaults. It is a
+ * declaration-presence check by necessity: jsdom has NO layout engine, so no
+ * unit test in this suite can assert the geometry. The real-layout assertion
+ * lives in the in-Obsidian invariant suite as INV-7, which measures
+ * scrollWidth/clientWidth and card containment against the live stylesheet.
+ */
+describe("A2UI button labels stay inside the button box", () => {
+	it("styles.css neutralises the platform button defaults for .agent-client-a2ui-button", () => {
+		const css = readFileSync(resolve(repoRoot, "styles.css"), "utf8");
+		const root = postcss.parse(css, { from: "styles.css" });
+
+		const decls = new Map<string, string>();
+		root.walkRules((rule) => {
+			if (rule.selectors.includes(".agent-client-a2ui-button")) {
+				rule.walkDecls((d) => {
+					decls.set(d.prop, d.value);
+				});
+			}
+		});
+
+		expect(
+			decls.size,
+			"no .agent-client-a2ui-button rule found in styles.css",
+		).toBeGreaterThan(0);
+
+		expect({
+			// Let a too-long label wrap instead of overflowing horizontally.
+			"white-space": decls.get("white-space"),
+			// A single unbroken token must break rather than escape the box.
+			"overflow-wrap": decls.get("overflow-wrap"),
+			// Release the platform's fixed height so the box grows with the lines,
+			// while keeping the one-line button visually identical.
+			height: decls.get("height"),
+			"min-height": decls.get("min-height"),
+			// Row case: never grow past the surface card.
+			"max-width": decls.get("max-width"),
+		}).toEqual({
+			"white-space": "normal",
+			"overflow-wrap": "anywhere",
+			height: "auto",
+			"min-height": "var(--input-height)",
+			"max-width": "100%",
+		});
+	});
+});

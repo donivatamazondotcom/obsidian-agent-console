@@ -35,6 +35,7 @@ Some probes mutate disposable UI state (INV-1 opens a new chat tab). The runner 
 | INV-4 | `getAvailableAgents()` is non-empty, unique, includes enabled custom agents and the default agent | picker/dropdown wiring class |
 | INV-5 | Notification click reveal path: `revealOwningLeaf` wiring exists and reactivates the chat leaf from a background state (cross-window OS race stays human via SF-6) | notification class |
 | INV-6 | Quick-prompt chips all carry non-empty labels | cold-start label race |
+| INV-7 | A2UI surface button labels stay inside the button box (no horizontal overflow, no growth past the surface card) — measured on an off-screen replica against the live stylesheet | label-overflow class |
 
 Statuses: `pass` / `fail` / `skip` (precondition absent in this vault) / `todo` (probe not implemented). Only `fail` sets a non-zero exit code.
 

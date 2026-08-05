@@ -3534,6 +3534,23 @@ button.agent-client-message-tool-call-summary:focus-visible {
 .agent-client-a2ui-button {
 	/* Real <button>: platform owns focus ring + Enter/Space activation. */
 	cursor: pointer;
+
+	/* A2UI-I06: the platform's own button style (white-space: nowrap, a fixed
+	   height: var(--input-height), overflow: visible) makes a long label paint
+	   OUTSIDE this box, because a surface button's width is set by its
+	   container, not its content — `.agent-client-a2ui-column` stretches every
+	   child to the panel width, and in a `Row` an unbroken label instead grows
+	   the button past the surface card's edge. Agents choose their own label
+	   text, so the label length is not something we control: let it wrap and
+	   let the box grow with it. `min-height` keeps a one-line button visually
+	   identical to a platform button. Layout is asserted by INV-7 in the
+	   in-Obsidian invariant suite (jsdom has no layout engine); the declarations
+	   themselves are pinned by src/__tests__/styles-css-syntax.test.ts. */
+	white-space: normal;
+	overflow-wrap: anywhere;
+	height: auto;
+	min-height: var(--input-height);
+	max-width: 100%;
 }
 
 .agent-client-a2ui-button:disabled {

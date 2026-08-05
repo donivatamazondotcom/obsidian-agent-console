@@ -395,6 +395,110 @@ const quickPromptLabels: Invariant = {
 	},
 };
 
+/**
+ * INV-7 — A2UI surface button labels stay inside the button box.
+ * Measures a throwaway off-screen replica of a surface (Column and Row)
+ * against the LIVE stylesheet, so it asserts real geometry — the layer
+ * jsdom cannot reach at all (no layout engine). Read-only with respect to
+ * app state: the replica is appended off-screen and removed in the same
+ * evaluate, and no plugin/session state is touched. Guards the
+ * label-overflow class: a label longer than the panel painting outside the
+ * button, or an unbroken label growing the button past the surface card.
+ */
+const a2uiButtonLabelContainment: Invariant = {
+	id: "INV-7",
+	name: "A2UI button labels stay inside the button box",
+	guards: "label-overflow class (A2UI-I06)",
+	async run(cdp) {
+		const r = await evalJson<{
+			ruleFound: boolean;
+			cases: {
+				name: string;
+				clientWidth: number;
+				scrollWidth: number;
+				hostWidth: number;
+				buttonWidth: number;
+				overflowsBox: boolean;
+				escapesCard: boolean;
+			}[];
+		}>(
+			cdp,
+			`const LONG = "A: a deliberately long choice label that cannot fit on one line in a narrow panel";
+			 const UNBROKEN = "Averyveryverylongsingletokenlabelwithnospacesatallthatcannotwrapnormally";
+			 const probe = (name, containerClass, width, label) => {
+				const host = document.createElement("div");
+				host.style.cssText = "position:fixed;left:-9999px;top:0;width:" + width + "px";
+				document.body.appendChild(host);
+				try {
+					const container = document.createElement("div");
+					container.className = containerClass;
+					host.appendChild(container);
+					const b = document.createElement("button");
+					b.className = "agent-client-a2ui-button";
+					b.textContent = label;
+					container.appendChild(b);
+					const bw = b.getBoundingClientRect().width;
+					const hw = host.getBoundingClientRect().width;
+					return {
+						name,
+						clientWidth: b.clientWidth,
+						scrollWidth: b.scrollWidth,
+						hostWidth: host.clientWidth,
+						buttonWidth: Math.round(bw),
+						overflowsBox: b.scrollWidth > b.clientWidth + 1,
+						escapesCard: bw > hw + 0.5,
+					};
+				} finally {
+					host.remove();
+				}
+			 };
+			 // Confirm our stylesheet is actually loaded, so a missing-CSS run
+			 // cannot pass vacuously on the platform defaults alone.
+			 let ruleFound = false;
+			 for (const sheet of Array.from(document.styleSheets)) {
+				try {
+					for (const rule of Array.from(sheet.cssRules)) {
+						if (rule.selectorText === ".agent-client-a2ui-button") { ruleFound = true; break; }
+					}
+				} catch (e) { /* cross-origin sheet; ignore */ }
+				if (ruleFound) break;
+			 }
+			 return {
+				ruleFound,
+				cases: [
+					probe("column/narrow", "agent-client-a2ui-column", 220, LONG),
+					probe("column/typical", "agent-client-a2ui-column", 420, LONG),
+					probe("row/unbroken-token", "agent-client-a2ui-row", 300, UNBROKEN),
+				],
+			 };`,
+		);
+		if (!r.ruleFound) {
+			return {
+				status: "fail",
+				detail: "the .agent-client-a2ui-button rule is not in any loaded stylesheet — plugin CSS did not load (a full window reload is required after a CSS change)",
+			};
+		}
+		const bad = r.cases.filter((c) => c.overflowsBox || c.escapesCard);
+		if (bad.length > 0) {
+			return {
+				status: "fail",
+				detail: bad
+					.map(
+						(c) =>
+							`${c.name}: ${c.overflowsBox ? `label needs ${c.scrollWidth}px in a ${c.clientWidth}px box` : `button ${c.buttonWidth}px escapes a ${c.hostWidth}px card`}`,
+					)
+					.join("; "),
+			};
+		}
+		return {
+			status: "pass",
+			detail: r.cases
+				.map((c) => `${c.name} ${c.scrollWidth}/${c.clientWidth}px contained`)
+				.join("; "),
+		};
+	},
+};
+
 /** Chat view must exist before DOM probes run. */
 export async function ensureChatViewOpen(cdp: Cdp): Promise<void> {
 	const count = await cdp.evaluate<number>(
@@ -413,4 +517,5 @@ export const invariants: Invariant[] = [
 	agentListsComplete,
 	notificationRouting,
 	quickPromptLabels,
+	a2uiButtonLabelContainment,
 ];
