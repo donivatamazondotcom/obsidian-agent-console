@@ -20,6 +20,7 @@ import {
 	matchPromptsForNote,
 	parseShowWhen,
 	propertyMatches,
+	propertyExists,
 	conditionMatches,
 	tagsMatch,
 	promptInRestingRow,
@@ -115,8 +116,8 @@ describe("quick-prompts-logic", () => {
 				body: "x",
 			});
 			expect(prompt.showWhen).toEqual([
-				{ key: "type", value: "meeting" },
-				{ key: "tags", value: "NoteType/MeetingNote" },
+				{ kind: "equals", key: "type", value: "meeting" },
+				{ kind: "equals", key: "tags", value: "NoteType/MeetingNote" },
 			]);
 			expect(prompt.agent).toBe("kiro-cli");
 			expect(prompt.mode).toBe("default");
@@ -129,7 +130,7 @@ describe("quick-prompts-logic", () => {
 				frontmatter: { "show when": "type=daily" },
 				body: "x",
 			});
-			expect(prompt.showWhen).toEqual([{ key: "type", value: "daily" }]);
+			expect(prompt.showWhen).toEqual([{ kind: "equals", key: "type", value: "daily" }]);
 		});
 		it("absent show when → []; newTab only true when literal true", () => {
 			const prompt = buildQuickPrompt({
@@ -499,37 +500,40 @@ describe("quick-prompts-logic — show-when matching + chip visibility", () => {
 	describe("SW-T1: parseShowWhen — List/string of key=value, split on first =", () => {
 		it("parses a List into conditions", () => {
 			expect(parseShowWhen(["type=meeting", "status=open"])).toEqual([
-				{ key: "type", value: "meeting" },
-				{ key: "status", value: "open" },
+				{ kind: "equals", key: "type", value: "meeting" },
+				{ kind: "equals", key: "status", value: "open" },
 			]);
 		});
 		it("parses a single string", () => {
 			expect(parseShowWhen("type=meeting")).toEqual([
-				{ key: "type", value: "meeting" },
+				{ kind: "equals", key: "type", value: "meeting" },
 			]);
 		});
 		it("splits on the FIRST = only (value may contain = or [[ ]])", () => {
 			expect(parseShowWhen(["initiatives=[[TCOM]]"])).toEqual([
-				{ key: "initiatives", value: "[[TCOM]]" },
+				{ kind: "equals", key: "initiatives", value: "[[TCOM]]" },
 			]);
 			expect(parseShowWhen(["expr=a=b"])).toEqual([
-				{ key: "expr", value: "a=b" },
+				{ kind: "equals", key: "expr", value: "a=b" },
 			]);
 		});
 		it("trims keys and values", () => {
 			expect(parseShowWhen([" type = meeting "])).toEqual([
-				{ key: "type", value: "meeting" },
+				{ kind: "equals", key: "type", value: "meeting" },
 			]);
 		});
-		it("drops items with no = or an empty key", () => {
+		it("drops items with an empty key; a bare key is an exists condition", () => {
+			// `bogus` used to be dropped (no `=`); it is now an existence
+			// condition — see SWX-T1. `=novalue` (empty key) is still dropped.
 			expect(parseShowWhen(["bogus", "=novalue", "type=ok"])).toEqual([
-				{ key: "type", value: "ok" },
+				{ kind: "exists", key: "bogus" },
+				{ kind: "equals", key: "type", value: "ok" },
 			]);
 		});
 		it("buildQuickPrompt carries showWhen; legacy tags/show-on-tags keys ignored", () => {
 			expect(
 				buildQuickPrompt(fileInput({ "show when": ["type=meeting"] })).showWhen,
-			).toEqual([{ key: "type", value: "meeting" }]);
+			).toEqual([{ kind: "equals", key: "type", value: "meeting" }]);
 			expect(
 				buildQuickPrompt(fileInput({ "show on tags": ["x"] })).showWhen,
 			).toEqual([]);
@@ -598,27 +602,27 @@ describe("quick-prompts-logic — show-when matching + chip visibility", () => {
 	describe("SW-T5: conditionMatches — tags routes to tagsMatch, else property", () => {
 		it("tags key uses nested tag matching", () => {
 			expect(
-				conditionMatches({ key: "tags", value: "NoteType" }, note(["NoteType/DailyNote"])),
+				conditionMatches({ kind: "equals", key: "tags", value: "NoteType" }, note(["NoteType/DailyNote"])),
 			).toBe(true);
 			expect(
-				conditionMatches({ key: "tags", value: "NoteType" }, note(["Project/Alpha"])),
+				conditionMatches({ kind: "equals", key: "tags", value: "NoteType" }, note(["Project/Alpha"])),
 			).toBe(false);
 		});
 		it("non-tags key matches frontmatter equality / membership", () => {
 			expect(
-				conditionMatches({ key: "type", value: "meeting" }, note([], { type: "meeting" })),
+				conditionMatches({ kind: "equals", key: "type", value: "meeting" }, note([], { type: "meeting" })),
 			).toBe(true);
 			expect(
 				conditionMatches(
-					{ key: "initiatives", value: "[[TCOM]]" },
+					{ kind: "equals", key: "initiatives", value: "[[TCOM]]" },
 					note([], { initiatives: ["[[TCOM]]"] }),
 				),
 			).toBe(true);
 			expect(
-				conditionMatches({ key: "type", value: "meeting" }, note([], { type: "bug" })),
+				conditionMatches({ kind: "equals", key: "type", value: "meeting" }, note([], { type: "bug" })),
 			).toBe(false);
 			expect(
-				conditionMatches({ key: "type", value: "meeting" }, note([], null)),
+				conditionMatches({ kind: "equals", key: "type", value: "meeting" }, note([], null)),
 			).toBe(false);
 		});
 	});
@@ -631,7 +635,7 @@ describe("quick-prompts-logic — show-when matching + chip visibility", () => {
 		it("show-when matching the note → true (property)", () => {
 			expect(
 				promptInRestingRow(
-					p({ showWhen: [{ key: "type", value: "meeting" }] }),
+					p({ showWhen: [{ kind: "equals", key: "type", value: "meeting" }] }),
 					note([], { type: "meeting" }),
 				),
 			).toBe(true);
@@ -639,7 +643,7 @@ describe("quick-prompts-logic — show-when matching + chip visibility", () => {
 		it("show-when matching the note → true (tags key)", () => {
 			expect(
 				promptInRestingRow(
-					p({ showWhen: [{ key: "tags", value: "NoteType" }] }),
+					p({ showWhen: [{ kind: "equals", key: "tags", value: "NoteType" }] }),
 					note(["NoteType/DailyNote"]),
 				),
 			).toBe(true);
@@ -647,7 +651,7 @@ describe("quick-prompts-logic — show-when matching + chip visibility", () => {
 		it("show-when not matching → false", () => {
 			expect(
 				promptInRestingRow(
-					p({ showWhen: [{ key: "type", value: "meeting" }] }),
+					p({ showWhen: [{ kind: "equals", key: "type", value: "meeting" }] }),
 					note([], { type: "bug" }),
 				),
 			).toBe(false);
@@ -665,8 +669,8 @@ describe("quick-prompts-logic — show-when matching + chip visibility", () => {
 	describe("SW-T6: promptInRestingRow — AND within show-when", () => {
 		const prompt = p({
 			showWhen: [
-				{ key: "type", value: "feature" },
-				{ key: "status", value: "open" },
+				{ kind: "equals", key: "type", value: "feature" },
+				{ kind: "equals", key: "status", value: "open" },
 			],
 		});
 		it("true only when ALL conditions match", () => {
@@ -680,9 +684,9 @@ describe("quick-prompts-logic — show-when matching + chip visibility", () => {
 		it("keeps always-show + matched; drops search-only / non-matching", () => {
 			const prompts = [
 				p({ id: "global", alwaysShow: true }),
-				p({ id: "meeting", showWhen: [{ key: "type", value: "meeting" }] }),
-				p({ id: "daily", showWhen: [{ key: "tags", value: "NoteType" }] }),
-				p({ id: "bug", showWhen: [{ key: "type", value: "bug" }] }),
+				p({ id: "meeting", showWhen: [{ kind: "equals", key: "type", value: "meeting" }] }),
+				p({ id: "daily", showWhen: [{ kind: "equals", key: "tags", value: "NoteType" }] }),
+				p({ id: "bug", showWhen: [{ kind: "equals", key: "type", value: "bug" }] }),
 				p({ id: "quiet" }),
 			];
 			const matched = matchPromptsForNote(
@@ -694,7 +698,7 @@ describe("quick-prompts-logic — show-when matching + chip visibility", () => {
 		it("empty resting set ⇒ no row", () => {
 			const prompts = [
 				p({ id: "quiet" }),
-				p({ id: "bug", showWhen: [{ key: "type", value: "bug" }] }),
+				p({ id: "bug", showWhen: [{ kind: "equals", key: "type", value: "bug" }] }),
 			];
 			expect(matchPromptsForNote(prompts, note([], { type: "meeting" }))).toEqual([]);
 		});
@@ -703,7 +707,7 @@ describe("quick-prompts-logic — show-when matching + chip visibility", () => {
 	describe("S2-T6: alwaysShow + showWhen both set → resting on every note", () => {
 		const prompt = p({
 			alwaysShow: true,
-			showWhen: [{ key: "type", value: "meeting" }],
+			showWhen: [{ kind: "equals", key: "type", value: "meeting" }],
 		});
 		it("shows even when conditions do NOT match (alwaysShow wins)", () => {
 			expect(promptInRestingRow(prompt, note([], { type: "bug" }))).toBe(true);
@@ -1313,5 +1317,197 @@ describe("Slice 6 — runCreateWithFolderGate (S6-T4/T5)", () => {
 		const deps = makeDeps({ chooseFolder: vi.fn(async () => "My Prompts/" as string | null) });
 		await runCreateWithFolderGate(deps);
 		expect(deps.persistFolder).toHaveBeenCalledWith("My Prompts");
+	});
+});
+
+// ============================================================================
+// Existence conditions — a bare `show when:` key (no `=`) matches any note
+// that HAS the property, whatever its value. See
+// [[Agent Console Quick Prompts and Workflows]] § Property matching →
+// Existence conditions.
+// ============================================================================
+describe("quick-prompts-logic — show-when existence conditions", () => {
+	const note = (
+		tags: string[],
+		frontmatter: Record<string, unknown> | null = null,
+	) => ({ tags, frontmatter });
+
+	describe("SWX-T1: parseShowWhen — a bare key parses as an exists condition", () => {
+		it("parses a bare key (no =) as exists", () => {
+			expect(parseShowWhen(["source-url"])).toEqual([
+				{ kind: "exists", key: "source-url" },
+			]);
+		});
+		it("parses a bare single string", () => {
+			expect(parseShowWhen("gh_issue")).toEqual([
+				{ kind: "exists", key: "gh_issue" },
+			]);
+		});
+		it("trims a bare key", () => {
+			expect(parseShowWhen(["  source-url  "])).toEqual([
+				{ kind: "exists", key: "source-url" },
+			]);
+		});
+		it("keeps both kinds in one list, in order", () => {
+			expect(parseShowWhen(["source-url", "type=draft"])).toEqual([
+				{ kind: "exists", key: "source-url" },
+				{ kind: "equals", key: "type", value: "draft" },
+			]);
+		});
+		it("`key=` is still an equals-empty condition, NOT exists", () => {
+			expect(parseShowWhen(["type="])).toEqual([
+				{ kind: "equals", key: "type", value: "" },
+			]);
+		});
+		it("drops a blank / whitespace-only item", () => {
+			expect(parseShowWhen(["", "   ", "source-url"])).toEqual([
+				{ kind: "exists", key: "source-url" },
+			]);
+		});
+	});
+
+	describe("SWX-T2: propertyExists — present and non-empty", () => {
+		it("true for a non-empty scalar", () => {
+			expect(propertyExists("https://example.com/post")).toBe(true);
+			expect(propertyExists(42)).toBe(true);
+		});
+		it("true for false / 0 — the property IS there (use key=true for truthiness)", () => {
+			expect(propertyExists(false)).toBe(true);
+			expect(propertyExists(0)).toBe(true);
+		});
+		it("true for a non-empty list", () => {
+			expect(propertyExists(["[[TCOM]]"])).toBe(true);
+		});
+		it("false for absent / null", () => {
+			expect(propertyExists(undefined)).toBe(false);
+			expect(propertyExists(null)).toBe(false);
+		});
+		it("false for an empty or whitespace-only string", () => {
+			expect(propertyExists("")).toBe(false);
+			expect(propertyExists("   ")).toBe(false);
+		});
+		it("false for an empty list", () => {
+			expect(propertyExists([])).toBe(false);
+		});
+	});
+
+	describe("SWX-T3: conditionMatches — the exists branch", () => {
+		it("matches a note carrying the property", () => {
+			expect(
+				conditionMatches(
+					{ kind: "exists", key: "source-url" },
+					note([], { "source-url": "https://example.com/post" }),
+				),
+			).toBe(true);
+		});
+		it("does not match a note without it", () => {
+			expect(
+				conditionMatches(
+					{ kind: "exists", key: "source-url" },
+					note([], { type: "draft" }),
+				),
+			).toBe(false);
+			expect(
+				conditionMatches(
+					{ kind: "exists", key: "source-url" },
+					note([], null),
+				),
+			).toBe(false);
+		});
+		it("does not match an empty value", () => {
+			expect(
+				conditionMatches(
+					{ kind: "exists", key: "source-url" },
+					note([], { "source-url": "" }),
+				),
+			).toBe(false);
+		});
+		it("bare `tags` means the note has at least one tag", () => {
+			expect(
+				conditionMatches({ kind: "exists", key: "tags" }, note(["Project/Alpha"])),
+			).toBe(true);
+			expect(conditionMatches({ kind: "exists", key: "tags" }, note([]))).toBe(
+				false,
+			);
+		});
+	});
+
+	describe("SWX-T4: promptInRestingRow — exists lights the chip", () => {
+		const prompt = {
+			alwaysShow: false,
+			showWhen: [{ kind: "exists" as const, key: "source-url" }],
+		};
+		it("chips on any note clipped from a source", () => {
+			expect(
+				promptInRestingRow(
+					prompt,
+					note([], {
+						type: "draft",
+						initiatives: "[[Supply Quality marketing]]",
+						"source-url": "https://example.com/post",
+					}),
+				),
+			).toBe(true);
+		});
+		it("stays off a note that has not", () => {
+			expect(
+				promptInRestingRow(prompt, note([], { type: "draft" })),
+			).toBe(false);
+		});
+		it("ANDs with an equals condition", () => {
+			const both = {
+				alwaysShow: false,
+				showWhen: [
+					{ kind: "exists" as const, key: "source-url" },
+					{ kind: "equals" as const, key: "type", value: "draft" },
+				],
+			};
+			expect(
+				promptInRestingRow(both, note([], { type: "draft", "source-url": "x" })),
+			).toBe(true);
+			expect(
+				promptInRestingRow(both, note([], { type: "spec", "source-url": "x" })),
+			).toBe(false);
+		});
+		// Condition ORDER must not matter: an author editing `show when` in the
+		// Properties panel can end up with the equals item first. Pins the
+		// 2026-08-05 smoke-test ghost, where a two-condition prompt authored
+		// equals-first looked like it wasn't matching (the note under test had
+		// been switched to type=spec by the preceding check, so nothing
+		// satisfied both). Same truth table, reversed list.
+		it("ANDs regardless of condition order (equals listed first)", () => {
+			const equalsFirst = {
+				alwaysShow: false,
+				showWhen: [
+					{ kind: "equals" as const, key: "type", value: "draft" },
+					{ kind: "exists" as const, key: "source-url" },
+				],
+			};
+			expect(
+				promptInRestingRow(equalsFirst, note([], { type: "draft", "source-url": "x" })),
+			).toBe(true);
+			// Only the equals matches — the property is absent.
+			expect(promptInRestingRow(equalsFirst, note([], { type: "draft" }))).toBe(
+				false,
+			);
+			// Only the exists matches — wrong type.
+			expect(
+				promptInRestingRow(equalsFirst, note([], { type: "spec", "source-url": "x" })),
+			).toBe(false);
+		});
+	});
+
+	describe("SWX-T5: buildQuickPrompt carries an exists condition", () => {
+		it("parses `show when: [source-url]` off the note", () => {
+			const built = buildQuickPrompt({
+				path: "Quick Prompts/Summarize the source.md",
+				basename: "Summarize the source",
+				frontmatter: { label: "🔗 Summarize the source", "show when": ["source-url"] },
+				body: "Summarize the article this note was clipped from.",
+			});
+			expect(built.showWhen).toEqual([
+				{ kind: "exists", key: "source-url" },
+			]);
+		});
 	});
 });

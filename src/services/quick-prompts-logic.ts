@@ -139,10 +139,15 @@ export function slugifyPromptId(basename: string): string {
 }
 
 /**
- * Parse a `show when:` frontmatter value into `key=value` conditions. Accepts a
- * List (array of strings) or a single string. Each item splits on the FIRST `=`
- * (the value may itself contain `=` or `[[ ]]`); items with no `=` or an empty
- * key are dropped. Returns [] when absent/empty (⇒ search-only).
+ * Parse a `show when:` frontmatter value into conditions. Accepts a List (array
+ * of strings) or a single string. Each item is one of:
+ *
+ * - `key=value` → an **equals** condition. Splits on the FIRST `=` (the value
+ *   may itself contain `=` or `[[ ]]`). `key=` is equals-empty, not exists.
+ * - bare `key` (no `=`) → an **exists** condition: the note has that property.
+ *
+ * Items with an empty key (`=novalue`) or that are blank/whitespace-only are
+ * dropped. Returns [] when absent/empty (⇒ search-only).
  */
 export function parseShowWhen(value: unknown): ShowWhenCondition[] {
 	const items: string[] = Array.isArray(value)
@@ -153,10 +158,18 @@ export function parseShowWhen(value: unknown): ShowWhenCondition[] {
 	const out: ShowWhenCondition[] = [];
 	for (const item of items) {
 		const eq = item.indexOf("=");
-		if (eq < 0) continue;
+		if (eq < 0) {
+			// Bare key ⇒ existence condition (`- source-url`). Before
+			// existence conditions these items were silently dropped, so this is
+			// a pure extension of previously-inert input.
+			const key = item.trim();
+			if (key.length === 0) continue;
+			out.push({ kind: "exists", key });
+			continue;
+		}
 		const key = item.slice(0, eq).trim();
 		if (key.length === 0) continue;
-		out.push({ key, value: item.slice(eq + 1).trim() });
+		out.push({ kind: "equals", key, value: item.slice(eq + 1).trim() });
 	}
 	return out;
 }
@@ -593,14 +606,34 @@ export function propertyMatches(
 }
 
 /**
- * Whether a single `show when:` condition matches the active note. The `tags`
- * key routes to the tag matcher (nested, `#`-tolerant); any other key is
- * frontmatter equality / list-membership.
+ * Whether a frontmatter value counts as **present** for an `exists` condition:
+ * anything other than absent, null, an empty/whitespace-only string, or an
+ * empty list. `false` and `0` DO count — the property is there; write
+ * `key=true` when you mean truthiness rather than presence.
+ */
+export function propertyExists(noteValue: unknown): boolean {
+	if (noteValue === undefined || noteValue === null) return false;
+	if (typeof noteValue === "string") return noteValue.trim().length > 0;
+	if (Array.isArray(noteValue)) return noteValue.length > 0;
+	return true;
+}
+
+/**
+ * Whether a single `show when:` condition matches the active note.
+ *
+ * - `exists` — the note HAS the property (non-empty). Bare `tags` means the
+ *   note has at least one tag.
+ * - `equals` — the `tags` key routes to the tag matcher (nested, `#`-tolerant);
+ *   any other key is frontmatter equality / list-membership.
  */
 export function conditionMatches(
 	cond: ShowWhenCondition,
 	note: NoteMatchContext,
 ): boolean {
+	if (cond.kind === "exists") {
+		if (cond.key === "tags") return note.tags.length > 0;
+		return propertyExists(note.frontmatter?.[cond.key]);
+	}
 	if (cond.key === "tags") return tagsMatch([cond.value], note.tags);
 	return propertyMatches(note.frontmatter?.[cond.key], cond.value);
 }
@@ -611,6 +644,8 @@ export function conditionMatches(
  *
  * - `alwaysShow` (the `always show` checkbox) → a **global** chip on every note.
  * - `showWhen` conditions that ALL match the note (AND) → a **contextual** chip.
+ *   Each condition is either `key=value` (equality) or a bare `key` (the note
+ *   has that property at all).
  *
  * Neither ⇒ **search-only**: findable in the picker, never in the resting row.
  */
@@ -774,7 +809,7 @@ export const NEW_PROMPT_BODY_PLACEHOLDER = [
 	"Set the label above, then choose where this prompt's chip appears:",
 	"- open in new tab: runs in a new chat tab instead of this one.",
 	"- always show: the chip shows on every note.",
-	"- show when: the chip shows only on matching notes. Add one list item per condition, like type=meeting, tags=people, or status=open.",
+	"- show when: the chip shows only on matching notes. Add one list item per condition, like type=meeting, tags=people, or status=open. A bare property name like source-url matches any note that has it, whatever its value.",
 	"- order: a number that sorts this prompt in the chip row and ! list — lower comes first (order: 0 pins it leftmost). Leave it blank to sort after pinned prompts, alphabetically.",
 	"",
 	"Set none of these and the prompt stays out of the chip row — type ! in the composer to run it.",
