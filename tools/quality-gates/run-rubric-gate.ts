@@ -17,6 +17,7 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { log, logError } from "../lib/cli-log";
 import {
 	describeRubricResult,
 	evaluateRubricDeclaration,
@@ -47,25 +48,25 @@ function main(): void {
 	} catch (error) {
 		// A gate that cannot compute its input must fail loudly, never pass by
 		// default — a silent pass here is the very hole this gate closes.
-		console.error(
+		logError(
 			`::error::rubric gate could not diff against origin/${baseRef}: ${String(error)}`,
 		);
 		process.exit(1);
 	}
 
 	if (files.length > 0) {
-		console.log("Test files changed in this PR:");
-		for (const file of files) console.log(`  ${file}`);
+		log("Test files changed in this PR:");
+		for (const file of files) log(`  ${file}`);
 	}
 
 	const result = evaluateRubricDeclaration({ body, changedTestFiles: files });
 	const message = describeRubricResult(result);
 
 	if (result.kind === "fail") {
-		console.error(`::error::${message}`);
+		logError(`::error::${message}`);
 		process.exit(1);
 	}
-	console.log(message);
+	log(message);
 }
 
 main();
