@@ -206,6 +206,14 @@ Tests exist to fail when the code is wrong. A test that would pass against broke
 | R4 | **Mock budget** | Mock only at architecture boundaries (the `acp/` port, the settings port, the Obsidian stub). Mocking a sibling module of the code under test defeats the test. |
 | R5 | **No tautology** | The test must not re-implement the production logic to compute its expected value. |
 
+CI enforces that the section was **answered**, not that the claims are true — only review or the mutation audit can judge honesty. All five gates must appear in the PR body. To waive instead, put the waiver on its own line with a reason:
+
+```text
+Rubric: N/A - deleted an obsolete snapshot fixture; nothing to assert either side.
+```
+
+A bare `N/A` elsewhere in the body does not waive the gate, and neither does naming only one gate.
+
 ### CI
 
 Pull requests automatically run:
@@ -213,7 +221,7 @@ Pull requests automatically run:
 - ESLint (`npm run lint` — covers `src/` and `tools/**/*.ts`)
 - Build (`npm run build`)
 - Test (`npm test`) — includes the network-egress tripwire
-- Test-quality rubric declared (pull requests that change test files) — the body must tick R1–R5 or state N/A
+- Test-quality rubric declared (pull requests that change test files) — the body must declare all of R1–R5, or carry a `Rubric: N/A - <reason>` line
 - Dependency review (pull requests only)
 
 Please ensure these pass locally before submitting.

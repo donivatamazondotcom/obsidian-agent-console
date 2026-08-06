@@ -109,6 +109,12 @@ jobs:
     # It deliberately checks PRESENCE, not truth: only human review or the
     # mutation audit can tell whether an R1 claim is honest. What it removes is
     # the silent-omission path, so skipping the rubric becomes a visible choice.
+    #
+    # I192: the decision moved out of this step into
+    # tools/quality-gates/lib/rubric-declaration.ts so it is unit-testable. The
+    # inline matcher passed on two bodies that had not answered the section --
+    # a bare `R1` token (five-item section, one token) and an unanchored `N/A`
+    # anywhere in the body. Both were holes on this job's own terms.
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
@@ -117,29 +123,22 @@ jobs:
           # cannot see it.
           fetch-depth: 0
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
       - name: Test-quality rubric declared when tests change
-        # PR body arrives via env, never interpolated into the script body --
+        # PR body arrives via env, never interpolated into a shell command --
         # a title/body is attacker-controlled text and must not reach the shell.
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
           BASE_REF: ${{ github.base_ref }}
         run: |
           git fetch --quiet origin "$BASE_REF"
-          changed=$(git diff --name-only "origin/$BASE_REF...HEAD" \
-            | grep -E '(__tests__/|\.test\.tsx?$)' || true)
-          if [ -z "$changed" ]; then
-            echo "OK - no test files changed; rubric declaration not required."
-            exit 0
-          fi
-          echo "Test files changed in this PR:"
-          echo "$changed"
-          printf '%s' "$PR_BODY" > pr-body.txt
-          if grep -qE '(^|[^A-Za-z0-9])R1([^0-9]|$)|[Nn]/[Aa]' pr-body.txt; then
-            echo "OK - PR body carries a test-quality rubric statement."
-            exit 0
-          fi
-          echo "::error::This PR changes test files but its body has no test-quality rubric statement. Tick R1-R5 from the PR template, or state N/A with a reason. See CONTRIBUTING.md -> Test quality rubric."
-          exit 1
+          npm run gate:rubric
 
   dependency-review:
     runs-on: ubuntu-latest
