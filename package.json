@@ -19,6 +19,7 @@
 		"perf:gate": "node tools/quality-gates/run-perf-gate.mjs",
 		"gate": "node tools/quality-gates/run-gate.mjs",
 		"gate:bot-parity": "tsx tools/quality-gates/run-bot-parity-gate.ts",
+		"gate:rubric": "tsx tools/quality-gates/run-rubric-gate.ts",
 		"bench:tokens": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tools/benchmark/token-efficiency.ts",
 		"typecheck:bench": "tsc -p tools/benchmark/tsconfig.json",
 		"docs:dev": "vitepress dev docs",
