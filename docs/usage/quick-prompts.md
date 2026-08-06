@@ -70,7 +70,7 @@ When you fire this with text selected in a note, the selection is filled in and 
 
 ## Open in a new tab
 
-Some prompts kick off a whole new conversation — "debrief this meeting", "get the latest on this project". Tick **`open in new tab`** in the note's properties and firing the prompt opens a fresh chat tab and sends it there, leaving your current conversation untouched:
+Some prompts kick off a whole new conversation — "debrief this meeting", "get the latest on this project". Check **`open in new tab`** in the note's properties and firing the prompt opens a fresh chat tab and sends it there, leaving your current conversation untouched:
 
 ````markdown
 ---
@@ -118,7 +118,7 @@ Summarize the article this note was clipped from.
 
 That chip shows on every note carrying a `source-url` property, whatever its value.
 
-**Match any condition instead of all of them** — by default a prompt with several conditions is a chip only where *every* one matches. Tick **`show when any`** and one match is enough:
+**Match any condition instead of all of them** — by default a prompt with several conditions is a chip only where *every* one matches. Check **`show when any`** and one match is enough:
 
 ````markdown
 ---
@@ -133,7 +133,7 @@ Give me the brief for this note.
 
 `show when any` sits directly beneath `show when` in the note's Properties, and it's a checkbox — no typing. It never changes a prompt with no conditions: that stays search-only either way.
 
-**Show a chip everywhere** — tick the **`always show`** checkbox for prompts you reach for on any note ("new chat", "debrief"):
+**Show a chip everywhere** — check the **`always show`** checkbox for prompts you reach for on any note ("new chat", "debrief"):
 
 ````markdown
 ---
@@ -144,7 +144,7 @@ Debrief the meeting I just had.
 ````
 
 - A prompt with **`always show`** is a chip on every note.
-- A prompt with **`show when`** is a chip only on notes whose properties match **every** listed condition — unless you tick **`show when any`**, which makes one match enough. Use any frontmatter property — `type=meeting`, `status=open`, `initiatives=[[Project]]`. A bare property name with no `=` — `source-url` — matches any note that *has* that property (an empty value doesn't count; `false` and `0` do). The special **`tags=`** key matches the note's tags instead, with nested matching (`tags=NoteType` matches a note tagged `NoteType/DailyNote`), and a bare `tags` matches any note that has at least one tag.
+- A prompt with **`show when`** is a chip only on notes whose properties match **every** listed condition — unless you check **`show when any`**, which makes one match enough. Use any frontmatter property — `type=meeting`, `status=open`, `initiatives=[[Project]]`. A bare property name with no `=` — `source-url` — matches any note that *has* that property (an empty value doesn't count; `false` and `0` do). The special **`tags=`** key matches the note's tags instead, with nested matching (`tags=NoteType` matches a note tagged `NoteType/DailyNote`), and a bare `tags` matches any note that has at least one tag.
 - A prompt with **neither** is **search-only** — never in the chip row, always one keystroke away by typing `!`. This is the default, so new prompts don't clutter the row until you opt them in.
 - `always show` is a checkbox property, `show when` is a list property, and `show when any` is a checkbox — all three edit in the note's Properties view.
 - When no prompts apply to the note you're in, there's **no chip row at all** — the space is reclaimed.
