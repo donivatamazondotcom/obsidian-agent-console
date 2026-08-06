@@ -257,6 +257,7 @@ describe("createQuickPrompt — S4-T7/T8 (clobber-safe creation)", () => {
 				"open in new tab": false,
 				"always show": false,
 				"show when": [],
+				"show when any": false,
 				order: null,
 			},
 		);

@@ -1053,6 +1053,7 @@ describe("quick-prompts-logic — slice 4 (creation flow, D4)", () => {
 				"open in new tab": false,
 				"always show": false,
 				"show when": [],
+				"show when any": false,
 				order: null,
 			});
 			expect(note.body).toBe(NEW_PROMPT_BODY_PLACEHOLDER);
@@ -1494,6 +1495,119 @@ describe("quick-prompts-logic — show-when existence conditions", () => {
 			expect(
 				promptInRestingRow(equalsFirst, note([], { type: "spec", "source-url": "x" })),
 			).toBe(false);
+		});
+	});
+
+	describe("SWA-T1: parse the `show when any` checkbox", () => {
+		it("true when `show when any: true`", () => {
+			const built = buildQuickPrompt({
+				path: "Quick Prompts/x.md",
+				basename: "x",
+				frontmatter: { "show when": ["type=draft"], "show when any": true },
+				body: "b",
+			});
+			expect(built.matchAny).toBe(true);
+		});
+		it("falsy when absent or false", () => {
+			const mk = (fm: Record<string, unknown> | null) =>
+				buildQuickPrompt({
+					path: "Quick Prompts/x.md",
+					basename: "x",
+					frontmatter: fm,
+					body: "b",
+				}).matchAny;
+			expect(mk({ "show when": ["type=draft"] })).toBeFalsy();
+			expect(mk({ "show when any": false })).toBeFalsy();
+			expect(mk(null)).toBeFalsy();
+		});
+	});
+
+	describe("SWA-T2: promptInRestingRow — `show when any` ORs the conditions", () => {
+		const conds = [
+			{ kind: "equals" as const, key: "type", value: "draft" },
+			{ kind: "exists" as const, key: "source-url" },
+		];
+		it("matches when only the equals condition holds", () => {
+			expect(
+				promptInRestingRow(
+					{ alwaysShow: false, matchAny: true, showWhen: conds },
+					note([], { type: "draft" }),
+				),
+			).toBe(true);
+		});
+		it("matches when only the exists condition holds", () => {
+			expect(
+				promptInRestingRow(
+					{ alwaysShow: false, matchAny: true, showWhen: conds },
+					note([], { type: "spec", "source-url": "x" }),
+				),
+			).toBe(true);
+		});
+		it("matches when both hold", () => {
+			expect(
+				promptInRestingRow(
+					{ alwaysShow: false, matchAny: true, showWhen: conds },
+					note([], { type: "draft", "source-url": "x" }),
+				),
+			).toBe(true);
+		});
+		it("does not match when neither holds", () => {
+			expect(
+				promptInRestingRow(
+					{ alwaysShow: false, matchAny: true, showWhen: conds },
+					note([], { type: "spec" }),
+				),
+			).toBe(false);
+		});
+		it("empty conditions stay search-only even with matchAny", () => {
+			expect(
+				promptInRestingRow(
+					{ alwaysShow: false, matchAny: true, showWhen: [] },
+					note([], { type: "draft" }),
+				),
+			).toBe(false);
+		});
+		it("alwaysShow still wins regardless of matchAny", () => {
+			expect(
+				promptInRestingRow(
+					{ alwaysShow: true, matchAny: true, showWhen: conds },
+					note([], null),
+				),
+			).toBe(true);
+		});
+	});
+
+	describe("SWA-T3: AND remains the default (regression)", () => {
+		const conds = [
+			{ kind: "equals" as const, key: "type", value: "draft" },
+			{ kind: "exists" as const, key: "source-url" },
+		];
+		it("one condition holding is NOT enough without the checkbox", () => {
+			// This is the exact case reported 2026-08-05: a prompt with
+			// `type=draft` + a bare property, on a note carrying only type=draft.
+			expect(
+				promptInRestingRow(
+					{ alwaysShow: false, showWhen: conds },
+					note([], { type: "draft" }),
+				),
+			).toBe(false);
+			expect(
+				promptInRestingRow(
+					{ alwaysShow: false, matchAny: false, showWhen: conds },
+					note([], { type: "draft" }),
+				),
+			).toBe(false);
+		});
+	});
+
+	describe("SWA-T4: the new-prompt template seeds the checkbox next to `show when`", () => {
+		it("seeds `show when any: false` immediately after `show when`", () => {
+			const note = buildNewPromptNote({ label: "L" });
+			expect(note.frontmatter["show when any"]).toBe(false);
+			const keys = Object.keys(note.frontmatter);
+			expect(keys.indexOf("show when any")).toBe(
+				keys.indexOf("show when") + 1,
+			);
 		});
 	});
 

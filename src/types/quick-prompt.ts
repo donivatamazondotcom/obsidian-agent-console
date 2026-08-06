@@ -65,6 +65,14 @@ export interface QuickPrompt {
 	 * of tags. Frontmatter key `always show` (boolean checkbox).
 	 */
 	alwaysShow?: boolean;
+	/**
+	 * How the `showWhen` conditions combine. Frontmatter key `show when any`
+	 * (boolean checkbox, seeded directly beneath `show when` so the pairing is
+	 * visible in the Properties panel). Absent/false ⇒ ALL conditions must
+	 * match (AND — the default); true ⇒ ANY one is enough (OR). Never widens an
+	 * empty condition list: no conditions still means search-only.
+	 */
+	matchAny?: boolean;
 	/** Target agent (later slice). */
 	agent?: string;
 	/** Target mode (later slice). */
