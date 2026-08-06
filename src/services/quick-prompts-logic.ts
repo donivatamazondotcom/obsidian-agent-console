@@ -242,6 +242,10 @@ export function buildQuickPrompt(input: QuickPromptFileInput): QuickPrompt {
 		showWhen: parseShowWhen(fm?.["show when"]),
 		// Global chip: show in the resting row on every note (slice 2, D6).
 		alwaysShow: fm ? fm["always show"] === true : undefined,
+		// How the conditions combine: absent/false ⇒ ALL must match (AND, the
+		// default); true ⇒ ANY one is enough (OR). Prefixed key so the panel
+		// shows it adjacent to `show when` and autocomplete groups the pair.
+		matchAny: fm ? fm["show when any"] === true : undefined,
 		agent: fm ? normalizeString(fm["agent"]) : undefined,
 		mode: fm ? normalizeString(fm["mode"]) : undefined,
 		// Default target = new tab, via the `open in new tab` checkbox (D5).
@@ -650,13 +654,19 @@ export function conditionMatches(
  * Neither ⇒ **search-only**: findable in the picker, never in the resting row.
  */
 export function promptInRestingRow(
-	prompt: Pick<QuickPrompt, "alwaysShow" | "showWhen">,
+	prompt: Pick<QuickPrompt, "alwaysShow" | "showWhen" | "matchAny">,
 	note: NoteMatchContext,
 ): boolean {
 	if (prompt.alwaysShow === true) return true;
 	const conds = prompt.showWhen;
+	// No conditions ⇒ search-only. `matchAny` NEVER widens an empty list (an
+	// `Array.prototype.some` over [] is false, but state it so the intent is
+	// explicit): the two ways into the resting row stay `always show` and a
+	// non-empty, satisfied `show when`.
 	if (!conds || conds.length === 0) return false;
-	return conds.every((cond) => conditionMatches(cond, note));
+	return prompt.matchAny === true
+		? conds.some((cond) => conditionMatches(cond, note))
+		: conds.every((cond) => conditionMatches(cond, note));
 }
 
 /**
@@ -810,6 +820,7 @@ export const NEW_PROMPT_BODY_PLACEHOLDER = [
 	"- open in new tab: runs in a new chat tab instead of this one.",
 	"- always show: the chip shows on every note.",
 	"- show when: the chip shows only on matching notes. Add one list item per condition, like type=meeting, tags=people, or status=open. A bare property name like source-url matches any note that has it, whatever its value.",
+	"- show when any: leave it unchecked and every condition above must match. Tick it and the chip shows when any one of them matches.",
 	"- order: a number that sorts this prompt in the chip row and ! list — lower comes first (order: 0 pins it leftmost). Leave it blank to sort after pinned prompts, alphabetically.",
 	"",
 	"Set none of these and the prompt stays out of the chip row — type ! in the composer to run it.",
@@ -888,8 +899,14 @@ export function buildNewPromptNote(opts: {
 			"always show": false,
 			// Seed the contextual-scope property (empty = search-only) so it
 			// shows in the note's Properties for the author to fill in. Each
-			// item is a `property=value` condition (e.g. `type=meeting`).
+			// item is a `property=value` condition (e.g. `type=meeting`) or a
+			// bare property name (existence).
 			"show when": [],
+			// Seeded IMMEDIATELY after `show when` (asserted by SWA-T4) so the
+			// Properties panel renders the combining toggle right beneath the
+			// condition pills — the affordance that ties the two together.
+			// Unchecked ⇒ ALL conditions must match.
+			"show when any": false,
 			// Seed an empty `order` (discoverability parity with `show when`)
 			// so the sort-key slot shows in Properties. `null` renders blank and
 			// parseOrder treats it as unset — a new prompt sorts alphabetically,

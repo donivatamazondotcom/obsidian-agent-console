@@ -118,6 +118,21 @@ Summarize the article this note was clipped from.
 
 That chip shows on every note carrying a `source-url` property, whatever its value.
 
+**Match any condition instead of all of them** — by default a prompt with several conditions is a chip only where *every* one matches. Tick **`show when any`** and one match is enough:
+
+````markdown
+---
+label: "🗓️ Meeting or daily"
+show when:
+  - type=meeting
+  - type=daily
+show when any: true
+---
+Give me the brief for this note.
+````
+
+`show when any` sits directly beneath `show when` in the note's Properties, and it's a checkbox — no typing. It never changes a prompt with no conditions: that stays search-only either way.
+
 **Show a chip everywhere** — tick the **`always show`** checkbox for prompts you reach for on any note ("new chat", "debrief"):
 
 ````markdown
@@ -129,9 +144,9 @@ Debrief the meeting I just had.
 ````
 
 - A prompt with **`always show`** is a chip on every note.
-- A prompt with **`show when`** is a chip only on notes whose properties match **every** listed condition. Use any frontmatter property — `type=meeting`, `status=open`, `initiatives=[[Project]]`. A bare property name with no `=` — `source-url` — matches any note that *has* that property (an empty value doesn't count; `false` and `0` do). The special **`tags=`** key matches the note's tags instead, with nested matching (`tags=NoteType` matches a note tagged `NoteType/DailyNote`), and a bare `tags` matches any note that has at least one tag.
+- A prompt with **`show when`** is a chip only on notes whose properties match **every** listed condition — unless you tick **`show when any`**, which makes one match enough. Use any frontmatter property — `type=meeting`, `status=open`, `initiatives=[[Project]]`. A bare property name with no `=` — `source-url` — matches any note that *has* that property (an empty value doesn't count; `false` and `0` do). The special **`tags=`** key matches the note's tags instead, with nested matching (`tags=NoteType` matches a note tagged `NoteType/DailyNote`), and a bare `tags` matches any note that has at least one tag.
 - A prompt with **neither** is **search-only** — never in the chip row, always one keystroke away by typing `!`. This is the default, so new prompts don't clutter the row until you opt them in.
-- `always show` is a checkbox property and `show when` is a list property — both edit in the note's Properties view.
+- `always show` is a checkbox property, `show when` is a list property, and `show when any` is a checkbox — all three edit in the note's Properties view.
 - When no prompts apply to the note you're in, there's **no chip row at all** — the space is reclaimed.
 
 Click a chip to fire it in the current chat. Hold **⌘** to send it in a new tab (⌘⇧ to switch there), or **⌥** to drop it into the composer to edit first — the same keys as the `!` search. When the row runs out of space, a **+N** at the end folds the rest into the `!` search.

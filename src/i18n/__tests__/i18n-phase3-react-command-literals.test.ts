@@ -109,6 +109,7 @@ const PER_FILE_ALLOW: Record<string, string[]> = {
 	// spec). `{{selection}}` is the selection token itself.
 	"services/quick-prompts-logic.ts": [
 		"show when",
+		"show when any",
 		"always show",
 		"open in new tab",
 		"{{selection}}",
@@ -118,6 +119,7 @@ const PER_FILE_ALLOW: Record<string, string[]> = {
 		"- open in new tab: runs in a new chat tab instead of this one.",
 		"- always show: the chip shows on every note.",
 		"- show when: the chip shows only on matching notes. Add one list item per condition, like type=meeting, tags=people, or status=open. A bare property name like source-url matches any note that has it, whatever its value.",
+		"- show when any: leave it unchecked and every condition above must match. Tick it and the chip shows when any one of them matches.",
 		"- order: a number that sorts this prompt in the chip row and ! list — lower comes first (order: 0 pins it leftmost). Leave it blank to sort after pinned prompts, alphabetically.",
 		"Set none of these and the prompt stays out of the chip row — type ! in the composer to run it.",
 		"To pull in text you've selected in a note, write {{selection}} in your prompt above.",
