@@ -19,9 +19,10 @@
  * covers the dispatch window and re-enables on failure (T11).
  */
 import * as React from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type AgentClientPlugin from "../plugin";
 import { validateA2uiFence } from "../services/a2ui/validator";
+import { getLogger } from "../utils/logger";
 import {
 	deriveSurfaceActionAffordance,
 	type A2uiActionAffordanceReason,
@@ -94,6 +95,26 @@ export function A2uiSurfaceHost(props: A2uiSurfaceHostProps): React.JSX.Element 
 		validation.kind === "valid" &&
 		props.isFirstDefinition !== undefined &&
 		!props.isFirstDefinition(validation.surface.surfaceId);
+
+	// Dev diagnostics: when a fence renders inert, log WHY on the debug-gated
+	// logger. A2uiViolation.detail is intentionally kept out of the transcript
+	// (never rendered to the agent); the console is the one diagnosable channel
+	// for authoring mistakes like a dangling child reference. Keyed on the
+	// memoized validation (per body change), not per render.
+	useEffect(() => {
+		if (validation.kind === "invalid") {
+			getLogger().debug(
+				"a2ui surface rendered inert:",
+				validation.violations
+					.map((v) => `${v.code} (${v.detail})`)
+					.join("; "),
+			);
+		} else if (duplicate) {
+			getLogger().debug(
+				`a2ui surface "${validation.surface.surfaceId}" rendered inert: duplicate surfaceId (first definition wins)`,
+			);
+		}
+	}, [validation, duplicate]);
 
 	if (validation.kind !== "valid" || duplicate) {
 		return (
