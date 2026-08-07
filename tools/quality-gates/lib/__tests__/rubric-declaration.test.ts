@@ -126,4 +126,79 @@ describe("evaluateRubricDeclaration", () => {
 		});
 		expect(r.kind).toBe("fail");
 	});
+
+	// ── Hole 3, found on the gate's own first live run (PR #284) ───────────
+	// The fix reported "rubric waived" against its OWN pull request: that body
+	// documented the waiver format in a fenced block. A code sample must not
+	// waive anything, and must not declare a gate either.
+	describe("code regions are documentation, not declarations", () => {
+		it("does NOT waive on a waiver line inside a fenced block", () => {
+			const body = [
+				"## Test-quality rubric",
+				"",
+				"- [x] **R1** red-first, cited below",
+				"- [x] **R2** enters at the public API",
+				"- [x] **R3** asserts persisted state",
+				"- [x] **R4** no mocks added",
+				"- [x] **R5** hand-written expectations",
+				"",
+				"To waive instead, write:",
+				"",
+				"```text",
+				"Rubric: N/A - deleted an obsolete fixture; nothing to assert.",
+				"```",
+			].join("\n");
+			const r = evaluateRubricDeclaration({
+				body,
+				changedTestFiles: TESTS_CHANGED,
+			});
+			// Declared, NOT waived — this is the exact PR #284 case.
+			expect(r.kind).toBe("ok");
+		});
+
+		it("does NOT waive on a waiver line in an inline code span", () => {
+			const r = evaluateRubricDeclaration({
+				body: "`Rubric: N/A - example only` is the format.\n",
+				changedTestFiles: TESTS_CHANGED,
+			});
+			expect(r.kind).toBe("fail");
+		});
+
+		it("does NOT count gate tokens that appear only inside a code block", () => {
+			const body = ["```", "R1 R2 R3 R4 R5", "```"].join("\n");
+			const r = evaluateRubricDeclaration({
+				body,
+				changedTestFiles: TESTS_CHANGED,
+			});
+			expect(r.kind).toBe("fail");
+			if (r.kind !== "fail") return;
+			expect(r.missing).toEqual(["R1", "R2", "R3", "R4", "R5"]);
+		});
+
+		it("still honours a real waiver in prose alongside a code sample", () => {
+			const body = [
+				"Rubric: N/A - dropped a dead snapshot; nothing to assert.",
+				"",
+				"```text",
+				"R1 R2 R3 R4 R5",
+				"```",
+			].join("\n");
+			const r = evaluateRubricDeclaration({
+				body,
+				changedTestFiles: TESTS_CHANGED,
+			});
+			expect(r.kind).toBe("waived");
+		});
+
+		it("handles tilde fences and unclosed fences without throwing", () => {
+			for (const body of [
+				"~~~\nRubric: N/A - inside tildes\n~~~\n",
+				"```\nRubric: N/A - unclosed fence\n",
+			]) {
+				expect(() =>
+					evaluateRubricDeclaration({ body, changedTestFiles: TESTS_CHANGED }),
+				).not.toThrow();
+			}
+		});
+	});
 });
