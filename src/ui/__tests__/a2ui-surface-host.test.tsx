@@ -33,6 +33,7 @@ vi.mock("../shared/MarkdownRenderer", async () => {
 afterEach(cleanup);
 
 import { A2uiSurfaceHost } from "../A2uiSurfaceHost";
+import { initializeLogger } from "../../utils/logger";
 import type AgentClientPlugin from "../../plugin";
 
 const ENVELOPE = JSON.stringify({
@@ -240,6 +241,35 @@ describe("A2uiSurfaceHost — inert fallbacks (T06)", () => {
 		});
 		renderHost({ body });
 		expect(screen.queryAllByRole("button")).toHaveLength(0);
+	});
+
+	it("logs the violation detail on the debug logger when a fence renders inert", () => {
+		initializeLogger({ debugMode: true });
+		const spy = vi.spyOn(console, "debug").mockImplementation(() => {});
+		// root references "arch", but the button id is "archived" -> dangling-ref.
+		const body = JSON.stringify({
+			version: "v1.0",
+			createSurface: {
+				surfaceId: "dangling-1a2b",
+				catalogId: "https://agentconsole.dev/a2ui/catalogs/buttons-v0",
+				components: [
+					{ id: "root", component: "Column", children: ["arch"] },
+					{ id: "arch-label", component: "Text", text: "Archive" },
+					{
+						id: "archived",
+						component: "Button",
+						child: "arch-label",
+						action: { event: { name: "go", context: {} } },
+					},
+				],
+			},
+		});
+		renderHost({ body });
+		const logged = spy.mock.calls.map((c) => c.join(" ")).join("\n");
+		expect(logged).toContain("dangling-ref");
+		expect(logged).toContain("arch");
+		spy.mockRestore();
+		initializeLogger({ debugMode: false });
 	});
 });
 
