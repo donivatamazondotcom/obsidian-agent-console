@@ -57,13 +57,37 @@ function gateDeclared(body: string, gate: string): boolean {
 }
 
 /**
+ * Fenced code blocks (``` or ~~~), including the fence lines themselves.
+ * A PR body that DOCUMENTS the waiver syntax, or quotes CONTRIBUTING.md, is
+ * not waiving anything — but the waiver anchor cannot tell prose from a code
+ * sample, so code regions are removed before any matching happens.
+ */
+const FENCED_BLOCK = /^[ \t]*(```|~~~)[^\n]*\n[\s\S]*?^[ \t]*\1[^\n]*$/gm;
+
+/** Inline code spans — same reasoning as fenced blocks, one line down. */
+const INLINE_CODE = /`[^`\n]*`/g;
+
+/**
+ * Remove code regions so only prose is matched. This closes the same hole the
+ * gate exists to close, one level up: the first version of this fix reported
+ * "rubric waived" against its OWN pull request, because that PR's body showed
+ * the waiver format in a fenced block as documentation (found on the gate's
+ * first live run, PR #284 — the check was GREEN and only the job log revealed
+ * the wrong verdict).
+ */
+export function stripCodeRegions(body: string): string {
+	return body.replace(FENCED_BLOCK, "").replace(INLINE_CODE, "");
+}
+
+/**
  * Evaluate a PR body against the rubric requirement. Total: every input maps
  * to exactly one tagged result, and nothing throws.
  */
 export function evaluateRubricDeclaration(input: RubricInput): RubricResult {
 	if (input.changedTestFiles.length === 0) return { kind: "skip" };
 
-	const body = input.body ?? "";
+	// Prose only — a code sample neither declares a gate nor waives one.
+	const body = stripCodeRegions(input.body ?? "");
 
 	const waiver = WAIVER.exec(body);
 	if (waiver) {
