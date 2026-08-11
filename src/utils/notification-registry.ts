@@ -103,6 +103,34 @@ export function closeAllNotifications(): void {
 	liveNotifications.clear();
 }
 
+/**
+ * Attach the notification sweep to the window's `beforeunload` (I52 round 7,
+ * 2026-08-11). Closing a vault WINDOW does not run plugin `onunload`
+ * (verified empirically: a marker-instrumented `onunload` never fired on
+ * `window.close()`, while an explicit `disablePlugin` did) — so the round-6
+ * unload sweep never runs for closed windows, and their Notification Center
+ * entries orphan exactly as in round 6. `beforeunload` DOES fire on window
+ * close (and on a hard `Page.reload`), so hanging the sweep off it closes
+ * the last graceful-teardown path. The `onunload` sweep stays for the
+ * disable/quit paths.
+ *
+ * The listener is registered through the injected `register` seam so the
+ * plugin can pass `registerDomEvent` (auto-detached on plugin unload) and
+ * tests can pass a plain `addEventListener`.
+ */
+export function attachWindowCloseSweep(
+	win: Window,
+	register: (
+		win: Window,
+		event: "beforeunload",
+		handler: () => void,
+	) => void,
+): void {
+	register(win, "beforeunload", () => {
+		closeAllNotifications();
+	});
+}
+
 /** Test-only: number of notifications currently retained. */
 export function __getRetainedNotificationCountForTests(): number {
 	return liveNotifications.size;
