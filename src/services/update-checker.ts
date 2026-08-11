@@ -44,7 +44,7 @@ export interface AgentUpdateNotification {
 const KNOWN_AGENT_PACKAGES: Readonly<Record<string, string>> = {
 	"@agentclientprotocol/claude-agent-acp":
 		"@agentclientprotocol/claude-agent-acp",
-	"codex-acp": "@zed-industries/codex-acp",
+	"codex-acp": "@agentclientprotocol/codex-acp",
 };
 
 /**
@@ -54,6 +54,7 @@ const KNOWN_AGENT_PACKAGES: Readonly<Record<string, string>> = {
 const DEPRECATED_PACKAGES: Readonly<Record<string, string>> = {
 	"@zed-industries/claude-code-acp": "@agentclientprotocol/claude-agent-acp",
 	"@zed-industries/claude-agent-acp": "@agentclientprotocol/claude-agent-acp",
+	"@zed-industries/codex-acp": "@agentclientprotocol/codex-acp",
 };
 
 // ============================================================================

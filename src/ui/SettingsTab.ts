@@ -2296,7 +2296,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				});
 			},
 		);
-		this.addInstallHint(sectionEl, "@zed-industries/codex-acp");
+		this.addInstallHint(sectionEl, "@agentclientprotocol/codex-acp");
 
 		new Setting(sectionEl)
 			.setName(t("settings.arguments.name5"))

@@ -80,7 +80,7 @@ Agent Console is based on [Agent Client](https://github.com/RAIT-09/obsidian-age
 | Agent | Provider | Integration |
 |-------|----------|-------------|
 | **[Claude Code](https://github.com/anthropics/claude-code)** | Anthropic | via [ACP adapter](https://github.com/agentclientprotocol/claude-agent-acp) |
-| **[Codex](https://github.com/openai/codex)** | OpenAI | via [Zed's adapter](https://github.com/zed-industries/codex-acp) |
+| **[Codex](https://github.com/openai/codex)** | OpenAI | via the [ACP adapter](https://github.com/agentclientprotocol/codex-acp) |
 | **[Gemini CLI](https://github.com/google-gemini/gemini-cli)** | Google | with `--experimental-acp` option |
 | **[Kiro CLI](https://kiro.dev)** | Amazon | via built-in ACP support |
 | **[OpenCode](https://opencode.ai)** | Open source | via built-in ACP support (runs local models via ollama) |

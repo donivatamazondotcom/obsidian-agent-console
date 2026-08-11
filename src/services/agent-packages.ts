@@ -44,7 +44,7 @@ export const BUILTIN_AGENT_INSTALLS: readonly BuiltInAgentInstall[] = [
 		id: "codex-acp",
 		displayName: "Codex",
 		docsSlug: "codex",
-		npmPackage: "@zed-industries/codex-acp",
+		npmPackage: "@agentclientprotocol/codex-acp",
 	},
 	{
 		id: "gemini-cli",

@@ -9,7 +9,7 @@ Open a terminal (Terminal on macOS/Linux, PowerShell on Windows) and run the fol
 1. Install codex-acp:
 
 ```bash
-npm install -g @zed-industries/codex-acp
+npm install -g @agentclientprotocol/codex-acp
 ```
 
 2. Find the installation path:

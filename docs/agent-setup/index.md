@@ -7,7 +7,7 @@ Agent Console supports multiple AI agents through the [Agent Client Protocol (AC
 | Agent | Provider | Package |
 |-------|----------|---------|
 | [Claude Code](./claude-code) | Anthropic | `@agentclientprotocol/claude-agent-acp` |
-| [Codex](./codex) | OpenAI | `@zed-industries/codex-acp` |
+| [Codex](./codex) | OpenAI | `@agentclientprotocol/codex-acp` |
 | [Gemini CLI](./gemini-cli) | Google | `@google/gemini-cli` |
 | [Kiro CLI](./kiro-cli) | Amazon | Built-in ACP — install from [kiro.dev](https://kiro.dev) |
 | [OpenCode](./opencode) | Open source | Built-in ACP — install from [opencode.ai](https://opencode.ai); runs local models via ollama |

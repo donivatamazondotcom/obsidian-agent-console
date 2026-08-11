@@ -114,7 +114,7 @@ You’ll need an AI agent installed on your computer. Popular choices:
 
 * [Kiro CLI](https://kiro.dev) – Amazon's agent
 * [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) – Anthropic’s coding agent
-* [Codex](https://github.com/zed-industries/codex-acp) – Zed’s reference agent
+* [Codex](https://github.com/agentclientprotocol/codex-acp) – the Agent Client Protocol Codex adapter
 * [Gemini CLI](https://github.com/google-gemini/gemini-cli) – Google’s command-line agent
 * [OpenCode](https://opencode.ai) – open-source agent; runs local models via ollama
 * Custom agents like Qwen Code and others
