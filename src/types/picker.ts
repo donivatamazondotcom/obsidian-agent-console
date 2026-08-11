@@ -159,6 +159,20 @@ export interface PickerTriggerContext {
 }
 
 /**
+ * The result of selecting a picker row: the rewritten composer text and where
+ * the caret should land afterwards. `newCursorPos` is an index into `newText`.
+ * Sources that always leave the caret at the end still return it explicitly, so
+ * `InputArea` never has to guess (the mention source places it at the end of
+ * the inserted reference, NOT the end of the composer).
+ */
+export interface PickerSelection {
+	/** The full composer text after the selection is applied. */
+	newText: string;
+	/** Caret index into `newText` after the selection. */
+	newCursorPos: number;
+}
+
+/**
  * Per-source configuration that drives the one generic {@link
  * "../hooks/usePicker".usePicker} state machine. All variance between the three
  * composer pickers (`@` / `/` / `!`) lives here; the hook owns the shared
@@ -203,12 +217,13 @@ export interface PickerSource<
 	 */
 	navPolicy: "clamp" | "wrap";
 	/**
-	 * Compute the new composer text when `item` is selected. Pure text rewrite
-	 * only — the composer-side effects (focus, hint overlay, engine fire) stay
-	 * in `InputArea`. Quick-prompt ignores `item` (it strips the `!` token; the
-	 * engine fires the prompt separately).
+	 * Compute the new composer text AND caret position when `item` is selected.
+	 * Pure rewrite only — the composer-side effects (focus, hint overlay, engine
+	 * fire) stay in `InputArea`, which applies the returned `newCursorPos`.
+	 * Quick-prompt ignores `item` (it strips the `!` token; the engine fires the
+	 * prompt separately).
 	 */
-	onSelect(input: string, ctx: Ctx, item: T): string;
+	onSelect(input: string, ctx: Ctx, item: T): PickerSelection;
 	/** Footer hints for the current state (quick-prompt varies on create-row selection). */
 	instructions(state: { isCreateSelected: boolean }): PickerInstruction[];
 	/**
@@ -254,8 +269,8 @@ export interface PickerState<
 	createRow: PickerCreateRow | null;
 	/** Re-detect the trigger and refresh items/createRow. Async only when the source's fetch is. */
 	updateSuggestions: (input: string, caret: number) => void | Promise<void>;
-	/** Compute the new composer text for selecting `item` (delegates to {@link PickerSource.onSelect}). */
-	selectSuggestion: (input: string, item?: T) => string;
+	/** Compute the new composer text + caret for selecting `item` (delegates to {@link PickerSource.onSelect}). */
+	selectSuggestion: (input: string, item?: T) => PickerSelection;
 	/** Move the highlight per the source's {@link PickerSource.navPolicy}. */
 	navigate: (direction: "up" | "down") => void;
 	/** Close the picker and clear any dismiss guard. */

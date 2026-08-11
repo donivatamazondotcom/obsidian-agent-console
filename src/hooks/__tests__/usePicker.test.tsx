@@ -191,11 +191,13 @@ describe("usePicker — shared state machine (Tier 3)", () => {
 		await act(async () => {
 			await result.current.updateSuggestions("@al", 3);
 		});
-		let out = "";
+		let out = { newText: "", newCursorPos: 0 };
 		act(() => {
 			out = result.current.selectSuggestion("@al", note("Alpha"));
 		});
-		expect(out).toBe(" @[[Alpha]] ");
+		// "@al" at the start → no leading space; trailing space added.
+		expect(out.newText).toBe("@[[Alpha]] ");
+		expect(out.newCursorPos).toBe(out.newText.length);
 		expect(result.current.isOpen).toBe(false);
 	});
 

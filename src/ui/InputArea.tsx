@@ -740,19 +740,21 @@ export function InputArea({
 	);
 
 	/**
-	 * Common logic for setting cursor position after text replacement.
+	 * Common logic for setting cursor position after text replacement. When
+	 * `cursorPos` is provided the caret lands there (e.g. the end of an inserted
+	 * `@[[note]]` reference); otherwise it falls back to the end of the text.
 	 */
 	const setTextAndFocus = useCallback(
-		(newText: string) => {
+		(newText: string, cursorPos?: number) => {
 			onInputChange(newText);
 
-			// Set cursor position to end of text
+			// Apply the caret after the controlled re-render commits the value.
 			window.setTimeout(() => {
 				const textarea = textareaRef.current;
 				if (textarea) {
-					const cursorPos = newText.length;
-					textarea.selectionStart = cursorPos;
-					textarea.selectionEnd = cursorPos;
+					const pos = cursorPos ?? newText.length;
+					textarea.selectionStart = pos;
+					textarea.selectionEnd = pos;
 					textarea.focus();
 				}
 			}, 0);
@@ -765,8 +767,11 @@ export function InputArea({
 	 */
 	const selectMention = useCallback(
 		(suggestion: NoteMetadata) => {
-			const newText = mentions.selectSuggestion(inputValue, suggestion);
-			setTextAndFocus(newText);
+			const { newText, newCursorPos } = mentions.selectSuggestion(
+				inputValue,
+				suggestion,
+			);
+			setTextAndFocus(newText, newCursorPos);
 		},
 		[mentions, inputValue, setTextAndFocus],
 	);
@@ -797,7 +802,8 @@ export function InputArea({
 			// util reads.
 			const native =
 				evt && "nativeEvent" in evt ? evt.nativeEvent : evt;
-			const stripped = quickPrompts.selectSuggestion(inputValue);
+			const { newText: stripped } =
+				quickPrompts.selectSuggestion(inputValue);
 			onRunQuickPrompt?.(
 				prompt,
 				quickPromptGestureFromEvent(native),
@@ -816,7 +822,7 @@ export function InputArea({
 		if (!row) return;
 		// selectSuggestion strips the `!query` token and returns the remaining
 		// composer text (the draft, preserved — No-silent-data-loss).
-		const newText = quickPrompts.selectSuggestion(inputValue);
+		const { newText } = quickPrompts.selectSuggestion(inputValue);
 		onCreateQuickPrompt?.({
 			query: row.query,
 			// QP-I11: a from-composer create captures the surviving draft as the
@@ -920,7 +926,10 @@ export function InputArea({
 	 */
 	const handleSelectSlashCommand = useCallback(
 		(command: SlashCommand) => {
-			const newText = slashCommands.selectSuggestion(inputValue, command);
+			const { newText } = slashCommands.selectSuggestion(
+				inputValue,
+				command,
+			);
 			onInputChange(newText);
 
 			// Setup hint overlay if command has hint

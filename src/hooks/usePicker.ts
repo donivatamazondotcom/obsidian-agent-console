@@ -21,6 +21,7 @@ import type {
 	PickerState,
 	PickerTriggerContext,
 	PickerCreateRow,
+	PickerSelection,
 } from "../types/picker";
 
 /**
@@ -97,11 +98,11 @@ export function usePicker<T, Ctx extends PickerTriggerContext>(
 	);
 
 	const selectSuggestion = useCallback(
-		(input: string, item?: T): string => {
-			if (!context) return input;
-			const newText = source.onSelect(input, context, item as T);
+		(input: string, item?: T): PickerSelection => {
+			if (!context) return { newText: input, newCursorPos: input.length };
+			const result = source.onSelect(input, context, item as T);
 			clear();
-			return newText;
+			return result;
 		},
 		[source, context, clear],
 	);

@@ -60,7 +60,7 @@ export function makeMentionSource(
 		toPickerItem: noteToPickerItem,
 		navPolicy: "clamp",
 		onSelect: (input, ctx, note) =>
-			replaceMention(input, ctx, note.name).newText,
+			replaceMention(input, ctx, note.name),
 		instructions: () => mentionInstructions(),
 		// Esc keeps the dropdown closed for the current @ run (multi-word
 		// queries allow spaces, so the run persists in the text).
@@ -89,7 +89,10 @@ export function makeSlashSource(
 		fetchItems: (ctx) => filterSlashCommands(availableCommands, ctx.query),
 		toPickerItem: slashCommandToPickerItem,
 		navPolicy: "clamp",
-		onSelect: (_input, _ctx, command) => `/${command.name} `,
+		onSelect: (_input, _ctx, command) => {
+			const newText = `/${command.name} `;
+			return { newText, newCursorPos: newText.length };
+		},
 		instructions: () => slashInstructions(),
 		capabilities: {
 			dismissOnShiftEnter: false,
@@ -140,7 +143,10 @@ export function makeQuickPromptSource(
 		navPolicy: "wrap",
 		// The `!query` token is stripped; the prompt is fired/staged via the
 		// engine in InputArea, so the selected item is irrelevant to the text.
-		onSelect: (input, ctx) => stripQuickPromptTrigger(input, ctx.caret),
+		onSelect: (input, ctx) => {
+			const newText = stripQuickPromptTrigger(input, ctx.caret);
+			return { newText, newCursorPos: newText.length };
+		},
 		instructions: ({ isCreateSelected }) =>
 			quickPromptInstructions(isCreateSelected),
 		createRow: (ctx, items, input) => {
