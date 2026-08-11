@@ -589,6 +589,19 @@ function ChatComponent({
 		view.setFlushSave(() => flushSaveRef.current());
 	}, [view]);
 
+	// I193: expose an awaited session-message flush across all tabs to the
+	// view class for onClose. Each tab's ChatPanel registers a
+	// flushSessionSave callback (tabHandlesRef); onClose awaits them so the
+	// final turn is durable on quit/reload, mirroring the tab-state flush.
+	useEffect(() => {
+		view.setFlushSessionSaves(async () => {
+			const handles = Array.from(tabHandlesRef.current.values());
+			await Promise.all(
+				handles.map((h) => h.flushSessionSave?.().catch(() => {})),
+			);
+		});
+	}, [view]);
+
 	// Agent identity is owned by the tab (TabInfo.agentId, persisted) and by
 	// per-tab restore. The legacy onAgentIdRestored->addTab effect was removed:
 	// it appended a spurious last-agent tab on every reload (clobbering the
@@ -1113,6 +1126,8 @@ function ChatComponent({
 			getWorkingDirectory: () =>
 				activeCallbacksRef.current?.getWorkingDirectory() ?? "",
 			openHistory: () => activeCallbacksRef.current?.openHistory(),
+			flushSessionSave: async () =>
+				activeCallbacksRef.current?.flushSessionSave(),
 		});
 		view.setTabHandlesAccessor(() =>
 			Array.from(tabHandlesRef.current.entries()).map(([tabId, cb]) => ({
@@ -1489,6 +1504,15 @@ export class ChatView extends ItemView implements IChatViewContainer {
 		this.flushSaveFn = fn;
 	}
 
+	// I193: awaited flush of pending session-message writes across all
+	// tabs, set by the React component. Mirrors flushSaveFn (tab-state) so
+	// onClose can guarantee the message tail is durable before unmount.
+	private flushSessionSavesFn: (() => Promise<void>) | null = null;
+
+	setFlushSessionSaves(fn: () => Promise<void>): void {
+		this.flushSessionSavesFn = fn;
+	}
+
 	/** Add a new tab (for Obsidian commands) */
 	addTab(agentId?: string): void {
 		if (this.tabManagerRef) {
@@ -1721,6 +1745,19 @@ export class ChatView extends ItemView implements IChatViewContainer {
 			}
 		}
 
+		// I193: flush pending session-message writes (awaited) before
+		// unmount so the final turn is durable on quit/reload. The unmount
+		// below also fires useDebouncedSessionSave's flush, but that write is
+		// fire-and-forget — only this awaited flush guarantees it lands
+		// before onClose resolves.
+		if (this.flushSessionSavesFn) {
+			try {
+				await this.flushSessionSavesFn();
+			} catch (e) {
+				this.logger.error("flushSessionSaves error:", e);
+			}
+		}
+
 		// Reopen-restore: snapshot this leaf's just-saved tab set onto the
 		// plugin's recently-closed stack so a fresh ChatView leaf opened later
 		// in the same session can adopt it. flushSave above wrote this leaf's
@@ -1748,5 +1785,6 @@ export class ChatView extends ItemView implements IChatViewContainer {
 		this.vaultService?.destroy();
 		this.tabManagerRef = null;
 		this.flushSaveFn = null;
+		this.flushSessionSavesFn = null;
 	}
 }
