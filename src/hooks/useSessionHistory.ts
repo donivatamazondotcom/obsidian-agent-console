@@ -193,7 +193,7 @@ export interface UseSessionHistoryReturn {
 		messages: import("../types/chat").ChatMessage[],
 		contextNotes?: ContextNote[],
 		suggestedTitle?: string | null,
-	) => void;
+	) => Promise<void>;
 
 	/**
 	 * Propagate a resolved AI-suggested title to the session-history record
@@ -879,13 +879,17 @@ export function useSessionHistory(
 			messages: import("../types/chat").ChatMessage[],
 			contextNotes?: ContextNote[],
 			suggestedTitle?: string | null,
-		) => {
-			if (!session.agentId || messages.length === 0) return;
+		): Promise<void> => {
+			if (!session.agentId || messages.length === 0)
+				return Promise.resolve();
 
-			// Persist message content + crystallized context (fire-and-forget).
-			// The message FILE is an independent concern from the savedSessions
-			// metadata array and is not part of the title race.
-			void settingsAccess.saveSessionMessages(
+			// Persist message content + crystallized context. Returned so a
+			// teardown flush (useDebouncedSessionSave.flushPending ->
+			// ChatView.onClose) can AWAIT the write, so the final turn survives
+			// a quit/reload (I193). The message FILE is an independent concern
+			// from the savedSessions metadata array and not part of the title
+			// race.
+			const writePromise = settingsAccess.saveSessionMessages(
 				sessionId,
 				session.agentId,
 				messages,
@@ -906,6 +910,8 @@ export function useSessionHistory(
 				messages,
 				suggestedTitle: suggestedTitle ?? null,
 			});
+
+			return writePromise;
 		},
 		[session.agentId, agentCwd, settingsAccess, sessionStore],
 	);

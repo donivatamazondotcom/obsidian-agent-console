@@ -169,6 +169,12 @@ export interface ChatPanelCallbacks {
 	getWorkingDirectory: () => string;
 	/** Open the Session History modal for this tab (open-session-history command). */
 	openHistory: () => void;
+	/**
+	 * Await any pending session-message write to disk (I193). Called by
+	 * ChatView.onClose before unmount so the final turn survives quit/reload,
+	 * mirroring the tab-state flushSave.
+	 */
+	flushSessionSave: () => Promise<void>;
 }
 
 // ============================================================================
@@ -1424,7 +1430,7 @@ export function ChatPanel({
 				// fork title is passed as suggestedTitle so it is set on create
 				// and preserved across later no-title turn-end saves (forks get
 				// no AI title; deriveSessionRecordTitle keeps the existing one).
-				sessionHistory.saveSessionMessages(
+				void sessionHistory.saveSessionMessages(
 					newId,
 					restoredMessages ?? [],
 					restoredContextNotes ?? undefined,
@@ -1702,7 +1708,7 @@ export function ChatPanel({
 	useEffect(() => {
 		const sid = sessionRef.current.sessionId;
 		if (sid && messagesRef.current.length > 0) {
-			sessionHistory.saveSessionMessages(
+			void sessionHistory.saveSessionMessages(
 				sid,
 				messagesRef.current,
 				contextNotes.notes,
@@ -1784,7 +1790,7 @@ export function ChatPanel({
 			session.sessionId &&
 			messages.length > 0
 		) {
-			sessionHistory.saveSessionMessages(
+			void sessionHistory.saveSessionMessages(
 				session.sessionId,
 				messages,
 				contextNotes.notes,
@@ -1855,7 +1861,7 @@ export function ChatPanel({
 	// even mid-stream or before a turn ends (I48). Extracted to a hook with
 	// an unmount-flush + max-wait so a mid-stream reload does not lose the
 	// in-flight turn. The turn-end save above is kept for the notification.
-	useDebouncedSessionSave(
+	const { flushPending: flushSessionSave } = useDebouncedSessionSave(
 		session.sessionId,
 		messages,
 		contextNotes.notes,
@@ -2382,6 +2388,7 @@ export function ChatPanel({
 
 	useEffect(() => {
 		onRegisterCallbacks?.({
+			flushSessionSave,
 			getDisplayName: () => activeAgentLabel,
 			getInputState: () => ({
 				text: inputValueRef.current,
