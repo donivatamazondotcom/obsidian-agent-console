@@ -380,6 +380,10 @@ export class AcpClient {
 					error: processError,
 				});
 			}
+
+			// #286: agent process died on its own; reconcile client state
+			// so a reconnect starts clean.
+			this.reconcileProcessGone(agentProcess);
 		});
 
 		agentProcess.on("close", (code, signal) => {
@@ -389,6 +393,7 @@ export class AcpClient {
 				"signal:",
 				signal,
 			);
+			this.reconcileProcessGone(agentProcess);
 		});
 
 		agentProcess.stderr?.setEncoding("utf8");
@@ -479,6 +484,11 @@ export class AcpClient {
 				this.handler.releaseTerminal(ctx.params),
 			)
 			.connect(stream);
+
+		// #286: reap the child if the ACP connection closes for ANY reason
+		// (agent EOF, protocol error, explicit close) — including while the
+		// process itself is still alive and blocked on stdin.
+		this.watchConnectionClosed(this.connection, agentProcess);
 
 		try {
 			this.logger.log("Starting ACP initialization...");
@@ -695,6 +705,53 @@ export class AcpClient {
 		} finally {
 			this.cancelAllOperations();
 		}
+	}
+
+	/**
+	 * Watch an ACP connection's `closed` promise. When it settles (the
+	 * connection ended for any reason) reap the associated child process so a
+	 * still-running agent blocked on stdin can't linger (#286).
+	 */
+	private watchConnectionClosed(
+		connection: { closed: Promise<void> },
+		agentProcess: ChildProcess,
+	): void {
+		const reap = () => this.reconcileProcessGone(agentProcess);
+		connection.closed.then(reap, reap);
+	}
+
+	/**
+	 * Reconcile client state after the agent process is gone or its ACP
+	 * connection closed. Closes stdin (so a well-behaved agent gets EOF and
+	 * exits), kills the process tree if still running, and clears connection
+	 * state so the next reconnect starts clean. Guarded by process identity so
+	 * a deliberate respawn/disconnect kill does not double-fire (#286).
+	 */
+	private reconcileProcessGone(agentProcess: ChildProcess): void {
+		// Guard: ignore a superseded process — a deliberate respawn/disconnect
+		// already replaced or cleared this.agentProcess, and its live
+		// connection must not be torn down by the old process's late event.
+		if (this.agentProcess !== agentProcess) return;
+
+		this.logger.log(
+			`Reaping agent process (PID ${agentProcess.pid}) after connection/process end`,
+		);
+
+		// Close stdin so a well-behaved ACP stdio agent gets EOF and exits.
+		try {
+			agentProcess.stdin?.end();
+		} catch {
+			// stdin may already be closed
+		}
+
+		// Kill the tree in case the agent does not exit on stdin EOF.
+		// killProcessTree() nulls this.agentProcess.
+		this.killProcessTree();
+
+		// Clear connection state so the next reconnect starts clean.
+		this.connection = null;
+		this.isInitializedFlag = false;
+		this.currentSessionId = null;
 	}
 
 	/**
