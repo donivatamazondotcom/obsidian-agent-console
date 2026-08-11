@@ -86,6 +86,8 @@ import {
 import {
 	closeAllNotifications,
 	attachWindowCloseSweep,
+	sweepOwnedNotificationsAtStartup,
+	getRemoteNotificationStatics,
 } from "./utils/notification-registry";
 import { ImportSettingsModal } from "./ui/ImportSettingsModal";
 import { AgentPickerModal } from "./ui/AgentPickerModal";
@@ -496,6 +498,26 @@ export default class AgentClientPlugin extends Plugin {
 		initLocale(this.settings.language);
 
 		initializeLogger(this.settings);
+
+		// I52 round 7.5: a force-quit / crash skips BOTH onunload and the
+		// beforeunload sweep above, orphaning this session's Notification
+		// Center entries. Electron 43's remote.Notification.getHistory/remove
+		// let us clear them at startup. Scoped strictly to THIS vault's own tab
+		// ids (from restored tab state) so other vault windows' live
+		// notifications are never touched; never removeAll(). Fire-and-forget —
+		// a sweep failure must not delay or break onload.
+		void sweepOwnedNotificationsAtStartup({
+			notificationStatics: getRemoteNotificationStatics(),
+			ownedTabIds: (this.settings.perLeafTabStates ?? []).flatMap((leaf) =>
+				(leaf.tabs ?? []).map((tab) => tab.tabId),
+			),
+			origin: window.location.origin,
+			onError: (error) =>
+				getLogger().debug(
+					"[I52] startup notification sweep error",
+					error,
+				),
+		});
 
 		// Initialize settings store
 		this.settingsService = createSettingsService(this.settings, this);
