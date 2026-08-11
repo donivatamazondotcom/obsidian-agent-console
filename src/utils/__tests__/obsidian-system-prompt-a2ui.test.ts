@@ -76,6 +76,16 @@ describe("interactive-buttons briefing block (T12)", () => {
 		}
 	});
 
+	it("places catalogId inside createSurface, never as a top-level key (V04)", () => {
+		const flat = INTERACTIVE_BUTTONS_BLOCK.replace(/\s+/g, " ");
+		// The validator's V04 rejects any top-level key besides version +
+		// createSurface, so the briefing must nest catalogId under createSurface
+		// and never pair it with version at the top level — the exact shape that
+		// produced the "bad-envelope" inert-code fallback.
+		expect(flat).toContain('inside "createSurface"');
+		expect(flat).not.toMatch(/"version":"v1\.0";\s*"catalogId"/);
+	});
+
 	it("carries the D16 restraint wording (clarifying-choice carve-out)", () => {
 		const flat = INTERACTIVE_BUTTONS_BLOCK.replace(/\s+/g, " ");
 		expect(flat).toContain(

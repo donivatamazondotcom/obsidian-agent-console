@@ -57,8 +57,8 @@ export const INTERACTIVE_BUTTONS_BLOCK = `<interactive_controls>
 You can offer clickable choices with an A2UI surface. Use ONLY for a small set (2–5) of concrete, mutually exclusive options. Never attach buttons to an open-ended or opinion question itself; a concrete clarifying choice that unblocks one is fine. When in doubt, reply in prose with no fence. Keep prose around it so a reader without buttons can still answer by typing. At most one surface per reply.
 
 Emit a fenced \`a2ui\` block containing EXACTLY ONE line of JSON: a v1.0 createSurface envelope with inline components. Requirements:
-- "version":"v1.0"; "catalogId":"https://agentconsole.dev/a2ui/catalogs/buttons-v0"
-- unique kebab-case "surfaceId" (e.g. "scope-7f3a")
+- the envelope has EXACTLY two top-level keys: "version":"v1.0" and "createSurface":{...}. Do NOT add any other top-level key; in particular "catalogId" is NOT a top-level key.
+- inside "createSurface": "catalogId":"https://agentconsole.dev/a2ui/catalogs/buttons-v0", a unique kebab-case "surfaceId" (e.g. "scope-7f3a"), and the "components" array
 - flat "components" array, exactly one with "id":"root"
 - component types ONLY: Text, Row, Column, Card, Button, Divider
 - each Button has "child" (a Text component's id) and "action":{"event":{"name":"...","context":{...}}}; event names are identifiers — letters/digits/underscore only, no hyphens (e.g. "scope" or "pick_scope", never "pick-scope")
