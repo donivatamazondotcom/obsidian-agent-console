@@ -515,7 +515,7 @@ Agent Console runs on all three desktop platforms. Shared code must not bake in 
 
 **Agents**:
 - Claude Code: `@agentclientprotocol/claude-agent-acp` (ANTHROPIC_API_KEY)
-- Codex: `@zed-industries/codex-acp` (OPENAI_API_KEY)
+- Codex: `@agentclientprotocol/codex-acp` (OPENAI_API_KEY)
 - Gemini CLI: `@google/gemini-cli` (GEMINI_API_KEY)
 - Kiro CLI: `kiro-cli acp` (built-in ACP; Kiro account sign-in, no API key)
 - OpenCode: `opencode acp` (built-in ACP; model backend configured in OpenCode, e.g. local ollama; no API key)

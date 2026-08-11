@@ -24,7 +24,9 @@ describe("agent-packages", () => {
 		expect(byId.get("kiro-cli")?.npmPackage).toBeNull();
 		expect(byId.get("opencode-acp")?.npmPackage).toBeNull();
 		expect(byId.get("claude-code-acp")?.npmPackage).toBeTruthy();
-		expect(byId.get("codex-acp")?.npmPackage).toBeTruthy();
+		expect(byId.get("codex-acp")?.npmPackage).toBe(
+			"@agentclientprotocol/codex-acp",
+		);
 		expect(byId.get("gemini-cli")?.npmPackage).toBeTruthy();
 	});
 
