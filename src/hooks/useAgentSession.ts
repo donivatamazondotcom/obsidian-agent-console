@@ -224,6 +224,10 @@ export function useAgentSession(
 				availableCommands: undefined,
 				modes: undefined,
 				models: undefined,
+				// Clear the prior session's confirmed model — the new session
+				// hasn't confirmed one yet, so the header must not carry the
+				// old model through the initializing window (I197).
+				confirmedModelId: undefined,
 				configOptions: undefined,
 				usage: undefined,
 				promptCapabilities: prev.promptCapabilities,
@@ -418,6 +422,10 @@ export function useAgentSession(
 				availableCommands: undefined,
 				modes: undefined,
 				models: undefined,
+				// The previous agent's confirmed model must not survive a
+				// switch — the header reads confirmedModelId directly, so a
+				// stale value renders the old model under the new agent (I197).
+				confirmedModelId: undefined,
 				configOptions: undefined,
 				usage: undefined,
 				promptCapabilities: undefined,
