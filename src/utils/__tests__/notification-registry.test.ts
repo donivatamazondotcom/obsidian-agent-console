@@ -4,6 +4,8 @@ import {
 	retainNotification,
 	closeAllNotifications,
 	attachWindowCloseSweep,
+	buildOwnedNotificationSweep,
+	sweepOwnedNotificationsAtStartup,
 	MAX_RETAINED_NOTIFICATIONS,
 	__getRetainedNotificationCountForTests,
 	__resetNotificationRegistryForTests,
@@ -224,6 +226,228 @@ describe("notification-registry", () => {
 				"beforeunload",
 				expect.any(Function),
 			);
+		});
+	});
+
+	// ============================================================
+	// I52 round 7.5 (2026-08-11): startup sweep for orphans left by a
+	// force-quit / crash — the one teardown path that skips BOTH plugin
+	// onunload AND window beforeunload. Electron 43's remote.Notification
+	// exposes getHistory/remove; the startup sweep removes THIS vault's own
+	// notifications (matched by our tabIds) so a crashed session's
+	// Notification Center orphans are cleared at next startup — without
+	// touching other vault windows' live notifications (different tabIds) and
+	// never via removeAll(). See I52 § Recurrence 2026-08-11 round 7.5.
+	// ============================================================
+	describe("buildOwnedNotificationSweep (pure)", () => {
+		const ORIGIN = "app://obsidian.md";
+		const id = (tag: string) => `n#${ORIGIN}#${tag}`;
+
+		it("reconstructs an id per owned tab (crash case: getHistory is empty)", () => {
+			const { idsToRemove } = buildOwnedNotificationSweep({
+				ownedTabIds: ["tab-a", "tab-b"],
+				origin: ORIGIN,
+				historyIds: [],
+			});
+			expect(new Set(idsToRemove)).toEqual(
+				new Set([id("tab-a"), id("tab-b")]),
+			);
+		});
+
+		it("includes a history entry whose embedded tag is ours even if its origin differs", () => {
+			// A same-process leftover carrying a different origin is still
+			// matched by its embedded tag and removed by its own exact id.
+			const foreignOriginId = "n#app://obsidian.md/x#tab-a";
+			const { idsToRemove } = buildOwnedNotificationSweep({
+				ownedTabIds: ["tab-a"],
+				origin: ORIGIN,
+				historyIds: [foreignOriginId],
+			});
+			expect(idsToRemove).toContain(foreignOriginId);
+			expect(idsToRemove).toContain(id("tab-a"));
+		});
+
+		it("excludes a history entry whose tag is not ours (another window's tab)", () => {
+			const { idsToRemove } = buildOwnedNotificationSweep({
+				ownedTabIds: ["tab-a"],
+				origin: ORIGIN,
+				historyIds: [id("tab-other"), id("tab-a")],
+			});
+			expect(idsToRemove).not.toContain(id("tab-other"));
+			expect(idsToRemove).toContain(id("tab-a"));
+		});
+
+		it("dedups when a history id equals a reconstructed id", () => {
+			const { idsToRemove } = buildOwnedNotificationSweep({
+				ownedTabIds: ["tab-a"],
+				origin: ORIGIN,
+				historyIds: [id("tab-a")],
+			});
+			expect(idsToRemove).toEqual([id("tab-a")]);
+		});
+
+		it("ignores malformed / non-notification history ids", () => {
+			const { idsToRemove } = buildOwnedNotificationSweep({
+				ownedTabIds: ["tab-a"],
+				origin: ORIGIN,
+				historyIds: ["", "garbage", "n#onlytwo", "x#y#tab-a"],
+			});
+			expect(idsToRemove).toEqual([id("tab-a")]);
+		});
+
+		it("returns empty when there are no owned tabs and no history", () => {
+			expect(
+				buildOwnedNotificationSweep({
+					ownedTabIds: [],
+					origin: ORIGIN,
+					historyIds: [],
+				}).idsToRemove,
+			).toEqual([]);
+		});
+
+		it("ignores empty / non-string owned tab ids", () => {
+			const { idsToRemove } = buildOwnedNotificationSweep({
+				ownedTabIds: ["", "tab-a", undefined as unknown as string],
+				origin: ORIGIN,
+				historyIds: [],
+			});
+			expect(idsToRemove).toEqual([id("tab-a")]);
+		});
+	});
+
+	describe("sweepOwnedNotificationsAtStartup (async runner)", () => {
+		const ORIGIN = "app://obsidian.md";
+		const id = (tag: string) => `n#${ORIGIN}#${tag}`;
+
+		function makeStatics(
+			overrides: Partial<{
+				isSupported: () => boolean;
+				getHistory: () => Promise<Array<{ id: string }>>;
+				remove: (id: string) => Promise<void>;
+			}> = {},
+		) {
+			return {
+				isSupported: overrides.isSupported ?? (() => true),
+				getHistory:
+					overrides.getHistory ??
+					vi.fn(async () => [] as Array<{ id: string }>),
+				remove: overrides.remove ?? vi.fn(async (_id: string) => {}),
+			};
+		}
+
+		it("is a no-op when the statics object is absent (non-Electron host)", async () => {
+			const result = await sweepOwnedNotificationsAtStartup({
+				notificationStatics: null,
+				ownedTabIds: ["tab-a"],
+				origin: ORIGIN,
+			});
+			expect(result.ran).toBe(false);
+			expect(result.removed).toBe(0);
+		});
+
+		it("is a no-op when getHistory / remove are missing (older Electron)", async () => {
+			const result = await sweepOwnedNotificationsAtStartup({
+				notificationStatics: { isSupported: () => true } as never,
+				ownedTabIds: ["tab-a"],
+				origin: ORIGIN,
+			});
+			expect(result.ran).toBe(false);
+		});
+
+		it("is a no-op when isSupported() returns false", async () => {
+			const remove = vi.fn(async (_id: string) => {});
+			const result = await sweepOwnedNotificationsAtStartup({
+				notificationStatics: makeStatics({
+					isSupported: () => false,
+					remove,
+				}),
+				ownedTabIds: ["tab-a"],
+				origin: ORIGIN,
+			});
+			expect(result.ran).toBe(false);
+			expect(remove).not.toHaveBeenCalled();
+		});
+
+		it("removes our own entries and never another window's (scoped to our tabIds)", async () => {
+			const remove = vi.fn(async (_id: string) => {});
+			const getHistory = vi.fn(async () => [
+				{ id: id("tab-mine") },
+				{ id: id("tab-other-window") },
+			]);
+			const result = await sweepOwnedNotificationsAtStartup({
+				notificationStatics: makeStatics({ getHistory, remove }),
+				ownedTabIds: ["tab-mine"],
+				origin: ORIGIN,
+			});
+			expect(result.ran).toBe(true);
+			const removed = remove.mock.calls.map((c) => c[0]);
+			expect(removed).toContain(id("tab-mine"));
+			expect(removed).not.toContain(id("tab-other-window"));
+		});
+
+		it("removes reconstructed ids even when getHistory resolves empty (the crash case)", async () => {
+			const remove = vi.fn(async (_id: string) => {});
+			const result = await sweepOwnedNotificationsAtStartup({
+				notificationStatics: makeStatics({
+					getHistory: vi.fn(async () => []),
+					remove,
+				}),
+				ownedTabIds: ["tab-a", "tab-b"],
+				origin: ORIGIN,
+			});
+			expect(result.ran).toBe(true);
+			const removed = remove.mock.calls.map((c) => c[0]);
+			expect(removed).toContain(id("tab-a"));
+			expect(removed).toContain(id("tab-b"));
+		});
+
+		it("still removes reconstructed ids when getHistory rejects", async () => {
+			const remove = vi.fn(async (_id: string) => {});
+			const result = await sweepOwnedNotificationsAtStartup({
+				notificationStatics: makeStatics({
+					getHistory: vi.fn(async () => {
+						throw new Error("getHistory boom");
+					}),
+					remove,
+				}),
+				ownedTabIds: ["tab-a"],
+				origin: ORIGIN,
+			});
+			expect(result.ran).toBe(true);
+			expect(remove.mock.calls.map((c) => c[0])).toContain(id("tab-a"));
+		});
+
+		it("continues removing after one remove rejects, and reports the error", async () => {
+			const onError = vi.fn();
+			const remove = vi.fn(async (rid: string) => {
+				if (rid === id("tab-a")) throw new Error("remove boom");
+			});
+			const result = await sweepOwnedNotificationsAtStartup({
+				notificationStatics: makeStatics({
+					getHistory: vi.fn(async () => []),
+					remove,
+				}),
+				ownedTabIds: ["tab-a", "tab-b"],
+				origin: ORIGIN,
+				onError,
+			});
+			expect(result.ran).toBe(true);
+			const removed = remove.mock.calls.map((c) => c[0]);
+			expect(removed).toContain(id("tab-a"));
+			expect(removed).toContain(id("tab-b"));
+			expect(onError).toHaveBeenCalled();
+		});
+
+		it("does nothing but reports ran=true when there are no owned tabs and empty history", async () => {
+			const remove = vi.fn(async (_id: string) => {});
+			const result = await sweepOwnedNotificationsAtStartup({
+				notificationStatics: makeStatics({ remove }),
+				ownedTabIds: [],
+				origin: ORIGIN,
+			});
+			expect(result.ran).toBe(true);
+			expect(result.removed).toBe(0);
+			expect(remove).not.toHaveBeenCalled();
 		});
 	});
 });

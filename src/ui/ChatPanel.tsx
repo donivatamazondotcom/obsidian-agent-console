@@ -1890,6 +1890,13 @@ export function ChatPanel({
 			// I52: bind onclick so a click focuses the vault window that owns
 			// this panel, not Electron's most-recently-active window.
 			const permissionNotification = new Notification("Agent Console", {
+				// I52 round 7.5: tag with the tab id so the startup sweep can
+				// match and clear an orphaned permission notification (same
+				// scheme as the completion notification, whose tag is the tab
+				// id). A pending permission means the turn has not completed, so
+				// a permission and a completion notification for the same tab
+				// never meaningfully coexist — sharing the tab-id tag is benign.
+				tag: viewId,
 				body: t("chat.notifications.permissionBody", {
 					agent: activeAgentLabel,
 				}),

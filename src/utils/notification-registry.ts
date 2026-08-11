@@ -140,3 +140,224 @@ export function __getRetainedNotificationCountForTests(): number {
 export function __resetNotificationRegistryForTests(): void {
 	liveNotifications.clear();
 }
+
+// ============================================================
+// I52 round 7.5 (2026-08-11): startup sweep for crash / force-quit orphans.
+// ============================================================
+//
+// A force-quit or crash is the ONE teardown path that skips BOTH plugin
+// `onunload` (round 6) and window `beforeunload` (round 7), so the
+// notifications a crashed session delivered stay in macOS Notification Center
+// as orphans. Clicking such an orphan either does nothing (its closures point
+// at a dead JS context) or falls through to macOS default app activation,
+// foregrounding the most-recently-active window (possibly the wrong vault).
+//
+// Electron 43 exposes `remote.Notification.getHistory()` / `remove(id)`
+// (verified live 2026-08-11), so at plugin `onload` we remove the stale
+// entries. We remove ONLY this vault's own notifications — matched by the tab
+// ids this vault owns — so another vault window's LIVE notifications (which
+// carry different, globally-unique tab ids) are never touched. We never use
+// `removeAll()`, which would nuke those live entries.
+//
+// A delivered notification's id has the form `n#<origin>#<tag>`, and our
+// completion/permission notifications set `tag` to the tab id (viewId ===
+// tab.tabId). `getHistory()` is an in-memory, per-process list, so after a
+// crash + relaunch it is typically EMPTY — it cannot enumerate the dead
+// process's orphans. We therefore also RECONSTRUCT the expected id for each
+// owned tab id and `remove()` it directly (idempotent no-op if absent); macOS
+// removes a delivered notification by identifier regardless of which process
+// delivered it. See [[I52 Notification click focuses wrong vault window]]
+// § Recurrence 2026-08-11 round 7.5.
+
+/** Scheme prefix of a delivered-notification id: `n#<origin>#<tag>`. */
+const NOTIFICATION_ID_PREFIX = "n#";
+
+/**
+ * Extract the `tag` embedded in a delivered-notification id of the form
+ * `n#<origin>#<tag>`. Returns null for anything that is not an `n#`-scheme id
+ * with both an origin and a tag segment. The origin (`app://obsidian.md`)
+ * contains no `#`, but trailing segments are rejoined defensively so a tag
+ * that ever contained `#` is preserved.
+ */
+function extractNotificationTag(id: unknown): string | null {
+	if (typeof id !== "string" || !id.startsWith(NOTIFICATION_ID_PREFIX)) {
+		return null;
+	}
+	const parts = id.split("#");
+	if (parts.length < 3) return null;
+	return parts.slice(2).join("#");
+}
+
+/** Reconstruct the delivered-notification id our plugin uses for a tab id. */
+function notificationIdForTab(origin: string, tabId: string): string {
+	return `${NOTIFICATION_ID_PREFIX}${origin}#${tabId}`;
+}
+
+export interface OwnedNotificationSweepInput {
+	/** Tab ids this vault owns (from restored `perLeafTabStates`). */
+	ownedTabIds: readonly string[];
+	/** Renderer origin, e.g. `app://obsidian.md` (`window.location.origin`). */
+	origin: string;
+	/** Ids of the entries currently in `getHistory()` (may be empty). */
+	historyIds: readonly string[];
+}
+
+export interface OwnedNotificationSweep {
+	/**
+	 * Deduped ids to `remove()` — reconstructed owned ids ∪ history ids whose
+	 * embedded tag is one of ours.
+	 */
+	idsToRemove: string[];
+}
+
+/**
+ * Pure planner for the startup sweep. Given this vault's owned tab ids, the
+ * renderer origin, and the ids currently in notification history, compute the
+ * exact set of ids to remove:
+ *
+ *   - one RECONSTRUCTED id per owned tab (`n#<origin>#<tabId>`) — covers the
+ *     crash case where `getHistory()` is empty in the fresh process; and
+ *   - every HISTORY id whose embedded tag is one of our owned tab ids — covers
+ *     same-process leftovers and any entry whose origin differs from
+ *     `location.origin` (matched by tag, removed by its own exact id).
+ *
+ * Entries whose tag is NOT ours (another vault window's tab) are excluded, so
+ * the sweep can never remove another window's live notification.
+ */
+export function buildOwnedNotificationSweep(
+	input: OwnedNotificationSweepInput,
+): OwnedNotificationSweep {
+	const owned = new Set(
+		input.ownedTabIds.filter(
+			(id): id is string => typeof id === "string" && id.length > 0,
+		),
+	);
+	const ids = new Set<string>();
+	for (const tabId of owned) {
+		ids.add(notificationIdForTab(input.origin, tabId));
+	}
+	for (const historyId of input.historyIds) {
+		const tag = extractNotificationTag(historyId);
+		if (tag !== null && owned.has(tag)) {
+			ids.add(historyId);
+		}
+	}
+	return { idsToRemove: [...ids] };
+}
+
+/**
+ * The subset of Electron's `remote.Notification` statics the sweep needs.
+ * `getHistory` and `remove` are async (remote-proxied to the main process).
+ */
+export interface RemoteNotificationStatics {
+	isSupported?: () => boolean;
+	getHistory: () => Promise<Array<{ id?: unknown }>>;
+	remove: (id: string) => unknown;
+}
+
+export interface SweepOwnedNotificationsDeps {
+	/**
+	 * The `remote.Notification` statics, or null/undefined on hosts that do not
+	 * expose them (non-Electron, or older Electron without getHistory/remove).
+	 */
+	notificationStatics: RemoteNotificationStatics | null | undefined;
+	ownedTabIds: readonly string[];
+	origin: string;
+	/** Optional error sink; sweep failures are non-fatal to startup. */
+	onError?: (error: unknown) => void;
+}
+
+export interface SweepOwnedNotificationsResult {
+	/** False when the guard short-circuited (statics absent / unsupported). */
+	ran: boolean;
+	/** Number of `remove()` calls that resolved successfully. */
+	removed: number;
+}
+
+/**
+ * Startup sweep: remove this vault's own stale Notification Center entries left
+ * by a crashed / force-quit session. Guarded to a no-op when the Electron
+ * notification statics are absent or `isSupported()` is false, so it is safe on
+ * any host. Never throws into `onload` — all failures route to `onError`.
+ */
+export async function sweepOwnedNotificationsAtStartup(
+	deps: SweepOwnedNotificationsDeps,
+): Promise<SweepOwnedNotificationsResult> {
+	const statics = deps.notificationStatics;
+	if (
+		!statics ||
+		typeof statics.getHistory !== "function" ||
+		typeof statics.remove !== "function"
+	) {
+		return { ran: false, removed: 0 };
+	}
+	if (typeof statics.isSupported === "function") {
+		let supported = false;
+		try {
+			supported = statics.isSupported();
+		} catch {
+			supported = false;
+		}
+		if (!supported) return { ran: false, removed: 0 };
+	}
+
+	// A getHistory() failure must NOT abort the reconstructed-id removals (the
+	// crash-case path), so treat an empty or failed history as no history.
+	let historyIds: string[] = [];
+	try {
+		const history = await statics.getHistory();
+		if (Array.isArray(history)) {
+			historyIds = history
+				.map((entry) =>
+					entry && typeof entry.id === "string" ? entry.id : null,
+				)
+				.filter((id): id is string => id !== null);
+		}
+	} catch (error) {
+		deps.onError?.(error);
+	}
+
+	const { idsToRemove } = buildOwnedNotificationSweep({
+		ownedTabIds: deps.ownedTabIds,
+		origin: deps.origin,
+		historyIds,
+	});
+
+	let removed = 0;
+	for (const id of idsToRemove) {
+		try {
+			await statics.remove(id);
+			removed++;
+		} catch (error) {
+			deps.onError?.(error);
+		}
+	}
+	return { ran: true, removed };
+}
+
+/**
+ * Production accessor for the Electron `remote.Notification` statics used by
+ * the startup sweep. Returns null on any host where they are unavailable
+ * (non-Electron, older Electron, or a shim missing getHistory/remove) so the
+ * sweep degrades to a no-op. The `require("electron")` is lazy (inside this
+ * function) so unit tests — which inject fakes — never touch the real module.
+ */
+export function getRemoteNotificationStatics(): RemoteNotificationStatics | null {
+	try {
+		// eslint-disable-next-line @typescript-eslint/no-require-imports -- electron is a runtime-only module provided by Obsidian's host environment
+		const electron = require("electron") as {
+			remote?: { Notification?: RemoteNotificationStatics };
+		};
+		const N = electron?.remote?.Notification;
+		if (
+			N &&
+			typeof N.getHistory === "function" &&
+			typeof N.remove === "function"
+		) {
+			return N;
+		}
+	} catch {
+		// Not an Electron host, or remote unavailable — no-op sweep.
+	}
+	return null;
+}
