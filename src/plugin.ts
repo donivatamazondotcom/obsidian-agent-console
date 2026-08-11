@@ -83,7 +83,10 @@ import {
 	registerOpenMenu,
 	showMenuAtEvent,
 } from "./utils/menu-registry";
-import { closeAllNotifications } from "./utils/notification-registry";
+import {
+	closeAllNotifications,
+	attachWindowCloseSweep,
+} from "./utils/notification-registry";
 import { ImportSettingsModal } from "./ui/ImportSettingsModal";
 import { AgentPickerModal } from "./ui/AgentPickerModal";
 import {
@@ -478,6 +481,15 @@ export default class AgentClientPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
+
+		// I52 round 7: closing a vault WINDOW skips plugin onunload entirely,
+		// so the round-6 notification sweep never runs on that path and the
+		// window's Notification Center entries orphan (click → dead closures
+		// or wrong-vault activation). beforeunload DOES fire on window close,
+		// so sweep there too; registerDomEvent detaches it on plugin unload.
+		attachWindowCloseSweep(window, (win, event, handler) =>
+			this.registerDomEvent(win, event, handler),
+		);
 
 		// Resolve the display locale before any UI, commands, or views
 		// register, so every t() call renders in the right language.

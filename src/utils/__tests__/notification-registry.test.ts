@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
 	retainNotification,
 	closeAllNotifications,
+	attachWindowCloseSweep,
 	MAX_RETAINED_NOTIFICATIONS,
 	__getRetainedNotificationCountForTests,
 	__resetNotificationRegistryForTests,
@@ -178,6 +179,51 @@ describe("notification-registry", () => {
 			for (const n of notifications) {
 				expect(n.close).not.toHaveBeenCalled();
 			}
+		});
+	});
+
+	describe("attachWindowCloseSweep (I52 round 7)", () => {
+		// Closing a vault WINDOW does not run plugin onunload (verified
+		// empirically 2026-08-11: marker-instrumented onunload never fired on
+		// window.close(), while an explicit disablePlugin did fire it) — so
+		// the round-6 onunload sweep never runs for closed windows and their
+		// notifications orphan into Notification Center. `beforeunload` DOES
+		// fire on window close (same marker technique), so the sweep must
+		// also hang off that event.
+		it("sweeps retained notifications when the window fires beforeunload", () => {
+			const n1 = makeFakeNotification();
+			const n2 = makeFakeNotification();
+			retainNotification(n1, vi.fn());
+			retainNotification(n2, vi.fn());
+
+			const win = new EventTarget() as unknown as Window;
+			attachWindowCloseSweep(win, (w, event, handler) =>
+				(w as unknown as EventTarget).addEventListener(event, handler),
+			);
+
+			(win as unknown as EventTarget).dispatchEvent(
+				new Event("beforeunload"),
+			);
+
+			// Both OS entries were closed (removed from Notification Center)
+			// and released — no orphan click target survives the window.
+			expect(n1.close).toHaveBeenCalledTimes(1);
+			expect(n2.close).toHaveBeenCalledTimes(1);
+			expect(__getRetainedNotificationCountForTests()).toBe(0);
+		});
+
+		it("registers through the provided registrar so the listener detaches with the plugin", () => {
+			const register = vi.fn();
+			const win = new EventTarget() as unknown as Window;
+
+			attachWindowCloseSweep(win, register);
+
+			expect(register).toHaveBeenCalledTimes(1);
+			expect(register).toHaveBeenCalledWith(
+				win,
+				"beforeunload",
+				expect.any(Function),
+			);
 		});
 	});
 });
