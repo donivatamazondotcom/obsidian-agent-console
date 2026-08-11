@@ -93,7 +93,10 @@ describe("makeMentionSource", () => {
 	it("rewrites the @query token into the @[[Note]] form on select", () => {
 		const ctx = source.detectTrigger("hi @al", 6)!;
 		const out = source.onSelect("hi @al", ctx, note("Alpha"));
-		expect(out).toBe("hi  @[[Alpha]] ");
+		// "hi " already ends with a space → no doubled leading space.
+		expect(out.newText).toBe("hi @[[Alpha]] ");
+		// Caret at the end of the inserted reference (= end of text here).
+		expect(out.newCursorPos).toBe("hi @[[Alpha]] ".length);
 	});
 
 	it("returns the mention footer instructions", () => {
@@ -142,7 +145,9 @@ describe("makeSlashSource", () => {
 
 	it("rewrites the composer to /<name> + space on select", () => {
 		const ctx = source.detectTrigger("/cl", 3)!;
-		expect(source.onSelect("/cl", ctx, cmd("clear"))).toBe("/clear ");
+		const out = source.onSelect("/cl", ctx, cmd("clear"));
+		expect(out.newText).toBe("/clear ");
+		expect(out.newCursorPos).toBe("/clear ".length);
 	});
 
 	it("returns the slash footer instructions", () => {
@@ -202,11 +207,13 @@ describe("makeQuickPromptSource", () => {
 
 	it("strips the !query token on select (engine fires the prompt separately)", () => {
 		const ctx = source.detectTrigger("!de", 3)!;
-		expect(source.onSelect("!de", ctx, prompts[0])).toBe("");
+		const out = source.onSelect("!de", ctx, prompts[0]);
+		expect(out.newText).toBe("");
+		expect(out.newCursorPos).toBe(0);
 		const ctx2 = source.detectTrigger("context\n!de", 11)!;
-		expect(source.onSelect("context\n!de", ctx2, prompts[0])).toBe(
-			"context\n",
-		);
+		const out2 = source.onSelect("context\n!de", ctx2, prompts[0]);
+		expect(out2.newText).toBe("context\n");
+		expect(out2.newCursorPos).toBe("context\n".length);
 	});
 
 	it("builds a create row labeled by the query when there is no draft", () => {

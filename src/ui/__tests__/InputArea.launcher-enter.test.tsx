@@ -62,7 +62,10 @@ function closedSuggestions(): UseSuggestionsReturn {
 		createRow: null,
 		updateSuggestions: () => undefined,
 		close: () => undefined,
-		selectSuggestion: (v: string) => v,
+		selectSuggestion: (v: string) => ({
+			newText: v,
+			newCursorPos: v.length,
+		}),
 	};
 	return {
 		mentions: closed,

@@ -92,10 +92,18 @@ export function replaceMention(
 	const before = text.slice(0, mentionContext.start);
 	const after = text.slice(mentionContext.end);
 
-	// Always use @[[filename]] format
-	const replacement = ` @[[${noteTitle}]] `;
+	// Always use the @[[filename]] form; pad it with a single space only where
+	// one isn't already present, so mid-composer insertions don't produce a
+	// leading space at position 0 or doubled spaces around the token.
+	const core = `@[[${noteTitle}]]`;
+	const needLeadingSpace = before.length > 0 && !/\s$/.test(before);
+	const needTrailingSpace = after.length === 0 || !/^\s/.test(after);
+	const replacement = `${needLeadingSpace ? " " : ""}${core}${needTrailingSpace ? " " : ""}`;
 
 	const newText = before + replacement + after;
+	// Caret lands at the END OF THE INSERTED REFERENCE (after the trailing space
+	// when one was added, otherwise right after `]]`) — never the end of the
+	// whole composer, so editing mid-prompt keeps the caret in place.
 	const newCursorPos = mentionContext.start + replacement.length;
 
 	return { newText, newCursorPos };

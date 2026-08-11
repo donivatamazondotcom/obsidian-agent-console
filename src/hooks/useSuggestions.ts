@@ -7,7 +7,7 @@ import { prepareFuzzySearch } from "obsidian";
 import type { CreatePromptRow } from "../services/quick-prompts-logic";
 import type { QuickPrompt } from "../types/quick-prompt";
 import type { QuickPromptLibrary } from "../services/quick-prompts";
-import type { ResolvedPicker } from "../types/picker";
+import type { ResolvedPicker, PickerSelection } from "../types/picker";
 import { usePicker } from "./usePicker";
 import {
 	makeMentionSource,
@@ -31,8 +31,11 @@ export interface MentionsState {
 
 	/** Update mention suggestions based on current input */
 	updateSuggestions: (input: string, cursorPosition: number) => Promise<void>;
-	/** Select a note from the dropdown. Returns updated input text */
-	selectSuggestion: (input: string, suggestion: NoteMetadata) => string;
+	/** Select a note from the dropdown. Returns updated text + caret position */
+	selectSuggestion: (
+		input: string,
+		suggestion: NoteMetadata,
+	) => PickerSelection;
 	/** Navigate the dropdown selection */
 	navigate: (direction: "up" | "down") => void;
 	/** Close the dropdown */
@@ -60,8 +63,8 @@ export interface CommandsState {
 
 	/** Update slash command suggestions based on current input */
 	updateSuggestions: (input: string, cursorPosition: number) => void;
-	/** Select a slash command from the dropdown. Returns updated input text */
-	selectSuggestion: (input: string, command: SlashCommand) => string;
+	/** Select a slash command from the dropdown. Returns updated text + caret */
+	selectSuggestion: (input: string, command: SlashCommand) => PickerSelection;
 	/** Navigate the dropdown selection */
 	navigate: (direction: "up" | "down") => void;
 	/** Close the dropdown */
@@ -80,8 +83,8 @@ export interface QuickPromptsState {
 
 	/** Update suggestions from the composer text + caret (! trigger) */
 	updateSuggestions: (input: string, cursorPosition: number) => void;
-	/** Strip the ! token from the input on select; returns updated text */
-	selectSuggestion: (input: string) => string;
+	/** Strip the ! token from the input on select; returns updated text + caret */
+	selectSuggestion: (input: string) => PickerSelection;
 	/** Navigate the dropdown selection */
 	navigate: (direction: "up" | "down") => void;
 	/** Close the dropdown */
