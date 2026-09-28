@@ -52,6 +52,7 @@ Each new tab starts connecting to a fresh agent session immediately, so pasted t
 - **Hotkeys** — assign in Settings → Hotkeys:
   - `Focus next chat view` (recommend `Cmd/Ctrl + ]`)
   - `Focus previous chat view` (recommend `Cmd/Ctrl + [`)
+- **Keyboard** — press `Tab` to reach the tab bar. It lands on the current tab, which shows a focus ring. Use `←` / `→` to move between tabs (it wraps around), and `Home` / `End` to jump to the first or last tab. Moving the focus doesn't switch tabs. Press `Enter` or `Space` to open the focused tab, or `Shift + F10` to open its menu.
 - **Scroll position is preserved** — each tab remembers where you left it
 
 ## Reordering tabs

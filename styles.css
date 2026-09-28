@@ -2654,6 +2654,15 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	background-color: var(--background-modifier-hover);
 }
 
+/* Keyboard focus ring (TS-I08). The tab is a div role="tab", so Obsidian's
+   native ring (buttons / .clickable-icon only) never reaches it. Inset because
+   .agent-client-tab-bar-scroll has overflow-y: hidden, which would clip an
+   outer ring's top and bottom edges. Mouse focus stays clean (:focus-visible). */
+.agent-client-tab:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 2px var(--background-modifier-border-focus);
+}
+
 /* Active tab — blends with content area (Obsidian convention) */
 .agent-client-tab-active {
 	background-color: var(--background-primary);

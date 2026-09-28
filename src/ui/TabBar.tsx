@@ -22,6 +22,7 @@ import {
 	ACTIVE_LABEL_FLOOR,
 } from "../resolvers/tab-label-width";
 import { deriveTabScrollLeft } from "../resolvers/tab-scroll";
+import { deriveTabKeyTarget } from "../resolvers/tab-keyboard-nav";
 import { t } from "../i18n";
 
 // ============================================================================
@@ -94,7 +95,11 @@ function TabStateIcon({ state }: { state: TabState }) {
 interface TabItemProps {
 	tab: TabInfo;
 	isActive: boolean;
+	/** Roving tabindex: the one tab in the strip that is a Tab stop. */
+	isTabStop: boolean;
 	onSelect: () => void;
+	/** Arrow/Home/End on the tab itself (TS-I08). */
+	onNavKey: (e: React.KeyboardEvent) => void;
 	onClose: () => void;
 	onContextMenu: (e: React.MouseEvent) => void;
 	onMiddleClick: () => void;
@@ -108,7 +113,9 @@ interface TabItemProps {
 function TabItem({
 	tab,
 	isActive,
+	isTabStop,
 	onSelect,
+	onNavKey,
 	onClose,
 	onContextMenu,
 	onMiddleClick,
@@ -160,14 +167,19 @@ function TabItem({
 			ref={tabRef}
 			className={`agent-client-tab${isActive ? " agent-client-tab-active" : ""}`}
 			role="tab"
-			tabIndex={0}
+			tabIndex={isTabStop ? 0 : -1}
 			aria-selected={isActive}
 			onClick={onSelect}
 			onKeyDown={(e) => {
+				// Keys pressed on the nested close button bubble here; only
+				// handle keys aimed at the tab itself.
+				if (e.target !== e.currentTarget) return;
 				if (e.key === "Enter" || e.key === " ") {
 					e.preventDefault();
 					onSelect();
+					return;
 				}
+				onNavKey(e);
 			}}
 			onContextMenu={onContextMenu}
 			onMouseDown={handleMouseDown}
@@ -449,6 +461,29 @@ export function TabBar({
 		[onMoveTab],
 	);
 
+	// Keyboard navigation across the strip (TS-I08) — WAI-ARIA tabs pattern,
+	// manual activation: arrows/Home/End move focus only; Enter/Space selects.
+	// The target index comes from the pure deriveTabKeyTarget resolver.
+	const handleTabNavKey = useCallback(
+		(index: number) => (e: React.KeyboardEvent) => {
+			const target = deriveTabKeyTarget({
+				key: e.key,
+				index,
+				count: tabs.length,
+			});
+			if (target.kind !== "focus") return;
+			e.preventDefault();
+			const tabEls =
+				scrollRef.current?.querySelectorAll<HTMLElement>('[role="tab"]');
+			tabEls?.[target.index]?.focus();
+		},
+		[tabs.length],
+	);
+
+	// Roving tabindex: the active tab is the strip's single Tab stop. If no tab
+	// is active (transient), fall back to the first so the strip stays reachable.
+	const hasActiveTab = tabs.some((t) => t.tabId === activeTabId);
+
 	// Horizontal scroll on wheel
 	const handleWheel = useCallback((e: React.WheelEvent) => {
 		if (scrollRef.current) {
@@ -461,6 +496,8 @@ export function TabBar({
 			<div
 				className="agent-client-tab-bar-scroll"
 				ref={scrollRef}
+				role="tablist"
+				aria-label={t("chat.tabBar.tabList")}
 				onWheel={handleWheel}
 			>
 				{tabs.map((tab, index) => (
@@ -468,7 +505,12 @@ export function TabBar({
 						key={tab.tabId}
 						tab={tab}
 						isActive={tab.tabId === activeTabId}
+						isTabStop={
+							tab.tabId === activeTabId ||
+							(!hasActiveTab && index === 0)
+						}
 						onSelect={() => onSelectTab(tab.tabId)}
+						onNavKey={handleTabNavKey(index)}
 						onClose={() => onCloseTab(tab.tabId)}
 						onContextMenu={(e) =>
 							handleTabContextMenu(e, tab)
