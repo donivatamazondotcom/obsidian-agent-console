@@ -1618,7 +1618,10 @@ export function InputArea({
 												key={kind}
 												type="button"
 												className="agent-client-queued-send-now"
-												title={t("chat.composer.sendNowTooltip", {
+												// aria-label is Obsidian's tooltip AND the
+												// accessible name, so the text starts with the
+												// visible label. Never `title` (I199).
+												aria-label={t("chat.composer.sendNowTooltip", {
 													key: steerKeyLabel,
 												})}
 												onClick={() => onSendQueuedNow?.()}

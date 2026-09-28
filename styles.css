@@ -1191,8 +1191,11 @@ button.agent-client-message-tool-call-summary:focus-visible {
 
 .agent-client-queued-banner {
 	display: flex;
+	/* Wrap the buttons under the text when the leaf is too narrow for both on
+	   one line, instead of letting them overlap the text. */
+	flex-wrap: wrap;
 	align-items: center;
-	gap: 8px;
+	gap: 6px 8px;
 	padding: 6px 10px;
 	font-size: var(--font-ui-smaller);
 	color: var(--text-accent);
@@ -1211,8 +1214,9 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	height: var(--icon-s);
 }
 
+/* Basis sets how narrow the text may get before the buttons wrap below it. */
 .agent-client-queued-banner-text {
-	flex: 1;
+	flex: 1 1 10em;
 	min-width: 0;
 }
 
@@ -1220,46 +1224,34 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	display: flex;
 	gap: 4px;
 	flex-shrink: 0;
+	margin-left: auto;
 }
 
-.agent-client-queued-send-now,
-.agent-client-queued-edit,
-.agent-client-queued-delete {
+/* Qualified by container + element so these beat Obsidian's
+   `button:not(.clickable-icon)` (0,1,1) — the old single-class rules lost to
+   it, so the buttons rendered as stock grey and only Edit's hover applied.
+   All three share one neutral style and one hover state. */
+.agent-client-queued-banner-actions button {
 	padding: 2px 10px;
 	font-size: var(--font-ui-smaller);
 	border-radius: var(--radius-s);
 	cursor: pointer;
-}
-
-.agent-client-queued-edit {
-	color: var(--text-on-accent);
-	background-color: var(--interactive-accent);
-}
-
-.agent-client-queued-edit:hover {
-	background-color: var(--interactive-accent-hover);
-}
-
-.agent-client-queued-delete {
 	color: var(--text-normal);
-	background-color: var(--background-modifier-border);
+	background-color: var(--interactive-normal);
 }
 
-/* Send now interrupts the current reply, so it reads as an outlined
-   secondary action next to the filled Edit – present, not the default. */
-.agent-client-queued-send-now {
+/* Overlay the translucent hover tint rather than swapping to
+   --interactive-hover: some themes set it equal to --interactive-normal
+   (both #333 in the smoke vault), which made hover invisible. */
+.agent-client-queued-banner-actions button:hover {
+	background-image: linear-gradient(
+		var(--background-modifier-hover),
+		var(--background-modifier-hover)
+	);
 	color: var(--text-accent);
-	background-color: transparent;
-	box-shadow: inset 0 0 0 1px var(--interactive-accent);
 }
 
-.agent-client-queued-send-now:hover {
-	background-color: var(--background-modifier-hover);
-}
-
-.agent-client-queued-send-now:focus-visible,
-.agent-client-queued-edit:focus-visible,
-.agent-client-queued-delete:focus-visible {
+.agent-client-queued-banner-actions button:focus-visible {
 	outline: 2px solid var(--interactive-accent);
 	outline-offset: 1px;
 }
