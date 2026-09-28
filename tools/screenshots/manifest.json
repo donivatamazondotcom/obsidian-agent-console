@@ -1527,13 +1527,13 @@
 		{
 			"name": "tab-ai-rename-menu",
 			"pending": true,
-			"width": 700,
-			"height": 420,
+			"width": 1424,
+			"height": 328,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 700,
-				"height": 420
+				"width": 1424,
+				"height": 328
 			},
 			"cropSelectors": [
 				".agent-client-tab-bar",
