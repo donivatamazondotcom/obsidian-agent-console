@@ -76,6 +76,16 @@ You can rename any tab yourself at any time (see below) — a manual rename alwa
 
 Right-click a tab → **Rename**. Names must be unique within the session (duplicate rename is rejected). Names persist across reloads if the session was saved.
 
+### Rename with AI
+
+Get a fresh title for where the conversation is now — not just where it started. Right-click a tab → **Rename with AI**, or run **Rename current tab with AI** from the command palette. The tab's agent reads a short summary of the chat and proposes a title; a small ✨ pulses on the tab while it works.
+
+- The request runs off to the side — your conversation and its saved history are not changed, and you can keep chatting while it runs.
+- If you rename the tab yourself before the title comes back, your name wins.
+- If another open tab already has that name, the new title gets a number, like `Fix scroll jitter (2)`.
+- The title is saved to session history, the same as a manual rename.
+- Use it when the automatic title didn't show up, or when the chat has moved on to a different topic.
+
 ## Closing tabs
 
 - **Close button** (×) on the tab — visible on hover

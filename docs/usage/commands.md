@@ -54,6 +54,7 @@ These appear only when a chat view is open.
 | **Next session tab** | Switch to the next tab in the active panel |
 | **Previous session tab** | Switch to the previous tab in the active panel |
 | **Show tab list** | Open the tab-bar ⌄ list — a one-glance view of every tab and its status (done ●, working ◐, waiting on you △, error ✕), including tabs scrolled out of sight. Bind a hotkey under **Settings → Hotkeys** to pop it without reaching for the mouse |
+| **Rename current tab with AI** | Ask the tab's agent for a fresh title for the conversation so far and apply it to the tab and session history. Same as right-click → **Rename with AI** |
 | **Close session tab** | Close the active tab |
 | **Reopen closed session tab** | Reopen the most-recently-closed tab and restore its conversation — transcript, agent, label, and pinned context. Repeat to walk further back (browser-style Cmd+Shift+T). Closed tabs are remembered for the current session only |
 | **Open session history** | Open the session history view to browse, search, restore, fork, rename, or delete past sessions. Bind a hotkey under **Settings → Hotkeys** to open it without reaching for the mouse |
