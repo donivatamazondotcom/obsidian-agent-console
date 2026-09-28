@@ -152,6 +152,12 @@ describe("InputArea — Send now on the queued banner", () => {
 		);
 		expect(btn).not.toBeNull();
 		expect(btn?.tagName).toBe("BUTTON");
+		// Obsidian's tooltip reads aria-label; a DOM `title` never shows in the
+		// app (smoke 2026-09-28) and would double up once it does (I199). The
+		// accessible name must still contain the visible label (WCAG 2.5.3).
+		expect(btn?.getAttribute("title")).toBeNull();
+		expect(btn?.getAttribute("aria-label")).toMatch(/^Send now/);
+		expect(btn?.getAttribute("aria-label")).toMatch(/stops the current reply/i);
 		fireEvent.click(btn as HTMLButtonElement);
 		expect(onSendQueuedNow).toHaveBeenCalledTimes(1);
 	});
