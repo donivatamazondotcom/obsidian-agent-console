@@ -19,8 +19,11 @@ describe("queued input visual distinctness (T15)", () => {
 
 	it("defines the queued banner + Edit/Delete controls", () => {
 		expect(css).toContain(".agent-client-queued-banner");
-		expect(css).toContain(".agent-client-queued-edit");
-		expect(css).toContain(".agent-client-queued-delete");
+		// One container-qualified rule styles every banner button (Send now,
+		// Edit, Delete) — single-class rules lost to Obsidian's
+		// `button:not(.clickable-icon)` (smoke 2026-09-28).
+		expect(css).toContain(".agent-client-queued-banner-actions button {");
+		expect(css).toContain(".agent-client-queued-banner-actions button:hover");
 	});
 
 	it("uses the accent hue (not red/green) for the queued state", () => {
@@ -35,7 +38,8 @@ describe("queued input visual distinctness (T15)", () => {
 	});
 
 	it("keeps a visible focus outline on the queued controls (keyboard a11y)", () => {
-		expect(css).toContain(".agent-client-queued-edit:focus-visible");
-		expect(css).toContain(".agent-client-queued-delete:focus-visible");
+		expect(css).toContain(
+			".agent-client-queued-banner-actions button:focus-visible",
+		);
 	});
 });
