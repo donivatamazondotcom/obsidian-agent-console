@@ -81,15 +81,21 @@ describe("useAgentMessages — I107 post-interrupt send no longer hangs on a dea
 		expect(result.current.messages.some((m) => JSON.stringify(m.content).includes("msg1"))).toBe(true);
 
 		// User interrupts (hard reload / Stop / New chat all route here).
+		// A short settle timeout stands in for CANCEL_SETTLE_TIMEOUT_MS: since
+		// I203 the next send waits for the cancelled prompt's answer, but only
+		// up to this bound — a prompt that never answers must not block it.
 		act(() => {
-			result.current.discardPendingTurn();
+			result.current.discardPendingTurn(20);
 		});
 
 		// Second send must NOT hang on the dead prior promise — it must reach addMessage.
 		act(() => {
 			void result.current.sendMessage("msg2", { vaultBasePath: "" });
 		});
-		await act(flush);
+		await act(async () => {
+			await new Promise((res) => setTimeout(res, 40));
+			await flush();
+		});
 
 		expect(result.current.messages.some((m) => JSON.stringify(m.content).includes("msg2"))).toBe(true);
 	});
