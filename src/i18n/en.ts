@@ -301,6 +301,12 @@ export const en = {
 		"Could not restore previous tabs — saved state was corrupted.",
 	"notices.viewDetails": "View details",
 	"notices.noRecentlyClosedSession": "No recently closed session to reopen",
+	"notices.aiRenameNothingYet":
+		"[Agent Console] Nothing to name yet — send a message first",
+	"notices.aiRenameNotReady":
+		"[Agent Console] The agent is still starting — try again in a moment",
+	"notices.aiRenameFailed":
+		"[Agent Console] Couldn't get a title from the agent",
 	"notices.duplicateTabName":
 		"[Agent Console] A tab with that name already exists",
 	"notices.sessionRestoreFailed": "[Agent Console] Failed to restore session",
@@ -433,6 +439,7 @@ export const en = {
 	"commands.nextSessionTab": "Next session tab",
 	"commands.previousSessionTab": "Previous session tab",
 	"commands.showTabList": "Show tab list",
+	"commands.renameTabWithAi": "Rename current tab with AI",
 	"commands.reopenClosedTab": "Reopen closed session tab",
 	"commands.openSessionHistory": "Open session history",
 	"commands.openNewView": "Open new view",
@@ -473,6 +480,8 @@ export const en = {
 	"chat.menu.newChatInDirectory": "New chat in directory...",
 	"chat.menu.pluginSettings": "Plugin settings",
 	"chat.tabBar.rename": "Rename",
+	"chat.tabBar.renameWithAi": "Rename with AI",
+	"chat.tabBar.renamingWithAi": "Renaming with AI…",
 	"chat.tabBar.close": "Close",
 	"chat.tabBar.closeOthers": "Close others",
 	"chat.tabBar.closeToRight": "Close to the right",

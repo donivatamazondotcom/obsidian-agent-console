@@ -1,13 +1,14 @@
 /**
  * F15 — Rename Tab With AI: pure excerpt builder + side-session reply parser.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "../../types/chat";
 import {
 	buildTitleExcerpt,
 	buildSideTitlePrompt,
 	parseSideTitleReply,
 	MAX_AI_TITLE_CHARS,
+	requestAiTitle,
 } from "../ai-title-service";
 
 let n = 0;
@@ -127,5 +128,60 @@ describe("parseSideTitleReply", () => {
 	it("caps length", () => {
 		const t = parseSideTitleReply(`<title>${"x".repeat(200)}</title>`) ?? "";
 		expect(t.length).toBeLessThanOrEqual(MAX_AI_TITLE_CHARS);
+	});
+});
+
+describe("requestAiTitle (orchestration over the side-title port)", () => {
+	it("returns no-content without calling the agent when there is nothing to title", async () => {
+		const port = { requestSideTitle: vi.fn() };
+		const res = await requestAiTitle({ messages: [], port, cwd: "/v" });
+		expect(res).toEqual({ kind: "no-content" });
+		expect(port.requestSideTitle).not.toHaveBeenCalled();
+	});
+
+	it("sends the built prompt and parses the reply", async () => {
+		const port = {
+			requestSideTitle: vi.fn(async () => ({
+				sessionId: "SIDE",
+				text: "<title>Plan Tokyo trip</title>",
+			})),
+		};
+		const res = await requestAiTitle({
+			messages: [msg("user", "help me plan a week in Tokyo")],
+			port,
+			cwd: "/v",
+		});
+		expect(res).toEqual({
+			kind: "title",
+			title: "Plan Tokyo trip",
+			sideSessionId: "SIDE",
+		});
+		const [prompt, cwd] = port.requestSideTitle.mock.calls[0] as unknown as [
+			string,
+			string,
+		];
+		expect(prompt).toContain("User: help me plan a week in Tokyo");
+		expect(cwd).toBe("/v");
+	});
+
+	it("maps an empty reply to no-title and a thrown error to failed", async () => {
+		const empty = {
+			requestSideTitle: vi.fn(async () => ({ sessionId: "S", text: " " })),
+		};
+		expect(
+			await requestAiTitle({ messages: [msg("user", "x")], port: empty, cwd: "" }),
+		).toEqual({ kind: "no-title", sideSessionId: "S" });
+
+		const boom = {
+			requestSideTitle: vi.fn(async () => {
+				throw new Error("timed out");
+			}),
+		};
+		const res = await requestAiTitle({
+			messages: [msg("user", "x")],
+			port: boom,
+			cwd: "",
+		});
+		expect(res.kind).toBe("failed");
 	});
 });

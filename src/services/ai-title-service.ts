@@ -121,3 +121,44 @@ export function parseSideTitleReply(reply: string): string | null {
 		.find((l) => l.length > 0);
 	return firstLine ? cleanTitle(firstLine) : null;
 }
+
+/** The slice of `AcpClient` the title request needs (test seam). */
+export interface SideTitlePort {
+	requestSideTitle(
+		promptText: string,
+		workingDirectory: string,
+	): Promise<{ sessionId: string; text: string }>;
+}
+
+export type AiTitleResult =
+	| { kind: "title"; title: string; sideSessionId: string }
+	| { kind: "no-title"; sideSessionId: string }
+	| { kind: "no-content" }
+	/** The tab's agent connection isn't up yet (eager init still running). */
+	| { kind: "not-ready" }
+	| { kind: "failed"; error: unknown };
+
+/**
+ * Build the excerpt from the local transcript, ask the agent in a side
+ * session, and parse the reply. Never throws.
+ */
+export async function requestAiTitle(args: {
+	messages: ChatMessage[];
+	port: SideTitlePort;
+	cwd: string;
+}): Promise<AiTitleResult> {
+	const excerpt = buildTitleExcerpt(args.messages);
+	if (!excerpt) return { kind: "no-content" };
+	try {
+		const reply = await args.port.requestSideTitle(
+			buildSideTitlePrompt(excerpt),
+			args.cwd,
+		);
+		const title = parseSideTitleReply(reply.text);
+		return title
+			? { kind: "title", title, sideSessionId: reply.sessionId }
+			: { kind: "no-title", sideSessionId: reply.sessionId };
+	} catch (error) {
+		return { kind: "failed", error };
+	}
+}

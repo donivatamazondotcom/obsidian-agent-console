@@ -74,6 +74,10 @@ import { loadExistingSessionFlow } from "../hooks/loadExistingSessionFlow";
 
 // Adapter imports
 import type { AcpClient } from "../acp/acp-client";
+import {
+	requestAiTitle,
+	type AiTitleResult,
+} from "../services/ai-title-service";
 
 // Context imports
 import { useChatContext } from "./ChatContext";
@@ -175,6 +179,12 @@ export interface ChatPanelCallbacks {
 	 * mirroring the tab-state flushSave.
 	 */
 	flushSessionSave: () => Promise<void>;
+	/**
+	 * F15 — ask this tab's agent for a title in a throwaway side session on
+	 * the existing connection. Reads the LOCAL transcript; never touches this
+	 * tab's session or transcript. Never throws.
+	 */
+	requestAiTitle: () => Promise<AiTitleResult>;
 }
 
 // ============================================================================
@@ -2501,8 +2511,16 @@ export function ChatPanel({
 			},
 			getWorkingDirectory: () => agentCwd,
 			openHistory: () => handleOpenHistoryRef.current(),
+			requestAiTitle: async () => {
+				if (!acpClient.isInitialized()) return { kind: "not-ready" };
+				return requestAiTitle({
+					messages: messagesRef.current,
+					port: acpClient,
+					cwd: agentCwd,
+				});
+			},
 		});
-	}, [onRegisterCallbacks, activeAgentLabel, agentCwd]);
+	}, [onRegisterCallbacks, activeAgentLabel, agentCwd, acpClient]);
 
 	// ============================================================
 	// Render

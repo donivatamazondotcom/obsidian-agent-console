@@ -37,6 +37,10 @@ export interface TabBarProps {
 	onCloseOtherTabs: (tabId: string) => void;
 	onCloseTabsToRight: (tabId: string) => void;
 	onRenameTab: (tabId: string) => void;
+	/** F15 — "Rename with AI" from the tab's right-click menu. */
+	onAiRenameTab?: (tabId: string) => void;
+	/** F15 — tabs with an AI rename in flight (shows a working indicator). */
+	aiRenamingTabIds?: ReadonlySet<string>;
 	onMoveTab: (fromIndex: number, toIndex: number) => void;
 	/** Right-click on + button — show agent picker */
 	onAddTabWithAgent?: (e: React.MouseEvent) => void;
@@ -97,6 +101,8 @@ interface TabItemProps {
 	onDragStart: (e: React.DragEvent) => void;
 	onDragOver: (e: React.DragEvent) => void;
 	onDrop: (e: React.DragEvent) => void;
+	/** F15 — an AI rename is in flight for this tab. */
+	aiRenaming?: boolean;
 }
 
 function TabItem({
@@ -109,9 +115,15 @@ function TabItem({
 	onDragStart,
 	onDragOver,
 	onDrop,
+	aiRenaming = false,
 }: TabItemProps) {
 	const tabRef = useRef<HTMLDivElement>(null);
 	const closeRef = useRef<HTMLDivElement>(null);
+	const aiRef = useRef<HTMLSpanElement>(null);
+
+	useEffect(() => {
+		if (aiRenaming && aiRef.current) setIcon(aiRef.current, "sparkles");
+	}, [aiRenaming]);
 
 	useEffect(() => {
 		if (closeRef.current) {
@@ -166,6 +178,14 @@ function TabItem({
 		>
 			<TabStateIcon state={tab.state} />
 			<span className="agent-client-tab-label">{tab.label}</span>
+			{aiRenaming && (
+				<span
+					ref={aiRef}
+					className="agent-client-tab-ai-renaming"
+					role="status"
+					aria-label={t("chat.tabBar.renamingWithAi")}
+				/>
+			)}
 			<div
 				ref={closeRef}
 				className="agent-client-tab-close clickable-icon"
@@ -201,6 +221,8 @@ export function TabBar({
 	onCloseOtherTabs,
 	onCloseTabsToRight,
 	onRenameTab,
+	onAiRenameTab,
+	aiRenamingTabIds,
 	onMoveTab,
 	onAddTabWithAgent,
 	onRegisterShowTabList,
@@ -323,6 +345,17 @@ export function TabBar({
 				});
 			});
 
+			if (onAiRenameTab) {
+				menu.addItem((item: MenuItem) => {
+					item.setTitle(t("chat.tabBar.renameWithAi"))
+						.setIcon("sparkles")
+						.setDisabled(aiRenamingTabIds?.has(tab.tabId) ?? false)
+						.onClick(() => {
+							onAiRenameTab(tab.tabId);
+						});
+				});
+			}
+
 			menu.addSeparator();
 
 			// Close is always available — closing the last tab lands on the
@@ -357,7 +390,15 @@ export function TabBar({
 
 			showMenuAtEvent(menu, e);
 		},
-		[tabs, onCloseTab, onCloseOtherTabs, onCloseTabsToRight, onRenameTab],
+		[
+			tabs,
+			onCloseTab,
+			onCloseOtherTabs,
+			onCloseTabsToRight,
+			onRenameTab,
+			onAiRenameTab,
+			aiRenamingTabIds,
+		],
 	);
 
 	// Chevron dropdown — list all tabs
@@ -436,6 +477,7 @@ export function TabBar({
 						onDragStart={handleDragStart(index)}
 						onDragOver={handleDragOver}
 						onDrop={handleDrop(index)}
+						aiRenaming={aiRenamingTabIds?.has(tab.tabId) ?? false}
 					/>
 				))}
 			</div>

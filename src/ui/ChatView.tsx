@@ -70,6 +70,7 @@ import {
 // Service imports
 import { VaultService } from "../services/vault-service";
 import { resolveSessionIdForSave } from "../services/session-helpers";
+import { decideAiTitleApply } from "../resolvers/ai-title-apply";
 import {
 	buildClosedLeafRecord,
 	buildClosedTabRecord,
@@ -761,6 +762,36 @@ function ChatComponent({
 		}
 	}, [recentlyClosed, persistenceStorage, tabManager, tabs.length]);
 
+	/**
+	 * Apply a user-requested tab rename (manual or F15 AI) to the tab and to
+	 * session history. Persists through the single writer (Phase 4 §2c) so the
+	 * rename can't be clobbered by a concurrent turn-end save. Resolves the
+	 * session id with the persisted fallback (I73) — a restored,
+	 * not-yet-reconnected tab has no live-map entry, only
+	 * persistedSessionIdsRef. createIfMissing:false keeps the prior
+	 * skip-if-missing contract (a tab whose session isn't in history is a
+	 * no-op).
+	 */
+	const applyTabRename = useCallback(
+		async (tabId: string, agentId: string, title: string) => {
+			tabManager.setTabLabel(tabId, title, true);
+			const renameSessionId = resolveSessionIdForSave(
+				tabSessionIdsRef.current.get(tabId) ?? null,
+				persistedSessionIdsRef.current.get(tabId) ?? null,
+			);
+			if (renameSessionId) {
+				await plugin.settingsService.sessionStore.renameSession({
+					sessionId: renameSessionId,
+					agentId,
+					cwd: "",
+					title,
+					createIfMissing: false,
+				});
+			}
+		},
+		[plugin, tabManager],
+	);
+
 	const handleRenameTab = useCallback(
 		(tabId: string) => {
 			const tab = tabs.find((t) => t.tabId === tabId);
@@ -781,35 +812,70 @@ function ChatComponent({
 						);
 						return;
 					}
-					tabManager.setTabLabel(tabId, newTitle, true);
-
-					// Persist to session history through the single writer
-					// (Phase 4 §2c) so the rename can't be clobbered by a
-					// concurrent turn-end save. Resolve the session id with the
-					// persisted fallback (I73) — a restored, not-yet-reconnected
-					// tab has no live-map entry, only persistedSessionIdsRef.
-					// createIfMissing:false keeps the prior skip-if-missing
-					// contract (a tab whose session isn't in history is a no-op).
-					const renameSessionId = resolveSessionIdForSave(
-						tabSessionIdsRef.current.get(tabId) ?? null,
-						persistedSessionIdsRef.current.get(tabId) ?? null,
-					);
-					if (renameSessionId) {
-						await plugin.settingsService.sessionStore.renameSession(
-							{
-								sessionId: renameSessionId,
-								agentId: tab.agentId,
-								cwd: "",
-								title: newTitle,
-								createIfMissing: false,
-							},
-						);
-					}
+					await applyTabRename(tabId, tab.agentId, newTitle);
 				},
 			);
 			modal.open();
 		},
-		[tabs, plugin, tabManager],
+		[tabs, plugin, applyTabRename],
+	);
+
+	// ============================================================
+	// F15 — Rename with AI
+	// ============================================================
+	const [aiRenamingTabIds, setAiRenamingTabIds] = useState<
+		ReadonlySet<string>
+	>(() => new Set());
+	const aiRenamingRef = useRef<Set<string>>(new Set());
+	const tabsRef = useRef(tabs);
+	tabsRef.current = tabs;
+
+	const handleAiRenameTab = useCallback(
+		async (tabId: string) => {
+			if (aiRenamingRef.current.has(tabId)) return;
+			const tab = tabsRef.current.find((x) => x.tabId === tabId);
+			const handle = tabHandlesRef.current.get(tabId);
+			if (!tab || !handle) return;
+
+			const labelAtStart = tab.label;
+			aiRenamingRef.current.add(tabId);
+			setAiRenamingTabIds(new Set(aiRenamingRef.current));
+			try {
+				const result = await handle.requestAiTitle();
+				if (result.kind === "no-content") {
+					new Notice(t("notices.aiRenameNothingYet"));
+					return;
+				}
+				if (result.kind === "not-ready") {
+					new Notice(t("notices.aiRenameNotReady"));
+					return;
+				}
+				if (result.kind === "failed") {
+					getLogger().warn("[F15] AI rename failed:", result.error);
+					new Notice(t("notices.aiRenameFailed"));
+					return;
+				}
+				const now = tabsRef.current;
+				const decision = decideAiTitleApply({
+					labelAtStart,
+					currentLabel:
+						now.find((x) => x.tabId === tabId)?.label ?? null,
+					title: result.kind === "title" ? result.title : null,
+					otherLabels: now
+						.filter((x) => x.tabId !== tabId)
+						.map((x) => x.label),
+				});
+				if (decision.kind === "apply") {
+					await applyTabRename(tabId, tab.agentId, decision.label);
+				} else if (decision.reason === "no-title") {
+					new Notice(t("notices.aiRenameFailed"));
+				}
+			} finally {
+				aiRenamingRef.current.delete(tabId);
+				setAiRenamingTabIds(new Set(aiRenamingRef.current));
+			}
+		},
+		[applyTabRename],
 	);
 
 	const handleAddTabWithAgent = useCallback(
@@ -1128,6 +1194,10 @@ function ChatComponent({
 			openHistory: () => activeCallbacksRef.current?.openHistory(),
 			flushSessionSave: async () =>
 				activeCallbacksRef.current?.flushSessionSave(),
+			requestAiTitle: async () =>
+				(await activeCallbacksRef.current?.requestAiTitle()) ?? {
+					kind: "not-ready",
+				},
 		});
 		view.setTabHandlesAccessor(() =>
 			Array.from(tabHandlesRef.current.entries()).map(([tabId, cb]) => ({
@@ -1166,7 +1236,10 @@ function ChatComponent({
 		view.setCloseActiveTab(() => {
 			handleCloseTab(activeTabId);
 		});
-	}, [view, reopenClosed, handleCloseTab, activeTabId]);
+		view.setAiRenameActiveTab(() => {
+			void handleAiRenameTab(activeTabId);
+		});
+	}, [view, reopenClosed, handleCloseTab, handleAiRenameTab, activeTabId]);
 
 	// Wire the TabBar's "open tab list" capability to the view class so the
 	// show-tab-list plugin command (hotkey-bindable) can trigger it.
@@ -1264,6 +1337,8 @@ function ChatComponent({
 				onCloseOtherTabs={handleCloseOtherTabs}
 				onCloseTabsToRight={handleCloseTabsToRight}
 				onRenameTab={handleRenameTab}
+				onAiRenameTab={(tabId) => void handleAiRenameTab(tabId)}
+				aiRenamingTabIds={aiRenamingTabIds}
 				onMoveTab={tabManager.moveTab}
 				onAddTabWithAgent={handleAddTabWithAgent}
 				onRegisterShowTabList={handleRegisterShowTabList}
@@ -1541,6 +1616,18 @@ export class ChatView extends ItemView implements IChatViewContainer {
 
 	setCloseActiveTab(fn: () => void): void {
 		this.closeActiveTabFn = fn;
+	}
+
+	private aiRenameActiveTabFn: (() => void) | null = null;
+
+	/** F15 — register the "Rename with AI" handler for the active tab. */
+	setAiRenameActiveTab(fn: () => void): void {
+		this.aiRenameActiveTabFn = fn;
+	}
+
+	/** F15 — rename the active tab with AI (for the Obsidian command). */
+	aiRenameActiveTab(): void {
+		this.aiRenameActiveTabFn?.();
 	}
 
 	/** Reopen the most-recently-closed tab and restore its conversation (F13). */
