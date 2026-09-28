@@ -192,6 +192,7 @@ src/
 │   ├── header-slot.ts              # deriveHeaderSlot — pure 4-way header secondary-slot resolver (model / connecting / idle / none)
 │   ├── notify-gate.ts              # shouldNotifySystem — pure resolver: should an OS notification fire for a backgrounded panel; gates on the flush signal, not an instantaneous focus read (I168)
 │   ├── resolveInitialAgentId.ts    # Pure: agent a fresh (non-restored) tab opens on — Default agent when restore-tabs is off (TP-I05)
+│   ├── queued-banner-actions.ts    # Pure resolver for the queued-banner buttons (deriveQueuedBannerActions → Send now / Edit / Delete / Cancel)
 │   ├── send-affordance.ts          # Pure send-enablement resolver (deriveSendAffordance → canSend/buttonDisabled/reason) + isSessionLive; single source for ChatPanel/InputArea/InputToolbar/MessageList/broadcast
 │   ├── session-history-view.ts     # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source) → listSource/agentViewAvailable/showFilters/restore/fork/banner); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
 │   ├── tab-label-width.ts          # deriveActiveTabLabelMax — pure resolver for the active tab's label max-width so the whole active tab stays visible in the strip

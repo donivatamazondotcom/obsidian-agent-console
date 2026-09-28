@@ -15,6 +15,7 @@ Type your follow-up while the agent is working and press **Enter**. Your message
 
 - The message box locks and shows a **Queued** banner so you know it is waiting.
 - Use **Edit** to change the message before it sends, or **Delete** to drop it.
+- Changed your mind and don't want to wait? Click **Send now**. It stops the current reply and sends your queued message right away – the same as steering, without retyping. The steer keys (below) do the same thing while a message is queued. **Send now** appears once the agent is connected; while it is still connecting, your message already sends the moment it's ready.
 - Only one message can be queued at a time. This keeps things predictable — you always know exactly what will send next.
 - If you stop the reply, or it ends with an error, the queued message is kept as a normal draft instead of being sent into a reply that never finished.
 
@@ -32,7 +33,7 @@ Sometimes the agent is heading the wrong way and you want to redirect it now. St
 When you steer, the current reply stops and your message sends as a fresh turn — you'll see the usual working animation and a Stop button while it runs. The agent keeps the whole conversation so far, so you are redirecting it, not starting over.
 
 > [!note] Queue is the default, steering is the opt-in
-> A plain Enter always queues (nothing is interrupted). Steering takes the extra modifier key on purpose, so you never stop a reply by accident. If a message is already queued, steering is turned off until you send or clear it — edit or delete the queued message first.
+> A plain Enter always queues (nothing is interrupted). Steering takes the extra modifier key on purpose, so you never stop a reply by accident. If a message is already queued, the steer keys send **that** message now instead of starting a new one – the same as clicking **Send now**. To steer with different text, edit or delete the queued message first.
 
 ## Which one should I use?
 
@@ -40,6 +41,7 @@ When you steer, the current reply stops and your message sends as a fresh turn �
 |---|---|
 | Line up your next step and let the reply finish | Type it, press **Enter** (it queues) |
 | Redirect the agent right now | Type it, press the steer keys (**`Mod`+Enter**, or **`Mod`+`Shift`+Enter** if you send with `Mod`+Enter) |
+| Send a message you already queued, right now | Click **Send now** on the queued banner (or press the steer keys) |
 | Just stop the reply and keep your text | Press the **Stop** button — your text stays in the box |
 
 ## Good to know

@@ -111,6 +111,13 @@ export type QueueEvent =
 	/** Session acquisition failed (connecting->error). Hold the pending message;
 	 *  the user's composer text is intact and they re-send to retry. */
 	| { type: "acquisitionFailed" }
+	/** User chose Send now on the queued banner (or pressed the steer gesture
+	 *  on the locked composer). While a turn streams, promote the held message
+	 *  to a steer (flag `steering`, emit `cancelTurn`) so it flushes on
+	 *  `steerCancelSettled` — the same settle-before-send path as #81. With no
+	 *  turn running (held after Stop) it flushes immediately. No-op for an empty
+	 *  slot, an in-flight steer, a pre-ready hold, or a detached surface action. */
+	| { type: "sendQueuedNow"; isStreaming: boolean }
 	/** User chose Edit on the queued banner: unlock the slot, KEEP composer text. */
 	| { type: "editQueued" }
 	/** User chose Delete on the queued banner: clear the slot AND the composer. */
@@ -313,6 +320,29 @@ export function queueOrchestrationReducer(
 			}
 			// Hold: composer text is intact; user re-sends to retry.
 			return { state, effects: NO_EFFECTS };
+
+		case "sendQueuedNow": {
+			const pending = state.pending;
+			// Guards: nothing held; a steer already cancelling (no second
+			// cancel); a pre-ready hold (it flushes on connect — there is no
+			// session to send into yet); a detached surface action (keeps its
+			// own Cancel-only path, A2UI-I08).
+			if (
+				pending === null ||
+				state.steering ||
+				state.awaitingAcquire ||
+				pending.detachedSurfaceId !== undefined
+			) {
+				return { state, effects: NO_EFFECTS };
+			}
+			if (event.isStreaming) {
+				return {
+					state: { pending, steering: true },
+					effects: [{ kind: "cancelTurn" }],
+				};
+			}
+			return flush(pending);
+		}
 
 		case "editQueued":
 			// Unlock the slot, keep the text so the user can modify + re-queue.

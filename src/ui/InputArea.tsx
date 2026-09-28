@@ -40,6 +40,7 @@ import type { TabSessionState } from "../hooks/useTabSessionState";
 import { focusComposerAtEnd } from "./composer-focus";
 import { getLogger } from "../utils/logger";
 import { pushScopeWhileFocused } from "../utils/focus-scoped-push";
+import { deriveQueuedBannerActions } from "../resolvers/queued-banner-actions";
 import { decideComposerEnterAction, buildComposerPlaceholder, buildQueuedBanner, isQueuedSendBlocked, isSteerGesture } from "../services/message-queue-logic";
 import { MOD_KEY, SHIFT_KEY, ENTER_KEY, modCombo } from "../utils/platform";
 import type { ErrorInfo } from "../types/errors";
@@ -257,6 +258,8 @@ export interface InputAreaProps {
 	onEditQueued?: () => void;
 	/** Delete the queued message and empty the composer. */
 	onDeleteQueued?: () => void;
+	/** Send the queued message now: stop the live turn (if any), then send it. */
+	onSendQueuedNow?: () => void;
 	// Mid-Stream Steering (#81)
 	/** Whether a steer (cancel-then-redirect) is in flight — shows a distinct banner. */
 	isSteering?: boolean;
@@ -367,6 +370,7 @@ export function InputArea({
 	onQueueMessage,
 	onEditQueued,
 	onDeleteQueued,
+	onSendQueuedNow,
 	isSteering = false,
 	onSteerMessage,
 	modes,
@@ -1257,8 +1261,13 @@ export function InputArea({
 							attachedFiles.length > 0,
 						steerRequested,
 						launches,
+						queuedIsAction: isQueuedAction,
 					});
-					if (action === "send") {
+					if (action === "sendQueuedNow") {
+						// Steer gesture on the locked composer = the banner's
+						// Send now (keyboard-first parity).
+						onSendQueuedNow?.();
+					} else if (action === "send") {
 						void handleSendOrStop();
 					} else if (action === "queue") {
 						// Queue Next Message (#82): while the agent is
@@ -1293,6 +1302,8 @@ export function InputArea({
 			isQueued,
 			onQueueMessage,
 			onSteerMessage,
+			onSendQueuedNow,
+			isQueuedAction,
 			inputValue,
 			attachedFiles,
 		],
@@ -1593,36 +1604,65 @@ export function InputArea({
 							})}
 						</span>
 						<div className="agent-client-queued-banner-actions">
-							{isQueuedAction ? (
-								// A held ACTION is not composer text: Delete would
-								// emit clearComposer and wipe an unrelated draft
-								// (A2UI-I08). Offer only Cancel, which releases the
-								// slot and leaves the composer untouched.
-								<button
-									type="button"
-									className="agent-client-queued-edit"
-									onClick={() => onEditQueued?.()}
-								>
-									{t("modals.common.cancel")}
-								</button>
-							) : (
-								<>
-									<button
-										type="button"
-										className="agent-client-queued-edit"
-										onClick={() => onEditQueued?.()}
-									>
-										{t("chat.composer.edit")}
-									</button>
-									<button
-										type="button"
-										className="agent-client-queued-delete"
-										onClick={() => onDeleteQueued?.()}
-									>
-										{t("chat.composer.delete")}
-									</button>
-								</>
-							)}
+							{/* Buttons come from one resolver (deriveQueuedBannerActions).
+							    A held ACTION gets only Cancel: Delete would emit
+							    clearComposer and wipe an unrelated draft (A2UI-I08). */}
+							{deriveQueuedBannerActions({
+								isAction: isQueuedAction,
+								isSessionReady,
+							}).map((kind) => {
+								switch (kind) {
+									case "sendNow":
+										return (
+											<button
+												key={kind}
+												type="button"
+												className="agent-client-queued-send-now"
+												title={t("chat.composer.sendNowTooltip", {
+													key: steerKeyLabel,
+												})}
+												onClick={() => onSendQueuedNow?.()}
+											>
+												{t("chat.composer.sendNow")}
+											</button>
+										);
+									case "edit":
+										return (
+											<button
+												key={kind}
+												type="button"
+												className="agent-client-queued-edit"
+												onClick={() => onEditQueued?.()}
+											>
+												{t("chat.composer.edit")}
+											</button>
+										);
+									case "delete":
+										return (
+											<button
+												key={kind}
+												type="button"
+												className="agent-client-queued-delete"
+												onClick={() => onDeleteQueued?.()}
+											>
+												{t("chat.composer.delete")}
+											</button>
+										);
+									case "cancel":
+										// Cancel releases the slot and leaves the composer
+										// untouched (editQueued semantics).
+										return (
+											<button
+												key={kind}
+												type="button"
+												className="agent-client-queued-edit"
+												onClick={() => onEditQueued?.()}
+											>
+												{t("modals.common.cancel")}
+											</button>
+										);
+								}
+							})}
 						</div>
 					</div>
 				)}

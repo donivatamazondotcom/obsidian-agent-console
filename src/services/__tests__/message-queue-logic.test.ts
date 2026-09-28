@@ -507,10 +507,12 @@ describe("decideComposerEnterAction — steer (#81)", () => {
 		).toBe("send");
 	});
 
-	it("does nothing when a message is already queued (Edit/Delete first — Q#4)", () => {
+	it("on a locked composer the steer gesture is Send now, never a second steer (Q#4)", () => {
+		// Queue-of-one still holds: no new message is steered in. The gesture
+		// promotes the ALREADY-held message instead (send-queued-now.test.ts).
 		expect(
 			decideComposerEnterAction({ ...base, isQueued: true }),
-		).toBe("none");
+		).toBe("sendQueuedNow");
 	});
 
 	it("does nothing with an empty composer even if the steer gesture fired", () => {

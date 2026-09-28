@@ -495,6 +495,8 @@ export const en = {
 	"chat.tabs.defaultAgentSuffix": "{name} (default)",
 	// ---- Phase 3: composer + toolbar ----
 	"chat.composer.queuedLocked": "Queued message (locked) — use Edit to change it",
+	"chat.composer.sendNow": "Send now",
+	"chat.composer.sendNowTooltip": "Stop the current reply and send this now ({key})",
 	"chat.composer.edit": "Edit",
 	"chat.composer.delete": "Delete",
 	"chat.composer.mode": "Mode",

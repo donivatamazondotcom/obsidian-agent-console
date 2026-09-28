@@ -24,7 +24,12 @@ export function shouldQueueOnSend(params: { isSending: boolean }): boolean {
 }
 
 /** What pressing the send key (Enter) in the composer should do. */
-export type ComposerEnterAction = "send" | "queue" | "steer" | "none";
+export type ComposerEnterAction =
+	| "send"
+	| "queue"
+	| "steer"
+	| "sendQueuedNow"
+	| "none";
 
 /** The configured send-key mode (Settings → "Send message with"). */
 export type SendMessageShortcut = "enter" | "cmd-enter";
@@ -38,6 +43,8 @@ export type SendMessageShortcut = "enter" | "cmd-enter";
  * - **send** — not streaming and the send button is enabled → normal dispatch.
  * - **queue** — streaming (plain send key) or the session isn't ready yet,
  *   nothing queued, and there is content → queue the next message.
+ * - **sendQueuedNow** — the composer is locked on a queued message, the session
+ *   is live, and the steer gesture was pressed → same as the banner's Send now.
  * - **none** — a message is already queued (queue-of-one), empty composer, or
  *   the send button is disabled (connecting/restoring).
  *
@@ -60,8 +67,21 @@ export function decideComposerEnterAction(params: {
 	 * Defaults to false (in-tab composer).
 	 */
 	launches?: boolean;
+	/** The held message is a detached surface action (A2UI-I08), not
+	 *  composer text — Send now does not apply to it. */
+	queuedIsAction?: boolean;
 }): ComposerEnterAction {
-	if (params.isQueued || !params.hasContent) return "none";
+	// Locked composer: the steer gesture means "Send now" for the held
+	// message — only once the session is live (a pre-ready hold already sends
+	// on connect) and never for a detached surface action.
+	if (params.isQueued) {
+		return params.steerRequested &&
+			params.isSessionReady &&
+			!params.queuedIsAction
+			? "sendQueuedNow"
+			: "none";
+	}
+	if (!params.hasContent) return "none";
 	// Steer beats queue while a live turn is in flight: the user deliberately
 	// asked to interrupt-and-redirect. Only meaningful while streaming — a
 	// steer gesture on an idle/ready composer falls through to a normal send.
