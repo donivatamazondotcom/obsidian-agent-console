@@ -46,6 +46,12 @@ import {
 } from "../utils/update-flush-scheduler";
 import { t, getReplyLanguage } from "../i18n";
 
+/**
+ * I203: how long a stop/steer waits for the cancelled prompt's answer before
+ * the next turn may start anyway. Agents normally answer within milliseconds;
+ * the bound only matters for agents that never answer (I107).
+ */
+export const CANCEL_SETTLE_TIMEOUT_MS = 2000;
 // ============================================================================
 // Types
 // ============================================================================
@@ -114,8 +120,12 @@ export interface UseAgentMessagesReturn {
 	 * late result/error is a no-op — prevents an aborted prompt's error (e.g.
 	 * Kiro's -32603 "Internal error") from surfacing as the error overlay
 	 * (I106). Resets streaming state; leaves the transcript intact.
+	 *
+	 * Also closes the I203 settle gate: until the cancelled prompt answers
+	 * (or `settleTimeoutMs` elapses), that session's late text/thought/plan
+	 * chunks are dropped and the next `sendMessage` waits.
 	 */
-	discardPendingTurn: () => void;
+	discardPendingTurn: (settleTimeoutMs?: number) => void;
 
 	// Permission
 	activePermission: ActivePermission | null;
@@ -173,6 +183,20 @@ export function useAgentMessages(
 	// the previous one to settle before starting (avoids interleaved sends).
 	const sendPromiseRef = useRef<Promise<void> | null>(null);
 
+	// I203 settle gate. ACP lets an agent keep streaming a cancelled turn's
+	// `session/update`s until it answers that turn's `session/prompt` with
+	// `stopReason: cancelled`. Chunks carry only a sessionId (no turn id), so
+	// the prompt's answer is the only reliable "old turn finished" signal.
+	// While the gate is set: text/thought/plan chunks for its session are
+	// dropped (they belong to the stopped reply and would otherwise append to
+	// the newest assistant message), and sendMessage waits on `settled`.
+	// Tool-call updates still apply — they target their block by toolCallId,
+	// and the spec says clients SHOULD accept them after cancel.
+	const cancelledTurnRef = useRef<{
+		sessionId: string | null;
+		settled: Promise<void>;
+	} | null>(null);
+
 	// ============================================================
 	// Streaming Update Batching
 	// ============================================================
@@ -202,6 +226,17 @@ export function useAgentMessages(
 	const enqueueUpdate = useCallback(
 		(update: SessionUpdate) => {
 			if (ignoreUpdatesRef.current) return;
+			// I203: drop the cancelled turn's trailing content chunks.
+			const gate = cancelledTurnRef.current;
+			if (
+				gate &&
+				(update.type === "agent_message_chunk" ||
+					update.type === "agent_thought_chunk" ||
+					update.type === "plan") &&
+				(!update.sessionId || update.sessionId === gate.sessionId)
+			) {
+				return;
+			}
 
 			// F03: intercept the LEADING agent-message text while the title
 			// head buffer is armed. Hold (emit null) while the head could still
@@ -316,17 +351,46 @@ export function useAgentMessages(
 	 * dropping the message. The generation bump above already neutralizes the
 	 * orphaned promise's late result, so dropping the ref is safe.
 	 */
-	const discardPendingTurn = useCallback((): void => {
+	const discardPendingTurn = useCallback(
+		(settleTimeoutMs: number = CANCEL_SETTLE_TIMEOUT_MS): void => {
 		generationRef.current++;
+		// I203: gate the next turn on the cancelled prompt's answer, bounded
+		// by a timeout because some agents never answer it (I107).
+		const pending = sendPromiseRef.current;
+		if (pending) {
+			const gate = {
+				sessionId: session.sessionId,
+				settled: Promise.resolve(),
+			};
+			let timer: number | undefined;
+			gate.settled = Promise.race([
+				pending.then(
+					() => undefined,
+					() => undefined,
+				),
+				new Promise<void>((resolve) => {
+					timer = window.setTimeout(resolve, settleTimeoutMs);
+				}),
+			]).then(() => {
+				if (timer !== undefined) window.clearTimeout(timer);
+				if (cancelledTurnRef.current === gate) {
+					cancelledTurnRef.current = null;
+				}
+			});
+			cancelledTurnRef.current = gate;
+		}
 		pendingUpdatesRef.current = [];
 		// I174: same deterministic permission deactivation as clearPendingUpdates.
 		setMessages((prev) => cancelActivePermissions(prev));
 		setIsSending(false);
 		titleBufferRef.current = null;
 		// I107: drop the (possibly never-settling) prior-send promise so the
-		// next send doesn't await a dead turn.
+		// next send doesn't await a dead turn (it waits on the bounded I203
+		// gate instead).
 		sendPromiseRef.current = null;
-	}, []);
+		},
+		[session.sessionId],
+	);
 
 	const clearMessages = useCallback((): void => {
 		setMessages([]);
@@ -402,6 +466,12 @@ export function useAgentMessages(
 			// before starting a new one to avoid interleaved state updates.
 			if (sendPromiseRef.current) {
 				try { await sendPromiseRef.current; } catch { /* ignore */ }
+			}
+			// I203: after a stop/steer, let the cancelled turn finish
+			// streaming before this turn starts, so its late chunks can't
+			// land in this turn's reply.
+			if (cancelledTurnRef.current) {
+				await cancelledTurnRef.current.settled;
 			}
 
 			const currentSessionId = session.sessionId;
@@ -589,7 +659,11 @@ export function useAgentMessages(
 			} catch {
 				// Error already handled inside sendPromise
 			} finally {
-				sendPromiseRef.current = null;
+				// Only clear our own promise: a cancelled turn settling late
+				// must not wipe the redirect turn's ref (I203).
+				if (sendPromiseRef.current === sendPromise) {
+					sendPromiseRef.current = null;
+				}
 			}
 		},
 		[
