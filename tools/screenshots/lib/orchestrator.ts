@@ -61,6 +61,7 @@ export interface CdpLike {
 	): Promise<{ x: number; y: number; width: number; height: number }>;
 	hoverElement(selector: string): Promise<void>;
 	clickWithCoords(selector: string): Promise<void>;
+	contextMenuWithCoords(selector: string): Promise<void>;
 	focusWindow(): Promise<void>;
 	openNativeSelect(selector: string): Promise<void>;
 	getWindowBounds(): Promise<{
@@ -956,6 +957,22 @@ export async function captureEntry(
 					HOVER_TOOLTIP_TIMEOUT_MS,
 				);
 			}
+		}
+
+		// 3d-ter. Right-click a selector to open a context menu (F15). Window
+		// mode: pair with disableNativeMenus so the menu is a DOM `.menu`.
+		if (entry.initialState?.contextMenuSelector) {
+			await deps.cdp.waitForElement(
+				entry.initialState.contextMenuSelector,
+				RESPONSE_TIMEOUT_MS,
+			);
+			await deps.cdp.contextMenuWithCoords(
+				entry.initialState.contextMenuSelector,
+			);
+			await deps.cdp.waitForElement(
+				entry.initialState.waitSelector ?? ".menu",
+				HOVER_TOOLTIP_TIMEOUT_MS,
+			);
 		}
 
 		// 3d-bis. Multi-click drive: click each selector in order, waiting for its

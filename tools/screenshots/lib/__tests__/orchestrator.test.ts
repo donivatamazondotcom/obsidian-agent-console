@@ -62,6 +62,7 @@ function makeMockCdp() {
 		waitForElement: vi.fn().mockResolvedValue(undefined),
 		hoverElement: vi.fn().mockResolvedValue(undefined),
 		clickWithCoords: vi.fn().mockResolvedValue(undefined),
+		contextMenuWithCoords: vi.fn().mockResolvedValue(undefined),
 		focusWindow: vi.fn().mockResolvedValue(undefined),
 		openNativeSelect: vi.fn().mockResolvedValue(undefined),
 		getWindowBounds: vi.fn().mockResolvedValue({
@@ -1294,6 +1295,35 @@ describe("captureEntry — screen capture mode (popovers)", () => {
 			width: 100,
 			height: 50,
 		});
+	});
+
+	it("contextMenuSelector right-clicks the target, then waits for the menu (F15)", async () => {
+		const deps = makeDeps();
+		const entry = {
+			name: "tab-ai-rename-menu",
+			width: 100,
+			height: 50,
+			crop: { x: 0, y: 0, width: 100, height: 50 },
+			initialState: {
+				clickRibbon: true,
+				contextMenuSelector: ".agent-client-tab",
+			},
+		};
+
+		await captureEntry(entry, deps);
+
+		const ctx = deps.cdp.contextMenuWithCoords as ReturnType<typeof vi.fn>;
+		expect(ctx).toHaveBeenCalledWith(".agent-client-tab");
+		// A left click must NOT be used for a context menu.
+		expect(deps.cdp.clickWithCoords).not.toHaveBeenCalled();
+		// The menu is waited for before the capture.
+		const wait = deps.cdp.waitForElement as ReturnType<typeof vi.fn>;
+		const menuWait = wait.mock.calls.findIndex((c) => c[0] === ".menu");
+		expect(menuWait).toBeGreaterThanOrEqual(0);
+		const shotOrder = (deps.cdp.screenshot as ReturnType<typeof vi.fn>).mock
+			.invocationCallOrder[0];
+		expect(ctx.mock.invocationCallOrder[0]).toBeLessThan(shotOrder);
+		expect(wait.mock.invocationCallOrder[menuWait]).toBeLessThan(shotOrder);
 	});
 
 	it("floats the fixtures window before screen capture and restores it after (I13)", async () => {
