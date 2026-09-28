@@ -1620,6 +1620,14 @@ export function ChatPanel({
 		queue.dispatch({ type: "deleteQueued" });
 	}, [queue.dispatch]);
 
+	// Send now: promote the held queued message to a steer. While a turn
+	// streams, the reducer flags it `steering` and emits cancelTurn; the
+	// redirect flushes on steerCancelSettled (same settle-before-send as #81).
+	// With no turn running (held after Stop) it sends immediately.
+	const handleSendQueuedNow = useCallback(() => {
+		queue.dispatch({ type: "sendQueuedNow", isStreaming: isSending });
+	}, [queue.dispatch, isSending]);
+
 	// Steer (#81): interrupt the live turn and redirect. Dispatches
 	// steerWhileStreaming — the reducer holds the composer text flagged as a
 	// steer and emits cancelTurn (raw stop). The composer stays locked showing
@@ -2938,6 +2946,7 @@ export function ChatPanel({
 			onQueueMessage={handleQueueMessage}
 			onEditQueued={handleEditQueued}
 			onDeleteQueued={handleDeleteQueued}
+			onSendQueuedNow={handleSendQueuedNow}
 			// Mid-Stream Steering (#81)
 			isSteering={queue.isSteering}
 			onSteerMessage={handleSteerMessage}

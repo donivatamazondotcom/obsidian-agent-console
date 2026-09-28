@@ -523,6 +523,8 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	// ---- Phase 3: composer + toolbar ----
 	"chat.composer.queuedLocked":
 		"대기 중인 메시지(잠김) — 바꾸려면 '수정'을 사용하세요",
+	"chat.composer.sendNow": "지금 보내기",
+	"chat.composer.sendNowTooltip": "현재 답변을 멈추고 지금 보냅니다 ({key})",
 	"chat.composer.edit": "수정",
 	"chat.composer.delete": "삭제",
 	"chat.composer.mode": "모드",

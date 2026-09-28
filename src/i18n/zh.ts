@@ -509,6 +509,8 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.tabs.defaultAgentSuffix": "{name}（默认）",
 	// ---- Phase 3: composer + toolbar ----
 	"chat.composer.queuedLocked": "已排队的消息（锁定）— 使用「编辑」修改",
+	"chat.composer.sendNow": "立即发送",
+	"chat.composer.sendNowTooltip": "停止当前回复并立即发送（{key}）",
 	"chat.composer.edit": "编辑",
 	"chat.composer.delete": "删除",
 	"chat.composer.mode": "模式",

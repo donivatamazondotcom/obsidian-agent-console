@@ -1222,6 +1222,7 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	flex-shrink: 0;
 }
 
+.agent-client-queued-send-now,
 .agent-client-queued-edit,
 .agent-client-queued-delete {
 	padding: 2px 10px;
@@ -1244,6 +1245,19 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	background-color: var(--background-modifier-border);
 }
 
+/* Send now interrupts the current reply, so it reads as an outlined
+   secondary action next to the filled Edit – present, not the default. */
+.agent-client-queued-send-now {
+	color: var(--text-accent);
+	background-color: transparent;
+	box-shadow: inset 0 0 0 1px var(--interactive-accent);
+}
+
+.agent-client-queued-send-now:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.agent-client-queued-send-now:focus-visible,
 .agent-client-queued-edit:focus-visible,
 .agent-client-queued-delete:focus-visible {
 	outline: 2px solid var(--interactive-accent);
