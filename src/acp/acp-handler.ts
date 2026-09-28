@@ -35,6 +35,14 @@ export class AcpHandler {
 	/** Tracks session updates during a prompt. */
 	private promptSessionUpdateCount = 0;
 
+	/**
+	 * F15 — side sessions (e.g. the AI tab-title request) opened on this
+	 * connection. Their traffic is intercepted BEFORE the current-session
+	 * filter: only agent text reaches the tap; nothing reaches tab listeners,
+	 * nothing counts toward the main prompt, permissions are auto-denied.
+	 */
+	private sideSessions = new Map<string, (text: string) => void>();
+
 	constructor(
 		private permissionManager: PermissionManager,
 		private terminalManager: TerminalManager,
@@ -48,6 +56,19 @@ export class AcpHandler {
 	// ====================================================================
 
 	/** Reset the update counter. Called by AcpClient before each sendPrompt. */
+	/** F15 — tap a side session's agent text. Returns an unregister fn. */
+	registerSideSession(
+		sessionId: string,
+		onText: (text: string) => void,
+	): () => void {
+		this.sideSessions.set(sessionId, onText);
+		return () => {
+			if (this.sideSessions.get(sessionId) === onText) {
+				this.sideSessions.delete(sessionId);
+			}
+		};
+	}
+
 	resetUpdateCount(): void {
 		this.promptSessionUpdateCount = 0;
 	}
@@ -86,6 +107,16 @@ export class AcpHandler {
 	sessionUpdate(params: acp.SessionNotification): Promise<void> {
 		const update = params.update;
 		const sessionId = params.sessionId;
+		const sideTap = this.sideSessions.get(sessionId);
+		if (sideTap) {
+			if (
+				update.sessionUpdate === "agent_message_chunk" &&
+				update.content.type === "text"
+			) {
+				sideTap(update.content.text);
+			}
+			return Promise.resolve();
+		}
 		this.promptSessionUpdateCount++;
 		this.logger.log("sessionUpdate:", {
 			sessionId,
@@ -191,6 +222,9 @@ export class AcpHandler {
 	requestPermission(
 		params: acp.RequestPermissionRequest,
 	): Promise<acp.RequestPermissionResponse> {
+		if (this.sideSessions.has(params.sessionId)) {
+			return Promise.resolve({ outcome: { outcome: "cancelled" } });
+		}
 		return this.permissionManager.request(params);
 	}
 
