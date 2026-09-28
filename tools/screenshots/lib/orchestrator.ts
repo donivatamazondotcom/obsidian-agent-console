@@ -41,6 +41,10 @@ import {
 	type FrameOptions,
 	type ChromeFrameOptions,
 } from "./frame";
+import { VIEW_TYPE_CHAT } from "../../../src/ui/chat-view-type";
+
+/** I205: JSON-quoted current chat view type for the in-page expressions. */
+const VIEW_JSON = JSON.stringify(VIEW_TYPE_CHAT);
 
 /** Subset of Cdp used by the orchestrator (for DI). */
 export interface CdpLike {
@@ -186,7 +190,7 @@ const RESPONSE_TIMEOUT_MS = 120_000;
 const ACTIVE_PANEL = '.agent-client-tab-panel:not([style*="none"])';
 /** In-renderer expression resolving the active agent-console chat view. */
 const CHAT_VIEW =
-	'app.workspace.getLeavesOfType("agent-client-chat-view")[0]?.view';
+	`app.workspace.getLeavesOfType(${VIEW_JSON})[0]?.view`;
 
 /**
  * Max full restore attempts for a guarded restoreSessions entry
@@ -229,7 +233,7 @@ async function restoreSessionsIntoTabs(
 		const titles = rs.titles;
 		const activeIndex = rs.activeIndex ?? titles.length - 1;
 		const VIEW =
-			'app.workspace.getLeavesOfType("agent-client-chat-view")[0]?.view';
+			`app.workspace.getLeavesOfType(${VIEW_JSON})[0]?.view`;
 		const reqHeader = rs.requireActiveHeaderIncludes;
 		const reqSelector = rs.requireActiveSelector;
 		const guarded = Boolean(reqHeader || reqSelector);
@@ -349,7 +353,7 @@ async function restoreSessionsIntoTabs(
 				// Reset to a clean single-tab panel before retrying, so restore
 				// appends onto a fresh bar (not the failed attempt's tabs).
 				await deps.cdp.evaluate(
-					`app.workspace.detachLeavesOfType("agent-client-chat-view")`,
+					`app.workspace.detachLeavesOfType(${VIEW_JSON})`,
 				);
 				await deps.cdp.executeCommand("agent-console:open-chat-view");
 				await sleep(SETTLE_MS);
@@ -586,7 +590,7 @@ export async function captureEntry(
 			// then open the panel via its command — a deterministic open, not a
 			// toggle.
 			await deps.cdp.evaluate(
-				`app.workspace.detachLeavesOfType("agent-client-chat-view")`,
+				`app.workspace.detachLeavesOfType(${VIEW_JSON})`,
 			);
 			await deps.cdp.executeCommand("agent-console:open-chat-view");
 		}
@@ -816,7 +820,7 @@ export async function captureEntry(
 		if (entry.initialState?.forceTabStates?.length) {
 			const specs = entry.initialState.forceTabStates;
 			const VIEW =
-				'app.workspace.getLeavesOfType("agent-client-chat-view")[0]?.view';
+				`app.workspace.getLeavesOfType(${VIEW_JSON})[0]?.view`;
 			// Wait for the panel's initial tab to mount.
 			await deps.cdp
 				.waitForElement(
@@ -907,7 +911,7 @@ export async function captureEntry(
 		// on the user's "Close panel" click, so capturing the open modal is safe.
 		if (entry.initialState?.forceCloseConfirm) {
 			await deps.cdp.evaluate(
-				`(() => { const v = app.workspace.getLeavesOfType("agent-client-chat-view")[0]?.view; if (!v) return false; v.handleCloseRequest(); return true; })()`,
+				`(() => { const v = app.workspace.getLeavesOfType(${VIEW_JSON})[0]?.view; if (!v) return false; v.handleCloseRequest(); return true; })()`,
 			);
 			await deps.cdp.waitForElement(".modal", HOVER_TOOLTIP_TIMEOUT_MS);
 		}
@@ -1668,7 +1672,7 @@ async function captureAnimationEntry(
 	}
 	if (entry.initialState?.clickRibbon) {
 		await deps.cdp.evaluate(
-			`app.workspace.detachLeavesOfType("agent-client-chat-view")`,
+			`app.workspace.detachLeavesOfType(${VIEW_JSON})`,
 		);
 		await deps.cdp.executeCommand("agent-console:open-chat-view");
 	}
