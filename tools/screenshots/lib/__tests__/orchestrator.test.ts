@@ -3036,3 +3036,31 @@ describe("captureEntry — settings-window mode (I187 durable CDP capture)", () 
 		expect(openOrder).toBeLessThan(capOrder);
 	});
 });
+
+// I205 — the chat view type was renamed to "agent-console-chat-view" in #205
+// (I157). Every view lookup the orchestrator sends to Obsidian must use the
+// CURRENT type; the legacy "agent-client-chat-view" matches no leaf, so
+// forceTabStates / forceCloseConfirm / leaf detach silently no-op.
+describe("I205 — orchestrator targets the current chat view type", () => {
+	it("sends view lookups with VIEW_TYPE_CHAT, never the legacy type", async () => {
+		const { VIEW_TYPE_CHAT } = await import("../../../../src/ui/chat-view-type");
+		const deps = makeDeps();
+		const entry = {
+			name: "tab-status-dropdown",
+			width: 100,
+			height: 50,
+			crop: { x: 0, y: 0, width: 100, height: 50 },
+			initialState: {
+				clickRibbon: true,
+				forceTabStates: [{ label: "A", state: "ready" as const }],
+				forceCloseConfirm: true,
+			},
+		};
+		await captureEntry(entry, deps).catch(() => undefined);
+		const sent = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls
+			.map((c) => String(c[0]))
+			.join("\n");
+		expect(sent).toContain(VIEW_TYPE_CHAT);
+		expect(sent).not.toContain('"agent-client-chat-view"');
+	});
+});
