@@ -259,6 +259,29 @@ export class Cdp {
 	}
 
 	/**
+	 * Right-click the first element matching the selector: dispatch a real
+	 * bubbling `contextmenu` MouseEvent at the element center, so React's
+	 * delegated onContextMenu fires and Obsidian's Menu.showAtMouseEvent gets
+	 * real coordinates. With native menus off the menu renders in the DOM, so
+	 * this pairs with a window-mode capture. (F15)
+	 */
+	async contextMenuWithCoords(selector: string): Promise<void> {
+		const expr = `(() => {
+			const el = document.querySelector(${JSON.stringify(selector)});
+			if (!el) return false;
+			const r = el.getBoundingClientRect();
+			el.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2, view: window }));
+			return true;
+		})()`;
+		const ok = await this.evaluate<boolean>(expr);
+		if (!ok) {
+			throw new Error(
+				`contextMenuWithCoords: no element matches selector ${selector}`,
+			);
+		}
+	}
+
+	/**
 	 * Get the Electron window's bounds in global logical-point coordinates,
 	 * plus the backing scale factor of the display it sits on. Used to drive a
 	 * screen-capture region and to scale crops for `captureMode: "screen"`.

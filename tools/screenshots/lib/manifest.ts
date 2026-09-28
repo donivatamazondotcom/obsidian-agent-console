@@ -81,6 +81,14 @@ export interface InitialState {
 	 */
 	clickSelector?: string;
 	/**
+	 * CSS selector to RIGHT-click before capture (opens a context menu, e.g.
+	 * a session tab's menu). Dispatches a real `contextmenu` event at the
+	 * element center, then waits for `waitSelector` (default ".menu"). Pair
+	 * with `disableNativeMenus` so the menu renders in the DOM for a
+	 * window-mode capture. (F15)
+	 */
+	contextMenuSelector?: string;
+	/**
 	 * CSS selector to wait for after `clickSelector` fires (e.g.
 	 * ".menu" for Obsidian popover menus). Times out after 3s.
 	 */

@@ -1526,24 +1526,52 @@
 		},
 		{
 			"name": "tab-ai-rename-menu",
-			"pending": true,
-			"width": 160,
-			"height": 56,
+			"pending": false,
+			"width": 1424,
+			"height": 428,
 			"crop": {
 				"x": 0,
-				"y": 256,
-				"width": 160,
-				"height": 56
+				"y": 0,
+				"width": 1424,
+				"height": 428
 			},
-			"initialState": {},
-			"approvalThreshold": 0.01,
-			"minDistinctColors": 800,
+			"cropSelectors": [
+				".agent-client-tab-bar",
+				".menu"
+			],
+			"cropPadding": 12,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"forceTabStates": [
+					{
+						"label": "hey quick question",
+						"state": "ready"
+					},
+					{
+						"label": "Plan the Japan itinerary",
+						"state": "ready"
+					},
+					{
+						"label": "Refactor the auth middleware",
+						"state": "ready"
+					}
+				],
+				"contextMenuSelector": ".agent-client-tab-active",
+				"waitSelector": ".menu"
+			},
+			"approvalThreshold": 0.02,
+			"minDistinctColors": 40,
 			"placement": "feature",
-			"purpose": "Shows the one-click way to get a fresh AI title for a tab.",
+			"purpose": "Get a fresh AI title for any tab from its right-click menu.",
 			"differentiator": "Rename with AI from the tab menu",
-			"mustShow": ".menu .menu-item",
+			"mustShow": ".menu-item",
 			"caption": "Rename a tab with AI",
-			"altText": "Agent Console tab right-click menu with Rename with AI listed below Rename"
+			"altText": "Agent Console tab right-click menu with Rename with AI listed below Rename",
+			"docPage": "docs/usage/tabbed-sessions.md",
+			"captureNote": "forceTabStates seeds three tabs (native menus off), then contextMenuSelector right-clicks the active tab to open its DOM .menu. Group crop over the tab bar + menu. Window-mode.",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 680
 		}
 	]
 }
