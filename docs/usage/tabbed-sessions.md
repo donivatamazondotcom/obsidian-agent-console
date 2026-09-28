@@ -80,6 +80,10 @@ Right-click a tab → **Rename**. Names must be unique within the session (dupli
 
 Get a fresh title for where the conversation is now — not just where it started. Right-click a tab → **Rename with AI**, or run **Rename current tab with AI** from the command palette. The tab's agent reads a short summary of the chat and proposes a title; a small ✨ pulses on the tab while it works.
 
+<p align="center">
+  <img src="/images/tab-ai-rename-menu.webp" alt="Agent Console tab right-click menu with Rename with AI listed below Rename" />
+</p>
+
 - The request runs off to the side — your conversation and its saved history are not changed, and you can keep chatting while it runs.
 - If you rename the tab yourself before the title comes back, your name wins.
 - If another open tab already has that name, the new title gets a number, like `Fix scroll jitter (2)`.

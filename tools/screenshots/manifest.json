@@ -1526,14 +1526,14 @@
 		},
 		{
 			"name": "tab-ai-rename-menu",
-			"pending": true,
+			"pending": false,
 			"width": 1424,
-			"height": 328,
+			"height": 428,
 			"crop": {
 				"x": 0,
 				"y": 0,
 				"width": 1424,
-				"height": 328
+				"height": 428
 			},
 			"cropSelectors": [
 				".agent-client-tab-bar",
