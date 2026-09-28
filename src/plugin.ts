@@ -1158,6 +1158,18 @@ export default class AgentClientPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "rename-tab-with-ai",
+			name: t("commands.renameTabWithAi"),
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.getActiveChatView()?.aiRenameActiveTab();
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
 			id: "reopen-closed-session",
 			name: t("commands.reopenClosedTab"),
 			checkCallback: (checking: boolean) => {

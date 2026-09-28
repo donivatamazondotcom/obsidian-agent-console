@@ -594,6 +594,79 @@ export class AcpClient {
 	}
 
 	/**
+	 * F15 — ask the agent for a one-off reply in a throwaway side session on
+	 * the EXISTING connection (used for "Rename with AI").
+	 *
+	 * Isolation contract: `currentSessionId` is never touched; the side
+	 * session's updates go only to a private tap (see
+	 * `AcpHandler.registerSideSession`) and its permission requests are
+	 * auto-denied. The side session is closed when the agent advertises
+	 * `session/close`. On timeout the turn is cancelled and this rejects.
+	 */
+	async requestSideTitle(
+		promptText: string,
+		workingDirectory: string,
+		options: { timeoutMs?: number } = {},
+	): Promise<{ sessionId: string; text: string }> {
+		const connection = this.requireConnection();
+		const timeoutMs = options.timeoutMs ?? 60_000;
+
+		const created = await connection.agent.request(
+			acp.methods.agent.session.new,
+			{ cwd: this.toSessionCwd(workingDirectory), mcpServers: [] },
+		);
+		const sideId = created.sessionId;
+		this.logger.log(`Created side session: ${sideId}`);
+
+		let text = "";
+		const unregister = this.handler.registerSideSession(sideId, (t) => {
+			text += t;
+		});
+
+		let timer: number | undefined;
+		try {
+			const timeout = new Promise<never>((_, reject) => {
+				timer = window.setTimeout(
+					() => reject(new Error("Side title request timed out")),
+					timeoutMs,
+				);
+			});
+			try {
+				await Promise.race([
+					connection.agent.request(acp.methods.agent.session.prompt, {
+						sessionId: sideId,
+						prompt: [{ type: "text", text: promptText }],
+					}),
+					timeout,
+				]);
+			} catch (error) {
+				await connection.agent
+					.notify(acp.methods.agent.session.cancel, {
+						sessionId: sideId,
+					})
+					.catch(() => undefined);
+				throw error;
+			}
+			return { sessionId: sideId, text };
+		} finally {
+			window.clearTimeout(timer);
+			unregister();
+			if (
+				this.cachedInitResult?.agentCapabilities?.sessionCapabilities
+					?.close !== undefined
+			) {
+				await connection.agent
+					.request(acp.methods.agent.session.close, {
+						sessionId: sideId,
+					})
+					.catch((e: unknown) =>
+						this.logger.warn("Side session close failed:", e),
+					);
+			}
+		}
+	}
+
+	/**
 	 * Authenticate with the agent using a specific method.
 	 */
 	async authenticate(methodId: string): Promise<boolean> {

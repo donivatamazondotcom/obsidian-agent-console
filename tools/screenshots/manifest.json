@@ -1523,6 +1523,27 @@
 			"docPage": "docs/agent-setup/claude-code.md",
 			"captureNote": "v2.3.0 #270. Clicks the first navigable row (Claude Code) and waits for .setting-page-back-button; crop .vertical-tab-content. Set width/height to the captured native size after the first run.",
 			"captureMode": "settings-window"
+		},
+		{
+			"name": "tab-ai-rename-menu",
+			"pending": true,
+			"width": 160,
+			"height": 56,
+			"crop": {
+				"x": 0,
+				"y": 256,
+				"width": 160,
+				"height": 56
+			},
+			"initialState": {},
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 800,
+			"placement": "feature",
+			"purpose": "Shows the one-click way to get a fresh AI title for a tab.",
+			"differentiator": "Rename with AI from the tab menu",
+			"mustShow": ".menu .menu-item",
+			"caption": "Rename a tab with AI",
+			"altText": "Agent Console tab right-click menu with Rename with AI listed below Rename"
 		}
 	]
 }

@@ -2670,6 +2670,20 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	max-width: var(--ac-active-label-max, 320px);
 }
 
+/* F15 — "Rename with AI" in flight: a pulsing sparkles glyph after the label */
+.agent-client-tab-ai-renaming {
+	display: inline-flex;
+	align-items: center;
+	margin-inline-start: 4px;
+	color: var(--text-accent);
+	animation: agent-client-pulse 1.2s ease-in-out infinite;
+}
+
+.agent-client-tab-ai-renaming svg {
+	width: 12px;
+	height: 12px;
+}
+
 /* Tab close button — Obsidian convention: visible on active, hover on others */
 .agent-client-tab-close {
 	display: none;
@@ -3652,7 +3666,8 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	.agent-client-loading-dot,
 	.agent-client-tab-state-busy,
 	.agent-client-tab-state-permission,
-	.agent-client-reload-spinning svg {
+	.agent-client-reload-spinning svg,
+	.agent-client-tab-ai-renaming {
 		animation: none;
 	}
 

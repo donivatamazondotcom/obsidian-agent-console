@@ -702,6 +702,8 @@ export interface SessionCapabilities {
 	fork?: Record<string, unknown>;
 	/** session/list support (unstable) */
 	list?: Record<string, unknown>;
+	/** session/close support (unstable) — used only inside `acp/` (F15) */
+	close?: Record<string, unknown>;
 }
 
 /**

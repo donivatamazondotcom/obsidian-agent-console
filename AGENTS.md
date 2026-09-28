@@ -71,6 +71,7 @@ src/
 │   ├── message-sender.ts        # Prompt preparation + sending (pure functions)
 │   ├── carried-over-preview.ts  # Cross-agent carry-over preview builder (pure)
 │   ├── carry-over-builder.ts    # Cross-agent carry-over transcript + content blocks (pure)
+│   ├── ai-title-service.ts      # F15 Rename with AI: local-transcript excerpt, title-only prompt, tolerant reply parse, requestAiTitle over the side-title port
 │   ├── chat-exporter.ts         # Markdown export with frontmatter
 │   ├── view-registry.ts         # Multi-view management, focus, broadcast
 │   ├── register-chat-view.ts    # I157: guarded chat-view registration — a duplicate-view-type collision degrades to a notice, not an onload crash
@@ -181,6 +182,7 @@ src/
 │       └── AttachmentStrip.tsx  # Attachment preview strip
 ├── resolvers/                   # Pure decision functions (derive*/decide*) — no React/Obsidian/SDK imports; exhaustive switches (resolver-zone.test.ts)
 │   ├── a2ui-dispatch.ts            # deriveA2uiTabDispatch — pure tab-level resolver for what activating an interactive-surface control does (sendNow / acquireAndSend / refuse+reason); read by BOTH the surface renderer (via deriveSurfaceActionAffordance) and SessionDispatchPort so an enabled button always has a dispatchable port; gates on intent, not connection state (A2UI-I08)
+│   ├── ai-title-apply.ts           # decideAiTitleApply — F15: apply an AI title only if the user didn't rename meanwhile; suffix on collision
 │   ├── agent-picker-options.ts     # deriveAgentPickerOptions — pure landing agent-picker resolver (detection-gated, default-first, shown only on a real choice)
 │   ├── agent-switch.ts             # Switch a lazy tab's agent so the first message connects to the switched agent
 │   ├── composer-affordances.ts     # deriveComposerAffordances — pure composer send-target + control-composition resolver (surface × composer-caps × hasQuickPrompts → sendMode/quickPromptFire/context/showAttachments/showConfigSelectors); connection-state-independent (does NOT read lazyState); shared by the landing + in-tab composer so they can't drift; layers with deriveSendAffordance (enablement) — no overlap
@@ -203,6 +205,7 @@ src/
 │   ├── activeNoteGrabToggle.ts  # Grab/ungrab active note in context strip (hotkey)
 │   ├── provisional-context.ts   # Provisional auto-default context pill (crystallize-on-send)
 │   ├── image-paste.ts           # classifyImagePaste — pure image-paste decision (connecting vs unsupported; separates unknown from false)
+│   ├── tab-label.ts             # Pure tab-label helpers: truncateLabel + suffixOnCollision (re-exported by useTabManager)
 │   ├── titleMarker.ts           # F03: parse/strip <title>…</title> from the head of the first reply (parseLeadingTitle + TitleHeadBuffer)
 │   ├── system-instructions.ts   # First-message system-instruction constants + sentinels (injected by message-sender; stripped by deriveTabLabel)
 │   ├── host-context-briefing.ts # Compose the Obsidian host-context briefing (per-block selection + cwd-in-vault gate) injected on first message; folds in the system-instruction hints
@@ -325,6 +328,7 @@ Thin wrapper that:
 - spawn() with login shell, JSON-RPC via ndJsonStream
 - initialize() → newSession() → sendPrompt() → cancel() → disconnect()
 - Session management: listSessions, loadSession, resumeSession, forkSession
+- `requestSideTitle` (F15): throwaway side session on the existing connection — never touches `currentSessionId`; the handler's side-session tap intercepts its updates before the sessionId filter (no tab listeners, no update count) and auto-denies its permissions; `session/close` when advertised
 - Owns PermissionManager, TerminalManager, AcpHandler
 - `currentSessionId` set before `await` in loadSession/resumeSession to prevent replay filtering
 - Single exit point: `onSessionUpdate` (multiple listeners via Set)

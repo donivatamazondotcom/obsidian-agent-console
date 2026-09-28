@@ -18,7 +18,7 @@ import type { TitleStrategy } from "../types/title-strategy";
  *     replayed embedded-path first message can be prefixed with them. Matched
  *     against the shared SYSTEM_INSTRUCTION_SENTINELS source of truth.
  */
-function stripContextBlocks(text: string): string {
+export function stripContextBlocks(text: string): string {
 	const leadingBlock = /^<obsidian_(\w+)\b[^>]*>[\s\S]*?<\/obsidian_\1>\s*/;
 	const leadingTitle = /^<title\b[^>]*>[\s\S]*?<\/title>\s*/i;
 
