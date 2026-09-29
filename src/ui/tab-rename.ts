@@ -11,8 +11,8 @@
  * slow disk write should not delay the caret.
  *
  * A duplicate name does NOT refocus — the user is told and may want to retry.
- * Cancelling the modal never reaches this function, so Obsidian's own focus
- * restore stands.
+ * Cancelling never reaches this function; ChatView applies the same
+ * `rename-tab` contract from EditTitleModal's `onDismiss` instead.
  */
 import { applyComposerFocus } from "../resolvers/composer-focus";
 

@@ -13,6 +13,7 @@ import {
 	scheduleComposerRefocus,
 } from "./composer-focus";
 import { commitTabRename } from "./tab-rename";
+import { applyComposerFocus } from "../resolvers/composer-focus";
 import type {
 	IChatViewContainer,
 	IChatTabHandle,
@@ -821,6 +822,15 @@ function ChatComponent({
 						refocus: () => scheduleComposerRefocus(view.containerEl),
 					});
 				},
+				// Cancelling the rename leaves the flow the same way saving
+				// does: back in the composer, not on the tab (TS-I09).
+				() =>
+					applyComposerFocus("rename-tab", {
+						focusUnconditional: () =>
+							scheduleComposerRefocus(view.containerEl),
+						focusGuarded: () =>
+							scheduleComposerRefocus(view.containerEl),
+					}),
 			);
 			modal.open();
 		},
