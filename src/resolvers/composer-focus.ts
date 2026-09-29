@@ -57,6 +57,9 @@ export type ComposerAction =
 	| "send"
 	| "stop"
 	| "new-chat"
+	// Saving a tab rename: the rename modal hands focus back to the tab it was
+	// opened from, but the user's next step is to type (TS-I09).
+	| "rename-tab"
 	// In-panel adjustments — guarded refocus (only if the user was in the
 	// composer to begin with).
 	| "set-model"
@@ -82,6 +85,7 @@ export function deriveComposerFocusContract(
 		case "send":
 		case "stop":
 		case "new-chat":
+		case "rename-tab":
 			return "unconditional";
 		// In-panel adjustments: only pull focus back if the user was already
 		// working in the composer.

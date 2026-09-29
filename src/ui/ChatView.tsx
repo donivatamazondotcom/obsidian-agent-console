@@ -8,7 +8,11 @@ import {
 	type MenuItem,
 } from "obsidian";
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
-import { focusActiveTabComposer } from "./composer-focus";
+import {
+	focusActiveTabComposer,
+	scheduleComposerRefocus,
+} from "./composer-focus";
+import { commitTabRename } from "./tab-rename";
 import type {
 	IChatViewContainer,
 	IChatTabHandle,
@@ -800,24 +804,27 @@ function ChatComponent({
 			const modal = new EditTitleModal(
 				plugin.app,
 				tab.label,
-				async (newTitle) => {
-					const duplicate = tabs.find(
-						(t) =>
-							t.tabId !== tabId &&
-							t.label === truncateLabel(newTitle),
-					);
-					if (duplicate) {
-						new Notice(
-							t("notices.duplicateTabName"),
-						);
-						return;
-					}
-					await applyTabRename(tabId, tab.agentId, newTitle);
+				(newTitle) => {
+					commitTabRename({
+						tabId,
+						newTitle,
+						tabs,
+						truncate: truncateLabel,
+						notifyDuplicate: () =>
+							new Notice(t("notices.duplicateTabName")),
+						// Label + single-writer persist, shared with Rename
+						// with AI.
+						apply: (title) =>
+							applyTabRename(tabId, tab.agentId, title),
+						// The modal hands focus back to the tab it was opened
+						// from; the user's next step is to type (TS-I09).
+						refocus: () => scheduleComposerRefocus(view.containerEl),
+					});
 				},
 			);
 			modal.open();
 		},
-		[tabs, plugin, applyTabRename],
+		[tabs, plugin, applyTabRename, view],
 	);
 
 	// ============================================================
