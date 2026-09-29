@@ -108,15 +108,20 @@ class ConfirmDeleteModal extends Modal {
 export class EditTitleModal extends Modal {
 	private currentTitle: string;
 	private onSave: (newTitle: string) => void | Promise<void>;
+	/** Called when the modal closes WITHOUT saving (Escape, X, Cancel). */
+	private onDismiss?: () => void;
+	private saved = false;
 
 	constructor(
 		app: App,
 		currentTitle: string,
 		onSave: (newTitle: string) => void | Promise<void>,
+		onDismiss?: () => void,
 	) {
 		super(app);
 		this.currentTitle = currentTitle;
 		this.onSave = onSave;
+		this.onDismiss = onDismiss;
 	}
 
 	onOpen() {
@@ -173,6 +178,7 @@ export class EditTitleModal extends Modal {
 			new Notice(t("notices.titleEmpty"));
 			return;
 		}
+		this.saved = true;
 		this.close();
 		void this.onSave(value);
 	}
@@ -180,6 +186,7 @@ export class EditTitleModal extends Modal {
 	onClose() {
 		const { contentEl } = this;
 		contentEl.empty();
+		if (!this.saved) this.onDismiss?.();
 	}
 }
 
