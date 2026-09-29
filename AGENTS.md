@@ -145,6 +145,7 @@ src/
 │   ├── ChatView.tsx             # Sidebar view (ItemView wrapper)
 │   ├── chat-view-type.ts        # I157: namespaced "agent-console-chat-view" view-type constant (avoids collision with upstream Agent Client)
 │   ├── TabBar.tsx               # Tab bar UI for parallel agent sessions (drag-reorder, +button, status icons)
+│   ├── tab-rename.ts            # commitTabRename — save step of the tab rename flow: duplicate check → label → single-writer persist → rename-tab focus contract (TS-I09)
 │   ├── TabErrorBoundary.tsx     # Per-tab React error boundary with Retry
 │   ├── ZeroTabLanding.tsx       # Zero-tab landing screen shown when every tab is closed (minimal placeholder in Slice 1; reason-tagged empty-state shell in Slice 2)
 │   ├── ChatHeader.tsx           # Header (sidebar chat view)
