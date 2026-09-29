@@ -17,7 +17,7 @@ Type your follow-up while the agent is working and press **Enter**. Your message
 - Use **Edit** to change the message before it sends, or **Delete** to drop it.
 - Changed your mind and don't want to wait? Click **Send now**. It stops the current reply and sends your queued message right away – the same as steering, without retyping. The steer keys (below) do the same thing while a message is queued. **Send now** appears once the agent is connected; while it is still connecting, your message already sends the moment it's ready.
 - Only one message can be queued at a time. This keeps things predictable — you always know exactly what will send next.
-- If you stop the reply, or it ends with an error, the queued message is kept as a normal draft instead of being sent into a reply that never finished.
+- If you stop the reply, or it ends with an error, the queued message is kept as a normal draft instead of being sent into a reply that never finished. The composer unlocks and the banner goes away, so you can edit the text and send it when you're ready.
 
 Queueing is the safe default: nothing happens to the agent's current work, and you can always change your mind.
 

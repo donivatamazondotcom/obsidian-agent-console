@@ -84,23 +84,26 @@ describe("queueOrchestrationReducer — turnEnded (the Q4 flush)", () => {
 		]);
 	});
 
-	it("hold on error", () => {
+	// I204 (Decision 5 amended): error/cancel never auto-sends, and releases
+	// the slot so the text becomes an editable draft (composer not cleared).
+	// Previously these asserted a hold, which stranded the composer locked.
+	it("error → degrade to draft (slot released, no clear, no send)", () => {
 		const r = queueOrchestrationReducer(FULL, {
 			type: "turnEnded",
 			hadError: true,
 			wasCancelled: false,
 		});
-		expect(r.state.pending).toBe(MSG); // held, degrades to draft later
+		expect(r.state.pending).toBeNull();
 		expect(r.effects).toEqual([]);
 	});
 
-	it("hold on cancel", () => {
+	it("cancel → degrade to draft (slot released, no clear, no send)", () => {
 		const r = queueOrchestrationReducer(FULL, {
 			type: "turnEnded",
 			hadError: false,
 			wasCancelled: true,
 		});
-		expect(r.state.pending).toBe(MSG);
+		expect(r.state.pending).toBeNull();
 		expect(r.effects).toEqual([]);
 	});
 
@@ -376,13 +379,13 @@ describe("queueOrchestrationReducer — steerWhileStreaming (#81)", () => {
 		expect(r.effects).toEqual([]);
 	});
 
-	it("contrast: a NON-steer hold still HOLDS on cancel (Decision 5 unchanged)", () => {
+	it("contrast: a NON-steer hold degrades to a draft on cancel (I204), not flushed", () => {
 		const r = queueOrchestrationReducer(FULL, {
 			type: "turnEnded",
 			hadError: false,
 			wasCancelled: true,
 		});
-		expect(r.state.pending).toBe(MSG); // held, not flushed
+		expect(r.state.pending).toBeNull(); // released as a draft, not flushed
 		expect(r.effects).toEqual([]);
 	});
 

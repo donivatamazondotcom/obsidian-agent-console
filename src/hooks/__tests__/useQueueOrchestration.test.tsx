@@ -106,20 +106,25 @@ describe("useQueueOrchestration — state + effects", () => {
 		expect(h.log).toEqual(["clearComposer", "flush:hello"]);
 	});
 
-	it("turnEnded with error holds (no flush)", () => {
-		const h = makeHandlers();
-		const { result } = renderHook(() => useQueueOrchestration(h));
-		act(() => result.current.dispatch({ type: "sendWhileStreaming", message: MSG }));
-		act(() =>
-			result.current.dispatch({
-				type: "turnEnded",
-				hadError: true,
-				wasCancelled: false,
-			}),
-		);
-		expect(result.current.isQueued).toBe(true);
-		expect(h.flushDispatch).not.toHaveBeenCalled();
-	});
+	// I204: Stop / an errored reply releases the slot (composer unlocks) and
+	// keeps the text as a draft — never sends, never clears the composer.
+	for (const [label, hadError, wasCancelled] of [
+		["error", true, false],
+		["cancel (Stop)", false, true],
+	] as const) {
+		it(`turnEnded with ${label} degrades to a draft: unlocked, text kept, nothing sent (I204)`, () => {
+			const h = makeHandlers();
+			const { result } = renderHook(() => useQueueOrchestration(h));
+			act(() => result.current.dispatch({ type: "sendWhileStreaming", message: MSG }));
+			act(() =>
+				result.current.dispatch({ type: "turnEnded", hadError, wasCancelled }),
+			);
+			expect(result.current.isQueued).toBe(false);
+			expect(result.current.pending).toBeNull();
+			expect(h.flushDispatch).not.toHaveBeenCalled();
+			expect(h.clearComposer).not.toHaveBeenCalled();
+		});
+	}
 
 	it("acquisitionComplete with sessionId flushes", () => {
 		const h = makeHandlers();

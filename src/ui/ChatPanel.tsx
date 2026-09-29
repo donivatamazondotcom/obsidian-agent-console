@@ -1647,9 +1647,9 @@ export function ChatPanel({
 		[queue.dispatch],
 	);
 
-	// Stop wrapper: mark the in-flight turn as user-cancelled so the flush
-	// effect HOLDS any queued message (Decision 5) instead of firing it into
-	// the cancelled turn. Used by every stop entry point (button, hotkey,
+	// Stop wrapper: mark the in-flight turn as user-cancelled so the reducer
+	// turns any queued message into an editable draft (Decision 5 / I204)
+	// instead of firing it into the cancelled turn. Used by every stop entry point (button, hotkey,
 	// broadcast-cancel) via handleStopGenerationRef.
 	const handleStopWithCancelFlag = useCallback(async () => {
 		cancelledRef.current = true;
@@ -2390,7 +2390,8 @@ export function ChatPanel({
 	// ============================================================
 	// Reset the cancel flag at turn start; on turn end (isSending true -> false)
 	// dispatch `turnEnded` to the queue-orchestration reducer, which owns the
-	// flush-vs-hold decision (holds on error/cancel — Decision 5) and emits a
+	// flush-vs-draft decision (error/cancel → editable draft — Decision 5 /
+	// I204) and emits a
 	// RAW flushDispatch on flush, after clearing the composer so
 	// draft-preservation persists "" (no stale-draft resurrection).
 	const prevIsSendingForQueueRef = useRef(false);
@@ -2404,8 +2405,9 @@ export function ChatPanel({
 			return;
 		}
 
-		// Turn end: hand the outcome to the reducer, which owns flush-vs-hold
-		// (hold on error/cancel — Decision 5) and, on flush, emits clearComposer +
+		// Turn end: hand the outcome to the reducer, which owns flush-vs-draft
+		// (error/cancel → editable draft — Decision 5 / I204) and, on flush,
+		// emits clearComposer +
 		// a RAW flushDispatch. The reducer effect carries no dispatch choice, so
 		// the re-enqueuing wrapper can't be used — closing Q4 by construction.
 		const turnEnded = wasSending && !isSending;
