@@ -164,9 +164,9 @@ You don't have to wait for the agent to finish before lining up your next messag
 </p>
 
 - **One at a time.** You can queue exactly one message per tab. While a message is queued the composer locks and shows a **Queued — sends when the agent finishes** banner with **Send now**, **Edit**, and **Delete** buttons. **Send now** stops the current reply and sends the queued message right away. **Edit** brings the message back into the composer so you can adjust it and queue again; **Delete** discards it and gives you an empty composer. (Edit recovers, Delete removes — the message is never lost just by editing.)
-- **It waits for a clean finish.** If the turn ends in an error, or you stop it, the queued message **holds** — it is not fired into a turn that didn't complete. It stays ready so you can edit, cancel, or let it go on the next successful turn.
+- **It waits for a clean finish.** A queued message only sends when the reply finishes normally. If the reply ends in an error, or you stop it, the message is **not** sent. Instead the composer unlocks and your text stays in it as a normal draft, so you can edit it and send it yourself.
 - **It's safe to lose your place.** A queued message is really just your composer text with a "send this next" flag. If you close and reopen the panel, or restart Obsidian, the text comes back as a normal editable draft (the auto-send flag doesn't survive, because the turn it was waiting on is gone). Nothing sends behind your back after a restart.
-- **Stop still works.** The **Stop** button keeps cancelling the live turn while a message is queued — queuing never takes away your ability to interrupt the agent.
+- **Stop still works.** The **Stop** button keeps cancelling the live turn while a message is queued — queuing never takes away your ability to interrupt the agent. Stopping turns the queued message back into a draft.
 
 Text only for now — staged image attachments aren't queued in this version.
 
@@ -201,7 +201,7 @@ Control multiple tabs at once from the command palette:
 Broadcast send is useful for comparing how different agents respond to the same prompt. Pair it with `Broadcast prompt` to set up the same question across tabs.
 :::
 
-A tab that already holds a [queued message](#queue-your-next-message) is **skipped** by both Broadcast prompt and Broadcast send (overwriting or double-queuing a committed message would lose it), and the skip is reported in the command's summary notice. Broadcast cancel cancels the live turns; any queued message holds rather than firing into the cancelled turn.
+A tab that already holds a [queued message](#queue-your-next-message) is **skipped** by both Broadcast prompt and Broadcast send (overwriting or double-queuing a committed message would lose it), and the skip is reported in the command's summary notice. Broadcast cancel cancels the live turns; any queued message becomes a normal draft in its tab rather than firing into the cancelled turn.
 
 ## Persistence across restarts
 

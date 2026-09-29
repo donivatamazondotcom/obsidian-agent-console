@@ -464,9 +464,11 @@ describe("selectBroadcastPromptTargets — skip pending-queue tabs (T11)", () =>
 // --- T12: broadcast-cancel independence (documented invariant) -------------
 
 describe("broadcast-cancel does not flush queued messages (T12)", () => {
-	it("a cancelled turn holds its queued message (Decision 5)", () => {
-		// broadcast-cancel routes through cancelOperation per tab; the flush
-		// gate then sees wasCancelled=true and holds.
+	it("a cancelled turn does not flush its queued message (Decision 5)", () => {
+		// broadcast-cancel routes through each tab's stop wrapper, so the flush
+		// gate sees wasCancelled=true and does not fire; the reducer then
+		// degrades the message to a draft (I204 — see the broadcast test in
+		// i204-cancel-degrades-to-draft.test.ts).
 		const afterBroadcastCancel: FlushDecisionParams = {
 			turnEnded: true,
 			isQueued: true,

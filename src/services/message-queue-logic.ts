@@ -229,10 +229,10 @@ export interface FlushDecisionParams {
 /**
  * Whether to auto-send the queued message now.
  *
- * Decision 5 (hold-on-error/cancel): a queued message auto-fires ONLY when the
- * turn it was waiting on completed normally. An errored or cancelled turn
- * holds the queued message (it does not fire into the dead turn); it degrades
- * to a preserved draft if the turn is later destroyed (close/reopen, restart).
+ * Decision 5 (never auto-send on error/cancel): a queued message auto-fires
+ * ONLY when the turn it was waiting on completed normally. After an errored or
+ * cancelled turn it does not fire; the reducer degrades it to a plain,
+ * editable draft (slot released, composer text kept — I204).
  *
  * Contrast {@link naiveShouldFlush} (test-only) which fires on any turn end —
  * the bug this guard prevents.

@@ -275,8 +275,16 @@ export function queueOrchestrationReducer(
 			if (shouldFlush) {
 				return flush(state.pending);
 			}
-			// Hold on error/cancel (Decision 5) — the message degrades to a
-			// preserved draft on a later respawn/close, not into the dead turn.
+			// Error/cancel (Decision 5, amended by I204): never auto-send into
+			// the dead turn, and never keep it locked either — nothing is left
+			// to flush it, so a held slot would strand the composer under a
+			// "sends when done" banner forever. Release the slot and keep the
+			// composer text as an editable draft (no clearComposer). A held
+			// surface action (detachedSurfaceId) has no composer text; releasing
+			// the slot re-enables its surface, same as acquisitionFailed.
+			if (state.pending !== null) {
+				return degradeToDraft();
+			}
 			return { state, effects: NO_EFFECTS };
 		}
 
@@ -341,6 +349,10 @@ export function queueOrchestrationReducer(
 					effects: [{ kind: "cancelTurn" }],
 				};
 			}
+			// Defensive: since I204 a cancelled/errored turn releases the slot,
+			// so "held while nothing is streaming" no longer arises in normal
+			// use. Kept as a guard for any other path that leaves a message
+			// held with no turn running — sending is what the user asked for.
 			return flush(pending);
 		}
 
