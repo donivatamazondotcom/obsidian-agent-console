@@ -510,7 +510,7 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	// ---- Phase 3: composer + toolbar ----
 	"chat.composer.queuedLocked": "已排队的消息（锁定）— 使用「编辑」修改",
 	"chat.composer.sendNow": "立即发送",
-	"chat.composer.sendNowTooltip": "立即发送 — 停止当前回复并发送这条消息（{key}）",
+	"chat.composer.sendNowReason": "停止当前回复并发送这条消息（{key}）",
 	"chat.composer.edit": "编辑",
 	"chat.composer.delete": "删除",
 	"chat.composer.mode": "模式",

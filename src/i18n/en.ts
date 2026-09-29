@@ -460,6 +460,15 @@ export const en = {
 	"commands.broadcastPrompt": "Broadcast prompt",
 	"commands.broadcastSend": "Broadcast send",
 	"commands.broadcastCancel": "Broadcast cancel",
+	// ---- Shared chat-surface glue ----
+	// Joins an element's visible label to the extra thing its tooltip explains
+	// ("Sonnet 4.5 — Balanced speed and depth"). A catalog key rather than a
+	// hardcoded string because punctuation is localized, not universal: the
+	// ja/zh catalogs already use full-width （） where English uses (). Locales
+	// that do not override it inherit the English value, which is what the code
+	// hardcoded before, so nothing changes until a translator decides otherwise.
+	// Consumed by ui/shared/useTooltip.ts, never read at a call site.
+	"chat.tooltipSeparator": " — ",
 	// ---- Phase 3: chat header ----
 	"chat.header.connecting": "Connecting…",
 	"chat.header.notConnected": "Not connected",
@@ -496,7 +505,7 @@ export const en = {
 	// ---- Phase 3: composer + toolbar ----
 	"chat.composer.queuedLocked": "Queued message (locked) — use Edit to change it",
 	"chat.composer.sendNow": "Send now",
-	"chat.composer.sendNowTooltip": "Send now – stops the current reply and sends this message ({key})",
+	"chat.composer.sendNowReason": "stops the current reply and sends this message ({key})",
 	"chat.composer.edit": "Edit",
 	"chat.composer.delete": "Delete",
 	"chat.composer.mode": "Mode",

@@ -524,7 +524,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.queuedLocked":
 		"대기 중인 메시지(잠김) — 바꾸려면 '수정'을 사용하세요",
 	"chat.composer.sendNow": "지금 보내기",
-	"chat.composer.sendNowTooltip": "지금 보내기 – 현재 답변을 멈추고 이 메시지를 보냅니다 ({key})",
+	"chat.composer.sendNowReason": "현재 답변을 멈추고 이 메시지를 보냅니다 ({key})",
 	"chat.composer.edit": "수정",
 	"chat.composer.delete": "삭제",
 	"chat.composer.mode": "모드",
