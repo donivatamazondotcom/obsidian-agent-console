@@ -34,6 +34,7 @@ import type { QuickPrompt } from "../types/quick-prompt";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import { ErrorBanner } from "./ErrorBanner";
 import { AttachmentStrip } from "./shared/AttachmentStrip";
+import { tooltipRef } from "./shared/useTooltip";
 import { InputToolbar } from "./InputToolbar";
 import { deriveSendAffordance } from "../resolvers/send-affordance";
 import type { TabSessionState } from "../hooks/useTabSessionState";
@@ -1618,11 +1619,14 @@ export function InputArea({
 												key={kind}
 												type="button"
 												className="agent-client-queued-send-now"
-												// aria-label is Obsidian's tooltip AND the
-												// accessible name, so the text starts with the
-												// visible label. Never `title` (I199).
-												aria-label={t("chat.composer.sendNowTooltip", {
-													key: steerKeyLabel,
+												// The shared helper owns label-in-name and the
+												// locale separator, so the catalog carries only
+												// the reason (I199).
+												ref={tooltipRef({
+													visibleLabel: t("chat.composer.sendNow"),
+													reason: t("chat.composer.sendNowReason", {
+														key: steerKeyLabel,
+													}),
 												})}
 												onClick={() => onSendQueuedNow?.()}
 											>

@@ -560,7 +560,7 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.queuedLocked":
 		"待機中のメッセージ（ロック中）— 変更するには「編集」を使ってください",
 	"chat.composer.sendNow": "今すぐ送信",
-	"chat.composer.sendNowTooltip": "今すぐ送信 — 現在の返信を止めて、このメッセージを送信します（{key}）",
+	"chat.composer.sendNowReason": "現在の返信を止めて、このメッセージを送信します（{key}）",
 	"chat.composer.edit": "編集",
 	"chat.composer.delete": "削除",
 	"chat.composer.mode": "モード",
