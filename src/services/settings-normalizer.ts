@@ -12,6 +12,7 @@ import type {
 } from "../plugin";
 import type { SavedSessionInfo } from "../types/session";
 import type { PerLeafTabState } from "../types/tab";
+import type { PluginUpdateCache } from "../resolvers/update-check-decision";
 import { migrateContextNoteSettings } from "./settings-migration";
 import type { BaseAgentSettings } from "../types/agent";
 import type { AgentConfig } from "../acp/acp-client";
@@ -297,6 +298,44 @@ export function xyPoint(raw: unknown): { x: number; y: number } | null {
 	const o = obj(raw);
 	if (!o || typeof o.x !== "number" || typeof o.y !== "number") return null;
 	return { x: o.x, y: o.y };
+}
+
+/**
+ * Validate the saved plugin update check result at the deserialize edge.
+ * Absent → undefined. Malformed → dropped with a warning, never coerced, so a
+ * corrupt entry costs one extra GitHub fetch instead of a wrong answer.
+ * See [[Cache the plugin update check across reloads]].
+ */
+export function parsePluginUpdateCache(
+	raw: unknown,
+): PluginUpdateCache | undefined {
+	if (raw === undefined) return undefined;
+	const o = obj(raw);
+	const isVersion = (v: unknown): v is string | null =>
+		v === null || typeof v === "string";
+	const isTime = (v: unknown): v is number =>
+		typeof v === "number" && Number.isFinite(v);
+	if (
+		!o ||
+		!isTime(o.checkedAt) ||
+		!isVersion(o.latestStable) ||
+		(o.latestPrerelease !== undefined && !isVersion(o.latestPrerelease)) ||
+		(o.failedAt !== undefined && !isTime(o.failedAt))
+	) {
+		console.warn(
+			"[Agent Console] Dropping malformed pluginUpdateCheck from data.json:",
+			raw,
+		);
+		return undefined;
+	}
+	return {
+		checkedAt: o.checkedAt,
+		latestStable: o.latestStable,
+		...(o.latestPrerelease !== undefined
+			? { latestPrerelease: o.latestPrerelease }
+			: {}),
+		...(o.failedAt !== undefined ? { failedAt: o.failedAt } : {}),
+	};
 }
 
 // ============================================================================
@@ -671,6 +710,7 @@ export function normalizeRawSettings(
 			: undefined,
 		legacySessionsMigrated: bool(raw.legacySessionsMigrated, false),
 		settingsImportOfferShown: bool(raw.settingsImportOfferShown, false),
+		pluginUpdateCheck: parsePluginUpdateCache(raw.pluginUpdateCheck),
 		hasCompletedSetup: bool(raw.hasCompletedSetup, false),
 	};
 }

@@ -85,7 +85,7 @@ src/
 │   ├── picker-source-configs.ts # The three PickerSource configs (mention/slash/quick-prompt) that drive usePicker — all variance as pure, dependency-injected config (moved from utils/: it wires domain services, so it lives in the services layer; utils is a shared leaf)
 │   ├── quick-prompts.ts         # QuickPromptLibrary (scan/watch/reconcile) + VaultQuickPromptSource adapter
 │   ├── update-checker.ts        # Agent version checking (npm)
-│   ├── plugin-update-check.ts   # Plugin self-update check — once per load, shared by all tabs
+│   ├── plugin-update-check.ts   # Plugin self-update check — once per load, shared by all tabs; result cached in data.json across loads
 │   ├── net.ts                   # The ONLY module permitted outbound network I/O (fixed ALLOWED_HOSTS; egress tripwire enforces it)
 │   ├── a2ui/                    # A2UI buttons-v0 trust boundary (agent-emitted interactive prompts)
 │   │   ├── spec-snapshot.ts     # Frozen A2UI v1.0-candidate profile constants (version, catalog ids, component allowlist, limits)
@@ -202,7 +202,8 @@ src/
 │   ├── tab-label-width.ts          # deriveActiveTabLabelMax — pure resolver for the active tab's label max-width so the whole active tab stays visible in the strip
 │   ├── tab-scroll.ts               # deriveTabScrollLeft — pure resolver for the horizontal scrollLeft that keeps the active tab in view on tab-change and strip resize (TS-I07)
 │   ├── tab-state.ts                # deriveTabState — pure tab-icon-state resolver (lifecycle × isSending × hasActivePermission → ready/busy/permission/error/disconnected); gates busy on intent, not a connect-edge, so a lazy first-send or mid-turn permission can't strand the icon (I172)
-│   └── tooltip-text.ts             # deriveTooltipText — pure tooltip-text resolver ({visibleLabel, reason, separator} → tagged union text/none); owns the label-in-name composition and models "clear the stale tooltip" as a real outcome. Separator is an input because punctuation is localized (I199)
+│   ├── tooltip-text.ts             # deriveTooltipText — pure tooltip-text resolver ({visibleLabel, reason, separator} → tagged union text/none); owns the label-in-name composition and models "clear the stale tooltip" as a real outcome. Separator is an input because punctuation is localized (I199)
+│   └── update-check-decision.ts    # decideUpdateCheck — pure resolver: reuse the saved GitHub update result (6 h), back off after a failure (1 h), or fetch; owns the PluginUpdateCache shape
 ├── utils/                       # Shared utilities (pure functions)
 │   ├── platform.ts              # Shell, WSL, Windows env, command building
 │   ├── close-confirm.ts         # Pure shouldConfirmClose predicate for the multi-tab close gate
