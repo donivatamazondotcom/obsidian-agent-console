@@ -23,6 +23,7 @@ import { focusActiveTabComposer } from "./ui/composer-focus";
 import { HOVER_LINK_SOURCE } from "./utils/link-leaf";
 import type { ObsidianSystemPromptSettings } from "./utils/obsidian-system-prompt";
 import { fetchJson } from "./services/net";
+import { createPluginUpdateCheck } from "./services/plugin-update-check";
 import { ChatViewRegistry } from "./services/view-registry";
 import {
 	selectBroadcastPromptTargets,
@@ -1891,49 +1892,19 @@ export default class AgentClientPlugin extends Plugin {
 	}
 
 	/**
-	 * Check for plugin updates.
-	 * - Stable version users: compare with latest stable release
-	 * - Prerelease users: compare with both latest stable and latest prerelease
+	 * Check for plugin updates. Runs once per plugin load — every chat tab
+	 * calls this on mount and they all share one result (one fetch, one
+	 * notice). See services/plugin-update-check.ts.
 	 */
-	async checkForUpdates(): Promise<boolean> {
-		const currentVersion =
-			semver.clean(this.manifest.version) || this.manifest.version;
-		const isCurrentPrerelease = semver.prerelease(currentVersion) !== null;
+	private pluginUpdateCheck = createPluginUpdateCheck({
+		currentVersion: () => this.manifest.version,
+		fetchLatestStable: () => this.fetchLatestStable(),
+		fetchLatestPrerelease: () => this.fetchLatestPrerelease(),
+		notify: (message) => new Notice(message),
+	});
 
-		if (isCurrentPrerelease) {
-			// Prerelease user: check both stable and prerelease
-			const [latestStable, latestPrerelease] = await Promise.all([
-				this.fetchLatestStable(),
-				this.fetchLatestPrerelease(),
-			]);
-
-			const hasNewerStable =
-				latestStable && semver.gt(latestStable, currentVersion);
-			const hasNewerPrerelease =
-				latestPrerelease && semver.gt(latestPrerelease, currentVersion);
-
-			if (hasNewerStable || hasNewerPrerelease) {
-				// Prefer stable version notification if available
-				const newestVersion = hasNewerStable
-					? latestStable
-					: latestPrerelease;
-				new Notice(
-					t("notices.updateAvailable", { version: newestVersion ?? "" }),
-				);
-				return true;
-			}
-		} else {
-			// Stable version user: check stable only
-			const latestStable = await this.fetchLatestStable();
-			if (latestStable && semver.gt(latestStable, currentVersion)) {
-				new Notice(
-					t("notices.updateAvailable", { version: latestStable }),
-				);
-				return true;
-			}
-		}
-
-		return false;
+	checkForUpdates(): Promise<boolean> {
+		return this.pluginUpdateCheck();
 	}
 
 	ensureDefaultAgentId(): void {
