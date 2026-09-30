@@ -24,6 +24,7 @@ import { HOVER_LINK_SOURCE } from "./utils/link-leaf";
 import type { ObsidianSystemPromptSettings } from "./utils/obsidian-system-prompt";
 import { fetchJson } from "./services/net";
 import { createPluginUpdateCheck } from "./services/plugin-update-check";
+import type { PluginUpdateCache } from "./resolvers/update-check-decision";
 import { ChatViewRegistry } from "./services/view-registry";
 import {
 	selectBroadcastPromptTargets,
@@ -247,6 +248,8 @@ export interface AgentClientPluginSettings {
 
 	/** One-shot guard for the first-run settings-import offer. */
 	settingsImportOfferShown?: boolean;
+	/** Saved result of the plugin update check; see resolvers/update-check-decision.ts. */
+	pluginUpdateCheck?: PluginUpdateCache;
 
 	/**
 	 * One-time forward latch: set true the first time the user sends a
@@ -1901,6 +1904,11 @@ export default class AgentClientPlugin extends Plugin {
 		fetchLatestStable: () => this.fetchLatestStable(),
 		fetchLatestPrerelease: () => this.fetchLatestPrerelease(),
 		notify: (message) => new Notice(message),
+		now: () => Date.now(),
+		loadCache: () => this.settings.pluginUpdateCheck,
+		saveCache: (pluginUpdateCheck) =>
+			this.settingsService.updateSettings({ pluginUpdateCheck }),
+		warn: (message, error) => getLogger().warn(message, error),
 	});
 
 	checkForUpdates(): Promise<boolean> {

@@ -362,3 +362,60 @@ describe("normalizeRawSettings — language ([[Agent Console I18N]])", () => {
 		expect(s.language).toBe("auto");
 	});
 });
+
+describe("normalizeRawSettings — pluginUpdateCheck cache (trust boundary)", () => {
+	it("absent → undefined", () => {
+		const s = normalizeRawSettings({}, DEFAULT_SETTINGS, idKey);
+		expect(s.pluginUpdateCheck).toBeUndefined();
+	});
+
+	it("a well-formed cache round-trips, keeping only known fields", () => {
+		const raw = {
+			pluginUpdateCheck: {
+				checkedAt: 1_800_000_000_000,
+				latestStable: "2.5.0",
+				latestPrerelease: null,
+				failedAt: 1_800_000_000_001,
+				extra: "dropped",
+			},
+		};
+		const s = normalizeRawSettings(raw, DEFAULT_SETTINGS, idKey);
+		expect(s.pluginUpdateCheck).toEqual({
+			checkedAt: 1_800_000_000_000,
+			latestStable: "2.5.0",
+			latestPrerelease: null,
+			failedAt: 1_800_000_000_001,
+		});
+	});
+
+	it("omits latestPrerelease / failedAt when they were never saved", () => {
+		const s = normalizeRawSettings(
+			{ pluginUpdateCheck: { checkedAt: 5, latestStable: null } },
+			DEFAULT_SETTINGS,
+			idKey,
+		);
+		expect(s.pluginUpdateCheck).toEqual({ checkedAt: 5, latestStable: null });
+	});
+
+	it.each([
+		["not an object", "yesterday"],
+		["an array", [1, 2]],
+		["missing checkedAt", { latestStable: "2.5.0" }],
+		["non-finite checkedAt", { checkedAt: Number.NaN, latestStable: "2.5.0" }],
+		["string checkedAt", { checkedAt: "1", latestStable: "2.5.0" }],
+		["numeric latestStable", { checkedAt: 1, latestStable: 250 }],
+		["missing latestStable", { checkedAt: 1 }],
+		["numeric latestPrerelease", { checkedAt: 1, latestStable: null, latestPrerelease: 2 }],
+		["string failedAt", { checkedAt: 1, latestStable: null, failedAt: "now" }],
+	])("drops a malformed cache (%s) and warns — never coerces", (_label, value) => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const s = normalizeRawSettings(
+			{ pluginUpdateCheck: value },
+			DEFAULT_SETTINGS,
+			idKey,
+		);
+		expect(s.pluginUpdateCheck).toBeUndefined();
+		expect(warn).toHaveBeenCalledTimes(1);
+		warn.mockRestore();
+	});
+});
