@@ -67,7 +67,7 @@ import {
 import { buildCompletionNotificationContent } from "../utils/notification-content";
 import { runNotificationClick } from "../utils/notification-click";
 import { shouldNotifySystem } from "../resolvers/notify-gate";
-import { retainNotification } from "../utils/notification-registry";
+import { useOwnedNotifications } from "../hooks/useOwnedNotifications";
 import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";
 import { loadExistingSessionFlow } from "../hooks/loadExistingSessionFlow";
@@ -1802,6 +1802,10 @@ export function ChatPanel({
 	const onSwitchToTabRef = useRef(onSwitchToTab);
 	onSwitchToTabRef.current = onSwitchToTab;
 
+	// I52 round 8: this panel's notifications are closed when it unmounts
+	// (tab closed), so no orphan with a dead click handler survives into
+	// Notification Center.
+	const retainOwnedNotification = useOwnedNotifications(viewId);
 	const prevIsSendingRef = useRef<boolean>(false);
 
 	useEffect(() => {
@@ -1852,7 +1856,7 @@ export function ChatPanel({
 				// this effect run exits, and a later click (esp. from macOS
 				// Notification Center) then does nothing. See I52 recurrence
 				// 2026-07-09.
-				retainNotification(completionNotification, () => {
+				retainOwnedNotification(completionNotification, () => {
 					// Retained Electron fallback for the OS window raise (I52);
 					// the sanctioned reveal follows, plus one bounded post-
 					// activation re-assert — the macOS activation lands async
@@ -1927,7 +1931,7 @@ export function ChatPanel({
 				}),
 			});
 			// Retain so the click handler survives GC (see completion site above).
-			retainNotification(permissionNotification, () => {
+			retainOwnedNotification(permissionNotification, () => {
 				focusOwningWindow();
 				runNotificationClick({
 					tabId: viewId,

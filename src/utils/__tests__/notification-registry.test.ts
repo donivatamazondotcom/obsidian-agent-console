@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
 	retainNotification,
 	closeAllNotifications,
+	closeNotificationsForOwner,
 	attachWindowCloseSweep,
 	buildOwnedNotificationSweep,
 	sweepOwnedNotificationsAtStartup,
@@ -449,5 +450,59 @@ describe("notification-registry", () => {
 			expect(result.removed).toBe(0);
 			expect(remove).not.toHaveBeenCalled();
 		});
+	});
+});
+
+// ============================================================
+// I52 round 8 (2026-10-18): a notification must not outlive the panel (tab)
+// that produced it. Closing a tab never closed its notification, and the
+// round-7.5 startup sweep only matches tab ids that still restore — so every
+// closed tab's notification survived the next restart as an orphan no sweep
+// could reach (probe: 13 of 18 delivered entries were for tabs that no longer
+// existed in any vault). Clicking one runs no handler → nothing happens.
+// ============================================================
+describe("closeNotificationsForOwner (I52 round 8)", () => {
+	beforeEach(() => {
+		__resetNotificationRegistryForTests();
+	});
+
+	it("closes and releases only the notifications owned by that tab", () => {
+		const mineA = makeFakeNotification();
+		const mineB = makeFakeNotification();
+		const other = makeFakeNotification();
+		retainNotification(mineA, vi.fn(), "tab-closed");
+		retainNotification(mineB, vi.fn(), "tab-closed");
+		retainNotification(other, vi.fn(), "tab-open");
+
+		closeNotificationsForOwner("tab-closed");
+
+		expect(mineA.close).toHaveBeenCalledTimes(1);
+		expect(mineB.close).toHaveBeenCalledTimes(1);
+		expect(other.close).not.toHaveBeenCalled();
+		expect(__getRetainedNotificationCountForTests()).toBe(1);
+	});
+
+	it("is a no-op for an owner with no notifications", () => {
+		const n = makeFakeNotification();
+		retainNotification(n, vi.fn(), "tab-open");
+
+		closeNotificationsForOwner("tab-unknown");
+
+		expect(n.close).not.toHaveBeenCalled();
+		expect(__getRetainedNotificationCountForTests()).toBe(1);
+	});
+
+	it("keeps sweeping when one close() throws", () => {
+		const bad = makeFakeNotification();
+		bad.close.mockImplementation(() => {
+			throw new Error("dead OS entry");
+		});
+		const good = makeFakeNotification();
+		retainNotification(bad, vi.fn(), "tab-x");
+		retainNotification(good, vi.fn(), "tab-x");
+
+		expect(() => closeNotificationsForOwner("tab-x")).not.toThrow();
+		expect(good.close).toHaveBeenCalledTimes(1);
+		expect(__getRetainedNotificationCountForTests()).toBe(0);
 	});
 });

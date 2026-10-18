@@ -25,7 +25,11 @@
  * earlier wrong-window symptom that PR #207's revealLeaf fix addressed).
  */
 
-const liveNotifications = new Set<Notification>();
+/**
+ * Retained notifications → the id of the panel (tab) that owns them, or
+ * undefined for an unowned notification. Insertion order is the FIFO order.
+ */
+const liveNotifications = new Map<Notification, string | undefined>();
 
 /**
  * Upper bound on retained notifications. Needed because the `close` event
@@ -50,12 +54,13 @@ export const MAX_RETAINED_NOTIFICATIONS = 10;
 export function retainNotification(
 	notification: Notification,
 	onClick: (event: Event) => void,
+	owner?: string,
 ): void {
-	liveNotifications.add(notification);
+	liveNotifications.set(notification, owner);
 
 	// FIFO cap: evict-and-close the oldest entry once over the bound.
 	if (liveNotifications.size > MAX_RETAINED_NOTIFICATIONS) {
-		for (const oldest of liveNotifications) {
+		for (const oldest of liveNotifications.keys()) {
 			liveNotifications.delete(oldest);
 			try {
 				oldest.close();
@@ -93,7 +98,7 @@ export function retainNotification(
  * (probe 2026-07-29). Residual gap: a force-quit/crash skips `onunload`.
  */
 export function closeAllNotifications(): void {
-	for (const notification of liveNotifications) {
+	for (const notification of liveNotifications.keys()) {
 		try {
 			notification.close();
 		} catch {
@@ -101,6 +106,30 @@ export function closeAllNotifications(): void {
 		}
 	}
 	liveNotifications.clear();
+}
+
+/**
+ * Close and release every retained notification owned by `owner` (a panel /
+ * tab id). Called when the owning ChatPanel unmounts — i.e. its tab closed
+ * (I52 round 8, 2026-10-18). A notification's click handler closes over the
+ * panel that created it, so once that panel is gone the handler is dead and
+ * the entry is an orphan: clicking it does nothing. Closing a tab never closed
+ * its notification, and the round-7.5 startup sweep only matches tab ids that
+ * still restore, so closed tabs' notifications survived every restart. A live
+ * probe found 13 of 18 delivered entries were for tabs that no longer existed.
+ */
+export function closeNotificationsForOwner(owner: string): void {
+	for (const [notification, notificationOwner] of [
+		...liveNotifications,
+	]) {
+		if (notificationOwner !== owner) continue;
+		liveNotifications.delete(notification);
+		try {
+			notification.close();
+		} catch {
+			// A dead OS entry may throw; keep closing the rest.
+		}
+	}
 }
 
 /**

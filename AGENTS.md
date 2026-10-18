@@ -114,6 +114,7 @@ src/
 │   ├── loadExistingSessionFlow.ts # Restored-tab reconnect flow (lazy resume on first keystroke)
 │   ├── reloadSessionFlow.ts     # Pure soft-reload orchestration (resume same session / fresh fallback)
 │   ├── useDebouncedSessionSave.ts # Debounced session persistence (messages + context notes)
+│   ├── useOwnedNotifications.ts # Ties a panel's system notifications to its lifetime; closes them when the tab closes (I52)
 │   ├── useContextNotes.ts       # Crystallized context-note state per chat (add/remove/seen)
 │   ├── useContextVaultEvents.ts # Vault rename/delete sync for crystallized context notes
 │   ├── useSelectionTracker.ts   # Editor selection capture for the context strip
