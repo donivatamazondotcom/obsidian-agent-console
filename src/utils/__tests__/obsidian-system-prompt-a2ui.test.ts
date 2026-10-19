@@ -76,6 +76,17 @@ describe("interactive-buttons briefing block (T12)", () => {
 		}
 	});
 
+	it("states the event-name rule on its own requirement line, contrasted with kebab surfaceId (A2UI-I09)", () => {
+		// A2UI-I05's inline clause was still missed (Cellar vault, 2026-10-18):
+		// agents copied the kebab surfaceId style into event names. The rule
+		// must be a standalone bullet that names the contrast explicitly.
+		const lines = INTERACTIVE_BUTTONS_BLOCK.split("\n");
+		const rule = lines.filter((l) => l.startsWith("- event names are identifiers"));
+		expect(rule).toHaveLength(1);
+		expect(rule[0]).toContain("NOT kebab-case");
+		expect(rule[0]).toContain("no hyphens");
+	});
+
 	it("places catalogId inside createSurface, never as a top-level key (V04)", () => {
 		const flat = INTERACTIVE_BUTTONS_BLOCK.replace(/\s+/g, " ");
 		// The validator's V04 rejects any top-level key besides version +

@@ -433,6 +433,44 @@ describe("validateA2uiFence — V11 button contract", () => {
 		);
 	});
 
+	it("tolerates kebab-case event names and passes them through unchanged (D19, A2UI-I09)", () => {
+		// Verbatim payload from the Cellar-vault report (2026-10-18): the agent
+		// ignored the briefing's "no hyphens" rule and the whole surface fell
+		// back to inert code.
+		const body =
+			'{"version":"v1.0","createSurface":{"surfaceId":"ardbeg-alerts-9c1e","catalogId":"https://agentconsole.dev/a2ui/catalogs/buttons-v0","components":[{"id":"root","component":"Row","children":["ws","dx"]},{"id":"ws-l","component":"Text","text":"Whiskystats Basics (€9)"},{"id":"ws","component":"Button","child":"ws-l","action":{"event":{"name":"ardbeg-alert-service","context":{"service":"whiskystats-basics"}}}},{"id":"dx-l","component":"Text","text":"DramX Subscriber (£6)"},{"id":"dx","component":"Button","child":"dx-l","action":{"event":{"name":"ardbeg-alert-service","context":{"service":"dramx"}}}}]}}';
+		const result = validateA2uiFence(body);
+		expect(result.kind).toBe("valid");
+		if (result.kind !== "valid") return;
+		const ws = result.surface.components.get("ws");
+		expect(ws?.kind).toBe("button");
+		if (ws?.kind === "button") {
+			// Echoed back to the agent exactly as it emitted it — no rewriting.
+			expect(ws.event.name).toBe("ardbeg-alert-service");
+			expect(ws.event.context).toEqual({ service: "whiskystats-basics" });
+		}
+	});
+
+	it("still rejects malformed hyphenated event names (D19 bounds)", () => {
+		for (const name of ["-scope", "scope-", "pick--scope", "pick-", "-", "pick- scope"]) {
+			expectInvalid(
+				makeEnvelope({
+					components: [
+						{ id: "root", component: "Row", children: ["b"] },
+						{ id: "lbl", component: "Text", text: "Go" },
+						{
+							id: "b",
+							component: "Button",
+							child: "lbl",
+							action: { event: { name, context: {} } },
+						},
+					],
+				}),
+				"bad-button",
+			);
+		}
+	});
+
 	it("rejects non-literal context values (objects, arrays, null)", () => {
 		for (const bad of [{ nested: 1 }, [1, 2], null]) {
 			expectInvalid(
