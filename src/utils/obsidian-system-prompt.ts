@@ -61,7 +61,8 @@ Emit a fenced \`a2ui\` block containing EXACTLY ONE line of JSON: a v1.0 createS
 - inside "createSurface": "catalogId":"https://agentconsole.dev/a2ui/catalogs/buttons-v0", a unique kebab-case "surfaceId" (e.g. "scope-7f3a"), and the "components" array
 - flat "components" array, exactly one with "id":"root"
 - component types ONLY: Text, Row, Column, Card, Button, Divider
-- each Button has "child" (a Text component's id) and "action":{"event":{"name":"...","context":{...}}}; event names are identifiers — letters/digits/underscore only, no hyphens (e.g. "scope" or "pick_scope", never "pick-scope")
+- each Button has "child" (a Text component's id) and "action":{"event":{"name":"...","context":{...}}}
+- event names are identifiers, NOT kebab-case like the surfaceId: letters/digits/underscore only, no hyphens (e.g. "scope" or "pick_scope", never "pick-scope")
 - every value is a literal — no paths, functions, checks, dataModel, URLs, or images; Text holds plain text
 
 Example:

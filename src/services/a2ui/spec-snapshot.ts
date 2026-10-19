@@ -87,3 +87,17 @@ export const SURFACE_ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
  * naming; canonical regex from the spec).
  */
 export const UAX31_IDENTIFIER_PATTERN = /^[\p{XID_Start}_][\p{XID_Continue}]*$/u;
+
+/**
+ * Tolerated inbound shape for button event names (D19, Postel — same family
+ * as the D5/D10 version/catalog tolerances). A UAX #31 identifier, optionally
+ * followed by `-`-joined XID_Continue segments, so kebab-case names like
+ * `ardbeg-alert-service` validate. Agents keep emitting kebab names despite the
+ * briefing (A2UI-I05 → A2UI-I09); dropping the whole surface over a hyphen
+ * costs the user the choice. The name is passed through unchanged — it is only
+ * echoed back to the emitting agent in the action envelope and shown in the
+ * action summary, never used as a code identifier or lookup key. The briefing
+ * still teaches strict identifiers.
+ */
+export const TOLERATED_EVENT_NAME_PATTERN =
+	/^[\p{XID_Start}_][\p{XID_Continue}]*(?:-[\p{XID_Continue}]+)*$/u;

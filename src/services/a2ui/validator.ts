@@ -21,7 +21,7 @@ import {
 	BUTTONS_V0_LIMITS,
 	SURFACE_ID_PATTERN,
 	SURFACE_IDENTITY_FIELDS,
-	UAX31_IDENTIFIER_PATTERN,
+	TOLERATED_EVENT_NAME_PATTERN,
 } from "./spec-snapshot";
 import type {
 	A2uiButtonEvent,
@@ -192,11 +192,11 @@ function parseButton(
 	const event = action.event;
 	if (
 		typeof event.name !== "string" ||
-		!UAX31_IDENTIFIER_PATTERN.test(event.name)
+		!TOLERATED_EVENT_NAME_PATTERN.test(event.name)
 	) {
 		violations.push({
 			code: "bad-button",
-			detail: `Button "${id}" event name must be a UAX #31 identifier`,
+			detail: `Button "${id}" event name must be an identifier (letters, digits, underscores; single hyphens tolerated)`,
 		});
 		return null;
 	}
