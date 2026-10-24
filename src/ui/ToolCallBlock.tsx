@@ -139,6 +139,21 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 		setIsExpanded((prev) => !prev);
 	};
 
+	// I214: a drag-select over the header also fires a click on mouseup —
+	// don't collapse the body the user is selecting from. Use the row's own
+	// document (popout windows), not the focused window's.
+	const handleHeaderClick = (event: React.MouseEvent<HTMLDivElement>) => {
+		const selection = event.currentTarget.ownerDocument.getSelection();
+		if (
+			selection &&
+			!selection.isCollapsed &&
+			event.currentTarget.contains(selection.anchorNode)
+		) {
+			return;
+		}
+		toggleExpanded();
+	};
+
 	const lineCount = useMemo(() => countLines(content), [content]);
 
 	// Stable id for aria-controls so screen readers announce the
@@ -194,7 +209,7 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 			{/* Header */}
 			<div
 				className="agent-client-message-tool-call-header agent-client-message-tool-call-header-clickable"
-				onClick={toggleExpanded}
+				onClick={handleHeaderClick}
 				role="button"
 				tabIndex={0}
 				aria-expanded={true}
