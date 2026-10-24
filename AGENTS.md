@@ -243,6 +243,7 @@ src/
 │   ├── working-directory.ts     # Resolve/validate the default working directory for new chats
 │   ├── agent-expansion.ts       # Per-session expand/collapse state for settings agent sections
 │   ├── settings-layout.ts       # Pure settings-pane layout resolvers (deriveImportPlacement(hasCompletedSetup) → top-matter | advanced; D5)
+│   ├── preserve-scroll.ts        # redrawPreservingScroll — rebuild a settings sub-page without losing its scroll (I215)
 │   ├── textarea-autosize.ts     # decideTextareaResize/clampTextareaHeight — pure composer auto-resize (avoids scroll-pin jump, I-S13)
 │   └── logger.ts                # Debug-mode logger
 ├── __test_stubs__/              # Test-only Obsidian/jsdom shims (not shipped)
