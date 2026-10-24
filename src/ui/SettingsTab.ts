@@ -63,6 +63,7 @@ import {
 	resolveUniqueAgentId,
 } from "../services/session-helpers";
 import { deriveImportPlacement } from "../utils/settings-layout";
+import { redrawPreservingScroll } from "../utils/preserve-scroll";
 
 export class AgentClientSettingTab extends PluginSettingTab {
 	plugin: AgentClientPlugin;
@@ -516,8 +517,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						this.redraw();
 					}
 					redraw(): void {
-						this.containerEl.empty();
-						renderBody(this.containerEl);
+						// I215: keep the page's scroll across the rebuild.
+						redrawPreservingScroll(this.containerEl, () => {
+							this.containerEl.empty();
+							renderBody(this.containerEl);
+						});
 					}
 					hide(): void {
 						notifyHidden(this);
