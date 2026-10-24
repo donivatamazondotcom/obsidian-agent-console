@@ -810,6 +810,10 @@ export class AcpClient {
 			`Reaping agent process (PID ${agentProcess.pid}) after connection/process end`,
 		);
 
+		// I213: nobody can answer a dead process's permission requests or read
+		// its terminals. Settle them so the dialog doesn't outlive the agent.
+		this.cancelAllOperations();
+
 		// Close stdin so a well-behaved ACP stdio agent gets EOF and exits.
 		try {
 			agentProcess.stdin?.end();
