@@ -204,6 +204,8 @@ src/
 │   ├── tab-scroll.ts               # deriveTabScrollLeft — pure resolver for the horizontal scrollLeft that keeps the active tab in view on tab-change and strip resize (TS-I07)
 │   ├── tab-state.ts                # deriveTabState — pure tab-icon-state resolver (lifecycle × isSending × hasActivePermission → ready/busy/permission/error/disconnected); gates busy on intent, not a connect-edge, so a lazy first-send or mid-turn permission can't strand the icon (I172)
 │   ├── tooltip-text.ts             # deriveTooltipText — pure tooltip-text resolver ({visibleLabel, reason, separator} → tagged union text/none); owns the label-in-name composition and models "clear the stale tooltip" as a real outcome. Separator is an input because punctuation is localized (I199)
+│   ├── voice-affordance.ts         # deriveVoiceAffordance — pure resolver for what voice input offers in a tab (buttonVisible + ready/listening/transcribing/error/setup-needed step); mic button and voice commands read the same answer; only the recording's origin tab shows the live state
+│   ├── voice-target.ts             # deriveVoiceTarget — pure resolver for where a voice command goes (start/stop/toggle × focused tab × this vault's recording × another vault's lease → start/stop/stop-remote/hand-off/none); one recording at a time across vaults, hand-off on start
 │   └── update-check-decision.ts    # decideUpdateCheck — pure resolver: reuse the saved GitHub update result (6 h), back off after a failure (1 h), or fetch; owns the PluginUpdateCache shape
 ├── utils/                       # Shared utilities (pure functions)
 │   ├── platform.ts              # Shell, WSL, Windows env, command building
@@ -229,6 +231,7 @@ src/
 │   ├── link-leaf.ts             # Resolve click modifiers → Obsidian leaf/pane (Keymap.isModEvent) for internal links
 │   ├── quick-prompt-gesture.ts  # Map a click/keypress → the Quick Prompts 2×2 gesture (openElsewhere/foreground/insert) via Keymap.isModEvent + shift/alt
 │   ├── link-extract.ts          # Derive per-tab shared-link set from messages (Shared Links Bubble) + new/old classification
+│   ├── voice-insert.ts          # insertTranscript — pure insert of dictated text at the composer cursor (never replaces a selection, trims engine padding, keeps word spacing)
 │   ├── notification-content.ts  # buildCompletionNotificationContent — pure turn-end notification title/body/tag (tab label in title)
 │   ├── notification-click.ts    # Pure orchestrator for a completion-notification click (reveal owning leaf/window + switch to producing tab); I52 recurrence
 │   ├── notification-registry.ts # Retains OS Notification objects so their onclick survives GC until user/OS dismissal (I52)
