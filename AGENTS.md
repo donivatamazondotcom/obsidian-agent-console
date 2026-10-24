@@ -116,6 +116,7 @@ src/
 │   ├── reloadSessionFlow.ts     # Pure soft-reload orchestration (resume same session / fresh fallback)
 │   ├── useDebouncedSessionSave.ts # Debounced session persistence (messages + context notes)
 │   ├── useOwnedNotifications.ts # Ties a panel's system notifications to its lifetime; closes them when the tab closes (I52)
+│   ├── useEagerInitialize.ts    # Decision #10 eager initialize, gated by decideProcessHold — fires at most once per panel, when the tab may hold a process (I208)
 │   ├── useContextNotes.ts       # Crystallized context-note state per chat (add/remove/seen)
 │   ├── useContextVaultEvents.ts # Vault rename/delete sync for crystallized context notes
 │   ├── useSelectionTracker.ts   # Editor selection capture for the context strip
@@ -196,6 +197,7 @@ src/
 │   ├── empty-state-view.ts         # deriveEmptyStateView — pure empty-state affordance resolver (location × hasDetectedAgent → reason + redetect/installRows/agentPicks/landingActions/settings/hint); shared by GettingStarted (in-tab) and the zero-tab landing so the two can't drift
 │   ├── header-slot.ts              # deriveHeaderSlot — pure 4-way header secondary-slot resolver (model / connecting / idle / none)
 │   ├── notify-gate.ts              # shouldNotifySystem — pure resolver: should an OS notification fire for a backgrounded panel; gates on the flush signal, not an instantaneous focus read (I168)
+│   ├── process-hold.ts             # decideProcessHold — pure resolver: may this tab hold an agent process now (active / fresh / fork → hold; background restored → defer). Shared owner for eager init (I208) and idle reap (I209)
 │   ├── resolveInitialAgentId.ts    # Pure: agent a fresh (non-restored) tab opens on — Default agent when restore-tabs is off (TP-I05)
 │   ├── queued-banner-actions.ts    # Pure resolver for the queued-banner buttons (deriveQueuedBannerActions → Send now / Edit / Delete / Cancel)
 │   ├── send-affordance.ts          # Pure send-enablement resolver (deriveSendAffordance → canSend/buttonDisabled/reason) + isSessionLive; single source for ChatPanel/InputArea/InputToolbar/MessageList/broadcast
