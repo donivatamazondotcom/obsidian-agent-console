@@ -81,6 +81,8 @@ src/
 │   ├── recently-closed-stack.ts # F13 undo-close: closed-tab record + LIFO push/pop/build (pure)
 │   ├── message-queue-logic.ts   # #82 queue-of-one pure decisions: queue/flush/Enter-action/broadcast-skip
 │   ├── queue-orchestration-reducer.ts # #82 dispatch-owning single-slot reducer: (state,event)->{state,effects}; flush is raw-by-construction (closes Q4)
+│   ├── voice-capture-reducer.ts       # voiceCaptureReducer — pure (state,event)→{state,effects} owner of this vault's one recording + its transcription jobs: hand-off between tabs, lease acquire/release, Esc-with-undo, retry on engine failure; every captured clip is delivered or explicitly discarded (no silent audio loss)
+│   ├── voice-lease-reducer.ts         # voiceLeaseReducer — pure per-vault view of the single cross-vault recording lease over BroadcastChannel: latest claim wins (hand-off → yield), vault-id tie-break, heartbeats + timeout for crashed holders, stop-remote
 │   ├── quick-prompts-logic.ts   # Quick Prompts pure logic: parse/label/slug-id/folder-scope/{{selection}}-resolve + the browser-true 2×2 action decision (where × commitment: fire/queue/insert/disabled/new-tab + foreground) + tag matching + launcher helpers (capRestingChips / parseQuickPromptTrigger / stripQuickPromptTrigger / rankLauncherPrompts)
 │   ├── picker-source-configs.ts # The three PickerSource configs (mention/slash/quick-prompt) that drive usePicker — all variance as pure, dependency-injected config (moved from utils/: it wires domain services, so it lives in the services layer; utils is a shared leaf)
 │   ├── quick-prompts.ts         # QuickPromptLibrary (scan/watch/reconcile) + VaultQuickPromptSource adapter
