@@ -20,7 +20,7 @@ import type { DiffContent } from "../types/chat";
  * @property oldLineNumber - Line number in the old file (undefined for added lines)
  * @property newLineNumber - Line number in the new file (undefined for removed lines)
  * @property content - The text content of the line
- * @property wordDiff - Optional word-level diff for lines that were modified (adjacent removed+added pairs)
+ * @property wordDiff - Optional word-level diff, set only on one-line replacements (one removed line followed by one added line)
  */
 export interface DiffLine {
 	type: "added" | "removed" | "context";
@@ -64,6 +64,9 @@ export function computeDiffLines(diff: DiffContent): DiffLine[] {
 	if (isNewFile(diff)) {
 		// New file - all lines are added
 		const lines = diff.newText.split("\n");
+		// split() leaves an empty item after a terminal newline; it is not a
+		// real line (I212).
+		if (lines[lines.length - 1] === "") lines.pop();
 		return lines.map(
 			(line, idx): DiffLine => ({
 				type: "added",
@@ -142,17 +145,30 @@ export function computeDiffLines(diff: DiffContent): DiffLine[] {
 		}
 	}
 
-	// Add word-level diff for modified lines that are adjacent
-	for (let i = 0; i < result.length - 1; i++) {
-		const current = result[i];
-		const next = result[i + 1];
-
-		// If we have a removed line followed by an added line, compute word diff
-		if (current.type === "removed" && next.type === "added") {
-			const wordDiff = Diff.diffWords(current.content, next.content);
-			const mappedDiff = mapDiffParts(wordDiff);
-			current.wordDiff = mappedDiff;
-			next.wordDiff = mappedDiff;
+	// Word-level highlights only for 1:1 replacements (I212). structuredPatch
+	// emits a block's removals before its additions, so in an N:M block any
+	// adjacent pairing relates unrelated lines — those get line-level
+	// coloring only.
+	let i = 0;
+	while (i < result.length) {
+		if (result[i].type !== "removed") {
+			i++;
+			continue;
+		}
+		const removedStart = i;
+		while (i < result.length && result[i].type === "removed") i++;
+		const addedStart = i;
+		while (i < result.length && result[i].type === "added") i++;
+		if (addedStart - removedStart === 1 && i - addedStart === 1) {
+			const removed = result[removedStart];
+			const added = result[addedStart];
+			// Whitespace-sensitive: the parts must rebuild each side verbatim,
+			// or the deleted line renders with the added line's whitespace.
+			const wordDiff = mapDiffParts(
+				Diff.diffWordsWithSpace(removed.content, added.content),
+			);
+			removed.wordDiff = wordDiff;
+			added.wordDiff = wordDiff;
 		}
 	}
 
