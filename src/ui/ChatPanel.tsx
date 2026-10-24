@@ -76,6 +76,8 @@ import { buildCompletionNotificationContent } from "../utils/notification-conten
 import { runNotificationClick } from "../utils/notification-click";
 import { shouldNotifySystem } from "../resolvers/notify-gate";
 import { useOwnedNotifications } from "../hooks/useOwnedNotifications";
+import { useEagerInitialize } from "../hooks/useEagerInitialize";
+import { decideProcessHold } from "../resolvers/process-hold";
 import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";
 import { loadExistingSessionFlow } from "../hooks/loadExistingSessionFlow";
@@ -1236,54 +1238,47 @@ export function ChatPanel({
 	// initialize exposes capabilities; restored/read-only tabs wait for typing
 	// or send. useLazySession remains the sole session/new owner.
 	//
-	// Decision #10: Eager initialize on mount for composer affordances.
-	// Spawns the agent process so that slash commands, model list, and
-	// mode list are available before the user types. The subsequent
-	// createSession call (eager or interaction-triggered) sees isInitialized()=true
-	// and skips re-initialization, going straight to newSession.
-	useEffect(() => {
-		if (acpClient.isInitialized()) return;
-		const agentId = config?.agent || initialAgentId;
-		if (!agentId) return;
-
-		void (async () => {
-			try {
-				const { findAgentSettings, buildAgentConfigWithApiKey } =
-					await import("../services/session-helpers");
-				const agentSettings = findAgentSettings(
-					plugin.settings,
-					agentId,
-				);
-				if (!agentSettings) return;
-				const agentConfig = buildAgentConfigWithApiKey(
-					plugin.settings,
-					agentSettings,
-					agentId,
-					vaultPath,
-				);
-				await acpClient.initialize(agentConfig);
-				// I54: propagate the just-fetched capabilities into session
-				// state so image paste works on a fresh tab before connecting.
-				agent.applyInitCapabilities();
-				logger.log(
-					"[ChatPanel] Eager initialize complete for:",
-					agentId,
-				);
-			} catch (e) {
-				// Non-fatal: lazy path will retry on first keystroke
-				logger.log(
-					"[ChatPanel] Eager initialize failed (non-fatal):",
-					e,
-				);
-			}
-		})();
-		// Run once on mount only. Re-eager-init on swap was reverted: model/mode
-		// dropdowns come from the SESSION (newSession), not initialize(), so
-		// eager re-init can't populate them pre-type (studio smoke (e),
-		// 2026-06-25) — it only added a subprocess spawn on swap and competed
-		// with the restart acquisition. Lazy acquisition on first send fetches
-		// the swapped agent's session (and its model/mode list) correctly.
-	}, []);
+	// Decision #10: Eager initialize for composer affordances — only for a tab
+	// that may hold a process (I208). Spawns the agent so slash commands,
+	// capabilities and image paste are ready before the user types. Background
+	// restored tabs stay process-free until activated; the lazy path still
+	// initializes on demand (send/broadcast). The subsequent createSession sees
+	// isInitialized()=true and goes straight to newSession.
+	// Fires at most once per panel. Re-eager-init on agent swap stays reverted:
+	// model/mode dropdowns come from the SESSION (newSession), not initialize()
+	// (studio smoke (e), 2026-06-25).
+	useEagerInitialize({
+		decision: decideProcessHold({
+			isActive: isActive ?? false,
+			origin: tabOrigin,
+			hasForkSource: !!restoredForkSessionId,
+		}),
+		isInitialized: () => acpClient.isInitialized(),
+		initialize: async () => {
+			// Live tab agent first (updated on switch), mount snapshot as fallback.
+			const agentId =
+				agent.session.agentId || config?.agent || initialAgentId;
+			if (!agentId) return;
+			const { findAgentSettings, buildAgentConfigWithApiKey } =
+				await import("../services/session-helpers");
+			const agentSettings = findAgentSettings(plugin.settings, agentId);
+			if (!agentSettings) return;
+			const agentConfig = buildAgentConfigWithApiKey(
+				plugin.settings,
+				agentSettings,
+				agentId,
+				vaultPath,
+			);
+			await acpClient.initialize(agentConfig);
+			// I54: propagate the just-fetched capabilities into session
+			// state so image paste works on a fresh tab before connecting.
+			agent.applyInitCapabilities();
+			logger.log("[ChatPanel] Eager initialize complete for:", agentId);
+		},
+		// Non-fatal: lazy path will retry on first keystroke.
+		onError: (e) =>
+			logger.log("[ChatPanel] Eager initialize failed (non-fatal):", e),
+	});
 
 	// Queue-next-message (#82). Runtime-only queue-of-one shared by BOTH the
 	// streaming case (send while a turn runs) and the pre-ready case (send
