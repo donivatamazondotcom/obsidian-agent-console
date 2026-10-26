@@ -111,7 +111,14 @@ export type CustomAgentSettings = BaseAgentSettings;
  * not an API key, so it needs no apiKeySecretId and uses only the
  * base settings.
  */
-export type KiroAgentSettings = BaseAgentSettings;
+export interface KiroAgentSettings extends BaseAgentSettings {
+	/**
+	 * Which kiro-cli ACP server to launch. "v2" (default) is today's server;
+	 * "v3" is the CLI V3 engine (preview). Chosen by the user, never inferred:
+	 * both servers negotiate the same ACP protocol version.
+	 */
+	engine: "v2" | "v3";
+}
 
 /**
  * Configuration for the OpenCode agent.

@@ -199,6 +199,10 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 		'Kiro CLI 使用你的 Kiro 账户登录，无需 API 密钥。在终端中运行一次 "kiro-cli" 完成登录，然后在这里选择 Kiro CLI。',
 	"settings.path.desc2":
 		'kiro-cli 的命令名称或路径。只填 "kiro-cli" 可由登录 shell 解析，也可以输入绝对路径（通常为 ~/.local/bin/kiro-cli）。',
+	"settings.kiroEngine.name": "Kiro CLI 引擎",
+	"settings.kiroEngine.desc": "V3 为预览版。--agent、--model 和 --effort 参数仍然有效：Agent Console 会在每个对话中把它们传给 V3。更改后新开始的对话才会生效。",
+	"settings.kiroEngine.v2": "V2（当前）",
+	"settings.kiroEngine.v3": "V3（预览）",
 	"settings.arguments.desc2":
 		'输入参数，用空格或换行分隔。含空格的参数请加引号。Kiro CLI 需要 "acp" 子命令。',
 	"settings.setup.desc8":

@@ -40,6 +40,7 @@ src/
 │   ├── acp-client.ts            # Process lifecycle, UI-facing API (AcpClient class)
 │   ├── acp-handler.ts           # SDK event handler + sessionId filter + listener broadcast
 │   ├── mcp-auth-parsers.ts      # Params parsers for _kiro.dev/mcp/* extension notifications (validate at edge)
+│   ├── kiro-v3.ts               # Kiro CLI V3 adapter: launch-arg rewrite, initialize capabilities (hooks opt-in), per-session mode/model/effort
 │   ├── type-converter.ts        # ACP SDK ↔ internal type conversion; capability normalizer (toAgentCapabilities)
 │   ├── permission-handler.ts    # Permission queue, auto-approve, Promise resolution
 │   └── terminal-handler.ts      # Terminal process create/output/kill

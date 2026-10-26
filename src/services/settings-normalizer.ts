@@ -5,6 +5,7 @@
  * Used by plugin.ts (loadSettings) and SettingsTab.ts.
  */
 
+import { resolveKiroEngine } from "../acp/kiro-v3";
 import type {
 	AgentEnvVar,
 	CustomAgentSettings,
@@ -382,6 +383,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 		command: "kiro-cli",
 		args: ["acp"],
 		env: [],
+		engine: "v2",
 	},
 	opencode: {
 		id: "opencode-acp",
@@ -574,6 +576,7 @@ export function normalizeRawSettings(
 					: D.kiro.args,
 			env: normalizeEnvVars(rki.env),
 			defaultWorkingDirectory: str(rki.defaultWorkingDirectory, ""),
+			engine: resolveKiroEngine(rki),
 		},
 		opencode: {
 			id: D.opencode.id,

@@ -213,6 +213,10 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 		"Kiro CLI はあなたの Kiro アカウントでサインインするため、API キーは不要です。ターミナルで「kiro-cli」を一度実行してサインインしてから、ここで Kiro CLI を選択してください。",
 	"settings.path.desc2":
 		"kiro-cli のコマンド名またはパスです。「kiro-cli」とだけ入力するとログインシェルが解決します。絶対パスも入力できます（通常は ~/.local/bin/kiro-cli）。",
+	"settings.kiroEngine.name": "Kiro CLI エンジン",
+	"settings.kiroEngine.desc": "V3 はプレビュー版です。--agent、--model、--effort の引数はそのまま使えます。Agent Console がチャットごとに V3 へ渡します。変更後に開始したチャットから適用されます。",
+	"settings.kiroEngine.v2": "V2（現行）",
+	"settings.kiroEngine.v3": "V3（プレビュー）",
 	"settings.arguments.desc2":
 		"引数はスペースまたは改行で区切って入力してください。スペースを含む引数は引用符で囲んでください。Kiro CLI には「acp」サブコマンドが必要です。",
 	"settings.setup.desc8":

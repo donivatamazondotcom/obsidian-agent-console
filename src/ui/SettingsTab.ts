@@ -15,6 +15,7 @@ import {
 	type TextComponent,
 } from "obsidian";
 import type AgentClientPlugin from "../plugin";
+import { resolveKiroEngine } from "../acp/kiro-v3";
 import {
 	t,
 	SUPPORTED_LOCALES,
@@ -2030,6 +2031,24 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				},
 			});
 		});
+
+		new Setting(sectionEl)
+			.setName(t("settings.kiroEngine.name"))
+			.setDesc(t("settings.kiroEngine.desc"))
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption("v2", t("settings.kiroEngine.v2"))
+					.addOption("v3", t("settings.kiroEngine.v3"))
+					.setValue(resolveKiroEngine(kiro))
+					.onChange(async (value) => {
+						await this.plugin.settingsService.updateSettings({
+							kiro: {
+								...this.plugin.settings.kiro,
+								engine: value === "v3" ? "v3" : "v2",
+							},
+						});
+					}),
+			);
 
 		new Setting(sectionEl)
 			.setName(t("settings.arguments.name2"))

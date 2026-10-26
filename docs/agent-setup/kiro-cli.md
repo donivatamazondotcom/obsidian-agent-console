@@ -42,6 +42,16 @@ Follow the browser-based login. That's all — the Kiro CLI section has **no API
 Kiro CLI natively supports ACP, so no additional adapter is required. Just point Agent Console at the `kiro-cli` binary and you're set.
 :::
 
+## Use the V3 engine (preview)
+
+Kiro CLI has a newer engine, V3. Some agent configs, such as recent auto-sa releases, only load on V3. If your custom agent never shows up and chats run the default agent instead, switch to V3:
+
+1. In the **Kiro CLI** section, set **Kiro CLI engine** to **V3 (preview)**.
+2. Keep your arguments as they are, for example `acp --agent auto-sa`. V3 doesn't accept `--agent`, `--model` or `--effort` on launch, so Agent Console passes them to each new chat instead. `--trust-all-tools` and `--trust-tools` are dropped; V3 uses its own permission rules.
+3. Start a new chat.
+
+With V3, your agent's hooks (start, prompt and stop) run in Agent Console chats too.
+
 ## Verify Setup
 
 1. Click the robot icon in the ribbon or use the command palette: **"Open chat"**
