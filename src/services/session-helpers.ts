@@ -4,6 +4,7 @@
  */
 
 import type { AgentClientPluginSettings } from "../plugin";
+import { resolveKiroEngine } from "../acp/kiro-v3";
 import type {
 	BaseAgentSettings,
 	ClaudeAgentSettings,
@@ -327,6 +328,13 @@ export function buildAgentConfigWithApiKey(
 				envVarName: "GEMINI_API_KEY",
 			},
 		};
+	}
+
+	if (
+		agentId === settings.kiro.id &&
+		resolveKiroEngine(settings.kiro) === "v3"
+	) {
+		return { ...baseConfig, kiroEngine: "v3" as const };
 	}
 
 	// Custom agents — no API key injection

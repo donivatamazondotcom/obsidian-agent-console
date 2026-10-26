@@ -1,5 +1,15 @@
 import { spawn, ChildProcess } from "child_process";
 import * as acp from "@agentclientprotocol/sdk";
+import {
+	A2UI_CAPABILITY_META_KEY,
+	buildA2uiCapabilityMeta,
+} from "../services/a2ui/capability";
+import {
+	buildClientCapabilities,
+	kiroV3SessionMeta,
+	prepareKiroV3Launch,
+	resolveLaunchArgs,
+} from "./kiro-v3";
 import { Platform } from "obsidian";
 
 import type {
@@ -12,10 +22,6 @@ import type {
 import type { PromptContent } from "../types/chat";
 import type { ProcessError } from "../types/errors";
 import { AcpTypeConverter } from "./type-converter";
-import {
-	A2UI_CAPABILITY_META_KEY,
-	buildA2uiCapabilityMeta,
-} from "../services/a2ui/capability";
 import { TerminalManager } from "./terminal-handler";
 import { PermissionManager } from "./permission-handler";
 import { AcpHandler } from "./acp-handler";
@@ -70,6 +76,12 @@ export interface AgentConfig {
 		/** Environment variable name to inject the resolved value into */
 		envVarName: string;
 	};
+	/**
+	 * Kiro CLI only: launch the v3 ACP server. Set by
+	 * buildAgentConfigWithApiKey() from the Kiro engine setting; absent means
+	 * the v2 server and today's launch/session behavior. See kiro-v3.ts.
+	 */
+	kiroEngine?: "v3";
 }
 
 /**
@@ -213,7 +225,15 @@ export class AcpClient {
 		}
 
 		const command = config.command.trim();
-		const args = config.args.length > 0 ? [...config.args] : [];
+		const args = resolveLaunchArgs(config);
+		if (config.kiroEngine === "v3") {
+			const { stripped } = prepareKiroV3Launch(config.args);
+			if (stripped.length > 0) {
+				this.logger.log(
+					`Kiro V3: moved ${stripped.join(", ")} out of the launch args (V3 takes them per session)`,
+				);
+			}
+		}
 
 		this.logger.log(
 			`Active agent: ${config.displayName} (${config.id})`,
@@ -495,19 +515,11 @@ export class AcpClient {
 
 			const initResult = await this.connection.agent.request(acp.methods.agent.initialize, {
 				protocolVersion: acp.PROTOCOL_VERSION,
-				clientCapabilities: {
-					fs: {
-						readTextFile: false,
-						writeTextFile: false,
-					},
-					terminal: true,
-					// D9: advertise the a2ui markdown-JSONL binding for future
-					// native agents (generic harnesses learn it from the
-					// system-prompt briefing instead).
-					_meta: {
-						[A2UI_CAPABILITY_META_KEY]: buildA2uiCapabilityMeta(),
-					},
-				},
+				// D9 a2ui binding for every agent; the Kiro V3 hooks opt-in
+				// only for a v3 config. See kiro-v3.ts.
+				clientCapabilities: buildClientCapabilities(config, {
+					[A2UI_CAPABILITY_META_KEY]: buildA2uiCapabilityMeta(),
+				}),
 				clientInfo: {
 					name: "agent-console",
 					title: "Agent Console for Obsidian",
@@ -576,6 +588,8 @@ export class AcpClient {
 			const response = await connection.agent.request(acp.methods.agent.session.new, {
 				cwd: this.toSessionCwd(workingDirectory),
 				mcpServers: [],
+				// Kiro V3 selects the agent (and model/effort) per session.
+				...kiroV3SessionMeta(this.currentConfig),
 			});
 
 			this.logger.log(
