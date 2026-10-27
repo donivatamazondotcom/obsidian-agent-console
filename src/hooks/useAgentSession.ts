@@ -512,7 +512,15 @@ export function useAgentSession(
 			let finalModels = models;
 			let finalConfigOptions = configOptions;
 
-			if (configOptions && sessionId) {
+			// Kiro CLI V3 stores model, effort and mode per session, so a
+			// loaded or forked session keeps its own (S3 decision a1).
+			const keepsOwnConfig =
+				typeof agentClient.storesSessionConfig === "function" &&
+				agentClient.storesSessionConfig();
+
+			if (configOptions && sessionId && keepsOwnConfig) {
+				finalConfigOptions = configOptions;
+			} else if (configOptions && sessionId) {
 				finalConfigOptions = await restoreConfigOptions(
 					agentClient,
 					sessionId,
