@@ -475,6 +475,7 @@ export const en = {
 	"chat.tooltipSeparator": " — ",
 	// ---- Phase 3: chat header ----
 	"chat.header.connecting": "Connecting…",
+	"chat.header.runtimeKiroV3": "Kiro CLI (V3 engine)",
 	"chat.header.notConnected": "Not connected",
 	"chat.header.updatePill": "Plugin update available!",
 	"chat.header.updateTooltip": "Open Community plugins to update Agent Console",

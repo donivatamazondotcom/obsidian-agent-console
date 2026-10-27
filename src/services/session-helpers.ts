@@ -4,7 +4,7 @@
  */
 
 import type { AgentClientPluginSettings } from "../plugin";
-import { resolveKiroEngine } from "../acp/kiro-v3";
+import { resolveKiroEngine, type KiroEngine } from "../acp/kiro-v3";
 import type {
 	BaseAgentSettings,
 	ClaudeAgentSettings,
@@ -283,6 +283,22 @@ export function resolveCwdForAgent(
 }
 
 /**
+ * Kiro CLI engine for an agent: the built-in Kiro agent's setting or a custom
+ * agent's, v2 for everything else. The one place that maps an agent id to its
+ * engine (launch config and header both read it).
+ */
+export function resolveAgentKiroEngine(
+	settings: Pick<AgentClientPluginSettings, "kiro" | "customAgents">,
+	agentId: string,
+): KiroEngine {
+	const source =
+		agentId === settings.kiro.id
+			? settings.kiro
+			: settings.customAgents.find((a) => a.id === agentId);
+	return source ? resolveKiroEngine(source) : "v2";
+}
+
+/**
  * Build AgentConfig with API key injection intent for known agents.
  *
  * For built-in agents, attaches an `apiKey` intent (secretId + envVarName)
@@ -330,11 +346,7 @@ export function buildAgentConfigWithApiKey(
 		};
 	}
 
-	const kiroEngineSource =
-		agentId === settings.kiro.id
-			? settings.kiro
-			: settings.customAgents.find((a) => a.id === agentId);
-	if (kiroEngineSource && resolveKiroEngine(kiroEngineSource) === "v3") {
+	if (resolveAgentKiroEngine(settings, agentId) === "v3") {
 		return { ...baseConfig, kiroEngine: "v3" as const };
 	}
 

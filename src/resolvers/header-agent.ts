@@ -16,6 +16,10 @@
  * `deriveHeaderModelName` — confirmed model, then legacy `models`, then the
  * `model` config option (Kiro CLI V3 sends only that).
  *
+ * `deriveHeaderRuntime` — the tooltip's Runtime line: what the agent reported
+ * in `agentInfo`, else "Kiro CLI (V3 engine)" for a V3 kiro-cli (V3 sends no
+ * `agentInfo`), else nothing.
+ *
  * Spec: [[Kiro CLI V3 Support]].
  */
 import {
@@ -101,4 +105,25 @@ export function deriveHeaderModelName(input: {
 		(o) => o.value === option.currentValue,
 	);
 	return current?.name || option.currentValue || null;
+}
+
+export type HeaderRuntime =
+	| { kind: "reported"; label: string }
+	| { kind: "kiroV3" }
+	| { kind: "unknown" };
+
+export interface HeaderRuntimeInput {
+	agentInfo?: { name: string; title?: string; version?: string };
+	/** The agent is kiro-cli launched on the V3 engine. */
+	isKiroV3: boolean;
+}
+
+/** Runtime segment for the header tooltip. Pure and total. */
+export function deriveHeaderRuntime(input: HeaderRuntimeInput): HeaderRuntime {
+	const info = input.agentInfo;
+	if (info?.name) {
+		const name = info.title || info.name;
+		return { kind: "reported", label: info.version ? `${name} ${info.version}` : name };
+	}
+	return input.isKiroV3 ? { kind: "kiroV3" } : { kind: "unknown" };
 }

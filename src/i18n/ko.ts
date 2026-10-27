@@ -494,6 +494,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"commands.broadcastCancel": "전체 탭에서 취소",
 	// ---- Phase 3: chat header ----
 	"chat.header.connecting": "연결 중…",
+	"chat.header.runtimeKiroV3": "Kiro CLI (V3 엔진)",
 	"chat.header.notConnected": "연결되지 않음",
 	"chat.header.updatePill": "플러그인 업데이트 가능!",
 	"chat.header.updateTooltip":

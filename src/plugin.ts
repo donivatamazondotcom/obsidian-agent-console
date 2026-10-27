@@ -210,6 +210,9 @@ export interface AgentClientPluginSettings {
 	lastUsedModels: Record<string, string>;
 	// Last used mode per agent (agentId → modeId)
 	lastUsedModes: Record<string, string>;
+	// Last used thought level / effort per agent (agentId → value of the
+	// "thought_level" config option, e.g. Kiro CLI V3 effortLevel)
+	lastUsedThoughtLevels: Record<string, string>;
 
 	// Tab settings
 	/** Restore open tabs on startup (default: true). See [[ACP Tab Persistence Across Restarts]] § Setting. */

@@ -150,3 +150,12 @@ export function kiroV3SessionMeta(
 		? { _meta: { kiro: sessionMeta } }
 		: {};
 }
+
+/**
+ * Whether `session/set_model` may be sent. V3 answers it with "Internal
+ * error"; model and effort go through `session/set_config_option`
+ * (`model`, `effortLevel`) instead. Spec T5.
+ */
+export function allowsLegacySetModel(config: AgentConfig | null): boolean {
+	return config?.kiroEngine !== "v3";
+}

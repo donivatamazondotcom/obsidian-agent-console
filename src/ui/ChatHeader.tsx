@@ -354,9 +354,25 @@ function BrandedTitle({
  *
  * Surfaces all four segments (plugin, profile, runtime, model) plus version
  * info. Returns a plain string so the browser renders it via the native
- * `title` attribute — no popover, no positioning, no extra DOM. Lines marked
- * "Connecting…" appear when the corresponding ACP segment isn't ready yet.
+ * `title` attribute — no popover, no positioning, no extra DOM. Runtime and
+ * Model lines read "Connecting…" while connecting and are omitted once the
+ * session is ready if the agent never reported them.
  */
+/**
+ * One ACP-sourced tooltip line. "Connecting…" only while the session is
+ * genuinely connecting (the I80 gate); once ready, a segment the agent never
+ * reported is left out rather than claiming a connection is still pending.
+ */
+function tooltipLine(
+	key: "chat.header.tooltipRuntime" | "chat.header.tooltipModel",
+	value: string | null,
+	segments: HeaderSegments,
+): string[] {
+	if (value) return [t(key, { value })];
+	if (segments.isConnecting) return [t(key, { value: t("chat.header.connecting") })];
+	return [];
+}
+
 function buildHeaderTooltip(segments: HeaderSegments): string {
 	const lines = [
 		t("chat.header.tooltipPlugin", { value: segments.plugin }),
@@ -375,12 +391,8 @@ function buildHeaderTooltip(segments: HeaderSegments): string {
 						}),
 					]
 				: []),
-		t("chat.header.tooltipRuntime", {
-			value: segments.runtime ?? t("chat.header.connecting"),
-		}),
-		t("chat.header.tooltipModel", {
-			value: segments.model ?? t("chat.header.connecting"),
-		}),
+		...tooltipLine("chat.header.tooltipRuntime", segments.runtime, segments),
+		...tooltipLine("chat.header.tooltipModel", segments.model, segments),
 	];
 	return lines.join("\n");
 }

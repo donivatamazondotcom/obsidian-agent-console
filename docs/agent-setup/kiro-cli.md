@@ -52,6 +52,8 @@ Kiro CLI has a newer engine, V3. Some agent configs, such as recent auto-sa rele
 
 With V3, your agent's hooks (start, prompt and stop) run in Agent Console chats too.
 
+Pick the model, the [effort level](../usage/thought-level-selection.md) and other Kiro options (such as Autopilot or Supervised) from the dropdowns below the message box. The effort dropdown only shows for models that support it. Agent Console remembers your model and effort picks for the next chat.
+
 ## Verify Setup
 
 1. Click the robot icon in the ribbon or use the command palette: **"Open chat"**
