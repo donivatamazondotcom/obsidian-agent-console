@@ -491,6 +491,8 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.header.exportTooltip": "将聊天导出为 Markdown",
 	"chat.header.more": "更多",
 	"chat.header.tooltipPlugin": "插件：{value}",
+	"chat.header.tooltipAgentNotLoaded": "无法加载 {requested}，正在改用 {running}",
+	"chat.header.tooltipAgentSwitched": "正在运行：{running}（已在输入框中切换）",
 	"chat.header.tooltipProfile": "配置：{value}",
 	"chat.header.tooltipRuntime": "运行时：{value}",
 	"chat.header.tooltipModel": "模型：{value}",

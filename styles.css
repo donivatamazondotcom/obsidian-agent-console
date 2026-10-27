@@ -617,6 +617,18 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	white-space: nowrap;
 }
 
+/* Requested agent that couldn't load (I207): struck through and muted. */
+del.acp-header-branded-profile {
+	color: var(--text-muted);
+	text-decoration: line-through;
+}
+
+.acp-header-branded-running {
+	color: var(--text-normal);
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
 .acp-header-branded-sep {
 	color: var(--text-faint);
 	flex-shrink: 0;
