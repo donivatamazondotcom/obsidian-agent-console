@@ -216,12 +216,25 @@ PY
 
 	apply_flow_mode
 
-	# Seed workspace.json with an agent-console leaf so tab restore works on
+	# Seed workspace.json with an Agent Console chat leaf so tab restore works on
 	# first open (Obsidian recreates leaves from workspace.json at startup;
 	# without this, a fresh vault has no leaf → no restore → S1.4 fails).
-	STUDIO_DIR="$STUDIO_DIR" python3 - <<'PY'
-import json, os, secrets
+	# The leaf type MUST be the plugin's registered view type, or Obsidian drops
+	# the leaf at startup and creates a new one with a new id, so state seeded
+	# into perLeafTabStates never restores (I216). Read VIEW_TYPE_CHAT from the
+	# worktree's own source so the seed always matches the build being deployed.
+	STUDIO_DIR="$STUDIO_DIR" CHAT_VIEW_TYPE_TS="$WORKTREE_DIR/src/ui/chat-view-type.ts" python3 - <<'PY'
+import json, os, re, secrets, sys
 studio = os.environ["STUDIO_DIR"]
+src_path = os.environ["CHAT_VIEW_TYPE_TS"]
+try:
+    src = open(src_path).read()
+except OSError as e:
+    sys.exit(f"✗ cannot read view type source {src_path}: {e}")
+m = re.search(r'export\s+const\s+VIEW_TYPE_CHAT\s*=\s*["\']([^"\']+)["\']', src)
+if not m:
+    sys.exit(f"✗ VIEW_TYPE_CHAT not found in {src_path}; refusing to seed a guessed leaf type")
+view_type = m.group(1)
 ws_path = os.path.join(studio, ".obsidian", "workspace.json")
 leaf_id = secrets.token_hex(8)
 ws = {
@@ -234,7 +247,7 @@ ws = {
             "children": [{
                 "id": leaf_id,
                 "type": "leaf",
-                "state": {"type": "agent-console", "state": {}}
+                "state": {"type": view_type, "state": {}}
             }],
             "currentTab": 0
         }],
@@ -244,7 +257,7 @@ ws = {
 }
 with open(ws_path, "w") as f:
     json.dump(ws, f, indent=2)
-print(f"  seeded workspace.json with agent-console leaf (id={leaf_id})")
+print(f"  seeded workspace.json with {view_type} leaf (id={leaf_id})")
 PY
 
 	# Register in obsidian.json (idempotent by path; atomic write). This makes
