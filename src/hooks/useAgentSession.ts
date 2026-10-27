@@ -6,7 +6,7 @@
  */
 
 import * as React from "react";
-const { useState, useCallback, useRef } = React;
+const { useState, useCallback, useRef, useEffect } = React;
 
 import type {
 	ChatSession,
@@ -34,10 +34,14 @@ import {
 	restoreConfigOptions,
 	CONFIG_PICK_SETTINGS_KEY,
 	savedConfigPicks,
+	findUnofferedModel,
+	reconcilePendingPicks,
+	type SavedConfigPicks,
 	restoreLegacyConfig,
 } from "../services/session-state";
 import { reloadSessionFlow } from "./reloadSessionFlow";
 import { t } from "../i18n";
+import { Notice } from "obsidian";
 
 // ============================================================================
 // Types
@@ -134,6 +138,17 @@ export function useAgentSession(
 
 	// Ref for accessing latest session in callbacks without deps
 	const sessionRef = useRef(session);
+	/** I217: per-session saved picks still waiting for their option to appear. */
+	const pendingPicks = useRef<Map<string, SavedConfigPicks>>(new Map());
+	/**
+	 * I217: newest full config snapshot per session. Config options arrive as
+	 * full snapshots from three places (the session/new response, each
+	 * config_option_update, each set_config_option result) and the newest
+	 * one is the truth. Kiro CLI V3 can push an update while createSession
+	 * is still awaiting, so createSession reads from here instead of trusting
+	 * its own older response.
+	 */
+	const configSnapshots = useRef<Map<string, SessionConfigOption[]>>(new Map());
 	sessionRef.current = session;
 
 	// ============================================================
@@ -162,6 +177,12 @@ export function useAgentSession(
 					});
 					break;
 				case "config_option_update":
+					if (update.sessionId) {
+						configSnapshots.current.set(
+							update.sessionId,
+							update.configOptions,
+						);
+					}
 					setSession((prev) => ({
 						...prev,
 						configOptions: update.configOptions,
@@ -269,8 +290,19 @@ export function useAgentSession(
 						? await agentClient.initialize(agentConfig)
 						: null;
 
-				const sessionResult =
-					await agentClient.newSession(effectiveCwd);
+				// Kiro CLI V3 takes the saved model / effort as session/new
+				// inputs and applies them itself, so the restore can't race a
+				// model list that arrives after the response (I217).
+				const picks = savedConfigPicks(settings, agentId);
+				const picksAsInputs =
+					typeof agentClient.acceptsInitialConfigPicks === "function" &&
+					agentClient.acceptsInitialConfigPicks();
+				const sessionResult = picksAsInputs
+					? await agentClient.newSession(effectiveCwd, {
+							modelId: picks.model,
+							effortLevel: picks.thoughtLevel,
+						})
+					: await agentClient.newSession(effectiveCwd);
 
 				// Pre-compute restored modes/models/configOptions BEFORE
 				// marking state as "ready" to avoid a UI race: without this,
@@ -282,13 +314,43 @@ export function useAgentSession(
 				let finalModels = sessionResult.models;
 				let finalConfigOptions = sessionResult.configOptions;
 
-				if (sessionResult.configOptions && sessionResult.sessionId) {
-					finalConfigOptions = await restoreConfigOptions(
+				// An update for this brand-new session id can only be newer
+				// than the response, so the response is recorded only when no
+				// update beat createSession here (I217).
+				const sid = sessionResult.sessionId;
+				if (sid && sessionResult.configOptions && !configSnapshots.current.has(sid)) {
+					configSnapshots.current.set(sid, sessionResult.configOptions);
+				}
+				const baseConfigOptions = sid
+					? configSnapshots.current.get(sid)
+					: undefined;
+
+				if (baseConfigOptions && sessionResult.sessionId) {
+					const restoredOptions = await restoreConfigOptions(
 						agentClient,
 						sessionResult.sessionId,
-						sessionResult.configOptions,
-						savedConfigPicks(settings, agentId),
+						baseConfigOptions,
+						// Also on V3: the server already applied the inputs, so
+						// these are no-ops unless it dropped one (it drops
+						// effortLevel on a cold start, I217).
+						picks,
 					);
+					// A set_config_option result is newer than anything
+					// delivered before it; a later update replaces it in turn.
+					if (restoredOptions !== baseConfigOptions) {
+						configSnapshots.current.set(sid, restoredOptions);
+					}
+					finalConfigOptions =
+						configSnapshots.current.get(sid) ?? restoredOptions;
+					if (picksAsInputs) {
+						// Picks whose option isn't in the response yet are
+						// checked when it arrives in a config_option_update.
+						pendingPicks.current.set(
+							sessionResult.sessionId,
+							reconcilePendingPicks(finalConfigOptions, picks)
+								.stillPending,
+						);
+					}
 				} else if (sessionResult.sessionId) {
 					const restored = await restoreLegacyConfig(
 						agentClient,
@@ -641,6 +703,7 @@ export function useAgentSession(
 					configId,
 					value,
 				);
+				configSnapshots.current.set(s.sessionId, updatedOptions);
 				setSession((prev) => ({
 					...prev,
 					configOptions: updatedOptions,
@@ -694,6 +757,48 @@ export function useAgentSession(
 			capabilities: init.capabilities ?? prev.capabilities,
 		}));
 	}, [agentClient]);
+
+	// I217: a model the agent reports but doesn't offer (Kiro CLI V3 takes an
+	// unknown saved model id without checking) would fail the first prompt.
+	// Checked on every config snapshot – the session/new response and each
+	// config_option_update – and reset once per session to the first offered
+	// model, which also replaces the saved pick.
+	const recoveredModelSessions = useRef<Set<string>>(new Set());
+	// I217: saved picks sent as V3 session inputs whose option arrives late.
+	// Resolved once per option, the first time it shows up (see createSession).
+	useEffect(() => {
+		const sid = session.sessionId;
+		if (!sid || session.state !== "ready") return;
+		const pending = pendingPicks.current.get(sid);
+		if (!pending || Object.keys(pending).length === 0) return;
+		const { apply, stillPending } = reconcilePendingPicks(
+			session.configOptions,
+			pending,
+		);
+		pendingPicks.current.set(sid, stillPending);
+		void (async () => {
+			for (const { configId, value } of apply) {
+				await setConfigOption(configId, value);
+			}
+		})();
+	}, [session.sessionId, session.state, session.configOptions, setConfigOption]);
+	useEffect(() => {
+		const sid = session.sessionId;
+		if (!sid || session.state !== "ready") return;
+		const unoffered = findUnofferedModel(session.configOptions);
+		if (!unoffered || recoveredModelSessions.current.has(sid)) return;
+		recoveredModelSessions.current.add(sid);
+		getLogger().log(
+			`Model "${unoffered.rejected}" is not offered; switching to "${unoffered.fallback.value}"`,
+		);
+		new Notice(
+			t("notices.savedModelUnavailable", {
+				model: unoffered.rejected,
+				fallback: unoffered.fallback.name,
+			}),
+		);
+		void setConfigOption(unoffered.configId, unoffered.fallback.value);
+	}, [session.sessionId, session.state, session.configOptions, setConfigOption]);
 
 	// ============================================================
 	// Return

@@ -277,6 +277,7 @@ export const en = {
 	"notices.chatExportFailed": "[Agent Console] Failed to export chat",
 	"notices.alreadyNewSession": "[Agent Console] Already a new session",
 	"notices.newSessionFailed": "[Agent Console] Failed to create new session",
+	"notices.savedModelUnavailable": "[Agent Console] Your saved model ({model}) isn't available anymore, so this chat uses {fallback}.",
 	"notices.noMessagesToExport": "[Agent Console] No messages to export",
 	"notices.sessionRestartedFresh": "[Agent Console] Session restarted (fresh)",
 	"notices.sessionReloading": "[Agent Console] Reloading session…",

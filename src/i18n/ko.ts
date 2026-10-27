@@ -322,6 +322,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"notices.chatExportFailed": "[Agent Console] 채팅 내보내기에 실패했습니다",
 	"notices.alreadyNewSession": "[Agent Console] 이미 새 세션입니다",
 	"notices.newSessionFailed": "[Agent Console] 새 세션을 만들지 못했습니다",
+	"notices.savedModelUnavailable": "[Agent Console] 저장한 모델({model})을 더 이상 사용할 수 없어 이 채팅은 {fallback}을(를) 사용합니다.",
 	"notices.noMessagesToExport": "[Agent Console] 내보낼 메시지가 없습니다",
 	"notices.sessionRestartedFresh": "[Agent Console] 세션을 새로 시작했습니다",
 	"notices.sessionReloading": "[Agent Console] 세션을 다시 불러오는 중…",

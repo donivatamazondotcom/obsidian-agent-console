@@ -322,6 +322,7 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"notices.chatExportFailed": "[Agent Console] 导出聊天失败",
 	"notices.alreadyNewSession": "[Agent Console] 已经是新会话",
 	"notices.newSessionFailed": "[Agent Console] 创建新会话失败",
+	"notices.savedModelUnavailable": "[Agent Console] 你保存的模型（{model}）已不可用，此对话改用 {fallback}。",
 	"notices.noMessagesToExport": "[Agent Console] 没有可导出的消息",
 	"notices.sessionRestartedFresh": "[Agent Console] 会话已重新开始（全新）",
 	"notices.sessionReloading": "[Agent Console] 正在重新加载会话…",

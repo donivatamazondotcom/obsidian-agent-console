@@ -136,6 +136,25 @@ describe("kiroV3SessionMeta", () => {
 			_meta: { kiro: { modeId: "auto-sa" } },
 		});
 	});
+	it("I217: saved picks ride along as session inputs and win over launch flags", () => {
+		expect(
+			kiroV3SessionMeta(
+				cfg(["acp", "--agent", "auto-sa", "--model", "flag-model", "--effort", "low"], "v3"),
+				{ modelId: "saved-model", effortLevel: "high" },
+			),
+		).toEqual({
+			_meta: { kiro: { modeId: "auto-sa", modelId: "saved-model", effortLevel: "high" } },
+		});
+		// Missing picks leave the launch values in place.
+		expect(
+			kiroV3SessionMeta(cfg(["acp", "--model", "flag-model"], "v3"), {}),
+		).toEqual({ _meta: { kiro: { modelId: "flag-model" } } });
+	});
+	it("I217: v2 never sends picks", () => {
+		expect(
+			kiroV3SessionMeta(cfg(["acp"]), { modelId: "saved-model" }),
+		).toEqual({});
+	});
 });
 
 describe("AcpClient.newSession on the live request path", () => {

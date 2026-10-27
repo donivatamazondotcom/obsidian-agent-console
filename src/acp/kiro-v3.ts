@@ -140,12 +140,37 @@ export function buildClientCapabilities(
 	};
 }
 
-/** Extra `session/new` params for a v3 config (empty object otherwise). */
+/** The user's saved model and effort, sent as initial session values (I217). */
+export interface InitialConfigPicks {
+	modelId?: string;
+	effortLevel?: string;
+}
+
+/**
+ * True when the server takes saved picks as `session/new` inputs, so the
+ * client doesn't have to re-apply them after the session exists. V3 applies
+ * `_meta.kiro.modelId` / `effortLevel` itself, which avoids racing the model
+ * catalog that V3 sometimes delivers after the `session/new` response (I217).
+ */
+export function acceptsInitialConfigPicks(config: AgentConfig | null): boolean {
+	return config?.kiroEngine === "v3";
+}
+
+/**
+ * Extra `session/new` params for a v3 config (empty object otherwise).
+ * Saved picks win over values carried from launch flags, matching the
+ * precedence the client-side restore has.
+ */
 export function kiroV3SessionMeta(
 	config: AgentConfig | null,
+	picks: InitialConfigPicks = {},
 ): { _meta?: { kiro: KiroV3SessionMeta } } {
 	if (config?.kiroEngine !== "v3") return {};
-	const sessionMeta = prepareKiroV3Launch(config.args).sessionMeta;
+	const sessionMeta: KiroV3SessionMeta = {
+		...prepareKiroV3Launch(config.args).sessionMeta,
+	};
+	if (picks.modelId) sessionMeta.modelId = picks.modelId;
+	if (picks.effortLevel) sessionMeta.effortLevel = picks.effortLevel;
 	return Object.keys(sessionMeta).length > 0
 		? { _meta: { kiro: sessionMeta } }
 		: {};
