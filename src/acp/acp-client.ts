@@ -11,6 +11,7 @@ import {
 	resolveLaunchArgs,
 } from "./kiro-v3";
 import {
+	adaptPromptForEngine,
 	allowsLegacySetModel,
 	acceptsInitialConfigPicks,
 	storesSessionConfig,
@@ -737,7 +738,8 @@ export class AcpClient {
 
 		try {
 			// Convert domain PromptContent to ACP ContentBlock
-			const acpContent = content.map((c) =>
+			// I220: V3 drops resource_link blocks; adapt before converting.
+			const acpContent = adaptPromptForEngine(this.currentConfig, content).map((c) =>
 				AcpTypeConverter.toAcpContentBlock(c),
 			);
 
