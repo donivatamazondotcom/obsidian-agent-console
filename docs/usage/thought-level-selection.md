@@ -25,4 +25,6 @@ Available effort levels depend on the active agent and model. Not all agents exp
 
 ## Persistence
 
-The selected effort level persists for the current session.
+The selected effort level stays for the current session. Agent Console also remembers your pick for each agent and applies it to new chats, right after your saved model.
+
+Some agents only offer effort levels for certain models. Kiro CLI on the V3 engine is one: pick a model like Claude Opus and the effort dropdown appears; switch back to Auto and it goes away.

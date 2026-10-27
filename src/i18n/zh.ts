@@ -482,6 +482,7 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"commands.broadcastCancel": "广播取消",
 	// ---- Phase 3: chat header ----
 	"chat.header.connecting": "连接中…",
+	"chat.header.runtimeKiroV3": "Kiro CLI（V3 引擎）",
 	"chat.header.notConnected": "未连接",
 	"chat.header.updatePill": "插件有可用更新！",
 	"chat.header.updateTooltip": "打开社区插件以更新 Agent Console",

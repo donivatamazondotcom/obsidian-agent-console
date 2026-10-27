@@ -31,7 +31,9 @@ import {
 } from "../services/session-helpers";
 import {
 	applyLegacyValue,
-	tryRestoreConfigOption,
+	restoreConfigOptions,
+	CONFIG_PICK_SETTINGS_KEY,
+	savedConfigPicks,
 	restoreLegacyConfig,
 } from "../services/session-state";
 import { reloadSessionFlow } from "./reloadSessionFlow";
@@ -281,22 +283,12 @@ export function useAgentSession(
 				let finalConfigOptions = sessionResult.configOptions;
 
 				if (sessionResult.configOptions && sessionResult.sessionId) {
-					let configOptions = sessionResult.configOptions;
-					configOptions = await tryRestoreConfigOption(
+					finalConfigOptions = await restoreConfigOptions(
 						agentClient,
 						sessionResult.sessionId,
-						configOptions,
-						"model",
-						settings.lastUsedModels[agentId],
+						sessionResult.configOptions,
+						savedConfigPicks(settings, agentId),
 					);
-					configOptions = await tryRestoreConfigOption(
-						agentClient,
-						sessionResult.sessionId,
-						configOptions,
-						"mode",
-						settings.lastUsedModes[agentId],
-					);
-					finalConfigOptions = configOptions;
 				} else if (sessionResult.sessionId) {
 					const restored = await restoreLegacyConfig(
 						agentClient,
@@ -459,22 +451,12 @@ export function useAgentSession(
 			let finalConfigOptions = configOptions;
 
 			if (configOptions && sessionId) {
-				let restored = configOptions;
-				restored = await tryRestoreConfigOption(
+				finalConfigOptions = await restoreConfigOptions(
 					agentClient,
 					sessionId,
-					restored,
-					"model",
-					settings.lastUsedModels[agentId],
+					configOptions,
+					savedConfigPicks(settings, agentId),
 				);
-				restored = await tryRestoreConfigOption(
-					agentClient,
-					sessionId,
-					restored,
-					"mode",
-					settings.lastUsedModes[agentId],
-				);
-				finalConfigOptions = restored;
 			} else if (sessionId && modes) {
 				const restored = await restoreLegacyConfig(
 					agentClient,
@@ -667,20 +649,18 @@ export function useAgentSession(
 				const changedOption = updatedOptions.find(
 					(o) => o.id === configId,
 				);
-				if (changedOption?.category === "model" && s.agentId) {
+				const category = changedOption?.category;
+				const persistKey =
+					category && category in CONFIG_PICK_SETTINGS_KEY
+						? CONFIG_PICK_SETTINGS_KEY[
+								category as keyof typeof CONFIG_PICK_SETTINGS_KEY
+							]
+						: undefined;
+				if (persistKey && s.agentId) {
 					const currentSettings = settingsAccess.getSnapshot();
 					void settingsAccess.updateSettings({
-						lastUsedModels: {
-							...currentSettings.lastUsedModels,
-							[s.agentId]: value,
-						},
-					});
-				}
-				if (changedOption?.category === "mode" && s.agentId) {
-					const currentSettings = settingsAccess.getSnapshot();
-					void settingsAccess.updateSettings({
-						lastUsedModes: {
-							...currentSettings.lastUsedModes,
+						[persistKey]: {
+							...currentSettings[persistKey],
 							[s.agentId]: value,
 						},
 					});

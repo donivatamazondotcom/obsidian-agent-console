@@ -13,6 +13,7 @@ import type {
 } from "../types/session";
 import { flattenConfigSelectOptions } from "../types/session";
 import type { AcpClient } from "../acp/acp-client";
+import type { AgentClientPluginSettings } from "../plugin";
 
 // ============================================================================
 // Legacy Config Helpers
@@ -72,6 +73,55 @@ export async function tryRestoreConfigOption(
 		return configOptions;
 	}
 }
+
+/** Saved per-agent picks to re-apply on a new or loaded session. */
+export interface SavedConfigPicks {
+	model?: string;
+	thoughtLevel?: string;
+	mode?: string;
+}
+
+/**
+ * Re-apply saved config-option picks in dependency order: model, then
+ * thought level, then mode. The thought-level option can depend on the model
+ * (Kiro CLI V3 offers `effortLevel` only for models that support effort), so
+ * it is looked up in the options the model change returned. Each step is
+ * skipped when its option is absent or the value isn't offered.
+ */
+export async function restoreConfigOptions(
+	agentClient: AcpClient,
+	sessionId: string,
+	configOptions: SessionConfigOption[],
+	saved: SavedConfigPicks,
+): Promise<SessionConfigOption[]> {
+	let restored = configOptions;
+	restored = await tryRestoreConfigOption(agentClient, sessionId, restored, "model", saved.model);
+	restored = await tryRestoreConfigOption(agentClient, sessionId, restored, "thought_level", saved.thoughtLevel);
+	restored = await tryRestoreConfigOption(agentClient, sessionId, restored, "mode", saved.mode);
+	return restored;
+}
+
+/** The saved picks for one agent, read from the settings snapshot. */
+export function savedConfigPicks(
+	settings: Pick<
+		AgentClientPluginSettings,
+		"lastUsedModels" | "lastUsedThoughtLevels" | "lastUsedModes"
+	>,
+	agentId: string,
+): SavedConfigPicks {
+	return {
+		model: settings.lastUsedModels?.[agentId],
+		thoughtLevel: settings.lastUsedThoughtLevels?.[agentId],
+		mode: settings.lastUsedModes?.[agentId],
+	};
+}
+
+/** Settings key that remembers each config-option category per agent. */
+export const CONFIG_PICK_SETTINGS_KEY = {
+	model: "lastUsedModels",
+	thought_level: "lastUsedThoughtLevels",
+	mode: "lastUsedModes",
+} as const;
 
 /**
  * Restore last used mode/model via legacy APIs.

@@ -530,6 +530,7 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"commands.broadcastCancel": "全タブでキャンセル",
 	// ---- Phase 3: chat header ----
 	"chat.header.connecting": "接続中…",
+	"chat.header.runtimeKiroV3": "Kiro CLI（V3 エンジン）",
 	"chat.header.notConnected": "未接続",
 	"chat.header.updatePill": "プラグインの更新があります！",
 	"chat.header.updateTooltip":

@@ -1,5 +1,9 @@
 import * as React from "react";
-import { deriveHeaderAgent, deriveHeaderModelName } from "../resolvers/header-agent";
+import {
+	deriveHeaderAgent,
+	deriveHeaderModelName,
+	deriveHeaderRuntime,
+} from "../resolvers/header-agent";
 import { isKiroCliCommand, requestedKiroAgent } from "../acp/kiro-v3";
 const { useState, useRef, useEffect, useMemo, useCallback } = React;
 import {
@@ -35,6 +39,7 @@ import {
 	resolveCwdForAgent,
 	resolveSessionIdForSave,
 	findAgentSettings,
+	resolveAgentKiroEngine,
 } from "../services/session-helpers";
 import { deriveNewLeaf, shouldOpenFromActivation } from "../utils/link-leaf";
 import {
@@ -673,10 +678,18 @@ export function ChatPanel({
 		const pluginName = plugin.manifest.name;
 		const profile = activeAgentLabel;
 
-		const info = session.agentInfo;
-		const runtime = info
-			? `${info.title || info.name}${info.version ? ` ${info.version}` : ""}`
-			: null;
+		// Kiro CLI V3 sends no agentInfo; name the engine instead (S2).
+		const runtimeSegment = deriveHeaderRuntime({
+			agentInfo: session.agentInfo,
+			isKiroV3:
+				resolveAgentKiroEngine(plugin.settings, session.agentId) === "v3",
+		});
+		const runtime =
+			runtimeSegment.kind === "reported"
+				? runtimeSegment.label
+				: runtimeSegment.kind === "kiroV3"
+					? t("chat.header.runtimeKiroV3")
+					: null;
 
 		// Confirmed model (SDK 0.24+), then legacy models, then the `model`
 		// config option (Kiro CLI V3 sends only that).

@@ -431,6 +431,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	agentSessionMetaCache: {},
 	lastUsedModels: {},
 	lastUsedModes: {},
+	lastUsedThoughtLevels: {},
 	restoreTabsOnStartup: true,
 	confirmCloseWithMultipleTabs: true,
 	quickPromptsFolder: "Quick Prompts",
@@ -695,6 +696,7 @@ export function normalizeRawSettings(
 				: D.agentSessionMetaCache,
 		lastUsedModels: strRecord(raw.lastUsedModels),
 		lastUsedModes: strRecord(raw.lastUsedModes),
+		lastUsedThoughtLevels: strRecord(raw.lastUsedThoughtLevels),
 		restoreTabsOnStartup:
 			typeof raw.restoreTabsOnStartup === "boolean"
 				? raw.restoreTabsOnStartup

@@ -10,6 +10,7 @@ import {
 	prepareKiroV3Launch,
 	resolveLaunchArgs,
 } from "./kiro-v3";
+import { allowsLegacySetModel } from "./kiro-v3";
 import { Platform } from "obsidian";
 
 import type {
@@ -968,6 +969,12 @@ export class AcpClient {
 	 * support it will reject with "Method not found", surfaced as an error.
 	 */
 	async setSessionModel(sessionId: string, modelId: string): Promise<void> {
+		// Kiro CLI V3 rejects session/set_model; never put it on the wire.
+		if (!allowsLegacySetModel(this.currentConfig)) {
+			throw new Error(
+				"session/set_model is not supported on Kiro CLI V3; use the model config option",
+			);
+		}
 		const connection = this.requireConnection();
 
 		this.logger.log(
