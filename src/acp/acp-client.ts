@@ -10,7 +10,11 @@ import {
 	prepareKiroV3Launch,
 	resolveLaunchArgs,
 } from "./kiro-v3";
-import { allowsLegacySetModel } from "./kiro-v3";
+import {
+	allowsLegacySetModel,
+	acceptsInitialConfigPicks,
+	type InitialConfigPicks,
+} from "./kiro-v3";
 import { Platform } from "obsidian";
 
 import type {
@@ -578,9 +582,21 @@ export class AcpClient {
 	}
 
 	/**
+	 * Whether `newSession` can carry the saved model / effort as session
+	 * inputs (Kiro CLI V3). When true, callers skip the post-create restore
+	 * for those options. See kiro-v3.ts `acceptsInitialConfigPicks`.
+	 */
+	acceptsInitialConfigPicks(): boolean {
+		return acceptsInitialConfigPicks(this.currentConfig);
+	}
+
+	/**
 	 * Create a new chat session with the agent.
 	 */
-	async newSession(workingDirectory: string): Promise<SessionResult> {
+	async newSession(
+		workingDirectory: string,
+		initialPicks?: InitialConfigPicks,
+	): Promise<SessionResult> {
 		const connection = this.requireConnection();
 
 		try {
@@ -590,7 +606,7 @@ export class AcpClient {
 				cwd: this.toSessionCwd(workingDirectory),
 				mcpServers: [],
 				// Kiro V3 selects the agent (and model/effort) per session.
-				...kiroV3SessionMeta(this.currentConfig),
+				...kiroV3SessionMeta(this.currentConfig, initialPicks),
 			});
 
 			this.logger.log(

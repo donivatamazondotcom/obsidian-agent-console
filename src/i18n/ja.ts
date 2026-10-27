@@ -351,6 +351,7 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"notices.alreadyNewSession": "[Agent Console] 既に新しいセッションです",
 	"notices.newSessionFailed":
 		"[Agent Console] 新しいセッションを作成できませんでした",
+	"notices.savedModelUnavailable": "[Agent Console] 保存したモデル（{model}）は利用できなくなったため、このチャットでは {fallback} を使います。",
 	"notices.noMessagesToExport": "[Agent Console] 書き出すメッセージがありません",
 	"notices.sessionRestartedFresh":
 		"[Agent Console] セッションを最初からやり直しました",

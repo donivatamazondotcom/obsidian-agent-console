@@ -187,3 +187,76 @@ export async function restoreLegacyConfig(
 
 	return { modes, models };
 }
+
+/** A model the agent reports as current but doesn't offer (I217). */
+export interface UnofferedModel {
+	configId: string;
+	rejected: string;
+	fallback: { value: string; name: string };
+}
+
+/**
+ * The model option's current value when it isn't among the offered values,
+ * with the first offered value as the fallback (the agent's preferred order).
+ * Kiro CLI V3 accepts any `_meta.kiro.modelId` without checking it, so a
+ * retired saved model shows up here instead of failing at create time.
+ * Null when there is no model option, no offered values, or nothing wrong.
+ */
+export function findUnofferedModel(
+	configOptions: SessionConfigOption[] | undefined,
+): UnofferedModel | null {
+	const option = configOptions?.find(
+		(o) => o.id === "model" || o.category === "model",
+	);
+	if (!option) return null;
+	const offered = flattenConfigSelectOptions(option.options);
+	if (offered.length === 0) return null;
+	if (offered.some((o) => o.value === option.currentValue)) return null;
+	return {
+		configId: option.id,
+		rejected: option.currentValue,
+		fallback: { value: offered[0].value, name: offered[0].name || offered[0].value },
+	};
+}
+
+/** Config-option category for each saved pick. */
+const PICK_CATEGORY: Record<keyof SavedConfigPicks, string> = {
+	model: "model",
+	thoughtLevel: "thought_level",
+	mode: "mode",
+};
+
+/**
+ * Saved picks sent as session inputs whose option hadn't appeared yet, checked
+ * against a new config snapshot. Each pick whose option is now present is
+ * resolved – re-applied if the server reports a different, offered value –
+ * and the rest stay pending. Model first, so a dependent option (Kiro V3
+ * effort) is corrected after it. Kiro CLI V3 drops `_meta.kiro.effortLevel`
+ * when its model list is still loading (I217), which is what this catches.
+ */
+export function reconcilePendingPicks(
+	configOptions: SessionConfigOption[] | undefined,
+	pending: SavedConfigPicks,
+): {
+	apply: Array<{ configId: string; value: string }>;
+	stillPending: SavedConfigPicks;
+} {
+	const apply: Array<{ configId: string; value: string }> = [];
+	const stillPending: SavedConfigPicks = {};
+	for (const key of ["model", "thoughtLevel", "mode"] as const) {
+		const value = pending[key];
+		if (!value) continue;
+		const option = configOptions?.find((o) => o.category === PICK_CATEGORY[key]);
+		if (!option) {
+			stillPending[key] = value;
+			continue;
+		}
+		if (
+			option.currentValue !== value &&
+			flattenConfigSelectOptions(option.options).some((o) => o.value === value)
+		) {
+			apply.push({ configId: option.id, value });
+		}
+	}
+	return { apply, stillPending };
+}
