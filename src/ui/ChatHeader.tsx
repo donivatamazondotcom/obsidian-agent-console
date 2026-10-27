@@ -1,4 +1,5 @@
 import * as React from "react";
+import type { HeaderAgent } from "../resolvers/header-agent";
 const { useRef, useEffect, useState } = React;
 import { setIcon, setTooltip } from "obsidian";
 import { SharedLinksButton } from "./SharedLinksButton";
@@ -40,6 +41,11 @@ export interface HeaderSegments {
 	 * forever. See I80.
 	 */
 	isConnecting?: boolean;
+	/**
+	 * Which agent is actually running vs the configured one (I207, Kiro V3).
+	 * Absent or `configured` renders the profile as before.
+	 */
+	agent?: HeaderAgent;
 }
 
 // ============================================================================
@@ -275,9 +281,31 @@ function BrandedTitle({
 					[{segments.plugin}]
 				</span>
 			)}
-			<span className="acp-header-branded-profile">
-				{segments.profile}
-			</span>
+			{segments.agent?.kind === "notLoaded" ? (
+				// The requested agent could never be chosen: struck through,
+				// then the agent actually running. The tooltip spells it out,
+				// so the strikethrough is never the only signal.
+				<del className="acp-header-branded-profile">
+					{segments.profile}
+				</del>
+			) : (
+				<span className="acp-header-branded-profile">
+					{segments.profile}
+				</span>
+			)}
+			{segments.agent && segments.agent.kind !== "configured" && (
+				<>
+					<span
+						className="acp-header-branded-sep"
+						aria-hidden="true"
+					>
+						{segments.agent.kind === "switched" ? " › " : " "}
+					</span>
+					<span className="acp-header-branded-running">
+						{segments.agent.running}
+					</span>
+				</>
+			)}
 			{slot.kind === "model" && (
 				<>
 					<span
@@ -333,6 +361,20 @@ function buildHeaderTooltip(segments: HeaderSegments): string {
 	const lines = [
 		t("chat.header.tooltipPlugin", { value: segments.plugin }),
 		t("chat.header.tooltipProfile", { value: segments.profile }),
+		...(segments.agent?.kind === "notLoaded"
+			? [
+					t("chat.header.tooltipAgentNotLoaded", {
+						requested: segments.agent.label,
+						running: segments.agent.running,
+					}),
+				]
+			: segments.agent?.kind === "switched"
+				? [
+						t("chat.header.tooltipAgentSwitched", {
+							running: segments.agent.running,
+						}),
+					]
+				: []),
 		t("chat.header.tooltipRuntime", {
 			value: segments.runtime ?? t("chat.header.connecting"),
 		}),

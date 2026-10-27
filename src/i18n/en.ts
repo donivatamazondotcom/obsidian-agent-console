@@ -484,6 +484,8 @@ export const en = {
 	"chat.header.exportTooltip": "Export chat to Markdown",
 	"chat.header.more": "More",
 	"chat.header.tooltipPlugin": "Plugin:  {value}",
+	"chat.header.tooltipAgentNotLoaded": "{requested} couldn't load, so {running} is running instead",
+	"chat.header.tooltipAgentSwitched": "Running: {running} (switched in the composer)",
 	"chat.header.tooltipProfile": "Profile: {value}",
 	"chat.header.tooltipRuntime": "Runtime: {value}",
 	"chat.header.tooltipModel": "Model:   {value}",

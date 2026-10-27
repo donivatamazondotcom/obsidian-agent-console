@@ -540,6 +540,8 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.header.exportTooltip": "チャットを Markdown にエクスポート",
 	"chat.header.more": "その他",
 	"chat.header.tooltipPlugin": "プラグイン: {value}",
+	"chat.header.tooltipAgentNotLoaded": "{requested} を読み込めなかったため、代わりに {running} が動作しています",
+	"chat.header.tooltipAgentSwitched": "実行中: {running}（入力欄で切り替え）",
 	"chat.header.tooltipProfile": "プロファイル: {value}",
 	"chat.header.tooltipRuntime": "ランタイム: {value}",
 	"chat.header.tooltipModel": "モデル: {value}",

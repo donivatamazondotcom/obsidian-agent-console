@@ -50,6 +50,11 @@ To switch agents for the current view:
 1. Click the **⋮** (ellipsis) menu in the chat header
 2. Under **"Switch agent"**, select the agent you want to use
 
+The header names the agent you chose. If the session ends up running a different one, the header shows both:
+
+- **~~Auto SA~~ kiro_default** – the agent you chose couldn't load, so the agent's default is running instead. Hover the header for details.
+- **Auto SA › trd-pro** – you switched to another agent (mode) from the composer.
+
 This is a one-time change for that view only.
 
 <p align="center">

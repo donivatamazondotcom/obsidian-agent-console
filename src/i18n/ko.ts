@@ -504,6 +504,8 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.header.exportTooltip": "채팅을 마크다운으로 내보내기",
 	"chat.header.more": "더 보기",
 	"chat.header.tooltipPlugin": "플러그인: {value}",
+	"chat.header.tooltipAgentNotLoaded": "{requested}을(를) 불러올 수 없어 대신 {running}이(가) 실행 중입니다",
+	"chat.header.tooltipAgentSwitched": "실행 중: {running}(입력창에서 전환함)",
 	"chat.header.tooltipProfile": "프로필: {value}",
 	"chat.header.tooltipRuntime": "런타임: {value}",
 	"chat.header.tooltipModel": "모델: {value}",

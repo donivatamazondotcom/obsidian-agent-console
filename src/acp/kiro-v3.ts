@@ -102,6 +102,15 @@ export function prepareKiroV3Launch(userArgs: readonly string[]): KiroV3Launch {
 	return { args: out, sessionMeta, stripped };
 }
 
+/**
+ * The agent a kiro-cli configuration asks for (the `--agent` value), on
+ * either engine. Used by the header to tell "running the configured agent"
+ * from "fell back" (I207). Undefined when no agent is named.
+ */
+export function requestedKiroAgent(args: readonly string[]): string | undefined {
+	return prepareKiroV3Launch(args).sessionMeta.modeId;
+}
+
 /** Spawn args for a config: v3 configs are rewritten, everything else untouched. */
 export function resolveLaunchArgs(config: AgentConfig): string[] {
 	return config.kiroEngine === "v3"

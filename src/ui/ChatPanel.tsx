@@ -1,4 +1,6 @@
 import * as React from "react";
+import { deriveHeaderAgent, deriveHeaderModelName } from "../resolvers/header-agent";
+import { isKiroCliCommand, requestedKiroAgent } from "../acp/kiro-v3";
 const { useState, useRef, useEffect, useMemo, useCallback } = React;
 import {
 	Notice,
@@ -32,6 +34,7 @@ import {
 	indexOfCurrentAgent,
 	resolveCwdForAgent,
 	resolveSessionIdForSave,
+	findAgentSettings,
 } from "../services/session-helpers";
 import { deriveNewLeaf, shouldOpenFromActivation } from "../utils/link-leaf";
 import {
@@ -675,20 +678,37 @@ export function ChatPanel({
 			? `${info.title || info.name}${info.version ? ` ${info.version}` : ""}`
 			: null;
 
-		// Prefer confirmedModelId (from response metadata, SDK 0.24+),
-		// fall back to legacy models state for older agents.
-		const models = session.models;
-		const legacyModel = models?.availableModels.find(
-			(m) => m.modelId === models.currentModelId,
-		)?.name;
-		const model = session.confirmedModelId ?? legacyModel ?? null;
+		// Confirmed model (SDK 0.24+), then legacy models, then the `model`
+		// config option (Kiro CLI V3 sends only that).
+		const model = deriveHeaderModelName({
+			confirmedModelId: session.confirmedModelId,
+			models: session.models,
+			configOptions: session.configOptions,
+		});
 
-		return { plugin: pluginName, profile, runtime, model };
+		// I207 / Kiro V3: name the running agent when it isn't the configured one.
+		const agentSettings = findAgentSettings(plugin.settings, session.agentId);
+		const isKiro =
+			!!agentSettings &&
+			(session.agentId === plugin.settings.kiro.id ||
+				isKiroCliCommand(agentSettings.command));
+		const agent = deriveHeaderAgent({
+			label: profile,
+			requestedModeId: isKiro ? requestedKiroAgent(agentSettings.args) : undefined,
+			modes: session.modes,
+			configOptions: session.configOptions,
+		});
+
+		return { plugin: pluginName, profile, runtime, model, agent };
 	}, [
 		plugin.manifest.name,
+		plugin.settings,
 		activeAgentLabel,
+		session.agentId,
 		session.agentInfo,
 		session.models,
+		session.modes,
+		session.configOptions,
 		session.confirmedModelId,
 	]);
 
