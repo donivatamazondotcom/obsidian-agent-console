@@ -13,6 +13,7 @@ import {
 import {
 	allowsLegacySetModel,
 	acceptsInitialConfigPicks,
+	storesSessionConfig,
 	type InitialConfigPicks,
 } from "./kiro-v3";
 import { Platform } from "obsidian";
@@ -588,6 +589,15 @@ export class AcpClient {
 	 */
 	acceptsInitialConfigPicks(): boolean {
 		return acceptsInitialConfigPicks(this.currentConfig);
+	}
+
+	/**
+	 * Whether loaded and forked sessions keep their own model, effort and
+	 * mode on the server (Kiro CLI V3). When true, callers don't re-apply the
+	 * user's last-used picks on load. See kiro-v3.ts `storesSessionConfig`.
+	 */
+	storesSessionConfig(): boolean {
+		return storesSessionConfig(this.currentConfig);
 	}
 
 	/**

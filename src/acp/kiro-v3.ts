@@ -184,3 +184,14 @@ export function kiroV3SessionMeta(
 export function allowsLegacySetModel(config: AgentConfig | null): boolean {
 	return config?.kiroEngine !== "v3";
 }
+
+/**
+ * True when the server stores model, effort and mode per session, so a
+ * loaded or forked session already carries its own picks. V3 does: a session
+ * saved on one model reloads on that model in a fresh process (verified on
+ * 2.34.2-nightly.1). Re-applying the user's last-used picks on load would
+ * silently change a past conversation (S3 decision a1).
+ */
+export function storesSessionConfig(config: AgentConfig | null): boolean {
+	return config?.kiroEngine === "v3";
+}
