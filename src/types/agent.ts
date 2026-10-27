@@ -102,7 +102,13 @@ export interface CodexAgentSettings extends BaseAgentSettings {
  * Uses only the base settings, allowing users to configure
  * any agent that implements the Agent Client Protocol.
  */
-export type CustomAgentSettings = BaseAgentSettings;
+export interface CustomAgentSettings extends BaseAgentSettings {
+	/**
+	 * Kiro CLI engine for a custom agent whose command is kiro-cli. Present
+	 * only when "v3" is chosen; absent means the v2 server (today's behavior).
+	 */
+	engine?: "v3";
+}
 
 /**
  * Configuration for the Kiro CLI agent.

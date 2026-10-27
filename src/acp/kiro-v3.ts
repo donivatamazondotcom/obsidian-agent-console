@@ -47,6 +47,17 @@ const V2_ONLY_FLAGS: Record<string, { value: boolean; meta?: keyof KiroV3Session
 };
 const ENGINE_FLAG = "--agent-engine";
 
+/**
+ * True when an agent command is a kiro-cli binary (any path, `.exe` allowed).
+ * Used only to decide whether to SHOW the engine setting on a custom agent;
+ * the launch behavior follows the saved setting, never the command.
+ */
+export function isKiroCliCommand(command: string): boolean {
+	const base = command.trim().split(/[\\/]/).pop() ?? "";
+	const name = base.toLowerCase().replace(/\.exe$/, "");
+	return name === "kiro-cli" || name === "kiro-cli-chat";
+}
+
 /** Total reader for the Kiro engine setting. Unknown values mean v2. */
 export function resolveKiroEngine(settings: { engine?: unknown }): KiroEngine {
 	return settings.engine === "v3" ? "v3" : "v2";

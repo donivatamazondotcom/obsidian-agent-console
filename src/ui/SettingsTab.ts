@@ -15,7 +15,7 @@ import {
 	type TextComponent,
 } from "obsidian";
 import type AgentClientPlugin from "../plugin";
-import { resolveKiroEngine } from "../acp/kiro-v3";
+import { isKiroCliCommand, resolveKiroEngine } from "../acp/kiro-v3";
 import {
 	t,
 	SUPPORTED_LOCALES,
@@ -2592,6 +2592,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					});
 			});
 
+		// Kiro CLI engine row — visible only while the command is kiro-cli.
+		let kiroEngineRow: Setting | null = null;
 		new Setting(blockEl)
 			.setName(t("settings.path.name6"))
 			.setDesc(t("settings.displayName.desc2"))
@@ -2601,9 +2603,33 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.customAgents[index].command =
 							value.trim();
+						kiroEngineRow?.settingEl.classList.toggle(
+							"agent-client-setting-hidden",
+							!isKiroCliCommand(value),
+						);
 						await this.flushSettings();
 					});
 			});
+
+		kiroEngineRow = new Setting(blockEl)
+			.setName(t("settings.kiroEngine.name"))
+			.setDesc(t("settings.kiroEngine.desc"))
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption("v2", t("settings.kiroEngine.v2"))
+					.addOption("v3", t("settings.kiroEngine.v3"))
+					.setValue(resolveKiroEngine(agent))
+					.onChange(async (value) => {
+						const entry = this.plugin.settings.customAgents[index];
+						if (value === "v3") entry.engine = "v3";
+						else delete entry.engine;
+						await this.flushSettings();
+					}),
+			);
+		kiroEngineRow.settingEl.classList.toggle(
+			"agent-client-setting-hidden",
+			!isKiroCliCommand(agent.command),
+		);
 
 		new Setting(blockEl)
 			.setName(t("settings.arguments.name6"))
