@@ -1572,6 +1572,19 @@
 			"captureNote": "forceTabStates seeds three tabs (native menus off), then contextMenuSelector right-clicks the active tab to open its DOM .menu. Group crop over the tab bar + menu. Window-mode.",
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 680
+		},
+		{
+			"name": "kiro-v3-header-fallback",
+			"width": 680,
+			"height": 48,
+			"cropSelector": ".agent-client-chat-view-header",
+			"pending": true,
+			"placement": "feature",
+			"purpose": "Shows the header naming the agent that is actually running when the chosen Kiro agent couldn't load.",
+			"differentiator": "Honest agent header (struck-through agent that couldn't load)",
+			"mustShow": "del.acp-header-branded-profile",
+			"caption": "See when your chosen agent couldn't load",
+			"altText": "Chat header with the chosen agent name struck through, followed by the agent that is running instead"
 		}
 	]
 }
