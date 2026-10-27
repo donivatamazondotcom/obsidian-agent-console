@@ -9,7 +9,11 @@
  *  - Conditional: shown only when the library spans >1 distinct working folder
  *    (mirrors the agent-badge ">1 agent" rule), so a single-folder library
  *    never sees an inert control. Stays visible while active.
- *  - Default OFF: history opens unfiltered ("whole history"); the user opts in.
+ *  - Per-source default (I219): the Local view opens unfiltered ("whole
+ *    history", Local-first tenet); the Agent view opens narrowed to this
+ *    folder, because an agent's `session/list` with no folder can return every
+ *    workspace the user has (183 rows on Kiro CLI V3). Not remembered across
+ *    opens; within one open each source keeps its own choice.
  *  - Transparency: the real working-folder path is rendered as visible text
  *    (reachable by screen readers, not tooltip-only).
  *  - Narrowing: the live Agent view narrows server-side (refetch with the cwd);
@@ -73,10 +77,20 @@ function makeProps(
 describe('"Only this folder" filter — visibility (conditional on >1 folder)', () => {
 	afterEach(cleanup);
 
-	it("is hidden when the library spans a single folder (even on the Agent view)", () => {
-		render(<SessionHistoryContent {...makeProps({ sessions: ONE_FOLDER })} />);
+	it("is hidden on the Local view when the library spans a single folder", () => {
+		render(
+			<SessionHistoryContent
+				{...makeProps({ sessions: ONE_FOLDER, initialSource: "local" })}
+			/>,
+		);
 		expect(screen.queryByRole("checkbox")).toBeNull();
 		expect(screen.queryByText("Only this folder")).toBeNull();
+	});
+
+	it("stays shown on the Agent view even when the (narrowed) list is one folder, so it can be turned off", () => {
+		render(<SessionHistoryContent {...makeProps({ sessions: ONE_FOLDER })} />);
+		const checkbox = screen.getByRole("checkbox") as HTMLInputElement;
+		expect(checkbox.checked).toBe(true);
 	});
 
 	it("is shown on the Agent view when the library spans >1 folder", () => {
@@ -93,9 +107,22 @@ describe('"Only this folder" filter — visibility (conditional on >1 folder)', 
 describe('"Only this folder" filter — default + transparency', () => {
 	afterEach(cleanup);
 
-	it("defaults to unchecked (history opens unfiltered)", () => {
+	it("defaults to checked on the Agent view (this folder only)", () => {
 		render(<SessionHistoryContent {...makeProps()} />);
+		expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(true);
+	});
+
+	it("defaults to unchecked on the Local view (whole local history)", () => {
+		render(<SessionHistoryContent {...makeProps({ initialSource: "local" })} />);
 		expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
+	});
+
+	it("is not remembered: a fresh open starts from the defaults again", () => {
+		const first = render(<SessionHistoryContent {...makeProps()} />);
+		fireEvent.click(screen.getByRole("checkbox")); // uncheck on Agent
+		first.unmount();
+		render(<SessionHistoryContent {...makeProps()} />);
+		expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(true);
 	});
 
 	it("renders the real working-folder path as visible text (transparency, not tooltip-only)", () => {
@@ -140,14 +167,37 @@ describe('"Only this folder" filter — tooltip placement (I199)', () => {
 describe('"Only this folder" filter — live Agent view narrows server-side', () => {
 	afterEach(cleanup);
 
-	it("checking narrows the fetch to the current folder; unchecking broadens to every folder", () => {
+	it("unchecking broadens the fetch to every folder; re-checking narrows it back", () => {
 		const onFetchSessions = vi.fn();
 		render(<SessionHistoryContent {...makeProps({ onFetchSessions })} />);
 		const checkbox = screen.getByRole("checkbox");
+		fireEvent.click(checkbox); // checked (default) → unchecked (broaden)
+		expect(onFetchSessions).toHaveBeenLastCalledWith("agent", undefined);
 		fireEvent.click(checkbox); // unchecked → checked (narrow)
 		expect(onFetchSessions).toHaveBeenLastCalledWith("agent", VAULT_A);
-		fireEvent.click(checkbox); // checked → unchecked (broaden)
+	});
+
+	it("switching Local → Agent fetches this folder by default", () => {
+		const onFetchSessions = vi.fn();
+		render(
+			<SessionHistoryContent
+				{...makeProps({ initialSource: "local", onFetchSessions })}
+			/>,
+		);
+		fireEvent.click(screen.getByRole("tab", { name: /Claude Code/ }));
+		expect(onFetchSessions).toHaveBeenLastCalledWith("agent", VAULT_A);
+	});
+
+	it("within one open, each source keeps its own choice (Agent uncheck survives a Local round trip)", () => {
+		const onFetchSessions = vi.fn();
+		render(<SessionHistoryContent {...makeProps({ onFetchSessions })} />);
+		fireEvent.click(screen.getByRole("checkbox")); // Agent: off
+		fireEvent.click(screen.getByRole("tab", { name: /^Local$/ }));
+		expect(onFetchSessions).toHaveBeenLastCalledWith("local", undefined);
+		expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
+		fireEvent.click(screen.getByRole("tab", { name: /Claude Code/ }));
 		expect(onFetchSessions).toHaveBeenLastCalledWith("agent", undefined);
+		expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
 	});
 });
 

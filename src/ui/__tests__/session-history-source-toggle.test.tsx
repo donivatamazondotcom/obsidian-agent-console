@@ -111,7 +111,7 @@ describe("SessionHistoryContent — Local/Agent toggle", () => {
 		).toBe("true");
 	});
 
-	it("clicking the Agent pill persists the choice and refetches unfiltered (filter defaults off — I147)", () => {
+	it("clicking the Agent pill persists the choice and refetches this folder (Agent defaults to this folder — I219)", () => {
 		const onSourceChange = vi.fn();
 		const onFetchSessions = vi.fn();
 		render(
@@ -121,8 +121,9 @@ describe("SessionHistoryContent — Local/Agent toggle", () => {
 		);
 		fireEvent.click(screen.getByRole("tab", { name: /Claude Code/ }));
 		expect(onSourceChange).toHaveBeenCalledWith("agent");
-		// Default-off filter → the Agent view opens unfiltered (every folder).
-		expect(onFetchSessions).toHaveBeenCalledWith("agent", undefined);
+		// I219: the Agent view starts on this folder — an unscoped session/list
+		// can return every workspace the user has.
+		expect(onFetchSessions).toHaveBeenCalledWith("agent", "/vault");
 	});
 
 	it("defaults the Local pill active", () => {
@@ -132,13 +133,22 @@ describe("SessionHistoryContent — Local/Agent toggle", () => {
 		).toBe("true");
 	});
 
-	it("does not gate the folder filter on source (I147: data-gated, not source-gated) — hidden on the Agent view too when the library has ≤1 folder", () => {
+	it("hides the folder filter on Local when the library has ≤1 folder (I147: data-gated)", () => {
+		render(<SessionHistoryContent {...makeProps()} />);
+		// makeProps has an empty library (≤1 folder) and Local starts on every
+		// folder → nothing to narrow, so no control.
+		expect(screen.queryByText("Only this folder")).toBeNull();
+		expect(screen.queryByText("This vault only")).toBeNull();
+	});
+
+	it("keeps the folder filter on the Agent view even with ≤1 folder, checked, so it can be turned off (I219)", () => {
 		render(
 			<SessionHistoryContent {...makeProps({ initialSource: "agent" })} />,
 		);
-		// makeProps has an empty library (≤1 folder) → no folder filter, either source.
-		expect(screen.queryByText("Only this folder")).toBeNull();
-		expect(screen.queryByText("This vault only")).toBeNull();
+		// The Agent view starts narrowed; an empty or single-folder result must
+		// still offer the way out to other workspaces.
+		const checkbox = screen.getByRole("checkbox") as HTMLInputElement;
+		expect(checkbox.checked).toBe(true);
 	});
 });
 
