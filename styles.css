@@ -3699,3 +3699,8 @@ button.agent-client-message-tool-call-summary:focus-visible {
 		background-color: var(--interactive-accent);
 	}
 }
+
+/* Kiro CLI engine row on a custom agent: hidden unless the command is kiro-cli. */
+.agent-client-setting-hidden {
+	display: none;
+}

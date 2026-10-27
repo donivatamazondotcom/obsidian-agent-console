@@ -16,6 +16,7 @@ import {
 	buildClientCapabilities,
 	kiroV3SessionMeta,
 	resolveKiroEngine,
+	isKiroCliCommand,
 } from "../kiro-v3";
 import {
 	A2UI_CAPABILITY_META_KEY,
@@ -193,5 +194,60 @@ describe("Kiro engine setting", () => {
 		expect(
 			buildAgentConfigWithApiKey(s, s.claude, s.claude.id, "/vault").kiroEngine,
 		).toBeUndefined();
+	});
+});
+
+describe("Kiro engine on custom agents (S1b)", () => {
+	const autoSa = {
+		id: "auto-sa",
+		displayName: "Auto SA",
+		command: "/Users/x/.toolbox/bin/kiro-cli",
+		args: ["acp", "--agent", "auto-sa", "--model", "claude-opus-5.5"],
+		env: [],
+	};
+
+	it("isKiroCliCommand matches kiro-cli binaries by basename only", () => {
+		expect(isKiroCliCommand("kiro-cli")).toBe(true);
+		expect(isKiroCliCommand("/Users/x/.toolbox/bin/kiro-cli")).toBe(true);
+		expect(isKiroCliCommand("/opt/Kiro CLI.app/Contents/MacOS/kiro-cli-chat")).toBe(true);
+		expect(isKiroCliCommand("C:\\Users\\x\\.kiro\\bin\\kiro-cli.exe")).toBe(true);
+		expect(isKiroCliCommand("claude-code-acp")).toBe(false);
+		expect(isKiroCliCommand("/usr/bin/kiro-cli-wrapper")).toBe(false);
+		expect(isKiroCliCommand("")).toBe(false);
+	});
+
+	it("persists engine only when V3 is chosen (V2 shape unchanged)", () => {
+		const v3 = normalizeRawSettings(
+			{ customAgents: [{ ...autoSa, engine: "v3" }] },
+			DEFAULT_SETTINGS,
+			idKey,
+		);
+		expect(v3.customAgents[0].engine).toBe("v3");
+		const v2 = normalizeRawSettings({ customAgents: [autoSa] }, DEFAULT_SETTINGS, idKey);
+		expect(v2.customAgents[0]).not.toHaveProperty("engine");
+	});
+
+	it("a custom kiro-cli agent on V3 gets the V3 launch, hooks opt-in and mode", () => {
+		const s = normalizeRawSettings(
+			{ customAgents: [{ ...autoSa, engine: "v3" }] },
+			DEFAULT_SETTINGS,
+			idKey,
+		);
+		const c = buildAgentConfigWithApiKey(s, s.customAgents[0], "auto-sa", "/vault");
+		expect(c.kiroEngine).toBe("v3");
+		expect(resolveLaunchArgs(c)).toEqual(["acp", "--agent-engine=v3"]);
+		expect(kiroV3SessionMeta(c)).toEqual({
+			_meta: { kiro: { modeId: "auto-sa", modelId: "claude-opus-5.5" } },
+		});
+		expect(buildClientCapabilities(c)._meta?.kiro).toEqual({
+			hooks: { enabled: true, v2: true },
+		});
+	});
+
+	it("a custom agent left on V2 launches exactly as today", () => {
+		const s = normalizeRawSettings({ customAgents: [autoSa] }, DEFAULT_SETTINGS, idKey);
+		const c = buildAgentConfigWithApiKey(s, s.customAgents[0], "auto-sa", "/vault");
+		expect(c.kiroEngine).toBeUndefined();
+		expect(resolveLaunchArgs(c)).toEqual(autoSa.args);
 	});
 });

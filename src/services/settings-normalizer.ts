@@ -186,6 +186,8 @@ export const normalizeCustomAgent = (
 			agent && typeof agent.defaultWorkingDirectory === "string"
 				? agent.defaultWorkingDirectory.trim()
 				: "",
+		// Kiro CLI V3: persisted only when chosen, so V2 entries keep their shape.
+		...(resolveKiroEngine(agent ?? {}) === "v3" ? { engine: "v3" as const } : {}),
 	};
 };
 

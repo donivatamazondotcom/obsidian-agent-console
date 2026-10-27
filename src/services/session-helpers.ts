@@ -330,10 +330,11 @@ export function buildAgentConfigWithApiKey(
 		};
 	}
 
-	if (
-		agentId === settings.kiro.id &&
-		resolveKiroEngine(settings.kiro) === "v3"
-	) {
+	const kiroEngineSource =
+		agentId === settings.kiro.id
+			? settings.kiro
+			: settings.customAgents.find((a) => a.id === agentId);
+	if (kiroEngineSource && resolveKiroEngine(kiroEngineSource) === "v3") {
 		return { ...baseConfig, kiroEngine: "v3" as const };
 	}
 
