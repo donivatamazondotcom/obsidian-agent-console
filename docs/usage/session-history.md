@@ -60,11 +60,11 @@ Depending on the agent's capabilities, you can perform the following actions:
 | **Search** | Filter the list by title or message content as you type |
 | **Edit title** | Rename the session from the history modal |
 | **Restore** | Reopen the session in a **new tab**, right where you left off — your current chat is never replaced |
-| **Fork** | Branch the session into a **new tab**. Works with any agent — see Fork below for how context is (or isn't) carried over |
+| **Fork** | Branch the session into a **new tab**. Works with any agent — see Fork below for how context is (or isn't) carried over, and when Fork is offered on the Agent view |
 | **Delete** | Remove the session from history |
 
 ::: tip
-Restore and Fork don't require a connected agent. **Restore** opens the conversation for reading and reconnects on your first message. **Fork** starts creating the branch immediately because choosing Fork is already interaction intent. Both are offered whenever a session can be reopened (from the agent or from local data).
+Restore and Fork don't require a connected agent. **Restore** opens the conversation for reading and reconnects on your first message. **Fork** starts creating the branch immediately because choosing Fork is already interaction intent. Restore is offered whenever a session can be reopened (from the agent or from local data). Fork is offered on the same sessions, except that on the **Agent** view it needs a local copy (see Fork below).
 :::
 
 ## Session Storage
@@ -105,6 +105,8 @@ Use fork when you want to **explore a different direction** without affecting th
 
 - Agents that support server-side forking (`session/fork`) create a true branch that keeps the assistant's full context.
 - Other agents start a **fresh session** that shows the prior transcript for reference, but the assistant won't have the earlier conversation's context (the transcript is stored locally, not on the agent). You'll see a one-time notice on the first reply — the same notice shown when restoring a session that only exists on disk.
+
+**Fork needs a local copy.** On the **Agent** view, Fork appears only on sessions this plugin has also saved locally. A session that exists only on the agent has no local transcript to show in the new tab, so Fork is hidden there. Sessions that exist only on the agent can't be forked yet.
 
 ## Deleting Sessions
 

@@ -15,6 +15,7 @@ import type { AgentSessionMetaCacheEntry } from "../types/session";
 import {
 	deriveHistoryFetchCwd,
 	deriveSessionHistoryView,
+	rowForkAvailable,
 	type SessionHistoryView,
 	type SessionListSource,
 } from "../resolvers/session-history-view";
@@ -1138,7 +1139,11 @@ export function SessionHistoryContent({
 									snippet={snippet}
 									query={query}
 									canRestore={view.restore !== "hidden"}
-									canFork={view.fork === "available"}
+									canFork={rowForkAvailable(
+										view,
+										session.sessionId,
+										localSessionIds,
+									)}
 									agentLabel={
 										session.agentId
 											? agentLabels[session.agentId]
