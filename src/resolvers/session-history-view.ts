@@ -38,8 +38,11 @@
  *    there is neither capability nor local data — the single state that
  *    suppresses the restore action.
  *
- *  - `fork: "available"` purely on the `forks` capability (the chosen tab does
- *    connect-then-fork, so connection is not a precondition for showing it).
+ *  - `fork: "available"` whenever restore is possible (agent-agnostic, RC-2):
+ *    `forks`-capable agents branch server-side, others get a local branch
+ *    seeded with the transcript. Connection is not a precondition. Per row,
+ *    {@link rowForkAvailable} further limits fork on the Agent view to rows
+ *    with a local copy (I218).
  *
  * Pure — no React, no Obsidian. Total: every input cell maps to a known shape;
  * never throws. Safe to unit-test exhaustively.
@@ -180,4 +183,29 @@ export function deriveSessionHistoryView(
 				: "none";
 
 	return { listSource, agentViewAvailable, restore, fork, banner };
+}
+
+/**
+ * Whether the fork action is shown on ONE row (I218).
+ *
+ * On the Local view every row is local data, so the modal-wide `view.fork`
+ * decides. On the Agent view a row with no local copy is an un-imported
+ * server session: per the Session History Source Model ("Mirror cheap, import
+ * explicit"), such a row offers only open/resume, import-to-Local, title
+ * display, and title-only search. Fork is excluded because there is no local
+ * transcript to seed the fork tab with — `session/fork` does not replay
+ * history, so a server fork opens blank, and the local-branch fallback for
+ * non-forking agents would start a fresh session with no context at all.
+ *
+ * @param view - The modal-wide decision from {@link deriveSessionHistoryView}.
+ * @param sessionId - The row's session id.
+ * @param localSessionIds - Ids of sessions saved in the plugin's local store.
+ */
+export function rowForkAvailable(
+	view: Pick<SessionHistoryView, "fork" | "listSource">,
+	sessionId: string,
+	localSessionIds: ReadonlySet<string>,
+): boolean {
+	if (view.fork !== "available") return false;
+	return view.listSource === "local" || localSessionIds.has(sessionId);
 }
