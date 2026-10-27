@@ -44,7 +44,12 @@ Matches that hit message content show a short snippet with the term highlighted,
   <img src="/images/session-history-search.webp" alt="Agent Console session-history modal with a search box filtering sessions, showing highlighted title and snippet matches" />
 </p>
 
-When your saved sessions span more than one working folder, an **Only this folder** checkbox appears, with the current folder's path shown beneath it. Check it to narrow the list to sessions whose working folder is the one shown; uncheck (the default) to see sessions from every folder. The filter works on both the Local and Agent views and for every agent — the working folder is whatever directory the agent runs in, which may or may not be your vault root. Agent-view rows the plugin hasn't saved a transcript for can only be matched by their title — content search needs a local transcript.
+An **Only this folder** checkbox narrows the list to sessions whose working folder is the one shown beneath it. Where it starts depends on the view:
+
+- **Agent view:** checked, so you only see this folder's sessions. Some agents keep sessions from every project you have ever opened, so an unfiltered list can run to hundreds of rows. Uncheck it to see them all.
+- **Local view:** unchecked, so you see every session saved in the plugin, from every folder. The checkbox only appears here when your saved sessions span more than one folder.
+
+Your choice holds while the history stays open, separately for each view, and resets the next time you open it. The filter works for every agent — the working folder is whatever directory the agent runs in, which may or may not be your vault root. Agent-view rows the plugin hasn't saved a transcript for can only be matched by their title — content search needs a local transcript.
 
 ## Available Actions
 

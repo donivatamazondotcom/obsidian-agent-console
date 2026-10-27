@@ -5,7 +5,11 @@ import { getLogger } from "../utils/logger";
 import type AgentClientPlugin from "../plugin";
 import type { UseAgentReturn } from "./useAgent";
 import type { UseSessionHistoryReturn } from "./useSessionHistory";
-import type { SessionListSource } from "../resolvers/session-history-view";
+import {
+	deriveHistoryFetchCwd,
+	deriveSessionHistoryView,
+	type SessionListSource,
+} from "../resolvers/session-history-view";
 import { t } from "../i18n";
 
 /**
@@ -216,12 +220,25 @@ export function useHistoryModal(
 			}, () => { historyModalRef.current = null; });
 		}
 		historyModalRef.current.open();
-		// Fetch the persisted source. The cwd filter applies to the Agent view
-		// only — Local is the whole local store.
-		// Default-off filter: open unfiltered (whole history). The cwd filter is
-		// applied only when the user opts in — server-side for the live Agent
-		// view, client-side for Local + the disconnected cache.
-		void sessionHistory.fetchSessions(source, undefined);
+		// Fetch the persisted source, with the folder the modal starts on
+		// (I219). Same resolver the modal reads, so the first list matches the
+		// checkbox: the Agent view asks for this folder only (an unscoped
+		// session/list can return every workspace); Local fetches the whole
+		// local store and narrows client-side.
+		const initialView = deriveSessionHistoryView(
+			sessionHistory.capabilities,
+			isSessionReady,
+			sessionHistory.localSessionIds.size > 0,
+			source,
+		);
+		void sessionHistory.fetchSessions(
+			source,
+			deriveHistoryFetchCwd(
+				initialView,
+				initialView.folderFilterDefault === "this-folder",
+				vaultPath,
+			),
+		);
 	}, [
 		plugin.app,
 		plugin.settingsService,

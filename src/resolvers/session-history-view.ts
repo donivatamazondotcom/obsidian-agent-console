@@ -82,6 +82,16 @@ export type SessionHistoryBanner =
 	| "no-restore-capability";
 
 /**
+ * Where the "Only this folder" filter starts when the history opens (I219).
+ * The user can always flip it; this is only the starting point.
+ */
+export type FolderFilterDefault =
+	/** Start narrowed to the current working folder. */
+	| "this-folder"
+	/** Start on every folder. */
+	| "all-folders";
+
+/**
  * The complete, normalized view decision the Session History modal renders
  * from. Every field is a tagged union — consumers switch on these instead of
  * recomputing inline booleans.
@@ -107,6 +117,15 @@ export interface SessionHistoryView {
 	fork: ForkAvailability;
 	/** The banner to render above the list. */
 	banner: SessionHistoryBanner;
+	/**
+	 * Starting state of the "Only this folder" filter, keyed on the resolved
+	 * `listSource` (I219). Local opens on every folder — the local store is the
+	 * whole history (Local-first tenet, kept from #185). The Agent view opens on
+	 * this folder, because an agent's `session/list` with no folder can return
+	 * every workspace the user has (Kiro CLI V3 returned 183 rows across vaults
+	 * and headless runs). Not remembered across opens.
+	 */
+	folderFilterDefault: FolderFilterDefault;
 }
 
 /**
@@ -179,5 +198,38 @@ export function deriveSessionHistoryView(
 				? "local-saved"
 				: "none";
 
-	return { listSource, agentViewAvailable, restore, fork, banner };
+	const folderFilterDefault: FolderFilterDefault =
+		listSource === "agent" ? "this-folder" : "all-folders";
+
+	return {
+		listSource,
+		agentViewAvailable,
+		restore,
+		fork,
+		banner,
+		folderFilterDefault,
+	};
+}
+
+/**
+ * The working folder to send with a session-list fetch, or `undefined` for
+ * "no folder" (I219). The single decision every fetch site reads — the first
+ * fetch on open (`useHistoryModal`) and the modal's toggle / filter / retry —
+ * so they cannot disagree.
+ *
+ * Only the Agent view narrows server-side: `session/list` takes the folder,
+ * and `undefined` becomes `cwd: null` (every workspace) at the `acp/` edge.
+ * The Local view always fetches the whole local store and narrows
+ * client-side, so it never sends a folder.
+ *
+ * @param view - The resolved history view.
+ * @param filterOn - Whether "Only this folder" is checked for this view.
+ * @param currentCwd - The tab's working folder.
+ */
+export function deriveHistoryFetchCwd(
+	view: Pick<SessionHistoryView, "listSource">,
+	filterOn: boolean,
+	currentCwd: string,
+): string | undefined {
+	return view.listSource === "agent" && filterOn ? currentCwd : undefined;
 }

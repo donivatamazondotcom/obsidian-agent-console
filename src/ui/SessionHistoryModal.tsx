@@ -13,6 +13,7 @@ import { createRoot, Root } from "react-dom/client";
 import type { AgentCapabilities, SessionInfo } from "../types/session";
 import type { AgentSessionMetaCacheEntry } from "../types/session";
 import {
+	deriveHistoryFetchCwd,
 	deriveSessionHistoryView,
 	type SessionHistoryView,
 	type SessionListSource,
@@ -626,10 +627,13 @@ export function SessionHistoryContent({
 	// last choice). Drives the resolver's source input and the fetch.
 	const [source, setSource] = useState<SessionListSource>(initialSource);
 	// The "Only this folder" cwd filter — universal (both sources, every
-	// agent). Defaults OFF so history opens unfiltered ("whole history",
-	// Local-first tenet); the user opts in to narrow to the current working
-	// folder.
-	const [filterByCurrentVault, setFilterByCurrentVault] = useState(false);
+	// agent). Held PER SOURCE for this open only (I219): an entry exists only
+	// once the user flips the checkbox on that source; until then the source
+	// uses the resolver's `folderFilterDefault` (Local → every folder, Agent →
+	// this folder). Not persisted — each open starts from the defaults.
+	const [folderFilterChoice, setFolderFilterChoice] = useState<
+		Partial<Record<SessionListSource, boolean>>
+	>({});
 
 	// Full-text search over the local session library (titles + content).
 	const {
@@ -668,6 +672,16 @@ export function SessionHistoryContent({
 		source,
 	);
 
+	// Whether "Only this folder" is on for a resolved view: the user's choice
+	// for that source in this open, else the resolver's default (I219).
+	const isFolderFilterOn = useCallback(
+		(v: SessionHistoryView) =>
+			folderFilterChoice[v.listSource] ??
+			v.folderFilterDefault === "this-folder",
+		[folderFilterChoice],
+	);
+	const filterByCurrentVault = isFolderFilterOn(view);
+
 	// Agent view served from the local metadata cache while the agent is NOT
 	// connected (Decision 1, "Connection-free reading" tenet). The live
 	// session/list needs a connection; when there isn't one we render the
@@ -679,8 +693,10 @@ export function SessionHistoryContent({
 	// The "Only this folder" filter operates over the full row set for the
 	// active view: the local store, the live agent list, or the disconnected
 	// metadata cache. The UNFILTERED set is needed so the ">1 folder"
-	// visibility check is meaningful (the live Agent view opens unfiltered —
-	// default off).
+	// visibility check is meaningful on Local. The live Agent view opens
+	// narrowed to this folder (I219), so its rows are already one folder; the
+	// `|| filterByCurrentVault` clause below keeps the control visible there so
+	// it can be turned off.
 	const folderRows = React.useMemo(
 		() =>
 			agentViewDisconnected
@@ -747,43 +763,66 @@ export function SessionHistoryContent({
 	}, [indexState]);
 
 	// Switch between the Local store and the agent's server list. Persists the
-	// choice (Decision 2) and refetches. The cwd filter applies to Agent only.
+	// choice (Decision 2) and refetches with the NEXT source's folder state —
+	// its own choice in this open, else its default (I219). Only the Agent
+	// view sends a folder; Local narrows client-side.
 	const handleSourceToggle = useCallback(
 		(next: SessionListSource) => {
 			if (next === source) return;
 			setSource(next);
 			onSourceChange(next);
+			const nextView = deriveSessionHistoryView(
+				capabilities,
+				isAgentReady,
+				hasLocalData,
+				next,
+			);
 			onFetchSessions(
 				next,
-				next === "agent" && filterByCurrentVault
-					? currentCwd
-					: undefined,
+				deriveHistoryFetchCwd(
+					nextView,
+					isFolderFilterOn(nextView),
+					currentCwd,
+				),
 			);
 		},
-		[source, onSourceChange, onFetchSessions, filterByCurrentVault, currentCwd],
+		[
+			source,
+			onSourceChange,
+			onFetchSessions,
+			capabilities,
+			isAgentReady,
+			hasLocalData,
+			isFolderFilterOn,
+			currentCwd,
+		],
 	);
 
 	const handleFilterChange = useCallback(
 		(e: React.ChangeEvent<HTMLInputElement>) => {
 			const checked = e.target.checked;
-			setFilterByCurrentVault(checked);
+			const forSource = view.listSource;
+			setFolderFilterChoice((prev) => ({ ...prev, [forSource]: checked }));
 			// The live Agent view narrows server-side (refetch with/without the
 			// cwd). The Local view and the disconnected metadata cache narrow
 			// client-side in displayItems — no refetch, and it works with no
 			// connection (Connection-free reading tenet).
 			if (view.listSource === "agent" && isAgentReady) {
-				onFetchSessions("agent", checked ? currentCwd : undefined);
+				onFetchSessions(
+					"agent",
+					deriveHistoryFetchCwd(view, checked, currentCwd),
+				);
 			}
 		},
-		[view.listSource, isAgentReady, currentCwd, onFetchSessions],
+		[view, isAgentReady, currentCwd, onFetchSessions],
 	);
 
 	const handleRetry = useCallback(() => {
 		onFetchSessions(
 			source,
-			source === "agent" && filterByCurrentVault ? currentCwd : undefined,
+			deriveHistoryFetchCwd(view, filterByCurrentVault, currentCwd),
 		);
-	}, [source, filterByCurrentVault, currentCwd, onFetchSessions]);
+	}, [source, view, filterByCurrentVault, currentCwd, onFetchSessions]);
 
 	// Wrap onDeleteSession to show confirmation modal
 	const handleDeleteWithConfirmation = useCallback(

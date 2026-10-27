@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+	deriveHistoryFetchCwd,
 	deriveSessionHistoryView,
 	type SessionHistoryView,
 	type SessionListSource,
@@ -381,4 +382,64 @@ describe("deriveSessionHistoryView — totality over the input cube", () => {
 								).toBe(v.restore === "hidden");
 							}
 		});
+});
+
+// ============================================================================
+// folderFilterDefault + deriveHistoryFetchCwd — per-source folder default (I219)
+// ============================================================================
+
+describe("deriveSessionHistoryView — folderFilterDefault (I219)", () => {
+	it("Agent view opens narrowed to this folder", () => {
+		const v = deriveSessionHistoryView(CLAUDE_CODE, true, false, "agent");
+		expect(v.listSource).toBe("agent");
+		expect(v.folderFilterDefault).toBe("this-folder");
+	});
+
+	it("Local view opens on every folder (Local-first: whole history)", () => {
+		const v = deriveSessionHistoryView(CLAUDE_CODE, true, false, "local");
+		expect(v.folderFilterDefault).toBe("all-folders");
+	});
+
+	it("an Agent choice on a non-listing agent resolves to Local and gets Local's default", () => {
+		const v = deriveSessionHistoryView(KIRO_CLI, true, true, "agent");
+		expect(v.listSource).toBe("local");
+		expect(v.folderFilterDefault).toBe("all-folders");
+	});
+
+	it("is keyed on the resolved listSource across the whole input cube", () => {
+		const bools = [true, false];
+		for (const listsSessions of bools)
+			for (const ready of bools)
+				for (const hasLocalData of bools)
+					for (const source of ["local", "agent"] as SessionListSource[]) {
+						const v = deriveSessionHistoryView(
+							caps({ listsSessions, restoresViaLoad: true }),
+							ready,
+							hasLocalData,
+							source,
+						);
+						expect(v.folderFilterDefault).toBe(
+							v.listSource === "agent" ? "this-folder" : "all-folders",
+						);
+					}
+	});
+});
+
+describe("deriveHistoryFetchCwd (I219)", () => {
+	const CWD = "/vault";
+	const agentView = deriveSessionHistoryView(CLAUDE_CODE, true, false, "agent");
+	const localView = deriveSessionHistoryView(CLAUDE_CODE, true, false, "local");
+
+	it("Agent view + filter on → asks for this folder", () => {
+		expect(deriveHistoryFetchCwd(agentView, true, CWD)).toBe(CWD);
+	});
+
+	it("Agent view + filter off → every workspace (no cwd)", () => {
+		expect(deriveHistoryFetchCwd(agentView, false, CWD)).toBeUndefined();
+	});
+
+	it("Local view never sends a cwd — it narrows client-side", () => {
+		expect(deriveHistoryFetchCwd(localView, true, CWD)).toBeUndefined();
+		expect(deriveHistoryFetchCwd(localView, false, CWD)).toBeUndefined();
+	});
 });
