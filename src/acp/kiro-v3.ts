@@ -20,6 +20,7 @@
  */
 import type * as acp from "@agentclientprotocol/sdk";
 import type { AgentConfig } from "./acp-client";
+import type { PromptContent } from "../types/chat";
 
 export type KiroEngine = "v2" | "v3";
 
@@ -194,4 +195,32 @@ export function allowsLegacySetModel(config: AgentConfig | null): boolean {
  */
 export function storesSessionConfig(config: AgentConfig | null): boolean {
 	return config?.kiroEngine === "v3";
+}
+
+/**
+ * Prompt blocks adapted for the server generation (I220).
+ *
+ * V3 advertises `embeddedContext` but silently drops `resource_link` blocks:
+ * the prompt is accepted and the model never sees them (verified live,
+ * 2026-10-27). That loses context chips and file attachments. The ACP spec
+ * requires every agent to support resource links, so this is a V3 bug; until
+ * it is fixed, each link goes out as a text block naming the file, which V3
+ * does deliver. Other block types and every v2 prompt pass through unchanged.
+ */
+export function adaptPromptForEngine(
+	config: AgentConfig | null,
+	content: PromptContent[],
+): PromptContent[] {
+	if (config?.kiroEngine !== "v3") return content;
+	return content.map((block) => {
+		if (block.type !== "resource_link") return block;
+		const mime = block.mimeType ? ` mimeType="${block.mimeType}"` : "";
+		return {
+			type: "text",
+			text:
+				`<attached_file name="${block.name}" uri="${block.uri}"${mime}>\n` +
+				"The user attached this file to the message. Read it with your file tools when it is relevant.\n" +
+				"</attached_file>",
+		};
+	});
 }
