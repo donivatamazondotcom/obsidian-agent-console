@@ -141,7 +141,9 @@ describe("useChatActions handleReload", () => {
 
 	it("soft reload that degrades to fresh session invalidates history cache, keeps transcript", async () => {
 		const clearMessages = vi.fn();
-		const reloadSession = vi.fn().mockResolvedValue({ resumed: false });
+		const reloadSession = vi
+			.fn()
+			.mockResolvedValue({ resumed: false, reason: "unsupported" });
 		const { result, invalidateCache } = setup(
 			{ clearMessages, reloadSession },
 			[msg()],
@@ -152,6 +154,37 @@ describe("useChatActions handleReload", () => {
 		expect(reloadSession).toHaveBeenCalledTimes(1);
 		expect(invalidateCache).toHaveBeenCalledTimes(1);
 		expect(clearMessages).not.toHaveBeenCalled();
+	});
+
+	it("I230: a resume that FAILED says so and does not blame the agent's capabilities", async () => {
+		const reloadSession = vi
+			.fn()
+			.mockResolvedValue({ resumed: false, reason: "resume-failed" });
+		const { result } = setup({ reloadSession }, [msg()]);
+		noticeMessages.length = 0;
+
+		await result.current.handleReload(false);
+
+		expect(noticeMessages).toContain(
+			"[Agent Console] Couldn't pick up the conversation, so the agent started fresh. Your messages are still here.",
+		);
+		expect(noticeMessages.some((m) => m.includes("can't resume"))).toBe(
+			false,
+		);
+	});
+
+	it("I230: an agent that can't resume keeps the can't-resume notice", async () => {
+		const reloadSession = vi
+			.fn()
+			.mockResolvedValue({ resumed: false, reason: "unsupported" });
+		const { result } = setup({ reloadSession }, [msg()]);
+		noticeMessages.length = 0;
+
+		await result.current.handleReload(false);
+
+		expect(noticeMessages.some((m) => m.includes("can't resume"))).toBe(
+			true,
+		);
 	});
 
 	it("T4: reload cancels an in-flight generation first", async () => {

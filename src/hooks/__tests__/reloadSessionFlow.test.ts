@@ -33,7 +33,7 @@ describe("reloadSessionFlow", () => {
 			freshSession,
 		});
 
-		expect(result).toEqual({ resumed: false });
+		expect(result).toEqual({ resumed: false, reason: "unsupported" });
 		expect(resumeSameSession).not.toHaveBeenCalled();
 		expect(freshSession).toHaveBeenCalledTimes(1);
 	});
@@ -49,25 +49,27 @@ describe("reloadSessionFlow", () => {
 			freshSession,
 		});
 
-		expect(result).toEqual({ resumed: false });
+		expect(result).toEqual({ resumed: false, reason: "unsupported" });
 		expect(resumeSameSession).not.toHaveBeenCalled();
 		expect(freshSession).toHaveBeenCalledTimes(1);
 	});
 
-	it("falls back to a fresh session when resume throws (degraded restore)", async () => {
-		const resumeSameSession = vi
-			.fn()
-			.mockRejectedValue(new Error("session/load not supported"));
+	it("I230: falls back to a fresh session when resume throws, says the resume FAILED (not unsupported), and reports the error", async () => {
+		const error = new Error("Session is active in another process (PID 4242)");
+		const resumeSameSession = vi.fn().mockRejectedValue(error);
 		const freshSession = vi.fn().mockResolvedValue(undefined);
+		const onResumeError = vi.fn();
 
 		const result = await reloadSessionFlow({
 			sessionId: "s-1",
 			canResume: true,
 			resumeSameSession,
 			freshSession,
+			onResumeError,
 		});
 
-		expect(result).toEqual({ resumed: false });
+		expect(result).toEqual({ resumed: false, reason: "resume-failed" });
+		expect(onResumeError).toHaveBeenCalledWith(error);
 		expect(resumeSameSession).toHaveBeenCalledWith("s-1");
 		expect(freshSession).toHaveBeenCalledTimes(1);
 	});
@@ -125,7 +127,7 @@ describe("reloadSessionFlow — history-replay suppression (I86)", () => {
 			setIgnoreUpdates,
 		});
 
-		expect(result).toEqual({ resumed: false });
+		expect(result).toEqual({ resumed: false, reason: "resume-failed" });
 		// Suppression must be released so post-reload updates flow normally.
 		expect(ignore).toBe(false);
 		expect(setIgnoreUpdates).toHaveBeenLastCalledWith(false);

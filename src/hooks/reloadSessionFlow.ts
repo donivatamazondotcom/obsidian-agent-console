@@ -41,22 +41,39 @@ export interface ReloadSessionFlowArgs {
 	 * (I86)
 	 */
 	setIgnoreUpdates?: (ignore: boolean) => void;
-}
-
-export interface ReloadSessionFlowResult {
-	/** True iff the same session was resumed; false iff a fresh session was created. */
-	resumed: boolean;
+	/**
+	 * Called with the error when a resume attempt throws, before the fresh
+	 * fallback. Lets the caller log it; the flow itself stays I/O-free. (I230)
+	 */
+	onResumeError?: (error: unknown) => void;
 }
 
 /**
- * Run the soft-reload flow. Returns `{ resumed }` so the caller can surface the
- * right notice (resumed vs. degraded-to-fresh).
+ * - `resumed: true` — the same session came back.
+ * - `reason: "unsupported"` — no session to resume, or the agent can't load
+ *   one; a fresh session was created by design.
+ * - `reason: "resume-failed"` — the agent CAN resume but this attempt threw;
+ *   a fresh session was created as a fallback. Not a capability gap. (I230)
+ */
+export type ReloadSessionFlowResult =
+	| { resumed: true }
+	| { resumed: false; reason: "unsupported" | "resume-failed" };
+
+/**
+ * Run the soft-reload flow. The result says whether the session resumed and,
+ * if not, why, so the caller can surface the right notice.
  */
 export async function reloadSessionFlow(
 	args: ReloadSessionFlowArgs,
 ): Promise<ReloadSessionFlowResult> {
-	const { sessionId, canResume, resumeSameSession, freshSession, setIgnoreUpdates } =
-		args;
+	const {
+		sessionId,
+		canResume,
+		resumeSameSession,
+		freshSession,
+		setIgnoreUpdates,
+		onResumeError,
+	} = args;
 
 	// Resume only when there is a session AND the agent can load it.
 	if (sessionId && canResume) {
@@ -68,11 +85,12 @@ export async function reloadSessionFlow(
 		try {
 			await resumeSameSession(sessionId);
 			return { resumed: true };
-		} catch {
+		} catch (error) {
 			// Resume failed mid-flight → degrade to a fresh session, keeping
 			// the transcript on screen (mirrors the lazy loadSession fallback).
+			onResumeError?.(error);
 			await freshSession();
-			return { resumed: false };
+			return { resumed: false, reason: "resume-failed" };
 		} finally {
 			setIgnoreUpdates?.(false);
 		}
@@ -80,5 +98,5 @@ export async function reloadSessionFlow(
 
 	// No session, or agent can't resume → fresh session under a fresh harness.
 	await freshSession();
-	return { resumed: false };
+	return { resumed: false, reason: "unsupported" };
 }

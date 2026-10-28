@@ -25,6 +25,8 @@ While the reload runs, the **↻** icon spins and a "Reloading session…" notic
 
 ::: tip
 Resuming the same conversation needs an agent that supports session resume. If your agent can't resume, Agent Console keeps the transcript visible and starts a fresh session underneath — only the live agent loses context; your conversation stays on screen.
+
+Now and then a resume can fail even on an agent that supports it. When that happens, you'll see "Couldn't pick up the conversation, so the agent started fresh." It works the same way: your messages stay on screen, and only the agent starts over.
 :::
 
 ## Restart (Shift-click)

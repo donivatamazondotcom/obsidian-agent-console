@@ -529,13 +529,19 @@ export function useChatActions(
 				// because the resume is async (subprocess respawn) and otherwise
 				// gives no feedback until it completes.
 				new Notice(t("notices.sessionReloading"));
-				const { resumed } = await agent.reloadSession();
-				if (resumed) {
+				const reload = await agent.reloadSession();
+				if (reload.resumed) {
 					new Notice(t("notices.sessionReloaded"));
 				} else {
 					sessionHistory.invalidateCache();
+					// I230: a resume that threw is not a capability gap, so don't
+					// tell the user the agent can't resume.
 					new Notice(
-						t("notices.sessionReloadedFresh"),
+						t(
+							reload.reason === "resume-failed"
+								? "notices.sessionReloadResumeFailed"
+								: "notices.sessionReloadedFresh",
+						),
 					);
 				}
 			} catch (error) {
