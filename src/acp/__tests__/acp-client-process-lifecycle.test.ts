@@ -78,10 +78,11 @@ describe("AcpClient process reaping on connection/process end (#286)", () => {
 
 		c.reconcileProcessGone(proc);
 
-		// Child reaped: stdin closed (EOF for a well-behaved agent) AND the
-		// process tree killed.
-		expect(stdinEnd).toHaveBeenCalledTimes(1);
+		// Child reaped through the shared teardown (I211), which owns the
+		// stdin close + tree kill; it's mocked here, so stdin is untouched.
+		// The real teardown is covered in i211-disconnect-teardown.test.ts.
 		expect(killSpy).toHaveBeenCalledTimes(1);
+		expect(stdinEnd).not.toHaveBeenCalled();
 		// Connection state cleared so a reconnect starts clean.
 		expect(client.isInitialized()).toBe(false);
 		expect(c.connection).toBeNull();
@@ -119,8 +120,8 @@ describe("AcpClient process reaping on connection/process end (#286)", () => {
 		await Promise.resolve();
 		await Promise.resolve();
 
-		expect(stdinEnd).toHaveBeenCalledTimes(1);
 		expect(killSpy).toHaveBeenCalledTimes(1);
+		expect(stdinEnd).not.toHaveBeenCalled();
 		expect(client.isInitialized()).toBe(false);
 	});
 

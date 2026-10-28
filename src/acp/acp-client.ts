@@ -33,6 +33,11 @@ import { TerminalManager } from "./terminal-handler";
 import { PermissionManager } from "./permission-handler";
 import { AcpHandler } from "./acp-handler";
 import {
+	nodeProcessOps,
+	teardownProcessTree,
+	type ProcessOps,
+} from "./process-teardown";
+import {
 	MCP_OAUTH_REQUEST_METHOD,
 	MCP_SERVER_INITIALIZED_METHOD,
 	parseMcpOauthRequest,
@@ -857,14 +862,7 @@ export class AcpClient {
 		// its terminals. Settle them so the dialog doesn't outlive the agent.
 		this.cancelAllOperations();
 
-		// Close stdin so a well-behaved ACP stdio agent gets EOF and exits.
-		try {
-			agentProcess.stdin?.end();
-		} catch {
-			// stdin may already be closed
-		}
-
-		// Kill the tree in case the agent does not exit on stdin EOF.
+		// Close stdin and kill the tree (I211: one shared teardown routine).
 		// killProcessTree() nulls this.agentProcess.
 		this.killProcessTree();
 
@@ -874,41 +872,72 @@ export class AcpClient {
 		this.currentSessionId = null;
 	}
 
+	/** OS boundary for process teardown; overridden in tests. */
+	private processOps: ProcessOps = nodeProcessOps;
+
+	/** Teardowns still escalating in the background (I211). */
+	private pendingTeardowns = new Set<Promise<void>>();
+
 	/**
-	 * Kill the agent process and its entire process tree.
-	 * Uses process.kill(-pid) to send SIGTERM to the process group
-	 * (requires detached: true on spawn). Falls back to regular kill.
-	 * On Windows, uses taskkill /T for tree kill.
+	 * Resolves once every background teardown (grace period, SIGKILL
+	 * escalation, survivor check) has finished.
+	 */
+	whenTornDown(): Promise<void> {
+		return Promise.all([...this.pendingTeardowns]).then(() => undefined);
+	}
+
+	/**
+	 * Kill the agent process and its entire process tree. The single owner of
+	 * agent teardown: disconnect, respawn, and the I194 reconcile path all
+	 * come here.
+	 *
+	 * Unix: `teardownProcessTree` snapshots our tree, closes stdin, SIGTERMs
+	 * our process group, and after a grace period SIGKILLs anything from the
+	 * snapshot still alive — including MCP servers in their own process
+	 * groups, which the group signal can't reach (I211). It runs in the
+	 * background; client state is cleared immediately.
+	 * Windows: closes stdin, then taskkill /T /F.
 	 */
 	private killProcessTree(): void {
 		if (!this.agentProcess) return;
 
-		const pid = this.agentProcess.pid;
+		const proc = this.agentProcess;
+		const pid = proc.pid;
+		this.agentProcess = null;
 		this.logger.log(`Killing process tree (PID: ${pid})`);
 
-		try {
-			if (Platform.isWin && pid) {
-				// Windows: taskkill /T kills the entire process tree
-				spawn("taskkill", ["/PID", String(pid), "/T", "/F"], {
-					stdio: "ignore",
-				});
-			} else if (pid) {
-				// Unix: kill the entire process group (negative PID)
-				// Requires detached: true on spawn to create a process group
-				process.kill(-pid, "SIGTERM");
-			} else {
-				this.agentProcess.kill();
-			}
-		} catch {
-			// Fallback: kill just the direct process
+		if (Platform.isWin || !pid) {
 			try {
-				this.agentProcess.kill();
+				proc.stdin?.end();
+			} catch {
+				// stdin may already be closed
+			}
+			try {
+				if (pid) {
+					spawn("taskkill", ["/PID", String(pid), "/T", "/F"], {
+						stdio: "ignore",
+					});
+				} else {
+					proc.kill();
+				}
 			} catch {
 				// Process may already be dead
 			}
+			return;
 		}
 
-		this.agentProcess = null;
+		const teardown = teardownProcessTree(
+			{ pid, stdin: proc.stdin },
+			this.processOps,
+			this.logger,
+		)
+			.catch((error) => {
+				this.logger.warn(`Teardown (PID ${pid}) failed:`, error);
+			})
+			.finally(() => {
+				this.pendingTeardowns.delete(teardown);
+			});
+		this.pendingTeardowns.add(teardown);
 	}
 
 	/**
