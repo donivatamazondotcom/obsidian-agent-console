@@ -37,6 +37,12 @@ export interface TeardownLogger {
 
 /** Time the agent gets to exit (and shut down its MCP servers) on its own. */
 export const TEARDOWN_GRACE_MS = 2500;
+/**
+ * How often the teardown re-checks the snapshot during the grace period, so
+ * it settles as soon as the tree is gone (I230). At most
+ * TEARDOWN_GRACE_MS / TEARDOWN_POLL_MS process listings per teardown.
+ */
+export const TEARDOWN_POLL_MS = 250;
 /** Recheck delay after SIGKILL before reporting survivors. */
 const SURVIVOR_RECHECK_MS = 250;
 
@@ -113,8 +119,9 @@ const key = (r: ProcessRow) => `${r.pid}|${r.started}`;
 
 /**
  * Tear down an agent's process tree (Unix):
- * snapshot our tree → stdin.end → SIGTERM our group → grace →
- * SIGKILL every snapshot pid still alive (same start time) → log survivors.
+ * snapshot our tree → stdin.end → SIGTERM our group → poll through the
+ * grace period, settling early once the tree is gone → SIGKILL every
+ * snapshot pid still alive (same start time) → log survivors.
  * If the process list is unavailable, falls back to a group SIGKILL.
  */
 export async function teardownProcessTree(
@@ -147,27 +154,48 @@ export async function teardownProcessTree(
 	// 3. SIGTERM our process group (requires detached: true on spawn).
 	if (!trySignal(-rootPid, "SIGTERM")) trySignal(rootPid, "SIGTERM");
 
-	// 4. Grace period.
-	await ops.sleep(graceMs);
-
+	// 4. Grace period. Without a snapshot there is nothing to poll, so wait
+	//    it out and fall back to a group SIGKILL.
 	if (snapshot === null) {
+		await ops.sleep(graceMs);
 		trySignal(-rootPid, "SIGKILL");
 		return;
 	}
 
-	// 5. SIGKILL anything from the snapshot that is still the same process.
-	let remaining: ProcessRow[];
-	try {
-		const live = new Set((await ops.listProcesses()).map(key));
-		remaining = snapshot.filter((r) => live.has(key(r)));
-	} catch {
-		trySignal(-rootPid, "SIGKILL");
-		return;
+	// 5. Poll the snapshot through the grace period and settle as soon as
+	//    nothing from it is alive (I230: soft reload awaits this teardown, and
+	//    a fixed sleep would add the full grace to every reload).
+	const tree = snapshot;
+	const stillAlive = async (): Promise<ProcessRow[] | null> => {
+		try {
+			const live = new Set((await ops.listProcesses()).map(key));
+			return tree.filter((r) => live.has(key(r)));
+		} catch {
+			return null;
+		}
+	};
+	let remaining: ProcessRow[] = tree;
+	let waited = 0;
+	while (waited < graceMs) {
+		const step = Math.min(TEARDOWN_POLL_MS, graceMs - waited);
+		await ops.sleep(step);
+		waited += step;
+		const alive = await stillAlive();
+		if (alive === null) {
+			// Listing failed mid-grace: keep the full grace (as before I230),
+			// then fall back to a group SIGKILL.
+			if (graceMs > waited) await ops.sleep(graceMs - waited);
+			trySignal(-rootPid, "SIGKILL");
+			return;
+		}
+		remaining = alive;
+		if (remaining.length === 0) {
+			logger.log(`Teardown (PID ${rootPid}): tree exited cleanly`);
+			return;
+		}
 	}
-	if (remaining.length === 0) {
-		logger.log(`Teardown (PID ${rootPid}): tree exited cleanly`);
-		return;
-	}
+
+	// 6. SIGKILL anything from the snapshot that is still the same process.
 
 	for (const r of remaining) trySignal(r.pid, "SIGKILL");
 	logger.warn(
@@ -176,7 +204,7 @@ export async function teardownProcessTree(
 			.join(", ")}`,
 	);
 
-	// 6. Report anything that still survived.
+	// 7. Report anything that still survived.
 	await ops.sleep(SURVIVOR_RECHECK_MS);
 	try {
 		const live = new Set((await ops.listProcesses()).map(key));

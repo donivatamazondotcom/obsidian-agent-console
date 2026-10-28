@@ -200,8 +200,9 @@ describe("I211: agent teardown reaps the whole tree", () => {
 
 		expect(table.alive(5001)).toBe(false);
 		expect(OUR_TREE.filter((pid) => table.alive(pid))).toEqual([]);
-		// A real grace period was waited before escalating.
-		expect(sleeps.some((ms) => ms >= 2000)).toBe(true);
+		// A real grace period was waited before escalating. Since I230 the
+		// grace is polled in steps, so assert the total wait, not one sleep.
+		expect(sleeps.reduce((a, b) => a + b, 0)).toBeGreaterThanOrEqual(2000);
 		expect(
 			table.signals.some((s) => s.target === 5001 && s.sig === "SIGKILL"),
 		).toBe(true);
