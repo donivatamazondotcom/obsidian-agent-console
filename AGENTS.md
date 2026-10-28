@@ -43,6 +43,7 @@ src/
 │   ├── kiro-v3.ts               # Kiro CLI V3 adapter: launch-arg rewrite, initialize capabilities (hooks opt-in), per-session mode/model/effort
 │   ├── type-converter.ts        # ACP SDK ↔ internal type conversion; capability normalizer (toAgentCapabilities)
 │   ├── permission-handler.ts    # Permission queue, auto-approve, Promise resolution
+│   ├── process-teardown.ts      # teardownProcessTree — single owner of agent teardown (I211): snapshot tree, stdin EOF, group SIGTERM, grace, SIGKILL snapshot survivors incl. own-group MCP servers
 │   └── terminal-handler.ts      # Terminal process create/output/kill
 ├── i18n/                        # UI string localization boundary ([[Agent Console I18N]])
 │   ├── index.ts                 # t(key, params) + initLocale + resolveLocale; locale resolved once at load (getLanguage or the Advanced language override)
