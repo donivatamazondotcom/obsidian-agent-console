@@ -24,6 +24,31 @@ import {
 import { deriveTabScrollLeft } from "../resolvers/tab-scroll";
 import { deriveTabKeyTarget } from "../resolvers/tab-keyboard-nav";
 import { t } from "../i18n";
+import type { AiRenameAffordance } from "../resolvers/ai-rename-affordance";
+
+/**
+ * I210 — the "Rename with AI" menu title. When the tab's agent can't close
+ * the side session, the disabled item carries a muted second line saying so,
+ * since a native menu item has no tooltip.
+ */
+function aiRenameMenuTitle(
+	affordance: AiRenameAffordance,
+): string | DocumentFragment {
+	const label = t("chat.tabBar.renameWithAi");
+	if (
+		affordance.kind !== "disabled" ||
+		affordance.reason !== "agent-cannot-close"
+	) {
+		return label;
+	}
+	return createFragment((frag) => {
+		frag.createDiv({ text: label });
+		frag.createDiv({
+			text: t("chat.tabBar.renameWithAiUnavailable"),
+			cls: "agent-client-menu-item-note",
+		});
+	});
+}
 
 // ============================================================================
 // Props
@@ -42,6 +67,8 @@ export interface TabBarProps {
 	onAiRenameTab?: (tabId: string) => void;
 	/** F15 — tabs with an AI rename in flight (shows a working indicator). */
 	aiRenamingTabIds?: ReadonlySet<string>;
+	/** I210 — whether Rename with AI can run on a tab (read when the menu opens). */
+	getAiRenameAffordance?: (tabId: string) => AiRenameAffordance;
 	onMoveTab: (fromIndex: number, toIndex: number) => void;
 	/** Right-click on + button — show agent picker */
 	onAddTabWithAgent?: (e: React.MouseEvent) => void;
@@ -235,6 +262,7 @@ export function TabBar({
 	onRenameTab,
 	onAiRenameTab,
 	aiRenamingTabIds,
+	getAiRenameAffordance,
 	onMoveTab,
 	onAddTabWithAgent,
 	onRegisterShowTabList,
@@ -358,10 +386,15 @@ export function TabBar({
 			});
 
 			if (onAiRenameTab) {
+				const affordance: AiRenameAffordance =
+					getAiRenameAffordance?.(tab.tabId) ??
+					(aiRenamingTabIds?.has(tab.tabId)
+						? { kind: "disabled", reason: "in-flight" }
+						: { kind: "enabled" });
 				menu.addItem((item: MenuItem) => {
-					item.setTitle(t("chat.tabBar.renameWithAi"))
+					item.setTitle(aiRenameMenuTitle(affordance))
 						.setIcon("sparkles")
-						.setDisabled(aiRenamingTabIds?.has(tab.tabId) ?? false)
+						.setDisabled(affordance.kind === "disabled")
 						.onClick(() => {
 							onAiRenameTab(tab.tabId);
 						});

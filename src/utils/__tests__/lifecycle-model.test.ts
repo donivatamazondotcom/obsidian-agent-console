@@ -56,6 +56,7 @@ class TabSessionSim {
 			requestedAgentId,
 			hasSession: this.hasSession,
 			messageCount: this.messageCount,
+			closesSessions: false,
 		});
 	}
 

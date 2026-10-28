@@ -69,6 +69,11 @@ import { useLinkOriginTab } from "../hooks/useLinkOriginTab";
 
 // Service imports
 import { getLogger } from "../utils/logger";
+import { retireLiveSession } from "../services/retire-live-session";
+import {
+	deriveAiRenameAffordance,
+	type AiRenameAffordance,
+} from "../resolvers/ai-rename-affordance";
 import {
 	deriveTabLabel,
 	labelAlreadyReportedOnMount,
@@ -200,6 +205,12 @@ export interface ChatPanelCallbacks {
 	 * tab's session or transcript. Never throws.
 	 */
 	requestAiTitle: () => Promise<AiTitleResult>;
+	/**
+	 * I210 — whether Rename with AI can run on this tab right now. Sync, so
+	 * the tab context menu can read it while it builds. `inFlight` comes from
+	 * the view, which owns the in-flight set.
+	 */
+	getAiRenameAffordance: (inFlight: boolean) => AiRenameAffordance;
 }
 
 // ============================================================================
@@ -941,6 +952,7 @@ export function ChatPanel({
 					requestedAgentId,
 					hasSession: !!session.sessionId,
 					messageCount: messages.length,
+					closesSessions: session.capabilities?.closesSessions ?? false,
 				});
 
 				if (decision.kind === "noop") return;
@@ -1017,6 +1029,15 @@ export function ChatPanel({
 					suggestions.mentions.toggleAutoMention(false);
 					agent.clearMessages();
 					sessionHistory.invalidateCache();
+
+					// I210: don't leave the old session running on the same
+					// process before the next session/new.
+					await retireLiveSession(decision.retire, {
+						closeLiveSession: agent.closeLiveSession,
+						respawn: agent.closeSession,
+						warn: (message, error) =>
+							getLogger().warn(`[I210] ${message}`, error),
+					});
 				}
 
 				// Rebind without creating a session directly. Lazy decisions reset
@@ -1090,6 +1111,8 @@ export function ChatPanel({
 			agent.setAgentWithoutSession,
 			agent.getAvailableAgents,
 			agent.setMessagesFromLocal,
+			agent.closeLiveSession,
+			agent.closeSession,
 			autoExportIfEnabled,
 			suggestions.mentions.toggleAutoMention,
 			sessionHistory.invalidateCache,
@@ -1132,6 +1155,7 @@ export function ChatPanel({
 					currentAgentId: session.agentId,
 					hasSession: !!session.sessionId,
 					messageCount: messages.length,
+					closesSessions: session.capabilities?.closesSessions ?? false,
 				});
 				// new-chat-in-directory always resolves to recreate-eager on the
 				// CURRENT agent. (Previously restartSession(undefined, dir) ran
@@ -1148,6 +1172,13 @@ export function ChatPanel({
 				suggestions.mentions.toggleAutoMention(false);
 				agent.clearMessages();
 				setCarriedOver(null);
+				// I210: retire the old session on this process first.
+				await retireLiveSession(decision.retire, {
+					closeLiveSession: agent.closeLiveSession,
+					respawn: agent.closeSession,
+					warn: (message, error) =>
+						getLogger().warn(`[I210] ${message}`, error),
+				});
 				// Change cwd, rebind the same agent, then acquire immediately through
 				// the sole owner. The override ref covers the pre-render state window.
 				setAgentCwd(directory);
@@ -1175,6 +1206,8 @@ export function ChatPanel({
 			agent.cancelOperation,
 			agent.clearMessages,
 			agent.setAgentWithoutSession,
+			agent.closeLiveSession,
+			agent.closeSession,
 			sessionHistory.invalidateCache,
 			focusAfter,
 		],
@@ -2647,12 +2680,28 @@ export function ChatPanel({
 			openHistory: () => handleOpenHistoryRef.current(),
 			requestAiTitle: async () => {
 				if (!acpClient.isInitialized()) return { kind: "not-ready" };
+				const affordance = deriveAiRenameAffordance({
+					initialized: true,
+					closesSessions:
+						acpClient.getInitializeResult()?.capabilities
+							.closesSessions ?? false,
+					inFlight: false,
+				});
+				if (affordance.kind === "disabled") return { kind: "unsupported" };
 				return requestAiTitle({
 					messages: messagesRef.current,
 					port: acpClient,
 					cwd: agentCwd,
 				});
 			},
+			getAiRenameAffordance: (inFlight) =>
+				deriveAiRenameAffordance({
+					initialized: acpClient.isInitialized(),
+					closesSessions:
+						acpClient.getInitializeResult()?.capabilities
+							.closesSessions ?? false,
+					inFlight,
+				}),
 		});
 	}, [onRegisterCallbacks, activeAgentLabel, agentCwd, acpClient]);
 

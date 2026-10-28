@@ -136,6 +136,8 @@ export type AiTitleResult =
 	| { kind: "no-content" }
 	/** The tab's agent connection isn't up yet (eager init still running). */
 	| { kind: "not-ready" }
+	/** The agent can't close the side session, so it would leak (I210). */
+	| { kind: "unsupported" }
 	| { kind: "failed"; error: unknown };
 
 /**

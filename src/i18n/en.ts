@@ -310,6 +310,8 @@ export const en = {
 		"[Agent Console] Nothing to name yet — send a message first",
 	"notices.aiRenameNotReady":
 		"[Agent Console] The agent is still starting — try again in a moment",
+	"notices.aiRenameUnsupported":
+		"[Agent Console] Rename with AI isn't available for this agent. It would keep a second copy of the agent's tools running until you close the tab.",
 	"notices.aiRenameFailed":
 		"[Agent Console] Couldn't get a title from the agent",
 	"notices.duplicateTabName":
@@ -498,6 +500,7 @@ export const en = {
 	"chat.menu.pluginSettings": "Plugin settings",
 	"chat.tabBar.rename": "Rename",
 	"chat.tabBar.renameWithAi": "Rename with AI",
+	"chat.tabBar.renameWithAiUnavailable": "Not available for this agent",
 	"chat.tabBar.renamingWithAi": "Renaming with AI…",
 	"chat.tabBar.close": "Close",
 	"chat.tabBar.closeOthers": "Close others",

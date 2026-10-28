@@ -90,6 +90,7 @@ Get a fresh title for where the conversation is now — not just where it starte
 - If another open tab already has that name, the new title gets a number, like `Fix scroll jitter (2)`.
 - The title is saved to session history, the same as a manual rename.
 - Use it when the automatic title didn't show up, or when the chat has moved on to a different topic.
+- It's greyed out for agents that can't close a side conversation, such as Kiro CLI on the V2 engine. On those agents each request would leave a second copy of the agent's tools running until you closed the tab. The automatic titles still work.
 
 ## Closing tabs
 

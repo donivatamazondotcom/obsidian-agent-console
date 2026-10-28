@@ -3738,3 +3738,9 @@ del.acp-header-branded-profile {
 .agent-client-link-origin-dismiss {
 	flex: 0 0 auto;
 }
+
+/* I210 — muted second line on a disabled native menu item (e.g. "Rename with AI"). */
+.agent-client-menu-item-note {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}

@@ -18,6 +18,7 @@ function caps(over: Partial<AgentCapabilities> = {}): AgentCapabilities {
 		restoresViaLoad: false,
 		restoresViaResume: false,
 		forks: false,
+		closesSessions: false,
 		reportsModels: false,
 		...over,
 	};
@@ -29,6 +30,7 @@ const CLAUDE_CODE = caps({
 	listsSessions: true,
 	restoresViaLoad: true,
 	forks: true,
+	closesSessions: false,
 });
 // Kiro CLI: no server-side list, restore-only (resume), no fork. Sessions are
 // "saved in the plugin". (The exact resume/load axis is read from the live
@@ -325,6 +327,7 @@ describe("deriveSessionHistoryView — totality over the input cube", () => {
 												restoresViaLoad,
 												restoresViaResume,
 												forks: forksCap,
+												closesSessions: false,
 												reportsModels,
 											},
 											ready,
@@ -371,6 +374,7 @@ describe("deriveSessionHistoryView — totality over the input cube", () => {
 										restoresViaLoad,
 										restoresViaResume,
 										forks: forksCap,
+										closesSessions: false,
 										reportsModels: false,
 									},
 									true,
