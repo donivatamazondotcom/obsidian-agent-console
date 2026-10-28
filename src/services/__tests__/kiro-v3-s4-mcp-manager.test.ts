@@ -176,9 +176,12 @@ describe("McpAuthManager sign-in on V3 (T8)", () => {
 		expect(entry).toMatchObject({ serverName: "sheets", oauthUrl: URL_1, host: "auth.example.com" });
 		expect(liveNoticeText()).toContain("Copy link");
 
+		// Sign in asks for a fresh page (the stored one may belong to an
+		// attempt that already ended); the page that follows opens.
 		manager.openSignIn(entry);
-		expect(open).toHaveBeenCalledWith(URL_1);
-		expect(client.resetMcpServer).not.toHaveBeenCalled();
+		expect(client.resetMcpServer).toHaveBeenCalledWith("sheets");
+		client.emit({ kind: "open_external_url", url: URL_1 + "&fresh" });
+		expect(open).toHaveBeenCalledWith(URL_1 + "&fresh");
 	});
 
 	it("a URL arriving long after the click is treated as unsolicited", () => {
@@ -238,5 +241,63 @@ describe("McpAuthManager sign-in on V3 (T8)", () => {
 		expect(liveNoticeText()).toContain("sheets");
 		expect(liveNoticeText()).not.toContain("Sign in");
 		expect(liveNoticeText()).toContain("Kiro CLI");
+	});
+});
+
+// Found in the S4 human smoke (2026-10-27).
+describe("S4 smoke findings", () => {
+	let open: ReturnType<typeof vi.spyOn>;
+	beforeEach(() => {
+		Notice.instances = [];
+		open = vi.spyOn(window, "open").mockImplementation(() => null);
+	});
+	afterEach(() => open.mockRestore());
+
+	it("check 1: snapshots that only change other servers don't re-create the sign-in notice", () => {
+		const manager = new McpAuthManager();
+		const client = makeV3Client();
+		manager.trackClient("view-1", client);
+		client.emit(snap(srv("sheets", "failed", true), srv("drive", "connecting")));
+		const count = Notice.instances.length;
+		client.emit(snap(srv("sheets", "failed", true), srv("drive", "connected")));
+		client.emit(snap(srv("sheets", "failed", true), srv("drive", "connected"), srv("slack", "failed", false, "x")));
+		// Obsidian fades a hidden Notice out, so each re-create stacks a prompt.
+		expect(Notice.instances.length).toBe(count);
+	});
+
+	it("check 3: a second Sign in click opens its page even if the first reset fails afterwards", async () => {
+		const rejects: Array<(e: Error) => void> = [];
+		const manager = new McpAuthManager();
+		const client = makeV3Client(
+			() => new Promise<void>((_res, rej) => { rejects.push(rej); }),
+		);
+		manager.trackClient("view-1", client);
+		client.emit(snap(srv("sheets", "failed", true)));
+		manager.openSignIn(manager.getPending()[0]);
+		client.emit({ kind: "open_external_url", url: URL_1 });
+		expect(open).toHaveBeenCalledTimes(1);
+
+		// User closed the page and clicks Sign in again; the server supersedes
+		// the first attempt, which then rejects.
+		client.emit(snap(srv("sheets", "connecting")));
+		manager.openSignIn(manager.getPending()[0]);
+		rejects[0](new Error("superseded"));
+		await new Promise((r) => setTimeout(r, 0));
+
+		client.emit({ kind: "open_external_url", url: URL_1 + "&2" });
+		expect(open).toHaveBeenCalledTimes(2);
+	});
+
+	it("an unnamed sign-in URL is matched to the one server waiting in the status, never labeled 'MCP server'", () => {
+		const manager = new McpAuthManager();
+		const client = makeV3Client();
+		manager.trackClient("view-1", client);
+		client.emit(snap(srv("sheets", "failed", true), srv("drive", "connecting")));
+		// The snapshot-born entry is gone while the server reconnects on its
+		// own (e.g. after the user signed in elsewhere and it failed again).
+		client.emit(snap(srv("sheets", "disabled"), srv("drive", "connected")));
+		client.emit(snap(srv("sheets", "connecting"), srv("drive", "connected"), srv("chorus", "connecting")));
+		client.emit({ kind: "open_external_url", url: URL_1 });
+		expect(manager.getPending().map((p) => p.serverName)).toEqual(["sheets"]);
 	});
 });
