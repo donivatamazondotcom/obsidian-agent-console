@@ -3520,6 +3520,40 @@ del.acp-header-branded-profile {
 	background: var(--background-secondary);
 }
 
+/* Kiro V3 (S4): MCP servers that didn't connect, above the conversation */
+.agent-client-mcp-failure-notice {
+	margin: 8px 0;
+	padding: 8px 12px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-left: 3px solid var(--color-yellow);
+	border-radius: var(--radius-s);
+	font-size: var(--font-ui-small);
+}
+
+.agent-client-mcp-failure-notice-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.agent-client-mcp-failure-notice-title {
+	flex: 1;
+	min-width: 0;
+	font-weight: 600;
+}
+
+.agent-client-mcp-failure-notice details {
+	margin-top: 4px;
+	color: var(--text-muted);
+}
+
+.agent-client-mcp-failure-notice ul {
+	margin: 4px 0 0;
+	padding-left: 18px;
+	overflow-wrap: anywhere;
+}
+
 .agent-client-mcp-auth-banner-text {
 	flex: 1;
 	min-width: 0;

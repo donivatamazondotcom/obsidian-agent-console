@@ -18,6 +18,7 @@
  *
  * Spec: [[Kiro CLI V3 Support]].
  */
+import type { KiroMcpServerStatus } from "../types/mcp-auth";
 import type * as acp from "@agentclientprotocol/sdk";
 import type { AgentConfig } from "./acp-client";
 import type { PromptContent } from "../types/chat";
@@ -132,7 +133,9 @@ export function buildClientCapabilities(
 		// Without this, the v3 server runs no agent hooks over ACP. `v2: true`
 		// means "the server runs them"; `{enabled: true}` alone would make the
 		// client responsible for running hooks (the Kiro IDE model).
-		meta.kiro = { hooks: { enabled: true, v2: true } };
+		// `openExternalUrl`: the server sends `_kiro/openExternalUrl` for MCP
+		// sign-in; its handler is registered before `initialize` (S4).
+		meta.kiro = { hooks: { enabled: true, v2: true }, openExternalUrl: true };
 	}
 	return {
 		fs: { readTextFile: false, writeTextFile: false },
@@ -223,4 +226,37 @@ export function adaptPromptForEngine(
 				"</attached_file>",
 		};
 	});
+}
+
+/**
+ * Apply a V3 `_kiro/mcp/status` snapshot. Each snapshot is complete: it
+ * replaces the previous state by server name, a server missing from it is
+ * gone, and a repeated name keeps its last entry. `changed` is false when
+ * nothing the plugin shows differs, so an unchanged failure isn't shown again.
+ */
+export function reduceMcpStatusSnapshot(
+	prev: ReadonlyMap<string, KiroMcpServerStatus>,
+	servers: readonly KiroMcpServerStatus[],
+): { next: Map<string, KiroMcpServerStatus>; changed: boolean } {
+	const next = new Map<string, KiroMcpServerStatus>();
+	for (const server of servers) {
+		next.delete(server.name);
+		next.set(server.name, server);
+	}
+	let changed = next.size !== prev.size;
+	if (!changed) {
+		for (const [name, now] of next) {
+			const before = prev.get(name);
+			if (
+				!before ||
+				before.status !== now.status ||
+				before.failedAuthorization !== now.failedAuthorization ||
+				before.errorMessage !== now.errorMessage
+			) {
+				changed = true;
+				break;
+			}
+		}
+	}
+	return { next, changed };
 }

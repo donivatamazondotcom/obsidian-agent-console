@@ -335,6 +335,8 @@ export const en = {
 	"notices.mcpSignIn": "Sign in",
 	"notices.mcpCopyLink": "Copy link",
 	"notices.mcpMoreWaiting": "{count} more waiting after this: {names}",
+	"notices.mcpSignInUnavailable":
+		"To connect it, sign in from Kiro CLI in a terminal, then start a new chat.",
 	"notices.noActiveNoteToGrab": "[Agent Console] No active note to grab",
 	"notices.removedFromContext":
 		'[Agent Console] Removed "{name}" from context',
@@ -714,6 +716,9 @@ export const en = {
 	"chat.mcpBanner.mayNeedSignIn":
 		"An MCP server may need to sign in again. Restart the session to get a fresh sign-in prompt.",
 	"chat.mcpBanner.reauthenticate": "Re-authenticate…",
+	"chat.mcpFailures.title": "MCP servers that didn't connect: {names}",
+	"chat.mcpFailures.details": "Details",
+	"chat.mcpFailures.dismiss": "Dismiss",
 	"chat.sharedLinks.none": "No shared links yet",
 	"chat.sharedLinks.count": "Shared links ({count})",
 	"chat.sharedLinks.countWithNew": "Shared links ({count}, {new} new)",

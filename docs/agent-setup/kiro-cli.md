@@ -50,7 +50,7 @@ Kiro CLI has a newer engine, V3. Some agent configs, such as recent auto-sa rele
 2. Keep your arguments as they are, for example `acp --agent auto-sa`. V3 doesn't accept `--agent`, `--model` or `--effort` on launch, so Agent Console passes them to each new chat instead. `--trust-all-tools` and `--trust-tools` are dropped; V3 uses its own permission rules.
 3. Start a new chat.
 
-With V3, your agent's hooks (start, prompt and stop) run in Agent Console chats too.
+With V3, your agent's hooks (start, prompt and stop) run in Agent Console chats too. MCP servers that need sign-in prompt you as soon as Kiro reports them, and servers that fail to start are listed at the top of the chat (see [MCP Tools](../usage/mcp-tools.md#on-the-kiro-cli-v3-engine)).
 
 On V2, starting a new chat in the same tab restarts Kiro, so it takes a few seconds longer. That keeps each tab to one copy of your MCP servers. **Rename with AI** isn't available on V2 for the same reason. V3 has neither limit.
 

@@ -1598,6 +1598,19 @@
 			"mustShow": ".agent-client-link-origin-banner",
 			"caption": "Start a prompt from a link, and see what it picked",
 			"altText": "Agent Console tab opened by a link, with the Opened by link banner naming the agent and mode, and the prompt staged"
+		},
+		{
+			"name": "kiro-v3-mcp-failure-notice",
+			"width": 680,
+			"height": 120,
+			"cropSelector": ".agent-client-mcp-failure-notice",
+			"pending": true,
+			"placement": "feature",
+			"purpose": "Shows the note at the top of a Kiro V3 chat that lists MCP servers that didn't connect, with Kiro's reason under Details.",
+			"differentiator": "MCP failures surfaced in the chat (Kiro V3)",
+			"mustShow": ".agent-client-mcp-failure-notice details[open]",
+			"caption": "See which MCP servers didn't connect, and why",
+			"altText": "Note at the top of a chat listing MCP servers that didn't connect, with each server's reason under Details"
 		}
 	]
 }
