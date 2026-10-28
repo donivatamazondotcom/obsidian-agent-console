@@ -203,6 +203,28 @@ describe("McpAuthManager sign-in on V3 (T8)", () => {
 		expect(manager.getPending()[0].oauthUrl).toBe(URL_1);
 	});
 
+	it("a reset that fails after the sign-in page opened (abandoned sign-in) keeps Sign in available", async () => {
+		let rejectReset: (e: Error) => void = () => {};
+		const manager = new McpAuthManager();
+		const client = makeV3Client(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					rejectReset = reject;
+				}),
+		);
+		manager.trackClient("view-1", client);
+		client.emit(snap(srv("sheets", "failed", true)));
+		manager.openSignIn(manager.getPending()[0]);
+		client.emit({ kind: "open_external_url", url: URL_1 });
+		expect(open).toHaveBeenCalledWith(URL_1);
+
+		// The server answers resetServer only when the sign-in ends; here it failed.
+		rejectReset(new Error("MCP server failed to connect"));
+		await new Promise((r) => setTimeout(r, 0));
+		expect(manager.getPending()[0].signInUnavailable).toBeUndefined();
+		expect(liveNoticeText()).toContain("Sign in");
+	});
+
 	it("if resetServer fails, the notice switches to plain text with no Sign in button", async () => {
 		const manager = new McpAuthManager();
 		const client = makeV3Client(async () => {
