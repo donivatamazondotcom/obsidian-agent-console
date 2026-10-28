@@ -28,6 +28,7 @@ describe("decideSessionIntent — switch-agent", () => {
 				requestedAgentId: CUR,
 				hasSession: false,
 				messageCount: 0,
+				closesSessions: false,
 			}),
 		).toEqual({ kind: "noop" });
 	});
@@ -40,6 +41,7 @@ describe("decideSessionIntent — switch-agent", () => {
 				requestedAgentId: OTHER,
 				hasSession: false,
 				messageCount: 0,
+				closesSessions: false,
 			}),
 		).toEqual({ kind: "swap-idle", agentId: OTHER });
 	});
@@ -52,8 +54,9 @@ describe("decideSessionIntent — switch-agent", () => {
 				requestedAgentId: OTHER,
 				hasSession: true,
 				messageCount: 5,
+				closesSessions: false,
 			}),
-		).toEqual({ kind: "recreate-lazy", agentId: OTHER });
+		).toEqual({ kind: "recreate-lazy", agentId: OTHER, retire: "none" });
 	});
 
 	it("different agent, messages but no session → recreate-lazy", () => {
@@ -64,8 +67,9 @@ describe("decideSessionIntent — switch-agent", () => {
 				requestedAgentId: OTHER,
 				hasSession: false,
 				messageCount: 2,
+				closesSessions: false,
 			}),
-		).toEqual({ kind: "recreate-lazy", agentId: OTHER });
+		).toEqual({ kind: "recreate-lazy", agentId: OTHER, retire: "none" });
 	});
 });
 
@@ -77,6 +81,7 @@ describe("decideSessionIntent — new-chat", () => {
 				currentAgentId: CUR,
 				hasSession: false,
 				messageCount: 0,
+				closesSessions: false,
 			}),
 		).toEqual({ kind: "noop" });
 	});
@@ -88,8 +93,9 @@ describe("decideSessionIntent — new-chat", () => {
 				currentAgentId: CUR,
 				hasSession: true,
 				messageCount: 4,
+				closesSessions: false,
 			}),
-		).toEqual({ kind: "recreate-eager", agentId: CUR });
+		).toEqual({ kind: "recreate-eager", agentId: CUR, retire: "respawn" });
 	});
 
 	it("new-chat carrying a different agent is still deliberate fresh intent", () => {
@@ -100,17 +106,18 @@ describe("decideSessionIntent — new-chat", () => {
 				requestedAgentId: OTHER,
 				hasSession: false,
 				messageCount: 0,
+				closesSessions: false,
 			}),
-		).toEqual({ kind: "recreate-eager", agentId: OTHER });
+		).toEqual({ kind: "recreate-eager", agentId: OTHER, retire: "none" });
 	});
 });
 
 describe("decideSessionIntent — new-chat-in-directory", () => {
 	it("always recreate-eager on the current agent (caller sets the cwd)", () => {
-		for (const [hasSession, messageCount] of [
-			[false, 0],
-			[true, 3],
-			[false, 2],
+		for (const [hasSession, messageCount, retire] of [
+			[false, 0, "none"],
+			[true, 3, "respawn"],
+			[false, 2, "none"],
 		] as const) {
 			expect(
 				decideSessionIntent({
@@ -118,8 +125,9 @@ describe("decideSessionIntent — new-chat-in-directory", () => {
 					currentAgentId: CUR,
 					hasSession,
 					messageCount,
+					closesSessions: false,
 				}),
-			).toEqual({ kind: "recreate-eager", agentId: CUR });
+			).toEqual({ kind: "recreate-eager", agentId: CUR, retire });
 		}
 	});
 });
@@ -133,6 +141,7 @@ describe("decideSessionIntent — restart-agent / hard-reload", () => {
 					currentAgentId: CUR,
 					hasSession: true,
 					messageCount: 7,
+					closesSessions: false,
 				}),
 			).toEqual({ kind: "respawn-lazy", agentId: CUR });
 		});
@@ -144,6 +153,7 @@ describe("decideSessionIntent — restart-agent / hard-reload", () => {
 					currentAgentId: CUR,
 					hasSession: false,
 					messageCount: 0,
+					closesSessions: false,
 				}),
 			).toEqual({ kind: "respawn-lazy", agentId: CUR });
 		});
@@ -158,6 +168,7 @@ describe("decideSessionIntent — soft-reload", () => {
 				currentAgentId: CUR,
 				hasSession: true,
 				messageCount: 3,
+				closesSessions: false,
 			}),
 		).toEqual({ kind: "resume" });
 	});
@@ -169,6 +180,7 @@ describe("decideSessionIntent — soft-reload", () => {
 				currentAgentId: CUR,
 				hasSession: false,
 				messageCount: 0,
+				closesSessions: false,
 			}),
 		).toEqual({ kind: "noop" });
 	});
@@ -199,6 +211,7 @@ const paramsArb = fc.record({
 	),
 	hasSession: fc.boolean(),
 	messageCount: fc.nat({ max: 50 }),
+	closesSessions: fc.boolean(),
 });
 
 const KNOWN_KINDS: ReadonlyArray<SessionIntentDecision["kind"]> = [
@@ -285,6 +298,72 @@ describe("decideSessionIntent — properties", () => {
 					expect(["noop", "recreate-lazy"]).toContain(
 						decideSessionIntent(params).kind,
 					);
+				}
+			}),
+		);
+	});
+});
+
+// ============================================================================
+// I210 — `retire`: what happens to the OLD live session before the next
+// session/new. Kiro V2 starts a full MCP set per session/new on a live process
+// and never frees it, so a same-process recreate must close the old session
+// (agent advertises session/close) or respawn the process (it doesn't).
+// ============================================================================
+
+describe("decideSessionIntent — retire (I210)", () => {
+	type Row = {
+		intent: SessionIntent;
+		requestedAgentId?: string;
+		hasSession: boolean;
+		closesSessions: boolean;
+		expected: SessionIntentDecision;
+	};
+	const rows: Row[] = [
+		// In-tab New chat, same agent, live session.
+		{ intent: "new-chat", hasSession: true, closesSessions: true, expected: { kind: "recreate-eager", agentId: CUR, retire: "close" } },
+		{ intent: "new-chat", hasSession: true, closesSessions: false, expected: { kind: "recreate-eager", agentId: CUR, retire: "respawn" } },
+		// No live session → nothing to retire, whatever the capability.
+		{ intent: "new-chat", hasSession: false, closesSessions: true, expected: { kind: "recreate-eager", agentId: CUR, retire: "none" } },
+		{ intent: "new-chat", hasSession: false, closesSessions: false, expected: { kind: "recreate-eager", agentId: CUR, retire: "none" } },
+		// New chat in directory follows New chat.
+		{ intent: "new-chat-in-directory", hasSession: true, closesSessions: true, expected: { kind: "recreate-eager", agentId: CUR, retire: "close" } },
+		{ intent: "new-chat-in-directory", hasSession: true, closesSessions: false, expected: { kind: "recreate-eager", agentId: CUR, retire: "respawn" } },
+		// Same-agent pick from the header menu: same process, so it retires too.
+		{ intent: "switch-agent", requestedAgentId: CUR, hasSession: true, closesSessions: true, expected: { kind: "recreate-lazy", agentId: CUR, retire: "close" } },
+		{ intent: "switch-agent", requestedAgentId: CUR, hasSession: true, closesSessions: false, expected: { kind: "recreate-lazy", agentId: CUR, retire: "respawn" } },
+		// Different agent: initialize() already replaces the process.
+		{ intent: "switch-agent", requestedAgentId: OTHER, hasSession: true, closesSessions: true, expected: { kind: "recreate-lazy", agentId: OTHER, retire: "none" } },
+		{ intent: "switch-agent", requestedAgentId: OTHER, hasSession: true, closesSessions: false, expected: { kind: "recreate-lazy", agentId: OTHER, retire: "none" } },
+		{ intent: "new-chat", requestedAgentId: OTHER, hasSession: true, closesSessions: false, expected: { kind: "recreate-eager", agentId: OTHER, retire: "none" } },
+	];
+
+	it.each(rows)(
+		"$intent (requested=$requestedAgentId, hasSession=$hasSession, closesSessions=$closesSessions)",
+		({ intent, requestedAgentId, hasSession, closesSessions, expected }) => {
+			expect(
+				decideSessionIntent({
+					intent,
+					currentAgentId: CUR,
+					requestedAgentId,
+					hasSession,
+					messageCount: 3,
+					closesSessions,
+				}),
+			).toEqual(expected);
+		},
+	);
+
+	it("property: a recreate on the SAME process with a live session never leaves it running", () => {
+		fc.assert(
+			fc.property(paramsArb, (params) => {
+				const d = decideSessionIntent(params);
+				if (d.kind !== "recreate-lazy" && d.kind !== "recreate-eager") return;
+				const sameProcess = d.agentId === params.currentAgentId;
+				if (sameProcess && params.hasSession) {
+					expect(d.retire).toBe(params.closesSessions ? "close" : "respawn");
+				} else {
+					expect(d.retire).toBe("none");
 				}
 			}),
 		);

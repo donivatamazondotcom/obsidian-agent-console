@@ -41,6 +41,7 @@ function makeProps(
 			restoresViaLoad: false,
 			restoresViaResume: true,
 			forks: false,
+			closesSessions: false,
 			reportsModels: false,
 		},
 		localSessionIds: new Set<string>(),

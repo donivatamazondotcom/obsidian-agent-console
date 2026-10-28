@@ -212,8 +212,9 @@ describe("origin-aware acquisition — deliberate fresh intents", () => {
 				currentAgentId: "kiro-cli",
 				hasSession: true,
 				messageCount: 3,
+				closesSessions: true,
 			}),
-		).toEqual({ kind: "recreate-eager", agentId: "kiro-cli" });
+		).toEqual({ kind: "recreate-eager", agentId: "kiro-cli", retire: "close" });
 	});
 
 	it("New chat in directory requests immediate reacquisition", () => {
@@ -223,8 +224,9 @@ describe("origin-aware acquisition — deliberate fresh intents", () => {
 				currentAgentId: "kiro-cli",
 				hasSession: false,
 				messageCount: 0,
+				closesSessions: true,
 			}),
-		).toEqual({ kind: "recreate-eager", agentId: "kiro-cli" });
+		).toEqual({ kind: "recreate-eager", agentId: "kiro-cli", retire: "none" });
 	});
 
 	it("agent switching remains lazy", () => {
@@ -235,8 +237,9 @@ describe("origin-aware acquisition — deliberate fresh intents", () => {
 				requestedAgentId: "claude-code",
 				hasSession: true,
 				messageCount: 3,
+				closesSessions: true,
 			}),
-		).toEqual({ kind: "recreate-lazy", agentId: "claude-code" });
+		).toEqual({ kind: "recreate-lazy", agentId: "claude-code", retire: "none" });
 	});
 });
 

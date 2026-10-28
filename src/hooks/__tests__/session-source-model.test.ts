@@ -33,6 +33,7 @@ const CLAUDE_CAPS: AgentCapabilities = {
 	restoresViaLoad: true,
 	restoresViaResume: false,
 	forks: true,
+	closesSessions: false,
 	reportsModels: false,
 };
 
@@ -204,6 +205,7 @@ describe("Session History Source Model — Local view (unified store)", () => {
 				restoresViaLoad: false,
 				restoresViaResume: true,
 				forks: false,
+				closesSessions: false,
 				reportsModels: false,
 			},
 		});
@@ -261,6 +263,7 @@ describe("Session History Source Model — agent metadata cache", () => {
 				restoresViaLoad: false,
 				restoresViaResume: true,
 				forks: false,
+				closesSessions: false,
 				reportsModels: false,
 			},
 		});

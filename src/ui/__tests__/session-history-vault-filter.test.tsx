@@ -30,6 +30,7 @@ const CLAUDE_CAPS = {
 	restoresViaLoad: true,
 	restoresViaResume: false,
 	forks: true,
+	closesSessions: false,
 	reportsModels: false,
 };
 

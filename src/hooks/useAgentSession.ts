@@ -62,6 +62,11 @@ export interface UseAgentSessionReturn {
 		overrideCwd?: string,
 	) => Promise<void>;
 	closeSession: () => Promise<void>;
+	/**
+	 * `session/close` the live session on the SAME process (no respawn), for
+	 * agents that advertise it. Rejects on failure (I210).
+	 */
+	closeLiveSession: () => Promise<void>;
 	forceRestartAgent: () => Promise<void>;
 	/**
 	 * Soft reload: disconnect the subprocess, re-initialize (fresh harness,
@@ -465,6 +470,12 @@ export function useAgentSession(
 		}));
 	}, [agentClient]);
 
+	const closeLiveSession = useCallback(async () => {
+		const id = sessionRef.current.sessionId;
+		if (!id) return;
+		await agentClient.closeSession(id);
+	}, [agentClient]);
+
 	const forceRestartAgent = useCallback(async () => {
 		const currentAgentId = sessionRef.current.agentId;
 		await agentClient.disconnect();
@@ -864,6 +875,7 @@ export function useAgentSession(
 		createSession,
 		restartSession,
 		closeSession,
+		closeLiveSession,
 		forceRestartAgent,
 		reloadSession,
 		cancelOperation,

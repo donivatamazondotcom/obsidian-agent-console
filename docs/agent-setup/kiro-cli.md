@@ -52,6 +52,8 @@ Kiro CLI has a newer engine, V3. Some agent configs, such as recent auto-sa rele
 
 With V3, your agent's hooks (start, prompt and stop) run in Agent Console chats too.
 
+On V2, starting a new chat in the same tab restarts Kiro, so it takes a few seconds longer. That keeps each tab to one copy of your MCP servers. **Rename with AI** isn't available on V2 for the same reason. V3 has neither limit.
+
 Pick the model, the [effort level](../usage/thought-level-selection.md) and other Kiro options (such as Autopilot or Supervised) from the dropdowns below the message box. The effort dropdown only shows for models that support it. Agent Console remembers your model and effort picks for the next chat. If a model you saved is no longer offered, the chat switches to the first model on the list and tells you. When you reopen an earlier chat from history or after a restart, it keeps the model, effort and mode it was using.
 
 ## Verify Setup

@@ -14,6 +14,7 @@ const CLAUDE_CAPS = {
 	restoresViaLoad: true,
 	restoresViaResume: false,
 	forks: true,
+	closesSessions: false,
 	reportsModels: false,
 };
 const KIRO_CAPS = {
@@ -21,6 +22,7 @@ const KIRO_CAPS = {
 	restoresViaLoad: false,
 	restoresViaResume: true,
 	forks: false,
+	closesSessions: false,
 	reportsModels: false,
 };
 

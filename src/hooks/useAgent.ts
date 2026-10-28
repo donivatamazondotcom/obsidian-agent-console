@@ -62,6 +62,11 @@ export interface UseAgentReturn {
 		overrideCwd?: string,
 	) => Promise<void>;
 	closeSession: () => Promise<void>;
+	/**
+	 * `session/close` the live session on the SAME process (no respawn), for
+	 * agents that advertise it. Rejects on failure (I210).
+	 */
+	closeLiveSession: () => Promise<void>;
 	forceRestartAgent: () => Promise<void>;
 	reloadSession: () => Promise<{ resumed: boolean }>;
 	cancelOperation: () => Promise<void>;
@@ -225,6 +230,7 @@ export function useAgent(
 			createSession: agentSession.createSession,
 			restartSession: agentSession.restartSession,
 			closeSession: agentSession.closeSession,
+			closeLiveSession: agentSession.closeLiveSession,
 			forceRestartAgent: agentSession.forceRestartAgent,
 			reloadSession,
 			cancelOperation,
@@ -264,6 +270,7 @@ export function useAgent(
 			agentSession.createSession,
 			agentSession.restartSession,
 			agentSession.closeSession,
+			agentSession.closeLiveSession,
 			agentSession.forceRestartAgent,
 			reloadSession,
 			cancelOperation,
