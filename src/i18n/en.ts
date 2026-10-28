@@ -284,6 +284,8 @@ export const en = {
 	"notices.sessionReloaded": "[Agent Console] Session reloaded",
 	"notices.sessionReloadedFresh":
 		"[Agent Console] This agent can't resume — reloaded as a fresh session (history shown is local)",
+	"notices.sessionReloadResumeFailed":
+		"[Agent Console] Couldn't pick up the conversation, so the agent started fresh. Your messages are still here.",
 	"notices.sessionReloadFailed": "[Agent Console] Failed to reload session",
 	"notices.invalidWorkingDirectory":
 		"Agent Console: a configured working directory is not a valid absolute directory. New chat started in {dir}.",

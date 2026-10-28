@@ -39,7 +39,10 @@ import {
 	type SavedConfigPicks,
 	restoreLegacyConfig,
 } from "../services/session-state";
-import { reloadSessionFlow } from "./reloadSessionFlow";
+import {
+	reloadSessionFlow,
+	type ReloadSessionFlowResult,
+} from "./reloadSessionFlow";
 import { t } from "../i18n";
 import { Notice } from "obsidian";
 
@@ -66,11 +69,12 @@ export interface UseAgentSessionReturn {
 	 * Soft reload: disconnect the subprocess, re-initialize (fresh harness,
 	 * MCP reloaded), and resume the SAME session when the agent supports
 	 * `loadSession`. Falls back to a fresh session otherwise. Never clears the
-	 * transcript. Returns `{ resumed }` so the caller can pick the notice.
+	 * transcript. Says whether it resumed and, if not, why, so the caller can
+	 * pick the notice.
 	 */
 	reloadSession: (
 		setIgnoreUpdates?: (ignore: boolean) => void,
-	) => Promise<{ resumed: boolean }>;
+	) => Promise<ReloadSessionFlowResult>;
 	cancelOperation: () => Promise<void>;
 	getAvailableAgents: () => AgentDisplayInfo[];
 
@@ -565,9 +569,7 @@ export function useAgentSession(
 
 	const reloadSession = useCallback(async (
 		setIgnoreUpdates?: (ignore: boolean) => void,
-	): Promise<{
-		resumed: boolean;
-	}> => {
+	): Promise<ReloadSessionFlowResult> => {
 		const prev = sessionRef.current;
 		const sessionId = prev.sessionId;
 		const agentId = prev.agentId;
@@ -578,11 +580,23 @@ export function useAgentSession(
 			sessionId,
 			canResume,
 			setIgnoreUpdates,
-			// Soft reload: disconnect → re-init (fresh harness) → resume same id.
+			onResumeError: (error) =>
+				getLogger().warn(
+					"[useAgentSession] Soft reload could not resume; starting fresh:",
+					error,
+				),
+			// Soft reload: disconnect → wait for the old tree to exit →
+			// re-init (fresh harness) → resume same id.
 			resumeSameSession: async (sid: string) => {
 				setSession((p) => ({ ...p, state: "initializing" }));
 				setErrorInfo(null);
 				await agentClient.disconnect();
+				// I230: disconnect() tears the old tree down in the background.
+				// Until it exits, the old process can still hold the session
+				// (Kiro V2 rejects session/load with "Session is active in
+				// another process"), so resuming early silently falls back to a
+				// new session.
+				await agentClient.whenTornDown();
 
 				const settings = settingsAccess.getSnapshot();
 				const agentSettings = findAgentSettings(settings, agentId);

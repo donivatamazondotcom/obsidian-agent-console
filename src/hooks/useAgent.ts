@@ -33,6 +33,7 @@ import type {
 	SessionConfigOption,
 } from "../types/session";
 import type { AgentDisplayInfo } from "../services/session-helpers";
+import type { ReloadSessionFlowResult } from "./reloadSessionFlow";
 
 /**
  * Return type for useAgent hook.
@@ -63,7 +64,7 @@ export interface UseAgentReturn {
 	) => Promise<void>;
 	closeSession: () => Promise<void>;
 	forceRestartAgent: () => Promise<void>;
-	reloadSession: () => Promise<{ resumed: boolean }>;
+	reloadSession: () => Promise<ReloadSessionFlowResult>;
 	cancelOperation: () => Promise<void>;
 	getAvailableAgents: () => AgentDisplayInfo[];
 	setAgentWithoutSession: (agentId: string) => void;
