@@ -422,6 +422,9 @@ export function MessageList({
 		return (
 			<div ref={scrollRef} className="agent-client-chat-view-messages">
 				<div ref={contentRef} className="agent-client-chat-content">
+					{viewId && plugin.mcpAuthManager && (
+						<McpFailureNotice manager={plugin.mcpAuthManager} viewId={viewId} />
+					)}
 					{gettingStarted ? (
 						<GettingStarted info={gettingStarted} />
 					) : (
