@@ -2,8 +2,8 @@
  * Kiro CLI V3 S4: the in-chat list of MCP servers that didn't connect.
  * Spec: [[Kiro CLI V3 Support]] § T7.
  */
-import { describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("obsidian", () => import("../../__test_stubs__/obsidian"));
 
@@ -26,6 +26,8 @@ function setup() {
 		});
 	return { manager, emit };
 }
+
+afterEach(() => cleanup());
 
 describe("McpFailureNotice", () => {
 	it("renders nothing while every server is fine", () => {
@@ -61,5 +63,39 @@ describe("McpFailureNotice", () => {
 			{ name: "chorus", status: "failed", failedAuthorization: false },
 		);
 		expect(screen.getByRole("status").textContent).toContain("slack, chorus");
+	});
+});
+
+// Found in the S4 smoke (2026-10-27): the note never rendered in a new chat,
+// because MessageList's empty state returned before reaching it.
+describe("MessageList shows the MCP failure note", () => {
+	(globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+	};
+
+	it("in an empty chat, before the first message", async () => {
+		const { MessageList } = await import("../MessageList");
+		const { manager, emit } = setup();
+		const plugin = { mcpAuthManager: manager } as never;
+		const view = { registerDomEvent: vi.fn() } as never;
+		const { container } = render(
+			<MessageList
+				messages={[]}
+				isSending={false}
+				lazyState="ready"
+				isRestoringSession={false}
+				agentLabel="Kiro CLI"
+				plugin={plugin}
+				view={view}
+				hasActivePermission={false}
+				viewId="view-1"
+			/>,
+		);
+		emit({ name: "slack", status: "failed", failedAuthorization: false, errorMessage: "boom" });
+		expect(container.querySelector(".agent-client-mcp-failure-notice")?.textContent).toContain(
+			"didn't connect: slack",
+		);
 	});
 });
