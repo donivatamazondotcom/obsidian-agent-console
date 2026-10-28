@@ -43,10 +43,12 @@ export interface McpAuthState {
 	pending: Map<string, PendingEntry>;
 	/** V3: the latest MCP status per view, by server name. */
 	status: Map<string, Map<string, KiroMcpServerStatus>>;
+	/** V3: servers that reported a sign-in failure in this view. */
+	authSeen: Map<string, Set<string>>;
 }
 
 export function createMcpAuthState(): McpAuthState {
-	return { pending: new Map(), status: new Map() };
+	return { pending: new Map(), status: new Map(), authSeen: new Map() };
 }
 
 /** Label for a sign-in URL that names no server and matches no pending one. */
@@ -112,6 +114,9 @@ function applyStatusSnapshot(
 
 	for (const server of next.values()) {
 		if (server.status !== "failed" || !server.failedAuthorization) continue;
+		let seen = state.authSeen.get(viewId);
+		if (!seen) state.authSeen.set(viewId, (seen = new Set()));
+		seen.add(server.name);
 		const key = entryKey(viewId, server.name);
 		if (!state.pending.has(key)) {
 			state.pending.set(key, {
@@ -139,7 +144,7 @@ function applyStatusSnapshot(
 }
 
 /** An unsolicited V3 sign-in URL: attach it to its pending entry, or add one. */
-function attachSignInUrl(
+export function attachSignInUrl(
 	state: McpAuthState,
 	viewId: string,
 	url: string,
@@ -151,16 +156,34 @@ function attachSignInUrl(
 		(serverName !== undefined
 			? inView.find((e) => e.serverName === serverName)
 			: undefined) ?? (inView.length === 1 ? inView[0] : undefined);
-	const name = target?.serverName ?? serverName ?? UNNAMED_SERVER;
+	// V3 sends the URL with no server name. When no pending entry matches,
+	// use the one server in this view that needed sign-in and is still
+	// signing in or failed.
+	const fromStatus =
+		target === undefined && serverName === undefined
+			? signingInServer(state, viewId)
+			: undefined;
+	const name = target?.serverName ?? serverName ?? fromStatus ?? UNNAMED_SERVER;
 	state.pending.set(entryKey(viewId, name), {
 		viewId,
 		serverName: name,
 		host: oauthUrlHost(url),
 		receivedAt: target?.receivedAt ?? now,
-		...(target?.fromStatus && { fromStatus: true }),
+		...((target?.fromStatus || fromStatus !== undefined) && { fromStatus: true }),
 		oauthUrl: url,
 	});
 	return true;
+}
+
+function signingInServer(state: McpAuthState, viewId: string): string | undefined {
+	const seen = state.authSeen.get(viewId);
+	const status = state.status.get(viewId);
+	if (!seen || !status) return undefined;
+	const candidates = [...seen].filter((name) => {
+		const s = status.get(name);
+		return s !== undefined && (s.status === "connecting" || s.status === "failed");
+	});
+	return candidates.length === 1 ? candidates[0] : undefined;
 }
 
 /** A server that failed to connect for a reason other than sign-in. */
@@ -180,10 +203,15 @@ export class McpAuthManager {
 	private state = createMcpAuthState();
 	/** V3: per-view resetServer callers, from `trackClient`. */
 	private resetters = new Map<string, (serverName: string) => Promise<void>>();
-	/** V3: when the user last clicked Sign in, per view (epoch ms). */
-	private signInRequestedAt = new Map<string, number>();
-	/** V3: views whose current sign-in attempt already got its page. */
-	private signInPageDelivered = new Set<string>();
+	/**
+	 * V3: the latest Sign in click per view. Each click is its own attempt,
+	 * so an earlier attempt ending can't clear a newer one.
+	 */
+	private signInAttempts = new Map<
+		string,
+		{ id: number; serverName: string; at: number; pageOpened: boolean }
+	>();
+	private nextAttemptId = 1;
 	/** V3: signature of the failure list the user dismissed, per view. */
 	private dismissedFailures = new Map<string, string>();
 	private notice: Notice | null = null;
@@ -211,8 +239,7 @@ export class McpAuthManager {
 		return () => {
 			unsubscribe();
 			this.resetters.delete(viewId);
-			this.signInRequestedAt.delete(viewId);
-			this.signInPageDelivered.delete(viewId);
+			this.signInAttempts.delete(viewId);
 			this.dismissedFailures.delete(viewId);
 			this.dropView(viewId);
 		};
@@ -275,27 +302,35 @@ export class McpAuthManager {
 	 * sends back opens because it follows this click.
 	 */
 	openSignIn(entry: PendingMcpAuth): void {
-		if (entry.oauthUrl) {
-			window.open(entry.oauthUrl);
+		const internal = this.findEntry(entry.serverName);
+		// V3 entries always ask the server for a fresh page: a page it sent
+		// earlier may belong to an attempt that already ended.
+		if (!internal?.fromStatus || internal.signInUnavailable) {
+			if (entry.oauthUrl) window.open(entry.oauthUrl);
 			return;
 		}
-		const internal = this.findEntry(entry.serverName);
-		if (!internal || internal.signInUnavailable) return;
 		const reset = this.resetters.get(internal.viewId);
 		if (!reset) {
 			this.markSignInUnavailable(internal);
 			return;
 		}
 		const viewId = internal.viewId;
-		this.signInRequestedAt.set(viewId, Date.now());
-		this.signInPageDelivered.delete(viewId);
+		const attempt = {
+			id: this.nextAttemptId++,
+			serverName: internal.serverName,
+			at: Date.now(),
+			pageOpened: false,
+		};
+		this.signInAttempts.set(viewId, attempt);
 		// The server answers resetServer only when the sign-in ends (verified
 		// live 2026-10-27), so a rejection after the page opened means the
 		// user abandoned or failed that sign-in, not that in-app sign-in is
 		// impossible. Only a rejection before any page arrived falls back.
+		// A rejection from an attempt the user already replaced is ignored.
 		reset(internal.serverName).catch(() => {
-			this.signInRequestedAt.delete(viewId);
-			if (this.signInPageDelivered.delete(viewId)) {
+			if (this.signInAttempts.get(viewId)?.id !== attempt.id) return;
+			this.signInAttempts.delete(viewId);
+			if (attempt.pageOpened) {
 				this.logger.warn(`MCP sign-in for "${internal.serverName}" did not complete`);
 				return;
 			}
@@ -323,22 +358,32 @@ export class McpAuthManager {
 	// ------------------------------------------------------------------
 
 	private handleEvent(viewId: string, event: McpAuthEvent): void {
-		if (event.kind === "open_external_url" && this.followsSignInClick(viewId)) {
-			this.signInRequestedAt.delete(viewId);
-			this.signInPageDelivered.add(viewId);
-			window.open(event.url);
-			return;
+		if (event.kind === "open_external_url") {
+			const attempt = this.signInAttempts.get(viewId);
+			if (
+				attempt &&
+				!attempt.pageOpened &&
+				Date.now() - attempt.at <= SIGN_IN_OPEN_WINDOW_MS
+			) {
+				attempt.pageOpened = true;
+				window.open(event.url);
+				return;
+			}
 		}
+		const before = this.pendingSignature();
 		const changed = reduceMcpAuth(this.state, viewId, event, Date.now());
 		if (!changed) return;
-		this.refreshNotice();
+		// Rebuild the corner notice only when what it shows changed. Obsidian
+		// fades a hidden Notice out, so rebuilding on every snapshot stacked
+		// copies (S4 smoke check 1).
+		if (this.pendingSignature() !== before) this.refreshNotice();
 		this.emitChange();
 	}
 
-	/** True when the user clicked Sign in in this view a moment ago. */
-	private followsSignInClick(viewId: string): boolean {
-		const at = this.signInRequestedAt.get(viewId);
-		return at !== undefined && Date.now() - at <= SIGN_IN_OPEN_WINDOW_MS;
+	private pendingSignature(): string {
+		return this.getPending()
+			.map((p) => `${p.serverName}\u0000${p.host}\u0000${p.oauthUrl ? 1 : 0}\u0000${p.signInUnavailable ? 1 : 0}`)
+			.join("\u0001");
 	}
 
 	private findEntry(serverName: string): PendingEntry | undefined {
@@ -356,6 +401,7 @@ export class McpAuthManager {
 
 	/** Remove all pending entries for a closed view. */
 	private dropView(viewId: string): void {
+		this.state.authSeen.delete(viewId);
 		let changed = this.state.status.delete(viewId);
 		for (const [key, entry] of this.state.pending) {
 			if (entry.viewId === viewId) {
