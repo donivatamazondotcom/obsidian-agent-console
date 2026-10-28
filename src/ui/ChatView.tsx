@@ -867,6 +867,10 @@ function ChatComponent({
 					new Notice(t("notices.aiRenameNotReady"));
 					return;
 				}
+				if (result.kind === "unsupported") {
+					new Notice(t("notices.aiRenameUnsupported"));
+					return;
+				}
 				if (result.kind === "failed") {
 					getLogger().warn("[F15] AI rename failed:", result.error);
 					new Notice(t("notices.aiRenameFailed"));
@@ -1215,6 +1219,10 @@ function ChatComponent({
 				(await activeCallbacksRef.current?.requestAiTitle()) ?? {
 					kind: "not-ready",
 				},
+			getAiRenameAffordance: (inFlight) =>
+				activeCallbacksRef.current?.getAiRenameAffordance(inFlight) ?? {
+					kind: "enabled",
+				},
 		});
 		view.setTabHandlesAccessor(() =>
 			Array.from(tabHandlesRef.current.entries()).map(([tabId, cb]) => ({
@@ -1356,6 +1364,13 @@ function ChatComponent({
 				onRenameTab={handleRenameTab}
 				onAiRenameTab={(tabId) => void handleAiRenameTab(tabId)}
 				aiRenamingTabIds={aiRenamingTabIds}
+				getAiRenameAffordance={(tabId) =>
+					tabHandlesRef.current
+						.get(tabId)
+						?.getAiRenameAffordance(aiRenamingRef.current.has(tabId)) ?? {
+						kind: "enabled",
+					}
+				}
 				onMoveTab={tabManager.moveTab}
 				onAddTabWithAgent={handleAddTabWithAgent}
 				onRegisterShowTabList={handleRegisterShowTabList}

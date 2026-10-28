@@ -641,6 +641,23 @@ export class AcpClient {
 	}
 
 	/**
+	 * Close one session on the live process (`session/close`), freeing its
+	 * resources without restarting the agent. Only call when the agent
+	 * advertises it (`AgentCapabilities.closesSessions`). Rejects on failure;
+	 * the caller decides the fallback (I210 respawns).
+	 */
+	async closeSession(sessionId: string): Promise<void> {
+		const connection = this.requireConnection();
+		await connection.agent.request(acp.methods.agent.session.close, {
+			sessionId,
+		});
+		this.logger.log(`Closed session: ${sessionId}`);
+		if (this.currentSessionId === sessionId) {
+			this.currentSessionId = null;
+		}
+	}
+
+	/**
 	 * F15 — ask the agent for a one-off reply in a throwaway side session on
 	 * the EXISTING connection (used for "Rename with AI").
 	 *

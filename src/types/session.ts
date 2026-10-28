@@ -756,6 +756,14 @@ export interface AgentCapabilities {
 	forks: boolean;
 
 	/**
+	 * Agent advertises `session/close` (frees one session's resources on a
+	 * live process). Without it, a session lives until the process exits, so
+	 * starting a fresh chat on the same process must respawn it instead
+	 * (Kiro V2 keeps a full MCP set per session — I210).
+	 */
+	closesSessions: boolean;
+
+	/**
 	 * Agent reports model state the header can display.
 	 *
 	 * ACP SDK 0.14.1 exposes NO model capability in `initialize` (model
@@ -778,6 +786,7 @@ export const NO_AGENT_CAPABILITIES: AgentCapabilities = {
 	restoresViaLoad: false,
 	restoresViaResume: false,
 	forks: false,
+	closesSessions: false,
 	reportsModels: false,
 };
 

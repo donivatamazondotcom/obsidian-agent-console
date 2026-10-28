@@ -91,6 +91,18 @@ export function selectAcquisitionAgent(
 // the (correct) agent on the next send.
 // ============================================================================
 
+/**
+ * What happens to the tab's OLD live session before the next session/new
+ * (I210). A fresh chat on the same process must not leave the old session
+ * running: Kiro V2 keeps a full MCP set alive per session until the process
+ * exits.
+ * - `none`    — no live session, or a different agent (initialize() already
+ *               replaces the process).
+ * - `close`   — same process; the agent advertises session/close.
+ * - `respawn` — same process; it doesn't, so disconnect and re-initialize.
+ */
+export type SessionRetirement = "none" | "close" | "respawn";
+
 /** The user/UI action being applied to a tab. */
 export type SessionIntent =
 	/** User picked a (possibly different) agent from the switch menu. */
@@ -114,12 +126,13 @@ export type SessionIntentDecision =
 	 *  create NO session. The lazy path acquires `agentId` on first send. */
 	| { kind: "swap-idle"; agentId: string }
 	/** Clear the transcript + reset the lazy machine to idle + defer
-	 *  acquisition to first send. No subprocess respawn. `agentId` is the
-	 *  agent the next acquisition must bind to. */
-	| { kind: "recreate-lazy"; agentId: string }
+	 *  acquisition to first send. `agentId` is the agent the next acquisition
+	 *  must bind to; `retire` says what to do with the old live session first. */
+	| { kind: "recreate-lazy"; agentId: string; retire: SessionRetirement }
 	/** Clear the transcript + acquire a fresh session immediately through the
-	 *  lazy-session owner. Used by deliberate New chat actions. */
-	| { kind: "recreate-eager"; agentId: string }
+	 *  lazy-session owner. Used by deliberate New chat actions. `retire` runs
+	 *  before the acquisition. */
+	| { kind: "recreate-eager"; agentId: string; retire: SessionRetirement }
 	/** Disconnect the subprocess (genuine respawn) + reset the lazy machine
 	 *  + defer acquisition. Used by Restart agent / hard reload. */
 	| { kind: "respawn-lazy"; agentId: string }
@@ -141,6 +154,8 @@ export interface DecideSessionIntentParams {
 	hasSession: boolean;
 	/** Number of messages already in the tab. */
 	messageCount: number;
+	/** The live agent advertises session/close (AgentCapabilities.closesSessions). */
+	closesSessions: boolean;
 }
 
 /**
@@ -160,11 +175,21 @@ export function decideSessionIntent(
 		requestedAgentId,
 		hasSession,
 		messageCount,
+		closesSessions,
 	} = params;
 
 	const targetAgent = requestedAgentId || currentAgentId;
 	const isSwitch = targetAgent !== currentAgentId;
 	const isIdleEmpty = !hasSession && messageCount === 0;
+	// I210: a recreate on the SAME process must not leave the old session
+	// running. A different agent needs nothing here — initialize() replaces
+	// the process when the agent id changes.
+	const retire: SessionRetirement =
+		!hasSession || isSwitch
+			? "none"
+			: closesSessions
+				? "close"
+				: "respawn";
 
 	switch (intent) {
 		case "soft-reload":
@@ -179,14 +204,14 @@ export function decideSessionIntent(
 		case "new-chat-in-directory":
 			// Directory change is deliberate fresh-chat intent. The caller sets
 			// the cwd, then acquires through useLazySession immediately.
-			return { kind: "recreate-eager", agentId: targetAgent };
+			return { kind: "recreate-eager", agentId: targetAgent, retire };
 
 		case "new-chat":
 			// A no-op on an already-new tab; otherwise deliberately start the
 			// fresh conversation now.
 			return isIdleEmpty && !isSwitch
 				? { kind: "noop" }
-				: { kind: "recreate-eager", agentId: targetAgent };
+				: { kind: "recreate-eager", agentId: targetAgent, retire };
 
 		case "switch-agent": {
 			if (!isSwitch) {
@@ -194,13 +219,13 @@ export function decideSessionIntent(
 				// otherwise clear + reset + defer.
 				return isIdleEmpty
 					? { kind: "noop" }
-					: { kind: "recreate-lazy", agentId: targetAgent };
+					: { kind: "recreate-lazy", agentId: targetAgent, retire };
 			}
 			// Different agent: swap in place when idle+empty (no eager session),
 			// otherwise teardown + reset + defer ("new chat with a different agent").
 			return isIdleEmpty
 				? { kind: "swap-idle", agentId: targetAgent }
-				: { kind: "recreate-lazy", agentId: targetAgent };
+				: { kind: "recreate-lazy", agentId: targetAgent, retire };
 		}
 	}
 }

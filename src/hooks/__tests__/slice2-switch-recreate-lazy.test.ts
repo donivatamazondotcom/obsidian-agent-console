@@ -107,8 +107,13 @@ describe("Slice 2 — switch-then-send (recreate-lazy) drives the lazy machine",
 			requestedAgentId: "claude-code",
 			hasSession: true,
 			messageCount: 3,
+			closesSessions: false,
 		});
-		expect(decision).toEqual({ kind: "recreate-lazy", agentId: "claude-code" });
+		expect(decision).toEqual({
+			kind: "recreate-lazy",
+			agentId: "claude-code",
+			retire: "none",
+		});
 		act(() => {
 			h.setAgentWithoutSession(decision.kind === "recreate-lazy" ? decision.agentId : "test-agent");
 			h.result.current.reset();
