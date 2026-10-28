@@ -182,6 +182,8 @@ export class McpAuthManager {
 	private resetters = new Map<string, (serverName: string) => Promise<void>>();
 	/** V3: when the user last clicked Sign in, per view (epoch ms). */
 	private signInRequestedAt = new Map<string, number>();
+	/** V3: views whose current sign-in attempt already got its page. */
+	private signInPageDelivered = new Set<string>();
 	/** V3: signature of the failure list the user dismissed, per view. */
 	private dismissedFailures = new Map<string, string>();
 	private notice: Notice | null = null;
@@ -210,6 +212,7 @@ export class McpAuthManager {
 			unsubscribe();
 			this.resetters.delete(viewId);
 			this.signInRequestedAt.delete(viewId);
+			this.signInPageDelivered.delete(viewId);
 			this.dismissedFailures.delete(viewId);
 			this.dropView(viewId);
 		};
@@ -283,12 +286,20 @@ export class McpAuthManager {
 			this.markSignInUnavailable(internal);
 			return;
 		}
-		this.signInRequestedAt.set(internal.viewId, Date.now());
+		const viewId = internal.viewId;
+		this.signInRequestedAt.set(viewId, Date.now());
+		this.signInPageDelivered.delete(viewId);
+		// The server answers resetServer only when the sign-in ends (verified
+		// live 2026-10-27), so a rejection after the page opened means the
+		// user abandoned or failed that sign-in, not that in-app sign-in is
+		// impossible. Only a rejection before any page arrived falls back.
 		reset(internal.serverName).catch(() => {
-			this.logger.warn(
-				`MCP sign-in could not start for "${internal.serverName}"`,
-			);
-			this.signInRequestedAt.delete(internal.viewId);
+			this.signInRequestedAt.delete(viewId);
+			if (this.signInPageDelivered.delete(viewId)) {
+				this.logger.warn(`MCP sign-in for "${internal.serverName}" did not complete`);
+				return;
+			}
+			this.logger.warn(`MCP sign-in could not start for "${internal.serverName}"`);
 			this.markSignInUnavailable(internal);
 		});
 	}
@@ -314,6 +325,7 @@ export class McpAuthManager {
 	private handleEvent(viewId: string, event: McpAuthEvent): void {
 		if (event.kind === "open_external_url" && this.followsSignInClick(viewId)) {
 			this.signInRequestedAt.delete(viewId);
+			this.signInPageDelivered.add(viewId);
 			window.open(event.url);
 			return;
 		}
