@@ -3022,6 +3022,7 @@ export function ChatPanel({
 			hasActivePermission={agent.hasActivePermission}
 			isActive={isActive}
 			isFallbackRecovery={lazySession.isFallbackRecovery}
+			viewId={viewId}
 			gettingStarted={gettingStarted}
 			a2ui={a2uiContext}
 		/>

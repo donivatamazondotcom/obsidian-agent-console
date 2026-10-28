@@ -122,7 +122,7 @@ describe("buildClientCapabilities (T3)", () => {
 	it("v3: asks the server to run the agent's hooks", () => {
 		const caps = buildClientCapabilities(cfg(["acp"], "v3"), a2ui);
 		expect(caps._meta).toHaveProperty(A2UI_CAPABILITY_META_KEY);
-		expect(caps._meta?.kiro).toEqual({ hooks: { enabled: true, v2: true } });
+		expect(caps._meta?.kiro).toEqual({ hooks: { enabled: true, v2: true }, openExternalUrl: true });
 	});
 });
 
@@ -260,6 +260,7 @@ describe("Kiro engine on custom agents (S1b)", () => {
 		});
 		expect(buildClientCapabilities(c)._meta?.kiro).toEqual({
 			hooks: { enabled: true, v2: true },
+			openExternalUrl: true,
 		});
 	});
 

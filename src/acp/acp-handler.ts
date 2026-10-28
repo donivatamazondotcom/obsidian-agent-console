@@ -3,8 +3,10 @@ import * as acp from "@agentclientprotocol/sdk";
 import type { SessionUpdate } from "../types/session";
 import type { McpAuthEvent } from "../types/mcp-auth";
 import type {
+	KiroMcpStatusParams,
 	McpOauthRequestParams,
 	McpServerInitializedParams,
+	OpenExternalUrlParams,
 } from "./mcp-auth-parsers";
 import { AcpTypeConverter } from "./type-converter";
 import type { PermissionManager } from "./permission-handler";
@@ -266,6 +268,46 @@ export class AcpHandler {
 			sessionId: params.sessionId,
 			serverName: params.serverName,
 		});
+	}
+
+	/**
+	 * `_kiro/mcp/status` (V3): a full snapshot of every MCP server for one
+	 * session. Dropped for side sessions and for a session other than the
+	 * current one; accepted before `session/new` resolves (the first
+	 * snapshots arrive during it). Logs counts only: entries can carry
+	 * server-written error text with URLs in it.
+	 */
+	mcpStatus(params: KiroMcpStatusParams): void {
+		if (this.sideSessions.has(params.sessionId)) return;
+		const current = this.getCurrentSessionId();
+		if (current !== null && params.sessionId !== current) return;
+		const counts: Record<string, number> = {};
+		for (const s of params.servers) {
+			const key = s.failedAuthorization ? "needs-sign-in" : s.status;
+			counts[key] = (counts[key] ?? 0) + 1;
+		}
+		this.logger.log("MCP status:", counts);
+		this.emitMcpAuthEvent({
+			kind: "status_snapshot",
+			sessionId: params.sessionId,
+			servers: params.servers,
+		});
+	}
+
+	/**
+	 * `_kiro/openExternalUrl` (V3): the server wants a sign-in page opened.
+	 * It awaits this reply inside its OAuth flow, so answer at once (as Kiro's
+	 * own CLI does); McpAuthManager decides whether the page opens now (right
+	 * after the user clicked Sign in) or waits for a click. Never logs the URL.
+	 */
+	openExternalUrl(params: OpenExternalUrlParams): { success: true } {
+		this.logger.log("Agent sent an MCP sign-in page to open");
+		this.emitMcpAuthEvent({
+			kind: "open_external_url",
+			url: params.url,
+			...(params.serverName !== undefined && { serverName: params.serverName }),
+		});
+		return { success: true };
 	}
 
 	// ====================================================================
