@@ -165,6 +165,7 @@ src/
 │   ├── PermissionBanner.tsx     # Permission request buttons
 │   ├── McpAuthBanner.tsx        # Inline re-auth affordance under auth-failed tool calls
 │   ├── McpAuthModal.ts          # "Re-authenticate MCP servers" picker + confirm-gated reconnect modal
+│   ├── McpFailureNotice.tsx     # Kiro V3: in-chat list of MCP servers that didn't connect
 │   ├── ErrorBanner.tsx          # Error/notification overlay
 │   ├── SessionHistoryModal.tsx  # Session history modal (Local/Agent source toggle, per-row agent badge, search, confirm delete, migration empty-state, disconnected-Agent sync affordance)
 │   ├── session-intent-confirm.ts # SEAM (Track 1↔2): shared confirm/carry-over modal interface — Track 2 owns the component, Track 1 defines the contract

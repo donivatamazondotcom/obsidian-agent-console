@@ -8,6 +8,7 @@ import type { IChatViewHost } from "./view-host";
 import { setIcon } from "obsidian";
 import { MessageBubble, type A2uiBubbleContext } from "./MessageBubble";
 import { LossyFallbackNotice } from "./LossyFallbackNotice";
+import { McpFailureNotice } from "./McpFailureNotice";
 import { isSessionLive } from "../resolvers/send-affordance";
 import {
 	deriveEmptyStateView,
@@ -303,6 +304,11 @@ export interface MessageListProps {
 	 */
 	isFallbackRecovery?: boolean;
 	/**
+	 * The tab's view id. When present, MCP servers that failed to connect
+	 * (Kiro V3 status snapshots) are listed above the conversation.
+	 */
+	viewId?: string;
+	/**
 	 * When present, the empty state renders the Layer 2 getting-started block
 	 * (detected-agent picks + open-settings) instead of the plain connecting
 	 * text — used when the current agent is not connectable.
@@ -377,6 +383,7 @@ export function MessageList({
 	a2ui,
 	isActive = true,
 	isFallbackRecovery = false,
+	viewId,
 	gettingStarted,
 }: MessageListProps) {
 	// ============================================================
@@ -446,6 +453,9 @@ export function MessageList({
 				<LossyFallbackNotice
 					isFallbackRecovery={isFallbackRecovery}
 				/>
+				{viewId && plugin.mcpAuthManager && (
+					<McpFailureNotice manager={plugin.mcpAuthManager} viewId={viewId} />
+				)}
 				{messages.map((message, messageIndex) => (
 					<div key={message.id} className={`agent-client-message-row${message.pending ? " agent-client-message-pending" : ""}`}>
 						<MemoMessageBubble

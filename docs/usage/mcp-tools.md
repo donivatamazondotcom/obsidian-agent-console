@@ -76,3 +76,23 @@ A few things to know:
   with a sign-in error. A **Sign in** button appears right under the failed
   call — or run **Re-authenticate MCP servers**, which offers to restart the
   session so a fresh prompt can appear.
+
+### On the Kiro CLI V3 engine
+
+With the [V3 engine](/agent-setup/kiro-cli#use-the-v3-engine-preview), the
+prompt appears as soon as Kiro reports that a server needs sign-in, before
+any tool call fails. Click **Sign in**: Kiro prepares a fresh sign-in page,
+and it opens in your browser a moment later. If a sign-in page arrives
+without you clicking (for example, a sign-in that expired mid-chat), it
+waits in the prompt until you click **Sign in** or **Copy link**.
+
+If Kiro can't start the sign-in from Agent Console, the prompt says so.
+Sign in from Kiro CLI in a terminal instead, then start a new chat.
+
+## Servers that didn't connect
+
+On the Kiro CLI V3 engine, a note at the top of the chat lists any MCP
+server that failed to start, with Kiro's reason under **Details** (for
+example, a command that isn't installed). The note updates by itself and
+goes away when the servers connect. **Dismiss** hides it until a different
+server fails.

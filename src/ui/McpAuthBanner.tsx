@@ -38,20 +38,24 @@ export function McpAuthBanner({ content, plugin }: McpAuthBannerProps) {
 						{t("notices.mcpNeedsSignInTitle", { server: entry.serverName })}
 					</div>
 					<div className="agent-client-mcp-auth-banner-detail">
-						{entry.host
-							? t("chat.mcpBanner.toolFailedOpens", {
-									host: entry.host,
-								})
-							: t("chat.mcpBanner.toolFailed")}
+						{entry.signInUnavailable
+							? t("notices.mcpSignInUnavailable")
+							: entry.host
+								? t("chat.mcpBanner.toolFailedOpens", {
+										host: entry.host,
+									})
+								: t("chat.mcpBanner.toolFailed")}
 					</div>
 				</div>
-				<button
-					type="button"
-					className="mod-cta"
-					onClick={() => manager.openSignIn(entry)}
-				>
-					{t("notices.mcpSignIn")}
-				</button>
+				{entry.signInUnavailable ? null : (
+					<button
+						type="button"
+						className="mod-cta"
+						onClick={() => manager.openSignIn(entry)}
+					>
+						{t("notices.mcpSignIn")}
+					</button>
+				)}
 			</div>
 		);
 	}

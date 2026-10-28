@@ -33,8 +33,13 @@ import { TerminalManager } from "./terminal-handler";
 import { PermissionManager } from "./permission-handler";
 import { AcpHandler } from "./acp-handler";
 import {
+	KIRO_MCP_RESET_SERVER_METHOD,
+	KIRO_MCP_STATUS_METHOD,
+	KIRO_OPEN_EXTERNAL_URL_METHOD,
 	MCP_OAUTH_REQUEST_METHOD,
 	MCP_SERVER_INITIALIZED_METHOD,
+	parseKiroMcpStatus,
+	parseOpenExternalUrl,
 	parseMcpOauthRequest,
 	parseMcpServerInitialized,
 } from "./mcp-auth-parsers";
@@ -467,50 +472,10 @@ export class AcpClient {
 		);
 
 		const stream = acp.ndJsonStream(input, output);
-		this.connection = acp
-			.client({ name: "agent-console" })
-			.onNotification(acp.methods.client.session.update, (ctx) =>
-				this.handler.sessionUpdate(ctx.params),
-			)
-			// kiro-cli ACP extension notifications (custom-method overload:
-			// method string + params parser + handler). Without an explicit
-			// registration the SDK silently drops them — which is exactly the
-			// bug this fixes for MCP OAuth. See types/mcp-auth.ts.
-			.onNotification(
-				MCP_OAUTH_REQUEST_METHOD,
-				parseMcpOauthRequest,
-				(ctx) => this.handler.mcpOauthRequest(ctx.params),
-			)
-			.onNotification(
-				MCP_SERVER_INITIALIZED_METHOD,
-				parseMcpServerInitialized,
-				(ctx) => this.handler.mcpServerInitialized(ctx.params),
-			)
-			.onRequest(acp.methods.client.session.requestPermission, (ctx) =>
-				this.handler.requestPermission(ctx.params),
-			)
-			.onRequest(acp.methods.client.fs.readTextFile, (ctx) =>
-				this.handler.readTextFile(ctx.params),
-			)
-			.onRequest(acp.methods.client.fs.writeTextFile, (ctx) =>
-				this.handler.writeTextFile(ctx.params),
-			)
-			.onRequest(acp.methods.client.terminal.create, (ctx) =>
-				this.handler.createTerminal(ctx.params),
-			)
-			.onRequest(acp.methods.client.terminal.output, (ctx) =>
-				this.handler.terminalOutput(ctx.params),
-			)
-			.onRequest(acp.methods.client.terminal.waitForExit, (ctx) =>
-				this.handler.waitForTerminalExit(ctx.params),
-			)
-			.onRequest(acp.methods.client.terminal.kill, (ctx) =>
-				this.handler.killTerminal(ctx.params),
-			)
-			.onRequest(acp.methods.client.terminal.release, (ctx) =>
-				this.handler.releaseTerminal(ctx.params),
-			)
-			.connect(stream);
+		this.connection = registerClientHandlers(
+			acp.client({ name: "agent-console" }),
+			this.handler,
+		).connect(stream);
 
 		// #286: reap the child if the ACP connection closes for ANY reason
 		// (agent EOF, protocol error, explicit close) — including while the
@@ -1087,6 +1052,24 @@ export class AcpClient {
 	}
 
 	/**
+	 * V3: reconnect an MCP server with a fresh sign-in. The server then sends
+	 * `_kiro/openExternalUrl`. Not advertised by the server (K7); the caller
+	 * falls back to a plain notice when this rejects. Resolves once the server
+	 * finishes the reset, which can take as long as the sign-in itself.
+	 */
+	async resetMcpServer(serverName: string): Promise<void> {
+		if (this.currentConfig?.kiroEngine !== "v3") {
+			throw new Error("MCP sign-in through resetServer needs the Kiro V3 engine");
+		}
+		const connection = this.requireConnection();
+		await connection.agent.request(KIRO_MCP_RESET_SERVER_METHOD, {
+			...(this.currentSessionId !== null && { sessionId: this.currentSessionId }),
+			serverName,
+			startOAuth: true,
+		});
+	}
+
+	/**
 	 * Respond to a permission request from the agent.
 	 */
 	respondToPermission(requestId: string, optionId: string): Promise<void> {
@@ -1304,4 +1287,67 @@ export class AcpClient {
 			throw error;
 		}
 	}
+}
+
+/**
+ * Every agent-to-client handler, registered on the app before `connect`, so
+ * all of them exist before `initialize` is sent (the V3 guide requires this
+ * for `_kiro/openExternalUrl`). An agent-to-client request with no handler
+ * gets JSON-RPC `-32601` from the SDK (T9). Exported for the wiring tests.
+ */
+export function registerClientHandlers(
+	app: acp.ClientApp,
+	handler: AcpHandler,
+): acp.ClientApp {
+	return app
+		.onNotification(acp.methods.client.session.update, (ctx) =>
+			handler.sessionUpdate(ctx.params),
+		)
+		// kiro-cli ACP extension notifications (custom-method overload:
+		// method string + params parser + handler). Without an explicit
+		// registration the SDK silently drops them — which is exactly the
+		// bug this fixes for MCP OAuth. See types/mcp-auth.ts.
+		.onNotification(
+			MCP_OAUTH_REQUEST_METHOD,
+			parseMcpOauthRequest,
+			(ctx) => handler.mcpOauthRequest(ctx.params),
+		)
+		.onNotification(
+			MCP_SERVER_INITIALIZED_METHOD,
+			parseMcpServerInitialized,
+			(ctx) => handler.mcpServerInitialized(ctx.params),
+		)
+		.onRequest(acp.methods.client.session.requestPermission, (ctx) =>
+			handler.requestPermission(ctx.params),
+		)
+		.onRequest(acp.methods.client.fs.readTextFile, (ctx) =>
+			handler.readTextFile(ctx.params),
+		)
+		.onRequest(acp.methods.client.fs.writeTextFile, (ctx) =>
+			handler.writeTextFile(ctx.params),
+		)
+		.onRequest(acp.methods.client.terminal.create, (ctx) =>
+			handler.createTerminal(ctx.params),
+		)
+		.onRequest(acp.methods.client.terminal.output, (ctx) =>
+			handler.terminalOutput(ctx.params),
+		)
+		.onRequest(acp.methods.client.terminal.waitForExit, (ctx) =>
+			handler.waitForTerminalExit(ctx.params),
+		)
+		.onRequest(acp.methods.client.terminal.kill, (ctx) =>
+			handler.killTerminal(ctx.params),
+		)
+		.onRequest(acp.methods.client.terminal.release, (ctx) =>
+			handler.releaseTerminal(ctx.params),
+		)
+		// Kiro CLI V3 (S4): MCP status snapshots and sign-in page requests.
+		.onNotification(KIRO_MCP_STATUS_METHOD, parseKiroMcpStatus, (ctx) =>
+			handler.mcpStatus(ctx.params),
+		)
+		.onRequest(
+			KIRO_OPEN_EXTERNAL_URL_METHOD,
+			parseOpenExternalUrl,
+			(ctx) => Promise.resolve(handler.openExternalUrl(ctx.params)),
+		);
 }

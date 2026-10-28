@@ -50,7 +50,7 @@ Kiro CLI has a newer engine, V3. Some agent configs, such as recent auto-sa rele
 2. Keep your arguments as they are, for example `acp --agent auto-sa`. V3 doesn't accept `--agent`, `--model` or `--effort` on launch, so Agent Console passes them to each new chat instead. `--trust-all-tools` and `--trust-tools` are dropped; V3 uses its own permission rules.
 3. Start a new chat.
 
-With V3, your agent's hooks (start, prompt and stop) run in Agent Console chats too.
+With V3, your agent's hooks (start, prompt and stop) run in Agent Console chats too. MCP servers that need sign-in prompt you as soon as Kiro reports them, and servers that fail to start are listed at the top of the chat (see [MCP Tools](../usage/mcp-tools.md#on-the-kiro-cli-v3-engine)).
 
 Pick the model, the [effort level](../usage/thought-level-selection.md) and other Kiro options (such as Autopilot or Supervised) from the dropdowns below the message box. The effort dropdown only shows for models that support it. Agent Console remembers your model and effort picks for the next chat. If a model you saved is no longer offered, the chat switches to the first model on the list and tells you. When you reopen an earlier chat from history or after a restart, it keeps the model, effort and mode it was using.
 
