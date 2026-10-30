@@ -119,6 +119,7 @@ import {
 	type QuickPromptComposerBridge,
 } from "../hooks/useQuickPrompts";
 import type { NewTabPromptOpts, QuickPrompt } from "../types/quick-prompt";
+import { readSessionModes } from "../resolvers/session-modes";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import {
 	deriveLabelFromComposer,
@@ -2362,6 +2363,10 @@ export function ChatPanel({
 	// The bridge exposes this tab's live composer/queue/selection state and the
 	// fire/insert effects to the pure engine. Built once from stable refs +
 	// setters; every method reads `.current` so it never goes stale.
+	// Live session for quick-prompt targeting (agent + modes), read through a
+	// ref so the once-built bridge never goes stale.
+	const promptTargetSessionRef = useRef(agent.session);
+	promptTargetSessionRef.current = agent.session;
 	const quickPromptBridge = useMemo<QuickPromptComposerBridge>(
 		() =>
 			createQuickPromptBridge({
@@ -2386,6 +2391,12 @@ export function ChatPanel({
 				getContainer: () => containerRef.current,
 				notify: (message) =>
 					new Notice(t("notices.prefixed", { message })),
+				getActiveAgentId: () => promptTargetSessionRef.current.agentId || null,
+				getActiveModes: () => readSessionModes(promptTargetSessionRef.current),
+				getAgents: () =>
+					plugin
+						.getAvailableAgents()
+						.map((a) => ({ id: a.id, name: a.displayName })),
 			}),
 		[plugin, onOpenInNewTab],
 	);

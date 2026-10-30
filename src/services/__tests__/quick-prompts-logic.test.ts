@@ -783,6 +783,95 @@ describe("quick-prompts-logic — new-tab + foreground (slice 1)", () => {
 		});
 	});
 
+	// [[Agent Console Quick Prompt Agent and Mode]] — the resolver's target
+	// decides where a fire lands; send-vs-stage stays the gesture's call.
+	describe("executeQuickPrompt routes through the prompt target", () => {
+		function actions() {
+			return {
+				fireOrQueue: vi.fn(),
+				insert: vi.fn(),
+				notify: vi.fn(),
+				openInNewTab: vi.fn(),
+			};
+		}
+		const P = { body: "Plan it", usesSelection: false, label: "Plan" };
+
+		it("new-tab target → new foreground tab on that agent and mode, sent", () => {
+			const a = actions();
+			executeQuickPrompt(
+				P,
+				{ ...idle, selectionText: null, target: { kind: "new-tab", agentId: "kiro-cli", modeId: "spec" } },
+				a,
+			);
+			expect(a.openInNewTab).toHaveBeenCalledWith("Plan it", {
+				send: true,
+				foreground: true,
+				agentId: "kiro-cli",
+				modeId: "spec",
+			});
+			expect(a.fireOrQueue).not.toHaveBeenCalled();
+		});
+
+		it("new-tab target + ⌥ → new tab, staged (send:false)", () => {
+			const a = actions();
+			executeQuickPrompt(
+				P,
+				{ ...idle, insert: true, selectionText: null, target: { kind: "new-tab", modeId: "spec" } },
+				a,
+			);
+			expect(a.openInNewTab).toHaveBeenCalledWith("Plan it", {
+				send: false,
+				foreground: true,
+				modeId: "spec",
+			});
+		});
+
+		it("new-tab target bypasses the current tab's draft guard", () => {
+			const a = actions();
+			executeQuickPrompt(
+				P,
+				{ ...idle, composerHasText: true, selectionText: null, target: { kind: "new-tab", agentId: "codex" } },
+				a,
+			);
+			expect(a.openInNewTab).toHaveBeenCalled();
+			expect(a.insert).not.toHaveBeenCalled();
+		});
+
+		it("here target → unchanged in-place fire", () => {
+			const a = actions();
+			executeQuickPrompt(P, { ...idle, selectionText: null, target: { kind: "here" } }, a);
+			expect(a.fireOrQueue).toHaveBeenCalledWith("Plan it");
+			expect(a.openInNewTab).not.toHaveBeenCalled();
+		});
+
+		it("unknown-agent → notice only; nothing opens, nothing sends", () => {
+			const a = actions();
+			const plan = executeQuickPrompt(
+				P,
+				{ ...idle, selectionText: null, target: { kind: "unknown-agent", agentId: "test-missing" } },
+				a,
+			);
+			expect(plan.action).toBe("disabled");
+			expect(a.notify).toHaveBeenCalledWith(expect.stringContaining("test-missing"));
+			expect(a.openInNewTab).not.toHaveBeenCalled();
+			expect(a.fireOrQueue).not.toHaveBeenCalled();
+			expect(a.insert).not.toHaveBeenCalled();
+		});
+
+		it("unknown-mode → notice only; nothing opens, nothing sends", () => {
+			const a = actions();
+			const plan = executeQuickPrompt(
+				P,
+				{ ...idle, selectionText: null, target: { kind: "unknown-mode", agentId: "claude-code", modeId: "yolo" } },
+				a,
+			);
+			expect(plan.action).toBe("disabled");
+			expect(a.notify).toHaveBeenCalledWith(expect.stringContaining("yolo"));
+			expect(a.openInNewTab).not.toHaveBeenCalled();
+			expect(a.fireOrQueue).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("S1-T15/T16: executeQuickPrompt dispatches new-tab with foreground + background toast", () => {
 		function actions() {
 			return {
