@@ -128,6 +128,12 @@ export interface UseTabPersistenceProps {
 	 * save-time via ref. Returns "" when the tab uses the vault default.
 	 */
 	getWorkingDirectory: (tabId: string) => string;
+	/**
+	 * Resolves a tab's current session mode id ("" when unknown). Persisted
+	 * so a restored tab reconnects in its own mode (I231). Optional for
+	 * callers that don't track modes.
+	 */
+	getModeId?: (tabId: string) => string;
 	/** Storage adapter (tab-state + session-messages) */
 	storage: TabPersistenceStorage;
 	/**
@@ -218,9 +224,11 @@ function buildPerLeafState(
 	getScrollPosition: (tabId: string) => number,
 	getDraft: (tabId: string) => string,
 	getWorkingDirectory: (tabId: string) => string,
+	getModeId: (tabId: string) => string = () => "",
 ): PerLeafTabState {
 	const persistedTabs: PersistedTabInfo[] = tabs.map((tab, index) => {
 		const cwd = getWorkingDirectory(tab.tabId);
+		const modeId = getModeId(tab.tabId);
 		const base: PersistedTabInfo = {
 			tabId: tab.tabId,
 			agentId: tab.agentId,
@@ -232,6 +240,7 @@ function buildPerLeafState(
 			draftText: getDraft(tab.tabId),
 		};
 		if (cwd) base.workingDirectory = cwd;
+		if (modeId) base.modeId = modeId;
 		return base;
 	});
 	return {
@@ -256,6 +265,7 @@ export function useTabPersistence(
 		getScrollPosition,
 		getDraft,
 		getWorkingDirectory,
+		getModeId,
 		storage,
 		restoreEnabled,
 		sessionSignature,
@@ -283,6 +293,7 @@ export function useTabPersistence(
 	const getScrollPositionRef = useRef(getScrollPosition);
 	const getDraftRef = useRef(getDraft);
 	const getWorkingDirectoryRef = useRef(getWorkingDirectory);
+	const getModeIdRef = useRef(getModeId);
 	const storageRef = useRef(storage);
 	const tabsRef = useRef(tabs);
 	const activeTabIdRef = useRef(activeTabId);
@@ -294,6 +305,7 @@ export function useTabPersistence(
 		getScrollPositionRef.current = getScrollPosition;
 		getDraftRef.current = getDraft;
 		getWorkingDirectoryRef.current = getWorkingDirectory;
+		getModeIdRef.current = getModeId;
 		storageRef.current = storage;
 		tabsRef.current = tabs;
 		activeTabIdRef.current = activeTabId;
@@ -428,6 +440,7 @@ export function useTabPersistence(
 			getScrollPositionRef.current,
 			getDraftRef.current,
 			getWorkingDirectoryRef.current,
+			getModeIdRef.current,
 		);
 		void storageRef.current.saveTabStateForLeaf(leafId, state);
 		// Deps are leafId + persistenceSignature + sessionSignature +
@@ -446,6 +459,7 @@ export function useTabPersistence(
 			getScrollPositionRef.current,
 			getDraftRef.current,
 			getWorkingDirectoryRef.current,
+			getModeIdRef.current,
 		);
 		await storageRef.current.saveTabStateForLeaf(leafId, state);
 	}, [leafId]);

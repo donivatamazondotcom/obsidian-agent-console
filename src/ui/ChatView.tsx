@@ -327,6 +327,19 @@ function ChatComponent({
 		return map;
 	}, [restoredLeaf]);
 
+	// Per-tab restored session mode, keyed by tabId (I231). Validated at the
+	// deserialize edge: only a non-empty string is passed on; anything else
+	// means "no mode recorded" and the agent's saved default applies.
+	const restoredModeByTabId = useMemo(() => {
+		const map: Record<string, string> = {};
+		for (const t of restoredLeaf?.tabs ?? []) {
+			if (typeof t.modeId === "string" && t.modeId !== "") {
+				map[t.tabId] = t.modeId;
+			}
+		}
+		return map;
+	}, [restoredLeaf]);
+
 	const tabManager = useTabManager(
 		initialAgentId,
 		restoredTabs,
@@ -553,6 +566,12 @@ function ChatComponent({
 		[],
 	);
 
+	// Resolves a tab's current session mode for persistence (I231).
+	const getModeIdForTab = useCallback(
+		(tabId: string) => tabHandlesRef.current.get(tabId)?.getModeId() ?? "",
+		[],
+	);
+
 	// Debounced draft-save trigger. Each ChatPanel calls this on composer
 	// change; after the debounce we recompute a signature from all tabs' live
 	// drafts and bump state, which fires useTabPersistence's save effect. Using
@@ -565,7 +584,10 @@ function ChatComponent({
 		draftDebounceRef.current = window.setTimeout(() => {
 			draftDebounceRef.current = null;
 			const sig = Array.from(tabHandlesRef.current.entries())
-				.map(([id, cb]) => `${id}:${cb.getInputState()?.text ?? ""}`)
+				.map(
+					([id, cb]) =>
+						`${id}:${cb.getModeId()}:${cb.getInputState()?.text ?? ""}`,
+				)
 				.join("||");
 			setDraftSignature(sig);
 		}, DRAFT_SAVE_DEBOUNCE_MS);
@@ -586,6 +608,7 @@ function ChatComponent({
 		getScrollPosition: getScrollPositionForTab,
 		getDraft: getDraftForTab,
 		getWorkingDirectory: getWorkingDirectoryForTab,
+		getModeId: getModeIdForTab,
 		storage: persistenceStorage,
 		restoreEnabled: plugin.settings.restoreTabsOnStartup,
 		sessionSignature,
@@ -1218,6 +1241,7 @@ function ChatComponent({
 				activeCallbacksRef.current?.saveComposerAsQuickPrompt(),
 			getWorkingDirectory: () =>
 				activeCallbacksRef.current?.getWorkingDirectory() ?? "",
+			getModeId: () => activeCallbacksRef.current?.getModeId() ?? "",
 			openHistory: () => activeCallbacksRef.current?.openHistory(),
 			flushSessionSave: async () =>
 				activeCallbacksRef.current?.flushSessionSave(),
@@ -1398,6 +1422,7 @@ function ChatComponent({
 								tabOrigin={tab.origin}
 								tabLabel={tab.label}
 								workingDirectory={restoredCwdByTabId[tab.tabId]}
+								restoredModeId={restoredModeByTabId[tab.tabId]}
 								initialAgentId={tab.agentId}
 								viewHost={view}
 								isActive={tab.tabId === activeTabId}

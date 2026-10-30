@@ -124,6 +124,8 @@ export function useAgent(
 	initialAgentId?: string,
 	/** One-shot mode for the first session (quick prompts). */
 	initialModeRequest?: string,
+	/** A restored tab's own mode, re-applied on its first load (I231). */
+	restoredModeId?: string,
 ): UseAgentReturn {
 	// ============================================================
 	// Shared Error State
@@ -142,6 +144,7 @@ export function useAgent(
 		setErrorInfo,
 		initialAgentId,
 		initialModeRequest,
+		restoredModeId,
 	);
 
 	const agentMessages = useAgentMessages(

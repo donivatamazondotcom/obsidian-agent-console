@@ -94,6 +94,13 @@ export interface PersistedTabInfo {
 	 * tab falls through to the agent/global/vault default on restore.
 	 */
 	workingDirectory?: string;
+	/**
+	 * The tab's session mode id at save-time. Re-applied when the restored
+	 * tab reconnects, instead of the agent's saved default, so a tab keeps
+	 * its own mode across restart (I231). Never written to `lastUsedModes`.
+	 * Omitted when no mode is known (connecting, or an agent without modes).
+	 */
+	modeId?: string;
 }
 
 /**

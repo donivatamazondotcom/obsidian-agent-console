@@ -431,6 +431,31 @@ describe("useTabPersistence — save shape", () => {
 		expect(tab.scrollPosition).toBe(487);
 	});
 
+	// I231: a tab's own mode survives restart — restore re-applies it instead
+	// of the agent's saved default ([[I231 Restored tab loses a quick prompt's mode]]).
+	it("I231: saves each tab's current mode id", async () => {
+		const storage = makeStorage();
+		const { result } = renderHook(() =>
+			useTabPersistence(
+				makeProps({
+					tabs: [
+						makeRuntimeTab({ tabId: "T1" }),
+						makeRuntimeTab({ tabId: "T2", label: "Tab 2" }),
+					],
+					getModeId: (id) => (id === "T1" ? "plan" : ""),
+					storage,
+				}),
+			),
+		);
+
+		await waitForRestoreReady(() => result.current);
+
+		const [, stateArg] = saveCalls(storage)[0];
+		expect(stateArg.tabs[0].modeId).toBe("plan");
+		// No mode known (connecting, or an agent without modes) → key omitted.
+		expect("modeId" in stateArg.tabs[1]).toBe(false);
+	});
+
 	it("U33: tab with sessionId === null is saved with explicit null (not undefined)", async () => {
 		const storage = makeStorage();
 		const { result } = renderHook(() =>
