@@ -84,3 +84,33 @@ export function lookupByIdOrName(
 	const byFolded = items.filter((i) => i.name.toLowerCase() === folded);
 	return byFolded.length === 1 ? byFolded[0].id : null;
 }
+
+// ============================================================================
+// Quick prompt mode request (one-shot, first session of a tab)
+// ============================================================================
+
+/**
+ * Resolve a quick prompt's requested mode (id or display name) against the
+ * modes a brand-new session offers. Pure and total.
+ *
+ * - No request → nothing to do.
+ * - Found → the mode id, to join the pre-ready re-apply.
+ * - Not offered → `unmet`, so the tab can return the prompt unsent.
+ * - No mode list yet on an agent that may deliver it late (Kiro CLI V3) →
+ *   pass the request through raw; the late-update reconcile applies it if it
+ *   matches an id. Not flagged unmet, because absence isn't evidence yet.
+ *
+ * Spec: [[Agent Console Quick Prompt Agent and Mode]].
+ */
+export function resolveModeRequest(
+	request: string | undefined,
+	input: SessionModesInput & { modeListMayArriveLate: boolean },
+): { modeId?: string; unmet?: string } {
+	if (!request) return {};
+	const modes = readSessionModes(input);
+	if (!modes) {
+		return input.modeListMayArriveLate ? { modeId: request } : { unmet: request };
+	}
+	const modeId = lookupByIdOrName(request, modes.offered);
+	return modeId ? { modeId } : { unmet: request };
+}

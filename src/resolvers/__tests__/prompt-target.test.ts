@@ -70,8 +70,8 @@ describe("resolvePromptTarget — agent", () => {
 	it("returns unknown-agent for no match, regardless of newTab", () => {
 		for (const newTab of [undefined, true, false]) {
 			expect(
-				resolvePromptTarget({ agent: "not-configured", newTab }, inClaude()),
-			).toEqual({ kind: "unknown-agent", agentId: "not-configured" });
+				resolvePromptTarget({ agent: "test-unconfigured", newTab }, inClaude()),
+			).toEqual({ kind: "unknown-agent", agentId: "test-unconfigured" });
 		}
 	});
 
