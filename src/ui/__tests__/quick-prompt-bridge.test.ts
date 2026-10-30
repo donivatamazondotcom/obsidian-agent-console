@@ -51,6 +51,9 @@ function makeDeps(
 		openInNewTab: vi.fn(),
 		getContainer: () => null,
 		notify: vi.fn(),
+		getActiveAgentId: () => null,
+		getActiveModes: () => null,
+		getAgents: () => [],
 		...over,
 	};
 }
