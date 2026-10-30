@@ -1,4 +1,4 @@
-import type { QuickPromptGesture } from "../types/quick-prompt";
+import type { NewTabPromptOpts, QuickPromptGesture } from "../types/quick-prompt";
 // Moved to types/quick-prompt.ts (utils-leaf refactor, G2); re-exported so the
 // existing ui/hooks/services consumers keep their import path.
 export type { QuickPromptGesture } from "../types/quick-prompt";
@@ -506,7 +506,7 @@ export interface QuickPromptActions {
 	 * only seed its composer (`send: false`); `foreground` switches to the new
 	 * tab vs opening it in the background. Bypasses the current-tab composer.
 	 */
-	openInNewTab(text: string, opts: { send: boolean; foreground: boolean }): void;
+	openInNewTab(text: string, opts: NewTabPromptOpts): void;
 	/** Show a transient notice. */
 	notify(message: string): void;
 }

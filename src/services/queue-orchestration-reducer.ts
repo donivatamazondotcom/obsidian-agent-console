@@ -106,8 +106,11 @@ export type QueueEvent =
 	 *  to false (no working animation / no Stop — I165). */
 	| { type: "steerCancelSettled" }
 	/** Session acquisition reached `ready` ((connecting|idle)->ready). Flush
-	 *  the pending message once a sessionId is committed (I69 guard). */
-	| { type: "acquisitionComplete"; hasSessionId: boolean }
+	 *  the pending message once a sessionId is committed (I69 guard).
+	 *  `modeUnmet`: a quick prompt asked this tab to start in a mode the new
+	 *  session doesn't offer — release the slot to the composer instead of
+	 *  sending in the wrong mode ([[Agent Console Quick Prompt Agent and Mode]]). */
+	| { type: "acquisitionComplete"; hasSessionId: boolean; modeUnmet?: boolean }
 	/** Session acquisition failed (connecting->error). Hold the pending message;
 	 *  the user's composer text is intact and they re-send to retry. */
 	| { type: "acquisitionFailed" }
@@ -312,6 +315,9 @@ export function queueOrchestrationReducer(
 				event.hasSessionId &&
 				state.awaitingAcquire
 			) {
+				// Composer text is intact (the pre-ready send seeds it), so the
+				// user sees the prompt and decides — never sent in the wrong mode.
+				if (event.modeUnmet) return degradeToDraft();
 				return flush(state.pending);
 			}
 			return { state, effects: NO_EFFECTS };

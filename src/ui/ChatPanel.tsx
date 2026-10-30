@@ -118,7 +118,7 @@ import {
 	useQuickPrompts,
 	type QuickPromptComposerBridge,
 } from "../hooks/useQuickPrompts";
-import type { QuickPrompt } from "../types/quick-prompt";
+import type { NewTabPromptOpts, QuickPrompt } from "../types/quick-prompt";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import {
 	deriveLabelFromComposer,
@@ -294,7 +294,7 @@ export interface ChatPanelProps {
 	 */
 	onOpenInNewTab?: (
 		text: string,
-		opts: { send: boolean; foreground: boolean },
+		opts: NewTabPromptOpts,
 	) => void;
 	/**
 	 * One-shot seed for a tab just spawned by a `newTab` quick prompt:
@@ -303,6 +303,12 @@ export interface ChatPanelProps {
 	 * the composer for the user to edit. Consumed once on mount.
 	 */
 	initialPrompt?: { text: string; send: boolean };
+	/**
+	 * Mode a quick prompt asked this tab to start in (id or display name).
+	 * Applied once, before the first session is ready; never saved as the
+	 * agent's default. Spec: [[Agent Console Quick Prompt Agent and Mode]].
+	 */
+	initialModeRequest?: string;
 }
 
 // ============================================================================
@@ -382,6 +388,7 @@ export function ChatPanel({
 	onDraftChange,
 	onOpenInNewTab,
 	initialPrompt,
+	initialModeRequest,
 }: ChatPanelProps) {
 	// ============================================================
 	// Platform Check
@@ -473,6 +480,7 @@ export function ChatPanel({
 		vaultService,
 		agentCwd,
 		initialAgentId,
+		initialModeRequest,
 	);
 
 	const {
@@ -1570,7 +1578,11 @@ export function ChatPanel({
 		prevLazyStateRef.current = lazySession.state;
 		awaitingSessionIdRef.current = decision.awaitingSessionId;
 		if (decision.dispatchAcquisitionComplete) {
-			queue.dispatch({ type: "acquisitionComplete", hasSessionId: true });
+			queue.dispatch({
+				type: "acquisitionComplete",
+				hasSessionId: true,
+				modeUnmet: !!agent.session.unmetModeRequest,
+			});
 		}
 		// A2UI-I08: acquisition failed outright. The reducer releases a held
 		// detached action (a surface click has no composer text to retry from,
@@ -1579,7 +1591,27 @@ export function ChatPanel({
 		if (decision.dispatchAcquisitionFailed) {
 			queue.dispatch({ type: "acquisitionFailed" });
 		}
-	}, [lazySession.state, agent.session.sessionId, queue.dispatch]);
+	}, [
+		lazySession.state,
+		agent.session.sessionId,
+		agent.session.unmetModeRequest,
+		queue.dispatch,
+	]);
+
+	// A quick prompt's mode isn't offered by this tab's new session: say so
+	// once. The connect-flush above has already returned the prompt to the
+	// composer unsent. Spec: [[Agent Console Quick Prompt Agent and Mode]].
+	const unmetModeRequest = agent.session.unmetModeRequest;
+	useEffect(() => {
+		if (!unmetModeRequest) return;
+		new Notice(
+			t("notices.prefixed", {
+				message: t("chat.quickPrompts.modeNotOffered", {
+					mode: unmetModeRequest,
+				}),
+			}),
+		);
+	}, [unmetModeRequest]);
 
 	// Send wrapper: ready → handleSendMessage directly. Not-ready → enqueue the
 	// message (queue-of-one) and trigger lazy acquisition; the connect-flush
