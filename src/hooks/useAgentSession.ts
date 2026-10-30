@@ -39,6 +39,7 @@ import {
 	type SavedConfigPicks,
 	restoreLegacyConfig,
 } from "../services/session-state";
+import { resolveModeRequest } from "../resolvers/session-modes";
 import { reloadSessionFlow } from "./reloadSessionFlow";
 import { t } from "../i18n";
 import { Notice } from "obsidian";
@@ -113,7 +114,14 @@ export function useAgentSession(
 	workingDirectory: string,
 	setErrorInfo: (error: ErrorInfo | null) => void,
 	initialAgentId?: string,
+	/**
+	 * Mode a quick prompt asked this tab to start in (id or display name).
+	 * One-shot: applied to the first session's pre-ready re-apply only, and
+	 * never saved as the agent's default.
+	 */
+	initialModeRequest?: string,
 ): UseAgentSessionReturn {
+	const pendingModeRequestRef = useRef<string | undefined>(initialModeRequest);
 	// ============================================================
 	// Session State
 	// ============================================================
@@ -236,11 +244,14 @@ export function useAgentSession(
 			const settings = settingsAccess.getSnapshot();
 			const agentId = overrideAgentId || getDefaultAgentId(settings);
 			const currentAgent = getCurrentAgent(settings, agentId);
+			const modeRequest = pendingModeRequestRef.current;
+			pendingModeRequestRef.current = undefined;
 
 			setSession((prev) => ({
 				...prev,
 				sessionId: null,
 				state: "initializing",
+				unmetModeRequest: undefined,
 				agentId: agentId,
 				agentDisplayName: currentAgent.displayName,
 				authMethods: [],
@@ -293,14 +304,14 @@ export function useAgentSession(
 				// Kiro CLI V3 takes the saved model / effort as session/new
 				// inputs and applies them itself, so the restore can't race a
 				// model list that arrives after the response (I217).
-				const picks = savedConfigPicks(settings, agentId);
+				const savedPicks = savedConfigPicks(settings, agentId);
 				const picksAsInputs =
 					typeof agentClient.acceptsInitialConfigPicks === "function" &&
 					agentClient.acceptsInitialConfigPicks();
 				const sessionResult = picksAsInputs
 					? await agentClient.newSession(effectiveCwd, {
-							modelId: picks.model,
-							effortLevel: picks.thoughtLevel,
+							modelId: savedPicks.model,
+							effortLevel: savedPicks.thoughtLevel,
 						})
 					: await agentClient.newSession(effectiveCwd);
 
@@ -324,6 +335,18 @@ export function useAgentSession(
 				const baseConfigOptions = sid
 					? configSnapshots.current.get(sid)
 					: undefined;
+
+				// A quick prompt's mode (id or display name) replaces the saved
+				// mode for this session only. The re-apply below doesn't persist,
+				// so `lastUsedModes` keeps the user's own pick.
+				const modeTarget = resolveModeRequest(modeRequest, {
+					modes: sessionResult.modes,
+					configOptions: baseConfigOptions,
+					modeListMayArriveLate: picksAsInputs,
+				});
+				const picks: SavedConfigPicks = modeTarget.modeId
+					? { ...savedPicks, mode: modeTarget.modeId }
+					: savedPicks;
 
 				if (baseConfigOptions && sessionResult.sessionId) {
 					const restoredOptions = await restoreConfigOptions(
@@ -356,7 +379,7 @@ export function useAgentSession(
 						agentClient,
 						sessionResult,
 						settings.lastUsedModels[agentId],
-						settings.lastUsedModes[agentId],
+						picks.mode,
 					);
 					finalModes = restored.modes;
 					finalModels = restored.models;
@@ -366,6 +389,7 @@ export function useAgentSession(
 					...prev,
 					sessionId: sessionResult.sessionId,
 					state: "ready",
+					unmetModeRequest: modeTarget.unmet,
 					authMethods: initResult?.authMethods ?? [],
 					modes: finalModes,
 					models: finalModels,

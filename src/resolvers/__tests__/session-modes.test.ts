@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { readSessionModes, lookupByIdOrName } from "../session-modes";
+import {
+	readSessionModes,
+	lookupByIdOrName,
+	resolveModeRequest,
+} from "../session-modes";
 import type { SessionConfigOption } from "../../types/session";
 
 /** [[Agent Console Quick Prompt Agent and Mode]] T05. */
@@ -154,5 +158,29 @@ describe("lookupByIdOrName", () => {
 				{ id: "b", name: "Same" },
 			]),
 		).toBeNull();
+	});
+});
+
+describe("resolveModeRequest", () => {
+	const opts = [modeOption("vibe", [{ value: "vibe", name: "Default" }, { value: "spec", name: "Spec" }])];
+
+	it("does nothing without a request", () => {
+		expect(resolveModeRequest(undefined, { configOptions: opts, modeListMayArriveLate: false })).toEqual({});
+	});
+
+	it("resolves a display name to the mode id", () => {
+		expect(resolveModeRequest("Default", { configOptions: opts, modeListMayArriveLate: false })).toEqual({ modeId: "vibe" });
+	});
+
+	it("flags an unmet request when the mode isn't offered", () => {
+		expect(resolveModeRequest("yolo", { configOptions: opts, modeListMayArriveLate: true })).toEqual({ unmet: "yolo" });
+	});
+
+	it("flags unmet when the agent has no modes and none can arrive late", () => {
+		expect(resolveModeRequest("plan", { modeListMayArriveLate: false })).toEqual({ unmet: "plan" });
+	});
+
+	it("passes the request through raw when the mode list may arrive late", () => {
+		expect(resolveModeRequest("spec", { modeListMayArriveLate: true })).toEqual({ modeId: "spec" });
 	});
 });
