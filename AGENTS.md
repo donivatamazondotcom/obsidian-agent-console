@@ -197,11 +197,14 @@ src/
 │   ├── deriveTabLabel.ts           # Derive tab label from session / first message
 │   ├── empty-state-view.ts         # deriveEmptyStateView — pure empty-state affordance resolver (location × hasDetectedAgent → reason + redetect/installRows/agentPicks/landingActions/settings/hint); shared by GettingStarted (in-tab) and the zero-tab landing so the two can't drift
 │   ├── header-slot.ts              # deriveHeaderSlot — pure 4-way header secondary-slot resolver (model / connecting / idle / none)
+│   ├── header-agent.ts             # deriveHeaderAgent / deriveHeaderModelName / deriveHeaderRuntime — which agent, model and runtime the header names; reads modes via session-modes (I207)
 │   ├── notify-gate.ts              # shouldNotifySystem — pure resolver: should an OS notification fire for a backgrounded panel; gates on the flush signal, not an instantaneous focus read (I168)
 │   ├── process-hold.ts             # decideProcessHold — pure resolver: may this tab hold an agent process now (active / fresh / fork → hold; background restored → defer). Shared owner for eager init (I208) and idle reap (I209)
+│   ├── prompt-target.ts            # resolvePromptTarget — where a quick prompt lands: a different agent or mode than the tab → new tab set up that way, else in place; agent/mode matched by id or display name
 │   ├── resolveInitialAgentId.ts    # Pure: agent a fresh (non-restored) tab opens on — Default agent when restore-tabs is off (TP-I05)
 │   ├── queued-banner-actions.ts    # Pure resolver for the queued-banner buttons (deriveQueuedBannerActions → Send now / Edit / Delete / Cancel)
 │   ├── send-affordance.ts          # Pure send-enablement resolver (deriveSendAffordance → canSend/buttonDisabled/reason) + isSessionLive; single source for ChatPanel/InputArea/InputToolbar/MessageList/broadcast
+│   ├── session-modes.ts            # readSessionModes (config option or legacy modes; shared by header + prompt targeting), lookupByIdOrName, resolveModeRequest (one-shot first-session mode)
 │   ├── session-history-view.ts     # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source) → listSource/agentViewAvailable/showFilters/restore/fork/banner); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
 │   ├── tab-keyboard-nav.ts         # deriveTabKeyTarget — pure resolver for Left/Right/Home/End focus movement across the tab strip (WAI-ARIA tabs, manual activation; TS-I08)
 │   ├── tab-label-width.ts          # deriveActiveTabLabelMax — pure resolver for the active tab's label max-width so the whole active tab stays visible in the strip

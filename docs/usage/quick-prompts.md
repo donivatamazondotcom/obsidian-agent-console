@@ -81,10 +81,34 @@ Debrief this meeting — pull the AI summary, extract action items, and update t
 ````
 
 - `open in new tab` is a checkbox property — toggle it in the note's Properties view, no typing.
-- Firing it always opens a new tab on your default agent and sends there — even if your current tab is mid-reply or has a message queued. A new-tab chip stays active while current-tab chips are locked.
+- Firing it always opens a new tab on your default agent (or the prompt's [`agent`](#choose-the-agent-and-mode)) and sends there — even if your current tab is mid-reply or has a message queued. A new-tab chip stays active while current-tab chips are locked.
 - A plain click **switches to** the new tab; hold **⌘ (Cmd)** to open it in the **background** (you stay put) — Agent Console shows a brief "Started … in a new tab" note so you know it's running.
 - Hold **⌥ (Alt)** to open the new tab and drop the text into its composer for editing instead of sending.
 - A `{{selection}}` prompt with nothing selected opens the new tab and seeds its composer (with a heads-up) rather than sending half-formed.
+
+## Choose the agent and mode
+
+**Agent** is the program you chat with, such as Claude Code or Kiro CLI. **Mode** is a setting that agent offers for each chat – the same list as the [mode dropdown](./mode-selection.md). For Kiro CLI, modes are your Kiro agents, built-in and custom. For Claude Code, they're permission modes.
+
+Add `agent`, `mode`, or both to a prompt so it always runs the right way:
+
+````markdown
+---
+label: "📐 Spec this"
+agent: Kiro CLI
+mode: Spec
+---
+Write a spec for the feature described in this note.
+````
+
+**One rule decides where it lands:** if the prompt needs a different agent or mode than the chat you're in, it opens a new tab set up that way. Otherwise it fires in the current chat, as usual.
+
+- **Your current chat never changes under you.** A prompt never switches the agent or mode of a chat you're working in.
+- **The mode is set before anything is sent.** The new tab starts in the prompt's mode, so the first reply comes from the right one.
+- **Your defaults stay yours.** A prompt's mode applies to that one tab. New chats still open in the mode you last picked yourself.
+- **Use the names you see.** Both properties accept the name shown in Agent Console (`Claude Code`, `Plan Mode`) or the id from settings and the agent. Capitalization doesn't matter.
+- **Nothing is sent by mistake.** If no agent matches, or the agent doesn't offer the mode, you get a notice and nothing is sent. If a new tab's agent turns out not to offer the mode, the prompt waits in that tab's composer, unsent.
+- The usual keys still apply: **⌘** opens the new tab in the background, **⌥** drops the prompt into its composer instead of sending.
 
 ## Contextual chips
 
