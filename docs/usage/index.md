@@ -53,7 +53,7 @@ To switch agents for the current view:
 The header names the agent you chose. If the session ends up running a different one, the header shows both:
 
 - **~~Auto SA~~ kiro_default** – the agent you chose couldn't load, so the agent's default is running instead. Hover the header for details.
-- **Auto SA › trd-pro** – you switched to another agent (mode) from the composer.
+- **Auto SA › trd-pro** – you switched to another mode from the composer. For Kiro CLI, a mode is one of your Kiro agents.
 
 This is a one-time change for that view only.
 
