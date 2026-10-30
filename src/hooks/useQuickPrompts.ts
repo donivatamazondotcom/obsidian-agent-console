@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { QuickPromptLibrary } from "../services/quick-prompts";
 import { executeQuickPrompt } from "../services/quick-prompts-logic";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
-import type { QuickPrompt } from "../types/quick-prompt";
+import type { NewTabPromptOpts, QuickPrompt } from "../types/quick-prompt";
 
 /**
  * Live composer/queue/selection state + effects for the current tab. ChatPanel
@@ -40,7 +40,7 @@ export interface QuickPromptComposerBridge {
 	 * never touches the current tab's composer. Implemented by ChatPanel via a
 	 * ChatView-supplied callback that owns the tab manager.
 	 */
-	openInNewTab(text: string, opts: { send: boolean; foreground: boolean }): void;
+	openInNewTab(text: string, opts: NewTabPromptOpts): void;
 	/** Show a transient notice. */
 	notify(message: string): void;
 }

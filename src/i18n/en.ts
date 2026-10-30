@@ -620,6 +620,8 @@ export const en = {
 	// ---- Phase 3: quick prompts ----
 	"chat.quickPrompts.queuedTooltip":
 		"A message is queued — Edit or Delete it to send something else",
+	"chat.quickPrompts.modeNotOffered":
+		"This chat's agent doesn't offer the mode \"{mode}\", so the prompt wasn't sent. Check the mode in the prompt note.",
 	"chat.quickPrompts.newTabTooltip":
 		"Click: open in a new tab · {mod}-click: open in the background · {alt}-click: drop into the box to edit first",
 	"chat.quickPrompts.thisTabTooltip":

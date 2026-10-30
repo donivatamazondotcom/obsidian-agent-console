@@ -122,6 +122,8 @@ export function useAgent(
 	vaultAccess: IVaultAccess & IMentionService,
 	workingDirectory: string,
 	initialAgentId?: string,
+	/** One-shot mode for the first session (quick prompts). */
+	initialModeRequest?: string,
 ): UseAgentReturn {
 	// ============================================================
 	// Shared Error State
@@ -139,6 +141,7 @@ export function useAgent(
 		workingDirectory,
 		setErrorInfo,
 		initialAgentId,
+		initialModeRequest,
 	);
 
 	const agentMessages = useAgentMessages(

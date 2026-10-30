@@ -364,7 +364,12 @@ function ChatComponent({
 	const [pendingPromptByTab, setPendingPromptByTab] = useState<
 		Record<
 			string,
-			{ text: string; send: boolean; contextNotes?: ContextNote[] }
+			{
+				text: string;
+				send: boolean;
+				contextNotes?: ContextNote[];
+				modeId?: string;
+			}
 		>
 	>({});
 
@@ -636,10 +641,14 @@ function ChatComponent({
 				foreground: boolean;
 				/** Context notes to carry into the spawned tab (landing carry). */
 				contextNotes?: ContextNote[];
+				/** Agent for the new tab (quick prompt `agent:`); else default. */
+				agentId?: string;
+				/** Mode for the new tab's first session (quick prompt `mode:`). */
+				modeId?: string;
 			},
 		) => {
 			const newTabId = tabManager.addTab(
-				plugin.settings.defaultAgentId,
+				opts.agentId ?? plugin.settings.defaultAgentId,
 				undefined,
 				opts.foreground,
 			);
@@ -649,6 +658,7 @@ function ChatComponent({
 					text,
 					send: opts.send,
 					contextNotes: opts.contextNotes,
+					modeId: opts.modeId,
 				},
 			}));
 		},
@@ -1463,6 +1473,9 @@ function ChatComponent({
 								onDraftChange={bumpDraftSignature}
 								onOpenInNewTab={handleOpenInNewTab}
 								initialPrompt={pendingPromptByTab[tab.tabId]}
+								initialModeRequest={
+									pendingPromptByTab[tab.tabId]?.modeId
+								}
 							/>
 						</TabPanel>
 					</TabErrorBoundary>

@@ -17,6 +17,7 @@
  */
 
 import type { QuickPromptComposerBridge } from "../hooks/useQuickPrompts";
+import type { NewTabPromptOpts } from "../types/quick-prompt";
 import { scheduleComposerRefocus } from "./composer-focus";
 
 /** Live, per-tab dependencies the bridge reads/drives. All thunks so the bridge stays fresh. */
@@ -40,7 +41,7 @@ export interface QuickPromptBridgeDeps {
 	/** Spawn a sibling tab and seed/send `text` there (newTab prompts). */
 	openInNewTab: (
 		text: string,
-		opts: { send: boolean; foreground: boolean },
+		opts: NewTabPromptOpts,
 	) => void;
 	/** This view's container element (holds the composer textarea), or null. */
 	getContainer: () => HTMLElement | null;
