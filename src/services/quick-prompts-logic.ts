@@ -1,4 +1,5 @@
 import type { NewTabPromptOpts, QuickPromptGesture } from "../types/quick-prompt";
+import type { PromptTarget } from "../resolvers/prompt-target";
 // Moved to types/quick-prompt.ts (utils-leaf refactor, G2); re-exported so the
 // existing ui/hooks/services consumers keep their import path.
 export type { QuickPromptGesture } from "../types/quick-prompt";
@@ -333,7 +334,11 @@ export type QuickPromptAction =
 	| "disabled"
 	| "new-tab";
 
-export type QuickPromptReason = "no-selection" | "unsent-draft";
+export type QuickPromptReason =
+	| "no-selection"
+	| "unsent-draft"
+	| "unknown-agent"
+	| "unknown-mode";
 
 /**
  * A quick-prompt activation gesture, decomposed into the two browser-true
@@ -430,6 +435,11 @@ export interface QuickPromptPlanContext extends QuickPromptGesture {
 	isQueued: boolean;
 	/** Current editor selection text, or null when nothing is selected. */
 	selectionText: string | null;
+	/**
+	 * Where the prompt's agent/mode say it lands (`resolvePromptTarget`).
+	 * Absent ⇒ the prompt's own `newTab` flag decides (pre-agent/mode callers).
+	 */
+	target?: PromptTarget;
 }
 
 export interface QuickPromptPlan {
@@ -441,6 +451,12 @@ export interface QuickPromptPlan {
 	send?: boolean;
 	/** For `new-tab`: switch to it vs open in the background. */
 	foreground?: boolean;
+	/** For `new-tab`: the agent to open (absent ⇒ default agent). */
+	agentId?: string;
+	/** For `new-tab`: the mode for its first session (id or display name). */
+	modeId?: string;
+	/** For an unknown agent/mode: what the prompt asked for (for the notice). */
+	requested?: string;
 }
 
 /**
@@ -452,6 +468,14 @@ export function planQuickPromptFire(
 	prompt: Pick<QuickPrompt, "body" | "usesSelection" | "newTab">,
 	ctx: QuickPromptPlanContext,
 ): QuickPromptPlan {
+	const target = ctx.target;
+	const text = resolvePromptText(prompt.body, ctx.selectionText);
+	if (target?.kind === "unknown-agent") {
+		return { action: "disabled", reason: "unknown-agent", requested: target.agentId, text };
+	}
+	if (target?.kind === "unknown-mode") {
+		return { action: "disabled", reason: "unknown-mode", requested: target.modeId, text };
+	}
 	const hasSelection =
 		ctx.selectionText != null && ctx.selectionText.length > 0;
 	const decision = decideQuickPromptAction({
@@ -463,14 +487,22 @@ export function planQuickPromptFire(
 		isQueued: ctx.isQueued,
 		usesSelection: prompt.usesSelection,
 		hasSelection,
-		defaultNewTab: prompt.newTab === true,
+		defaultNewTab: target
+			? target.kind === "new-tab"
+			: prompt.newTab === true,
 	});
+	const newTabTarget =
+		decision.action === "new-tab" && target?.kind === "new-tab"
+			? target
+			: undefined;
 	return {
 		action: decision.action,
 		reason: decision.reason,
 		send: decision.send,
 		foreground: decision.foreground,
-		text: resolvePromptText(prompt.body, ctx.selectionText),
+		...(newTabTarget?.agentId ? { agentId: newTabTarget.agentId } : {}),
+		...(newTabTarget?.modeId ? { modeId: newTabTarget.modeId } : {}),
+		text,
 	};
 }
 
@@ -484,6 +516,14 @@ export function unsentDraftNotice(): string {
 }
 export function noSelectionNotice(label: string): string {
 	return t("chat.quickPrompts.needsSelection", { label });
+}
+/** The prompt's `agent:` matches no configured agent (id or display name). */
+export function unknownAgentNotice(agent: string): string {
+	return t("chat.quickPrompts.unknownAgent", { agent });
+}
+/** The prompt's `mode:` isn't offered by this tab's agent (id or display name). */
+export function unknownModeNotice(mode: string): string {
+	return t("chat.quickPrompts.unknownMode", { mode });
 }
 /** Toast shown when a prompt is sent into a new **background** tab. */
 export function newTabStartedNotice(label: string): string {
@@ -524,6 +564,11 @@ export function executeQuickPrompt(
 	const plan = planQuickPromptFire(prompt, ctx);
 	switch (plan.action) {
 		case "disabled":
+			if (plan.reason === "unknown-agent") {
+				actions.notify(unknownAgentNotice(plan.requested ?? ""));
+			} else if (plan.reason === "unknown-mode") {
+				actions.notify(unknownModeNotice(plan.requested ?? ""));
+			}
 			break;
 		case "fire":
 		case "queue":
@@ -540,7 +585,12 @@ export function executeQuickPrompt(
 		case "new-tab": {
 			const send = plan.send ?? true;
 			const foreground = plan.foreground ?? false;
-			actions.openInNewTab(plan.text, { send, foreground });
+			actions.openInNewTab(plan.text, {
+				send,
+				foreground,
+				...(plan.agentId ? { agentId: plan.agentId } : {}),
+				...(plan.modeId ? { modeId: plan.modeId } : {}),
+			});
 			// Feedback only when the new tab is in the BACKGROUND (foreground
 			// fires are self-evident — you land on the tab). A no-selection
 			// seed explains itself with the no-selection notice instead.

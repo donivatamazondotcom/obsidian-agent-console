@@ -13,6 +13,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { QuickPromptLibrary } from "../services/quick-prompts";
 import { executeQuickPrompt } from "../services/quick-prompts-logic";
+import { resolvePromptTarget } from "../resolvers/prompt-target";
+import type { NamedItem, SessionModes } from "../resolvers/session-modes";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import type { NewTabPromptOpts, QuickPrompt } from "../types/quick-prompt";
 
@@ -43,6 +45,12 @@ export interface QuickPromptComposerBridge {
 	openInNewTab(text: string, opts: NewTabPromptOpts): void;
 	/** Show a transient notice. */
 	notify(message: string): void;
+	/** Agent id of this tab, or null when it has none yet. */
+	getActiveAgentId(): string | null;
+	/** This tab's session modes, or null when unknown / none. */
+	getActiveModes(): SessionModes | null;
+	/** Configured agents (settings id + display name). */
+	getAgents(): readonly NamedItem[];
 }
 
 export interface UseQuickPromptsReturn {
@@ -74,6 +82,17 @@ export function useQuickPrompts(
 	const runQuickPrompt = useCallback(
 		(prompt: QuickPrompt, gesture: QuickPromptGesture) => {
 			const b = bridgeRef.current;
+			// One resolver decides where every fire lands ([[Agent Console
+			// Quick Prompt Agent and Mode]]): a different agent or mode → a
+			// new tab set up that way; otherwise in place.
+			const target = resolvePromptTarget(
+				{ agent: prompt.agent, mode: prompt.mode, newTab: prompt.newTab },
+				{
+					activeAgentId: b.getActiveAgentId(),
+					activeModes: b.getActiveModes(),
+					agents: b.getAgents(),
+				},
+			);
 			executeQuickPrompt(
 				prompt,
 				{
@@ -84,6 +103,7 @@ export function useQuickPrompts(
 					isStreaming: b.isStreaming(),
 					isQueued: b.isQueued(),
 					selectionText: b.getSelectionText(),
+					target,
 				},
 				{
 					fireOrQueue: (text) => b.fireOrQueue(text),

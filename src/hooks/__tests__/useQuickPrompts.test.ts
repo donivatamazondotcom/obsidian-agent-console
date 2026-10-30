@@ -57,6 +57,18 @@ function makeBridge(
 		insertAtCursor: vi.fn(),
 		openInNewTab: vi.fn(),
 		notify: vi.fn(),
+		getActiveAgentId: () => "claude-code",
+		getActiveModes: () => ({
+			current: { id: "default", name: "Default" },
+			offered: [
+				{ id: "default", name: "Default" },
+				{ id: "plan", name: "Plan Mode" },
+			],
+		}),
+		getAgents: () => [
+			{ id: "claude-code", name: "Claude Code" },
+			{ id: "kiro-cli", name: "Kiro CLI" },
+		],
 		...overrides,
 	};
 }
@@ -197,5 +209,76 @@ describe("useQuickPrompts — T18", () => {
 
 		expect(bridge.openInNewTab).toHaveBeenCalledWith("Kick off", { send: false, foreground: true });
 		expect(bridge.insertAtCursor).not.toHaveBeenCalled();
+	});
+});
+
+// [[Agent Console Quick Prompt Agent and Mode]] — the hook resolves the
+// prompt's agent/mode against the live tab before executing.
+describe("useQuickPrompts — agent and mode routing", () => {
+	it("a mode-only prompt opens a new tab on this tab's agent, mode resolved by name", () => {
+		const bridge = makeBridge();
+		const { lib } = makeFakeLibrary([]);
+		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
+		act(() =>
+			result.current.runQuickPrompt(prompt({ mode: "Plan Mode" }), {
+				openElsewhere: false,
+				foreground: false,
+				insert: false,
+			}),
+		);
+		expect(bridge.openInNewTab).toHaveBeenCalledWith("Debrief this meeting.", {
+			send: true,
+			foreground: true,
+			agentId: "claude-code",
+			modeId: "plan",
+		});
+		expect(bridge.fireOrQueue).not.toHaveBeenCalled();
+	});
+
+	it("an agent given by display name opens that agent's tab", () => {
+		const bridge = makeBridge();
+		const { lib } = makeFakeLibrary([]);
+		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
+		act(() =>
+			result.current.runQuickPrompt(prompt({ agent: "Kiro CLI" }), {
+				openElsewhere: false,
+				foreground: false,
+				insert: false,
+			}),
+		);
+		expect(bridge.openInNewTab).toHaveBeenCalledWith(
+			"Debrief this meeting.",
+			expect.objectContaining({ agentId: "kiro-cli" }),
+		);
+	});
+
+	it("matching agent and mode fire in place", () => {
+		const bridge = makeBridge();
+		const { lib } = makeFakeLibrary([]);
+		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
+		act(() =>
+			result.current.runQuickPrompt(
+				prompt({ agent: "claude-code", mode: "default" }),
+				{ openElsewhere: false, foreground: false, insert: false },
+			),
+		);
+		expect(bridge.fireOrQueue).toHaveBeenCalledWith("Debrief this meeting.");
+		expect(bridge.openInNewTab).not.toHaveBeenCalled();
+	});
+
+	it("an unknown agent only notifies", () => {
+		const bridge = makeBridge();
+		const { lib } = makeFakeLibrary([]);
+		const { result } = renderHook(() => useQuickPrompts(lib, bridge));
+		act(() =>
+			result.current.runQuickPrompt(prompt({ agent: "test-missing" }), {
+				openElsewhere: false,
+				foreground: false,
+				insert: false,
+			}),
+		);
+		expect(bridge.notify).toHaveBeenCalled();
+		expect(bridge.openInNewTab).not.toHaveBeenCalled();
+		expect(bridge.fireOrQueue).not.toHaveBeenCalled();
 	});
 });
