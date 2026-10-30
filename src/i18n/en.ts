@@ -523,6 +523,7 @@ export const en = {
 	"chat.composer.stopGeneration": "Stop generation",
 	"chat.composer.sendMessage": "Send message",
 	"chat.composer.sendToConnect": "Send to connect",
+	"chat.composer.retrySend": "Retry connecting and send",
 	"chat.composer.connecting": "Connecting...",
 	"chat.composer.usageTokens": "{used} / {size} tokens",
 	"chat.composer.placeholder":

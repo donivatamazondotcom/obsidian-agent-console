@@ -106,10 +106,14 @@ describe("deriveSendAffordance — explicit cells", () => {
 			reason: "restoring",
 		},
 		{
-			name: "error state → blocked, button disabled",
+			// I232: error is no longer a dead end — the Send button is the
+			// retry (it re-acquires a session and sends on connect). The
+			// programmatic/broadcast gate stays closed so nothing retries
+			// without the user.
+			name: "error state + content → button enabled (Retry), canSend false",
 			input: base({ lazyState: "error" }),
 			canSend: false,
-			buttonDisabled: true,
+			buttonDisabled: false,
 			reason: "error",
 		},
 		{
@@ -242,12 +246,27 @@ describe("deriveSendAffordance — invariants over the full input cube", () => {
 		}
 	});
 
-	it("button enabled ⟺ reason ∈ {ready, sending}", () => {
+	// I232: an `error` tab with content keeps Send enabled as the retry,
+	// unless a held queue or a restore blocks it like any other state.
+	it("button enabled ⟺ reason ∈ {ready, sending}, or error with content and nothing held/restoring", () => {
 		for (const input of cube()) {
 			const out = deriveSendAffordance(input);
 			const enabled = !out.buttonDisabled;
-			const expected = out.reason === "ready" || out.reason === "sending";
+			const errorRetry =
+				out.reason === "error" &&
+				input.hasContent &&
+				!input.isQueued &&
+				!input.isRestoringSession;
+			const expected =
+				out.reason === "ready" || out.reason === "sending" || errorRetry;
 			expect(enabled).toBe(expected);
+		}
+	});
+
+	it("error never opens the programmatic gate (canSend false in error)", () => {
+		for (const input of cube()) {
+			if (input.lazyState !== "error") continue;
+			expect(deriveSendAffordance(input).canSend).toBe(false);
 		}
 	});
 });

@@ -542,6 +542,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.stopGeneration": "생성 중지",
 	"chat.composer.sendMessage": "메시지 보내기",
 	"chat.composer.sendToConnect": "보내서 연결하기",
+	"chat.composer.retrySend": "다시 연결하고 보내기",
 	"chat.composer.connecting": "연결 중...",
 	"chat.composer.usageTokens": "{used} / {size} 토큰",
 	"chat.composer.placeholder":

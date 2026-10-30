@@ -578,6 +578,7 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.stopGeneration": "生成を停止",
 	"chat.composer.sendMessage": "メッセージを送信",
 	"chat.composer.sendToConnect": "送信して接続",
+	"chat.composer.retrySend": "再接続して送信",
 	"chat.composer.connecting": "接続中...",
 	"chat.composer.usageTokens": "{used} / {size} トークン",
 	"chat.composer.placeholder":

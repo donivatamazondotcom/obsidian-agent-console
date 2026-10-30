@@ -528,6 +528,7 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.stopGeneration": "停止生成",
 	"chat.composer.sendMessage": "发送消息",
 	"chat.composer.sendToConnect": "发送以连接",
+	"chat.composer.retrySend": "重试连接并发送",
 	"chat.composer.connecting": "连接中...",
 	"chat.composer.usageTokens": "{used} / {size} 个 token",
 	"chat.composer.placeholder":

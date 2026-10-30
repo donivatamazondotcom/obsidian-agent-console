@@ -429,9 +429,11 @@ export function InputToolbar({
 						? t("chat.composer.stopGeneration")
 						: lazyState === "idle"
 							? t("chat.composer.sendToConnect")
-							: !isSessionLive(lazyState)
-								? t("chat.composer.connecting")
-								: t("chat.composer.sendMessage")
+							: lazyState === "error"
+								? t("chat.composer.retrySend")
+								: !isSessionLive(lazyState)
+									? t("chat.composer.connecting")
+									: t("chat.composer.sendMessage")
 				}
 			></button>
 		</div>
