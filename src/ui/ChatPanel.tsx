@@ -182,6 +182,8 @@ export interface ChatPanelCallbacks {
 	saveComposerAsQuickPrompt: () => void;
 	/** Current resolved working directory for this tab (persisted for restore). */
 	getWorkingDirectory: () => string;
+	/** The tab's current session mode id ("" when unknown) — persisted per tab (I231). */
+	getModeId: () => string;
 	/** Open the Session History modal for this tab (open-session-history command). */
 	openHistory: () => void;
 	/**
@@ -310,6 +312,8 @@ export interface ChatPanelProps {
 	 * agent's default. Spec: [[Agent Console Quick Prompt Agent and Mode]].
 	 */
 	initialModeRequest?: string;
+	/** The restored tab's own persisted mode, re-applied on its first load (I231). */
+	restoredModeId?: string;
 }
 
 // ============================================================================
@@ -390,6 +394,7 @@ export function ChatPanel({
 	onOpenInNewTab,
 	initialPrompt,
 	initialModeRequest,
+	restoredModeId,
 }: ChatPanelProps) {
 	// ============================================================
 	// Platform Check
@@ -482,6 +487,7 @@ export function ChatPanel({
 		agentCwd,
 		initialAgentId,
 		initialModeRequest,
+		restoredModeId,
 	);
 
 	const {
@@ -1599,6 +1605,17 @@ export function ChatPanel({
 		queue.dispatch,
 	]);
 
+	// I231: a mode change is persistence-relevant (restored tabs reconnect in
+	// their own mode), so nudge the debounced tab save the same way a draft
+	// edit does.
+	const currentModeId = readSessionModes(agent.session)?.current.id ?? "";
+	const lastSavedModeRef = useRef(currentModeId);
+	useEffect(() => {
+		if (lastSavedModeRef.current === currentModeId) return;
+		lastSavedModeRef.current = currentModeId;
+		onDraftChange?.();
+	}, [currentModeId, onDraftChange]);
+
 	// A quick prompt's mode isn't offered by this tab's new session: say so
 	// once. The connect-flush above has already returned the prompt to the
 	// composer unsent. Spec: [[Agent Console Quick Prompt Agent and Mode]].
@@ -2595,6 +2612,8 @@ export function ChatPanel({
 				});
 			},
 			getWorkingDirectory: () => agentCwd,
+			getModeId: () =>
+				readSessionModes(promptTargetSessionRef.current)?.current.id ?? "",
 			openHistory: () => handleOpenHistoryRef.current(),
 			requestAiTitle: async () => {
 				if (!acpClient.isInitialized()) return { kind: "not-ready" };

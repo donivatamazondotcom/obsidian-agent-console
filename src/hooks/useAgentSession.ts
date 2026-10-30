@@ -120,8 +120,15 @@ export function useAgentSession(
 	 * never saved as the agent's default.
 	 */
 	initialModeRequest?: string,
+	/**
+	 * A restored tab's own mode id (persisted per tab). One-shot: replaces
+	 * the agent's saved mode for the first load's re-apply only; never
+	 * saved, and silently ignored when the session no longer offers it (I231).
+	 */
+	restoredModeId?: string,
 ): UseAgentSessionReturn {
 	const pendingModeRequestRef = useRef<string | undefined>(initialModeRequest);
+	const pendingRestoredModeRef = useRef<string | undefined>(restoredModeId);
 	// ============================================================
 	// Session State
 	// ============================================================
@@ -536,6 +543,21 @@ export function useAgentSession(
 			let finalModels = models;
 			let finalConfigOptions = configOptions;
 
+			// I231: the restored tab's own mode wins over the agent's saved
+			// mode when the session still offers it; otherwise fall back
+			// silently (a restore must never block a send).
+			const restoredMode = pendingRestoredModeRef.current;
+			pendingRestoredModeRef.current = undefined;
+			const savedPicks = savedConfigPicks(settings, agentId);
+			const tabMode = restoredMode
+				? resolveModeRequest(restoredMode, {
+						modes,
+						configOptions,
+						modeListMayArriveLate: false,
+					}).modeId
+				: undefined;
+			const picks = tabMode ? { ...savedPicks, mode: tabMode } : savedPicks;
+
 			// Kiro CLI V3 stores model, effort and mode per session, so a
 			// loaded or forked session keeps its own (S3 decision a1).
 			const keepsOwnConfig =
@@ -549,14 +571,14 @@ export function useAgentSession(
 					agentClient,
 					sessionId,
 					configOptions,
-					savedConfigPicks(settings, agentId),
+					picks,
 				);
 			} else if (sessionId && modes) {
 				const restored = await restoreLegacyConfig(
 					agentClient,
 					{ sessionId, modes, models, configOptions: undefined },
 					settings.lastUsedModels[agentId],
-					settings.lastUsedModes[agentId],
+					picks.mode,
 				);
 				finalModes = restored.modes;
 				finalModels = restored.models;
