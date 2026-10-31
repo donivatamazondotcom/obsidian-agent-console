@@ -28,6 +28,7 @@ import {
 	type SessionModeState,
 	type SessionModelState,
 } from "../types/session";
+import { readSessionModes } from "./session-modes";
 
 export type HeaderAgent =
 	| { kind: "configured"; label: string }
@@ -50,42 +51,15 @@ function findOption(
 	return configOptions?.find((o) => o.id === kind || o.category === kind);
 }
 
-/** Current mode + every mode on offer, from the config option or legacy modes. */
-function readModes(
-	input: HeaderAgentInput,
-): { currentId: string; currentName: string; available: Set<string> } | null {
-	const option = findOption(input.configOptions, "mode");
-	if (option) {
-		const opts = flattenConfigSelectOptions(option.options);
-		const current = opts.find((o) => o.value === option.currentValue);
-		return {
-			currentId: option.currentValue,
-			currentName: current?.name || option.currentValue,
-			available: new Set(opts.map((o) => o.value)),
-		};
-	}
-	if (input.modes) {
-		const current = input.modes.availableModes.find(
-			(m) => m.id === input.modes?.currentModeId,
-		);
-		return {
-			currentId: input.modes.currentModeId,
-			currentName: current?.name || input.modes.currentModeId,
-			available: new Set(input.modes.availableModes.map((m) => m.id)),
-		};
-	}
-	return null;
-}
-
 export function deriveHeaderAgent(input: HeaderAgentInput): HeaderAgent {
 	const { label, requestedModeId } = input;
-	const state = readModes(input);
-	if (!requestedModeId || !state || state.currentId === requestedModeId) {
+	const state = readSessionModes(input);
+	if (!requestedModeId || !state || state.current.id === requestedModeId) {
 		return { kind: "configured", label };
 	}
-	return state.available.has(requestedModeId)
-		? { kind: "switched", label, running: state.currentName }
-		: { kind: "notLoaded", label, running: state.currentName };
+	return state.offered.some((m) => m.id === requestedModeId)
+		? { kind: "switched", label, running: state.current.name }
+		: { kind: "notLoaded", label, running: state.current.name };
 }
 
 export function deriveHeaderModelName(input: {

@@ -17,6 +17,8 @@
  */
 
 import type { QuickPromptComposerBridge } from "../hooks/useQuickPrompts";
+import type { NewTabPromptOpts } from "../types/quick-prompt";
+import type { NamedItem, SessionModes } from "../resolvers/session-modes";
 import { scheduleComposerRefocus } from "./composer-focus";
 
 /** Live, per-tab dependencies the bridge reads/drives. All thunks so the bridge stays fresh. */
@@ -40,12 +42,18 @@ export interface QuickPromptBridgeDeps {
 	/** Spawn a sibling tab and seed/send `text` there (newTab prompts). */
 	openInNewTab: (
 		text: string,
-		opts: { send: boolean; foreground: boolean },
+		opts: NewTabPromptOpts,
 	) => void;
 	/** This view's container element (holds the composer textarea), or null. */
 	getContainer: () => HTMLElement | null;
 	/** Show a transient notice. */
 	notify: (message: string) => void;
+	/** Agent id of this tab, or null when it has none yet. */
+	getActiveAgentId: () => string | null;
+	/** This tab's session modes, or null when unknown / none. */
+	getActiveModes: () => SessionModes | null;
+	/** Configured agents (settings id + display name). */
+	getAgents: () => readonly NamedItem[];
 }
 
 /** CSS selector for the composer textarea (same one ChatView.focus uses). */
@@ -59,6 +67,9 @@ export function createQuickPromptBridge(
 		getSelectionText: () => deps.getSelectionText(),
 		isStreaming: () => deps.isSending(),
 		isQueued: () => deps.isQueued(),
+		getActiveAgentId: () => deps.getActiveAgentId(),
+		getActiveModes: () => deps.getActiveModes(),
+		getAgents: () => deps.getAgents(),
 		// fire/queue: dispatch the resolved text through the same send path the
 		// composer uses (queues while streaming / pre-ready). The engine only
 		// routes here when the composer is empty, so passing the text directly

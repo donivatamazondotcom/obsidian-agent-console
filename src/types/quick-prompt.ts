@@ -117,3 +117,17 @@ export interface QuickPromptGesture {
 	/** ⌥ — insert/stage instead of send. */
 	insert: boolean;
 }
+
+/**
+ * How a quick prompt opens a new tab: send vs only seed the composer,
+ * foreground vs background, and the agent / mode the tab starts with
+ * (absent agent ⇒ the default agent; `modeId` is an id or display name,
+ * resolved when the tab's session starts).
+ * Spec: [[Agent Console Quick Prompt Agent and Mode]].
+ */
+export interface NewTabPromptOpts {
+	send: boolean;
+	foreground: boolean;
+	agentId?: string;
+	modeId?: string;
+}

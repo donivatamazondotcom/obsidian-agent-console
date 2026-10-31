@@ -148,6 +148,53 @@ describe("queueOrchestrationReducer — acquisitionComplete / Failed", () => {
 		expect(r.effects).toEqual([]);
 	});
 
+	// [[Agent Console Quick Prompt Agent and Mode]] T07: the tab's first
+	// session doesn't offer the quick prompt's mode → never send it in the
+	// wrong mode. Release the slot and keep the composer text (Edit semantics).
+	it("pending + mode request unmet → release to the composer, no send", () => {
+		const held = queueOrchestrationReducer(EMPTY, {
+			type: "sendWhilePreReady",
+			message: MSG,
+		}).state;
+		const r = queueOrchestrationReducer(held, {
+			type: "acquisitionComplete",
+			hasSessionId: true,
+			modeUnmet: true,
+		});
+		expect(r.state.pending).toBeNull();
+		expect(r.effects).toEqual([]);
+	});
+
+	it("mode request met (or none) → flushes as before", () => {
+		const held = queueOrchestrationReducer(EMPTY, {
+			type: "sendWhilePreReady",
+			message: MSG,
+		}).state;
+		const r = queueOrchestrationReducer(held, {
+			type: "acquisitionComplete",
+			hasSessionId: true,
+			modeUnmet: false,
+		});
+		expect(r.effects).toEqual([
+			{ kind: "clearComposer" },
+			{ kind: "flushDispatch", message: MSG },
+		]);
+	});
+
+	it("mode request unmet but sessionId not committed → still holds (I69)", () => {
+		const held = queueOrchestrationReducer(EMPTY, {
+			type: "sendWhilePreReady",
+			message: MSG,
+		}).state;
+		const r = queueOrchestrationReducer(held, {
+			type: "acquisitionComplete",
+			hasSessionId: false,
+			modeUnmet: true,
+		});
+		expect(r.state.pending).toBe(MSG);
+		expect(r.effects).toEqual([]);
+	});
+
 	it("no pending → no-op", () => {
 		const r = queueOrchestrationReducer(EMPTY, {
 			type: "acquisitionComplete",

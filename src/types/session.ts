@@ -217,6 +217,14 @@ export interface ChatSession {
 	 * with agents that don't support configOptions.
 	 */
 	modes?: SessionModeState;
+	/**
+	 * A quick prompt asked this tab's first session to start in a mode the
+	 * session doesn't offer (raw request, id or display name). Set when the
+	 * session goes ready; cleared on the next session start. The queue flush
+	 * reads it to return the prompt to the composer unsent.
+	 * Spec: [[Agent Console Quick Prompt Agent and Mode]].
+	 */
+	unmetModeRequest?: string;
 
 	/**
 	 * DEPRECATED: Use configOptions instead. Kept for backward compatibility

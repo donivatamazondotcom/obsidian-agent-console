@@ -621,6 +621,12 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	// ---- Phase 3: quick prompts ----
 	"chat.quickPrompts.queuedTooltip":
 		"有一条消息在排队 — 编辑或删除它以发送其他内容",
+	"chat.quickPrompts.unknownAgent":
+		"提示笔记中的“{agent}”与任何智能体都不匹配。请使用设置中的智能体名称或 ID。",
+	"chat.quickPrompts.unknownMode":
+		"此聊天的智能体不提供模式“{mode}”。请使用模式下拉菜单中的名称。",
+	"chat.quickPrompts.modeNotOffered":
+		"此聊天的智能体不提供模式“{mode}”，因此提示未发送。请检查提示笔记中的模式。",
 	"chat.quickPrompts.newTabTooltip":
 		"点击：在新标签页打开 · {mod}-点击：在后台打开 · {alt}-点击：放入输入框先编辑",
 	"chat.quickPrompts.thisTabTooltip":
