@@ -16,7 +16,11 @@ import { executeQuickPrompt } from "../services/quick-prompts-logic";
 import { resolvePromptTarget } from "../resolvers/prompt-target";
 import type { NamedItem, SessionModes } from "../resolvers/session-modes";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
-import type { NewTabPromptOpts, QuickPrompt } from "../types/quick-prompt";
+import type {
+	NewTabPromptOpts,
+	PromptNoteSource,
+	QuickPrompt,
+} from "../types/quick-prompt";
 
 /**
  * Live composer/queue/selection state + effects for the current tab. ChatPanel
@@ -51,6 +55,8 @@ export interface QuickPromptComposerBridge {
 	getActiveModes(): SessionModes | null;
 	/** Configured agents (settings id + display name). */
 	getAgents(): readonly NamedItem[];
+	/** Active note's `source-url` + title for `{{url}}` / `{{title}}`. */
+	getNoteSource?(): PromptNoteSource | undefined;
 }
 
 export interface UseQuickPromptsReturn {
@@ -103,6 +109,7 @@ export function useQuickPrompts(
 					isStreaming: b.isStreaming(),
 					isQueued: b.isQueued(),
 					selectionText: b.getSelectionText(),
+					noteSource: b.getNoteSource?.(),
 					target,
 				},
 				{

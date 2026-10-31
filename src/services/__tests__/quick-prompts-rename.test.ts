@@ -88,10 +88,12 @@ describe("renamePromptLabel — S5-T2 (orchestrator + writer port)", () => {
 });
 
 describe("buildChipMenuItems — S5-T3 (right-click menu contract)", () => {
-	it("returns Edit / Copy / Rename with their lucide icons, in order", () => {
+	it("returns Edit / Copy / Copy link / Rename with their lucide icons, in order", () => {
 		expect(buildChipMenuItems()).toEqual([
 			{ action: "edit", title: "Edit prompt", icon: "file-pen" },
 			{ action: "copy", title: "Copy prompt", icon: "copy" },
+			// [[Agent Console Quick Prompt URIs]] § Copy link on the chip menu.
+			{ action: "copy-link", title: "Copy link", icon: "link" },
 			{ action: "rename", title: "Rename", icon: "text-cursor-input" },
 		]);
 	});

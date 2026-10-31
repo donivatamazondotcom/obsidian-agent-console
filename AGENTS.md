@@ -135,11 +135,13 @@ src/
 │   ├── useRecentlyClosedTabs.ts # F13 undo-close: per-leaf in-memory recently-closed stack
 │   ├── useMessageQueue.ts       # #82 queue-of-one: runtime-only next-message slot (auto-sends on turn end)
 │   ├── useQuickPrompts.ts       # Quick Prompts: live list + guarded runQuickPrompt (fire/insert/queue via the pure engine)
+│   ├── useLinkOriginTab.ts      # Per-tab state for an obsidian://agent-console-opened tab: suppress the active-note pill + "Opened by link" banner visibility
 │   └── useTabManager.ts         # Per-tab session orchestration (state, focus, lifecycle)
 ├── ui/                          # React components
 │   ├── ChatContext.ts           # React Context (plugin, acpClient, vaultService, settingsService)
 │   ├── ContextStrip.tsx         # Context-note strip (crystallized pills + type-to-add)
 │   ├── LossyFallbackNotice.tsx  # Notice when a restored tab continues from transcript only
+│   ├── LinkOriginBanner.tsx     # One-line "Opened by link · Agent · Mode" banner for a tab whose agent/mode a link chose
 │   ├── CarriedOverPreview.tsx   # Read-only carried-over conversation block (agent switch)
 │   ├── ConfirmSessionIntentModal.ts # Confirm-before-clearing modal (switch / new-chat / hard-reload)
 │   ├── CorruptionRecoveryModal.ts # Corrupt persisted-state recovery modal
@@ -235,6 +237,7 @@ src/
 │   ├── slash-command-logic.ts   # Pure / trigger detection (start-of-line only) + command filtering (Unified Picker Control Tier 3)
 │   ├── link-leaf.ts             # Resolve click modifiers → Obsidian leaf/pane (Keymap.isModEvent) for internal links
 │   ├── quick-prompt-gesture.ts  # Map a click/keypress → the Quick Prompts 2×2 gesture (openElsewhere/foreground/insert) via Keymap.isModEvent + shift/alt
+│   ├── quick-prompt-uri.ts      # obsidian://agent-console links: parse params (tagged union), strip invisible chars, rate limit + duplicate drop, quote outside text, build a prompt's base link
 │   ├── link-extract.ts          # Derive per-tab shared-link set from messages (Shared Links Bubble) + new/old classification
 │   ├── notification-content.ts  # buildCompletionNotificationContent — pure turn-end notification title/body/tag (tab label in title)
 │   ├── notification-click.ts    # Pure orchestrator for a completion-notification click (reveal owning leaf/window + switch to producing tab); I52 recurrence

@@ -635,6 +635,28 @@ export const en = {
 	"chat.quickPrompts.showMore": "Show {count} more — search all quick prompts",
 	"chat.quickPrompts.editPrompt": "Edit prompt",
 	"chat.quickPrompts.copyPrompt": "Copy prompt",
+	"chat.quickPrompts.copyLink": "Copy link",
+	"chat.quickPrompts.linkCopied": "[Agent Console] Copied prompt link.",
+	"chat.quickPrompts.linkCopyFailed": "[Agent Console] Couldn't copy the prompt link.",
+	"chat.quickPrompts.externalTextHeading": "External text · {count} chars",
+	"chat.quickPrompts.externalTextHeadingWithSource":
+		"External text · {count} chars · claimed source: {source}",
+	"chat.quickPrompts.uriHiddenRemoved":
+		"Removed {count} hidden characters from the linked text.",
+	"chat.quickPrompts.uriUnknownPrompt":
+		"No quick prompt has the id \"{id}\". Check the link.",
+	"chat.quickPrompts.uriBadParam":
+		"The link's \"{field}\" value is missing or empty. Nothing was opened.",
+	"chat.quickPrompts.uriUnknownAgent":
+		"No agent matches \"{agent}\". Check the link or the prompt note.",
+	"chat.quickPrompts.uriRateLimited":
+		"Links are opening too fast. Wait a moment and try again.",
+	"chat.quickPrompts.uriDuplicate":
+		"That link just opened. Ignored the repeat.",
+	"chat.quickPrompts.linkOrigin": "Opened by link",
+	"chat.quickPrompts.linkOriginAgent": "Agent: {agent}",
+	"chat.quickPrompts.linkOriginMode": "Mode: {mode}",
+	"chat.quickPrompts.linkOriginDismiss": "Dismiss",
 	"chat.quickPrompts.rename": "Rename",
 	"chat.quickPrompts.addedToDraft": "Added to your draft — review and send",
 	"chat.quickPrompts.needsSelection":
@@ -701,6 +723,7 @@ export const en = {
 	"notices.bootPartHoverPreview": "note hover preview",
 	"notices.bootPartRibbon": "ribbon button",
 	"notices.bootPartCommands": "commands",
+	"notices.bootPartUriHandler": "link handler",
 	"notices.bootPartSettingsTab": "settings tab",
 	// ---- Phase 3 addendum: notification body, pickers, errors, installer ----
 	"chat.notifications.responseComplete": "{agent} · response complete",

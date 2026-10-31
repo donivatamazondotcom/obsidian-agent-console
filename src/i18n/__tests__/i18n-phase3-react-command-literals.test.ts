@@ -113,6 +113,11 @@ const PER_FILE_ALLOW: Record<string, string[]> = {
 		"always show",
 		"open in new tab",
 		"{{selection}}",
+		// Source placeholders ([[Agent Console Quick Prompt URIs]]) and the
+		// fixed locale for the external-text char count (machine formatting).
+		"{{url}}",
+		"{{title}}",
+		"en-US",
 		"Write your prompt here.",
 		"Notes & help — everything below this line is ignored; only the text above the --- is sent. Keep it, edit it, or jot draft variations here.",
 		"Set the label above, then choose where this prompt's chip appears:",

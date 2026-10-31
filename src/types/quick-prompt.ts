@@ -80,6 +80,14 @@ export interface QuickPrompt {
 	/** Fire into a fresh tab/session (later slice). */
 	newTab?: boolean;
 	/**
+	 * `uri send: true` — a BARE `obsidian://agent-console` link (only
+	 * `prompt`) may send straight away. Any outside value forces staging.
+	 * Spec: [[Agent Console Quick Prompt URIs]].
+	 */
+	uriSend?: boolean;
+	/** `uri override: false` — ignore a link's `agent` / `mode`. */
+	uriOverride?: boolean;
+	/**
 	 * Resting-row / launcher sort key. Lower sorts first (`order: 0`
 	 * leftmost). Absent/non-numeric ⇒ sorts after all numeric-`order`
 	 * prompts, alphabetically by label. Parsed with `Number.isFinite`
@@ -130,4 +138,29 @@ export interface NewTabPromptOpts {
 	foreground: boolean;
 	agentId?: string;
 	modeId?: string;
+	/** A link chose the agent or mode → show the "Opened by link" banner. */
+	linkOrigin?: boolean;
+	/**
+	 * Don't offer (or crystallize) the active-note pill in the new tab. Set by
+	 * URI fires: the open note is unrelated to where the link came from.
+	 */
+	suppressAutoContext?: boolean;
+}
+
+/**
+ * Outside context an `obsidian://agent-console` link carries. Only the keys
+ * the link set are present. Spec: [[Agent Console Quick Prompt URIs]].
+ */
+export interface ExternalPromptContext {
+	selection?: string;
+	url?: string;
+	title?: string;
+	agent?: string;
+	mode?: string;
+}
+
+/** The active note's `source-url` + title, for in-app `{{url}}` / `{{title}}`. */
+export interface PromptNoteSource {
+	url?: string;
+	title?: string;
 }

@@ -3716,3 +3716,25 @@ del.acp-header-branded-profile {
 .agent-client-setting-hidden {
 	display: none;
 }
+
+/* "Opened by link" origin banner ([[Agent Console Quick Prompt URIs]]) */
+.agent-client-link-origin-banner {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-4-1) var(--size-4-3);
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+.agent-client-link-origin-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.agent-client-link-origin-dismiss {
+	flex: 0 0 auto;
+}
