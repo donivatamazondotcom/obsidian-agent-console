@@ -534,6 +534,7 @@ export const en = {
 	"chat.composer.placeholderQueueSteer":
 		"{queueKey} to queue · {steerKey} to send now",
 	"chat.composer.queuedBannerReady": "Queued — sends when {agent} is done",
+	"chat.composer.queuedBannerFailed": "Couldn't connect — Edit, then Send to retry",
 	"chat.composer.queuedBannerWaiting": "Queued — sends when ready",
 	"chat.composer.queuedBannerAction":
 		"Sending your choice — waiting for the agent to start again",

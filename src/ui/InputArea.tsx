@@ -1217,6 +1217,48 @@ export function InputArea({
 	});
 
 	/**
+	 * Send-button click. Makes the SAME decision as the send key
+	 * (decideComposerEnterAction, without the steer gesture): with no live
+	 * session it queues and keeps the composer text locked in place, so an
+	 * Edit after a failed start gives the text back. Calling handleSendOrStop
+	 * directly cleared the composer first and lost the message (I233).
+	 * While sending the button is Stop, so that path is unchanged.
+	 */
+	const handleSendButton = useCallback(() => {
+		if (isSending) {
+			void handleSendOrStop();
+			return;
+		}
+		const action = decideComposerEnterAction({
+			isStreaming,
+			isSessionReady,
+			isButtonDisabled,
+			isQueued,
+			hasContent: inputValue.trim() !== "" || attachedFiles.length > 0,
+			steerRequested: false,
+			launches,
+			queuedIsAction: isQueuedAction,
+		});
+		if (action === "send") {
+			void handleSendOrStop();
+		} else if (action === "queue") {
+			onQueueMessage?.(inputValue.trim(), attachedFiles);
+		}
+	}, [
+		isSending,
+		handleSendOrStop,
+		isStreaming,
+		isSessionReady,
+		isButtonDisabled,
+		isQueued,
+		inputValue,
+		attachedFiles,
+		launches,
+		isQueuedAction,
+		onQueueMessage,
+	]);
+
+	/**
 	 * Handle keyboard events in the textarea.
 	 */
 	const handleKeyDown = useCallback(
@@ -1602,6 +1644,7 @@ export function InputArea({
 								agentLabel,
 								isSessionReady,
 								isAction: isQueuedAction,
+								connectFailed: lazyState === "error",
 							})}
 						</span>
 						<div className="agent-client-queued-banner-actions">
@@ -1718,7 +1761,7 @@ export function InputArea({
 					hasContent={
 						inputValue.trim() !== "" || attachedFiles.length > 0
 					}
-					onSendOrStop={() => void handleSendOrStop()}
+					onSendOrStop={handleSendButton}
 					modes={modes}
 					onModeChange={onModeChange}
 					models={models}

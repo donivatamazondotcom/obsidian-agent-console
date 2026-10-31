@@ -137,8 +137,15 @@ export function buildQueuedBanner(params: {
 	 * must not claim it is queued.
 	 */
 	isAction?: boolean;
+	/**
+	 * The session start failed (lazy state `error`). Nothing will retry the
+	 * held message on its own, so the banner must not promise "sends when
+	 * ready" — it tells the user how to retry (I233).
+	 */
+	connectFailed?: boolean;
 }): string {
 	if (params.isAction) return t("chat.composer.queuedBannerAction");
+	if (params.connectFailed) return t("chat.composer.queuedBannerFailed");
 	return params.isSessionReady
 		? t("chat.composer.queuedBannerReady", { agent: params.agentLabel })
 		: t("chat.composer.queuedBannerWaiting");

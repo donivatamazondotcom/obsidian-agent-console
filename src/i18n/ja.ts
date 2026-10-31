@@ -589,6 +589,7 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.placeholderQueueSteer":
 		"{queueKey} で待機列へ · {steerKey} で今すぐ送信",
 	"chat.composer.queuedBannerReady": "待機中 — {agent} の完了後に送信されます",
+	"chat.composer.queuedBannerFailed": "接続できませんでした — 編集してから送信で再試行",
 	"chat.composer.queuedBannerWaiting": "待機中 — 準備でき次第送信されます",
 	// ---- Phase 3: message list + landing ----
 	"chat.messages.sending": "送信中…",

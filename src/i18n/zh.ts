@@ -539,6 +539,7 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.placeholderQueueSteer":
 		"{queueKey} 排队 · {steerKey} 立即发送",
 	"chat.composer.queuedBannerReady": "已排队 — {agent} 完成后发送",
+	"chat.composer.queuedBannerFailed": "无法连接 — 点击编辑，然后发送以重试",
 	"chat.composer.queuedBannerWaiting": "已排队 — 准备就绪后发送",
 	// ---- Phase 3: message list + landing ----
 	"chat.messages.sending": "发送中…",
