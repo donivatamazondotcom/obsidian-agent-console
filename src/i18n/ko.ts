@@ -542,6 +542,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.stopGeneration": "생성 중지",
 	"chat.composer.sendMessage": "메시지 보내기",
 	"chat.composer.sendToConnect": "보내서 연결하기",
+	"chat.composer.retrySend": "다시 연결하고 보내기",
 	"chat.composer.connecting": "연결 중...",
 	"chat.composer.usageTokens": "{used} / {size} 토큰",
 	"chat.composer.placeholder":
@@ -553,6 +554,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 		"{queueKey}로 대기열에 추가 · {steerKey}로 바로 보내기",
 	"chat.composer.queuedBannerReady":
 		"대기 중 — {agent}이(가) 끝나면 전송됩니다",
+	"chat.composer.queuedBannerFailed": "연결할 수 없음 — 편집한 다음 보내기로 다시 시도하세요",
 	"chat.composer.queuedBannerWaiting": "대기 중 — 준비되면 전송됩니다",
 	// ---- Phase 3: message list + landing ----
 	"chat.messages.sending": "보내는 중…",

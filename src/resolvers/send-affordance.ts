@@ -13,8 +13,10 @@
  *
  * DESIGN (approved option (a), 2026-06-27)
  *  - Keys on the full 6-member {@link TabSessionState} union. `busy` and
- *    `permission` are "live" (a session is connected); only `error` is a hard
- *    non-sendable state. Idle/connecting are sendable — they trigger lazy
+ *    `permission` are "live" (a session is connected); `error` blocks
+ *    programmatic/broadcast sends (`canSend` false) but keeps the Send
+ *    BUTTON enabled as the retry (I232, 2026-10-29 — supersedes "error is a
+ *    hard non-sendable state"). Idle/connecting are sendable — they trigger lazy
  *    acquisition + queue (the send-while-connecting path).
  *  - Drops the separate `isSessionReady` (agent.isReady) boolean the old
  *    predicates ORed in: `lazyState` is the canonical readiness signal, so the
@@ -101,10 +103,13 @@ export function deriveSendAffordance(
 		!isSending;
 
 	// buttonDisabled: when NOT sending, disable for a held queue, empty input,
-	// error, or restoring. While sending the button is enabled (Stop).
+	// or restoring. While sending the button is enabled (Stop). In `error` the
+	// button stays ENABLED with content: it is the retry — a click holds the
+	// message and re-acquires a session (decideQueuedSendKind("error")), so a
+	// failed session start is never a dead end (I232). `canSend` above stays
+	// false in error, so broadcast/programmatic sends never retry on their own.
 	const buttonDisabled =
-		!isSending &&
-		(isQueued || !hasContent || lazyState === "error" || isRestoringSession);
+		!isSending && (isQueued || !hasContent || isRestoringSession);
 
 	return { canSend, buttonDisabled, reason };
 }

@@ -523,6 +523,7 @@ export const en = {
 	"chat.composer.stopGeneration": "Stop generation",
 	"chat.composer.sendMessage": "Send message",
 	"chat.composer.sendToConnect": "Send to connect",
+	"chat.composer.retrySend": "Retry connecting and send",
 	"chat.composer.connecting": "Connecting...",
 	"chat.composer.usageTokens": "{used} / {size} tokens",
 	"chat.composer.placeholder":
@@ -533,6 +534,7 @@ export const en = {
 	"chat.composer.placeholderQueueSteer":
 		"{queueKey} to queue · {steerKey} to send now",
 	"chat.composer.queuedBannerReady": "Queued — sends when {agent} is done",
+	"chat.composer.queuedBannerFailed": "Couldn't connect — Edit, then Send to retry",
 	"chat.composer.queuedBannerWaiting": "Queued — sends when ready",
 	"chat.composer.queuedBannerAction":
 		"Sending your choice — waiting for the agent to start again",

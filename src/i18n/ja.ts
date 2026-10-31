@@ -578,6 +578,7 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.stopGeneration": "生成を停止",
 	"chat.composer.sendMessage": "メッセージを送信",
 	"chat.composer.sendToConnect": "送信して接続",
+	"chat.composer.retrySend": "再接続して送信",
 	"chat.composer.connecting": "接続中...",
 	"chat.composer.usageTokens": "{used} / {size} トークン",
 	"chat.composer.placeholder":
@@ -588,6 +589,7 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.placeholderQueueSteer":
 		"{queueKey} で待機列へ · {steerKey} で今すぐ送信",
 	"chat.composer.queuedBannerReady": "待機中 — {agent} の完了後に送信されます",
+	"chat.composer.queuedBannerFailed": "接続できませんでした — 編集してから送信で再試行",
 	"chat.composer.queuedBannerWaiting": "待機中 — 準備でき次第送信されます",
 	// ---- Phase 3: message list + landing ----
 	"chat.messages.sending": "送信中…",
