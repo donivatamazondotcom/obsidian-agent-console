@@ -1,5 +1,14 @@
 import type { NewTabPromptOpts, QuickPromptGesture } from "../types/quick-prompt";
-import type { PromptTarget } from "../resolvers/prompt-target";
+import {
+	resolvePromptTarget,
+	type PromptTarget,
+} from "../resolvers/prompt-target";
+import type { NamedItem } from "../resolvers/session-modes";
+import {
+	claimedSourceLabel,
+	formatExternalBlock,
+	sanitizeExternalText,
+} from "../utils/quick-prompt-uri";
 // Moved to types/quick-prompt.ts (utils-leaf refactor, G2); re-exported so the
 // existing ui/hooks/services consumers keep their import path.
 export type { QuickPromptGesture } from "../types/quick-prompt";
@@ -15,14 +24,19 @@ export type { QuickPromptGesture } from "../types/quick-prompt";
  */
 
 import type {
+	ExternalPromptContext,
+	PromptNoteSource,
 	QuickPrompt,
 	QuickPromptFileInput,
 	ShowWhenCondition,
 } from "../types/quick-prompt";
 import { t } from "../i18n";
 
-/** The single v1 placeholder. */
+/** The selection placeholder (drives `usesSelection`). */
 export const SELECTION_TOKEN = "{{selection}}";
+/** Source-link and source-title placeholders. */
+export const URL_TOKEN = "{{url}}";
+export const TITLE_TOKEN = "{{title}}";
 
 // ============================================================================
 // Parsing — frontmatter → QuickPrompt
@@ -96,7 +110,7 @@ export function normalizeRenameLabel(
  * contents are unit-testable; the adapter maps each descriptor to a
  * `menu.addItem` and dispatches on `action`. No Delete (maintainer call).
  */
-export type QuickPromptMenuAction = "edit" | "copy" | "rename";
+export type QuickPromptMenuAction = "edit" | "copy" | "copy-link" | "rename";
 
 export interface QuickPromptMenuItem {
 	action: QuickPromptMenuAction;
@@ -115,6 +129,13 @@ export function buildChipMenuItems(): QuickPromptMenuItem[] {
 			action: "copy",
 			title: t("chat.quickPrompts.copyPrompt"),
 			icon: "copy",
+		},
+		{
+			// The prompt's base `obsidian://agent-console` link
+			// ([[Agent Console Quick Prompt URIs]]).
+			action: "copy-link",
+			title: t("chat.quickPrompts.copyLink"),
+			icon: "link",
 		},
 		{
 			action: "rename",
@@ -252,6 +273,10 @@ export function buildQuickPrompt(input: QuickPromptFileInput): QuickPrompt {
 		// Default target = new tab, via the `open in new tab` checkbox (D5).
 		// No `newTab` back-compat — that key was never in a released build.
 		newTab: fm ? fm["open in new tab"] === true : undefined,
+		// URI fires ([[Agent Console Quick Prompt URIs]]). Only a real boolean
+		// counts, so a stray string can't turn on auto-send.
+		uriSend: fm && fm["uri send"] === true ? true : undefined,
+		uriOverride: fm && fm["uri override"] === false ? false : undefined,
 		// Resting-row / launcher sort key (lower first; `order: 0` leftmost).
 		// Number.isFinite keeps `0`; absent/non-numeric ⇒ undefined.
 		order: parseOrder(fm?.["order"]),
@@ -310,17 +335,26 @@ export function isQuickPromptFile(path: string, folder: string): boolean {
 // Placeholder resolution
 // ============================================================================
 
+const PLACEHOLDER_RE = /\{\{(selection|url|title)\}\}/g;
+
 /**
- * Resolve `{{selection}}` to the current selection text (all occurrences). A
- * body with no token is returned verbatim. Null/empty selection resolves to an
- * empty string (the caller's decision logic handles the no-selection fallback
- * separately — see {@link decideQuickPromptAction}).
+ * Resolve `{{selection}}`, `{{url}}` and `{{title}}` (all occurrences) in ONE
+ * pass over the prompt body, so a placeholder that appears inside substituted
+ * text (e.g. a hostile selection containing `{{url}}`) is never expanded. A
+ * body with no token is returned verbatim; absent values resolve to "" (the
+ * caller's decision logic handles the no-selection fallback separately — see
+ * {@link decideQuickPromptAction}).
  */
 export function resolvePromptText(
 	body: string,
 	selectionText: string | null,
+	source?: PromptNoteSource,
 ): string {
-	return body.split(SELECTION_TOKEN).join(selectionText ?? "");
+	return body.replace(PLACEHOLDER_RE, (_m, name: string) => {
+		if (name === "selection") return selectionText ?? "";
+		if (name === "url") return source?.url ?? "";
+		return source?.title ?? "";
+	});
 }
 
 // ============================================================================
@@ -435,6 +469,8 @@ export interface QuickPromptPlanContext extends QuickPromptGesture {
 	isQueued: boolean;
 	/** Current editor selection text, or null when nothing is selected. */
 	selectionText: string | null;
+	/** Active note's `source-url` + title, for `{{url}}` / `{{title}}`. */
+	noteSource?: PromptNoteSource;
 	/**
 	 * Where the prompt's agent/mode say it lands (`resolvePromptTarget`).
 	 * Absent ⇒ the prompt's own `newTab` flag decides (pre-agent/mode callers).
@@ -469,7 +505,11 @@ export function planQuickPromptFire(
 	ctx: QuickPromptPlanContext,
 ): QuickPromptPlan {
 	const target = ctx.target;
-	const text = resolvePromptText(prompt.body, ctx.selectionText);
+	const text = resolvePromptText(
+		prompt.body,
+		ctx.selectionText,
+		ctx.noteSource,
+	);
 	if (target?.kind === "unknown-agent") {
 		return { action: "disabled", reason: "unknown-agent", requested: target.agentId, text };
 	}
@@ -607,6 +647,180 @@ export function executeQuickPrompt(
 		}
 	}
 	return plan;
+}
+
+// ============================================================================
+// URI fires — `obsidian://agent-console?prompt=…` ([[Agent Console Quick Prompt URIs]])
+// ============================================================================
+
+export interface UriFireContext {
+	/** Configured agents (settings id + display name). */
+	agents: readonly NamedItem[];
+	/** The settings default agent, used when neither link nor note names one. */
+	defaultAgentId: string;
+}
+
+export type UriFirePlan =
+	| { kind: "unknown-agent"; requested: string }
+	| {
+			kind: "new-tab";
+			/** Resolved text to stage (or send, for a bare `uri send` link). */
+			text: string;
+			/** True only for a bare link to a `uri send: true` prompt. */
+			send: boolean;
+			agentId: string;
+			/** Raw mode request; resolved when the new tab's session starts. */
+			modeId?: string;
+			/** The link chose the agent or mode → show the origin banner. */
+			linkOrigin: boolean;
+			/** Invisible characters stripped from outside text. */
+			removedChars: number;
+			reason?: "no-selection";
+	  };
+
+/** Heading above quoted outside text: length + the link's *claimed* source. */
+export function externalTextHeading(
+	length: number,
+	source: string | undefined,
+): string {
+	const count = length.toLocaleString("en-US");
+	return source
+		? t("chat.quickPrompts.externalTextHeadingWithSource", { count, source })
+		: t("chat.quickPrompts.externalTextHeading", { count });
+}
+
+/**
+ * Plan a URI fire (pure, total). The rules, all from the spec:
+ *
+ * - Always a new foreground tab; never the composer the user was typing in.
+ * - Stage by default. Send only for a BARE link (nothing beyond `prompt`) to a
+ *   `uri send: true` prompt — any outside value forces staging.
+ * - Agent/mode precedence: link, then note, then the default agent. A note
+ *   with `uri override: false` ignores the link's agent and mode. Resolution
+ *   goes through `resolvePromptTarget` (no active tab, so it always yields a
+ *   new tab; an unknown agent fails loud; a mode travels raw to the new tab).
+ * - Outside text is stripped of invisible characters, and the selection is
+ *   quoted under a heading. Decision (a): a selection on a prompt without
+ *   `{{selection}}` is appended as that block, so nothing is silently lost.
+ */
+export function planUriFire(
+	prompt: Pick<
+		QuickPrompt,
+		"body" | "usesSelection" | "agent" | "mode" | "uriSend" | "uriOverride"
+	>,
+	ext: ExternalPromptContext,
+	ctx: UriFireContext,
+): UriFirePlan {
+	const honorLink = prompt.uriOverride !== false;
+	const linkAgent = honorLink ? ext.agent : undefined;
+	const linkMode = honorLink ? ext.mode : undefined;
+
+	const target = resolvePromptTarget(
+		{ agent: linkAgent ?? prompt.agent, mode: linkMode ?? prompt.mode },
+		{ activeAgentId: null, activeModes: null, agents: ctx.agents },
+	);
+	if (target.kind === "unknown-agent") {
+		return { kind: "unknown-agent", requested: target.agentId };
+	}
+	const agentId =
+		(target.kind === "new-tab" ? target.agentId : undefined) ??
+		ctx.defaultAgentId;
+	const modeId = target.kind === "new-tab" ? target.modeId : undefined;
+
+	let removedChars = 0;
+	const clean = (v: string | undefined): string | undefined => {
+		if (v === undefined) return undefined;
+		const r = sanitizeExternalText(v);
+		removedChars += r.removed;
+		return r.text;
+	};
+	const selection = clean(ext.selection);
+	const url = clean(ext.url);
+	const title = clean(ext.title);
+
+	const block =
+		selection !== undefined
+			? formatExternalBlock(
+					selection,
+					externalTextHeading(
+						selection.length,
+						claimedSourceLabel(url, title),
+					),
+				)
+			: null;
+
+	let text = resolvePromptText(prompt.body, block, { url, title });
+	if (block !== null && !prompt.usesSelection) {
+		text = text.length > 0 ? `${text}\n\n${block}` : block;
+	}
+
+	const bare = Object.values(ext).every((v) => v === undefined);
+	const missingSelection = prompt.usesSelection && selection === undefined;
+	const send = bare && prompt.uriSend === true && !missingSelection;
+
+	return {
+		kind: "new-tab",
+		text,
+		send,
+		agentId,
+		...(modeId ? { modeId } : {}),
+		linkOrigin: linkAgent !== undefined || linkMode !== undefined,
+		removedChars,
+		...(missingSelection ? { reason: "no-selection" as const } : {}),
+	};
+}
+
+/** Effects a URI fire needs (a strict subset of {@link QuickPromptActions}). */
+export interface UriFireActions {
+	openInNewTab(text: string, opts: NewTabPromptOpts): void;
+	notify(message: string): void;
+}
+
+/**
+ * Dispatch a URI plan. Every new tab is foreground and suppresses the
+ * provisional active-note pill (the note open in Obsidian has nothing to do
+ * with the email or page the user clicked from).
+ */
+export function executeUriPrompt(
+	prompt: Pick<QuickPrompt, "label">,
+	plan: UriFirePlan,
+	actions: UriFireActions,
+): void {
+	if (plan.kind === "unknown-agent") {
+		actions.notify(
+			t("chat.quickPrompts.uriUnknownAgent", { agent: plan.requested }),
+		);
+		return;
+	}
+	actions.openInNewTab(plan.text, {
+		send: plan.send,
+		foreground: true,
+		agentId: plan.agentId,
+		...(plan.modeId ? { modeId: plan.modeId } : {}),
+		...(plan.linkOrigin ? { linkOrigin: true } : {}),
+		suppressAutoContext: true,
+	});
+	if (plan.removedChars > 0) {
+		actions.notify(uriHiddenRemovedNotice(plan.removedChars));
+	}
+	if (plan.reason === "no-selection") {
+		actions.notify(noSelectionNotice(prompt.label));
+	}
+}
+
+export function uriHiddenRemovedNotice(count: number): string {
+	return t("chat.quickPrompts.uriHiddenRemoved", { count });
+}
+export function uriUnknownPromptNotice(id: string): string {
+	return t("chat.quickPrompts.uriUnknownPrompt", { id });
+}
+export function uriBadParamNotice(field: string): string {
+	return t("chat.quickPrompts.uriBadParam", { field });
+}
+export function uriRateLimitedNotice(reason: "rate-limit" | "duplicate"): string {
+	return reason === "duplicate"
+		? t("chat.quickPrompts.uriDuplicate")
+		: t("chat.quickPrompts.uriRateLimited");
 }
 
 // ============================================================================

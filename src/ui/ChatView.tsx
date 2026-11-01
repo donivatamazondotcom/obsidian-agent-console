@@ -32,7 +32,7 @@ import type {
 	PerLeafTabState,
 	PersistedTabInfo,
 } from "../types/tab";
-import type { QuickPrompt } from "../types/quick-prompt";
+import type { NewTabPromptOpts, QuickPrompt } from "../types/quick-prompt";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 
 // Utility imports
@@ -382,6 +382,10 @@ function ChatComponent({
 				send: boolean;
 				contextNotes?: ContextNote[];
 				modeId?: string;
+				/** Opened by a link that chose agent/mode → origin banner. */
+				linkOrigin?: boolean;
+				/** URI fire: no provisional active-note pill in this tab. */
+				suppressAutoContext?: boolean;
 			}
 		>
 	>({});
@@ -668,6 +672,8 @@ function ChatComponent({
 				agentId?: string;
 				/** Mode for the new tab's first session (quick prompt `mode:`). */
 				modeId?: string;
+				linkOrigin?: boolean;
+				suppressAutoContext?: boolean;
 			},
 		) => {
 			const newTabId = tabManager.addTab(
@@ -682,11 +688,21 @@ function ChatComponent({
 					send: opts.send,
 					contextNotes: opts.contextNotes,
 					modeId: opts.modeId,
+					linkOrigin: opts.linkOrigin,
+					suppressAutoContext: opts.suppressAutoContext,
 				},
 			}));
 		},
 		[tabManager, plugin.settings.defaultAgentId],
 	);
+
+	// `obsidian://agent-console` fires reach the view here, not through the
+	// active tab's callbacks, so they work with zero tabs open too
+	// ([[Agent Console Quick Prompt URIs]]).
+	useEffect(() => {
+		view.setOpenPromptInNewTab((text, opts) => handleOpenInNewTab(text, opts));
+		return () => view.setOpenPromptInNewTab(null);
+	}, [view, handleOpenInNewTab]);
 
 	const handleCloseTab = useCallback(
 		(tabId: string) => {
@@ -1756,6 +1772,30 @@ export class ChatView extends ItemView implements IChatViewContainer {
 
 	setTabHandlesAccessor(fn: () => IChatTabHandle[]): void {
 		this.tabHandlesAccessor = fn;
+	}
+
+	// New-tab opener for `obsidian://agent-console` fires (set by the React
+	// component; works with zero tabs open).
+	private openPromptInNewTabFn:
+		| ((text: string, opts: NewTabPromptOpts) => void)
+		| null = null;
+
+	setOpenPromptInNewTab(
+		fn: ((text: string, opts: NewTabPromptOpts) => void) | null,
+	): void {
+		this.openPromptInNewTabFn = fn;
+	}
+
+	/** True once the React tree has registered its new-tab opener. */
+	hasPromptOpener(): boolean {
+		return this.openPromptInNewTabFn !== null;
+	}
+
+	/** Open a new tab seeded with `text`. False when the view isn't mounted yet. */
+	openPromptInNewTab(text: string, opts: NewTabPromptOpts): boolean {
+		if (!this.openPromptInNewTabFn) return false;
+		this.openPromptInNewTabFn(text, opts);
+		return true;
 	}
 
 	getTabHandles(): IChatTabHandle[] {

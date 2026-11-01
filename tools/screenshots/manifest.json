@@ -1585,6 +1585,19 @@
 			"mustShow": "del.acp-header-branded-profile",
 			"caption": "See when your chosen agent couldn't load",
 			"altText": "Chat header with the chosen agent name struck through, followed by the agent that is running instead"
+		},
+		{
+			"name": "quick-prompt-uri-banner",
+			"width": 680,
+			"height": 320,
+			"cropSelector": ".agent-client-chat-view-container",
+			"pending": true,
+			"placement": "feature",
+			"purpose": "Shows a tab opened by an obsidian://agent-console link: the origin banner and the staged prompt waiting for Enter.",
+			"differentiator": "Prompts you can fire from email and web links, staged for review",
+			"mustShow": ".agent-client-link-origin-banner",
+			"caption": "Start a prompt from a link, and see what it picked",
+			"altText": "Agent Console tab opened by a link, with the Opened by link banner naming the agent and mode, and the prompt staged"
 		}
 	]
 }

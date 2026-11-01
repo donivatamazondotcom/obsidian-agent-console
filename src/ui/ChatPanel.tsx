@@ -64,6 +64,8 @@ import {
 	type CarriedOverPreview as CarriedOverPreviewData,
 } from "../services/carried-over-preview";
 import { CarriedOverPreview } from "./CarriedOverPreview";
+import { LinkOriginBanner } from "./LinkOriginBanner";
+import { useLinkOriginTab } from "../hooks/useLinkOriginTab";
 
 // Service imports
 import { getLogger } from "../utils/logger";
@@ -305,7 +307,14 @@ export interface ChatPanelProps {
 	 * (queues until the fresh session connects, I69); `send: false` only seeds
 	 * the composer for the user to edit. Consumed once on mount.
 	 */
-	initialPrompt?: { text: string; send: boolean };
+	initialPrompt?: {
+		text: string;
+		send: boolean;
+		/** Opened by a link that chose agent/mode → "Opened by link" banner. */
+		linkOrigin?: boolean;
+		/** URI fire: never offer/crystallize the active-note pill. */
+		suppressAutoContext?: boolean;
+	};
 	/**
 	 * Mode a quick prompt asked this tab to start in (id or display name).
 	 * Applied once, before the first session is ready; never saved as the
@@ -537,7 +546,15 @@ export function ChatPanel({
 
 	// Auto-default provisional suppress (Decision #26, I68): `×` on the
 	// provisional pill sets this sticky flag so it won't re-arm for this tab.
-	const [autoDefaultSuppressed, setAutoDefaultSuppressed] = useState(false);
+	// A URI-opened tab starts suppressed ([[Agent Console Quick Prompt URIs]]):
+	// the note open in Obsidian is unrelated to the email/page the link came from.
+	const linkOriginTab = useLinkOriginTab({
+		initialPrompt,
+		messageCount: messages.length,
+	});
+	const [autoDefaultSuppressed, setAutoDefaultSuppressed] = useState(
+		linkOriginTab.initialAutoContextSuppressed,
+	);
 
 	useContextVaultEvents({
 		vault: vaultEventSource,
@@ -2382,6 +2399,8 @@ export function ChatPanel({
 	// setters; every method reads `.current` so it never goes stale.
 	// Live session for quick-prompt targeting (agent + modes), read through a
 	// ref so the once-built bridge never goes stale.
+	const activeNotePathRef = useRef(selectionTracker.activeNotePath);
+	activeNotePathRef.current = selectionTracker.activeNotePath;
 	const promptTargetSessionRef = useRef(agent.session);
 	promptTargetSessionRef.current = agent.session;
 	const quickPromptBridge = useMemo<QuickPromptComposerBridge>(
@@ -2414,6 +2433,17 @@ export function ChatPanel({
 					plugin
 						.getAvailableAgents()
 						.map((a) => ({ id: a.id, name: a.displayName })),
+				// In-app {{url}} / {{title}}: the active note's `source-url`
+				// frontmatter and title ([[Agent Console Quick Prompt URIs]]).
+				getNoteSource: () => {
+					const path = activeNotePathRef.current;
+					if (!path) return undefined;
+					const fm = plugin.app.metadataCache.getCache(path)?.frontmatter;
+					const raw: unknown = fm?.["source-url"];
+					const url = typeof raw === "string" && raw.trim() ? raw.trim() : undefined;
+					const title = path.split("/").pop()?.replace(/\.md$/i, "");
+					return { url, title };
+				},
 			}),
 		[plugin, onOpenInNewTab],
 	);
@@ -3136,6 +3166,16 @@ export function ChatPanel({
 			{cwdBanner}
 			{recoverableHistoryBanner}
 			{carriedOver ? <CarriedOverPreview data={carriedOver} /> : null}
+			{linkOriginTab.bannerVisible ? (
+				<LinkOriginBanner
+					agentName={activeAgentLabel}
+					modeName={
+						readSessionModes(agent.session)?.current.name ??
+						initialModeRequest
+					}
+					onDismiss={linkOriginTab.dismissBanner}
+				/>
+			) : null}
 			{messageListElement}
 			{contextStripElement}
 			{inputAreaElement}

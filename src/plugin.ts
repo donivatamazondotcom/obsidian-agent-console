@@ -19,7 +19,11 @@ import {
 } from "./services/migrate-legacy-view-type";
 import { registerChatViewSafely } from "./services/register-chat-view";
 import { runRegistrations } from "./services/run-registrations";
-import { focusActiveTabComposer } from "./ui/composer-focus";
+import {
+	focusActiveTabComposer,
+	scheduleComposerRefocus,
+} from "./ui/composer-focus";
+import { runChipCopy } from "./services/quick-prompt-chip-copy";
 import { HOVER_LINK_SOURCE } from "./utils/link-leaf";
 import type { ObsidianSystemPromptSettings } from "./utils/obsidian-system-prompt";
 import { fetchJson } from "./services/net";
@@ -102,9 +106,21 @@ import {
 } from "./services/quick-prompts";
 import {
 	buildChipMenuItems,
+	executeUriPrompt,
+	planUriFire,
 	runCreateWithFolderGate,
+	uriBadParamNotice,
+	uriRateLimitedNotice,
+	uriUnknownPromptNotice,
 	type QuickPromptMenuAction,
 } from "./services/quick-prompts-logic";
+import {
+	checkUriRateLimit,
+	parseQuickPromptUri,
+	QUICK_PROMPT_URI_ACTION,
+	uriFireKey,
+	type UriRateLimitState,
+} from "./utils/quick-prompt-uri";
 import type { QuickPrompt } from "./types/quick-prompt";
 import { RenamePromptModal } from "./ui/RenamePromptModal";
 import { ChooseQuickPromptFolderModal } from "./ui/ChooseQuickPromptFolderModal";
@@ -442,6 +458,104 @@ export default class AgentClientPlugin extends Plugin {
 		showMenuAtEvent(menu, evt);
 	}
 
+	// ============================================================
+	// obsidian://agent-console quick-prompt links
+	// ([[Agent Console Quick Prompt URIs]])
+	// ============================================================
+
+	private uriRateLimit: UriRateLimitState = {};
+
+	/**
+	 * Handle an `obsidian://agent-console?prompt=…` fire: rate limit → parse →
+	 * open/reveal the chat view → plan → open a new foreground tab. A link can
+	 * stage a prompt; only the vault (`uri send: true`, bare link) can send.
+	 * Errors are a notice and a no-op — nothing is guessed or coerced.
+	 */
+	private async handleQuickPromptUri(
+		params: Record<string, string | undefined>,
+	): Promise<void> {
+		const notify = (message: string) =>
+			new Notice(t("notices.prefixed", { message }));
+
+		const gate = checkUriRateLimit(
+			this.uriRateLimit,
+			uriFireKey(params),
+			Date.now(),
+		);
+		if (!gate.ok) {
+			notify(uriRateLimitedNotice(gate.reason));
+			return;
+		}
+		this.uriRateLimit = gate.state;
+
+		const parsed = parseQuickPromptUri(
+			params,
+			this.quickPromptLibrary.getPrompts(),
+		);
+		if (parsed.kind === "unknown-prompt") {
+			notify(uriUnknownPromptNotice(parsed.promptId));
+			return;
+		}
+		if (parsed.kind === "bad-param") {
+			notify(uriBadParamNotice(parsed.field));
+			return;
+		}
+
+		const plan = planUriFire(parsed.prompt, parsed.context, {
+			agents: this.getAvailableAgents().map((a) => ({
+				id: a.id,
+				name: a.displayName,
+			})),
+			defaultAgentId: this.settings.defaultAgentId,
+		});
+		if (plan.kind === "unknown-agent") {
+			executeUriPrompt(parsed.prompt, plan, {
+				openInNewTab: () => {},
+				notify,
+			});
+			return;
+		}
+
+		await this.activateView();
+		const view = await this.waitForChatViewOpener();
+		if (!view) {
+			getLogger().error("[QuickPrompts] URI: chat view never mounted");
+			return;
+		}
+		executeUriPrompt(parsed.prompt, plan, {
+			openInNewTab: (text, opts) => {
+				view.openPromptInNewTab(text, opts);
+			},
+			notify,
+		});
+	}
+
+	/**
+	 * A just-created chat view mounts its React tree asynchronously. Wait on
+	 * the real signal (the view's new-tab opener being registered), bounded to
+	 * ~2 s of frames — never a blind sleep.
+	 */
+	private async waitForChatViewOpener(): Promise<ChatView | null> {
+		const find = (): ChatView | null => {
+			const active = this.getActiveChatView();
+			if (active?.hasPromptOpener()) return active;
+			for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT)) {
+				if (leaf.view instanceof ChatView && leaf.view.hasPromptOpener()) {
+					return leaf.view;
+				}
+			}
+			return null;
+		};
+		for (let i = 0; i < 120; i++) {
+			const view = find();
+			if (view) return view;
+			await new Promise<void>((resolve) =>
+				window.requestAnimationFrame(() => resolve()),
+			);
+		}
+		return null;
+	}
+
 	private async runQuickPromptChipAction(
 		action: QuickPromptMenuAction,
 		prompt: QuickPrompt,
@@ -459,16 +573,20 @@ export default class AgentClientPlugin extends Plugin {
 			}
 			return;
 		}
-		if (action === "copy") {
-			try {
-				await navigator.clipboard.writeText(prompt.body);
-				new Notice(t("notices.promptTextCopied"));
-			} catch (error) {
-				getLogger().error("[QuickPrompts] copy failed", error);
-				new Notice(
-					t("notices.promptTextCopyFailed"),
-				);
-			}
+		if (action === "copy" || action === "copy-link") {
+			// I234: both copy actions return focus to the composer.
+			const view =
+				this.getActiveChatView() ??
+				(this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT)[0]
+					?.view as ChatView | undefined) ??
+				null;
+			await runChipCopy(action, prompt, {
+				writeText: (text) => navigator.clipboard.writeText(text),
+				notify: (message) => new Notice(message),
+				logError: (message, error) => getLogger().error(message, error),
+				vaultName: this.app.vault.getName(),
+				refocus: () => scheduleComposerRefocus(view?.containerEl ?? null),
+			});
 			return;
 		}
 		// action === "rename" — relabel the PILL (`label:` frontmatter); the
@@ -636,6 +754,16 @@ export default class AgentClientPlugin extends Plugin {
 						this.registerPermissionCommands();
 						this.registerBroadcastCommands();
 					},
+				},
+				{
+					label: t("notices.bootPartUriHandler"),
+					run: () =>
+						this.registerObsidianProtocolHandler(
+							QUICK_PROMPT_URI_ACTION,
+							(params) => {
+								void this.handleQuickPromptUri(params);
+							},
+						),
 				},
 				{
 					label: t("notices.bootPartSettingsTab"),

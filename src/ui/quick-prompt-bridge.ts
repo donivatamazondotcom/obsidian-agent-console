@@ -17,7 +17,7 @@
  */
 
 import type { QuickPromptComposerBridge } from "../hooks/useQuickPrompts";
-import type { NewTabPromptOpts } from "../types/quick-prompt";
+import type { NewTabPromptOpts, PromptNoteSource } from "../types/quick-prompt";
 import type { NamedItem, SessionModes } from "../resolvers/session-modes";
 import { scheduleComposerRefocus } from "./composer-focus";
 
@@ -54,6 +54,8 @@ export interface QuickPromptBridgeDeps {
 	getActiveModes: () => SessionModes | null;
 	/** Configured agents (settings id + display name). */
 	getAgents: () => readonly NamedItem[];
+	/** Active note's `source-url` + title, for `{{url}}` / `{{title}}`. */
+	getNoteSource?: () => PromptNoteSource | undefined;
 }
 
 /** CSS selector for the composer textarea (same one ChatView.focus uses). */
@@ -70,6 +72,7 @@ export function createQuickPromptBridge(
 		getActiveAgentId: () => deps.getActiveAgentId(),
 		getActiveModes: () => deps.getActiveModes(),
 		getAgents: () => deps.getAgents(),
+		getNoteSource: () => deps.getNoteSource?.(),
 		// fire/queue: dispatch the resolved text through the same send path the
 		// composer uses (queues while streaming / pre-ready). The engine only
 		// routes here when the composer is empty, so passing the text directly

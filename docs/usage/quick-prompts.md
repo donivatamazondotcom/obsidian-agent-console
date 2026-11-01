@@ -68,6 +68,13 @@ Summarize the following concisely:
 
 When you fire this with text selected in a note, the selection is filled in and sent. If nothing is selected, the prompt drops into the composer instead of sending — so you never fire a half-formed prompt by accident.
 
+Two more placeholders point at where the note came from:
+
+- `{{url}}` — the active note's `source-url` property (handy for clipped articles).
+- `{{title}}` — the active note's title.
+
+Both are left empty when the note doesn't have them. When a prompt is opened [from a link](#fire-a-prompt-from-a-link), they come from the link instead.
+
 ## Open in a new tab
 
 Some prompts kick off a whole new conversation — "debrief this meeting", "get the latest on this project". Check **`open in new tab`** in the note's properties and firing the prompt opens a fresh chat tab and sends it there, leaving your current conversation untouched:
@@ -109,6 +116,46 @@ Write a spec for the feature described in this note.
 - **Use the names you see.** Both properties accept the name shown in Agent Console (`Claude Code`, `Plan Mode`) or the id from settings and the agent. Capitalization doesn't matter.
 - **Nothing is sent by mistake.** If no agent matches, or the agent doesn't offer the mode, you get a notice and nothing is sent. If a new tab's agent turns out not to offer the mode, the prompt waits in that tab's composer, unsent.
 - The usual keys still apply: **⌘** opens the new tab in the background, **⌥** drops the prompt into its composer instead of sending.
+
+## Fire a prompt from a link
+
+Start a prompt from anywhere – an email, a doc, a bookmark – with an `obsidian://agent-console` link. Clicking it opens Agent Console, opens a new tab, and puts the prompt in the message box ready for you to read and send.
+
+```
+obsidian://agent-console?vault=My%20Vault&prompt=debrief-meeting
+```
+
+The quickest way to get a prompt's link is to right-click its chip and pick **Copy link**.
+
+| Part | Needed | What it does |
+|---|---|---|
+| `vault` | no | Which vault to open (Obsidian handles this part) |
+| `prompt` | yes | The prompt's id: its filename in lowercase, with dashes for spaces |
+| `selection` | no | Text to fill `{{selection}}` with, instead of what's selected in a note |
+| `url` | no | Fills `{{url}}` |
+| `title` | no | Fills `{{title}}` |
+| `agent` | no | The agent to use, by name or id. Takes the place of the prompt's own `agent` |
+| `mode` | no | The mode to use, by name or id. Takes the place of the prompt's own `mode` |
+
+**A link can't make the agent do anything by itself.** Any web page or email can hold a link like this, and your agent can use tools, so links are kept on a short leash:
+
+- **It always opens a new tab.** A link never touches the chat you were typing in.
+- **It waits for you.** The prompt lands in the message box, and you press **Enter** to send. A link can't add free text of its own – it can only name a prompt that's already in your vault.
+- **Outside text is marked.** Text from `selection` is quoted under a line that shows how long it is and where the link *claims* it came from (for example "External text · 48,212 chars · claimed source: example.com"). It says *claims* because whoever wrote the link picks the `url` and `title`. If the prompt has no `{{selection}}`, the quoted text is added at the end.
+- **Hidden characters are removed.** Invisible characters that can hide or reorder text are stripped out, and a notice tells you how many.
+- **You see who you're talking to.** When a link picks the agent or mode, the new tab shows "Opened by link · Agent: … · Mode: …" until you send or close the banner.
+- **Your open note stays out of it.** A link-opened tab doesn't offer the note you happen to have open as context – it has nothing to do with the email you clicked from.
+- **Links can't flood you.** Only one link opens every 2 seconds, and the same link clicked again within 10 seconds is ignored.
+- **Mistakes do nothing.** An unknown prompt id, an unknown agent, or an empty value shows a notice and opens nothing.
+
+Two properties on the prompt note control how links can use it:
+
+- **`uri send`** (checkbox) — lets a link send the prompt straight away, but only when the link names the prompt and nothing else. Add any `selection`, `url`, `title`, `agent` or `mode` and it waits for you again. Use it for fixed kickoffs like "start my daily review".
+- **`uri override`** (checkbox) — uncheck it (`uri override: false`) to ignore any `agent` or `mode` a link asks for. The prompt then always uses its own.
+
+::: warning Prompts that fetch the link
+A prompt that tells the agent to open `{{url}}` hands the agent whatever is on that page, with its tools available. Only write prompts like that for links you trust. Quoting outside text helps you review it, but it doesn't stop an agent from following instructions hidden in it – reading before you press Enter does.
+:::
 
 ## Contextual chips
 
@@ -198,6 +245,7 @@ Right-click a chip — or focus it and press the context-menu key — to open a 
 
 - **Edit prompt** — opens the prompt's note in a new tab, so you can change its text without losing your place in the chat.
 - **Copy prompt** — copies the prompt's text to the clipboard.
+- **Copy link** — copies an `obsidian://agent-console` link that opens this prompt from anywhere (see [Fire a prompt from a link](#fire-a-prompt-from-a-link)).
 - **Rename** — changes the chip's label. This renames what you see on the chip; the note's filename stays the same.
 
 ## How it works with a busy agent
