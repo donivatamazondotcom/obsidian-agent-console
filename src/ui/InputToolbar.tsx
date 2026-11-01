@@ -427,7 +427,7 @@ export function InputToolbar({
 				aria-label={
 					isSending
 						? t("chat.composer.stopGeneration")
-						: lazyState === "idle"
+						: lazyState === "idle" || lazyState === "released"
 							? t("chat.composer.sendToConnect")
 							: lazyState === "error"
 								? t("chat.composer.retrySend")

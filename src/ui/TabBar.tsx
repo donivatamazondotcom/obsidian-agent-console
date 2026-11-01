@@ -103,6 +103,10 @@ export function stateGlyph(state: TabState): string {
 			return "✕";
 		case "disconnected":
 			return "○";
+		case "released":
+			// I209: paused to save memory. Distinct shape from disconnected so the
+			// dropdown (no color, no animation) still tells them apart.
+			return "◌";
 	}
 }
 

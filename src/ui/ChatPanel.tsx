@@ -1334,10 +1334,16 @@ export function ChatPanel({
 	// model/mode dropdowns come from the SESSION (newSession), not initialize()
 	// (studio smoke (e), 2026-06-25).
 	useEagerInitialize({
+		// Spawn gate only: liveSession/idle/busy are fed by useIdleRelease,
+		// and useEagerInitialize acts on `hold` alone, so "no live session"
+		// keeps the I208 spawn rules exact here.
 		decision: decideProcessHold({
 			isActive: isActive ?? false,
 			origin: tabOrigin,
 			hasForkSource: !!restoredForkSessionId,
+			liveSession: false,
+			idleMs: 0,
+			busy: [],
 		}),
 		isInitialized: () => acpClient.isInitialized(),
 		initialize: async () => {
@@ -2194,17 +2200,20 @@ export function ChatPanel({
 		// ID supersedes them. A fresh eager session stays runtime-only until its
 		// first message: before then there is no saved-session record or transcript
 		// for restart to restore, so persisting the ID would create an orphan slice.
+		// I209: the persisted side is the lazy owner's kept id, not the mount
+		// snapshot — a fresh tab that was released has no live id and a null
+		// snapshot, so the snapshot would lose its session across a restart.
 		onSessionIdChange?.(
 			resolveSessionIdForSave(
 				session.sessionId ?? null,
-				restoredSessionId ?? null,
+				lazySession.keptSessionId,
 				messages.length > 0,
 			),
 		);
 	}, [
 		onSessionIdChange,
 		session.sessionId,
-		restoredSessionId,
+		lazySession.keptSessionId,
 		messages.length,
 	]);
 
@@ -2743,7 +2752,10 @@ export function ChatPanel({
 			agentLabel={activeAgentLabel}
 			headerSegments={{
 				...headerSegments,
-				isLazyIdle: lazySession.state === "idle",
+				// I209: a released tab reads like a not-yet-connected one.
+				isLazyIdle:
+					lazySession.state === "idle" ||
+					lazySession.state === "released",
 				isConnecting: lazySession.state === "connecting",
 			}}
 			isUpdateAvailable={isUpdateAvailable}

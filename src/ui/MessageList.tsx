@@ -433,7 +433,7 @@ export function MessageList({
 						<div className="agent-client-chat-empty-state">
 							{isRestoringSession
 								? t("chat.messages.restoringSession")
-								: lazyState === "idle"
+								: lazyState === "idle" || lazyState === "released"
 									? t("chat.messages.sendToConnectTo", {
 											agent: agentLabel,
 										})

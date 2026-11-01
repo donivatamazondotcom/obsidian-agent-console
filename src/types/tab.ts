@@ -18,7 +18,8 @@ export type TabState =
 	| "busy" // ◐ blue, spinning — agent processing
 	| "permission" // △ orange, pulsing — awaiting user approval
 	| "error" // ✕ red — session error
-	| "disconnected"; // ○ gray — session closed
+	| "disconnected" // ○ gray — session closed
+	| "released"; // ○ faint ring — paused to save memory; reconnects on typing (I209)
 
 /** Runtime acquisition provenance. Reconstructed on restore; never persisted. */
 export type TabOrigin = "fresh" | "restored";
@@ -134,4 +135,7 @@ export type TabSessionState =
 	| "ready"
 	| "busy"
 	| "permission"
-	| "error";
+	| "error"
+	// I209: the live process was released after an hour idle. The session id
+	// is kept; the next keystroke or send reconnects through the restored path.
+	| "released";

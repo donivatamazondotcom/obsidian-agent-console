@@ -475,9 +475,12 @@ export function decideQueuedSendKind(
 		case "busy":
 		case "permission":
 			return "sendWhileStreaming";
+		// I209: a send on a released tab reconnects first; the
+		// connecting → ready edge flushes it.
 		case "idle":
 		case "connecting":
 		case "error":
+		case "released":
 			return "sendWhilePreReady";
 	}
 }

@@ -21,7 +21,15 @@ describe("decideProcessHold — exhaustive truth table", () => {
 	it.each(cases)(
 		"isActive=%s origin=%s fork=%s → %s",
 		(isActive, origin, hasForkSource, expected) => {
-			const d = decideProcessHold({ isActive, origin, hasForkSource });
+			// No live session: the I208 spawn rules (I209 adds release on top).
+			const d = decideProcessHold({
+				isActive,
+				origin,
+				hasForkSource,
+				liveSession: false,
+				idleMs: 0,
+				busy: [],
+			});
 			expect(`${d.kind}:${d.reason}`).toBe(expected);
 		},
 	);
