@@ -58,7 +58,15 @@ interface AgentOverrides {
 	reloadSession?: ReturnType<typeof vi.fn>;
 }
 
-function setup(agentOverrides: AgentOverrides, messages: ChatMessage[]) {
+type ReloadRun = () => Promise<
+	{ ok: true; sessionId: string } | { ok: false; error: Error }
+>;
+
+function setup(
+	agentOverrides: AgentOverrides,
+	messages: ChatMessage[],
+	opts: { wireReloadNow?: boolean } = {},
+) {
 	const invalidateCache = vi.fn();
 	const plugin = deepMock() as Params[0];
 	const agent = deepMock({
@@ -67,7 +75,9 @@ function setup(agentOverrides: AgentOverrides, messages: ChatMessage[]) {
 		clearMessages: vi.fn(),
 		forceRestartAgent: vi.fn().mockResolvedValue(undefined),
 		closeSession: vi.fn().mockResolvedValue(undefined),
-		reloadSession: vi.fn().mockResolvedValue({ resumed: true }),
+		reloadSession: vi
+			.fn()
+			.mockResolvedValue({ resumed: true, sessionId: "s1" }),
 		...agentOverrides,
 	}) as Params[1];
 	const sessionHistory = deepMock({ invalidateCache }) as Params[2];
@@ -80,6 +90,15 @@ function setup(agentOverrides: AgentOverrides, messages: ChatMessage[]) {
 	const contextNotes = { notes: [], add: vi.fn() } as unknown as Params[8];
 	const acquireNow = vi.fn().mockResolvedValue(undefined);
 	const lazyAcquireNowRef = { current: acquireNow } as Params[12];
+	// I229: the lazy owner's reloadNow. The fake runs the reload and records
+	// the acquisition result it was handed, like useLazySession.reloadNow.
+	const reloadNowResults: Array<Awaited<ReturnType<ReloadRun>>> = [];
+	const reloadNow = vi.fn(async (run: ReloadRun) => {
+		reloadNowResults.push(await run());
+	});
+	const lazyReloadNowRef = {
+		current: opts.wireReloadNow === false ? null : reloadNow,
+	} as Params[15];
 
 	const { result } = renderHook(() =>
 		useChatActions(
@@ -96,9 +115,19 @@ function setup(agentOverrides: AgentOverrides, messages: ChatMessage[]) {
 			null,
 			false,
 			lazyAcquireNowRef,
+			"",
+			"",
+			lazyReloadNowRef,
 		),
 	);
-	return { result, agent, invalidateCache, acquireNow };
+	return {
+		result,
+		agent,
+		invalidateCache,
+		acquireNow,
+		reloadNow,
+		reloadNowResults,
+	};
 }
 
 describe("useChatActions handleReload", () => {
@@ -126,7 +155,9 @@ describe("useChatActions handleReload", () => {
 	it("soft reload resumes the same session and never clears the transcript", async () => {
 		const clearMessages = vi.fn();
 		const forceRestartAgent = vi.fn();
-		const reloadSession = vi.fn().mockResolvedValue({ resumed: true });
+		const reloadSession = vi
+			.fn()
+			.mockResolvedValue({ resumed: true, sessionId: "s1" });
 		const { result } = setup(
 			{ clearMessages, forceRestartAgent, reloadSession },
 			[msg()],
@@ -143,7 +174,7 @@ describe("useChatActions handleReload", () => {
 		const clearMessages = vi.fn();
 		const reloadSession = vi
 			.fn()
-			.mockResolvedValue({ resumed: false, reason: "unsupported" });
+			.mockResolvedValue({ resumed: false, reason: "unsupported", sessionId: "s2" });
 		const { result, invalidateCache } = setup(
 			{ clearMessages, reloadSession },
 			[msg()],
@@ -159,7 +190,7 @@ describe("useChatActions handleReload", () => {
 	it("I230: a resume that FAILED says so and does not blame the agent's capabilities", async () => {
 		const reloadSession = vi
 			.fn()
-			.mockResolvedValue({ resumed: false, reason: "resume-failed" });
+			.mockResolvedValue({ resumed: false, reason: "resume-failed", sessionId: "s2" });
 		const { result } = setup({ reloadSession }, [msg()]);
 		noticeMessages.length = 0;
 
@@ -176,7 +207,7 @@ describe("useChatActions handleReload", () => {
 	it("I230: an agent that can't resume keeps the can't-resume notice", async () => {
 		const reloadSession = vi
 			.fn()
-			.mockResolvedValue({ resumed: false, reason: "unsupported" });
+			.mockResolvedValue({ resumed: false, reason: "unsupported", sessionId: "s2" });
 		const { result } = setup({ reloadSession }, [msg()]);
 		noticeMessages.length = 0;
 
@@ -189,7 +220,9 @@ describe("useChatActions handleReload", () => {
 
 	it("T4: reload cancels an in-flight generation first", async () => {
 		const cancelOperation = vi.fn().mockResolvedValue(undefined);
-		const reloadSession = vi.fn().mockResolvedValue({ resumed: true });
+		const reloadSession = vi
+			.fn()
+			.mockResolvedValue({ resumed: true, sessionId: "s1" });
 		const { result } = setup(
 			{ isSending: true, cancelOperation, reloadSession },
 			[msg()],
@@ -206,7 +239,11 @@ describe("useChatActions handleReload — reload feedback (b)", () => {
 	it("soft reload emits an immediate 'Reloading session…' notice before the completion notice", async () => {
 		noticeMessages.length = 0;
 		const { result } = setup(
-			{ reloadSession: vi.fn().mockResolvedValue({ resumed: true }) },
+			{
+				reloadSession: vi
+					.fn()
+					.mockResolvedValue({ resumed: true, sessionId: "s1" }),
+			},
 			[msg()],
 		);
 
@@ -221,10 +258,10 @@ describe("useChatActions handleReload — reload feedback (b)", () => {
 	});
 
 	it("sets isReloading true while the resume is in flight and false after it settles", async () => {
-		let resolveReload!: (v: { resumed: boolean }) => void;
+		let resolveReload!: (v: { resumed: boolean; sessionId: string }) => void;
 		const reloadSession = vi.fn(
 			() =>
-				new Promise<{ resumed: boolean }>((res) => {
+				new Promise<{ resumed: boolean; sessionId: string }>((res) => {
 					resolveReload = res;
 				}),
 		);
@@ -240,9 +277,69 @@ describe("useChatActions handleReload — reload feedback (b)", () => {
 		expect(result.current.isReloading).toBe(true);
 
 		await act(async () => {
-			resolveReload({ resumed: true });
+			resolveReload({ resumed: true, sessionId: "s1" });
 			await pending;
 		});
 		expect(result.current.isReloading).toBe(false);
+	});
+});
+
+describe("useChatActions handleReload — single lazy owner (I229)", () => {
+	it("soft reload runs through the lazy owner's reloadNow and hands it the resumed id", async () => {
+		const reloadSession = vi
+			.fn()
+			.mockResolvedValue({ resumed: true, sessionId: "s1" });
+		const { result, reloadNow, reloadNowResults } = setup(
+			{ reloadSession },
+			[msg()],
+		);
+
+		await result.current.handleReload(false);
+
+		expect(reloadNow).toHaveBeenCalledTimes(1);
+		expect(reloadSession).toHaveBeenCalledTimes(1);
+		expect(reloadNowResults).toEqual([{ ok: true, sessionId: "s1" }]);
+	});
+
+	it("a fallback hands the lazy owner the replacement id", async () => {
+		const reloadSession = vi.fn().mockResolvedValue({
+			resumed: false,
+			reason: "resume-failed",
+			sessionId: "s2",
+		});
+		const { result, reloadNowResults } = setup({ reloadSession }, [msg()]);
+
+		await result.current.handleReload(false);
+
+		expect(reloadNowResults).toEqual([{ ok: true, sessionId: "s2" }]);
+	});
+
+	it("a fallback that created no session is reported to the lazy owner as a failure", async () => {
+		const reloadSession = vi.fn().mockResolvedValue({
+			resumed: false,
+			reason: "resume-failed",
+			sessionId: null,
+		});
+		const { result, reloadNowResults } = setup({ reloadSession }, [msg()]);
+
+		await result.current.handleReload(false);
+
+		expect(reloadNowResults).toHaveLength(1);
+		expect(reloadNowResults[0].ok).toBe(false);
+	});
+
+	it("does not reload behind the owner's back when the lazy owner isn't wired", async () => {
+		const reloadSession = vi
+			.fn()
+			.mockResolvedValue({ resumed: true, sessionId: "s1" });
+		const { result } = setup({ reloadSession }, [msg()], {
+			wireReloadNow: false,
+		});
+		noticeMessages.length = 0;
+
+		await result.current.handleReload(false);
+
+		expect(reloadSession).not.toHaveBeenCalled();
+		expect(noticeMessages).toContain("[Agent Console] Failed to reload session");
 	});
 });

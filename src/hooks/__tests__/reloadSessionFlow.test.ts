@@ -7,8 +7,8 @@ import { reloadSessionFlow } from "../reloadSessionFlow";
 
 describe("reloadSessionFlow", () => {
 	it("T1: resumes the same session when there is a session and the agent can resume", async () => {
-		const resumeSameSession = vi.fn().mockResolvedValue(undefined);
-		const freshSession = vi.fn().mockResolvedValue(undefined);
+		const resumeSameSession = vi.fn().mockResolvedValue("s-1");
+		const freshSession = vi.fn().mockResolvedValue("s-new");
 
 		const result = await reloadSessionFlow({
 			sessionId: "s-1",
@@ -17,14 +17,14 @@ describe("reloadSessionFlow", () => {
 			freshSession,
 		});
 
-		expect(result).toEqual({ resumed: true });
+		expect(result).toEqual({ resumed: true, sessionId: "s-1" });
 		expect(resumeSameSession).toHaveBeenCalledWith("s-1");
 		expect(freshSession).not.toHaveBeenCalled();
 	});
 
 	it("T2: creates a fresh session when the agent cannot resume (loadSession unsupported)", async () => {
-		const resumeSameSession = vi.fn().mockResolvedValue(undefined);
-		const freshSession = vi.fn().mockResolvedValue(undefined);
+		const resumeSameSession = vi.fn().mockResolvedValue("s-1");
+		const freshSession = vi.fn().mockResolvedValue("s-new");
 
 		const result = await reloadSessionFlow({
 			sessionId: "s-1",
@@ -33,14 +33,18 @@ describe("reloadSessionFlow", () => {
 			freshSession,
 		});
 
-		expect(result).toEqual({ resumed: false, reason: "unsupported" });
+		expect(result).toEqual({
+			resumed: false,
+			reason: "unsupported",
+			sessionId: "s-new",
+		});
 		expect(resumeSameSession).not.toHaveBeenCalled();
 		expect(freshSession).toHaveBeenCalledTimes(1);
 	});
 
 	it("creates a fresh session when there is no live session id", async () => {
-		const resumeSameSession = vi.fn().mockResolvedValue(undefined);
-		const freshSession = vi.fn().mockResolvedValue(undefined);
+		const resumeSameSession = vi.fn().mockResolvedValue("s-1");
+		const freshSession = vi.fn().mockResolvedValue("s-new");
 
 		const result = await reloadSessionFlow({
 			sessionId: null,
@@ -49,7 +53,11 @@ describe("reloadSessionFlow", () => {
 			freshSession,
 		});
 
-		expect(result).toEqual({ resumed: false, reason: "unsupported" });
+		expect(result).toEqual({
+			resumed: false,
+			reason: "unsupported",
+			sessionId: "s-new",
+		});
 		expect(resumeSameSession).not.toHaveBeenCalled();
 		expect(freshSession).toHaveBeenCalledTimes(1);
 	});
@@ -57,7 +65,7 @@ describe("reloadSessionFlow", () => {
 	it("I230: falls back to a fresh session when resume throws, says the resume FAILED (not unsupported), and reports the error", async () => {
 		const error = new Error("Session is active in another process (PID 4242)");
 		const resumeSameSession = vi.fn().mockRejectedValue(error);
-		const freshSession = vi.fn().mockResolvedValue(undefined);
+		const freshSession = vi.fn().mockResolvedValue("s-new");
 		const onResumeError = vi.fn();
 
 		const result = await reloadSessionFlow({
@@ -68,7 +76,11 @@ describe("reloadSessionFlow", () => {
 			onResumeError,
 		});
 
-		expect(result).toEqual({ resumed: false, reason: "resume-failed" });
+		expect(result).toEqual({
+			resumed: false,
+			reason: "resume-failed",
+			sessionId: "s-new",
+		});
 		expect(onResumeError).toHaveBeenCalledWith(error);
 		expect(resumeSameSession).toHaveBeenCalledWith("s-1");
 		expect(freshSession).toHaveBeenCalledTimes(1);
@@ -90,8 +102,9 @@ describe("reloadSessionFlow — history-replay suppression (I86)", () => {
 			for (const m of ["u1", "a1"]) {
 				if (!ignore) transcript.push(m);
 			}
+			return "s-1";
 		});
-		const freshSession = vi.fn().mockResolvedValue(undefined);
+		const freshSession = vi.fn().mockResolvedValue("s-new");
 
 		const result = await reloadSessionFlow({
 			sessionId: "s-1",
@@ -101,7 +114,7 @@ describe("reloadSessionFlow — history-replay suppression (I86)", () => {
 			setIgnoreUpdates,
 		});
 
-		expect(result).toEqual({ resumed: true });
+		expect(result).toEqual({ resumed: true, sessionId: "s-1" });
 		// The replay must be suppressed: transcript unchanged, NOT duplicated.
 		expect(transcript).toEqual(["u1", "a1"]);
 		// Suppress before resume, release after (in finally).
@@ -117,7 +130,7 @@ describe("reloadSessionFlow — history-replay suppression (I86)", () => {
 		const resumeSameSession = vi
 			.fn()
 			.mockRejectedValue(new Error("session/load failed"));
-		const freshSession = vi.fn().mockResolvedValue(undefined);
+		const freshSession = vi.fn().mockResolvedValue("s-new");
 
 		const result = await reloadSessionFlow({
 			sessionId: "s-1",
@@ -127,9 +140,33 @@ describe("reloadSessionFlow — history-replay suppression (I86)", () => {
 			setIgnoreUpdates,
 		});
 
-		expect(result).toEqual({ resumed: false, reason: "resume-failed" });
+		expect(result).toEqual({
+			resumed: false,
+			reason: "resume-failed",
+			sessionId: "s-new",
+		});
 		// Suppression must be released so post-reload updates flow normally.
 		expect(ignore).toBe(false);
 		expect(setIgnoreUpdates).toHaveBeenLastCalledWith(false);
+	});
+});
+
+describe("reloadSessionFlow — live session id (I229)", () => {
+	it("I229: reports a null session id when the fresh fallback could not create one", async () => {
+		const resumeSameSession = vi.fn().mockRejectedValue(new Error("boom"));
+		const freshSession = vi.fn().mockResolvedValue(null);
+
+		const result = await reloadSessionFlow({
+			sessionId: "s-1",
+			canResume: true,
+			resumeSameSession,
+			freshSession,
+		});
+
+		expect(result).toEqual({
+			resumed: false,
+			reason: "resume-failed",
+			sessionId: null,
+		});
 	});
 });

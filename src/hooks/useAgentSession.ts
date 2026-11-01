@@ -685,12 +685,13 @@ export function useAgentSession(
 					result.models,
 					result.configOptions,
 				);
+				return result.sessionId;
 			},
 			// Fresh session under a fresh harness. Transcript stays on screen
 			// (local history); the caller never clears it on a soft reload.
 			freshSession: async () => {
 				await agentClient.disconnect();
-				await createSession(agentId, effectiveCwd);
+				return createSession(agentId, effectiveCwd);
 			},
 		});
 	}, [

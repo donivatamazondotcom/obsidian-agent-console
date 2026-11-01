@@ -13,6 +13,10 @@ import type { UseAgentReturn } from "./useAgent";
 import type { UseSessionHistoryReturn } from "./useSessionHistory";
 import type { UseSuggestionsReturn } from "./useSuggestions";
 import type { UseContextNotesReturn } from "./useContextNotes";
+import {
+	reloadResultToAcquisition,
+	type ReloadSessionFlowResult,
+} from "./reloadSessionFlow";
 import { extractMentionedPaths } from "./useContextVaultEvents";
 import { MAX_CONTEXT_NOTES } from "../types/context";
 import type { ChatSession } from "../types/session";
@@ -116,6 +120,23 @@ export function useChatActions(
 	 * `vaultPath` when unset so pre-existing callers keep prior behavior.
 	 */
 	agentCwd: string = "",
+	/**
+	 * Ref to useLazySession.reloadNow (I229). Soft reload runs as an
+	 * acquisition through the single lazy-session owner, so the tab goes
+	 * ready → connecting → ready and a message sent mid-reload is delivered
+	 * by the queue's connect-flush. A ref for the same ordering reason as
+	 * `lazyAcquireNowRef`.
+	 */
+	lazyReloadNowRef?: {
+		current:
+			| ((
+					run: () => Promise<
+						| { ok: true; sessionId: string }
+						| { ok: false; error: Error }
+					>,
+			  ) => Promise<void>)
+			| null;
+	},
 ): UseChatActionsReturn {
 	const logger = getLogger();
 
@@ -528,8 +549,24 @@ export function useChatActions(
 				// fresh harness. Transcript is never cleared. Announce up front
 				// because the resume is async (subprocess respawn) and otherwise
 				// gives no feedback until it completes.
+				const reloadNow = lazyReloadNowRef?.current;
+				if (!reloadNow) {
+					// Never reload behind the lazy owner's back: the tab state
+					// would stay `ready` and strand a queued send (I229).
+					throw new Error("Soft reload: lazy session owner not wired");
+				}
 				new Notice(t("notices.sessionReloading"));
-				const reload = await agent.reloadSession();
+				const outcome: { result: ReloadSessionFlowResult | null } = {
+					result: null,
+				};
+				await reloadNow(async () => {
+					const result = await agent.reloadSession();
+					outcome.result = result;
+					return reloadResultToAcquisition(result);
+				});
+				const reload = outcome.result;
+				// reloadNow is a no-op while another acquisition is in flight.
+				if (!reload) return;
 				if (reload.resumed) {
 					new Notice(t("notices.sessionReloaded"));
 				} else {
@@ -557,6 +594,7 @@ export function useChatActions(
 			agent.clearMessages,
 			agent.closeSession,
 			lazyAcquireNowRef,
+			lazyReloadNowRef,
 			agent.reloadSession,
 			messages,
 			session,
