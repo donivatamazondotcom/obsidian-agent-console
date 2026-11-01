@@ -89,6 +89,23 @@ waits in the prompt until you click **Sign in** or **Copy link**.
 If Kiro can't start the sign-in from Agent Console, the prompt says so.
 Sign in from Kiro CLI in a terminal instead, then start a new chat.
 
+::: tip Sign-in finished, but the prompt stays?
+Kiro counts the time you spend signing in against the server's connection
+timeout, which is 60 seconds by default. If signing in takes longer (for
+example with an email code or extra verification), the browser says it
+worked, but Kiro gives up on the connection and the prompt stays. Raise the
+server's `timeout` (in milliseconds) in your Kiro `mcp.json`, then start a
+new chat and sign in again:
+
+```json
+{
+  "mcpServers": {
+    "my-server": { "url": "https://example.com/mcp", "timeout": 300000 }
+  }
+}
+```
+:::
+
 ## Servers that didn't connect
 
 On the Kiro CLI V3 engine, a note at the top of the chat lists any MCP
