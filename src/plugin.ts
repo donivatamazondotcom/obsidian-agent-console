@@ -19,7 +19,11 @@ import {
 } from "./services/migrate-legacy-view-type";
 import { registerChatViewSafely } from "./services/register-chat-view";
 import { runRegistrations } from "./services/run-registrations";
-import { focusActiveTabComposer } from "./ui/composer-focus";
+import {
+	focusActiveTabComposer,
+	scheduleComposerRefocus,
+} from "./ui/composer-focus";
+import { runChipCopy } from "./services/quick-prompt-chip-copy";
 import { HOVER_LINK_SOURCE } from "./utils/link-leaf";
 import type { ObsidianSystemPromptSettings } from "./utils/obsidian-system-prompt";
 import { fetchJson } from "./services/net";
@@ -111,7 +115,6 @@ import {
 	type QuickPromptMenuAction,
 } from "./services/quick-prompts-logic";
 import {
-	buildPromptUri,
 	checkUriRateLimit,
 	parseQuickPromptUri,
 	QUICK_PROMPT_URI_ACTION,
@@ -570,28 +573,20 @@ export default class AgentClientPlugin extends Plugin {
 			}
 			return;
 		}
-		if (action === "copy-link") {
-			try {
-				await navigator.clipboard.writeText(
-					buildPromptUri(this.app.vault.getName(), prompt.id),
-				);
-				new Notice(t("chat.quickPrompts.linkCopied"));
-			} catch (error) {
-				getLogger().error("[QuickPrompts] copy link failed", error);
-				new Notice(t("chat.quickPrompts.linkCopyFailed"));
-			}
-			return;
-		}
-		if (action === "copy") {
-			try {
-				await navigator.clipboard.writeText(prompt.body);
-				new Notice(t("notices.promptTextCopied"));
-			} catch (error) {
-				getLogger().error("[QuickPrompts] copy failed", error);
-				new Notice(
-					t("notices.promptTextCopyFailed"),
-				);
-			}
+		if (action === "copy" || action === "copy-link") {
+			// I234: both copy actions return focus to the composer.
+			const view =
+				this.getActiveChatView() ??
+				(this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT)[0]
+					?.view as ChatView | undefined) ??
+				null;
+			await runChipCopy(action, prompt, {
+				writeText: (text) => navigator.clipboard.writeText(text),
+				notify: (message) => new Notice(message),
+				logError: (message, error) => getLogger().error(message, error),
+				vaultName: this.app.vault.getName(),
+				refocus: () => scheduleComposerRefocus(view?.containerEl ?? null),
+			});
 			return;
 		}
 		// action === "rename" — relabel the PILL (`label:` frontmatter); the

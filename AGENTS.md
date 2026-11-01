@@ -86,6 +86,7 @@ src/
 │   ├── quick-prompts-logic.ts   # Quick Prompts pure logic: parse/label/slug-id/folder-scope/{{selection}}-resolve + the browser-true 2×2 action decision (where × commitment: fire/queue/insert/disabled/new-tab + foreground) + tag matching + launcher helpers (capRestingChips / parseQuickPromptTrigger / stripQuickPromptTrigger / rankLauncherPrompts)
 │   ├── picker-source-configs.ts # The three PickerSource configs (mention/slash/quick-prompt) that drive usePicker — all variance as pure, dependency-injected config (moved from utils/: it wires domain services, so it lives in the services layer; utils is a shared leaf)
 │   ├── quick-prompts.ts         # QuickPromptLibrary (scan/watch/reconcile) + VaultQuickPromptSource adapter
+│   ├── quick-prompt-chip-copy.ts # Chip menu Copy prompt / Copy link: clipboard write + notice, then return focus to the active composer (I234)
 │   ├── update-checker.ts        # Agent version checking (npm)
 │   ├── plugin-update-check.ts   # Plugin self-update check — once per load, shared by all tabs; result cached in data.json across loads
 │   ├── net.ts                   # The ONLY module permitted outbound network I/O (fixed ALLOWED_HOSTS; egress tripwire enforces it)
