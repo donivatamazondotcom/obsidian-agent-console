@@ -23,15 +23,17 @@ export interface ReloadSessionFlowArgs {
 	canResume: boolean;
 	/**
 	 * Disconnect the subprocess, re-initialize (fresh harness), and resume the
-	 * SAME session id. Throws if resume fails at any step.
+	 * SAME session id. Resolves to the id the agent resumed. Throws if resume
+	 * fails at any step.
 	 */
-	resumeSameSession: (sessionId: string) => Promise<void>;
+	resumeSameSession: (sessionId: string) => Promise<string>;
 	/**
 	 * Disconnect the subprocess and create a brand-new session (fresh harness).
 	 * Used both when the agent cannot resume and as the fallback when a resume
 	 * attempt throws. The on-screen transcript stays visible (local history).
+	 * Resolves to the new session id, or null when none could be created.
 	 */
-	freshSession: () => Promise<void>;
+	freshSession: () => Promise<string | null>;
 	/**
 	 * Suppress the agent's history replay while resuming. Set `true` before the
 	 * resume (which calls `loadSession`, emitting the conversation as
@@ -49,6 +51,10 @@ export interface ReloadSessionFlowArgs {
 }
 
 /**
+ * Every result carries the live `sessionId` after the reload (the resumed id,
+ * the fallback's new id, or null when no session could be created), so the
+ * lazy-session owner can bind it without reading a stale React snapshot. (I229)
+ *
  * - `resumed: true` — the same session came back.
  * - `reason: "unsupported"` — no session to resume, or the agent can't load
  *   one; a fresh session was created by design.
@@ -56,8 +62,12 @@ export interface ReloadSessionFlowArgs {
  *   a fresh session was created as a fallback. Not a capability gap. (I230)
  */
 export type ReloadSessionFlowResult =
-	| { resumed: true }
-	| { resumed: false; reason: "unsupported" | "resume-failed" };
+	| { resumed: true; sessionId: string }
+	| {
+			resumed: false;
+			reason: "unsupported" | "resume-failed";
+			sessionId: string | null;
+	  };
 
 /**
  * Run the soft-reload flow. The result says whether the session resumed and,
@@ -83,20 +93,33 @@ export async function reloadSessionFlow(
 		// Release in `finally`, mirroring `loadExistingSessionFlow`. (I86)
 		setIgnoreUpdates?.(true);
 		try {
-			await resumeSameSession(sessionId);
-			return { resumed: true };
+			const resumedId = await resumeSameSession(sessionId);
+			return { resumed: true, sessionId: resumedId };
 		} catch (error) {
 			// Resume failed mid-flight → degrade to a fresh session, keeping
 			// the transcript on screen (mirrors the lazy loadSession fallback).
 			onResumeError?.(error);
-			await freshSession();
-			return { resumed: false, reason: "resume-failed" };
+			const freshId = await freshSession();
+			return { resumed: false, reason: "resume-failed", sessionId: freshId };
 		} finally {
 			setIgnoreUpdates?.(false);
 		}
 	}
 
 	// No session, or agent can't resume → fresh session under a fresh harness.
-	await freshSession();
-	return { resumed: false, reason: "unsupported" };
+	const freshId = await freshSession();
+	return { resumed: false, reason: "unsupported", sessionId: freshId };
+}
+
+/**
+ * Map a soft-reload result to the lazy-session owner's acquisition result
+ * (I229): a live session id means the tab is ready again; no id means the
+ * reload left the tab without a session (→ `error`).
+ */
+export function reloadResultToAcquisition(
+	result: ReloadSessionFlowResult,
+): { ok: true; sessionId: string } | { ok: false; error: Error } {
+	return result.sessionId
+		? { ok: true, sessionId: result.sessionId }
+		: { ok: false, error: new Error("Soft reload created no session") };
 }

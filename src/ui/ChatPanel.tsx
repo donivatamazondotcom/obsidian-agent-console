@@ -110,7 +110,10 @@ import {
 } from "../hooks/useContextVaultEvents";
 import { useAgent } from "../hooks/useAgent";
 import { useSessionHistory } from "../hooks/useSessionHistory";
-import { useLazySession } from "../hooks/useLazySession";
+import {
+	useLazySession,
+	type UseLazySessionApi,
+} from "../hooks/useLazySession";
 import { useDebouncedSessionSave } from "../hooks/useDebouncedSessionSave";
 import {
 	useQueueOrchestration,
@@ -780,6 +783,12 @@ export function ChatPanel({
 	// Forward ref to useLazySession.acquireNow (created later). restart-agent
 	// and hard-reload route their re-acquisition through the single owner.
 	const lazyAcquireNowRef = useRef<(() => Promise<void>) | null>(null);
+	// Forward ref to useLazySession.reloadNow (created later): soft reload
+	// runs through the same owner so the tab passes through `connecting` and
+	// the connect-flush delivers a message sent mid-reload (I229).
+	const lazyReloadNowRef = useRef<UseLazySessionApi["reloadNow"] | null>(
+		null,
+	);
 	const actions = useChatActions(
 		plugin,
 		agent,
@@ -796,6 +805,7 @@ export function ChatPanel({
 		lazyAcquireNowRef,
 		vaultRoot,
 		agentCwd,
+		lazyReloadNowRef,
 	);
 
 	const {
@@ -1580,6 +1590,7 @@ export function ChatPanel({
 	// useCallback identity, so reassigning each render is a no-op cost.
 	lazyResetRef.current = lazySession.reset;
 	lazyAcquireNowRef.current = lazySession.acquireNow;
+	lazyReloadNowRef.current = lazySession.reloadNow;
 
 	// Wire the queue-orchestration effect handlers now that handleSendMessage and
 	// lazySession are in scope. flushDispatch is ALWAYS the raw send — the

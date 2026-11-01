@@ -23,6 +23,8 @@ This is the everyday control. Reach for it when a tool connection went bad or yo
 
 While the reload runs, the **↻** icon spins and a "Reloading session…" notice appears, so you always know it's working. A "Session reloaded" notice confirms when it's done.
 
+You don't have to wait for it. While the agent restarts, the tab shows it's connecting. A message you send during that time waits in the composer and goes out as soon as the agent is back.
+
 ::: tip
 Resuming the same conversation needs an agent that supports session resume. If your agent can't resume, Agent Console keeps the transcript visible and starts a fresh session underneath — only the live agent loses context; your conversation stays on screen.
 

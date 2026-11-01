@@ -184,6 +184,17 @@ export interface UseLazySessionApi {
 	 * re-initializes a fresh harness.
 	 */
 	acquireNow: () => Promise<void>;
+	/**
+	 * Soft reload through the single owner (I229). Runs `run` (which tears
+	 * the subprocess down, re-initializes and resumes — or falls back to a
+	 * new session) as an acquisition: `ready → connecting → ready`, so the
+	 * queue's connect-flush edge delivers any message sent during the reload.
+	 * Unlike `acquireNow` it does NOT reset — the restored id and transcript
+	 * stay. Binds the id `run` returns (it changes on a fallback). No-op when
+	 * no session is bound or an acquisition is already in flight. A throwing
+	 * `run` ends in `error` and rethrows to the caller.
+	 */
+	reloadNow: (run: () => Promise<SessionAcquisitionResult>) => Promise<void>;
 	/** Reset to `idle`, release sessionId, clear fallback flag. */
 	reset: () => void;
 
@@ -225,6 +236,10 @@ export function useLazySession(
 	// Public state (drives consumer renders).
 	const [sessionId, setSessionId] = useState<string | null>(null);
 	const [isFallbackRecovery, setIsFallbackRecovery] = useState(false);
+	// Latest bound sessionId for async/ref-called entry points (reloadNow is
+	// invoked through a ref from useChatActions, so its closure may be stale).
+	const sessionIdRef = useRef<string | null>(null);
+	sessionIdRef.current = sessionId;
 
 	// Imperative state (read inside async callbacks; refs avoid stale closures).
 	const debounceTimerRef = useRef<number | null>(null);
@@ -461,6 +476,50 @@ export function useLazySession(
 	}, [reset, fireAcquisition]);
 
 	// ============================================================================
+	// reloadNow — soft reload as an acquisition through the single owner (I229)
+	// ============================================================================
+
+	const reloadNow = useCallback(
+		async (run: () => Promise<SessionAcquisitionResult>) => {
+			// Nothing to reload, or the owner is already acquiring (a first
+			// send, reconnect or another reload) — one acquisition at a time.
+			if (sessionIdRef.current === null) return;
+			if (isAcquiringRef.current) return;
+			isAcquiringRef.current = true;
+			const generation = acquisitionGenerationRef.current;
+			if (debounceTimerRef.current !== null) {
+				window.clearTimeout(debounceTimerRef.current);
+				debounceTimerRef.current = null;
+			}
+
+			tabStateRef.current.startConnect();
+
+			let result: SessionAcquisitionResult;
+			try {
+				result = await run();
+			} catch (error) {
+				if (generation === acquisitionGenerationRef.current) {
+					tabStateRef.current.connectFailed();
+					isAcquiringRef.current = false;
+				}
+				throw error;
+			}
+
+			// Superseded mid-flight (reset / agent swap): discard (I175).
+			if (generation !== acquisitionGenerationRef.current) return;
+
+			if (result.ok) {
+				setSessionId(result.sessionId);
+				tabStateRef.current.connectSucceeded();
+			} else {
+				tabStateRef.current.connectFailed();
+			}
+			isAcquiringRef.current = false;
+		},
+		[],
+	);
+
+	// ============================================================================
 	// Cleanup pending timer on unmount
 	// ============================================================================
 
@@ -500,6 +559,7 @@ export function useLazySession(
 		onSendClick,
 		recoverHistory,
 		acquireNow,
+		reloadNow,
 		reset,
 		// Expose state machine transitions for busy/permission — driven
 		// by ChatPanel in response to agent events (isSending,
