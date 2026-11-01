@@ -17,8 +17,10 @@
  * `model` config option (Kiro CLI V3 sends only that).
  *
  * `deriveHeaderRuntime` — the tooltip's Runtime line: what the agent reported
- * in `agentInfo`, else "Kiro CLI (V3 engine)" for a V3 kiro-cli (V3 sends no
- * `agentInfo`), else nothing.
+ * in `agentInfo`, else "Kiro CLI (V3 engine)" for a process launched on V3
+ * (V3 sends no `agentInfo`), else nothing. The engine is the one the tab's
+ * process was launched with (`session.kiroEngine`), never the live setting
+ * (I235).
  *
  * Spec: [[Kiro CLI V3 Support]].
  */
@@ -88,8 +90,8 @@ export type HeaderRuntime =
 
 export interface HeaderRuntimeInput {
 	agentInfo?: { name: string; title?: string; version?: string };
-	/** The agent is kiro-cli launched on the V3 engine. */
-	isKiroV3: boolean;
+	/** Engine the running process was launched with (`session.kiroEngine`). */
+	kiroEngine?: "v2" | "v3";
 }
 
 /** Runtime segment for the header tooltip. Pure and total. */
@@ -99,5 +101,5 @@ export function deriveHeaderRuntime(input: HeaderRuntimeInput): HeaderRuntime {
 		const name = info.title || info.name;
 		return { kind: "reported", label: info.version ? `${name} ${info.version}` : name };
 	}
-	return input.isKiroV3 ? { kind: "kiroV3" } : { kind: "unknown" };
+	return input.kiroEngine === "v3" ? { kind: "kiroV3" } : { kind: "unknown" };
 }

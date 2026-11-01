@@ -297,6 +297,7 @@ export class AcpTypeConverter {
 	 */
 	static toInitializeResult(
 		initResult: acp.InitializeResponse,
+		launch: { kiroEngine?: "v3" },
 	): InitializeResult {
 		const promptCaps = initResult.agentCapabilities?.promptCapabilities;
 		const mcpCaps = initResult.agentCapabilities?.mcpCapabilities;
@@ -342,6 +343,9 @@ export class AcpTypeConverter {
 						version: initResult.agentInfo.version ?? undefined,
 					}
 				: undefined,
+			// The engine comes from how WE launched the process, not from the
+			// agent's reply: V3 sends no agentInfo (I235).
+			kiroEngine: launch.kiroEngine === "v3" ? "v3" : "v2",
 		};
 	}
 }

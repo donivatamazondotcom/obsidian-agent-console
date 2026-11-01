@@ -286,6 +286,14 @@ export interface ChatSession {
 	 */
 	agentInfo?: AgentInfo;
 
+	/**
+	 * Kiro CLI engine the agent process was LAUNCHED with, recorded from
+	 * {@link InitializeResult.kiroEngine}. Read this, never the live engine
+	 * setting, for anything about the running tab (I235). Undefined before
+	 * initialize resolves.
+	 */
+	kiroEngine?: "v2" | "v3";
+
 	/** Timestamp when the session was created */
 	createdAt: Date;
 
@@ -862,4 +870,11 @@ export interface InitializeResult {
 	 * Contains name, title, and version.
 	 */
 	agentInfo?: AgentInfo;
+
+	/**
+	 * Kiro CLI engine this process was launched with: "v3" for a V3 launch,
+	 * "v2" for every other launch (including non-Kiro agents). Normalized once
+	 * at the `acp/` edge from the launch config (I235).
+	 */
+	kiroEngine: "v2" | "v3";
 }

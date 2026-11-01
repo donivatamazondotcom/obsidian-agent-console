@@ -39,7 +39,6 @@ import {
 	resolveCwdForAgent,
 	resolveSessionIdForSave,
 	findAgentSettings,
-	resolveAgentKiroEngine,
 } from "../services/session-helpers";
 import { deriveNewLeaf, shouldOpenFromActivation } from "../utils/link-leaf";
 import {
@@ -723,11 +722,11 @@ export function ChatPanel({
 		const pluginName = plugin.manifest.name;
 		const profile = activeAgentLabel;
 
-		// Kiro CLI V3 sends no agentInfo; name the engine instead (S2).
+		// Kiro CLI V3 sends no agentInfo; name the engine instead (S2). The
+		// engine is the one this tab launched with, not the setting (I235).
 		const runtimeSegment = deriveHeaderRuntime({
 			agentInfo: session.agentInfo,
-			isKiroV3:
-				resolveAgentKiroEngine(plugin.settings, session.agentId) === "v3",
+			kiroEngine: session.kiroEngine,
 		});
 		const runtime =
 			runtimeSegment.kind === "reported"
@@ -764,6 +763,7 @@ export function ChatPanel({
 		activeAgentLabel,
 		session.agentId,
 		session.agentInfo,
+		session.kiroEngine,
 		session.models,
 		session.modes,
 		session.configOptions,

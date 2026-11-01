@@ -547,7 +547,7 @@ export class AcpClient {
 			this.isInitializedFlag = true;
 			this.currentAgentId = config.id;
 
-			return AcpTypeConverter.toInitializeResult(initResult);
+			return AcpTypeConverter.toInitializeResult(initResult, config);
 		} catch (error) {
 			this.logger.error("Initialization Error:", error);
 

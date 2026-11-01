@@ -284,6 +284,7 @@ export function useAgentSession(
 				agentCapabilities: prev.agentCapabilities,
 				capabilities: prev.capabilities,
 				agentInfo: prev.agentInfo,
+				kiroEngine: prev.kiroEngine,
 				createdAt: new Date(),
 				lastActivityAt: new Date(),
 			}));
@@ -427,6 +428,10 @@ export function useAgentSession(
 					agentInfo: initResult
 						? initResult.agentInfo
 						: prev.agentInfo,
+					kiroEngine: initResult
+						? initResult.kiroEngine
+						: (agentClient.getInitializeResult()?.kiroEngine ??
+							prev.kiroEngine),
 					lastActivityAt: new Date(),
 				}));
 
@@ -532,6 +537,7 @@ export function useAgentSession(
 				agentCapabilities: undefined,
 				capabilities: undefined,
 				agentInfo: undefined,
+				kiroEngine: undefined,
 				lastActivityAt: new Date(),
 			}));
 			setErrorInfo(null);
@@ -618,6 +624,9 @@ export function useAgentSession(
 				capabilities:
 					agentClient.getInitializeResult()?.capabilities ??
 					prev.capabilities,
+				kiroEngine:
+					agentClient.getInitializeResult()?.kiroEngine ??
+					prev.kiroEngine,
 				lastActivityAt: new Date(),
 			}));
 		},
@@ -834,6 +843,7 @@ export function useAgentSession(
 			agentCapabilities:
 				init.agentCapabilities ?? prev.agentCapabilities,
 			capabilities: init.capabilities ?? prev.capabilities,
+			kiroEngine: init.kiroEngine ?? prev.kiroEngine,
 		}));
 	}, [agentClient]);
 
