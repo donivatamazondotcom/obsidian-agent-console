@@ -596,6 +596,12 @@ export function useAgentMessages(
 				content: userMessageContent,
 				timestamp: new Date(),
 			};
+			// I228: commit any batched updates already received BEFORE the new
+			// message. A restored agent-only tab loads on first send; the
+			// session/load replay is still waiting for the next frame when the
+			// queued send flushes, so without this the new message lands first
+			// and the replayed history is appended under it.
+			flushPendingUpdates();
 			addMessage(userMessage);
 
 			setIsSending(true);
@@ -677,6 +683,7 @@ export function useAgentMessages(
 			addMessage,
 			setErrorInfo,
 			flushTitleBuffer,
+			flushPendingUpdates,
 		],
 	);
 

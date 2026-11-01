@@ -21,7 +21,11 @@
 import type { KiroMcpServerStatus } from "../types/mcp-auth";
 import type * as acp from "@agentclientprotocol/sdk";
 import type { AgentConfig } from "./acp-client";
-import type { PromptContent } from "../types/chat";
+import type {
+	PromptContent,
+	ResourceLinkPromptContent,
+} from "../types/chat";
+import { escapeRegExp } from "../utils/injected-blocks";
 
 export type KiroEngine = "v2" | "v3";
 
@@ -200,6 +204,10 @@ export function storesSessionConfig(config: AgentConfig | null): boolean {
 	return config?.kiroEngine === "v3";
 }
 
+/** Body of the `<attached_file>` text block (shared with its inverse below). */
+export const ATTACHED_FILE_HINT =
+	"The user attached this file to the message. Read it with your file tools when it is relevant.";
+
 /**
  * Prompt blocks adapted for the server generation (I220).
  *
@@ -222,7 +230,7 @@ export function adaptPromptForEngine(
 			type: "text",
 			text:
 				`<attached_file name="${block.name}" uri="${block.uri}"${mime}>\n` +
-				"The user attached this file to the message. Read it with your file tools when it is relevant.\n" +
+				`${ATTACHED_FILE_HINT}\n` +
 				"</attached_file>",
 		};
 	});
@@ -259,4 +267,53 @@ export function reduceMcpStatusSnapshot(
 		}
 	}
 	return { next, changed };
+}
+
+const ATTACHED_FILE_BLOCK = new RegExp(
+	'<attached_file name="([^"]*)" uri="([^"]*)"(?: mimeType="([^"]*)")?>\\n' +
+		escapeRegExp(ATTACHED_FILE_HINT) +
+		"\\n</attached_file>",
+);
+const LEADING_ATTACHED_FILE = new RegExp(`^${ATTACHED_FILE_BLOCK.source}`);
+const TRAILING_ATTACHED_FILE = new RegExp(`\\s*${ATTACHED_FILE_BLOCK.source}\\s*$`);
+
+function toLink(m: RegExpExecArray): ResourceLinkPromptContent {
+	return {
+		type: "resource_link",
+		name: m[1],
+		uri: m[2],
+		...(m[3] ? { mimeType: m[3] } : {}),
+	};
+}
+
+/**
+ * Inverse of {@link adaptPromptForEngine} for replayed text (I222 a3).
+ *
+ * On `session/load` V3 replays the prompt it received, so each resource link
+ * that went out as an `<attached_file>` block comes back as text. These take
+ * ONE complete block from the head (context-note chips, which precede the
+ * user's words) or the tail (attachments, which follow them) and return it as
+ * the `resource_link` it started as, so the transcript shows a file chip
+ * again. Only blocks carrying {@link ATTACHED_FILE_HINT} match, so a user
+ * typing the tag is left alone. Pure and total; null when nothing matched.
+ */
+export function takeLeadingAttachedFile(
+	text: string,
+): { rest: string; link: ResourceLinkPromptContent } | null {
+	const head = text.trimStart();
+	const m = LEADING_ATTACHED_FILE.exec(head);
+	if (!m) return null;
+	return {
+		rest: head.slice(m[0].length).replace(/^[ \t]*(?:\r?\n)*/, ""),
+		link: toLink(m),
+	};
+}
+
+/** Tail counterpart of {@link takeLeadingAttachedFile}. */
+export function takeTrailingAttachedFile(
+	text: string,
+): { rest: string; link: ResourceLinkPromptContent } | null {
+	const m = TRAILING_ATTACHED_FILE.exec(text);
+	if (!m) return null;
+	return { rest: text.slice(0, m.index), link: toLink(m) };
 }

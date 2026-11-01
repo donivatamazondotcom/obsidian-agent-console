@@ -259,7 +259,11 @@ interface SessionHistoryContentProps {
 	currentAgentLabel: string;
 
 	/** Callback when a session is restored */
-	onRestoreSession: (sessionId: string, cwd: string) => Promise<void>;
+	onRestoreSession: (
+		sessionId: string,
+		cwd: string,
+		agentTitle?: string,
+	) => Promise<void>;
 	/** Callback when a session is forked into a new tab */
 	onForkSession: (sessionId: string, cwd: string) => Promise<void>;
 	/** Callback when a session is deleted */
@@ -357,7 +361,11 @@ function DebugForm({
 	onClose,
 }: {
 	currentCwd: string;
-	onRestoreSession: (sessionId: string, cwd: string) => Promise<void>;
+	onRestoreSession: (
+		sessionId: string,
+		cwd: string,
+		agentTitle?: string,
+	) => Promise<void>;
 	onClose: () => void;
 }) {
 	const [sessionId, setSessionId] = useState("");
@@ -476,7 +484,11 @@ function SessionItem({
 	agentLabel?: string;
 	showAgentBadge: boolean;
 	currentCwd: string;
-	onRestoreSession: (sessionId: string, cwd: string) => Promise<void>;
+	onRestoreSession: (
+		sessionId: string,
+		cwd: string,
+		agentTitle?: string,
+	) => Promise<void>;
 	onForkSession: (sessionId: string, cwd: string) => Promise<void>;
 	onDeleteSession: (sessionId: string) => void | Promise<void>;
 	onEditTitle: (sessionId: string) => void;
@@ -484,7 +496,13 @@ function SessionItem({
 }) {
 	const handleRestore = useCallback(() => {
 		onClose();
-		void onRestoreSession(session.sessionId, session.cwd);
+		// I223: pass the row's title so a restore without a local record can
+		// seed it (the row shows the agent's title when no local one exists).
+		void onRestoreSession(
+			session.sessionId,
+			session.cwd,
+			session.title ?? undefined,
+		);
 	}, [session, onRestoreSession, onClose]);
 
 	const handleFork = useCallback(() => {

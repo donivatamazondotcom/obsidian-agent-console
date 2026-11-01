@@ -45,7 +45,20 @@ import {
 } from "../utils/obsidian-system-prompt";
 import { convertWindowsPathToWsl } from "../utils/platform";
 import { buildFileUri } from "../utils/paths";
-import { buildContextBlocks } from "./context-builder";
+import {
+	buildContextBlocks,
+	takeLeadingContextBlock,
+} from "./context-builder";
+import { takeLeadingCarryOverBlock } from "./carry-over-builder";
+import {
+	takeLeadingAttachedFile,
+	takeTrailingAttachedFile,
+} from "../acp/kiro-v3";
+import {
+	escapeRegExp,
+	takeLeadingSentence,
+	takeLeadingWrappedBlock,
+} from "../utils/injected-blocks";
 
 // ============================================================================
 // Types
@@ -355,6 +368,91 @@ export function buildObsidianSystemPrompt(
 
 function wrapSystemInstruction(text: string): string {
 	return `<obsidian_system_instruction>\n${text}\n</obsidian_system_instruction>`;
+}
+
+// ============================================================================
+// Replay stripping (I222 / I228) — inverse of the builders in this file
+// ============================================================================
+
+/** Wrapper tags this file emits (system instruction, mentions, opened note). */
+const SENDER_BLOCK_TAGS = [
+	"obsidian_system_instruction",
+	"obsidian_mentioned_note",
+	"obsidian_opened_note",
+] as const;
+
+/** Bare sentences this file emits: the title rubric (buildTitleRubric) and the
+ * legacy auto-mention hints (buildAutoMentionResource). */
+const SENDER_BARE_SENTENCES: readonly RegExp[] = [
+	new RegExp(`^${escapeRegExp(TITLE_RUBRIC)}(?: Write the title in [^.\\n]+\\.)?`),
+	/^The user has opened the note .+? in Obsidian\. This may or may not be related to the current conversation\. If it seems relevant, consider using the Read tool to examine its content\./,
+	/^The user has selected lines \d+-\d+ in .+?\. If relevant, use the Read tool to examine the specific lines\./,
+	/^The user has selected lines \d+-\d+ in the above note\. This is what they are currently focusing on\./,
+];
+
+/**
+ * Remove ONE complete leading block this file injected, or return null.
+ * Inverse of `wrapSystemInstruction`, the mention/opened-note wrappers and the
+ * bare title rubric / auto-mention hints built above and below.
+ */
+export function takeLeadingSenderBlock(text: string): string | null {
+	const wrapped = takeLeadingWrappedBlock(text, SENDER_BLOCK_TAGS);
+	if (wrapped !== null) return wrapped;
+	for (const re of SENDER_BARE_SENTENCES) {
+		const rest = takeLeadingSentence(text, re);
+		if (rest !== null) return rest;
+	}
+	return null;
+}
+
+/**
+ * Strip every plugin-injected block from replayed user text (I222 / I228).
+ *
+ * The single composition of the per-builder strippers, applied once at the
+ * trust boundary (message-state's `user_message_chunk` case). Removes complete
+ * injected blocks from the head of the text, where every builder places them,
+ * and Kiro V3 `<attached_file>` blocks from the tail (attachments follow the
+ * user's words). Attached-file blocks come back as `resource_link` chips.
+ * The user's own words are never touched. Pure and total.
+ */
+export function stripInjectedPromptText(text: string): {
+	text: string;
+	links: ResourceLinkPromptContent[];
+} {
+	const links: ResourceLinkPromptContent[] = [];
+	let rest = text;
+	for (;;) {
+		const file = takeLeadingAttachedFile(rest);
+		if (file) {
+			links.push(file.link);
+			rest = file.rest;
+			continue;
+		}
+		const next =
+			takeLeadingSenderBlock(rest) ??
+			takeLeadingContextBlock(rest) ??
+			takeLeadingCarryOverBlock(rest);
+		if (next === null) break;
+		rest = next;
+	}
+	const tail: ResourceLinkPromptContent[] = [];
+	for (let file = takeTrailingAttachedFile(rest); file; file = takeTrailingAttachedFile(rest)) {
+		tail.unshift(file.link);
+		rest = file.rest;
+	}
+	return { text: rest, links: [...links, ...tail] };
+}
+
+/**
+ * True when an agent-reported session title is really the head of an injected
+ * block (I223). Kiro V3 titles an untitled session with the first line of the
+ * stored prompt, i.e. `<obsidian_system_instruction>`; that must not be used
+ * as the session's title.
+ */
+export function isPlaceholderAgentTitle(title: string): boolean {
+	return /^<(?:obsidian_\w+|attached_file|carry_over_transcript)\b/.test(
+		title.trim(),
+	);
 }
 
 /**

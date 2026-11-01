@@ -79,6 +79,8 @@ export class SessionStore {
 		cwd: string;
 		messages: ChatMessage[];
 		suggestedTitle?: string | null;
+		/** Agent's own title, used only when the record is created (I223). */
+		seedTitle?: string | null;
 		now?: string;
 	}): Promise<void> {
 		return this.enqueue(async () => {
@@ -99,6 +101,7 @@ export class SessionStore {
 				messages: params.messages,
 				now: params.now ?? new Date().toISOString(),
 				suggestedTitle: params.suggestedTitle ?? null,
+				seedTitle: params.seedTitle ?? null,
 			});
 			if (write) await this.port.saveSession(write);
 		});

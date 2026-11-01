@@ -69,7 +69,7 @@ src/
 │   ├── agent-installer.ts       # In-plugin agent install (first-run): one-line npm -g install via login-shell PATH; summarizeInstallFailure → guidance
 │   ├── agent-packages.ts        # Built-in agent install metadata (npm package, docs setup slug, install-command form) — single source of truth
 │   ├── session-state.ts         # Session state updates (legacy mode/model, config restore)
-│   ├── message-state.ts         # Message array transforms (upsert, merge, streaming apply)
+│   ├── message-state.ts         # Message array transforms (upsert, merge, streaming apply); replayed user text is stripped of injected blocks here (I222)
 │   ├── message-sender.ts        # Prompt preparation + sending (pure functions)
 │   ├── carried-over-preview.ts  # Cross-agent carry-over preview builder (pure)
 │   ├── carry-over-builder.ts    # Cross-agent carry-over transcript + content blocks (pure)
@@ -229,6 +229,7 @@ src/
 │   ├── tab-label.ts             # Pure tab-label helpers: truncateLabel + suffixOnCollision (re-exported by useTabManager)
 │   ├── titleMarker.ts           # F03: parse/strip <title>…</title> from the head of the first reply (parseLeadingTitle + TitleHeadBuffer)
 │   ├── system-instructions.ts   # First-message system-instruction constants + sentinels (injected by message-sender; stripped by deriveTabLabel)
+│   ├── injected-blocks.ts       # Primitives that take one complete injected block off the head of replayed user text (I222; each builder exports its own stripper)
 │   ├── host-context-briefing.ts # Compose the Obsidian host-context briefing (per-block selection + cwd-in-vault gate) injected on first message; folds in the system-instruction hints
 │   ├── obsidian-system-prompt.ts # Pure composer of the Obsidian system-prompt briefing (host identity / rendering / cwd / vault-collab blocks) injected on first message
 │   ├── toolCallSummary.ts       # One-row tool-call summary derivation

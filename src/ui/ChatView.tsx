@@ -367,6 +367,8 @@ function ChatComponent({
 				sessionId: string;
 				messages: ChatMessage[];
 				contextNotes: ContextNote[];
+				/** Agent's title for a restore with no local record (I223). */
+				agentTitle?: string;
 			}
 		>
 	>({});
@@ -1050,7 +1052,12 @@ function ChatComponent({
 		// Fork is deferred to the Session History Source Model track; this
 		// orchestration handles RESTORE only (the `mode` param is retained for
 		// the upcoming fork path).
-		async (sessionId: string, cwd: string, mode: "restore" | "fork") => {
+		async (
+			sessionId: string,
+			cwd: string,
+			mode: "restore" | "fork",
+			agentTitle?: string,
+		) => {
 			void cwd; // cwd is carried for parity; agentCwd is resolved per tab.
 			// Switch-if-open is RESTORE-only (I20): restoring a session that is
 			// already open just focuses its tab. Fork must NOT switch — forking
@@ -1129,6 +1136,9 @@ function ChatComponent({
 						sessionId,
 						messages: messages ?? [],
 						contextNotes: contextNotes ?? [],
+						// I223: only a session with no local record needs the
+						// agent's title; a local record already has its own.
+						agentTitle: saved ? undefined : agentTitle,
 					},
 				}));
 				persistedSessionIdsRef.current.set(newTabId, sessionId);
@@ -1500,6 +1510,9 @@ function ChatComponent({
 								}
 								restoredForkTitle={
 									forkPayload[tab.tabId]?.title
+								}
+								restoredAgentTitle={
+									reopenPayload[tab.tabId]?.agentTitle
 								}
 								restoredMessages={resolveSeededMessages({
 									restore: reopenPayload[tab.tabId],

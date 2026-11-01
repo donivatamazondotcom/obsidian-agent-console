@@ -42,6 +42,7 @@ export function useHistoryModal(
 		sessionId: string,
 		cwd: string,
 		mode: "restore" | "fork",
+		agentTitle?: string,
 	) => void | Promise<void>,
 	onSetTabLabelCustom?: (tabId: string, label: string) => void,
 ): {
@@ -76,7 +77,7 @@ export function useHistoryModal(
 	onSetTabLabelCustomRef.current = onSetTabLabelCustom;
 
 	const handleRestoreSession = useCallback(
-		async (sessionId: string, cwd: string) => {
+		async (sessionId: string, cwd: string, agentTitle?: string) => {
 			// Open the session in a matched-or-new tab via ChatView's
 			// orchestration. Restore is gated on data + intent, not connection
 			// (I09/I41 superseded); the new tab reconnects lazily on first
@@ -89,6 +90,7 @@ export function useHistoryModal(
 					sessionId,
 					cwd,
 					"restore",
+					agentTitle,
 				);
 			} catch (error) {
 				new Notice(t("notices.sessionRestoreFailed"));

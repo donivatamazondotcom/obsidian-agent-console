@@ -7,6 +7,7 @@
 
 import type { ChatMessage } from "../types/chat";
 import type { SavedSessionInfo } from "../types/session";
+import { isPlaceholderAgentTitle } from "./message-sender";
 
 /**
  * Derive a session title (<=50 chars) from the first user message.
@@ -38,7 +39,8 @@ export function deriveSessionTitle(messages: ChatMessage[]): string {
  * Single precedence resolver consulted by the SessionStore single-writer so
  * every writer agrees on the title regardless of save ordering:
  *
- *   AI-suggested  >  existing persisted title  >  first-message-derived
+ *   AI-suggested  >  existing persisted title  >  agent title (create only)
+ *     >  first-message-derived
  *
  * - An explicit `suggestedTitle` (the F03 `<title>` marker resolved from the
  *   reply head) always wins — top precedence.
@@ -58,11 +60,22 @@ export function deriveSessionTitle(messages: ChatMessage[]): string {
 export function deriveSessionRecordTitle(inputs: {
 	existing?: SavedSessionInfo;
 	suggestedTitle?: string | null;
+	/**
+	 * The agent's own title for the session (from `session/list`), used only
+	 * when the record is CREATED — e.g. the first save after restoring a
+	 * session the agent lists but this plugin has no record of (I223). It
+	 * ranks below an existing title so it can never undo a rename or an AI
+	 * title. A placeholder title (the head of an injected block, as Kiro V3
+	 * reports for an untitled session) is ignored.
+	 */
+	seedTitle?: string | null;
 	messages?: ChatMessage[];
 }): string {
 	const ai = inputs.suggestedTitle?.trim();
 	if (ai) return ai;
 	if (inputs.existing?.title) return inputs.existing.title;
+	const seed = inputs.seedTitle?.trim();
+	if (seed && !isPlaceholderAgentTitle(seed)) return seed;
 	return deriveSessionTitle(inputs.messages ?? []);
 }
 
@@ -94,11 +107,13 @@ export function resolveSessionMetadataWrite(
 		messages: ChatMessage[];
 		now: string;
 		suggestedTitle?: string | null;
+		seedTitle?: string | null;
 	},
 ): SavedSessionInfo | null {
 	const title = deriveSessionRecordTitle({
 		existing,
 		suggestedTitle: params.suggestedTitle,
+		seedTitle: params.seedTitle,
 		messages: params.messages,
 	});
 	if (existing) {

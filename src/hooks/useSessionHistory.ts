@@ -80,6 +80,15 @@ export interface UseSessionHistoryOptions {
 	onClearMessages?: () => void;
 	/** Callback invoked when crystallized context notes should be restored */
 	onContextNotesRestore?: (notes: ContextNote[]) => void;
+
+	/**
+	 * The agent's own title for a session this tab restored from the agent's
+	 * session list without a local record (I223). Every save forwards it to
+	 * the single writer as a create-only seed, so the record is created under
+	 * the agent's title instead of the first replayed message. It never
+	 * overrides an existing title.
+	 */
+	restoredAgentTitle?: string | null;
 }
 
 /**
@@ -303,6 +312,7 @@ export function useSessionHistory(
 		onIgnoreUpdates,
 		onClearMessages,
 		onContextNotesRestore,
+		restoredAgentTitle,
 	} = options;
 
 	// Consume the normalized capability record produced once at the acp/ edge.
@@ -909,11 +919,12 @@ export function useSessionHistory(
 				cwd: agentCwd,
 				messages,
 				suggestedTitle: suggestedTitle ?? null,
+				seedTitle: restoredAgentTitle ?? null,
 			});
 
 			return writePromise;
 		},
-		[session.agentId, agentCwd, settingsAccess, sessionStore],
+		[session.agentId, agentCwd, settingsAccess, sessionStore, restoredAgentTitle],
 	);
 
 	/**

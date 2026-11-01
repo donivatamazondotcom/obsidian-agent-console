@@ -13,6 +13,7 @@ import type {
 	PermissionOption,
 } from "../types/chat";
 import type { SessionUpdate } from "../types/session";
+import { stripInjectedPromptText } from "./message-sender";
 
 // ============================================================================
 // Types
@@ -169,6 +170,55 @@ export function applyUpdateLastMessage(
 }
 
 /**
+ * Apply a replayed `user_message_chunk` (I222 / I228) — the trust boundary
+ * where agent-replayed user text enters message state.
+ *
+ * The agent replays the prompt it received, so the text carries every block
+ * the plugin injected around the user's words. The chunk is joined onto the
+ * current user message's text and the result is re-stripped with
+ * `stripInjectedPromptText`. Re-stripping the joined text (not the chunk
+ * alone) removes a block whose halves arrived in separate chunks: an
+ * incomplete block never matches, so it waits for its closing half. Kiro V3
+ * `<attached_file>` blocks come back as file chips.
+ */
+export function applyReplayedUserChunk(
+	prev: ChatMessage[],
+	chunk: string,
+): ChatMessage[] {
+	const last = prev[prev.length - 1];
+	const current =
+		last?.role === "user"
+			? last.content.find(
+					(c): c is Extract<MessageContent, { type: "text" }> =>
+						c.type === "text",
+				)
+			: undefined;
+	const { text, links } = stripInjectedPromptText(
+		(current?.text ?? "") + chunk,
+	);
+
+	let next = prev;
+	if (current) {
+		// Replace the text block in place (it already holds earlier chunks).
+		next = [
+			...prev.slice(0, -1),
+			{
+				...last,
+				content: last.content.map((c) =>
+					c === current ? { type: "text" as const, text } : c,
+				),
+			},
+		];
+	} else if (text) {
+		next = applyUpdateUserMessage(prev, { type: "text", text });
+	}
+	for (const link of links) {
+		next = applyUpdateUserMessage(next, link);
+	}
+	return next;
+}
+
+/**
  * Apply a "last user message" update to the messages array.
  * Creates a new user message if needed. Used for session/load history replay.
  */
@@ -205,6 +255,9 @@ export function applyUpdateUserMessage(
 		} else {
 			updatedMessage.content.push(content);
 		}
+	} else if (content.type === "resource_link") {
+		// A message can carry several file chips; each one is kept (I222 a3).
+		updatedMessage.content = [...updatedMessage.content, content];
 	} else {
 		const existingIndex = updatedMessage.content.findIndex(
 			(c) => c.type === content.type,
@@ -375,10 +428,7 @@ export function applySingleUpdate(
 		}
 		case "user_message_chunk":
 			if (continuity) continuity.lastApplied = "other";
-			return applyUpdateUserMessage(prev, {
-				type: "text",
-				text: update.text,
-			});
+			return applyReplayedUserChunk(prev, update.text);
 		case "tool_call":
 		case "tool_call_update":
 			if (continuity) continuity.lastApplied = "other";
