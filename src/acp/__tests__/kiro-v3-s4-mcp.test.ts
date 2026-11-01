@@ -94,6 +94,17 @@ describe("parseKiroMcpStatus (T7)", () => {
 		expect(JSON.stringify(parsed)).not.toContain("mcp.json");
 	});
 
+	it("an abandoned sign-in (failed, no failedAuthorization, but an authorizationUrl) still needs sign-in", () => {
+		// Live 2026-10-27: after the user closes the sign-in page, Kiro's attempt
+		// times out and reports failedAuthorization: false with the URL attached.
+		const parsed = parseKiroMcpStatus({
+			sessionId: "s1",
+			servers: [wireServer("sheets", "failed", { failedAuthorization: false, authorizationUrl: SECRET_URL, errorMessage: "timed out" })],
+		});
+		expect(parsed.servers[0]).toMatchObject({ name: "sheets", status: "failed", failedAuthorization: true });
+		expect(JSON.stringify(parsed)).not.toContain("auth.example.com");
+	});
+
 	it("maps an unknown status to 'unknown' instead of guessing", () => {
 		const parsed = parseKiroMcpStatus({ sessionId: "s1", servers: [wireServer("x", "warming")] });
 		expect(parsed.servers[0].status).toBe("unknown");

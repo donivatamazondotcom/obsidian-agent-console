@@ -265,27 +265,49 @@ describe("S4 smoke findings", () => {
 		expect(Notice.instances.length).toBe(count);
 	});
 
-	it("check 3: a second Sign in click opens its page even if the first reset fails afterwards", async () => {
-		const rejects: Array<(e: Error) => void> = [];
+	it("round 2: a second click while Kiro still waits on the first sign-in reopens that page at once", () => {
 		const manager = new McpAuthManager();
-		const client = makeV3Client(
-			() => new Promise<void>((_res, rej) => { rejects.push(rej); }),
-		);
+		const client = makeV3Client(() => new Promise<void>(() => {}));
 		manager.trackClient("view-1", client);
 		client.emit(snap(srv("sheets", "failed", true)));
 		manager.openSignIn(manager.getPending()[0]);
 		client.emit({ kind: "open_external_url", url: URL_1 });
-		expect(open).toHaveBeenCalledTimes(1);
-
-		// User closed the page and clicks Sign in again; the server supersedes
-		// the first attempt, which then rejects.
 		client.emit(snap(srv("sheets", "connecting")));
-		manager.openSignIn(manager.getPending()[0]);
-		rejects[0](new Error("superseded"));
-		await new Promise((r) => setTimeout(r, 0));
 
-		client.emit({ kind: "open_external_url", url: URL_1 + "&2" });
+		manager.openSignIn(manager.getPending()[0]);
+		// Kiro runs one sign-in per server at a time, so a second reset would
+		// wait for the first to time out (~60 s). Reopen the live page instead.
+		expect(client.resetMcpServer).toHaveBeenCalledTimes(1);
 		expect(open).toHaveBeenCalledTimes(2);
+		expect(open).toHaveBeenLastCalledWith(URL_1);
+	});
+
+	it("round 2: once the attempt ends, Sign in starts a new one", async () => {
+		let finish: () => void = () => {};
+		const manager = new McpAuthManager();
+		const client = makeV3Client(() => new Promise<void>((res) => { finish = res; }));
+		manager.trackClient("view-1", client);
+		client.emit(snap(srv("sheets", "failed", true)));
+		manager.openSignIn(manager.getPending()[0]);
+		client.emit({ kind: "open_external_url", url: URL_1 });
+		finish();
+		await new Promise((r) => setTimeout(r, 0));
+		client.emit(snap(srv("sheets", "failed", true)));
+		manager.openSignIn(manager.getPending()[0]);
+		expect(client.resetMcpServer).toHaveBeenCalledTimes(2);
+	});
+
+	it("round 2: a page Kiro sends during an attempt that already opened one doesn't add a prompt", () => {
+		const manager = new McpAuthManager();
+		const client = makeV3Client(() => new Promise<void>(() => {}));
+		manager.trackClient("view-1", client);
+		client.emit(snap(srv("sheets", "failed", true)));
+		manager.openSignIn(manager.getPending()[0]);
+		client.emit({ kind: "open_external_url", url: URL_1 });
+		const notices = Notice.instances.length;
+		client.emit({ kind: "open_external_url", url: URL_1 + "&again" });
+		expect(Notice.instances.length).toBe(notices);
+		expect(manager.getPending()[0].oauthUrl).toBeUndefined();
 	});
 
 	it("an unnamed sign-in URL is matched to the one server waiting in the status, never labeled 'MCP server'", () => {
