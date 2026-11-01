@@ -34,20 +34,20 @@ describe("deriveHeaderRuntime", () => {
 		expect(
 			deriveHeaderRuntime({
 				agentInfo: { name: "test-agent", title: "Test Agent", version: "1.2.3" },
-				isKiroV3: true,
+				kiroEngine: "v3",
 			}),
 		).toEqual({ kind: "reported", label: "Test Agent 1.2.3" });
 		expect(
-			deriveHeaderRuntime({ agentInfo: { name: "test-agent" }, isKiroV3: false }),
+			deriveHeaderRuntime({ agentInfo: { name: "test-agent" }, kiroEngine: "v2" }),
 		).toEqual({ kind: "reported", label: "test-agent" });
 	});
 
 	it("Kiro CLI V3 with no agentInfo → kiroV3", () => {
-		expect(deriveHeaderRuntime({ isKiroV3: true })).toEqual({ kind: "kiroV3" });
+		expect(deriveHeaderRuntime({ kiroEngine: "v3" })).toEqual({ kind: "kiroV3" });
 	});
 
 	it("anything else with no agentInfo → unknown", () => {
-		expect(deriveHeaderRuntime({ isKiroV3: false })).toEqual({ kind: "unknown" });
+		expect(deriveHeaderRuntime({ kiroEngine: "v2" })).toEqual({ kind: "unknown" });
 	});
 });
 

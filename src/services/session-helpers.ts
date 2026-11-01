@@ -285,7 +285,8 @@ export function resolveCwdForAgent(
 /**
  * Kiro CLI engine for an agent: the built-in Kiro agent's setting or a custom
  * agent's, v2 for everything else. The one place that maps an agent id to its
- * engine (launch config and header both read it).
+ * engine for a NEW launch. A running tab reads `session.kiroEngine`, the
+ * engine it was launched with, never this live setting (I235).
  */
 export function resolveAgentKiroEngine(
 	settings: Pick<AgentClientPluginSettings, "kiro" | "customAgents">,
