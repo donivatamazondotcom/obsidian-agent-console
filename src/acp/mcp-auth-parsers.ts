@@ -139,7 +139,13 @@ export function parseKiroMcpStatus(params: unknown): KiroMcpStatusParams {
 		servers.push({
 			name: entry.name,
 			status,
-			failedAuthorization: entry.failedAuthorization === true,
+			// An abandoned sign-in times out as failedAuthorization: false but
+			// keeps its authorizationUrl (live 2026-10-27): still needs sign-in.
+			failedAuthorization:
+				entry.failedAuthorization === true ||
+				(status === "failed" &&
+					typeof entry.authorizationUrl === "string" &&
+					entry.authorizationUrl.length > 0),
 			...(typeof entry.errorMessage === "string" &&
 				entry.errorMessage.length > 0 && { errorMessage: entry.errorMessage }),
 		});

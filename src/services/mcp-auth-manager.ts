@@ -209,7 +209,14 @@ export class McpAuthManager {
 	 */
 	private signInAttempts = new Map<
 		string,
-		{ id: number; serverName: string; at: number; pageOpened: boolean }
+		{
+			id: number;
+			serverName: string;
+			at: number;
+			pageOpened: boolean;
+			/** The page Kiro sent for this attempt. Kept in memory only. */
+			url?: string;
+		}
 	>();
 	private nextAttemptId = 1;
 	/** V3: signature of the failure list the user dismissed, per view. */
@@ -315,7 +322,21 @@ export class McpAuthManager {
 			return;
 		}
 		const viewId = internal.viewId;
-		const attempt = {
+		// Kiro runs one sign-in per server at a time: a second reset waits
+		// for the first to time out (~60 s, live 2026-10-27). While an
+		// attempt is still open, reopen its page instead of starting another.
+		const live = this.signInAttempts.get(viewId);
+		if (live && live.serverName === internal.serverName) {
+			if (live.url) window.open(live.url);
+			return;
+		}
+		const attempt: {
+			id: number;
+			serverName: string;
+			at: number;
+			pageOpened: boolean;
+			url?: string;
+		} = {
 			id: this.nextAttemptId++,
 			serverName: internal.serverName,
 			at: Date.now(),
@@ -327,7 +348,12 @@ export class McpAuthManager {
 		// user abandoned or failed that sign-in, not that in-app sign-in is
 		// impossible. Only a rejection before any page arrived falls back.
 		// A rejection from an attempt the user already replaced is ignored.
-		reset(internal.serverName).catch(() => {
+		const settle = () => {
+			if (this.signInAttempts.get(viewId)?.id === attempt.id) {
+				this.signInAttempts.delete(viewId);
+			}
+		};
+		reset(internal.serverName).then(settle, () => {
 			if (this.signInAttempts.get(viewId)?.id !== attempt.id) return;
 			this.signInAttempts.delete(viewId);
 			if (attempt.pageOpened) {
@@ -360,13 +386,14 @@ export class McpAuthManager {
 	private handleEvent(viewId: string, event: McpAuthEvent): void {
 		if (event.kind === "open_external_url") {
 			const attempt = this.signInAttempts.get(viewId);
-			if (
-				attempt &&
-				!attempt.pageOpened &&
-				Date.now() - attempt.at <= SIGN_IN_OPEN_WINDOW_MS
-			) {
-				attempt.pageOpened = true;
-				window.open(event.url);
+			if (attempt && Date.now() - attempt.at <= SIGN_IN_OPEN_WINDOW_MS) {
+				// The first page opens; a later one in the same attempt (Kiro
+				// retrying inside it) only replaces the page Sign in reopens.
+				attempt.url = event.url;
+				if (!attempt.pageOpened) {
+					attempt.pageOpened = true;
+					window.open(event.url);
+				}
 				return;
 			}
 		}
