@@ -32,7 +32,16 @@
  *     composer keeps the text and the user re-clicks send to retry.
  *
  *   - **Sticky session:** once `ready`, subsequent `onSendClick`s reuse
- *     the same sessionId; no idle GC in v1 (Decision #4).
+ *     the same sessionId.
+ *
+ *   - **Idle release (I209, supersedes Decision #4's "no idle GC"):**
+ *     `release()` moves the live sessionId into the restored-id slot and
+ *     goes `ready → released`. The id is kept, not forgotten: the next
+ *     keystroke or send takes the restored-tab path (`loadExistingSession`,
+ *     falling back to new plus transcript), so a released tab behaves like a
+ *     tab restored from disk. `keptSessionId` keeps the id persistable
+ *     while no session is live. The caller decides WHEN (decideProcessHold)
+ *     and kills the process; this hook only moves the id and the state.
  *
  *   - **Reset:** any state → `idle`, sessionId released, fallback flag
  *     cleared. Post-reset, the tab behaves as fresh (the original
@@ -141,6 +150,16 @@ export interface UseLazySessionApi {
 	sessionId: string | null;
 
 	/**
+	 * The id held for the next acquisition: the restored id, or the id kept by
+	 * `release()` (I209). Null for a fresh tab that never released, and after
+	 * reset or a lossy fallback. The consumer passes THIS as the persisted id
+	 * to `resolveSessionIdForSave` instead of its mount-time snapshot, so a
+	 * fresh tab that released still survives a restart. (Not `sessionId ??
+	 * kept`: that would persist a fresh eager tab before its first message.)
+	 */
+	keptSessionId: string | null;
+
+	/**
 	 * `true` if this session was acquired via `loadExistingSession` →
 	 * `acquireNewSession` fallback. Drives the LossyFallbackNotice (Slice 6)
 	 * and the consumer's decision to prepend Slice 1's replay-context block.
@@ -204,6 +223,20 @@ export interface UseLazySessionApi {
 	 * Read at send time to decide "first message" (I241).
 	 */
 	continuesExistingSession: () => boolean;
+
+	/**
+	 * Idle release (I209): `ready → released`, keeping the id for the next
+	 * acquisition. Returns false (and changes nothing) unless the tab is
+	 * `ready`, a session is bound, and no acquisition or typing debounce is
+	 * pending. Does not touch the process — the caller tears it down.
+	 */
+	release: () => boolean;
+
+	/**
+	 * An acquisition is in flight or about to fire (the typing debounce is
+	 * armed). Read as the `acquiring` busy signal by decideProcessHold.
+	 */
+	isAcquisitionPending: () => boolean;
 
 	// State machine transitions for busy/permission — driven by ChatPanel
 	// in response to agent events (isSending, hasActivePermission).
@@ -327,8 +360,13 @@ export function useLazySession(
 				// context block lives in the consumer; we just signal the
 				// fallback path was taken.
 				setIsFallbackRecovery(true);
-				restoredSessionIdRef.current = null;
 				result = await acquireNewSessionRef.current();
+				// Cleared only after the new session settles, so the kept id
+				// stays persistable while it is in flight (I209: the consumer
+				// persists keptSessionId). Not cleared if a reset superseded us.
+				if (generation === acquisitionGenerationRef.current) {
+					restoredSessionIdRef.current = null;
+				}
 			}
 		} else {
 			result = await acquireNewSessionRef.current();
@@ -468,6 +506,32 @@ export function useLazySession(
 	}, []);
 
 	// ============================================================================
+	// release — idle release, keeping the id (I209)
+	// ============================================================================
+
+	const release = useCallback((): boolean => {
+		const id = sessionIdRef.current;
+		if (id === null) return false;
+		if (isAcquiringRef.current) return false;
+		if (debounceTimerRef.current !== null) return false;
+		if (tabStateRef.current.state !== "ready") return false;
+		// Keep the id where the restored-tab path reads it, so the next
+		// fireAcquisition loads it instead of creating a new session.
+		restoredSessionIdRef.current = id;
+		sessionIdRef.current = null;
+		// Supersede anything still resolving against the released process.
+		acquisitionGenerationRef.current += 1;
+		setSessionId(null);
+		tabStateRef.current.release();
+		return true;
+	}, []);
+
+	const isAcquisitionPending = useCallback(
+		() => isAcquiringRef.current || debounceTimerRef.current !== null,
+		[],
+	);
+
+	// ============================================================================
 	// acquireNow — explicit eager acquisition through the single owner
 	// ============================================================================
 
@@ -568,6 +632,9 @@ export function useLazySession(
 	return {
 		state: tabState.state,
 		sessionId,
+		// Read at render: release(), reset() and a settled fallback all
+		// re-render, so the ref is current when this is read.
+		keptSessionId: restoredSessionIdRef.current,
 		isFallbackRecovery,
 		onComposerChange,
 		onSendClick,
@@ -576,6 +643,8 @@ export function useLazySession(
 		reloadNow,
 		continuesExistingSession,
 		reset,
+		release,
+		isAcquisitionPending,
 		// Expose state machine transitions for busy/permission — driven
 		// by ChatPanel in response to agent events (isSending,
 		// hasActivePermission). These are stable references from

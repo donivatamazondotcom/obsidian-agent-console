@@ -71,7 +71,9 @@ export function deriveA2uiTabDispatch(
 		case "idle":
 		case "connecting":
 		case "error":
-			// No live session: reconnect, then deliver.
+		case "released":
+			// No live session (released: process paused, id kept — I209):
+			// reconnect, then deliver.
 			return { kind: "acquireAndSend" };
 	}
 }

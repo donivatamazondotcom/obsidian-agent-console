@@ -17,12 +17,19 @@
  *     permission   — Agent waiting on a permission decision
  *     error        — Acquisition failed (after replay-fallback also failed),
  *                    OR initialize never completed (agent process not running)
+ *     released     — Process released after an hour idle (I209). Session id
+ *                    kept; the next keystroke or send reconnects.
  *
  * Transition methods enforce intent at the type level. Strict transition
  * gating (rejecting illegal moves like `endBusy` from `idle`) is NOT
- * enforced here — Slice 3 wires the real lifecycle and validates
- * sequences at the boundary; this hook only ensures each method mutates
- * state correctly when called.
+ * enforced for the original six states — Slice 3 wires the real lifecycle
+ * and validates sequences at the boundary.
+ *
+ * `released` (I209) is the exception and is gated here: RELEASE is legal
+ * only from `ready`, and a released tab leaves only by START_CONNECT
+ * (keystroke / send) or RESET (new chat / agent switch). Busy, permission and
+ * connect-result actions are rejected, so a late event from the released
+ * process can't make the tab look live.
  *
  * Implementation note: `useReducer` is used (not `useState` + setters)
  * so that transition method identities are stable across renders. This
@@ -76,6 +83,9 @@ export interface TabSessionStateApi {
 
 	/** Force back to idle (e.g., new chat / reset). Any state → idle. */
 	reset: () => void;
+
+	/** Idle release (I209). ready → released; every other state unchanged. */
+	release: () => void;
 }
 
 // ============================================================================
@@ -90,9 +100,19 @@ type Action =
 	| { type: "END_BUSY" }
 	| { type: "REQUEST_PERMISSION" }
 	| { type: "RESOLVE_PERMISSION" }
-	| { type: "RESET" };
+	| { type: "RESET" }
+	| { type: "RELEASE" };
 
-function reducer(_state: TabSessionState, action: Action): TabSessionState {
+function reducer(state: TabSessionState, action: Action): TabSessionState {
+	// I209 gates: RELEASE only from ready; released accepts only connect / reset.
+	if (action.type === "RELEASE") return state === "ready" ? "released" : state;
+	if (
+		state === "released" &&
+		action.type !== "START_CONNECT" &&
+		action.type !== "RESET"
+	) {
+		return state;
+	}
 	switch (action.type) {
 		case "START_CONNECT":
 			return "connecting";
@@ -149,6 +169,7 @@ export function useTabSessionState(
 		[],
 	);
 	const reset = useCallback(() => dispatch({ type: "RESET" }), []);
+	const release = useCallback(() => dispatch({ type: "RELEASE" }), []);
 
 	return {
 		state,
@@ -160,5 +181,6 @@ export function useTabSessionState(
 		requestPermission,
 		resolvePermission,
 		reset,
+		release,
 	};
 }

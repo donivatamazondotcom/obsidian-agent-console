@@ -22,6 +22,7 @@ const EXPECTED: Record<TabState, string> = {
 	permission: "△",
 	error: "✕",
 	disconnected: "○",
+	released: "◌",
 };
 
 describe("stateGlyph (Tab Dropdown Status Indicators)", () => {

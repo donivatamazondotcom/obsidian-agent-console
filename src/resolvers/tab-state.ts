@@ -60,7 +60,9 @@ export interface TabStateInput {
  *  2. `idle`/`connecting` → disconnected (no live session yet; a pending send
  *     during connect does NOT show busy — matches the pre-existing connect
  *     display and the header's "Connecting…" semantics).
- *  3. live lifecycle (`ready`/`busy`/`permission`):
+ *  3. `released` → released (the quiet ring, I209). The process is gone, so
+ *     stale sending / permission flags from before the release are ignored.
+ *  4. live lifecycle (`ready`/`busy`/`permission`):
  *       - active permission wins over sending → permission
  *       - else processing → busy
  *       - else → ready
@@ -74,6 +76,8 @@ export function deriveTabState(input: TabStateInput): TabState {
 		case "idle":
 		case "connecting":
 			return "disconnected";
+		case "released":
+			return "released";
 		case "ready":
 		case "busy":
 		case "permission": {

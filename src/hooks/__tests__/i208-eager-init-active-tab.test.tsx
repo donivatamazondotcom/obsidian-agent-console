@@ -44,7 +44,14 @@ function PanelLike({
 	origin: TabOrigin;
 }) {
 	useEagerInitialize({
-		decision: decideProcessHold({ isActive, origin, hasForkSource: false }),
+		decision: decideProcessHold({
+			isActive,
+			origin,
+			hasForkSource: false,
+			liveSession: false,
+			idleMs: 0,
+			busy: [],
+		}),
 		isInitialized: () => client.isInitialized(),
 		initialize: () => client.initialize(),
 	});
@@ -144,6 +151,9 @@ describe("I208 eager initialize with restored tabs", () => {
 					isActive: active,
 					origin: "restored",
 					hasForkSource: false,
+					liveSession: false,
+					idleMs: 0,
+					busy: [],
 				}),
 				isInitialized: () => a.isInitialized(),
 				initialize: () => a.initialize(),
