@@ -356,3 +356,23 @@ export function kiroConsentForChoice(
 	return { scope: "session", resource, ...(workspaceRoot !== undefined && { workspaceRoot }) };
 }
 
+/** V3 agent-to-client request: which shell do the client's terminals use? */
+export const KIRO_TERMINAL_SHELL_TYPE_METHOD = "_kiro/terminal/shell_type";
+
+/**
+ * The shell Agent Console's terminal handler spawns commands in (see
+ * `prepareShellCommand`): the login shell on macOS / Linux, WSL in WSL mode,
+ * else `cmd.exe` (Node's `shell: true`). Kiro uses the answer to check that a
+ * saved permission rule would match the command. Without it, Kiro offers
+ * only one-time choices (found in the S5 smoke).
+ */
+export function clientShellType(env: {
+	platform: string;
+	loginShell: string;
+	wslMode: boolean;
+}): string {
+	if (env.platform === "win32") return env.wslMode ? "wsl" : "cmd";
+	const base = env.loginShell.split("/").pop() ?? "";
+	return base.length > 0 ? base : "sh";
+}
+

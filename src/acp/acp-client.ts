@@ -6,6 +6,8 @@ import {
 } from "../services/a2ui/capability";
 import {
 	buildClientCapabilities,
+	clientShellType,
+	KIRO_TERMINAL_SHELL_TYPE_METHOD,
 	kiroV3SessionMeta,
 	prepareKiroV3Launch,
 	resolveLaunchArgs,
@@ -54,6 +56,7 @@ import type AgentClientPlugin from "../plugin";
 import {
 	convertWindowsPathToWsl,
 	getEnhancedWindowsEnv,
+	getLoginShell,
 	prepareShellCommand,
 } from "../utils/platform";
 import {
@@ -167,6 +170,12 @@ export class AcpClient {
 			() => this.currentConfig?.workingDirectory ?? "",
 			() => this.currentSessionId,
 			this.logger,
+			() =>
+				clientShellType({
+					platform: Platform.isWin ? "win32" : "posix",
+					loginShell: Platform.isWin ? "" : getLoginShell(),
+					wslMode: this.plugin.settings.windowsWslMode,
+				}),
 		);
 	}
 
@@ -1395,5 +1404,11 @@ export function registerClientHandlers(
 			KIRO_OPEN_EXTERNAL_URL_METHOD,
 			parseOpenExternalUrl,
 			(ctx) => Promise.resolve(handler.openExternalUrl(ctx.params)),
+		)
+		// Kiro CLI V3 (S5): which shell our terminals use, for saved rules.
+		.onRequest(
+			KIRO_TERMINAL_SHELL_TYPE_METHOD,
+			(params: unknown) => params,
+			() => Promise.resolve(handler.terminalShellType()),
 		);
 }
