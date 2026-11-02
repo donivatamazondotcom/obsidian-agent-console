@@ -8,7 +8,7 @@
  * title rubric again. In the I222 smoke the agent answered the rubric with a
  * `<title>`, and the AI title then replaced the agent's title (I223 undone).
  *
- * Fix contract: the decision goes through `isFirstMessageOfSession`, which
+ * Fix contract: the decision goes through `decideFirstMessage`, which
  * also asks the lazy-session owner whether the tab continues an existing
  * session. Entry seam: the public hook API; the agent facade is a mock
  * (architecture boundary for this hook).

@@ -104,8 +104,24 @@ export interface PreparePromptInput {
 	/** Maximum characters for selection (default: 10000) */
 	maxSelectionLength?: number;
 
-	/** Whether this is the first message in the session */
+	/**
+	 * First message of the CHAT (title rubric). See resolvers/first-message.ts.
+	 */
 	isFirstMessage?: boolean;
+
+	/**
+	 * First message of this AGENT SESSION: send the system instruction (I265).
+	 * True on a new chat and on a fallback's fresh session. Defaults to
+	 * `isFirstMessage` when unset.
+	 */
+	sendsSystemInstruction?: boolean;
+
+	/**
+	 * Earlier conversation for a session that doesn't have it (agent switch,
+	 * fallback). Placed right after the system instruction, before context
+	 * and the user's text (I265).
+	 */
+	carryOverBlocks?: PromptContent[];
 
 	/** Session working directory (cwd) for the host-context briefing; falls back to vaultBasePath when unset. */
 	workingDirectory?: string;
@@ -383,7 +399,7 @@ function buildAutoMentionPrefix(
 export function buildObsidianSystemPrompt(
 	input: PreparePromptInput,
 ): string | null {
-	if (!input.isFirstMessage) return null;
+	if (!(input.sendsSystemInstruction ?? input.isFirstMessage)) return null;
 	return composeObsidianSystemPrompt(
 		input.obsidianSystemPrompt ?? DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
 		{
@@ -766,6 +782,7 @@ async function preparePromptWithContextNotes(
 	// Build agent content (formatting hints + context + mentions + title rubric + user message + images + resource links)
 	const agentContent: PromptContent[] = [
 		...systemBlocks,
+		...(input.carryOverBlocks ?? []),
 		...contextBlocks,
 		...mentionBlocks,
 		...titleRubricBlocks,
@@ -864,6 +881,7 @@ async function preparePromptWithEmbeddedContext(
 
 	const agentContent: PromptContent[] = [
 		...systemBlocks,
+		...(input.carryOverBlocks ?? []),
 		...resourceBlocks,
 		...autoMentionBlocks,
 		...titleRubricBlocks,
@@ -965,7 +983,11 @@ async function preparePromptWithTextContext(
 		contextBlocks,
 	);
 
+	// Legacy text path (no contextNotes; real sends never take it): the
+	// instruction is folded into one text with the context, so the earlier
+	// conversation keeps its old place at the head.
 	const agentContent: PromptContent[] = [
+		...(input.carryOverBlocks ?? []),
 		...(agentMessageText
 			? [{ type: "text" as const, text: agentMessageText }]
 			: []),

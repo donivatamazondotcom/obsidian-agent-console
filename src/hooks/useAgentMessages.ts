@@ -75,8 +75,14 @@ export interface SendMessageOptions {
 	images?: ImagePromptContent[];
 	/** Attached file references (resource links) */
 	resourceLinks?: ResourceLinkPromptContent[];
-	/** Whether this is the first message in the session */
+	/** First message of the chat: title rubric and title head buffer (I265). */
 	isFirstMessage?: boolean;
+	/**
+	 * First message of this agent session: send the system instruction. True
+	 * on a new chat and on a fallback's fresh session (I265). Defaults to
+	 * `isFirstMessage` when unset.
+	 */
+	sendsSystemInstruction?: boolean;
 	/** Session working directory (cwd) for the host-context briefing. */
 	workingDirectory?: string;
 	/** True vault root for the host-context vault-collaboration gate. */
@@ -564,6 +570,14 @@ export function useAgentMessages(
 					supportsEmbeddedContext:
 						session.promptCapabilities?.embeddedContext ?? false,
 					isFirstMessage: options.isFirstMessage,
+					sendsSystemInstruction: options.sendsSystemInstruction,
+					// Earlier conversation for a session that doesn't have it
+					// (agent switch, fallback): preparePrompt places it after
+					// the system instruction (I265, [[Agent-Portable Sessions]]).
+					carryOverBlocks:
+						options.carryOverBlocks && options.carryOverBlocks.length > 0
+							? options.carryOverBlocks
+							: undefined,
 					titleStrategy: settingsAccess.getSnapshot().titleStrategy,
 					replyLanguageName: getReplyLanguage()?.englishName ?? null,
 					obsidianSystemPrompt:
@@ -576,15 +590,6 @@ export function useAgentMessages(
 				vaultAccess,
 				vaultAccess, // IMentionService (same object)
 			);
-
-			// Cross-agent carry-over: prepend earlier conversation as context
-			// blocks on the first send to the new agent ([[Agent-Portable Sessions]]).
-			if (options.carryOverBlocks && options.carryOverBlocks.length > 0) {
-				prepared.agentContent = [
-					...options.carryOverBlocks,
-					...prepared.agentContent,
-				];
-			}
 
 			const userMessageContent: MessageContent[] = [];
 

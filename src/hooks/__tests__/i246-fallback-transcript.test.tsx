@@ -436,7 +436,9 @@ describe("I246 restored tab: the first send after a fallback carries the transcr
 
 		const [sid, content] = tab.wire.mock.calls[0];
 		expect(sid).toBe("new-1");
-		const head = textOf(content[0]);
+		// I265: the system instruction leads; the transcript comes next.
+		expect(textOf(content[0])).toContain("<obsidian_system_instruction>");
+		const head = textOf(content[1]);
 		expect(head).toContain("<carry_over_transcript>");
 		expect(head).toContain("User: Remember the number 7.");
 		expect(head).toContain("Assistant: Got it, I will remember 7.");
@@ -462,7 +464,8 @@ describe("I246 restored tab: the first send after a fallback carries the transcr
 		});
 		await tab.send("What number did I ask you to remember?");
 		expect(tab.hook.result.current.lazy.fallbackReason).toBe("engine-changed");
-		expect(textOf(tab.wire.mock.calls[0][1][0])).toContain(
+		// I265: block 0 is the system instruction; the transcript follows.
+		expect(textOf(tab.wire.mock.calls[0][1][1])).toContain(
 			"User: Remember the number 7.",
 		);
 	});
@@ -496,7 +499,8 @@ describe("I264 restored tab: Kiro V3 loads an id it never had, empty", () => {
 		expect(tab.hook.result.current.lazy.fallbackReason).toBe("unavailable");
 		const [sid, content] = tab.wire.mock.calls[0];
 		expect(sid).toBe("new-1");
-		expect(textOf(content[0])).toContain("User: Remember the number 7.");
+		// I265: block 0 is the system instruction; the transcript follows.
+		expect(textOf(content[1])).toContain("User: Remember the number 7.");
 
 		await act(async () => {
 			await tab.hook.result.current.actions.handleSendMessage("And doubled?");
