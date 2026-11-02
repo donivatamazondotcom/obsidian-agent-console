@@ -71,7 +71,7 @@ afterAll(() => {
 function makeSettings(engine: "v2" | "v3") {
 	const agent: Record<string, unknown> = {
 		id: AGENT,
-		displayName: "Kiro (old)",
+		displayName: "Kiro (old CLI)",
 		command: stub,
 		args: ["acp"],
 		env: [],
@@ -116,7 +116,7 @@ const vault = {} as IVaultAccess & IMentionService;
 function v3Config() {
 	return {
 		id: AGENT,
-		displayName: "Kiro (old)",
+		displayName: "Kiro (old CLI)",
 		command: stub,
 		args: ["acp"],
 		env: {},
@@ -139,6 +139,8 @@ describe("D3: older kiro-cli without V3", () => {
 		expect(info?.suggestion).toMatch(/kiro-cli update/);
 		expect(info?.suggestion).toMatch(/Kiro CLI engine/);
 		expect(info?.suggestion).toMatch(/V2 \(legacy\)/);
+		// H3: the user changed the wrong agent's engine; name this one.
+		expect(info?.suggestion).toMatch(/in the settings for Kiro \(old CLI\)\./);
 		await client.whenTornDown();
 	}, 20_000);
 

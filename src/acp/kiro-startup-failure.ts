@@ -41,14 +41,20 @@ export function classifyKiroStartupFailure(
 	return "engine-unsupported";
 }
 
-/** What the chat shows for an older kiro-cli. Names the D1 setting labels. */
-export function kiroEngineUnsupportedInfo(): ErrorInfo {
+/**
+ * What the chat shows for an older kiro-cli. Names the agent as well as the
+ * D1 setting labels: the built-in Kiro CLI agent and every kiro-cli custom
+ * agent each have a "Kiro CLI engine" setting, so "this agent" was ambiguous
+ * (D3 smoke H3: the user switched the built-in agent instead).
+ */
+export function kiroEngineUnsupportedInfo(agentName: string): ErrorInfo {
 	return {
 		title: t("chat.acpErrors.kiroEngineUnsupportedTitle"),
 		message: t("chat.acpErrors.kiroEngineUnsupported"),
 		suggestion: t("chat.acpErrors.kiroEngineUnsupportedSuggestion", {
 			setting: t("settings.kiroEngine.name"),
 			option: t("settings.kiroEngine.v2"),
+			agent: agentName,
 		}),
 	};
 }

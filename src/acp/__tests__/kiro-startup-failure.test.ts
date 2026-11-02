@@ -56,11 +56,11 @@ describe("classifyKiroStartupFailure (D3)", () => {
 		).toBeNull();
 	});
 
-	it("the error text names the D1 setting and its V2 option", () => {
-		const info = kiroEngineUnsupportedInfo();
+	it("the error text names the agent, the D1 setting and its V2 option", () => {
+		const info = kiroEngineUnsupportedInfo("Kiro (old CLI)");
 		expect(info.title).toBe("Kiro CLI needs an update");
 		expect(info.suggestion).toBe(
-			"Update Kiro CLI (kiro-cli update), or set Kiro CLI engine to V2 (legacy) in this agent's settings.",
+			"Update Kiro CLI (kiro-cli update), or set Kiro CLI engine to V2 (legacy) in the settings for Kiro (old CLI).",
 		);
 	});
 });
