@@ -487,6 +487,14 @@ export class AcpClient {
 		const stdin = agentProcess.stdin;
 		const stdout = agentProcess.stdout;
 
+		// An agent that exits before reading stdin (an older kiro-cli rejecting
+		// --agent-engine, D3) makes the initialize write fail with EPIPE.
+		// Without a listener that is an unhandled error; the closed connection
+		// already rejects initialize, so logging is enough.
+		stdin.on("error", (error) => {
+			this.logger.log(`${agentLabel} stdin error:`, error);
+		});
+
 		const input = new WritableStream<Uint8Array>({
 			write(chunk: Uint8Array) {
 				stdin.write(chunk);
