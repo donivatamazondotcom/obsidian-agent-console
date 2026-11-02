@@ -54,6 +54,16 @@ function makeSessionHistory(): UseSessionHistoryReturn {
 			forks: false,
 			reportsModels: false,
 		},
+		historyCapabilities: {
+			kind: "live",
+			capabilities: {
+				listsSessions: false,
+				restoresViaLoad: false,
+				restoresViaResume: true,
+				forks: false,
+				reportsModels: false,
+			},
+		},
 		canShowSessionHistory: true,
 		canRestore: true,
 		canFork: false,

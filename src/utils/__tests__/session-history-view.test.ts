@@ -71,31 +71,56 @@ describe("deriveSessionHistoryView — listSource (toggle-driven, default Local)
 });
 
 // ============================================================================
-// agentViewAvailable — whether the [Agent] pill is offered
+// agentPill — the [Agent] pill's state (I260 split unsupported from unknown)
 // ============================================================================
 
-describe("deriveSessionHistoryView — agentViewAvailable", () => {
-	it("is true for an agent that advertises session/list (Claude)", () => {
-		expect(
-			deriveSessionHistoryView(CLAUDE_CODE, true, true).agentViewAvailable,
-		).toBe(true);
+describe("deriveSessionHistoryView — agentPill", () => {
+	it("is available for an agent that advertises session/list (Claude)", () => {
+		expect(deriveSessionHistoryView(CLAUDE_CODE, true, true).agentPill).toBe(
+			"available",
+		);
 	});
 
-	it("is false for a plugin-local agent with no session/list (Kiro)", () => {
-		expect(
-			deriveSessionHistoryView(KIRO_CLI, true, true).agentViewAvailable,
-		).toBe(false);
+	it("is unsupported for a plugin-local agent with no session/list (Kiro)", () => {
+		expect(deriveSessionHistoryView(KIRO_CLI, true, true).agentPill).toBe(
+			"unsupported",
+		);
 	});
 
 	it("does not depend on the chosen source", () => {
 		expect(
-			deriveSessionHistoryView(CLAUDE_CODE, true, true, "local")
-				.agentViewAvailable,
-		).toBe(true);
+			deriveSessionHistoryView(CLAUDE_CODE, true, true, "local").agentPill,
+		).toBe("available");
 		expect(
-			deriveSessionHistoryView(CLAUDE_CODE, true, true, "agent")
-				.agentViewAvailable,
-		).toBe(true);
+			deriveSessionHistoryView(CLAUDE_CODE, true, true, "agent").agentPill,
+		).toBe("available");
+	});
+
+	// Truth table over capability knowledge × listsSessions × connection.
+	const cases = [
+		["live", CLAUDE_CODE, "available"],
+		["cached", CLAUDE_CODE, "available"],
+		["unknown", CLAUDE_CODE, "available"],
+		["live", KIRO_CLI, "unsupported"],
+		["cached", KIRO_CLI, "unsupported"],
+		["unknown", KIRO_CLI, "unknown"],
+	] as const;
+	for (const [knowledge, caps, expected] of cases) {
+		for (const ready of [true, false]) {
+			it(`${knowledge} + listsSessions=${caps.listsSessions} + ready=${ready} → ${expected}`, () => {
+				expect(
+					deriveSessionHistoryView(caps, ready, false, "agent", knowledge)
+						.agentPill,
+				).toBe(expected);
+			});
+		}
+	}
+
+	it("an unknown agent never resolves to the Agent list", () => {
+		expect(
+			deriveSessionHistoryView(KIRO_CLI, false, false, "agent", "unknown")
+				.listSource,
+		).toBe("local");
 	});
 });
 

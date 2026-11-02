@@ -78,6 +78,7 @@ function makeSettings(savedSessions: SavedSessionInfo[]) {
 function makeAgentClient(serverSessions: ListSessionsResult) {
 	const api = {
 		listSessions: vi.fn(async () => serverSessions),
+		getLaunchKey: () => null,
 		loadSession: vi.fn(),
 		resumeSession: vi.fn(),
 		forkSession: vi.fn(),

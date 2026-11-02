@@ -601,6 +601,8 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.history.noRestoreSupport": "此代理不支持恢复会话。",
 	"chat.history.sessionSource": "会话来源",
 	"chat.history.agentSessions": "代理服务器会话（{agent}）",
+	"chat.history.connectOnceForList":
+		"在 {agent} 聊天中发送一次消息后，其服务器会话将显示在这里。",
 	"chat.history.noServerList":
 		"{agent} 不在服务器上保存会话列表，因此只能查看本地历史。",
 	"chat.history.searchPlaceholder": "搜索会话…",

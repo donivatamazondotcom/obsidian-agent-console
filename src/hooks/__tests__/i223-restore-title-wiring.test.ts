@@ -66,7 +66,7 @@ function render(restoredAgentTitle?: string) {
 	const settings = makeSettings();
 	const hook = renderHook(() =>
 		useSessionHistory({
-			agentClient: {} as AcpClient,
+			agentClient: { getLaunchKey: () => null } as unknown as AcpClient,
 			session,
 			settingsAccess: settings,
 			cwd: "/vault",

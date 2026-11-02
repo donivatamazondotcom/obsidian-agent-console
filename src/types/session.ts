@@ -623,6 +623,20 @@ export interface AgentSessionMetaCacheEntry {
 }
 
 /**
+ * Capabilities an agent launch reported at its last `initialize`, kept so a
+ * tab that hasn't connected yet can still gate the Session history view on
+ * what the agent can do (I260). Keyed by launch (see `agentLaunchKey`), never
+ * by agent id: one agent id can launch differently (Kiro CLI V2 can't list
+ * sessions, V3 can).
+ */
+export interface AgentCapabilityCacheEntry {
+	/** The normalized record from that `initialize`. */
+	capabilities: AgentCapabilities;
+	/** ISO 8601 timestamp of the `initialize` that produced it. */
+	learnedAt: string;
+}
+
+/**
  * Result of session operations (new, load, resume, fork).
  *
  * All session creation/restoration operations return the same structure:

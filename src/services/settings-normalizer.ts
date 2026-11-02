@@ -11,7 +11,11 @@ import type {
 	CustomAgentSettings,
 	AgentClientPluginSettings,
 } from "../plugin";
-import type { SavedSessionInfo } from "../types/session";
+import type {
+	AgentCapabilities,
+	AgentCapabilityCacheEntry,
+	SavedSessionInfo,
+} from "../types/session";
 import type { PerLeafTabState } from "../types/tab";
 import type { PluginUpdateCache } from "../resolvers/update-check-decision";
 import { migrateContextNoteSettings } from "./settings-migration";
@@ -221,6 +225,51 @@ export const ensureUniqueCustomAgentIds = (
  * Transforms the storage format (BaseAgentSettings) to the runtime format (AgentConfig)
  * needed by AcpClient.initialize().
  */
+const CAPABILITY_KEYS: readonly (keyof AgentCapabilities)[] = [
+	"listsSessions",
+	"restoresViaLoad",
+	"restoresViaResume",
+	"forks",
+	"closesSessions",
+	"reportsModels",
+];
+
+/**
+ * Validate the persisted capability cache at the deserialize edge (I260).
+ * An entry missing any capability boolean, or without a `learnedAt` string,
+ * is dropped and logged, never coerced: a coerced `false` would bring back
+ * the wrong "doesn't keep a session list" tooltip this cache exists to fix.
+ */
+export function normalizeAgentCapabilityCache(
+	raw: unknown,
+): Record<string, AgentCapabilityCacheEntry> {
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+	const out: Record<string, AgentCapabilityCacheEntry> = {};
+	for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+		const entry = value as {
+			capabilities?: Record<string, unknown>;
+			learnedAt?: unknown;
+		} | null;
+		const caps = entry?.capabilities;
+		const valid =
+			!!caps &&
+			typeof caps === "object" &&
+			typeof entry.learnedAt === "string" &&
+			CAPABILITY_KEYS.every((k) => typeof caps[k] === "boolean");
+		if (!valid) {
+			console.warn(
+				`[Agent Console] Dropping malformed capability cache entry for "${key}"`,
+			);
+			continue;
+		}
+		const capabilities = Object.fromEntries(
+			CAPABILITY_KEYS.map((k) => [k, caps[k] as boolean]),
+		) as unknown as AgentCapabilities;
+		out[key] = { capabilities, learnedAt: entry.learnedAt as string };
+	}
+	return out;
+}
+
 export const toAgentConfig = (
 	settings: BaseAgentSettings,
 	workingDirectory: string,
@@ -432,6 +481,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	savedSessions: [],
 	sessionHistorySource: "local",
 	agentSessionMetaCache: {},
+	agentCapabilityCache: {},
 	lastUsedModels: {},
 	lastUsedModes: {},
 	lastUsedThoughtLevels: {},
@@ -712,6 +762,9 @@ export function normalizeRawSettings(
 			!Array.isArray(raw.agentSessionMetaCache)
 				? (raw.agentSessionMetaCache as AgentClientPluginSettings["agentSessionMetaCache"])
 				: D.agentSessionMetaCache,
+		agentCapabilityCache: normalizeAgentCapabilityCache(
+			raw.agentCapabilityCache,
+		),
 		lastUsedModels: strRecord(raw.lastUsedModels),
 		lastUsedModes: strRecord(raw.lastUsedModes),
 		lastUsedThoughtLevels: strRecord(raw.lastUsedThoughtLevels),

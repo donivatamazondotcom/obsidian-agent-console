@@ -12,6 +12,7 @@ const { useState, useCallback } = React;
 import { createRoot, Root } from "react-dom/client";
 import type { AgentCapabilities, SessionInfo } from "../types/session";
 import type { AgentSessionMetaCacheEntry } from "../types/session";
+import type { CapabilityKnowledge } from "../resolvers/history-capabilities";
 import {
 	deriveHistoryFetchCwd,
 	deriveSessionHistoryView,
@@ -224,6 +225,13 @@ interface SessionHistoryContentProps {
 	 * + local-data + intent, never on connection.
 	 */
 	capabilities: AgentCapabilities;
+
+	/**
+	 * Where `capabilities` came from (I260): this tab's `initialize`, this
+	 * launch's last `initialize`, or unknown. Decides whether a non-listing
+	 * pill says "no server list" or "connect once". Defaults to "live".
+	 */
+	capabilityKnowledge?: CapabilityKnowledge;
 
 	/** Set of session IDs that have local data (for filtering) */
 	localSessionIds: Set<string>;
@@ -626,6 +634,7 @@ export function SessionHistoryContent({
 	currentCwd,
 	loadSessionMessages,
 	capabilities,
+	capabilityKnowledge = "live",
 	localSessionIds,
 	isAgentReady,
 	debugMode,
@@ -689,6 +698,7 @@ export function SessionHistoryContent({
 		isAgentReady,
 		hasLocalData,
 		source,
+		capabilityKnowledge,
 	);
 
 	// Whether "Only this folder" is on for a resolved view: the user's choice
@@ -795,6 +805,7 @@ export function SessionHistoryContent({
 				isAgentReady,
 				hasLocalData,
 				next,
+				capabilityKnowledge,
 			);
 			onFetchSessions(
 				next,
@@ -810,6 +821,7 @@ export function SessionHistoryContent({
 			onSourceChange,
 			onFetchSessions,
 			capabilities,
+			capabilityKnowledge,
 			isAgentReady,
 			hasLocalData,
 			isFolderFilterOn,
@@ -984,7 +996,7 @@ export function SessionHistoryContent({
 								type="button"
 								role="tab"
 								aria-selected={view.listSource === "agent"}
-								disabled={!view.agentViewAvailable}
+								disabled={view.agentPill !== "available"}
 								// One tooltip, one accessible name (I200). This
 								// carried aria-label AND title, so when the agent
 								// could not list sessions the browser rendered
@@ -996,13 +1008,18 @@ export function SessionHistoryContent({
 								// either way (WCAG 2.5.3).
 								ref={tooltipRef({
 									visibleLabel: currentAgentLabel,
-									reason: view.agentViewAvailable
-										? t("chat.history.agentSessions", {
-												agent: currentAgentLabel,
-											})
-										: t("chat.history.noServerList", {
-												agent: currentAgentLabel,
-											}),
+									reason:
+										view.agentPill === "available"
+											? t("chat.history.agentSessions", {
+													agent: currentAgentLabel,
+												})
+											: view.agentPill === "unknown"
+												? t("chat.history.connectOnceForList", {
+														agent: currentAgentLabel,
+													})
+												: t("chat.history.noServerList", {
+														agent: currentAgentLabel,
+													}),
 								})}
 								className={`agent-client-session-history-source-pill${
 									view.listSource === "agent" ? " is-active" : ""
@@ -1110,7 +1127,7 @@ export function SessionHistoryContent({
 						<div className="agent-client-session-history-empty">
 							{!query.trim() &&
 							view.listSource === "local" &&
-							view.agentViewAvailable ? (
+							view.agentPill === "available" ? (
 								// Migration empty-state: the local store is
 								// empty but the agent can list server-side
 								// sessions (e.g. arriving from Agent Client,

@@ -48,6 +48,7 @@
  * never throws. Safe to unit-test exhaustively.
  */
 import type { AgentCapabilities } from "../types/session";
+import type { CapabilityKnowledge } from "./history-capabilities";
 
 /** Where the session list is sourced from. */
 export type SessionListSource =
@@ -85,6 +86,19 @@ export type SessionHistoryBanner =
 	| "no-restore-capability";
 
 /**
+ * The Agent pill's state (I260). Separates "this agent can't list" from "we
+ * don't know yet", so a tab that hasn't connected never claims the agent has
+ * no server list.
+ */
+export type AgentPill =
+	/** The agent lists sessions (live or cached) — the pill is enabled. */
+	| "available"
+	/** The agent is known not to list sessions — disabled, "no server list". */
+	| "unsupported"
+	/** Not known for this launch yet — disabled, "connect once to find out". */
+	| "unknown";
+
+/**
  * Where the "Only this folder" filter starts when the history opens (I219).
  * The user can always flip it; this is only the starting point.
  */
@@ -109,11 +123,12 @@ export interface SessionHistoryView {
 	 */
 	listSource: SessionListSource;
 	/**
-	 * Whether the `[Local] [Agent]` toggle offers an Agent pill at all. True
-	 * only when the agent advertises `session/list` (Kiro CLI, which does not,
-	 * shows the unified Local list with no toggle).
+	 * The Agent pill's state. `available` only when the agent advertises
+	 * `session/list` (live, or cached for this launch); `unsupported` when it
+	 * is known not to; `unknown` before this launch has ever initialized
+	 * (I260).
 	 */
-	agentViewAvailable: boolean;
+	agentPill: AgentPill;
 	/** Whether/how the restore (▶) action is available. */
 	restore: RestoreAvailability;
 	/** Whether the fork (git-branch) action is shown. */
@@ -146,17 +161,26 @@ export interface SessionHistoryView {
  *   `"local"` for every agent (Decision 3). Gated by capability: an "agent"
  *   choice resolves to the Agent view only when the agent advertises
  *   `session/list`; otherwise it falls back to Local.
+ * @param knowledge - Where `capabilities` came from
+ *   ({@link resolveHistoryCapabilities}). Only decides `unknown` vs
+ *   `unsupported` for an agent that doesn't list; defaults to `"live"`.
  */
 export function deriveSessionHistoryView(
 	capabilities: AgentCapabilities,
 	isAgentReady: boolean,
 	hasLocalData: boolean,
 	source: SessionListSource = "local",
+	knowledge: CapabilityKnowledge = "live",
 ): SessionHistoryView {
-	// Whether the Agent pill is even offered. The Local view is the default
-	// and always available; the Agent view exists only for agents that can
-	// enumerate server-side sessions.
-	const agentViewAvailable = capabilities.listsSessions;
+	// The Local view is the default and always available; the Agent view
+	// exists only for agents that can enumerate server-side sessions. A
+	// launch never seen before is "unknown", not "unsupported" (I260).
+	const agentPill: AgentPill = capabilities.listsSessions
+		? "available"
+		: knowledge === "unknown"
+			? "unknown"
+			: "unsupported";
+	const agentViewAvailable = agentPill === "available";
 
 	// Toggle-driven and capability-gated. Defaults to Local for EVERY agent —
 	// the local store is the canonical "your history" record; the agent's
@@ -206,7 +230,7 @@ export function deriveSessionHistoryView(
 
 	return {
 		listSource,
-		agentViewAvailable,
+		agentPill,
 		restore,
 		fork,
 		banner,
