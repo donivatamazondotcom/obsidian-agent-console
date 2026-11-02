@@ -218,6 +218,13 @@ describe("I243 — Claude Code row titled with the title instruction", () => {
 	});
 });
 
+describe("I245 — Kiro row still on its untitled default", () => {
+	it("live Agent row shows no title (the modal renders its untitled text)", async () => {
+		const rows = await liveRows([agentRow("empty", "New Session")], []);
+		expect(titleOf(rows, "empty")).toBeUndefined();
+	});
+});
+
 describe("I224 — disconnected Agent view (cached list) shows the local title", () => {
 	it("overlays a user rename onto the cached row", () => {
 		const rows = cachedRowsShownByModal(
