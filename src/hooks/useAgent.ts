@@ -90,6 +90,8 @@ export interface UseAgentReturn {
 	) => Promise<void>;
 
 	applyInitCapabilities: () => void;
+	/** D3: apply an eager-initialize failure with a known reason. */
+	applyInitFailure: (error: unknown) => boolean;
 
 	// Config
 	setMode: (modeId: string) => Promise<void>;
@@ -254,6 +256,7 @@ export function useAgent(
 			setAgentWithoutSession: agentSession.setAgentWithoutSession,
 			updateSessionFromLoad: agentSession.updateSessionFromLoad,
 			applyInitCapabilities: agentSession.applyInitCapabilities,
+			applyInitFailure: agentSession.applyInitFailure,
 
 			// Config
 			setMode: agentSession.setMode,
@@ -295,6 +298,7 @@ export function useAgent(
 			agentSession.setAgentWithoutSession,
 			agentSession.updateSessionFromLoad,
 			agentSession.applyInitCapabilities,
+			agentSession.applyInitFailure,
 			agentSession.setMode,
 			agentSession.setModel,
 			agentSession.setConfigOption,

@@ -285,6 +285,13 @@ export interface UseLazySessionApi {
 	 * armed). Read as the `acquiring` busy signal by decideProcessHold.
 	 */
 	isAcquisitionPending: () => boolean;
+	/**
+	 * D3: the agent can't start (an eager initialize failed for a known
+	 * reason). Moves a tab with no session and no acquisition in flight to
+	 * `error`, so it stops reading as "Send a message to connect". A send
+	 * then retries, as from any error.
+	 */
+	markConnectFailed: () => void;
 
 	// State machine transitions for busy/permission — driven by ChatPanel
 	// in response to agent events (isSending, hasActivePermission).
@@ -594,6 +601,12 @@ export function useLazySession(
 		return true;
 	}, []);
 
+	const markConnectFailed = useCallback(() => {
+		if (sessionIdRef.current !== null) return;
+		if (isAcquiringRef.current) return;
+		tabStateRef.current.connectFailed();
+	}, []);
+
 	const isAcquisitionPending = useCallback(
 		() => isAcquiringRef.current || debounceTimerRef.current !== null,
 		[],
@@ -737,6 +750,7 @@ export function useLazySession(
 		release,
 		reconnectNow,
 		isAcquisitionPending,
+		markConnectFailed,
 		// Expose state machine transitions for busy/permission — driven
 		// by ChatPanel in response to agent events (isSending,
 		// hasActivePermission). These are stable references from

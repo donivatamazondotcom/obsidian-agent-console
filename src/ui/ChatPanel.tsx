@@ -823,6 +823,11 @@ export function ChatPanel({
 	// runs through the same owner so the tab passes through `connecting` and
 	// the connect-flush delivers a message sent mid-reload (I229).
 	const lazyContinuesSessionRef = useRef<(() => boolean) | null>(null);
+	// D3: forward ref to useLazySession.markConnectFailed, for the eager
+	// initialize's onError (declared before lazySession).
+	const lazyMarkConnectFailedRef = useRef<
+		UseLazySessionApi["markConnectFailed"] | null
+	>(null);
 	const lazyReloadNowRef = useRef<UseLazySessionApi["reloadNow"] | null>(
 		null,
 	);
@@ -1425,9 +1430,16 @@ export function ChatPanel({
 		initialize: async () => {
 			await initializeAgentForTab(vaultPath);
 		},
-		// Non-fatal: lazy path will retry on first keystroke.
-		onError: (e) =>
-			logger.log("[ChatPanel] Eager initialize failed (non-fatal):", e),
+		// Non-fatal: lazy path will retry on first keystroke. D3: a failure
+		// with a known reason (older kiro-cli without V3) is shown at once,
+		// so a fresh tab doesn't sit on "Send a message to connect".
+		onError: (e) => {
+			if (agent.applyInitFailure(e)) {
+				lazyMarkConnectFailedRef.current?.();
+				return;
+			}
+			logger.log("[ChatPanel] Eager initialize failed (non-fatal):", e);
+		},
 	});
 
 	// Queue-next-message (#82). Runtime-only queue-of-one shared by BOTH the
@@ -1711,6 +1723,7 @@ export function ChatPanel({
 	lazyResetRef.current = lazySession.reset;
 	lazyAcquireNowRef.current = lazySession.acquireNow;
 	lazyReloadNowRef.current = lazySession.reloadNow;
+	lazyMarkConnectFailedRef.current = lazySession.markConnectFailed;
 	lazyContinuesSessionRef.current = lazySession.continuesExistingSession;
 
 	// Wire the queue-orchestration effect handlers now that handleSendMessage and
