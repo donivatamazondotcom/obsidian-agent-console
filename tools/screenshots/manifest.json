@@ -70,7 +70,8 @@
 			"rightSplitWidth": 530,
 			"awaitSelector": ".callout",
 			"captureMode": "screen-window",
-			"followUp": "Tab status indicators (.agent-client-tab-state-icon) are not lit up: only the active tab reconnects (reconnectActive), so the inactive restored tabs show unlit/idle status glyphs. Next cycle: reconnect all restored tabs (or seed a lit status) so every tab's state icon reads as connected."
+			"followUp": "Tab status indicators (.agent-client-tab-state-icon) are not lit up: only the active tab reconnects (reconnectActive), so the inactive restored tabs show unlit/idle status glyphs. Next cycle: reconnect all restored tabs (or seed a lit status) so every tab's state icon reads as connected.",
+			"pending": true
 		},
 		{
 			"name": "session-history-button",
@@ -595,7 +596,8 @@
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 620,
 			"cropSelector": ".workspace-leaf-content[data-type=\"agent-client-chat-view\"]",
-			"cropPadding": 0
+			"cropPadding": 0,
+			"pending": true
 		},
 		{
 			"name": "multi-session-animated",
@@ -665,11 +667,12 @@
 				]
 			},
 			"cropSelector": ".workspace-leaf-content[data-type=\"agent-client-chat-view\"]",
-			"cropPadding": 0
+			"cropPadding": 0,
+			"pending": true
 		},
 		{
 			"name": "tab-status-dropdown",
-			"pending": false,
+			"pending": true,
 			"width": 550,
 			"height": 405,
 			"crop": {
@@ -711,11 +714,11 @@
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 40,
 			"placement": "feature",
-			"purpose": "Per-tab status glyphs in the tab bar \u2014 spot the active, idle, or stuck session at a glance.",
-			"differentiator": "Per-tab status glyphs in the tab-list dropdown",
+			"purpose": "Per-tab status icons in the tab bar \u2014 spot the active, idle, or stuck session at a glance.",
+			"differentiator": "Per-tab status icons in the tab-list dropdown",
 			"mustShow": ".menu-item",
 			"caption": "See every session's status at a glance",
-			"altText": "Agent Console tab-list dropdown: five sessions, each with a status glyph for ready, busy, awaiting permission, errored, and disconnected.",
+			"altText": "Agent Console tab-list dropdown: five sessions, each with a status icon for ready, busy, awaiting permission, errored, and disconnected.",
 			"docPage": "docs/usage/tabbed-sessions.md",
 			"captureNote": "Driven by initialState.forceTabStates: seeds 5 nicely-labeled tabs forced into the five visual states with nativeMenus off (so the chevron opens a DOM .menu), then clickSelector opens the chevron. Window-mode, dpr-independent \u2014 no screen-mode crop.",
 			"collapseLeftSidebar": true,
@@ -1632,11 +1635,11 @@
 			"cropSelector": ".agent-client-tab-bar",
 			"pending": true,
 			"placement": "feature",
-			"purpose": "Shows a background tab paused to save memory, marked with the faint dotted ring next to live tabs.",
+			"purpose": "Shows a background tab paused to save memory, marked with a faint pause icon next to live tabs.",
 			"differentiator": "Idle tabs free their agent and pick up on the next keystroke",
 			"mustShow": ".agent-client-tab-state-released",
 			"caption": "Idle tabs pause to save memory",
-			"altText": "Tab bar with one tab showing a faint dotted ring, meaning it is paused to save memory"
+			"altText": "Tab bar with one tab showing a faint pause icon, meaning it is paused to save memory"
 		}
 	]
 }

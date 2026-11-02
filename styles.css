@@ -2767,10 +2767,18 @@ del.acp-header-branded-profile {
 
 .agent-client-tab-state-icon {
 	flex-shrink: 0;
-	font-size: 10px;
-	line-height: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	width: 14px;
-	text-align: center;
+	height: 14px;
+}
+
+/* I238: Lucide SVG via setIcon. Sized to sit inside the 14px box; the span
+   keeps the color and the spin/pulse animation per state. */
+.agent-client-tab-state-icon svg {
+	width: 12px;
+	height: 12px;
 }
 
 .agent-client-tab-state-ready {
@@ -2795,7 +2803,7 @@ del.acp-header-branded-profile {
 	color: var(--text-faint);
 }
 
-/* I209: paused to save memory. Quiet on purpose – a faint dotted ring, no
+/* I209: paused to save memory. Quiet on purpose – a faint pause icon, no
    red or green, no animation. Reconnects on the first keystroke. */
 .agent-client-tab-state-released {
 	color: var(--text-faint);

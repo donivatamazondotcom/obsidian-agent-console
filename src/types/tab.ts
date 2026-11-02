@@ -14,12 +14,12 @@
  * animation third. No red/green contrast dependency.
  */
 export type TabState =
-	| "ready" // ● blue — idle, waiting for input
-	| "busy" // ◐ blue, spinning — agent processing
-	| "permission" // △ orange, pulsing — awaiting user approval
-	| "error" // ✕ red — session error
-	| "disconnected" // ○ gray — session closed
-	| "released"; // ○ faint ring — paused to save memory; reconnects on typing (I209)
+	| "ready" // circle-dot, blue — idle, waiting for input
+	| "busy" // loader-circle, blue, spinning — agent processing
+	| "permission" // triangle-alert, orange, pulsing — awaiting user approval
+	| "error" // circle-x, red — session error
+	| "disconnected" // circle, gray — session closed
+	| "released"; // circle-pause, faint — paused to save memory; reconnects on typing (I209)
 
 /** Runtime acquisition provenance. Reconstructed on restore; never persisted. */
 export type TabOrigin = "fresh" | "restored";

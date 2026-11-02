@@ -53,7 +53,7 @@ These appear only when a chat view is open.
 | **Focus previous chat view** | Move focus to the previous chat view |
 | **Next session tab** | Switch to the next tab in the active panel |
 | **Previous session tab** | Switch to the previous tab in the active panel |
-| **Show tab list** | Open the tab-bar ⌄ list — a one-glance view of every tab and its status (done ●, working ◐, waiting on you △, error ✕), including tabs scrolled out of sight. Bind a hotkey under **Settings → Hotkeys** to pop it without reaching for the mouse |
+| **Show tab list** | Open the tab-bar ⌄ list — a one-glance view of every tab and its status (done, working, waiting on you, error – each with its own icon), including tabs scrolled out of sight. Bind a hotkey under **Settings → Hotkeys** to pop it without reaching for the mouse |
 | **Rename current tab with AI** | Ask the tab's agent for a fresh title for the conversation so far and apply it to the tab and session history. Same as right-click → **Rename with AI**. Not available for agents that can't close a side conversation, such as Kiro CLI V2 |
 | **Close session tab** | Close the active tab |
 | **Reopen closed session tab** | Reopen the most-recently-closed tab and restore its conversation — transcript, agent, label, and pinned context. Repeat to walk further back (browser-style Cmd+Shift+T). Closed tabs are remembered for the current session only |
