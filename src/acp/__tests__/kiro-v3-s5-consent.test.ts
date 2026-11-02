@@ -16,7 +16,8 @@ import { describe, expect, it, vi } from "vitest";
 import * as acp from "@agentclientprotocol/sdk";
 
 import { PermissionManager } from "../permission-handler";
-import { kiroConsentForChoice, clientShellType } from "../kiro-v3";
+import { kiroConsentForChoice, kiroScopeOffer, clientShellType } from "../kiro-v3";
+import type { PermissionScopeChoice } from "../../types/chat";
 import { AcpHandler } from "../acp-handler";
 import { registerClientHandlers } from "../acp-client";
 import type { TerminalManager } from "../terminal-handler";
@@ -66,14 +67,19 @@ function makeManager(autoAllow = false) {
 async function answer(
 	request: acp.RequestPermissionRequest,
 	optionId: string,
+	choice?: PermissionScopeChoice,
 ): Promise<acp.RequestPermissionResponse> {
 	const { manager, updates } = makeManager();
 	const pending = manager.request(request);
 	const shown = updates.find((u) => u.type === "tool_call") as Extract<SessionUpdate, { type: "tool_call" }>;
-	manager.respond(shown.permissionRequest!.requestId, optionId);
+	manager.respond(shown.permissionRequest!.requestId, optionId, choice);
 	return pending;
 }
 
+const VAULT_EXACT: PermissionScopeChoice = { scope: "workspace", match: "exact" };
+
+// Without a scope choice (e.g. the keyboard path), the reply is the server's
+// own default: this chat, this exact resource.
 describe("V3: persistent choices return canonical consent", () => {
 	it("Always allow → selected option + session-scoped consent for the request's resource", async () => {
 		await expect(answer(v3Request(), "always-accept")).resolves.toEqual({
@@ -132,20 +138,81 @@ describe("V2 and auto-allow are unchanged", () => {
 	});
 });
 
-describe("the UI learns that a persistent choice lasts for this chat", () => {
-	it("V3: persistent options are marked chat-scoped; one-time options aren't", () => {
+// S5 option (a), 2026-11-01: the user picks how long a persistent choice
+// lasts (this vault by default, or this chat) and, for shell commands, the
+// exact command or Kiro's own suggested pattern (e.g. "npm *").
+describe("V3: the user's scope choice shapes the consent", () => {
+	it("this vault + exact command → workspace scope, exact resource", async () => {
+		const res = await answer(v3Request(), "always-accept", VAULT_EXACT);
+		expect(res._meta).toEqual({
+			kiro: { consent: { scope: "workspace", resource: "npm run test", workspaceRoot: "/vault" } },
+		});
+	});
+
+	it("this vault + pattern → workspace scope, the pattern", async () => {
+		const res = await answer(v3Request(), "always-accept", { scope: "workspace", match: "pattern" });
+		expect(res._meta).toEqual({
+			kiro: { consent: { scope: "workspace", resource: "npm *", workspaceRoot: "/vault" } },
+		});
+	});
+
+	it("this chat only + pattern → session scope, the pattern", async () => {
+		const res = await answer(v3Request(), "always-reject", { scope: "session", match: "pattern" });
+		expect(res._meta).toEqual({
+			kiro: { consent: { scope: "session", resource: "npm *", workspaceRoot: "/vault" } },
+		});
+	});
+
+	it("falls back to this chat when the server sent no workspace root", async () => {
+		const { workspaceRoot: _omit, ...noRoot } = V3_CONSENT;
+		const res = await answer(v3Request(noRoot), "always-accept", VAULT_EXACT);
+		expect(res._meta).toEqual({ kiro: { consent: { scope: "session", resource: "npm run test" } } });
+	});
+
+	it("a scope choice on a one-time option still sends nothing", async () => {
+		const res = await answer(v3Request(), "accept", VAULT_EXACT);
+		expect(res).toEqual({ outcome: { outcome: "selected", optionId: "accept" } });
+	});
+});
+
+describe("the UI is told which scope choices to offer", () => {
+	it("V3 shell: persistent options offer the vault and Kiro's pattern; one-time options offer nothing", () => {
 		const { manager, updates } = makeManager();
 		void manager.request(v3Request());
 		const shown = updates.find((u) => u.type === "tool_call") as Extract<SessionUpdate, { type: "tool_call" }>;
-		const scopes = Object.fromEntries(shown.permissionRequest!.options.map((o) => [o.optionId, o.persistsFor]));
-		expect(scopes).toEqual({ accept: undefined, "always-accept": "chat", reject: undefined, "always-reject": "chat" });
+		const offers = Object.fromEntries(shown.permissionRequest!.options.map((o) => [o.optionId, o.scopeOffer]));
+		const offer = { workspace: true, resource: "npm run test", pattern: "npm *" };
+		expect(offers).toEqual({ accept: undefined, "always-accept": offer, reject: undefined, "always-reject": offer });
 	});
 
-	it("V2: no option is marked", () => {
+	it("V2: no option offers a scope choice", () => {
 		const { manager, updates } = makeManager();
 		void manager.request(v2Request());
 		const shown = updates.find((u) => u.type === "tool_call") as Extract<SessionUpdate, { type: "tool_call" }>;
-		expect(shown.permissionRequest!.options.every((o) => o.persistsFor === undefined)).toBe(true);
+		expect(shown.permissionRequest!.options.every((o) => o.scopeOffer === undefined)).toBe(true);
+	});
+});
+
+describe("kiroScopeOffer", () => {
+	const meta = (c: Record<string, unknown>) => ({ kiro: { consent: { ...V3_CONSENT, ...c } } });
+	it("no pattern for a single-word command, a wildcard, an env assignment, or sudo/env/doas", () => {
+		for (const resource of ["ls", "*", "FOO=1 npm test", "sudo rm x", "env X=1 a", "doas x y"]) {
+			expect(kiroScopeOffer("allow_always", meta({ resource, triggeringResource: resource }))?.pattern).toBeUndefined();
+		}
+	});
+	it("no pattern for non-shell capabilities", () => {
+		expect(kiroScopeOffer("allow_always", meta({ capability: "fs_write", resource: "/vault/a.md", triggeringResource: undefined }))).toEqual({
+			workspace: true,
+			resource: "/vault/a.md",
+		});
+	});
+	it("no vault scope without a workspace root", () => {
+		expect(kiroScopeOffer("allow_always", meta({ workspaceRoot: undefined }))?.workspace).toBe(false);
+	});
+	it("nothing for one-time kinds, non-persistable consent, or V2", () => {
+		expect(kiroScopeOffer("allow_once", meta({}))).toBeUndefined();
+		expect(kiroScopeOffer("allow_always", meta({ persistableConsent: false }))).toBeUndefined();
+		expect(kiroScopeOffer("allow_always", { trustOptions: [] })).toBeUndefined();
 	});
 });
 

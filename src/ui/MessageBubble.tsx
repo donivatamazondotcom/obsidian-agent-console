@@ -1,3 +1,4 @@
+import type { PermissionScopeChoice } from "../types/chat";
 import * as React from "react";
 const { useState, useCallback } = React;
 import { setIcon } from "obsidian";
@@ -392,7 +393,8 @@ interface ContentBlockProps {
 	onApprovePermission?: (
 		requestId: string,
 		optionId: string,
-	) => Promise<void>;
+	choice?: PermissionScopeChoice,
+) => Promise<void>;
 }
 
 function ContentBlock({
@@ -549,7 +551,8 @@ export interface MessageBubbleProps {
 	onApprovePermission?: (
 		requestId: string,
 		optionId: string,
-	) => Promise<void>;
+	choice?: PermissionScopeChoice,
+) => Promise<void>;
 	/** a2ui wiring (optional — absent renders fences as plain markdown). */
 	a2ui?: A2uiBubbleContext;
 	/** The assistant turn this message belongs to is still streaming. */

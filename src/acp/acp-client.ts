@@ -28,7 +28,7 @@ import type {
 	ListSessionsResult,
 	SessionResult,
 } from "../types/session";
-import type { PromptContent } from "../types/chat";
+import type { PermissionScopeChoice, PromptContent } from "../types/chat";
 import type { ProcessError } from "../types/errors";
 import { AcpTypeConverter } from "./type-converter";
 import { TerminalManager } from "./terminal-handler";
@@ -1127,7 +1127,11 @@ export class AcpClient {
 	/**
 	 * Respond to a permission request from the agent.
 	 */
-	respondToPermission(requestId: string, optionId: string): Promise<void> {
+	respondToPermission(
+		requestId: string,
+		optionId: string,
+		choice?: PermissionScopeChoice,
+	): Promise<void> {
 		this.requireConnection();
 
 		this.logger.log(
@@ -1136,7 +1140,7 @@ export class AcpClient {
 			"with option:",
 			optionId,
 		);
-		this.permissionManager.respond(requestId, optionId);
+		this.permissionManager.respond(requestId, optionId, choice);
 		return Promise.resolve();
 	}
 

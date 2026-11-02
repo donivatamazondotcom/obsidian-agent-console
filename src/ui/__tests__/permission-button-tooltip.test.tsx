@@ -13,7 +13,8 @@
  * imported or called, so both assertions fail (red). The fix turns them green.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, fireEvent, cleanup } from "@testing-library/react";
+import { afterEach } from "vitest";
 import * as React from "react";
 
 const h = vi.hoisted(() => ({ setTooltipMock: vi.fn() }));
@@ -38,6 +39,7 @@ function opt(partial: Partial<PermissionOption>): PermissionOption {
 beforeEach(() => {
 	setTooltipMock.mockClear();
 });
+afterEach(() => cleanup());
 
 describe("permission option button tooltip (I158)", () => {
 	it("sets the full option name as an Obsidian tooltip on the button", () => {
@@ -81,26 +83,66 @@ describe("permission option button tooltip (I158)", () => {
 	});
 });
 
-// Kiro V3 S5: "Always allow" on V3 lasts for this chat and this exact
-// command or file (Q2); the tooltip says so. Other options keep their name.
-describe("PermissionBanner – Kiro V3 chat-scoped choices", () => {
-	it("a persistent option's tooltip says it lasts for this chat", () => {
-		setTooltipMock.mockClear();
-		render(
-			<PermissionBanner
-				permissionRequest={{
-					requestId: "r2",
-					options: [
-						{ optionId: "a", name: "Allow", kind: "allow_once" },
-						{ optionId: "b", name: "Always allow", kind: "allow_always", persistsFor: "chat" },
-					],
-				}}
-				onApprovePermission={vi.fn().mockResolvedValue(undefined)}
-			/>,
+// Kiro V3 S5 option (a): a persistent choice opens a scope step (this vault
+// by default, or this chat; exact command or Kiro's pattern) before it's sent.
+describe("PermissionBanner – Kiro V3 scope step", () => {
+	const offer = { workspace: true, resource: "npm run test", pattern: "npm *" };
+	const request = {
+		requestId: "r2",
+		options: [
+			{ optionId: "a", name: "Allow", kind: "allow_once" as const },
+			{ optionId: "b", name: "Always allow", kind: "allow_always" as const, scopeOffer: offer },
+		],
+	};
+
+	it("a one-time option is sent at once", () => {
+		const approve = vi.fn().mockResolvedValue(undefined);
+		const { getByText } = render(<PermissionBanner permissionRequest={request} onApprovePermission={approve} />);
+		fireEvent.click(getByText("Allow"));
+		expect(approve).toHaveBeenCalledWith("r2", "a");
+	});
+
+	it("Always allow opens the step; Confirm sends this vault + exact command by default", () => {
+		const approve = vi.fn().mockResolvedValue(undefined);
+		const { getByText, getByRole, queryByText } = render(
+			<PermissionBanner permissionRequest={request} onApprovePermission={approve} />,
 		);
-		const texts = setTooltipMock.mock.calls.map(([, text]) => text as string);
-		expect(texts).toContain("Allow");
-		expect(texts).toContain("Always allow – for this chat, and only this exact command or file");
+		fireEvent.click(getByText("Always allow"));
+		expect(approve).not.toHaveBeenCalled();
+		expect(queryByText("Allow")).toBeNull();
+		expect((getByRole("radio", { name: "This vault" }) as HTMLInputElement).checked).toBe(true);
+		expect((getByRole("radio", { name: /This exact command/ }) as HTMLInputElement).checked).toBe(true);
+		fireEvent.click(getByRole("button", { name: "Always allow" }));
+		expect(approve).toHaveBeenCalledWith("r2", "b", { scope: "workspace", match: "exact" });
+	});
+
+	it("the user can pick this chat and the pattern", () => {
+		const approve = vi.fn().mockResolvedValue(undefined);
+		const { getByText, getByRole } = render(<PermissionBanner permissionRequest={request} onApprovePermission={approve} />);
+		fireEvent.click(getByText("Always allow"));
+		fireEvent.click(getByRole("radio", { name: "This chat only" }));
+		fireEvent.click(getByRole("radio", { name: /npm \*/ }));
+		fireEvent.click(getByRole("button", { name: "Always allow" }));
+		expect(approve).toHaveBeenCalledWith("r2", "b", { scope: "session", match: "pattern" });
+	});
+
+	it("Back returns to the choices without sending anything", () => {
+		const approve = vi.fn().mockResolvedValue(undefined);
+		const { getByText, getByRole } = render(<PermissionBanner permissionRequest={request} onApprovePermission={approve} />);
+		fireEvent.click(getByText("Always allow"));
+		fireEvent.click(getByRole("button", { name: "Back" }));
+		expect(getByText("Allow")).toBeTruthy();
+		expect(approve).not.toHaveBeenCalled();
+	});
+
+	it("without a workspace root or a pattern, those choices aren't shown", () => {
+		const approve = vi.fn().mockResolvedValue(undefined);
+		const bare = { ...request, options: [{ ...request.options[1], scopeOffer: { workspace: false, resource: "ls" } }] };
+		const { getByText, queryByRole, getByRole } = render(<PermissionBanner permissionRequest={bare} onApprovePermission={approve} />);
+		fireEvent.click(getByText("Always allow"));
+		expect(queryByRole("radio", { name: "This vault" })).toBeNull();
+		expect(queryByRole("radio", { name: /exact command/ })).toBeNull();
+		fireEvent.click(getByRole("button", { name: "Always allow" }));
+		expect(approve).toHaveBeenCalledWith("r2", "b", { scope: "session", match: "exact" });
 	});
 });
-

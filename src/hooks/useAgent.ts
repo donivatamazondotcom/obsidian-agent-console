@@ -1,3 +1,4 @@
+import type { PermissionScopeChoice } from "../types/chat";
 /**
  * Hook for managing the complete agent interaction lifecycle.
  *
@@ -106,7 +107,11 @@ export interface UseAgentReturn {
 	// Permission
 	activePermission: ActivePermission | null;
 	hasActivePermission: boolean;
-	approvePermission: (requestId: string, optionId: string) => Promise<void>;
+	approvePermission: (
+		requestId: string,
+		optionId: string,
+		choice?: PermissionScopeChoice,
+	) => Promise<void>;
 	approveActivePermission: () => Promise<boolean>;
 	rejectActivePermission: () => Promise<boolean>;
 }

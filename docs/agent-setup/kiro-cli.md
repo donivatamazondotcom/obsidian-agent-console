@@ -47,7 +47,7 @@ Kiro CLI natively supports ACP, so no additional adapter is required. Just point
 Kiro CLI has a newer engine, V3. Some agent configs, such as recent auto-sa releases, only load on V3. If your custom agent never shows up and chats run the default agent instead, switch to V3:
 
 1. In the **Kiro CLI** section, set **Kiro CLI engine** to **V3 (preview)**. If you run Kiro through a custom agent instead (for example one per Kiro profile), the same setting appears on that custom agent whenever its path is `kiro-cli`.
-2. Keep your arguments as they are, for example `acp --agent auto-sa`. V3 doesn't accept `--agent`, `--model` or `--effort` on launch, so Agent Console passes them to each new chat instead. `--trust-all-tools` and `--trust-tools` are dropped; V3 uses its own permission rules. In a V3 chat, **Always allow** lasts for that chat only (see [Permission Controls](../usage/editing.md#permission-controls)).
+2. Keep your arguments as they are, for example `acp --agent auto-sa`. V3 doesn't accept `--agent`, `--model` or `--effort` on launch, so Agent Console passes them to each new chat instead. `--trust-all-tools` and `--trust-tools` are dropped; V3 uses its own permission rules. In a V3 chat, **Always allow** asks whether to remember the choice for this vault or this chat (see [Permission Controls](../usage/editing.md#permission-controls)).
 3. Start a new chat.
 
 With V3, your agent's hooks (start, prompt and stop) run in Agent Console chats too. MCP servers that need sign-in prompt you as soon as Kiro reports them, and servers that fail to start are listed at the top of the chat (see [MCP Tools](../usage/mcp-tools.md#on-the-kiro-cli-v3-engine)).

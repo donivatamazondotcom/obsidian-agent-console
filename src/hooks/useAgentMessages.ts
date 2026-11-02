@@ -1,3 +1,4 @@
+import type { PermissionScopeChoice } from "../types/chat";
 /**
  * Sub-hook for managing chat messages, streaming, and permissions.
  *
@@ -130,7 +131,11 @@ export interface UseAgentMessagesReturn {
 	// Permission
 	activePermission: ActivePermission | null;
 	hasActivePermission: boolean;
-	approvePermission: (requestId: string, optionId: string) => Promise<void>;
+	approvePermission: (
+		requestId: string,
+		optionId: string,
+		choice?: PermissionScopeChoice,
+	) => Promise<void>;
 	approveActivePermission: () => Promise<boolean>;
 	rejectActivePermission: () => Promise<boolean>;
 
@@ -699,9 +704,13 @@ export function useAgentMessages(
 	const hasActivePermission = activePermission !== null;
 
 	const approvePermission = useCallback(
-		async (requestId: string, optionId: string): Promise<void> => {
+		async (
+			requestId: string,
+			optionId: string,
+			choice?: PermissionScopeChoice,
+		): Promise<void> => {
 			try {
-				await agentClient.respondToPermission(requestId, optionId);
+				await agentClient.respondToPermission(requestId, optionId, choice);
 			} catch (error) {
 				setErrorInfo({
 					title: t("chat.acpErrors.permissionErrorTitle"),

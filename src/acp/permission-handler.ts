@@ -1,8 +1,8 @@
 import * as acp from "@agentclientprotocol/sdk";
-import type { PermissionOption } from "../types/chat";
+import type { PermissionOption, PermissionScopeChoice } from "../types/chat";
 import type { SessionUpdate } from "../types/session";
 import { AcpTypeConverter } from "./type-converter";
-import { kiroConsentForChoice } from "./kiro-v3";
+import { kiroConsentForChoice, kiroScopeOffer } from "./kiro-v3";
 import { getLogger, Logger } from "../utils/logger";
 
 /**
@@ -127,12 +127,12 @@ export class PermissionManager {
 						? "allow_once"
 						: "reject_once";
 
-				const persists = kiroConsentForChoice(option.kind, params._meta) !== undefined;
+				const scopeOffer = kiroScopeOffer(option.kind, params._meta);
 				return {
 					optionId: option.optionId,
 					name: option.name,
 					kind,
-					...(persists && { persistsFor: "chat" as const }),
+					...(scopeOffer && { scopeOffer }),
 				};
 			},
 		);
@@ -190,7 +190,7 @@ export class PermissionManager {
 	 * Resolves the pending Promise, updates UI, and activates the next
 	 * queued request if any.
 	 */
-	respond(requestId: string, optionId: string): void {
+	respond(requestId: string, optionId: string, choice?: PermissionScopeChoice): void {
 		const request = this.pendingRequests.get(requestId);
 		if (!request) {
 			return;
@@ -211,7 +211,7 @@ export class PermissionManager {
 			},
 		});
 
-		const consent = kiroConsentForChoice(rawKinds.get(optionId), requestMeta);
+		const consent = kiroConsentForChoice(rawKinds.get(optionId), requestMeta, choice);
 		resolve({
 			outcome: {
 				outcome: "selected",

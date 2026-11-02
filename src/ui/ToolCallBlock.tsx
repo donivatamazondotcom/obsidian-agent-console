@@ -1,3 +1,4 @@
+import type { PermissionScopeChoice } from "../types/chat";
 import * as React from "react";
 const { useState, useMemo } = React;
 import { FileSystemAdapter } from "obsidian";
@@ -34,7 +35,8 @@ interface ToolCallBlockProps {
 	onApprovePermission?: (
 		requestId: string,
 		optionId: string,
-	) => Promise<void>;
+	choice?: PermissionScopeChoice,
+) => Promise<void>;
 }
 
 export const ToolCallBlock = React.memo(function ToolCallBlock({
