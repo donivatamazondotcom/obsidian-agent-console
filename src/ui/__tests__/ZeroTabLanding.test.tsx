@@ -156,7 +156,7 @@ describe("ZeroTabLanding — InputArea launcher wiring", () => {
 			await onSend("review the api");
 		});
 		expect(props.onLaunch).toHaveBeenCalledWith("review the api", [
-			{ path: "Notes/API.md", source: "user", seen: false },
+			{ path: "Notes/API.md", source: "user", seen: false, hydrated: false },
 		]);
 	});
 

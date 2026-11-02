@@ -157,6 +157,14 @@ export interface PreparePromptResult {
 	/** Content to send to agent (processed text + images) */
 	agentContent: PromptContent[];
 
+	/**
+	 * Vault-relative paths whose body reached the agent in this prompt
+	 * (Channel 1 hydration or a Channel 3 inline). The caller marks these
+	 * `hydrated` only after the send succeeds ([[ACP Context Note Hydration]]
+	 * H6). Set on the context-notes path only.
+	 */
+	hydratedPaths?: string[];
+
 	/** Auto-mention context metadata (if auto-mention is active) */
 	autoMentionContext?: {
 		noteName: string;
@@ -215,7 +223,18 @@ export interface SendPromptResult {
 // Constants
 // ============================================================================
 
-const DEFAULT_MAX_NOTE_LENGTH = 10000; // Default maximum characters per note
+const DEFAULT_MAX_NOTE_LENGTH = 10000; // Legacy autoMention paths only
+
+/**
+ * All-or-nothing size gate for note bodies on the live path
+ * ([[ACP Context Note Hydration]] H3, H10): a note ≤ this many characters is
+ * sent whole; a larger one is sent reference-only. Never truncates.
+ */
+export const DEFAULT_HYDRATION_MAX_LENGTH = 16000;
+
+/** Body of a reference-only mention (note over the hydration gate). */
+const MENTION_REFERENCE_ONLY_HINT =
+	"The user mentioned this note. It is too large to include inline. Use the Read tool to examine its content when relevant.";
 export const DEFAULT_MAX_SELECTION_LENGTH = 10000; // Default maximum characters for selection
 
 // System-instruction strings now live in utils/system-instructions.ts so the
@@ -621,17 +640,14 @@ async function preparePromptWithContextNotes(
 	vaultAccess: IVaultAccess,
 	mentionService: IMentionService,
 ): Promise<PreparePromptResult> {
-	const contextBlocks = buildContextBlocks({
-		contextNotes: input.contextNotes ?? [],
-		selection: input.selectionContext ?? null,
-		useEmbeddedContext: input.supportsEmbeddedContext ?? false,
-		vaultPath: input.vaultBasePath,
-	});
-
-	// Mentioned notes (@[[...]]) still inline content per Channel 3 (unchanged)
+	// Channel 3 — @[[mentions]] use the all-or-nothing hydration gate
+	// ([[ACP Context Note Hydration]] H10): a note ≤ gate is inlined whole, a
+	// larger one is sent reference-only. No truncation on this path; the
+	// legacy 10K `maxNoteLength` applies only to the legacy autoMention paths.
+	const gate = DEFAULT_HYDRATION_MAX_LENGTH;
+	const delivered = new Set<string>();
 	const mentionedNotes = extractMentionedNotes(input.message, mentionService);
 	const mentionBlocks: PromptContent[] = [];
-	const maxNoteLen = input.maxNoteLength ?? DEFAULT_MAX_NOTE_LENGTH;
 
 	for (const { file } of mentionedNotes) {
 		if (!file) continue;
@@ -640,29 +656,65 @@ async function preparePromptWithContextNotes(
 			input.vaultBasePath,
 			vaultAccess,
 			input.convertToWsl ?? false,
-			maxNoteLen,
+			Number.POSITIVE_INFINITY,
 		);
 		if (!note) continue;
 
-		if (input.supportsEmbeddedContext) {
-			const text = note.wasTruncated
-				? note.content + `\n\n[Note: Truncated from ${note.originalLength} to ${maxNoteLen} characters]`
-				: note.content;
+		if (note.content.length <= gate) {
+			delivered.add(file.path);
+			if (input.supportsEmbeddedContext) {
+				mentionBlocks.push({
+					type: "resource",
+					resource: { uri: note.uri, mimeType: "text/markdown", text: note.content },
+					annotations: { audience: ["assistant"], priority: 1.0, lastModified: note.lastModified },
+				});
+			} else {
+				mentionBlocks.push({
+					type: "text",
+					text: `<obsidian_mentioned_note ref="${note.uri}">\n${note.content}\n</obsidian_mentioned_note>`,
+				});
+			}
+		} else if (input.supportsEmbeddedContext) {
 			mentionBlocks.push({
-				type: "resource",
-				resource: { uri: note.uri, mimeType: "text/markdown", text },
-				annotations: { audience: ["assistant"], priority: 1.0, lastModified: note.lastModified },
+				type: "resource_link",
+				uri: note.uri,
+				name: file.path.split("/").pop()?.replace(/\.md$/, "") ?? file.path,
+				mimeType: "text/markdown",
 			});
 		} else {
-			const truncationNote = note.wasTruncated
-				? `\n\n[Note: Truncated from ${note.originalLength} to ${maxNoteLen} characters]`
-				: "";
 			mentionBlocks.push({
 				type: "text",
-				text: `<obsidian_mentioned_note ref="${note.uri}">\n${note.content}${truncationNote}\n</obsidian_mentioned_note>`,
+				text: `<obsidian_mentioned_note ref="${note.uri}">\n${MENTION_REFERENCE_ONLY_HINT}\n</obsidian_mentioned_note>`,
 			});
 		}
 	}
+
+	// Channel 1 — first-appearance hydration (H1–H3, H8, H9). An unhydrated
+	// pill ≤ gate embeds its body once. A pill whose note was inlined by a
+	// mention this turn is already delivered, so it stays reference-only (H8).
+	// A read failure falls back to reference-only and never blocks the send.
+	const contextNotes = input.contextNotes ?? [];
+	const hydrationBodies = new Map<string, string>();
+	for (const n of contextNotes) {
+		if (n.hydrated === true || delivered.has(n.path)) continue;
+		let body: string;
+		try {
+			body = await vaultAccess.readNote(n.path);
+		} catch {
+			continue;
+		}
+		if (body.length === 0 || body.length > gate) continue;
+		hydrationBodies.set(n.path, body);
+		delivered.add(n.path);
+	}
+
+	const contextBlocks = buildContextBlocks({
+		contextNotes,
+		selection: input.selectionContext ?? null,
+		useEmbeddedContext: input.supportsEmbeddedContext ?? false,
+		vaultPath: input.vaultBasePath,
+		hydrationBodies,
+	});
 
 	// Build display content (what the user sees in the chat)
 	const displayContent: PromptContent[] = [];
@@ -706,6 +758,7 @@ async function preparePromptWithContextNotes(
 		displayContent,
 		agentContent,
 		// No autoMentionContext in the new system — the ContextStrip handles display
+		hydratedPaths: [...delivered],
 	};
 }
 

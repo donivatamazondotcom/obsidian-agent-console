@@ -12,6 +12,8 @@ export interface UseContextNotesReturn {
 	rename: (oldPath: string, newPath: string) => void;
 	clear: () => void;
 	replace: (notes: ContextNote[]) => void;
+	/** Mark notes whose body reached the agent (call on send success, H6). */
+	markHydrated: (paths: readonly string[]) => void;
 }
 
 /**
@@ -39,7 +41,7 @@ export function useContextNotes(
 				if (prev.length >= MAX_CONTEXT_NOTES) return prev;
 				if (prev.some((n) => n.path === path)) return prev;
 				added = true;
-				return [...prev, { path, source, seen: false }];
+				return [...prev, { path, source, seen: false, hydrated: false }];
 			});
 			return added;
 		},
@@ -71,8 +73,33 @@ export function useContextNotes(
 		setNotes(sanitizeContextNotes(next).notes);
 	}, []);
 
+	const markHydrated = useCallback((paths: readonly string[]) => {
+		if (paths.length === 0) return;
+		const set = new Set(paths);
+		setNotes((prev) => {
+			if (!prev.some((n) => set.has(n.path) && n.hydrated !== true)) {
+				return prev;
+			}
+			return prev.map((n) =>
+				set.has(n.path) && n.hydrated !== true
+					? { ...n, hydrated: true }
+					: n,
+			);
+		});
+	}, []);
+
 	return useMemo(
-		() => ({ notes, isFull, add, remove, has, rename, clear, replace }),
-		[notes, isFull, add, remove, has, rename, clear, replace],
+		() => ({
+			notes,
+			isFull,
+			add,
+			remove,
+			has,
+			rename,
+			clear,
+			replace,
+			markHydrated,
+		}),
+		[notes, isFull, add, remove, has, rename, clear, replace, markHydrated],
 	);
 }

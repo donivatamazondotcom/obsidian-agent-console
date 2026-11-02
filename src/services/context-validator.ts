@@ -26,6 +26,7 @@ export interface Violation {
 		| "empty-path"
 		| "bad-source"
 		| "bad-seen"
+		| "bad-hydrated"
 		| "not-an-object";
 	index: number;
 	detail: string;
@@ -54,6 +55,10 @@ export function validateContextNotes(notes: readonly unknown[]): Violation[] {
 		}
 		if (typeof note.seen !== "boolean") {
 			violations.push({ code: "bad-seen", index, detail: String(note.seen) });
+		}
+		// Absent is legal (pre-hydration persisted data reads as false).
+		if (note.hydrated !== undefined && typeof note.hydrated !== "boolean") {
+			violations.push({ code: "bad-hydrated", index, detail: String(note.hydrated) });
 		}
 	});
 
@@ -107,6 +112,9 @@ export function sanitizeContextNotes(notes: readonly unknown[]): {
 			path: note.path,
 			source: note.source as ContextNoteSource,
 			seen: typeof note.seen === "boolean" ? note.seen : false,
+			// Migration: absent or malformed → false, so the pill re-hydrates
+			// once on its next send (spec § Architecture Impact).
+			hydrated: note.hydrated === true,
 		});
 	});
 

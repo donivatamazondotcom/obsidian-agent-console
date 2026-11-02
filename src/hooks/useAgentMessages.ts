@@ -87,6 +87,12 @@ export interface SendMessageOptions {
 	selection?: { path: string; fromLine: number; toLine: number } | null;
 	/** Carry-over blocks from a prior agent's conversation (cross-agent portability). */
 	carryOverBlocks?: PromptContent[];
+	/**
+	 * Called with the vault paths whose note body reached the agent, only
+	 * after the send succeeds ([[ACP Context Note Hydration]] H6). A failed,
+	 * aborted, or superseded send never calls it, so the next send re-hydrates.
+	 */
+	onContextDelivered?: (paths: string[]) => void;
 }
 
 export interface UseAgentMessagesReturn {
@@ -657,6 +663,9 @@ export function useAgentMessages(
 						setIsSending(false);
 						setLastUserMessage(null);
 						recordTurnEnd(result.stopKind ?? "unknown");
+						if (prepared.hydratedPaths?.length) {
+							options.onContextDelivered?.(prepared.hydratedPaths);
+						}
 					} else {
 						setIsSending(false);
 						recordTurnEnd("failed");

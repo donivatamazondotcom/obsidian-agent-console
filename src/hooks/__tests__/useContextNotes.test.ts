@@ -40,7 +40,7 @@ describe("useContextNotes", () => {
 			result.current.add("path/to/note.md", "user");
 		});
 		expect(result.current.notes).toEqual([
-			{ path: "path/to/note.md", source: "user", seen: false },
+			{ path: "path/to/note.md", source: "user", seen: false, hydrated: false },
 		]);
 	});
 
@@ -189,6 +189,7 @@ describe("useContextNotes", () => {
 			path: "new-name.md",
 			source: "mention",
 			seen: false,
+			hydrated: false,
 		});
 		// Order preserved
 		expect(result.current.notes.map((n) => n.path)).toEqual([
@@ -215,8 +216,8 @@ describe("useContextNotes", () => {
 
 	it("accepts initial notes via parameter", () => {
 		const initial: ContextNote[] = [
-			{ path: "restored.md", source: "user", seen: false },
-			{ path: "other.md", source: "mention", seen: false },
+			{ path: "restored.md", source: "user", seen: false, hydrated: false },
+			{ path: "other.md", source: "mention", seen: false, hydrated: false },
 		];
 		const { result } = renderHook(() => useContextNotes(initial));
 		expect(result.current.notes).toEqual(initial);
@@ -254,8 +255,8 @@ describe("useContextNotes", () => {
 	it("replace sets the entire notes array", () => {
 		const { result } = renderHook(() => useContextNotes());
 		const restored: ContextNote[] = [
-			{ path: "x.md", source: "user", seen: false },
-			{ path: "y.md", source: "mention", seen: false },
+			{ path: "x.md", source: "user", seen: false, hydrated: false },
+			{ path: "y.md", source: "mention", seen: false, hydrated: false },
 		];
 		act(() => {
 			result.current.add("old.md", "user");
@@ -310,8 +311,8 @@ describe("useContextNotes — dedup invariants", () => {
 		const { result } = renderHook(() => useContextNotes());
 		act(() => {
 			result.current.replace([
-				{ path: "a.md", source: "user", seen: false },
-				{ path: "a.md", source: "mention", seen: false },
+				{ path: "a.md", source: "user", seen: false, hydrated: false },
+				{ path: "a.md", source: "mention", seen: false, hydrated: false },
 			]);
 		});
 		expect(result.current.notes.map((n) => n.path)).toEqual(["a.md"]);

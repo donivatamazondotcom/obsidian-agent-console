@@ -16,7 +16,7 @@ When you send the message, the mentioned note becomes part of the chat's context
 
 ## What the agent receives
 
-Sending a message with a mention includes the note's content, so the agent can reference, analyze, or edit it. Very long notes are sent as a truncated preview (up to 10,000 characters) plus a link to the full note, so the agent can read the rest on demand.
+Sending a message with a mention includes the note's full content, so the agent can reference, analyze, or edit it. Notes longer than 16,000 characters are sent as a link instead, and the agent reads them when it needs to. Agent Console never sends a cut-off note: a partial note usually makes the agent read the whole file anyway.
 
 ## Pinning vs mentioning
 

@@ -67,6 +67,16 @@ export function inlinedBodyBlock(note: BenchNote): CountableBlock {
 	};
 }
 
+/**
+ * HYD first-appearance wrapper, reconstructed verbatim from the shipped
+ * context-builder.ts hydration branch (plain-text agents). BM-T03 guards that
+ * it stays byte-identical. [[ACP Context Note Hydration]] H1.
+ */
+export function hydBlockText(note: BenchNote): string {
+	const ref = buildFileUri(note.vaultPath, note.path);
+	return `<obsidian_context_note ref="${ref}">\nThe user has pinned this note as context for this chat. Its content follows as a point-in-time snapshot. Use the Read tool with the ref path above for the current version if needed.\n\n${note.body}\n</obsidian_context_note>`;
+}
+
 /** The two history blocks a single Read round-trip adds. */
 export function readRoundTrip(note: BenchNote): CountableBlock[] {
 	return [
@@ -123,13 +133,15 @@ export function b1Timed(
 
 /**
  * HYD — hydrate once (body inlined on turn 1), reference thereafter, no Read.
+ * Shipped behavior since [[ACP Context Note Hydration]]; turn 1 uses the
+ * real hydration wrapper ({@link hydBlockText}).
  * Front-loads the body; replayed K times it costs ~K*C, which is why it
  * loses badly in the never-read scenario (S5) — the honesty guard.
  */
 export function hydTimed(notes: BenchNote[], K: number): TimedBlock[] {
 	const out: TimedBlock[] = [];
 	for (const note of notes) {
-		out.push({ at: 1, block: inlinedBodyBlock(note) });
+		out.push({ at: 1, block: { type: "text", text: hydBlockText(note) } });
 		for (let j = 2; j <= K; j++) {
 			out.push({ at: j, block: b1RefBlock(note) });
 		}
