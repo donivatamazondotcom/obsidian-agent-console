@@ -36,13 +36,11 @@ vi.mock("obsidian", () => ({
 	// platform.ts (pulled in transitively via the quick-prompt UI) reads
 	// Platform.isMacOS at module load for the modifier-label helper (I134).
 	Platform: { isMacOS: true, isWin: false, isLinux: false },
-}));
-
-// Preserve the className so the status-chip class is assertable in the DOM.
-vi.mock("../shared/IconButton", () => ({
-	LucideIcon: ({ name, className }: { name: string; className?: string }) => (
-		<span data-icon={name} className={className} />
-	),
+	// Stub at the Obsidian boundary so the real LucideIcon renders: record
+	// the icon name on the element setIcon() is handed.
+	setIcon: (el: HTMLElement, name: string) => {
+		el.setAttribute("data-icon", name);
+	},
 }));
 
 vi.mock("../TerminalBlock", () => ({
