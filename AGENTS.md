@@ -40,7 +40,8 @@ src/
 │   ├── acp-client.ts            # Process lifecycle, UI-facing API (AcpClient class)
 │   ├── acp-handler.ts           # SDK event handler + sessionId filter + listener broadcast
 │   ├── mcp-auth-parsers.ts      # Params parsers for _kiro.dev/mcp/* extension notifications (validate at edge)
-│   ├── kiro-v3.ts               # Kiro CLI V3 adapter: launch-arg rewrite, initialize capabilities (hooks opt-in), per-session mode/model/effort
+│   ├── claude-code-replay.ts    # Claude Code replay shape: `[@name](uri)` mention text back to a resource_link chip (I242)
+│   ├── kiro-v3.ts               # Kiro CLI V3 adapter: launch-arg rewrite, initialize capabilities (hooks opt-in), per-session mode/model/effort, resource-link adapter + its `<attached_file>` replay inverse (I220/I222)
 │   ├── type-converter.ts        # ACP SDK ↔ internal type conversion; capability normalizer (toAgentCapabilities)
 │   ├── permission-handler.ts    # Permission queue, auto-approve, Promise resolution
 │   ├── process-teardown.ts      # teardownProcessTree — single owner of agent teardown (I211): snapshot tree, stdin EOF, group SIGTERM, grace, SIGKILL snapshot survivors incl. own-group MCP servers
@@ -202,6 +203,7 @@ src/
 │   ├── composer-focus.ts           # Focus composer textarea + caret at end (restored-draft mount, TP-I03); send→refocus timing seam (I173)
 │   ├── deriveTabLabel.ts           # Derive tab label from session / first message
 │   ├── empty-state-view.ts         # deriveEmptyStateView — pure empty-state affordance resolver (location × hasDetectedAgent → reason + redetect/installRows/agentPicks/landingActions/settings/hint); shared by GettingStarted (in-tab) and the zero-tab landing so the two can't drift
+│   ├── first-message.ts            # isFirstMessageOfSession — a send is a first message only on an empty transcript of a session that does not already exist (restored/forked tabs never are; I241)
 │   ├── header-slot.ts              # deriveHeaderSlot — pure 4-way header secondary-slot resolver (model / connecting / idle / none)
 │   ├── header-agent.ts             # deriveHeaderAgent / deriveHeaderModelName / deriveHeaderRuntime — which agent, model and runtime the header names; reads modes via session-modes (I207)
 │   ├── notify-gate.ts              # shouldNotifySystem — pure resolver: should an OS notification fire for a backgrounded panel; gates on the flush signal, not an instantaneous focus read (I168)

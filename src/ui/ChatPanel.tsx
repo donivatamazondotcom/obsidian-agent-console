@@ -795,6 +795,7 @@ export function ChatPanel({
 	// Forward ref to useLazySession.reloadNow (created later): soft reload
 	// runs through the same owner so the tab passes through `connecting` and
 	// the connect-flush delivers a message sent mid-reload (I229).
+	const lazyContinuesSessionRef = useRef<(() => boolean) | null>(null);
 	const lazyReloadNowRef = useRef<UseLazySessionApi["reloadNow"] | null>(
 		null,
 	);
@@ -815,6 +816,7 @@ export function ChatPanel({
 		vaultRoot,
 		agentCwd,
 		lazyReloadNowRef,
+		lazyContinuesSessionRef,
 	);
 
 	const {
@@ -1600,6 +1602,7 @@ export function ChatPanel({
 	lazyResetRef.current = lazySession.reset;
 	lazyAcquireNowRef.current = lazySession.acquireNow;
 	lazyReloadNowRef.current = lazySession.reloadNow;
+	lazyContinuesSessionRef.current = lazySession.continuesExistingSession;
 
 	// Wire the queue-orchestration effect handlers now that handleSendMessage and
 	// lazySession are in scope. flushDispatch is ALWAYS the raw send — the

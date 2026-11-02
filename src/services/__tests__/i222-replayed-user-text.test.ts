@@ -165,6 +165,30 @@ describe("I222/I228 — replayed user message shows only the user's words", () =
 		]);
 	});
 
+	it("(I242) Claude shape with a context chip — the [@file](uri) mention comes back as a chip", async () => {
+		// Claude Code stores each resource_link as the text `[@<basename>](<uri>)`
+		// and replays it as its own chunk, in prompt order (trace 2026-11-01).
+		const claudeChunks = (await agentContent(true)).flatMap((b) => {
+			if (b.type === "text") return [b.text];
+			if (b.type === "resource_link") {
+				const base = decodeURI(b.uri).split("/").pop();
+				return [`[@${base}](${b.uri})`];
+			}
+			return [];
+		});
+		claudeChunks.push("[@budget.xlsx](file:///vault/Attachments/budget.xlsx)");
+		const messages = replay(claudeChunks);
+		const user = messages.find((m) => m.role === "user");
+
+		expect(userText(messages)).toBe(USER_WORDS);
+		expect(
+			(user?.content ?? []).filter((b) => b.type === "resource_link"),
+		).toEqual([
+			expect.objectContaining({ name: "Release.md", uri: "file:///vault/Plans/Release.md" }),
+			expect.objectContaining({ name: "budget.xlsx", uri: "file:///vault/Attachments/budget.xlsx" }),
+		]);
+	});
+
 	it("keeps the user's own words when they merely mention a tag name", () => {
 		const own = "Why does <obsidian_system_instruction> show in my chat?";
 		const messages = replay([own]);

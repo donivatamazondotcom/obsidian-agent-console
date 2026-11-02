@@ -77,6 +77,8 @@ describe("message-sender stripper", () => {
 	it("flags a V3 placeholder title, not a real one", () => {
 		expect(isPlaceholderAgentTitle("<obsidian_system_instruction>")).toBe(true);
 		expect(isPlaceholderAgentTitle("Kiro integration with Obsidian")).toBe(false);
+		// I242: Claude titles a chat that opened with a chip by the chip's mention.
+		expect(isPlaceholderAgentTitle("[@ctx.md](file:///tmp/ctx.md)")).toBe(true);
 	});
 });
 

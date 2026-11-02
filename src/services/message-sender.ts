@@ -55,6 +55,11 @@ import {
 	takeTrailingAttachedFile,
 } from "../acp/kiro-v3";
 import {
+	isFileMentionTitle,
+	takeLeadingFileMention,
+	takeTrailingFileMention,
+} from "../acp/claude-code-replay";
+import {
 	escapeRegExp,
 	takeLeadingSentence,
 	takeLeadingWrappedBlock,
@@ -411,8 +416,10 @@ export function takeLeadingSenderBlock(text: string): string | null {
  * The single composition of the per-builder strippers, applied once at the
  * trust boundary (message-state's `user_message_chunk` case). Removes complete
  * injected blocks from the head of the text, where every builder places them,
- * and Kiro V3 `<attached_file>` blocks from the tail (attachments follow the
- * user's words). Attached-file blocks come back as `resource_link` chips.
+ * and resource links from the tail (attachments follow the user's words).
+ * Resource links come back as `resource_link` chips, in each agent's replay
+ * shape: Kiro V3 `<attached_file>` blocks and Claude Code `[@name](uri)`
+ * mentions (I242).
  * The user's own words are never touched. Pure and total.
  */
 export function stripInjectedPromptText(text: string): {
@@ -422,7 +429,7 @@ export function stripInjectedPromptText(text: string): {
 	const links: ResourceLinkPromptContent[] = [];
 	let rest = text;
 	for (;;) {
-		const file = takeLeadingAttachedFile(rest);
+		const file = takeLeadingAttachedFile(rest) ?? takeLeadingFileMention(rest);
 		if (file) {
 			links.push(file.link);
 			rest = file.rest;
@@ -436,7 +443,9 @@ export function stripInjectedPromptText(text: string): {
 		rest = next;
 	}
 	const tail: ResourceLinkPromptContent[] = [];
-	for (let file = takeTrailingAttachedFile(rest); file; file = takeTrailingAttachedFile(rest)) {
+	const takeTrailing = (t: string) =>
+		takeTrailingAttachedFile(t) ?? takeTrailingFileMention(t);
+	for (let file = takeTrailing(rest); file; file = takeTrailing(rest)) {
 		tail.unshift(file.link);
 		rest = file.rest;
 	}
@@ -446,12 +455,15 @@ export function stripInjectedPromptText(text: string): {
 /**
  * True when an agent-reported session title is really the head of an injected
  * block (I223). Kiro V3 titles an untitled session with the first line of the
- * stored prompt, i.e. `<obsidian_system_instruction>`; that must not be used
- * as the session's title.
+ * stored prompt, i.e. `<obsidian_system_instruction>`; Claude Code titles a
+ * chat that opened with a context chip by the chip's `[@name](uri)` mention.
+ * Neither may be used as the session's title.
  */
 export function isPlaceholderAgentTitle(title: string): boolean {
-	return /^<(?:obsidian_\w+|attached_file|carry_over_transcript)\b/.test(
-		title.trim(),
+	return (
+		/^<(?:obsidian_\w+|attached_file|carry_over_transcript)\b/.test(
+			title.trim(),
+		) || isFileMentionTitle(title) // Claude Code (I242)
 	);
 }
 
