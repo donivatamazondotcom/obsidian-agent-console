@@ -304,18 +304,16 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	color: var(--text-muted);
 }
 
-/* Failed status chip (CTC-I05): distinguished by background fill + shape, not
-   hue alone, so it is parseable with red/green color-vision deficiency. This is
-   the at-a-glance "this failed" signal in the collapsed summary row now that
-   failed calls no longer auto-expand. */
+/* Failed status icon (CTC-I05): Lucide `circle-x`, the same glyph the tab bar
+   uses for an errored session. The circled shape carries "failed", not hue
+   alone, so it is parseable with red/green color-vision deficiency. No filled
+   pill: the icon sits flush with the caret and kind icon in the row. */
 .agent-client-message-tool-call-status-icon.agent-client-status-failed {
-	background: var(--background-modifier-error);
-	border-radius: var(--radius-s);
-	padding: 1px 3px;
+	display: inline-flex;
 }
 
 .agent-client-message-tool-call-status-icon.agent-client-status-failed svg {
-	color: var(--text-on-accent);
+	color: var(--text-error);
 }
 
 .agent-client-message-tool-call-status-icon.agent-client-status-in_progress svg,

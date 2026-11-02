@@ -6,7 +6,7 @@
  * inconsistent and made it hard to parse WHY a particular card was expanded.
  *
  * After: failed calls stay COLLAPSED. The collapsed summary row flags failure
- * with a highlighted status chip (the "x" icon on an error-background pill,
+ * with a status icon (Lucide `circle-x`, error-tinted, no background pill,
  * class `agent-client-status-failed`), so the user parses "this failed" at a
  * glance and chooses to expand. The error itself is surfaced by RawPayloadBlock
  * on manual expand. Only a pending permission still forces expansion, because
@@ -16,6 +16,8 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import { render } from "@testing-library/react";
 import * as React from "react";
 
@@ -34,13 +36,11 @@ vi.mock("obsidian", () => ({
 	// platform.ts (pulled in transitively via the quick-prompt UI) reads
 	// Platform.isMacOS at module load for the modifier-label helper (I134).
 	Platform: { isMacOS: true, isWin: false, isLinux: false },
-}));
-
-// Preserve the className so the status-chip class is assertable in the DOM.
-vi.mock("../shared/IconButton", () => ({
-	LucideIcon: ({ name, className }: { name: string; className?: string }) => (
-		<span data-icon={name} className={className} />
-	),
+	// Stub at the Obsidian boundary so the real LucideIcon renders: record
+	// the icon name on the element setIcon() is handed.
+	setIcon: (el: HTMLElement, name: string) => {
+		el.setAttribute("data-icon", name);
+	},
 }));
 
 vi.mock("../TerminalBlock", () => ({
@@ -111,8 +111,22 @@ describe("CTC-I05: failed tool calls do not auto-expand", () => {
 			".agent-client-message-tool-call-status-icon.agent-client-status-failed",
 		);
 		expect(chip).not.toBeNull();
-		// The chip carries the "x" glyph (failure shape, not hue alone).
-		expect(chip?.getAttribute("data-icon")).toBe("x");
+		// The circled glyph carries failure by shape, not hue alone, and
+		// matches the tab bar's error icon.
+		expect(chip?.getAttribute("data-icon")).toBe("circle-x");
+	});
+
+	it("does not render the failed icon on a filled pill (sits flush with the row's icons)", () => {
+		const css = readFileSync(
+			resolve(__dirname, "../../../styles.css"),
+			"utf8",
+		);
+		const rule = css.match(
+			/\.agent-client-message-tool-call-status-icon\.agent-client-status-failed\s*\{([^}]*)\}/,
+		);
+		const body = rule ? rule[1] : "";
+		expect(body).not.toMatch(/background/);
+		expect(body).not.toMatch(/padding/);
 	});
 
 	it("still AUTO-EXPANDS when a permission is pending (banner must be actionable)", () => {
