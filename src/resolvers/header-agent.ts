@@ -16,9 +16,9 @@
  * `deriveHeaderModelName` — confirmed model, then legacy `models`, then the
  * `model` config option (Kiro CLI V3 sends only that).
  *
- * `deriveHeaderRuntime` — the tooltip's Runtime line: what the agent reported
- * in `agentInfo`, else "Kiro CLI (V3 engine)" for a process launched on V3
- * (V3 sends no `agentInfo`), else nothing. The engine is the one the tab's
+ * `deriveHeaderEngine` — the tooltip's Engine line: Kiro CLI V2 or V3 for a
+ * kiro-cli process (`session.kiroCli`), else what the agent reported in
+ * `agentInfo`, else nothing (I247). The engine is the one the tab's
  * process was launched with (`session.kiroEngine`), never the live setting
  * (I235).
  *
@@ -83,23 +83,76 @@ export function deriveHeaderModelName(input: {
 	return current?.name || option.currentValue || null;
 }
 
-export type HeaderRuntime =
+export type HeaderEngine =
+	| { kind: "kiroCli"; engine: "v2" | "v3" }
 	| { kind: "reported"; label: string }
-	| { kind: "kiroV3" }
 	| { kind: "unknown" };
 
-export interface HeaderRuntimeInput {
-	agentInfo?: { name: string; title?: string; version?: string };
+export interface HeaderEngineInput {
+	/** The process is kiro-cli (`session.kiroCli`, decided at the acp/ edge). */
+	kiroCli?: boolean;
 	/** Engine the running process was launched with (`session.kiroEngine`). */
 	kiroEngine?: "v2" | "v3";
+	agentInfo?: { name: string; title?: string; version?: string };
 }
 
-/** Runtime segment for the header tooltip. Pure and total. */
-export function deriveHeaderRuntime(input: HeaderRuntimeInput): HeaderRuntime {
+/**
+ * Engine line for the header tooltip. Pure and total. Kiro names the engine
+ * it was launched with (V2 or V3; neither sends `agentInfo`). Any other agent
+ * names what it reported in `agentInfo`, else nothing. `kiroEngine` alone
+ * never means Kiro: it is "v2" for Claude too (I247).
+ */
+export function deriveHeaderEngine(input: HeaderEngineInput): HeaderEngine {
+	if (input.kiroCli && input.kiroEngine) {
+		return { kind: "kiroCli", engine: input.kiroEngine };
+	}
 	const info = input.agentInfo;
 	if (info?.name) {
 		const name = info.title || info.name;
 		return { kind: "reported", label: info.version ? `${name} ${info.version}` : name };
 	}
-	return input.kiroEngine === "v3" ? { kind: "kiroV3" } : { kind: "unknown" };
+	return { kind: "unknown" };
+}
+
+/** Effort line: the current `thought_level` option's name, or null. */
+export function deriveHeaderEffort(input: {
+	configOptions?: SessionConfigOption[];
+}): string | null {
+	const option = input.configOptions?.find(
+		(o) => o.id === "thought_level" || o.category === "thought_level",
+	);
+	if (!option) return null;
+	const current = flattenConfigSelectOptions(option.options).find(
+		(o) => o.value === option.currentValue,
+	);
+	return current?.name || option.currentValue || null;
+}
+
+/**
+ * Mode line: the current mode's name, or null. On Kiro the mode IS the agent,
+ * which the Agent line (and the I207 status line) already shows, so Kiro gets
+ * no Mode line.
+ */
+export function deriveHeaderMode(input: {
+	kiroCli?: boolean;
+	modes?: SessionModeState;
+	configOptions?: SessionConfigOption[];
+}): string | null {
+	if (input.kiroCli) return null;
+	return readSessionModes(input)?.current.name ?? null;
+}
+
+function trimSeparators(path: string): string {
+	return path.replace(/[\\/]+$/, "");
+}
+
+/** Folder line: the tab's folder when it isn't the vault folder, or null. */
+export function deriveHeaderFolder(input: {
+	cwd?: string;
+	vaultRoot: string;
+}): string | null {
+	if (!input.cwd) return null;
+	return trimSeparators(input.cwd) === trimSeparators(input.vaultRoot)
+		? null
+		: input.cwd;
 }

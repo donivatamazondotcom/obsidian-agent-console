@@ -532,7 +532,6 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"commands.broadcastCancel": "全タブでキャンセル",
 	// ---- Phase 3: chat header ----
 	"chat.header.connecting": "接続中…",
-	"chat.header.runtimeKiroV3": "Kiro CLI（V3 エンジン）",
 	"chat.header.notConnected": "未接続",
 	"chat.header.updatePill": "プラグインの更新があります！",
 	"chat.header.updateTooltip":
@@ -542,12 +541,15 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.header.sessionHistory": "セッション履歴",
 	"chat.header.exportTooltip": "チャットを Markdown にエクスポート",
 	"chat.header.more": "その他",
-	"chat.header.tooltipPlugin": "プラグイン: {value}",
 	"chat.header.tooltipAgentNotLoaded": "{requested} を読み込めなかったため、代わりに {running} が動作しています",
 	"chat.header.tooltipAgentSwitched": "実行中: {running}（入力欄で切り替え）",
-	"chat.header.tooltipProfile": "プロファイル: {value}",
-	"chat.header.tooltipRuntime": "ランタイム: {value}",
+	"chat.header.tooltipAgent": "エージェント: {value}",
+	"chat.header.tooltipEngine": "エンジン: {value}",
+	"chat.header.engineKiroCli": "Kiro CLI {engine}",
 	"chat.header.tooltipModel": "モデル: {value}",
+	"chat.header.tooltipEffort": "推論の深さ: {value}",
+	"chat.header.tooltipMode": "モード: {value}",
+	"chat.header.tooltipFolder": "フォルダ: {value}",
 	// ---- Phase 3: more-menu + tab bar ----
 	"chat.menu.switchAgent": "エージェントを切り替え",
 	"chat.menu.openNewView": "新しいビューを開く",

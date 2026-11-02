@@ -22,8 +22,11 @@ function segments(): HeaderSegments {
 	return {
 		plugin: "Agent Console",
 		profile: "Test Agent",
-		runtime: null,
+		engine: { kind: "unknown" },
 		model: null,
+		effort: null,
+		mode: null,
+		folder: null,
 	};
 }
 

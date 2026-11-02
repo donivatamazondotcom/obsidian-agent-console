@@ -305,6 +305,7 @@ export function useAgentSession(
 				capabilities: prev.capabilities,
 				agentInfo: prev.agentInfo,
 				kiroEngine: prev.kiroEngine,
+				kiroCli: prev.kiroCli,
 				createdAt: new Date(),
 				lastActivityAt: new Date(),
 			}));
@@ -452,6 +453,10 @@ export function useAgentSession(
 						? initResult.kiroEngine
 						: (agentClient.getInitializeResult()?.kiroEngine ??
 							prev.kiroEngine),
+					kiroCli: initResult
+						? initResult.kiroCli
+						: (agentClient.getInitializeResult()?.kiroCli ??
+							prev.kiroCli),
 					lastActivityAt: new Date(),
 				}));
 
@@ -575,6 +580,7 @@ export function useAgentSession(
 				capabilities: undefined,
 				agentInfo: undefined,
 				kiroEngine: undefined,
+				kiroCli: undefined,
 				lastActivityAt: new Date(),
 			}));
 			setErrorInfo(null);
@@ -664,6 +670,9 @@ export function useAgentSession(
 				kiroEngine:
 					agentClient.getInitializeResult()?.kiroEngine ??
 					prev.kiroEngine,
+				kiroCli:
+					agentClient.getInitializeResult()?.kiroCli ??
+					prev.kiroCli,
 				lastActivityAt: new Date(),
 			}));
 		},
@@ -907,6 +916,7 @@ export function useAgentSession(
 				init.agentCapabilities ?? prev.agentCapabilities,
 			capabilities: init.capabilities ?? prev.capabilities,
 			kiroEngine: init.kiroEngine ?? prev.kiroEngine,
+			kiroCli: init.kiroCli ?? prev.kiroCli,
 		}));
 	}, [agentClient]);
 

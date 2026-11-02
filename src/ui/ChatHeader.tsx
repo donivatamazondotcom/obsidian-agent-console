@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { HeaderAgent } from "../resolvers/header-agent";
+import type { HeaderAgent, HeaderEngine } from "../resolvers/header-agent";
 const { useRef, useEffect, useState } = React;
 import { setIcon, setTooltip } from "obsidian";
 import { SharedLinksButton } from "./SharedLinksButton";
@@ -15,7 +15,7 @@ import { t } from "../i18n";
  * Layered branding segments rendered in the header title row.
  *
  * See `Agent Console Header Branding` spec. Plugin and profile are always
- * present (client-sourced); runtime and model are null while the session is
+ * present (client-sourced); engine and model are unknown while the session is
  * connecting (ACP-sourced, populated after `initialize` and `session/new`
  * respectively). While the session is genuinely connecting (`isConnecting`),
  * the secondary slot shows a "Connecting…" placeholder. A `ready` session that
@@ -26,12 +26,18 @@ import { t } from "../i18n";
 export interface HeaderSegments {
 	/** Plugin name from manifest (e.g. "Agent Console"); rendered in literal brackets. */
 	plugin: string;
-	/** Profile display name (e.g. "Test Agent"); the which-configuration signal. */
+	/** Configured agent display name (e.g. "Auto SA"); the which-configuration signal. */
 	profile: string;
-	/** Runtime title + version (e.g. "Kiro CLI Agent 2.4.0"); null while connecting. */
-	runtime: string | null;
+	/** Engine the tab runs on (`deriveHeaderEngine`); tooltip only. */
+	engine: HeaderEngine;
 	/** Active model display name (e.g. "claude-opus-4.7"); null while connecting. */
 	model: string | null;
+	/** Current effort level name (`deriveHeaderEffort`); tooltip only. */
+	effort: string | null;
+	/** Current mode name, non-Kiro agents only (`deriveHeaderMode`); tooltip only. */
+	mode: string | null;
+	/** The tab's folder when it isn't the vault (`deriveHeaderFolder`); tooltip only. */
+	folder: string | null;
 	/** Whether the tab is in lazy-idle state (no connection attempted yet) */
 	isLazyIdle?: boolean;
 	/**
@@ -247,7 +253,7 @@ function useHeaderWidthTier(
  * always visible — the only signal that distinguishes one configured profile
  * from another.
  *
- * Runtime version (e.g. "Kiro CLI Agent 2.4.0") is intentionally NOT in the
+ * The engine (e.g. "Kiro CLI V3") is intentionally NOT in the
  * visible header for v0 — it's surfaced via the `title` tooltip on the
  * outer span. See spec § Decisions #10 (v0 / v0.1 split) and #11 (runtime
  * deferred to tooltip).
@@ -350,21 +356,36 @@ function BrandedTitle({
 }
 
 /**
- * Builds the multi-line tooltip text shown on header hover.
- *
- * Surfaces all four segments (plugin, profile, runtime, model) plus version
- * info. Returns a plain string so the browser renders it via the native
- * `title` attribute — no popover, no positioning, no extra DOM. Runtime and
- * Model lines read "Connecting…" while connecting and are omitted once the
- * session is ready if the agent never reported them.
+ * Builds the multi-line tooltip text shown on header hover (I247):
+ * Agent, the I207 status line, Engine, Model, Effort, Mode, Folder. Each line
+ * shows only when it applies. Engine and Model read "Connecting…" while the
+ * session is genuinely connecting (the I80 gate); Effort and Mode stay hidden
+ * until the agent reports them. Plain string, rendered by the native `title`
+ * attribute.
  */
+function engineLabel(engine: HeaderEngine): string | null {
+	switch (engine.kind) {
+		case "kiroCli":
+			return t("chat.header.engineKiroCli", {
+				engine: t(
+					engine.engine === "v3"
+						? "settings.kiroEngine.v3"
+						: "settings.kiroEngine.v2",
+				),
+			});
+		case "reported":
+			return engine.label;
+		case "unknown":
+			return null;
+	}
+}
+
 /**
- * One ACP-sourced tooltip line. "Connecting…" only while the session is
- * genuinely connecting (the I80 gate); once ready, a segment the agent never
- * reported is left out rather than claiming a connection is still pending.
+ * One ACP-sourced line that reads "Connecting…" while connecting; once ready,
+ * a value the agent never reported is left out.
  */
-function tooltipLine(
-	key: "chat.header.tooltipRuntime" | "chat.header.tooltipModel",
+function connectingLine(
+	key: "chat.header.tooltipEngine" | "chat.header.tooltipModel",
 	value: string | null,
 	segments: HeaderSegments,
 ): string[] {
@@ -373,28 +394,38 @@ function tooltipLine(
 	return [];
 }
 
+function optionalLine(
+	key: "chat.header.tooltipEffort" | "chat.header.tooltipMode" | "chat.header.tooltipFolder",
+	value: string | null,
+): string[] {
+	return value ? [t(key, { value })] : [];
+}
+
+function agentStatusLine(agent: HeaderAgent | undefined): string[] {
+	if (agent?.kind === "notLoaded") {
+		return [
+			t("chat.header.tooltipAgentNotLoaded", {
+				requested: agent.label,
+				running: agent.running,
+			}),
+		];
+	}
+	if (agent?.kind === "switched") {
+		return [t("chat.header.tooltipAgentSwitched", { running: agent.running })];
+	}
+	return [];
+}
+
 function buildHeaderTooltip(segments: HeaderSegments): string {
-	const lines = [
-		t("chat.header.tooltipPlugin", { value: segments.plugin }),
-		t("chat.header.tooltipProfile", { value: segments.profile }),
-		...(segments.agent?.kind === "notLoaded"
-			? [
-					t("chat.header.tooltipAgentNotLoaded", {
-						requested: segments.agent.label,
-						running: segments.agent.running,
-					}),
-				]
-			: segments.agent?.kind === "switched"
-				? [
-						t("chat.header.tooltipAgentSwitched", {
-							running: segments.agent.running,
-						}),
-					]
-				: []),
-		...tooltipLine("chat.header.tooltipRuntime", segments.runtime, segments),
-		...tooltipLine("chat.header.tooltipModel", segments.model, segments),
-	];
-	return lines.join("\n");
+	return [
+		t("chat.header.tooltipAgent", { value: segments.profile }),
+		...agentStatusLine(segments.agent),
+		...connectingLine("chat.header.tooltipEngine", engineLabel(segments.engine), segments),
+		...connectingLine("chat.header.tooltipModel", segments.model, segments),
+		...optionalLine("chat.header.tooltipEffort", segments.effort),
+		...optionalLine("chat.header.tooltipMode", segments.mode),
+		...optionalLine("chat.header.tooltipFolder", segments.folder),
+	].join("\n");
 }
 
 // ============================================================================
