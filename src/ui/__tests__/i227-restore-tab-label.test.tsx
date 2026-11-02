@@ -155,6 +155,15 @@ describe("I243 — Claude Code's title-instruction title on an agent-only row", 
 	});
 });
 
+describe("I245 — Kiro's 'New Session' default on an agent-only row", () => {
+	afterEach(cleanup);
+
+	it("the restored tab falls back to the untitled text", () => {
+		const { tabLabel } = restoreAndLabel(rowOf("1c224775", "New Session"), []);
+		expect(tabLabel).toBe(defaultSessionTitle());
+	});
+});
+
 describe("deriveRestoreTabLabel — fork keeps its prefix and suffix", () => {
 	it("prefixes and suffixes a fork against saved titles", () => {
 		expect(

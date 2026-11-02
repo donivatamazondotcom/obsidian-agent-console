@@ -35,7 +35,9 @@ export type ResolvedSessionTitle =
  * stored prompt, i.e. `<obsidian_system_instruction>`; Claude Code titles a
  * chat that opened with a context chip by the chip's `[@name](uri)` mention
  * (I242), and a chat with no chip by the opening of the plugin's own title
- * instruction, `TITLE_RUBRIC` (I243). None may be used as the session's title.
+ * instruction, `TITLE_RUBRIC` (I243). Kiro V3 also names every session
+ * "New Session" until it titles it, and a chat with no messages keeps that
+ * name (I245). None may be used as the session's title.
  */
 export function isPlaceholderAgentTitle(title: string): boolean {
 	return (
@@ -43,9 +45,17 @@ export function isPlaceholderAgentTitle(title: string): boolean {
 			title.trim(),
 		) ||
 		isFileMentionTitle(title) ||
-		isTitleRubricHead(title)
+		isTitleRubricHead(title) ||
+		title.trim() === KIRO_UNTITLED_SESSION
 	);
 }
+
+/**
+ * Kiro V3's default session title, set before it names a chat (its
+ * acp-server `buildInitialSessionMetadata`). Exact match only, so a real
+ * title that contains the words is kept.
+ */
+const KIRO_UNTITLED_SESSION = "New Session";
 
 /**
  * Shortest rubric head that counts as the rubric. Long enough that a real

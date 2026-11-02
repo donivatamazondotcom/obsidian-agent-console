@@ -121,3 +121,36 @@ describe("I243 — the title instruction is a placeholder agent title", () => {
 		).toBe("Reply with only the word ECHO");
 	});
 });
+
+/**
+ * I245 — Kiro CLI V3 titles every session "New Session" until it names it
+ * (acp-server.js: buildInitialSessionMetadata sets title to that constant).
+ * A chat that never got a message keeps it forever, so it is not a title.
+ */
+describe("I245 — Kiro's untitled-session name is a placeholder agent title", () => {
+	it("recognizes Kiro's default title exactly", () => {
+		expect(isPlaceholderAgentTitle("New Session")).toBe(true);
+		expect(isPlaceholderAgentTitle("  New Session ")).toBe(true);
+	});
+
+	it("keeps real titles that only contain the words", () => {
+		expect(isPlaceholderAgentTitle("New Session history design")).toBe(false);
+		expect(isPlaceholderAgentTitle("Plan the new session flow")).toBe(false);
+	});
+
+	it("a local title is never second-guessed, even 'New Session'", () => {
+		expect(resolveSessionTitle({ localTitle: "New Session", agentTitle: AGENT })).toEqual({
+			kind: "local",
+			title: "New Session",
+		});
+	});
+
+	it("a restore from a 'New Session' row seeds the record from the first message", () => {
+		const messages: ChatMessage[] = [
+			{ id: "u", role: "user", content: [{ type: "text", text: "Reply with only the word CHARLIE" }], timestamp: new Date() },
+		];
+		expect(deriveSessionRecordTitle({ seedTitle: "New Session", messages })).toBe(
+			"Reply with only the word CHARLIE",
+		);
+	});
+});
