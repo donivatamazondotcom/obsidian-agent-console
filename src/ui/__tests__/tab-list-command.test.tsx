@@ -12,7 +12,7 @@
  *     `showMenuAtEvent` helper. A programmatic `.click()` carries detail === 0
  *     / clientX,Y === 0 — the keyboard-activation signature — so the menu is
  *     anchored to the chevron rect (`showAtPosition`, the I115 fix), NOT the
- *     viewport origin, and lists every tab with its state glyph.
+ *     viewport origin, and lists every tab with its state icon.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
@@ -22,6 +22,7 @@ import * as React from "react";
 const h = vi.hoisted(() => {
 	interface FakeItem {
 		title?: string;
+		icon?: string;
 		checked?: boolean;
 		click?: (e: unknown) => void;
 	}
@@ -29,6 +30,7 @@ const h = vi.hoisted(() => {
 		items: FakeItem[];
 		shown: boolean;
 		via: string | null;
+		native?: boolean;
 	}> = [];
 	return { menus };
 });
@@ -37,6 +39,7 @@ vi.mock("obsidian", () => {
 	class Menu {
 		items: Array<{
 			title?: string;
+			icon?: string;
 			checked?: boolean;
 			click?: (e: unknown) => void;
 		}> = [];
@@ -44,6 +47,7 @@ vi.mock("obsidian", () => {
 			items: this.items,
 			shown: false,
 			via: null as string | null,
+			native: undefined as boolean | undefined,
 		};
 		constructor() {
 			h.menus.push(this._record);
@@ -51,6 +55,7 @@ vi.mock("obsidian", () => {
 		addItem(cb: (item: unknown) => void) {
 			const item: {
 				title?: string;
+				icon?: string;
 				checked?: boolean;
 				click?: (e: unknown) => void;
 			} = {};
@@ -59,7 +64,8 @@ vi.mock("obsidian", () => {
 					item.title = t;
 					return api;
 				},
-				setIcon() {
+				setIcon(i: string) {
+					item.icon = i;
 					return api;
 				},
 				setChecked(v: boolean) {
@@ -84,6 +90,10 @@ vi.mock("obsidian", () => {
 			this._record.via = "position";
 		}
 		onHide() {}
+		setUseNativeMenu(v: boolean) {
+			this._record.native = v;
+			return this;
+		}
 	}
 	return { Menu, setIcon: vi.fn(), setTooltip: vi.fn() };
 });
@@ -138,7 +148,7 @@ describe("show-tab-list command wiring (TabBar.onRegisterShowTabList)", () => {
 		expect(typeof onRegisterShowTabList.mock.calls[0][0]).toBe("function");
 	});
 
-	it("invoking the opener pops the tab list anchored to the chevron (keyboard path), listing every tab with its state glyph", () => {
+	it("invoking the opener pops the tab list anchored to the chevron (keyboard path), listing every tab with its state icon", () => {
 		let opener: (() => void) | undefined;
 		const onSelectTab = vi.fn();
 		render(
@@ -170,14 +180,17 @@ describe("show-tab-list command wiring (TabBar.onRegisterShowTabList)", () => {
 		expect(menu.shown).toBe(true);
 		// Command/keyboard activation → anchored to the chevron rect, not (0,0).
 		expect(menu.via).toBe("position");
-		// Every tab listed, each prefixed with its colorblind-safe state glyph.
-		expect(menu.items.map((i) => i.title)).toEqual([
-			"●  Done",
-			"◐  Working",
-			"△  Waiting",
+		// Every tab listed by label, each with its state's Lucide icon (I238).
+		expect(menu.items.map((i) => [i.icon, i.title])).toEqual([
+			["circle-dot", "Done"],
+			["loader-circle", "Working"],
+			["triangle-alert", "Waiting"],
 		]);
 		// Active tab is checked.
 		expect(menu.items[1].checked).toBe(true);
+		// I238: native (OS) menus ignore setIcon, so the list forces a DOM menu
+		// to keep the state icons visible.
+		expect(menu.native).toBe(false);
 
 		// Selecting an item routes through onSelectTab.
 		menu.items[0].click?.(new MouseEvent("click"));

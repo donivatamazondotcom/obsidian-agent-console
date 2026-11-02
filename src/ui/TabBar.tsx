@@ -85,28 +85,31 @@ export interface TabBarProps {
 // ============================================================================
 
 /**
- * Maps a tab state to its colorblind-safe glyph.
+ * Maps a tab state to its colorblind-safe Lucide icon id.
  *
  * Single source of truth shared by the strip's {@link TabStateIcon} and the
- * chevron dropdown (handleChevronClick), so the two surfaces can never drift.
- * Shape is the primary signal by design — see `types/tab.ts`.
+ * chevron dropdown (handleChevronClick, via `MenuItem.setIcon`), so the two
+ * surfaces can never drift. Shape is the primary signal by design — see
+ * `types/tab.ts`. I238: Lucide icons replace Unicode glyphs, which depended on
+ * the loaded font and read poorly at small sizes.
  */
-export function stateGlyph(state: TabState): string {
+export function stateIcon(state: TabState): string {
 	switch (state) {
 		case "ready":
-			return "●";
+			return "circle-dot";
 		case "busy":
-			return "◐";
+			return "loader-circle";
 		case "permission":
-			return "△";
+			return "triangle-alert";
 		case "error":
-			return "✕";
+			return "circle-x";
 		case "disconnected":
-			return "○";
+			return "circle";
 		case "released":
-			// I209: paused to save memory. Distinct shape from disconnected so the
-			// dropdown (no color, no animation) still tells them apart.
-			return "◌";
+			// I209: asleep to save memory. A moon reads as "asleep" and is a distinct
+			// shape from disconnected, so the dropdown (no color, no animation) still
+			// tells them apart. I238: chosen in the smoke test over circle-pause.
+			return "moon";
 	}
 }
 
@@ -115,19 +118,23 @@ export function stateGlyph(state: TabState): string {
  * No red/green contrast dependency.
  */
 export function TabStateIcon({ state }: { state: TabState }) {
+	const ref = useRef<HTMLSpanElement>(null);
+	const icon = stateIcon(state);
+	useEffect(() => {
+		if (ref.current) setIcon(ref.current, icon);
+	}, [icon]);
 	const className = `agent-client-tab-state-icon agent-client-tab-state-${state}`;
 	// I209: the only state with words – it's the one users won't guess.
 	// Obsidian shows aria-label as the hover tooltip.
 	const label =
-		state === "released" ? t("chat.tabBar.pausedToSaveMemory") : undefined;
+		state === "released" ? t("chat.tabBar.asleepToSaveMemory") : undefined;
 	return (
 		<span
+			ref={ref}
 			className={className}
 			aria-label={label}
 			role={label ? "img" : undefined}
-		>
-			{stateGlyph(state)}
-		</span>
+		/>
 	);
 }
 
@@ -302,8 +309,7 @@ export function TabBar({
 
 	useEffect(() => {
 		if (addBtnRef.current) setIcon(addBtnRef.current, "plus");
-		if (chevronRef.current)
-			setIcon(chevronRef.current, "chevron-down");
+		if (chevronRef.current) setIcon(chevronRef.current, "chevron-down");
 	}, []);
 
 	// Expose "open the tab list" to the plugin's show-tab-list command
@@ -370,10 +376,7 @@ export function TabBar({
 				peek: TAB_NEIGHBOR_PEEK,
 				floor: ACTIVE_LABEL_FLOOR,
 			});
-			container.style.setProperty(
-				"--ac-active-label-max",
-				`${max}px`,
-			);
+			container.style.setProperty("--ac-active-label-max", `${max}px`);
 		};
 
 		applyMax();
@@ -396,9 +399,11 @@ export function TabBar({
 			registerOpenMenu(menu);
 
 			menu.addItem((item: MenuItem) => {
-				item.setTitle(t("chat.tabBar.rename")).setIcon("pencil").onClick(() => {
-					onRenameTab(tab.tabId);
-				});
+				item.setTitle(t("chat.tabBar.rename"))
+					.setIcon("pencil")
+					.onClick(() => {
+						onRenameTab(tab.tabId);
+					});
 			});
 
 			if (onAiRenameTab) {
@@ -422,9 +427,11 @@ export function TabBar({
 			// Close is always available — closing the last tab lands on the
 			// zero-tab landing screen (reverses T06/T41/I23 for this path).
 			menu.addItem((item: MenuItem) => {
-				item.setTitle(t("chat.tabBar.close")).setIcon("x").onClick(() => {
-					onCloseTab(tab.tabId);
-				});
+				item.setTitle(t("chat.tabBar.close"))
+					.setIcon("x")
+					.onClick(() => {
+						onCloseTab(tab.tabId);
+					});
 			});
 
 			// "Close others" / "Close to the right" only apply with >1 tab.
@@ -435,9 +442,7 @@ export function TabBar({
 					});
 				});
 
-				const tabIdx = tabs.findIndex(
-					(t) => t.tabId === tab.tabId,
-				);
+				const tabIdx = tabs.findIndex((t) => t.tabId === tab.tabId);
 				if (tabIdx < tabs.length - 1) {
 					menu.addItem((item: MenuItem) => {
 						item.setTitle(t("chat.tabBar.closeToRight")).onClick(
@@ -466,10 +471,15 @@ export function TabBar({
 	const handleChevronClick = useCallback(
 		(e: React.MouseEvent) => {
 			const menu = new Menu();
+			// I238: native (OS) menus show setChecked's checkmark but ignore
+			// setIcon, which would hide every state icon. Force a DOM menu so
+			// the list matches the tab strip.
+			menu.setUseNativeMenu(false);
 			registerOpenMenu(menu);
 			for (const tab of tabs) {
 				menu.addItem((item: MenuItem) => {
-					item.setTitle(`${stateGlyph(tab.state)}  ${tab.label}`)
+					item.setTitle(tab.label)
+						.setIcon(stateIcon(tab.state))
 						.setChecked(tab.tabId === activeTabId)
 						.onClick(() => {
 							onSelectTab(tab.tabId);
@@ -490,13 +500,10 @@ export function TabBar({
 		[],
 	);
 
-	const handleDragOver = useCallback(
-		(e: React.DragEvent) => {
-			e.preventDefault();
-			e.dataTransfer.dropEffect = "move";
-		},
-		[],
-	);
+	const handleDragOver = useCallback((e: React.DragEvent) => {
+		e.preventDefault();
+		e.dataTransfer.dropEffect = "move";
+	}, []);
 
 	const handleDrop = useCallback(
 		(toIndex: number) => (e: React.DragEvent) => {
@@ -523,7 +530,9 @@ export function TabBar({
 			if (target.kind !== "focus") return;
 			e.preventDefault();
 			const tabEls =
-				scrollRef.current?.querySelectorAll<HTMLElement>('[role="tab"]');
+				scrollRef.current?.querySelectorAll<HTMLElement>(
+					'[role="tab"]',
+				);
 			tabEls?.[target.index]?.focus();
 		},
 		[tabs.length],
@@ -561,9 +570,7 @@ export function TabBar({
 						onSelect={() => onSelectTab(tab.tabId)}
 						onNavKey={handleTabNavKey(index)}
 						onClose={() => onCloseTab(tab.tabId)}
-						onContextMenu={(e) =>
-							handleTabContextMenu(e, tab)
-						}
+						onContextMenu={(e) => handleTabContextMenu(e, tab)}
 						onMiddleClick={() => onCloseTab(tab.tabId)}
 						onDragStart={handleDragStart(index)}
 						onDragOver={handleDragOver}

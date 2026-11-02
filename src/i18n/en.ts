@@ -9,7 +9,8 @@
 export const en = {
 	"settings.heading.agents": "Agents",
 	"settings.defaultWorkingDirectory.name": "Default working directory",
-	"settings.defaultWorkingDirectory.placeholder": "Leave blank for vault root",
+	"settings.defaultWorkingDirectory.placeholder":
+		"Leave blank for vault root",
 	"settings.defaultWorkingDirectory.button": "Browse…",
 	"settings.defaultWorkingDirectory.tooltip": "Choose a folder",
 	"settings.heading.builtInAgents": "Built-in agents",
@@ -37,7 +38,8 @@ export const en = {
 	"settings.systemNotifications.name": "System notifications",
 	"settings.heading.tabs": "Tabs",
 	"settings.restoreTabsOnStartup.name": "Restore tabs on startup",
-	"settings.confirmBeforeClosingMultiple.name": "Confirm before closing multiple chats",
+	"settings.confirmBeforeClosingMultiple.name":
+		"Confirm before closing multiple chats",
 	"settings.heading.permissions": "Permissions",
 	"settings.autoAllowPermissions.name": "Auto-allow permissions",
 	"settings.exportFolder.name": "Export folder",
@@ -56,7 +58,8 @@ export const en = {
 	"settings.autoExportOnNew.name": "Auto-export on new chat",
 	"settings.autoExportOnClose.name": "Auto-export on close chat",
 	"settings.openNoteAfterExport.name": "Open note after export",
-	"settings.openNoteAfterExport.desc": "Automatically open the exported note after exporting",
+	"settings.openNoteAfterExport.desc":
+		"Automatically open the exported note after exporting",
 	"settings.nodeJsPath.name": "Node.js path",
 	"settings.heading.windowsSubsystemForLinux": "Windows Subsystem for Linux",
 	"settings.enableWslMode.name": "Enable WSL mode",
@@ -64,7 +67,8 @@ export const en = {
 	"settings.wslDistribution.placeholder": "Leave empty for default",
 	"settings.debugMode.name": "Debug mode",
 	"settings.defaultAgent.name": "Default agent",
-	"settings.defaultAgent.desc": "Choose which agent is used when opening a new chat view.",
+	"settings.defaultAgent.desc":
+		"Choose which agent is used when opening a new chat view.",
 	"settings.apiKey.name": "API key",
 	"settings.path.name": "Path",
 	"settings.path.placeholder": "gemini",
@@ -123,118 +127,196 @@ export const en = {
 	"settings.environmentVariables.button8": "Auto-detect",
 	"settings.environmentVariables.button9": "Error",
 	"settings.environmentVariables.button10": "Auto-detect",
-	"settings.importSettingsFromAnother.name": "Import settings from another plugin",
+	"settings.importSettingsFromAnother.name":
+		"Import settings from another plugin",
 	"settings.importSettingsFromAnother.button": "Import…",
 	"settings.workingDirectory.name": "Working directory",
-	"settings.workingDirectory.placeholder": "Leave blank for the global default",
+	"settings.workingDirectory.placeholder":
+		"Leave blank for the global default",
 	"settings.workingDirectory.button": "Browse…",
 	"settings.workingDirectory.tooltip": "Choose a folder",
-	"settings.activeNoteAsDefault.desc": "Automatically add the active note to a new chat's context strip. You can always pin notes manually with the grab button.",
-	"settings.sessionTitle.desc": "How a new chat's tab label is generated. Agent-suggested asks the agent for a short title on its first reply and falls back to your first message while it arrives. You can always rename a tab manually.",
-	"settings.quickPromptsFolder.desc": "Vault folder scanned for quick prompts — one markdown note per prompt. The note's description (or name/title/filename) is the label; the body is the prompt text. Changes are picked up live.",
-	"settings.sendMessageShortcut.desc": "Choose the keyboard shortcut to send messages. Note: If using Cmd/Ctrl+Enter, you may need to remove any hotkeys assigned to Cmd/Ctrl+Enter (Settings → Hotkeys).",
-	"settings.sendMessageShortcut.desc2": "Sent to the agent on the first message of each chat so it works naturally in Obsidian. Most people can leave this alone.",
-	"settings.yourVaultContext.desc": "Your own notes for the agent — where things live, naming and linking conventions, the tone you prefer. Added to the end of the prompt, and the same for every chat in this vault.",
-	"settings.editTheFullPrompt.desc": "Advanced: take over the whole prompt by hand. Opens pre-filled with the text shown below.",
-	"settings.fullPrompt.desc": "You're editing the entire prompt by hand. Your switches are baked into this text and no longer apply; the preview below shows exactly what gets sent.",
-	"settings.backToOptions.desc": "Return to the switches. Your hand-edited text is kept in case you come back.",
-	"settings.whatGetsSent.desc": "Read-only preview of the exact text the agent receives on the first message.",
-	"settings.whatGetsSent.desc2": "The notes line is only sent when a chat's folder is inside your vault.",
-	"settings.resetToDefaults.desc": "Turn all switches on, clear your vault context and any full prompt, and return to the options view.",
-	"settings.showEmojis.desc": "Display emoji icons in tool calls, thoughts, plans, and terminal blocks.",
-	"settings.systemNotifications.desc": "Show a notification when the agent finishes a reply or asks for permission. Completion notifications name the tab and switch to it when clicked. Notifications stay quiet while Obsidian is focused.",
-	"settings.restoreTabsOnStartup.desc": "Save open tabs when Obsidian quits and restore them on next launch. Each view restores its own tabs independently.",
-	"settings.confirmBeforeClosingMultiple.desc": "Warn before closing the panel with Cmd+W when it has 2 or more open chats, so you don't lose several running agents at once.",
-	"settings.autoAllowPermissions.desc": "Automatically allow all permission requests from agents. ⚠️ Use with caution - this gives agents full access to your system.",
-	"settings.filename.desc": "Template for exported filenames. Use {date} for date and {time} for time",
-	"settings.frontmatterTag.desc": "Tag to add to exported notes. Supports nested tags (e.g., projects/agent-console). Leave empty to disable.",
-	"settings.customImageFolder.desc": "Folder path for exported images (relative to vault root)",
-	"settings.autoExportOnNew.desc": "Automatically export the current chat when starting a new chat",
-	"settings.autoExportOnClose.desc": "Automatically export the current chat when closing the chat view",
-	"settings.nodeJsPath.desc": "Path to Node.js. Usually leave blank. Only needed if node is in a non-standard location (enter absolute path, e.g. /usr/local/bin/node).",
-	"settings.nodeJsPath.placeholder": "Leave blank (login shell auto-resolves)",
-	"settings.enableWslMode.desc": "Run agents inside Windows Subsystem for Linux. Recommended for agents like Codex that don't work well in native Windows environments.",
-	"settings.wslDistribution.desc": "Specify WSL distribution name (leave empty for default). Example: Ubuntu, Debian",
-	"settings.debugMode.desc": "Enable debug logging to console. Useful for development and troubleshooting.",
-	"settings.apiKey.desc": "Gemini API key. Required if not logging in with a Google account. Select from Obsidian's Keychain or create a new secret.",
-	"settings.environmentVariables.desc": "Enter KEY=VALUE pairs, one per line. Required to authenticate with Vertex AI. GEMINI_API_KEY is derived from the field above.",
-	"settings.authentication.desc": "Enter KEY=VALUE pairs, one per line. Leave empty unless your setup requires it.",
-	"settings.setup.desc": "Enter KEY=VALUE pairs, one per line. These apply to the OpenCode process only — not the model backend. For example, a local model's context length is set on the ollama server (OLLAMA_CONTEXT_LENGTH), not here. Leave empty unless your setup requires it.",
-	"settings.setup.desc2": "Anthropic API key. Required if not logging in with an Anthropic account. Select from Obsidian's Keychain or create a new secret.",
-	"settings.setup.desc3": "Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments.",
-	"settings.setup.desc4": "Enter KEY=VALUE pairs, one per line. ANTHROPIC_API_KEY is derived from the field above.",
-	"settings.setup.desc5": "OpenAI API key. Required if not logging in with an OpenAI account. Select from Obsidian's Keychain or create a new secret.",
-	"settings.setup.desc6": "Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments.",
-	"settings.setup.desc7": "Enter KEY=VALUE pairs, one per line. OPENAI_API_KEY is derived from the field above.",
-	"settings.displayName.desc2": "Command name or path to the custom agent. Use just the command name to let the login shell resolve it, or enter an absolute path.",
-	"settings.displayName.desc3": "Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments.",
-	"settings.displayName.desc4": "Enter KEY=VALUE pairs, one per line. (Stored as plain text)",
-	"settings.importSettingsFromAnother.desc": "Bring over agent definitions, defaults, and API keys from another agent plugin (e.g. Agent Client). Shows a preview before applying.",
-	"settings.path.desc": "Command name or path to the Gemini CLI. Use just \"gemini\" to let the login shell resolve it, or enter an absolute path for a specific version.",
-	"settings.arguments.desc": "Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments. (Currently, the Gemini CLI requires the \"--experimental-acp\" option.)",
-	"settings.authentication.desc2": "Kiro CLI signs in with your Kiro account, so no API key is needed. Run \"kiro-cli\" once in a terminal to sign in, then select Kiro CLI here.",
-	"settings.path.desc2": "Command name or path to kiro-cli. Use just \"kiro-cli\" to let the login shell resolve it, or enter an absolute path (commonly ~/.local/bin/kiro-cli).",
+	"settings.activeNoteAsDefault.desc":
+		"Automatically add the active note to a new chat's context strip. You can always pin notes manually with the grab button.",
+	"settings.sessionTitle.desc":
+		"How a new chat's tab label is generated. Agent-suggested asks the agent for a short title on its first reply and falls back to your first message while it arrives. You can always rename a tab manually.",
+	"settings.quickPromptsFolder.desc":
+		"Vault folder scanned for quick prompts — one markdown note per prompt. The note's description (or name/title/filename) is the label; the body is the prompt text. Changes are picked up live.",
+	"settings.sendMessageShortcut.desc":
+		"Choose the keyboard shortcut to send messages. Note: If using Cmd/Ctrl+Enter, you may need to remove any hotkeys assigned to Cmd/Ctrl+Enter (Settings → Hotkeys).",
+	"settings.sendMessageShortcut.desc2":
+		"Sent to the agent on the first message of each chat so it works naturally in Obsidian. Most people can leave this alone.",
+	"settings.yourVaultContext.desc":
+		"Your own notes for the agent — where things live, naming and linking conventions, the tone you prefer. Added to the end of the prompt, and the same for every chat in this vault.",
+	"settings.editTheFullPrompt.desc":
+		"Advanced: take over the whole prompt by hand. Opens pre-filled with the text shown below.",
+	"settings.fullPrompt.desc":
+		"You're editing the entire prompt by hand. Your switches are baked into this text and no longer apply; the preview below shows exactly what gets sent.",
+	"settings.backToOptions.desc":
+		"Return to the switches. Your hand-edited text is kept in case you come back.",
+	"settings.whatGetsSent.desc":
+		"Read-only preview of the exact text the agent receives on the first message.",
+	"settings.whatGetsSent.desc2":
+		"The notes line is only sent when a chat's folder is inside your vault.",
+	"settings.resetToDefaults.desc":
+		"Turn all switches on, clear your vault context and any full prompt, and return to the options view.",
+	"settings.showEmojis.desc":
+		"Display emoji icons in tool calls, thoughts, plans, and terminal blocks.",
+	"settings.systemNotifications.desc":
+		"Show a notification when the agent finishes a reply or asks for permission. Completion notifications name the tab and switch to it when clicked. Notifications stay quiet while Obsidian is focused.",
+	"settings.restoreTabsOnStartup.desc":
+		"Save open tabs when Obsidian quits and restore them on next launch. Each view restores its own tabs independently.",
+	"settings.confirmBeforeClosingMultiple.desc":
+		"Warn before closing the panel with Cmd+W when it has 2 or more open chats, so you don't lose several running agents at once.",
+	"settings.autoAllowPermissions.desc":
+		"Automatically allow all permission requests from agents. ⚠️ Use with caution - this gives agents full access to your system.",
+	"settings.filename.desc":
+		"Template for exported filenames. Use {date} for date and {time} for time",
+	"settings.frontmatterTag.desc":
+		"Tag to add to exported notes. Supports nested tags (e.g., projects/agent-console). Leave empty to disable.",
+	"settings.customImageFolder.desc":
+		"Folder path for exported images (relative to vault root)",
+	"settings.autoExportOnNew.desc":
+		"Automatically export the current chat when starting a new chat",
+	"settings.autoExportOnClose.desc":
+		"Automatically export the current chat when closing the chat view",
+	"settings.nodeJsPath.desc":
+		"Path to Node.js. Usually leave blank. Only needed if node is in a non-standard location (enter absolute path, e.g. /usr/local/bin/node).",
+	"settings.nodeJsPath.placeholder":
+		"Leave blank (login shell auto-resolves)",
+	"settings.enableWslMode.desc":
+		"Run agents inside Windows Subsystem for Linux. Recommended for agents like Codex that don't work well in native Windows environments.",
+	"settings.wslDistribution.desc":
+		"Specify WSL distribution name (leave empty for default). Example: Ubuntu, Debian",
+	"settings.debugMode.desc":
+		"Enable debug logging to console. Useful for development and troubleshooting.",
+	"settings.apiKey.desc":
+		"Gemini API key. Required if not logging in with a Google account. Select from Obsidian's Keychain or create a new secret.",
+	"settings.environmentVariables.desc":
+		"Enter KEY=VALUE pairs, one per line. Required to authenticate with Vertex AI. GEMINI_API_KEY is derived from the field above.",
+	"settings.authentication.desc":
+		"Enter KEY=VALUE pairs, one per line. Leave empty unless your setup requires it.",
+	"settings.setup.desc":
+		"Enter KEY=VALUE pairs, one per line. These apply to the OpenCode process only — not the model backend. For example, a local model's context length is set on the ollama server (OLLAMA_CONTEXT_LENGTH), not here. Leave empty unless your setup requires it.",
+	"settings.setup.desc2":
+		"Anthropic API key. Required if not logging in with an Anthropic account. Select from Obsidian's Keychain or create a new secret.",
+	"settings.setup.desc3":
+		"Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments.",
+	"settings.setup.desc4":
+		"Enter KEY=VALUE pairs, one per line. ANTHROPIC_API_KEY is derived from the field above.",
+	"settings.setup.desc5":
+		"OpenAI API key. Required if not logging in with an OpenAI account. Select from Obsidian's Keychain or create a new secret.",
+	"settings.setup.desc6":
+		"Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments.",
+	"settings.setup.desc7":
+		"Enter KEY=VALUE pairs, one per line. OPENAI_API_KEY is derived from the field above.",
+	"settings.displayName.desc2":
+		"Command name or path to the custom agent. Use just the command name to let the login shell resolve it, or enter an absolute path.",
+	"settings.displayName.desc3":
+		"Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments.",
+	"settings.displayName.desc4":
+		"Enter KEY=VALUE pairs, one per line. (Stored as plain text)",
+	"settings.importSettingsFromAnother.desc":
+		"Bring over agent definitions, defaults, and API keys from another agent plugin (e.g. Agent Client). Shows a preview before applying.",
+	"settings.path.desc":
+		'Command name or path to the Gemini CLI. Use just "gemini" to let the login shell resolve it, or enter an absolute path for a specific version.',
+	"settings.arguments.desc":
+		'Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Leave empty to run without arguments. (Currently, the Gemini CLI requires the "--experimental-acp" option.)',
+	"settings.authentication.desc2":
+		'Kiro CLI signs in with your Kiro account, so no API key is needed. Run "kiro-cli" once in a terminal to sign in, then select Kiro CLI here.',
+	"settings.path.desc2":
+		'Command name or path to kiro-cli. Use just "kiro-cli" to let the login shell resolve it, or enter an absolute path (commonly ~/.local/bin/kiro-cli).',
 	"settings.kiroEngine.name": "Kiro CLI engine",
-	"settings.kiroEngine.desc": "V3 is a preview. Your --agent, --model and --effort arguments still work: Agent Console passes them to V3 for each chat. Applies to chats you start after changing this.",
+	"settings.kiroEngine.desc":
+		"V3 is a preview. Your --agent, --model and --effort arguments still work: Agent Console passes them to V3 for each chat. Applies to chats you start after changing this.",
 	"settings.kiroEngine.v2": "V2 (current)",
 	"settings.kiroEngine.v3": "V3 (preview)",
-	"settings.arguments.desc2": "Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Kiro CLI requires the \"acp\" subcommand.",
-	"settings.setup.desc8": "OpenCode picks its own model and sign-in through its config, so no API key is needed here. Install it with the one-line installer from opencode.ai, then select OpenCode. To run local models offline, point OpenCode at ollama in its own config — see the OpenCode setup guide.",
-	"settings.path.desc3": "Command name or path to opencode. Use just \"opencode\" to let the login shell resolve it, or enter an absolute path (commonly ~/.opencode/bin/opencode).",
-	"settings.arguments.desc3": "Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. OpenCode requires the \"acp\" subcommand.",
-	"settings.path.desc4": "Command name or path to claude-agent-acp. Use just \"claude-agent-acp\" to let the login shell resolve it, or enter an absolute path.",
-	"settings.path.desc5": "Command name or path to codex-acp. Use just \"codex-acp\" to let the login shell resolve it, or enter an absolute path.",
-	"settings.fontSize.desc": "Adjust the font size of the chat message area ({min}-{max}px).",
-	"settings.autoDetect.tooltip": "Run `{lookupCmd} {commandName}` to find the path",
-	"notices.agentIdInUse": "Agent ID \"{desired}\" is already in use — changed to \"{unique}\".",
+	"settings.arguments.desc2":
+		'Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Kiro CLI requires the "acp" subcommand.',
+	"settings.setup.desc8":
+		"OpenCode picks its own model and sign-in through its config, so no API key is needed here. Install it with the one-line installer from opencode.ai, then select OpenCode. To run local models offline, point OpenCode at ollama in its own config — see the OpenCode setup guide.",
+	"settings.path.desc3":
+		'Command name or path to opencode. Use just "opencode" to let the login shell resolve it, or enter an absolute path (commonly ~/.opencode/bin/opencode).',
+	"settings.arguments.desc3":
+		'Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. OpenCode requires the "acp" subcommand.',
+	"settings.path.desc4":
+		'Command name or path to claude-agent-acp. Use just "claude-agent-acp" to let the login shell resolve it, or enter an absolute path.',
+	"settings.path.desc5":
+		'Command name or path to codex-acp. Use just "codex-acp" to let the login shell resolve it, or enter an absolute path.',
+	"settings.fontSize.desc":
+		"Adjust the font size of the chat message area ({min}-{max}px).",
+	"settings.autoDetect.tooltip":
+		"Run `{lookupCmd} {commandName}` to find the path",
+	"notices.agentIdInUse":
+		'Agent ID "{desired}" is already in use — changed to "{unique}".',
 	"settings.docLink.prefix": "Need help? Check out the ",
 	"settings.docLink.linkText": "documentation",
 	"settings.docLink.suffix": ".",
 	"settings.customAgents.emptyState": "No custom agents configured yet.",
 	"settings.language.name": "Language",
-	"settings.language.desc": "Language for this plugin's buttons, menus, and messages. Auto follows Obsidian's language setting.",
+	"settings.language.desc":
+		"Language for this plugin's buttons, menus, and messages. Auto follows Obsidian's language setting.",
 	"settings.language.optionAuto": "Auto (match Obsidian)",
-	"settings.language.reloadNotice": "Language will change after Obsidian reloads.",
+	"settings.language.reloadNotice":
+		"Language will change after Obsidian reloads.",
 	"settings.section.obsidianSystemPrompt": "Obsidian system prompt",
 	"settings.section.export": "Export",
 	"settings.section.advanced": "Advanced",
 	"settings.sidebarSide.optionRight": "Right sidebar",
 	"settings.sidebarSide.optionLeft": "Left sidebar",
-	"settings.sendMessageShortcut.optionEnter": "Enter to send, Shift+Enter for newline",
-	"settings.sendMessageShortcut.optionCmdEnter": "Cmd/Ctrl+Enter to send, Enter for newline",
-	"settings.imageLocation.optionObsidian": "Use Obsidian's attachment setting",
+	"settings.sendMessageShortcut.optionEnter":
+		"Enter to send, Shift+Enter for newline",
+	"settings.sendMessageShortcut.optionCmdEnter":
+		"Cmd/Ctrl+Enter to send, Enter for newline",
+	"settings.imageLocation.optionObsidian":
+		"Use Obsidian's attachment setting",
 	"settings.imageLocation.optionCustom": "Save to custom folder",
 	"settings.imageLocation.optionBase64": "Embed as Base64 (not recommended)",
-	"settings.sessionTitle.optionAgentSuggested": "Suggested by the agent in its first reply",
-	"settings.sessionTitle.optionPromptDerived": "Generated from your first message",
+	"settings.sessionTitle.optionAgentSuggested":
+		"Suggested by the agent in its first reply",
+	"settings.sessionTitle.optionPromptDerived":
+		"Generated from your first message",
 	"settings.sessionTitle.optionAgentTimestamp": "Agent name and timestamp",
 	"settings.obsidianPrompt.hostIdentity.name": "Say it's running in Obsidian",
-	"settings.obsidianPrompt.hostIdentity.desc": "Lets the agent know it's working inside your Obsidian app.",
+	"settings.obsidianPrompt.hostIdentity.desc":
+		"Lets the agent know it's working inside your Obsidian app.",
 	"settings.obsidianPrompt.rendering.name": "Explain how replies are shown",
-	"settings.obsidianPrompt.rendering.desc": "Tells the agent how to format replies so links, math, and diagrams render correctly, and which Obsidian conventions to use when writing notes.",
+	"settings.obsidianPrompt.rendering.desc":
+		"Tells the agent how to format replies so links, math, and diagrams render correctly, and which Obsidian conventions to use when writing notes.",
 	"settings.obsidianPrompt.workingDirectory.name": "Share the working folder",
-	"settings.obsidianPrompt.workingDirectory.desc": "Tells the agent which folder this chat is working in.",
-	"settings.obsidianPrompt.vaultCollaboration.name": "Let it work with your notes",
-	"settings.obsidianPrompt.vaultCollaboration.desc": "Tells the agent it can read and edit your notes. Only sent when the chat runs inside your vault.",
-	"settings.obsidianPrompt.interactiveButtons.name": "Offer clickable choices",
-	"settings.obsidianPrompt.interactiveButtons.desc": "Steers the agent towards unambiguous clickable choices, but increases per-message token use by roughly 3-6%.",
+	"settings.obsidianPrompt.workingDirectory.desc":
+		"Tells the agent which folder this chat is working in.",
+	"settings.obsidianPrompt.vaultCollaboration.name":
+		"Let it work with your notes",
+	"settings.obsidianPrompt.vaultCollaboration.desc":
+		"Tells the agent it can read and edit your notes. Only sent when the chat runs inside your vault.",
+	"settings.obsidianPrompt.interactiveButtons.name":
+		"Offer clickable choices",
+	"settings.obsidianPrompt.interactiveButtons.desc":
+		"Steers the agent towards unambiguous clickable choices, but increases per-message token use by roughly 3-6%.",
 	"settings.obsidianPrompt.respondInLanguage.name": "Reply in my language",
 	"settings.obsidianPrompt.respondInLanguage.desc":
 		"When Agent Console is not in English, ask the agent to reply — and name new tabs — in your language. It still follows along if you write in another language or ask it to switch.",
-	"settings.obsidianPrompt.previewEmpty": "(No system prompt will be sent — the agent gets no Obsidian context.)",
-	"settings.defaultWorkingDirectory.desc": "Directory new chats start in. Leave blank to use the vault root. Existing and restored chats keep their own directory.",
-	"settings.defaultWorkingDirectory.statusVaultRoot": "Currently: vault root{root}.",
-	"settings.defaultWorkingDirectory.statusInvalid": "⚠ \"{value}\" is not a valid absolute directory — new chats will use the vault root{root}.",
+	"settings.obsidianPrompt.previewEmpty":
+		"(No system prompt will be sent — the agent gets no Obsidian context.)",
+	"settings.defaultWorkingDirectory.desc":
+		"Directory new chats start in. Leave blank to use the vault root. Existing and restored chats keep their own directory.",
+	"settings.defaultWorkingDirectory.statusVaultRoot":
+		"Currently: vault root{root}.",
+	"settings.defaultWorkingDirectory.statusInvalid":
+		'⚠ "{value}" is not a valid absolute directory — new chats will use the vault root{root}.',
 	"settings.defaultWorkingDirectory.statusResolved": "Resolved: {dir}.",
 	"settings.chatFontSize.placeholderCurrent": "{px} (current)",
 	"settings.installHint.prefix": "Not installed? Run in terminal: ",
-	"settings.agentWorkingDirectory.desc": "Folder new chats with this agent start in. Leave blank to use the global default working directory, then the vault root.",
+	"settings.agentWorkingDirectory.desc":
+		"Folder new chats with this agent start in. Leave blank to use the global default working directory, then the vault root.",
 	"settings.agentWorkingDirectory.sourceGlobal": " (global default)",
 	"settings.agentWorkingDirectory.sourceVaultRoot": " (vault root)",
 	"settings.agentWorkingDirectory.statusCurrent": "Currently: {dir}{label}.",
-	"settings.agentWorkingDirectory.statusInvalid": "⚠ \"{value}\" is not a valid absolute directory — falling back to {dir}.",
+	"settings.agentWorkingDirectory.statusInvalid":
+		'⚠ "{value}" is not a valid absolute directory — falling back to {dir}.',
 	"settings.agentWorkingDirectory.statusResolved": "Resolved: {dir}.",
-	"settings.defaultWorkingDirectory.pickerTitle": "Select default working directory",
+	"settings.defaultWorkingDirectory.pickerTitle":
+		"Select default working directory",
 	"settings.workingDirectory.pickerTitle": "Select working directory",
 	"settings.customAgents.defaultName": "Custom agent",
 	// --- Phase 2: notices ---
@@ -277,9 +359,11 @@ export const en = {
 	"notices.chatExportFailed": "[Agent Console] Failed to export chat",
 	"notices.alreadyNewSession": "[Agent Console] Already a new session",
 	"notices.newSessionFailed": "[Agent Console] Failed to create new session",
-	"notices.savedModelUnavailable": "[Agent Console] Your saved model ({model}) isn't available anymore, so this chat uses {fallback}.",
+	"notices.savedModelUnavailable":
+		"[Agent Console] Your saved model ({model}) isn't available anymore, so this chat uses {fallback}.",
 	"notices.noMessagesToExport": "[Agent Console] No messages to export",
-	"notices.sessionRestartedFresh": "[Agent Console] Session restarted (fresh)",
+	"notices.sessionRestartedFresh":
+		"[Agent Console] Session restarted (fresh)",
 	"notices.sessionReloading": "[Agent Console] Reloading session…",
 	"notices.sessionReloaded": "[Agent Console] Session reloaded",
 	"notices.sessionReloadedFresh":
@@ -327,7 +411,8 @@ export const en = {
 	"notices.titleEmpty": "Title can't be empty",
 	"notices.settingsImported":
 		"Agent Console: imported settings from {source}.{relinkMsg}",
-	"notices.settingsImportedRelink": " Re-link {count} API key(s) in settings.",
+	"notices.settingsImportedRelink":
+		" Re-link {count} API key(s) in settings.",
 	"notices.settingsImportFailed": "Agent Console: import failed. {error}",
 	"notices.mcpSignInLinkCopied": 'Sign-in link for "{server}" copied',
 	"notices.mcpNeedsSignInTitle": 'MCP server "{server}" needs sign-in',
@@ -457,7 +542,8 @@ export const en = {
 	"commands.importSettings": "Import settings from another agent plugin",
 	"commands.quickPromptsSearch": "Quick prompts: Search",
 	"commands.quickPromptsNew": "Quick prompts: New prompt",
-	"commands.quickPromptsSaveComposer": "Quick prompts: Save composer as a prompt",
+	"commands.quickPromptsSaveComposer":
+		"Quick prompts: Save composer as a prompt",
 	"commands.newChatWithAgent": "New chat with agent…",
 	"commands.approvePermission": "Approve active permission",
 	"commands.rejectPermission": "Reject active permission",
@@ -485,15 +571,18 @@ export const en = {
 	"chat.header.runtimeKiroV3": "Kiro CLI (V3 engine)",
 	"chat.header.notConnected": "Not connected",
 	"chat.header.updatePill": "Plugin update available!",
-	"chat.header.updateTooltip": "Open Community plugins to update Agent Console",
+	"chat.header.updateTooltip":
+		"Open Community plugins to update Agent Console",
 	"chat.header.reloadTooltip":
 		"Reload — resume session, keep conversation. Shift-click: Restart — fresh session, clears conversation.",
 	"chat.header.sessionHistory": "Session history",
 	"chat.header.exportTooltip": "Export chat to Markdown",
 	"chat.header.more": "More",
 	"chat.header.tooltipPlugin": "Plugin:  {value}",
-	"chat.header.tooltipAgentNotLoaded": "{requested} couldn't load, so {running} is running instead",
-	"chat.header.tooltipAgentSwitched": "Running: {running} (switched in the composer)",
+	"chat.header.tooltipAgentNotLoaded":
+		"{requested} couldn't load, so {running} is running instead",
+	"chat.header.tooltipAgentSwitched":
+		"Running: {running} (switched in the composer)",
 	"chat.header.tooltipProfile": "Profile: {value}",
 	"chat.header.tooltipRuntime": "Runtime: {value}",
 	"chat.header.tooltipModel": "Model:   {value}",
@@ -506,7 +595,8 @@ export const en = {
 	"chat.tabBar.renameWithAi": "Rename with AI",
 	"chat.tabBar.renameWithAiUnavailable": "Not available for this agent",
 	"chat.tabBar.renamingWithAi": "Renaming with AI…",
-	"chat.tabBar.pausedToSaveMemory": "Paused to save memory. Picks up when you type.",
+	"chat.tabBar.asleepToSaveMemory":
+		"Asleep to save memory. Wakes up when you type.",
 	"chat.tabBar.close": "Close",
 	"chat.tabBar.closeOthers": "Close others",
 	"chat.tabBar.closeToRight": "Close to the right",
@@ -519,9 +609,11 @@ export const en = {
 	"chat.tabs.chatFallback": "Chat",
 	"chat.tabs.defaultAgentSuffix": "{name} (default)",
 	// ---- Phase 3: composer + toolbar ----
-	"chat.composer.queuedLocked": "Queued message (locked) — use Edit to change it",
+	"chat.composer.queuedLocked":
+		"Queued message (locked) — use Edit to change it",
 	"chat.composer.sendNow": "Send now",
-	"chat.composer.sendNowReason": "stops the current reply and sends this message ({key})",
+	"chat.composer.sendNowReason":
+		"stops the current reply and sends this message ({key})",
 	"chat.composer.edit": "Edit",
 	"chat.composer.delete": "Delete",
 	"chat.composer.mode": "Mode",
@@ -542,7 +634,8 @@ export const en = {
 	"chat.composer.placeholderQueueSteer":
 		"{queueKey} to queue · {steerKey} to send now",
 	"chat.composer.queuedBannerReady": "Queued — sends when {agent} is done",
-	"chat.composer.queuedBannerFailed": "Couldn't connect — Edit, then Send to retry",
+	"chat.composer.queuedBannerFailed":
+		"Couldn't connect — Edit, then Send to retry",
 	"chat.composer.queuedBannerWaiting": "Queued — sends when ready",
 	"chat.composer.queuedBannerAction":
 		"Sending your choice — waiting for the agent to start again",
@@ -631,7 +724,7 @@ export const en = {
 	"chat.quickPrompts.queuedTooltip":
 		"A message is queued — Edit or Delete it to send something else",
 	"chat.quickPrompts.unknownAgent":
-		"No agent matches \"{agent}\" in the prompt note. Use the agent's name or id from settings.",
+		'No agent matches "{agent}" in the prompt note. Use the agent\'s name or id from settings.',
 	"chat.quickPrompts.unknownMode":
 		"This chat's agent doesn't offer the mode \"{mode}\". Use a mode name from the mode dropdown.",
 	"chat.quickPrompts.modeNotOffered":
@@ -640,23 +733,25 @@ export const en = {
 		"Click: open in a new tab · {mod}-click: open in the background · {alt}-click: drop into the box to edit first",
 	"chat.quickPrompts.thisTabTooltip":
 		"Click: send in this chat · {mod}-click: send in a new background tab (add {shift} to switch there) · {alt}-click: drop into the box to edit first",
-	"chat.quickPrompts.showMore": "Show {count} more — search all quick prompts",
+	"chat.quickPrompts.showMore":
+		"Show {count} more — search all quick prompts",
 	"chat.quickPrompts.editPrompt": "Edit prompt",
 	"chat.quickPrompts.copyPrompt": "Copy prompt",
 	"chat.quickPrompts.copyLink": "Copy link",
 	"chat.quickPrompts.linkCopied": "[Agent Console] Copied prompt link.",
-	"chat.quickPrompts.linkCopyFailed": "[Agent Console] Couldn't copy the prompt link.",
+	"chat.quickPrompts.linkCopyFailed":
+		"[Agent Console] Couldn't copy the prompt link.",
 	"chat.quickPrompts.externalTextHeading": "External text · {count} chars",
 	"chat.quickPrompts.externalTextHeadingWithSource":
 		"External text · {count} chars · claimed source: {source}",
 	"chat.quickPrompts.uriHiddenRemoved":
 		"Removed {count} hidden characters from the linked text.",
 	"chat.quickPrompts.uriUnknownPrompt":
-		"No quick prompt has the id \"{id}\". Check the link.",
+		'No quick prompt has the id "{id}". Check the link.',
 	"chat.quickPrompts.uriBadParam":
-		"The link's \"{field}\" value is missing or empty. Nothing was opened.",
+		'The link\'s "{field}" value is missing or empty. Nothing was opened.',
 	"chat.quickPrompts.uriUnknownAgent":
-		"No agent matches \"{agent}\". Check the link or the prompt note.",
+		'No agent matches "{agent}". Check the link or the prompt note.',
 	"chat.quickPrompts.uriRateLimited":
 		"Links are opening too fast. Wait a moment and try again.",
 	"chat.quickPrompts.uriDuplicate":
@@ -668,13 +763,15 @@ export const en = {
 	"chat.quickPrompts.rename": "Rename",
 	"chat.quickPrompts.addedToDraft": "Added to your draft — review and send",
 	"chat.quickPrompts.needsSelection":
-		"\"{label}\" needs a selection — dropped into the composer instead.",
-	"chat.quickPrompts.startedInNewTab": "Started \"{label}\" in a new tab.",
-	"chat.quickPrompts.openedInNewTab": "Opened \"{label}\" in a new tab to edit.",
-	"chat.quickPrompts.createFromMessage": "Create quick prompt from this message",
+		'"{label}" needs a selection — dropped into the composer instead.',
+	"chat.quickPrompts.startedInNewTab": 'Started "{label}" in a new tab.',
+	"chat.quickPrompts.openedInNewTab":
+		'Opened "{label}" in a new tab to edit.',
+	"chat.quickPrompts.createFromMessage":
+		"Create quick prompt from this message",
 	"chat.quickPrompts.create": "Create a quick prompt",
 	"chat.quickPrompts.createFirst": "Create your first quick prompt",
-	"chat.quickPrompts.createNamed": "Create quick prompt \"{query}\"",
+	"chat.quickPrompts.createNamed": 'Create quick prompt "{query}"',
 	"chat.quickPrompts.newPromptName": "New prompt",
 	// ---- Phase 3: A2UI interactive buttons ----
 	"chat.a2ui.disabledStreaming": "Available when this reply finishes",
@@ -723,7 +820,8 @@ export const en = {
 	"chat.permission.appliesTo": "Applies to",
 	"chat.permission.exactCommand": "This exact command:",
 	"chat.permission.patternCommands": "All commands matching",
-	"chat.permission.vaultNote": "Kiro saves this rule in its own settings for this vault, so it applies in new chats too.",
+	"chat.permission.vaultNote":
+		"Kiro saves this rule in its own settings for this vault, so it applies in new chats too.",
 	"chat.permission.back": "Back",
 	"chat.mcpFailures.title": "MCP servers that didn't connect: {names}",
 	"chat.mcpFailures.details": "Details",
@@ -734,7 +832,8 @@ export const en = {
 	"chat.lossyFallback.title": "Session restored from history",
 	"chat.lossyFallback.body":
 		"The original session was no longer available on the agent. I'm working from a transcript of your previous conversation, but I don't have access to the original session's internal state or any reasoning from before. Some tool outputs may also have been truncated.",
-	"chat.historyBanner.notStored": "History for this tab is not stored locally.",
+	"chat.historyBanner.notStored":
+		"History for this tab is not stored locally.",
 	"chat.historyBanner.reloading": "Reloading…",
 	"chat.historyBanner.reloadFromAgent": "Reload from agent",
 	"chat.notifications.permissionBody": "{agent} is requesting permission.",
@@ -791,11 +890,11 @@ export const en = {
 	"chat.acpErrors.checkAgentConfig":
 		"Please check the agent configuration in settings.",
 	"chat.acpErrors.pathHintWsl":
-		"1. Verify the agent path: Use \"which {command}\" in your WSL terminal to find the correct path. 2. If the agent requires Node.js, also check that Node.js path is correctly set in General Settings (use \"which node\" to find it).",
+		'1. Verify the agent path: Use "which {command}" in your WSL terminal to find the correct path. 2. If the agent requires Node.js, also check that Node.js path is correctly set in General Settings (use "which node" to find it).',
 	"chat.acpErrors.pathHintWin":
-		"1. Verify the agent path: Use \"where {command}\" in Command Prompt to find the correct path. 2. If the agent requires Node.js, also check that Node.js path is correctly set in General Settings (use \"where node\" to find it).",
+		'1. Verify the agent path: Use "where {command}" in Command Prompt to find the correct path. 2. If the agent requires Node.js, also check that Node.js path is correctly set in General Settings (use "where node" to find it).',
 	"chat.acpErrors.pathHintUnix":
-		"1. Verify the agent path: Use \"which {command}\" in Terminal to find the correct path. 2. If the agent requires Node.js, also check that Node.js path is correctly set in General Settings (use \"which node\" to find it).",
+		'1. Verify the agent path: Use "which {command}" in Terminal to find the correct path. 2. If the agent requires Node.js, also check that Node.js path is correctly set in General Settings (use "which node" to find it).',
 	"chat.acpErrors.cannotSendTitle": "Cannot Send Message",
 	"chat.acpErrors.noActiveSession":
 		"No active session. Please wait for connection.",
@@ -807,7 +906,7 @@ export const en = {
 	"chat.acpErrors.errorOccurred": "An error occurred",
 	"chat.acpErrors.agentNotFoundTitle": "Agent Not Found",
 	"chat.acpErrors.agentNotFound":
-		"Agent with ID \"{agentId}\" not found in settings",
+		'Agent with ID "{agentId}" not found in settings',
 	"chat.acpErrors.checkYourAgentConfig":
 		"Please check your agent configuration in settings.",
 	"chat.acpErrors.sessionCreationFailedTitle": "Session Creation Failed",
@@ -831,7 +930,7 @@ export const en = {
 		"The install didn't finish. Copy the command and run it in your terminal to see the full error.",
 	"chat.updateBanner.migrationTitle": "Package Migration Required",
 	"chat.updateBanner.renamed":
-		"\"{old}\" has been renamed to \"{new}\".\nRun the following in your terminal:",
+		'"{old}" has been renamed to "{new}".\nRun the following in your terminal:',
 	"chat.updateBanner.updateTitle": "Agent Update Available",
 	"chat.updateBanner.updateAvailable":
 		"{package}: {current} → {latest}.\nRun the following in your terminal:",
