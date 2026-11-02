@@ -595,7 +595,7 @@ export class AcpClient {
 		this.logger.warn(
 			"Kiro CLI rejected --agent-engine=v3 (older CLI without the V3 engine)",
 		);
-		return new AgentStartupError(kiroEngineUnsupportedInfo());
+		return new AgentStartupError(kiroEngineUnsupportedInfo(config.displayName));
 	}
 
 	private getSafeConfigForLog(config: AgentConfig): {
