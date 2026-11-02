@@ -65,6 +65,8 @@ import type {
 	TabInfo,
 } from "../types/tab";
 import type { ChatMessage } from "../types/chat";
+import { parseSessionEngine } from "../resolvers/session-engine";
+import { getLogger } from "../utils/logger";
 import type { ContextNote } from "../types/context";
 
 // ============================================================================
@@ -134,6 +136,12 @@ export interface UseTabPersistenceProps {
 	 * callers that don't track modes.
 	 */
 	getModeId?: (tabId: string) => string;
+	/**
+	 * Resolves the Kiro engine of a tab's session ("" when unknown). Persisted
+	 * next to a saved session id so a restore knows which engine the chat ran
+	 * on (D2). Optional for callers that don't track it.
+	 */
+	getKiroEngine?: (tabId: string) => string;
 	/** Storage adapter (tab-state + session-messages) */
 	storage: TabPersistenceStorage;
 	/**
@@ -225,6 +233,7 @@ function buildPerLeafState(
 	getDraft: (tabId: string) => string,
 	getWorkingDirectory: (tabId: string) => string,
 	getModeId: (tabId: string) => string = () => "",
+	getKiroEngine: (tabId: string) => string = () => "",
 ): PerLeafTabState {
 	const persistedTabs: PersistedTabInfo[] = tabs.map((tab, index) => {
 		const cwd = getWorkingDirectory(tab.tabId);
@@ -241,6 +250,15 @@ function buildPerLeafState(
 		};
 		if (cwd) base.workingDirectory = cwd;
 		if (modeId) base.modeId = modeId;
+		// D2: only next to a saved session id; validated at the write edge
+		// ("" is unknown; an invalid value is dropped and logged).
+		if (base.sessionId) {
+			const raw = getKiroEngine(tab.tabId);
+			const kiroEngine = parseSessionEngine(raw === "" ? undefined : raw, (bad) =>
+				getLogger().warn("[TabPersistence] Dropped invalid Kiro engine:", bad),
+			);
+			if (kiroEngine) base.kiroEngine = kiroEngine;
+		}
 		return base;
 	});
 	return {
@@ -266,6 +284,7 @@ export function useTabPersistence(
 		getDraft,
 		getWorkingDirectory,
 		getModeId,
+		getKiroEngine,
 		storage,
 		restoreEnabled,
 		sessionSignature,
@@ -294,6 +313,7 @@ export function useTabPersistence(
 	const getDraftRef = useRef(getDraft);
 	const getWorkingDirectoryRef = useRef(getWorkingDirectory);
 	const getModeIdRef = useRef(getModeId);
+	const getKiroEngineRef = useRef(getKiroEngine);
 	const storageRef = useRef(storage);
 	const tabsRef = useRef(tabs);
 	const activeTabIdRef = useRef(activeTabId);
@@ -306,6 +326,7 @@ export function useTabPersistence(
 		getDraftRef.current = getDraft;
 		getWorkingDirectoryRef.current = getWorkingDirectory;
 		getModeIdRef.current = getModeId;
+		getKiroEngineRef.current = getKiroEngine;
 		storageRef.current = storage;
 		tabsRef.current = tabs;
 		activeTabIdRef.current = activeTabId;
@@ -441,6 +462,7 @@ export function useTabPersistence(
 			getDraftRef.current,
 			getWorkingDirectoryRef.current,
 			getModeIdRef.current,
+			getKiroEngineRef.current,
 		);
 		void storageRef.current.saveTabStateForLeaf(leafId, state);
 		// Deps are leafId + persistenceSignature + sessionSignature +
@@ -460,6 +482,7 @@ export function useTabPersistence(
 			getDraftRef.current,
 			getWorkingDirectoryRef.current,
 			getModeIdRef.current,
+			getKiroEngineRef.current,
 		);
 		await storageRef.current.saveTabStateForLeaf(leafId, state);
 	}, [leafId]);

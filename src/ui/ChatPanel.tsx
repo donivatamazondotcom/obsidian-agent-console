@@ -139,6 +139,10 @@ import {
 } from "../hooks/useQuickPrompts";
 import type { NewTabPromptOpts, QuickPrompt } from "../types/quick-prompt";
 import { readSessionModes } from "../resolvers/session-modes";
+import {
+	parseSessionEngine,
+	resolveStoredSessionEngine,
+} from "../resolvers/session-engine";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import {
 	deriveLabelFromComposer,
@@ -203,6 +207,8 @@ export interface ChatPanelCallbacks {
 	getWorkingDirectory: () => string;
 	/** The tab's current session mode id ("" when unknown) — persisted per tab (I231). */
 	getModeId: () => string;
+	/** Kiro engine of the tab's session ("" when unknown) — persisted per tab (D2). */
+	getKiroEngine: () => string;
 	/** Open the Session History modal for this tab (open-session-history command). */
 	openHistory: () => void;
 	/**
@@ -355,6 +361,12 @@ export interface ChatPanelProps {
 	initialModeRequest?: string;
 	/** The restored tab's own persisted mode, re-applied on its first load (I231). */
 	restoredModeId?: string;
+	/**
+	 * Kiro engine the restored tab's session ran on, already validated (D2).
+	 * Fallback for the session record's engine when a restore decides whether
+	 * the running engine can open the session.
+	 */
+	restoredKiroEngine?: "v2" | "v3";
 }
 
 // ============================================================================
@@ -438,6 +450,7 @@ export function ChatPanel({
 	initialPrompt,
 	initialModeRequest,
 	restoredModeId,
+	restoredKiroEngine,
 }: ChatPanelProps) {
 	// ============================================================
 	// Platform Check
@@ -1442,6 +1455,16 @@ export function ChatPanel({
 	// start.
 	const cancelledRef = useRef(false);
 
+	// D2: the engine of the session this tab holds, for tab persistence.
+	// Starts as the restored tab's value; a live session overwrites it with
+	// the engine it was launched with (I235). Kept while no session is live
+	// (a restored or released tab), so the engine survives with the kept id.
+	// Persisted only next to a saved session id (useTabPersistence).
+	const keptKiroEngineRef = useRef<"v2" | "v3" | undefined>(restoredKiroEngine);
+	if (agent.session.sessionId && agent.session.kiroEngine) {
+		keptKiroEngineRef.current = agent.session.kiroEngine;
+	}
+
 	const lazySession = useLazySession({
 		// Restored sessionId from tab persistence. When non-null, the
 		// hook calls loadExistingSession on first keystroke instead of
@@ -1513,6 +1536,18 @@ export function ChatPanel({
 			async (sessionId: string) => {
 				logger.log("[Lazy] Loading existing session:", sessionId);
 				await releaseGateRef.current.wait();
+				// D2: the engine this chat last ran on — the session record
+				// (written per turn) first, then the tab's own value. Both read
+				// through the one validator.
+				const record = plugin.settingsService
+					.getSavedSessions()
+					.find((s) => s.sessionId === sessionId);
+				const storedEngine = resolveStoredSessionEngine({
+					recordEngine: parseSessionEngine(record?.kiroEngine, (raw) =>
+						logger.warn("[Lazy] Dropped invalid Kiro engine on record:", raw),
+					),
+					tabEngine: restoredKiroEngine,
+				});
 				// I209: one seam for every kept-id reconnect (restored tab or
 				// released tab): initialize a disconnected client first, prefer
 				// resume where advertised, then load.
@@ -1540,6 +1575,7 @@ export function ChatPanel({
 							r.configOptions,
 						),
 					setIgnoreUpdates: agent.setIgnoreUpdates,
+					storedEngine,
 				});
 				if (!result.ok) {
 					logger.log(
@@ -1553,6 +1589,8 @@ export function ChatPanel({
 				initializeAgentForTab,
 				acpClient,
 				agentCwd,
+				plugin.settingsService,
+				restoredKiroEngine,
 				agent.updateSessionFromLoad,
 				agent.setIgnoreUpdates,
 				logger,
@@ -2831,6 +2869,7 @@ export function ChatPanel({
 			getWorkingDirectory: () => agentCwd,
 			getModeId: () =>
 				readSessionModes(promptTargetSessionRef.current)?.current.id ?? "",
+			getKiroEngine: () => keptKiroEngineRef.current ?? "",
 			openHistory: () => handleOpenHistoryRef.current(),
 			requestAiTitle: async () => {
 				if (!acpClient.isInitialized()) return { kind: "not-ready" };
@@ -3168,6 +3207,7 @@ export function ChatPanel({
 			hasActivePermission={agent.hasActivePermission}
 			isActive={isActive}
 			isFallbackRecovery={lazySession.isFallbackRecovery}
+			fallbackReason={lazySession.fallbackReason}
 			viewId={viewId}
 			gettingStarted={gettingStarted}
 			a2ui={a2uiContext}

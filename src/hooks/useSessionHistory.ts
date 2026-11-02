@@ -977,11 +977,20 @@ export function useSessionHistory(
 				messages,
 				suggestedTitle: suggestedTitle ?? null,
 				seedTitle: restoredAgentTitle ?? null,
+				// D2: the engine this turn ran on (launched engine, I235).
+				kiroEngine: session.kiroEngine,
 			});
 
 			return writePromise;
 		},
-		[session.agentId, agentCwd, settingsAccess, sessionStore, restoredAgentTitle],
+		[
+			session.agentId,
+			session.kiroEngine,
+			agentCwd,
+			settingsAccess,
+			sessionStore,
+			restoredAgentTitle,
+		],
 	);
 
 	/**

@@ -456,6 +456,39 @@ describe("useTabPersistence — save shape", () => {
 		expect("modeId" in stateArg.tabs[1]).toBe(false);
 	});
 
+	// D2: a tab records the engine its session ran on, only next to a saved
+	// session id ([[Kiro CLI V3 Support]] § Decisions, D2).
+	it("D2: saves each tab's engine alongside its session id", async () => {
+		const storage = makeStorage();
+		const { result } = renderHook(() =>
+			useTabPersistence(
+				makeProps({
+					tabs: [
+						makeRuntimeTab({ tabId: "T1" }),
+						makeRuntimeTab({ tabId: "T2", label: "Tab 2" }),
+						makeRuntimeTab({ tabId: "T3", label: "Tab 3" }),
+						makeRuntimeTab({ tabId: "T4", label: "Tab 4" }),
+					],
+					getSessionId: (id) => (id === "T3" ? null : `s-${id}`),
+					getKiroEngine: (id) =>
+						id === "T1" ? "v3" : id === "T2" ? "" : id === "T3" ? "v3" : "V3",
+					storage,
+				}),
+			),
+		);
+
+		await waitForRestoreReady(() => result.current);
+
+		const [, stateArg] = saveCalls(storage)[0];
+		expect(stateArg.tabs[0].kiroEngine).toBe("v3");
+		// Unknown engine → key omitted.
+		expect("kiroEngine" in stateArg.tabs[1]).toBe(false);
+		// No session id saved → no engine either.
+		expect("kiroEngine" in stateArg.tabs[2]).toBe(false);
+		// Invalid value → dropped by the validator, never coerced.
+		expect("kiroEngine" in stateArg.tabs[3]).toBe(false);
+	});
+
 	it("U33: tab with sessionId === null is saved with explicit null (not undefined)", async () => {
 		const storage = makeStorage();
 		const { result } = renderHook(() =>

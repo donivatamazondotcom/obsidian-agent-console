@@ -16,6 +16,42 @@
  * here — the caller keeps the on-screen transcript regardless of outcome.
  */
 
+import {
+	decideEngineRestore,
+	type SessionEngine,
+} from "../resolvers/session-engine";
+
+/**
+ * Thrown by `resumeSameSession` when the session ran on an engine the
+ * re-initialized agent can't open (D2: a V3 chat after the agent was switched
+ * to V2). The flow then starts fresh with `reason: "engine-changed"` instead
+ * of treating it as a failed resume.
+ */
+export class EngineChangedError extends Error {
+	constructor(
+		readonly from: SessionEngine,
+		readonly to: SessionEngine,
+	) {
+		super(`Session ran on Kiro ${from}; this agent now runs ${to}`);
+		this.name = "EngineChangedError";
+	}
+}
+
+/**
+ * Soft-reload engine check, run by `resumeSameSession` right after it
+ * re-initializes and before it loads. Reads the same resolver as a restored
+ * tab (`decideEngineRestore`); throws `EngineChangedError` on start-fresh.
+ */
+export function assertEngineCanResume(
+	stored: SessionEngine | undefined,
+	running: SessionEngine | undefined,
+): void {
+	const decision = decideEngineRestore({ stored, running });
+	if (decision.kind === "start-fresh") {
+		throw new EngineChangedError(decision.from, decision.to);
+	}
+}
+
 export interface ReloadSessionFlowArgs {
 	/** Current session id, or null when the tab never connected. */
 	sessionId: string | null;
@@ -60,12 +96,14 @@ export interface ReloadSessionFlowArgs {
  *   one; a fresh session was created by design.
  * - `reason: "resume-failed"` — the agent CAN resume but this attempt threw;
  *   a fresh session was created as a fallback. Not a capability gap. (I230)
+ * - `reason: "engine-changed"` — the session ran on Kiro V3 and the agent now
+ *   runs V2, so it was never sent; a fresh session was created. (D2)
  */
 export type ReloadSessionFlowResult =
 	| { resumed: true; sessionId: string }
 	| {
 			resumed: false;
-			reason: "unsupported" | "resume-failed";
+			reason: "unsupported" | "resume-failed" | "engine-changed";
 			sessionId: string | null;
 	  };
 
@@ -96,6 +134,12 @@ export async function reloadSessionFlow(
 			const resumedId = await resumeSameSession(sessionId);
 			return { resumed: true, sessionId: resumedId };
 		} catch (error) {
+			// D2: the engine changed — not a failed resume, so not reported as
+			// one. Start fresh; the transcript stays on screen.
+			if (error instanceof EngineChangedError) {
+				const freshId = await freshSession();
+				return { resumed: false, reason: "engine-changed", sessionId: freshId };
+			}
 			// Resume failed mid-flight → degrade to a fresh session, keeping
 			// the transcript on screen (mirrors the lazy loadSession fallback).
 			onResumeError?.(error);

@@ -706,6 +706,9 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.lossyFallback.title": "从历史恢复的会话",
 	"chat.lossyFallback.body":
 		"原会话在代理端已不可用。我基于你之前对话的记录继续工作，但无法访问原会话的内部状态或之前的推理。部分工具输出也可能被截断。",
+	"chat.lossyFallback.engineChanged.title": "已开始新会话",
+	"chat.lossyFallback.engineChanged.body":
+		"此对话运行在 Kiro V3 引擎上。此代理现在使用 V2，而 V2 无法打开 V3 对话，因此我将基于你的对话记录继续。要回到原会话，请在设置中将此代理改回 V3。",
 	"chat.historyBanner.notStored": "此标签页的历史未存储在本地。",
 	"chat.historyBanner.reloading": "重新加载中…",
 	"chat.historyBanner.reloadFromAgent": "从代理重新加载",

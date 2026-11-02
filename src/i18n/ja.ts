@@ -748,6 +748,9 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.lossyFallback.title": "履歴から復元されたセッション",
 	"chat.lossyFallback.body":
 		"元のセッションはエージェント側で利用できなくなりました。以前の会話の記録をもとに作業しますが、元のセッションの内部状態や以前の推論にはアクセスできません。一部のツール出力も切り詰められている可能性があります。",
+	"chat.lossyFallback.engineChanged.title": "新しいセッションを開始しました",
+	"chat.lossyFallback.engineChanged.body":
+		"このチャットは Kiro V3 エンジンで実行されていました。このエージェントは現在 V2 を使用しており、V2 では V3 のチャットを開けないため、会話の記録をもとに続けます。元のセッションに戻るには、設定でこのエージェントを V3 に戻してください。",
 	"chat.historyBanner.notStored":
 		"このタブの履歴はローカルに保存されていません。",
 	"chat.historyBanner.reloading": "再読み込み中…",

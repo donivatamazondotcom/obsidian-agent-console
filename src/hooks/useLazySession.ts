@@ -74,6 +74,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTabSessionState, type TabSessionState } from "./useTabSessionState";
+import type { SessionFallbackReason } from "../resolvers/session-engine";
 
 // ============================================================================
 // Public types
@@ -87,7 +88,7 @@ import { useTabSessionState, type TabSessionState } from "./useTabSessionState";
  */
 export type SessionAcquisitionResult =
 	| { ok: true; sessionId: string; lossy?: boolean }
-	| { ok: false; error: Error };
+	| { ok: false; error: Error; fallbackReason?: "engine-changed" };
 
 export interface UseLazySessionOptions {
 	/**
@@ -166,6 +167,14 @@ export interface UseLazySessionApi {
 	 * Cleared by `reset()`.
 	 */
 	isFallbackRecovery: boolean;
+
+	/**
+	 * Why the fallback happened (D2), or null when there was none.
+	 * `"engine-changed"`: the chat ran on Kiro V3 and the agent now runs V2,
+	 * so the load was never attempted. `"unavailable"`: every other fallback
+	 * (failed load, local fork branch). Cleared by `reset()`.
+	 */
+	fallbackReason: SessionFallbackReason | null;
 
 	/**
 	 * Notify the hook that the composer text changed. Drives the
@@ -287,6 +296,8 @@ export function useLazySession(
 	// Public state (drives consumer renders).
 	const [sessionId, setSessionId] = useState<string | null>(null);
 	const [isFallbackRecovery, setIsFallbackRecovery] = useState(false);
+	const [fallbackReason, setFallbackReason] =
+		useState<SessionFallbackReason | null>(null);
 	// Latest bound sessionId for async/ref-called entry points (reloadNow is
 	// invoked through a ref from useChatActions, so its closure may be stale).
 	const sessionIdRef = useRef<string | null>(null);
@@ -361,6 +372,7 @@ export function useLazySession(
 				forkFromSessionIdRef.current = null;
 				if (result.lossy) {
 					setIsFallbackRecovery(true);
+					setFallbackReason("unavailable");
 				}
 			}
 		} else if (restoredId) {
@@ -371,6 +383,7 @@ export function useLazySession(
 				// context block lives in the consumer; we just signal the
 				// fallback path was taken.
 				setIsFallbackRecovery(true);
+				setFallbackReason(result.fallbackReason ?? "unavailable");
 				result = await acquireNewSessionRef.current();
 				// Cleared only after the new session settles, so the kept id
 				// stays persistable while it is in flight (I209: the consumer
@@ -513,6 +526,7 @@ export function useLazySession(
 		forkFromSessionIdRef.current = null;
 		setSessionId(null);
 		setIsFallbackRecovery(false);
+		setFallbackReason(null);
 		tabStateRef.current.reset();
 	}, []);
 
@@ -663,6 +677,7 @@ export function useLazySession(
 		// re-render, so the ref is current when this is read.
 		keptSessionId: restoredSessionIdRef.current,
 		isFallbackRecovery,
+		fallbackReason,
 		onComposerChange,
 		onSendClick,
 		recoverHistory,

@@ -1,5 +1,6 @@
 import * as React from "react";
-import { t } from "../i18n";
+import { t, type TranslationKey } from "../i18n";
+import type { SessionFallbackReason } from "../resolvers/session-engine";
 
 /**
  * Lossy-fallback notice for sessions recovered via client-side replay.
@@ -53,6 +54,12 @@ export interface LossyFallbackNoticeProps {
 	 * False (or absent for normal sessions): render nothing.
 	 */
 	isFallbackRecovery: boolean;
+	/**
+	 * Why the fallback happened (D2). `"engine-changed"` swaps in copy that
+	 * says the chat ran on Kiro V3 and the agent now uses V2. Absent or
+	 * `"unavailable"`: the generic copy.
+	 */
+	reason?: SessionFallbackReason;
 }
 
 /**
@@ -73,10 +80,18 @@ export interface LossyFallbackNoticeProps {
  */
 export function LossyFallbackNotice({
 	isFallbackRecovery,
+	reason,
 }: LossyFallbackNoticeProps) {
 	if (!isFallbackRecovery) {
 		return null;
 	}
+	const keys: { title: TranslationKey; body: TranslationKey } =
+		reason === "engine-changed"
+			? {
+					title: "chat.lossyFallback.engineChanged.title",
+					body: "chat.lossyFallback.engineChanged.body",
+				}
+			: { title: "chat.lossyFallback.title", body: "chat.lossyFallback.body" };
 
 	return (
 		<div
@@ -85,8 +100,8 @@ export function LossyFallbackNotice({
 			role="status"
 		>
 			{"ℹ️ "}
-			<strong>{t("chat.lossyFallback.title")}</strong>
-			{` — ${t("chat.lossyFallback.body")}`}
+			<strong>{t(keys.title)}</strong>
+			{` — ${t(keys.body)}`}
 		</div>
 	);
 }
