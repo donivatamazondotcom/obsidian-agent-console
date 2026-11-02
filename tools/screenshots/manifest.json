@@ -1629,17 +1629,17 @@
 			"altText": "Note at the top of a chat listing MCP servers that didn't connect, with each server's reason under Details"
 		},
 		{
-			"name": "paused-tab-ring",
+			"name": "sleeping-tab",
 			"width": 680,
 			"height": 48,
 			"cropSelector": ".agent-client-tab-bar",
 			"pending": true,
 			"placement": "feature",
-			"purpose": "Shows a background tab paused to save memory, marked with a faint pause icon next to live tabs.",
-			"differentiator": "Idle tabs free their agent and pick up on the next keystroke",
+			"purpose": "Shows a background tab asleep to save memory, marked with a moon icon next to live tabs.",
+			"differentiator": "Idle tabs go to sleep to free memory and wake on the next keystroke",
 			"mustShow": ".agent-client-tab-state-released",
-			"caption": "Idle tabs pause to save memory",
-			"altText": "Tab bar with one tab showing a faint pause icon, meaning it is paused to save memory"
+			"caption": "Idle tabs sleep to save memory",
+			"altText": "Tab bar with one tab showing a moon icon, meaning it is asleep to save memory"
 		}
 	]
 }

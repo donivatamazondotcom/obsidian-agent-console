@@ -17,13 +17,13 @@ afterEach(cleanup);
 beforeEach(() => vi.mocked(setIcon).mockClear());
 
 describe("I209 TabStateIcon", () => {
-	it("released shows the pause icon with the paused label", () => {
+	it("released shows the moon icon with the asleep label", () => {
 		const { container } = render(<TabStateIcon state="released" />);
 		const el = container.querySelector("span")!;
-		expect(setIcon).toHaveBeenCalledWith(el, "circle-pause");
+		expect(setIcon).toHaveBeenCalledWith(el, "moon");
 		expect(el.className).toContain("agent-client-tab-state-released");
 		expect(el.getAttribute("aria-label")).toBe(
-			"Paused to save memory. Picks up when you type.",
+			"Asleep to save memory. Wakes up when you type.",
 		);
 	});
 

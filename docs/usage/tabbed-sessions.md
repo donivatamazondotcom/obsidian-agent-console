@@ -30,7 +30,7 @@ The tab bar appears at the top of the chat sidebar. Each tab shows:
 
 A `+` button on the right of the tab bar opens a new tab.
 
-A `˅` chevron beside it opens a dropdown listing **every** tab — including any scrolled out of view. Each entry shows the tab's status icon – the same one the tab itself shows: a dot in a circle when ready, a spinner when busy, a warning triangle when it needs your permission, a crossed circle on error, an empty circle when disconnected, and a pause icon when paused. The active tab has a checkmark. Because it shows all sessions at once, it's the quickest way to spot which one is stuck or done when many tabs are open.
+A `˅` chevron beside it opens a dropdown listing **every** tab — including any scrolled out of view. Each entry shows the tab's status icon – the same one the tab itself shows: a dot in a circle when ready, a spinner when busy, a warning triangle when it needs your permission, a crossed circle on error, an empty circle when disconnected, and a moon when asleep. The active tab has a checkmark. Because it shows all sessions at once, it's the quickest way to spot which one is stuck or done when many tabs are open.
 
 <p align="center">
   <img src="/images/tab-status-dropdown.webp" alt="Multiple Agent Console session tabs in the tab bar, each prefixed with its own status glyph" class="inline-shot" width="600" />
@@ -230,13 +230,13 @@ Chats brought back for reading stay disconnected until you interact. This includ
 
 Switching the agent for an existing tab also waits for interaction. It rebinds the tab without starting another session, so your next typed or sent message connects to the agent you picked.
 
-## Paused tabs
+## Sleeping tabs
 
-**Keep lots of tabs open without slowing your computer down.** A tab you haven't used for an hour, while you work in another tab, pauses its agent to free memory. An agent with its tools can use several hundred megabytes, so a long day with many tabs adds up.
+**Keep lots of tabs open without slowing your computer down.** A tab you haven't used for an hour, while you work in another tab, goes to sleep: its agent stops to free memory. An agent with its tools can use several hundred megabytes, so a long day with many tabs adds up.
 
-A paused tab shows a faint pause icon instead of its usual dot. Hover it to see "Paused to save memory. Picks up when you type." The conversation stays on screen. Start typing or send a message and the tab picks up the same conversation, after a short "connecting" moment. Picking a model or mode on a paused tab reconnects it first, then applies your choice.
+A sleeping tab shows a small moon instead of its usual dot. Hover it to see "Asleep to save memory. Wakes up when you type." The conversation stays on screen. Start typing or send a message and the tab wakes up in the same conversation, after a short "connecting" moment. Picking a model or mode on a sleeping tab wakes it first, then applies your choice.
 
-A tab never pauses while it's the tab you're looking at, or while something is going on in it: a reply streaming, a permission question, a queued message, a running terminal, an AI rename, or text in the message box.
+A tab never goes to sleep while it's the tab you're looking at, or while something is going on in it: a reply streaming, a permission question, a queued message, a running terminal, an AI rename, or text in the message box.
 
 ## See also
 

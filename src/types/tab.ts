@@ -19,7 +19,7 @@ export type TabState =
 	| "permission" // triangle-alert, orange, pulsing — awaiting user approval
 	| "error" // circle-x, red — session error
 	| "disconnected" // circle, gray — session closed
-	| "released"; // circle-pause, faint — paused to save memory; reconnects on typing (I209)
+	| "released"; // moon, muted — asleep to save memory; wakes on typing (I209)
 
 /** Runtime acquisition provenance. Reconstructed on restore; never persisted. */
 export type TabOrigin = "fresh" | "restored";

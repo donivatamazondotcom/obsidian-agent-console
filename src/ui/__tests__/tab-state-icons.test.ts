@@ -20,7 +20,7 @@ const EXPECTED: Record<TabState, string> = {
 	permission: "triangle-alert",
 	error: "circle-x",
 	disconnected: "circle",
-	released: "circle-pause",
+	released: "moon",
 };
 
 describe("stateIcon (I238)", () => {

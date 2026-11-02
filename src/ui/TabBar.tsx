@@ -106,9 +106,10 @@ export function stateIcon(state: TabState): string {
 		case "disconnected":
 			return "circle";
 		case "released":
-			// I209: paused to save memory. Distinct shape from disconnected so the
-			// dropdown (no color, no animation) still tells them apart.
-			return "circle-pause";
+			// I209: asleep to save memory. A moon reads as "asleep" and is a distinct
+			// shape from disconnected, so the dropdown (no color, no animation) still
+			// tells them apart. I238: chosen in the smoke test over circle-pause.
+			return "moon";
 	}
 }
 
@@ -126,7 +127,7 @@ export function TabStateIcon({ state }: { state: TabState }) {
 	// I209: the only state with words – it's the one users won't guess.
 	// Obsidian shows aria-label as the hover tooltip.
 	const label =
-		state === "released" ? t("chat.tabBar.pausedToSaveMemory") : undefined;
+		state === "released" ? t("chat.tabBar.asleepToSaveMemory") : undefined;
 	return (
 		<span
 			ref={ref}
