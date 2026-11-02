@@ -233,6 +233,13 @@ export interface UseLazySessionApi {
 	release: () => boolean;
 
 	/**
+	 * Reconnect a released tab now on its kept id (I209): a picker change
+	 * before typing, or a soft reload. No-op unless the tab is `released` and
+	 * nothing is acquiring. Resolves when the acquisition settles.
+	 */
+	reconnectNow: () => Promise<void>;
+
+	/**
 	 * An acquisition is in flight or about to fire (the typing debounce is
 	 * armed). Read as the `acquiring` busy signal by decideProcessHold.
 	 */
@@ -550,19 +557,22 @@ export function useLazySession(
 	// reloadNow — soft reload as an acquisition through the single owner (I229)
 	// ============================================================================
 
+	const reconnectNow = useCallback(async () => {
+		if (tabStateRef.current.state !== "released") return;
+		if (isAcquiringRef.current) return;
+		if (debounceTimerRef.current !== null) {
+			window.clearTimeout(debounceTimerRef.current);
+			debounceTimerRef.current = null;
+		}
+		return fireAcquisition();
+	}, [fireAcquisition]);
+
 	const reloadNow = useCallback(
 		async (run: () => Promise<SessionAcquisitionResult>) => {
 			// I209: a released tab has no process to tear down, so a reload is
 			// the normal reconnect on the kept id — that IS a fresh harness.
-			if (
-				tabStateRef.current.state === "released" &&
-				!isAcquiringRef.current
-			) {
-				if (debounceTimerRef.current !== null) {
-					window.clearTimeout(debounceTimerRef.current);
-					debounceTimerRef.current = null;
-				}
-				return fireAcquisition();
+			if (tabStateRef.current.state === "released") {
+				return reconnectNow();
 			}
 			// Nothing to reload, or the owner is already acquiring (a first
 			// send, reconnect or another reload) — one acquisition at a time.
@@ -599,7 +609,7 @@ export function useLazySession(
 			}
 			isAcquiringRef.current = false;
 		},
-		[fireAcquisition],
+		[reconnectNow],
 	);
 
 	const continuesExistingSession = useCallback(
@@ -656,6 +666,7 @@ export function useLazySession(
 		continuesExistingSession,
 		reset,
 		release,
+		reconnectNow,
 		isAcquisitionPending,
 		// Expose state machine transitions for busy/permission — driven
 		// by ChatPanel in response to agent events (isSending,

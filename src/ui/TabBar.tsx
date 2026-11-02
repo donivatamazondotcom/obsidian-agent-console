@@ -114,9 +114,21 @@ export function stateGlyph(state: TabState): string {
  * Renders a tab state icon using shape + color + animation.
  * No red/green contrast dependency.
  */
-function TabStateIcon({ state }: { state: TabState }) {
+export function TabStateIcon({ state }: { state: TabState }) {
 	const className = `agent-client-tab-state-icon agent-client-tab-state-${state}`;
-	return <span className={className}>{stateGlyph(state)}</span>;
+	// I209: the only state with words – it's the one users won't guess.
+	// Obsidian shows aria-label as the hover tooltip.
+	const label =
+		state === "released" ? t("chat.tabBar.pausedToSaveMemory") : undefined;
+	return (
+		<span
+			className={className}
+			aria-label={label}
+			role={label ? "img" : undefined}
+		>
+			{stateGlyph(state)}
+		</span>
+	);
 }
 
 // ============================================================================

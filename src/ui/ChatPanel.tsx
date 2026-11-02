@@ -83,7 +83,16 @@ import { runNotificationClick } from "../utils/notification-click";
 import { shouldNotifySystem } from "../resolvers/notify-gate";
 import { useOwnedNotifications } from "../hooks/useOwnedNotifications";
 import { useEagerInitialize } from "../hooks/useEagerInitialize";
-import { decideProcessHold } from "../resolvers/process-hold";
+import {
+	decideProcessHold,
+	type BusySignal,
+} from "../resolvers/process-hold";
+import {
+	createReleaseGate,
+	runIdleRelease,
+	useApplyAfterReconnect,
+	useIdleRelease,
+} from "../hooks/useIdleRelease";
 import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";
 import { reconnectExistingSession } from "../hooks/loadExistingSessionFlow";
@@ -239,6 +248,8 @@ export interface ChatPanelProps {
 	onSessionIdChange?: (sessionId: string | null) => void;
 	/** Whether this tab is the currently active tab (controls focus on activation) */
 	isActive?: boolean;
+	/** An AI rename is running for this tab (I209 `ai-rename` busy signal). */
+	isAiRenaming?: boolean;
 	/**
 	 * Human-readable label of the tab hosting this panel (AI-suggested title,
 	 * custom rename, or first-message derivation). Surfaced as the completion
@@ -406,6 +417,7 @@ export function ChatPanel({
 	onLabelChange,
 	onSessionIdChange,
 	isActive,
+	isAiRenaming = false,
 	tabLabel,
 	findTabBySessionId,
 	onSwitchToTab,
@@ -1376,6 +1388,10 @@ export function ChatPanel({
 	const messageCountRef = useRef(messages.length);
 	messageCountRef.current = messages.length;
 
+	// I209: a reconnect that starts while an idle release is in flight waits
+	// for the old tree to exit (Kiro V2 rejects session/load until then).
+	const releaseGateRef = useRef(createReleaseGate());
+
 	useEagerInitialize({
 		// Spawn gate only: liveSession/idle/busy are fed by useIdleRelease,
 		// and useEagerInitialize acts on `hold` alone, so "no live session"
@@ -1495,6 +1511,7 @@ export function ChatPanel({
 		loadExistingSession: useCallback(
 			async (sessionId: string) => {
 				logger.log("[Lazy] Loading existing session:", sessionId);
+				await releaseGateRef.current.wait();
 				// I209: one seam for every kept-id reconnect (restored tab or
 				// released tab): initialize a disconnected client first, prefer
 				// resume where advertised, then load.
@@ -2089,6 +2106,61 @@ export function ChatPanel({
 		contextNotes.notes,
 		sessionHistory.saveSessionMessages,
 	);
+
+	// ============================================================
+	// I209: release a background tab's agent process after an hour idle
+	// ============================================================
+	// Busy signals hold the process (spec § 1). Order matters only for the
+	// reported signal; any one holds.
+	const idleBusy: BusySignal[] = [];
+	if (agent.isSending || lazySession.state === "busy") idleBusy.push("streaming");
+	if (agent.hasActivePermission || lazySession.state === "permission")
+		idleBusy.push("permission");
+	if (queue.isQueued) idleBusy.push("queued");
+	if (lazySession.state === "connecting" || lazySession.isAcquisitionPending())
+		idleBusy.push("acquiring");
+	if (sessionHistory.loading) idleBusy.push("history-loading");
+	if (isAiRenaming) idleBusy.push("ai-rename");
+	if (acpClient.hasLiveTerminals()) idleBusy.push("terminals");
+	if (inputValue.trim() !== "") idleBusy.push("draft");
+
+	// Debug-only threshold override for smoke tests, set via the console
+	// (`window.__agentConsoleIdleReleaseMs = 60000`). Ignored unless debug mode
+	// is on; never a setting (spec: fixed 1 h).
+	const idleThresholdOverride = settings.debugMode
+		? (window as unknown as { __agentConsoleIdleReleaseMs?: number })
+				.__agentConsoleIdleReleaseMs
+		: undefined;
+
+	const idleRelease = useIdleRelease({
+		isActive: isActive ?? false,
+		origin: tabOrigin,
+		hasForkSource: !!restoredForkSessionId,
+		liveSession: isSessionLive(lazySession.state) && !!agent.session.sessionId,
+		busy: idleBusy,
+		thresholdMs: idleThresholdOverride,
+		release: async (recheck) => {
+			try {
+				const ran = await runIdleRelease({
+					recheck,
+					flush: flushSessionSave,
+					lazyRelease: lazySession.release,
+					agentRelease: agent.releaseSession,
+					gate: releaseGateRef.current,
+				});
+				if (ran) logger.log("[ChatPanel] Idle release: agent process freed");
+			} catch (e) {
+				logger.warn("[ChatPanel] Idle release failed:", e);
+			}
+		},
+	});
+
+	// A model / mode / option pick on a released tab reconnects first (I209).
+	const applyAfterReconnect = useApplyAfterReconnect({
+		released: lazySession.state === "released",
+		live: isSessionLive(lazySession.state) && !!agent.session.sessionId,
+		reconnect: lazySession.reconnectNow,
+	});
 
 	// ============================================================
 	// Effects - System Notification on Permission Request
@@ -3203,7 +3275,7 @@ export function ChatPanel({
 					: undefined
 			}
 			onModeChange={(modeId) => {
-				void handleSetMode(modeId);
+				applyAfterReconnect(() => void handleSetMode(modeId));
 				focusAfter("set-mode");
 			}}
 			models={
@@ -3212,7 +3284,7 @@ export function ChatPanel({
 					: undefined
 			}
 			onModelChange={(modelId) => {
-				void handleSetModel(modelId);
+				applyAfterReconnect(() => void handleSetModel(modelId));
 				focusAfter("set-model");
 			}}
 			configOptions={
@@ -3221,7 +3293,9 @@ export function ChatPanel({
 					: undefined
 			}
 			onConfigOptionChange={(configId, value) => {
-				void handleSetConfigOption(configId, value);
+				applyAfterReconnect(
+					() => void handleSetConfigOption(configId, value),
+				);
 				focusAfter("set-config-option");
 			}}
 			usage={session.usage}
@@ -3232,6 +3306,7 @@ export function ChatPanel({
 			inputValue={inputValue}
 			onInputChange={(value) => {
 				setInputValue(value);
+				idleRelease.noteActivity();
 				// Typing-as-intent: feed every keystroke to the lazy
 				// session so it can debounce-trigger session acquisition.
 				// The hook short-circuits when sessionId is already set

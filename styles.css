@@ -2795,6 +2795,13 @@ del.acp-header-branded-profile {
 	color: var(--text-faint);
 }
 
+/* I209: paused to save memory. Quiet on purpose – a faint dotted ring, no
+   red or green, no animation. Reconnects on the first keystroke. */
+.agent-client-tab-state-released {
+	color: var(--text-faint);
+	opacity: 0.8;
+}
+
 @keyframes agent-client-spin {
 	from {
 		transform: rotate(0deg);

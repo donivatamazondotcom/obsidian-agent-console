@@ -506,6 +506,7 @@ export const en = {
 	"chat.tabBar.renameWithAi": "Rename with AI",
 	"chat.tabBar.renameWithAiUnavailable": "Not available for this agent",
 	"chat.tabBar.renamingWithAi": "Renaming with AI…",
+	"chat.tabBar.pausedToSaveMemory": "Paused to save memory. Picks up when you type.",
 	"chat.tabBar.close": "Close",
 	"chat.tabBar.closeOthers": "Close others",
 	"chat.tabBar.closeToRight": "Close to the right",

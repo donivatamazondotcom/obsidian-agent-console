@@ -1491,6 +1491,7 @@ function ChatComponent({
 								onSessionIdChange={(sessionId) =>
 									handleSessionIdChange(tab.tabId, sessionId)
 								}
+								isAiRenaming={aiRenamingTabIds.has(tab.tabId)}
 								findTabBySessionId={findTabBySessionId}
 								onSwitchToTab={tabManager.setActiveTab}
 								onCloseTab={tabManager.removeTab}

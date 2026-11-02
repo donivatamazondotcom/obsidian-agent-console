@@ -51,6 +51,12 @@ export interface ProcessHoldInput {
 	idleMs: number;
 	/** Work in progress. Empty = nothing in progress. */
 	busy: readonly BusySignal[];
+	/**
+	 * Debug-only override of {@link IDLE_RELEASE_MS} for smoke tests (honored
+	 * by the caller only in debug mode — never a setting). A missing, zero,
+	 * negative or non-finite value means the fixed hour.
+	 */
+	thresholdMs?: number;
 }
 
 export type ProcessHoldDecision =
@@ -65,11 +71,14 @@ export function decideProcessHold(input: ProcessHoldInput): ProcessHoldDecision 
 	const signal = input.busy[0];
 	if (signal !== undefined) return { kind: "hold", reason: "busy", signal };
 	if (input.liveSession) {
-		if (input.idleMs >= IDLE_RELEASE_MS) return { kind: "release", reason: "idle" };
+		const o = input.thresholdMs;
+		const threshold =
+			o !== undefined && Number.isFinite(o) && o > 0 ? o : IDLE_RELEASE_MS;
+		if (input.idleMs >= threshold) return { kind: "release", reason: "idle" };
 		return {
 			kind: "hold",
 			reason: "warm",
-			remainingMs: IDLE_RELEASE_MS - input.idleMs,
+			remainingMs: threshold - input.idleMs,
 		};
 	}
 	if (input.hasForkSource) return { kind: "hold", reason: "fork" };

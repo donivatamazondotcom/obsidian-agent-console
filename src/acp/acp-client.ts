@@ -932,6 +932,14 @@ export class AcpClient {
 	}
 
 	/**
+	 * The agent has a terminal that is still running (I209 `terminals` busy
+	 * signal). The terminal map itself stays inside `acp/`.
+	 */
+	hasLiveTerminals(): boolean {
+		return this.terminalManager.hasLiveTerminals();
+	}
+
+	/**
 	 * Disconnect from the agent and clean up resources.
 	 */
 	disconnect(): Promise<void> {

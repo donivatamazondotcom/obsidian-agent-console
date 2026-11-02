@@ -230,6 +230,14 @@ Chats brought back for reading stay disconnected until you interact. This includ
 
 Switching the agent for an existing tab also waits for interaction. It rebinds the tab without starting another session, so your next typed or sent message connects to the agent you picked.
 
+## Paused tabs
+
+**Keep lots of tabs open without slowing your computer down.** A tab you haven't used for an hour, while you work in another tab, pauses its agent to free memory. An agent with its tools can use several hundred megabytes, so a long day with many tabs adds up.
+
+A paused tab shows a faint dotted ring (◌) instead of its usual dot. Hover it to see "Paused to save memory. Picks up when you type." The conversation stays on screen. Start typing or send a message and the tab picks up the same conversation, after a short "connecting" moment. Picking a model or mode on a paused tab reconnects it first, then applies your choice.
+
+A tab never pauses while it's the tab you're looking at, or while something is going on in it: a reply streaming, a permission question, a queued message, a running terminal, an AI rename, or text in the message box.
+
 ## See also
 
 - [Session history](/usage/session-history) — browse past sessions, restore any in a new tab
