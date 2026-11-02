@@ -30,8 +30,8 @@ Tool calls are displayed in the chat as a single collapsed row with:
 Click the row to expand it and see the full detail — a file diff, terminal
 output, or, for other tools (such as MCP tools and subagent calls), the tool's
 raw input and output. The line count always matches what the expanded view
-shows. A failed call stays collapsed but is flagged with a highlighted status
-indicator, so you can spot it at a glance and expand it when you want to read
+shows. A failed call stays collapsed but is flagged with a circled ✕ icon,
+the same one the tab bar uses for an errored session, so you can spot it at a glance and expand it when you want to read
 the error. Pending permission requests expand automatically so you can act on
 them.
 

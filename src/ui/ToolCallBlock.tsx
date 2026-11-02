@@ -119,8 +119,8 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 		!!permissionRequest && !permissionRequest.selectedOptionId;
 
 	// Failed tool calls do NOT auto-expand (CTC-I05). The collapsed summary row
-	// flags failure with a highlighted status chip (the "x" icon on an
-	// error-background pill), so the user can parse "this failed" at a glance and
+	// flags failure with a status icon (Lucide `circle-x`, error-tinted, no
+	// background pill, matching the tab bar's error icon), so the user can parse "this failed" at a glance and
 	// choose to expand. On expand, the error is surfaced by RawPayloadBlock
 	// (rawOutput). Only a pending permission forces expansion, because the user
 	// must see the PermissionBanner to act on the request.
@@ -188,7 +188,7 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 				)}
 				{status !== "completed" && (
 					<LucideIcon
-						name={status === "failed" ? "x" : "ellipsis"}
+						name={status === "failed" ? "circle-x" : "ellipsis"}
 						className={`agent-client-message-tool-call-status-icon agent-client-status-${status}`}
 					/>
 				)}
@@ -240,7 +240,7 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 					</span>
 					{status !== "completed" && (
 						<LucideIcon
-							name={status === "failed" ? "x" : "ellipsis"}
+							name={status === "failed" ? "circle-x" : "ellipsis"}
 							className={`agent-client-message-tool-call-status-icon agent-client-status-${status}`}
 						/>
 					)}
