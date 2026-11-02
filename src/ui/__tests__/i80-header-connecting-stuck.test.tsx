@@ -37,6 +37,7 @@ import type { HeaderSegments } from "../ChatHeader";
 
 vi.mock("obsidian", () => ({
 	setIcon: vi.fn(),
+	setTooltip: vi.fn(),
 }));
 
 // ============================================================================

@@ -36,7 +36,7 @@ export interface HeaderSegments {
 	effort: string | null;
 	/** Current mode name, non-Kiro agents only (`deriveHeaderMode`); tooltip only. */
 	mode: string | null;
-	/** The tab's folder when it isn't the vault (`deriveHeaderFolder`); tooltip only. */
+	/** The tab's folder (`deriveHeaderFolder`); tooltip only. */
 	folder: string | null;
 	/** Whether the tab is in lazy-idle state (no connection attempted yet) */
 	isLazyIdle?: boolean;
@@ -265,11 +265,28 @@ function useHeaderWidthTier(
 function BrandedTitle({
 	segments,
 	widthRef,
+	tooltip,
 }: {
 	segments: HeaderSegments;
 	widthRef: React.RefObject<HTMLElement>;
+	tooltip: string;
 }) {
 	const tier = useHeaderWidthTier(widthRef);
+	const textRef = useRef<HTMLSpanElement>(null);
+
+	// The tooltip hangs off the header TEXT, not the full-width title slot,
+	// because Obsidian centers a tooltip on its target: on the slot it opened
+	// far from the pointer. `acp-header-tooltip` left-aligns its lines
+	// (I247 smoke H4). `aria-label` is also set in JSX so the label is there
+	// on the first render.
+	useEffect(() => {
+		if (textRef.current) {
+			setTooltip(textRef.current, tooltip, {
+				placement: "bottom",
+				classes: ["acp-header-tooltip"],
+			});
+		}
+	}, [tooltip]);
 
 	const showPlugin = tier === "wide";
 	const slot = deriveHeaderSlot({
@@ -281,7 +298,7 @@ function BrandedTitle({
 	const rootClass = `acp-header-branded acp-header-branded--${tier}`;
 
 	return (
-		<span className={rootClass}>
+		<span ref={textRef} className={rootClass} aria-label={tooltip}>
 			{showPlugin && (
 				<span className="acp-header-branded-plugin">
 					[{segments.plugin}]
@@ -458,11 +475,11 @@ export function ChatHeader({
 				<span
 					ref={titleSlotRef}
 					className="agent-client-chat-view-header-title"
-					aria-label={tooltip}
 				>
 					<BrandedTitle
 						segments={headerSegments}
 						widthRef={titleSlotRef}
+						tooltip={tooltip}
 					/>
 				</span>
 				{isUpdateAvailable && (

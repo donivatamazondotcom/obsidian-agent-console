@@ -28,7 +28,7 @@ import { ChatHeader, type HeaderSegments } from "../ChatHeader";
 	unobserve() {}
 	disconnect() {}
 };
-vi.mock("obsidian", () => ({ setIcon: vi.fn() }));
+vi.mock("obsidian", () => ({ setIcon: vi.fn(), setTooltip: vi.fn() }));
 
 describe("deriveHeaderEngine (was deriveHeaderRuntime; renamed in I247)", () => {
 	it("reported agentInfo, with title and version, for a non-Kiro agent", () => {
@@ -80,7 +80,7 @@ function tooltipFor(overrides: Partial<HeaderSegments>): string {
 	);
 	return (
 		container
-			.querySelector(".agent-client-chat-view-header-title")
+			.querySelector(".acp-header-branded")
 			?.getAttribute("aria-label") ?? ""
 	);
 }
