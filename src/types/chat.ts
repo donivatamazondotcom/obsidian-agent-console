@@ -86,11 +86,27 @@ export interface PermissionOption {
 	name: string;
 	kind: "allow_once" | "allow_always" | "reject_once" | "reject_always";
 	/**
-	 * Kiro V3 (S5): how long a persistent choice lasts. "chat" = this chat
-	 * and this exact command or file. Absent for one-time choices and agents
-	 * that don't say.
+	 * Kiro V3 (S5): the scope choices a persistent option offers before it's
+	 * sent. Absent for one-time choices and agents that send no consent context.
 	 */
-	persistsFor?: "chat";
+	scopeOffer?: PermissionScopeOffer;
+}
+
+/** What the user can pick for a persistent Kiro V3 permission choice. */
+export interface PermissionScopeOffer {
+	/** "This vault" is offered (the server sent a workspace root). */
+	workspace: boolean;
+	/** The exact command or file the request is about. */
+	resource: string;
+	/** Kiro's suggested pattern for shell commands, e.g. "npm *". */
+	pattern?: string;
+}
+
+/** The user's pick for a persistent Kiro V3 permission choice. */
+export interface PermissionScopeChoice {
+	/** "workspace" = this vault, across chats; "session" = this chat only. */
+	scope: "workspace" | "session";
+	match: "exact" | "pattern";
 }
 
 /**

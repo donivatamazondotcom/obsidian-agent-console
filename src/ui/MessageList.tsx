@@ -1,3 +1,4 @@
+import type { PermissionScopeChoice } from "../types/chat";
 import * as React from "react";
 const { memo, useEffect, useRef, useState } = React;
 
@@ -282,7 +283,8 @@ export interface MessageListProps {
 	onApprovePermission?: (
 		requestId: string,
 		optionId: string,
-	) => Promise<void>;
+	choice?: PermissionScopeChoice,
+) => Promise<void>;
 	/** Whether a permission request is currently pending */
 	hasActivePermission: boolean;
 	/**

@@ -26,7 +26,12 @@ Some agents request permission before performing certain actions. When a permiss
 Permission options vary by agent. Some agents may not request permission at all and edit files directly.
 :::
 
-On the Kiro CLI V3 engine, **Always allow** and **Always deny** last for the current chat, and only for that exact command or file. A different command, or the same one in a new chat, asks again. Hover the button to see this. To allow a command everywhere, add a rule to Kiro's own permission settings.
+On the Kiro CLI V3 engine, **Always allow** and **Always deny** ask one more question before they're sent:
+
+- **Remember for:** **This vault** (the default) keeps the rule for new chats in this vault too. **This chat only** forgets it when the chat ends. Kiro saves vault rules in its own settings, not in your vault.
+- **Applies to** (shell commands only): **this exact command** (the default), or every command that starts the same way, such as `npm *`.
+
+Click the button again to confirm, or **Back** to choose differently. To allow a command in every workspace, add a rule to Kiro's own permission settings.
 
 ### Auto-Allow Permissions
 

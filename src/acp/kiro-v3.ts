@@ -22,6 +22,8 @@ import type { KiroMcpServerStatus } from "../types/mcp-auth";
 import type * as acp from "@agentclientprotocol/sdk";
 import type { AgentConfig } from "./acp-client";
 import type {
+	PermissionScopeChoice,
+	PermissionScopeOffer,
 	PromptContent,
 	ResourceLinkPromptContent,
 } from "../types/chat";
@@ -320,26 +322,22 @@ export function takeTrailingAttachedFile(
 
 /** Consent a Kiro-aware client returns for a persistent permission choice. */
 export interface KiroConsentReply {
-	scope: "session";
+	scope: "session" | "workspace";
 	resource: string;
 	workspaceRoot?: string;
 }
 
-/**
- * V3 (S5): the `_meta.kiro.consent` to return with a persistent choice
- * ("Always allow" / "Always deny"), or undefined when none should be sent.
- *
- * Mirrors the server's own default exactly (read in the 2.34.3-nightly.3
- * bundle and confirmed live, Q2): scope "session", the triggering resource
- * (else the gated one), and the request's workspace root. So behavior is
- * unchanged; the reply is just explicit, as the guide's §9 asks. Data-driven:
- * only a request carrying `_meta.kiro.consent` (V3) gets one, so V2 is
- * untouched. Wider scopes (workspace, user) are a later, separate decision.
- */
-export function kiroConsentForChoice(
+interface ParsedConsent {
+	capability?: string;
+	resource: string;
+	workspaceRoot?: string;
+}
+
+/** The request's `_meta.kiro.consent`, when a persistent `kind` may use it. */
+function persistableConsent(
 	kind: string | null | undefined,
 	requestMeta: unknown,
-): KiroConsentReply | undefined {
+): ParsedConsent | undefined {
 	if (kind !== "allow_always" && kind !== "reject_always") return undefined;
 	if (typeof requestMeta !== "object" || requestMeta === null) return undefined;
 	const kiro = (requestMeta as { kiro?: unknown }).kiro;
@@ -352,8 +350,75 @@ export function kiroConsentForChoice(
 	const pick = (v: unknown) => (typeof v === "string" && v.length > 0 ? v : undefined);
 	const resource = pick(c.triggeringResource) ?? pick(c.resource);
 	if (resource === undefined) return undefined;
+	const capability = pick(c.capability);
 	const workspaceRoot = pick(c.workspaceRoot);
-	return { scope: "session", resource, ...(workspaceRoot !== undefined && { workspaceRoot }) };
+	return {
+		resource,
+		...(capability !== undefined && { capability }),
+		...(workspaceRoot !== undefined && { workspaceRoot }),
+	};
+}
+
+const NO_PATTERN_PREFIXES = new Set(["sudo", "doas", "env"]);
+
+/**
+ * Kiro's suggested pattern for a shell command: its first word plus " *"
+ * ("npm run test" → "npm *"). Same rule as Kiro's own TUI: none for a
+ * one-word command, a wildcard, an env assignment, or sudo/doas/env.
+ */
+export function kiroShellPattern(command: string): string | undefined {
+	const words = command.trim().split(/\s+/);
+	const first = words[0] ?? "";
+	if (first === "" || words.length < 2 || first === "*" || first.includes("=")) return undefined;
+	if (NO_PATTERN_PREFIXES.has(first)) return undefined;
+	return `${first} *`;
+}
+
+/**
+ * V3 (S5): the scope choices to offer for a persistent option, or undefined
+ * when the option is one-time or the request carries no usable consent
+ * context (V2). "This vault" needs the server's workspace root; the pattern
+ * is for shell commands only.
+ */
+export function kiroScopeOffer(
+	kind: string | null | undefined,
+	requestMeta: unknown,
+): PermissionScopeOffer | undefined {
+	const consent = persistableConsent(kind, requestMeta);
+	if (!consent) return undefined;
+	const pattern = consent.capability === "shell" ? kiroShellPattern(consent.resource) : undefined;
+	return {
+		workspace: consent.workspaceRoot !== undefined,
+		resource: consent.resource,
+		...(pattern !== undefined && { pattern }),
+	};
+}
+
+/**
+ * V3 (S5): the `_meta.kiro.consent` to return with a persistent choice, or
+ * undefined when none should be sent. Without a `choice` (the keyboard path)
+ * it is the server's own default: this chat, the exact resource (Q2). With
+ * one, "workspace" (this vault, saved by Kiro in
+ * `~/.kiro/workspace-roots/<hash>/permissions.yaml`) or "session", and the
+ * exact resource or Kiro's shell pattern. "workspace" falls back to
+ * "session" without a workspace root; "pattern" to exact without a pattern.
+ * User scope ("everywhere") is never sent from a click.
+ */
+export function kiroConsentForChoice(
+	kind: string | null | undefined,
+	requestMeta: unknown,
+	choice?: PermissionScopeChoice,
+): KiroConsentReply | undefined {
+	const consent = persistableConsent(kind, requestMeta);
+	if (!consent) return undefined;
+	const offer = kiroScopeOffer(kind, requestMeta);
+	const scope = choice?.scope === "workspace" && consent.workspaceRoot !== undefined ? "workspace" : "session";
+	const resource = choice?.match === "pattern" && offer?.pattern ? offer.pattern : consent.resource;
+	return {
+		scope,
+		resource,
+		...(consent.workspaceRoot !== undefined && { workspaceRoot: consent.workspaceRoot }),
+	};
 }
 
 /** V3 agent-to-client request: which shell do the client's terminals use? */
