@@ -395,6 +395,26 @@ export function createInitialSession(
  * keep that id runtime-only until the first message so restart does not create
  * an orphan tab slice or a false "history not stored locally" recovery state.
  */
+/**
+ * Which kept id (restored or released, from `useLazySession.keptSessionId`)
+ * may stand as the persisted side of {@link resolveSessionIdForSave} (I236).
+ *
+ * - An id restored from disk always may: it already has a saved session.
+ * - An id kept by an idle release (I209) may only once the tab has
+ *   messages. A fresh eager tab released before its first message has no
+ *   saved session or transcript, so persisting its id would restore a tab
+ *   pointing at nothing.
+ */
+export function keptIdForSave(
+	keptId: string | null,
+	restoredId: string | null,
+	hasMessages: boolean,
+): string | null {
+	if (keptId === null) return null;
+	if (keptId === restoredId || hasMessages) return keptId;
+	return null;
+}
+
 export function resolveSessionIdForSave(
 	liveId: string | null,
 	persistedId: string | null,

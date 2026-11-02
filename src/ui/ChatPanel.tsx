@@ -38,6 +38,7 @@ import {
 	indexOfCurrentAgent,
 	resolveCwdForAgent,
 	resolveSessionIdForSave,
+	keptIdForSave,
 	findAgentSettings,
 } from "../services/session-helpers";
 import { deriveNewLeaf, shouldOpenFromActivation } from "../utils/link-leaf";
@@ -2311,10 +2312,16 @@ export function ChatPanel({
 		// I209: the persisted side is the lazy owner's kept id, not the mount
 		// snapshot — a fresh tab that was released has no live id and a null
 		// snapshot, so the snapshot would lose its session across a restart.
+		// I236: a kept id from a release is persistable only once the tab has
+		// messages; an id restored from disk always is.
 		onSessionIdChange?.(
 			resolveSessionIdForSave(
 				session.sessionId ?? null,
-				lazySession.keptSessionId,
+				keptIdForSave(
+					lazySession.keptSessionId,
+					restoredSessionId ?? null,
+					messages.length > 0,
+				),
 				messages.length > 0,
 			),
 		);
@@ -2322,6 +2329,7 @@ export function ChatPanel({
 		onSessionIdChange,
 		session.sessionId,
 		lazySession.keptSessionId,
+		restoredSessionId,
 		messages.length,
 	]);
 
