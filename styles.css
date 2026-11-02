@@ -2808,6 +2808,21 @@ del.acp-header-branded-profile {
 	color: var(--text-muted);
 }
 
+/* Tab Attention States. Shape carries the meaning (tick, alert ring, dashed
+   ring); color is a second signal, never red/green. */
+.agent-client-tab-state-doneUnseen {
+	color: var(--interactive-accent);
+}
+
+.agent-client-tab-state-stoppedUnseen {
+	color: var(--color-yellow);
+}
+
+.agent-client-tab-state-connecting {
+	color: var(--text-muted);
+	animation: agent-client-spin 3s linear infinite;
+}
+
 @keyframes agent-client-spin {
 	from {
 		transform: rotate(0deg);
@@ -3790,6 +3805,7 @@ del.acp-header-branded-profile {
 	.agent-client-loading-dot,
 	.agent-client-tab-state-busy,
 	.agent-client-tab-state-permission,
+	.agent-client-tab-state-connecting,
 	.agent-client-reload-spinning svg,
 	.agent-client-tab-ai-renaming {
 		animation: none;

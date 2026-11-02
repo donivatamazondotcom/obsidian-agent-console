@@ -16,7 +16,11 @@ import type { ISettingsAccess } from "../services/settings-service";
 import type { ErrorInfo } from "../types/errors";
 import type { IMentionService } from "../utils/mention-parser";
 import { useAgentSession } from "./useAgentSession";
-import { useAgentMessages, type SendMessageOptions } from "./useAgentMessages";
+import {
+	useAgentMessages,
+	type SendMessageOptions,
+	type TurnEnd,
+} from "./useAgentMessages";
 
 // Re-export types that ChatPanel uses
 export type { SendMessageOptions } from "./useAgentMessages";
@@ -47,6 +51,8 @@ export interface UseAgentReturn {
 	// Message state
 	messages: ChatMessage[];
 	isSending: boolean;
+	/** How the most recent turn ended ([[Tab Attention States]]). */
+	lastTurnEnd: TurnEnd | null;
 	lastUserMessage: string | null;
 
 	/** AI-suggested session title (F03), or null. See [[ACP AI Session Rename]]. */
@@ -228,6 +234,7 @@ export function useAgent(
 			// Message state
 			messages: agentMessages.messages,
 			isSending: agentMessages.isSending,
+			lastTurnEnd: agentMessages.lastTurnEnd,
 			lastUserMessage: agentMessages.lastUserMessage,
 			suggestedTitle: agentMessages.suggestedTitle,
 
@@ -273,6 +280,7 @@ export function useAgent(
 			agentSession.isReady,
 			agentMessages.messages,
 			agentMessages.isSending,
+			agentMessages.lastTurnEnd,
 			agentMessages.lastUserMessage,
 			agentMessages.suggestedTitle,
 			errorInfo,

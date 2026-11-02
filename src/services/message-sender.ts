@@ -25,7 +25,7 @@ import {
 	toAcpError,
 	isEmptyResponseError,
 } from "../utils/error-utils";
-import type { AuthenticationMethod } from "../types/session";
+import type { AuthenticationMethod, TurnStopKind } from "../types/session";
 import type {
 	PromptContent,
 	ImagePromptContent,
@@ -206,6 +206,9 @@ export interface SendPromptResult {
 
 	/** Whether the prompt was successfully sent after retry */
 	retriedSuccessfully?: boolean;
+
+	/** How the turn ended, on success ([[Tab Attention States]]). */
+	stopKind?: TurnStopKind;
 }
 
 // ============================================================================
@@ -1035,10 +1038,14 @@ export async function sendPreparedPrompt(
 	agentClient: AcpClient,
 ): Promise<SendPromptResult> {
 	try {
-		await agentClient.sendPrompt(input.sessionId, input.agentContent);
+		const outcome = await agentClient.sendPrompt(
+			input.sessionId,
+			input.agentContent,
+		);
 
 		return {
 			success: true,
+			stopKind: outcome?.stopKind ?? "unknown",
 			displayContent: input.displayContent,
 			agentContent: input.agentContent,
 		};
@@ -1145,10 +1152,11 @@ async function retryWithAuthentication(
 			return null;
 		}
 
-		await agentClient.sendPrompt(sessionId, agentContent);
+		const outcome = await agentClient.sendPrompt(sessionId, agentContent);
 
 		return {
 			success: true,
+			stopKind: outcome?.stopKind ?? "unknown",
 			displayContent,
 			agentContent,
 			retriedSuccessfully: true,

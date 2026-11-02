@@ -21,16 +21,26 @@ Status icons on each tab tell you at a glance which agent needs attention.
 The tab bar appears at the top of the chat sidebar. Each tab shows:
 
 - **Label** — generated for each new chat; how it's generated is configurable (see [Tab titles](#tab-titles) below). Editable any time via right-click rename. The **active** tab widens to show its full title, capped to the sidebar width so the title and close button always stay in view; inactive tabs stay short. Hover any tab to see its full title.
-- **Status icon** — at-a-glance signal:
-  - 🟢 Ready (waiting for your next message)
-  - ⏳ Busy (agent is generating)
-  - ❓ Permission needed (agent paused on a tool call)
-  - ⚠️ Disconnected (agent process exited)
+- **Status icon** — shows what the tab needs from you. Hover it for a short description.
+
+  | Icon | Meaning |
+  |---|---|
+  | Warning triangle (pulsing) | Needs your approval – the agent paused on a tool call |
+  | Crossed circle | Something went wrong |
+  | Circle with `!` | Stopped early while you were away – the agent hit a length or step limit, declined to continue, or the send failed |
+  | Circle with a tick | Finished while you were away |
+  | Spinner | Working |
+  | Dashed circle (slowly turning) | Connecting to the agent |
+  | Dot in a circle | Ready for your next message. A brand-new tab shows this too, because it connects as soon as you send |
+  | Moon | Asleep to save memory (see [Sleeping tabs](#sleeping-tabs)) |
+  | Empty circle | Not connected yet |
+
+  The tick and the `!` only appear on a tab you weren't looking at when the reply ended – a background tab, or any tab while Obsidian was in the background. They clear as soon as you switch to the tab, come back to the window, or send again. Stopping a reply yourself never leaves a mark.
 - **Close button** (×) — appears on hover
 
 A `+` button on the right of the tab bar opens a new tab.
 
-A `˅` chevron beside it opens a dropdown listing **every** tab — including any scrolled out of view. Each entry shows the tab's status icon – the same one the tab itself shows: a dot in a circle when ready, a spinner when busy, a warning triangle when it needs your permission, a crossed circle on error, an empty circle when disconnected, and a moon when asleep. The active tab has a checkmark. Because it shows all sessions at once, it's the quickest way to spot which one is stuck or done when many tabs are open.
+A `˅` chevron beside it opens a dropdown listing **every** tab — including any scrolled out of view. Each entry shows the tab's status icon – the same one the tab itself shows (see the table above). The active tab has a checkmark. Because it shows all sessions at once, it's the quickest way to spot which one is stuck or finished when many tabs are open.
 
 <p align="center">
   <img src="/images/tab-status-dropdown.webp" alt="Multiple Agent Console session tabs in the tab bar, each prefixed with its own status glyph" class="inline-shot" width="600" />

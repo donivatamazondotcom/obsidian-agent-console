@@ -36,7 +36,12 @@ describe("I209 released mappings", () => {
 		"deriveTabState(released, isSending=%s, permission=%s) → released",
 		(isSending, hasActivePermission) => {
 			expect(
-				deriveTabState({ lifecycle: "released", isSending, hasActivePermission }),
+				deriveTabState({
+					lifecycle: "released",
+					isSending,
+					hasActivePermission,
+					unseen: null,
+				}),
 			).toBe("released");
 		},
 	);

@@ -110,6 +110,41 @@ export function stateIcon(state: TabState): string {
 			// shape from disconnected, so the dropdown (no color, no animation) still
 			// tells them apart. I238: chosen in the smoke test over circle-pause.
 			return "moon";
+		// Tab Attention States: finished / stopped early while you weren't
+		// looking, and a dashed ring while the agent starts.
+		case "doneUnseen":
+			return "circle-check";
+		case "stoppedUnseen":
+			return "circle-alert";
+		case "connecting":
+			return "circle-dashed";
+	}
+}
+
+/**
+ * Hover label for each tab state ([[Tab Attention States]]). Every state
+ * explains itself; Obsidian shows `aria-label` as the tooltip.
+ */
+export function stateLabel(state: TabState): string {
+	switch (state) {
+		case "ready":
+			return t("chat.tabBar.state.ready");
+		case "busy":
+			return t("chat.tabBar.state.busy");
+		case "permission":
+			return t("chat.tabBar.state.permission");
+		case "error":
+			return t("chat.tabBar.state.error");
+		case "disconnected":
+			return t("chat.tabBar.state.disconnected");
+		case "released":
+			return t("chat.tabBar.asleepToSaveMemory");
+		case "connecting":
+			return t("chat.tabBar.state.connecting");
+		case "doneUnseen":
+			return t("chat.tabBar.state.doneUnseen");
+		case "stoppedUnseen":
+			return t("chat.tabBar.state.stoppedUnseen");
 	}
 }
 
@@ -124,17 +159,10 @@ export function TabStateIcon({ state }: { state: TabState }) {
 		if (ref.current) setIcon(ref.current, icon);
 	}, [icon]);
 	const className = `agent-client-tab-state-icon agent-client-tab-state-${state}`;
-	// I209: the only state with words – it's the one users won't guess.
 	// Obsidian shows aria-label as the hover tooltip.
-	const label =
-		state === "released" ? t("chat.tabBar.asleepToSaveMemory") : undefined;
+	const label = stateLabel(state);
 	return (
-		<span
-			ref={ref}
-			className={className}
-			aria-label={label}
-			role={label ? "img" : undefined}
-		/>
+		<span ref={ref} className={className} aria-label={label} role="img" />
 	);
 }
 

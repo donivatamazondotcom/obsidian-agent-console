@@ -17,7 +17,11 @@ import type {
 	ResourceLinkPromptContent,
 	PromptContent,
 } from "../types/chat";
-import type { ChatSession, SessionUpdate } from "../types/session";
+import type {
+	ChatSession,
+	SessionUpdate,
+	TurnStopKind,
+} from "../types/session";
 import type { AcpClient } from "../acp/acp-client";
 import type { IVaultAccess, NoteMetadata } from "../services/vault-service";
 import type { ContextNote } from "../types/context";
@@ -89,6 +93,12 @@ export interface UseAgentMessagesReturn {
 	// Message state
 	messages: ChatMessage[];
 	isSending: boolean;
+	/**
+	 * How the most recent turn ended, with a counter so two identical
+	 * outcomes in a row are still distinct events. `failed` = the send
+	 * errored. Null until the first turn ends ([[Tab Attention States]]).
+	 */
+	lastTurnEnd: TurnEnd | null;
 	lastUserMessage: string | null;
 
 	/**
@@ -147,6 +157,12 @@ export interface UseAgentMessagesReturn {
 // Hook Implementation
 // ============================================================================
 
+/** One turn-end event: how it ended, and a monotonically rising counter. */
+export interface TurnEnd {
+	seq: number;
+	outcome: TurnStopKind | "failed";
+}
+
 export function useAgentMessages(
 	agentClient: AcpClient,
 	settingsAccess: ISettingsAccess,
@@ -160,6 +176,12 @@ export function useAgentMessages(
 
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [isSending, setIsSending] = useState(false);
+	const [lastTurnEnd, setLastTurnEnd] = useState<TurnEnd | null>(null);
+	const recordTurnEnd = useCallback(
+		(outcome: TurnEnd["outcome"]) =>
+			setLastTurnEnd((prev) => ({ seq: (prev?.seq ?? 0) + 1, outcome })),
+		[],
+	);
 	const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
 
 	// F03 — AI Session Rename. Head buffer for the first reply's leading text;
@@ -634,8 +656,10 @@ export function useAgentMessages(
 					if (result.success) {
 						setIsSending(false);
 						setLastUserMessage(null);
+						recordTurnEnd(result.stopKind ?? "unknown");
 					} else {
 						setIsSending(false);
+						recordTurnEnd("failed");
 						setErrorInfo(
 							result.error
 								? {
@@ -657,6 +681,7 @@ export function useAgentMessages(
 					if (generationRef.current !== generation) return;
 					flushTitleBuffer(currentSessionId);
 					setIsSending(false);
+					recordTurnEnd("failed");
 					setErrorInfo({
 						title: "Send Message Failed",
 						message: `Failed to send message: ${extractErrorMessage(error)}`,
@@ -689,6 +714,7 @@ export function useAgentMessages(
 			setErrorInfo,
 			flushTitleBuffer,
 			flushPendingUpdates,
+			recordTurnEnd,
 		],
 	);
 
@@ -757,6 +783,7 @@ export function useAgentMessages(
 	return {
 		messages,
 		isSending,
+		lastTurnEnd,
 		lastUserMessage,
 		suggestedTitle,
 		sendMessage,

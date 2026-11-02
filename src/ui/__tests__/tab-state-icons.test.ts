@@ -21,6 +21,10 @@ const EXPECTED: Record<TabState, string> = {
 	error: "circle-x",
 	disconnected: "circle",
 	released: "moon",
+	// Tab Attention States
+	doneUnseen: "circle-check",
+	stoppedUnseen: "circle-alert",
+	connecting: "circle-dashed",
 };
 
 describe("stateIcon (I238)", () => {

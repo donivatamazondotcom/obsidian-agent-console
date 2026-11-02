@@ -36,8 +36,7 @@
 
 import { describe, expect, it } from "vitest";
 import { deriveTabState } from "../tab-state";
-import type { TabSessionState } from "../../types/tab";
-import type { TabState } from "../../types/tab";
+import type { TabSessionState, TabState, TabUnseen } from "../../types/tab";
 
 const LIFECYCLES: TabSessionState[] = [
 	"idle",
@@ -46,116 +45,110 @@ const LIFECYCLES: TabSessionState[] = [
 	"busy",
 	"permission",
 	"error",
+	"released",
 ];
 const BOOLS = [true, false];
+const UNSEEN: TabUnseen[] = [null, { kind: "done" }, { kind: "stopped" }];
 
-/** Reference spec, independent of the implementation's control flow. */
+/**
+ * Reference spec ([[Tab Attention States]] § Resolver), written as a priority
+ * list independent of the implementation's control flow.
+ */
 function expected(
 	lifecycle: TabSessionState,
 	isSending: boolean,
 	hasActivePermission: boolean,
+	unseen: TabUnseen,
 ): TabState {
 	if (lifecycle === "error") return "error";
-	if (lifecycle === "idle" || lifecycle === "connecting")
-		return "disconnected";
-	// live lifecycle (ready/busy/permission): overlay intent signals
+	if (lifecycle === "connecting") return "connecting";
+	// idle = a fresh lazy tab that connects on the first send.
+	if (lifecycle === "idle") return isSending ? "connecting" : "ready";
+	const unseenState: TabState | null =
+		unseen === null ? null : unseen.kind === "done" ? "doneUnseen" : "stoppedUnseen";
+	// Asleep: the process is gone, so stale sending/permission flags are
+	// ignored, but an unread result still outranks the moon.
+	if (lifecycle === "released") return unseenState ?? "released";
 	if (hasActivePermission) return "permission";
 	if (isSending) return "busy";
-	return "ready";
+	return unseenState ?? "ready";
 }
 
 describe("deriveTabState — exhaustive truth table", () => {
 	for (const lifecycle of LIFECYCLES) {
 		for (const isSending of BOOLS) {
 			for (const hasActivePermission of BOOLS) {
-				const label = `${lifecycle}/sending=${isSending}/perm=${hasActivePermission}`;
-				it(label, () => {
-					expect(
-						deriveTabState({
-							lifecycle,
-							isSending,
-							hasActivePermission,
-						}),
-					).toBe(expected(lifecycle, isSending, hasActivePermission));
-				});
+				for (const unseen of UNSEEN) {
+					const label = `${lifecycle}/sending=${isSending}/perm=${hasActivePermission}/unseen=${unseen?.kind ?? "none"}`;
+					it(label, () => {
+						expect(
+							deriveTabState({
+								lifecycle,
+								isSending,
+								hasActivePermission,
+								unseen,
+							}),
+						).toBe(
+							expected(lifecycle, isSending, hasActivePermission, unseen),
+						);
+					});
+				}
 			}
 		}
 	}
 });
 
-describe("deriveTabState — reproduce cases (the reported bug)", () => {
-	// The exact failure in the screenshot: active tab just connected on its
-	// first send and is streaming a reply. Before the fix this stranded at
-	// "ready"; it MUST be "busy".
+describe("deriveTabState — reproduce cases", () => {
+	// I172: active tab just connected on its first send and is streaming.
 	it("lazy first-send, now streaming: ready lifecycle + isSending → busy", () => {
 		expect(
-			deriveTabState({
-				lifecycle: "ready",
-				isSending: true,
-				hasActivePermission: false,
-			}),
-		).toBe("busy");
-	});
-
-	// Second path: a mid-turn permission resolved while the agent keeps
-	// working. isSending is still true → must return to busy, not ready.
-	it("permission resolved mid-turn, still working: ready + isSending, no active permission → busy", () => {
-		expect(
-			deriveTabState({
-				lifecycle: "ready",
-				isSending: true,
-				hasActivePermission: false,
-			}),
+			deriveTabState({ lifecycle: "ready", isSending: true, hasActivePermission: false, unseen: null }),
 		).toBe("busy");
 	});
 
 	it("active permission wins over sending: → permission", () => {
 		expect(
-			deriveTabState({
-				lifecycle: "ready",
-				isSending: true,
-				hasActivePermission: true,
-			}),
+			deriveTabState({ lifecycle: "ready", isSending: true, hasActivePermission: true, unseen: null }),
 		).toBe("permission");
 	});
 
-	it("idle lazy tab (never sent): → disconnected", () => {
+	// Tab Attention States: a new lazy tab can be typed into right away, so it
+	// reads as ready, not as a dead session (was → disconnected).
+	it("new lazy tab (never sent): idle → ready", () => {
 		expect(
-			deriveTabState({
-				lifecycle: "idle",
-				isSending: false,
-				hasActivePermission: false,
-			}),
-		).toBe("disconnected");
+			deriveTabState({ lifecycle: "idle", isSending: false, hasActivePermission: false, unseen: null }),
+		).toBe("ready");
 	});
 
-	it("connecting with a pending send does not yet show busy: → disconnected", () => {
+	// Tab Attention States: connecting gets its own icon (was → disconnected).
+	it("connecting with a pending send: → connecting", () => {
 		expect(
-			deriveTabState({
-				lifecycle: "connecting",
-				isSending: true,
-				hasActivePermission: false,
-			}),
-		).toBe("disconnected");
+			deriveTabState({ lifecycle: "connecting", isSending: true, hasActivePermission: false, unseen: null }),
+		).toBe("connecting");
+	});
+
+	// The reported problem: a finished background tab looked like a new one.
+	it("finished turn not yet viewed: → doneUnseen", () => {
+		expect(
+			deriveTabState({ lifecycle: "ready", isSending: false, hasActivePermission: false, unseen: { kind: "done" } }),
+		).toBe("doneUnseen");
+	});
+
+	it("a new send hides the tick while working: → busy", () => {
+		expect(
+			deriveTabState({ lifecycle: "ready", isSending: true, hasActivePermission: false, unseen: { kind: "done" } }),
+		).toBe("busy");
+	});
+
+	it("unread result outranks asleep: released + done → doneUnseen", () => {
+		expect(
+			deriveTabState({ lifecycle: "released", isSending: false, hasActivePermission: false, unseen: { kind: "done" } }),
+		).toBe("doneUnseen");
 	});
 
 	it("acquisition failed: → error regardless of other signals", () => {
 		expect(
-			deriveTabState({
-				lifecycle: "error",
-				isSending: true,
-				hasActivePermission: true,
-			}),
+			deriveTabState({ lifecycle: "error", isSending: true, hasActivePermission: true, unseen: { kind: "done" } }),
 		).toBe("error");
-	});
-
-	it("idle finished turn: ready lifecycle, not sending → ready", () => {
-		expect(
-			deriveTabState({
-				lifecycle: "ready",
-				isSending: false,
-				hasActivePermission: false,
-			}),
-		).toBe("ready");
 	});
 });

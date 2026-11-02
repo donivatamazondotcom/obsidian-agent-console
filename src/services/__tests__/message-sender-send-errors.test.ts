@@ -51,6 +51,8 @@ describe("sendPreparedPrompt — success and plain failure", () => {
 		const r = await sendPreparedPrompt(baseInput(), c);
 		expect(r).toEqual({
 			success: true,
+			// The mock resolves undefined, so the stop reason is unknown.
+			stopKind: "unknown",
 			displayContent: DISPLAY,
 			agentContent: CONTENT,
 		});
@@ -107,6 +109,8 @@ describe("sendPreparedPrompt — authentication retry (-32000)", () => {
 		const r = await sendPreparedPrompt(baseInput(AUTH_ONE), c);
 		expect(r).toEqual({
 			success: true,
+			// The mock resolves undefined, so the stop reason is unknown.
+			stopKind: "unknown",
 			displayContent: DISPLAY,
 			agentContent: CONTENT,
 			retriedSuccessfully: true,

@@ -29,6 +29,20 @@ export type SessionState =
 	| "error" // An error occurred
 	| "disconnected"; // Session has been closed
 
+/**
+ * How an agent turn ended, normalized from the ACP stop reason at the `acp/`
+ * edge (`acp/stop-kind.ts`) so nothing outside `acp/` sees the SDK strings.
+ * `unknown` covers a stop reason this build doesn't recognize.
+ * See [[Tab Attention States]].
+ */
+export type TurnStopKind =
+	| "endTurn"
+	| "maxTokens"
+	| "maxRequests"
+	| "refusal"
+	| "cancelled"
+	| "unknown";
+
 // ============================================================================
 // Authentication
 // ============================================================================

@@ -53,6 +53,8 @@ import {
 } from "./mcp-auth-parsers";
 import type { McpAuthEvent } from "../types/mcp-auth";
 import { getLogger, Logger } from "../utils/logger";
+import { toTurnStopKind } from "./stop-kind";
+import type { TurnStopKind } from "../types/session";
 import type AgentClientPlugin from "../plugin";
 import {
 	convertWindowsPathToWsl,
@@ -727,7 +729,7 @@ export class AcpClient {
 	async sendPrompt(
 		sessionId: string,
 		content: PromptContent[],
-	): Promise<void> {
+	): Promise<{ stopKind: TurnStopKind }> {
 		const connection = this.requireConnection();
 
 		this.handler.resetUpdateCount();
@@ -788,10 +790,12 @@ export class AcpClient {
 					);
 				}
 			}
+			return { stopKind: toTurnStopKind(promptResult.stopReason) };
 		} catch (error: unknown) {
-			if (isEmptyResponseError(error) || isUserAbortedError(error)) {
-				return;
-			}
+			// Tab Attention States: a user abort is a cancel (no tick); an
+			// empty response is swallowed as before and reads as unknown.
+			if (isUserAbortedError(error)) return { stopKind: "cancelled" };
+			if (isEmptyResponseError(error)) return { stopKind: "unknown" };
 			this.logger.error("Prompt Error:", error);
 			throw error;
 		}
