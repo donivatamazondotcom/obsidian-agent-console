@@ -200,7 +200,7 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"settings.path.desc2":
 		'kiro-cli 的命令名称或路径。只填 "kiro-cli" 可由登录 shell 解析，也可以输入绝对路径（通常为 ~/.local/bin/kiro-cli）。',
 	"settings.kiroEngine.name": "Kiro CLI 引擎",
-	"settings.kiroEngine.desc": "V3 是默认引擎。--agent、--model 和 --effort 参数仍然有效：Agent Console 会在每个对话中把它们传给 V3。更改后新开始的对话才会生效。",
+	"settings.kiroEngine.desc": "V3 是默认的新引擎。V2（旧版）是以前的引擎：如果对话无法在 V3 上启动，请选择它。--agent、--model 和 --effort 参数在两者上都有效。在 V3 上，Agent Console 会在每个对话中传递它们。更改后新开始的对话才会生效。",
 	"settings.kiroEngine.default": "默认（V3）",
 	"settings.kiroEngine.v2": "V2（旧版）",
 	"settings.kiroEngine.v3": "V3",

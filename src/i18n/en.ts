@@ -227,7 +227,7 @@ export const en = {
 		'Command name or path to kiro-cli. Use just "kiro-cli" to let the login shell resolve it, or enter an absolute path (commonly ~/.local/bin/kiro-cli).',
 	"settings.kiroEngine.name": "Kiro CLI engine",
 	"settings.kiroEngine.desc":
-		"V3 is the default engine. Your --agent, --model and --effort arguments still work: Agent Console passes them to V3 for each chat. Applies to chats you start after changing this.",
+		"V3 is the default and newer engine. V2 (legacy) is the older engine: pick it if a chat won't start on V3. Your --agent, --model and --effort arguments work on both. On V3, Agent Console passes them to each chat. Applies to chats you start after changing this.",
 	"settings.kiroEngine.default": "Default (V3)",
 	"settings.kiroEngine.v2": "V2 (legacy)",
 	"settings.kiroEngine.v3": "V3",

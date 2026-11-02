@@ -210,7 +210,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"settings.path.desc2":
 		'kiro-cli의 명령 이름 또는 경로입니다. "kiro-cli"만 입력하면 로그인 셸이 찾아 주고, 절대 경로를 입력할 수도 있습니다(보통 ~/.local/bin/kiro-cli).',
 	"settings.kiroEngine.name": "Kiro CLI 엔진",
-	"settings.kiroEngine.desc": "V3가 기본 엔진입니다. --agent, --model, --effort 인수는 그대로 사용할 수 있으며, Agent Console이 채팅마다 V3에 전달합니다. 변경 후 시작하는 채팅부터 적용됩니다.",
+	"settings.kiroEngine.desc": "V3는 기본값인 새 엔진입니다. V2(이전 버전)는 이전 엔진으로, V3에서 채팅이 시작되지 않을 때 선택하세요. --agent, --model, --effort 인수는 두 엔진 모두에서 사용할 수 있습니다. V3에서는 Agent Console이 채팅마다 전달합니다. 변경 후 시작하는 채팅부터 적용됩니다.",
 	"settings.kiroEngine.default": "기본값(V3)",
 	"settings.kiroEngine.v2": "V2(이전 버전)",
 	"settings.kiroEngine.v3": "V3",
