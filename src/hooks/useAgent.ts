@@ -7,7 +7,7 @@ import type { PermissionScopeChoice } from "../types/chat";
  */
 
 import * as React from "react";
-const { useState, useCallback, useEffect, useMemo } = React;
+const { useState, useCallback, useEffect, useMemo, useRef } = React;
 
 import type { SessionUpdate } from "../types/session";
 import type { AcpClient } from "../acp/acp-client";
@@ -212,8 +212,16 @@ export function useAgent(
 	// setIgnoreUpdates so the agent's loadSession replay does not duplicate the
 	// preserved transcript (I86). setIgnoreUpdates lives on agentMessages, which
 	// is constructed after agentSession, so it is wired here at the facade.
+	// I264: whether a transcript is on screen, read when the reload loads
+	// (not when it starts), so an empty load is told from an empty chat.
+	const messageCountRef = useRef(agentMessages.messages.length);
+	messageCountRef.current = agentMessages.messages.length;
 	const reloadSession = useCallback(
-		() => agentSession.reloadSession(agentMessages.setIgnoreUpdates),
+		() =>
+			agentSession.reloadSession(
+				agentMessages.setIgnoreUpdates,
+				() => messageCountRef.current > 0,
+			),
 		[agentSession.reloadSession, agentMessages.setIgnoreUpdates],
 	);
 

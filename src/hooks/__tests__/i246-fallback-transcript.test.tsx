@@ -284,8 +284,16 @@ function deepMock(overrides: Record<string, unknown> = {}): unknown {
 	});
 }
 
-/** ACP client port. `known` ids load; anything else fails like Kiro V2 did. */
-function fakeClient(engine: "v2" | "v3", known: string[] = []) {
+/**
+ * ACP client port. `known` ids load with a replay; anything else fails like
+ * Kiro V2 does, or, with `emptyLoad`, succeeds with no replay like Kiro V3
+ * (I264).
+ */
+function fakeClient(
+	engine: "v2" | "v3",
+	known: string[] = [],
+	emptyLoad = false,
+) {
 	let initialized = false;
 	const client: ReconnectClientPort = {
 		isInitialized: () => initialized,
@@ -297,8 +305,11 @@ function fakeClient(engine: "v2" | "v3", known: string[] = []) {
 					}
 				: null,
 		loadSession: vi.fn(async (sid: string): Promise<SessionResult> => {
-			if (!known.includes(sid)) throw new Error("Session not found");
-			return { sessionId: sid };
+			if (known.includes(sid)) {
+				return { sessionId: sid, replayedConversationUpdates: 2 };
+			}
+			if (emptyLoad) return { sessionId: sid, replayedConversationUpdates: 0 };
+			throw new Error("Session not found");
 		}),
 		resumeSession: vi.fn(async (sid: string): Promise<SessionResult> => ({
 			sessionId: sid,
@@ -321,9 +332,11 @@ function mountRestoredTab(opts: {
 	running: "v2" | "v3";
 	transcript: ChatMessage[];
 	knownToAgent?: string[];
+	/** Unknown ids load empty instead of failing (Kiro V3, I264). */
+	emptyLoad?: boolean;
 }) {
 	const wire = vi.fn(async (_sid: string, _content: PromptContent[]) => {});
-	const acp = fakeClient(opts.running, opts.knownToAgent);
+	const acp = fakeClient(opts.running, opts.knownToAgent, opts.emptyLoad);
 	const transcript = JSON.parse(JSON.stringify(opts.transcript)) as ChatMessage[];
 	const liveSession = { sessionId: null as string | null };
 
@@ -379,7 +392,7 @@ function mountRestoredTab(opts: {
 					cwd: "/vault",
 					client: acp.client,
 					initialize: acp.initialize,
-					haveLocalHistory: () => true,
+					haveLocalHistory: () => transcript.length > 0,
 					onLoaded: (r) => {
 						liveSession.sessionId = r.sessionId;
 					},
@@ -466,6 +479,64 @@ describe("I246 restored tab: the first send after a fallback carries the transcr
 		expect(tab.hook.result.current.lazy.isFallbackRecovery).toBe(false);
 		const content = tab.wire.mock.calls[0][1];
 		expect(content.map(textOf).join("\n")).not.toContain("carry_over_transcript");
+	});
+});
+
+describe("I264 restored tab: Kiro V3 loads an id it never had, empty", () => {
+	it("the empty load falls back: the first send carries the transcript once, with the notice", async () => {
+		const tab = mountRestoredTab({
+			restoredSessionId: "v3-seeded-unknown",
+			storedEngine: "v3",
+			running: "v3",
+			transcript: REMEMBER_7,
+			emptyLoad: true,
+		});
+		await tab.send("What number did I ask you to remember?");
+		expect(tab.hook.result.current.lazy.isFallbackRecovery).toBe(true);
+		expect(tab.hook.result.current.lazy.fallbackReason).toBe("unavailable");
+		const [sid, content] = tab.wire.mock.calls[0];
+		expect(sid).toBe("new-1");
+		expect(textOf(content[0])).toContain("User: Remember the number 7.");
+
+		await act(async () => {
+			await tab.hook.result.current.actions.handleSendMessage("And doubled?");
+		});
+		expect(tab.wire.mock.calls[1][1].map(textOf).join("\n")).not.toContain(
+			"carry_over_transcript",
+		);
+	});
+
+	it("a real V3 load sends no transcript and shows no notice", async () => {
+		const tab = mountRestoredTab({
+			restoredSessionId: "v3-real",
+			storedEngine: "v3",
+			running: "v3",
+			transcript: REMEMBER_7,
+			knownToAgent: ["v3-real"],
+			emptyLoad: true,
+		});
+		await tab.send("What number did I ask you to remember?");
+		expect(tab.hook.result.current.lazy.isFallbackRecovery).toBe(false);
+		expect(tab.wire.mock.calls[0][0]).toBe("v3-real");
+		expect(tab.wire.mock.calls[0][1].map(textOf).join("\n")).not.toContain(
+			"carry_over_transcript",
+		);
+	});
+
+	it("an empty chat that loads empty sends nothing extra and shows no notice", async () => {
+		const tab = mountRestoredTab({
+			restoredSessionId: "v3-empty-chat",
+			storedEngine: "v3",
+			running: "v3",
+			transcript: [],
+			emptyLoad: true,
+		});
+		await tab.send("Hello");
+		expect(tab.hook.result.current.lazy.isFallbackRecovery).toBe(false);
+		expect(tab.wire.mock.calls[0][0]).toBe("v3-empty-chat");
+		const sent = tab.wire.mock.calls[0][1].map(textOf);
+		expect(sent.join("\n")).not.toContain("carry_over_transcript");
+		expect(sent).toContain("Hello");
 	});
 });
 

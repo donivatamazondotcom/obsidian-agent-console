@@ -7,6 +7,7 @@ import {
 	decideEngineRestore,
 	type SessionEngine,
 } from "../resolvers/session-engine";
+import { decideLoadReplay } from "../resolvers/load-replay";
 
 /**
  * `fallbackReason` on a failure says why the session couldn't be reopened
@@ -47,6 +48,21 @@ export async function loadExistingSessionFlow(
 	if (haveLocalHistory) setIgnoreUpdates(true);
 	try {
 		const result = await loadSession(sessionId, cwd);
+		// I264: Kiro V3 "loads" an id it never had as an empty session. With a
+		// transcript on screen, no replay means the agent doesn't have this
+		// chat: fail, so the owner starts a new session with the transcript.
+		const replay = decideLoadReplay({
+			replayedConversationUpdates: result.replayedConversationUpdates,
+			haveLocalHistory,
+		});
+		if (replay.kind === "empty") {
+			return {
+				ok: false,
+				error: new Error(
+					`Session ${sessionId} loaded with no conversation; the agent doesn't have it`,
+				),
+			};
+		}
 		onLoaded(result);
 		return { ok: true, sessionId: result.sessionId };
 	} catch (err) {
@@ -112,7 +128,8 @@ export interface ReconnectExistingSessionArgs {
  * 2. With a transcript on screen and `session/resume` advertised, resume (no
  *    replay to suppress). A failed resume falls back to load.
  * 3. Otherwise load, suppressing the replay when a transcript is on screen
- *    (with none, the replay is the only source).
+ *    (with none, the replay is the only source). A load that replays nothing
+ *    while a transcript is on screen counts as failed (I264).
  *
  * Never throws. `{ ok: false }` tells the lazy owner to fall back to a new
  * session with the transcript as context. Capability is read from the

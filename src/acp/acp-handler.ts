@@ -38,6 +38,12 @@ export class AcpHandler {
 	private promptSessionUpdateCount = 0;
 
 	/**
+	 * Conversation-update count per session while a `session/load` is in
+	 * flight (I264). Only sessions with an open count are tracked.
+	 */
+	private replayCounts = new Map<string, number>();
+
+	/**
 	 * F15 — side sessions (e.g. the AI tab-title request) opened on this
 	 * connection. Their traffic is intercepted BEFORE the current-session
 	 * filter: only agent text reaches the tap; nothing reaches tab listeners,
@@ -71,6 +77,18 @@ export class AcpHandler {
 				this.sideSessions.delete(sessionId);
 			}
 		};
+	}
+
+	/** Start counting replayed conversation updates for a load (I264). */
+	beginReplayCount(sessionId: string): void {
+		this.replayCounts.set(sessionId, 0);
+	}
+
+	/** Stop counting and return how many conversation updates arrived. */
+	endReplayCount(sessionId: string): number {
+		const n = this.replayCounts.get(sessionId) ?? 0;
+		this.replayCounts.delete(sessionId);
+		return n;
 	}
 
 	resetUpdateCount(): void {
@@ -122,6 +140,10 @@ export class AcpHandler {
 			return Promise.resolve();
 		}
 		this.promptSessionUpdateCount++;
+		const replayed = this.replayCounts.get(sessionId);
+		if (replayed !== undefined && isConversationUpdate(update.sessionUpdate)) {
+			this.replayCounts.set(sessionId, replayed + 1);
+		}
 		this.logger.log("sessionUpdate:", {
 			sessionId,
 			type: update.sessionUpdate,
@@ -392,4 +414,18 @@ export class AcpHandler {
 		}
 		return Promise.resolve({});
 	}
+}
+
+/**
+ * Updates that carry the conversation itself, as opposed to session metadata
+ * (info, commands, config, modes). A load that replays none of these opened
+ * an empty session (I264).
+ */
+function isConversationUpdate(kind: string): boolean {
+	return (
+		kind === "user_message_chunk" ||
+		kind === "agent_message_chunk" ||
+		kind === "agent_thought_chunk" ||
+		kind === "tool_call"
+	);
 }
