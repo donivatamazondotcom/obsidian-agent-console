@@ -66,6 +66,18 @@ import {
 import { deriveImportPlacement } from "../utils/settings-layout";
 import { redrawPreservingScroll } from "../utils/preserve-scroll";
 
+/**
+ * One row of a built-in agent's settings page. A single row list feeds both
+ * the 1.13 declarative page (as searchable `items`, I267) and the pre-1.13
+ * imperative body, so each control has one implementation.
+ */
+type AgentRow = {
+	name: string;
+	desc?: string;
+	searchable?: boolean;
+	render: (setting: Setting) => void;
+};
+
 export class AgentClientSettingTab extends PluginSettingTab {
 	plugin: AgentClientPlugin;
 	private agentSelector: DropdownComponent | null = null;
@@ -536,6 +548,39 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		return { type: "page", name: getName(), page: makePage };
 	}
 
+	/**
+	 * A built-in agent's settings page, declared as `items` so 1.13 settings
+	 * search indexes every row (I267). A `page` factory is only called when
+	 * the page opens, so search never saw rows rendered that way.
+	 */
+	private agentPage(
+		getName: () => string,
+		rows: () => AgentRow[],
+	): SettingDefinitionPage {
+		return {
+			type: "page",
+			name: getName(),
+			items: rows().map(
+				(row): SettingGroupItem => ({
+					name: row.name,
+					desc: row.desc,
+					searchable: row.searchable,
+					render: (setting) => row.render(setting),
+				}),
+			),
+		};
+	}
+
+	/** Pre-1.13 path: draw the same rows imperatively. */
+	private renderAgentRows(containerEl: HTMLElement, rows: AgentRow[]): void {
+		for (const row of rows) {
+			const setting = new Setting(containerEl);
+			if (row.name) setting.setName(row.name);
+			if (row.desc) setting.setDesc(row.desc);
+			row.render(setting);
+		}
+	}
+
 	private importSettingDef(
 		placement: "top-matter" | "advanced",
 	): SettingGroupItem {
@@ -608,26 +653,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			heading: t("settings.heading.builtInAgents"),
 			cls: "agent-client-settings-group",
 			items: [
-				this.settingPage(
-					() => s().claude.displayName || "Claude Code",
-					(el) => this.renderClaudeSettings(el),
-				),
-				this.settingPage(
-					() => s().codex.displayName || "Codex",
-					(el) => this.renderCodexSettings(el),
-				),
-				this.settingPage(
-					() => s().gemini.displayName || "Gemini CLI",
-					(el) => this.renderGeminiSettings(el),
-				),
-				this.settingPage(
-					() => s().kiro.displayName || "Kiro CLI",
-					(el) => this.renderKiroSettings(el),
-				),
-				this.settingPage(
-					() => s().opencode.displayName || "OpenCode",
-					(el) => this.renderOpenCodeSettings(el),
-				),
+				this.agentPage(() => s().claude.displayName || "Claude Code", () => this.claudeRows()),
+				this.agentPage(() => s().codex.displayName || "Codex", () => this.codexRows()),
+				this.agentPage(() => s().gemini.displayName || "Gemini CLI", () => this.geminiRows()),
+				this.agentPage(() => s().kiro.displayName || "Kiro CLI", () => this.kiroRows()),
+				this.agentPage(() => s().opencode.displayName || "OpenCode", () => this.opencodeRows()),
 			] as SettingGroupItem[],
 		};
 	}
@@ -1910,464 +1940,538 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	}
 
 	private renderGeminiSettings(sectionEl: HTMLElement) {
-		const gemini = this.plugin.settings.gemini;
+		this.renderAgentRows(sectionEl, this.geminiRows());
+	}
 
-		new Setting(sectionEl)
-			.setName(t("settings.apiKey.name"))
-			.setDesc(t("settings.apiKey.desc"))
-			.addComponent((el) =>
-				new SecretComponent(this.app, el)
-					.setValue(gemini.apiKeySecretId)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							gemini: {
-								...this.plugin.settings.gemini,
-								apiKeySecretId: value,
-							},
-						});
-					}),
-			);
-
-		const geminiPathSetting = new Setting(sectionEl)
-			.setName(t("settings.path.name"))
-			.setDesc(t("settings.path.desc"))
-			.addText((text) => {
-				text.setPlaceholder(t("settings.path.placeholder"))
-					.setValue(gemini.command)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							gemini: {
-								...this.plugin.settings.gemini,
-								command: value.trim(),
-							},
-						});
-					});
-			});
-		this.addAutoDetectButton(geminiPathSetting, "gemini", async (path) => {
-			await this.plugin.settingsService.updateSettings({
-				gemini: {
-					...this.plugin.settings.gemini,
-					command: path,
+	private geminiRows(): AgentRow[] {
+		return [
+			{
+				name: t("settings.apiKey.name"),
+				desc: t("settings.apiKey.desc"),
+				render: (setting) => {
+					const gemini = this.plugin.settings.gemini;
+					setting.addComponent((el) =>
+						new SecretComponent(this.app, el)
+							.setValue(gemini.apiKeySecretId)
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									gemini: {
+										...this.plugin.settings.gemini,
+										apiKeySecretId: value,
+									},
+								});
+							}),
+					);
 				},
-			});
-		});
-		this.addInstallHint(sectionEl, "@google/gemini-cli");
-
-		new Setting(sectionEl)
-			.setName(t("settings.arguments.name"))
-			.setDesc(t("settings.arguments.desc"))
-			.addTextArea((text) => {
-				text.setPlaceholder(t("settings.arguments.placeholder"))
-					.setValue(this.formatArgs(gemini.args))
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							gemini: {
-								...this.plugin.settings.gemini,
-								args: this.parseArgs(value),
-							},
-						});
-					});
-				text.inputEl.rows = 3;
-			});
-
-		new Setting(sectionEl)
-			.setName(t("settings.environmentVariables.name"))
-			.setDesc(t("settings.environmentVariables.desc"))
-			.addTextArea((text) => {
-				text.setPlaceholder(t("settings.environmentVariables.placeholder"))
-					.setValue(this.formatEnv(gemini.env))
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							gemini: {
-								...this.plugin.settings.gemini,
-								env: this.parseEnv(value),
-							},
-						});
-					});
-				text.inputEl.rows = 3;
-			});
-
-		this.addAgentWorkingDirectoryRow(
-			sectionEl,
-			() => this.plugin.settings.gemini.defaultWorkingDirectory ?? "",
-			async (value) => {
-				await this.plugin.settingsService.updateSettings({
-					gemini: {
-						...this.plugin.settings.gemini,
-						defaultWorkingDirectory: value,
-					},
-				});
 			},
-		);
+			{
+				name: t("settings.path.name"),
+				desc: t("settings.path.desc"),
+				render: (setting) => {
+					const gemini = this.plugin.settings.gemini;
+					setting.addText((text) => {
+						text.setPlaceholder(t("settings.path.placeholder"))
+							.setValue(gemini.command)
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									gemini: {
+										...this.plugin.settings.gemini,
+										command: value.trim(),
+									},
+								});
+							});
+					});
+					this.addAutoDetectButton(setting, "gemini", async (path) => {
+						await this.plugin.settingsService.updateSettings({
+							gemini: {
+								...this.plugin.settings.gemini,
+								command: path,
+							},
+						});
+					});
+				},
+			},
+			this.installHintRow("@google/gemini-cli"),
+			{
+				name: t("settings.arguments.name"),
+				desc: t("settings.arguments.desc"),
+				render: (setting) => {
+					const gemini = this.plugin.settings.gemini;
+					setting.addTextArea((text) => {
+						text.setPlaceholder(t("settings.arguments.placeholder"))
+							.setValue(this.formatArgs(gemini.args))
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									gemini: {
+										...this.plugin.settings.gemini,
+										args: this.parseArgs(value),
+									},
+								});
+							});
+						text.inputEl.rows = 3;
+					});
+				},
+			},
+			{
+				name: t("settings.environmentVariables.name"),
+				desc: t("settings.environmentVariables.desc"),
+				render: (setting) => {
+					const gemini = this.plugin.settings.gemini;
+					setting.addTextArea((text) => {
+						text.setPlaceholder(t("settings.environmentVariables.placeholder"))
+							.setValue(this.formatEnv(gemini.env))
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									gemini: {
+										...this.plugin.settings.gemini,
+										env: this.parseEnv(value),
+									},
+								});
+							});
+						text.inputEl.rows = 3;
+					});
+				},
+			},
+			this.agentWorkingDirectoryRow(
+				() => this.plugin.settings.gemini.defaultWorkingDirectory ?? "",
+				async (value) => {
+					await this.plugin.settingsService.updateSettings({
+						gemini: {
+							...this.plugin.settings.gemini,
+							defaultWorkingDirectory: value,
+						},
+					});
+				},
+			),
+		];
 	}
 
 	private renderKiroSettings(sectionEl: HTMLElement) {
-		const kiro = this.plugin.settings.kiro;
+		this.renderAgentRows(sectionEl, this.kiroRows());
+	}
 
-		new Setting(sectionEl)
-			.setName(t("settings.authentication.name"))
-			.setDesc(t("settings.authentication.desc2"));
-
-		const kiroPathSetting = new Setting(sectionEl)
-			.setName(t("settings.path.name2"))
-			.setDesc(t("settings.path.desc2"))
-			.addText((text) => {
-				text.setPlaceholder(t("settings.path.placeholder2"))
-					.setValue(kiro.command)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							kiro: {
-								...this.plugin.settings.kiro,
-								command: value.trim(),
-							},
-						});
-					});
-			});
-		this.addAutoDetectButton(kiroPathSetting, "kiro-cli", async (path) => {
-			await this.plugin.settingsService.updateSettings({
-				kiro: {
-					...this.plugin.settings.kiro,
-					command: path,
-				},
-			});
-		});
-
-		new Setting(sectionEl)
-			.setName(t("settings.kiroEngine.name"))
-			.setDesc(t("settings.kiroEngine.desc"))
-			.addDropdown((dropdown) =>
-				dropdown
-					.addOption("default", t("settings.kiroEngine.default"))
-					.addOption("v3", t("settings.kiroEngine.v3"))
-					.addOption("v2", t("settings.kiroEngine.v2"))
-					.setValue(readKiroEngineSetting(kiro))
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							kiro: {
-								...this.plugin.settings.kiro,
-								engine: readKiroEngineSetting({ engine: value }),
-							},
-						});
-					}),
-			);
-
-		new Setting(sectionEl)
-			.setName(t("settings.arguments.name2"))
-			.setDesc(t("settings.arguments.desc2"))
-			.addTextArea((text) => {
-				text.setPlaceholder(t("settings.arguments.placeholder2"))
-					.setValue(this.formatArgs(kiro.args))
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							kiro: {
-								...this.plugin.settings.kiro,
-								args: this.parseArgs(value),
-							},
-						});
-					});
-				text.inputEl.rows = 3;
-			});
-
-		new Setting(sectionEl)
-			.setName(t("settings.environmentVariables.name2"))
-			.setDesc(t("settings.authentication.desc"))
-			.addTextArea((text) => {
-				text.setPlaceholder(t("settings.environmentVariables.placeholder2"))
-					.setValue(this.formatEnv(kiro.env))
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							kiro: {
-								...this.plugin.settings.kiro,
-								env: this.parseEnv(value),
-							},
-						});
-					});
-				text.inputEl.rows = 3;
-			});
-
-		this.addAgentWorkingDirectoryRow(
-			sectionEl,
-			() => this.plugin.settings.kiro.defaultWorkingDirectory ?? "",
-			async (value) => {
-				await this.plugin.settingsService.updateSettings({
-					kiro: {
-						...this.plugin.settings.kiro,
-						defaultWorkingDirectory: value,
-					},
-				});
+	private kiroRows(): AgentRow[] {
+		return [
+			{
+				name: t("settings.authentication.name"),
+				desc: t("settings.authentication.desc2"),
+				render: () => {},
 			},
-		);
+			{
+				name: t("settings.path.name2"),
+				desc: t("settings.path.desc2"),
+				render: (setting) => {
+					const kiro = this.plugin.settings.kiro;
+					setting.addText((text) => {
+						text.setPlaceholder(t("settings.path.placeholder2"))
+							.setValue(kiro.command)
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									kiro: {
+										...this.plugin.settings.kiro,
+										command: value.trim(),
+									},
+								});
+							});
+					});
+					this.addAutoDetectButton(setting, "kiro-cli", async (path) => {
+						await this.plugin.settingsService.updateSettings({
+							kiro: {
+								...this.plugin.settings.kiro,
+								command: path,
+							},
+						});
+					});
+				},
+			},
+			{
+				name: t("settings.kiroEngine.name"),
+				desc: t("settings.kiroEngine.desc"),
+				render: (setting) => {
+					const kiro = this.plugin.settings.kiro;
+					setting.addDropdown((dropdown) =>
+						dropdown
+							.addOption("default", t("settings.kiroEngine.default"))
+							.addOption("v3", t("settings.kiroEngine.v3"))
+							.addOption("v2", t("settings.kiroEngine.v2"))
+							.setValue(readKiroEngineSetting(kiro))
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									kiro: {
+										...this.plugin.settings.kiro,
+										engine: readKiroEngineSetting({ engine: value }),
+									},
+								});
+							}),
+					);
+				},
+			},
+			{
+				name: t("settings.arguments.name2"),
+				desc: t("settings.arguments.desc2"),
+				render: (setting) => {
+					const kiro = this.plugin.settings.kiro;
+					setting.addTextArea((text) => {
+						text.setPlaceholder(t("settings.arguments.placeholder2"))
+							.setValue(this.formatArgs(kiro.args))
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									kiro: {
+										...this.plugin.settings.kiro,
+										args: this.parseArgs(value),
+									},
+								});
+							});
+						text.inputEl.rows = 3;
+					});
+				},
+			},
+			{
+				name: t("settings.environmentVariables.name2"),
+				desc: t("settings.authentication.desc"),
+				render: (setting) => {
+					const kiro = this.plugin.settings.kiro;
+					setting.addTextArea((text) => {
+						text.setPlaceholder(t("settings.environmentVariables.placeholder2"))
+							.setValue(this.formatEnv(kiro.env))
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									kiro: {
+										...this.plugin.settings.kiro,
+										env: this.parseEnv(value),
+									},
+								});
+							});
+						text.inputEl.rows = 3;
+					});
+				},
+			},
+			this.agentWorkingDirectoryRow(
+				() => this.plugin.settings.kiro.defaultWorkingDirectory ?? "",
+				async (value) => {
+					await this.plugin.settingsService.updateSettings({
+						kiro: {
+							...this.plugin.settings.kiro,
+							defaultWorkingDirectory: value,
+						},
+					});
+				},
+			),
+		];
 	}
 
 	private renderOpenCodeSettings(sectionEl: HTMLElement) {
-		const opencode = this.plugin.settings.opencode;
+		this.renderAgentRows(sectionEl, this.opencodeRows());
+	}
 
-		new Setting(sectionEl)
-			.setName(t("settings.setup.name"))
-			.setDesc(t("settings.setup.desc8"));
-
-		const opencodePathSetting = new Setting(sectionEl)
-			.setName(t("settings.path.name3"))
-			.setDesc(t("settings.path.desc3"))
-			.addText((text) => {
-				text.setPlaceholder(t("settings.path.placeholder3"))
-					.setValue(opencode.command)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							opencode: {
-								...this.plugin.settings.opencode,
-								command: value.trim(),
-							},
-						});
-					});
-			});
-		this.addAutoDetectButton(opencodePathSetting, "opencode", async (path) => {
-			await this.plugin.settingsService.updateSettings({
-				opencode: {
-					...this.plugin.settings.opencode,
-					command: path,
-				},
-			});
-		});
-
-		new Setting(sectionEl)
-			.setName(t("settings.arguments.name3"))
-			.setDesc(t("settings.arguments.desc3"))
-			.addTextArea((text) => {
-				text.setPlaceholder(t("settings.arguments.placeholder3"))
-					.setValue(this.formatArgs(opencode.args))
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							opencode: {
-								...this.plugin.settings.opencode,
-								args: this.parseArgs(value),
-							},
-						});
-					});
-				text.inputEl.rows = 3;
-			});
-
-		new Setting(sectionEl)
-			.setName(t("settings.environmentVariables.name3"))
-			.setDesc(t("settings.setup.desc"))
-			.addTextArea((text) => {
-				text.setPlaceholder(t("settings.environmentVariables.placeholder3"))
-					.setValue(this.formatEnv(opencode.env))
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							opencode: {
-								...this.plugin.settings.opencode,
-								env: this.parseEnv(value),
-							},
-						});
-					});
-				text.inputEl.rows = 3;
-			});
-
-		this.addAgentWorkingDirectoryRow(
-			sectionEl,
-			() => this.plugin.settings.opencode.defaultWorkingDirectory ?? "",
-			async (value) => {
-				await this.plugin.settingsService.updateSettings({
-					opencode: {
-						...this.plugin.settings.opencode,
-						defaultWorkingDirectory: value,
-					},
-				});
+	private opencodeRows(): AgentRow[] {
+		return [
+			{
+				name: t("settings.setup.name"),
+				desc: t("settings.setup.desc8"),
+				render: () => {},
 			},
-		);
+			{
+				name: t("settings.path.name3"),
+				desc: t("settings.path.desc3"),
+				render: (setting) => {
+					const opencode = this.plugin.settings.opencode;
+					setting.addText((text) => {
+						text.setPlaceholder(t("settings.path.placeholder3"))
+							.setValue(opencode.command)
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									opencode: {
+										...this.plugin.settings.opencode,
+										command: value.trim(),
+									},
+								});
+							});
+					});
+					this.addAutoDetectButton(setting, "opencode", async (path) => {
+						await this.plugin.settingsService.updateSettings({
+							opencode: {
+								...this.plugin.settings.opencode,
+								command: path,
+							},
+						});
+					});
+				},
+			},
+			{
+				name: t("settings.arguments.name3"),
+				desc: t("settings.arguments.desc3"),
+				render: (setting) => {
+					const opencode = this.plugin.settings.opencode;
+					setting.addTextArea((text) => {
+						text.setPlaceholder(t("settings.arguments.placeholder3"))
+							.setValue(this.formatArgs(opencode.args))
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									opencode: {
+										...this.plugin.settings.opencode,
+										args: this.parseArgs(value),
+									},
+								});
+							});
+						text.inputEl.rows = 3;
+					});
+				},
+			},
+			{
+				name: t("settings.environmentVariables.name3"),
+				desc: t("settings.setup.desc"),
+				render: (setting) => {
+					const opencode = this.plugin.settings.opencode;
+					setting.addTextArea((text) => {
+						text.setPlaceholder(t("settings.environmentVariables.placeholder3"))
+							.setValue(this.formatEnv(opencode.env))
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									opencode: {
+										...this.plugin.settings.opencode,
+										env: this.parseEnv(value),
+									},
+								});
+							});
+						text.inputEl.rows = 3;
+					});
+				},
+			},
+			this.agentWorkingDirectoryRow(
+				() => this.plugin.settings.opencode.defaultWorkingDirectory ?? "",
+				async (value) => {
+					await this.plugin.settingsService.updateSettings({
+						opencode: {
+							...this.plugin.settings.opencode,
+							defaultWorkingDirectory: value,
+						},
+					});
+				},
+			),
+		];
 	}
 
 	private renderClaudeSettings(sectionEl: HTMLElement) {
-		const claude = this.plugin.settings.claude;
+		this.renderAgentRows(sectionEl, this.claudeRows());
+	}
 
-		new Setting(sectionEl)
-			.setName(t("settings.apiKey.name2"))
-			.setDesc(t("settings.setup.desc2"))
-			.addComponent((el) =>
-				new SecretComponent(this.app, el)
-					.setValue(claude.apiKeySecretId)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							claude: {
-								...this.plugin.settings.claude,
-								apiKeySecretId: value,
-							},
-						});
-					}),
-			);
-
-		const claudePathSetting = new Setting(sectionEl)
-			.setName(t("settings.path.name4"))
-			.setDesc(t("settings.path.desc4"))
-			.addText((text) => {
-				text.setPlaceholder(t("settings.path.placeholder4"))
-					.setValue(claude.command)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							claude: {
-								...this.plugin.settings.claude,
-								command: value.trim(),
-							},
-						});
-					});
-			});
-		this.addAutoDetectButton(
-			claudePathSetting,
-			"claude-agent-acp",
-			async (path) => {
-				await this.plugin.settingsService.updateSettings({
-					claude: {
-						...this.plugin.settings.claude,
-						command: path,
-					},
-				});
+	private claudeRows(): AgentRow[] {
+		return [
+			{
+				name: t("settings.apiKey.name2"),
+				desc: t("settings.setup.desc2"),
+				render: (setting) => {
+					const claude = this.plugin.settings.claude;
+					setting.addComponent((el) =>
+						new SecretComponent(this.app, el)
+							.setValue(claude.apiKeySecretId)
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									claude: {
+										...this.plugin.settings.claude,
+										apiKeySecretId: value,
+									},
+								});
+							}),
+					);
+				},
 			},
-		);
-		this.addInstallHint(sectionEl, "@agentclientprotocol/claude-agent-acp");
-
-		new Setting(sectionEl)
-			.setName(t("settings.arguments.name4"))
-			.setDesc(t("settings.setup.desc3"))
-			.addTextArea((text) => {
-				text.setPlaceholder(t("settings.arguments.placeholder4"))
-					.setValue(this.formatArgs(claude.args))
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							claude: {
-								...this.plugin.settings.claude,
-								args: this.parseArgs(value),
-							},
-						});
+			{
+				name: t("settings.path.name4"),
+				desc: t("settings.path.desc4"),
+				render: (setting) => {
+					const claude = this.plugin.settings.claude;
+					setting.addText((text) => {
+						text.setPlaceholder(t("settings.path.placeholder4"))
+							.setValue(claude.command)
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									claude: {
+										...this.plugin.settings.claude,
+										command: value.trim(),
+									},
+								});
+							});
 					});
-				text.inputEl.rows = 3;
-			});
-
-		new Setting(sectionEl)
-			.setName(t("settings.environmentVariables.name4"))
-			.setDesc(t("settings.setup.desc4"))
-			.addTextArea((text) => {
-				text.setPlaceholder(t("settings.environmentVariables.placeholder4"))
-					.setValue(this.formatEnv(claude.env))
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							claude: {
-								...this.plugin.settings.claude,
-								env: this.parseEnv(value),
-							},
-						});
-					});
-				text.inputEl.rows = 3;
-			});
-
-		this.addAgentWorkingDirectoryRow(
-			sectionEl,
-			() => this.plugin.settings.claude.defaultWorkingDirectory ?? "",
-			async (value) => {
-				await this.plugin.settingsService.updateSettings({
-					claude: {
-						...this.plugin.settings.claude,
-						defaultWorkingDirectory: value,
-					},
-				});
+					this.addAutoDetectButton(
+						setting,
+						"claude-agent-acp",
+						async (path) => {
+							await this.plugin.settingsService.updateSettings({
+								claude: {
+									...this.plugin.settings.claude,
+									command: path,
+								},
+							});
+						},
+					);
+				},
 			},
-		);
+			this.installHintRow("@agentclientprotocol/claude-agent-acp"),
+			{
+				name: t("settings.arguments.name4"),
+				desc: t("settings.setup.desc3"),
+				render: (setting) => {
+					const claude = this.plugin.settings.claude;
+					setting.addTextArea((text) => {
+						text.setPlaceholder(t("settings.arguments.placeholder4"))
+							.setValue(this.formatArgs(claude.args))
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									claude: {
+										...this.plugin.settings.claude,
+										args: this.parseArgs(value),
+									},
+								});
+							});
+						text.inputEl.rows = 3;
+					});
+				},
+			},
+			{
+				name: t("settings.environmentVariables.name4"),
+				desc: t("settings.setup.desc4"),
+				render: (setting) => {
+					const claude = this.plugin.settings.claude;
+					setting.addTextArea((text) => {
+						text.setPlaceholder(t("settings.environmentVariables.placeholder4"))
+							.setValue(this.formatEnv(claude.env))
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									claude: {
+										...this.plugin.settings.claude,
+										env: this.parseEnv(value),
+									},
+								});
+							});
+						text.inputEl.rows = 3;
+					});
+				},
+			},
+			this.agentWorkingDirectoryRow(
+				() => this.plugin.settings.claude.defaultWorkingDirectory ?? "",
+				async (value) => {
+					await this.plugin.settingsService.updateSettings({
+						claude: {
+							...this.plugin.settings.claude,
+							defaultWorkingDirectory: value,
+						},
+					});
+				},
+			),
+		];
 	}
 
 	private renderCodexSettings(sectionEl: HTMLElement) {
-		const codex = this.plugin.settings.codex;
+		this.renderAgentRows(sectionEl, this.codexRows());
+	}
 
-		new Setting(sectionEl)
-			.setName(t("settings.apiKey.name3"))
-			.setDesc(t("settings.setup.desc5"))
-			.addComponent((el) =>
-				new SecretComponent(this.app, el)
-					.setValue(codex.apiKeySecretId)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							codex: {
-								...this.plugin.settings.codex,
-								apiKeySecretId: value,
-							},
-						});
-					}),
-			);
-
-		const codexPathSetting = new Setting(sectionEl)
-			.setName(t("settings.path.name5"))
-			.setDesc(t("settings.path.desc5"))
-			.addText((text) => {
-				text.setPlaceholder(t("settings.path.placeholder5"))
-					.setValue(codex.command)
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							codex: {
-								...this.plugin.settings.codex,
-								command: value.trim(),
-							},
-						});
-					});
-			});
-		this.addAutoDetectButton(
-			codexPathSetting,
-			"codex-acp",
-			async (path) => {
-				await this.plugin.settingsService.updateSettings({
-					codex: {
-						...this.plugin.settings.codex,
-						command: path,
-					},
-				});
+	private codexRows(): AgentRow[] {
+		return [
+			{
+				name: t("settings.apiKey.name3"),
+				desc: t("settings.setup.desc5"),
+				render: (setting) => {
+					const codex = this.plugin.settings.codex;
+					setting.addComponent((el) =>
+						new SecretComponent(this.app, el)
+							.setValue(codex.apiKeySecretId)
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									codex: {
+										...this.plugin.settings.codex,
+										apiKeySecretId: value,
+									},
+								});
+							}),
+					);
+				},
 			},
-		);
-		this.addInstallHint(sectionEl, "@agentclientprotocol/codex-acp");
-
-		new Setting(sectionEl)
-			.setName(t("settings.arguments.name5"))
-			.setDesc(t("settings.setup.desc6"))
-			.addTextArea((text) => {
-				text.setPlaceholder(t("settings.arguments.placeholder5"))
-					.setValue(this.formatArgs(codex.args))
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							codex: {
-								...this.plugin.settings.codex,
-								args: this.parseArgs(value),
-							},
-						});
+			{
+				name: t("settings.path.name5"),
+				desc: t("settings.path.desc5"),
+				render: (setting) => {
+					const codex = this.plugin.settings.codex;
+					setting.addText((text) => {
+						text.setPlaceholder(t("settings.path.placeholder5"))
+							.setValue(codex.command)
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									codex: {
+										...this.plugin.settings.codex,
+										command: value.trim(),
+									},
+								});
+							});
 					});
-				text.inputEl.rows = 3;
-			});
-
-		new Setting(sectionEl)
-			.setName(t("settings.environmentVariables.name5"))
-			.setDesc(t("settings.setup.desc7"))
-			.addTextArea((text) => {
-				text.setPlaceholder(t("settings.environmentVariables.placeholder5"))
-					.setValue(this.formatEnv(codex.env))
-					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							codex: {
-								...this.plugin.settings.codex,
-								env: this.parseEnv(value),
-							},
-						});
-					});
-				text.inputEl.rows = 3;
-			});
-
-		this.addAgentWorkingDirectoryRow(
-			sectionEl,
-			() => this.plugin.settings.codex.defaultWorkingDirectory ?? "",
-			async (value) => {
-				await this.plugin.settingsService.updateSettings({
-					codex: {
-						...this.plugin.settings.codex,
-						defaultWorkingDirectory: value,
-					},
-				});
+					this.addAutoDetectButton(
+						setting,
+						"codex-acp",
+						async (path) => {
+							await this.plugin.settingsService.updateSettings({
+								codex: {
+									...this.plugin.settings.codex,
+									command: path,
+								},
+							});
+						},
+					);
+				},
 			},
-		);
+			this.installHintRow("@agentclientprotocol/codex-acp"),
+			{
+				name: t("settings.arguments.name5"),
+				desc: t("settings.setup.desc6"),
+				render: (setting) => {
+					const codex = this.plugin.settings.codex;
+					setting.addTextArea((text) => {
+						text.setPlaceholder(t("settings.arguments.placeholder5"))
+							.setValue(this.formatArgs(codex.args))
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									codex: {
+										...this.plugin.settings.codex,
+										args: this.parseArgs(value),
+									},
+								});
+							});
+						text.inputEl.rows = 3;
+					});
+				},
+			},
+			{
+				name: t("settings.environmentVariables.name5"),
+				desc: t("settings.setup.desc7"),
+				render: (setting) => {
+					const codex = this.plugin.settings.codex;
+					setting.addTextArea((text) => {
+						text.setPlaceholder(t("settings.environmentVariables.placeholder5"))
+							.setValue(this.formatEnv(codex.env))
+							.onChange(async (value) => {
+								await this.plugin.settingsService.updateSettings({
+									codex: {
+										...this.plugin.settings.codex,
+										env: this.parseEnv(value),
+									},
+								});
+							});
+						text.inputEl.rows = 3;
+					});
+				},
+			},
+			this.agentWorkingDirectoryRow(
+				() => this.plugin.settings.codex.defaultWorkingDirectory ?? "",
+				async (value) => {
+					await this.plugin.settingsService.updateSettings({
+						codex: {
+							...this.plugin.settings.codex,
+							defaultWorkingDirectory: value,
+						},
+					});
+				},
+			),
+		];
 	}
 
 	private renderCustomAgents(containerEl: HTMLElement) {
@@ -2742,12 +2846,21 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	/**
 	 * Renders a copyable npm install command hint below a Path setting.
 	 */
-	private addInstallHint(containerEl: HTMLElement, npmPackage: string): void {
+	private installHintRow(npmPackage: string): AgentRow {
+		return {
+			name: "",
+			searchable: false,
+			render: (setting) => this.renderInstallHint(setting, npmPackage),
+		};
+	}
+
+	private renderInstallHint(setting: Setting, npmPackage: string): void {
 		const command = `npm install -g ${npmPackage}@latest`;
+		// Fresh fragment per render: a fragment is emptied once inserted.
 		const frag = createFragment();
 		frag.appendText(t("settings.installHint.prefix"));
 		frag.createEl("code", { text: command });
-		new Setting(containerEl).setDesc(frag).addButton((btn) => {
+		setting.setDesc(frag).addButton((btn) => {
 			btn.setButtonText(t("settings.environmentVariables.button2")).onClick(() => {
 				void navigator.clipboard.writeText(command).then(
 					() => {
@@ -2908,6 +3021,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		read: () => string,
 		write: (value: string) => Promise<void>,
 	): void {
+		this.renderAgentRows(sectionEl, [
+			this.agentWorkingDirectoryRow(read, write),
+		]);
+	}
+
+	private agentWorkingDirectoryRow(
+		read: () => string,
+		write: (value: string) => Promise<void>,
+	): AgentRow {
 		const adapter = this.plugin.app.vault.adapter;
 		const vaultRoot =
 			adapter instanceof FileSystemAdapter ? adapter.getBasePath() : "";
@@ -2931,36 +3053,45 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			}
 			return `${base} ${t("settings.agentWorkingDirectory.statusResolved", { dir: resolved.dir })}`;
 		};
-		const setting = new Setting(sectionEl)
-			.setName(t("settings.workingDirectory.name"))
-			.setDesc(describe(read()));
-		setting.addText((text) =>
-			text
-				.setPlaceholder(t("settings.workingDirectory.placeholder"))
-				.setValue(read())
-				.onChange(async (value) => {
-					await write(value.trim());
-					setting.setDesc(describe(value));
-				}),
-		);
-		setting.addButton((btn) =>
-			btn
-				.setButtonText(t("settings.workingDirectory.button"))
-				.setTooltip(t("settings.workingDirectory.tooltip"))
-				.onClick(async () => {
-					const picked = await pickFolder({
-						title: t("settings.workingDirectory.pickerTitle"),
-						defaultPath:
-							read() ||
-							this.plugin.settings.defaultWorkingDirectory ||
-							vaultRoot,
-					});
-					if (picked) {
-						await write(picked);
-						this.rerender();
-					}
-				}),
-		);
+		const render = (setting: Setting): void => {
+			setting.setDesc(describe(read()));
+			let input: TextComponent | null = null;
+			setting.addText((text) =>
+				(input = text)
+					.setPlaceholder(t("settings.workingDirectory.placeholder"))
+					.setValue(read())
+					.onChange(async (value) => {
+						await write(value.trim());
+						setting.setDesc(describe(value));
+					}),
+			);
+			setting.addButton((btn) =>
+				btn
+					.setButtonText(t("settings.workingDirectory.button"))
+					.setTooltip(t("settings.workingDirectory.tooltip"))
+					.onClick(async () => {
+						const picked = await pickFolder({
+							title: t("settings.workingDirectory.pickerTitle"),
+							defaultPath:
+								read() ||
+								this.plugin.settings.defaultWorkingDirectory ||
+								vaultRoot,
+						});
+						if (picked) {
+							await write(picked);
+							// Update in place: a declared page row isn't
+							// redrawn by rerender(), and this keeps scroll (I215).
+							input?.setValue(picked);
+							setting.setDesc(describe(picked));
+						}
+					}),
+			);
+		};
+		return {
+			name: t("settings.workingDirectory.name"),
+			desc: describe(read()),
+			render,
+		};
 	}
 
 	private formatArgs(args: string[]): string {
