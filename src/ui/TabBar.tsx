@@ -471,6 +471,10 @@ export function TabBar({
 	const handleChevronClick = useCallback(
 		(e: React.MouseEvent) => {
 			const menu = new Menu();
+			// I238: native (OS) menus show setChecked's checkmark but ignore
+			// setIcon, which would hide every state icon. Force a DOM menu so
+			// the list matches the tab strip.
+			menu.setUseNativeMenu(false);
 			registerOpenMenu(menu);
 			for (const tab of tabs) {
 				menu.addItem((item: MenuItem) => {

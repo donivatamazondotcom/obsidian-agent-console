@@ -30,6 +30,7 @@ const h = vi.hoisted(() => {
 		items: FakeItem[];
 		shown: boolean;
 		via: string | null;
+		native?: boolean;
 	}> = [];
 	return { menus };
 });
@@ -46,6 +47,7 @@ vi.mock("obsidian", () => {
 			items: this.items,
 			shown: false,
 			via: null as string | null,
+			native: undefined as boolean | undefined,
 		};
 		constructor() {
 			h.menus.push(this._record);
@@ -88,6 +90,10 @@ vi.mock("obsidian", () => {
 			this._record.via = "position";
 		}
 		onHide() {}
+		setUseNativeMenu(v: boolean) {
+			this._record.native = v;
+			return this;
+		}
 	}
 	return { Menu, setIcon: vi.fn(), setTooltip: vi.fn() };
 });
@@ -182,6 +188,9 @@ describe("show-tab-list command wiring (TabBar.onRegisterShowTabList)", () => {
 		]);
 		// Active tab is checked.
 		expect(menu.items[1].checked).toBe(true);
+		// I238: native (OS) menus ignore setIcon, so the list forces a DOM menu
+		// to keep the state icons visible.
+		expect(menu.native).toBe(false);
 
 		// Selecting an item routes through onSelectTab.
 		menu.items[0].click?.(new MouseEvent("click"));
