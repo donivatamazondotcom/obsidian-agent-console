@@ -11,6 +11,26 @@ import {
 	type SessionListSource,
 } from "../resolvers/session-history-view";
 import { t } from "../i18n";
+import { overlayLocalTitles } from "../resolvers/session-title";
+import type {
+	AgentSessionMetaCacheEntry,
+	SavedSessionInfo,
+} from "../types/session";
+
+
+/**
+ * The disconnected Agent view renders the persisted `session/list` mirror.
+ * It gets the same title decision as the live list (I224): the plugin's own
+ * title wins for a session it has a record of, renames included.
+ */
+function withLocalTitles(
+	cache: AgentSessionMetaCacheEntry | null,
+	saved: SavedSessionInfo[],
+	agentId: string,
+): AgentSessionMetaCacheEntry | null {
+	if (!cache) return null;
+	return { ...cache, sessions: overlayLocalTitles(cache.sessions, saved, agentId) };
+}
 
 /**
  * Hook for managing the session history modal lifecycle.
@@ -190,7 +210,11 @@ export function useHistoryModal(
 		const settings = plugin.settingsService.getSnapshot();
 		const source = settings.sessionHistorySource;
 		const agentId = agent.session.agentId;
-		const agentSessionCache = settings.agentSessionMetaCache[agentId] ?? null;
+		const agentSessionCache = withLocalTitles(
+			settings.agentSessionMetaCache[agentId] ?? null,
+			plugin.settingsService.getSavedSessions(),
+			agentId,
+		);
 		const agentLabels = Object.fromEntries(
 			plugin.getAvailableAgents().map((a) => [a.id, a.displayName]),
 		);
@@ -286,8 +310,11 @@ export function useHistoryModal(
 				isAgentReady: isSessionReady,
 				debugMode: debugMode,
 				initialSource: settings.sessionHistorySource,
-				agentSessionCache:
+				agentSessionCache: withLocalTitles(
 					settings.agentSessionMetaCache[agentId] ?? null,
+					plugin.settingsService.getSavedSessions(),
+					agentId,
+				),
 				agentLabels,
 				currentAgentLabel: agentLabels[agentId] ?? agentId,
 				onRestoreSession: handleRestoreSession,

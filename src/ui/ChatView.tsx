@@ -67,6 +67,8 @@ import { GettingStarted, type GettingStartedInfo } from "./MessageList";
 import { installAgent } from "../services/agent-installer";
 import { deriveAgentPickerOptions } from "../resolvers/agent-picker-options";
 import { resolveInitialAgentId } from "../resolvers/resolveInitialAgentId";
+import { deriveRestoreTabLabel } from "../resolvers/session-title";
+import { defaultSessionTitle } from "../utils/format-session-title";
 import {
 	resolveSeededMessages,
 	resolveSeededContextNotes,
@@ -1079,20 +1081,20 @@ function ChatComponent({
 				saved?.agentId ??
 				activeTab?.agentId ??
 				plugin.settings.defaultAgentId;
-			const baseLabel = saved?.title ?? t("chat.tabs.sessionFallback");
 			// Forks can't earn an AI title (the rubric fires only on a tab's
 			// first message and a fork is seeded with the transcript), so they
-			// won't diverge on their own — suffix the "Fork: …" title against
-			// existing saved-session titles so multiple forks stay distinct.
-			const label =
-				mode === "fork"
-					? suffixOnCollision(
-							truncateLabel(
-								t("chat.tabs.forkPrefix", { label: baseLabel }),
-							),
-							savedSessions.map((s) => s.title ?? ""),
-						)
-					: truncateLabel(baseLabel);
+			// won't diverge on their own — the resolver suffixes the "Fork: …"
+			// title against existing saved-session titles so forks stay distinct.
+			const label = deriveRestoreTabLabel({
+				mode,
+				savedTitle: saved?.title,
+				agentTitle,
+				savedTitles: savedSessions.map((s) => s.title ?? ""),
+				// Same text the history row shows for an untitled session, so a
+				// restored tab reads like the row that was clicked (I227).
+				fallback: defaultSessionTitle(),
+				forkLabel: (base) => t("chat.tabs.forkPrefix", { label: base }),
+			});
 
 			// Load the transcript + context notes from disk — the same storage
 			// the reopen/startup-restore paths read.

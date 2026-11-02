@@ -55,7 +55,6 @@ import {
 	takeTrailingAttachedFile,
 } from "../acp/kiro-v3";
 import {
-	isFileMentionTitle,
 	takeLeadingFileMention,
 	takeTrailingFileMention,
 } from "../acp/claude-code-replay";
@@ -452,20 +451,8 @@ export function stripInjectedPromptText(text: string): {
 	return { text: rest, links: [...links, ...tail] };
 }
 
-/**
- * True when an agent-reported session title is really the head of an injected
- * block (I223). Kiro V3 titles an untitled session with the first line of the
- * stored prompt, i.e. `<obsidian_system_instruction>`; Claude Code titles a
- * chat that opened with a context chip by the chip's `[@name](uri)` mention.
- * Neither may be used as the session's title.
- */
-export function isPlaceholderAgentTitle(title: string): boolean {
-	return (
-		/^<(?:obsidian_\w+|attached_file|carry_over_transcript)\b/.test(
-			title.trim(),
-		) || isFileMentionTitle(title) // Claude Code (I242)
-	);
-}
+// I223 / I242 placeholder rule now lives with the title resolver (I224).
+export { isPlaceholderAgentTitle } from "../resolvers/session-title";
 
 /**
  * Build the F03 title rubric (or null), positioned as the FINAL instruction

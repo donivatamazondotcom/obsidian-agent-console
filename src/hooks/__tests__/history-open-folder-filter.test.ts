@@ -30,6 +30,7 @@ function makePlugin(source: SessionListSource) {
 				sessionHistorySource: source,
 				agentSessionMetaCache: {},
 			}),
+			getSavedSessions: () => [],
 			updateSettings: vi.fn(async () => {}),
 		},
 		getAvailableAgents: () => [],

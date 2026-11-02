@@ -4,7 +4,6 @@ import type { ISettingsAccess } from "../services/settings-service";
 import type {
 	SessionInfo,
 	ListSessionsResult,
-	SavedSessionInfo,
 	ChatSession,
 	SessionModeState,
 	SessionModelState,
@@ -16,6 +15,7 @@ import { NO_AGENT_CAPABILITIES } from "../types/session";
 import type { SessionListSource } from "../resolvers/session-history-view";
 import type { ChatMessage } from "../types/chat";
 import { extractErrorMessage } from "../utils/error-utils";
+import { overlayLocalTitles } from "../resolvers/session-title";
 import type { ContextNote } from "../types/context";
 import { t } from "../i18n";
 
@@ -256,33 +256,6 @@ interface SessionCache {
 /** Cache expiry time in milliseconds (5 minutes) */
 const CACHE_EXPIRY_MS = 5 * 60 * 1000;
 
-/**
- * Merge agent sessions with locally saved titles.
- * Prefers local titles over agent-provided titles for better UX.
- *
- * Some agents return poor quality titles (e.g., "ACP Session {id}" or
- * system prompt text), so we prefer locally saved titles when available.
- *
- * @param agentSessions - Sessions from agent's session/list
- * @param localSessions - Locally saved session metadata
- * @returns Sessions with local titles merged in
- */
-function mergeWithLocalTitles(
-	agentSessions: SessionInfo[],
-	localSessions: SavedSessionInfo[],
-): SessionInfo[] {
-	// Create a map for O(1) lookup
-	const localMap = new Map(localSessions.map((s) => [s.sessionId, s]));
-
-	return agentSessions.map((s) => {
-		const local = localMap.get(s.sessionId);
-		return {
-			...s,
-			title: local?.title ?? s.title,
-		};
-	});
-}
-
 // ============================================================================
 // Hook Implementation
 // ============================================================================
@@ -424,9 +397,10 @@ export function useSessionHistory(
 					new Set(localSessions.map((s) => s.sessionId)),
 				);
 				// Re-merge with local titles to pick up newly saved session titles
-				const sessionsWithLocalTitles = mergeWithLocalTitles(
+				const sessionsWithLocalTitles = overlayLocalTitles(
 					cacheRef.current!.sessions,
-					localSessions,
+					settingsAccess.getSavedSessions(),
+					session.agentId,
 				);
 				setSessions(sessionsWithLocalTitles);
 				setNextCursor(cacheRef.current!.nextCursor);
@@ -448,9 +422,10 @@ export function useSessionHistory(
 					session.agentId,
 					cwd,
 				);
-				const sessionsWithLocalTitles = mergeWithLocalTitles(
+				const sessionsWithLocalTitles = overlayLocalTitles(
 					result.sessions,
-					localSessions,
+					settingsAccess.getSavedSessions(),
+					session.agentId,
 				);
 
 				// Update state
@@ -512,9 +487,10 @@ export function useSessionHistory(
 				session.agentId,
 				currentCwdRef.current,
 			);
-			const sessionsWithLocalTitles = mergeWithLocalTitles(
+			const sessionsWithLocalTitles = overlayLocalTitles(
 				result.sessions,
-				localSessions,
+				settingsAccess.getSavedSessions(),
+				session.agentId,
 			);
 
 			// Append new sessions to existing list (use functional setState)

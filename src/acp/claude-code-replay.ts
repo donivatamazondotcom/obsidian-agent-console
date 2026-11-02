@@ -14,8 +14,8 @@
  * match. Pure and total; null when nothing matched.
  */
 import type { ResourceLinkPromptContent } from "../types/chat";
+import { FILE_MENTION } from "../utils/file-mention";
 
-const FILE_MENTION = String.raw`\[@([^\]\n]+)\]\((file:\/\/[^)\n]+)\)`;
 const LEADING_FILE_MENTION = new RegExp(`^${FILE_MENTION}`);
 const TRAILING_FILE_MENTION = new RegExp(`\\s*${FILE_MENTION}\\s*$`);
 
@@ -45,7 +45,4 @@ export function takeTrailingFileMention(
 	return { rest: text.slice(0, m.index), link: toLink(m) };
 }
 
-/** True when a session title is only a file mention (Claude's untitled chat). */
-export function isFileMentionTitle(title: string): boolean {
-	return new RegExp(`^${FILE_MENTION}\\s*$`).test(title.trim());
-}
+export { isFileMentionTitle } from "../utils/file-mention";
