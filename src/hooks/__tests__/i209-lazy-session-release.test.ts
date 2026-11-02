@@ -231,3 +231,39 @@ describe("I209 released id survives a restart (mount → persist → remount)", 
 		).toBeNull();
 	});
 });
+
+describe("I209 × I229: reload on a released tab", () => {
+	it("reconnects on the kept id instead of doing nothing", async () => {
+		const options = makeOptions();
+		const { result } = await mountReady(options);
+		act(() => {
+			result.current.release();
+		});
+		// The soft-reload run (tear down, re-init, resume) must NOT run: there
+		// is no process to tear down. The reconnect is the fresh harness.
+		const run = vi.fn(async (): Promise<SessionAcquisitionResult> => ({
+			ok: true,
+			sessionId: "should-not-bind",
+		}));
+		await act(async () => {
+			await result.current.reloadNow(run);
+		});
+		expect(run).not.toHaveBeenCalled();
+		expect(options.loadExistingSession).toHaveBeenCalledWith("s1");
+		expect(result.current.state).toBe("ready");
+		expect(result.current.sessionId).toBe("s1");
+	});
+
+	it("a plain idle tab with no session still ignores reload", async () => {
+		const options = makeOptions();
+		const { result } = renderHook(() => useLazySession(options));
+		const run = vi.fn();
+		await act(async () => {
+			await result.current.reloadNow(run);
+		});
+		expect(run).not.toHaveBeenCalled();
+		expect(options.loadExistingSession).not.toHaveBeenCalled();
+		expect(options.acquireNewSession).not.toHaveBeenCalled();
+		expect(result.current.state).toBe("idle");
+	});
+});

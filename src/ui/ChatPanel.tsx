@@ -86,7 +86,7 @@ import { useEagerInitialize } from "../hooks/useEagerInitialize";
 import { decideProcessHold } from "../resolvers/process-hold";
 import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";
-import { loadExistingSessionFlow } from "../hooks/loadExistingSessionFlow";
+import { reconnectExistingSession } from "../hooks/loadExistingSessionFlow";
 
 // Adapter imports
 import type { AcpClient } from "../acp/acp-client";
@@ -1333,6 +1333,49 @@ export function ChatPanel({
 	// Fires at most once per panel. Re-eager-init on agent swap stays reverted:
 	// model/mode dropdowns come from the SESSION (newSession), not initialize()
 	// (studio smoke (e), 2026-06-25).
+	// Spawn and initialize this tab's agent with its config. Shared by eager
+	// initialize and the kept-id reconnect (I209), which must initialize a
+	// disconnected client before session/load. `cwd` is the config cwd: the
+	// vault for eager init (unchanged), the tab's cwd for a reconnect.
+	const initializeAgentForTab = useCallback(
+		async (cwd: string): Promise<boolean> => {
+			// Live tab agent first (updated on switch), mount snapshot as fallback.
+			const agentId =
+				agent.session.agentId || config?.agent || initialAgentId;
+			if (!agentId) return false;
+			const { findAgentSettings, buildAgentConfigWithApiKey } =
+				await import("../services/session-helpers");
+			const agentSettings = findAgentSettings(plugin.settings, agentId);
+			if (!agentSettings) return false;
+			const agentConfig = buildAgentConfigWithApiKey(
+				plugin.settings,
+				agentSettings,
+				agentId,
+				cwd,
+			);
+			await acpClient.initialize(agentConfig);
+			// I54: propagate the just-fetched capabilities into session
+			// state so image paste works on a fresh tab before connecting.
+			agent.applyInitCapabilities();
+			logger.log("[ChatPanel] Initialize complete for:", agentId);
+			return true;
+		},
+		[
+			agent.session.agentId,
+			agent.applyInitCapabilities,
+			config?.agent,
+			initialAgentId,
+			plugin.settings,
+			acpClient,
+			logger,
+		],
+	);
+
+	// Current transcript length for async readers (I209: the reconnect asks
+	// "is a transcript on screen NOW", not at mount).
+	const messageCountRef = useRef(messages.length);
+	messageCountRef.current = messages.length;
+
 	useEagerInitialize({
 		// Spawn gate only: liveSession/idle/busy are fed by useIdleRelease,
 		// and useEagerInitialize acts on `hold` alone, so "no live session"
@@ -1347,25 +1390,7 @@ export function ChatPanel({
 		}),
 		isInitialized: () => acpClient.isInitialized(),
 		initialize: async () => {
-			// Live tab agent first (updated on switch), mount snapshot as fallback.
-			const agentId =
-				agent.session.agentId || config?.agent || initialAgentId;
-			if (!agentId) return;
-			const { findAgentSettings, buildAgentConfigWithApiKey } =
-				await import("../services/session-helpers");
-			const agentSettings = findAgentSettings(plugin.settings, agentId);
-			if (!agentSettings) return;
-			const agentConfig = buildAgentConfigWithApiKey(
-				plugin.settings,
-				agentSettings,
-				agentId,
-				vaultPath,
-			);
-			await acpClient.initialize(agentConfig);
-			// I54: propagate the just-fetched capabilities into session
-			// state so image paste works on a fresh tab before connecting.
-			agent.applyInitCapabilities();
-			logger.log("[ChatPanel] Eager initialize complete for:", agentId);
+			await initializeAgentForTab(vaultPath);
 		},
 		// Non-fatal: lazy path will retry on first keystroke.
 		onError: (e) =>
@@ -1470,14 +1495,25 @@ export function ChatPanel({
 		loadExistingSession: useCallback(
 			async (sessionId: string) => {
 				logger.log("[Lazy] Loading existing session:", sessionId);
-				const result = await loadExistingSessionFlow({
+				// I209: one seam for every kept-id reconnect (restored tab or
+				// released tab): initialize a disconnected client first, prefer
+				// resume where advertised, then load.
+				const result = await reconnectExistingSession({
 					sessionId,
 					cwd: agentCwd,
-					// Suppress the agent's replay only when local history is
-					// already displayed; otherwise let it through (I43 #12).
-					haveLocalHistory:
-						!!restoredMessages && restoredMessages.length > 0,
-					loadSession: (id, cwd) => acpClient.loadSession(id, cwd),
+					client: acpClient,
+					initialize: async () => {
+						if (!(await initializeAgentForTab(agentCwd))) {
+							throw new Error("No agent configured for this tab");
+						}
+					},
+					// Suppress the agent's replay only when a transcript is on
+					// screen; otherwise let it through (I43 #12). Read now, not
+					// from the mount snapshot (I209: a fresh tab that released
+					// has messages but no restoredMessages).
+					haveLocalHistory: () => messageCountRef.current > 0,
+					onResumeError: (e) =>
+						logger.log("[Lazy] resume failed, trying load:", e),
 					onLoaded: (r) =>
 						void agent.updateSessionFromLoad(
 							r.sessionId,
@@ -1496,7 +1532,7 @@ export function ChatPanel({
 				return result;
 			},
 			[
-				restoredMessages,
+				initializeAgentForTab,
 				acpClient,
 				agentCwd,
 				agent.updateSessionFromLoad,
