@@ -3094,3 +3094,64 @@ describe("I205 — orchestrator targets the current chat view type", () => {
 		expect(sent).not.toContain('"agent-client-chat-view"');
 	});
 });
+
+describe("captureEntry — agentOverride (kiro-v3-header-fallback)", () => {
+	const OVERRIDE = {
+		id: "kiro-cli",
+		engine: "v3" as const,
+		args: ["acp", "--agent", "screenshot-missing-agent"],
+	};
+
+	it("rewrites the matched agent's engine and args before the panel opens", async () => {
+		const deps = makeDeps();
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		evalMock.mockImplementation((expr: string) =>
+			Promise.resolve(
+				typeof expr === "string" && expr.includes("screenshot-missing-agent")
+					? true
+					: undefined,
+			),
+		);
+		const entry = makeEntry({
+			initialState: { clickRibbon: true, agentOverride: OVERRIDE },
+		});
+
+		await captureEntry(entry, deps);
+
+		const evals = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		const idx = evals.findIndex((e) => e.includes("screenshot-missing-agent"));
+		expect(idx).toBeGreaterThanOrEqual(0);
+		const expr = evals[idx];
+		// The override carries the exact values, JSON-encoded, for the named agent.
+		expect(expr).toContain(JSON.stringify(OVERRIDE.id));
+		expect(expr).toContain(JSON.stringify(OVERRIDE.args));
+		expect(expr).toContain(JSON.stringify(OVERRIDE.engine));
+		// Before the panel opens, so the first tab launches with the override.
+		const execMock = deps.cdp.executeCommand as ReturnType<typeof vi.fn>;
+		const openIdx = execMock.mock.calls.findIndex((c: unknown[]) =>
+			(c[0] as string).includes("open-chat-view"),
+		);
+		expect(openIdx).toBeGreaterThanOrEqual(0);
+		expect(evalMock.mock.invocationCallOrder[idx]).toBeLessThan(
+			execMock.mock.invocationCallOrder[openIdx],
+		);
+	});
+
+	it("fails the shot when no agent has the override's id", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) =>
+				Promise.resolve(
+					typeof expr === "string" && expr.includes("screenshot-missing-agent")
+						? false
+						: undefined,
+				),
+		);
+		const entry = makeEntry({
+			initialState: { clickRibbon: true, agentOverride: OVERRIDE },
+		});
+		await expect(captureEntry(entry, deps)).rejects.toThrow(
+			/agentOverride.*kiro-cli/,
+		);
+	});
+});

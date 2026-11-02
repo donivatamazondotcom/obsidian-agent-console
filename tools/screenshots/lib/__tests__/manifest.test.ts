@@ -988,3 +988,51 @@ describe("manifest.json — chat view type in selectors (I226)", () => {
 		expect(stale).toEqual([]);
 	});
 });
+
+describe("validateManifest — initialState.agentOverride", () => {
+	const base = {
+		name: "ao",
+		width: 100,
+		height: 100,
+		crop: { x: 0, y: 0, width: 10, height: 10 },
+	};
+
+	it("accepts an id with engine and string args", () => {
+		const entry = {
+			...base,
+			initialState: {
+				agentOverride: { id: "kiro-cli", engine: "v3", args: ["acp", "--agent", "x"] },
+			},
+		} as ManifestEntry;
+		expect(() =>
+			validateManifest({ entries: [entry] }, makeFixtureRoot()),
+		).not.toThrow();
+	});
+
+	it("rejects a missing or blank id", () => {
+		const entry = {
+			...base,
+			initialState: { agentOverride: { id: " ", args: ["acp"] } },
+		} as unknown as ManifestEntry;
+		expect(() =>
+			validateManifest({ entries: [entry] }, makeFixtureRoot()),
+		).toThrow(/agentOverride\.id/);
+	});
+
+	it("rejects non-string args and an unknown engine", () => {
+		const badArgs = {
+			...base,
+			initialState: { agentOverride: { id: "kiro-cli", args: ["acp", 3] } },
+		} as unknown as ManifestEntry;
+		expect(() =>
+			validateManifest({ entries: [badArgs] }, makeFixtureRoot()),
+		).toThrow(/agentOverride\.args/);
+		const badEngine = {
+			...base,
+			initialState: { agentOverride: { id: "kiro-cli", engine: "v4" } },
+		} as unknown as ManifestEntry;
+		expect(() =>
+			validateManifest({ entries: [badEngine] }, makeFixtureRoot()),
+		).toThrow(/agentOverride\.engine/);
+	});
+});

@@ -151,6 +151,19 @@ export interface InitialState {
 	 */
 	forceConnectingHold?: boolean;
 	/**
+	 * Rewrite one configured agent's launch settings before the panel opens.
+	 * `id` matches the agent's `id` (built-in or custom); `args` replaces its
+	 * args and `engine` its Kiro engine. Drives the kiro-v3-header-fallback
+	 * shot: Kiro CLI V3 launched with `--agent` naming an agent that doesn't
+	 * exist, so the header strikes it through. An unknown `id` fails the shot.
+	 * setup.sh restores the real settings from the template on the next run.
+	 */
+	agentOverride?: {
+		id: string;
+		args?: string[];
+		engine?: "v2" | "v3";
+	};
+	/**
 	 * Force the MCP OAuth sign-in Notice by injecting sample oauth_request
 	 * events into the plugin's mcpAuthManager (the same path a real remote
 	 * OAuth MCP server takes). Renders the `.agent-client-mcp-auth-notice`
@@ -915,6 +928,32 @@ export function validateManifest(
 				throw new Error(
 					`manifest entry "${entry.name}" has invalid initialState.restoreSessions.activeIndex: must be a non-negative integer`,
 				);
+			}
+		}
+
+		const ao = entry.initialState?.agentOverride;
+		if (ao !== undefined) {
+			const fail = (field: string, why: string): never => {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid initialState.agentOverride.${field}: ${why}`,
+				);
+			};
+			if (typeof ao.id !== "string" || ao.id.trim() === "") {
+				fail("id", "must be a non-empty string");
+			}
+			if (
+				ao.args !== undefined &&
+				(!Array.isArray(ao.args) ||
+					ao.args.some((x: unknown) => typeof x !== "string"))
+			) {
+				fail("args", "must be an array of strings");
+			}
+			if (
+				ao.engine !== undefined &&
+				ao.engine !== "v2" &&
+				ao.engine !== "v3"
+			) {
+				fail("engine", 'must be "v2" or "v3"');
 			}
 		}
 
