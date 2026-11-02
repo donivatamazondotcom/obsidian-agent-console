@@ -33,6 +33,7 @@ import type {
 import type { UseAgentReturn } from "../useAgent";
 import type { UseSessionHistoryReturn } from "../useSessionHistory";
 import type { App } from "obsidian";
+import { TITLE_RUBRIC } from "../../utils/system-instructions";
 
 const AGENT_ID = "kiro-cli";
 const VAULT = "/vault";
@@ -206,6 +207,16 @@ function cachedRowsShownByModal(
 	unmount();
 	return captured?.agentSessionCache?.sessions ?? [];
 }
+
+describe("I243 — Claude Code row titled with the title instruction", () => {
+	it("live Agent row shows no title (the modal renders its untitled text)", async () => {
+		const rows = await liveRows(
+			[agentRow("echo", TITLE_RUBRIC.slice(0, 181).trimEnd() + "…")],
+			[],
+		);
+		expect(titleOf(rows, "echo")).toBeUndefined();
+	});
+});
 
 describe("I224 — disconnected Agent view (cached list) shows the local title", () => {
 	it("overlays a user rename onto the cached row", () => {

@@ -21,6 +21,7 @@ import { SessionHistoryContent } from "../SessionHistoryModal";
 import { deriveRestoreTabLabel } from "../../resolvers/session-title";
 import { defaultSessionTitle } from "../../utils/format-session-title";
 import { t } from "../../i18n";
+import { TITLE_RUBRIC } from "../../utils/system-instructions";
 import type { SavedSessionInfo, SessionInfo } from "../../types/session";
 
 const CAPS = {
@@ -137,6 +138,20 @@ describe("I227 — restored tab label matches the history row", () => {
 		const { rowText, tabLabel } = restoreAndLabel(rowOf("srv"), []);
 		expect(rowText).toBe(defaultSessionTitle());
 		expect(tabLabel).toBe(rowText);
+	});
+});
+
+describe("I243 — Claude Code's title-instruction title on an agent-only row", () => {
+	afterEach(cleanup);
+
+	it("the restored tab falls back to the untitled text", () => {
+		// Rendered raw here, as the restore callback receives it; the live
+		// overlay that clears the row's title is pinned in i224-agent-row-titles.
+		const { tabLabel } = restoreAndLabel(
+			rowOf("ec137294", TITLE_RUBRIC.slice(0, 181).trimEnd() + "…"),
+			[],
+		);
+		expect(tabLabel).toBe(defaultSessionTitle());
 	});
 });
 
