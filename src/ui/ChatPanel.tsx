@@ -2145,7 +2145,13 @@ export function ChatPanel({
 				const ran = await runIdleRelease({
 					recheck,
 					flush: flushSessionSave,
-					lazyRelease: lazySession.release,
+					// I237: keep the id only when there is something to resume —
+					// a transcript, or an id restored from disk.
+					lazyRelease: () =>
+						lazySession.release({
+							keepSessionId:
+								messageCountRef.current > 0 || !!restoredSessionId,
+						}),
 					agentRelease: agent.releaseSession,
 					gate: releaseGateRef.current,
 				});
