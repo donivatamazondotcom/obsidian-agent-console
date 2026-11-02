@@ -552,6 +552,18 @@ export function useLazySession(
 
 	const reloadNow = useCallback(
 		async (run: () => Promise<SessionAcquisitionResult>) => {
+			// I209: a released tab has no process to tear down, so a reload is
+			// the normal reconnect on the kept id — that IS a fresh harness.
+			if (
+				tabStateRef.current.state === "released" &&
+				!isAcquiringRef.current
+			) {
+				if (debounceTimerRef.current !== null) {
+					window.clearTimeout(debounceTimerRef.current);
+					debounceTimerRef.current = null;
+				}
+				return fireAcquisition();
+			}
 			// Nothing to reload, or the owner is already acquiring (a first
 			// send, reconnect or another reload) — one acquisition at a time.
 			if (sessionIdRef.current === null) return;
@@ -587,7 +599,7 @@ export function useLazySession(
 			}
 			isAcquiringRef.current = false;
 		},
-		[],
+		[fireAcquisition],
 	);
 
 	const continuesExistingSession = useCallback(
