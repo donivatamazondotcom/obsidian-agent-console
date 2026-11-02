@@ -503,6 +503,23 @@ export async function captureEntry(
 			);
 		}
 
+		// 1b-bis. Rewrite one agent's launch settings (args / Kiro engine) before
+		// the panel opens, so the first tab launches with them. Drives the
+		// kiro-v3-header-fallback shot (V3 + `--agent` naming a missing agent).
+		// An unknown id is a hard error: a silently ignored override would shoot
+		// the ordinary header. setup.sh restores the template config next run.
+		const agentOverride = entry.initialState?.agentOverride;
+		if (agentOverride) {
+			const applied = await deps.cdp.evaluate(
+				`(() => { const s = app.plugins.plugins["agent-console"].settings; const all = [s.claude, s.codex, s.gemini, s.kiro, ...(s.customAgents || [])]; const a = all.find((x) => x && x.id === ${JSON.stringify(agentOverride.id)}); if (!a) return false; const args = ${JSON.stringify(agentOverride.args ?? null)}; const engine = ${JSON.stringify(agentOverride.engine ?? null)}; if (args) a.args = args; if (engine) a.engine = engine; return true; })()`,
+			);
+			if (applied !== true) {
+				throw new Error(
+					`agentOverride: "${entry.name}" — no configured agent with id ${agentOverride.id}`,
+				);
+			}
+		}
+
 		// 1c. Disable native menus so an Obsidian Menu popover renders as a
 		// window-capturable DOM `.menu` (not an OS popup that screen-mode would
 		// need). Mirrors the forceTabStates path; setup.sh restores config next run.
