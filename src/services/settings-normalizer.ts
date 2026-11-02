@@ -5,7 +5,7 @@
  * Used by plugin.ts (loadSettings) and SettingsTab.ts.
  */
 
-import { resolveKiroEngine } from "../acp/kiro-v3";
+import { readKiroEngineSetting, type KiroEngineSetting } from "../acp/kiro-v3";
 import type {
 	AgentEnvVar,
 	CustomAgentSettings,
@@ -186,8 +186,11 @@ export const normalizeCustomAgent = (
 			agent && typeof agent.defaultWorkingDirectory === "string"
 				? agent.defaultWorkingDirectory.trim()
 				: "",
-		// Kiro CLI V3: persisted only when chosen, so V2 entries keep their shape.
-		...(resolveKiroEngine(agent ?? {}) === "v3" ? { engine: "v3" as const } : {}),
+		// Kiro CLI engine: persisted only when pinned; absent means Default.
+		...(() => {
+			const engine = readKiroEngineSetting(agent ?? {});
+			return engine === "default" ? {} : { engine };
+		})(),
 	};
 };
 
@@ -385,7 +388,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 		command: "kiro-cli",
 		args: ["acp"],
 		env: [],
-		engine: "v2",
+		engine: "default",
 	},
 	opencode: {
 		id: "opencode-acp",
@@ -472,6 +475,21 @@ export type MigrateKeyFn = (
  * [[Agent Console Settings Migration]] § "the normalizer IS the migration
  * logic".
  */
+/**
+ * The built-in Kiro agent's stored engine choice, with the one-time D1
+ * migration: before `kiroEngineDefaultMigrated` is set, a stored "v2" is the
+ * placeholder every load used to save (no released version shipped the
+ * setting), so it becomes "default". After the flag, the stored choice stands.
+ */
+function migrateKiroEngine(
+	rki: Record<string, unknown>,
+	raw: Record<string, unknown>,
+): KiroEngineSetting {
+	const stored = readKiroEngineSetting(rki);
+	if (raw.kiroEngineDefaultMigrated === true) return stored;
+	return stored === "v2" ? "default" : stored;
+}
+
 export function normalizeRawSettings(
 	raw: Record<string, unknown>,
 	D: AgentClientPluginSettings,
@@ -579,7 +597,7 @@ export function normalizeRawSettings(
 					: D.kiro.args,
 			env: normalizeEnvVars(rki.env),
 			defaultWorkingDirectory: str(rki.defaultWorkingDirectory, ""),
-			engine: resolveKiroEngine(rki),
+			engine: migrateKiroEngine(rki, raw),
 		},
 		opencode: {
 			id: D.opencode.id,
@@ -716,6 +734,7 @@ export function normalizeRawSettings(
 			? (raw.perLeafTabStates as PerLeafTabState[])
 			: undefined,
 		legacySessionsMigrated: bool(raw.legacySessionsMigrated, false),
+		kiroEngineDefaultMigrated: true,
 		settingsImportOfferShown: bool(raw.settingsImportOfferShown, false),
 		pluginUpdateCheck: parsePluginUpdateCache(raw.pluginUpdateCheck),
 		hasCompletedSetup: bool(raw.hasCompletedSetup, false),

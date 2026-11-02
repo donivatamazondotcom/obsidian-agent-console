@@ -42,13 +42,13 @@ Follow the browser-based login. That's all — the Kiro CLI section has **no API
 Kiro CLI natively supports ACP, so no additional adapter is required. Just point Agent Console at the `kiro-cli` binary and you're set.
 :::
 
-## Use the V3 engine (preview)
+## Choose the engine
 
-Kiro CLI has a newer engine, V3. Some agent configs, such as recent auto-sa releases, only load on V3. If your custom agent never shows up and chats run the default agent instead, switch to V3:
+Kiro CLI has two engines. Agent Console uses the newer one, V3, unless you pick otherwise. Some agent configs, such as recent auto-sa releases, only load on V3.
 
-1. In the **Kiro CLI** section, set **Kiro CLI engine** to **V3 (preview)**. If you run Kiro through a custom agent instead (for example one per Kiro profile), the same setting appears on that custom agent whenever its path is `kiro-cli`.
+1. In the **Kiro CLI** section, **Kiro CLI engine** has three choices: **Default (V3)**, **V3** and **V2 (legacy)**. Leave it on **Default (V3)** to follow Agent Console's default. If you run Kiro through a custom agent instead (for example one per Kiro profile), the same setting appears on that custom agent whenever its path is `kiro-cli`, and it starts on **Default (V3)** too.
 2. Keep your arguments as they are, for example `acp --agent auto-sa`. V3 doesn't accept `--agent`, `--model` or `--effort` on launch, so Agent Console passes them to each new chat instead. `--trust-all-tools` and `--trust-tools` are dropped; V3 uses its own permission rules. In a V3 chat, **Always allow** asks whether to remember the choice for this vault or this chat (see [Permission Controls](../usage/editing.md#permission-controls)).
-3. Start a new chat.
+3. A change applies to chats you start after it. Open chats keep the engine they started on.
 
 With V3, your agent's hooks (start, prompt and stop) run in Agent Console chats too. MCP servers that need sign-in prompt you as soon as Kiro reports them, and servers that fail to start are listed at the top of the chat (see [MCP Tools](../usage/mcp-tools.md#on-the-kiro-cli-v3-engine)).
 

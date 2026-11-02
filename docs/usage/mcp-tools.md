@@ -79,7 +79,7 @@ A few things to know:
 
 ### On the Kiro CLI V3 engine
 
-With the [V3 engine](/agent-setup/kiro-cli#use-the-v3-engine-preview), the
+With the [V3 engine](/agent-setup/kiro-cli#choose-the-engine), the
 prompt appears as soon as Kiro reports that a server needs sign-in, before
 any tool call fails. Click **Sign in**: Kiro prepares a fresh sign-in page,
 and it opens in your browser a moment later. If a sign-in page arrives

@@ -210,9 +210,10 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"settings.path.desc2":
 		'kiro-cli의 명령 이름 또는 경로입니다. "kiro-cli"만 입력하면 로그인 셸이 찾아 주고, 절대 경로를 입력할 수도 있습니다(보통 ~/.local/bin/kiro-cli).',
 	"settings.kiroEngine.name": "Kiro CLI 엔진",
-	"settings.kiroEngine.desc": "V3는 미리 보기입니다. --agent, --model, --effort 인수는 그대로 사용할 수 있으며, Agent Console이 채팅마다 V3에 전달합니다. 변경 후 시작하는 채팅부터 적용됩니다.",
-	"settings.kiroEngine.v2": "V2(현재)",
-	"settings.kiroEngine.v3": "V3(미리 보기)",
+	"settings.kiroEngine.desc": "V3가 기본 엔진입니다. --agent, --model, --effort 인수는 그대로 사용할 수 있으며, Agent Console이 채팅마다 V3에 전달합니다. 변경 후 시작하는 채팅부터 적용됩니다.",
+	"settings.kiroEngine.default": "기본값(V3)",
+	"settings.kiroEngine.v2": "V2(이전 버전)",
+	"settings.kiroEngine.v3": "V3",
 	"settings.arguments.desc2":
 		'인수를 공백이나 줄 바꿈으로 구분해 입력하세요. 공백이 포함된 인수는 따옴표로 감싸세요. Kiro CLI는 "acp" 하위 명령이 필요합니다.',
 	"settings.setup.desc8":

@@ -4,7 +4,12 @@
  */
 
 import type { AgentClientPluginSettings } from "../plugin";
-import { resolveKiroEngine, type KiroEngine } from "../acp/kiro-v3";
+import {
+	isKiroCliCommand,
+	readKiroEngineSetting,
+	resolveKiroEngine,
+	type KiroEngine,
+} from "../acp/kiro-v3";
 import type {
 	BaseAgentSettings,
 	ClaudeAgentSettings,
@@ -284,19 +289,29 @@ export function resolveCwdForAgent(
 
 /**
  * Kiro CLI engine for an agent: the built-in Kiro agent's setting or a custom
- * agent's, v2 for everything else. The one place that maps an agent id to its
- * engine for a NEW launch. A running tab reads `session.kiroEngine`, the
- * engine it was launched with, never this live setting (I235).
+ * agent's, v2 (no Kiro rewrite) for everything else. The one place that maps
+ * an agent id to its engine for a NEW launch. A running tab reads
+ * `session.kiroEngine`, the engine it was launched with, never this live
+ * setting (I235).
+ *
+ * A custom agent follows Default only when its command is kiro-cli, so a
+ * custom Claude or Codex agent never gets the V3 launch rewrite. A pinned
+ * "v3" is honored on any command.
  */
 export function resolveAgentKiroEngine(
 	settings: Pick<AgentClientPluginSettings, "kiro" | "customAgents">,
 	agentId: string,
 ): KiroEngine {
-	const source =
-		agentId === settings.kiro.id
-			? settings.kiro
-			: settings.customAgents.find((a) => a.id === agentId);
-	return source ? resolveKiroEngine(source) : "v2";
+	if (agentId === settings.kiro.id) return resolveKiroEngine(settings.kiro);
+	const custom = settings.customAgents.find((a) => a.id === agentId);
+	if (!custom) return "v2";
+	if (
+		readKiroEngineSetting(custom) === "default" &&
+		!isKiroCliCommand(custom.command)
+	) {
+		return "v2";
+	}
+	return resolveKiroEngine(custom);
 }
 
 /**
