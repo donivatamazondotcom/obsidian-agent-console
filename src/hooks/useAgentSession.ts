@@ -673,6 +673,10 @@ export function useAgentSession(
 				kiroCli:
 					agentClient.getInitializeResult()?.kiroCli ??
 					prev.kiroCli,
+				// I247: the header's Engine line for non-Kiro agents.
+				agentInfo:
+					agentClient.getInitializeResult()?.agentInfo ??
+					prev.agentInfo,
 				lastActivityAt: new Date(),
 			}));
 		},
@@ -917,6 +921,7 @@ export function useAgentSession(
 			capabilities: init.capabilities ?? prev.capabilities,
 			kiroEngine: init.kiroEngine ?? prev.kiroEngine,
 			kiroCli: init.kiroCli ?? prev.kiroCli,
+			agentInfo: init.agentInfo ?? prev.agentInfo,
 		}));
 	}, [agentClient]);
 

@@ -25,6 +25,7 @@ import { act, renderHook } from "@testing-library/react";
 import { useAgent } from "../useAgent";
 import { AcpClient } from "../../acp/acp-client";
 import { AcpTypeConverter } from "../../acp/type-converter";
+import { deriveHeaderEngine } from "../../resolvers/header-agent";
 import type AgentClientPlugin from "../../plugin";
 import type { ISettingsAccess } from "../../services/settings-service";
 import type { IVaultAccess } from "../../services/vault-service";
@@ -37,6 +38,12 @@ const CWD = "/vault";
 const RAW_INIT = {
 	protocolVersion: 1,
 	agentCapabilities: { loadSession: true, promptCapabilities: { image: true } },
+} as unknown as acp.InitializeResponse;
+
+/** claude-agent-acp's real initialize reply (probed 2026-11-02). */
+const CLAUDE_INIT = {
+	...RAW_INIT,
+	agentInfo: { name: "@agentclientprotocol/claude-agent-acp", title: "Claude Agent", version: "0.57.0" },
 } as unknown as acp.InitializeResponse;
 
 function makeSettings(command: string, engine: "v2" | "v3" = "v2") {
@@ -66,7 +73,7 @@ function makeSettings(command: string, engine: "v2" | "v3" = "v2") {
 	} as unknown as ISettingsAccess;
 }
 
-function makeClient() {
+function makeClient(rawInit: acp.InitializeResponse = RAW_INIT) {
 	const plugin = {
 		settings: { autoAllowPermissions: false, windowsWslMode: false },
 		manifest: { version: "0.0.0-test" },
@@ -83,7 +90,7 @@ function makeClient() {
 		internals.currentConfig = config;
 		internals.currentAgentId = AGENT;
 		internals.isInitializedFlag = true;
-		return AcpTypeConverter.toInitializeResult(RAW_INIT, config);
+		return AcpTypeConverter.toInitializeResult(rawInit, config);
 	});
 	const request = vi.fn(async (method: string) =>
 		method === "session/new" ? { sessionId: "s1" } : {},
@@ -173,6 +180,46 @@ describe("I247: kiroCli travels with the session", () => {
 		);
 		act(() => hook.result.current.applyInitCapabilities());
 		expect(hook.result.current.session.kiroCli).toBe(true);
+	});
+
+	// Smoke finding (2026-11-02): a Claude tab never showed its Engine line.
+	// `agentInfo` reached the session only when createSession was handed an
+	// init result; the lazy paths (initialize first, session later) dropped it.
+	it("lazy fresh tab: applyInitCapabilities carries the reported agentInfo", async () => {
+		const client = makeClient(CLAUDE_INIT);
+		await client.initialize(launchConfig("claude-agent-acp"));
+		const hook = renderHook(() =>
+			useAgent(client, makeSettings("claude-agent-acp"), vault, CWD, AGENT),
+		);
+		act(() => hook.result.current.applyInitCapabilities());
+		expect(deriveHeaderEngine(hook.result.current.session)).toEqual({
+			kind: "reported",
+			label: "Claude Agent 0.57.0",
+		});
+	});
+
+	it("session created after an earlier initialize carries agentInfo", async () => {
+		const client = makeClient(CLAUDE_INIT);
+		await client.initialize(launchConfig("claude-agent-acp"));
+		const hook = renderHook(() =>
+			useAgent(client, makeSettings("claude-agent-acp"), vault, CWD, AGENT),
+		);
+		await act(async () => {
+			await hook.result.current.createSession();
+		});
+		expect(hook.result.current.session.agentInfo?.title).toBe("Claude Agent");
+	});
+
+	it("restored tab: load carries agentInfo from the cached init result", async () => {
+		const client = makeClient(CLAUDE_INIT);
+		await client.initialize(launchConfig("claude-agent-acp"));
+		const hook = renderHook(() =>
+			useAgent(client, makeSettings("claude-agent-acp"), vault, CWD, AGENT),
+		);
+		await act(async () => {
+			await hook.result.current.updateSessionFromLoad("s1", undefined, undefined, undefined);
+		});
+		expect(hook.result.current.session.agentInfo?.version).toBe("0.57.0");
 	});
 
 	it("agent switch clears kiroCli", async () => {
