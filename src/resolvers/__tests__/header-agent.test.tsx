@@ -25,7 +25,7 @@ import { ChatHeader, type HeaderSegments } from "../../ui/ChatHeader";
 	unobserve() {}
 	disconnect() {}
 };
-vi.mock("obsidian", () => ({ setIcon: vi.fn() }));
+vi.mock("obsidian", () => ({ setIcon: vi.fn(), setTooltip: vi.fn() }));
 
 const modes = (current: string, ids: string[]): SessionModeState => ({
 	currentModeId: current,
@@ -163,7 +163,7 @@ describe("ChatHeader agent segment", () => {
 		);
 		// One tooltip only (INV-9): the title slot's aria-label carries it.
 		const label = container
-			.querySelector(".agent-client-chat-view-header-title")
+			.querySelector(".acp-header-branded")
 			?.getAttribute("aria-label");
 		expect(label).toContain("Auto SA");
 		expect(label).toContain("kiro_default");

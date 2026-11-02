@@ -759,7 +759,7 @@ export function ChatPanel({
 	 * - engine: launched engine + kiroCli from the acp/ edge, else agentInfo
 	 * - model:   ACP-sourced (session.models), null while connecting
 	 * - effort / mode: ACP-sourced config options (mode hidden on Kiro)
-	 * - folder: the tab's agentCwd, hidden when it is the vault folder
+	 * - folder: the tab's agentCwd, on every tab
 	 *
 	 * Both ACP segments null = "Connecting…" placeholder rendered by ChatHeader.
 	 */
@@ -781,7 +781,7 @@ export function ChatPanel({
 			modes: session.modes,
 			configOptions: session.configOptions,
 		});
-		const folder = deriveHeaderFolder({ cwd: agentCwd, vaultRoot });
+		const folder = deriveHeaderFolder({ cwd: agentCwd });
 
 		// Confirmed model (SDK 0.24+), then legacy models, then the `model`
 		// config option (Kiro CLI V3 sends only that).
@@ -814,7 +814,6 @@ export function ChatPanel({
 		session.kiroEngine,
 		session.kiroCli,
 		agentCwd,
-		vaultRoot,
 		session.models,
 		session.modes,
 		session.configOptions,

@@ -27,9 +27,10 @@ import { ChatHeader, type HeaderSegments } from "../ChatHeader";
 	unobserve() {}
 	disconnect() {}
 };
-vi.mock("obsidian", () => ({ setIcon: vi.fn() }));
+const h = vi.hoisted(() => ({ setTooltip: vi.fn() }));
+vi.mock("obsidian", () => ({ setIcon: vi.fn(), setTooltip: h.setTooltip }));
 
-function tooltipFor(overrides: Record<string, unknown>): string[] {
+function renderHeader(overrides: Record<string, unknown>) {
 	const segments = {
 		plugin: "Agent Console",
 		profile: "Auto SA",
@@ -52,9 +53,14 @@ function tooltipFor(overrides: Record<string, unknown>): string[] {
 			onShowMenu={vi.fn()}
 		/>,
 	);
+	return container;
+}
+
+/** The tooltip is on the header TEXT, so it opens next to it (I247 smoke H4). */
+function tooltipFor(overrides: Record<string, unknown>): string[] {
 	const tip =
-		container
-			.querySelector(".agent-client-chat-view-header-title")
+		renderHeader(overrides)
+			.querySelector(".acp-header-branded")
 			?.getAttribute("aria-label") ?? "";
 	return tip.split("\n");
 }
@@ -131,5 +137,26 @@ describe("I247 header tooltip lines", () => {
 			"Auto SA couldn't load, so Default is running instead",
 			"Engine: Kiro CLI V3",
 		]);
+	});
+
+	// Smoke H4 (2026-11-02): the tooltip opened far from the pointer because
+	// it hung off the full-width title slot, and its text was centered.
+	it("tooltip sits on the header text, not the full-width slot", () => {
+		const container = renderHeader({ engine: { kind: "kiroCli", engine: "v3" } });
+		expect(
+			container.querySelector(".agent-client-chat-view-header-title")?.hasAttribute("aria-label"),
+		).toBe(false);
+		expect(container.querySelector(".acp-header-branded")?.getAttribute("aria-label")).toBe(
+			"Agent: Auto SA\nEngine: Kiro CLI V3",
+		);
+	});
+
+	it("tooltip opens below the text with the left-aligned header class", () => {
+		h.setTooltip.mockClear();
+		const container = renderHeader({ engine: { kind: "kiroCli", engine: "v3" } });
+		const target = container.querySelector(".acp-header-branded");
+		const call = h.setTooltip.mock.calls.find((c) => c[0] === target);
+		expect(call?.[1]).toBe("Agent: Auto SA\nEngine: Kiro CLI V3");
+		expect(call?.[2]).toEqual({ placement: "bottom", classes: ["acp-header-tooltip"] });
 	});
 });

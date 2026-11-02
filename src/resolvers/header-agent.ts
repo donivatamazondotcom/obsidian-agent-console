@@ -142,17 +142,11 @@ export function deriveHeaderMode(input: {
 	return readSessionModes(input)?.current.name ?? null;
 }
 
-function trimSeparators(path: string): string {
-	return path.replace(/[\\/]+$/, "");
-}
-
-/** Folder line: the tab's folder when it isn't the vault folder, or null. */
-export function deriveHeaderFolder(input: {
-	cwd?: string;
-	vaultRoot: string;
-}): string | null {
-	if (!input.cwd) return null;
-	return trimSeparators(input.cwd) === trimSeparators(input.vaultRoot)
-		? null
-		: input.cwd;
+/**
+ * Folder line: the tab's folder, or null when none is known. Shown on every
+ * tab, the vault folder included, because the path is visible nowhere else
+ * (I247 smoke H3).
+ */
+export function deriveHeaderFolder(input: { cwd?: string }): string | null {
+	return input.cwd || null;
 }

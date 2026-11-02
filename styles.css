@@ -540,6 +540,11 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	white-space: nowrap;
 }
 
+/* Header tooltip lines read as a list, so align them left (I247). */
+.tooltip.acp-header-tooltip {
+	text-align: left;
+}
+
 .agent-client-chat-view-header-update {
 	flex: 0 1 auto;
 	padding: 2px 8px;

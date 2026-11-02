@@ -104,18 +104,18 @@ describe("deriveHeaderMode", () => {
 });
 
 describe("deriveHeaderFolder", () => {
-	it("the vault folder is not shown", () => {
-		expect(deriveHeaderFolder({ cwd: "/Users/me/vault", vaultRoot: "/Users/me/vault" })).toBeNull();
-		expect(deriveHeaderFolder({ cwd: "/Users/me/vault/", vaultRoot: "/Users/me/vault" })).toBeNull();
+	// Smoke H3 (2026-11-02): show the folder on every tab. The vault folder is
+	// shown too, since its path is visible nowhere else.
+	it("the vault folder is shown", () => {
+		expect(deriveHeaderFolder({ cwd: "/Users/me/vault" })).toBe("/Users/me/vault");
 	});
 
 	it("another folder is shown as given", () => {
-		expect(deriveHeaderFolder({ cwd: "/Users/me/project", vaultRoot: "/Users/me/vault" })).toBe(
-			"/Users/me/project",
-		);
+		expect(deriveHeaderFolder({ cwd: "/Users/me/project" })).toBe("/Users/me/project");
 	});
 
-	it("no folder: null", () => {
-		expect(deriveHeaderFolder({ cwd: "", vaultRoot: "/Users/me/vault" })).toBeNull();
+	it("no folder known: null", () => {
+		expect(deriveHeaderFolder({ cwd: "" })).toBeNull();
+		expect(deriveHeaderFolder({})).toBeNull();
 	});
 });
