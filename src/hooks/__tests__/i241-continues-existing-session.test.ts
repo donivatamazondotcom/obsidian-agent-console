@@ -1,7 +1,8 @@
 /**
  * I241 — the two halves of the "first message" decision.
  *
- * 1. `isFirstMessageOfSession` truth table (pure resolver).
+ * 1. `decideFirstMessage` truth table with no fallback (pure resolver; the
+ *    fallback rows live in resolvers/__tests__/first-message.test.ts, I265).
  * 2. `useLazySession.continuesExistingSession`, the owner's answer: true for a
  *    restored id that is pending or loaded, false after a failed load falls
  *    back to a new session, and false after reset (New chat).
@@ -9,17 +10,28 @@
 import { describe, it, expect, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 
-import { isFirstMessageOfSession } from "../../resolvers/first-message";
+import {
+	decideFirstMessage,
+	isFirstMessageOfChat,
+} from "../../resolvers/first-message";
 import { useLazySession } from "../useLazySession";
 
-describe("isFirstMessageOfSession", () => {
+describe("decideFirstMessage without a fallback (I241)", () => {
 	it.each([
 		[0, false, true],
 		[0, true, false],
 		[3, false, false],
 		[3, true, false],
 	])("transcript %i, continues %s → %s", (transcriptLength, continuesExistingSession, expected) => {
-		expect(isFirstMessageOfSession({ transcriptLength, continuesExistingSession })).toBe(expected);
+		expect(
+			isFirstMessageOfChat(
+				decideFirstMessage({
+					transcriptLength,
+					continuesExistingSession,
+					freshSessionAfterFallback: false,
+				}),
+			),
+		).toBe(expected);
 	});
 });
 

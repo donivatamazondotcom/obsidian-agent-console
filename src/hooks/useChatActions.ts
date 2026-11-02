@@ -6,7 +6,11 @@
  */
 
 import { useState, useCallback, useRef } from "react";
-import { isFirstMessageOfSession } from "../resolvers/first-message";
+import {
+	decideFirstMessage,
+	isFirstMessageOfChat,
+	sendsSystemInstruction as sendsSystemInstructionFor,
+} from "../resolvers/first-message";
 import { Notice, Platform } from "obsidian";
 
 import type AgentClientPlugin from "../plugin";
@@ -189,7 +193,13 @@ export function useChatActions(
 	// (after this render's closure was made).
 	const fallbackMessagesRef = useRef(messages);
 	fallbackMessagesRef.current = messages;
+	// Set when a fallback started a fresh agent session that hasn't been sent
+	// to yet (I265): its first send carries the system instruction even though
+	// the chat continues on screen. Same lifecycle as the fallback transcript:
+	// armed by the lazy owner, dropped on reset, consumed once by the next send.
+	const fallbackSessionStartRef = useRef(false);
 	const armFallbackCarryOver = useCallback((reason: SessionFallbackReason) => {
+		fallbackSessionStartRef.current = true;
 		const onScreen = fallbackMessagesRef.current;
 		// Always plain text, like the agent-switch path. The fallback fires
 		// mid-acquisition, before React holds the new process's capabilities:
@@ -208,6 +218,7 @@ export function useChatActions(
 		);
 	}, []);
 	const clearFallbackCarryOver = useCallback(() => {
+		fallbackSessionStartRef.current = false;
 		if (carryOverBlocksRef.current?.kind === "fallback") {
 			carryOverBlocksRef.current = null;
 		}
@@ -268,11 +279,18 @@ export function useChatActions(
 			agent.clearError();
 			setAgentUpdateNotification(null);
 
-			const isFirstMessage = isFirstMessageOfSession({
+			// One decision, two gates (I241, I265): chat-start extras vs the
+			// system instruction a fresh agent session needs.
+			const firstMessage = decideFirstMessage({
 				transcriptLength: messages.length,
 				continuesExistingSession:
 					lazyContinuesSessionRef?.current?.() ?? false,
+				freshSessionAfterFallback: fallbackSessionStartRef.current,
 			});
+			const isFirstMessage = isFirstMessageOfChat(firstMessage);
+			const sendsSystemInstruction = sendsSystemInstructionFor(firstMessage);
+			// Consumed once, like the carry-over below.
+			fallbackSessionStartRef.current = false;
 
 			// Split attachments by kind
 			const images: ImagePromptContent[] = [];
@@ -377,6 +395,7 @@ export function useChatActions(
 					resourceLinks:
 						resourceLinks.length > 0 ? resourceLinks : undefined,
 					isFirstMessage,
+					sendsSystemInstruction,
 					carryOverBlocks: carryOverForThisSend,
 				});
 
