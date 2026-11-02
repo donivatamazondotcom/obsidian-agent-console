@@ -515,14 +515,21 @@ describe("I246 useChatActions: fallback carry-over", () => {
 		expect(sendMessage.mock.calls[0][1].carryOverBlocks).toBeUndefined();
 	});
 
-	it("uses the live session's embedded-context support", async () => {
+	it("always sends plain text, even when the session advertised embedded context", async () => {
+		// Smoke 11/02 (A5): a soft reload from Kiro V3 (embeddedContext: true)
+		// to V2 (false) fires the fallback before React holds V2's
+		// capabilities. A resource block armed then was dropped by V2, so the
+		// agent saw only the hint and answered NONE. Plain text works on every
+		// agent, the same choice the agent-switch path makes.
 		const { result, sendMessage } = mountActions(REMEMBER_7, true);
 		act(() => result.current.armFallbackCarryOver("unavailable"));
 		await act(async () => {
 			await result.current.handleSendMessage("hi");
 		});
 		const blocks = sendMessage.mock.calls[0][1].carryOverBlocks ?? [];
-		expect(blocks[0].type).toBe("resource");
+		expect(blocks).toHaveLength(1);
+		expect(blocks[0].type).toBe("text");
+		expect(textOf(blocks[0])).toContain("User: Remember the number 7.");
 	});
 
 	it("New chat drops an armed fallback transcript but keeps switch blocks", async () => {

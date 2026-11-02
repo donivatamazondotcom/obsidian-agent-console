@@ -185,15 +185,19 @@ export function useChatActions(
 	const setCarryOverBlocks = useCallback((blocks: import("../types/chat").PromptContent[] | null) => {
 		carryOverBlocksRef.current = blocks ? { blocks, kind: "switch" } : null;
 	}, []);
-	// Latest transcript and prompt capabilities, read when a fallback fires
-	// inside an acquisition (after this render's closure was made).
-	const fallbackSourceRef = useRef({ messages, session });
-	fallbackSourceRef.current = { messages, session };
+	// Latest transcript, read when a fallback fires inside an acquisition
+	// (after this render's closure was made).
+	const fallbackMessagesRef = useRef(messages);
+	fallbackMessagesRef.current = messages;
 	const armFallbackCarryOver = useCallback((reason: SessionFallbackReason) => {
-		const { messages: onScreen, session: live } = fallbackSourceRef.current;
+		const onScreen = fallbackMessagesRef.current;
+		// Always plain text, like the agent-switch path. The fallback fires
+		// mid-acquisition, before React holds the new process's capabilities:
+		// a soft reload from Kiro V3 (embeddedContext) to V2 (none) would
+		// otherwise arm a resource block that V2 drops (smoke 11/02, A5).
 		const blocks = buildCarryOverBlocks(
 			onScreen,
-			live.promptCapabilities?.embeddedContext ?? false,
+			false,
 			CARRY_OVER_BUDGET,
 			"fallback",
 		);
