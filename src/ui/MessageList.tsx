@@ -441,7 +441,11 @@ export function MessageList({
 									? t("chat.messages.sendToConnectTo", {
 											agent: agentLabel,
 										})
-									: !isSessionLive(lazyState)
+									: lazyState === "error"
+										? t("chat.messages.connectFailed", {
+												agent: agentLabel,
+											})
+										: !isSessionLive(lazyState)
 										? t("chat.messages.connectingTo", {
 												agent: agentLabel,
 											})

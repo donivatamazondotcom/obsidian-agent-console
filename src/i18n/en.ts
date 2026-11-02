@@ -655,6 +655,8 @@ export const en = {
 	"chat.messages.waitingForPermission": "Waiting for permission...",
 	"chat.messages.restoringSession": "Restoring session...",
 	"chat.messages.connectingTo": "Connecting to {agent}...",
+	"chat.messages.connectFailed":
+		"Couldn't connect to {agent}. Send a message to try again.",
 	"chat.messages.sendToConnectTo": "Send a message to connect to {agent}...",
 	"chat.messages.startConversation": "Start a conversation with {agent}...",
 	"chat.messages.copyMessage": "Copy message",
