@@ -41,6 +41,7 @@ src/
 │   ├── acp-handler.ts           # SDK event handler + sessionId filter + listener broadcast
 │   ├── mcp-auth-parsers.ts      # Params parsers for _kiro.dev/mcp/* extension notifications (validate at edge)
 │   ├── claude-code-replay.ts    # Claude Code replay shape: `[@name](uri)` mention text back to a resource_link chip (I242)
+│   ├── kiro-startup-failure.ts  # D3: an older kiro-cli rejecting --agent-engine=v3 (exit code + stderr, never the version) → "Kiro CLI needs an update"
 │   ├── kiro-v3.ts               # Kiro CLI V3 adapter: launch-arg rewrite, initialize capabilities (hooks opt-in), per-session mode/model/effort, resource-link adapter + its `<attached_file>` replay inverse (I220/I222)
 │   ├── type-converter.ts        # ACP SDK ↔ internal type conversion; capability normalizer (toAgentCapabilities)
 │   ├── permission-handler.ts    # Permission queue, auto-approve, Promise resolution

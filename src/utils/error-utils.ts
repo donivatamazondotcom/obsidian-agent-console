@@ -279,3 +279,25 @@ export function getCommandNotFoundSuggestion(
 		return t("chat.acpErrors.pathHintUnix", { command: commandName });
 	}
 }
+
+// ============================================================================
+// Startup errors with a known reason
+// ============================================================================
+
+/**
+ * An agent failed to start for a reason the client recognized (D3: an older
+ * kiro-cli without the V3 engine). Carries the text the chat shows, so
+ * callers display it instead of a generic "Session Creation Failed".
+ */
+export class AgentStartupError extends Error {
+	readonly info: ErrorInfo;
+	constructor(info: ErrorInfo) {
+		super(info.message);
+		this.name = AgentStartupError.name;
+		this.info = info;
+	}
+}
+
+export function isAgentStartupError(error: unknown): error is AgentStartupError {
+	return error instanceof AgentStartupError;
+}

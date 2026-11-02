@@ -51,6 +51,10 @@ import {
 	parseMcpOauthRequest,
 	parseMcpServerInitialized,
 } from "./mcp-auth-parsers";
+import {
+	classifyKiroStartupFailure,
+	kiroEngineUnsupportedInfo,
+} from "./kiro-startup-failure";
 import type { McpAuthEvent } from "../types/mcp-auth";
 import { getLogger, Logger } from "../utils/logger";
 import { toTurnStopKind } from "./stop-kind";
@@ -68,6 +72,7 @@ import {
 	prependPath,
 } from "../utils/paths";
 import {
+	AgentStartupError,
 	extractStderrErrorHint,
 	getSpawnErrorInfo,
 	getCommandNotFoundSuggestion,
@@ -122,6 +127,9 @@ export interface TerminalOutputResult {
 /**
  * ACP client for agent communication and process lifecycle management.
  */
+/** How long a failed initialize waits for the process to close (D3). */
+const STARTUP_CLOSE_WAIT_MS = 1000;
+
 export class AcpClient {
 	// Connection & process
 	private connection: acp.ClientConnection | null = null;
@@ -366,6 +374,18 @@ export class AcpClient {
 
 		const agentLabel = `${config.displayName} (${config.id})`;
 
+		// D3: this process's own stderr and exit code until initialize settles,
+		// so a startup failure can be told apart from others (an older
+		// kiro-cli rejecting --agent-engine). Kept apart from recentStderr,
+		// which spans prompts and other processes.
+		const startup = { stderr: "", exitCode: null as number | null, settled: false };
+		const startupClosed = new Promise<void>((resolve) => {
+			agentProcess.once("close", (code) => {
+				startup.exitCode = code;
+				resolve();
+			});
+		});
+
 		// Set up process event handlers
 		agentProcess.on("spawn", () => {
 			this.logger.log(
@@ -448,6 +468,9 @@ export class AcpClient {
 		agentProcess.stderr?.setEncoding("utf8");
 		agentProcess.stderr?.on("data", (data) => {
 			this.logger.log(`${agentLabel} stderr:`, data);
+			if (!startup.settled && startup.stderr.length < 8192) {
+				startup.stderr += String(data);
+			}
 			// Keep a rolling window of recent stderr for error diagnostics
 			this.recentStderr += data;
 			if (this.recentStderr.length > 8192) {
@@ -523,6 +546,7 @@ export class AcpClient {
 
 			this.isInitializedFlag = true;
 			this.currentAgentId = config.id;
+			startup.settled = true;
 
 			return AcpTypeConverter.toInitializeResult(initResult, config);
 		} catch (error) {
@@ -532,8 +556,46 @@ export class AcpClient {
 			this.isInitializedFlag = false;
 			this.currentAgentId = null;
 
-			throw error;
+			const startupError = await this.recognizeStartupFailure(
+				config,
+				startup,
+				startupClosed,
+			);
+			startup.settled = true;
+			throw startupError ?? error;
 		}
+	}
+
+	/**
+	 * D3: a V3 launch the CLI rejected becomes an AgentStartupError with the
+	 * "update kiro-cli, or switch to V2" text. Waits briefly for the process
+	 * to close, so its exit code and the last of its stderr are in; the SDK
+	 * rejects initialize as soon as stdout ends, a little before that.
+	 */
+	private async recognizeStartupFailure(
+		config: AgentConfig,
+		startup: { stderr: string; exitCode: number | null },
+		closed: Promise<void>,
+	): Promise<AgentStartupError | null> {
+		if (config.kiroEngine !== "v3") return null;
+		let timer: number | undefined;
+		await Promise.race([
+			closed,
+			new Promise<void>((resolve) => {
+				timer = window.setTimeout(resolve, STARTUP_CLOSE_WAIT_MS);
+			}),
+		]);
+		window.clearTimeout(timer);
+		const failure = classifyKiroStartupFailure({
+			launchedEngine: config.kiroEngine,
+			exitCode: startup.exitCode,
+			stderr: startup.stderr,
+		});
+		if (failure !== "engine-unsupported") return null;
+		this.logger.warn(
+			"Kiro CLI rejected --agent-engine=v3 (older CLI without the V3 engine)",
+		);
+		return new AgentStartupError(kiroEngineUnsupportedInfo());
 	}
 
 	private getSafeConfigForLog(config: AgentConfig): {

@@ -19,7 +19,10 @@ import type { AcpClient } from "../acp/acp-client";
 import type { ISettingsAccess } from "../services/settings-service";
 import type { ErrorInfo } from "../types/errors";
 import { getLogger } from "../utils/logger";
-import { extractErrorMessage } from "../utils/error-utils";
+import {
+	extractErrorMessage,
+	isAgentStartupError,
+} from "../utils/error-utils";
 import {
 	type AgentDisplayInfo,
 	getDefaultAgentId,
@@ -111,6 +114,12 @@ export interface UseAgentSessionReturn {
 	/** Propagate cached initialize() capabilities into session state
 	 * without creating a session (I54 — fresh-tab image paste). */
 	applyInitCapabilities: () => void;
+	/**
+	 * D3: an eager initialize failed. A failure with a known reason (older
+	 * kiro-cli without V3) puts the tab in error and shows it; returns false
+	 * for any other failure, which stays non-fatal.
+	 */
+	applyInitFailure: (error: unknown) => boolean;
 
 	// Config
 	setMode: (modeId: string) => Promise<void>;
@@ -446,6 +455,11 @@ export function useAgentSession(
 				return sessionResult.sessionId;
 			} catch (error) {
 				setSession((prev) => ({ ...prev, state: "error" }));
+				// D3: a startup failure with a known reason shows that reason.
+				if (isAgentStartupError(error)) {
+					setErrorInfo(error.info);
+					return null;
+				}
 				setErrorInfo({
 					title: t("chat.acpErrors.sessionCreationFailedTitle"),
 					message: t("chat.acpErrors.sessionCreationFailed", {
@@ -861,6 +875,16 @@ export function useAgentSession(
 	// WITHOUT creating a session. Lets a fresh lazy tab enable
 	// capability-gated affordances (image paste) after eager-init
 	// completes but before the user types / connects (I54).
+	const applyInitFailure = useCallback(
+		(error: unknown): boolean => {
+			if (!isAgentStartupError(error)) return false;
+			setSession((prev) => ({ ...prev, state: "error" }));
+			setErrorInfo(error.info);
+			return true;
+		},
+		[setErrorInfo],
+	);
+
 	const applyInitCapabilities = useCallback(() => {
 		const init = agentClient.getInitializeResult();
 		if (!init) return;
@@ -936,6 +960,7 @@ export function useAgentSession(
 		setAgentWithoutSession,
 		updateSessionFromLoad,
 		applyInitCapabilities,
+		applyInitFailure,
 		setMode,
 		setModel,
 		setConfigOption,

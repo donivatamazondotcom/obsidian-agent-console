@@ -930,6 +930,11 @@ export const en = {
 		"Failed to create new session: {message}",
 	"chat.acpErrors.checkConfigTryAgain":
 		"Please check the agent configuration and try again.",
+	"chat.acpErrors.kiroEngineUnsupportedTitle": "Kiro CLI needs an update",
+	"chat.acpErrors.kiroEngineUnsupported":
+		"This version of Kiro CLI doesn't support the V3 engine, so the chat couldn't start.",
+	"chat.acpErrors.kiroEngineUnsupportedSuggestion":
+		"Update Kiro CLI (kiro-cli update), or set {setting} to {option} in this agent's settings.",
 	"chat.history.failedFetch": "Failed to fetch sessions: {message}",
 	"chat.history.failedLoadMore": "Failed to load more sessions: {message}",
 	"chat.history.failedRestore": "Failed to restore session: {message}",
