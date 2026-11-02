@@ -24,4 +24,11 @@ export interface ContextNote {
 	source: ContextNoteSource;
 	/** Only consulted when source === 'agent'. False until user opens the note. */
 	seen: boolean;
+	/**
+	 * True once this note's body has reached the agent in this session, via a
+	 * Channel 1 first-appearance embed or a Channel 3 mention inline. Flipped
+	 * only on send success; never flipped back. Absent (pre-hydration
+	 * persisted data) reads as false. See [[ACP Context Note Hydration]] H6, H11.
+	 */
+	hydrated?: boolean;
 }

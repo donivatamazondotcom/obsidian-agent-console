@@ -461,8 +461,8 @@ describe("SessionStorage context-note persistence", () => {
 	it("round-trips crystallized notes via the session file", async () => {
 		const storage = makeStorage();
 		const notes: ContextNote[] = [
-			{ path: "Design Doc.md", source: "user", seen: false },
-			{ path: "API Spec.md", source: "mention", seen: false },
+			{ path: "Design Doc.md", source: "user", seen: false, hydrated: true },
+			{ path: "API Spec.md", source: "mention", seen: false, hydrated: false },
 		];
 		await storage.saveSessionMessages("sess-1", "agent-1", [msg], notes);
 		expect(await storage.loadSessionContextNotes("sess-1")).toEqual(notes);
@@ -679,7 +679,7 @@ describe("SessionStorage loadSessionContextNotes restore-time false-negative (TP
 	const SID = "sess-ctx-flaky";
 	const FP = `test-config/plugins/agent-console/sessions/${SID}.json`;
 	const NOTES: ContextNote[] = [
-		{ path: "Design Doc.md", source: "user", seen: false },
+		{ path: "Design Doc.md", source: "user", seen: false, hydrated: true },
 	];
 	const onDisk = JSON.stringify({
 		version: 1,

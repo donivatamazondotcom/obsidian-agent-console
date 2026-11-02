@@ -354,6 +354,7 @@ export function useChatActions(
 							path: activeNotePath,
 							source: "auto-default",
 							seen: false,
+							hydrated: false,
 						});
 					}
 				}
@@ -370,6 +371,7 @@ export function useChatActions(
 					workingDirectory: agentCwd || vaultPath,
 					vaultRootPath: vaultRoot,
 					contextNotes: notesToSend,
+					onContextDelivered: contextNotes.markHydrated,
 					selection,
 					images: images.length > 0 ? images : undefined,
 					resourceLinks:

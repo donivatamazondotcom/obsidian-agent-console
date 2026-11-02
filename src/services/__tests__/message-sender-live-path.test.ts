@@ -139,29 +139,10 @@ describe("live path — mentioned notes (Channel 3)", () => {
 		).toBe(true);
 	});
 
-	it("truncates a long mention at maxNoteLength and appends the truncation note (embedded)", async () => {
-		const { vaultAccess, mentionService } = vaultWith({
-			"Big.md": "abcdefghij", // 10 chars
-		});
-		const r = await preparePrompt(
-			{
-				...base,
-				message: "@[[Big]]",
-				supportsEmbeddedContext: true,
-				maxNoteLength: 4,
-			},
-			vaultAccess,
-			mentionService,
-		);
-		const res = r.agentContent.find((b) => b.type === "resource") as {
-			resource: { text: string };
-		};
-		expect(res.resource.text).toBe(
-			"abcd\n\n[Note: Truncated from 10 to 4 characters]",
-		);
-	});
-
-	it("truncates a long mention and appends the truncation note (XML text)", async () => {
+	// H10 ([[ACP Context Note Hydration]]): the live path no longer truncates.
+	// The old 10K cap and `maxNoteLength` apply only to the legacy autoMention
+	// paths; gate behavior is covered in context-note-hydration.test.ts.
+	it("ignores maxNoteLength on the live path — no truncation (H10)", async () => {
 		const { vaultAccess, mentionService } = vaultWith({
 			"Big.md": "abcdefghij",
 		});
@@ -176,31 +157,11 @@ describe("live path — mentioned notes (Channel 3)", () => {
 			mentionService,
 		);
 		expect(textBlocks(r.agentContent)).toContain(
-			'<obsidian_mentioned_note ref="file:///vault/Big.md">\nabcd\n\n[Note: Truncated from 10 to 4 characters]\n</obsidian_mentioned_note>',
+			'<obsidian_mentioned_note ref="file:///vault/Big.md">\nabcdefghij\n</obsidian_mentioned_note>',
 		);
 	});
 
-	it("does NOT truncate content exactly at maxNoteLength (boundary)", async () => {
-		const { vaultAccess, mentionService } = vaultWith({
-			"Edge.md": "abcd", // exactly 4
-		});
-		const r = await preparePrompt(
-			{
-				...base,
-				message: "@[[Edge]]",
-				supportsEmbeddedContext: true,
-				maxNoteLength: 4,
-			},
-			vaultAccess,
-			mentionService,
-		);
-		const res = r.agentContent.find((b) => b.type === "resource") as {
-			resource: { text: string };
-		};
-		expect(res.resource.text).toBe("abcd");
-	});
-
-	it("applies the 10000-char default when maxNoteLength is omitted", async () => {
+	it("inlines a 10,001-char mention whole — the old 10K default no longer applies (H10)", async () => {
 		const content = "x".repeat(10001);
 		const { vaultAccess, mentionService } = vaultWith({
 			"Huge.md": content,
@@ -213,10 +174,7 @@ describe("live path — mentioned notes (Channel 3)", () => {
 		const res = r.agentContent.find((b) => b.type === "resource") as {
 			resource: { text: string };
 		};
-		expect(res.resource.text).toBe(
-			"x".repeat(10000) +
-				"\n\n[Note: Truncated from 10001 to 10000 characters]",
-		);
+		expect(res.resource.text).toBe(content);
 	});
 
 	it("skips a mention whose note fails to read, keeping the user message", async () => {

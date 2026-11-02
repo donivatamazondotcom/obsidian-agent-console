@@ -35,7 +35,7 @@ The notes you've pinned are saved with the chat session. Quit and reopen Obsidia
 
 ## Long notes and selections
 
-When a pinned note or a selected passage is very long, Agent Console sends a truncated preview (up to 10,000 characters) plus a link back to the full note, so the agent can read the rest on demand. This is automatic — you don't need to manage it.
+The first time you send a message with a pinned note, Agent Console includes the note's content, so the agent can start working without opening the file. After that, the pin is sent as a link only, which keeps long chats light. Notes longer than 16,000 characters are always sent as a link, and the agent reads them when it needs to. A selected passage is sent as text, up to 10,000 characters. All of this is automatic — you don't need to manage it.
 
 ::: tip Context strip vs context files
 The context strip is a **plugin** feature — per-chat notes you pin in the moment. [Context files](/usage/context-files) (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`) are an **agent** feature — standing instructions the agent reads at the start of every session. Use the strip for "look at these notes for this conversation"; use context files for "always remember this."

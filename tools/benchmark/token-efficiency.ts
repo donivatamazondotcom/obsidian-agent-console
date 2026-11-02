@@ -57,7 +57,7 @@ function main(): void {
 			`> **Headline:** Over a typical multi-turn conversation (K=${s1.K}, single median context note), Agent Console's reference-only context uses **${s1.b1VsB0.toFixed(0)}% fewer context tokens** than injecting the note's full content on every message.\n`,
 		);
 		log(
-			"> Scope: multi-turn only (one-shots have no re-injection). Context-window axis (caching-independent). HYD shown as a model row — hydration is not yet shipped and is token-neutral vs reference-only; sell it on latency/determinism, not tokens.\n",
+			"> Scope: multi-turn only (one-shots have no re-injection). Context-window axis (caching-independent). HYD = shipped first-appearance hydration (notes ≤ 16K chars). It is token-neutral vs reference-only when the note is read; sell it on latency/determinism, not tokens.\n",
 		);
 	}
 

@@ -22,6 +22,12 @@ export interface BuildContextBlocksInput {
 	} | null;
 	useEmbeddedContext: boolean;
 	vaultPath: string;
+	/**
+	 * Channel 1 bodies to embed this turn, keyed by vault-relative path
+	 * ([[ACP Context Note Hydration]] H1). The caller reads and gates them;
+	 * this builder stays pure. A note absent from the map is reference-only.
+	 */
+	hydrationBodies?: ReadonlyMap<string, string>;
 }
 
 /** Derive display name from path (basename without extension). */
@@ -39,7 +45,8 @@ function buildFileUri(vaultPath: string, notePath: string): string {
 /**
  * Build prompt content blocks for crystallized context notes + selection.
  *
- * Channel 1 (crystallized): reference-only (Decision #23).
+ * Channel 1 (crystallized): reference-only (Decision #23), except a note in
+ * `hydrationBodies`, whose body is embedded once (Hydration H1).
  * Channel 2 (selection): inlined content, hard hint.
  */
 export function buildContextBlocks(input: BuildContextBlocksInput): PromptContent[] {
@@ -47,6 +54,32 @@ export function buildContextBlocks(input: BuildContextBlocksInput): PromptConten
 
 	// Channel 1: Crystallized notes
 	for (const note of input.contextNotes) {
+		const body = input.hydrationBodies?.get(note.path);
+		if (body !== undefined) {
+			const ref = buildFileUri(input.vaultPath, note.path);
+			if (input.useEmbeddedContext) {
+				// Body + the usual link. The link keeps the ref handle on every
+				// message and is what replays as the pill's file chip (I222 a3,
+				// I242); the resource carries the one-time body.
+				blocks.push({
+					type: "resource",
+					resource: { uri: ref, mimeType: "text/markdown", text: body },
+					annotations: { audience: ["assistant"], priority: 0.6 },
+				});
+				blocks.push({
+					type: "resource_link",
+					uri: ref,
+					name: displayName(note.path),
+					mimeType: "text/markdown",
+				});
+			} else {
+				blocks.push({
+					type: "text",
+					text: `<obsidian_context_note ref="${ref}">\nThe user has pinned this note as context for this chat. Its content follows as a point-in-time snapshot. Use the Read tool with the ref path above for the current version if needed.\n\n${body}\n</obsidian_context_note>`,
+				});
+			}
+			continue;
+		}
 		if (input.useEmbeddedContext) {
 			blocks.push({
 				type: "resource_link",
