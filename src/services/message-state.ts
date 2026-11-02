@@ -50,7 +50,22 @@ export function mergeToolCallContent(
 			);
 		}
 
-		mergedContent = [...mergedContent, ...newContent];
+		// I255: a terminal is identified by its terminalId. Agents (Kiro V3)
+		// re-send the same terminal item on each tool_call_update; appending
+		// it again rendered the output twice. Keep the first occurrence.
+		const seenTerminals = new Set(
+			mergedContent.flatMap((item) =>
+				item.type === "terminal" ? [item.terminalId] : [],
+			),
+		);
+		const additions = newContent.filter((item) => {
+			if (item.type !== "terminal") return true;
+			if (seenTerminals.has(item.terminalId)) return false;
+			seenTerminals.add(item.terminalId);
+			return true;
+		});
+
+		mergedContent = [...mergedContent, ...additions];
 	}
 
 	return {
