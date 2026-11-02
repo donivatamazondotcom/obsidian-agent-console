@@ -13,6 +13,15 @@
  */
 
 import type { ChatMessage, PromptContent } from "../types/chat";
+import {
+	escapeRegExp,
+	takeLeadingSentence,
+	takeLeadingWrappedBlock,
+} from "../utils/injected-blocks";
+
+/** Bare hint sent after an embedded carry-over transcript resource. */
+const CARRY_OVER_HINT =
+	"The messages above are from an earlier conversation the user carried over when switching to you. Continue from where they left off.";
 
 export const CARRY_OVER_BUDGET = 10_000;
 const TRIM_NOTICE = "[Earlier messages trimmed]\n\n";
@@ -106,7 +115,7 @@ export function buildCarryOverBlocks(
 			},
 			{
 				type: "text",
-				text: "The messages above are from an earlier conversation the user carried over when switching to you. Continue from where they left off.",
+				text: CARRY_OVER_HINT,
 			},
 		];
 	}
@@ -118,4 +127,17 @@ export function buildCarryOverBlocks(
 			text: `<carry_over_transcript>\nThe following messages are from an earlier conversation the user carried over when switching to you. Continue from where they left off.\n\n${transcript}\n</carry_over_transcript>`,
 		},
 	];
+}
+
+const CARRY_OVER_HINT_RE = new RegExp(`^${escapeRegExp(CARRY_OVER_HINT)}`);
+
+/**
+ * Inverse of {@link buildCarryOverBlocks} for replayed text (I222): remove ONE
+ * complete leading block this builder injected, or return null.
+ */
+export function takeLeadingCarryOverBlock(text: string): string | null {
+	return (
+		takeLeadingWrappedBlock(text, ["carry_over_transcript"]) ??
+		takeLeadingSentence(text, CARRY_OVER_HINT_RE)
+	);
 }

@@ -40,7 +40,8 @@ src/
 │   ├── acp-client.ts            # Process lifecycle, UI-facing API (AcpClient class)
 │   ├── acp-handler.ts           # SDK event handler + sessionId filter + listener broadcast
 │   ├── mcp-auth-parsers.ts      # Params parsers for _kiro.dev/mcp/* extension notifications (validate at edge)
-│   ├── kiro-v3.ts               # Kiro CLI V3 adapter: launch-arg rewrite, initialize capabilities (hooks opt-in), per-session mode/model/effort
+│   ├── claude-code-replay.ts    # Claude Code replay shape: `[@name](uri)` mention text back to a resource_link chip (I242)
+│   ├── kiro-v3.ts               # Kiro CLI V3 adapter: launch-arg rewrite, initialize capabilities (hooks opt-in), per-session mode/model/effort, resource-link adapter + its `<attached_file>` replay inverse (I220/I222)
 │   ├── type-converter.ts        # ACP SDK ↔ internal type conversion; capability normalizer (toAgentCapabilities)
 │   ├── permission-handler.ts    # Permission queue, auto-approve, Promise resolution
 │   ├── process-teardown.ts      # teardownProcessTree — single owner of agent teardown (I211): snapshot tree, stdin EOF, group SIGTERM, grace, SIGKILL snapshot survivors incl. own-group MCP servers
@@ -69,7 +70,7 @@ src/
 │   ├── agent-installer.ts       # In-plugin agent install (first-run): one-line npm -g install via login-shell PATH; summarizeInstallFailure → guidance
 │   ├── agent-packages.ts        # Built-in agent install metadata (npm package, docs setup slug, install-command form) — single source of truth
 │   ├── session-state.ts         # Session state updates (legacy mode/model, config restore)
-│   ├── message-state.ts         # Message array transforms (upsert, merge, streaming apply)
+│   ├── message-state.ts         # Message array transforms (upsert, merge, streaming apply); replayed user text is stripped of injected blocks here (I222)
 │   ├── message-sender.ts        # Prompt preparation + sending (pure functions)
 │   ├── carried-over-preview.ts  # Cross-agent carry-over preview builder (pure)
 │   ├── carry-over-builder.ts    # Cross-agent carry-over transcript + content blocks (pure)
@@ -202,6 +203,7 @@ src/
 │   ├── composer-focus.ts           # Focus composer textarea + caret at end (restored-draft mount, TP-I03); send→refocus timing seam (I173)
 │   ├── deriveTabLabel.ts           # Derive tab label from session / first message
 │   ├── empty-state-view.ts         # deriveEmptyStateView — pure empty-state affordance resolver (location × hasDetectedAgent → reason + redetect/installRows/agentPicks/landingActions/settings/hint); shared by GettingStarted (in-tab) and the zero-tab landing so the two can't drift
+│   ├── first-message.ts            # isFirstMessageOfSession — a send is a first message only on an empty transcript of a session that does not already exist (restored/forked tabs never are; I241)
 │   ├── header-slot.ts              # deriveHeaderSlot — pure 4-way header secondary-slot resolver (model / connecting / idle / none)
 │   ├── header-agent.ts             # deriveHeaderAgent / deriveHeaderModelName / deriveHeaderRuntime — which agent, model and runtime the header names; reads modes via session-modes (I207)
 │   ├── notify-gate.ts              # shouldNotifySystem — pure resolver: should an OS notification fire for a backgrounded panel; gates on the flush signal, not an instantaneous focus read (I168)
@@ -229,6 +231,7 @@ src/
 │   ├── tab-label.ts             # Pure tab-label helpers: truncateLabel + suffixOnCollision (re-exported by useTabManager)
 │   ├── titleMarker.ts           # F03: parse/strip <title>…</title> from the head of the first reply (parseLeadingTitle + TitleHeadBuffer)
 │   ├── system-instructions.ts   # First-message system-instruction constants + sentinels (injected by message-sender; stripped by deriveTabLabel)
+│   ├── injected-blocks.ts       # Primitives that take one complete injected block off the head of replayed user text (I222; each builder exports its own stripper)
 │   ├── host-context-briefing.ts # Compose the Obsidian host-context briefing (per-block selection + cwd-in-vault gate) injected on first message; folds in the system-instruction hints
 │   ├── obsidian-system-prompt.ts # Pure composer of the Obsidian system-prompt briefing (host identity / rendering / cwd / vault-collab blocks) injected on first message
 │   ├── toolCallSummary.ts       # One-row tool-call summary derivation

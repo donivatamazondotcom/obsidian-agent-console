@@ -197,6 +197,13 @@ export interface UseLazySessionApi {
 	reloadNow: (run: () => Promise<SessionAcquisitionResult>) => Promise<void>;
 	/** Reset to `idle`, release sessionId, clear fallback flag. */
 	reset: () => void;
+	/**
+	 * Whether the tab continues a session that already exists: a restored id
+	 * that is still bound (load pending or succeeded) or a pending fork. False
+	 * after a failed load fell back to a new session, and after reset().
+	 * Read at send time to decide "first message" (I241).
+	 */
+	continuesExistingSession: () => boolean;
 
 	// State machine transitions for busy/permission — driven by ChatPanel
 	// in response to agent events (isSending, hasActivePermission).
@@ -519,6 +526,13 @@ export function useLazySession(
 		[],
 	);
 
+	const continuesExistingSession = useCallback(
+		() =>
+			restoredSessionIdRef.current !== null ||
+			forkFromSessionIdRef.current !== null,
+		[],
+	);
+
 	// ============================================================================
 	// Cleanup pending timer on unmount
 	// ============================================================================
@@ -560,6 +574,7 @@ export function useLazySession(
 		recoverHistory,
 		acquireNow,
 		reloadNow,
+		continuesExistingSession,
 		reset,
 		// Expose state machine transitions for busy/permission — driven
 		// by ChatPanel in response to agent events (isSending,

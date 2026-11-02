@@ -38,6 +38,7 @@ export function useLandingHistoryModal(
 		sessionId: string,
 		cwd: string,
 		mode: "restore" | "fork",
+		agentTitle?: string,
 	) => void | Promise<void>,
 ): UseLandingHistoryModalReturn {
 	const modalRef = useRef<SessionHistoryModal | null>(null);

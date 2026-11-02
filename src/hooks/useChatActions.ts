@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback, useRef } from "react";
+import { isFirstMessageOfSession } from "../resolvers/first-message";
 import { Notice, Platform } from "obsidian";
 
 import type AgentClientPlugin from "../plugin";
@@ -137,6 +138,13 @@ export function useChatActions(
 			  ) => Promise<void>)
 			| null;
 	},
+	/**
+	 * Ref to useLazySession.continuesExistingSession (I241): whether the tab
+	 * continues a session that already exists (restored or forked), so its
+	 * first send is not a first message even while the transcript is empty.
+	 * A ref for the same ordering reason as `lazyAcquireNowRef`.
+	 */
+	lazyContinuesSessionRef?: { current: (() => boolean) | null },
 ): UseChatActionsReturn {
 	const logger = getLogger();
 
@@ -214,7 +222,11 @@ export function useChatActions(
 			agent.clearError();
 			setAgentUpdateNotification(null);
 
-			const isFirstMessage = messages.length === 0;
+			const isFirstMessage = isFirstMessageOfSession({
+				transcriptLength: messages.length,
+				continuesExistingSession:
+					lazyContinuesSessionRef?.current?.() ?? false,
+			});
 
 			// Split attachments by kind
 			const images: ImagePromptContent[] = [];

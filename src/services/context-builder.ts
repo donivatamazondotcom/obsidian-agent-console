@@ -7,6 +7,10 @@
  */
 import type { ContextNote } from "../types/context";
 import type { PromptContent } from "../types/chat";
+import {
+	takeLeadingSentence,
+	takeLeadingWrappedBlock,
+} from "../utils/injected-blocks";
 
 export interface BuildContextBlocksInput {
 	contextNotes: ContextNote[];
@@ -79,7 +83,7 @@ export function buildContextBlocks(input: BuildContextBlocksInput): PromptConten
 			});
 			blocks.push({
 				type: "text",
-				text: `The user is focusing on lines ${fromLine}-${toLine} in the above note right now.`,
+				text: selectionHint(fromLine, toLine),
 			});
 		} else {
 			blocks.push({
@@ -90,4 +94,26 @@ export function buildContextBlocks(input: BuildContextBlocksInput): PromptConten
 	}
 
 	return blocks;
+}
+
+/** Wrapper tags {@link buildContextBlocks} emits on the text (non-embedded) path. */
+const CONTEXT_BLOCK_TAGS = ["obsidian_context_note", "obsidian_selection"] as const;
+
+/** Bare hint sent after an embedded selection resource. */
+function selectionHint(fromLine: number, toLine: number): string {
+	return `The user is focusing on lines ${fromLine}-${toLine} in the above note right now.`;
+}
+const SELECTION_HINT =
+	/^The user is focusing on lines \d+-\d+ in the above note right now\./;
+
+/**
+ * Inverse of {@link buildContextBlocks} for replayed text (I222): remove ONE
+ * complete leading block this builder injected, or return null. Composed by
+ * `stripInjectedPromptText` in message-sender.
+ */
+export function takeLeadingContextBlock(text: string): string | null {
+	return (
+		takeLeadingWrappedBlock(text, CONTEXT_BLOCK_TAGS) ??
+		takeLeadingSentence(text, SELECTION_HINT)
+	);
 }
