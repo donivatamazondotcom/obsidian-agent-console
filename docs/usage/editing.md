@@ -26,6 +26,8 @@ Some agents request permission before performing certain actions. When a permiss
 Permission options vary by agent. Some agents may not request permission at all and edit files directly.
 :::
 
+On the Kiro CLI V3 engine, **Always allow** and **Always deny** last for the current chat, and only for that exact command or file. A different command, or the same one in a new chat, asks again. Hover the button to see this. To allow a command everywhere, add a rule to Kiro's own permission settings.
+
 ### Auto-Allow Permissions
 
 In **Settings → Agent Console → Permissions → Auto-allow permissions**, you can automatically allow all permission requests from agents.

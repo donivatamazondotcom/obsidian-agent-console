@@ -716,6 +716,7 @@ export const en = {
 	"chat.mcpBanner.mayNeedSignIn":
 		"An MCP server may need to sign in again. Restart the session to get a fresh sign-in prompt.",
 	"chat.mcpBanner.reauthenticate": "Re-authenticate…",
+	"chat.permission.forThisChat": "for this chat, and only this exact command or file",
 	"chat.mcpFailures.title": "MCP servers that didn't connect: {names}",
 	"chat.mcpFailures.details": "Details",
 	"chat.mcpFailures.dismiss": "Dismiss",

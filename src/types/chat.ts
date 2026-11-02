@@ -85,6 +85,12 @@ export interface PermissionOption {
 	optionId: string;
 	name: string;
 	kind: "allow_once" | "allow_always" | "reject_once" | "reject_always";
+	/**
+	 * Kiro V3 (S5): how long a persistent choice lasts. "chat" = this chat
+	 * and this exact command or file. Absent for one-time choices and agents
+	 * that don't say.
+	 */
+	persistsFor?: "chat";
 }
 
 /**

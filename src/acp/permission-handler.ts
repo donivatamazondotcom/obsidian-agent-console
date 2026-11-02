@@ -2,6 +2,7 @@ import * as acp from "@agentclientprotocol/sdk";
 import type { PermissionOption } from "../types/chat";
 import type { SessionUpdate } from "../types/session";
 import { AcpTypeConverter } from "./type-converter";
+import { kiroConsentForChoice } from "./kiro-v3";
 import { getLogger, Logger } from "../utils/logger";
 
 /**
@@ -41,6 +42,10 @@ export class PermissionManager {
 			toolCallId: string;
 			options: PermissionOption[];
 			sessionId: string;
+			/** The agent's own option kinds (normalization folds some). */
+			rawKinds: Map<string, string | null | undefined>;
+			/** The request's `_meta`, for V3 consent replies (S5). */
+			requestMeta: unknown;
 		}
 	>();
 
@@ -122,10 +127,12 @@ export class PermissionManager {
 						? "allow_once"
 						: "reject_once";
 
+				const persists = kiroConsentForChoice(option.kind, params._meta) !== undefined;
 				return {
 					optionId: option.optionId,
 					name: option.name,
 					kind,
+					...(persists && { persistsFor: "chat" as const }),
 				};
 			},
 		);
@@ -171,6 +178,8 @@ export class PermissionManager {
 				toolCallId,
 				options: normalizedOptions,
 				sessionId,
+				rawKinds: new Map(params.options.map((o) => [o.optionId, o.kind])),
+				requestMeta: params._meta,
 			});
 		});
 	}
@@ -187,7 +196,7 @@ export class PermissionManager {
 			return;
 		}
 
-		const { resolve, toolCallId, options, sessionId } = request;
+		const { resolve, toolCallId, options, sessionId, rawKinds, requestMeta } = request;
 
 		// Reflect the selection in the UI via session update
 		this.callbacks.onSessionUpdate({
@@ -202,11 +211,13 @@ export class PermissionManager {
 			},
 		});
 
+		const consent = kiroConsentForChoice(rawKinds.get(optionId), requestMeta);
 		resolve({
 			outcome: {
 				outcome: "selected",
 				optionId,
 			},
+			...(consent && { _meta: { kiro: { consent } } }),
 		});
 		this.pendingRequests.delete(requestId);
 		this.requestQueue = this.requestQueue.filter(

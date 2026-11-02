@@ -317,3 +317,42 @@ export function takeTrailingAttachedFile(
 	if (!m) return null;
 	return { rest: text.slice(0, m.index), link: toLink(m) };
 }
+
+/** Consent a Kiro-aware client returns for a persistent permission choice. */
+export interface KiroConsentReply {
+	scope: "session";
+	resource: string;
+	workspaceRoot?: string;
+}
+
+/**
+ * V3 (S5): the `_meta.kiro.consent` to return with a persistent choice
+ * ("Always allow" / "Always deny"), or undefined when none should be sent.
+ *
+ * Mirrors the server's own default exactly (read in the 2.34.3-nightly.3
+ * bundle and confirmed live, Q2): scope "session", the triggering resource
+ * (else the gated one), and the request's workspace root. So behavior is
+ * unchanged; the reply is just explicit, as the guide's §9 asks. Data-driven:
+ * only a request carrying `_meta.kiro.consent` (V3) gets one, so V2 is
+ * untouched. Wider scopes (workspace, user) are a later, separate decision.
+ */
+export function kiroConsentForChoice(
+	kind: string | null | undefined,
+	requestMeta: unknown,
+): KiroConsentReply | undefined {
+	if (kind !== "allow_always" && kind !== "reject_always") return undefined;
+	if (typeof requestMeta !== "object" || requestMeta === null) return undefined;
+	const kiro = (requestMeta as { kiro?: unknown }).kiro;
+	if (typeof kiro !== "object" || kiro === null) return undefined;
+	const consent = (kiro as { consent?: unknown }).consent;
+	if (typeof consent !== "object" || consent === null) return undefined;
+	const c = consent as Record<string, unknown>;
+	if (c.persistableConsent === false) return undefined;
+	if (kind === "allow_always" && c.askType === "explicit") return undefined;
+	const pick = (v: unknown) => (typeof v === "string" && v.length > 0 ? v : undefined);
+	const resource = pick(c.triggeringResource) ?? pick(c.resource);
+	if (resource === undefined) return undefined;
+	const workspaceRoot = pick(c.workspaceRoot);
+	return { scope: "session", resource, ...(workspaceRoot !== undefined && { workspaceRoot }) };
+}
+

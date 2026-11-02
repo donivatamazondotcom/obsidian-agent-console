@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { setTooltip } from "obsidian";
 import { getLogger } from "../utils/logger";
 import type { PermissionOption } from "../types/chat";
+import { t } from "../i18n";
 
 interface PermissionBannerProps {
 	permissionRequest: {
@@ -76,11 +77,17 @@ function PermissionOptionButton({
 	// button never overflows a narrow sidebar; reveal the full text on hover
 	// with Obsidian's setTooltip — the sanctioned themed-tooltip mechanism,
 	// consistent with TabBar / ChatHeader / SettingsTab (not a raw `title`).
+	// Kiro V3 (S5): a persistent choice lasts for this chat and this exact
+	// command or file; say so, since "Always" alone suggests forever.
+	const tooltip =
+		option.persistsFor === "chat"
+			? `${option.name} – ${t("chat.permission.forThisChat")}`
+			: option.name;
 	useEffect(() => {
 		if (buttonRef.current) {
-			setTooltip(buttonRef.current, option.name);
+			setTooltip(buttonRef.current, tooltip);
 		}
-	}, [option.name]);
+	}, [tooltip]);
 
 	return (
 		<button
