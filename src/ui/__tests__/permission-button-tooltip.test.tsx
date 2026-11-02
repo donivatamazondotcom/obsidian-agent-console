@@ -80,3 +80,27 @@ describe("permission option button tooltip (I158)", () => {
 		expect(label!.textContent).toBe(LONG_NAME);
 	});
 });
+
+// Kiro V3 S5: "Always allow" on V3 lasts for this chat and this exact
+// command or file (Q2); the tooltip says so. Other options keep their name.
+describe("PermissionBanner – Kiro V3 chat-scoped choices", () => {
+	it("a persistent option's tooltip says it lasts for this chat", () => {
+		setTooltipMock.mockClear();
+		render(
+			<PermissionBanner
+				permissionRequest={{
+					requestId: "r2",
+					options: [
+						{ optionId: "a", name: "Allow", kind: "allow_once" },
+						{ optionId: "b", name: "Always allow", kind: "allow_always", persistsFor: "chat" },
+					],
+				}}
+				onApprovePermission={vi.fn().mockResolvedValue(undefined)}
+			/>,
+		);
+		const texts = setTooltipMock.mock.calls.map(([, text]) => text as string);
+		expect(texts).toContain("Allow");
+		expect(texts).toContain("Always allow – for this chat, and only this exact command or file");
+	});
+});
+
