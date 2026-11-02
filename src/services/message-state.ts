@@ -208,8 +208,19 @@ export function applyReplayedUserChunk(
 						c.type === "text",
 				)
 			: undefined;
+	// URIs of chips already on this message: they let the strip recognise a
+	// Claude `<context ref>` block whose mention arrived in an earlier chunk,
+	// and drop a second chip for the same note (I268).
+	const chipUris = new Set(
+		last?.role === "user"
+			? last.content.flatMap((c) =>
+					c.type === "resource_link" ? [c.uri] : [],
+				)
+			: [],
+	);
 	const { text, links } = stripInjectedPromptText(
 		(current?.text ?? "") + chunk,
+		chipUris,
 	);
 
 	let next = prev;
@@ -228,6 +239,8 @@ export function applyReplayedUserChunk(
 		next = applyUpdateUserMessage(prev, { type: "text", text });
 	}
 	for (const link of links) {
+		if (chipUris.has(link.uri)) continue;
+		chipUris.add(link.uri);
 		next = applyUpdateUserMessage(next, link);
 	}
 	return next;

@@ -45,4 +45,40 @@ export function takeTrailingFileMention(
 	return { rest: text.slice(0, m.index), link: toLink(m) };
 }
 
+/**
+ * Claude Code replay shape for an embedded `resource` block (I268).
+ *
+ * Claude stores a `resource` as two text pieces: a `[@name](uri)` mention in
+ * prompt order (taken above) and `\n<context ref="<uri>">\n<text>\n</context>`
+ * appended after all other content, one block per resource, in order.
+ *
+ * Take ONE complete trailing block whose ref is a `file://` URI in
+ * `knownUris`, and return the text before it. The guard is what keeps the
+ * user's own text safe: Claude always writes a mention for every resource,
+ * so a real block always has a chip with the same URI, while typed text
+ * containing `<context` has none (or is not a complete trailing block).
+ * The opener must start the text or a line. Pure and total; null when
+ * nothing matched.
+ */
+const CONTEXT_OPEN = /(^|\n)<context ref="(file:\/\/[^"\n]+)">/g;
+
+export function takeTrailingContextBlock(
+	text: string,
+	knownUris: ReadonlySet<string>,
+): string | null {
+	const body = text.replace(/\s+$/, "");
+	if (!body.endsWith("</context>")) return null;
+	let start = -1;
+	for (const m of body.matchAll(CONTEXT_OPEN)) {
+		if (knownUris.has(m[2])) start = m.index + m[1].length;
+	}
+	if (start < 0) return null;
+	return body.slice(0, start).replace(/\s+$/, "");
+}
+
+/** URIs of every `[@name](file://…)` mention in `text`. */
+export function fileMentionUris(text: string): string[] {
+	return [...text.matchAll(new RegExp(FILE_MENTION, "g"))].map((m) => m[2]);
+}
+
 export { isFileMentionTitle } from "../utils/file-mention";
