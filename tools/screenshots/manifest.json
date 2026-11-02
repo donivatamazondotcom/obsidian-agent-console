@@ -1587,6 +1587,19 @@
 			"altText": "Chat header with the chosen agent name struck through, followed by the agent that is running instead"
 		},
 		{
+			"name": "kiro-v3-permission-scope",
+			"width": 680,
+			"height": 260,
+			"cropSelector": ".agent-client-permission-scope",
+			"pending": true,
+			"placement": "feature",
+			"purpose": "Shows the step after Always allow on Kiro V3: remember for this vault or this chat, and the exact command or a pattern.",
+			"differentiator": "Choose how long Always allow lasts (Kiro V3)",
+			"mustShow": ".agent-client-permission-scope-group",
+			"caption": "Decide how long Always allow lasts",
+			"altText": "Permission step with This vault and This chat only, and the exact command or a pattern such as npm *"
+		},
+		{
 			"name": "quick-prompt-uri-banner",
 			"width": 680,
 			"height": 320,
