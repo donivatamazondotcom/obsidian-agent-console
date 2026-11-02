@@ -229,8 +229,12 @@ export interface UseLazySessionApi {
 	 * acquisition. Returns false (and changes nothing) unless the tab is
 	 * `ready`, a session is bound, and no acquisition or typing debounce is
 	 * pending. Does not touch the process — the caller tears it down.
+	 *
+	 * `keepSessionId: false` (I237) drops the id instead: a tab with no
+	 * history has nothing to resume, so the next acquisition is a plain new
+	 * session (no load attempt, no restored-from-history notice). Default true.
 	 */
-	release: () => boolean;
+	release: (opts?: { keepSessionId?: boolean }) => boolean;
 
 	/**
 	 * Reconnect a released tab now on its kept id (I209): a picker change
@@ -516,15 +520,16 @@ export function useLazySession(
 	// release — idle release, keeping the id (I209)
 	// ============================================================================
 
-	const release = useCallback((): boolean => {
+	const release = useCallback((opts?: { keepSessionId?: boolean }): boolean => {
 		const id = sessionIdRef.current;
 		if (id === null) return false;
 		if (isAcquiringRef.current) return false;
 		if (debounceTimerRef.current !== null) return false;
 		if (tabStateRef.current.state !== "ready") return false;
 		// Keep the id where the restored-tab path reads it, so the next
-		// fireAcquisition loads it instead of creating a new session.
-		restoredSessionIdRef.current = id;
+		// fireAcquisition loads it instead of creating a new session. Without
+		// history there is nothing to resume: forget it (I237).
+		restoredSessionIdRef.current = opts?.keepSessionId === false ? null : id;
 		sessionIdRef.current = null;
 		// Supersede anything still resolving against the released process.
 		acquisitionGenerationRef.current += 1;
