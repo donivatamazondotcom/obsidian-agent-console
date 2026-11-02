@@ -36,7 +36,7 @@ describe("I209 TabStateIcon", () => {
 		["error", "circle-x", "Something went wrong"],
 		["connecting", "circle-dashed", "Connecting…"],
 		["disconnected", "circle", "Not connected"],
-		["doneUnseen", "circle-check", "Finished – you haven't looked yet"],
+		["doneUnseen", "check", "Finished – you haven't looked yet"],
 		["stoppedUnseen", "circle-alert", "Stopped early – you haven't looked yet"],
 	] as const)("%s shows %s with label %s", (state, icon, label) => {
 		const { container } = render(<TabStateIcon state={state} />);

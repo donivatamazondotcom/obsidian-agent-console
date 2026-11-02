@@ -21,7 +21,7 @@ export type TabState =
 	| "disconnected" // circle, gray — placeholder before the panel reports
 	| "released" // moon, muted — asleep to save memory; wakes on typing (I209)
 	| "connecting" // circle-dashed, muted, slow spin — agent starting
-	| "doneUnseen" // circle-check, accent — finished, not viewed yet
+	| "doneUnseen" // check, accent — finished, not viewed yet
 	| "stoppedUnseen"; // circle-alert, yellow — stopped early, not viewed yet
 
 /**

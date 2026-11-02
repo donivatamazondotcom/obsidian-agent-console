@@ -28,7 +28,7 @@ The tab bar appears at the top of the chat sidebar. Each tab shows:
   | Warning triangle (pulsing) | Needs your approval – the agent paused on a tool call |
   | Crossed circle | Something went wrong |
   | Circle with `!` | Stopped early while you were away – the agent hit a length or step limit, declined to continue, or the send failed |
-  | Circle with a tick | Finished while you were away |
+  | Tick | Finished while you were away |
   | Spinner | Working |
   | Dashed circle (slowly turning) | Connecting to the agent |
   | Dot in a circle | Ready for your next message. A brand-new tab shows this too, because it connects as soon as you send |
@@ -40,7 +40,7 @@ The tab bar appears at the top of the chat sidebar. Each tab shows:
 
 A `+` button on the right of the tab bar opens a new tab.
 
-A `˅` chevron beside it opens a dropdown listing **every** tab — including any scrolled out of view. Each entry shows the tab's status icon – the same one the tab itself shows (see the table above). The active tab has a checkmark. Because it shows all sessions at once, it's the quickest way to spot which one is stuck or finished when many tabs are open.
+A `˅` chevron beside it opens a dropdown listing **every** tab — including any scrolled out of view. Each entry shows the tab's status icon – the same one the tab itself shows (see the table above). The active tab's name is in bold. Because it shows all sessions at once, it's the quickest way to spot which one is stuck or finished when many tabs are open.
 
 <p align="center">
   <img src="/images/tab-status-dropdown.webp" alt="Multiple Agent Console session tabs in the tab bar, each prefixed with its own status glyph" class="inline-shot" width="600" />

@@ -22,7 +22,7 @@ const EXPECTED: Record<TabState, string> = {
 	disconnected: "circle",
 	released: "moon",
 	// Tab Attention States
-	doneUnseen: "circle-check",
+	doneUnseen: "check",
 	stoppedUnseen: "circle-alert",
 	connecting: "circle-dashed",
 };

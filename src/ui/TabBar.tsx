@@ -113,7 +113,9 @@ export function stateIcon(state: TabState): string {
 		// Tab Attention States: finished / stopped early while you weren't
 		// looking, and a dashed ring while the agent starts.
 		case "doneUnseen":
-			return "circle-check";
+			// A bare tick, no ring: the ring made it read like the ready dot at
+			// tab-strip size (smoke H1, 2026-11-01).
+			return "check";
 		case "stoppedUnseen":
 			return "circle-alert";
 		case "connecting":
@@ -505,10 +507,18 @@ export function TabBar({
 			menu.setUseNativeMenu(false);
 			registerOpenMenu(menu);
 			for (const tab of tabs) {
+				// Tab Attention States: the active tab gets a bold label instead
+				// of setChecked's checkmark, because a tick now means "finished
+				// while you were away" and two ticks would read the same.
+				const isActive = tab.tabId === activeTabId;
+				const title = isActive
+					? createFragment((f) => {
+							f.createEl("strong", { text: tab.label });
+						})
+					: tab.label;
 				menu.addItem((item: MenuItem) => {
-					item.setTitle(tab.label)
+					item.setTitle(title)
 						.setIcon(stateIcon(tab.state))
-						.setChecked(tab.tabId === activeTabId)
 						.onClick(() => {
 							onSelectTab(tab.tabId);
 						});
