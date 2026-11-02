@@ -105,9 +105,10 @@ export interface CodexAgentSettings extends BaseAgentSettings {
 export interface CustomAgentSettings extends BaseAgentSettings {
 	/**
 	 * Kiro CLI engine for a custom agent whose command is kiro-cli. Present
-	 * only when "v3" is chosen; absent means the v2 server (today's behavior).
+	 * only when an engine is pinned; absent means Default, which a kiro-cli
+	 * command follows (V3) and any other command ignores.
 	 */
-	engine?: "v3";
+	engine?: "v2" | "v3";
 }
 
 /**
@@ -119,11 +120,11 @@ export interface CustomAgentSettings extends BaseAgentSettings {
  */
 export interface KiroAgentSettings extends BaseAgentSettings {
 	/**
-	 * Which kiro-cli ACP server to launch. "v2" (default) is today's server;
-	 * "v3" is the CLI V3 engine (preview). Chosen by the user, never inferred:
-	 * both servers negotiate the same ACP protocol version.
+	 * Which kiro-cli ACP server to launch. "default" follows
+	 * DEFAULT_KIRO_ENGINE (V3); "v2" and "v3" pin an engine. Chosen by the
+	 * user, never inferred: both servers negotiate the same ACP protocol version.
 	 */
-	engine: "v2" | "v3";
+	engine: "default" | "v2" | "v3";
 }
 
 /**

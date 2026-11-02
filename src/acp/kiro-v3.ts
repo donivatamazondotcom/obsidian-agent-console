@@ -29,7 +29,17 @@ import type {
 } from "../types/chat";
 import { escapeRegExp } from "../utils/injected-blocks";
 
+/** The engine a launch actually uses. */
 export type KiroEngine = "v2" | "v3";
+
+/**
+ * The stored engine choice. "default" follows {@link DEFAULT_KIRO_ENGINE};
+ * "v2" and "v3" pin an engine.
+ */
+export type KiroEngineSetting = "default" | KiroEngine;
+
+/** What "default" launches. V3 since Agent Console 2.5.0. */
+export const DEFAULT_KIRO_ENGINE: KiroEngine = "v3";
 
 /** Initial session values v3 accepts under `_meta.kiro` on `session/new`. */
 export interface KiroV3SessionMeta {
@@ -66,9 +76,22 @@ export function isKiroCliCommand(command: string): boolean {
 	return name === "kiro-cli" || name === "kiro-cli-chat";
 }
 
-/** Total reader for the Kiro engine setting. Unknown values mean v2. */
+/** Total reader for the stored engine choice. Unknown or missing means "default". */
+export function readKiroEngineSetting(settings: {
+	engine?: unknown;
+}): KiroEngineSetting {
+	return settings.engine === "v2" || settings.engine === "v3"
+		? settings.engine
+		: "default";
+}
+
+/**
+ * The engine a stored choice launches: the one place "default" turns into an
+ * engine. Total; unknown values follow the default.
+ */
 export function resolveKiroEngine(settings: { engine?: unknown }): KiroEngine {
-	return settings.engine === "v3" ? "v3" : "v2";
+	const choice = readKiroEngineSetting(settings);
+	return choice === "default" ? DEFAULT_KIRO_ENGINE : choice;
 }
 
 /**

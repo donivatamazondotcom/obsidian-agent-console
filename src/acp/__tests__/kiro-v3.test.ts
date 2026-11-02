@@ -189,26 +189,31 @@ describe("AcpClient.newSession on the live request path", () => {
 });
 
 describe("Kiro engine setting", () => {
-	it("defaults to v2 and keeps an explicit v3", () => {
-		expect(normalizeRawSettings({}, DEFAULT_SETTINGS, idKey).kiro.engine).toBe("v2");
+	it("defaults to Default (V3, D1) and keeps an explicit v3", () => {
+		expect(normalizeRawSettings({}, DEFAULT_SETTINGS, idKey).kiro.engine).toBe("default");
 		expect(
 			normalizeRawSettings({ kiro: { engine: "v3" } }, DEFAULT_SETTINGS, idKey).kiro.engine,
 		).toBe("v3");
 		expect(
 			normalizeRawSettings({ kiro: { engine: "bogus" } }, DEFAULT_SETTINGS, idKey).kiro.engine,
-		).toBe("v2");
+		).toBe("default");
 	});
 
 	it("resolveKiroEngine is total", () => {
 		expect(resolveKiroEngine({ engine: "v3" })).toBe("v3");
 		expect(resolveKiroEngine({ engine: "v2" })).toBe("v2");
-		expect(resolveKiroEngine({})).toBe("v2");
+		expect(resolveKiroEngine({})).toBe("v3");
+		expect(resolveKiroEngine({ engine: "default" })).toBe("v3");
 	});
 
 	it("the Kiro agent config carries the v3 intent only when v3 is selected", () => {
 		const s = normalizeRawSettings({ kiro: { engine: "v3" } }, DEFAULT_SETTINGS, idKey);
 		expect(buildAgentConfigWithApiKey(s, s.kiro, s.kiro.id, "/vault").kiroEngine).toBe("v3");
-		const d = normalizeRawSettings({}, DEFAULT_SETTINGS, idKey);
+		const d = normalizeRawSettings(
+			{ kiro: { engine: "v2" }, kiroEngineDefaultMigrated: true },
+			DEFAULT_SETTINGS,
+			idKey,
+		);
 		expect(buildAgentConfigWithApiKey(d, d.kiro, d.kiro.id, "/vault").kiroEngine).toBeUndefined();
 		expect(
 			buildAgentConfigWithApiKey(s, s.claude, s.claude.id, "/vault").kiroEngine,
@@ -235,7 +240,7 @@ describe("Kiro engine on custom agents (S1b)", () => {
 		expect(isKiroCliCommand("")).toBe(false);
 	});
 
-	it("persists engine only when V3 is chosen (V2 shape unchanged)", () => {
+	it("persists engine only when pinned (Default omits the field)", () => {
 		const v3 = normalizeRawSettings(
 			{ customAgents: [{ ...autoSa, engine: "v3" }] },
 			DEFAULT_SETTINGS,
@@ -264,8 +269,12 @@ describe("Kiro engine on custom agents (S1b)", () => {
 		});
 	});
 
-	it("a custom agent left on V2 launches exactly as today", () => {
-		const s = normalizeRawSettings({ customAgents: [autoSa] }, DEFAULT_SETTINGS, idKey);
+	it("a custom agent set to V2 launches exactly as before", () => {
+		const s = normalizeRawSettings(
+			{ customAgents: [{ ...autoSa, engine: "v2" }] },
+			DEFAULT_SETTINGS,
+			idKey,
+		);
 		const c = buildAgentConfigWithApiKey(s, s.customAgents[0], "auto-sa", "/vault");
 		expect(c.kiroEngine).toBeUndefined();
 		expect(resolveLaunchArgs(c)).toEqual(autoSa.args);

@@ -15,7 +15,7 @@ import {
 	type TextComponent,
 } from "obsidian";
 import type AgentClientPlugin from "../plugin";
-import { isKiroCliCommand, resolveKiroEngine } from "../acp/kiro-v3";
+import { isKiroCliCommand, readKiroEngineSetting } from "../acp/kiro-v3";
 import {
 	t,
 	SUPPORTED_LOCALES,
@@ -2037,14 +2037,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			.setDesc(t("settings.kiroEngine.desc"))
 			.addDropdown((dropdown) =>
 				dropdown
-					.addOption("v2", t("settings.kiroEngine.v2"))
+					.addOption("default", t("settings.kiroEngine.default"))
 					.addOption("v3", t("settings.kiroEngine.v3"))
-					.setValue(resolveKiroEngine(kiro))
+					.addOption("v2", t("settings.kiroEngine.v2"))
+					.setValue(readKiroEngineSetting(kiro))
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
 							kiro: {
 								...this.plugin.settings.kiro,
-								engine: value === "v3" ? "v3" : "v2",
+								engine: readKiroEngineSetting({ engine: value }),
 							},
 						});
 					}),
@@ -2616,13 +2617,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			.setDesc(t("settings.kiroEngine.desc"))
 			.addDropdown((dropdown) =>
 				dropdown
-					.addOption("v2", t("settings.kiroEngine.v2"))
+					.addOption("default", t("settings.kiroEngine.default"))
 					.addOption("v3", t("settings.kiroEngine.v3"))
-					.setValue(resolveKiroEngine(agent))
+					.addOption("v2", t("settings.kiroEngine.v2"))
+					.setValue(readKiroEngineSetting(agent))
 					.onChange(async (value) => {
 						const entry = this.plugin.settings.customAgents[index];
-						if (value === "v3") entry.engine = "v3";
-						else delete entry.engine;
+						const engine = readKiroEngineSetting({ engine: value });
+						if (engine === "default") delete entry.engine;
+						else entry.engine = engine;
 						await this.flushSettings();
 					}),
 			);

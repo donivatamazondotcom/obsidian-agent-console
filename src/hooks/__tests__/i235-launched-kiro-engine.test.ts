@@ -55,7 +55,7 @@ function makeSettings(engine: Engine) {
 		command: "kiro-cli",
 		args: ["acp"],
 		env: [],
-		...(engine === "v3" ? { engine: "v3" } : {}),
+		engine,
 	};
 	const settings: Record<string, unknown> = {
 		defaultAgentId: AGENT,
@@ -75,8 +75,7 @@ function makeSettings(engine: Engine) {
 	} as unknown as ISettingsAccess;
 	/** Flip the Kiro CLI engine setting, as the settings tab does. */
 	const flip = (to: Engine) => {
-		if (to === "v3") agent.engine = "v3";
-		else delete agent.engine;
+		agent.engine = to;
 	};
 	return { access, flip };
 }

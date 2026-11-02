@@ -227,9 +227,10 @@ export const en = {
 		'Command name or path to kiro-cli. Use just "kiro-cli" to let the login shell resolve it, or enter an absolute path (commonly ~/.local/bin/kiro-cli).',
 	"settings.kiroEngine.name": "Kiro CLI engine",
 	"settings.kiroEngine.desc":
-		"V3 is a preview. Your --agent, --model and --effort arguments still work: Agent Console passes them to V3 for each chat. Applies to chats you start after changing this.",
-	"settings.kiroEngine.v2": "V2 (current)",
-	"settings.kiroEngine.v3": "V3 (preview)",
+		"V3 is the default engine. Your --agent, --model and --effort arguments still work: Agent Console passes them to V3 for each chat. Applies to chats you start after changing this.",
+	"settings.kiroEngine.default": "Default (V3)",
+	"settings.kiroEngine.v2": "V2 (legacy)",
+	"settings.kiroEngine.v3": "V3",
 	"settings.arguments.desc2":
 		'Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Kiro CLI requires the "acp" subcommand.',
 	"settings.setup.desc8":

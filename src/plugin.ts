@@ -265,6 +265,12 @@ export interface AgentClientPluginSettings {
 	 */
 	legacySessionsMigrated?: boolean;
 
+	/**
+	 * One-time guard for the D1 migration (Agent Console 2.5.0): a stored
+	 * built-in Kiro engine "v2" from before it is reset to "default".
+	 */
+	kiroEngineDefaultMigrated?: boolean;
+
 	/** One-shot guard for the first-run settings-import offer. */
 	settingsImportOfferShown?: boolean;
 	/** Saved result of the plugin update check; see resolvers/update-check-decision.ts. */
@@ -1743,7 +1749,10 @@ export default class AgentClientPlugin extends Plugin {
 			await this.saveSettings();
 		}
 
-		if (migratedSecrets) {
+		// D1: persist the one-time Kiro engine reset so it never runs again.
+		const kiroEngineMigrated = raw.kiroEngineDefaultMigrated !== true;
+
+		if (migratedSecrets || kiroEngineMigrated) {
 			await this.saveSettings();
 		}
 	}
