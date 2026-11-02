@@ -215,6 +215,7 @@ src/
 │   ├── send-affordance.ts          # Pure send-enablement resolver (deriveSendAffordance → canSend/buttonDisabled/reason) + isSessionLive; single source for ChatPanel/InputArea/InputToolbar/MessageList/broadcast
 │   ├── session-modes.ts            # readSessionModes (config option or legacy modes; shared by header + prompt targeting), lookupByIdOrName, resolveModeRequest (one-shot first-session mode)
 │   ├── session-history-view.ts     # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source) → listSource/agentViewAvailable/showFilters/restore/fork/banner); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
+│   ├── session-title.ts            # Pure session-title resolver (I224/I227): resolveSessionTitle(local > agent > none, drops placeholder agent titles), overlayLocalTitles (Agent-view rows, live + cached, by session id), deriveRestoreTabLabel (restored/forked tab label); deriveSessionRecordTitle reads it too
 │   ├── tab-keyboard-nav.ts         # deriveTabKeyTarget — pure resolver for Left/Right/Home/End focus movement across the tab strip (WAI-ARIA tabs, manual activation; TS-I08)
 │   ├── tab-label-width.ts          # deriveActiveTabLabelMax — pure resolver for the active tab's label max-width so the whole active tab stays visible in the strip
 │   ├── tab-scroll.ts               # deriveTabScrollLeft — pure resolver for the horizontal scrollLeft that keeps the active tab in view on tab-change and strip resize (TS-I07)
@@ -256,6 +257,7 @@ src/
 │   ├── command-palette.ts       # Pure start-a-chat + context-gating decisions (computeStartChat, isChatCommandAvailable)
 │   ├── tab-agent-invariant.ts   # Pure fail-loud invariant: a tab's live session agent == its selected agent
 │   ├── restored-tab-content.ts  # resolveSeededMessages/ContextNotes — single resolver for a tab's seeded transcript+notes (restore | fork | startup-restore)
+│   ├── file-mention.ts          # Pure `[@name](file://…)` pattern + isFileMentionTitle (I242), shared by acp/claude-code-replay and resolvers/session-title
 │   ├── format-session-title.ts  # Pure display-formatter for session-history titles (renders markdown links/wikilinks to readable text, collapses whitespace; no truncation — CSS owns width); used by SessionHistoryModal, carries into HistoryRow
 │   ├── folder-picker.ts         # Shared Electron native folder picker (modal + settings Browse)
 │   ├── working-directory.ts     # Resolve/validate the default working directory for new chats

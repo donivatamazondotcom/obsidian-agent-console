@@ -7,7 +7,10 @@
 
 import type { ChatMessage } from "../types/chat";
 import type { SavedSessionInfo } from "../types/session";
-import { isPlaceholderAgentTitle } from "./message-sender";
+import {
+	resolveSessionTitle,
+	resolvedTitleText,
+} from "../resolvers/session-title";
 
 /**
  * Derive a session title (<=50 chars) from the first user message.
@@ -73,10 +76,17 @@ export function deriveSessionRecordTitle(inputs: {
 }): string {
 	const ai = inputs.suggestedTitle?.trim();
 	if (ai) return ai;
-	if (inputs.existing?.title) return inputs.existing.title;
-	const seed = inputs.seedTitle?.trim();
-	if (seed && !isPlaceholderAgentTitle(seed)) return seed;
-	return deriveSessionTitle(inputs.messages ?? []);
+	// Existing local title > agent's title (create-only seed) — the shared
+	// session-title resolver (I224), so the record, the history row and the
+	// restored tab apply one precedence.
+	return (
+		resolvedTitleText(
+			resolveSessionTitle({
+				localTitle: inputs.existing?.title,
+				agentTitle: inputs.seedTitle,
+			}),
+		) ?? deriveSessionTitle(inputs.messages ?? [])
+	);
 }
 
 /**

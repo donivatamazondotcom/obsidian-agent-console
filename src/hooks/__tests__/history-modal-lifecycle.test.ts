@@ -28,6 +28,7 @@ function makePlugin() {
 				sessionHistorySource: "local",
 				agentSessionMetaCache: {},
 			}),
+			getSavedSessions: () => [],
 		},
 		getAvailableAgents: () => [],
 	} as unknown as Parameters<typeof useHistoryModal>[0];

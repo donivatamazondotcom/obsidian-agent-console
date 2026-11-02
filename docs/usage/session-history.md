@@ -23,6 +23,8 @@ Your history has two views, switched with the toggle at the top of the modal:
 
 The toggle remembers your last choice.
 
+**Titles on the Agent view.** When Agent Console also has its own copy of a session, the Agent view shows the title you know it by – including one you renamed – instead of the agent's title. Only sessions the plugin has never saved show the agent's own title. That way a session reads the same in both views, even when the agent changes its titles later.
+
 ### The Agent view when you're not connected
 
 Agent Console keeps a small list of your agent's sessions, refreshed each time the agent connects. So even before this tab connects, the Agent view can show that list — marked with when it was last refreshed (for example, "Synced 5 minutes ago – send a message to reconnect and refresh"). Sending a message connects the agent and pulls the latest.
@@ -85,7 +87,7 @@ Sessions are saved in two places:
 
 Restoring a session reopens it in a **new tab** — your current chat is left untouched. If the session is already open in another tab, you're switched to that tab instead.
 
-1. The session opens in a new tab with its conversation history displayed
+1. The session opens in a new tab with its conversation history displayed. The tab is named the same as the row you clicked
 2. The agent reconnects automatically when you send your first message — no need to connect first
 3. New messages continue the same session
 
