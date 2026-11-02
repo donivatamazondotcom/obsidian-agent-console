@@ -2516,7 +2516,7 @@ describe("captureEntry — animation (v2)", () => {
 		);
 		const entry = animEntry({
 			cropSelector:
-				'.workspace-leaf-content[data-type="agent-client-chat-view"]',
+				'.workspace-leaf-content[data-type="agent-console-chat-view"]',
 			cropPadding: 0,
 			animation: {
 				fps: 4,
@@ -2531,7 +2531,7 @@ describe("captureEntry — animation (v2)", () => {
 		});
 		await captureEntry(entry, deps);
 		expect(deps.cdp.getElementBounds).toHaveBeenCalledWith(
-			'.workspace-leaf-content[data-type="agent-client-chat-view"]',
+			'.workspace-leaf-content[data-type="agent-console-chat-view"]',
 		);
 	});
 });

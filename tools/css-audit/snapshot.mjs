@@ -81,7 +81,7 @@ const runtimeSource = `(function () {
   wrap.setAttribute("data-css-audit", "1");
   wrap.style.cssText = "position:absolute;left:-99999px;top:0;width:900px;height:700px;visibility:hidden;contain:layout style;";
   wrap.className = "workspace-leaf-content";
-  wrap.setAttribute("data-type", "agent-client-chat-view");
+  wrap.setAttribute("data-type", "agent-console-chat-view");
   const viewContent = document.createElement("div"); viewContent.className = "view-content";
   const tabPanel = document.createElement("div"); tabPanel.className = "agent-client-tab-panel";
   const container = document.createElement("div"); container.className = "agent-client-chat-view-container";
