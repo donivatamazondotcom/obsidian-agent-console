@@ -214,7 +214,7 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"settings.path.desc2":
 		"kiro-cli のコマンド名またはパスです。「kiro-cli」とだけ入力するとログインシェルが解決します。絶対パスも入力できます（通常は ~/.local/bin/kiro-cli）。",
 	"settings.kiroEngine.name": "Kiro CLI エンジン",
-	"settings.kiroEngine.desc": "V3 が既定のエンジンです。--agent、--model、--effort の引数はそのまま使えます。Agent Console がチャットごとに V3 へ渡します。変更後に開始したチャットから適用されます。",
+	"settings.kiroEngine.desc": "V3 は既定の新しいエンジンです。V2（旧版）は以前のエンジンで、V3 でチャットが始まらない場合に選んでください。--agent、--model、--effort の引数はどちらでも使えます。V3 では Agent Console がチャットごとに渡します。変更後に開始したチャットから適用されます。",
 	"settings.kiroEngine.default": "既定（V3）",
 	"settings.kiroEngine.v2": "V2（旧版）",
 	"settings.kiroEngine.v3": "V3",
