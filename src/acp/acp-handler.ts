@@ -51,6 +51,8 @@ export class AcpHandler {
 		private getWorkingDirectory: () => string,
 		private getCurrentSessionId: () => string | null,
 		private logger: Logger,
+		/** Kiro V3: the shell this client's terminals use (S5). */
+		private getShellType: () => string = () => "unknown",
 	) {}
 
 	// ====================================================================
@@ -308,6 +310,15 @@ export class AcpHandler {
 			...(params.serverName !== undefined && { serverName: params.serverName }),
 		});
 		return { success: true };
+	}
+
+	/**
+	 * `_kiro/terminal/shell_type` (V3): Kiro asks which shell runs commands in
+	 * this client's terminals, so it can check that a saved permission rule
+	 * would match. Unanswered, it offers only one-time permission choices.
+	 */
+	terminalShellType(): { shellType: string } {
+		return { shellType: this.getShellType() };
 	}
 
 	// ====================================================================

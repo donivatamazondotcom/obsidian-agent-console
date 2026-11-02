@@ -13,10 +13,14 @@
  * Spec: [[Kiro CLI V3 Support]] § S5.
  */
 import { describe, expect, it, vi } from "vitest";
-import type * as acp from "@agentclientprotocol/sdk";
+import * as acp from "@agentclientprotocol/sdk";
 
 import { PermissionManager } from "../permission-handler";
-import { kiroConsentForChoice } from "../kiro-v3";
+import { kiroConsentForChoice, clientShellType } from "../kiro-v3";
+import { AcpHandler } from "../acp-handler";
+import { registerClientHandlers } from "../acp-client";
+import type { TerminalManager } from "../terminal-handler";
+import type { Logger } from "../../utils/logger";
 import type { SessionUpdate } from "../../types/session";
 
 const OPTIONS: acp.PermissionOption[] = [
@@ -161,3 +165,38 @@ describe("kiroConsentForChoice", () => {
 		spy.mockRestore();
 	});
 });
+
+// Found in the S5 smoke (2026-11-01): with `terminal: true`, Kiro asks the
+// client which shell its terminals use (`_kiro/terminal/shell_type`, read in
+// the 2.34.3-nightly.3 bundle). Unanswered, the shell is "unknown", Kiro
+// can't verify a saved rule would match, and it offers only Allow / Deny.
+describe("V3: Kiro learns which shell Agent Console's terminals use", () => {
+	it("clientShellType names the shell the terminal handler spawns", () => {
+		expect(clientShellType({ platform: "darwin", loginShell: "/bin/zsh", wslMode: false })).toBe("zsh");
+		expect(clientShellType({ platform: "linux", loginShell: "/usr/bin/bash", wslMode: false })).toBe("bash");
+		expect(clientShellType({ platform: "win32", loginShell: "", wslMode: true })).toBe("wsl");
+		expect(clientShellType({ platform: "win32", loginShell: "", wslMode: false })).toBe("cmd");
+	});
+
+	it("answers _kiro/terminal/shell_type over the real handler wiring", async () => {
+		const logger = { log() {}, warn() {}, error() {}, debug() {}, info() {} } as unknown as Logger;
+		const handler = new AcpHandler(
+			new PermissionManager({ onSessionUpdate: () => {} }, false),
+			{} as TerminalManager,
+			() => "/vault",
+			() => "s1",
+			logger,
+			() => "zsh",
+		);
+		let agentSide: acp.AgentContext | undefined;
+		const agentApp = acp.agent().onConnect((c) => {
+			agentSide = c.client;
+		});
+		registerClientHandlers(acp.client({ name: "agent-console" }), handler).connect(agentApp);
+		await vi.waitFor(() => expect(agentSide).toBeDefined());
+		await expect(agentSide!.request("_kiro/terminal/shell_type", { sessionId: "s1" })).resolves.toEqual({
+			shellType: "zsh",
+		});
+	});
+});
+
