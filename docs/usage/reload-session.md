@@ -26,9 +26,9 @@ While the reload runs, the **↻** icon spins and a "Reloading session…" notic
 You don't have to wait for it. While the agent restarts, the tab shows it's connecting. A message you send during that time waits in the composer and goes out as soon as the agent is back.
 
 ::: tip
-Resuming the same conversation needs an agent that supports session resume. If your agent can't resume, Agent Console keeps the transcript visible and starts a fresh session underneath — only the live agent loses context; your conversation stays on screen.
+Resuming the same conversation needs an agent that supports session resume. If your agent can't resume, Agent Console keeps the transcript visible and starts a fresh session underneath. Your next message brings the conversation so far along with it, so the agent can pick up where you left off. Very long chats are trimmed to the most recent messages, and tool output, images and the agent's reasoning aren't carried over.
 
-Now and then a resume can fail even on an agent that supports it. When that happens, you'll see "Couldn't pick up the conversation, so the agent started fresh." It works the same way: your messages stay on screen, and only the agent starts over.
+Now and then a resume can fail even on an agent that supports it. When that happens, you'll see "Couldn't pick up the conversation, so the agent started fresh." It works the same way: your messages stay on screen, and your next message gives the new session the conversation so far.
 :::
 
 ## Restart (Shift-click)

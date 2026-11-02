@@ -19,6 +19,7 @@
 import {
 	decideEngineRestore,
 	type SessionEngine,
+	type SessionFallbackReason,
 } from "../resolvers/session-engine";
 
 /**
@@ -162,8 +163,25 @@ export async function reloadSessionFlow(
  */
 export function reloadResultToAcquisition(
 	result: ReloadSessionFlowResult,
-): { ok: true; sessionId: string } | { ok: false; error: Error } {
-	return result.sessionId
-		? { ok: true, sessionId: result.sessionId }
-		: { ok: false, error: new Error("Soft reload created no session") };
+):
+	| {
+			ok: true;
+			sessionId: string;
+			lossy?: true;
+			fallbackReason?: SessionFallbackReason;
+	  }
+	| { ok: false; error: Error } {
+	if (!result.sessionId) {
+		return { ok: false, error: new Error("Soft reload created no session") };
+	}
+	if (result.resumed) return { ok: true, sessionId: result.sessionId };
+	// Started fresh: the agent has none of the conversation, so the owner
+	// reports a fallback and the transcript goes with the next send (I246).
+	return {
+		ok: true,
+		sessionId: result.sessionId,
+		lossy: true,
+		fallbackReason:
+			result.reason === "engine-changed" ? "engine-changed" : "unavailable",
+	};
 }

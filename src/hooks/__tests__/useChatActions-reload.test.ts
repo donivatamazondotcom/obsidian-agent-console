@@ -311,7 +311,11 @@ describe("useChatActions handleReload — single lazy owner (I229)", () => {
 
 		await result.current.handleReload(false);
 
-		expect(reloadNowResults).toEqual([{ ok: true, sessionId: "s2" }]);
+		// I246: a fresh session is reported as lossy, so the owner arms the
+		// transcript for the next send.
+		expect(reloadNowResults).toEqual([
+			{ ok: true, sessionId: "s2", lossy: true, fallbackReason: "unavailable" },
+		]);
 	});
 
 	it("a fallback that created no session is reported to the lazy owner as a failure", async () => {
