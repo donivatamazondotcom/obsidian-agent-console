@@ -3,10 +3,18 @@ import {
 	type AgentCapabilities,
 	type SessionResult,
 } from "../types/session";
+import {
+	decideEngineRestore,
+	type SessionEngine,
+} from "../resolvers/session-engine";
 
+/**
+ * `fallbackReason` on a failure says why the session couldn't be reopened
+ * when the reason is known (D2: `"engine-changed"`). Absent → generic.
+ */
 export type SessionAcquisitionResult =
 	| { ok: true; sessionId: string }
-	| { ok: false; error: Error };
+	| { ok: false; error: Error; fallbackReason?: "engine-changed" };
 
 export interface LoadExistingSessionFlowArgs {
 	sessionId: string;
@@ -58,7 +66,11 @@ export async function loadExistingSessionFlow(
  */
 export interface ReconnectClientPort {
 	isInitialized: () => boolean;
-	getInitializeResult: () => { capabilities: AgentCapabilities } | null;
+	getInitializeResult: () => {
+		capabilities: AgentCapabilities;
+		/** Engine the process was launched with (I235). */
+		kiroEngine?: SessionEngine;
+	} | null;
 	loadSession: (sessionId: string, cwd: string) => Promise<SessionResult>;
 	resumeSession: (sessionId: string, cwd: string) => Promise<SessionResult>;
 }
@@ -82,6 +94,11 @@ export interface ReconnectExistingSessionArgs {
 	setIgnoreUpdates: (ignore: boolean) => void;
 	/** A resume attempt threw; the flow falls back to load. Logging only. */
 	onResumeError?: (error: unknown) => void;
+	/**
+	 * Engine the chat last ran on, from `resolveStoredSessionEngine` (D2).
+	 * Undefined → unknown (old data), which loads as before.
+	 */
+	storedEngine?: SessionEngine;
 }
 
 /**
@@ -115,8 +132,23 @@ export async function reconnectExistingSession(
 			};
 		}
 	}
-	const capabilities =
-		client.getInitializeResult()?.capabilities ?? NO_AGENT_CAPABILITIES;
+	const init = client.getInitializeResult();
+	// D2: the running engine is known now. A V3 chat on V2 starts fresh
+	// without sending its id (V2 answers `Internal error`).
+	const engine = decideEngineRestore({
+		stored: args.storedEngine,
+		running: init?.kiroEngine,
+	});
+	if (engine.kind === "start-fresh") {
+		return {
+			ok: false,
+			error: new Error(
+				`Session ran on Kiro ${engine.from}; this agent now runs ${engine.to}`,
+			),
+			fallbackReason: engine.reason,
+		};
+	}
+	const capabilities = init?.capabilities ?? NO_AGENT_CAPABILITIES;
 	const haveLocalHistory = args.haveLocalHistory();
 
 	if (haveLocalHistory && capabilities.restoresViaResume) {

@@ -7,6 +7,8 @@
 
 import type { ChatMessage } from "../types/chat";
 import type { SavedSessionInfo } from "../types/session";
+import { parseSessionEngine } from "../resolvers/session-engine";
+import { getLogger } from "../utils/logger";
 import {
 	resolveSessionTitle,
 	resolvedTitleText,
@@ -118,6 +120,11 @@ export function resolveSessionMetadataWrite(
 		now: string;
 		suggestedTitle?: string | null;
 		seedTitle?: string | null;
+		/**
+		 * Engine this turn ran on (D2). Validated here (the write edge); an
+		 * absent or invalid value keeps the stored one, never coerces.
+		 */
+		kiroEngine?: unknown;
 	},
 ): SavedSessionInfo | null {
 	const title = deriveSessionRecordTitle({
@@ -126,8 +133,16 @@ export function resolveSessionMetadataWrite(
 		seedTitle: params.seedTitle,
 		messages: params.messages,
 	});
+	const kiroEngine = parseSessionEngine(params.kiroEngine, (raw) =>
+		getLogger().warn("[SessionStore] Dropped invalid Kiro engine:", raw),
+	);
 	if (existing) {
-		return { ...existing, title, updatedAt: params.now };
+		return {
+			...existing,
+			title,
+			updatedAt: params.now,
+			...(kiroEngine ? { kiroEngine } : {}),
+		};
 	}
 	return {
 		sessionId: params.sessionId,
@@ -136,5 +151,6 @@ export function resolveSessionMetadataWrite(
 		title,
 		createdAt: params.now,
 		updatedAt: params.now,
+		...(kiroEngine ? { kiroEngine } : {}),
 	};
 }

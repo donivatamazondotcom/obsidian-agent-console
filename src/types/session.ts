@@ -679,6 +679,12 @@ export interface SavedSessionInfo {
 	createdAt: string;
 	/** ISO 8601 timestamp of last activity */
 	updatedAt: string;
+	/**
+	 * Kiro engine of the session's latest saved turn (D2). Written only by
+	 * `SessionStore.recordTurnSave`; a save without one keeps it. Read through
+	 * `parseSessionEngine`. Absent on records saved before D2.
+	 */
+	kiroEngine?: "v2" | "v3";
 }
 /**
  * Domain Models for Agent Initialization Results

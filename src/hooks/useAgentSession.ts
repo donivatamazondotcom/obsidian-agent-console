@@ -41,6 +41,7 @@ import {
 } from "../services/session-state";
 import { resolveModeRequest } from "../resolvers/session-modes";
 import {
+	assertEngineCanResume,
 	reloadSessionFlow,
 	type ReloadSessionFlowResult,
 } from "./reloadSessionFlow";
@@ -697,6 +698,13 @@ export function useAgentSession(
 					effectiveCwd,
 				);
 				await agentClient.initialize(agentConfig);
+				// D2: the re-initialize picked up the current engine setting. A
+				// V3 session on a V2 agent is never sent (V2 answers `Internal
+				// error`); the flow starts fresh with reason "engine-changed".
+				assertEngineCanResume(
+					prev.kiroEngine,
+					agentClient.getInitializeResult()?.kiroEngine,
+				);
 				const result = await agentClient.loadSession(sid, effectiveCwd);
 				await updateSessionFromLoad(
 					result.sessionId,

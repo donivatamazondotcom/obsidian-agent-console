@@ -706,6 +706,9 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.lossyFallback.title": "기록에서 복원된 세션",
 	"chat.lossyFallback.body":
 		"원래 세션을 에이전트에서 더 이상 사용할 수 없습니다. 이전 대화의 기록을 바탕으로 작업하지만, 원래 세션의 내부 상태나 이전의 추론에는 접근할 수 없습니다. 일부 도구 출력도 잘렸을 수 있습니다.",
+	"chat.lossyFallback.engineChanged.title": "새 세션을 시작했습니다",
+	"chat.lossyFallback.engineChanged.body":
+		"이 채팅은 Kiro V3 엔진에서 실행되었습니다. 이 에이전트는 이제 V2를 사용하며, V2는 V3 채팅을 열 수 없으므로 대화 기록을 바탕으로 계속합니다. 원래 세션으로 돌아가려면 설정에서 이 에이전트를 V3로 되돌리세요.",
 	"chat.historyBanner.notStored":
 		"이 탭의 기록이 로컬에 저장되어 있지 않습니다.",
 	"chat.historyBanner.reloading": "다시 불러오는 중…",

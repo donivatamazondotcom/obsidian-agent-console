@@ -67,6 +67,7 @@ import { GettingStarted, type GettingStartedInfo } from "./MessageList";
 import { installAgent } from "../services/agent-installer";
 import { deriveAgentPickerOptions } from "../resolvers/agent-picker-options";
 import { resolveInitialAgentId } from "../resolvers/resolveInitialAgentId";
+import { parseSessionEngine } from "../resolvers/session-engine";
 import { deriveRestoreTabLabel } from "../resolvers/session-title";
 import { defaultSessionTitle } from "../utils/format-session-title";
 import {
@@ -342,6 +343,20 @@ function ChatComponent({
 		return map;
 	}, [restoredLeaf]);
 
+	// Per-tab restored Kiro engine, keyed by tabId (D2). Read through the one
+	// validator at the deserialize edge: an invalid value is dropped and
+	// logged; absent means unknown and the restore loads as before.
+	const restoredEngineByTabId = useMemo(() => {
+		const map: Record<string, "v2" | "v3"> = {};
+		for (const t of restoredLeaf?.tabs ?? []) {
+			const engine = parseSessionEngine(t.kiroEngine, (raw) =>
+				getLogger().warn("[ChatView] Dropped invalid Kiro engine on tab:", raw),
+			);
+			if (engine) map[t.tabId] = engine;
+		}
+		return map;
+	}, [restoredLeaf]);
+
 	const tabManager = useTabManager(
 		initialAgentId,
 		restoredTabs,
@@ -574,6 +589,12 @@ function ChatComponent({
 		[],
 	);
 
+	// Resolves a tab's session engine for persistence (D2).
+	const getKiroEngineForTab = useCallback(
+		(tabId: string) => tabHandlesRef.current.get(tabId)?.getKiroEngine() ?? "",
+		[],
+	);
+
 	// Resolves a tab's current session mode for persistence (I231).
 	const getModeIdForTab = useCallback(
 		(tabId: string) => tabHandlesRef.current.get(tabId)?.getModeId() ?? "",
@@ -617,6 +638,7 @@ function ChatComponent({
 		getDraft: getDraftForTab,
 		getWorkingDirectory: getWorkingDirectoryForTab,
 		getModeId: getModeIdForTab,
+		getKiroEngine: getKiroEngineForTab,
 		storage: persistenceStorage,
 		restoreEnabled: plugin.settings.restoreTabsOnStartup,
 		sessionSignature,
@@ -1274,6 +1296,7 @@ function ChatComponent({
 			getWorkingDirectory: () =>
 				activeCallbacksRef.current?.getWorkingDirectory() ?? "",
 			getModeId: () => activeCallbacksRef.current?.getModeId() ?? "",
+			getKiroEngine: () => activeCallbacksRef.current?.getKiroEngine() ?? "",
 			openHistory: () => activeCallbacksRef.current?.openHistory(),
 			flushSessionSave: async () =>
 				activeCallbacksRef.current?.flushSessionSave(),
@@ -1466,6 +1489,7 @@ function ChatComponent({
 								tabLabel={tab.label}
 								workingDirectory={restoredCwdByTabId[tab.tabId]}
 								restoredModeId={restoredModeByTabId[tab.tabId]}
+								restoredKiroEngine={restoredEngineByTabId[tab.tabId]}
 								initialAgentId={tab.agentId}
 								viewHost={view}
 								isActive={tab.tabId === activeTabId}

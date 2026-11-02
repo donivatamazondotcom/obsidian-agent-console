@@ -371,6 +371,8 @@ export const en = {
 		"[Agent Console] This agent can't resume — reloaded as a fresh session (history shown is local)",
 	"notices.sessionReloadResumeFailed":
 		"[Agent Console] Couldn't pick up the conversation, so the agent started fresh. Your messages are still here.",
+	"notices.sessionReloadEngineChanged":
+		"[Agent Console] Started a new session – this chat ran on Kiro V3, and the agent now uses V2. Your messages are still here.",
 	"notices.sessionReloadFailed": "[Agent Console] Failed to reload session",
 	"notices.invalidWorkingDirectory":
 		"Agent Console: a configured working directory is not a valid absolute directory. New chat started in {dir}.",
@@ -835,6 +837,9 @@ export const en = {
 	"chat.lossyFallback.title": "Session restored from history",
 	"chat.lossyFallback.body":
 		"The original session was no longer available on the agent. I'm working from a transcript of your previous conversation, but I don't have access to the original session's internal state or any reasoning from before. Some tool outputs may also have been truncated.",
+	"chat.lossyFallback.engineChanged.title": "Started a new session",
+	"chat.lossyFallback.engineChanged.body":
+		"This chat ran on the Kiro V3 engine. This agent now uses V2, which can't open V3 chats, so I'm continuing from a transcript of your conversation. To pick up the original session, set this agent back to V3 in settings.",
 	"chat.historyBanner.notStored":
 		"History for this tab is not stored locally.",
 	"chat.historyBanner.reloading": "Reloading…",

@@ -589,7 +589,9 @@ export function useChatActions(
 						t(
 							reload.reason === "resume-failed"
 								? "notices.sessionReloadResumeFailed"
-								: "notices.sessionReloadedFresh",
+								: reload.reason === "engine-changed"
+									? "notices.sessionReloadEngineChanged"
+									: "notices.sessionReloadedFresh",
 						),
 					);
 				}

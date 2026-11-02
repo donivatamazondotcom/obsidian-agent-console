@@ -102,6 +102,13 @@ export interface PersistedTabInfo {
 	 * Omitted when no mode is known (connecting, or an agent without modes).
 	 */
 	modeId?: string;
+	/**
+	 * Kiro engine the tab's session ran on (D2). Written only next to a saved
+	 * `sessionId`; read through `parseSessionEngine`. A restore prefers the
+	 * session record's value and falls back to this one. Absent on tabs saved
+	 * before D2 (unknown → the restore tries to load, as before).
+	 */
+	kiroEngine?: "v2" | "v3";
 }
 
 /**

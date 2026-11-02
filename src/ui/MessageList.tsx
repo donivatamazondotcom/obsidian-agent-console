@@ -9,6 +9,7 @@ import type { IChatViewHost } from "./view-host";
 import { setIcon } from "obsidian";
 import { MessageBubble, type A2uiBubbleContext } from "./MessageBubble";
 import { LossyFallbackNotice } from "./LossyFallbackNotice";
+import type { SessionFallbackReason } from "../resolvers/session-engine";
 import { McpFailureNotice } from "./McpFailureNotice";
 import { isSessionLive } from "../resolvers/send-affordance";
 import {
@@ -305,6 +306,8 @@ export interface MessageListProps {
 	 * without further plumbing changes.
 	 */
 	isFallbackRecovery?: boolean;
+	/** Why the fallback happened (D2); picks the notice copy. */
+	fallbackReason?: SessionFallbackReason | null;
 	/**
 	 * The tab's view id. When present, MCP servers that failed to connect
 	 * (Kiro V3 status snapshots) are listed above the conversation.
@@ -385,6 +388,7 @@ export function MessageList({
 	a2ui,
 	isActive = true,
 	isFallbackRecovery = false,
+	fallbackReason = null,
 	viewId,
 	gettingStarted,
 }: MessageListProps) {
@@ -457,6 +461,7 @@ export function MessageList({
 			<div ref={contentRef} className="agent-client-chat-content">
 				<LossyFallbackNotice
 					isFallbackRecovery={isFallbackRecovery}
+					reason={fallbackReason ?? undefined}
 				/>
 				{viewId && plugin.mcpAuthManager && (
 					<McpFailureNotice manager={plugin.mcpAuthManager} viewId={viewId} />

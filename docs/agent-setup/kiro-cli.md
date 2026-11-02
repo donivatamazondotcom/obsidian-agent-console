@@ -50,6 +50,8 @@ Kiro CLI has two engines. Agent Console uses the newer one, V3, unless you pick 
 2. Keep your arguments as they are, for example `acp --agent auto-sa`. V3 doesn't accept `--agent`, `--model` or `--effort` on launch, so Agent Console passes them to each new chat instead. `--trust-all-tools` and `--trust-tools` are dropped; V3 uses its own permission rules. In a V3 chat, **Always allow** asks whether to remember the choice for this vault or this chat (see [Permission Controls](../usage/editing.md#permission-controls)).
 3. A change applies to chats you start after it. Open chats keep the engine they started on.
 
+Each saved chat remembers the engine it ran on. A V2 chat opens fine on V3. V2 can't open a chat that ran on V3, so if you reopen one after switching to V2, Agent Console starts a new session, says why at the top of the chat, and continues from your saved messages. Switch the agent back to V3 to pick up the original session.
+
 With V3, your agent's hooks (start, prompt and stop) run in Agent Console chats too. MCP servers that need sign-in prompt you as soon as Kiro reports them, and servers that fail to start are listed at the top of the chat (see [MCP Tools](../usage/mcp-tools.md#on-the-kiro-cli-v3-engine)).
 
 On V2, starting a new chat in the same tab restarts Kiro, so it takes a few seconds longer. That keeps each tab to one copy of your MCP servers. **Rename with AI** isn't available on V2 for the same reason. V3 has neither limit.

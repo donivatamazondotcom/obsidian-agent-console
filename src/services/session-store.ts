@@ -81,6 +81,8 @@ export class SessionStore {
 		suggestedTitle?: string | null;
 		/** Agent's own title, used only when the record is created (I223). */
 		seedTitle?: string | null;
+		/** Engine this turn ran on (D2). Absent keeps the stored engine. */
+		kiroEngine?: "v2" | "v3";
 		now?: string;
 	}): Promise<void> {
 		return this.enqueue(async () => {
@@ -102,6 +104,7 @@ export class SessionStore {
 				now: params.now ?? new Date().toISOString(),
 				suggestedTitle: params.suggestedTitle ?? null,
 				seedTitle: params.seedTitle ?? null,
+				kiroEngine: params.kiroEngine,
 			});
 			if (write) await this.port.saveSession(write);
 		});
