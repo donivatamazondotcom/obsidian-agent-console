@@ -55,7 +55,9 @@ import {
 	takeTrailingAttachedFile,
 } from "../acp/kiro-v3";
 import {
+	fileMentionUris,
 	takeLeadingFileMention,
+	takeTrailingContextBlock,
 	takeTrailingFileMention,
 } from "../acp/claude-code-replay";
 import {
@@ -440,10 +442,16 @@ export function takeLeadingSenderBlock(text: string): string | null {
  * and resource links from the tail (attachments follow the user's words).
  * Resource links come back as `resource_link` chips, in each agent's replay
  * shape: Kiro V3 `<attached_file>` blocks and Claude Code `[@name](uri)`
- * mentions (I242).
+ * mentions (I242). Claude's trailing `<context ref>` serialization of an
+ * embedded resource is removed when its URI matches a chip: one in
+ * `knownUris` (chips already on the message), one taken here, or a mention
+ * still in the text (I268).
  * The user's own words are never touched. Pure and total.
  */
-export function stripInjectedPromptText(text: string): {
+export function stripInjectedPromptText(
+	text: string,
+	knownUris: ReadonlySet<string> = new Set(),
+): {
 	text: string;
 	links: ResourceLinkPromptContent[];
 } {
@@ -461,6 +469,18 @@ export function stripInjectedPromptText(text: string): {
 			takeLeadingContextBlock(rest) ??
 			takeLeadingCarryOverBlock(rest);
 		if (next === null) break;
+		rest = next;
+	}
+	const known = new Set([
+		...knownUris,
+		...links.map((l) => l.uri),
+		...fileMentionUris(rest),
+	]);
+	for (
+		let next = takeTrailingContextBlock(rest, known);
+		next !== null;
+		next = takeTrailingContextBlock(rest, known)
+	) {
 		rest = next;
 	}
 	const tail: ResourceLinkPromptContent[] = [];
