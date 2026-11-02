@@ -20,6 +20,7 @@
  * wins outright (`deriveSessionRecordTitle`).
  */
 import { isFileMentionTitle } from "../utils/file-mention";
+import { TITLE_RUBRIC } from "../utils/system-instructions";
 import type { SavedSessionInfo, SessionInfo } from "../types/session";
 import { suffixOnCollision, truncateLabel } from "../utils/tab-label";
 
@@ -33,14 +34,35 @@ export type ResolvedSessionTitle =
  * block (I223). Kiro V3 titles an untitled session with the first line of the
  * stored prompt, i.e. `<obsidian_system_instruction>`; Claude Code titles a
  * chat that opened with a context chip by the chip's `[@name](uri)` mention
- * (I242). Neither may be used as the session's title.
+ * (I242), and a chat with no chip by the opening of the plugin's own title
+ * instruction, `TITLE_RUBRIC` (I243). None may be used as the session's title.
  */
 export function isPlaceholderAgentTitle(title: string): boolean {
 	return (
 		/^<(?:obsidian_\w+|attached_file|carry_over_transcript)\b/.test(
 			title.trim(),
-		) || isFileMentionTitle(title)
+		) ||
+		isFileMentionTitle(title) ||
+		isTitleRubricHead(title)
 	);
+}
+
+/**
+ * Shortest rubric head that counts as the rubric. Long enough that a real
+ * title which happens to start the same way ("Begin your reply…") is kept.
+ */
+const MIN_RUBRIC_HEAD = 40;
+
+/**
+ * True when a title is the opening of `TITLE_RUBRIC` (I243): the whole rubric,
+ * or a prefix of it cut off by the agent (with or without a trailing "…" or
+ * "..."). Derived from the rubric itself, so editing the rubric can't silently
+ * break the match.
+ */
+function isTitleRubricHead(title: string): boolean {
+	const head = title.trim().replace(/(?:…|\.\.\.)$/, "").trimEnd();
+	if (head.length < MIN_RUBRIC_HEAD) return false;
+	return TITLE_RUBRIC.startsWith(head) || head.startsWith(TITLE_RUBRIC);
 }
 
 /** Resolve the title for one session. Total; never throws. */
