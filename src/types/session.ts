@@ -308,6 +308,13 @@ export interface ChatSession {
 	 */
 	kiroEngine?: "v2" | "v3";
 
+	/**
+	 * Whether the agent process is kiro-cli, recorded from
+	 * {@link InitializeResult.kiroCli}. Undefined before initialize resolves
+	 * and after an agent switch (I247).
+	 */
+	kiroCli?: boolean;
+
 	/** Timestamp when the session was created */
 	createdAt: Date;
 
@@ -919,4 +926,11 @@ export interface InitializeResult {
 	 * at the `acp/` edge from the launch config (I235).
 	 */
 	kiroEngine: "v2" | "v3";
+
+	/**
+	 * Whether this process is kiro-cli: a V3 launch, or a kiro-cli /
+	 * kiro-cli-chat launch command. Normalized once at the `acp/` edge from
+	 * the launch config, never from the agent id (I247).
+	 */
+	kiroCli: boolean;
 }

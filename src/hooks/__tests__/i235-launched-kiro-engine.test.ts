@@ -11,7 +11,8 @@
  * Fix: the launched engine is normalized once at the `acp/` edge
  * (`AcpTypeConverter.toInitializeResult`) into `InitializeResult.kiroEngine`,
  * copied into session state wherever capabilities are, and
- * `deriveHeaderRuntime` reads it from the session.
+ * `deriveHeaderEngine` (formerly `deriveHeaderRuntime`, renamed in I247)
+ * reads it from the session.
  *
  * Seams (R2, R4): a real AcpClient and the real useAgent hook; only
  * `doInitialize` (the process spawn) and the wire are stubbed. Its result is
@@ -30,7 +31,7 @@ import { act, renderHook } from "@testing-library/react";
 import { useAgent } from "../useAgent";
 import { AcpClient } from "../../acp/acp-client";
 import { AcpTypeConverter } from "../../acp/type-converter";
-import { deriveHeaderRuntime } from "../../resolvers/header-agent";
+import { deriveHeaderEngine } from "../../resolvers/header-agent";
 import type AgentClientPlugin from "../../plugin";
 import type { ISettingsAccess } from "../../services/settings-service";
 import type { IVaultAccess } from "../../services/vault-service";
@@ -95,7 +96,7 @@ function makeClient() {
 		currentConfig: unknown;
 		currentAgentId: string | null;
 		isInitializedFlag: boolean;
-		doInitialize: (config: { kiroEngine?: "v3" }) => Promise<unknown>;
+		doInitialize: (config: { kiroEngine?: "v3"; command?: string }) => Promise<unknown>;
 		requireConnection: () => unknown;
 	};
 	vi.spyOn(internals, "doInitialize").mockImplementation(async (config) => {
@@ -139,10 +140,13 @@ describe("I235: the launched Kiro engine travels with the session", () => {
 		hook.rerender();
 
 		expect(hook.result.current.session.kiroEngine).toBe("v3");
-		expect(deriveHeaderRuntime(hook.result.current.session)).toEqual({ kind: "kiroV3" });
+		expect(deriveHeaderEngine(hook.result.current.session)).toEqual({
+			kind: "kiroCli",
+			engine: "v3",
+		});
 	});
 
-	it("launched on V2, setting flipped to V3: no V3 Runtime line appears", async () => {
+	it("launched on V2, setting flipped to V3: the Engine line still names V2", async () => {
 		const { hook, flip } = await launch("v2");
 		expect(hook.result.current.session.kiroEngine).toBe("v2");
 
@@ -150,7 +154,10 @@ describe("I235: the launched Kiro engine travels with the session", () => {
 		hook.rerender();
 
 		expect(hook.result.current.session.kiroEngine).toBe("v2");
-		expect(deriveHeaderRuntime(hook.result.current.session)).toEqual({ kind: "unknown" });
+		expect(deriveHeaderEngine(hook.result.current.session)).toEqual({
+			kind: "kiroCli",
+			engine: "v2",
+		});
 	});
 
 	it("restored tab: load carries the launched engine from the cached init result", async () => {

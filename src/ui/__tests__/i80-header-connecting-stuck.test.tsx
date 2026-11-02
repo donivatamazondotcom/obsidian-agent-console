@@ -47,8 +47,11 @@ function makeSegments(overrides: Partial<HeaderSegments>): HeaderSegments {
 	return {
 		plugin: "Agent Console",
 		profile: "Claude Code",
-		runtime: null,
+		engine: { kind: "unknown" },
 		model: null,
+		effort: null,
+		mode: null,
+		folder: null,
 		...overrides,
 	};
 }

@@ -132,8 +132,11 @@ describe("ChatHeader agent segment", () => {
 	const seg = (agent: HeaderSegments["agent"]): HeaderSegments => ({
 		plugin: "Agent Console",
 		profile: "Auto SA",
-		runtime: null,
+		engine: { kind: "unknown" },
 		model: "Claude Opus 5.5",
+		effort: null,
+		mode: null,
+		folder: null,
 		agent,
 	});
 	const renderHeader = (segments: HeaderSegments) =>

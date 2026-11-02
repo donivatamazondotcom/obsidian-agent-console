@@ -496,7 +496,6 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"commands.broadcastCancel": "전체 탭에서 취소",
 	// ---- Phase 3: chat header ----
 	"chat.header.connecting": "연결 중…",
-	"chat.header.runtimeKiroV3": "Kiro CLI (V3 엔진)",
 	"chat.header.notConnected": "연결되지 않음",
 	"chat.header.updatePill": "플러그인 업데이트 가능!",
 	"chat.header.updateTooltip":
@@ -506,12 +505,15 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.header.sessionHistory": "세션 기록",
 	"chat.header.exportTooltip": "채팅을 마크다운으로 내보내기",
 	"chat.header.more": "더 보기",
-	"chat.header.tooltipPlugin": "플러그인: {value}",
 	"chat.header.tooltipAgentNotLoaded": "{requested}을(를) 불러올 수 없어 대신 {running}이(가) 실행 중입니다",
 	"chat.header.tooltipAgentSwitched": "실행 중: {running}(입력창에서 전환함)",
-	"chat.header.tooltipProfile": "프로필: {value}",
-	"chat.header.tooltipRuntime": "런타임: {value}",
+	"chat.header.tooltipAgent": "에이전트: {value}",
+	"chat.header.tooltipEngine": "엔진: {value}",
+	"chat.header.engineKiroCli": "Kiro CLI {engine}",
 	"chat.header.tooltipModel": "모델: {value}",
+	"chat.header.tooltipEffort": "추론 수준: {value}",
+	"chat.header.tooltipMode": "모드: {value}",
+	"chat.header.tooltipFolder": "폴더: {value}",
 	// ---- Phase 3: more-menu + tab bar ----
 	"chat.menu.switchAgent": "에이전트 전환",
 	"chat.menu.openNewView": "새 화면 열기",

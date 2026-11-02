@@ -1,4 +1,5 @@
 import * as acp from "@agentclientprotocol/sdk";
+import { isKiroCliCommand } from "./kiro-v3";
 import type { ToolCallContent, PromptContent } from "../types/chat";
 import type {
 	InitializeResult,
@@ -297,7 +298,7 @@ export class AcpTypeConverter {
 	 */
 	static toInitializeResult(
 		initResult: acp.InitializeResponse,
-		launch: { kiroEngine?: "v3" },
+		launch: { kiroEngine?: "v3"; command?: string },
 	): InitializeResult {
 		const promptCaps = initResult.agentCapabilities?.promptCapabilities;
 		const mcpCaps = initResult.agentCapabilities?.mcpCapabilities;
@@ -346,6 +347,12 @@ export class AcpTypeConverter {
 			// The engine comes from how WE launched the process, not from the
 			// agent's reply: V3 sends no agentInfo (I235).
 			kiroEngine: launch.kiroEngine === "v3" ? "v3" : "v2",
+			// Whether this process is kiro-cli, from the launch command (or a
+			// V3 launch, which only kiro-cli has), never the agent id (I247).
+			// `kiroEngine` alone can't say: it is "v2" for Claude too.
+			kiroCli:
+				launch.kiroEngine === "v3" ||
+				(!!launch.command && isKiroCliCommand(launch.command)),
 		};
 	}
 }

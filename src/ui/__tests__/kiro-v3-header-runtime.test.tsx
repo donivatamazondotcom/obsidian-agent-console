@@ -7,6 +7,7 @@
  * decision (a1):
  *   - agent reported `agentInfo` → its title/name + version (unchanged)
  *   - Kiro CLI on the V3 engine, nothing reported → "Kiro CLI (V3 engine)"
+ *     (since I247 the line reads "Engine: Kiro CLI V3")
  *   - anything else with nothing reported → no Runtime line once ready
  * "Connecting…" shows only while the session is genuinely connecting, the same
  * gate the visible model slot uses (I80). The Model line gets the same gate.
@@ -19,7 +20,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import * as React from "react";
-import { deriveHeaderRuntime } from "../../resolvers/header-agent";
+import { deriveHeaderEngine } from "../../resolvers/header-agent";
 import { ChatHeader, type HeaderSegments } from "../ChatHeader";
 
 (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
@@ -29,25 +30,29 @@ import { ChatHeader, type HeaderSegments } from "../ChatHeader";
 };
 vi.mock("obsidian", () => ({ setIcon: vi.fn() }));
 
-describe("deriveHeaderRuntime", () => {
-	it("reported agentInfo wins, with title and version", () => {
+describe("deriveHeaderEngine (was deriveHeaderRuntime; renamed in I247)", () => {
+	it("reported agentInfo, with title and version, for a non-Kiro agent", () => {
 		expect(
-			deriveHeaderRuntime({
+			deriveHeaderEngine({
 				agentInfo: { name: "test-agent", title: "Test Agent", version: "1.2.3" },
-				kiroEngine: "v3",
+				kiroCli: false,
+				kiroEngine: "v2",
 			}),
 		).toEqual({ kind: "reported", label: "Test Agent 1.2.3" });
 		expect(
-			deriveHeaderRuntime({ agentInfo: { name: "test-agent" }, kiroEngine: "v2" }),
+			deriveHeaderEngine({ agentInfo: { name: "test-agent" }, kiroEngine: "v2" }),
 		).toEqual({ kind: "reported", label: "test-agent" });
 	});
 
-	it("Kiro CLI V3 with no agentInfo → kiroV3", () => {
-		expect(deriveHeaderRuntime({ kiroEngine: "v3" })).toEqual({ kind: "kiroV3" });
+	it("Kiro CLI V3 with no agentInfo → kiroCli v3", () => {
+		expect(deriveHeaderEngine({ kiroCli: true, kiroEngine: "v3" })).toEqual({
+			kind: "kiroCli",
+			engine: "v3",
+		});
 	});
 
 	it("anything else with no agentInfo → unknown", () => {
-		expect(deriveHeaderRuntime({ kiroEngine: "v2" })).toEqual({ kind: "unknown" });
+		expect(deriveHeaderEngine({ kiroEngine: "v2" })).toEqual({ kind: "unknown" });
 	});
 });
 
@@ -55,8 +60,11 @@ function tooltipFor(overrides: Partial<HeaderSegments>): string {
 	const segments: HeaderSegments = {
 		plugin: "Agent Console",
 		profile: "Test Agent",
-		runtime: null,
+		engine: { kind: "unknown" },
 		model: null,
+		effort: null,
+		mode: null,
+		folder: null,
 		...overrides,
 	};
 	const { container } = render(
@@ -77,28 +85,28 @@ function tooltipFor(overrides: Partial<HeaderSegments>): string {
 	);
 }
 
-describe("ChatHeader tooltip Runtime/Model lines", () => {
+describe("ChatHeader tooltip Engine/Model lines", () => {
 	it("ready V3 session: shows the fallback runtime, never 'Connecting…'", () => {
 		const tip = tooltipFor({
-			runtime: "Kiro CLI (V3 engine)",
+			engine: { kind: "kiroCli", engine: "v3" },
 			model: "Test model",
 			isConnecting: false,
 		});
-		expect(tip).toContain("Runtime: Kiro CLI (V3 engine)");
+		expect(tip).toContain("Engine: Kiro CLI V3");
 		expect(tip).not.toContain("Connecting");
 	});
 
 	it("ready session with nothing reported: omits the lines instead of 'Connecting…'", () => {
 		const tip = tooltipFor({ isConnecting: false });
 		expect(tip).not.toContain("Connecting");
-		expect(tip).not.toContain("Runtime:");
+		expect(tip).not.toContain("Engine:");
 		expect(tip).not.toContain("Model:");
 		expect(tip).toContain("Test Agent");
 	});
 
 	it("genuinely connecting: both lines say 'Connecting…'", () => {
 		const tip = tooltipFor({ isConnecting: true });
-		expect(tip).toMatch(/Runtime: Connecting…/);
+		expect(tip).toMatch(/Engine: Connecting…/);
 		expect(tip).toMatch(/Model:\s+Connecting…/);
 	});
 });

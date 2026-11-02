@@ -571,7 +571,6 @@ export const en = {
 	"chat.tooltipSeparator": " — ",
 	// ---- Phase 3: chat header ----
 	"chat.header.connecting": "Connecting…",
-	"chat.header.runtimeKiroV3": "Kiro CLI (V3 engine)",
 	"chat.header.notConnected": "Not connected",
 	"chat.header.updatePill": "Plugin update available!",
 	"chat.header.updateTooltip":
@@ -581,14 +580,17 @@ export const en = {
 	"chat.header.sessionHistory": "Session history",
 	"chat.header.exportTooltip": "Export chat to Markdown",
 	"chat.header.more": "More",
-	"chat.header.tooltipPlugin": "Plugin:  {value}",
 	"chat.header.tooltipAgentNotLoaded":
 		"{requested} couldn't load, so {running} is running instead",
 	"chat.header.tooltipAgentSwitched":
 		"Running: {running} (switched in the composer)",
-	"chat.header.tooltipProfile": "Profile: {value}",
-	"chat.header.tooltipRuntime": "Runtime: {value}",
-	"chat.header.tooltipModel": "Model:   {value}",
+	"chat.header.tooltipAgent": "Agent: {value}",
+	"chat.header.tooltipEngine": "Engine: {value}",
+	"chat.header.engineKiroCli": "Kiro CLI {engine}",
+	"chat.header.tooltipModel": "Model: {value}",
+	"chat.header.tooltipEffort": "Effort: {value}",
+	"chat.header.tooltipMode": "Mode: {value}",
+	"chat.header.tooltipFolder": "Folder: {value}",
 	// ---- Phase 3: more-menu + tab bar ----
 	"chat.menu.switchAgent": "Switch agent",
 	"chat.menu.openNewView": "Open new view",

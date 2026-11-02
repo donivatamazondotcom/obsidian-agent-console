@@ -2,7 +2,10 @@ import * as React from "react";
 import {
 	deriveHeaderAgent,
 	deriveHeaderModelName,
-	deriveHeaderRuntime,
+	deriveHeaderEngine,
+	deriveHeaderEffort,
+	deriveHeaderFolder,
+	deriveHeaderMode,
 } from "../resolvers/header-agent";
 import { isKiroCliCommand, requestedKiroAgent } from "../acp/kiro-v3";
 const { useState, useRef, useEffect, useMemo, useCallback } = React;
@@ -749,11 +752,14 @@ export function ChatPanel({
 	/**
 	 * Header branding segments — see Agent Console Header Branding spec.
 	 *
-	 * Layered as: Plugin → Profile → Runtime → Model.
+	 * Visible: Plugin → Agent → Model. Tooltip (I247): Agent, Engine, Model,
+	 * Effort, Mode, Folder, each only when it applies.
 	 * - plugin: client-sourced (manifest), shown in literal brackets
-	 * - profile: client-sourced (settings.displayName), the "which configuration" signal
-	 * - runtime: ACP-sourced (session.agentInfo), null while connecting
+	 * - profile: client-sourced (settings.displayName), the "which agent" signal
+	 * - engine: launched engine + kiroCli from the acp/ edge, else agentInfo
 	 * - model:   ACP-sourced (session.models), null while connecting
+	 * - effort / mode: ACP-sourced config options (mode hidden on Kiro)
+	 * - folder: the tab's agentCwd, hidden when it is the vault folder
 	 *
 	 * Both ACP segments null = "Connecting…" placeholder rendered by ChatHeader.
 	 */
@@ -761,18 +767,21 @@ export function ChatPanel({
 		const pluginName = plugin.manifest.name;
 		const profile = activeAgentLabel;
 
-		// Kiro CLI V3 sends no agentInfo; name the engine instead (S2). The
-		// engine is the one this tab launched with, not the setting (I235).
-		const runtimeSegment = deriveHeaderRuntime({
-			agentInfo: session.agentInfo,
+		// Engine line (I247): Kiro names its launched engine, V2 or V3 (I235);
+		// other agents name what they reported. `kiroCli` comes from the acp/
+		// edge, never the agent id or settings.
+		const engine = deriveHeaderEngine({
+			kiroCli: session.kiroCli,
 			kiroEngine: session.kiroEngine,
+			agentInfo: session.agentInfo,
 		});
-		const runtime =
-			runtimeSegment.kind === "reported"
-				? runtimeSegment.label
-				: runtimeSegment.kind === "kiroV3"
-					? t("chat.header.runtimeKiroV3")
-					: null;
+		const effort = deriveHeaderEffort({ configOptions: session.configOptions });
+		const mode = deriveHeaderMode({
+			kiroCli: session.kiroCli,
+			modes: session.modes,
+			configOptions: session.configOptions,
+		});
+		const folder = deriveHeaderFolder({ cwd: agentCwd, vaultRoot });
 
 		// Confirmed model (SDK 0.24+), then legacy models, then the `model`
 		// config option (Kiro CLI V3 sends only that).
@@ -795,7 +804,7 @@ export function ChatPanel({
 			configOptions: session.configOptions,
 		});
 
-		return { plugin: pluginName, profile, runtime, model, agent };
+		return { plugin: pluginName, profile, engine, model, effort, mode, folder, agent };
 	}, [
 		plugin.manifest.name,
 		plugin.settings,
@@ -803,6 +812,9 @@ export function ChatPanel({
 		session.agentId,
 		session.agentInfo,
 		session.kiroEngine,
+		session.kiroCli,
+		agentCwd,
+		vaultRoot,
 		session.models,
 		session.modes,
 		session.configOptions,
