@@ -86,6 +86,20 @@ type ElementCreators = {
 	createDiv?: (o?: DomInfo) => HTMLDivElement;
 };
 
+// Obsidian declares createEl on every Node, so fragments have it too.
+const fragmentProto = DocumentFragment.prototype as unknown as ElementCreators;
+if (typeof fragmentProto.createEl !== "function") {
+	fragmentProto.createEl = function (
+		this: DocumentFragment,
+		tag: string,
+		o?: DomInfo,
+	): HTMLElement {
+		const el = domGlobals.createEl(tag, o);
+		this.appendChild(el);
+		return el;
+	};
+}
+
 const elementProto = HTMLElement.prototype as unknown as ElementCreators;
 if (typeof elementProto.createEl !== "function") {
 	elementProto.createEl = function (

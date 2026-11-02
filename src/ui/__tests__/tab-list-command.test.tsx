@@ -22,6 +22,7 @@ import * as React from "react";
 const h = vi.hoisted(() => {
 	interface FakeItem {
 		title?: string;
+		bold?: boolean;
 		icon?: string;
 		checked?: boolean;
 		click?: (e: unknown) => void;
@@ -39,6 +40,7 @@ vi.mock("obsidian", () => {
 	class Menu {
 		items: Array<{
 			title?: string;
+			bold?: boolean;
 			icon?: string;
 			checked?: boolean;
 			click?: (e: unknown) => void;
@@ -55,13 +57,16 @@ vi.mock("obsidian", () => {
 		addItem(cb: (item: unknown) => void) {
 			const item: {
 				title?: string;
+				bold?: boolean;
 				icon?: string;
 				checked?: boolean;
 				click?: (e: unknown) => void;
 			} = {};
 			const api = {
-				setTitle(t: string) {
-					item.title = t;
+				setTitle(t: string | DocumentFragment) {
+					item.title = typeof t === "string" ? t : (t.textContent ?? "");
+					item.bold =
+						typeof t !== "string" && t.querySelector("strong") !== null;
 					return api;
 				},
 				setIcon(i: string) {
@@ -186,8 +191,10 @@ describe("show-tab-list command wiring (TabBar.onRegisterShowTabList)", () => {
 			["loader-circle", "Working"],
 			["triangle-alert", "Waiting"],
 		]);
-		// Active tab is checked.
-		expect(menu.items[1].checked).toBe(true);
+		// Tab Attention States: the active tab is marked with a bold label, not
+		// a checkmark, because a tick now means "finished while you were away".
+		expect(menu.items.map((i) => i.bold ?? false)).toEqual([false, true, false]);
+		expect(menu.items.some((i) => i.checked)).toBe(false);
 		// I238: native (OS) menus ignore setIcon, so the list forces a DOM menu
 		// to keep the state icons visible.
 		expect(menu.native).toBe(false);

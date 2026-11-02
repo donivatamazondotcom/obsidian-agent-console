@@ -47,6 +47,7 @@ import {
 	isSessionLive,
 } from "../resolvers/send-affordance";
 import { deriveTabState } from "../resolvers/tab-state";
+import { useTabUnseen } from "../hooks/useTabUnseen";
 import { extractLinks, type SharedLink } from "../utils/link-extract";
 import {
 	decideSessionIntent,
@@ -2276,10 +2277,20 @@ export function ChatPanel({
 	//     the agent kept working, stranding the tab at ready.
 	// `deriveTabState` recomputes every render, so a missed edge can't strand
 	// the icon (see resolvers/tab-state.ts + its truth-table test).
+	// Tab Attention States: did a turn end while the user wasn't looking?
+	// Also the panel root for focus tracking below.
+	const containerRef = useRef<HTMLDivElement>(null);
+	const unseen = useTabUnseen({
+		lastTurnEnd: agent.lastTurnEnd,
+		isSending,
+		isActive: isActive ?? false,
+		containerRef,
+	});
 	const tabState = deriveTabState({
 		lifecycle: lazySession.state,
 		isSending,
 		hasActivePermission: agent.hasActivePermission,
+		unseen,
 	});
 	useEffect(() => {
 		onStateChangeRef.current?.(tabState);
@@ -2568,7 +2579,6 @@ export function ChatPanel({
 	// ============================================================
 	// Effects - Focus Tracking
 	// ============================================================
-	const containerRef = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		const handleFocus = () => {
 			// Use viewHost.viewId (the registry-recognized container ID).

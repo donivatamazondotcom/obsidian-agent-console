@@ -32,8 +32,7 @@
  * `src/resolvers/__tests__/tab-state.test.ts` for the exhaustive truth table.
  */
 
-import type { TabSessionState } from "../types/tab";
-import type { TabState } from "../types/tab";
+import type { TabSessionState, TabState, TabUnseen } from "../types/tab";
 
 export interface TabStateInput {
 	/**
@@ -52,38 +51,49 @@ export interface TabStateInput {
 	isSending: boolean;
 	/** The agent is blocked awaiting a permission decision. */
 	hasActivePermission: boolean;
+	/**
+	 * A turn ended while the user wasn't looking ([[Tab Attention States]]).
+	 * From the pure reducer in `resolvers/tab-unseen.ts`.
+	 */
+	unseen: TabUnseen;
 }
 
 /**
- * The single tab-icon-state decision. Precedence:
- *  1. `error` lifecycle → error (nothing else matters — the session is dead).
- *  2. `idle`/`connecting` → disconnected (no live session yet; a pending send
- *     during connect does NOT show busy — matches the pre-existing connect
- *     display and the header's "Connecting…" semantics).
- *  3. `released` → released (the quiet ring, I209). The process is gone, so
- *     stale sending / permission flags from before the release are ignored.
- *  4. live lifecycle (`ready`/`busy`/`permission`):
- *       - active permission wins over sending → permission
- *       - else processing → busy
- *       - else → ready
+ * The single tab-icon-state decision ([[Tab Attention States]]). Precedence:
+ *  1. `error` lifecycle → error (the session is dead).
+ *  2. `connecting` → connecting.
+ *  3. `idle` → a fresh lazy tab that connects on the first send: ready, or
+ *     connecting once a send is pending. (Was `disconnected`, which made a
+ *     new tab look like a dead one.)
+ *  4. `released` → an unread result if there is one, else released. Stale
+ *     sending / permission flags from before the release are ignored.
+ *  5. live lifecycle (`ready`/`busy`/`permission`):
+ *       permission → busy → stopped-unseen → done-unseen → ready
  */
 export function deriveTabState(input: TabStateInput): TabState {
-	const { lifecycle, isSending, hasActivePermission } = input;
+	const { lifecycle, isSending, hasActivePermission, unseen } = input;
+	const unseenState: TabState | null =
+		unseen === null
+			? null
+			: unseen.kind === "done"
+				? "doneUnseen"
+				: "stoppedUnseen";
 
 	switch (lifecycle) {
 		case "error":
 			return "error";
-		case "idle":
 		case "connecting":
-			return "disconnected";
+			return "connecting";
+		case "idle":
+			return isSending ? "connecting" : "ready";
 		case "released":
-			return "released";
+			return unseenState ?? "released";
 		case "ready":
 		case "busy":
 		case "permission": {
 			if (hasActivePermission) return "permission";
 			if (isSending) return "busy";
-			return "ready";
+			return unseenState ?? "ready";
 		}
 	}
 }

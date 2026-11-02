@@ -14,12 +14,22 @@
  * animation third. No red/green contrast dependency.
  */
 export type TabState =
-	| "ready" // circle-dot, blue — idle, waiting for input
+	| "ready" // circle-dot, blue — idle, ready for input (incl. a new lazy tab)
 	| "busy" // loader-circle, blue, spinning — agent processing
 	| "permission" // triangle-alert, orange, pulsing — awaiting user approval
 	| "error" // circle-x, red — session error
-	| "disconnected" // circle, gray — session closed
-	| "released"; // moon, muted — asleep to save memory; wakes on typing (I209)
+	| "disconnected" // circle, gray — placeholder before the panel reports
+	| "released" // moon, muted — asleep to save memory; wakes on typing (I209)
+	| "connecting" // circle-dashed, muted, slow spin — agent starting
+	| "doneUnseen" // check, accent — finished, not viewed yet
+	| "stoppedUnseen"; // circle-alert, yellow — stopped early, not viewed yet
+
+/**
+ * Unseen-result flag for a tab ([[Tab Attention States]] § Unseen flag).
+ * Set when a turn ends while the user isn't looking; cleared on view or on
+ * the next send. Runtime only — never persisted.
+ */
+export type TabUnseen = null | { kind: "done" } | { kind: "stopped" };
 
 /** Runtime acquisition provenance. Reconstructed on restore; never persisted. */
 export type TabOrigin = "fresh" | "restored";

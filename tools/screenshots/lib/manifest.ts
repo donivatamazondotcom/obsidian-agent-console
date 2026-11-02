@@ -214,7 +214,15 @@ export interface InitialState {
 	 */
 	forceTabStates?: {
 		label: string;
-		state: "ready" | "busy" | "permission" | "error" | "disconnected";
+		state:
+			| "ready"
+			| "busy"
+			| "permission"
+			| "error"
+			| "disconnected"
+			| "connecting"
+			| "doneUnseen"
+			| "stoppedUnseen";
 	}[];
 	/**
 	 * Surface the ConfirmCloseModal for the confirm-close shot. The modal is
