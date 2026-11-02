@@ -672,6 +672,14 @@ export interface SessionResult {
 
 	/** Session config options (supersedes modes/models) */
 	configOptions?: SessionConfigOption[];
+
+	/**
+	 * Conversation updates (user, agent and thought chunks, tool calls) the
+	 * agent replayed while `session/load` was in flight. Set by load only;
+	 * undefined means not counted (resume, new, fork). Kiro V3 loads an id it
+	 * never had with success and 0 here (I264).
+	 */
+	replayedConversationUpdates?: number;
 }
 
 /**

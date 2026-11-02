@@ -21,6 +21,38 @@ import {
 	type SessionEngine,
 	type SessionFallbackReason,
 } from "../resolvers/session-engine";
+import { decideLoadReplay } from "../resolvers/load-replay";
+
+/**
+ * Thrown by `resumeSameSession` when the load succeeded but replayed no
+ * conversation while a transcript is on screen: the agent doesn't have the
+ * chat (Kiro V3 opens an empty session for an unknown id, I264). The flow
+ * treats it as a failed resume and starts fresh; the transcript goes with the
+ * next send.
+ */
+export class EmptyLoadError extends Error {
+	constructor(readonly sessionId: string) {
+		super(`Session ${sessionId} loaded with no conversation`);
+		this.name = "EmptyLoadError";
+	}
+}
+
+/**
+ * Soft-reload replay check, run by `resumeSameSession` right after its load
+ * and before the session is applied. Reads the same resolver as a restored
+ * tab (`decideLoadReplay`).
+ */
+export function assertLoadReplayed(
+	sessionId: string,
+	replayedConversationUpdates: number | undefined,
+	haveLocalHistory: boolean,
+): void {
+	const decision = decideLoadReplay({
+		replayedConversationUpdates,
+		haveLocalHistory,
+	});
+	if (decision.kind === "empty") throw new EmptyLoadError(sessionId);
+}
 
 /**
  * Thrown by `resumeSameSession` when the session ran on an engine the

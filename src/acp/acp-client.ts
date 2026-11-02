@@ -1343,17 +1343,28 @@ export class AcpClient {
 		try {
 			this.logger.log(`Loading session: ${sessionId}...`);
 
-			const response = await connection.agent.request(acp.methods.agent.session.load, {
-				sessionId,
-				cwd: this.toSessionCwd(cwd),
-				mcpServers: [],
-			});
+			let replayedConversationUpdates = 0;
+			// Count the replay while the request is in flight: agents send the
+			// conversation before the response (I264).
+			this.handler.beginReplayCount(sessionId);
+			const response = await connection.agent
+				.request(acp.methods.agent.session.load, {
+					sessionId,
+					cwd: this.toSessionCwd(cwd),
+					mcpServers: [],
+				})
+				.finally(() => {
+					replayedConversationUpdates =
+						this.handler.endReplayCount(sessionId);
+				});
 
-			this.logger.log(`Session loaded: ${sessionId}`);
-			const result = AcpTypeConverter.toSessionResult(
-				sessionId,
-				response,
+			this.logger.log(
+				`Session loaded: ${sessionId} (${replayedConversationUpdates} conversation updates replayed)`,
 			);
+			const result = {
+				...AcpTypeConverter.toSessionResult(sessionId, response),
+				replayedConversationUpdates,
+			};
 			this.currentSessionId = result.sessionId;
 			return result;
 		} catch (error) {

@@ -45,6 +45,7 @@ import {
 import { resolveModeRequest } from "../resolvers/session-modes";
 import {
 	assertEngineCanResume,
+	assertLoadReplayed,
 	reloadSessionFlow,
 	type ReloadSessionFlowResult,
 } from "./reloadSessionFlow";
@@ -91,6 +92,8 @@ export interface UseAgentSessionReturn {
 	 */
 	reloadSession: (
 		setIgnoreUpdates?: (ignore: boolean) => void,
+		/** Whether a transcript is on screen, read at load time (I264). */
+		haveLocalHistory?: () => boolean,
 	) => Promise<ReloadSessionFlowResult>;
 	cancelOperation: () => Promise<void>;
 	getAvailableAgents: () => AgentDisplayInfo[];
@@ -669,6 +672,7 @@ export function useAgentSession(
 
 	const reloadSession = useCallback(async (
 		setIgnoreUpdates?: (ignore: boolean) => void,
+		haveLocalHistory?: () => boolean,
 	): Promise<ReloadSessionFlowResult> => {
 		const prev = sessionRef.current;
 		const sessionId = prev.sessionId;
@@ -720,6 +724,13 @@ export function useAgentSession(
 					agentClient.getInitializeResult()?.kiroEngine,
 				);
 				const result = await agentClient.loadSession(sid, effectiveCwd);
+				// I264: an empty load for a chat with a transcript means the
+				// agent doesn't have it; throw so the flow starts fresh.
+				assertLoadReplayed(
+					sid,
+					result.replayedConversationUpdates,
+					haveLocalHistory?.() ?? false,
+				);
 				await updateSessionFromLoad(
 					result.sessionId,
 					result.modes,
