@@ -19,9 +19,30 @@ import {
 	takeLeadingWrappedBlock,
 } from "../utils/injected-blocks";
 
+/**
+ * Why a transcript is carried into a fresh session:
+ * - `switch`: the user switched this tab to another agent.
+ * - `fallback`: the tab's session couldn't be reopened (failed load, engine
+ *   change, soft reload that started fresh, local fork branch), so the plugin
+ *   started a new one (I246).
+ */
+export type CarryOverKind = "switch" | "fallback";
+
 /** Bare hint sent after an embedded carry-over transcript resource. */
-const CARRY_OVER_HINT =
-	"The messages above are from an earlier conversation the user carried over when switching to you. Continue from where they left off.";
+const CARRY_OVER_HINTS: Record<CarryOverKind, string> = {
+	switch:
+		"The messages above are from an earlier conversation the user carried over when switching to you. Continue from where they left off.",
+	fallback:
+		"The messages above are this conversation so far. The earlier session couldn't be reopened, so this is a new session. Continue from where it left off.",
+};
+
+/** Intro line inside the plain-text `<carry_over_transcript>` wrapper. */
+const CARRY_OVER_INTROS: Record<CarryOverKind, string> = {
+	switch:
+		"The following messages are from an earlier conversation the user carried over when switching to you. Continue from where they left off.",
+	fallback:
+		"The following messages are this conversation so far. The earlier session couldn't be reopened, so this is a new session. Continue from where it left off.",
+};
 
 export const CARRY_OVER_BUDGET = 10_000;
 const TRIM_NOTICE = "[Earlier messages trimmed]\n\n";
@@ -95,6 +116,7 @@ export function buildCarryOverBlocks(
 	messages: ChatMessage[],
 	supportsEmbeddedContext: boolean,
 	budget: number = CARRY_OVER_BUDGET,
+	kind: CarryOverKind = "switch",
 ): PromptContent[] {
 	const transcript = buildCarryOverTranscript(messages, budget);
 	if (!transcript) return [];
@@ -115,7 +137,7 @@ export function buildCarryOverBlocks(
 			},
 			{
 				type: "text",
-				text: CARRY_OVER_HINT,
+				text: CARRY_OVER_HINTS[kind],
 			},
 		];
 	}
@@ -124,12 +146,14 @@ export function buildCarryOverBlocks(
 	return [
 		{
 			type: "text",
-			text: `<carry_over_transcript>\nThe following messages are from an earlier conversation the user carried over when switching to you. Continue from where they left off.\n\n${transcript}\n</carry_over_transcript>`,
+			text: `<carry_over_transcript>\n${CARRY_OVER_INTROS[kind]}\n\n${transcript}\n</carry_over_transcript>`,
 		},
 	];
 }
 
-const CARRY_OVER_HINT_RE = new RegExp(`^${escapeRegExp(CARRY_OVER_HINT)}`);
+const CARRY_OVER_HINT_RE = new RegExp(
+	`^(?:${Object.values(CARRY_OVER_HINTS).map(escapeRegExp).join("|")})`,
+);
 
 /**
  * Inverse of {@link buildCarryOverBlocks} for replayed text (I222): remove ONE

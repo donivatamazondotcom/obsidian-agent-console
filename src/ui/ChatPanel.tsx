@@ -863,6 +863,8 @@ export function ChatPanel({
 		setAgentUpdateNotification,
 		autoExportIfEnabled,
 		setCarryOverBlocks,
+		armFallbackCarryOver,
+		clearFallbackCarryOver,
 	} = actions;
 
 	// Focus-return after in-panel state changes — [[Composer Focus Return After State Change]].
@@ -1685,6 +1687,14 @@ export function ChatPanel({
 				restoredForkTitle,
 			],
 		),
+
+		// I246: every fallback to a new session (failed load, engine change,
+		// soft reload that started fresh, local fork branch) arms the on-screen
+		// transcript for the next send, before the tab goes ready so a held
+		// message's connect-flush carries it. A reset (New chat, switch) drops
+		// an armed transcript that was never sent.
+		onSessionFallback: armFallbackCarryOver,
+		onReset: clearFallbackCarryOver,
 
 		sendPrompt: useCallback(async () => {
 			// Queue flush is owned by ChatPanel's connect-flush effect

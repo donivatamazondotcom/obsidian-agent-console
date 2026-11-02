@@ -17,12 +17,11 @@
  *
  *   - **Restored-tab fallback path:** if `loadExistingSession` resolves
  *     `{ ok: false }`, the hook automatically falls through to
- *     `acquireNewSession` and sets `isFallbackRecovery = true`. The
- *     consumer (ChatPanel) reads this flag to (a) prepend the synthetic
- *     replay-context block built by Slice 1's `buildReplayContextBlock`
- *     to the next prompt, and (b) render the LossyFallbackNotice from
- *     Slice 6. The hook itself does NOT prepend or render — that
- *     separation keeps Slice 3 a pure trigger-and-state hook.
+ *     `acquireNewSession`, sets `isFallbackRecovery = true` (the consumer
+ *     renders the LossyFallbackNotice) and calls `onSessionFallback`
+ *     before `ready`, so the consumer arms the transcript for the next send
+ *     (I246). The hook itself does NOT build or send it — that separation
+ *     keeps it a pure trigger-and-state hook.
  *
  *   - **Send-while-connecting:** the hook does NOT queue internally. The
  *     consumer's queue-orchestration reducer holds the one pending message
@@ -87,7 +86,18 @@ import type { SessionFallbackReason } from "../resolvers/session-engine";
  * boundary and translate to this shape.
  */
 export type SessionAcquisitionResult =
-	| { ok: true; sessionId: string; lossy?: boolean }
+	| {
+			ok: true;
+			sessionId: string;
+			/**
+			 * The session is new and the agent has none of the conversation (a
+			 * local fork branch, or a soft reload that started fresh). The owner
+			 * reports it through `onSessionFallback` (I246).
+			 */
+			lossy?: boolean;
+			/** Why a lossy acquisition started fresh. Defaults to "unavailable". */
+			fallbackReason?: SessionFallbackReason;
+	  }
 	| { ok: false; error: Error; fallbackReason?: "engine-changed" };
 
 export interface UseLazySessionOptions {
@@ -137,6 +147,24 @@ export interface UseLazySessionOptions {
 	sendPrompt: (sessionId: string, message: string) => Promise<void>;
 
 	/**
+	 * Called once per lossy acquisition, synchronously and before the tab
+	 * goes `ready`: a restored or released tab whose load failed (or whose
+	 * engine changed) and fell back to a new session, a local fork branch, or
+	 * a soft reload that started fresh. The consumer arms the transcript for
+	 * the next send here; arming before `ready` means the connect-flush of a
+	 * held message already carries it (I246).
+	 */
+	onSessionFallback?: (reason: SessionFallbackReason) => void;
+
+	/**
+	 * Called by `reset()` (New chat, agent switch, same-agent pick, and
+	 * `acquireNow`). The consumer drops a transcript armed by
+	 * `onSessionFallback` that was never sent, so it can't leak into an
+	 * unrelated chat (I246).
+	 */
+	onReset?: () => void;
+
+	/**
 	 * Debounce window for typing-as-intent. Decision #8: 200ms. Configurable
 	 * for testing and future tuning.
 	 */
@@ -162,9 +190,9 @@ export interface UseLazySessionApi {
 
 	/**
 	 * `true` if this session was acquired via `loadExistingSession` →
-	 * `acquireNewSession` fallback. Drives the LossyFallbackNotice (Slice 6)
-	 * and the consumer's decision to prepend Slice 1's replay-context block.
-	 * Cleared by `reset()`.
+	 * `acquireNewSession` fallback, or as a local fork branch. Drives the
+	 * LossyFallbackNotice. The transcript itself is delivered through
+	 * `onSessionFallback` (I246). Cleared by `reset()`.
 	 */
 	isFallbackRecovery: boolean;
 
@@ -287,6 +315,8 @@ export function useLazySession(
 		forkExistingSession,
 		eagerAcquire = false,
 		sendPrompt,
+		onSessionFallback,
+		onReset,
 		debounceMs = DEFAULT_DEBOUNCE_MS,
 	} = options;
 
@@ -328,6 +358,10 @@ export function useLazySession(
 	const loadExistingSessionRef = useRef(loadExistingSession);
 	const forkExistingSessionRef = useRef(forkExistingSession);
 	const sendPromptRef = useRef(sendPrompt);
+	const onSessionFallbackRef = useRef(onSessionFallback);
+	const onResetRef = useRef(onReset);
+	onSessionFallbackRef.current = onSessionFallback;
+	onResetRef.current = onReset;
 	acquireNewSessionRef.current = acquireNewSession;
 	loadExistingSessionRef.current = loadExistingSession;
 	forkExistingSessionRef.current = forkExistingSession;
@@ -355,6 +389,9 @@ export function useLazySession(
 
 		// Acquisition source, in precedence order: fork > restore > new.
 		let result: SessionAcquisitionResult;
+		// Set when this acquisition ends in a new session the agent knows
+		// nothing about; reported before `ready` (I246).
+		let fallback: SessionFallbackReason | null = null;
 		const forkId = forkFromSessionIdRef.current;
 		const restoredId = restoredSessionIdRef.current;
 		if (forkId && forkExistingSessionRef.current) {
@@ -373,6 +410,7 @@ export function useLazySession(
 				if (result.lossy) {
 					setIsFallbackRecovery(true);
 					setFallbackReason("unavailable");
+					fallback = "unavailable";
 				}
 			}
 		} else if (restoredId) {
@@ -382,8 +420,10 @@ export function useLazySession(
 				// straight to new) and create a fresh session. The replay
 				// context block lives in the consumer; we just signal the
 				// fallback path was taken.
+				const reason = result.fallbackReason ?? "unavailable";
 				setIsFallbackRecovery(true);
-				setFallbackReason(result.fallbackReason ?? "unavailable");
+				setFallbackReason(reason);
+				fallback = reason;
 				result = await acquireNewSessionRef.current();
 				// Cleared only after the new session settles, so the kept id
 				// stays persistable while it is in flight (I209: the consumer
@@ -405,6 +445,7 @@ export function useLazySession(
 		}
 
 		if (result.ok) {
+			if (fallback !== null) onSessionFallbackRef.current?.(fallback);
 			setSessionId(result.sessionId);
 			tabStateRef.current.connectSucceeded();
 			// Queue delivery is owned by the consumer's queue-orchestration
@@ -528,6 +569,7 @@ export function useLazySession(
 		setIsFallbackRecovery(false);
 		setFallbackReason(null);
 		tabStateRef.current.reset();
+		onResetRef.current?.();
 	}, []);
 
 	// ============================================================================
@@ -621,6 +663,13 @@ export function useLazySession(
 			if (generation !== acquisitionGenerationRef.current) return;
 
 			if (result.ok) {
+				// A soft reload that started fresh keeps its toast and shows no
+				// in-chat notice, but the agent still needs the transcript (I246).
+				if (result.lossy) {
+					onSessionFallbackRef.current?.(
+						result.fallbackReason ?? "unavailable",
+					);
+				}
 				setSessionId(result.sessionId);
 				tabStateRef.current.connectSucceeded();
 			} else {

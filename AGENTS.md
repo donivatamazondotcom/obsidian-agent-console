@@ -56,7 +56,6 @@ src/
 │   ├── vault-service.ts         # Vault access + fuzzy search + CM6 selection tracking
 │   ├── context-builder.ts       # Builds prompt context from crystallized notes
 │   ├── context-validator.ts     # Context-note data-model invariant enforcement (parse-at-edge)
-│   ├── replayContextBuilder.ts  # Reconstructs replay context for restored sessions
 │   ├── session-metadata.ts      # Session metadata write resolution (history entry on turn-end) + title-precedence resolver (deriveSessionRecordTitle)
 │   ├── session-search.ts        # Pure full-text search engine over saved sessions (extract/index/match/snippet)
 │   ├── settings-migration.ts    # One-time settings migration (autoMentionActiveNote → activeNoteAsDefaultContext)
@@ -73,7 +72,7 @@ src/
 │   ├── message-state.ts         # Message array transforms (upsert, merge, streaming apply); replayed user text is stripped of injected blocks here (I222)
 │   ├── message-sender.ts        # Prompt preparation + sending (pure functions)
 │   ├── carried-over-preview.ts  # Cross-agent carry-over preview builder (pure)
-│   ├── carry-over-builder.ts    # Cross-agent carry-over transcript + content blocks (pure)
+│   ├── carry-over-builder.ts    # Carry-over transcript + content blocks for an agent switch or a fallback to a new session (pure)
 │   ├── ai-title-service.ts      # F15 Rename with AI: local-transcript excerpt, title-only prompt, tolerant reply parse, requestAiTitle over the side-title port
 │   ├── retire-live-session.ts   # I210 executor for decideSessionIntent's `retire`: session/close the old session, or respawn (also the close-failed fallback)
 │   ├── chat-exporter.ts         # Markdown export with frontmatter

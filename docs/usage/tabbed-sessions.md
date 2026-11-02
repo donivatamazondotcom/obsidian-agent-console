@@ -236,7 +236,7 @@ Once in a while a restored tab can't find its saved messages on disk – rare, b
 
 A chat you deliberately create starts connecting immediately. That includes a new tab, **New chat**, **Open new view**, and **Fork**. You can paste a prompt into a fresh tab and send it directly – there is no extra “wake-up” keystroke.
 
-Chats brought back for reading stay disconnected until you interact. This includes tabs restored after a restart or panel reopen, **Reopen closed session tab**, and **Restore** from session history. Their saved conversation is visible right away; typing or sending reconnects the agent. If the previous session is gone – the agent restarted or it expired – the tab transparently continues from the earlier transcript and shows a one-time notice that the agent's internal state was not recovered.
+Chats brought back for reading stay disconnected until you interact. This includes tabs restored after a restart or panel reopen, **Reopen closed session tab**, and **Restore** from session history. Their saved conversation is visible right away; typing or sending reconnects the agent. If the previous session is gone – the agent restarted or it expired – the tab starts a new session, and your next message brings the earlier conversation along so the agent can continue. A one-time notice says the agent's internal state was not recovered. Very long chats are trimmed to the most recent messages.
 
 Switching the agent for an existing tab also waits for interaction. It rebinds the tab without starting another session, so your next typed or sent message connects to the agent you picked.
 

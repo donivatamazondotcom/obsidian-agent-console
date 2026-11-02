@@ -34,7 +34,12 @@ import { getLogger } from "../utils/logger";
 import { buildFileUri } from "../utils/paths";
 import { convertWindowsPathToWsl } from "../utils/platform";
 import { confirmSessionIntent } from "../ui/ConfirmSessionIntentModal";
-import { buildCarryOverBlocks } from "../services/carry-over-builder";
+import {
+	buildCarryOverBlocks,
+	CARRY_OVER_BUDGET,
+	type CarryOverKind,
+} from "../services/carry-over-builder";
+import type { SessionFallbackReason } from "../resolvers/session-engine";
 import { t } from "../i18n";
 
 // ============================================================================
@@ -85,6 +90,14 @@ export interface UseChatActionsReturn {
 
 	// Carry-over (needed by ChatPanel agent-switch dispatcher)
 	setCarryOverBlocks: (blocks: import("../types/chat").PromptContent[] | null) => void;
+	/**
+	 * Arm the on-screen transcript for the next send after a fallback to a
+	 * new session (I246). Called by the lazy owner's `onSessionFallback`,
+	 * before the tab goes ready. Arms nothing for an empty transcript.
+	 */
+	armFallbackCarryOver: (reason: SessionFallbackReason) => void;
+	/** Drop an armed fallback transcript; switch blocks stay (I246). */
+	clearFallbackCarryOver: () => void;
 }
 
 // ============================================================================
@@ -162,9 +175,38 @@ export function useChatActions(
 	// the new agent, then cleared. See [[Agent-Portable Sessions]].
 	// Uses a ref (not state) to avoid stale-closure in handleSendMessage after
 	// the lazy-session acquire + re-render cycle.
-	const carryOverBlocksRef = useRef<import("../types/chat").PromptContent[] | null>(null);
+	// One pending carry-over at a time, tagged with why it exists: a switch
+	// (armed by the switch dispatchers) or a fallback (armed by the lazy
+	// owner, I246). Consumed once by the next send.
+	const carryOverBlocksRef = useRef<{
+		blocks: import("../types/chat").PromptContent[];
+		kind: CarryOverKind;
+	} | null>(null);
 	const setCarryOverBlocks = useCallback((blocks: import("../types/chat").PromptContent[] | null) => {
-		carryOverBlocksRef.current = blocks;
+		carryOverBlocksRef.current = blocks ? { blocks, kind: "switch" } : null;
+	}, []);
+	// Latest transcript and prompt capabilities, read when a fallback fires
+	// inside an acquisition (after this render's closure was made).
+	const fallbackSourceRef = useRef({ messages, session });
+	fallbackSourceRef.current = { messages, session };
+	const armFallbackCarryOver = useCallback((reason: SessionFallbackReason) => {
+		const { messages: onScreen, session: live } = fallbackSourceRef.current;
+		const blocks = buildCarryOverBlocks(
+			onScreen,
+			live.promptCapabilities?.embeddedContext ?? false,
+			CARRY_OVER_BUDGET,
+			"fallback",
+		);
+		if (blocks.length === 0) return;
+		carryOverBlocksRef.current = { blocks, kind: "fallback" };
+		logger.log(
+			`[I246] Armed transcript (${onScreen.length} messages) after fallback: ${reason}`,
+		);
+	}, []);
+	const clearFallbackCarryOver = useCallback(() => {
+		if (carryOverBlocksRef.current?.kind === "fallback") {
+			carryOverBlocksRef.current = null;
+		}
 	}, []);
 
 	// ============================================================
@@ -272,7 +314,7 @@ export function useChatActions(
 				// consume them on this send regardless of message count.
 				let carryOverForThisSend: import("../types/chat").PromptContent[] | undefined;
 				if (carryOverBlocksRef.current) {
-					carryOverForThisSend = carryOverBlocksRef.current;
+					carryOverForThisSend = carryOverBlocksRef.current.blocks;
 					carryOverBlocksRef.current = null; // consume once
 				}
 
@@ -683,5 +725,7 @@ export function useChatActions(
 		setAgentUpdateNotification,
 		autoExportIfEnabled,
 		setCarryOverBlocks,
+		armFallbackCarryOver,
+		clearFallbackCarryOver,
 	};
 }
