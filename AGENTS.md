@@ -116,11 +116,12 @@ src/
 │   ├── useTabPersistence.ts     # Save/restore per-leaf tab state across restarts
 │   ├── useTabSessionState.ts    # Six-state per-tab session state machine
 │   ├── useRestoredMessages.ts   # Replay transcript for restored tabs with no live session
-│   ├── loadExistingSessionFlow.ts # Restored-tab reconnect flow (lazy resume on first keystroke)
+│   ├── loadExistingSessionFlow.ts # Kept-id reconnect: reconnectExistingSession initializes a stopped agent, then resume → load (restored and released tabs, I209)
 │   ├── reloadSessionFlow.ts     # Pure soft-reload orchestration (resume same session / fresh fallback)
 │   ├── useDebouncedSessionSave.ts # Debounced session persistence (messages + context notes)
 │   ├── useOwnedNotifications.ts # Ties a panel's system notifications to its lifetime; closes them when the tab closes (I52)
 │   ├── useEagerInitialize.ts    # Decision #10 eager initialize, gated by decideProcessHold — fires at most once per panel, when the tab may hold a process (I208)
+│   ├── useIdleRelease.ts        # Idle release (I209): one timer per panel on decideProcessHold; release sequence (flush → released → kill, wait for tree exit), reconnect gate, apply-after-reconnect for pickers
 │   ├── useContextNotes.ts       # Crystallized context-note state per chat (add/remove/seen)
 │   ├── useContextVaultEvents.ts # Vault rename/delete sync for crystallized context notes
 │   ├── useSelectionTracker.ts   # Editor selection capture for the context strip
@@ -207,7 +208,7 @@ src/
 │   ├── header-slot.ts              # deriveHeaderSlot — pure 4-way header secondary-slot resolver (model / connecting / idle / none)
 │   ├── header-agent.ts             # deriveHeaderAgent / deriveHeaderModelName / deriveHeaderRuntime — which agent, model and runtime the header names; reads modes via session-modes (I207)
 │   ├── notify-gate.ts              # shouldNotifySystem — pure resolver: should an OS notification fire for a backgrounded panel; gates on the flush signal, not an instantaneous focus read (I168)
-│   ├── process-hold.ts             # decideProcessHold — pure resolver: may this tab hold an agent process now (active / fresh / fork → hold; background restored → defer). Shared owner for eager init (I208) and idle reap (I209)
+│   ├── process-hold.ts             # decideProcessHold — pure resolver: may this tab hold an agent process now (active / busy / warm → hold; idle 1 h with a live session → release; no session: fresh / fork → hold, background restored → defer). Shared owner for eager init (I208) and idle release (I209)
 │   ├── prompt-target.ts            # resolvePromptTarget — where a quick prompt lands: a different agent or mode than the tab → new tab set up that way, else in place; agent/mode matched by id or display name
 │   ├── resolveInitialAgentId.ts    # Pure: agent a fresh (non-restored) tab opens on — Default agent when restore-tabs is off (TP-I05)
 │   ├── queued-banner-actions.ts    # Pure resolver for the queued-banner buttons (deriveQueuedBannerActions → Send now / Edit / Delete / Cancel)

@@ -246,6 +246,17 @@ export class TerminalManager {
 		return true;
 	}
 
+	/**
+	 * A terminal the agent started is still running (I209: a live terminal
+	 * keeps the tab's process from being released).
+	 */
+	hasLiveTerminals(): boolean {
+		for (const terminal of this.terminals.values()) {
+			if (terminal.exitStatus === null) return true;
+		}
+		return false;
+	}
+
 	killAllTerminals(): void {
 		this.logger.log(`Killing ${this.terminals.size} running terminals...`);
 		this.terminals.forEach((terminal, terminalId) => {

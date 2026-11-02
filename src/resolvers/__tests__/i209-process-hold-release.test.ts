@@ -155,3 +155,22 @@ describe("I209 decideProcessHold — release", () => {
 		);
 	});
 });
+
+describe("I209 decideProcessHold — debug threshold override", () => {
+	it("a shorter threshold releases earlier", () => {
+		expect(
+			decideProcessHold(input({ idleMs: 120_000, thresholdMs: 120_000 })),
+		).toEqual({ kind: "release", reason: "idle" });
+		expect(
+			decideProcessHold(input({ idleMs: 60_000, thresholdMs: 120_000 })),
+		).toEqual({ kind: "hold", reason: "warm", remainingMs: 60_000 });
+	});
+
+	it("an invalid override falls back to the hour", () => {
+		for (const thresholdMs of [0, -5, Number.NaN]) {
+			expect(
+				decideProcessHold(input({ idleMs: 120_000, thresholdMs })),
+			).toEqual({ kind: "hold", reason: "warm", remainingMs: 3_480_000 });
+		}
+	});
+});

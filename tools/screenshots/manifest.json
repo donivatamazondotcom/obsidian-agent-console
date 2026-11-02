@@ -1624,6 +1624,19 @@
 			"mustShow": ".agent-client-mcp-failure-notice details[open]",
 			"caption": "See which MCP servers didn't connect, and why",
 			"altText": "Note at the top of a chat listing MCP servers that didn't connect, with each server's reason under Details"
+		},
+		{
+			"name": "paused-tab-ring",
+			"width": 680,
+			"height": 48,
+			"cropSelector": ".agent-client-tab-bar",
+			"pending": true,
+			"placement": "feature",
+			"purpose": "Shows a background tab paused to save memory, marked with the faint dotted ring next to live tabs.",
+			"differentiator": "Idle tabs free their agent and pick up on the next keystroke",
+			"mustShow": ".agent-client-tab-state-released",
+			"caption": "Idle tabs pause to save memory",
+			"altText": "Tab bar with one tab showing a faint dotted ring, meaning it is paused to save memory"
 		}
 	]
 }

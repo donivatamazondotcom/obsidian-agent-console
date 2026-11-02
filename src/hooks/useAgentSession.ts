@@ -72,6 +72,13 @@ export interface UseAgentSessionReturn {
 	closeLiveSession: () => Promise<void>;
 	forceRestartAgent: () => Promise<void>;
 	/**
+	 * Idle release (I209): clear the session id, keep last-known models,
+	 * modes and commands for display, and kill the agent tree. Resolves when
+	 * the tree has EXITED (not when disconnect returns), so a reconnect can
+	 * load the session without the old process still holding it (I230).
+	 */
+	releaseSession: () => Promise<void>;
+	/**
 	 * Soft reload: disconnect the subprocess, re-initialize (fresh harness,
 	 * MCP reloaded), and resume the SAME session when the agent supports
 	 * `loadSession`. Falls back to a fresh session otherwise. Never clears the
@@ -483,6 +490,18 @@ export function useAgentSession(
 		const id = sessionRef.current.sessionId;
 		if (!id) return;
 		await agentClient.closeSession(id);
+	}, [agentClient]);
+
+	const releaseSession = useCallback(async () => {
+		// No cancel: an idle tab has nothing in flight (busy signals hold the
+		// release otherwise). Models, modes and commands stay for display.
+		setSession((prev) => ({
+			...prev,
+			sessionId: null,
+			state: "disconnected",
+		}));
+		await agentClient.disconnect();
+		await agentClient.whenTornDown();
 	}, [agentClient]);
 
 	const forceRestartAgent = useCallback(async () => {
@@ -900,6 +919,7 @@ export function useAgentSession(
 		createSession,
 		restartSession,
 		closeSession,
+		releaseSession,
 		closeLiveSession,
 		forceRestartAgent,
 		reloadSession,

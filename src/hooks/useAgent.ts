@@ -70,6 +70,8 @@ export interface UseAgentReturn {
 	 */
 	closeLiveSession: () => Promise<void>;
 	forceRestartAgent: () => Promise<void>;
+	/** Idle release (I209); resolves on tree exit. */
+	releaseSession: () => Promise<void>;
 	reloadSession: () => Promise<ReloadSessionFlowResult>;
 	cancelOperation: () => Promise<void>;
 	getAvailableAgents: () => AgentDisplayInfo[];
@@ -238,6 +240,7 @@ export function useAgent(
 			closeSession: agentSession.closeSession,
 			closeLiveSession: agentSession.closeLiveSession,
 			forceRestartAgent: agentSession.forceRestartAgent,
+			releaseSession: agentSession.releaseSession,
 			reloadSession,
 			cancelOperation,
 			getAvailableAgents: agentSession.getAvailableAgents,
