@@ -595,7 +595,7 @@
 			},
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 620,
-			"cropSelector": ".workspace-leaf-content[data-type=\"agent-client-chat-view\"]",
+			"cropSelector": ".workspace-leaf-content[data-type=\"agent-console-chat-view\"]",
 			"cropPadding": 0,
 			"pending": true
 		},
@@ -666,7 +666,7 @@
 					}
 				]
 			},
-			"cropSelector": ".workspace-leaf-content[data-type=\"agent-client-chat-view\"]",
+			"cropSelector": ".workspace-leaf-content[data-type=\"agent-console-chat-view\"]",
 			"cropPadding": 0,
 			"pending": true
 		},

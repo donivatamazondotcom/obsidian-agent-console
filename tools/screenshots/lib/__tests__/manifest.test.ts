@@ -9,7 +9,8 @@
  * check that the validator does inline.
  */
 import { describe, expect, it } from "vitest";
-import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { VIEW_TYPE_CHAT } from "../../../../src/ui/chat-view-type";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -948,5 +949,42 @@ describe("validateManifest — frame (Decision 11)", () => {
 		expect(v({ background: { from: "  " } })).toThrow(
 			/frame\.background\.from/,
 		);
+	});
+});
+
+// I226: I157 renamed the chat view type, but two manifest crop selectors kept
+// the old `data-type`. The capture path swallows a selector miss and falls back
+// to the static crop, so the stale value failed silently. Scan EVERY string in
+// the committed manifest (any selector field, at any depth) so a future field
+// can't reintroduce it.
+describe("manifest.json — chat view type in selectors (I226)", () => {
+	const manifestPath = path.join(__dirname, "..", "..", "manifest.json");
+	const raw: unknown = JSON.parse(readFileSync(manifestPath, "utf8"));
+
+	function collectStrings(node: unknown, at: string, out: Array<[string, string]>): void {
+		if (typeof node === "string") {
+			out.push([at, node]);
+		} else if (Array.isArray(node)) {
+			node.forEach((v, i) => collectStrings(v, `${at}[${i}]`, out));
+		} else if (node && typeof node === "object") {
+			for (const [k, v] of Object.entries(node)) {
+				collectStrings(v, at ? `${at}.${k}` : k, out);
+			}
+		}
+	}
+
+	it("every data-type=\"…\" in the manifest equals VIEW_TYPE_CHAT", () => {
+		const strings: Array<[string, string]> = [];
+		collectStrings(raw, "", strings);
+		const stale: string[] = [];
+		let seen = 0;
+		for (const [at, value] of strings) {
+			for (const m of value.matchAll(/data-type=["']([^"']+)["']/g)) {
+				seen++;
+				if (m[1] !== VIEW_TYPE_CHAT) stale.push(`${at}: ${m[1]}`);
+			}
+		}
+		expect(seen).toBeGreaterThan(0);
+		expect(stale).toEqual([]);
 	});
 });
