@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { normalizeRawSettings, DEFAULT_SETTINGS } from "../settings-normalizer";
-import { parseComputedFontSizePx } from "../settings-normalizer";
+import {
+	normalizeAgentCapabilityCache,
+	parseComputedFontSizePx,
+} from "../settings-normalizer";
 
 /**
  * Behavior-preserving tests for the raw → typed settings mapping extracted
@@ -417,5 +420,42 @@ describe("normalizeRawSettings — pluginUpdateCheck cache (trust boundary)", ()
 		expect(s.pluginUpdateCheck).toBeUndefined();
 		expect(warn).toHaveBeenCalledTimes(1);
 		warn.mockRestore();
+	});
+});
+
+describe("normalizeAgentCapabilityCache (I260)", () => {
+	const caps = {
+		listsSessions: true,
+		restoresViaLoad: true,
+		restoresViaResume: false,
+		forks: true,
+		closesSessions: false,
+		reportsModels: false,
+	};
+
+	it("keeps a well-formed entry", () => {
+		const out = normalizeAgentCapabilityCache({
+			"v2|claude-agent-acp": { capabilities: caps, learnedAt: "2026-11-01T00:00:00Z" },
+		});
+		expect(out["v2|claude-agent-acp"]?.capabilities).toEqual(caps);
+	});
+
+	it("drops an entry missing a capability, never coercing it to false", () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const { forks: _omit, ...partial } = caps;
+		void _omit;
+		const out = normalizeAgentCapabilityCache({
+			bad: { capabilities: partial, learnedAt: "2026-11-01T00:00:00Z" },
+			good: { capabilities: caps, learnedAt: "2026-11-01T00:00:00Z" },
+			noDate: { capabilities: caps },
+		});
+		expect(Object.keys(out)).toEqual(["good"]);
+		expect(warn).toHaveBeenCalledTimes(2);
+		warn.mockRestore();
+	});
+
+	it("returns an empty cache for a non-object", () => {
+		expect(normalizeAgentCapabilityCache([])).toEqual({});
+		expect(normalizeAgentCapabilityCache("x")).toEqual({});
 	});
 });

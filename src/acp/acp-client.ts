@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from "child_process";
 import * as acp from "@agentclientprotocol/sdk";
+import { agentLaunchKey } from "../utils/agent-launch-key";
 import {
 	A2UI_CAPABILITY_META_KEY,
 	buildA2uiCapabilityMeta,
@@ -980,6 +981,14 @@ export class AcpClient {
 	 * Lets the restored-tab load path recover promptCapabilities the
 	 * eager-init (Decision #10) discarded. Null before first init (I47).
 	 */
+	/**
+	 * The launch identity of the running agent (command + Kiro engine), or
+	 * null before the first `initialize`. Keys the capability cache (I260).
+	 */
+	getLaunchKey(): string | null {
+		return this.currentConfig ? agentLaunchKey(this.currentConfig) : null;
+	}
+
 	getInitializeResult(): InitializeResult | null {
 		return this.cachedInitResult;
 	}

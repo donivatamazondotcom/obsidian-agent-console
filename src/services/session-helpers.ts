@@ -19,6 +19,7 @@ import type {
 import type { ChatSession, SavedSessionInfo } from "../types/session";
 import type { AgentCandidate } from "./agent-detection";
 import { toAgentConfig } from "./settings-normalizer";
+import { agentLaunchKey } from "../utils/agent-launch-key";
 import {
 	resolveAgentWorkingDirectory,
 	type ResolvedAgentWorkingDirectory,
@@ -312,6 +313,24 @@ export function resolveAgentKiroEngine(
 		return "v2";
 	}
 	return resolveKiroEngine(custom);
+}
+
+/**
+ * Launch key a NEW launch of this agent would have, from settings alone, or
+ * null when the agent isn't configured (I260). Reads the same command and
+ * engine `buildAgentConfigWithApiKey` launches with, through the one shared
+ * `agentLaunchKey`, so it matches the key `AcpClient.getLaunchKey()` writes.
+ */
+export function resolveAgentLaunchKey(
+	settings: AgentClientPluginSettings,
+	agentId: string,
+): string | null {
+	const agentSettings = findAgentSettings(settings, agentId);
+	if (!agentSettings) return null;
+	return agentLaunchKey({
+		command: agentSettings.command,
+		kiroEngine: resolveAgentKiroEngine(settings, agentId),
+	});
 }
 
 /**

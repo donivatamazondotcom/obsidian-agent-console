@@ -58,6 +58,16 @@ function makeSessionHistory(listsSessions: boolean) {
 			forks: false,
 			reportsModels: false,
 		},
+		historyCapabilities: {
+			kind: "live",
+			capabilities: {
+				listsSessions,
+				restoresViaLoad: true,
+				restoresViaResume: false,
+				forks: false,
+				reportsModels: false,
+			},
+		},
 		canShowSessionHistory: true,
 		canRestore: true,
 		canFork: false,

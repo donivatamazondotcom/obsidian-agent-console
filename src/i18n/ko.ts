@@ -620,6 +620,8 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 		"이 에이전트는 세션 복원을 지원하지 않습니다.",
 	"chat.history.sessionSource": "세션 출처",
 	"chat.history.agentSessions": "에이전트 서버 세션({agent})",
+	"chat.history.connectOnceForList":
+		"{agent} 채팅에서 메시지를 한 번 보내면 서버 세션이 여기에 표시됩니다.",
 	"chat.history.noServerList":
 		"{agent}은(는) 서버에 세션 목록을 두지 않아 로컬 기록만 볼 수 있습니다.",
 	"chat.history.searchPlaceholder": "세션 검색…",

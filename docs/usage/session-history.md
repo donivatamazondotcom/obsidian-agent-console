@@ -19,7 +19,7 @@ Click the **History** button (clock icon) in the chat header to open the session
 Your history has two views, switched with the toggle at the top of the modal:
 
 - **Local** (the default): every session this plugin saved — across **all your agents** and **all your vaults**. This is your full history. When your history spans more than one agent, each row shows a small badge naming the agent that ran it, so you can tell a Claude Code session from a Kiro CLI one at a glance. A session you forked here shows up right away, because the plugin saved it locally — it never depends on the agent listing it.
-- **Agent**: the sessions the agent itself knows about, pulled from its own server. Use this to find a conversation you started outside Agent Console. The Agent pill is **named after the tab's agent** (for example, **Claude Code**), so you can tell whose sessions you're looking at. For an agent that doesn't keep a server-side session list (for example, Kiro CLI), the Agent pill is shown but **disabled**, with a tooltip explaining why — only the Local view is available there.
+- **Agent**: the sessions the agent itself knows about, pulled from its own server. Use this to find a conversation you started outside Agent Console. The Agent pill is **named after the tab's agent** (for example, **Claude Code**), so you can tell whose sessions you're looking at. For an agent that doesn't keep a server-side session list (for example, Kiro CLI V2), the Agent pill is shown but **disabled**, with a tooltip explaining why — only the Local view is available there. If an agent hasn't connected since you installed or updated Agent Console, its pill is also disabled until you send it one message, because Agent Console can't yet tell whether it keeps a list.
 
 The toggle remembers your last choice.
 
@@ -27,7 +27,7 @@ The toggle remembers your last choice.
 
 ### The Agent view when you're not connected
 
-Agent Console keeps a small list of your agent's sessions, refreshed each time the agent connects. So even before this tab connects, the Agent view can show that list — marked with when it was last refreshed (for example, "Synced 5 minutes ago – send a message to reconnect and refresh"). Sending a message connects the agent and pulls the latest.
+Agent Console keeps a small list of your agent's sessions, refreshed each time the agent connects. So even before this tab connects (for example, after a restart), the Agent view can show that list, as long as the agent has connected once before — marked with when it was last refreshed (for example, "Synced 5 minutes ago – send a message to reconnect and refresh"). Sending a message connects the agent and pulls the latest.
 
 ### Coming from Agent Client?
 

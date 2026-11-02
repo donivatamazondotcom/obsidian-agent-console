@@ -658,6 +658,8 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 		"このエージェントはセッションの復元をサポートしていません。",
 	"chat.history.sessionSource": "セッションのソース",
 	"chat.history.agentSessions": "エージェントサーバーのセッション（{agent}）",
+	"chat.history.connectOnceForList":
+		"{agent} のチャットで一度メッセージを送ると、サーバーのセッションがここに表示されます。",
 	"chat.history.noServerList":
 		"{agent} はサーバー上にセッション一覧を持たないため、ローカル履歴のみ表示できます。",
 	"chat.history.searchPlaceholder": "セッションを検索…",

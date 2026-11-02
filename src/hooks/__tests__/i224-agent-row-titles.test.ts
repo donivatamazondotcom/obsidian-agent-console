@@ -95,6 +95,7 @@ async function liveRows(
 	} as unknown as ISettingsAccess;
 	const agentClient = {
 		listSessions: vi.fn(async () => ({ sessions: agentSessions })),
+		getLaunchKey: () => null,
 	} as unknown as AcpClient;
 	const hook = renderHook(() =>
 		useSessionHistory({
@@ -156,6 +157,7 @@ function makeHistory(): UseSessionHistoryReturn {
 		error: null,
 		hasMore: false,
 		capabilities: session.capabilities,
+		historyCapabilities: { kind: "live", capabilities: session.capabilities },
 		localSessionIds: new Set<string>(),
 		fetchSessions: vi.fn(async () => {}),
 		loadMoreSessions: vi.fn(async () => {}),

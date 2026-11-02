@@ -228,7 +228,8 @@ export function useHistoryModal(
 				hasMore: sessionHistory.hasMore,
 				currentCwd: vaultPath,
 				loadSessionMessages: sessionHistory.loadSessionMessages,
-				capabilities: sessionHistory.capabilities,
+				capabilities: sessionHistory.historyCapabilities.capabilities,
+				capabilityKnowledge: sessionHistory.historyCapabilities.kind,
 				localSessionIds: sessionHistory.localSessionIds,
 				isAgentReady: isSessionReady,
 				debugMode: debugMode,
@@ -252,10 +253,11 @@ export function useHistoryModal(
 		// session/list can return every workspace); Local fetches the whole
 		// local store and narrows client-side.
 		const initialView = deriveSessionHistoryView(
-			sessionHistory.capabilities,
+			sessionHistory.historyCapabilities.capabilities,
 			isSessionReady,
 			sessionHistory.localSessionIds.size > 0,
 			source,
+			sessionHistory.historyCapabilities.kind,
 		);
 		void sessionHistory.fetchSessions(
 			source,
@@ -274,7 +276,7 @@ export function useHistoryModal(
 		sessionHistory.loading,
 		sessionHistory.error,
 		sessionHistory.hasMore,
-		sessionHistory.capabilities,
+		sessionHistory.historyCapabilities,
 		sessionHistory.loadSessionMessages,
 		sessionHistory.localSessionIds,
 		sessionHistory.fetchSessions,
@@ -305,7 +307,8 @@ export function useHistoryModal(
 				hasMore: sessionHistory.hasMore,
 				currentCwd: vaultPath,
 				loadSessionMessages: sessionHistory.loadSessionMessages,
-				capabilities: sessionHistory.capabilities,
+				capabilities: sessionHistory.historyCapabilities.capabilities,
+				capabilityKnowledge: sessionHistory.historyCapabilities.kind,
 				localSessionIds: sessionHistory.localSessionIds,
 				isAgentReady: isSessionReady,
 				debugMode: debugMode,
@@ -333,7 +336,7 @@ export function useHistoryModal(
 		sessionHistory.loading,
 		sessionHistory.error,
 		sessionHistory.hasMore,
-		sessionHistory.capabilities,
+		sessionHistory.historyCapabilities,
 		sessionHistory.loadSessionMessages,
 		sessionHistory.localSessionIds,
 		vaultPath,

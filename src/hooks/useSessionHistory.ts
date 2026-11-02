@@ -1,4 +1,10 @@
-import { useState, useCallback, useRef, useMemo } from "react";
+import {
+	useState,
+	useCallback,
+	useRef,
+	useMemo,
+	useEffect,
+} from "react";
 import type { AcpClient } from "../acp/acp-client";
 import type { ISettingsAccess } from "../services/settings-service";
 import type {
@@ -13,6 +19,11 @@ import type {
 import { SessionStore } from "../services/session-store";
 import { NO_AGENT_CAPABILITIES } from "../types/session";
 import type { SessionListSource } from "../resolvers/session-history-view";
+import {
+	resolveHistoryCapabilities,
+	type HistoryCapabilities,
+} from "../resolvers/history-capabilities";
+import { resolveAgentLaunchKey } from "../services/session-helpers";
 import type { ChatMessage } from "../types/chat";
 import { extractErrorMessage } from "../utils/error-utils";
 import { overlayLocalTitles } from "../resolvers/session-title";
@@ -110,6 +121,14 @@ export interface UseSessionHistoryReturn {
 	 * — consumers read the resolver output, not the individual flags below.
 	 */
 	capabilities: AgentCapabilities;
+
+	/**
+	 * What the Session history VIEW gates on (I260): the live record, else
+	 * the record this launch reported at its last `initialize`, else
+	 * `unknown`. Lets a tab that hasn't connected offer its Agent view. Agent
+	 * calls keep reading {@link capabilities} (live only).
+	 */
+	historyCapabilities: HistoryCapabilities;
 
 	// Capability flags (from session.agentCapabilities)
 	/** Whether session history UI should be shown */
@@ -296,6 +315,48 @@ export function useSessionHistory(
 		[session.capabilities],
 	);
 
+	// I260: the history view must not read "not connected yet" as "can't
+	// list sessions". Fall back to what this launch reported at its last
+	// initialize, keyed by launch (command + Kiro engine), never agent id.
+	// Read during render: the host re-renders on every settings change
+	// (ChatPanel's useSettings), and the snapshot is a stable object, so the
+	// memo below only recomputes when the cached record itself changes.
+	let cachedCapabilities: AgentCapabilities | undefined;
+	if (!session.capabilities && session.agentId) {
+		const snapshot = settingsAccess.getSnapshot();
+		const key = resolveAgentLaunchKey(snapshot, session.agentId);
+		cachedCapabilities = key
+			? snapshot.agentCapabilityCache[key]?.capabilities
+			: undefined;
+	}
+	const historyCapabilities: HistoryCapabilities = useMemo(
+		() =>
+			resolveHistoryCapabilities(session.capabilities, cachedCapabilities),
+		[session.capabilities, cachedCapabilities],
+	);
+
+	// I260: remember what this launch reported, so the next unconnected tab
+	// for it can gate on it. Written once per change; the agent client owns
+	// the real launch key (its live config, not settings edited since).
+	useEffect(() => {
+		const live = session.capabilities;
+		if (!live) return;
+		const key = agentClient.getLaunchKey();
+		if (!key) return;
+		const cache = settingsAccess.getSnapshot().agentCapabilityCache;
+		const saved = cache[key]?.capabilities;
+		if (saved && sameCapabilities(saved, live)) return;
+		void settingsAccess.updateSettings({
+			agentCapabilityCache: {
+				...cache,
+				[key]: {
+					capabilities: live,
+					learnedAt: new Date().toISOString(),
+				},
+			},
+		});
+	}, [agentClient, session.capabilities, settingsAccess]);
+
 	// I114: single serialized writer of record for savedSessions metadata.
 	// All metadata/title writes from the racing turn-end / debounced / AI-title
 	// paths go through this owner so no writer acts on a stale snapshot.
@@ -362,7 +423,9 @@ export function useSessionHistory(
 	 */
 	const fetchSessions = useCallback(
 		async (source: SessionListSource, cwd?: string) => {
-			const useLocal = source === "local" || !capabilities.listsSessions;
+			const useLocal =
+				source === "local" ||
+				!historyCapabilities.capabilities.listsSessions;
 
 			if (useLocal) {
 				// Unified local store: every agent, every vault. No agentId or
@@ -382,6 +445,23 @@ export function useSessionHistory(
 					new Set(localSessions.map((s) => s.sessionId)),
 				);
 				setNextCursor(undefined); // No pagination for local sessions
+				setError(null);
+				return;
+			}
+
+			// Not connected: no session/list (Connection-free reading, I260).
+			// The modal serves the last-synced metadata cache in this state, so
+			// asking the agent would only add a "Failed to fetch" error.
+			if (session.state !== "ready") {
+				setLocalSessionIds(
+					new Set(
+						settingsAccess
+							.getSavedSessions(session.agentId, cwd)
+							.map((s) => s.sessionId),
+					),
+				);
+				setSessions([]);
+				setNextCursor(undefined);
 				setError(null);
 				return;
 			}
@@ -455,10 +535,11 @@ export function useSessionHistory(
 		},
 		[
 			agentClient,
-			capabilities.listsSessions,
+			historyCapabilities.capabilities.listsSessions,
 			isCacheValid,
 			settingsAccess,
 			session.agentId,
+			session.state,
 		],
 	);
 
@@ -970,6 +1051,7 @@ export function useSessionHistory(
 
 			// Normalized capability record (Track B) — the resolver input.
 			capabilities,
+			historyCapabilities,
 			// Capability flags
 			canShowSessionHistory: true,
 			canRestore: capabilities.restoresViaLoad || capabilities.restoresViaResume,
@@ -998,6 +1080,7 @@ export function useSessionHistory(
 			error,
 			nextCursor,
 			capabilities,
+			historyCapabilities,
 			capabilities.listsSessions,
 			capabilities.restoresViaLoad,
 			capabilities.restoresViaResume,
@@ -1016,5 +1099,12 @@ export function useSessionHistory(
 			invalidateCache,
 			syncAgentSessionMetaCache,
 		],
+	);
+}
+
+/** Whether two capability records match on every axis. */
+function sameCapabilities(a: AgentCapabilities, b: AgentCapabilities): boolean {
+	return (Object.keys(b) as (keyof AgentCapabilities)[]).every(
+		(k) => a[k] === b[k],
 	);
 }

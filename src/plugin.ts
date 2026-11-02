@@ -79,6 +79,7 @@ import {
 import type {
 	SavedSessionInfo,
 	AgentSessionMetaCacheEntry,
+	AgentCapabilityCacheEntry,
 } from "./types/session";
 import type { SessionListSource } from "./resolvers/session-history-view";
 import type { PerLeafTabState } from "./types/tab";
@@ -222,6 +223,11 @@ export interface AgentClientPluginSettings {
 	 * with a "synced N ago — connect to refresh" affordance (Decision 1).
 	 */
 	agentSessionMetaCache: Record<string, AgentSessionMetaCacheEntry>;
+	/**
+	 * Capabilities from each agent launch's last `initialize` (launch key →
+	 * entry). Lets an unconnected tab offer the Agent view (I260).
+	 */
+	agentCapabilityCache: Record<string, AgentCapabilityCacheEntry>;
 	// Last used model per agent (agentId → modelId)
 	lastUsedModels: Record<string, string>;
 	// Last used mode per agent (agentId → modeId)

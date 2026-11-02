@@ -703,6 +703,8 @@ export const en = {
 		"This agent does not support restoring sessions.",
 	"chat.history.sessionSource": "Session source",
 	"chat.history.agentSessions": "Agent server sessions ({agent})",
+	"chat.history.connectOnceForList":
+		"Send a message in a {agent} chat once, and its server sessions will show here.",
 	"chat.history.noServerList":
 		"{agent} doesn't keep a session list on its server, so only your local history is available.",
 	"chat.history.searchPlaceholder": "Search sessions…",
