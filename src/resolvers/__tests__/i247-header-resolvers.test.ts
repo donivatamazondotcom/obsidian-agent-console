@@ -2,9 +2,10 @@
  * I247: the pure resolvers behind the header tooltip's Engine, Effort, Mode
  * and Folder lines.
  *
- * The trap these pin: `kiroEngine` is "v2" for every launch that isn't V3,
- * Claude included. Only `kiroCli` (decided at the acp/ edge) says the tab
- * runs Kiro, so a Claude tab must never read as "Kiro CLI V2".
+ * The trap these pin: before I250, `kiroEngine` was "v2" for every launch
+ * that wasn't V3, Claude included, and old session state can still carry it.
+ * Only `kiroCli` (decided at the acp/ edge) says the tab runs Kiro, so a
+ * Claude tab must never read as "Kiro CLI V2".
  *
  * Seam (R2): the exported resolvers ChatPanel calls, fed the session-state
  * shape it passes. Outcome assertions on the tagged result (R3), no mocks
@@ -52,7 +53,13 @@ describe("deriveHeaderEngine", () => {
 		});
 	});
 
-	it("Claude (kiroEngine 'v2', not Kiro) uses its reported agentInfo, never Kiro V2", () => {
+	it("Claude (no engine, not Kiro) uses its reported agentInfo", () => {
+		expect(
+			deriveHeaderEngine({ kiroCli: false, agentInfo: CLAUDE_INFO }),
+		).toEqual({ kind: "reported", label: "Claude Agent 0.57.0" });
+	});
+
+	it("a stale 'v2' with kiroCli false still never reads as Kiro V2 (pre-I250 state)", () => {
 		expect(
 			deriveHeaderEngine({ kiroCli: false, kiroEngine: "v2", agentInfo: CLAUDE_INFO }),
 		).toEqual({ kind: "reported", label: "Claude Agent 0.57.0" });
