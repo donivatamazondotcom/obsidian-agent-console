@@ -449,6 +449,39 @@ export function keptIdForSave(
 	return null;
 }
 
+/**
+ * The history record id a tab persists (I269). Once the tab has reported its
+ * binding, that report is the authority, including "no record" after a reset
+ * (New chat, agent switch, hard reload), so the id the tab was restored with
+ * can't leak onto the new chat. Before the first report, the restore source's
+ * id stands in.
+ */
+export function resolveRecordIdForSave(
+	reported: { has: boolean; id: string | null },
+	restored: string | null,
+): string {
+	if (reported.has) return reported.id ?? "";
+	return restored ?? "";
+}
+
+/**
+ * The value whose change triggers a tab-state save: every tab's session id and
+ * history record id (I57, I269). A record id minted, adopted or dropped
+ * without a session-id change still saves.
+ */
+export function buildTabIdentitySignature(
+	sessionIds: ReadonlyMap<string, string | null>,
+	recordIds: ReadonlyMap<string, string | null>,
+): string {
+	const ids = new Set([...sessionIds.keys(), ...recordIds.keys()]);
+	return Array.from(ids)
+		.map(
+			(id) =>
+				`${id}:${sessionIds.get(id) ?? ""}:${recordIds.get(id) ?? ""}`,
+		)
+		.join("||");
+}
+
 export function resolveSessionIdForSave(
 	liveId: string | null,
 	persistedId: string | null,

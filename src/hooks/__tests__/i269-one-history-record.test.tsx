@@ -33,6 +33,10 @@ import type { AcpClient } from "../../acp/acp-client";
 import type { ChatSession, SavedSessionInfo } from "../../types/session";
 import type { ChatMessage } from "../../types/chat";
 import type AgentClientPlugin from "../../plugin";
+import {
+	buildTabIdentitySignature,
+	resolveRecordIdForSave,
+} from "../../services/session-helpers";
 import type { AgentClientPluginSettings } from "../../plugin";
 
 // ---------------------------------------------------------------------------
@@ -189,6 +193,8 @@ function mountTab(
 		restoredRecordId?: string | null;
 		agentId?: string;
 		lazy?: Partial<UseLazySessionOptions>;
+		/** Every record-binding report the tab makes to ChatView. */
+		reports?: Array<string | null>;
 	} = {},
 ) {
 	const agentId = opts.agentId ?? "kiro";
@@ -235,6 +241,7 @@ function mountTab(
 			onSessionLoad: vi.fn(),
 			restoredSessionId: opts.restoredSessionId ?? null,
 			restoredRecordId: opts.restoredRecordId ?? null,
+			onRecordIdChange: (id: string | null) => opts.reports?.push(id),
 		} as Parameters<typeof useSessionHistory>[0]) as HistoryWithBinding;
 		historyRef.current = history;
 		return { lazy, history };
@@ -665,5 +672,153 @@ describe("I269 — design-review cases", () => {
 		expect(store.records()).toHaveLength(1);
 		expect(store.records()[0]?.recordId).toBe(recordId);
 		expect(store.messagesIn(recordId!)).toBe(4);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// 4. Cases added by the code review (what ChatView persists)
+// ---------------------------------------------------------------------------
+
+describe("I269 — code-review cases", () => {
+	/** ChatView's persisted record id for a tab: the report wins once made. */
+	function persistedRecordId(
+		reports: Array<string | null>,
+		restored: string | null,
+	): string {
+		return resolveRecordIdForSave(
+			{ has: reports.length > 0, id: reports.at(-1) ?? null },
+			restored,
+		);
+	}
+
+	it("a reset in a restored tab never persists the old chat's record id", async () => {
+		const store = await seededStore();
+		const reports: Array<string | null> = [];
+		const tab = mountTab(store, {
+			restoredSessionId: "sess-x",
+			restoredRecordId: "sess-x",
+			reports,
+			lazy: {
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValue({ ok: true, sessionId: "chat-2" }),
+			},
+		});
+		await send(tab, "hi");
+		expect(persistedRecordId(reports, "sess-x")).toBe("sess-x");
+
+		// Hard reload / New chat / agent switch all reset the lazy owner.
+		act(() => tab.result.current.lazy.reset());
+		expect(persistedRecordId(reports, "sess-x")).toBe("");
+		await send(tab, "Plan the Q3 offsite.");
+		await turnSave(tab, OTHER_CHAT);
+
+		const fresh = persistedRecordId(reports, "sess-x");
+		expect(fresh).not.toBe("sess-x");
+		expect(store.records().find((r) => r.recordId === fresh)?.sessionId).toBe(
+			"chat-2",
+		);
+		// The old chat is untouched: same session, same transcript.
+		expect(store.records().find((r) => r.recordId === "sess-x")).toMatchObject({
+			sessionId: "sess-x",
+			title: "Number memory test",
+		});
+		expect(store.messagesIn("sess-x")).toBe(2);
+	});
+
+	it("a tab rename after a reset leaves the old chat's title alone", async () => {
+		const store = await seededStore();
+		const reports: Array<string | null> = [];
+		const tab = mountTab(store, {
+			restoredSessionId: "sess-x",
+			restoredRecordId: "sess-x",
+			reports,
+			lazy: {
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValue({ ok: true, sessionId: "chat-2" }),
+			},
+		});
+		await send(tab, "hi");
+		act(() => tab.result.current.lazy.reset());
+		await send(tab, "x");
+		// ChatView.applyTabRename.
+		await act(async () => {
+			await store.settings.sessionStore.renameSession({
+				recordId: persistedRecordId(reports, "sess-x") || null,
+				sessionId: "chat-2",
+				agentId: "kiro",
+				cwd: "",
+				title: "New tab name",
+				createIfMissing: false,
+			});
+			await settle();
+		});
+		expect(store.records().find((r) => r.recordId === "sess-x")?.title).toBe(
+			"Number memory test",
+		);
+	});
+
+	it("minting a record id changes the tab-state signature, so it is saved", async () => {
+		const store = makeStore();
+		const reports: Array<string | null> = [];
+		const tab = mountTab(store, {
+			reports,
+			lazy: {
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValue({ ok: true, sessionId: "s-1" }),
+			},
+		});
+		await send(tab, "Remember the number 7.");
+		const sessions = new Map([["T1", "s-1"]]);
+		const before = buildTabIdentitySignature(
+			sessions,
+			new Map([["T1", reports.at(-1) ?? null]]),
+		);
+		store.dropNextMetadataWrite();
+		await turnSave(tab, REMEMBER_7);
+		const minted = reports.at(-1);
+		expect(minted).toBeTruthy();
+		const after = buildTabIdentitySignature(
+			sessions,
+			new Map([["T1", minted ?? null]]),
+		);
+		expect(after).not.toBe(before);
+	});
+
+	it("a turn save that adopts another record writes the transcript under that record", async () => {
+		const store = makeStore();
+		const reports: Array<string | null> = [];
+		const tab = mountTab(store, {
+			reports,
+			lazy: {
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValue({ ok: true, sessionId: "s-1" }),
+			},
+		});
+		await send(tab, "Remember the number 7.");
+		await turnSave(tab, REMEMBER_7);
+		const minted = reports.at(-1)!;
+		// Elsewhere, the tab's record goes away and another record for the
+		// same agent session appears (an Agent-row rename with createIfMissing).
+		store.setRecords([
+			{
+				recordId: "rec-q",
+				sessionId: "s-1",
+				agentId: "kiro",
+				cwd: "/vault",
+				title: "Renamed elsewhere",
+				createdAt: "2026-11-03T00:00:00.000Z",
+				updatedAt: "2026-11-03T00:00:00.000Z",
+			},
+		]);
+		await turnSave(tab, AFTER_FALLBACK);
+		expect(store.records()).toHaveLength(1);
+		expect(store.records()[0]?.title).toBe("Renamed elsewhere");
+		expect(reports.at(-1)).toBe("rec-q");
+		expect(store.messagesIn("rec-q")).toBe(4);
+		expect(minted).not.toBe("rec-q");
 	});
 });

@@ -67,6 +67,13 @@ export interface UseSessionHistoryOptions {
 	 * (I269). Wins over `restoredSessionId`.
 	 */
 	restoredRecordId?: string | null;
+
+	/**
+	 * Called whenever the tab's record binding changes (I269): bound at
+	 * mount, minted or adopted on a write, dropped by a reset. ChatView
+	 * persists it with the tab state.
+	 */
+	onRecordIdChange?: (recordId: string | null) => void;
 }
 
 /**
@@ -270,6 +277,7 @@ export function useSessionHistory(
 		restoredAgentTitle,
 		restoredSessionId,
 		restoredRecordId,
+		onRecordIdChange,
 	} = options;
 
 	// Consume the normalized capability record produced once at the acp/ edge.
@@ -356,6 +364,18 @@ export function useSessionHistory(
 			null;
 	}
 
+	const onRecordIdChangeRef = useRef(onRecordIdChange);
+	onRecordIdChangeRef.current = onRecordIdChange;
+	const setBinding = useCallback((id: string | null) => {
+		if (recordIdRef.current === id) return;
+		recordIdRef.current = id;
+		onRecordIdChangeRef.current?.(id);
+	}, []);
+	// Report the mount binding once, so the tab state always carries it.
+	useEffect(() => {
+		onRecordIdChangeRef.current?.(recordIdRef.current ?? null);
+	}, []);
+
 	/**
 	 * The record id a write with messages uses: the bound one, else the
 	 * record already holding this agent session (adopted), else a new id.
@@ -369,18 +389,19 @@ export function useSessionHistory(
 					by: "sessionId",
 					id: sessionId,
 				})?.recordId ?? newRecordId();
-			recordIdRef.current = id;
+			setBinding(id);
 			return id;
 		},
-		[settingsAccess],
+		[settingsAccess, setBinding],
 	);
 
 	/** The store adopted a different record than we guessed: follow it. */
-	const adoptRecordId = useCallback((written: string | null) => {
-		if (written && recordIdRef.current !== written) {
-			recordIdRef.current = written;
-		}
-	}, []);
+	const adoptRecordId = useCallback(
+		(written: string | null) => {
+			if (written) setBinding(written);
+		},
+		[setBinding],
+	);
 
 	const getRecordId = useCallback(() => recordIdRef.current ?? null, []);
 
@@ -391,15 +412,15 @@ export function useSessionHistory(
 			sessionStore
 				.rebindSession({ recordId, sessionId, kiroEngine })
 				.catch((err) =>
-					getLogger().warn("[SessionHistory] Record rebind failed:", err),
+					getLogger().error("[SessionHistory] Record rebind failed:", err),
 				);
 		},
 		[sessionStore],
 	);
 
 	const resetRecordBinding = useCallback(() => {
-		recordIdRef.current = null;
-	}, []);
+		setBinding(null);
+	}, [setBinding]);
 
 	// State
 	const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -810,9 +831,22 @@ export function useSessionHistory(
 					// D2: the engine this turn ran on (launched engine, I235).
 					kiroEngine: session.kiroEngine,
 				})
-				.then(adoptRecordId)
+				.then((written) => {
+					// The store adopted another record for this session (one
+					// created elsewhere mid-turn): write the transcript under
+					// its id too, so file and record agree from this turn on.
+					if (written && written !== recordId && session.agentId) {
+						void settingsAccess.saveSessionMessages(
+							written,
+							session.agentId,
+							messages,
+							contextNotes,
+						);
+					}
+					adoptRecordId(written);
+				})
 				.catch((err) =>
-					getLogger().warn("[SessionHistory] Turn save refused:", err),
+					getLogger().error("[SessionHistory] Turn save refused:", err),
 				);
 
 			return writePromise;
@@ -848,7 +882,7 @@ export function useSessionHistory(
 				})
 				.then(adoptRecordId)
 				.catch((err) =>
-					getLogger().warn("[SessionHistory] Title write refused:", err),
+					getLogger().error("[SessionHistory] Title write refused:", err),
 				);
 		},
 		[session.agentId, sessionStore, bindRecordId, adoptRecordId],

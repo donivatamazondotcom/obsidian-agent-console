@@ -13,6 +13,8 @@ import {
 	resolveSessionIdForSave,
 	resolveRenamedSessionWrite,
 	resolveCwdForAgent,
+	resolveRecordIdForSave,
+	buildTabIdentitySignature,
 } from "../session-helpers";
 import type { SavedSessionInfo } from "../../types/session";
 import type { AgentClientPluginSettings } from "../../plugin";
@@ -177,5 +179,37 @@ describe("resolveCwdForAgent (I131)", () => {
 		const r = resolveCwdForAgent(settings, "codex", VAULT, existsAll);
 		expect(r.dir).toBe(GLOBAL_DIR);
 		expect(r.dir).not.toBe(AGENT_DIR);
+	});
+});
+
+describe("resolveRecordIdForSave (I269)", () => {
+	it("before the tab reports, the restored id stands in", () => {
+		expect(
+			resolveRecordIdForSave({ has: false, id: null }, "rec-old"),
+		).toBe("rec-old");
+	});
+	it("a report wins, including none after a reset", () => {
+		expect(resolveRecordIdForSave({ has: true, id: "rec-new" }, "rec-old")).toBe(
+			"rec-new",
+		);
+		expect(resolveRecordIdForSave({ has: true, id: null }, "rec-old")).toBe("");
+	});
+	it("nothing known is empty", () => {
+		expect(resolveRecordIdForSave({ has: false, id: null }, null)).toBe("");
+	});
+});
+
+describe("buildTabIdentitySignature (I57, I269)", () => {
+	it("changes when only a record id changes", () => {
+		const s = new Map([["T1", "s-1"]]);
+		expect(buildTabIdentitySignature(s, new Map())).toBe("T1:s-1:");
+		expect(buildTabIdentitySignature(s, new Map([["T1", "rec-1"]]))).toBe(
+			"T1:s-1:rec-1",
+		);
+	});
+	it("covers a tab known only by its record report", () => {
+		expect(
+			buildTabIdentitySignature(new Map(), new Map([["T2", "rec-2"]])),
+		).toBe("T2::rec-2");
 	});
 });

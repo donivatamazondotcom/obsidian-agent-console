@@ -212,8 +212,6 @@ export interface ChatPanelCallbacks {
 	getModeId: () => string;
 	/** Kiro engine of the tab's session ("" when unknown) — persisted per tab (D2). */
 	getKiroEngine: () => string;
-	/** The tab's history record id ("" before its first message) — persisted per tab (I269). */
-	getRecordId: () => string;
 	/** Open the Session History modal for this tab (open-session-history command). */
 	openHistory: () => void;
 	/**
@@ -258,6 +256,11 @@ export interface ChatPanelProps {
 	onLabelChange?: (label: string) => void;
 	/** Called when the session ID changes (for tab rename persistence) */
 	onSessionIdChange?: (sessionId: string | null) => void;
+	/**
+	 * Called when the tab's history record binding changes (I269). Persisted
+	 * with the tab state next to the session id.
+	 */
+	onRecordIdChange?: (recordId: string | null) => void;
 	/** Whether this tab is the currently active tab (controls focus on activation) */
 	isActive?: boolean;
 	/** An AI rename is running for this tab (I209 `ai-rename` busy signal). */
@@ -440,6 +443,7 @@ export function ChatPanel({
 	onStateChange,
 	onLabelChange,
 	onSessionIdChange,
+	onRecordIdChange,
 	isActive,
 	isAiRenaming = false,
 	tabLabel,
@@ -648,6 +652,7 @@ export function ChatPanel({
 		restoredAgentTitle,
 		restoredSessionId: restoredSessionId ?? null,
 		restoredRecordId: restoredRecordId ?? null,
+		onRecordIdChange,
 	});
 
 	// Seed restored history into the message list when the async disk read
@@ -2907,7 +2912,6 @@ export function ChatPanel({
 			getModeId: () =>
 				readSessionModes(promptTargetSessionRef.current)?.current.id ?? "",
 			getKiroEngine: () => keptKiroEngineRef.current ?? "",
-			getRecordId: () => sessionHistory.getRecordId() ?? "",
 			openHistory: () => handleOpenHistoryRef.current(),
 			requestAiTitle: async () => {
 				if (!acpClient.isInitialized()) return { kind: "not-ready" };
