@@ -77,7 +77,11 @@ import {
 
 // Service imports
 import { VaultService } from "../services/vault-service";
-import { resolveSessionIdForSave } from "../services/session-helpers";
+import {
+	buildTabIdentitySignature,
+	resolveRecordIdForSave,
+	resolveSessionIdForSave,
+} from "../services/session-helpers";
 import { decideAiTitleApply } from "../resolvers/ai-title-apply";
 import {
 	buildClosedLeafRecord,
@@ -451,6 +455,10 @@ function ChatComponent({
 		new Map(restoredLeaf?.tabs.map((t) => [t.tabId, t.sessionId]) ?? []),
 	);
 
+	// Per-tab history record ids as each tab reports them (I269). Absent until
+	// a tab's first report; null after a reset.
+	const tabRecordIdsRef = useRef<Map<string, string | null>>(new Map());
+
 	// Per-tab history record ids from the restore sources (I269): the startup
 	// tab state, a reopened closed tab, a history Restore. The tab's own
 	// handle wins once registered; this covers a save before it is.
@@ -528,6 +536,7 @@ function ChatComponent({
 			await plugin.removeAcpClient(tabId);
 			acpClientsRef.current.delete(tabId);
 			tabSessionIdsRef.current.delete(tabId);
+			tabRecordIdsRef.current.delete(tabId);
 		},
 		[plugin],
 	);
@@ -606,12 +615,18 @@ function ChatComponent({
 		[],
 	);
 
-	// Resolves a tab's history record id for persistence (I269).
+	// Resolves a tab's history record id for persistence (I269). The tab's
+	// own report wins once made — including "none" after a reset — so the
+	// id it was restored with can't follow a new chat.
 	const getRecordIdForTab = useCallback(
 		(tabId: string) =>
-			tabHandlesRef.current.get(tabId)?.getRecordId() ||
-			persistedRecordIdsRef.current.get(tabId) ||
-			"",
+			resolveRecordIdForSave(
+				{
+					has: tabRecordIdsRef.current.has(tabId),
+					id: tabRecordIdsRef.current.get(tabId) ?? null,
+				},
+				persistedRecordIdsRef.current.get(tabId) ?? null,
+			),
 		[],
 	);
 
@@ -1091,9 +1106,25 @@ function ChatComponent({
 			// Trigger a save via useTabPersistence by updating the session
 			// signature (I57 — ensures sessionId is persisted on acquisition).
 			setSessionSignature(
-				Array.from(tabSessionIdsRef.current.entries())
-					.map(([id, sid]) => `${id}:${sid ?? ""}`)
-					.join("||"),
+				buildTabIdentitySignature(
+					tabSessionIdsRef.current,
+					tabRecordIdsRef.current,
+				),
+			);
+		},
+		[],
+	);
+
+	// I269: a record id minted, adopted or dropped saves the tab state too.
+	const handleRecordIdChange = useCallback(
+		(tabId: string, recordId: string | null) => {
+			tabRecordIdsRef.current.set(tabId, recordId);
+			if (recordId === null) persistedRecordIdsRef.current.delete(tabId);
+			setSessionSignature(
+				buildTabIdentitySignature(
+					tabSessionIdsRef.current,
+					tabRecordIdsRef.current,
+				),
 			);
 		},
 		[],
@@ -1359,7 +1390,6 @@ function ChatComponent({
 				activeCallbacksRef.current?.getWorkingDirectory() ?? "",
 			getModeId: () => activeCallbacksRef.current?.getModeId() ?? "",
 			getKiroEngine: () => activeCallbacksRef.current?.getKiroEngine() ?? "",
-			getRecordId: () => activeCallbacksRef.current?.getRecordId() ?? "",
 			openHistory: () => activeCallbacksRef.current?.openHistory(),
 			flushSessionSave: async () =>
 				activeCallbacksRef.current?.flushSessionSave(),
@@ -1592,6 +1622,9 @@ function ChatComponent({
 								}
 								onLabelChange={(label) =>
 									handleTabLabelChange(tab.tabId, label)
+								}
+								onRecordIdChange={(recordId) =>
+									handleRecordIdChange(tab.tabId, recordId)
 								}
 								onSessionIdChange={(sessionId) =>
 									handleSessionIdChange(tab.tabId, sessionId)
