@@ -465,6 +465,23 @@ export function resolveRecordIdForSave(
 }
 
 /**
+ * Record a tab's binding report (I269). From the first report on, the report
+ * map is the authority, so the restore-source id is dropped: a remount of the
+ * same tab (error-boundary retry) then seeds from the report, not from an id
+ * the tab has since moved off.
+ */
+export function applyRecordIdReport(
+	reports: Map<string, string | null>,
+	restored: Map<string, string>,
+	tabId: string,
+	recordId: string | null,
+): void {
+	reports.set(tabId, recordId);
+	if (recordId) restored.set(tabId, recordId);
+	else restored.delete(tabId);
+}
+
+/**
  * The value whose change triggers a tab-state save: every tab's session id and
  * history record id (I57, I269). A record id minted, adopted or dropped
  * without a session-id change still saves.

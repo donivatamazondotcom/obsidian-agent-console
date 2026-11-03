@@ -131,6 +131,7 @@ function makeStore(seed: SavedSessionInfo[] = []) {
 			await storage.saveSession(info);
 		},
 		deleteSession: (id: string) => storage.deleteSession(id),
+		deleteSessionMessages: (id: string) => storage.deleteSessionMessages(id),
 		saveSessionMessages: (
 			...args: Parameters<SessionStorage["saveSessionMessages"]>
 		) => storage.saveSessionMessages(...args),
@@ -820,5 +821,10 @@ describe("I269 — code-review cases", () => {
 		expect(reports.at(-1)).toBe("rec-q");
 		expect(store.messagesIn("rec-q")).toBe(4);
 		expect(minted).not.toBe("rec-q");
+		// The minted id's file names no record any more: removed.
+		await act(async () => {
+			await settle();
+		});
+		expect(store.messagesIn(minted)).toBeNull();
 	});
 });

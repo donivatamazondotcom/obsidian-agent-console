@@ -78,6 +78,7 @@ import {
 // Service imports
 import { VaultService } from "../services/vault-service";
 import {
+	applyRecordIdReport,
 	buildTabIdentitySignature,
 	resolveRecordIdForSave,
 	resolveSessionIdForSave,
@@ -1118,8 +1119,12 @@ function ChatComponent({
 	// I269: a record id minted, adopted or dropped saves the tab state too.
 	const handleRecordIdChange = useCallback(
 		(tabId: string, recordId: string | null) => {
-			tabRecordIdsRef.current.set(tabId, recordId);
-			if (recordId === null) persistedRecordIdsRef.current.delete(tabId);
+			applyRecordIdReport(
+				tabRecordIdsRef.current,
+				persistedRecordIdsRef.current,
+				tabId,
+				recordId,
+			);
 			setSessionSignature(
 				buildTabIdentitySignature(
 					tabSessionIdsRef.current,
