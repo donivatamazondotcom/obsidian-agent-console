@@ -1,17 +1,18 @@
 /**
  * Tab state icons — spec [[Tab Dropdown Status Indicators]], I238.
  *
- * Every tab state maps to one Lucide icon id. The strip's `TabStateIcon`
- * renders it with `setIcon`, and the chevron dropdown passes the same id to
- * `MenuItem.setIcon`, so the two surfaces can never drift.
+ * Every tab state maps to one Lucide icon id (`stateIcon`) and one class
+ * string (`stateIconClass`). The strip's `TabStateIcon` and the chevron
+ * dropdown's in-title span both use the pair, so shape, color and animation
+ * match on both surfaces (I278).
  *
  * I238: these were Unicode text glyphs, which depend on the loaded font and
  * read poorly at 10 px (the paused ring was near-invisible on dark themes).
  * The ids below were checked against the Lucide set bundled in Obsidian
- * 1.14.5. The dropdown has no color or animation, so the shapes must differ.
+ * 1.14.5. Shape stays the colorblind-safe signal, so the shapes must differ.
  */
 import { describe, it, expect } from "vitest";
-import { stateIcon } from "../TabBar";
+import { stateIcon, stateIconClass } from "../TabBar";
 import type { TabState } from "../../types/tab";
 
 const EXPECTED: Record<TabState, string> = {
@@ -35,9 +36,18 @@ describe("stateIcon (I238)", () => {
 		},
 	);
 
-	// Shape is the only signal in the dropdown, so every state needs its own icon.
+	// Shape is the colorblind-safe signal, so every state needs its own icon.
 	it("returns a distinct icon id for every state", () => {
 		const icons = (Object.keys(EXPECTED) as TabState[]).map(stateIcon);
 		expect(new Set(icons).size).toBe(icons.length);
 	});
+
+	it.each(Object.keys(EXPECTED))(
+		"stateIconClass(%s) is the base plus state class (I278)",
+		(state) => {
+			expect(stateIconClass(state as TabState)).toBe(
+				`agent-client-tab-state-icon agent-client-tab-state-${state}`,
+			);
+		},
+	);
 });

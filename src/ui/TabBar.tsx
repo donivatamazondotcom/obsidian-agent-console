@@ -88,8 +88,9 @@ export interface TabBarProps {
  * Maps a tab state to its colorblind-safe Lucide icon id.
  *
  * Single source of truth shared by the strip's {@link TabStateIcon} and the
- * chevron dropdown (handleChevronClick, via `MenuItem.setIcon`), so the two
- * surfaces can never drift. Shape is the primary signal by design — see
+ * chevron dropdown (handleChevronClick, which builds its own span in the row
+ * title). Paired with {@link stateIconClass} so both surfaces share shape,
+ * color and animation (I278). Shape is the primary signal by design — see
  * `types/tab.ts`. I238: Lucide icons replace Unicode glyphs, which depended on
  * the loaded font and read poorly at small sizes.
  */
@@ -107,8 +108,8 @@ export function stateIcon(state: TabState): string {
 			return "circle";
 		case "released":
 			// I209: asleep to save memory. A moon reads as "asleep" and is a distinct
-			// shape from disconnected, so the dropdown (no color, no animation) still
-			// tells them apart. I238: chosen in the smoke test over circle-pause.
+			// shape from disconnected, so the two differ without relying on color.
+			// I238: chosen in the smoke test over circle-pause.
 			return "moon";
 		// Tab Attention States: finished / stopped early while you weren't
 		// looking, and a dashed ring while the agent starts.
@@ -121,6 +122,16 @@ export function stateIcon(state: TabState): string {
 		case "connecting":
 			return "circle-dashed";
 	}
+}
+
+/**
+ * Class string for a tab state icon: the base class plus the per-state class
+ * that carries color and animation (styles.css § Tab State Icons). Pure, so
+ * the strip can keep React as the only owner of its span's classes while the
+ * dropdown builds its own span with the same classes (I278).
+ */
+export function stateIconClass(state: TabState): string {
+	return `agent-client-tab-state-icon agent-client-tab-state-${state}`;
 }
 
 /**
@@ -160,7 +171,7 @@ export function TabStateIcon({ state }: { state: TabState }) {
 	useEffect(() => {
 		if (ref.current) setIcon(ref.current, icon);
 	}, [icon]);
-	const className = `agent-client-tab-state-icon agent-client-tab-state-${state}`;
+	const className = stateIconClass(state);
 	// Obsidian shows aria-label as the hover tooltip.
 	const label = stateLabel(state);
 	return (
@@ -501,27 +512,40 @@ export function TabBar({
 	const handleChevronClick = useCallback(
 		(e: React.MouseEvent) => {
 			const menu = new Menu();
-			// I238: native (OS) menus show setChecked's checkmark but ignore
-			// setIcon, which would hide every state icon. Force a DOM menu so
-			// the list matches the tab strip.
+			// Native (OS) menus render plain-text titles and would drop the
+			// state icon span below (I238, I278). Force a DOM menu so the list
+			// matches the tab strip.
 			menu.setUseNativeMenu(false);
+			// I278: the icon lives in the title so it can carry the state
+			// class (MenuItem has no setClass). Suppress the unused native slot.
+			menu.setNoIcon();
 			registerOpenMenu(menu);
 			for (const tab of tabs) {
 				// Tab Attention States: the active tab gets a bold label instead
 				// of setChecked's checkmark, because a tick now means "finished
 				// while you were away" and two ticks would read the same.
 				const isActive = tab.tabId === activeTabId;
-				const title = isActive
-					? createFragment((f) => {
-							f.createEl("strong", { text: tab.label });
-						})
-					: tab.label;
+				const title = createFragment((f) => {
+					const row = f.createSpan({
+						cls: "agent-client-tab-list-title",
+					});
+					// aria-hidden: the row has no state label, and an
+					// aria-label would pop a tooltip over the open menu.
+					const icon = row.createSpan({
+						cls: stateIconClass(tab.state),
+					});
+					icon.setAttribute("aria-hidden", "true");
+					setIcon(icon, stateIcon(tab.state));
+					if (isActive) {
+						row.createEl("strong", { text: tab.label });
+					} else {
+						row.createSpan({ text: tab.label });
+					}
+				});
 				menu.addItem((item: MenuItem) => {
-					item.setTitle(title)
-						.setIcon(stateIcon(tab.state))
-						.onClick(() => {
-							onSelectTab(tab.tabId);
-						});
+					item.setTitle(title).onClick(() => {
+						onSelectTab(tab.tabId);
+					});
 				});
 			}
 			showMenuAtEvent(menu, e);

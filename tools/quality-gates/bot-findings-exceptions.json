@@ -2,9 +2,9 @@
 	{
 		"rule": "obsidianmd/prefer-create-el",
 		"file": "src/__test_stubs__/vitest.setup.ts",
-		"count": 3,
+		"count": 4,
 		"reason": "false-positive-unreported",
-		"note": "The vitest setup stub deliberately calls raw DOM APIs (createElement, createEl, createDocumentFragment) in order to BUILD the very Obsidian helpers the rule wants callers to use. Rewriting these to createEl/createDiv/createFragment would make the shim call itself. Assessed as a rule defect; upstream report not yet filed.",
+		"note": "The vitest setup stub deliberately calls raw DOM APIs (createElement, createEl, createDocumentFragment; createSpan added for I278) in order to BUILD the very Obsidian helpers the rule wants callers to use. Rewriting these to createEl/createDiv/createFragment would make the shim call itself. Assessed as a rule defect; upstream report not yet filed.",
 		"link": "https://github.com/obsidianmd/eslint-plugin"
 	},
 	{
