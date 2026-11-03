@@ -32,6 +32,11 @@ export interface UseRecentlyClosedTabsReturn {
 	reopenLast: () => ClosedTabRecord | null;
 	/** Number of records currently on the stack (for tests / diagnostics). */
 	count: () => number;
+	/**
+	 * Session ids still reopenable from this stack. Their chats must not be
+	 * evicted or cleaned up while they can come back (I202 review).
+	 */
+	sessionIds: () => string[];
 }
 
 export function useRecentlyClosedTabs(
@@ -55,8 +60,13 @@ export function useRecentlyClosedTabs(
 
 	const count = useCallback(() => stackRef.current.length, []);
 
+	const sessionIds = useCallback(
+		() => stackRef.current.map((r) => r.sessionId),
+		[],
+	);
+
 	return useMemo(
-		() => ({ capture, reopenLast, count }),
-		[capture, reopenLast, count],
+		() => ({ capture, reopenLast, count, sessionIds }),
+		[capture, reopenLast, count, sessionIds],
 	);
 }

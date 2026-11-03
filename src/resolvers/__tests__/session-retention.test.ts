@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	DEFAULT_MAX_SAVED_SESSIONS,
+	decideCapChange,
 	formatSize,
 	parseMaxSavedSessions,
 	selectEvictions,
@@ -183,5 +184,29 @@ describe("parseMaxSavedSessions (I202)", () => {
 		for (const bad of [0, -5, 7, 1e9, "100", true, {}]) {
 			expect(parseMaxSavedSessions(bad)).toEqual({ cap: 100, valid: false });
 		}
+	});
+});
+
+describe("decideCapChange (I202 / I239: the dropdown handler)", () => {
+	const countFor = (cap: number | null) => (cap === null ? 0 : cap === 25 ? 3 : 0);
+
+	it("resets on a value the dropdown doesn't offer, with no dialog", () => {
+		for (const v of ["", "10", "0", "abc"]) {
+			expect(decideCapChange(v, 100, countFor)).toEqual({ kind: "reset" });
+		}
+	});
+
+	it("applies with no dialog when nothing would be moved", () => {
+		expect(decideCapChange("unlimited", 100, countFor)).toEqual({ kind: "apply", cap: null });
+		expect(decideCapChange("250", 100, countFor)).toEqual({ kind: "apply", cap: 250 });
+	});
+
+	it("asks first, with the count, when chats would be moved", () => {
+		expect(decideCapChange("25", 100, countFor)).toEqual({ kind: "confirm", cap: 25, count: 3 });
+	});
+
+	it("does nothing when the value didn't change", () => {
+		expect(decideCapChange("100", 100, countFor)).toEqual({ kind: "none" });
+		expect(decideCapChange("unlimited", null, countFor)).toEqual({ kind: "none" });
 	});
 });

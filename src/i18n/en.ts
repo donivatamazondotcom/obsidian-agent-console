@@ -351,8 +351,12 @@ export const en = {
 	"notices.noTabsReadyToSend": "[Agent Console] No tabs ready to send",
 	"notices.sentInTabs": "[Agent Console] Sent in {count} tab(s){skipNote}",
 	"notices.olderChatsTrashed":
-		"[Agent Console] Only your {count} most recent chats are kept. Older ones go to your trash, so you can still get them back.",
+		"[Agent Console] Agent Console keeps up to {count} chats. Older ones go to your trash, so you can still get them back.",
 	"notices.noUnusedChatFiles": "[Agent Console] No unused chat files found.",
+	"notices.chatFilesCleanupFailed":
+		"[Agent Console] Couldn't clean up chat files. Nothing was moved. Check the console for details.",
+	"notices.capChangedRetry":
+		"[Agent Console] More chats were saved while you were deciding. Pick the limit again to see the new count.",
 	"notices.chatFilesTrashed":
 		"[Agent Console] Moved {count} chat files ({size}) to your trash.",
 	"notices.cancelBroadcast":

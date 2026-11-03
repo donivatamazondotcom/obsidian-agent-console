@@ -87,7 +87,7 @@ Sessions are saved in two places:
 
 Your history keeps your 100 most recent chats by default. Change this under **Settings → Sessions → Max saved chats**: pick 25, 50, 100, 250, 500, or **Unlimited**.
 
-When you go over the limit, the chats you used least recently move to your trash, so you can still get them back. Agent Console uses your computer's trash, or the vault's `.trash` folder if that's turned off. A chat that's open in a tab is never removed, even if that leaves you a little over the limit. The first time this happens after Obsidian starts, a short notice tells you.
+When you go over the limit, the chats you used least recently move to your trash, so you can still get them back. Agent Console uses your computer's trash, or the vault's `.trash` folder if that's turned off. A chat that's open in a tab, or a tab you closed recently and can still reopen, is never removed, even if that leaves you a little over the limit. The first time this happens after Obsidian starts, a short notice tells you.
 
 If you lower the limit and some chats would go, Agent Console asks first and tells you how many. Cancel keeps everything as it was.
 

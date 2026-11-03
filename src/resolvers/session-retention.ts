@@ -135,3 +135,42 @@ export function selectUnusedSessionFiles(input: {
 			input.now - f.mtime >= input.minAgeMs,
 	);
 }
+
+/** Dropdown value for Unlimited in Settings → Sessions → Max saved chats. */
+export const UNLIMITED_CAP_VALUE = "unlimited";
+
+export function capToDropdownValue(cap: SavedSessionsCap): string {
+	return cap === null ? UNLIMITED_CAP_VALUE : String(cap);
+}
+
+export type CapChangeDecision =
+	| { kind: "none" }
+	| { kind: "reset" }
+	| { kind: "apply"; cap: SavedSessionsCap }
+	| { kind: "confirm"; cap: SavedSessionsCap; count: number };
+
+/**
+ * What a pick in the Max saved chats dropdown should do (I202, I239).
+ * A value the dropdown doesn't offer (an empty `select`, a stray number)
+ * resets the dropdown and never reaches storage; a change that would move
+ * chats to the trash asks first with the count.
+ */
+export function decideCapChange(
+	value: string,
+	current: SavedSessionsCap,
+	countEvictions: (cap: SavedSessionsCap) => number,
+): CapChangeDecision {
+	const raw: unknown =
+		value === UNLIMITED_CAP_VALUE
+			? null
+			: /^\d+$/.test(value)
+				? Number(value)
+				: value;
+	const parsed = parseMaxSavedSessions(raw);
+	if (!parsed.valid) return { kind: "reset" };
+	if (parsed.cap === current) return { kind: "none" };
+	const count = countEvictions(parsed.cap);
+	return count === 0
+		? { kind: "apply", cap: parsed.cap }
+		: { kind: "confirm", cap: parsed.cap, count };
+}

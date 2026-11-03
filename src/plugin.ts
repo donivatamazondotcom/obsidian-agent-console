@@ -11,7 +11,7 @@ import {
 	Notice,
 } from "obsidian";
 import { ConfirmTrashChatsModal } from "./ui/ConfirmTrashChatsModal";
-import { formatSize } from "./resolvers/session-retention";
+import { formatSize, tabSessionIds } from "./resolvers/session-retention";
 import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
@@ -948,18 +948,35 @@ export default class AgentClientPlugin extends Plugin {
 	}
 
 	/**
-	 * True when at least one chat view leaf is open (any location, incl.
-	 * floating). Used to context-gate navigate / act-on-chat / broadcast
-	 * commands so a cold-start palette surfaces only Open chat / New chat /
-	 * New chat with agent…. See command-palette rationalization spec (C3).
+	 * I202 review: session ids of every open tab in every chat panel, plus
+	 * reopenable closed tabs and closed panels. Read by SessionStorage so
+	 * eviction and cleanup never touch them, whether or not tab state is saved.
 	 */
+	getLiveSessionIds(): string[] {
+		const ids: string[] = [];
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT)) {
+			if (leaf.view instanceof ChatView) ids.push(...leaf.view.liveSessionIds());
+		}
+		ids.push(...tabSessionIds(this.recentlyClosedLeaves));
+		return ids;
+	}
+
 	/**
 	 * I202: "Clean up unused chat files". Reports how many transcript files
 	 * no chat or tab uses (and their size), confirms, then moves them to the
 	 * trash through SessionStorage, which re-checks references in its lock.
 	 */
 	private async confirmCleanUpChatFiles(): Promise<void> {
-		const unused = await this.settingsService.findUnusedSessionFiles();
+		let unused: Awaited<
+			ReturnType<SettingsService["findUnusedSessionFiles"]>
+		>;
+		try {
+			unused = await this.settingsService.findUnusedSessionFiles();
+		} catch (error) {
+			console.error("[Agent Console] Chat file cleanup failed", error);
+			new Notice(t("notices.chatFilesCleanupFailed"));
+			return;
+		}
 		if (unused.length === 0) {
 			new Notice(t("notices.noUnusedChatFiles"));
 			return;
@@ -984,11 +1001,21 @@ export default class AgentClientPlugin extends Plugin {
 								size: formatSize(result.bytes),
 							}),
 						);
+					})
+					.catch((error: unknown) => {
+						console.error("[Agent Console] Chat file cleanup failed", error);
+						new Notice(t("notices.chatFilesCleanupFailed"));
 					});
 			},
 		).open();
 	}
 
+	/**
+	 * True when at least one chat view leaf is open (any location, incl.
+	 * floating). Used to context-gate navigate / act-on-chat / broadcast
+	 * commands so a cold-start palette surfaces only Open chat / New chat /
+	 * New chat with agent…. See command-palette rationalization spec (C3).
+	 */
 	private hasOpenChatView(): boolean {
 		return isChatCommandAvailable(
 			this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT).length,
