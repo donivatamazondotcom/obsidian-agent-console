@@ -542,7 +542,7 @@ export const en = {
 	"modals.deleteSession.title": "Delete session?",
 	"modals.deleteSession.body": 'Are you sure you want to delete "{title}"?',
 	"modals.deleteSession.hint":
-		"This only removes the session from this plugin. The session data will remain on the agent side.",
+		"This removes the session from this plugin and moves its saved messages to your trash. The agent's own copy of the session isn't touched.",
 	"modals.deleteSession.confirm": "Delete",
 	"modals.editTitle.title": "Edit session title",
 	"modals.editTitle.save": "Save",

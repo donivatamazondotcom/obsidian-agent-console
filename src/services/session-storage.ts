@@ -169,6 +169,7 @@ export class SessionStorage {
 	 * trash right now. Read-only; feeds the confirm dialog.
 	 */
 	countEvictionsForCap(cap: SavedSessionsCap): number {
+		if (!this.isOfferedCap(cap)) return 0;
 		const state = this.settingsAccess.getSnapshot();
 		return selectEvictions(
 			state.savedSessions || [],
@@ -182,6 +183,12 @@ export class SessionStorage {
 	 * persisted tab uses are kept even if that leaves the list over the cap.
 	 */
 	async applyMaxSavedSessions(cap: SavedSessionsCap): Promise<void> {
+		if (!this.isOfferedCap(cap)) {
+			getLogger().warn(
+				`[SessionStorage] Refusing Max saved chats ${String(cap)}: not an offered value`,
+			);
+			return;
+		}
 		this.sessionLock = this.sessionLock.then(async () => {
 			const state = this.settingsAccess.getSnapshot();
 			const { kept, evicted } = selectEvictions(
@@ -266,6 +273,14 @@ export class SessionStorage {
 			return raw;
 		}
 		return parseMaxSavedSessions(undefined).cap;
+	}
+
+	/**
+	 * Trust boundary for a cap from the UI: only the dropdown's values (or
+	 * Unlimited). A stray 0 or NaN would otherwise trash nearly every chat.
+	 */
+	private isOfferedCap(cap: SavedSessionsCap): boolean {
+		return parseMaxSavedSessions(cap).valid;
 	}
 
 	private referencedStems(): Set<string> {
