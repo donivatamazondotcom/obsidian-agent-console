@@ -316,7 +316,6 @@ export function useAutoScrollPin(
 		lastScrollTopRef.current = scrollEl.scrollTop;
 	}, [endRestore]);
 
-
 	/**
 	 * I-S12 round-3 fix: tracks the most recent ResizeObserver-detected
 	 * height delta (positive on grow, negative on shrink). Set at the
@@ -1004,13 +1003,19 @@ export function useAutoScrollPin(
 			});
 		};
 		container.addEventListener("input", onInput);
-		// I284: a key pressed anywhere in the chat view (composer focus
-		// after a tab switch, or a focused copy button) ends a restore, so
-		// keyboard scrolling is never pulled back to the saved position.
-		container.addEventListener("keydown", cancelRestore);
+		// I284: a key pressed in the chat view (for example on a focused
+		// copy button) ends a restore, so keyboard scrolling is never pulled
+		// back to the saved position. Typing in the composer or another
+		// editable field can't scroll the message list, so it doesn't.
+		const onKeyDown = (event: KeyboardEvent) => {
+			const target = event.target as HTMLElement | null;
+			if (target?.closest("textarea, input, [contenteditable='true']")) return;
+			cancelRestore();
+		};
+		container.addEventListener("keydown", onKeyDown);
 		return () => {
 			container.removeEventListener("input", onInput);
-			container.removeEventListener("keydown", cancelRestore);
+			container.removeEventListener("keydown", onKeyDown);
 		};
 	}, [cancelRestore]);
 
