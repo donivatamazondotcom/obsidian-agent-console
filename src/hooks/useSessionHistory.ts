@@ -836,12 +836,31 @@ export function useSessionHistory(
 					// created elsewhere mid-turn): write the transcript under
 					// its id too, so file and record agree from this turn on.
 					if (written && written !== recordId && session.agentId) {
-						void settingsAccess.saveSessionMessages(
-							written,
-							session.agentId,
-							messages,
-							contextNotes,
-						);
+						const minted = recordId;
+						void settingsAccess
+							.saveSessionMessages(
+								written,
+								session.agentId,
+								messages,
+								contextNotes,
+							)
+							.then(() => {
+								// The id minted for this turn names no record:
+								// drop its file.
+								const claimed = findSessionRecord(
+									settingsAccess.getSavedSessions(),
+									{ by: "recordId", id: minted },
+								);
+								if (!claimed) {
+									return settingsAccess.deleteSessionMessages(minted);
+								}
+							})
+							.catch((err) =>
+								getLogger().warn(
+									"[SessionHistory] Cleanup after adopt failed:",
+									err,
+								),
+							);
 					}
 					adoptRecordId(written);
 				})

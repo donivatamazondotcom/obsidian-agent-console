@@ -15,6 +15,7 @@ import {
 	resolveCwdForAgent,
 	resolveRecordIdForSave,
 	buildTabIdentitySignature,
+	applyRecordIdReport,
 } from "../session-helpers";
 import type { SavedSessionInfo } from "../../types/session";
 import type { AgentClientPluginSettings } from "../../plugin";
@@ -211,5 +212,28 @@ describe("buildTabIdentitySignature (I57, I269)", () => {
 		expect(
 			buildTabIdentitySignature(new Map(), new Map([["T2", "rec-2"]])),
 		).toBe("T2::rec-2");
+	});
+});
+
+describe("applyRecordIdReport (I269)", () => {
+	it("a report replaces the restored id, so a remount seeds from it", () => {
+		const reports = new Map<string, string | null>();
+		const restored = new Map([["T1", "rec-r"]]);
+		applyRecordIdReport(reports, restored, "T1", "rec-q");
+		expect(reports.get("T1")).toBe("rec-q");
+		expect(restored.get("T1")).toBe("rec-q");
+	});
+	it("a reset report drops the restored id", () => {
+		const reports = new Map<string, string | null>();
+		const restored = new Map([["T1", "rec-r"]]);
+		applyRecordIdReport(reports, restored, "T1", null);
+		expect(reports.get("T1")).toBeNull();
+		expect(restored.has("T1")).toBe(false);
+		expect(
+			resolveRecordIdForSave(
+				{ has: reports.has("T1"), id: reports.get("T1") ?? null },
+				restored.get("T1") ?? null,
+			),
+		).toBe("");
 	});
 });
