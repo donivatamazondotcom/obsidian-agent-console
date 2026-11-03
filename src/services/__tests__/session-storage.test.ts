@@ -551,7 +551,7 @@ describe("SessionStorage saveSessionMessages write durability (I72)", () => {
 
 		await expect(
 			storage.saveSessionMessages("sess-retry", "agent-1", [msg]),
-		).resolves.toBeUndefined();
+		).resolves.toBe(true);
 
 		// Failed once, retried, succeeded — no error-level log for a
 		// recovered transient failure.
@@ -572,7 +572,7 @@ describe("SessionStorage saveSessionMessages write durability (I72)", () => {
 		// Does not throw into the void-calling caller…
 		await expect(
 			storage.saveSessionMessages("sess-fail", "agent-1", [msg]),
-		).resolves.toBeUndefined();
+		).resolves.toBe(false);
 
 		// …but the failure is surfaced to the log, with the sessionId, not
 		// swallowed without a trace.

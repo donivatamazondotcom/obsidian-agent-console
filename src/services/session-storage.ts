@@ -577,13 +577,17 @@ export class SessionStorage {
 	/**
 	 * Save message history for a session.
 	 */
-	/** `sessionId` here is the record id that names the file (I269). */
+	/**
+	 * `sessionId` here is the record id that names the file (I269). Resolves
+	 * true when the write landed, false when it failed after the retries
+	 * (logged). Never rejects on a failed write.
+	 */
 	async saveSessionMessages(
 		sessionId: string,
 		agentId: string,
 		messages: ChatMessage[],
 		contextNotes?: ContextNote[],
-	): Promise<void> {
+	): Promise<boolean> {
 		await this.ensureSessionsDir();
 
 		const serialized = messages.map((msg) => ({
@@ -618,7 +622,7 @@ export class SessionStorage {
 		for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
 			try {
 				await adapter.write(filePath, payload);
-				return;
+				return true;
 			} catch (error) {
 				lastError = error;
 				getLogger().warn(
@@ -629,6 +633,7 @@ export class SessionStorage {
 		getLogger().error(
 			`[SessionStorage] saveSessionMessages failed after ${MAX_ATTEMPTS} attempts for ${sessionId}; message history may be lost: ${String(lastError)}`,
 		);
+		return false;
 	}
 
 	/**

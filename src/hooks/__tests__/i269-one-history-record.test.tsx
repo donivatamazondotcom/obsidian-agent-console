@@ -87,6 +87,8 @@ const ORIGINAL: SavedSessionInfo = {
 
 function makeStore(seed: SavedSessionInfo[] = []) {
 	const files = new Map<string, string>();
+	/** Paths whose writes fail (every retry). */
+	const failWrites = new Set<string>();
 	let state = {
 		savedSessions: seed,
 	} as unknown as AgentClientPluginSettings;
@@ -99,6 +101,7 @@ function makeStore(seed: SavedSessionInfo[] = []) {
 			return v;
 		}),
 		write: vi.fn(async (p: string, data: string) => {
+			if (failWrites.has(p)) throw new Error(`EIO ${p}`);
 			files.set(p, data);
 		}),
 		remove: vi.fn(async (p: string) => {
@@ -170,6 +173,7 @@ function makeStore(seed: SavedSessionInfo[] = []) {
 		dropNextMetadataWrite: () => {
 			dropMetadataWrites = 1;
 		},
+		failWritesTo: (id: string) => failWrites.add(fileOf(id)),
 		messagesIn: (id: string): number | null => {
 			const raw = files.get(fileOf(id));
 			return raw ? (JSON.parse(raw) as { messages: unknown[] }).messages.length : null;
@@ -915,5 +919,42 @@ describe("I269 — remount and adopt cleanup", () => {
 		expect(
 			(await store.settings.loadSessionMessages("s-whatever", "rec-r"))?.length,
 		).toBe(2);
+	});
+});
+
+describe("I269 — adopt cleanup keeps the only copy", () => {
+	it("the minted file stays when the copy under the adopted record fails to write", async () => {
+		const store = makeStore();
+		const reports: Array<string | null> = [];
+		const tab = mountTab(store, {
+			reports,
+			lazy: {
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValue({ ok: true, sessionId: "s-1" }),
+			},
+		});
+		await send(tab, "Remember the number 7.");
+		await turnSave(tab, REMEMBER_7);
+		const minted = reports.at(-1)!;
+		store.setRecords([
+			{
+				recordId: "rec-q",
+				sessionId: "s-1",
+				agentId: "kiro",
+				cwd: "/vault",
+				title: "Renamed elsewhere",
+				createdAt: "2026-11-03T00:00:00.000Z",
+				updatedAt: "2026-11-03T00:00:00.000Z",
+			},
+		]);
+		store.failWritesTo("rec-q");
+		await turnSave(tab, AFTER_FALLBACK);
+		await act(async () => {
+			await settle();
+		});
+		expect(store.messagesIn("rec-q")).toBeNull();
+		// This turn's only copy is under the minted id: not trashed.
+		expect(store.messagesIn(minted)).toBe(4);
 	});
 });

@@ -805,12 +805,9 @@ export function useSessionHistory(
 			// I269: the file and the record both use the tab's record id, so
 			// a fallback's new agent session keeps writing the same chat.
 			const recordId = bindRecordId(sessionId);
-			const writePromise = settingsAccess.saveSessionMessages(
-				recordId,
-				session.agentId,
-				messages,
-				contextNotes,
-			);
+			const writePromise = settingsAccess
+				.saveSessionMessages(recordId, session.agentId, messages, contextNotes)
+				.then(() => undefined);
 
 			// Upsert session metadata through the single serialized writer
 			// (I114). The owner re-reads the latest snapshot inside its critical
@@ -848,7 +845,12 @@ export function useSessionHistory(
 								contextNotes,
 							),
 						])
-							.then(() => {
+							.then(([, adopted]) => {
+								// Only once the copy under the adopted id is on
+								// disk: otherwise the minted file is the only one.
+								if (adopted.status !== "fulfilled" || adopted.value !== true) {
+									return;
+								}
 								// The id minted for this turn names no record:
 								// drop its file.
 								const claimed = findSessionRecord(
