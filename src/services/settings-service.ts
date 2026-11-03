@@ -160,13 +160,11 @@ export interface ISettingsAccess {
 	): Promise<ContextNote[] | null>;
 
 	/**
-	 * Delete message history file for a session.
+	 * Move a message file to the trash (I202, I269). Never rejects: a missing
+	 * file is fine, and a failure is logged and the file left for Clean up
+	 * unused chat files.
 	 *
-	 * Called when session is deleted from savedSessions.
-	 * Silently succeeds if file doesn't exist.
-	 *
-	 * @param sessionId - Session ID
-	 * @returns Promise that resolves when file is deleted
+	 * @param sessionId - The id that names the file (a record id since I269)
 	 */
 	deleteSessionMessages(sessionId: string): Promise<void>;
 

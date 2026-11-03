@@ -111,3 +111,15 @@ describe("useRecentlyClosedTabs.sessionIds (I202 review)", () => {
 		expect(result.current.sessionIds()).toEqual(["b"]);
 	});
 });
+
+describe("useRecentlyClosedTabs.recordIds (I269)", () => {
+	it("returns closed tabs' record ids in stack order, skipping tabs without one", () => {
+		const { result } = renderHook(() => useRecentlyClosedTabs());
+		act(() => {
+			result.current.capture({ ...rec("s1"), recordId: "r1" });
+			result.current.capture(rec("s2"));
+			result.current.capture({ ...rec("s3"), recordId: "r3" });
+		});
+		expect(result.current.recordIds()).toEqual(["r1", "r3"]);
+	});
+});
