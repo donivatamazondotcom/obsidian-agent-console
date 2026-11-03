@@ -126,14 +126,14 @@ export interface ISettingsAccess {
 	 * @param sessionId - The record id that names the file (I269)
 	 * @param agentId - Agent ID for validation
 	 * @param messages - Chat messages to save
-	 * @returns Promise that resolves when messages are saved
+	 * @returns true when the write landed, false when it failed (logged)
 	 */
 	saveSessionMessages(
 		sessionId: string,
 		agentId: string,
 		messages: ChatMessage[],
 		contextNotes?: ContextNote[],
-	): Promise<void>;
+	): Promise<boolean>;
 
 	/**
 	 * Load message history for a session.
@@ -378,7 +378,7 @@ export class SettingsService implements ISettingsAccess {
 		agentId: string,
 		messages: ChatMessage[],
 		contextNotes?: ContextNote[],
-	): Promise<void> {
+	): Promise<boolean> {
 		return this.sessionStorage.saveSessionMessages(
 			sessionId,
 			agentId,
