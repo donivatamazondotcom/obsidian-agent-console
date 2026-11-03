@@ -41,7 +41,12 @@ function withLocalTitles(
  * @param plugin - Plugin instance for app access
  * @param agent - Agent hook for clearMessages
  * @param sessionHistory - Session history hook for operations
- * @param vaultPath - Current working directory
+ * @param agentCwd - The folder this chat's agent runs in (the tab's
+ *   `agentCwd`, the same value the header Folder line shows). "Only this
+ *   folder" filters on it, so the folder the filter asks for is the folder
+ *   the agent stamps on this tab's sessions (I275). Never the vault-root
+ *   baseline: a per-agent default, "New chat in directory" or an agent
+ *   switch moves the agent without moving that baseline.
  * @param isSessionReady - Whether the session is ready
  * @param debugMode - Whether debug mode is enabled
  */
@@ -49,7 +54,7 @@ export function useHistoryModal(
 	plugin: AgentClientPlugin,
 	agent: UseAgentReturn,
 	sessionHistory: UseSessionHistoryReturn,
-	vaultPath: string,
+	agentCwd: string,
 	isSessionReady: boolean,
 	debugMode: boolean,
 	onAgentCwdChange?: (cwd: string) => void,
@@ -226,7 +231,7 @@ export function useHistoryModal(
 				loading: sessionHistory.loading,
 				error: sessionHistory.error,
 				hasMore: sessionHistory.hasMore,
-				currentCwd: vaultPath,
+				currentCwd: agentCwd,
 				loadSessionMessages: sessionHistory.loadSessionMessages,
 				capabilities: sessionHistory.historyCapabilities.capabilities,
 				capabilityKnowledge: sessionHistory.historyCapabilities.kind,
@@ -264,7 +269,7 @@ export function useHistoryModal(
 			deriveHistoryFetchCwd(
 				initialView,
 				initialView.folderFilterDefault === "this-folder",
-				vaultPath,
+				agentCwd,
 			),
 		);
 	}, [
@@ -280,7 +285,7 @@ export function useHistoryModal(
 		sessionHistory.loadSessionMessages,
 		sessionHistory.localSessionIds,
 		sessionHistory.fetchSessions,
-		vaultPath,
+		agentCwd,
 		isSessionReady,
 		debugMode,
 		handleRestoreSession,
@@ -305,7 +310,7 @@ export function useHistoryModal(
 				loading: sessionHistory.loading,
 				error: sessionHistory.error,
 				hasMore: sessionHistory.hasMore,
-				currentCwd: vaultPath,
+				currentCwd: agentCwd,
 				loadSessionMessages: sessionHistory.loadSessionMessages,
 				capabilities: sessionHistory.historyCapabilities.capabilities,
 				capabilityKnowledge: sessionHistory.historyCapabilities.kind,
@@ -339,7 +344,7 @@ export function useHistoryModal(
 		sessionHistory.historyCapabilities,
 		sessionHistory.loadSessionMessages,
 		sessionHistory.localSessionIds,
-		vaultPath,
+		agentCwd,
 		isSessionReady,
 		debugMode,
 		handleRestoreSession,

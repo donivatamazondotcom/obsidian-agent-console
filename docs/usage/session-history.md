@@ -51,7 +51,7 @@ An **Only this folder** checkbox narrows the list to sessions whose working fold
 - **Agent view:** checked, so you only see this folder's sessions. Some agents keep sessions from every project you have ever opened, so an unfiltered list can run to hundreds of rows. Uncheck it to see them all.
 - **Local view:** unchecked, so you see every session saved in the plugin, from every folder. The checkbox only appears here when your saved sessions span more than one folder.
 
-Your choice holds while the history stays open, separately for each view, and resets the next time you open it. The filter works for every agent — the working folder is whatever directory the agent runs in, which may or may not be your vault root. Agent-view rows the plugin hasn't saved a transcript for can only be matched by their title — content search needs a local transcript.
+Your choice holds while the history stays open, separately for each view, and resets the next time you open it. The filter works for every agent — the working folder is whatever directory the agent runs in — the Folder shown when you hover the chat header — which may or may not be your vault root. Agent-view rows the plugin hasn't saved a transcript for can only be matched by their title — content search needs a local transcript.
 
 ## Available Actions
 
