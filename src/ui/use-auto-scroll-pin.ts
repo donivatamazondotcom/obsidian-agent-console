@@ -28,7 +28,14 @@
  *   - No `isNearBottom` separate from `isAtBottom`. One boolean.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import type {
 	UseAutoScrollPinParams,
 	UseAutoScrollPinResult,
@@ -122,6 +129,67 @@ function bottomGap(scrollEl: HTMLElement): number {
 }
 
 // ============================================================================
+// I284: reading-position anchor for tab return
+// ============================================================================
+
+/**
+ * Quiet period that ends a restore: no content growth for this long means
+ * the returning tab's markdown has finished rendering in.
+ */
+const RESTORE_QUIET_MS = 150;
+/** Hard cap on a restore, so a stale target can't fight later layout. */
+const RESTORE_CAP_MS = 2000;
+
+/** The message row at the top of the view, and how far into it. */
+interface ReadingAnchor {
+	id: string;
+	offset: number;
+}
+
+/**
+ * Find the first child of the content element whose bottom is below
+ * `scrollTop`, then the first message row (`data-message-id`) from there.
+ * Children are in document order, so a binary search costs about
+ * log2(n) offset reads (~8 on a 200-message chat).
+ */
+function findReadingAnchor(
+	contentEl: HTMLElement,
+	scrollTop: number,
+): ReadingAnchor | null {
+	const rows = contentEl.children;
+	let lo = 0;
+	let hi = rows.length - 1;
+	let found = -1;
+	while (lo <= hi) {
+		const mid = (lo + hi) >> 1;
+		const el = rows[mid] as HTMLElement;
+		if (el.offsetTop + el.offsetHeight > scrollTop) {
+			found = mid;
+			hi = mid - 1;
+		} else {
+			lo = mid + 1;
+		}
+	}
+	if (found < 0) return null;
+	for (let i = found; i < rows.length; i++) {
+		const el = rows[i] as HTMLElement;
+		const id = el.dataset.messageId;
+		if (id) return { id, offset: scrollTop - el.offsetTop };
+	}
+	return null;
+}
+
+/** One-time O(n) lookup of a message row by id, at restore start. */
+function findRowById(contentEl: HTMLElement, id: string): HTMLElement | null {
+	const rows = contentEl.children;
+	for (let i = 0; i < rows.length; i++) {
+		const el = rows[i] as HTMLElement;
+		if (el.dataset.messageId === id) return el;
+	}
+	return null;
+}
+
+// ============================================================================
 // Hook
 // ============================================================================
 
@@ -188,6 +256,81 @@ export function useAutoScrollPin(
 	const pendingAnchorTargetRef = useRef<number | null>(null);
 
 	/**
+	 * I284: reading position saved while the tab is scrolled up. Inactive
+	 * tabs unmount their rows and sit under display:none, which resets
+	 * scrollTop to 0, so the position has to be saved and restored. It is
+	 * an element anchor (row id + offset), not a pixel value, because rows
+	 * above it keep rendering in (async markdown) after the tab returns.
+	 */
+	const readingAnchorRef = useRef<ReadingAnchor | null>(null);
+	/** I284: blocks anchor saves while the tab is hidden or restoring. */
+	const anchorFrozenRef = useRef(false);
+	/** I284: the in-flight restore (row cached at start + offset). */
+	const restoreRef = useRef<{ row: HTMLElement; offset: number } | null>(
+		null,
+	);
+	const restoreQuietTimerRef = useRef<number | null>(null);
+	const restoreCapTimerRef = useRef<number | null>(null);
+	/** I284: previous isActive, tracked by the layout effect. */
+	const layoutPrevActiveRef = useRef(isActive);
+
+	/**
+	 * I284: end the in-flight restore. Saving resumes only if the tab is
+	 * visible; a hidden tab keeps the anchor it had.
+	 */
+	const endRestore = useCallback(() => {
+		if (restoreQuietTimerRef.current !== null) {
+			window.clearTimeout(restoreQuietTimerRef.current);
+			restoreQuietTimerRef.current = null;
+		}
+		if (restoreCapTimerRef.current !== null) {
+			window.clearTimeout(restoreCapTimerRef.current);
+			restoreCapTimerRef.current = null;
+		}
+		restoreRef.current = null;
+		anchorFrozenRef.current = !layoutPrevActiveRef.current;
+	}, []);
+
+	/** I284: any user scroll intent (wheel, touch, pointer, key) wins. */
+	const cancelRestore = useCallback(() => {
+		if (restoreRef.current) endRestore();
+	}, [endRestore]);
+
+	/**
+	 * I284: write the anchored row's position. Writes (and arms the
+	 * one-shot ignore flag) only when the view moves more than 1 px,
+	 * because Chromium fires no scroll event for a no-op write and an
+	 * armed flag would swallow the user's next real scroll.
+	 */
+	const applyRestore = useCallback(() => {
+		const r = restoreRef.current;
+		const scrollEl = scrollElRef.current;
+		if (!r || !scrollEl) return;
+		if (!r.row.isConnected) {
+			endRestore();
+			return;
+		}
+		const desired = Math.min(
+			r.row.offsetTop + r.offset,
+			bottomScrollTop(scrollEl),
+		);
+		if (Math.abs(scrollEl.scrollTop - desired) <= 1) return;
+		ignoreNextScrollEventRef.current = true;
+		setScrollTopInstant(scrollEl, desired);
+		lastScrollTopRef.current = scrollEl.scrollTop;
+	}, [endRestore]);
+
+	const armRestoreQuietTimer = useCallback(() => {
+		if (restoreQuietTimerRef.current !== null) {
+			window.clearTimeout(restoreQuietTimerRef.current);
+		}
+		restoreQuietTimerRef.current = window.setTimeout(
+			endRestore,
+			RESTORE_QUIET_MS,
+		);
+	}, [endRestore]);
+
+	/**
 	 * I-S12 round-3 fix: tracks the most recent ResizeObserver-detected
 	 * height delta (positive on grow, negative on shrink). Set at the
 	 * START of every RO callback (BOTH contentRef AND scrollRef) before
@@ -226,10 +369,15 @@ export function useAutoScrollPin(
 	 * the value hasn't actually changed.
 	 */
 	const setIsAtBottom = useCallback((next: boolean) => {
+		// I284: a pinned tab has no reading position to restore.
+		if (next) {
+			readingAnchorRef.current = null;
+			if (restoreRef.current) endRestore();
+		}
 		if (isAtBottomRef.current === next) return;
 		isAtBottomRef.current = next;
 		setIsAtBottomState(next);
-	}, []);
+	}, [endRestore]);
 
 	const setEscapedFromLock = useCallback((next: boolean) => {
 		// I149: a real escape cancels any pending container-shrink re-anchor,
@@ -331,6 +479,7 @@ export function useAutoScrollPin(
 	 */
 	const handleWheel = useCallback(
 		(event: WheelEvent) => {
+			cancelRestore(); // I284: before the early return, any direction
 			if (event.deltaY >= 0) return;
 			if (isSelecting()) return;
 			const scrollEl = scrollElRef.current;
@@ -342,7 +491,7 @@ export function useAutoScrollPin(
 			setEscapedFromLock(true);
 			setIsAtBottom(false);
 		},
-		[isSelecting, setEscapedFromLock, setIsAtBottom],
+		[cancelRestore, isSelecting, setEscapedFromLock, setIsAtBottom],
 	);
 
 	/**
@@ -354,10 +503,14 @@ export function useAutoScrollPin(
 	 */
 	const touchStartYRef = useRef<number | null>(null);
 
-	const handleTouchStart = useCallback((event: TouchEvent) => {
-		const touch = event.touches[0];
-		touchStartYRef.current = touch ? touch.clientY : null;
-	}, []);
+	const handleTouchStart = useCallback(
+		(event: TouchEvent) => {
+			cancelRestore(); // I284
+			const touch = event.touches[0];
+			touchStartYRef.current = touch ? touch.clientY : null;
+		},
+		[cancelRestore],
+	);
 
 	const handleTouchMove = useCallback(
 		(event: TouchEvent) => {
@@ -429,6 +582,27 @@ export function useAutoScrollPin(
 		if (!scrollEl) return;
 
 		const scrollTop = scrollEl.scrollTop;
+
+		// I284: during a restore, non-ignored scroll events are layout
+		// clamps/reverts (user intent cancels the restore first via
+		// wheel/touch/pointer/key), so they neither classify nor save.
+		if (restoreRef.current) {
+			lastScrollTopRef.current = scrollTop;
+			return;
+		}
+		// I284: save the reading position while scrolled up. Skipped when
+		// near the bottom, so a pinned, streaming tab pays nothing.
+		if (
+			!anchorFrozenRef.current &&
+			contentElRef.current !== null &&
+			scrollEl.clientHeight > 0 &&
+			scrollEl.scrollHeight - scrollTop - scrollEl.clientHeight >
+				STICK_OFFSET_PX
+		) {
+			const anchor = findReadingAnchor(contentElRef.current, scrollTop);
+			if (anchor) readingAnchorRef.current = anchor;
+		}
+
 		const lastScrollTop = lastScrollTopRef.current ?? scrollTop;
 		lastScrollTopRef.current = scrollTop;
 
@@ -516,6 +690,8 @@ export function useAutoScrollPin(
 				previous.removeEventListener("wheel", handleWheel);
 				previous.removeEventListener("touchstart", handleTouchStart);
 				previous.removeEventListener("touchmove", handleTouchMove);
+				previous.removeEventListener("pointerdown", cancelRestore);
+				previous.removeEventListener("keydown", cancelRestore);
 				scrollObserverRef.current?.disconnect();
 				scrollObserverRef.current = null;
 			}
@@ -528,6 +704,8 @@ export function useAutoScrollPin(
 			el.addEventListener("wheel", handleWheel, { passive: true });
 			el.addEventListener("touchstart", handleTouchStart, { passive: true });
 			el.addEventListener("touchmove", handleTouchMove, { passive: true });
+			el.addEventListener("pointerdown", cancelRestore, { passive: true });
+			el.addEventListener("keydown", cancelRestore);
 
 			// Container ResizeObserver — detects flex-sibling shrinks etc.
 			// (per spec Decision #21 Finding 1, closes use-stick-to-bottom Issue #40).
@@ -554,6 +732,14 @@ export function useAutoScrollPin(
 
 				const scrollEl = scrollElRef.current;
 				if (!scrollEl) return;
+
+				// I284: while restoring, re-apply the reading position and
+				// skip both re-pin branches. The container growing back from
+				// 0 after a clamped first write would otherwise re-pin.
+				if (restoreRef.current) {
+					applyRestore();
+					return;
+				}
 
 				if (height < previous) {
 					// Container shrank (e.g., flex-sibling InputArea grew into our space).
@@ -591,6 +777,8 @@ export function useAutoScrollPin(
 			scrollObserverRef.current = observer;
 		},
 		[
+			applyRestore,
+			cancelRestore,
 			handleScroll,
 			handleWheel,
 			handleTouchStart,
@@ -649,6 +837,15 @@ export function useAutoScrollPin(
 				// content-visibility:auto on bubbles — that property
 				// suppresses RO fires for off-screen growth, which would
 				// silently leave the scroll at a partial position.
+				// I284: while restoring, re-apply the reading position as rows
+				// render in, and keep the window open until growth goes quiet.
+				// Return so neither the pinned anchor nor the re-pin runs.
+				if (restoreRef.current) {
+					applyRestore();
+					armRestoreQuietTimer();
+					return;
+				}
+
 				const grew = previous === undefined || height > previous;
 				const shrank = previous !== undefined && height < previous;
 
@@ -722,8 +919,48 @@ export function useAutoScrollPin(
 			observer.observe(el);
 			contentObserverRef.current = observer;
 		},
-		[scheduleResizeDifferenceClear, setEscapedFromLock, setIsAtBottom],
+		[
+			applyRestore,
+			armRestoreQuietTimer,
+			scheduleResizeDifferenceClear,
+			setEscapedFromLock,
+			setIsAtBottom,
+		],
 	);
+
+	// ------------------------------------------------------------------------
+	// I284: save/restore the reading position across a tab switch. A layout
+	// effect so the restore lands before paint, ResizeObserver delivery and
+	// scroll dispatch on every update lane (the hotkey path updates outside
+	// a React event, so passive effects can run after a paint).
+	// ------------------------------------------------------------------------
+	useLayoutEffect(() => {
+		const previous = layoutPrevActiveRef.current;
+		layoutPrevActiveRef.current = isActive;
+		if (previous === isActive) return;
+		if (!isActive) {
+			// Hidden: stop any restore and freeze the anchor as it is.
+			endRestore();
+			return;
+		}
+		anchorFrozenRef.current = false;
+		// Pinned: the passive effect below re-anchors to the bottom.
+		if (!escapedFromLockRef.current && isAtBottomRef.current) return;
+		const anchor = readingAnchorRef.current;
+		const contentEl = contentElRef.current;
+		if (!anchor || !contentEl) return;
+		const row = findRowById(contentEl, anchor.id);
+		if (!row) {
+			// The transcript changed while hidden: nothing to restore.
+			readingAnchorRef.current = null;
+			return;
+		}
+		restoreRef.current = { row, offset: anchor.offset };
+		anchorFrozenRef.current = true;
+		applyRestore();
+		armRestoreQuietTimer();
+		restoreCapTimerRef.current = window.setTimeout(endRestore, RESTORE_CAP_MS);
+	}, [isActive, applyRestore, armRestoreQuietTimer, endRestore]);
 
 	// ------------------------------------------------------------------------
 	// isActive false → true: re-anchor if was pinned (closes I-S2/I-S3/I-S4
@@ -809,6 +1046,14 @@ export function useAutoScrollPin(
 				scrollEl.removeEventListener("wheel", handleWheel);
 				scrollEl.removeEventListener("touchstart", handleTouchStart);
 				scrollEl.removeEventListener("touchmove", handleTouchMove);
+				scrollEl.removeEventListener("pointerdown", cancelRestore);
+				scrollEl.removeEventListener("keydown", cancelRestore);
+			}
+			if (restoreQuietTimerRef.current !== null) {
+				window.clearTimeout(restoreQuietTimerRef.current);
+			}
+			if (restoreCapTimerRef.current !== null) {
+				window.clearTimeout(restoreCapTimerRef.current);
 			}
 		};
 		// Empty deps: run only on unmount. The scrollRef/contentRef callbacks

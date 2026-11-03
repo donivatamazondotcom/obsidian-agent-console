@@ -2277,7 +2277,10 @@ describe("useAutoScrollPin — isActive transitions", () => {
 			rerender(React.createElement(App, { isActive: true, isSending: false }));
 		});
 
-		// No new write; user was scrolled up, preserve their position
+		// No new write: no scroll event fired, so no reading position was
+		// saved and there is nothing to restore. The real hide/show sequence
+		// (scroll, placeholder swap, display:none reset) is pinned by the
+		// I284 regression net below.
 		expect(geom.writes.length).toBe(writesBefore);
 	});
 });
@@ -2836,5 +2839,315 @@ describe("useAutoScrollPin — I149 composer input re-anchor (real fix)", () => 
 			// Escaped → the input listener must NOT yank the user back to bottom.
 			expect(geom.writes.length).toBe(writesBefore);
 		});
+	});
+});
+
+// ============================================================================
+// I284 regression net: restore the reading position when returning to a
+// scrolled-up tab. The harness mirrors MessageList's inactive placeholder
+// swap: while inactive the scroll div has no content child, and the tests
+// reset scrollTop / heights to 0 the way display:none does in Chromium
+// (observed in the working vault on 2026-11-03: every hidden tab reports
+// scrollTop 0, scrollHeight 0).
+// ============================================================================
+
+describe("useAutoScrollPin — I284 restore reading position on tab return", () => {
+	interface Geom {
+		scrollTop: number;
+		scrollHeight: number;
+		clientHeight: number;
+		rows: Map<string, { top: number; height: number }>;
+		writes: number[];
+	}
+
+	const ROW_PAD = 16;
+
+	function layoutRows(geom: Geom, ids: string[], height: number | ((i: number) => number)): void {
+		geom.rows.clear();
+		let top = ROW_PAD;
+		ids.forEach((id, i) => {
+			const h = typeof height === "number" ? height : height(i);
+			geom.rows.set(id, { top, height: h });
+			top += h;
+		});
+		geom.scrollHeight = top + ROW_PAD;
+	}
+
+	function PlaceholderHarness(props: {
+		isActive: boolean;
+		ids: string[];
+		geom: Geom;
+		onHandle: (h: { scrollEl: HTMLDivElement | null; contentEl: HTMLDivElement | null }) => void;
+	}) {
+		const result = useAutoScrollPin({
+			isActive: props.isActive,
+			isSending: false,
+			view: makeView(),
+		});
+		const handles = React.useRef<{ scrollEl: HTMLDivElement | null; contentEl: HTMLDivElement | null }>({
+			scrollEl: null,
+			contentEl: null,
+		});
+		const geomRef = React.useRef(props.geom);
+		geomRef.current = props.geom;
+		const scrollComposite = React.useCallback(
+			(el: HTMLDivElement | null) => {
+				if (el && handles.current.scrollEl !== el) {
+					const g = geomRef.current;
+					Object.defineProperty(el, "scrollHeight", { configurable: true, get: () => g.scrollHeight });
+					Object.defineProperty(el, "clientHeight", { configurable: true, get: () => g.clientHeight });
+					Object.defineProperty(el, "scrollTop", {
+						configurable: true,
+						get: () => g.scrollTop,
+						set: (v: number) => {
+							g.scrollTop = v;
+							g.writes.push(v);
+						},
+					});
+				}
+				handles.current.scrollEl = el;
+				result.scrollRef(el);
+				props.onHandle(handles.current);
+			},
+			[result.scrollRef],
+		);
+		const contentComposite = React.useCallback(
+			(el: HTMLDivElement | null) => {
+				handles.current.contentEl = el;
+				result.contentRef(el);
+				props.onHandle(handles.current);
+			},
+			[result.contentRef],
+		);
+		const rowRef = (id: string) => (el: HTMLDivElement | null) => {
+			if (!el) return;
+			const g = geomRef.current;
+			Object.defineProperty(el, "offsetTop", { configurable: true, get: () => g.rows.get(id)?.top ?? 0 });
+			Object.defineProperty(el, "offsetHeight", { configurable: true, get: () => g.rows.get(id)?.height ?? 0 });
+		};
+		if (!props.isActive) {
+			return React.createElement("div", { ref: scrollComposite });
+		}
+		return React.createElement(
+			"div",
+			{ ref: scrollComposite },
+			React.createElement(
+				"div",
+				{ ref: contentComposite },
+				...props.ids.map((id) =>
+					React.createElement("div", { key: id, ref: rowRef(id), "data-message-id": id }),
+				),
+			),
+		);
+	}
+
+	const IDS = Array.from({ length: 10 }, (_, i) => `m${i}`);
+
+	function setup() {
+		const geom: Geom = { scrollTop: 0, scrollHeight: 0, clientHeight: 600, rows: new Map(), writes: [] };
+		layoutRows(geom, IDS, 500); // rows at 16, 516, 1016, ... ; scrollHeight 5032
+		let h: { scrollEl: HTMLDivElement | null; contentEl: HTMLDivElement | null } = { scrollEl: null, contentEl: null };
+		const el = (isActive: boolean, ids = IDS) =>
+			React.createElement(PlaceholderHarness, {
+				isActive,
+				ids,
+				geom,
+				onHandle: (x) => {
+					h = x;
+				},
+			});
+		const r = render(el(true));
+		const scrollEl = () => h.scrollEl as HTMLDivElement;
+		const contentEl = () => h.contentEl as HTMLDivElement;
+
+		/** User scrolls up to `top` (wheel escape + the browser's scroll event). */
+		const userScrollTo = (top: number) => {
+			act(() => {
+				fireWheel(scrollEl(), -50);
+				geom.scrollTop = top;
+				fireScrollEvent(scrollEl());
+				flushTimers();
+			});
+		};
+		/** Hide the tab: placeholder swap + display:none reset. */
+		const hide = () => {
+			act(() => {
+				r.rerender(el(false));
+				geom.scrollTop = 0;
+				geom.clientHeight = 0;
+				geom.scrollHeight = 0;
+				fireScrollEvent(scrollEl());
+				fireResize(scrollEl(), 0);
+				flushTimers();
+			});
+		};
+		/** Show the tab with the given geometry already laid out. */
+		const show = (ids = IDS) => {
+			act(() => {
+				geom.clientHeight = 600;
+				r.rerender(el(true, ids));
+			});
+		};
+		const consumeOwnScrollEvent = () => {
+			act(() => {
+				fireScrollEvent(scrollEl());
+			});
+		};
+		return { geom, r, el, scrollEl, contentEl, userScrollTo, hide, show, consumeOwnScrollEvent };
+	}
+
+	it("returns to where the user was reading (red on main: lands at scrollTop 0)", () => {
+		const t = setup();
+		t.userScrollTo(1200);
+		t.hide();
+		layoutRows(t.geom, IDS, 500);
+		t.show();
+		expect(t.geom.scrollTop).toBe(1200);
+	});
+
+	it("keeps re-applying while markdown renders in after a clamped first write", () => {
+		const t = setup();
+		t.userScrollTo(1200);
+		t.hide();
+		layoutRows(t.geom, IDS, 50); // partly rendered: scrollHeight 532
+		t.show();
+		expect(t.geom.scrollTop).toBe(Math.max(0, 532 - 600 - 1)); // clamped to 0
+		layoutRows(t.geom, IDS, 500);
+		act(() => {
+			fireResize(t.contentEl(), 5000);
+		});
+		expect(t.geom.scrollTop).toBe(1200);
+	});
+
+	it("container growing back from 0 after a clamped write does not re-pin the tab (H1)", () => {
+		const t = setup();
+		t.userScrollTo(1200);
+		t.hide();
+		layoutRows(t.geom, IDS, 80); // scrollHeight 832 → clamp at 231, gap 1
+		t.show();
+		act(() => {
+			fireResize(t.scrollEl(), 600);
+		});
+		expect(t.r.container.isConnected).toBe(true);
+		layoutRows(t.geom, IDS, 500);
+		act(() => {
+			fireResize(t.contentEl(), 5000);
+		});
+		expect(t.geom.scrollTop).toBe(1200);
+	});
+
+	it("holds the anchored message in place when content above it grows (H2)", () => {
+		const t = setup();
+		t.userScrollTo(1200); // anchor m2 (top 1016) + 184
+		t.hide();
+		layoutRows(t.geom, IDS, 500);
+		t.show();
+		t.consumeOwnScrollEvent();
+		layoutRows(t.geom, IDS, (i) => (i === 0 ? 900 : 500)); // m2 now at 1416
+		act(() => {
+			fireResize(t.contentEl(), 5400);
+		});
+		expect(t.geom.scrollTop).toBe(1416 + 184);
+	});
+
+	it("leaving again mid-restore keeps the original position, not the clamped one (H3)", () => {
+		const t = setup();
+		t.userScrollTo(1200);
+		t.hide();
+		layoutRows(t.geom, IDS, 80);
+		t.show(); // clamped write
+		t.consumeOwnScrollEvent();
+		t.hide();
+		layoutRows(t.geom, IDS, 500);
+		t.show();
+		expect(t.geom.scrollTop).toBe(1200);
+	});
+
+	it("a layout-driven scroll event during the restore does not move the anchor (M1)", () => {
+		const t = setup();
+		t.userScrollTo(1200);
+		t.hide();
+		layoutRows(t.geom, IDS, 80);
+		t.show();
+		t.consumeOwnScrollEvent();
+		act(() => {
+			t.geom.scrollTop = 0; // Chromium clamp/revert, not the user
+			fireScrollEvent(t.scrollEl());
+		});
+		layoutRows(t.geom, IDS, 500);
+		act(() => {
+			fireResize(t.contentEl(), 5000);
+		});
+		expect(t.geom.scrollTop).toBe(1200);
+	});
+
+	it("a re-apply that changes nothing does not swallow the user's next scroll (M2)", () => {
+		const t = setup();
+		t.userScrollTo(1200);
+		t.hide();
+		layoutRows(t.geom, IDS, 500);
+		t.show();
+		t.consumeOwnScrollEvent();
+		const writes = t.geom.writes.length;
+		act(() => {
+			fireResize(t.contentEl(), 5000); // same geometry → no write
+		});
+		expect(t.geom.writes.length).toBe(writes);
+		act(() => {
+			flushTimers(); // restore window closes
+		});
+		act(() => {
+			t.geom.scrollTop = 5032 - 600; // user scrolls to the bottom
+			fireScrollEvent(t.scrollEl());
+			flushTimers();
+		});
+		expect(t.scrollEl().scrollTop).toBe(4432);
+		// Pinned again: a pinned return lands at the bottom.
+		t.hide();
+		layoutRows(t.geom, IDS, 500);
+		t.show();
+		expect(t.geom.scrollTop).toBe(5032 - 600 - 1);
+	});
+
+	it.each([
+		["wheel down", (el: HTMLElement) => fireWheel(el, 50)],
+		["pointerdown (scrollbar drag)", (el: HTMLElement) => el.dispatchEvent(new Event("pointerdown", { bubbles: true }))],
+		["keydown (PageUp)", (el: HTMLElement) => el.dispatchEvent(new KeyboardEvent("keydown", { key: "PageUp", bubbles: true }))],
+		["touchstart", (el: HTMLElement) => fireTouchStart(el, 100)],
+	])("%s during the restore cancels it (M3)", (_name, fire) => {
+		const t = setup();
+		t.userScrollTo(1200);
+		t.hide();
+		layoutRows(t.geom, IDS, 80);
+		t.show();
+		const clamped = t.geom.scrollTop;
+		t.consumeOwnScrollEvent();
+		act(() => {
+			fire(t.scrollEl());
+		});
+		layoutRows(t.geom, IDS, 500);
+		act(() => {
+			fireResize(t.contentEl(), 5000);
+		});
+		expect(t.geom.scrollTop).toBe(clamped);
+	});
+
+	it("does not restore into a replaced transcript (M4)", () => {
+		const t = setup();
+		t.userScrollTo(1200);
+		t.hide();
+		const fresh = IDS.map((id) => `new-${id}`);
+		layoutRows(t.geom, fresh, 500);
+		const writes = t.geom.writes.length;
+		t.show(fresh);
+		expect(t.geom.writes.length).toBe(writes);
+	});
+
+	it("a tab pinned when it was left still returns to the bottom", () => {
+		const t = setup();
+		t.hide();
+		layoutRows(t.geom, IDS, 500);
+		t.show();
+		expect(t.geom.scrollTop).toBe(5032 - 600 - 1);
 	});
 });
