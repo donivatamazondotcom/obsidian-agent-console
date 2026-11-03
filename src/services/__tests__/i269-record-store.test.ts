@@ -54,6 +54,9 @@ function make(seed: SavedSessionInfo[] = []) {
 		},
 		write: async (p: string, d: string) => void files.set(p, d),
 		remove: async (p: string) => void files.delete(p),
+		// I202: deletes move the transcript to the trash.
+		trashSystem: async (p: string) => (files.delete(p), true),
+		trashLocal: async (p: string) => void files.delete(p),
 	};
 	const plugin = {
 		app: { vault: { configDir: ".obsidian", adapter } },
