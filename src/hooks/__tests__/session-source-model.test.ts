@@ -43,7 +43,7 @@ function saved(
 	title: string,
 	cwd = "/vault",
 ): SavedSessionInfo {
-	return { sessionId, agentId, cwd, title, createdAt: NOW, updatedAt: NOW };
+	return { recordId: sessionId, sessionId, agentId, cwd, title, createdAt: NOW, updatedAt: NOW };
 }
 
 function makeSettings(savedSessions: SavedSessionInfo[]) {
@@ -114,9 +114,7 @@ function renderSessionHistory(opts: {
 			agentClient,
 			session,
 			settingsAccess: settings,
-			cwd: "/vault",
 			agentCwd: "/vault",
-			onSessionLoad: vi.fn(),
 		}),
 	);
 	return { hook, settings, agentClient };

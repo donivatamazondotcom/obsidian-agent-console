@@ -76,6 +76,8 @@ Sessions are saved automatically when you send messages. The plugin stores:
 - **Session metadata**: Title (the AI-suggested session title once it resolves, otherwise derived from your first message), timestamps, and working directory
 - **Message history**: Full conversation including agent responses, tool calls, and plans
 
+A chat keeps **one history entry** for its whole life. If the agent can't reopen a session and starts a new one for you (after a restart, an engine change, or a reload), the chat stays under the same entry and title.
+
 ### Where Sessions Are Stored
 
 Sessions are saved in two places:

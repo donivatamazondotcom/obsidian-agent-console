@@ -101,7 +101,14 @@ export function useLandingHistoryModal(
 			},
 			onDeleteSession: async (sessionId: string) => {
 				try {
-					await plugin.settingsService.deleteSession(sessionId);
+					// A local row's agent id names one record (I269).
+					const record = plugin.settingsService
+						.getSavedSessions()
+						.find((s) => s.sessionId === sessionId);
+					await plugin.settingsService.deleteSession(
+						sessionId,
+						record?.recordId,
+					);
 					refresh();
 				} catch {
 					new Notice(t("notices.sessionDeleteFailed"));
@@ -117,6 +124,7 @@ export function useLandingHistoryModal(
 					.find((s) => s.sessionId === sessionId);
 				try {
 					await plugin.settingsService.sessionStore.renameSession({
+						recordId: match?.recordId ?? null,
 						sessionId,
 						agentId: match?.agentId ?? defaultAgentId,
 						cwd: sessionCwd,

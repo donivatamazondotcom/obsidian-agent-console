@@ -36,6 +36,7 @@ function userMsg(text: string): ChatMessage {
 describe("resolveSessionMetadataWrite (I58)", () => {
 	it("bumps updatedAt and preserves identity for an existing entry", () => {
 		const existing: SavedSessionInfo = {
+			recordId: "s1",
 			sessionId: "s1",
 			agentId: "test-agent",
 			cwd: "/work",
@@ -45,6 +46,7 @@ describe("resolveSessionMetadataWrite (I58)", () => {
 		};
 
 		const w = resolveSessionMetadataWrite(existing, {
+			recordId: "s1",
 			sessionId: "s1",
 			agentId: "test-agent",
 			cwd: "/work",
@@ -62,6 +64,7 @@ describe("resolveSessionMetadataWrite (I58)", () => {
 		// Reproduces I58: a turn-end transcript save where the metadata entry
 		// was never created (first-message gate skipped on send-before-connect).
 		const w = resolveSessionMetadataWrite(undefined, {
+			recordId: "s2",
 			sessionId: "s2",
 			agentId: "test-agent",
 			cwd: "/work",
@@ -92,6 +95,7 @@ describe("deriveSessionTitle", () => {
 
 describe("deriveSessionRecordTitle (I114 precedence)", () => {
 	const existing: SavedSessionInfo = {
+		recordId: "s1",
 		sessionId: "s1",
 		agentId: "test-agent",
 		cwd: "/work",
@@ -162,6 +166,7 @@ describe("deriveSessionRecordTitle (I114 precedence)", () => {
 describe("resolveSessionMetadataWrite (I114 title-aware)", () => {
 	it("sets the AI title on the existing path when suggestedTitle is supplied", () => {
 		const existing: SavedSessionInfo = {
+			recordId: "s1",
 			sessionId: "s1",
 			agentId: "test-agent",
 			cwd: "/work",
@@ -170,6 +175,7 @@ describe("resolveSessionMetadataWrite (I114 title-aware)", () => {
 			updatedAt: "2026-06-01T00:00:00.000Z",
 		};
 		const w = resolveSessionMetadataWrite(existing, {
+			recordId: "s1",
 			sessionId: "s1",
 			agentId: "test-agent",
 			cwd: "/work",
@@ -184,6 +190,7 @@ describe("resolveSessionMetadataWrite (I114 title-aware)", () => {
 
 	it("creates with the AI title when suggestedTitle is supplied and no entry exists", () => {
 		const w = resolveSessionMetadataWrite(undefined, {
+			recordId: "s2",
 			sessionId: "s2",
 			agentId: "test-agent",
 			cwd: "/work",
@@ -197,6 +204,7 @@ describe("resolveSessionMetadataWrite (I114 title-aware)", () => {
 
 	it("preserves the existing title on a messages-only write (no clobber)", () => {
 		const existing: SavedSessionInfo = {
+			recordId: "s1",
 			sessionId: "s1",
 			agentId: "test-agent",
 			cwd: "/work",
@@ -205,6 +213,7 @@ describe("resolveSessionMetadataWrite (I114 title-aware)", () => {
 			updatedAt: "2026-06-01T00:00:00.000Z",
 		};
 		const w = resolveSessionMetadataWrite(existing, {
+			recordId: "s1",
 			sessionId: "s1",
 			agentId: "test-agent",
 			cwd: "/work",

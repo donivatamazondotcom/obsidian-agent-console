@@ -14,11 +14,11 @@ import type {
 import type {
 	AgentCapabilities,
 	AgentCapabilityCacheEntry,
-	SavedSessionInfo,
 } from "../types/session";
 import type { PerLeafTabState } from "../types/tab";
 import type { PluginUpdateCache } from "../resolvers/update-check-decision";
 import { migrateContextNoteSettings } from "./settings-migration";
+import { normalizeSavedSessions } from "./session-record";
 import type { BaseAgentSettings } from "../types/agent";
 import type { AgentConfig } from "../acp/acp-client";
 import {
@@ -565,6 +565,12 @@ export function normalizeRawSettings(
 	raw: Record<string, unknown>,
 	D: AgentClientPluginSettings,
 	migrateKey: MigrateKeyFn,
+	/**
+	 * Where a dropped corrupt `savedSessions` entry is reported (I269). The
+	 * plugin passes its logger; the import preview, which parses another
+	 * plugin's data and never imports its history, leaves the no-op.
+	 */
+	warnSession: (message: string, entry: unknown) => void = () => {},
 ): AgentClientPluginSettings {
 	// Extract agent sub-objects
 	const rc = obj(raw.claude) ?? {};
@@ -769,8 +775,9 @@ export function normalizeRawSettings(
 			showEmojis: bool(rd.showEmojis, D.displaySettings.showEmojis),
 			fontSize: parseChatFontSize(rd.fontSize),
 		},
+		// I269: parse at the edge and run the one-time record-id migration.
 		savedSessions: Array.isArray(raw.savedSessions)
-			? (raw.savedSessions as SavedSessionInfo[])
+			? normalizeSavedSessions(raw.savedSessions, warnSession)
 			: D.savedSessions,
 		maxSavedSessions: readMaxSavedSessions(raw.maxSavedSessions),
 		sessionHistorySource:

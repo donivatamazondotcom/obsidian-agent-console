@@ -90,6 +90,7 @@ describe("SettingsService data.json flush ordering (single-writer)", () => {
 		const { svc, plugin } = makeService();
 
 		const session: SavedSessionInfo = {
+			recordId: "s1",
 			sessionId: "s1",
 			agentId: "claude",
 			cwd: "/vault",

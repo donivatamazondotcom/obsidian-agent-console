@@ -696,7 +696,14 @@ export interface SessionResult {
  * Saved to plugin settings via plugin.saveData().
  */
 export interface SavedSessionInfo {
-	/** Unique session identifier */
+	/**
+	 * Plugin-owned record id (I269). Stable for the life of the chat; also the
+	 * stem of its message file (`sessions/{recordId}.json`). Migrated records
+	 * use their first agent session id. Look a record up by agent id only
+	 * through `sessionId` (`findSessionRecord`), never through this field.
+	 */
+	recordId: string;
+	/** The agent session id this chat currently runs as. A fallback changes it. */
 	sessionId: string;
 	/** Agent ID that created this session */
 	agentId: string;

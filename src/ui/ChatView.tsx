@@ -451,6 +451,17 @@ function ChatComponent({
 		new Map(restoredLeaf?.tabs.map((t) => [t.tabId, t.sessionId]) ?? []),
 	);
 
+	// Per-tab history record ids from the restore sources (I269): the startup
+	// tab state, a reopened closed tab, a history Restore. The tab's own
+	// handle wins once registered; this covers a save before it is.
+	const persistedRecordIdsRef = useRef<Map<string, string>>(
+		new Map(
+			(restoredLeaf?.tabs ?? [])
+				.filter((t) => typeof t.recordId === "string" && t.recordId !== "")
+				.map((t) => [t.tabId, t.recordId as string]),
+		),
+	);
+
 	// ============================================================
 	// Corruption detection (T16/T17)
 	// ============================================================
@@ -543,10 +554,16 @@ function ChatComponent({
 				plugin.settingsService.saveTabStateForLeaf(leafId, state),
 			loadTabStateForLeaf: (leafId: string) =>
 				plugin.settingsService.loadTabStateForLeaf(leafId),
-			loadSessionMessages: (sessionId: string) =>
-				plugin.settingsService.loadSessionMessages(sessionId),
-			loadSessionContextNotes: (sessionId: string) =>
-				plugin.settingsService.loadSessionContextNotes(sessionId),
+			loadSessionMessages: (sessionId: string, recordId?: string | null) =>
+				plugin.settingsService.loadSessionMessages(sessionId, recordId),
+			loadSessionContextNotes: (
+				sessionId: string,
+				recordId?: string | null,
+			) =>
+				plugin.settingsService.loadSessionContextNotes(
+					sessionId,
+					recordId,
+				),
 		}),
 		[plugin.settingsService],
 	);
@@ -586,6 +603,15 @@ function ChatComponent({
 	const getWorkingDirectoryForTab = useCallback(
 		(tabId: string) =>
 			tabHandlesRef.current.get(tabId)?.getWorkingDirectory() ?? "",
+		[],
+	);
+
+	// Resolves a tab's history record id for persistence (I269).
+	const getRecordIdForTab = useCallback(
+		(tabId: string) =>
+			tabHandlesRef.current.get(tabId)?.getRecordId() ||
+			persistedRecordIdsRef.current.get(tabId) ||
+			"",
 		[],
 	);
 
@@ -639,6 +665,7 @@ function ChatComponent({
 		getWorkingDirectory: getWorkingDirectoryForTab,
 		getModeId: getModeIdForTab,
 		getKiroEngine: getKiroEngineForTab,
+		getRecordId: getRecordIdForTab,
 		storage: persistenceStorage,
 		restoreEnabled: plugin.settings.restoreTabsOnStartup,
 		sessionSignature,
@@ -741,6 +768,7 @@ function ChatComponent({
 					buildClosedTabRecord({
 						tab,
 						sessionId: getSessionIdForTab(tabId),
+						recordId: getRecordIdForTab(tabId),
 						position: idx,
 					}),
 				);
@@ -748,7 +776,14 @@ function ChatComponent({
 			void removeClient(tabId);
 			tabManager.removeTab(tabId);
 		},
-		[tabs, removeClient, tabManager, recentlyClosed, getSessionIdForTab],
+		[
+			tabs,
+			removeClient,
+			tabManager,
+			recentlyClosed,
+			getSessionIdForTab,
+			getRecordIdForTab,
+		],
 	);
 
 	const handleCloseOtherTabs = useCallback(
@@ -759,6 +794,7 @@ function ChatComponent({
 						buildClosedTabRecord({
 							tab,
 							sessionId: getSessionIdForTab(tab.tabId),
+							recordId: getRecordIdForTab(tab.tabId),
 							position: idx,
 						}),
 					);
@@ -767,7 +803,14 @@ function ChatComponent({
 			});
 			tabManager.removeOtherTabs(tabId);
 		},
-		[tabs, removeClient, tabManager, recentlyClosed, getSessionIdForTab],
+		[
+			tabs,
+			removeClient,
+			tabManager,
+			recentlyClosed,
+			getSessionIdForTab,
+			getRecordIdForTab,
+		],
 	);
 
 	const handleCloseTabsToRight = useCallback(
@@ -778,6 +821,7 @@ function ChatComponent({
 					buildClosedTabRecord({
 						tab: tabs[i],
 						sessionId: getSessionIdForTab(tabs[i].tabId),
+						recordId: getRecordIdForTab(tabs[i].tabId),
 						position: i,
 					}),
 				);
@@ -785,7 +829,14 @@ function ChatComponent({
 			}
 			tabManager.removeTabsToRight(tabId);
 		},
-		[tabs, removeClient, tabManager, recentlyClosed, getSessionIdForTab],
+		[
+			tabs,
+			removeClient,
+			tabManager,
+			recentlyClosed,
+			getSessionIdForTab,
+			getRecordIdForTab,
+		],
 	);
 
 	// Reopen the most-recently-closed tab and restore its conversation (F13).
@@ -799,8 +850,11 @@ function ChatComponent({
 		// Load the closed session's transcript + context notes from disk —
 		// the same storage calls the mount-time restore path uses (U37/I61).
 		const [messages, contextNotes] = await Promise.all([
-			persistenceStorage.loadSessionMessages(record.sessionId),
-			persistenceStorage.loadSessionContextNotes(record.sessionId),
+			persistenceStorage.loadSessionMessages(record.sessionId, record.recordId),
+			persistenceStorage.loadSessionContextNotes(
+				record.sessionId,
+				record.recordId,
+			),
 		]);
 
 		// Recreate the tab. addTab appends and activates it; capture the
@@ -833,6 +887,9 @@ function ChatComponent({
 		// restart and resolves on save (getSessionIdForTab falls back to this
 		// ref). Set synchronously so the addTab-driven save effect captures it.
 		persistedSessionIdsRef.current.set(newTabId, record.sessionId);
+		if (record.recordId) {
+			persistedRecordIdsRef.current.set(newTabId, record.recordId);
+		}
 
 		// Best-effort: move the reopened tab to its prior bar position. The
 		// new tab sits at index `priorLength`; only reinsert when that index
@@ -861,6 +918,8 @@ function ChatComponent({
 			);
 			if (renameSessionId) {
 				await plugin.settingsService.sessionStore.renameSession({
+					// I269: the tab's own record when it has one.
+					recordId: getRecordIdForTab(tabId) || null,
 					sessionId: renameSessionId,
 					agentId,
 					cwd: "",
@@ -869,7 +928,7 @@ function ChatComponent({
 				});
 			}
 		},
-		[plugin, tabManager],
+		[plugin, tabManager, getRecordIdForTab],
 	);
 
 	const handleRenameTab = useCallback(
@@ -1166,6 +1225,9 @@ function ChatComponent({
 					},
 				}));
 				persistedSessionIdsRef.current.set(newTabId, sessionId);
+				if (saved?.recordId) {
+					persistedRecordIdsRef.current.set(newTabId, saved.recordId);
+				}
 			}
 		},
 		[
@@ -1297,6 +1359,7 @@ function ChatComponent({
 				activeCallbacksRef.current?.getWorkingDirectory() ?? "",
 			getModeId: () => activeCallbacksRef.current?.getModeId() ?? "",
 			getKiroEngine: () => activeCallbacksRef.current?.getKiroEngine() ?? "",
+			getRecordId: () => activeCallbacksRef.current?.getRecordId() ?? "",
 			openHistory: () => activeCallbacksRef.current?.openHistory(),
 			flushSessionSave: async () =>
 				activeCallbacksRef.current?.flushSessionSave(),
@@ -1503,6 +1566,9 @@ function ChatComponent({
 								workingDirectory={restoredCwdByTabId[tab.tabId]}
 								restoredModeId={restoredModeByTabId[tab.tabId]}
 								restoredKiroEngine={restoredEngineByTabId[tab.tabId]}
+								restoredRecordId={persistedRecordIdsRef.current.get(
+									tab.tabId,
+								)}
 								initialAgentId={tab.agentId}
 								viewHost={view}
 								isActive={tab.tabId === activeTabId}

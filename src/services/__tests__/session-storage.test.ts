@@ -337,6 +337,7 @@ describe("SessionStorage tab-state methods", () => {
 			const initialTabState: PerLeafTabState[] = [makeValidPerLeafState()];
 			const initialSavedSessions = [
 				{
+					recordId: "sess-1",
 					sessionId: "sess-1",
 					agentId: "claude-code-acp",
 					cwd: "/some/path",

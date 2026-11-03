@@ -67,7 +67,7 @@ describe("I223 — agent-only restore keeps the agent's title", () => {
 
 	it("a seed never overrides an existing local title (manual rename / AI title)", async () => {
 		const port = new Port([
-			{ sessionId: SID, agentId: "kiro", cwd: "/vault", title: "My rename", createdAt: "t", updatedAt: "t" },
+			{ recordId: SID, sessionId: SID, agentId: "kiro", cwd: "/vault", title: "My rename", createdAt: "t", updatedAt: "t" },
 		]);
 		await save(new SessionStore(port), AGENT_TITLE);
 		expect(port.sessions[0].title).toBe("My rename");

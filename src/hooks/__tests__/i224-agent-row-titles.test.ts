@@ -50,6 +50,7 @@ const local = (
 	title: string,
 	cwd = VAULT,
 ): SavedSessionInfo => ({
+	recordId: sessionId,
 	sessionId,
 	agentId: AGENT_ID,
 	cwd,

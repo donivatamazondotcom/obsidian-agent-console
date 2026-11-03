@@ -119,6 +119,13 @@ export interface PersistedTabInfo {
 	 * before D2 (unknown → the restore tries to load, as before).
 	 */
 	kiroEngine?: "v2" | "v3";
+	/**
+	 * The history record this tab writes to (I269). Written only next to a
+	 * saved `sessionId`. Lets a tab find its transcript after a fallback even
+	 * when the record write didn't land before a quit. Absent on tabs saved
+	 * before I269 (the restore resolves the record by `sessionId`).
+	 */
+	recordId?: string;
 }
 
 /**
