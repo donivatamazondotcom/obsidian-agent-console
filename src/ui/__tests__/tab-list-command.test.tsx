@@ -24,6 +24,7 @@ const h = vi.hoisted(() => {
 		title?: string;
 		bold?: boolean;
 		icon?: string;
+		iconEl?: HTMLElement | null;
 		checked?: boolean;
 		click?: (e: unknown) => void;
 	}
@@ -32,8 +33,11 @@ const h = vi.hoisted(() => {
 		shown: boolean;
 		via: string | null;
 		native?: boolean;
+		noIcon?: boolean;
 	}> = [];
-	return { menus };
+	// I278: shared so tests can see which element got which Lucide id.
+	const setIcon = vi.fn();
+	return { menus, setIcon };
 });
 
 vi.mock("obsidian", () => {
@@ -42,6 +46,7 @@ vi.mock("obsidian", () => {
 			title?: string;
 			bold?: boolean;
 			icon?: string;
+			iconEl?: HTMLElement | null;
 			checked?: boolean;
 			click?: (e: unknown) => void;
 		}> = [];
@@ -50,6 +55,7 @@ vi.mock("obsidian", () => {
 			shown: false,
 			via: null as string | null,
 			native: undefined as boolean | undefined,
+			noIcon: undefined as boolean | undefined,
 		};
 		constructor() {
 			h.menus.push(this._record);
@@ -59,14 +65,23 @@ vi.mock("obsidian", () => {
 				title?: string;
 				bold?: boolean;
 				icon?: string;
+				iconEl?: HTMLElement | null;
 				checked?: boolean;
 				click?: (e: unknown) => void;
 			} = {};
 			const api = {
 				setTitle(t: string | DocumentFragment) {
-					item.title = typeof t === "string" ? t : (t.textContent ?? "");
+					item.title =
+						typeof t === "string" ? t : (t.textContent ?? "");
 					item.bold =
-						typeof t !== "string" && t.querySelector("strong") !== null;
+						typeof t !== "string" &&
+						t.querySelector("strong") !== null;
+					item.iconEl =
+						typeof t === "string"
+							? null
+							: t.querySelector<HTMLElement>(
+									".agent-client-tab-state-icon",
+								);
 					return api;
 				},
 				setIcon(i: string) {
@@ -99,8 +114,12 @@ vi.mock("obsidian", () => {
 			this._record.native = v;
 			return this;
 		}
+		setNoIcon() {
+			this._record.noIcon = true;
+			return this;
+		}
 	}
-	return { Menu, setIcon: vi.fn(), setTooltip: vi.fn() };
+	return { Menu, setIcon: h.setIcon, setTooltip: vi.fn() };
 });
 
 // Keep the real showMenuAtEvent so the chevron → helper → menu positioning
@@ -112,8 +131,8 @@ vi.mock("../../utils/menu-registry", async (importOriginal) => {
 	return { ...actual, registerOpenMenu: vi.fn() };
 });
 
-import { TabBar, type TabBarProps } from "../TabBar";
-import type { TabInfo } from "../../types/tab";
+import { TabBar, stateIcon, type TabBarProps } from "../TabBar";
+import type { TabInfo, TabState } from "../../types/tab";
 
 function tab(partial: Partial<TabInfo>): TabInfo {
 	return {
@@ -185,22 +204,96 @@ describe("show-tab-list command wiring (TabBar.onRegisterShowTabList)", () => {
 		expect(menu.shown).toBe(true);
 		// Command/keyboard activation → anchored to the chevron rect, not (0,0).
 		expect(menu.via).toBe("position");
-		// Every tab listed by label, each with its state's Lucide icon (I238).
-		expect(menu.items.map((i) => [i.icon, i.title])).toEqual([
-			["circle-dot", "Done"],
-			["loader-circle", "Working"],
-			["triangle-alert", "Waiting"],
+		// Every tab listed by label. I278: the state icon lives in the title,
+		// in a span with the strip's state class, so it gets the same color and
+		// animation. The native icon slot is unused and suppressed.
+		expect(menu.items.map((i) => i.title)).toEqual([
+			"Done",
+			"Working",
+			"Waiting",
+		]);
+		expect(menu.items.every((i) => i.icon === undefined)).toBe(true);
+		expect(menu.noIcon).toBe(true);
+		expect(menu.items.map((i) => i.iconEl?.className)).toEqual([
+			"agent-client-tab-state-icon agent-client-tab-state-ready",
+			"agent-client-tab-state-icon agent-client-tab-state-busy",
+			"agent-client-tab-state-icon agent-client-tab-state-permission",
 		]);
 		// Tab Attention States: the active tab is marked with a bold label, not
 		// a checkmark, because a tick now means "finished while you were away".
-		expect(menu.items.map((i) => i.bold ?? false)).toEqual([false, true, false]);
+		expect(menu.items.map((i) => i.bold ?? false)).toEqual([
+			false,
+			true,
+			false,
+		]);
 		expect(menu.items.some((i) => i.checked)).toBe(false);
-		// I238: native (OS) menus ignore setIcon, so the list forces a DOM menu
-		// to keep the state icons visible.
+		// I238/I278: native (OS) menus render plain-text titles and would drop
+		// the icon span, so the list forces a DOM menu.
 		expect(menu.native).toBe(false);
 
 		// Selecting an item routes through onSelectTab.
 		menu.items[0].click?.(new MouseEvent("click"));
 		expect(onSelectTab).toHaveBeenCalledWith("t1");
+	});
+	// I278: every state, not just the three above, gets its class and icon in
+	// the dropdown, and the icon is hidden from screen readers (the row has no
+	// state label, and an aria-label would pop a tooltip over the open menu).
+	it("each dropdown row carries its state class, its Lucide icon, and aria-hidden", () => {
+		const states: TabState[] = [
+			"ready",
+			"busy",
+			"permission",
+			"error",
+			"disconnected",
+			"released",
+			"doneUnseen",
+			"stoppedUnseen",
+			"connecting",
+		];
+		let opener: (() => void) | undefined;
+		render(
+			<TabBar
+				{...baseProps({
+					onRegisterShowTabList: (fn) => {
+						opener = fn;
+					},
+					tabs: states.map((s, i) =>
+						tab({ tabId: `t${i}`, label: s, state: s }),
+					),
+					activeTabId: "t0",
+				})}
+			/>,
+		);
+		h.setIcon.mockClear();
+		opener?.();
+		const menu = h.menus[h.menus.length - 1];
+		states.forEach((s, i) => {
+			const el = menu.items[i].iconEl;
+			expect(el?.className).toBe(
+				`agent-client-tab-state-icon agent-client-tab-state-${s}`,
+			);
+			expect(el?.getAttribute("aria-hidden")).toBe("true");
+			expect(h.setIcon).toHaveBeenCalledWith(el, stateIcon(s));
+		});
+	});
+
+	// I278 review M3: the strip span's classes stay owned by React, so a state
+	// change can't leave a stale class (a ready tab that keeps spinning).
+	it("a strip state change leaves only the new state class", () => {
+		const props = baseProps({
+			tabs: [tab({ tabId: "t1", label: "A", state: "busy" })],
+			activeTabId: "t1",
+		});
+		const { container, rerender } = render(<TabBar {...props} />);
+		rerender(
+			<TabBar
+				{...props}
+				tabs={[tab({ tabId: "t1", label: "A", state: "ready" })]}
+			/>,
+		);
+		const el = container.querySelector(".agent-client-tab-state-icon");
+		expect(el?.className).toBe(
+			"agent-client-tab-state-icon agent-client-tab-state-ready",
+		);
 	});
 });

@@ -120,3 +120,19 @@ if (typeof elementProto.createEl !== "function") {
 		return el;
 	};
 }
+
+// I278: `createSpan` on fragments and elements, as Obsidian declares it on
+// every Node (same shape as createDiv above).
+type SpanCreator = { createSpan?: (o?: DomInfo) => HTMLSpanElement };
+for (const proto of [
+	DocumentFragment.prototype,
+	HTMLElement.prototype,
+] as unknown as SpanCreator[]) {
+	if (typeof proto.createSpan !== "function") {
+		proto.createSpan = function (this: Node, o?: DomInfo): HTMLSpanElement {
+			const el: HTMLSpanElement = domGlobals.createEl("span", o);
+			this.appendChild(el);
+			return el;
+		};
+	}
+}

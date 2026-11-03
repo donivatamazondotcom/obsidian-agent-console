@@ -2784,6 +2784,26 @@ del.acp-header-branded-profile {
 	height: 12px;
 }
 
+/* I278: the chevron tab list puts the state icon in each row's title so it
+   carries the state class (MenuItem has no setClass). Lay icon and label out
+   in a row and size the icon like a native menu icon. No animation here: the
+   state rules above own it, and the I198 reduced-motion block covers them. */
+.agent-client-tab-list-title {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.agent-client-tab-list-title .agent-client-tab-state-icon {
+	width: var(--icon-s);
+	height: var(--icon-s);
+}
+
+.agent-client-tab-list-title .agent-client-tab-state-icon svg {
+	width: var(--icon-s);
+	height: var(--icon-s);
+}
+
 .agent-client-tab-state-ready {
 	color: var(--interactive-accent);
 }
