@@ -2878,12 +2878,14 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 		ids: string[];
 		geom: Geom;
 		onHandle: (h: { scrollEl: HTMLDivElement | null; contentEl: HTMLDivElement | null }) => void;
+		onResult?: (r: ReturnType<typeof useAutoScrollPin>) => void;
 	}) {
 		const result = useAutoScrollPin({
 			isActive: props.isActive,
 			isSending: false,
 			view: makeView(),
 		});
+		props.onResult?.(result);
 		const handles = React.useRef<{ scrollEl: HTMLDivElement | null; contentEl: HTMLDivElement | null }>({
 			scrollEl: null,
 			contentEl: null,
@@ -2925,19 +2927,24 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 			Object.defineProperty(el, "offsetTop", { configurable: true, get: () => g.rows.get(id)?.top ?? 0 });
 			Object.defineProperty(el, "offsetHeight", { configurable: true, get: () => g.rows.get(id)?.height ?? 0 });
 		};
-		if (!props.isActive) {
-			return React.createElement("div", { ref: scrollComposite });
-		}
+		const inner = !props.isActive
+			? React.createElement("div", { ref: scrollComposite })
+			: React.createElement(
+					"div",
+					{ ref: scrollComposite },
+					React.createElement(
+						"div",
+						{ ref: contentComposite },
+						...props.ids.map((id) =>
+							React.createElement("div", { key: id, ref: rowRef(id), "data-message-id": id }),
+						),
+					),
+				);
 		return React.createElement(
 			"div",
-			{ ref: scrollComposite },
-			React.createElement(
-				"div",
-				{ ref: contentComposite },
-				...props.ids.map((id) =>
-					React.createElement("div", { key: id, ref: rowRef(id), "data-message-id": id }),
-				),
-			),
+			{ className: "agent-client-chat-view-container" },
+			React.createElement("textarea", { "data-testid": "composer" }),
+			inner,
 		);
 	}
 
@@ -2947,6 +2954,7 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 		const geom: Geom = { scrollTop: 0, scrollHeight: 0, clientHeight: 600, rows: new Map(), writes: [] };
 		layoutRows(geom, IDS, 500); // rows at 16, 516, 1016, ... ; scrollHeight 5032
 		let h: { scrollEl: HTMLDivElement | null; contentEl: HTMLDivElement | null } = { scrollEl: null, contentEl: null };
+		let hook: ReturnType<typeof useAutoScrollPin> | null = null;
 		const el = (isActive: boolean, ids = IDS) =>
 			React.createElement(PlaceholderHarness, {
 				isActive,
@@ -2954,6 +2962,9 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 				geom,
 				onHandle: (x) => {
 					h = x;
+				},
+				onResult: (x) => {
+					hook = x;
 				},
 			});
 		const r = render(el(true));
@@ -2993,7 +3004,8 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 				fireScrollEvent(scrollEl());
 			});
 		};
-		return { geom, r, el, scrollEl, contentEl, userScrollTo, hide, show, consumeOwnScrollEvent };
+		const getHook = () => hook as unknown as ReturnType<typeof useAutoScrollPin>;
+		return { geom, r, el, scrollEl, contentEl, userScrollTo, hide, show, consumeOwnScrollEvent, getHook };
 	}
 
 	it("returns to where the user was reading (red on main: lands at scrollTop 0)", () => {
@@ -3112,7 +3124,14 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 	it.each([
 		["wheel down", (el: HTMLElement) => fireWheel(el, 50)],
 		["pointerdown (scrollbar drag)", (el: HTMLElement) => el.dispatchEvent(new Event("pointerdown", { bubbles: true }))],
-		["keydown (PageUp)", (el: HTMLElement) => el.dispatchEvent(new KeyboardEvent("keydown", { key: "PageUp", bubbles: true }))],
+		[
+			"keydown in the composer (where focus is after a tab switch)",
+			(el: HTMLElement) =>
+				el
+					.closest(".agent-client-chat-view-container")
+					?.querySelector("textarea")
+					?.dispatchEvent(new KeyboardEvent("keydown", { key: "PageUp", bubbles: true })),
+		],
 		["touchstart", (el: HTMLElement) => fireTouchStart(el, 100)],
 	])("%s during the restore cancels it (M3)", (_name, fire) => {
 		const t = setup();
@@ -3145,6 +3164,73 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 
 	it("a tab pinned when it was left still returns to the bottom", () => {
 		const t = setup();
+		t.hide();
+		layoutRows(t.geom, IDS, 500);
+		t.show();
+		expect(t.geom.scrollTop).toBe(5032 - 600 - 1);
+	});
+
+	it("scrolled up less than 70 px from the bottom still returns there, not the top (review M-a)", () => {
+		const t = setup();
+		t.userScrollTo(5032 - 600 - 20); // gap 20: unpinned by the wheel, inside STICK_OFFSET_PX
+		t.hide();
+		layoutRows(t.geom, IDS, 500);
+		t.show();
+		expect(t.geom.scrollTop).toBe(5032 - 600 - 20);
+	});
+
+	it("a content shrink near the bottom during the restore does not re-pin (spec item 4)", () => {
+		const t = setup();
+		t.userScrollTo(1200);
+		t.hide();
+		layoutRows(t.geom, IDS, 80);
+		t.show(); // clamped at the bottom, gap 1
+		t.consumeOwnScrollEvent();
+		act(() => {
+			fireResize(t.contentEl(), 900);
+			fireResize(t.contentEl(), 850); // shrink with the bottom within 70 px
+		});
+		layoutRows(t.geom, IDS, 500);
+		act(() => {
+			fireResize(t.contentEl(), 5000);
+		});
+		expect(t.geom.scrollTop).toBe(1200);
+	});
+
+	it("the restore window ends once its timers fire; later growth no longer moves the view", () => {
+		const t = setup();
+		t.userScrollTo(1200);
+		t.hide();
+		layoutRows(t.geom, IDS, 80);
+		t.show();
+		const clamped = t.geom.scrollTop;
+		t.consumeOwnScrollEvent();
+		act(() => {
+			flushTimers(); // quiet period and 2 s cap
+		});
+		layoutRows(t.geom, IDS, 500);
+		act(() => {
+			fireResize(t.contentEl(), 5000);
+		});
+		expect(t.geom.scrollTop).toBe(clamped);
+	});
+
+	it("scrollToBottom (pill click) during the restore ends it and drops the anchor", () => {
+		const t = setup();
+		t.userScrollTo(1200);
+		t.hide();
+		layoutRows(t.geom, IDS, 80);
+		t.show();
+		t.consumeOwnScrollEvent();
+		act(() => {
+			t.getHook().scrollToBottom({ behavior: "auto" });
+		});
+		layoutRows(t.geom, IDS, 500);
+		act(() => {
+			fireScrollEvent(t.scrollEl());
+			fireResize(t.contentEl(), 5000);
+		});
+		expect(t.geom.scrollTop).not.toBe(1200);
 		t.hide();
 		layoutRows(t.geom, IDS, 500);
 		t.show();

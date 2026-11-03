@@ -133,12 +133,13 @@ function bottomGap(scrollEl: HTMLElement): number {
 // ============================================================================
 
 /**
- * Quiet period that ends a restore: no content growth for this long means
- * the returning tab's markdown has finished rendering in.
+ * How long a restore holds the reading position after a tab returns. Rows
+ * above the anchor keep growing in (async markdown, images, highlighting)
+ * and `overflow-anchor: none` means nothing else compensates, so the
+ * restore holds for the whole window rather than ending on a quiet
+ * period. Any user scroll input ends it early.
  */
-const RESTORE_QUIET_MS = 150;
-/** Hard cap on a restore, so a stale target can't fight later layout. */
-const RESTORE_CAP_MS = 2000;
+const RESTORE_HOLD_MS = 2000;
 
 /** The message row at the top of the view, and how far into it. */
 interface ReadingAnchor {
@@ -269,8 +270,7 @@ export function useAutoScrollPin(
 	const restoreRef = useRef<{ row: HTMLElement; offset: number } | null>(
 		null,
 	);
-	const restoreQuietTimerRef = useRef<number | null>(null);
-	const restoreCapTimerRef = useRef<number | null>(null);
+	const restoreTimerRef = useRef<number | null>(null);
 	/** I284: previous isActive, tracked by the layout effect. */
 	const layoutPrevActiveRef = useRef(isActive);
 
@@ -279,13 +279,9 @@ export function useAutoScrollPin(
 	 * visible; a hidden tab keeps the anchor it had.
 	 */
 	const endRestore = useCallback(() => {
-		if (restoreQuietTimerRef.current !== null) {
-			window.clearTimeout(restoreQuietTimerRef.current);
-			restoreQuietTimerRef.current = null;
-		}
-		if (restoreCapTimerRef.current !== null) {
-			window.clearTimeout(restoreCapTimerRef.current);
-			restoreCapTimerRef.current = null;
+		if (restoreTimerRef.current !== null) {
+			window.clearTimeout(restoreTimerRef.current);
+			restoreTimerRef.current = null;
 		}
 		restoreRef.current = null;
 		anchorFrozenRef.current = !layoutPrevActiveRef.current;
@@ -320,15 +316,6 @@ export function useAutoScrollPin(
 		lastScrollTopRef.current = scrollEl.scrollTop;
 	}, [endRestore]);
 
-	const armRestoreQuietTimer = useCallback(() => {
-		if (restoreQuietTimerRef.current !== null) {
-			window.clearTimeout(restoreQuietTimerRef.current);
-		}
-		restoreQuietTimerRef.current = window.setTimeout(
-			endRestore,
-			RESTORE_QUIET_MS,
-		);
-	}, [endRestore]);
 
 	/**
 	 * I-S12 round-3 fix: tracks the most recent ResizeObserver-detected
@@ -590,14 +577,18 @@ export function useAutoScrollPin(
 			lastScrollTopRef.current = scrollTop;
 			return;
 		}
-		// I284: save the reading position while scrolled up. Skipped when
-		// near the bottom, so a pinned, streaming tab pays nothing.
+		// I284: save the reading position whenever the tab isn't pinned,
+		// including a small scroll-up that stays within STICK_OFFSET_PX of
+		// the bottom (the wheel already unpinned it). A pinned, streaming
+		// tab pays nothing.
 		if (
 			!anchorFrozenRef.current &&
 			contentElRef.current !== null &&
 			scrollEl.clientHeight > 0 &&
-			scrollEl.scrollHeight - scrollTop - scrollEl.clientHeight >
-				STICK_OFFSET_PX
+			(escapedFromLockRef.current ||
+				!isAtBottomRef.current ||
+				scrollEl.scrollHeight - scrollTop - scrollEl.clientHeight >
+					STICK_OFFSET_PX)
 		) {
 			const anchor = findReadingAnchor(contentElRef.current, scrollTop);
 			if (anchor) readingAnchorRef.current = anchor;
@@ -691,7 +682,6 @@ export function useAutoScrollPin(
 				previous.removeEventListener("touchstart", handleTouchStart);
 				previous.removeEventListener("touchmove", handleTouchMove);
 				previous.removeEventListener("pointerdown", cancelRestore);
-				previous.removeEventListener("keydown", cancelRestore);
 				scrollObserverRef.current?.disconnect();
 				scrollObserverRef.current = null;
 			}
@@ -705,7 +695,6 @@ export function useAutoScrollPin(
 			el.addEventListener("touchstart", handleTouchStart, { passive: true });
 			el.addEventListener("touchmove", handleTouchMove, { passive: true });
 			el.addEventListener("pointerdown", cancelRestore, { passive: true });
-			el.addEventListener("keydown", cancelRestore);
 
 			// Container ResizeObserver — detects flex-sibling shrinks etc.
 			// (per spec Decision #21 Finding 1, closes use-stick-to-bottom Issue #40).
@@ -838,11 +827,10 @@ export function useAutoScrollPin(
 				// suppresses RO fires for off-screen growth, which would
 				// silently leave the scroll at a partial position.
 				// I284: while restoring, re-apply the reading position as rows
-				// render in, and keep the window open until growth goes quiet.
-				// Return so neither the pinned anchor nor the re-pin runs.
+				// render in. Return so neither the pinned anchor nor the
+				// re-pin runs.
 				if (restoreRef.current) {
 					applyRestore();
-					armRestoreQuietTimer();
 					return;
 				}
 
@@ -921,7 +909,6 @@ export function useAutoScrollPin(
 		},
 		[
 			applyRestore,
-			armRestoreQuietTimer,
 			scheduleResizeDifferenceClear,
 			setEscapedFromLock,
 			setIsAtBottom,
@@ -958,9 +945,8 @@ export function useAutoScrollPin(
 		restoreRef.current = { row, offset: anchor.offset };
 		anchorFrozenRef.current = true;
 		applyRestore();
-		armRestoreQuietTimer();
-		restoreCapTimerRef.current = window.setTimeout(endRestore, RESTORE_CAP_MS);
-	}, [isActive, applyRestore, armRestoreQuietTimer, endRestore]);
+		restoreTimerRef.current = window.setTimeout(endRestore, RESTORE_HOLD_MS);
+	}, [isActive, applyRestore, endRestore]);
 
 	// ------------------------------------------------------------------------
 	// isActive false → true: re-anchor if was pinned (closes I-S2/I-S3/I-S4
@@ -1018,8 +1004,15 @@ export function useAutoScrollPin(
 			});
 		};
 		container.addEventListener("input", onInput);
-		return () => container.removeEventListener("input", onInput);
-	}, []);
+		// I284: a key pressed anywhere in the chat view (composer focus
+		// after a tab switch, or a focused copy button) ends a restore, so
+		// keyboard scrolling is never pulled back to the saved position.
+		container.addEventListener("keydown", cancelRestore);
+		return () => {
+			container.removeEventListener("input", onInput);
+			container.removeEventListener("keydown", cancelRestore);
+		};
+	}, [cancelRestore]);
 
 	// ------------------------------------------------------------------------
 	// Cleanup on unmount
@@ -1047,13 +1040,9 @@ export function useAutoScrollPin(
 				scrollEl.removeEventListener("touchstart", handleTouchStart);
 				scrollEl.removeEventListener("touchmove", handleTouchMove);
 				scrollEl.removeEventListener("pointerdown", cancelRestore);
-				scrollEl.removeEventListener("keydown", cancelRestore);
 			}
-			if (restoreQuietTimerRef.current !== null) {
-				window.clearTimeout(restoreQuietTimerRef.current);
-			}
-			if (restoreCapTimerRef.current !== null) {
-				window.clearTimeout(restoreCapTimerRef.current);
+			if (restoreTimerRef.current !== null) {
+				window.clearTimeout(restoreTimerRef.current);
 			}
 		};
 		// Empty deps: run only on unmount. The scrollRef/contentRef callbacks
