@@ -216,12 +216,18 @@ describe("buildTabIdentitySignature (I57, I269)", () => {
 });
 
 describe("applyRecordIdReport (I269)", () => {
-	it("a report replaces the restored id, so a remount seeds from it", () => {
+	it("a report drops the restored id; the report alone drives saves", () => {
 		const reports = new Map<string, string | null>();
 		const restored = new Map([["T1", "rec-r"]]);
 		applyRecordIdReport(reports, restored, "T1", "rec-q");
 		expect(reports.get("T1")).toBe("rec-q");
-		expect(restored.get("T1")).toBe("rec-q");
+		expect(restored.has("T1")).toBe(false);
+		expect(
+			resolveRecordIdForSave(
+				{ has: true, id: reports.get("T1") ?? null },
+				restored.get("T1") ?? null,
+			),
+		).toBe("rec-q");
 	});
 	it("a reset report drops the restored id", () => {
 		const reports = new Map<string, string | null>();
