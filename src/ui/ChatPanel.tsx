@@ -980,7 +980,9 @@ export function ChatPanel({
 		plugin,
 		agent,
 		sessionHistory,
-		vaultPath,
+		// The agent's folder, not the vault-root baseline: "Only this folder"
+		// must ask for the folder this tab's sessions actually carry (I275).
+		agentCwd,
 		isSessionReady,
 		settings.debugMode,
 		setAgentCwd,
