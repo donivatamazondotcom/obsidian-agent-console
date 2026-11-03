@@ -454,8 +454,31 @@ describe("I250 cross-agent restart doesn't carry the old engine", () => {
 			await hook.result.current.restartSession("test-agent-claude").catch(() => {});
 		});
 		expect(hook.result.current.session.agentId).toBe("test-agent-claude");
+		expect(hook.result.current.session.state).toBe("error");
 		expect(hook.result.current.session.kiroCli).toBeUndefined();
 		expect(hook.result.current.session.kiroEngine).toBeUndefined();
+	});
+
+	it("restarting the same Kiro agent keeps its engine while it connects", async () => {
+		const client = makeClient();
+		const internals = client as unknown as {
+			doInitialize: (config: unknown) => Promise<unknown>;
+		};
+		const settings = makeAgentSettings("kiro-cli");
+		(settings.getSnapshot() as unknown as { customAgents: Record<string, unknown>[] }).customAgents[0].engine = "v3";
+		const hook = renderHook(() => useAgent(client, settings, vault, CWD, AGENT));
+		await act(async () => {
+			await hook.result.current.createSession();
+		});
+		expect(hook.result.current.session.kiroEngine).toBe("v3");
+		vi.mocked(internals.doInitialize).mockRejectedValueOnce(new Error("spawn ENOENT"));
+		(client as unknown as { isInitializedFlag: boolean }).isInitializedFlag = false;
+		await act(async () => {
+			await hook.result.current.restartSession().catch(() => {});
+		});
+		expect(hook.result.current.session.state).toBe("error");
+		expect(hook.result.current.session.kiroCli).toBe(true);
+		expect(hook.result.current.session.kiroEngine).toBe("v3");
 	});
 });
 
