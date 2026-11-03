@@ -358,7 +358,7 @@ export const en = {
 	"notices.capChangedRetry":
 		"[Agent Console] More chats were saved while you were deciding. Pick the limit again to see the new count.",
 	"notices.chatFilesTrashed":
-		"[Agent Console] Moved {count} chat files ({size}) to your trash.",
+		"[Agent Console] Moved {count} chat file(s) ({size}) to your trash.",
 	"notices.cancelBroadcast":
 		"[Agent Console] Cancel broadcast to {count} tab(s)",
 	"notices.contextStripMigration":
@@ -524,10 +524,10 @@ export const en = {
 	"modals.confirmReset.confirm": "Reset to defaults",
 	"modals.confirmTrashChats.capTitle": "Lower the chat limit?",
 	"modals.confirmTrashChats.capBody":
-		"This moves {count} older chats to your trash. Chats open in a tab are kept.",
+		"This moves {count} older chat(s) to your trash. Chats open in a tab are kept.",
 	"modals.confirmTrashChats.cleanupTitle": "Clean up unused chat files?",
 	"modals.confirmTrashChats.cleanupBody":
-		"Found {count} chat files ({size}) that no longer show up in your history. They will move to your trash.",
+		"Found {count} chat file(s) ({size}) that no longer show up in your history. They will move to your trash.",
 	"modals.confirmTrashChats.warning": "You can get them back from your trash.",
 	"modals.confirmTrashChats.confirm": "Move to trash",
 	"modals.sessionIntent.agentFallback": "the new agent",
