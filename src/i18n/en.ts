@@ -37,6 +37,11 @@ export const en = {
 	"settings.showEmojis.name": "Show emojis",
 	"settings.systemNotifications.name": "System notifications",
 	"settings.heading.tabs": "Tabs",
+	"settings.heading.sessions": "Sessions",
+	"settings.maxSavedSessions.name": "Max saved chats",
+	"settings.maxSavedSessions.desc":
+		"How many chats to keep in your history. When you go over, the oldest chats move to your trash, so you can still get them back. Chats open in a tab are always kept.",
+	"settings.maxSavedSessions.unlimited": "Unlimited",
 	"settings.restoreTabsOnStartup.name": "Restore tabs on startup",
 	"settings.confirmBeforeClosingMultiple.name":
 		"Confirm before closing multiple chats",
@@ -345,6 +350,11 @@ export const en = {
 		"[Agent Console] Prompt broadcast to {count} tab(s){skipNote}",
 	"notices.noTabsReadyToSend": "[Agent Console] No tabs ready to send",
 	"notices.sentInTabs": "[Agent Console] Sent in {count} tab(s){skipNote}",
+	"notices.olderChatsTrashed":
+		"[Agent Console] Only your {count} most recent chats are kept. Older ones go to your trash, so you can still get them back.",
+	"notices.noUnusedChatFiles": "[Agent Console] No unused chat files found.",
+	"notices.chatFilesTrashed":
+		"[Agent Console] Moved {count} chat files ({size}) to your trash.",
 	"notices.cancelBroadcast":
 		"[Agent Console] Cancel broadcast to {count} tab(s)",
 	"notices.contextStripMigration":
@@ -508,6 +518,14 @@ export const en = {
 		"This turns all switches back on and clears your vault context and any prompt you've edited by hand.",
 	"modals.confirmReset.warning": "This can't be undone.",
 	"modals.confirmReset.confirm": "Reset to defaults",
+	"modals.confirmTrashChats.capTitle": "Lower the chat limit?",
+	"modals.confirmTrashChats.capBody":
+		"This moves {count} older chats to your trash. Chats open in a tab are kept.",
+	"modals.confirmTrashChats.cleanupTitle": "Clean up unused chat files?",
+	"modals.confirmTrashChats.cleanupBody":
+		"Found {count} chat files ({size}) that no longer show up in your history. They will move to your trash.",
+	"modals.confirmTrashChats.warning": "You can get them back from your trash.",
+	"modals.confirmTrashChats.confirm": "Move to trash",
 	"modals.sessionIntent.agentFallback": "the new agent",
 	"modals.sessionIntent.switchTitle": "Switch to {agent}?",
 	"modals.sessionIntent.switchBody":
@@ -532,6 +550,7 @@ export const en = {
 
 	// ---- Phase 3: commands ----
 	"commands.openChat": "Open chat",
+	"commands.cleanUpChatFiles": "Clean up unused chat files",
 	"commands.focusNextView": "Focus next chat view",
 	"commands.focusPreviousView": "Focus previous chat view",
 	"commands.closeSessionTab": "Close session tab",

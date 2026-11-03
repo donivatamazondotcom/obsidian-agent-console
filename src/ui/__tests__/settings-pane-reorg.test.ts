@@ -349,6 +349,7 @@ describe("Settings Pane Reorganization — render (T1)", () => {
 			"Custom agents",
 			"Chat behavior",
 			"Appearance & notifications",
+			"Sessions",
 			"Tabs",
 			"Permissions",
 		]);

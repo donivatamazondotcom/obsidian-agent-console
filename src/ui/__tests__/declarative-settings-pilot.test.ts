@@ -136,7 +136,7 @@ describe("declarative settings pilot (Obsidian 1.13)", () => {
 		const { tab } = makeTab();
 		const defs = tab.getSettingDefinitions();
 
-		expect(defs).toHaveLength(8);
+		expect(defs).toHaveLength(9);
 		const group = defs.find(
 			(g) => (g as unknown as GroupDef).items?.some((i) => i.control?.key === "restoreTabsOnStartup"),
 		) as unknown as GroupDef;
@@ -281,7 +281,7 @@ describe("declarative settings pilot (Obsidian 1.13)", () => {
 		const defs = tab.getSettingDefinitions() as unknown as Array<
 			Record<string, unknown>
 		>;
-		expect(defs).toHaveLength(8);
+		expect(defs).toHaveLength(9);
 
 		const builtIn = defs[1] as { items: Array<{ type?: string; name: string }> };
 		const pageNames = builtIn.items.map((i) => i.name);
@@ -329,7 +329,7 @@ describe("declarative settings pilot (Obsidian 1.13)", () => {
 		const find = (groupIdx: number) =>
 			defs[groupIdx].items!.find((i) => i.visible && i.name)!;
 		const topMatter = defs[0].items![0];
-		const wrapper = defs[7] as unknown as {
+		const wrapper = defs[8] as unknown as {
 			items: Array<{ items?: Array<{ name: string; visible?: () => boolean }> }>;
 		};
 		const advanced = wrapper.items.at(-1)!.items!.at(-1)!;

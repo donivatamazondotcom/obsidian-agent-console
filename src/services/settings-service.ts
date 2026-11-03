@@ -12,6 +12,12 @@ import { updateDebugMode } from "../utils/logger";
 import type { ChatMessage } from "../types/chat";
 import type { SavedSessionInfo } from "../types/session";
 import type { PerLeafTabState } from "../types/tab";
+import { Notice } from "obsidian";
+import { t } from "../i18n";
+import type {
+	SavedSessionsCap,
+	SessionFileInfo,
+} from "../resolvers/session-retention";
 import { SessionStorage } from "./session-storage";
 import { SessionStore } from "./session-store";
 import type { ContextNote } from "../types/context";
@@ -245,7 +251,12 @@ export class SettingsService implements ISettingsAccess {
 	constructor(initial: AgentClientPluginSettings, plugin: AgentClientPlugin) {
 		this.state = initial;
 		this.plugin = plugin;
-		this.sessionStorage = new SessionStorage(plugin, this);
+		this.sessionStorage = new SessionStorage(plugin, this, {
+			// I202: say once per load that older chats go to the trash.
+			onFirstEviction: (cap) => {
+				new Notice(t("notices.olderChatsTrashed", { count: cap }), 10000);
+			},
+		});
 		// `this` satisfies SessionStorePort (getSavedSessions + saveSession).
 		this.sessionStore = new SessionStore(this);
 	}
@@ -379,6 +390,24 @@ export class SettingsService implements ISettingsAccess {
 
 	async deleteSessionMessages(sessionId: string): Promise<void> {
 		return this.sessionStorage.deleteSessionMessages(sessionId);
+	}
+
+	// I202 retention (delegated to SessionStorage, the only evictor)
+
+	countEvictionsForCap(cap: SavedSessionsCap): number {
+		return this.sessionStorage.countEvictionsForCap(cap);
+	}
+
+	async applyMaxSavedSessions(cap: SavedSessionsCap): Promise<void> {
+		return this.sessionStorage.applyMaxSavedSessions(cap);
+	}
+
+	async findUnusedSessionFiles(): Promise<SessionFileInfo[]> {
+		return this.sessionStorage.findUnusedSessionFiles();
+	}
+
+	async trashUnusedSessionFiles(): Promise<{ count: number; bytes: number }> {
+		return this.sessionStorage.trashUnusedSessionFiles();
 	}
 
 	// ============================================================

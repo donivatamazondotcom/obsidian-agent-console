@@ -1596,7 +1596,11 @@
 				"agentOverride": {
 					"id": "kiro-cli",
 					"engine": "v3",
-					"args": ["acp", "--agent", "screenshot-missing-agent"]
+					"args": [
+						"acp",
+						"--agent",
+						"screenshot-missing-agent"
+					]
 				}
 			},
 			"promptFile": "connect.txt",
@@ -1659,6 +1663,33 @@
 			"mustShow": ".agent-client-tab-state-released",
 			"caption": "Idle tabs sleep to save memory",
 			"altText": "Tab bar with one tab showing a moon icon, meaning it is asleep to save memory"
+		},
+		{
+			"name": "settings-max-saved-chats",
+			"pending": true,
+			"width": 760,
+			"height": 300,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 760,
+				"height": 300
+			},
+			"cropSelector": ".vertical-tab-content",
+			"cropPadding": 16,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"openSettings": "agent-console",
+				"scrollToSettingText": "Max saved chats"
+			},
+			"approvalThreshold": 0.05,
+			"placement": "feature",
+			"purpose": "Choose how many chats your history keeps; older ones go to the trash, or keep everything with Unlimited.",
+			"differentiator": "Configurable history size with recoverable cleanup",
+			"mustShow": ".vertical-tab-content",
+			"caption": "Choose how many chats to keep",
+			"altText": "Agent Console Sessions settings with the Max saved chats dropdown set to 100",
+			"docPage": "docs/usage/session-history.md"
 		}
 	]
 }

@@ -10,6 +10,8 @@ import {
 	WorkspaceLeaf,
 	Notice,
 } from "obsidian";
+import { ConfirmTrashChatsModal } from "./ui/ConfirmTrashChatsModal";
+import { formatSize } from "./resolvers/session-retention";
 import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
@@ -210,6 +212,12 @@ export interface AgentClientPluginSettings {
 	};
 	// Locally saved session metadata (for agents without session/list support)
 	savedSessions: SavedSessionInfo[];
+	/**
+	 * Max saved chats (I202). One of 25, 50, 100, 250, 500, or `null` for
+	 * unlimited. Read through `parseMaxSavedSessions`; written only by
+	 * `SessionStorage.applyMaxSavedSessions`.
+	 */
+	maxSavedSessions: number | null;
 	/**
 	 * Persisted Session History source toggle. Defaults to "local" — the
 	 * canonical local store is the source of truth for "your history"
@@ -945,6 +953,42 @@ export default class AgentClientPlugin extends Plugin {
 	 * commands so a cold-start palette surfaces only Open chat / New chat /
 	 * New chat with agent…. See command-palette rationalization spec (C3).
 	 */
+	/**
+	 * I202: "Clean up unused chat files". Reports how many transcript files
+	 * no chat or tab uses (and their size), confirms, then moves them to the
+	 * trash through SessionStorage, which re-checks references in its lock.
+	 */
+	private async confirmCleanUpChatFiles(): Promise<void> {
+		const unused = await this.settingsService.findUnusedSessionFiles();
+		if (unused.length === 0) {
+			new Notice(t("notices.noUnusedChatFiles"));
+			return;
+		}
+		const size = formatSize(unused.reduce((sum, f) => sum + f.size, 0));
+		new ConfirmTrashChatsModal(
+			this.app,
+			{
+				title: t("modals.confirmTrashChats.cleanupTitle"),
+				body: t("modals.confirmTrashChats.cleanupBody", {
+					count: unused.length,
+					size,
+				}),
+			},
+			() => {
+				void this.settingsService
+					.trashUnusedSessionFiles()
+					.then((result) => {
+						new Notice(
+							t("notices.chatFilesTrashed", {
+								count: result.count,
+								size: formatSize(result.bytes),
+							}),
+						);
+					});
+			},
+		).open();
+	}
+
 	private hasOpenChatView(): boolean {
 		return isChatCommandAvailable(
 			this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT).length,
@@ -1228,6 +1272,15 @@ export default class AgentClientPlugin extends Plugin {
 			name: t("commands.openChat"),
 			callback: () => {
 				void this.activateView();
+			},
+		});
+
+		// I202: move transcript files no chat or tab uses to the trash.
+		this.addCommand({
+			id: "clean-up-unused-chat-files",
+			name: t("commands.cleanUpChatFiles"),
+			callback: () => {
+				void this.confirmCleanUpChatFiles();
 			},
 		});
 

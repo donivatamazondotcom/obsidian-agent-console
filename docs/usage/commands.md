@@ -58,6 +58,7 @@ These appear only when a chat view is open.
 | **Close session tab** | Close the active tab |
 | **Reopen closed session tab** | Reopen the most-recently-closed tab and restore its conversation — transcript, agent, label, and pinned context. Repeat to walk further back (browser-style Cmd+Shift+T). Closed tabs are remembered for the current session only |
 | **Open session history** | Open the session history view to browse, search, restore, fork, rename, or delete past sessions. Bind a hotkey under **Settings → Hotkeys** to open it without reaching for the mouse |
+| **Clean up unused chat files** | Find saved chat files that no longer appear in your history or in any tab, show how many there are and how much space they use, and move them to your trash after you confirm. Files changed in the last day are left alone. See [Session History](/usage/session-history#how-many-chats-are-kept) |
 
 ## Settings Commands
 
