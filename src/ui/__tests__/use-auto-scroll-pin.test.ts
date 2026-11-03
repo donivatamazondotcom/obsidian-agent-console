@@ -419,6 +419,7 @@ interface ScheduledTimer {
 	id: number;
 	cb: () => void;
 	cancelled: boolean;
+	delay: number;
 }
 
 const scheduledTimers: ScheduledTimer[] = [];
@@ -432,9 +433,9 @@ function installTimerMock(): void {
 	scheduledTimers.length = 0;
 	nextTimerId = 1;
 
-	const mockSetTimeout = ((cb: () => void, _delay?: number) => {
+	const mockSetTimeout = ((cb: () => void, delay?: number) => {
 		const id = nextTimerId++;
-		scheduledTimers.push({ id, cb, cancelled: false });
+		scheduledTimers.push({ id, cb, cancelled: false, delay: delay ?? 0 });
 		return id;
 	}) as unknown as typeof globalThis.setTimeout;
 
@@ -486,6 +487,20 @@ function flushTimers(): void {
 	for (const t of pending) {
 		if (t.cancelled) continue;
 		t.cb();
+	}
+}
+
+/**
+ * Fire only the pending timers whose delay is below `ms`, leaving longer
+ * ones queued. Lets a test advance "time" past short deferrals without
+ * ending a longer window (I284's 2 s restore hold).
+ */
+function flushTimersShorterThan(ms: number): void {
+	const due = scheduledTimers.filter((x) => x.delay < ms);
+	for (const x of due) scheduledTimers.splice(scheduledTimers.indexOf(x), 1);
+	for (const x of due) {
+		if (x.cancelled) continue;
+		x.cb();
 	}
 }
 
@@ -2939,6 +2954,7 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 							React.createElement("div", { key: id, ref: rowRef(id), "data-message-id": id }),
 						),
 					),
+					React.createElement("button", { "data-testid": "copy" }),
 				);
 		return React.createElement(
 			"div",
@@ -3125,11 +3141,10 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 		["wheel down", (el: HTMLElement) => fireWheel(el, 50)],
 		["pointerdown (scrollbar drag)", (el: HTMLElement) => el.dispatchEvent(new Event("pointerdown", { bubbles: true }))],
 		[
-			"keydown in the composer (where focus is after a tab switch)",
+			"keydown on a focused copy button",
 			(el: HTMLElement) =>
 				el
-					.closest(".agent-client-chat-view-container")
-					?.querySelector("textarea")
+					.querySelector("button")
 					?.dispatchEvent(new KeyboardEvent("keydown", { key: "PageUp", bubbles: true })),
 		],
 		["touchstart", (el: HTMLElement) => fireTouchStart(el, 100)],
@@ -3168,6 +3183,43 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 		layoutRows(t.geom, IDS, 500);
 		t.show();
 		expect(t.geom.scrollTop).toBe(5032 - 600 - 1);
+	});
+
+	it("typing in the composer during the restore keeps holding the position (delta review L-1)", () => {
+		const t = setup();
+		t.userScrollTo(1200);
+		t.hide();
+		layoutRows(t.geom, IDS, 80);
+		t.show();
+		t.consumeOwnScrollEvent();
+		act(() => {
+			t.r.container
+				.querySelector("textarea")
+				?.dispatchEvent(new KeyboardEvent("keydown", { key: "h", bubbles: true }));
+		});
+		layoutRows(t.geom, IDS, 500);
+		act(() => {
+			fireResize(t.contentEl(), 5000);
+		});
+		expect(t.geom.scrollTop).toBe(1200);
+	});
+
+	it("growth after a quiet gap is still corrected within the 2 s hold (review M-b)", () => {
+		const t = setup();
+		t.userScrollTo(1200);
+		t.hide();
+		layoutRows(t.geom, IDS, 500);
+		t.show();
+		t.consumeOwnScrollEvent();
+		act(() => {
+			fireResize(t.contentEl(), 5000);
+			flushTimersShorterThan(2000); // a quiet period would end the restore here
+		});
+		layoutRows(t.geom, IDS, (i) => (i === 0 ? 900 : 500)); // late image above
+		act(() => {
+			fireResize(t.contentEl(), 5400);
+		});
+		expect(t.geom.scrollTop).toBe(1416 + 184);
 	});
 
 	it("scrolled up less than 70 px from the bottom still returns there, not the top (review M-a)", () => {
