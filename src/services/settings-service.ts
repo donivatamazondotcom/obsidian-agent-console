@@ -256,6 +256,12 @@ export class SettingsService implements ISettingsAccess {
 			onFirstEviction: (cap) => {
 				new Notice(t("notices.olderChatsTrashed", { count: cap }), 10000);
 			},
+			// Open and recently closed tabs are never evicted or cleaned up,
+			// whether or not tab state is saved for restore.
+			getLiveSessionIds: () =>
+				(
+					plugin as { getLiveSessionIds?: () => Iterable<string> }
+				).getLiveSessionIds?.() ?? [],
 		});
 		// `this` satisfies SessionStorePort (getSavedSessions + saveSession).
 		this.sessionStore = new SessionStore(this);
@@ -398,8 +404,11 @@ export class SettingsService implements ISettingsAccess {
 		return this.sessionStorage.countEvictionsForCap(cap);
 	}
 
-	async applyMaxSavedSessions(cap: SavedSessionsCap): Promise<void> {
-		return this.sessionStorage.applyMaxSavedSessions(cap);
+	async applyMaxSavedSessions(
+		cap: SavedSessionsCap,
+		confirmedCount = 0,
+	): Promise<boolean> {
+		return this.sessionStorage.applyMaxSavedSessions(cap, confirmedCount);
 	}
 
 	async findUnusedSessionFiles(): Promise<SessionFileInfo[]> {

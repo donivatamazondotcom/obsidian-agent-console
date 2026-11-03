@@ -95,3 +95,19 @@ describe("useRecentlyClosedTabs", () => {
 		expect(result.current).toBe(first);
 	});
 });
+
+describe("useRecentlyClosedTabs.sessionIds (I202 review)", () => {
+	it("lists the session ids that can still be reopened", () => {
+		const { result } = renderHook(() => useRecentlyClosedTabs(2));
+		act(() => {
+			result.current.capture(rec("a"));
+			result.current.capture(rec("b"));
+			result.current.capture(rec("c"));
+		});
+		expect(result.current.sessionIds().sort()).toEqual(["b", "c"]);
+		act(() => {
+			result.current.reopenLast();
+		});
+		expect(result.current.sessionIds()).toEqual(["b"]);
+	});
+});

@@ -43,8 +43,11 @@ import {
 import { ConfirmResetModal } from "./ConfirmResetModal";
 import { ConfirmTrashChatsModal } from "./ConfirmTrashChatsModal";
 import {
+	capToDropdownValue,
+	decideCapChange,
 	parseMaxSavedSessions,
 	SAVED_SESSIONS_CAP_OPTIONS,
+	UNLIMITED_CAP_VALUE,
 	type SavedSessionsCap,
 } from "../resolvers/session-retention";
 import {
@@ -1159,55 +1162,61 @@ export class AgentClientSettingTab extends PluginSettingTab {
 	private configureMaxSavedSessionsDropdown(
 		dropdown: DropdownComponent,
 	): void {
-		const UNLIMITED = "unlimited";
-		const toValue = (cap: SavedSessionsCap) =>
-			cap === null ? UNLIMITED : String(cap);
 		for (const n of SAVED_SESSIONS_CAP_OPTIONS) {
 			dropdown.addOption(String(n), String(n));
 		}
 		dropdown.addOption(
-			UNLIMITED,
+			UNLIMITED_CAP_VALUE,
 			t("settings.maxSavedSessions.unlimited"),
 		);
 		let current = parseMaxSavedSessions(
 			this.plugin.settings.maxSavedSessions,
 		).cap;
-		dropdown.setValue(toValue(current)).onChange((value) => {
-			const parsed = parseMaxSavedSessions(
-				value === UNLIMITED ? null : Number(value),
-			);
-			if (!parsed.valid) {
-				dropdown.setValue(toValue(current));
-				return;
-			}
-			const next = parsed.cap;
-			const apply = async () => {
+		const reset = () => dropdown.setValue(capToDropdownValue(current));
+		const apply = async (cap: SavedSessionsCap, confirmedCount: number) => {
+			const applied =
 				await this.plugin.settingsService.applyMaxSavedSessions(
-					next,
+					cap,
+					confirmedCount,
 				);
-				current = next;
-			};
-			const count =
-				this.plugin.settingsService.countEvictionsForCap(next);
-			if (count === 0) {
-				void apply();
-				return;
+			if (applied) {
+				current = cap;
+			} else {
+				reset();
+				new Notice(t("notices.capChangedRetry"));
 			}
-			new ConfirmTrashChatsModal(
-				this.app,
-				{
-					title: t("modals.confirmTrashChats.capTitle"),
-					body: t("modals.confirmTrashChats.capBody", {
-						count,
-					}),
-				},
-				() => {
-					void apply();
-				},
-				() => {
-					dropdown.setValue(toValue(current));
-				},
-			).open();
+		};
+		dropdown.setValue(capToDropdownValue(current)).onChange((value) => {
+			const decision = decideCapChange(value, current, (cap) =>
+				this.plugin.settingsService.countEvictionsForCap(cap),
+			);
+			switch (decision.kind) {
+				case "none":
+					return;
+				case "reset":
+					reset();
+					return;
+				case "apply":
+					void apply(decision.cap, 0);
+					return;
+				case "confirm":
+					new ConfirmTrashChatsModal(
+						this.app,
+						{
+							title: t("modals.confirmTrashChats.capTitle"),
+							body: t("modals.confirmTrashChats.capBody", {
+								count: decision.count,
+							}),
+						},
+						() => {
+							void apply(decision.cap, decision.count);
+						},
+						() => {
+							reset();
+						},
+					).open();
+					return;
+			}
 		});
 	}
 

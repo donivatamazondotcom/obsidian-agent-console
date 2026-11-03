@@ -1351,6 +1351,19 @@ function ChatComponent({
 		});
 	}, [view, reopenClosed, handleCloseTab, handleAiRenameTab, activeTabId]);
 
+	// I202 review: tell the view which chats this panel holds (open tabs and
+	// reopenable closed tabs), so eviction and cleanup never touch them even
+	// when Restore tabs on startup doesn't save tab state.
+	useEffect(() => {
+		view.setLiveSessionIdsSource(() => {
+			const ids: string[] = [];
+			for (const sid of tabSessionIdsRef.current.values()) {
+				if (sid) ids.push(sid);
+			}
+			return ids.concat(recentlyClosed.sessionIds());
+		});
+	}, [view, recentlyClosed]);
+
 	// Wire the TabBar's "open tab list" capability to the view class so the
 	// show-tab-list plugin command (hotkey-bindable) can trigger it.
 	const handleRegisterShowTabList = useCallback(
@@ -1759,6 +1772,18 @@ export class ChatView extends ItemView implements IChatViewContainer {
 	/** Reopen the most-recently-closed tab and restore its conversation (F13). */
 	reopenClosedTab(): void {
 		this.reopenClosedTabFn?.();
+	}
+
+	private liveSessionIdsSource: (() => string[]) | null = null;
+
+	/** I202 review: registered by ChatComponent; see liveSessionIds(). */
+	setLiveSessionIdsSource(fn: () => string[]): void {
+		this.liveSessionIdsSource = fn;
+	}
+
+	/** Session ids of this panel's open and reopenable closed tabs. */
+	liveSessionIds(): string[] {
+		return this.liveSessionIdsSource?.() ?? [];
 	}
 
 	/** Register the tab-list opener (called by the React TabBar on mount). */

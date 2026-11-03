@@ -18,7 +18,9 @@ import type { PerLeafTabState } from "../../types/tab";
 const DIR = ".obsidian/plugins/agent-console/sessions";
 const DAY = 24 * 60 * 60 * 1000;
 
-function makeVault(opts: { systemTrash?: boolean } = {}) {
+function makeVault(
+	opts: { systemTrash?: boolean; failList?: { on: boolean }; failTrash?: boolean } = {},
+) {
 	const files = new Map<string, { data: string; mtime: number }>();
 	const dirs = new Set<string>();
 	const systemTrash = new Map<string, string>();
@@ -42,6 +44,7 @@ function makeVault(opts: { systemTrash?: boolean } = {}) {
 			files.delete(p);
 		},
 		async list(p: string) {
+			if (opts.failList?.on) throw new Error("EIO list");
 			return {
 				files: [...files.keys()].filter((k) =>
 					k.startsWith(`${p}/`),
@@ -56,6 +59,7 @@ function makeVault(opts: { systemTrash?: boolean } = {}) {
 				: null;
 		},
 		async trashSystem(p: string) {
+			if (opts.failTrash) throw new Error("EACCES trash");
 			if (opts.systemTrash === false) return false;
 			const f = files.get(p);
 			if (!f) return false;
@@ -64,6 +68,7 @@ function makeVault(opts: { systemTrash?: boolean } = {}) {
 			return true;
 		},
 		async trashLocal(p: string) {
+			if (opts.failTrash) throw new Error("EACCES trash");
 			const f = files.get(p);
 			if (!f) return;
 			localTrash.set(p, f.data);
@@ -260,7 +265,7 @@ describe("I202 lowering the cap", () => {
 		await seed(storage, ids);
 
 		expect(storage.countEvictionsForCap(25)).toBe(5);
-		await storage.applyMaxSavedSessions(25);
+		await storage.applyMaxSavedSessions(25, 5);
 
 		const snap = settings.getSnapshot();
 		expect(snap.maxSavedSessions).toBe(25);
@@ -345,6 +350,119 @@ describe("I202 a cap the setting doesn't offer is refused", () => {
 		const snap = settings.getSnapshot();
 		expect(snap.maxSavedSessions).toBe(25);
 		expect(snap.savedSessions).toHaveLength(3);
+		expect(vault.systemTrash.size).toBe(0);
+	});
+});
+
+describe("I202 review: chats open in a tab without saved tab state", () => {
+	it("never evicts a live tab's chat when Restore tabs on startup is off", async () => {
+		const vault = makeVault();
+		const settings = makeSettings({ maxSavedSessions: 3, perLeafTabStates: undefined });
+		const storage = new SessionStorage(vault.plugin, settings, {
+			getLiveSessionIds: () => ["s1"],
+		});
+
+		await seed(storage, ["s1", "s2", "s3", "s4"]);
+
+		const ids = settings.getSnapshot().savedSessions.map((s) => s.sessionId);
+		expect(ids).toContain("s1");
+		expect(vault.files.has(path("s1"))).toBe(true);
+		expect(vault.systemTrash.has(path("s2"))).toBe(true);
+	});
+
+	it("keeps live and recently closed tabs when the cap is lowered", async () => {
+		const vault = makeVault();
+		const settings = makeSettings({ maxSavedSessions: null });
+		const storage = new SessionStorage(vault.plugin, settings, {
+			getLiveSessionIds: () => ["s1", "s2"],
+		});
+		await seed(storage, Array.from({ length: 27 }, (_, i) => `s${i + 1}`));
+
+		expect(storage.countEvictionsForCap(25)).toBe(2);
+		await storage.applyMaxSavedSessions(25, 2);
+
+		for (const id of ["s1", "s2"]) expect(vault.files.has(path(id))).toBe(true);
+		for (const id of ["s3", "s4"]) expect(vault.systemTrash.has(path(id))).toBe(true);
+	});
+
+	it("cleanup skips a file only a live tab refers to", async () => {
+		const vault = makeVault();
+		const settings = makeSettings({});
+		const storage = new SessionStorage(vault.plugin, settings, {
+			getLiveSessionIds: () => ["live-only"],
+		});
+		await storage.saveSessionMessages("live-only", "claude-code-acp", msg);
+		vault.age("live-only", 2 * DAY);
+
+		expect(await storage.findUnusedSessionFiles()).toEqual([]);
+	});
+});
+
+describe("I202 review: the session lock survives failures", () => {
+	it("a listing failure during cleanup doesn't stop later saves", async () => {
+		const failList = { on: true };
+		const vault = makeVault({ failList });
+		const settings = makeSettings({});
+		const storage = new SessionStorage(vault.plugin, settings);
+		failList.on = false;
+		await storage.saveSessionMessages("x", "claude-code-acp", msg);
+		failList.on = true;
+
+		await expect(storage.trashUnusedSessionFiles()).rejects.toThrow("EIO list");
+		failList.on = false;
+		await storage.saveSession(info("after", "2026-11-03T00:00:00Z"));
+
+		expect(settings.getSnapshot().savedSessions.map((s) => s.sessionId)).toEqual(["after"]);
+	});
+
+	it("a trash failure keeps the file and leaves the lock usable", async () => {
+		const vault = makeVault({ failTrash: true });
+		const settings = makeSettings({ maxSavedSessions: 1 });
+		const storage = new SessionStorage(vault.plugin, settings);
+
+		await seed(storage, ["s1", "s2"]);
+		await storage.saveSession(info("s3", "2026-11-03T00:00:00Z"));
+
+		const ids = settings.getSnapshot().savedSessions.map((s) => s.sessionId);
+		expect(ids).toEqual(["s3"]);
+		expect(vault.files.has(path("s1"))).toBe(true);
+		expect(vault.files.has(path("s2"))).toBe(true);
+	});
+});
+
+describe("I202 review: cleanup re-checks references under the lock", () => {
+	it("keeps a file that gained a record after it was found", async () => {
+		const vault = makeVault();
+		const settings = makeSettings({});
+		const storage = new SessionStorage(vault.plugin, settings);
+		await storage.saveSessionMessages("late", "claude-code-acp", msg);
+		vault.age("late", 2 * DAY);
+
+		expect((await storage.findUnusedSessionFiles()).map((f) => f.stem)).toEqual(["late"]);
+		await storage.saveSession(info("late", "2026-11-03T00:00:00Z"));
+		const result = await storage.trashUnusedSessionFiles();
+
+		expect(result.count).toBe(0);
+		expect(vault.files.has(path("late"))).toBe(true);
+	});
+});
+
+describe("I202 review: lowering the cap never moves more than confirmed", () => {
+	it("does nothing when more chats would go than the user confirmed", async () => {
+		const vault = makeVault();
+		const settings = makeSettings({ maxSavedSessions: null });
+		const storage = new SessionStorage(vault.plugin, settings);
+		await seed(storage, Array.from({ length: 26 }, (_, i) => `s${i + 1}`));
+
+		expect(storage.countEvictionsForCap(25)).toBe(1);
+		// A chat lands while the dialog is open.
+		await storage.saveSessionMessages("s27", "claude-code-acp", msg);
+		await storage.saveSession(info("s27", "2026-11-03T00:00:00Z"));
+		const applied = await storage.applyMaxSavedSessions(25, 1);
+
+		expect(applied).toBe(false);
+		expect(settings.getSnapshot().maxSavedSessions).toBeNull();
+		expect(settings.getSnapshot().savedSessions).toHaveLength(27);
 		expect(vault.systemTrash.size).toBe(0);
 	});
 });

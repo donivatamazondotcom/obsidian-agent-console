@@ -69,6 +69,12 @@ export interface SessionStorageOptions {
 	 * older one (I202), with the cap in force. Later evictions are quiet.
 	 */
 	onFirstEviction?: (cap: number) => void;
+	/**
+	 * Session ids of chats open in a tab right now, plus recently closed
+	 * tabs that can still be reopened. Protected from eviction and cleanup
+	 * whether or not Restore tabs on startup saves tab state (I202 review).
+	 */
+	getLiveSessionIds?: () => Iterable<string>;
 }
 
 export class SessionStorage {
@@ -108,6 +114,31 @@ export class SessionStorage {
 	// ============================================================
 
 	/**
+	 * Run `fn` after every earlier locked operation. The caller still sees
+	 * `fn`'s error, but the chain itself never stays rejected, so one failed
+	 * operation can't silently skip every later save (I202 review).
+	 */
+	private runLocked<T>(fn: () => Promise<T>): Promise<T> {
+		const run = this.sessionLock.then(fn);
+		this.sessionLock = run.then(
+			() => undefined,
+			(error: unknown) => {
+				getLogger().warn(
+					`[SessionStorage] Locked session operation failed: ${String(error)}`,
+				);
+			},
+		);
+		return run;
+	}
+
+	/** Saved tab ids plus live and recently closed tab ids. */
+	private protectedSessionIds(state: AgentClientPluginSettings): Set<string> {
+		const ids = tabSessionIds(state.perLeafTabStates);
+		for (const id of this.options.getLiveSessionIds?.() ?? []) ids.add(id);
+		return ids;
+	}
+
+	/**
 	 * Save a session to local storage.
 	 *
 	 * Updates existing session if sessionId matches. When a new session
@@ -117,7 +148,7 @@ export class SessionStorage {
 	 * `applyMaxSavedSessions` are the only evictors.
 	 */
 	async saveSession(info: SavedSessionInfo): Promise<void> {
-		this.sessionLock = this.sessionLock.then(async () => {
+		await this.runLocked(async () => {
 			// Convert Windows path to WSL path if in WSL mode
 			let sessionInfo = info;
 			const state = this.settingsAccess.getSnapshot();
@@ -145,7 +176,7 @@ export class SessionStorage {
 
 			sessions.unshift(sessionInfo);
 			const cap = this.readCap(state);
-			const protectedIds = tabSessionIds(state.perLeafTabStates);
+			const protectedIds = this.protectedSessionIds(state);
 			protectedIds.add(sessionInfo.sessionId);
 			const { kept, evicted } = selectEvictions(
 				sessions,
@@ -161,7 +192,6 @@ export class SessionStorage {
 				this.options.onFirstEviction?.(cap);
 			}
 		});
-		await this.sessionLock;
 	}
 
 	/**
@@ -174,39 +204,47 @@ export class SessionStorage {
 		return selectEvictions(
 			state.savedSessions || [],
 			cap,
-			tabSessionIds(state.perLeafTabStates),
+			this.protectedSessionIds(state),
 		).evicted.length;
 	}
 
 	/**
-	 * Set Max saved chats and trim the list to it in one locked write. Chats a
-	 * persisted tab uses are kept even if that leaves the list over the cap.
+	 * Set Max saved chats and trim the list to it in one locked write. Chats
+	 * open in a tab are kept even if that leaves the list over the cap.
+	 *
+	 * `confirmedCount` is the number the user agreed to in the dialog. If a
+	 * chat was saved while the dialog was open and more would now go, nothing
+	 * changes and this returns false so the caller can ask again.
 	 */
-	async applyMaxSavedSessions(cap: SavedSessionsCap): Promise<void> {
+	async applyMaxSavedSessions(
+		cap: SavedSessionsCap,
+		confirmedCount = 0,
+	): Promise<boolean> {
 		if (!this.isOfferedCap(cap)) {
 			getLogger().warn(
 				`[SessionStorage] Refusing Max saved chats ${String(cap)}: not an offered value`,
 			);
-			return;
+			return false;
 		}
-		this.sessionLock = this.sessionLock.then(async () => {
+		return this.runLocked(async () => {
 			const state = this.settingsAccess.getSnapshot();
 			const { kept, evicted } = selectEvictions(
 				state.savedSessions || [],
 				cap,
-				tabSessionIds(state.perLeafTabStates),
+				this.protectedSessionIds(state),
 			);
+			if (evicted.length > confirmedCount) return false;
 			await this.settingsAccess.updateSettings({
 				maxSavedSessions: cap,
 				savedSessions: kept,
 			});
 			await this.trashEvicted(evicted);
+			return true;
 		});
-		await this.sessionLock;
 	}
 
 	/**
-	 * Transcript files no saved chat or persisted tab refers to, unchanged
+	 * Transcript files no saved chat or open tab refers to, unchanged
 	 * for at least a day (I202 cleanup command). Read-only.
 	 */
 	async findUnusedSessionFiles(
@@ -245,7 +283,7 @@ export class SessionStorage {
 		now: number = Date.now(),
 	): Promise<{ count: number; bytes: number }> {
 		let result = { count: 0, bytes: 0 };
-		this.sessionLock = this.sessionLock.then(async () => {
+		await this.runLocked(async () => {
 			const unused = await this.findUnusedSessionFiles(now);
 			for (const file of unused) {
 				const path = `${this.getSessionsDir()}/${file.stem}.json`;
@@ -257,7 +295,6 @@ export class SessionStorage {
 				}
 			}
 		});
-		await this.sessionLock;
 		return result;
 	}
 
@@ -289,7 +326,7 @@ export class SessionStorage {
 		for (const s of state.savedSessions || []) {
 			stems.add(sessionFileStem(s.sessionId));
 		}
-		for (const id of tabSessionIds(state.perLeafTabStates)) {
+		for (const id of this.protectedSessionIds(state)) {
 			stems.add(sessionFileStem(id));
 		}
 		return stems;
@@ -358,7 +395,7 @@ export class SessionStorage {
 	 * Also moves the associated message history file to the trash (I202).
 	 */
 	async deleteSession(sessionId: string): Promise<void> {
-		this.sessionLock = this.sessionLock.then(async () => {
+		await this.runLocked(async () => {
 			const state = this.settingsAccess.getSnapshot();
 			const sessions = (state.savedSessions || []).filter(
 				(s) => s.sessionId !== sessionId,
@@ -368,7 +405,6 @@ export class SessionStorage {
 			});
 			await this.trashSessionFile(sessionId);
 		});
-		await this.sessionLock;
 	}
 
 	// ============================================================
