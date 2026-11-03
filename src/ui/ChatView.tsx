@@ -1458,7 +1458,14 @@ function ChatComponent({
 			for (const sid of tabSessionIdsRef.current.values()) {
 				if (sid) ids.push(sid);
 			}
-			return ids.concat(recentlyClosed.sessionIds());
+			// I269: a tab also holds its record by record id.
+			for (const rid of tabRecordIdsRef.current.values()) {
+				if (rid) ids.push(rid);
+			}
+			return ids.concat(
+				recentlyClosed.sessionIds(),
+				recentlyClosed.recordIds(),
+			);
 		});
 	}, [view, recentlyClosed]);
 

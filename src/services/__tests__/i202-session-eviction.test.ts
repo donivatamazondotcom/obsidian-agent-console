@@ -468,3 +468,114 @@ describe("I202 review: lowering the cap never moves more than confirmed", () => 
 		expect(vault.systemTrash.size).toBe(0);
 	});
 });
+
+// ---------------------------------------------------------------------------
+// I269: records keyed by recordId; the agent session id moves on a fallback
+// ---------------------------------------------------------------------------
+
+describe("I202 eviction with I269 record ids", () => {
+	/** A post-I269 record whose file is named by its record id. */
+	function rec(recordId: string, sessionId: string, updatedAt: string): SavedSessionInfo {
+		return { ...info(sessionId, updatedAt), recordId };
+	}
+
+	it("trashes the file named by the record id, not the session id", async () => {
+		const vault = makeVault();
+		const settings = makeSettings({ maxSavedSessions: 1 });
+		const storage = new SessionStorage(vault.plugin, settings);
+		await storage.saveSessionMessages("rec-a", "claude-code-acp", msg);
+		await storage.saveSession(rec("rec-a", "s-a", "2026-10-01T00:00:00.000Z"));
+		await storage.saveSessionMessages("rec-b", "claude-code-acp", msg);
+		await storage.saveSession(rec("rec-b", "s-b", "2026-10-02T00:00:00.000Z"));
+		expect(settings.getSnapshot().savedSessions.map((s) => s.recordId)).toEqual([
+			"rec-b",
+		]);
+		expect(vault.systemTrash.has(path("rec-a"))).toBe(true);
+		expect(vault.files.has(path("rec-b"))).toBe(true);
+	});
+
+	it("a tab holding the record by record id protects it right after a fallback", async () => {
+		const vault = makeVault();
+		// The record still names the old agent session s-old; the tab already
+		// holds the new one and the record id (the rebind hasn't landed).
+		const settings = makeSettings({
+			maxSavedSessions: 1,
+			perLeafTabStates: [
+				{
+					leafId: "leaf-1",
+					activeTabId: "t0",
+					tabs: [
+						{
+							tabId: "t0",
+							agentId: "claude-code-acp",
+							label: "x",
+							sessionId: "s-new",
+							recordId: "rec-a",
+							tabOrder: 0,
+							scrollPosition: 0,
+						},
+					],
+				},
+			],
+		});
+		const storage = new SessionStorage(vault.plugin, settings);
+		await storage.saveSessionMessages("rec-a", "claude-code-acp", msg);
+		await storage.saveSession(rec("rec-a", "s-old", "2026-10-01T00:00:00.000Z"));
+		await storage.saveSessionMessages("rec-b", "claude-code-acp", msg);
+		await storage.saveSession(rec("rec-b", "s-b", "2026-10-02T00:00:00.000Z"));
+		const kept = settings.getSnapshot().savedSessions.map((s) => s.recordId);
+		expect(kept).toContain("rec-a");
+		expect(vault.files.has(path("rec-a"))).toBe(true);
+	});
+
+	it("a live tab's record id (no saved tab state) also protects the record", async () => {
+		const vault = makeVault();
+		const settings = makeSettings({ maxSavedSessions: 1 });
+		const storage = new SessionStorage(vault.plugin, settings, {
+			getLiveSessionIds: () => ["s-new", "rec-a"],
+		});
+		await storage.saveSessionMessages("rec-a", "claude-code-acp", msg);
+		await storage.saveSession(rec("rec-a", "s-old", "2026-10-01T00:00:00.000Z"));
+		await storage.saveSessionMessages("rec-b", "claude-code-acp", msg);
+		await storage.saveSession(rec("rec-b", "s-b", "2026-10-02T00:00:00.000Z"));
+		expect(settings.getSnapshot().savedSessions.map((s) => s.recordId)).toContain(
+			"rec-a",
+		);
+	});
+
+	it("cleanup keeps a file a tab slice names by record id, even with no record", async () => {
+		const vault = makeVault();
+		const settings = makeSettings({
+			perLeafTabStates: [
+				{
+					leafId: "leaf-1",
+					activeTabId: "t0",
+					tabs: [
+						{
+							tabId: "t0",
+							agentId: "claude-code-acp",
+							label: "x",
+							sessionId: "s-1",
+							recordId: "rec-orphan",
+							tabOrder: 0,
+							scrollPosition: 0,
+						},
+					],
+				},
+			],
+		});
+		const storage = new SessionStorage(vault.plugin, settings);
+		await storage.saveSessionMessages("rec-orphan", "claude-code-acp", msg);
+		vault.age("rec-orphan", 3 * 86_400_000);
+		expect(await storage.findUnusedSessionFiles()).toEqual([]);
+	});
+
+	it("deleteSessionMessages goes through the trash", async () => {
+		const vault = makeVault();
+		const storage = new SessionStorage(vault.plugin, makeSettings({}));
+		await storage.saveSessionMessages("rec-x", "claude-code-acp", msg);
+		await storage.deleteSessionMessages("rec-x");
+		expect(vault.files.has(path("rec-x"))).toBe(false);
+		expect(vault.systemTrash.has(path("rec-x"))).toBe(true);
+	});
+});

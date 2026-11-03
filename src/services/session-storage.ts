@@ -755,12 +755,8 @@ export class SessionStorage {
 	 * Silently succeeds if file doesn't exist.
 	 */
 	async deleteSessionMessages(sessionId: string): Promise<void> {
-		const filePath = this.getSessionFilePath(sessionId);
-		const adapter = this.plugin.app.vault.adapter;
-
-		if (await adapter.exists(filePath)) {
-			await adapter.remove(filePath);
-		}
+		// Through the trash, the one place transcript files are removed (I202).
+		await this.trashSessionFile(sessionId);
 	}
 
 	// ============================================================
