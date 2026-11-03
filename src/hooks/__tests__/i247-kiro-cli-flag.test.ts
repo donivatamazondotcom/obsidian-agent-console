@@ -1,8 +1,9 @@
 /**
  * I247: the tab knows it runs Kiro CLI, decided at the `acp/` edge.
  *
- * `session.kiroEngine` is "v2" for every launch that isn't V3, Claude
- * included (I235), so it can't tell a Kiro V2 tab from a Claude tab. The
+ * Before I250, `session.kiroEngine` was "v2" for every launch that wasn't
+ * V3, Claude included (I235), so it couldn't tell a Kiro V2 tab from a
+ * Claude tab. Since I250 the engine is set only when `kiroCli` is. The
  * header's Engine and Mode lines need that distinction. It is normalized once
  * in `AcpTypeConverter.toInitializeResult` from the LAUNCH config (a V3
  * launch, or a kiro-cli command), never from the agent id, and copied into
@@ -129,11 +130,11 @@ describe("I247: acp edge records whether the tab runs Kiro CLI", () => {
 		).toBe(true);
 	});
 
-	it("Claude on V2 (kiroEngine 'v2') is not Kiro", () => {
+	it("Claude is not Kiro and has no engine (I250)", () => {
 		const init = AcpTypeConverter.toInitializeResult(RAW_INIT, {
 			command: "claude-agent-acp",
 		});
-		expect(init.kiroEngine).toBe("v2");
+		expect(init.kiroEngine).toBeUndefined();
 		expect(init.kiroCli).toBe(false);
 	});
 });

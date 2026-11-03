@@ -43,6 +43,7 @@ import {
 	restoreLegacyConfig,
 } from "../services/session-state";
 import { resolveModeRequest } from "../resolvers/session-modes";
+import { launchedEngine } from "../resolvers/session-engine";
 import {
 	assertEngineCanResume,
 	assertLoadReplayed,
@@ -449,10 +450,11 @@ export function useAgentSession(
 					agentInfo: initResult
 						? initResult.agentInfo
 						: prev.agentInfo,
+					// An init result's engine is taken as-is: undefined
+					// means "no engine", not "unknown" (I250).
 					kiroEngine: initResult
 						? initResult.kiroEngine
-						: (agentClient.getInitializeResult()?.kiroEngine ??
-							prev.kiroEngine),
+						: launchedEngine(agentClient.getInitializeResult(), prev),
 					kiroCli: initResult
 						? initResult.kiroCli
 						: (agentClient.getInitializeResult()?.kiroCli ??
@@ -667,9 +669,10 @@ export function useAgentSession(
 				capabilities:
 					agentClient.getInitializeResult()?.capabilities ??
 					prev.capabilities,
-				kiroEngine:
-					agentClient.getInitializeResult()?.kiroEngine ??
-					prev.kiroEngine,
+				kiroEngine: launchedEngine(
+					agentClient.getInitializeResult(),
+					prev,
+				),
 				kiroCli:
 					agentClient.getInitializeResult()?.kiroCli ??
 					prev.kiroCli,
@@ -919,7 +922,7 @@ export function useAgentSession(
 			agentCapabilities:
 				init.agentCapabilities ?? prev.agentCapabilities,
 			capabilities: init.capabilities ?? prev.capabilities,
-			kiroEngine: init.kiroEngine ?? prev.kiroEngine,
+			kiroEngine: init.kiroEngine,
 			kiroCli: init.kiroCli ?? prev.kiroCli,
 			agentInfo: init.agentInfo ?? prev.agentInfo,
 		}));

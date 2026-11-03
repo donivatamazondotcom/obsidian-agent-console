@@ -125,11 +125,14 @@ async function launch(engine: Engine) {
 }
 
 describe("I235: the launched Kiro engine travels with the session", () => {
-	it("acp edge: initialize records v3 for a V3 launch and v2 otherwise", () => {
+	it("acp edge: initialize records v3 for a V3 launch, v2 for kiro-cli, none otherwise (I250)", () => {
 		expect(
 			AcpTypeConverter.toInitializeResult(RAW_INIT, { kiroEngine: "v3" }).kiroEngine,
 		).toBe("v3");
-		expect(AcpTypeConverter.toInitializeResult(RAW_INIT, {}).kiroEngine).toBe("v2");
+		expect(
+			AcpTypeConverter.toInitializeResult(RAW_INIT, { command: "kiro-cli" }).kiroEngine,
+		).toBe("v2");
+		expect(AcpTypeConverter.toInitializeResult(RAW_INIT, {}).kiroEngine).toBeUndefined();
 	});
 
 	it("launched on V3, setting flipped to V2: the tooltip still names V3", async () => {

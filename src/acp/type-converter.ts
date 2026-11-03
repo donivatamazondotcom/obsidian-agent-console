@@ -327,6 +327,12 @@ export class AcpTypeConverter {
 			},
 		};
 
+		// Whether this process is kiro-cli, from the launch command (or a V3
+		// launch, which only kiro-cli has), never the agent id (I247).
+		const kiroCli =
+			launch.kiroEngine === "v3" ||
+			(!!launch.command && isKiroCliCommand(launch.command));
+
 		return {
 			protocolVersion: initResult.protocolVersion,
 			authMethods: initResult.authMethods || [],
@@ -345,14 +351,11 @@ export class AcpTypeConverter {
 					}
 				: undefined,
 			// The engine comes from how WE launched the process, not from the
-			// agent's reply: V3 sends no agentInfo (I235).
-			kiroEngine: launch.kiroEngine === "v3" ? "v3" : "v2",
-			// Whether this process is kiro-cli, from the launch command (or a
-			// V3 launch, which only kiro-cli has), never the agent id (I247).
-			// `kiroEngine` alone can't say: it is "v2" for Claude too.
-			kiroCli:
-				launch.kiroEngine === "v3" ||
-				(!!launch.command && isKiroCliCommand(launch.command)),
+			// agent's reply: V3 sends no agentInfo (I235). Only a kiro-cli
+			// process has one; any other agent has none (I250).
+			kiroEngine:
+				launch.kiroEngine === "v3" ? "v3" : kiroCli ? "v2" : undefined,
+			kiroCli,
 		};
 	}
 }

@@ -304,7 +304,7 @@ export interface ChatSession {
 	 * Kiro CLI engine the agent process was LAUNCHED with, recorded from
 	 * {@link InitializeResult.kiroEngine}. Read this, never the live engine
 	 * setting, for anything about the running tab (I235). Undefined before
-	 * initialize resolves.
+	 * initialize resolves, and for a process that isn't kiro-cli (I250).
 	 */
 	kiroEngine?: "v2" | "v3";
 
@@ -922,10 +922,11 @@ export interface InitializeResult {
 
 	/**
 	 * Kiro CLI engine this process was launched with: "v3" for a V3 launch,
-	 * "v2" for every other launch (including non-Kiro agents). Normalized once
-	 * at the `acp/` edge from the launch config (I235).
+	 * "v2" for any other kiro-cli launch, undefined when the process isn't
+	 * kiro-cli (I250). Set exactly when {@link kiroCli} is true. Normalized
+	 * once at the `acp/` edge from the launch config (I235).
 	 */
-	kiroEngine: "v2" | "v3";
+	kiroEngine?: "v2" | "v3";
 
 	/**
 	 * Whether this process is kiro-cli: a V3 launch, or a kiro-cli /

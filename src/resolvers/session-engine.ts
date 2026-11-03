@@ -14,8 +14,12 @@
  *   with `Internal error`. So a V3 chat on V2 starts fresh without sending its
  *   id; everything else loads, unknown (old data) included.
  *
- * The engine value follows I235: `"v2"` for every launch that is not V3,
- * non-Kiro agents included, so a non-Kiro chat always loads.
+ * - `launchedEngine` and `resolveKeptKiroEngine` decide which engine the
+ *   session and the tab hold once a process is known (I250).
+ *
+ * The engine value follows I235 and I250: `"v3"` for a V3 launch, `"v2"` for
+ * any other kiro-cli launch, and undefined when the process isn't kiro-cli.
+ * A missing running engine is unknown, so a non-Kiro chat always loads.
  */
 
 /** Engine a chat ran on. Same union as `InitializeResult.kiroEngine`. */
@@ -36,6 +40,38 @@ export function parseSessionEngine(
 	if (value === "v2" || value === "v3") return value;
 	if (value !== undefined && value !== null) onInvalid?.(value);
 	return undefined;
+}
+
+/**
+ * The engine a session copies from the agent client's init result. An init
+ * result is the truth for its process: its `undefined` means "no engine"
+ * (not kiro-cli) and replaces an older value. Only with no init result does
+ * the session keep what it had (I250).
+ */
+export function launchedEngine(
+	init: { kiroEngine?: SessionEngine } | null | undefined,
+	prev: { kiroEngine?: SessionEngine },
+): SessionEngine | undefined {
+	return init ? init.kiroEngine : prev.kiroEngine;
+}
+
+/**
+ * The engine tab persistence keeps for this tab's session id. A live session
+ * whose process is known (`kiroCli` set at initialize) replaces it with the
+ * engine it launched with, including "none" for a non-Kiro agent. Otherwise
+ * (no session yet, or not initialized) the restored or released value stays,
+ * so the engine survives with a kept id (D2, I250).
+ */
+export function resolveKeptKiroEngine(
+	kept: SessionEngine | undefined,
+	live: {
+		sessionId: string | null | undefined;
+		kiroCli: boolean | undefined;
+		kiroEngine: SessionEngine | undefined;
+	},
+): SessionEngine | undefined {
+	if (!live.sessionId || live.kiroCli === undefined) return kept;
+	return live.kiroEngine;
 }
 
 /** The stored engine a restore should use: record, then tab, then unknown. */
