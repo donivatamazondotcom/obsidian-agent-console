@@ -113,6 +113,8 @@ export function deriveSessionRecordTitle(inputs: {
 export function resolveSessionMetadataWrite(
 	existing: SavedSessionInfo | undefined,
 	params: {
+		/** The record's id (I269): the existing one, else the id to create. */
+		recordId: string;
 		sessionId: string;
 		agentId: string;
 		cwd: string;
@@ -137,14 +139,19 @@ export function resolveSessionMetadataWrite(
 		getLogger().warn("[SessionStore] Dropped invalid Kiro engine:", raw),
 	);
 	if (existing) {
+		// I269: the turn save moves the record to the tab's current agent
+		// session; the record id never changes.
 		return {
 			...existing,
+			sessionId: params.sessionId,
+			agentId: params.agentId,
 			title,
 			updatedAt: params.now,
 			...(kiroEngine ? { kiroEngine } : {}),
 		};
 	}
 	return {
+		recordId: params.recordId,
 		sessionId: params.sessionId,
 		agentId: params.agentId,
 		cwd: params.cwd,

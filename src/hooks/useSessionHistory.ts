@@ -11,12 +11,11 @@ import type {
 	SessionInfo,
 	ListSessionsResult,
 	ChatSession,
-	SessionModeState,
-	SessionModelState,
-	SessionConfigOption,
 	AgentCapabilities,
 } from "../types/session";
 import { SessionStore } from "../services/session-store";
+import { findSessionRecord, newRecordId } from "../services/session-record";
+import { getLogger } from "../utils/logger";
 import { NO_AGENT_CAPABILITIES } from "../types/session";
 import type { SessionListSource } from "../resolvers/session-history-view";
 import {
@@ -35,39 +34,6 @@ import { t } from "../i18n";
 // ============================================================================
 
 /**
- * Callback invoked when a session is successfully loaded/resumed/forked.
- * Provides the loaded session metadata to integrate with chat state.
- *
- * Note: Conversation history for load is received via session/update notifications,
- * not via this callback.
- */
-export interface SessionLoadCallback {
-	/**
-	 * @param sessionId - ID of the session (new session ID for fork)
-	 * @param modes - Available modes from the session
-	 * @param models - Available models from the session
-	 * @param configOptions - Config options from the session
-	 */
-	(
-		sessionId: string,
-		modes?: SessionModeState,
-		models?: SessionModelState,
-		configOptions?: SessionConfigOption[],
-	): void;
-}
-
-/**
- * Callback invoked when messages should be restored from local storage.
- * Used for resume/fork operations where the agent doesn't return history.
- */
-export interface MessagesRestoreCallback {
-	/**
-	 * @param messages - Messages to restore
-	 */
-	(messages: ChatMessage[]): void;
-}
-
-/**
  * Options for useSessionHistory hook.
  */
 export interface UseSessionHistoryOptions {
@@ -77,20 +43,8 @@ export interface UseSessionHistoryOptions {
 	session: ChatSession;
 	/** Settings access for local session storage */
 	settingsAccess: ISettingsAccess;
-	/** Vault root path — used for session list filtering */
-	cwd: string;
 	/** Agent working directory — used for saving new session metadata */
 	agentCwd: string;
-	/** Callback invoked when a session is loaded/resumed/forked */
-	onSessionLoad: SessionLoadCallback;
-	/** Callback invoked when messages should be restored from local storage */
-	onMessagesRestore?: MessagesRestoreCallback;
-	/** Control whether useMessages ignores incoming updates (for history replay suppression) */
-	onIgnoreUpdates?: (ignore: boolean) => void;
-	/** Clear messages before restoring from local storage */
-	onClearMessages?: () => void;
-	/** Callback invoked when crystallized context notes should be restored */
-	onContextNotesRestore?: (notes: ContextNote[]) => void;
 
 	/**
 	 * The agent's own title for a session this tab restored from the agent's
@@ -100,6 +54,19 @@ export interface UseSessionHistoryOptions {
 	 * overrides an existing title.
 	 */
 	restoredAgentTitle?: string | null;
+
+	/**
+	 * The agent session id this tab was restored with (I269). Binds the tab
+	 * to its history record at mount when the tab state carries no record id
+	 * (tabs saved before I269). Matched against records' `sessionId` only.
+	 */
+	restoredSessionId?: string | null;
+
+	/**
+	 * The history record this tab wrote to, from its persisted tab state
+	 * (I269). Wins over `restoredSessionId`.
+	 */
+	restoredRecordId?: string | null;
 }
 
 /**
@@ -162,21 +129,22 @@ export interface UseSessionHistoryReturn {
 	loadMoreSessions: () => Promise<void>;
 
 	/**
-	 * Restore a specific session by ID.
-	 * Uses load if available (with history replay), otherwise resume (without history replay).
-	 * Only available if canRestore is true.
-	 * @param sessionId - Session to restore
-	 * @param cwd - Working directory for the session
+	 * The history record this tab writes to (I269), or null before its
+	 * first message. Persisted with the tab state.
 	 */
-	restoreSession: (sessionId: string, cwd: string) => Promise<void>;
+	getRecordId: () => string | null;
 
 	/**
-	 * Fork a specific session to create a new branch.
-	 * Only available if canFork is true.
-	 * @param sessionId - Session to fork
-	 * @param cwd - Working directory for the session
+	 * Move this tab's record to a new agent session after a fallback (I269),
+	 * before the tab goes ready. No record yet: nothing to move (decision a).
 	 */
-	forkSession: (sessionId: string, cwd: string) => Promise<void>;
+	rebindRecord: (sessionId: string, kiroEngine?: "v2" | "v3") => void;
+
+	/**
+	 * Forget the tab's record (New chat, agent switch, hard reload): the next
+	 * message starts a new record.
+	 */
+	resetRecordBinding: () => void;
 
 	/**
 	 * Delete a session (local metadata + message file).
@@ -299,12 +267,9 @@ export function useSessionHistory(
 		session,
 		settingsAccess,
 		agentCwd,
-		onSessionLoad,
-		onMessagesRestore,
-		onIgnoreUpdates,
-		onClearMessages,
-		onContextNotesRestore,
 		restoredAgentTitle,
+		restoredSessionId,
+		restoredRecordId,
 	} = options;
 
 	// Consume the normalized capability record produced once at the acp/ edge.
@@ -369,6 +334,72 @@ export function useSessionHistory(
 		() => settingsAccess.sessionStore ?? new SessionStore(settingsAccess),
 		[settingsAccess],
 	);
+
+	// ============================================================
+	// Record binding (I269)
+	// ============================================================
+	// The history record this tab writes to. One chat keeps one record across
+	// every agent session id it passes through, so the binding survives
+	// fallbacks, idle release and reconnects; only a reset (New chat, agent
+	// switch, hard reload) drops it. Starts from the persisted tab state, then
+	// from the record whose `sessionId` is the restored id.
+	const recordIdRef = useRef<string | null | undefined>(undefined);
+	if (recordIdRef.current === undefined) {
+		recordIdRef.current =
+			restoredRecordId ||
+			(restoredSessionId
+				? findSessionRecord(settingsAccess.getSavedSessions(), {
+						by: "sessionId",
+						id: restoredSessionId,
+					})?.recordId
+				: undefined) ||
+			null;
+	}
+
+	/**
+	 * The record id a write with messages uses: the bound one, else the
+	 * record already holding this agent session (adopted), else a new id.
+	 * Decided synchronously so the message file and the metadata agree.
+	 */
+	const bindRecordId = useCallback(
+		(sessionId: string): string => {
+			if (recordIdRef.current) return recordIdRef.current;
+			const id =
+				findSessionRecord(settingsAccess.getSavedSessions(), {
+					by: "sessionId",
+					id: sessionId,
+				})?.recordId ?? newRecordId();
+			recordIdRef.current = id;
+			return id;
+		},
+		[settingsAccess],
+	);
+
+	/** The store adopted a different record than we guessed: follow it. */
+	const adoptRecordId = useCallback((written: string | null) => {
+		if (written && recordIdRef.current !== written) {
+			recordIdRef.current = written;
+		}
+	}, []);
+
+	const getRecordId = useCallback(() => recordIdRef.current ?? null, []);
+
+	const rebindRecord = useCallback(
+		(sessionId: string, kiroEngine?: "v2" | "v3") => {
+			const recordId = recordIdRef.current;
+			if (!recordId) return;
+			sessionStore
+				.rebindSession({ recordId, sessionId, kiroEngine })
+				.catch((err) =>
+					getLogger().warn("[SessionHistory] Record rebind failed:", err),
+				);
+		},
+		[sessionStore],
+	);
+
+	const resetRecordBinding = useCallback(() => {
+		recordIdRef.current = null;
+	}, []);
 
 	// State
 	const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -608,231 +639,19 @@ export function useSessionHistory(
 	]);
 
 	/**
-	 * Restore a specific session by ID.
-	 * Uses load if available (with history replay), otherwise resume (without history replay).
-	 */
-	const restoreSession = useCallback(
-		async (sessionId: string, cwd: string) => {
-			setLoading(true);
-			setError(null);
-
-			try {
-				// IMPORTANT: Update session.sessionId BEFORE calling restore
-				// so that session/update notifications are not ignored
-				onSessionLoad(sessionId, undefined, undefined, undefined);
-
-				// Restore crystallized context notes for this session
-				if (onContextNotesRestore) {
-					const savedNotes =
-						await settingsAccess.loadSessionContextNotes(
-							sessionId,
-						);
-					onContextNotesRestore(savedNotes ?? []);
-				}
-
-				if (capabilities.restoresViaLoad) {
-					// Check local messages first to decide whether to use them or agent replay
-					const localMessages =
-						await settingsAccess.loadSessionMessages(sessionId);
-
-					if (localMessages && onMessagesRestore) {
-						// Local messages available: ignore agent replay, restore from local
-						onIgnoreUpdates?.(true);
-						onClearMessages?.();
-						try {
-							const result = await agentClient.loadSession(
-								sessionId,
-								cwd,
-							);
-							onSessionLoad(
-								result.sessionId,
-								result.modes,
-								result.models,
-								result.configOptions,
-							);
-							onMessagesRestore(localMessages);
-						} finally {
-							onIgnoreUpdates?.(false);
-						}
-					} else {
-						// No local messages: let agent replay flow through to UI
-						const result = await agentClient.loadSession(
-							sessionId,
-							cwd,
-						);
-						onSessionLoad(
-							result.sessionId,
-							result.modes,
-							result.models,
-							result.configOptions,
-						);
-					}
-				} else if (capabilities.restoresViaResume) {
-					// Use resume (without history replay, restore from local storage)
-					const result = await agentClient.resumeSession(
-						sessionId,
-						cwd,
-					);
-					onSessionLoad(
-						result.sessionId,
-						result.modes,
-						result.models,
-						result.configOptions,
-					);
-
-					// Resume doesn't return history, so restore from local storage
-					const localMessages =
-						await settingsAccess.loadSessionMessages(sessionId);
-					if (localMessages && onMessagesRestore) {
-						onMessagesRestore(localMessages);
-					}
-				} else {
-					// Local-only restore: load messages from local storage without
-					// calling the agent. Reconnection happens lazily on first send
-					// via useLazySession's restored-tab path.
-					const localMessages =
-						await settingsAccess.loadSessionMessages(sessionId);
-					if (localMessages && onMessagesRestore) {
-						onMessagesRestore(localMessages);
-					} else {
-						throw new Error(
-							"No local session data available to restore",
-						);
-					}
-				}
-			} catch (err) {
-				const errorMessage = extractErrorMessage(err);
-				setError(
-					t("chat.history.failedRestore", { message: errorMessage }),
-				);
-				throw err; // Re-throw to allow caller to handle
-			} finally {
-				setLoading(false);
-			}
-		},
-		[
-			agentClient,
-			capabilities.restoresViaLoad,
-			capabilities.restoresViaResume,
-			onSessionLoad,
-			settingsAccess,
-			onMessagesRestore,
-			onIgnoreUpdates,
-			onClearMessages,
-			onContextNotesRestore,
-		],
-	);
-
-	/**
-	 * Fork a specific session to create a new branch.
-	 * Note: For fork, we update sessionId AFTER the call since a new session ID is created.
-	 * Restores messages from the original session's local storage since agent doesn't return history.
-	 */
-	const forkSession = useCallback(
-		async (sessionId: string, cwd: string) => {
-			setLoading(true);
-			setError(null);
-
-			try {
-				const result = await agentClient.forkSession(sessionId, cwd);
-
-				// Update with new session ID and modes/models from result
-				// For fork, the new session ID is returned in result
-				onSessionLoad(
-					result.sessionId,
-					result.modes,
-					result.models,
-					result.configOptions,
-				);
-
-				// Restore crystallized context notes from the original session
-				const savedNotes =
-					await settingsAccess.loadSessionContextNotes(sessionId);
-				if (onContextNotesRestore) {
-					onContextNotesRestore(savedNotes ?? []);
-				}
-
-				// Fork doesn't return history, so restore from original session's local storage
-				const localMessages =
-					await settingsAccess.loadSessionMessages(sessionId);
-				if (localMessages && onMessagesRestore) {
-					onMessagesRestore(localMessages);
-				}
-
-				// Save forked session to history
-				if (session.agentId) {
-					const originalSession = sessions.find(
-						(s) => s.sessionId === sessionId,
-					);
-					const originalTitle = originalSession?.title ?? "Session";
-
-					// Truncate title to 50 characters
-					const maxTitleLength = 50;
-					const prefix = "Fork: ";
-					const maxBaseLength = maxTitleLength - prefix.length;
-					const truncatedTitle =
-						originalTitle.length > maxBaseLength
-							? originalTitle.substring(0, maxBaseLength) + "..."
-							: originalTitle;
-					const newTitle = `${prefix}${truncatedTitle}`;
-
-					// Route the fork-branch metadata create through the single
-					// writer (Phase 4 §2c) so the explicit fork title can't be
-					// clobbered by the restored transcript's turn-end save (the
-					// I121 fork race). The message file persists separately.
-					await sessionStore.renameSession({
-						sessionId: result.sessionId,
-						agentId: session.agentId,
-						cwd,
-						title: newTitle,
-						createIfMissing: true,
-					});
-
-					// Save messages under new session ID for restore after restart
-					if (localMessages) {
-						void settingsAccess.saveSessionMessages(
-							result.sessionId,
-							session.agentId,
-							localMessages,
-							savedNotes ?? undefined,
-						);
-					}
-				}
-
-				// Invalidate cache since a new session was created
-				invalidateCache();
-			} catch (err) {
-				const errorMessage = extractErrorMessage(err);
-				setError(
-					t("chat.history.failedFork", { message: errorMessage }),
-				);
-				throw err; // Re-throw to allow caller to handle
-			} finally {
-				setLoading(false);
-			}
-		},
-		[
-			agentClient,
-			onSessionLoad,
-			settingsAccess,
-			onMessagesRestore,
-			onContextNotesRestore,
-			invalidateCache,
-			session.agentId,
-			sessions,
-			sessionStore,
-		],
-	);
-
-	/**
 	 * Delete a session (local metadata + message file).
 	 * Removes from both local state and persistent storage.
 	 */
 	const deleteSession = useCallback(
 		async (sessionId: string) => {
 			try {
-				// Delete from persistent storage (metadata + message file)
-				await settingsAccess.deleteSession(sessionId);
+				// Delete from persistent storage (metadata + message file). A
+				// local row's agent id names exactly one record (I269).
+				const record = findSessionRecord(settingsAccess.getSavedSessions(), {
+					by: "sessionId",
+					id: sessionId,
+				});
+				await settingsAccess.deleteSession(sessionId, record?.recordId);
 
 				// Remove from local state
 				setSessions((prev) =>
@@ -877,7 +696,10 @@ export function useSessionHistory(
 				// can't be clobbered by a concurrent turn-end save (Phase 4 §2c).
 				// createIfMissing creates a local entry for a session that exists
 				// only on the agent side, using sessionCwd.
+				// The row's own record (I269); its agent and session id are
+				// left as they are, even when this tab runs another agent.
 				await sessionStore.renameSession({
+					recordId: existing?.recordId ?? null,
 					sessionId,
 					agentId: session.agentId,
 					cwd: sessionCwd,
@@ -921,14 +743,17 @@ export function useSessionHistory(
 			// First-message metadata → single writer (Phase 4 §2c). The title
 			// is a fallback: recordFirstMessage preserves any existing AI title
 			// or rename instead of overwriting it with the first-message text.
-			await sessionStore.recordFirstMessage({
-				sessionId,
-				agentId: session.agentId,
-				cwd: agentCwd,
-				firstMessageTitle: title,
-			});
+			adoptRecordId(
+				await sessionStore.recordFirstMessage({
+					recordId: bindRecordId(sessionId),
+					sessionId,
+					agentId: session.agentId,
+					cwd: agentCwd,
+					firstMessageTitle: title,
+				}),
+			);
 		},
-		[session.agentId, agentCwd, settingsAccess, sessionStore],
+		[session.agentId, agentCwd, sessionStore, bindRecordId, adoptRecordId],
 	);
 
 	/**
@@ -956,8 +781,11 @@ export function useSessionHistory(
 			// a quit/reload (I193). The message FILE is an independent concern
 			// from the savedSessions metadata array and not part of the title
 			// race.
+			// I269: the file and the record both use the tab's record id, so
+			// a fallback's new agent session keeps writing the same chat.
+			const recordId = bindRecordId(sessionId);
 			const writePromise = settingsAccess.saveSessionMessages(
-				sessionId,
+				recordId,
 				session.agentId,
 				messages,
 				contextNotes,
@@ -970,16 +798,22 @@ export function useSessionHistory(
 			// a transcript-on-disk session is never orphaned from the history
 			// list (I58). A carried `suggestedTitle` sets the AI title; omitting
 			// it preserves the existing title.
-			void sessionStore.recordTurnSave({
-				sessionId,
-				agentId: session.agentId,
-				cwd: agentCwd,
-				messages,
-				suggestedTitle: suggestedTitle ?? null,
-				seedTitle: restoredAgentTitle ?? null,
-				// D2: the engine this turn ran on (launched engine, I235).
-				kiroEngine: session.kiroEngine,
-			});
+			sessionStore
+				.recordTurnSave({
+					recordId,
+					sessionId,
+					agentId: session.agentId,
+					cwd: agentCwd,
+					messages,
+					suggestedTitle: suggestedTitle ?? null,
+					seedTitle: restoredAgentTitle ?? null,
+					// D2: the engine this turn ran on (launched engine, I235).
+					kiroEngine: session.kiroEngine,
+				})
+				.then(adoptRecordId)
+				.catch((err) =>
+					getLogger().warn("[SessionHistory] Turn save refused:", err),
+				);
 
 			return writePromise;
 		},
@@ -990,6 +824,8 @@ export function useSessionHistory(
 			settingsAccess,
 			sessionStore,
 			restoredAgentTitle,
+			bindRecordId,
+			adoptRecordId,
 		],
 	);
 
@@ -1002,14 +838,20 @@ export function useSessionHistory(
 	const applySessionTitle = useCallback(
 		(sessionId: string, suggestedTitle: string, sessionCwd: string) => {
 			if (!session.agentId) return;
-			void sessionStore.applySuggestedTitle({
-				sessionId,
-				agentId: session.agentId,
-				cwd: sessionCwd,
-				suggestedTitle,
-			});
+			sessionStore
+				.applySuggestedTitle({
+					recordId: bindRecordId(sessionId),
+					sessionId,
+					agentId: session.agentId,
+					cwd: sessionCwd,
+					suggestedTitle,
+				})
+				.then(adoptRecordId)
+				.catch((err) =>
+					getLogger().warn("[SessionHistory] Title write refused:", err),
+				);
 		},
-		[session.agentId, sessionStore],
+		[session.agentId, sessionStore, bindRecordId, adoptRecordId],
 	);
 
 	/**
@@ -1072,8 +914,9 @@ export function useSessionHistory(
 			// Methods
 			fetchSessions,
 			loadMoreSessions,
-			restoreSession,
-			forkSession,
+			getRecordId,
+			rebindRecord,
+			resetRecordBinding,
 			deleteSession,
 			updateSessionTitle,
 			saveSessionLocally,
@@ -1097,8 +940,9 @@ export function useSessionHistory(
 			localSessionIds,
 			fetchSessions,
 			loadMoreSessions,
-			restoreSession,
-			forkSession,
+			getRecordId,
+			rebindRecord,
+			resetRecordBinding,
 			deleteSession,
 			updateSessionTitle,
 			saveSessionLocally,

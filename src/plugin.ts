@@ -1818,6 +1818,8 @@ export default class AgentClientPlugin extends Plugin {
 						migratedSecrets = true;
 					},
 				),
+			// I269: a corrupt saved-session entry is dropped and logged.
+			(message, entry) => getLogger().warn(message, entry),
 		);
 
 		this.ensureDefaultAgentId();

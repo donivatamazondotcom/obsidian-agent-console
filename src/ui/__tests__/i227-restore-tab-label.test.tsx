@@ -105,6 +105,7 @@ function restoreAndLabel(
 }
 
 const record = (sessionId: string, title: string): SavedSessionInfo => ({
+	recordId: sessionId,
 	sessionId,
 	agentId: "kiro-cli",
 	cwd: "/vault",

@@ -108,9 +108,10 @@ export interface ISettingsAccess {
 	 * Delete a saved session by sessionId.
 	 *
 	 * @param sessionId - ID of session to delete
+	 * @param recordId - The record id, when the caller holds one (I269)
 	 * @returns Promise that resolves when session is deleted
 	 */
-	deleteSession(sessionId: string): Promise<void>;
+	deleteSession(sessionId: string, recordId?: string | null): Promise<void>;
 
 	// ============================================================
 	// Session Message History Methods
@@ -122,7 +123,7 @@ export interface ISettingsAccess {
 	 * Saves the full ChatMessage[] to a separate file in sessions/ directory.
 	 * Overwrites existing file if present.
 	 *
-	 * @param sessionId - Session ID
+	 * @param sessionId - The record id that names the file (I269)
 	 * @param agentId - Agent ID for validation
 	 * @param messages - Chat messages to save
 	 * @returns Promise that resolves when messages are saved
@@ -137,19 +138,25 @@ export interface ISettingsAccess {
 	/**
 	 * Load message history for a session.
 	 *
-	 * Reads from sessions/{sessionId}.json file.
-	 * Returns null if file doesn't exist.
+	 * Reads the record's file, `sessions/{recordId}.json` (I269). A caller
+	 * holding the record id passes it; otherwise the agent session id is
+	 * matched to a record by `sessionId`. Returns null if there is no file.
 	 *
-	 * @param sessionId - Session ID
+	 * @param sessionId - The agent session id
+	 * @param recordId - The record id, when the caller holds one
 	 * @returns Promise that resolves with messages or null if not found
 	 */
-	loadSessionMessages(sessionId: string): Promise<ChatMessage[] | null>;
+	loadSessionMessages(
+		sessionId: string,
+		recordId?: string | null,
+	): Promise<ChatMessage[] | null>;
 
 	/**
-	 * Load crystallized context notes for a session.
+	 * Load crystallized context notes for a session (same file resolution).
 	 */
 	loadSessionContextNotes(
 		sessionId: string,
+		recordId?: string | null,
 	): Promise<ContextNote[] | null>;
 
 	/**
@@ -361,8 +368,11 @@ export class SettingsService implements ISettingsAccess {
 		return this.sessionStorage.getSavedSessions(agentId, cwd);
 	}
 
-	async deleteSession(sessionId: string): Promise<void> {
-		return this.sessionStorage.deleteSession(sessionId);
+	async deleteSession(
+		sessionId: string,
+		recordId?: string | null,
+	): Promise<void> {
+		return this.sessionStorage.deleteSession(sessionId, recordId);
 	}
 
 	async saveSessionMessages(
@@ -381,14 +391,16 @@ export class SettingsService implements ISettingsAccess {
 
 	async loadSessionMessages(
 		sessionId: string,
+		recordId?: string | null,
 	): Promise<ChatMessage[] | null> {
-		return this.sessionStorage.loadSessionMessages(sessionId);
+		return this.sessionStorage.loadSessionMessages(sessionId, recordId);
 	}
 
 	async loadSessionContextNotes(
 		sessionId: string,
+		recordId?: string | null,
 	): Promise<ContextNote[] | null> {
-		return this.sessionStorage.loadSessionContextNotes(sessionId);
+		return this.sessionStorage.loadSessionContextNotes(sessionId, recordId);
 	}
 
 	async deleteSessionMessages(sessionId: string): Promise<void> {

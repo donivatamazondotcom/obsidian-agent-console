@@ -154,7 +154,11 @@ export interface UseLazySessionOptions {
 	 * the next send here; arming before `ready` means the connect-flush of a
 	 * held message already carries it (I246).
 	 */
-	onSessionFallback?: (reason: SessionFallbackReason) => void;
+	onSessionFallback?: (
+		reason: SessionFallbackReason,
+		/** The new agent session the tab is about to bind (I269 rebind). */
+		sessionId: string,
+	) => void;
 
 	/**
 	 * Called by `reset()` (New chat, agent switch, same-agent pick, and
@@ -452,7 +456,9 @@ export function useLazySession(
 		}
 
 		if (result.ok) {
-			if (fallback !== null) onSessionFallbackRef.current?.(fallback);
+			if (fallback !== null) {
+				onSessionFallbackRef.current?.(fallback, result.sessionId);
+			}
 			setSessionId(result.sessionId);
 			tabStateRef.current.connectSucceeded();
 			// Queue delivery is owned by the consumer's queue-orchestration
@@ -681,6 +687,7 @@ export function useLazySession(
 				if (result.lossy) {
 					onSessionFallbackRef.current?.(
 						result.fallbackReason ?? "unavailable",
+						result.sessionId,
 					);
 				}
 				setSessionId(result.sessionId);

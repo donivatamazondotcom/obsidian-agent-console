@@ -489,6 +489,35 @@ describe("useTabPersistence — save shape", () => {
 		expect("kiroEngine" in stateArg.tabs[3]).toBe(false);
 	});
 
+	// I269: a tab records its history record id next to its session id, and
+	// a restore reads the transcript through it.
+	it("I269: saves each tab's record id alongside its session id", async () => {
+		const storage = makeStorage();
+		const { result } = renderHook(() =>
+			useTabPersistence(
+				makeProps({
+					tabs: [
+						makeRuntimeTab({ tabId: "T1" }),
+						makeRuntimeTab({ tabId: "T2", label: "Tab 2" }),
+						makeRuntimeTab({ tabId: "T3", label: "Tab 3" }),
+					],
+					getSessionId: (id) => (id === "T3" ? null : `s-${id}`),
+					getRecordId: (id) => (id === "T1" ? "rec-1" : id === "T3" ? "rec-3" : ""),
+					storage,
+				}),
+			),
+		);
+
+		await waitForRestoreReady(() => result.current);
+
+		const [, stateArg] = saveCalls(storage)[0];
+		expect(stateArg.tabs[0].recordId).toBe("rec-1");
+		// No record yet → key omitted.
+		expect("recordId" in stateArg.tabs[1]).toBe(false);
+		// No session id saved → no record id either.
+		expect("recordId" in stateArg.tabs[2]).toBe(false);
+	});
+
 	it("U33: tab with sessionId === null is saved with explicit null (not undefined)", async () => {
 		const storage = makeStorage();
 		const { result } = renderHook(() =>
@@ -621,8 +650,10 @@ describe("useTabPersistence — restore", () => {
 		await waitForRestoreReady(() => result.current);
 
 		// Called for tabs with non-null sessionId, NOT for the null one.
-		expect(storage.loadSessionMessages).toHaveBeenCalledWith("S1");
-		expect(storage.loadSessionMessages).toHaveBeenCalledWith("S3");
+		// No recordId on these tabs (pre-I269 tab state).
+		expect(storage.loadSessionMessages).toHaveBeenCalledWith("S1", undefined);
+		// No recordId on these tabs (pre-I269 tab state).
+		expect(storage.loadSessionMessages).toHaveBeenCalledWith("S3", undefined);
 		expect(storage.loadSessionMessages).not.toHaveBeenCalledWith(null);
 		expect(storage.loadSessionMessages).toHaveBeenCalledTimes(2);
 
@@ -670,7 +701,8 @@ describe("useTabPersistence — restore", () => {
 		expect(storage.loadTabStateForLeaf).toHaveBeenCalledTimes(1);
 		// loadSessionMessages called exactly once (only T1 has sessionId).
 		expect(storage.loadSessionMessages).toHaveBeenCalledTimes(1);
-		expect(storage.loadSessionMessages).toHaveBeenCalledWith("S1");
+		// No recordId on these tabs (pre-I269 tab state).
+		expect(storage.loadSessionMessages).toHaveBeenCalledWith("S1", undefined);
 		// Save fired once (initial-state save). No session-acquisition
 		// methods exist on the adapter — restore was purely a data load.
 	});
@@ -1247,7 +1279,8 @@ describe("useTabPersistence — restoreSource override", () => {
 		expect(storage.loadTabStateForLeaf).not.toHaveBeenCalled();
 		expect(result.current.restoredLeafState).toEqual(restoreSource);
 		// Message history loaded by the snapshot's sessionId.
-		expect(storage.loadSessionMessages).toHaveBeenCalledWith("S9");
+		// No recordId on these tabs (pre-I269 tab state).
+		expect(storage.loadSessionMessages).toHaveBeenCalledWith("S9", undefined);
 		expect(result.current.restoredMessages).toEqual({
 			T9: adoptedMessages,
 		});

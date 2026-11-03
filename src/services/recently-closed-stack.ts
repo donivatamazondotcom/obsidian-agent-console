@@ -31,6 +31,8 @@ export interface ClosedTabRecord {
 	 * (see buildClosedTabRecord).
 	 */
 	sessionId: string;
+	/** The history record the tab wrote to, when it had one (I269). */
+	recordId?: string;
 	/** Tab label at close time. */
 	label: string;
 	/** Whether the label was a manual rename (preserved on reopen, I56). */
@@ -82,11 +84,13 @@ export function popClosedTab<T>(stack: readonly T[]): {
 export function buildClosedTabRecord(args: {
 	tab: { agentId: string; label: string; labelIsCustom?: boolean };
 	sessionId: string | null;
+	recordId?: string;
 	position: number;
 }): ClosedTabRecord | null {
 	if (args.sessionId === null) return null;
 	return {
 		sessionId: args.sessionId,
+		...(args.recordId ? { recordId: args.recordId } : {}),
 		label: args.tab.label,
 		labelIsCustom: args.tab.labelIsCustom ?? false,
 		agentId: args.tab.agentId,

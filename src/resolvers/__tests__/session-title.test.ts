@@ -63,6 +63,7 @@ describe("overlayLocalTitles", () => {
 		agentId: string,
 		cwd: string,
 	): SavedSessionInfo => ({
+		recordId: sessionId,
 		sessionId,
 		agentId,
 		cwd,

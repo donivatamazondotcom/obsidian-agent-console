@@ -17,6 +17,7 @@ import type { SavedSessionInfo } from "../types/session";
 import type { PerLeafTabState, PersistedTabInfo } from "../types/tab";
 import { convertWindowsPathToWsl } from "../utils/platform";
 import { getLogger } from "../utils/logger";
+import { findSessionRecord, validateSavedSession } from "./session-record";
 import {
 	parseMaxSavedSessions,
 	selectEvictions,
@@ -161,10 +162,27 @@ export class SessionStorage {
 
 			const sessions = [...(state.savedSessions || [])];
 
-			// Find existing session by sessionId
+			// Upsert by the plugin-owned record id (I269); the agent session id
+			// is an attribute a fallback changes.
 			const existingIndex = sessions.findIndex(
-				(s) => s.sessionId === sessionInfo.sessionId,
+				(s) => s.recordId === sessionInfo.recordId,
 			);
+			// Write-edge validation (I269): the incoming record against the
+			// others. Refused loudly so the caller's failure path runs; never
+			// coerced.
+			const violations = validateSavedSession(
+				sessionInfo,
+				sessions.filter((_, i) => i !== existingIndex),
+			);
+			if (violations.length > 0) {
+				getLogger().warn(
+					`[SessionStorage] Refused saved-session write: ${violations.join(", ")}`,
+					sessionInfo,
+				);
+				throw new Error(
+					`Saved session write refused: ${violations.join(", ")}`,
+				);
+			}
 
 			if (existingIndex >= 0) {
 				sessions[existingIndex] = sessionInfo;
@@ -323,18 +341,27 @@ export class SessionStorage {
 	private referencedStems(): Set<string> {
 		const state = this.settingsAccess.getSnapshot();
 		const stems = new Set<string>();
+		// I269: a record's transcript is named by its record id. The session
+		// id stems stay referenced too (legacy and agent-only files).
 		for (const s of state.savedSessions || []) {
+			stems.add(sessionFileStem(s.recordId));
 			stems.add(sessionFileStem(s.sessionId));
 		}
 		for (const id of this.protectedSessionIds(state)) {
 			stems.add(sessionFileStem(id));
+		}
+		for (const leaf of state.perLeafTabStates || []) {
+			for (const tab of leaf.tabs || []) {
+				if (tab.recordId) stems.add(sessionFileStem(tab.recordId));
+			}
 		}
 		return stems;
 	}
 
 	private async trashEvicted(evicted: SavedSessionInfo[]): Promise<void> {
 		for (const record of evicted) {
-			await this.trashSessionFile(record.sessionId);
+			// I269: the file is named by the record id.
+			await this.trashSessionFile(record.recordId);
 		}
 	}
 
@@ -391,20 +418,66 @@ export class SessionStorage {
 	}
 
 	/**
-	 * Delete a saved session by sessionId.
-	 * Also moves the associated message history file to the trash (I202).
+	 * Delete a saved session and move its message file to the trash (I202).
+	 * I269: the file is named by the record id. `sessionId` is the agent id a
+	 * history row shows; `recordId`, when the caller holds one, wins. With no
+	 * record, the legacy `sessions/{sessionId}.json` goes only if no record
+	 * claims that id.
 	 */
-	async deleteSession(sessionId: string): Promise<void> {
+	async deleteSession(
+		sessionId: string,
+		recordId?: string | null,
+	): Promise<void> {
 		await this.runLocked(async () => {
 			const state = this.settingsAccess.getSnapshot();
-			const sessions = (state.savedSessions || []).filter(
-				(s) => s.sessionId !== sessionId,
-			);
+			const all = state.savedSessions || [];
+			const record =
+				(recordId
+					? findSessionRecord(all, { by: "recordId", id: recordId })
+					: undefined) ??
+				findSessionRecord(all, { by: "sessionId", id: sessionId });
+			const fileId = record
+				? record.recordId
+				: this.messageFileId(sessionId, recordId);
 			await this.settingsAccess.updateSettings({
-				savedSessions: sessions,
+				savedSessions: all.filter((s) => s !== record),
 			});
-			await this.trashSessionFile(sessionId);
+			if (fileId) await this.trashSessionFile(fileId);
 		});
+	}
+
+	/**
+	 * Which message file holds a chat's transcript (I269). A caller holding a
+	 * record id uses it, unless no record claims it any more (an adopt folded
+	 * it into the record that holds the session), in which case the session
+	 * decides. Otherwise the agent id is matched against records' `sessionId`
+	 * only, and the record's id names the file. With no record, the legacy
+	 * file named after the id is used only when no record claims that id as
+	 * its record id (that file belongs to the claiming record).
+	 */
+	private messageFileId(
+		sessionId: string,
+		recordId?: string | null,
+	): string | null {
+		const all = this.settingsAccess.getSnapshot()?.savedSessions || [];
+		if (recordId) {
+			if (findSessionRecord(all, { by: "recordId", id: recordId })) {
+				return recordId;
+			}
+			return (
+				findSessionRecord(all, { by: "sessionId", id: sessionId })
+					?.recordId ?? recordId
+			);
+		}
+		const bySession = findSessionRecord(all, {
+			by: "sessionId",
+			id: sessionId,
+		});
+		if (bySession) return bySession.recordId;
+		if (findSessionRecord(all, { by: "recordId", id: sessionId })) {
+			return null;
+		}
+		return sessionId;
 	}
 
 	// ============================================================
@@ -501,6 +574,7 @@ export class SessionStorage {
 	/**
 	 * Save message history for a session.
 	 */
+	/** `sessionId` here is the record id that names the file (I269). */
 	async saveSessionMessages(
 		sessionId: string,
 		agentId: string,
@@ -560,8 +634,11 @@ export class SessionStorage {
 	 */
 	async loadSessionMessages(
 		sessionId: string,
+		recordId?: string | null,
 	): Promise<ChatMessage[] | null> {
-		const filePath = this.getSessionFilePath(sessionId);
+		const fileId = this.messageFileId(sessionId, recordId);
+		if (!fileId) return null;
+		const filePath = this.getSessionFilePath(fileId);
 		const adapter = this.plugin.app.vault.adapter;
 
 		// TP-I01: do NOT gate on adapter.exists(). At plugin startup exists()
@@ -632,8 +709,11 @@ export class SessionStorage {
 	 */
 	async loadSessionContextNotes(
 		sessionId: string,
+		recordId?: string | null,
 	): Promise<ContextNote[] | null> {
-		const filePath = this.getSessionFilePath(sessionId);
+		const fileId = this.messageFileId(sessionId, recordId);
+		if (!fileId) return null;
+		const filePath = this.getSessionFilePath(fileId);
 		const adapter = this.plugin.app.vault.adapter;
 		// TP-I02: do NOT gate on adapter.exists() — same startup false-negative
 		// as TP-I01 in loadSessionMessages. Gating here could silently drop
@@ -878,5 +958,7 @@ function isValidPersistedTabInfo(value: unknown): value is PersistedTabInfo {
 	if (typeof v.scrollPosition !== "number") return false;
 	// workingDirectory is optional (back-compat); when present must be string.
 	if (v.workingDirectory !== undefined && typeof v.workingDirectory !== "string") return false;
+	// recordId is optional (I269; absent before it); when present, a string.
+	if (v.recordId !== undefined && typeof v.recordId !== "string") return false;
 	return true;
 }

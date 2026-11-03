@@ -43,6 +43,7 @@ function makePlugin(deleteSession = vi.fn().mockResolvedValue(undefined)) {
 		settingsService: {
 			getSavedSessions: vi.fn(() => [
 				{
+					recordId: "rec-1",
 					sessionId: "s1",
 					cwd: "/vault",
 					title: "First session",
@@ -143,7 +144,8 @@ describe("useLandingHistoryModal — view-level Local history opener", () => {
 				h.lastProps.onDeleteSession as (id: string) => Promise<void>
 			)("s1");
 		});
-		expect(deleteSession).toHaveBeenCalledWith("s1");
+		// I269: delete targets the row's record.
+		expect(deleteSession).toHaveBeenCalledWith("s1", "rec-1");
 		expect(h.updateSpy).toHaveBeenCalled(); // refresh re-sourced props
 	});
 });

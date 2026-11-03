@@ -75,6 +75,7 @@ describe("SessionStore save-ordering (I114)", () => {
 		// messages-only save then race.
 		const port = new FakePort([
 			{
+				recordId: SID,
 				sessionId: SID,
 				agentId: AGENT,
 				cwd: CWD,
@@ -105,6 +106,7 @@ describe("SessionStore save-ordering (I114)", () => {
 	it("AI title survives in the reverse order (messages-only fired first)", async () => {
 		const port = new FakePort([
 			{
+				recordId: SID,
 				sessionId: SID,
 				agentId: AGENT,
 				cwd: CWD,
@@ -255,6 +257,7 @@ describe("SessionStore.renameSession (explicit title wins)", () => {
 		for (const renameFirst of [true, false]) {
 			const port = new FakePort([
 				{
+					recordId: SID,
 					sessionId: SID,
 					agentId: AGENT,
 					cwd: CWD,
@@ -360,6 +363,7 @@ describe("SessionStore.renameSession (explicit title wins)", () => {
 		// rationale for one shared instance (settingsService.sessionStore).
 		const port = new FakePort([
 			{
+				recordId: SID,
 				sessionId: SID,
 				agentId: AGENT,
 				cwd: CWD,

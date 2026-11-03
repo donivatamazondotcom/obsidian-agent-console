@@ -32,6 +32,7 @@ import {
 	deriveSessionRecordTitle,
 	resolveSessionMetadataWrite,
 } from "./session-metadata";
+import { findSessionRecord, newRecordId } from "./session-record";
 
 /**
  * Minimal persistence port the SessionStore owns. A subset of ISettingsAccess
@@ -39,15 +40,28 @@ import {
  *
  * - `getSavedSessions()` returns the live snapshot (synchronously reflects the
  *   most recent committed `saveSession`).
- * - `saveSession(info)` upserts one record by sessionId and persists.
+ * - `saveSession(info)` upserts one record by `recordId` (I269) and persists.
+ *   It may reject a record that would break the store's invariants.
  */
 export interface SessionStorePort {
 	getSavedSessions(): SavedSessionInfo[];
 	saveSession(info: SavedSessionInfo): Promise<void>;
 }
 
+/**
+ * Which record a write targets (I269). `recordId` is the tab's bound record,
+ * when it has one. Without one — or when the bound record no longer exists —
+ * the write adopts the record whose `sessionId` matches. Only when neither
+ * matches does a create path mint a record, under the bound id if there is
+ * one, else a fresh id.
+ */
+export interface RecordTarget {
+	recordId?: string | null;
+	sessionId: string;
+}
+
 export class SessionStore {
-	private queue: Promise<void> = Promise.resolve();
+	private queue: Promise<unknown> = Promise.resolve();
 
 	constructor(private readonly port: SessionStorePort) {}
 
@@ -58,10 +72,21 @@ export class SessionStore {
 	 * never rejects (a failed task does not stall the queue); the caller still
 	 * sees its own task's rejection via the returned promise.
 	 */
-	private enqueue(task: () => Promise<void>): Promise<void> {
+	private enqueue<T>(task: () => Promise<T>): Promise<T> {
 		const run = this.queue.then(task, task);
 		this.queue = run.catch(() => {});
 		return run;
+	}
+
+	/** The record a write targets, read inside the critical section. */
+	private find(target: RecordTarget): SavedSessionInfo | undefined {
+		const all = this.port.getSavedSessions();
+		return (
+			(target.recordId
+				? findSessionRecord(all, { by: "recordId", id: target.recordId })
+				: undefined) ??
+			findSessionRecord(all, { by: "sessionId", id: target.sessionId })
+		);
 	}
 
 	/**
@@ -72,31 +97,37 @@ export class SessionStore {
 	 * `suggestedTitle` wins; otherwise the existing title is preserved; a brand
 	 * new record falls back to the first-message title. Creates the entry when
 	 * none exists so a transcript-on-disk session is never orphaned (I58).
+	 *
+	 * The turn save is one of two writers that move a record's identity
+	 * (`sessionId`, `agentId`, `kiroEngine`) to the tab's current agent session
+	 * (I269); the other is `rebindSession`. Resolves to the record id written.
 	 */
-	recordTurnSave(params: {
-		sessionId: string;
-		agentId: string;
-		cwd: string;
-		messages: ChatMessage[];
-		suggestedTitle?: string | null;
-		/** Agent's own title, used only when the record is created (I223). */
-		seedTitle?: string | null;
-		/** Engine this turn ran on (D2). Absent keeps the stored engine. */
-		kiroEngine?: "v2" | "v3";
-		now?: string;
-	}): Promise<void> {
+	recordTurnSave(
+		params: RecordTarget & {
+			agentId: string;
+			cwd: string;
+			messages: ChatMessage[];
+			suggestedTitle?: string | null;
+			/** Agent's own title, used only when the record is created (I223). */
+			seedTitle?: string | null;
+			/** Engine this turn ran on (D2). Absent keeps the stored engine. */
+			kiroEngine?: "v2" | "v3";
+			now?: string;
+		},
+	): Promise<string | null> {
 		return this.enqueue(async () => {
 			if (
 				!params.sessionId ||
 				!params.agentId ||
 				params.messages.length === 0
 			) {
-				return;
+				return null;
 			}
-			const existing = this.port
-				.getSavedSessions()
-				.find((s) => s.sessionId === params.sessionId);
+			const existing = this.find(params);
+			const recordId =
+				existing?.recordId ?? params.recordId ?? newRecordId();
 			const write = resolveSessionMetadataWrite(existing, {
+				recordId,
 				sessionId: params.sessionId,
 				agentId: params.agentId,
 				cwd: params.cwd,
@@ -107,6 +138,41 @@ export class SessionStore {
 				kiroEngine: params.kiroEngine,
 			});
 			if (write) await this.port.saveSession(write);
+			return recordId;
+		});
+	}
+
+	/**
+	 * Move a record to the tab's new agent session after a fallback (I269),
+	 * before the tab goes ready. Never creates a record (decision a): with no
+	 * bound record there is nothing to move. Resolves to the record id moved,
+	 * or null.
+	 */
+	rebindSession(params: {
+		recordId: string | null | undefined;
+		sessionId: string;
+		kiroEngine?: "v2" | "v3";
+		now?: string;
+	}): Promise<string | null> {
+		return this.enqueue(async () => {
+			if (!params.recordId || !params.sessionId) return null;
+			const existing = findSessionRecord(this.port.getSavedSessions(), {
+				by: "recordId",
+				id: params.recordId,
+			});
+			if (!existing) return null;
+			if (
+				existing.sessionId === params.sessionId &&
+				(!params.kiroEngine || existing.kiroEngine === params.kiroEngine)
+			) {
+				return existing.recordId;
+			}
+			await this.port.saveSession({
+				...existing,
+				sessionId: params.sessionId,
+				...(params.kiroEngine ? { kiroEngine: params.kiroEngine } : {}),
+			});
+			return existing.recordId;
 		});
 	}
 
@@ -115,43 +181,46 @@ export class SessionStore {
 	 * (replaces the racing `useTitleHistorySync` hook). Reads the latest
 	 * snapshot inside the serialized critical section; de-dupes a no-op write.
 	 * Creates the record if it doesn't exist yet so an early-resolving title is
-	 * not lost when the first save hasn't landed.
+	 * not lost when the first save hasn't landed. Changes only the title and
+	 * recency of an existing record (I269).
 	 */
-	applySuggestedTitle(params: {
-		sessionId: string;
-		agentId: string;
-		cwd: string;
-		suggestedTitle: string;
-		now?: string;
-	}): Promise<void> {
+	applySuggestedTitle(
+		params: RecordTarget & {
+			agentId: string;
+			cwd: string;
+			suggestedTitle: string;
+			now?: string;
+		},
+	): Promise<string | null> {
 		return this.enqueue(async () => {
 			const title = params.suggestedTitle?.trim();
-			if (!params.sessionId || !params.agentId || !title) return;
-			const existing = this.port
-				.getSavedSessions()
-				.find((s) => s.sessionId === params.sessionId);
+			if (!params.sessionId || !params.agentId || !title) return null;
+			const existing = this.find(params);
 			const resolved = deriveSessionRecordTitle({
 				existing,
 				suggestedTitle: title,
 			});
 			const now = params.now ?? new Date().toISOString();
 			if (existing) {
-				if (existing.title === resolved) return; // de-dupe
+				if (existing.title === resolved) return existing.recordId; // de-dupe
 				await this.port.saveSession({
 					...existing,
 					title: resolved,
 					updatedAt: now,
 				});
-			} else {
-				await this.port.saveSession({
-					sessionId: params.sessionId,
-					agentId: params.agentId,
-					cwd: params.cwd,
-					title: resolved,
-					createdAt: now,
-					updatedAt: now,
-				});
+				return existing.recordId;
 			}
+			const recordId = params.recordId ?? newRecordId();
+			await this.port.saveSession({
+				recordId,
+				sessionId: params.sessionId,
+				agentId: params.agentId,
+				cwd: params.cwd,
+				title: resolved,
+				createdAt: now,
+				updatedAt: now,
+			});
+			return recordId;
 		});
 	}
 
@@ -168,37 +237,42 @@ export class SessionStore {
 	 * the history-modal and tab renames racing a concurrent turn-end save).
 	 *
 	 * Read-modify-write happens INSIDE the serialized critical section:
-	 * - existing record → overwrite `title`, bump `updatedAt` (de-dupes a no-op).
+	 * - existing record → overwrite `title`, bump `updatedAt` (de-dupes a
+	 *   no-op). Never touches its agent or session id (I269): a history-modal
+	 *   rename can target another agent's row.
 	 * - no record + `createIfMissing` → create one (history-modal rename of an
 	 *   agent-side-only session; fork-branch create). Needs `agentId`/`cwd`.
 	 * - no record + !createIfMissing → no-op (a tab whose session is not in
 	 *   history — nothing to sync; preserves the `resolveRenamedSessionWrite`
 	 *   skip-if-missing contract).
 	 */
-	renameSession(params: {
-		sessionId: string;
-		agentId: string;
-		cwd: string;
-		title: string;
-		createIfMissing: boolean;
-		now?: string;
-	}): Promise<void> {
+	renameSession(
+		params: RecordTarget & {
+			agentId: string;
+			cwd: string;
+			title: string;
+			createIfMissing: boolean;
+			now?: string;
+		},
+	): Promise<string | null> {
 		return this.enqueue(async () => {
 			const title = params.title?.trim();
-			if (!params.sessionId || !title) return;
+			if (!params.sessionId || !title) return null;
 			const now = params.now ?? new Date().toISOString();
-			const existing = this.port
-				.getSavedSessions()
-				.find((s) => s.sessionId === params.sessionId);
+			const existing = this.find(params);
 			if (existing) {
-				if (existing.title === title) return; // de-dupe no-op
+				if (existing.title === title) return existing.recordId; // de-dupe no-op
 				await this.port.saveSession({
 					...existing,
 					title,
 					updatedAt: now,
 				});
-			} else if (params.createIfMissing && params.agentId) {
+				return existing.recordId;
+			}
+			if (params.createIfMissing && params.agentId) {
+				const recordId = params.recordId ?? newRecordId();
 				await this.port.saveSession({
+					recordId,
 					sessionId: params.sessionId,
 					agentId: params.agentId,
 					cwd: params.cwd,
@@ -206,7 +280,9 @@ export class SessionStore {
 					createdAt: now,
 					updatedAt: now,
 				});
+				return recordId;
 			}
+			return null;
 		});
 	}
 
@@ -222,35 +298,37 @@ export class SessionStore {
 	 * applied inside the critical section, so a concurrent higher-precedence
 	 * write is never clobbered — the exact race the direct write caused.
 	 */
-	recordFirstMessage(params: {
-		sessionId: string;
-		agentId: string;
-		cwd: string;
-		firstMessageTitle: string;
-		now?: string;
-	}): Promise<void> {
+	recordFirstMessage(
+		params: RecordTarget & {
+			agentId: string;
+			cwd: string;
+			firstMessageTitle: string;
+			now?: string;
+		},
+	): Promise<string | null> {
 		return this.enqueue(async () => {
 			const fallback = params.firstMessageTitle?.trim();
-			if (!params.sessionId || !params.agentId || !fallback) return;
+			if (!params.sessionId || !params.agentId || !fallback) return null;
 			const now = params.now ?? new Date().toISOString();
-			const existing = this.port
-				.getSavedSessions()
-				.find((s) => s.sessionId === params.sessionId);
+			const existing = this.find(params);
 			if (existing) {
 				// Preserve the existing (AI / manual / fork) title; bump only
 				// recency. Never downgrade to the first-message text.
-				if (existing.updatedAt === now) return; // de-dupe
+				if (existing.updatedAt === now) return existing.recordId; // de-dupe
 				await this.port.saveSession({ ...existing, updatedAt: now });
-			} else {
-				await this.port.saveSession({
-					sessionId: params.sessionId,
-					agentId: params.agentId,
-					cwd: params.cwd,
-					title: fallback,
-					createdAt: now,
-					updatedAt: now,
-				});
+				return existing.recordId;
 			}
+			const recordId = params.recordId ?? newRecordId();
+			await this.port.saveSession({
+				recordId,
+				sessionId: params.sessionId,
+				agentId: params.agentId,
+				cwd: params.cwd,
+				title: fallback,
+				createdAt: now,
+				updatedAt: now,
+			});
+			return recordId;
 		});
 	}
 }

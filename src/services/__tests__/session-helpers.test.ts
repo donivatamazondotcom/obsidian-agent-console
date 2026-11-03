@@ -43,6 +43,7 @@ describe("resolveSessionIdForSave (I59)", () => {
 describe("resolveRenamedSessionWrite (I73)", () => {
 	const NOW = "2026-06-20T05:00:00.000Z";
 	const saved: SavedSessionInfo = {
+		recordId: "sess-A",
 		sessionId: "sess-A",
 		agentId: "claude",
 		cwd: "/vault",

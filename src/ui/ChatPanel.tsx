@@ -146,6 +146,7 @@ import { readSessionModes } from "../resolvers/session-modes";
 import {
 	parseSessionEngine,
 	resolveStoredSessionEngine,
+	type SessionFallbackReason,
 } from "../resolvers/session-engine";
 import { useKeptKiroEngine } from "../hooks/useKeptKiroEngine";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
@@ -158,9 +159,6 @@ import {
 import {
 	flattenConfigSelectOptions,
 	type SlashCommand,
-	type SessionModeState,
-	type SessionModelState,
-	type SessionConfigOption,
 } from "../types/session";
 import { checkAgentUpdate } from "../services/update-checker";
 
@@ -214,6 +212,8 @@ export interface ChatPanelCallbacks {
 	getModeId: () => string;
 	/** Kiro engine of the tab's session ("" when unknown) — persisted per tab (D2). */
 	getKiroEngine: () => string;
+	/** The tab's history record id ("" before its first message) — persisted per tab (I269). */
+	getRecordId: () => string;
 	/** Open the Session History modal for this tab (open-session-history command). */
 	openHistory: () => void;
 	/**
@@ -372,6 +372,12 @@ export interface ChatPanelProps {
 	 * the running engine can open the session.
 	 */
 	restoredKiroEngine?: "v2" | "v3";
+	/**
+	 * The history record the restored tab wrote to, from its tab state (I269).
+	 * Absent for tabs saved before I269; the record is then found by
+	 * `restoredSessionId`.
+	 */
+	restoredRecordId?: string;
 }
 
 // ============================================================================
@@ -456,6 +462,7 @@ export function ChatPanel({
 	initialModeRequest,
 	restoredModeId,
 	restoredKiroEngine,
+	restoredRecordId,
 }: ChatPanelProps) {
 	// ============================================================
 	// Platform Check
@@ -633,44 +640,14 @@ export function ChatPanel({
 		[selectionTracker.activeNotePath, selectionTracker.selection],
 	);
 
-	// Session history hook with callback for session load
-	const handleSessionLoad = useCallback(
-		(
-			sessionId: string,
-			modes?: SessionModeState,
-			models?: SessionModelState,
-			configOptions?: SessionConfigOption[],
-		) => {
-			logger.log(
-				`[ChatPanel] Session loaded/resumed/forked: ${sessionId}`,
-				{
-					modes,
-					models,
-					configOptions,
-				},
-			);
-			void agent.updateSessionFromLoad(
-				sessionId,
-				modes,
-				models,
-				configOptions,
-			);
-		},
-		[logger, agent.updateSessionFromLoad],
-	);
-
 	const sessionHistory = useSessionHistory({
 		agentClient: acpClient,
 		session,
 		settingsAccess: plugin.settingsService,
-		cwd: vaultPath,
 		agentCwd,
-		onSessionLoad: handleSessionLoad,
-		onMessagesRestore: agent.setMessagesFromLocal,
-		onIgnoreUpdates: agent.setIgnoreUpdates,
-		onClearMessages: agent.clearMessages,
-		onContextNotesRestore: contextNotes.replace,
 		restoredAgentTitle,
+		restoredSessionId: restoredSessionId ?? null,
+		restoredRecordId: restoredRecordId ?? null,
 	});
 
 	// Seed restored history into the message list when the async disk read
@@ -1717,8 +1694,23 @@ export function ChatPanel({
 		// transcript for the next send, before the tab goes ready so a held
 		// message's connect-flush carries it. A reset (New chat, switch) drops
 		// an armed transcript that was never sent.
-		onSessionFallback: armFallbackCarryOver,
-		onReset: clearFallbackCarryOver,
+		// I269: the history record follows the chat to its new agent
+		// session before the tab goes ready, so it stays one record.
+		onSessionFallback: useCallback(
+			(reason: SessionFallbackReason, sessionId: string) => {
+				sessionHistory.rebindRecord(
+					sessionId,
+					acpClient.getInitializeResult()?.kiroEngine,
+				);
+				armFallbackCarryOver(reason);
+			},
+			[sessionHistory.rebindRecord, acpClient, armFallbackCarryOver],
+		),
+		// A reset starts a new chat: drop the armed transcript and the record.
+		onReset: useCallback(() => {
+			clearFallbackCarryOver();
+			sessionHistory.resetRecordBinding();
+		}, [clearFallbackCarryOver, sessionHistory.resetRecordBinding]),
 
 		sendPrompt: useCallback(async () => {
 			// Queue flush is owned by ChatPanel's connect-flush effect
@@ -2915,6 +2907,7 @@ export function ChatPanel({
 			getModeId: () =>
 				readSessionModes(promptTargetSessionRef.current)?.current.id ?? "",
 			getKiroEngine: () => keptKiroEngineRef.current ?? "",
+			getRecordId: () => sessionHistory.getRecordId() ?? "",
 			openHistory: () => handleOpenHistoryRef.current(),
 			requestAiTitle: async () => {
 				if (!acpClient.isInitialized()) return { kind: "not-ready" };

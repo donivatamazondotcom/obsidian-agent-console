@@ -62,7 +62,8 @@ src/
 │   ├── settings-migration.ts    # One-time settings migration (autoMentionActiveNote → activeNoteAsDefaultContext)
 │   ├── settings-service.ts      # Reactive settings store (observer pattern only)
 │   ├── session-storage.ts       # Session metadata + message file I/O (sessions/*.json); the only evictor (saveSession, applyMaxSavedSessions) — evicted/deleted transcripts go to the trash (I202)
-│   ├── session-store.ts         # Single serialized writer of record for savedSessions metadata/title (I114)
+│   ├── session-record.ts        # Record identity (I269): findSessionRecord, the savedSessions validator, the one-time recordId migration
+│   ├── session-store.ts         # Single serialized writer of record for savedSessions metadata/title (I114), keyed by recordId (I269)
 │   ├── mcp-auth-manager.ts      # Single owner of pending MCP sign-in state + queue-aware Notice lifecycle
 │   ├── settings-normalizer.ts   # Validation helpers + DEFAULT_SETTINGS + normalizeRawSettings (raw→typed mapping)
 │   ├── session-helpers.ts       # Agent config building, API key injection (pure functions)
