@@ -326,9 +326,8 @@ export interface MessageListProps {
  *
  * Auto-scroll behavior is owned entirely by useAutoScrollPin — the hook
  * owns both pin state and scroll position. There is no virtualizer; all
- * message bubbles render directly. Off-screen render-skipping is achieved
- * via CSS `content-visibility: auto` on each bubble (no JavaScript
- * measurement cost, unlike the prior @tanstack/react-virtual integration).
+ * message bubbles render directly. (`content-visibility: auto` on bubbles
+ * was tried and removed; see the note in styles.css.)
  *
  * See 04-initiatives/Agent Console/ACP Scroll Architecture Rework.md
  * § Phase 2 architecture for the design rationale and § Decisions #16,
@@ -471,7 +470,7 @@ export function MessageList({
 					<McpFailureNotice manager={plugin.mcpAuthManager} viewId={viewId} />
 				)}
 				{messages.map((message, messageIndex) => (
-					<div key={message.id} className={`agent-client-message-row${message.pending ? " agent-client-message-pending" : ""}`}>
+					<div key={message.id} data-message-id={message.id} className={`agent-client-message-row${message.pending ? " agent-client-message-pending" : ""}`}>
 						<MemoMessageBubble
 							message={message}
 							plugin={plugin}
