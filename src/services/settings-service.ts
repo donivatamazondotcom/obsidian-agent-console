@@ -258,10 +258,7 @@ export class SettingsService implements ISettingsAccess {
 			},
 			// Open and recently closed tabs are never evicted or cleaned up,
 			// whether or not tab state is saved for restore.
-			getLiveSessionIds: () =>
-				(
-					plugin as { getLiveSessionIds?: () => Iterable<string> }
-				).getLiveSessionIds?.() ?? [],
+			getLiveSessionIds: () => plugin.getLiveSessionIds(),
 		});
 		// `this` satisfies SessionStorePort (getSavedSessions + saveSession).
 		this.sessionStore = new SessionStore(this);
