@@ -145,9 +145,9 @@ import type { NewTabPromptOpts, QuickPrompt } from "../types/quick-prompt";
 import { readSessionModes } from "../resolvers/session-modes";
 import {
 	parseSessionEngine,
-	resolveKeptKiroEngine,
 	resolveStoredSessionEngine,
 } from "../resolvers/session-engine";
+import { useKeptKiroEngine } from "../hooks/useKeptKiroEngine";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import {
 	deriveLabelFromComposer,
@@ -1484,14 +1484,9 @@ export function ChatPanel({
 	// start.
 	const cancelledRef = useRef(false);
 
-	// D2: the engine of the session this tab holds, for tab persistence.
-	// Starts as the restored tab's value; a live, initialized session
-	// overwrites it with the engine it was launched with (I235), which is
-	// none for a non-Kiro agent (I250). Kept while no session is live (a
-	// restored or released tab), so the engine survives with the kept id.
-	// Persisted only next to a saved session id (useTabPersistence).
-	const keptKiroEngineRef = useRef<"v2" | "v3" | undefined>(restoredKiroEngine);
-	keptKiroEngineRef.current = resolveKeptKiroEngine(keptKiroEngineRef.current, {
+	// D2: the engine of the session this tab holds, for tab persistence
+	// (none for a non-Kiro agent, I250). See useKeptKiroEngine.
+	const keptKiroEngineRef = useKeptKiroEngine(restoredKiroEngine, {
 		sessionId: agent.session.sessionId,
 		kiroCli: agent.session.kiroCli,
 		kiroEngine: agent.session.kiroEngine,

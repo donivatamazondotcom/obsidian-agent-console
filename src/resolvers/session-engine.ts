@@ -47,6 +47,11 @@ export function parseSessionEngine(
  * result is the truth for its process: its `undefined` means "no engine"
  * (not kiro-cli) and replaces an older value. Only with no init result does
  * the session keep what it had (I250).
+ *
+ * Scope: `AcpClient.getInitializeResult()` returns the last successful
+ * initialize and is never cleared on disconnect or a failed start. Every
+ * caller runs right after a successful initialize, so the result belongs to
+ * the current process; a caller outside that window must not use this.
  */
 export function launchedEngine(
 	init: { kiroEngine?: SessionEngine } | null | undefined,

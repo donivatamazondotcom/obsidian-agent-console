@@ -126,6 +126,7 @@ src/
 │   ├── useContextVaultEvents.ts # Vault rename/delete sync for crystallized context notes
 │   ├── useSelectionTracker.ts   # Editor selection capture for the context strip
 │   ├── useAgentSession.ts       # Session lifecycle, config options, optimistic updates
+│   ├── useKeptKiroEngine.ts     # Tab persistence's Kiro engine for the tab's session id: the launched engine of a live session, none for a non-Kiro agent (D2, I250)
 │   ├── useAgentMessages.ts      # Message state, streaming (RAF batch), permissions
 │   ├── useSuggestions.ts        # Thin source wiring: runs usePicker per source (mention/slash/quick-prompt), adapts to the mentions/commands/quickPrompts contract + the Tier-2 activePicker (Unified Picker Control Tier 3)
 │   ├── usePicker.ts             # One generic suggestion-picker state machine driven by a PickerSource: items/selection/open, clamp-vs-wrap nav, async/sync fetch, dismiss guard (Unified Picker Control Tier 3)

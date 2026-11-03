@@ -30,6 +30,7 @@ import { describe, it, expect, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { useAgent } from "../useAgent";
 import { useSessionHistory } from "../useSessionHistory";
+import { useKeptKiroEngine } from "../useKeptKiroEngine";
 import { AcpClient } from "../../acp/acp-client";
 import { AcpTypeConverter } from "../../acp/type-converter";
 import { deriveHeaderEngine } from "../../resolvers/header-agent";
@@ -394,5 +395,96 @@ describe("I250 restore and reload read a missing engine as unknown", () => {
 		expect(deriveHeaderEngine(v2)).toEqual({ kind: "kiroCli", engine: "v2" });
 		const v3 = AcpTypeConverter.toInitializeResult(RAW_INIT, { command: "kiro-cli", kiroEngine: "v3" });
 		expect(deriveHeaderEngine(v3)).toEqual({ kind: "kiroCli", engine: "v3" });
+	});
+});
+
+// ---------------------------------------------------------------------------
+// 6. review follow-ups: the ChatPanel hook, cross-agent restart, end to end
+// ---------------------------------------------------------------------------
+
+describe("I250 useKeptKiroEngine (ChatPanel's tab-persistence engine)", () => {
+	it("a restored v2 tab that connects as Claude persists no engine", () => {
+		const hook = renderHook(
+			(live: { sessionId: string | null; kiroCli?: boolean; kiroEngine?: "v2" | "v3" }) =>
+				useKeptKiroEngine("v2", {
+					sessionId: live.sessionId,
+					kiroCli: live.kiroCli,
+					kiroEngine: live.kiroEngine,
+				}),
+			{ initialProps: { sessionId: "claude-1" } as { sessionId: string | null; kiroCli?: boolean; kiroEngine?: "v2" | "v3" } },
+		);
+		expect(hook.result.current.current).toBe("v2");
+		hook.rerender({ sessionId: "claude-1", kiroCli: false, kiroEngine: undefined });
+		expect(hook.result.current.current).toBeUndefined();
+	});
+
+	it("a released Kiro tab keeps its engine while no session is live", () => {
+		const hook = renderHook(
+			(live: { sessionId: string | null; kiroCli?: boolean; kiroEngine?: "v2" | "v3" }) =>
+				useKeptKiroEngine(undefined, {
+					sessionId: live.sessionId,
+					kiroCli: live.kiroCli,
+					kiroEngine: live.kiroEngine,
+				}),
+			{ initialProps: { sessionId: "k1", kiroCli: true, kiroEngine: "v3" } as { sessionId: string | null; kiroCli?: boolean; kiroEngine?: "v2" | "v3" } },
+		);
+		expect(hook.result.current.current).toBe("v3");
+		hook.rerender({ sessionId: null, kiroCli: true, kiroEngine: "v3" });
+		expect(hook.result.current.current).toBe("v3");
+	});
+});
+
+describe("I250 cross-agent restart doesn't carry the old engine", () => {
+	it("Kiro V3 tab → New chat with another agent whose start fails: no engine", async () => {
+		const client = makeClient();
+		const internals = client as unknown as {
+			doInitialize: (config: unknown) => Promise<unknown>;
+		};
+		const settings = makeAgentSettings("kiro-cli");
+		const snap = settings.getSnapshot() as unknown as { customAgents: Record<string, unknown>[] };
+		snap.customAgents[0].engine = "v3";
+		snap.customAgents.push({ id: "test-agent-claude", displayName: "Other", command: "claude-agent-acp", args: [], env: [] });
+		const hook = renderHook(() => useAgent(client, settings, vault, CWD, AGENT));
+		await act(async () => {
+			await hook.result.current.createSession();
+		});
+		expect(hook.result.current.session.kiroEngine).toBe("v3");
+		vi.mocked(internals.doInitialize).mockRejectedValueOnce(new Error("spawn ENOENT"));
+		await act(async () => {
+			await hook.result.current.restartSession("test-agent-claude").catch(() => {});
+		});
+		expect(hook.result.current.session.agentId).toBe("test-agent-claude");
+		expect(hook.result.current.session.kiroCli).toBeUndefined();
+		expect(hook.result.current.session.kiroEngine).toBeUndefined();
+	});
+});
+
+describe("I250 end to end: a Claude useAgent turn saves a record with no engine", () => {
+	it("useAgent session → useSessionHistory → savedSessions", async () => {
+		const agentHook = renderHook(() =>
+			useAgent(makeClient(CLAUDE_INIT), makeAgentSettings("claude-agent-acp"), vault, CWD, AGENT),
+		);
+		await act(async () => {
+			await agentHook.result.current.createSession();
+		});
+		const live = agentHook.result.current.session;
+		expect(live.sessionId).toBe("s1");
+		const settings = makeHistorySettings();
+		const hook = renderHook(() =>
+			useSessionHistory({
+				agentClient: { getLaunchKey: () => null } as unknown as AcpClient,
+				session: live,
+				settingsAccess: settings,
+				cwd: CWD,
+				agentCwd: CWD,
+				onSessionLoad: vi.fn(),
+			} as Parameters<typeof useSessionHistory>[0]),
+		);
+		await act(async () => {
+			await hook.result.current.saveSessionMessages("s1", TURN);
+			await new Promise((r) => setTimeout(r, 0));
+		});
+		expect(settings.saved[0]?.sessionId).toBe("s1");
+		expect("kiroEngine" in settings.saved[0]).toBe(false);
 	});
 });
