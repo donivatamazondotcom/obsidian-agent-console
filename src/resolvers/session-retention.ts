@@ -48,6 +48,8 @@ export function parseMaxSavedSessions(raw: unknown): {
 
 interface RetentionRecord {
 	sessionId: string;
+	/** The plugin-owned record id (I269); a tab may hold a record by it. */
+	recordId?: string;
 	updatedAt: string;
 }
 
@@ -72,7 +74,14 @@ export function selectEvictions<T extends RetentionRecord>(
 	const excess = sessions.length - cap;
 	const candidates = sessions
 		.map((record, index) => ({ record, index }))
-		.filter(({ record }) => !protectedIds.has(record.sessionId))
+		// A record is protected by its current session id or by its record
+		// id: right after a fallback a tab holds the new session id while the
+		// record still has the old one until the rebind lands (I269).
+		.filter(
+			({ record }) =>
+				!protectedIds.has(record.sessionId) &&
+				!(record.recordId && protectedIds.has(record.recordId)),
+		)
 		.sort(
 			(a, b) =>
 				updatedMs(a.record) - updatedMs(b.record) || b.index - a.index,
@@ -85,7 +94,11 @@ export function selectEvictions<T extends RetentionRecord>(
 	};
 }
 
-/** Every session id a persisted tab points at, across all leaves. */
+/**
+ * Every session id and history record id (I269) a persisted tab points at,
+ * across all leaves. Both protect a record from eviction and its file from
+ * cleanup.
+ */
 export function tabSessionIds(
 	perLeafTabStates: readonly PerLeafTabState[] | undefined,
 ): Set<string> {
@@ -93,6 +106,7 @@ export function tabSessionIds(
 	for (const leaf of perLeafTabStates ?? []) {
 		for (const tab of leaf.tabs) {
 			if (tab.sessionId) ids.add(tab.sessionId);
+			if (tab.recordId) ids.add(tab.recordId);
 		}
 	}
 	return ids;

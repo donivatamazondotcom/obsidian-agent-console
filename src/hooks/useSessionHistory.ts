@@ -837,13 +837,15 @@ export function useSessionHistory(
 					// its id too, so file and record agree from this turn on.
 					if (written && written !== recordId && session.agentId) {
 						const minted = recordId;
-						void settingsAccess
-							.saveSessionMessages(
+						void Promise.all([
+							writePromise,
+							settingsAccess.saveSessionMessages(
 								written,
 								session.agentId,
 								messages,
 								contextNotes,
-							)
+							),
+						])
 							.then(() => {
 								// The id minted for this turn names no record:
 								// drop its file.

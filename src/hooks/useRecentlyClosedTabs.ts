@@ -37,6 +37,8 @@ export interface UseRecentlyClosedTabsReturn {
 	 * evicted or cleaned up while they can come back (I202 review).
 	 */
 	sessionIds: () => string[];
+	/** History record ids of the closed tabs that had one (I269). */
+	recordIds: () => string[];
 }
 
 export function useRecentlyClosedTabs(
@@ -65,8 +67,14 @@ export function useRecentlyClosedTabs(
 		[],
 	);
 
+	const recordIds = useCallback(
+		() =>
+			stackRef.current.flatMap((r) => (r.recordId ? [r.recordId] : [])),
+		[],
+	);
+
 	return useMemo(
-		() => ({ capture, reopenLast, count, sessionIds }),
-		[capture, reopenLast, count, sessionIds],
+		() => ({ capture, reopenLast, count, sessionIds, recordIds }),
+		[capture, reopenLast, count, sessionIds, recordIds],
 	);
 }
