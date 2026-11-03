@@ -1173,8 +1173,14 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			this.plugin.settings.maxSavedSessions,
 		).cap;
 		dropdown.setValue(toValue(current)).onChange((value) => {
-			const next: SavedSessionsCap =
-				value === UNLIMITED ? null : Number(value);
+			const parsed = parseMaxSavedSessions(
+				value === UNLIMITED ? null : Number(value),
+			);
+			if (!parsed.valid) {
+				dropdown.setValue(toValue(current));
+				return;
+			}
+			const next = parsed.cap;
 			const apply = async () => {
 				await this.plugin.settingsService.applyMaxSavedSessions(
 					next,

@@ -251,29 +251,31 @@ describe("I202 cap eviction keeps record and transcript together", () => {
 describe("I202 lowering the cap", () => {
 	it("counts and then trashes exactly the unreferenced least recently updated chats", async () => {
 		const vault = makeVault();
+		const ids = Array.from({ length: 30 }, (_, i) => `s${i}`);
 		const settings = makeSettings({
 			maxSavedSessions: null,
-			perLeafTabStates: tabsFor("s1"),
+			perLeafTabStates: tabsFor("s0"),
 		});
 		const storage = new SessionStorage(vault.plugin, settings);
-		await seed(storage, ["s1", "s2", "s3", "s4", "s5"]);
+		await seed(storage, ids);
 
-		expect(storage.countEvictionsForCap(2)).toBe(3);
-		await storage.applyMaxSavedSessions(2);
+		expect(storage.countEvictionsForCap(25)).toBe(5);
+		await storage.applyMaxSavedSessions(25);
 
 		const snap = settings.getSnapshot();
-		expect(snap.maxSavedSessions).toBe(2);
-		// s1 is the oldest but open in a tab, so it stays and the three
-		// oldest unprotected chats go instead.
-		expect(snap.savedSessions.map((s) => s.sessionId).sort()).toEqual([
-			"s1",
-			"s5",
-		]);
-		expect(vault.files.has(path("s1"))).toBe(true);
-		for (const id of ["s2", "s3", "s4"]) {
+		expect(snap.maxSavedSessions).toBe(25);
+		// s0 is the oldest but open in a tab, so it stays and the five
+		// oldest unprotected chats (s1-s5) go instead.
+		const kept = snap.savedSessions.map((s) => s.sessionId);
+		expect(kept).toHaveLength(25);
+		expect(kept).toContain("s0");
+		expect(vault.files.has(path("s0"))).toBe(true);
+		for (const id of ["s1", "s2", "s3", "s4", "s5"]) {
+			expect(kept).not.toContain(id);
 			expect(vault.files.has(path(id))).toBe(false);
 			expect(vault.systemTrash.has(path(id))).toBe(true);
 		}
+		expect(vault.files.has(path("s6"))).toBe(true);
 	});
 
 	it("leaves records and files alone when the cap is raised", async () => {
@@ -326,5 +328,23 @@ describe("I202 cleanup of unused chat files", () => {
 		for (const id of ["kept", "tab-only", "brand-new"]) {
 			expect(vault.files.has(path(id))).toBe(true);
 		}
+	});
+});
+
+describe("I202 a cap the setting doesn't offer is refused", () => {
+	it("applyMaxSavedSessions(0) changes nothing", async () => {
+		const vault = makeVault();
+		const settings = makeSettings({ maxSavedSessions: 25 });
+		const storage = new SessionStorage(vault.plugin, settings);
+		await seed(storage, ["s1", "s2", "s3"]);
+
+		expect(storage.countEvictionsForCap(0)).toBe(0);
+		await storage.applyMaxSavedSessions(0);
+		await storage.applyMaxSavedSessions(Number.NaN);
+
+		const snap = settings.getSnapshot();
+		expect(snap.maxSavedSessions).toBe(25);
+		expect(snap.savedSessions).toHaveLength(3);
+		expect(vault.systemTrash.size).toBe(0);
 	});
 });
