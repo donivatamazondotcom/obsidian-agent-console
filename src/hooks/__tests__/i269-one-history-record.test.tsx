@@ -104,6 +104,11 @@ function makeStore(seed: SavedSessionInfo[] = []) {
 		remove: vi.fn(async (p: string) => {
 			files.delete(p);
 		}),
+		// I202: deletes move the transcript to the trash.
+		trashSystem: vi.fn(async (p: string) => (files.delete(p), true)),
+		trashLocal: vi.fn(async (p: string) => {
+			files.delete(p);
+		}),
 	};
 	const plugin = {
 		app: { vault: { configDir: ".obsidian", adapter } },

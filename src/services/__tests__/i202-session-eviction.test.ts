@@ -110,6 +110,8 @@ function path(sessionId: string) {
 
 function info(sessionId: string, updatedAt: string): SavedSessionInfo {
 	return {
+		// Migrated record (I269): the record id is its first session id.
+		recordId: sessionId,
 		sessionId,
 		agentId: "claude-code-acp",
 		cwd: "/vault",
