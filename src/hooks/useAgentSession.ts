@@ -305,8 +305,12 @@ export function useAgentSession(
 				agentCapabilities: prev.agentCapabilities,
 				capabilities: prev.capabilities,
 				agentInfo: prev.agentInfo,
-				kiroEngine: prev.kiroEngine,
-				kiroCli: prev.kiroCli,
+				// A different agent is a different process: its engine is
+				// unknown until it initializes, so don't carry the old one
+				// through connecting or a failed start (I250 review).
+				kiroEngine:
+					agentId === prev.agentId ? prev.kiroEngine : undefined,
+				kiroCli: agentId === prev.agentId ? prev.kiroCli : undefined,
 				createdAt: new Date(),
 				lastActivityAt: new Date(),
 			}));
