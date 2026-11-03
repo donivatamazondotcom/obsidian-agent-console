@@ -210,3 +210,34 @@ describe("decideCapChange (I202 / I239: the dropdown handler)", () => {
 		expect(decideCapChange("unlimited", null, countFor)).toEqual({ kind: "none" });
 	});
 });
+
+describe("selectEvictions and tabSessionIds with record ids (I269)", () => {
+	it("a record protected only by its record id is kept", () => {
+		const a = { recordId: "rec-a", sessionId: "s-old", updatedAt: "2026-10-01T00:00:00Z" };
+		const b = { recordId: "rec-b", sessionId: "s-b", updatedAt: "2026-10-02T00:00:00Z" };
+		const { kept, evicted } = selectEvictions([b, a], 1, new Set(["rec-a"]));
+		expect(kept).toEqual([a]);
+		expect(evicted).toEqual([b]);
+	});
+
+	it("tabSessionIds collects a closed panel's record ids too", () => {
+		const ids = tabSessionIds([
+			{
+				leafId: "l",
+				activeTabId: "t",
+				tabs: [
+					{
+						tabId: "t",
+						agentId: "test-agent",
+						label: "x",
+						sessionId: "s-new",
+						recordId: "rec-a",
+						tabOrder: 0,
+						scrollPosition: 0,
+					},
+				],
+			},
+		]);
+		expect([...ids].sort()).toEqual(["rec-a", "s-new"]);
+	});
+});

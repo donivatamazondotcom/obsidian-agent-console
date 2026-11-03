@@ -837,7 +837,9 @@ export function useSessionHistory(
 					// its id too, so file and record agree from this turn on.
 					if (written && written !== recordId && session.agentId) {
 						const minted = recordId;
-						void Promise.all([
+						// Wait for both writes (settled, not all): a failed first
+						// write is reported by the teardown flush, not here.
+						void Promise.allSettled([
 							writePromise,
 							settingsAccess.saveSessionMessages(
 								written,
