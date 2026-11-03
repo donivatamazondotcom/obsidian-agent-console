@@ -181,6 +181,11 @@ const keymapScopeBalance: Invariant = {
  * INV-3 — Persisted-state integrity: saved-session index ⇔ disk artifacts,
  * and per-leaf tab slices reference known sessions. Guards the restore
  * class (blank restored history, session-store split).
+ *
+ * I269: a record's message file is named by its `recordId` (migrated records
+ * have `recordId === sessionId`), and one chat has one record, so `recordId`
+ * and `sessionId` are each unique. A tab slice resolves through its
+ * `recordId` when it has one, else its `sessionId`.
  */
 const persistedStateIntegrity: Invariant = {
 	id: "INV-3",
@@ -199,18 +204,30 @@ const persistedStateIntegrity: Invariant = {
 				} catch (e) {
 					files = [];
 				}
-				const invalidEntries = sessions.filter((x) => !x.sessionId || !x.agentId).length;
+				const invalidEntries = sessions.filter((x) => !x.recordId || !x.sessionId || !x.agentId).length;
 				const missingFiles = sessions
-					.filter((x) => !files.includes(x.sessionId + ".json"))
-					.map((x) => x.sessionId);
-				const known = new Set(sessions.map((x) => x.sessionId));
+					.filter((x) => !files.includes((x.recordId || x.sessionId) + ".json"))
+					.map((x) => x.recordId || x.sessionId);
+				const dupes = (key) => {
+					const seen = new Set(), out = [];
+					for (const x of sessions) { if (seen.has(x[key])) out.push(x[key]); seen.add(x[key]); }
+					return out;
+				};
+				const duplicateRecordIds = dupes("recordId");
+				const duplicateSessionIds = dupes("sessionId");
+				const knownSessions = new Set(sessions.map((x) => x.sessionId));
+				const knownRecords = new Set(sessions.map((x) => x.recordId));
 				const orphanSlices = [];
 				for (const leaf of s.perLeafTabStates || []) {
 					for (const t of leaf.tabs || []) {
-						if (t.sessionId && !known.has(t.sessionId)) orphanSlices.push(t.sessionId);
+						if (!t.sessionId) continue;
+						const ok = t.recordId
+							? knownRecords.has(t.recordId) || files.includes(t.recordId + ".json")
+							: knownSessions.has(t.sessionId);
+						if (!ok) orphanSlices.push(t.recordId || t.sessionId);
 					}
 				}
-				return JSON.stringify({ missingFiles, orphanSlices, invalidEntries, sessions: sessions.length });
+				return JSON.stringify({ missingFiles, orphanSlices, invalidEntries, duplicateRecordIds, duplicateSessionIds, sessions: sessions.length });
 			})()`,
 			{ awaitPromise: true },
 		);
@@ -218,11 +235,17 @@ const persistedStateIntegrity: Invariant = {
 			missingFiles: string[];
 			orphanSlices: string[];
 			invalidEntries: number;
+			duplicateRecordIds: string[];
+			duplicateSessionIds: string[];
 			sessions: number;
 		};
 		const problems: string[] = [];
 		if (parsed.invalidEntries > 0)
-			problems.push(`${parsed.invalidEntries} index entries missing sessionId/agentId`);
+			problems.push(`${parsed.invalidEntries} index entries missing recordId/sessionId/agentId`);
+		if (parsed.duplicateRecordIds.length > 0)
+			problems.push(`duplicate recordIds: ${parsed.duplicateRecordIds.join(", ")}`);
+		if (parsed.duplicateSessionIds.length > 0)
+			problems.push(`two records for one agent session (I269): ${parsed.duplicateSessionIds.join(", ")}`);
 		if (parsed.missingFiles.length > 0)
 			problems.push(`index entries without disk file: ${parsed.missingFiles.join(", ")}`);
 		if (parsed.orphanSlices.length > 0)
