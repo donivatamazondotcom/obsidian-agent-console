@@ -34,6 +34,7 @@ import type { ChatSession, SavedSessionInfo } from "../../types/session";
 import type { ChatMessage } from "../../types/chat";
 import type AgentClientPlugin from "../../plugin";
 import {
+	applyRecordIdReport,
 	buildTabIdentitySignature,
 	resolveRecordIdForSave,
 } from "../../services/session-helpers";
@@ -826,5 +827,88 @@ describe("I269 — code-review cases", () => {
 			await settle();
 		});
 		expect(store.messagesIn(minted)).toBeNull();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// 5. Cases added by the second delta review
+// ---------------------------------------------------------------------------
+
+describe("I269 — remount and adopt cleanup", () => {
+	it("a remount after New chat in a restored tab never mixes the two chats", async () => {
+		const store = await seededStore();
+		// ChatView's maps for tab T1, restored with record sess-x.
+		const reports = new Map<string, string | null>();
+		const restored = new Map([["T1", "sess-x"]]);
+		const seen: Array<string | null> = [];
+		const tab = mountTab(store, {
+			restoredSessionId: "sess-x",
+			restoredRecordId: restored.get("T1"),
+			reports: seen,
+			lazy: {
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValue({ ok: true, sessionId: "chat-2" }),
+			},
+		});
+		await send(tab, "hi");
+		act(() => tab.result.current.lazy.reset());
+		await send(tab, "Plan the Q3 offsite.");
+		await turnSave(tab, OTHER_CHAT);
+		for (const id of seen) applyRecordIdReport(reports, restored, "T1", id);
+		const newChat = reports.get("T1")!;
+		expect(newChat).not.toBe("sess-x");
+		tab.unmount();
+
+		// Error-boundary retry: same tab, same restore-time session and
+		// messages, record id from the restore-source map.
+		const remounted = mountTab(store, {
+			restoredSessionId: "sess-x",
+			restoredRecordId: restored.get("T1") ?? null,
+		});
+		await send(remounted, "What number did I ask you to remember?");
+		await turnSave(remounted, AFTER_FALLBACK);
+		// The old chat continues in its own record; the new chat is untouched.
+		expect(store.messagesIn("sess-x")).toBe(4);
+		expect(store.messagesIn(newChat)).toBe(2);
+		expect(store.records().find((r) => r.recordId === newChat)?.sessionId).toBe(
+			"chat-2",
+		);
+	});
+
+	it("a tab still holding the minted id after an adopt loads the adopted record's file", async () => {
+		const store = makeStore([
+			{
+				recordId: "rec-q",
+				sessionId: "s-1",
+				agentId: "kiro",
+				cwd: "/vault",
+				title: "Q",
+				createdAt: "2026-11-03T00:00:00.000Z",
+				updatedAt: "2026-11-03T00:00:00.000Z",
+			},
+		]);
+		await store.storage.saveSessionMessages("rec-q", "kiro", REMEMBER_7);
+		// Tab state saved {sessionId s-1, recordId u-minted}; u-minted.json is gone.
+		const restored = await store.settings.loadSessionMessages("s-1", "u-minted");
+		expect(restored?.map((m) => m.id)).toEqual(["u1", "a1"]);
+	});
+
+	it("a record id that a record still claims keeps its own file", async () => {
+		const store = makeStore([
+			{
+				recordId: "rec-r",
+				sessionId: "s-other",
+				agentId: "kiro",
+				cwd: "/vault",
+				title: "R",
+				createdAt: "2026-11-03T00:00:00.000Z",
+				updatedAt: "2026-11-03T00:00:00.000Z",
+			},
+		]);
+		await store.storage.saveSessionMessages("rec-r", "kiro", REMEMBER_7);
+		expect(
+			(await store.settings.loadSessionMessages("s-whatever", "rec-r"))?.length,
+		).toBe(2);
 	});
 });

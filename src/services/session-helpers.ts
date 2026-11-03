@@ -466,9 +466,11 @@ export function resolveRecordIdForSave(
 
 /**
  * Record a tab's binding report (I269). From the first report on, the report
- * map is the authority, so the restore-source id is dropped: a remount of the
- * same tab (error-boundary retry) then seeds from the report, not from an id
- * the tab has since moved off.
+ * map is the authority for saves, and the restore-source id is dropped. A
+ * remount of the same tab (error-boundary retry) then binds through its
+ * restored session id, which stays paired with the restored messages; the
+ * report itself is never fed back in, because it may belong to a newer chat
+ * than the restored session and messages.
  */
 export function applyRecordIdReport(
 	reports: Map<string, string | null>,
@@ -477,8 +479,7 @@ export function applyRecordIdReport(
 	recordId: string | null,
 ): void {
 	reports.set(tabId, recordId);
-	if (recordId) restored.set(tabId, recordId);
-	else restored.delete(tabId);
+	restored.delete(tabId);
 }
 
 /**

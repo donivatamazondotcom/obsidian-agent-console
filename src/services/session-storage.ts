@@ -461,6 +461,9 @@ export class SessionStorage {
 	): string | null {
 		const all = this.settingsAccess.getSnapshot()?.savedSessions || [];
 		if (recordId) {
+			// A record id nothing claims any more (its file was folded into
+			// the record that holds the session, I269 adopt) resolves through
+			// the session; otherwise it names its own file.
 			if (findSessionRecord(all, { by: "recordId", id: recordId })) {
 				return recordId;
 			}
