@@ -459,3 +459,26 @@ describe("normalizeAgentCapabilityCache (I260)", () => {
 		expect(normalizeAgentCapabilityCache("x")).toEqual({});
 	});
 });
+
+describe("normalizeRawSettings maxSavedSessions (I202)", () => {
+	const read = (raw: unknown) =>
+		normalizeRawSettings({ maxSavedSessions: raw }, DEFAULT_SETTINGS, idKey)
+			.maxSavedSessions;
+
+	it("defaults to 100 when the key is missing", () => {
+		expect(
+			normalizeRawSettings({}, DEFAULT_SETTINGS, idKey).maxSavedSessions,
+		).toBe(100);
+	});
+
+	it("keeps null (Unlimited) and every offered value", () => {
+		expect(read(null)).toBeNull();
+		for (const n of [25, 50, 100, 250, 500]) expect(read(n)).toBe(n);
+	});
+
+	it("falls back to the default for out-of-range or wrong-typed values", () => {
+		for (const bad of [0, 7, -1, 100000, "50", true, {}]) {
+			expect(read(bad)).toBe(100);
+		}
+	});
+});

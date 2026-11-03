@@ -27,6 +27,12 @@ import {
 } from "../types/title-strategy";
 import { LANGUAGE_SETTING_VALUES } from "../i18n";
 import {
+	DEFAULT_MAX_SAVED_SESSIONS,
+	parseMaxSavedSessions,
+	type SavedSessionsCap,
+} from "../resolvers/session-retention";
+import { getLogger } from "../utils/logger";
+import {
 	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
 	normalizeObsidianSystemPromptSettings,
 } from "../utils/obsidian-system-prompt";
@@ -302,6 +308,20 @@ export function str(raw: unknown, fallback: string): string {
 	return typeof raw === "string" ? raw : fallback;
 }
 
+/**
+ * Max saved chats (I202). An unknown value falls back to the default and is
+ * logged, never coerced silently.
+ */
+function readMaxSavedSessions(raw: unknown): SavedSessionsCap {
+	const { cap, valid } = parseMaxSavedSessions(raw);
+	if (!valid) {
+		getLogger().warn(
+			`[Settings] Ignoring invalid maxSavedSessions ${JSON.stringify(raw)}; using ${String(cap)}`,
+		);
+	}
+	return cap;
+}
+
 /** Extract a boolean value, falling back to default if not a boolean */
 export function bool(raw: unknown, fallback: boolean): boolean {
 	return typeof raw === "boolean" ? raw : fallback;
@@ -479,6 +499,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 		fontSize: null,
 	},
 	savedSessions: [],
+	maxSavedSessions: DEFAULT_MAX_SAVED_SESSIONS,
 	sessionHistorySource: "local",
 	agentSessionMetaCache: {},
 	agentCapabilityCache: {},
@@ -751,6 +772,7 @@ export function normalizeRawSettings(
 		savedSessions: Array.isArray(raw.savedSessions)
 			? (raw.savedSessions as SavedSessionInfo[])
 			: D.savedSessions,
+		maxSavedSessions: readMaxSavedSessions(raw.maxSavedSessions),
 		sessionHistorySource:
 			raw.sessionHistorySource === "agent" ||
 			raw.sessionHistorySource === "local"

@@ -17,6 +17,16 @@ import type { SavedSessionInfo } from "../types/session";
 import type { PerLeafTabState, PersistedTabInfo } from "../types/tab";
 import { convertWindowsPathToWsl } from "../utils/platform";
 import { getLogger } from "../utils/logger";
+import {
+	parseMaxSavedSessions,
+	selectEvictions,
+	selectUnusedSessionFiles,
+	sessionFileStem,
+	tabSessionIds,
+	UNUSED_FILE_MIN_AGE_MS,
+	type SavedSessionsCap,
+	type SessionFileInfo,
+} from "../resolvers/session-retention";
 
 // ============================================================================
 // Types
@@ -52,8 +62,14 @@ interface SessionStorageSettingsAccess {
 // Implementation
 // ============================================================================
 
-/** Maximum number of saved sessions to keep */
-const MAX_SAVED_SESSIONS = 50;
+/** Optional hooks for SessionStorage side effects the UI owns. */
+export interface SessionStorageOptions {
+	/**
+	 * Called the first time in this plugin load that saving a chat evicts an
+	 * older one (I202), with the cap in force. Later evictions are quiet.
+	 */
+	onFirstEviction?: (cap: number) => void;
+}
 
 export class SessionStorage {
 	private plugin: AgentClientPlugin;
@@ -72,12 +88,19 @@ export class SessionStorage {
 	 */
 	private tabStateLock: Promise<void> = Promise.resolve();
 
+	private options: SessionStorageOptions;
+
+	/** I202: the eviction notice shows at most once per plugin load. */
+	private evictionReported = false;
+
 	constructor(
 		plugin: AgentClientPlugin,
 		settingsAccess: SessionStorageSettingsAccess,
+		options: SessionStorageOptions = {},
 	) {
 		this.plugin = plugin;
 		this.settingsAccess = settingsAccess;
+		this.options = options;
 	}
 
 	// ============================================================
@@ -87,8 +110,11 @@ export class SessionStorage {
 	/**
 	 * Save a session to local storage.
 	 *
-	 * Updates existing session if sessionId matches.
-	 * Maintains max 50 sessions, removing oldest when exceeded.
+	 * Updates existing session if sessionId matches. When a new session
+	 * pushes the list over Max saved chats, the least recently updated chats
+	 * that no persisted tab uses are removed and their transcripts moved to
+	 * the trash in the same locked write (I202). This method and
+	 * `applyMaxSavedSessions` are the only evictors.
 	 */
 	async saveSession(info: SavedSessionInfo): Promise<void> {
 		this.sessionLock = this.sessionLock.then(async () => {
@@ -111,18 +137,179 @@ export class SessionStorage {
 
 			if (existingIndex >= 0) {
 				sessions[existingIndex] = sessionInfo;
-			} else {
-				sessions.unshift(sessionInfo);
-				if (sessions.length > MAX_SAVED_SESSIONS) {
-					sessions.pop();
-				}
+				await this.settingsAccess.updateSettings({
+					savedSessions: sessions,
+				});
+				return;
 			}
 
+			sessions.unshift(sessionInfo);
+			const cap = this.readCap(state);
+			const protectedIds = tabSessionIds(state.perLeafTabStates);
+			protectedIds.add(sessionInfo.sessionId);
+			const { kept, evicted } = selectEvictions(
+				sessions,
+				cap,
+				protectedIds,
+			);
 			await this.settingsAccess.updateSettings({
-				savedSessions: sessions,
+				savedSessions: kept,
 			});
+			await this.trashEvicted(evicted);
+			if (evicted.length > 0 && cap !== null && !this.evictionReported) {
+				this.evictionReported = true;
+				this.options.onFirstEviction?.(cap);
+			}
 		});
 		await this.sessionLock;
+	}
+
+	/**
+	 * How many saved chats `applyMaxSavedSessions(cap)` would move to the
+	 * trash right now. Read-only; feeds the confirm dialog.
+	 */
+	countEvictionsForCap(cap: SavedSessionsCap): number {
+		const state = this.settingsAccess.getSnapshot();
+		return selectEvictions(
+			state.savedSessions || [],
+			cap,
+			tabSessionIds(state.perLeafTabStates),
+		).evicted.length;
+	}
+
+	/**
+	 * Set Max saved chats and trim the list to it in one locked write. Chats a
+	 * persisted tab uses are kept even if that leaves the list over the cap.
+	 */
+	async applyMaxSavedSessions(cap: SavedSessionsCap): Promise<void> {
+		this.sessionLock = this.sessionLock.then(async () => {
+			const state = this.settingsAccess.getSnapshot();
+			const { kept, evicted } = selectEvictions(
+				state.savedSessions || [],
+				cap,
+				tabSessionIds(state.perLeafTabStates),
+			);
+			await this.settingsAccess.updateSettings({
+				maxSavedSessions: cap,
+				savedSessions: kept,
+			});
+			await this.trashEvicted(evicted);
+		});
+		await this.sessionLock;
+	}
+
+	/**
+	 * Transcript files no saved chat or persisted tab refers to, unchanged
+	 * for at least a day (I202 cleanup command). Read-only.
+	 */
+	async findUnusedSessionFiles(
+		now: number = Date.now(),
+	): Promise<SessionFileInfo[]> {
+		const adapter = this.plugin.app.vault.adapter;
+		const dir = this.getSessionsDir();
+		if (!(await adapter.exists(dir))) return [];
+		const { files } = await adapter.list(dir);
+		const infos: SessionFileInfo[] = [];
+		for (const filePath of files) {
+			const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+			if (!name.endsWith(".json")) continue;
+			const stat = await adapter.stat(filePath);
+			if (!stat || stat.type !== "file") continue;
+			infos.push({
+				stem: name.slice(0, -".json".length),
+				mtime: stat.mtime,
+				size: stat.size,
+			});
+		}
+		return selectUnusedSessionFiles({
+			files: infos,
+			referencedStems: this.referencedStems(),
+			now,
+			minAgeMs: UNUSED_FILE_MIN_AGE_MS,
+		});
+	}
+
+	/**
+	 * Move every unused transcript file to the trash. Re-checks references
+	 * inside the session lock, so a chat saved since the user confirmed is
+	 * never touched.
+	 */
+	async trashUnusedSessionFiles(
+		now: number = Date.now(),
+	): Promise<{ count: number; bytes: number }> {
+		let result = { count: 0, bytes: 0 };
+		this.sessionLock = this.sessionLock.then(async () => {
+			const unused = await this.findUnusedSessionFiles(now);
+			for (const file of unused) {
+				const path = `${this.getSessionsDir()}/${file.stem}.json`;
+				if (await this.trashPath(path)) {
+					result = {
+						count: result.count + 1,
+						bytes: result.bytes + file.size,
+					};
+				}
+			}
+		});
+		await this.sessionLock;
+		return result;
+	}
+
+	/**
+	 * The cap in force. The settings normalizer is the trust boundary that
+	 * restricts the value to the dropdown's options; here any positive whole
+	 * number is honored, and a missing value means the default.
+	 */
+	private readCap(state: AgentClientPluginSettings): SavedSessionsCap {
+		const raw: unknown = state.maxSavedSessions;
+		if (raw === null) return null;
+		if (typeof raw === "number" && Number.isInteger(raw) && raw > 0) {
+			return raw;
+		}
+		return parseMaxSavedSessions(undefined).cap;
+	}
+
+	private referencedStems(): Set<string> {
+		const state = this.settingsAccess.getSnapshot();
+		const stems = new Set<string>();
+		for (const s of state.savedSessions || []) {
+			stems.add(sessionFileStem(s.sessionId));
+		}
+		for (const id of tabSessionIds(state.perLeafTabStates)) {
+			stems.add(sessionFileStem(id));
+		}
+		return stems;
+	}
+
+	private async trashEvicted(evicted: SavedSessionInfo[]): Promise<void> {
+		for (const record of evicted) {
+			await this.trashSessionFile(record.sessionId);
+		}
+	}
+
+	/**
+	 * Move a session's transcript to the trash: the system trash, or the
+	 * vault's `.trash` folder when the system trash is off. A missing file is
+	 * fine. A failure is logged and the file stays, so the cleanup command
+	 * can find it later. The one place transcript files are removed (I202).
+	 */
+	private async trashSessionFile(sessionId: string): Promise<void> {
+		await this.trashPath(this.getSessionFilePath(sessionId));
+	}
+
+	private async trashPath(filePath: string): Promise<boolean> {
+		const adapter = this.plugin.app.vault.adapter;
+		try {
+			if (!(await adapter.exists(filePath))) return false;
+			if (!(await adapter.trashSystem(filePath))) {
+				await adapter.trashLocal(filePath);
+			}
+			return true;
+		} catch (error) {
+			getLogger().warn(
+				`[SessionStorage] Could not move ${filePath} to the trash: ${String(error)}`,
+			);
+			return false;
+		}
 	}
 
 	/**
@@ -153,7 +340,7 @@ export class SessionStorage {
 
 	/**
 	 * Delete a saved session by sessionId.
-	 * Also deletes the associated message history file.
+	 * Also moves the associated message history file to the trash (I202).
 	 */
 	async deleteSession(sessionId: string): Promise<void> {
 		this.sessionLock = this.sessionLock.then(async () => {
@@ -164,7 +351,7 @@ export class SessionStorage {
 			await this.settingsAccess.updateSettings({
 				savedSessions: sessions,
 			});
-			await this.deleteSessionMessages(sessionId);
+			await this.trashSessionFile(sessionId);
 		});
 		await this.sessionLock;
 	}
@@ -257,8 +444,7 @@ export class SessionStorage {
 	}
 
 	private getSessionFilePath(sessionId: string): string {
-		const safeId = sessionId.replace(/[^a-zA-Z0-9_-]/g, "_");
-		return `${this.getSessionsDir()}/${safeId}.json`;
+		return `${this.getSessionsDir()}/${sessionFileStem(sessionId)}.json`;
 	}
 
 	/**

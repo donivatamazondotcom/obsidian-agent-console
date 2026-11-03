@@ -41,6 +41,12 @@ import {
 	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
 } from "../utils/obsidian-system-prompt";
 import { ConfirmResetModal } from "./ConfirmResetModal";
+import { ConfirmTrashChatsModal } from "./ConfirmTrashChatsModal";
+import {
+	parseMaxSavedSessions,
+	SAVED_SESSIONS_CAP_OPTIONS,
+	type SavedSessionsCap,
+} from "../resolvers/session-retention";
 import {
 	TITLE_STRATEGY_OPTIONS,
 	type TitleStrategy,
@@ -716,6 +722,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			this.customAgentsGroup(),
 			this.chatBehaviorGroup(),
 			this.appearanceGroup(),
+			this.sessionsGroup(),
 			this.tabsGroup(),
 			this.permissionsGroup(),
 			{
@@ -851,6 +858,24 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					control: {
 						type: "toggle",
 						key: "enableSystemNotifications",
+					},
+				},
+			],
+		};
+	}
+
+	private sessionsGroup(): SettingDefinitionItem {
+		return {
+			type: "group",
+			heading: t("settings.heading.sessions"),
+			items: [
+				{
+					name: t("settings.maxSavedSessions.name"),
+					desc: t("settings.maxSavedSessions.desc"),
+					render: (setting) => {
+						setting.addDropdown((dropdown) =>
+							this.configureMaxSavedSessionsDropdown(dropdown),
+						);
 					},
 				},
 			],
@@ -1123,6 +1148,61 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				new Notice(languageReloadNotice(String(value)));
 				break;
 		}
+	}
+
+	/**
+	 * I202: Max saved chats. A dropdown, not a text field: a text field
+	 * saves per keystroke, so typing "2" on the way to "200" would evict.
+	 * Lowering the cap confirms first when chats would go to the trash;
+	 * cancel puts the dropdown back. Shared by both settings layouts.
+	 */
+	private configureMaxSavedSessionsDropdown(
+		dropdown: DropdownComponent,
+	): void {
+		const UNLIMITED = "unlimited";
+		const toValue = (cap: SavedSessionsCap) =>
+			cap === null ? UNLIMITED : String(cap);
+		for (const n of SAVED_SESSIONS_CAP_OPTIONS) {
+			dropdown.addOption(String(n), String(n));
+		}
+		dropdown.addOption(
+			UNLIMITED,
+			t("settings.maxSavedSessions.unlimited"),
+		);
+		let current = parseMaxSavedSessions(
+			this.plugin.settings.maxSavedSessions,
+		).cap;
+		dropdown.setValue(toValue(current)).onChange((value) => {
+			const next: SavedSessionsCap =
+				value === UNLIMITED ? null : Number(value);
+			const apply = async () => {
+				await this.plugin.settingsService.applyMaxSavedSessions(
+					next,
+				);
+				current = next;
+			};
+			const count =
+				this.plugin.settingsService.countEvictionsForCap(next);
+			if (count === 0) {
+				void apply();
+				return;
+			}
+			new ConfirmTrashChatsModal(
+				this.app,
+				{
+					title: t("modals.confirmTrashChats.capTitle"),
+					body: t("modals.confirmTrashChats.capBody", {
+						count,
+					}),
+				},
+				() => {
+					void apply();
+				},
+				() => {
+					dropdown.setValue(toValue(current));
+				},
+			).open();
+		});
 	}
 
 	private configureChatFontSizeText(text: TextComponent): void {
@@ -1508,6 +1588,17 @@ export class AgentClientSettingTab extends PluginSettingTab {
 							enableSystemNotifications: value,
 						});
 					}),
+			);
+
+		new Setting(containerEl)
+			.setName(t("settings.heading.sessions"))
+			.setHeading();
+
+		new Setting(containerEl)
+			.setName(t("settings.maxSavedSessions.name"))
+			.setDesc(t("settings.maxSavedSessions.desc"))
+			.addDropdown((dropdown) =>
+				this.configureMaxSavedSessionsDropdown(dropdown),
 			);
 
 		new Setting(containerEl).setName(t("settings.heading.tabs")).setHeading();

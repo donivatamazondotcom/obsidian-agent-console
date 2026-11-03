@@ -83,6 +83,20 @@ Sessions are saved in two places:
 - **Plugin side**: Stored locally in Obsidian's data folder
 - **Agent side**: Managed by the agent
 
+### How many chats are kept
+
+Your history keeps your 100 most recent chats by default. Change this under **Settings → Sessions → Max saved chats**: pick 25, 50, 100, 250, 500, or **Unlimited**.
+
+When you go over the limit, the chats you used least recently move to your trash, so you can still get them back. Agent Console uses your computer's trash, or the vault's `.trash` folder if that's turned off. A chat that's open in a tab is never removed, even if that leaves you a little over the limit. The first time this happens after Obsidian starts, a short notice tells you.
+
+If you lower the limit and some chats would go, Agent Console asks first and tells you how many. Cancel keeps everything as it was.
+
+Older versions of Agent Console left the files of dropped chats on disk. To clear those out, run **Clean up unused chat files** from the command palette. It shows how many files it found and how much space they take, then moves them to your trash when you confirm.
+
+::: tip
+A file you restore from the trash comes back as a readable file in the plugin's `sessions` folder. It doesn't reappear in your history list on its own.
+:::
+
 ## Restore
 
 Restoring a session reopens it in a **new tab** — your current chat is left untouched. If the session is already open in another tab, you're switched to that tab instead.
@@ -118,7 +132,7 @@ To delete a session:
 2. Confirm the deletion in the dialog
 
 ::: warning
-Deletion removes the session from the plugin's local storage only. The session still exists on the agent side.
+Deletion removes the session from the plugin's local storage only, and moves its saved messages to your trash. The session still exists on the agent side.
 :::
 
 ## Troubleshooting

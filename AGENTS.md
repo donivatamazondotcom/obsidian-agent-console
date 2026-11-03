@@ -61,7 +61,7 @@ src/
 │   ├── session-search.ts        # Pure full-text search engine over saved sessions (extract/index/match/snippet)
 │   ├── settings-migration.ts    # One-time settings migration (autoMentionActiveNote → activeNoteAsDefaultContext)
 │   ├── settings-service.ts      # Reactive settings store (observer pattern only)
-│   ├── session-storage.ts       # Session metadata + message file I/O (sessions/*.json)
+│   ├── session-storage.ts       # Session metadata + message file I/O (sessions/*.json); the only evictor (saveSession, applyMaxSavedSessions) — evicted/deleted transcripts go to the trash (I202)
 │   ├── session-store.ts         # Single serialized writer of record for savedSessions metadata/title (I114)
 │   ├── mcp-auth-manager.ts      # Single owner of pending MCP sign-in state + queue-aware Notice lifecycle
 │   ├── settings-normalizer.ts   # Validation helpers + DEFAULT_SETTINGS + normalizeRawSettings (raw→typed mapping)
@@ -151,6 +151,7 @@ src/
 │   ├── CorruptionRecoveryModal.ts # Corrupt persisted-state recovery modal
 │   ├── ConfirmCloseModal.ts     # Confirm-before-closing-panel modal (focused Cmd+W with 2+ tabs)
 │   ├── ConfirmResetModal.ts     # Confirm-before-resetting the Obsidian system prompt (only when typed text would be lost)
+│   ├── ConfirmTrashChatsModal.ts # Confirm before moving chats/chat files to the trash (lowering Max saved chats, Clean up unused chat files) – I202
 │   ├── branding.ts              # Agent Console SVG mark + cross-surface branding
 │   ├── ChatPanel.tsx            # Orchestrator: calls hooks, workspace events, rendering
 │   ├── ChatView.tsx             # Sidebar view (ItemView wrapper)
@@ -217,6 +218,7 @@ src/
 │   ├── session-modes.ts            # readSessionModes (config option or legacy modes; shared by header + prompt targeting), lookupByIdOrName, resolveModeRequest (one-shot first-session mode)
 │   ├── history-capabilities.ts     # resolveHistoryCapabilities(live, cached) → { kind: live | cached | unknown, capabilities } — what the history view gates on before a tab connects (I260)
 │   ├── session-history-view.ts     # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source, knowledge) → listSource/agentPill (available | unsupported | unknown, I260)/restore/fork/banner/folderFilterDefault); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
+│   ├── session-retention.ts        # I202 saved-chat retention: selectEvictions(sessions, cap, tabIds) → least recently updated first, never a tab's record; selectUnusedSessionFiles (cleanup command, 24h guard); parseMaxSavedSessions (25|50|100|250|500|null=unlimited, default 100); formatSize
 │   ├── session-title.ts            # Pure session-title resolver (I224/I227): resolveSessionTitle(local > agent > none, drops placeholder agent titles), overlayLocalTitles (Agent-view rows, live + cached, by session id), deriveRestoreTabLabel (restored/forked tab label); deriveSessionRecordTitle reads it too
 │   ├── tab-keyboard-nav.ts         # deriveTabKeyTarget — pure resolver for Left/Right/Home/End focus movement across the tab strip (WAI-ARIA tabs, manual activation; TS-I08)
 │   ├── tab-label-width.ts          # deriveActiveTabLabelMax — pure resolver for the active tab's label max-width so the whole active tab stays visible in the strip
