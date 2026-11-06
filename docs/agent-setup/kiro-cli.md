@@ -52,7 +52,7 @@ Kiro CLI has two engines. Agent Console uses the newer one, V3, unless you pick 
 
 Older versions of Kiro CLI don't have V3. If yours is one, the chat shows **Kiro CLI needs an update** instead of connecting. Run `kiro-cli update`, or set **Kiro CLI engine** to **V2 (legacy)**, then send your message again.
 
-Each saved chat remembers the engine it ran on. A V2 chat opens fine on V3. V2 can't open a chat that ran on V3, so if you reopen one after switching to V2, Agent Console starts a new session, says why at the top of the chat, and continues from your saved messages. Switch the agent back to V3 to pick up the original session.
+Each saved chat remembers the engine it ran on. A V2 chat opens fine on V3. V2 can't open a chat that ran on V3, so if you reopen one after switching to V2, Agent Console starts a new session, says why at the top of the chat, and continues from your saved messages. Switch the agent back to V3 to pick up the original session. Before Agent Console 2.5.0, a chat set to **V2 (legacy)** could quietly run on V3 if Kiro CLI's own engine setting was V3. Reopening one of those on V2 works the same way: a new session that continues from your saved messages.
 
 With V3, your agent's hooks (start, prompt and stop) run in Agent Console chats too. MCP servers that need sign-in prompt you as soon as Kiro reports them, and servers that fail to start are listed at the top of the chat (see [MCP Tools](../usage/mcp-tools.md#on-the-kiro-cli-v3-engine)).
 

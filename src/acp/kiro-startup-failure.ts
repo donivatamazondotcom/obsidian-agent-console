@@ -36,10 +36,15 @@ const ENGINE_FLAG_REJECTED = /--agent-engine/;
 
 /**
  * Narrow match for the V2 relaunch (I270): only clap's unknown-argument
- * error. An unpinned launch is the condition that caused I270, so it runs
- * only when the CLI says it doesn't know the flag at all.
+ * error, in clap 4 wording (`unexpected argument '--agent-engine' found`,
+ * measured for D3) or clap 3 wording (`Found argument '--agent-engine'
+ * which wasn't expected`, not measured on kiro-cli). An unpinned launch is
+ * the condition that caused I270, so it runs only when the CLI says it
+ * doesn't know the flag at all; `invalid value … for '--agent-engine'`
+ * (a CLI that knows the flag) never matches.
  */
-const ENGINE_FLAG_UNKNOWN = /unexpected argument '--agent-engine'/;
+const ENGINE_FLAG_UNKNOWN =
+	/unexpected argument '--agent-engine'|Found argument '--agent-engine' which wasn't expected/;
 
 /**
  * `engine-unsupported` only for a V3 launch that exited non-zero with stderr

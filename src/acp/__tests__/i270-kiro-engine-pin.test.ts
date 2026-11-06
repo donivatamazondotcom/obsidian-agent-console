@@ -157,6 +157,17 @@ describe("classifyKiroStartupFailure (I270)", () => {
 		).toBe("engine-flag-unknown");
 	});
 
+	it("clap 3's wording for an unknown flag counts too", () => {
+		expect(
+			classifyKiroStartupFailure({
+				launchedEngine: "v2",
+				exitCode: 2,
+				stderr:
+					"error: Found argument '--agent-engine' which wasn't expected, or isn't valid in this context\n",
+			}),
+		).toBe("engine-flag-unknown");
+	});
+
 	it("a V2 failure that only mentions the flag is not", () => {
 		expect(
 			classifyKiroStartupFailure({
