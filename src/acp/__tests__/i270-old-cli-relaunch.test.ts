@@ -218,6 +218,8 @@ describe("I270 — V2 on a kiro-cli without --agent-engine", () => {
 		expect(spawns("old")).toEqual(["acp --agent-engine=v2"]);
 		expect(switched.kiroEngine).toBe("v2");
 		expect(client.getLaunchKey()).toContain(newCli);
+		// The new agent's process is still the client's live connection.
+		expect(client.isInitialized()).toBe(true);
 		oldProc?.kill();
 		await client.disconnect();
 		await client.whenTornDown();

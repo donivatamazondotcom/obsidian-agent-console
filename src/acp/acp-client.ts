@@ -610,9 +610,13 @@ export class AcpClient {
 		} catch (error) {
 			this.logger.error("Initialization Error:", error);
 
-			// Reset flags on failure
-			this.isInitializedFlag = false;
-			this.currentAgentId = null;
+			// Reset flags on failure, but only while this attempt still owns
+			// the client: a start that a newer initialize replaced must not
+			// wipe the newer agent's state (I270 review).
+			if (this.agentProcess === agentProcess) {
+				this.isInitializedFlag = false;
+				this.currentAgentId = null;
+			}
 
 			const startupError = await this.recognizeStartupFailure(
 				config,
