@@ -7,6 +7,9 @@ import { RequestError } from "@agentclientprotocol/sdk";
  * - `rejected`: the agent replied with a JSON-RPC error that means "I can't
  *   open that session". Kiro V2 and Codex send `-32603`, Claude Code `-32002`
  *   (I264 probe, 2026-11-02); `-32602` is a malformed or unknown id.
+ *   `-32603` is also JSON-RPC's generic internal error, so a real internal
+ *   error on a session that still exists reads as rejected. Accepted: the
+ *   tab keeps the id and a send retries the load.
  * - `transport`: anything else: a closed connection, a timeout, an auth or
  *   cancel error, or a non-Error value. The session may still exist.
  *

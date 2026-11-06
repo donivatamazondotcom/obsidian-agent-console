@@ -434,6 +434,9 @@ export function useLazySession(
 		const generation = acquisitionGenerationRef.current;
 
 		tabStateRef.current.startConnect();
+		// A retry is in flight: stop saying the session is gone until this
+		// attempt settles (I282 code review).
+		setSessionGone(false);
 
 		// Acquisition source, in precedence order: fork > restore > new.
 		let result: SessionAcquisitionResult;
