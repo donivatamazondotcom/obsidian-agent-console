@@ -29,10 +29,10 @@ describe("classifyKiroStartupFailure (D3)", () => {
 		).toBe("engine-unsupported");
 	});
 
-	it("V2 launch is never D3", () => {
+	it("V2 launch is never D3 (I270: an old CLI rejecting the V2 pin relaunches instead)", () => {
 		expect(
 			classifyKiroStartupFailure({ launchedEngine: "v2", exitCode: 2, stderr: UNKNOWN_FLAG }),
-		).toBeNull();
+		).toBe("engine-flag-unknown");
 		expect(
 			classifyKiroStartupFailure({ launchedEngine: undefined, exitCode: 2, stderr: UNKNOWN_FLAG }),
 		).toBeNull();

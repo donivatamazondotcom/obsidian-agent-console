@@ -44,7 +44,7 @@ function makePlugin() {
 		settingsService: {
 			getSnapshot: () => ({
 				sessionHistorySource: "agent",
-				agentSessionMetaCache: {},
+				serverSessionCache: {},
 			}),
 			getSavedSessions: () => [],
 			updateSettings: vi.fn(async () => {}),

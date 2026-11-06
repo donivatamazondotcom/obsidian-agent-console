@@ -14,7 +14,13 @@
 import type { ErrorInfo } from "../types/errors";
 import { t } from "../i18n";
 
-export type KiroStartupFailure = "engine-unsupported";
+/**
+ * - `engine-unsupported`: a V3 launch an older CLI rejected (D3).
+ * - `engine-flag-unknown`: a V2 launch an older CLI rejected for the
+ *   `--agent-engine` pin (I270). That CLI only has V2, so the client
+ *   relaunches once without the flag.
+ */
+export type KiroStartupFailure = "engine-unsupported" | "engine-flag-unknown";
 
 export interface KiroStartupFailureInput {
 	/** Engine the process was launched with. */
@@ -29,12 +35,25 @@ export interface KiroStartupFailureInput {
 const ENGINE_FLAG_REJECTED = /--agent-engine/;
 
 /**
+ * Narrow match for the V2 relaunch (I270): only clap's unknown-argument
+ * error. An unpinned launch is the condition that caused I270, so it runs
+ * only when the CLI says it doesn't know the flag at all.
+ */
+const ENGINE_FLAG_UNKNOWN = /unexpected argument '--agent-engine'/;
+
+/**
  * `engine-unsupported` only for a V3 launch that exited non-zero with stderr
- * naming `--agent-engine`. Everything else is not D3 (null).
+ * naming `--agent-engine`; `engine-flag-unknown` only for a V2 launch that
+ * exited 2 with clap's unknown-argument error. Everything else is null.
  */
 export function classifyKiroStartupFailure(
 	input: KiroStartupFailureInput,
 ): KiroStartupFailure | null {
+	if (input.launchedEngine === "v2") {
+		return input.exitCode === 2 && ENGINE_FLAG_UNKNOWN.test(input.stderr)
+			? "engine-flag-unknown"
+			: null;
+	}
 	if (input.launchedEngine !== "v3") return null;
 	if (input.exitCode === null || input.exitCode === 0) return null;
 	if (!ENGINE_FLAG_REJECTED.test(input.stderr)) return null;

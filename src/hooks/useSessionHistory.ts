@@ -23,6 +23,11 @@ import {
 	type HistoryCapabilities,
 } from "../resolvers/history-capabilities";
 import { resolveAgentLaunchKey } from "../services/session-helpers";
+import {
+	historyLaunchKey,
+	type HistoryLaunch,
+} from "../resolvers/history-launch-key";
+import { withServerSessionCache } from "../services/server-session-cache";
 import type { ChatMessage } from "../types/chat";
 import { extractErrorMessage } from "../utils/error-utils";
 import { overlayLocalTitles } from "../resolvers/session-title";
@@ -230,7 +235,13 @@ export interface UseSessionHistoryReturn {
 	 * Mirror the agent's `session/list` metadata into the local cache. Call on
 	 * connect for a listing agent; powers the disconnected Agent view.
 	 */
-	syncAgentSessionMetaCache: () => Promise<void>;
+	syncServerSessionCache: () => Promise<void>;
+	/**
+	 * The launch Session history reads for (`historyLaunchKey`, I270): the
+	 * key both the capability gate and the server-session rows use. Null for
+	 * an unconfigured agent with no process.
+	 */
+	historyLaunchKey: string | null;
 }
 
 /**
@@ -294,18 +305,29 @@ export function useSessionHistory(
 	// Read during render: the host re-renders on every settings change
 	// (ChatPanel's useSettings), and the snapshot is a stable object, so the
 	// memo below only recomputes when the cached record itself changes.
-	let cachedCapabilities: AgentCapabilities | undefined;
-	if (!session.capabilities && session.agentId) {
-		const snapshot = settingsAccess.getSnapshot();
-		const key = resolveAgentLaunchKey(snapshot, session.agentId);
-		cachedCapabilities = key
-			? snapshot.agentCapabilityCache[key]?.capabilities
+	// I270: one launch answers for both the capability gate and the rows
+	// (`historyLaunchKey`). A process that is up answers for itself; with no
+	// process (idle release, never connected) the launch a connect would make
+	// answers, even if this tab still holds the old process's capabilities.
+	// Per render: one getLaunchKey() read; the settings lookup only runs
+	// when no process is up.
+	const snapshot = settingsAccess.getSnapshot();
+	const historyLaunch: HistoryLaunch = historyLaunchKey({
+		liveLaunchKey: agentClient.getLaunchKey(),
+		sessionState: session.state,
+		nextLaunchKey: () =>
+			session.agentId ? resolveAgentLaunchKey(snapshot, session.agentId) : null,
+	});
+	const liveCapabilities = historyLaunch.useLiveCapabilities
+		? session.capabilities
+		: undefined;
+	const cachedCapabilities: AgentCapabilities | undefined =
+		!liveCapabilities && historyLaunch.key
+			? snapshot.agentCapabilityCache[historyLaunch.key]?.capabilities
 			: undefined;
-	}
 	const historyCapabilities: HistoryCapabilities = useMemo(
-		() =>
-			resolveHistoryCapabilities(session.capabilities, cachedCapabilities),
-		[session.capabilities, cachedCapabilities],
+		() => resolveHistoryCapabilities(liveCapabilities, cachedCapabilities),
+		[liveCapabilities, cachedCapabilities],
 	);
 
 	// I260: remember what this launch reported, so the next unconnected tab
@@ -932,20 +954,23 @@ export function useSessionHistory(
 	 * a "synced N ago" affordance. Best-effort: a failed list leaves the prior
 	 * cache intact (never presents an empty list as a fresh sync).
 	 */
-	const syncAgentSessionMetaCache = useCallback(async () => {
+	const syncServerSessionCache = useCallback(async () => {
 		if (!session.agentId || !capabilities.listsSessions) return;
+		// I270: keyed by the launch that answers, captured before the await.
+		// A relaunch while the list is in flight changes the key, and the
+		// rows then belong to no launch we can name, so nothing is written.
+		// An unpinned Kiro launch has no key and is never recorded.
+		const launchKey = agentClient.getLaunchKey();
+		if (!launchKey) return;
 		try {
 			const result = await agentClient.listSessions();
-			const agentId = session.agentId;
-			const current = settingsAccess.getSnapshot().agentSessionMetaCache;
+			if (agentClient.getLaunchKey() !== launchKey) return;
+			const current = settingsAccess.getSnapshot().serverSessionCache;
 			await settingsAccess.updateSettings({
-				agentSessionMetaCache: {
-					...current,
-					[agentId]: {
-						sessions: result.sessions,
-						syncedAt: new Date().toISOString(),
-					},
-				},
+				serverSessionCache: withServerSessionCache(current, launchKey, {
+					sessions: result.sessions,
+					syncedAt: new Date().toISOString(),
+				}),
 			});
 		} catch {
 			// Best-effort mirror — keep the last good cache on failure.
@@ -983,7 +1008,8 @@ export function useSessionHistory(
 			applySessionTitle,
 			loadSessionMessages,
 			invalidateCache,
-			syncAgentSessionMetaCache,
+			syncServerSessionCache,
+			historyLaunchKey: historyLaunch.key,
 		}),
 		[
 			sessions,
@@ -1009,7 +1035,8 @@ export function useSessionHistory(
 			applySessionTitle,
 			loadSessionMessages,
 			invalidateCache,
-			syncAgentSessionMetaCache,
+			syncServerSessionCache,
+			historyLaunch.key,
 		],
 	);
 }
