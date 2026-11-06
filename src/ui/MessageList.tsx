@@ -11,7 +11,7 @@ import { MessageBubble, type A2uiBubbleContext } from "./MessageBubble";
 import { LossyFallbackNotice } from "./LossyFallbackNotice";
 import type { SessionFallbackReason } from "../resolvers/session-engine";
 import { McpFailureNotice } from "./McpFailureNotice";
-import { isSessionLive } from "../resolvers/send-affordance";
+import { deriveConversationEmptyState } from "../resolvers/conversation-empty-state";
 import {
 	deriveEmptyStateView,
 	type EmptyStateLocation,
@@ -308,6 +308,10 @@ export interface MessageListProps {
 	isFallbackRecovery?: boolean;
 	/** Why the fallback happened (D2); picks the notice copy. */
 	fallbackReason?: SessionFallbackReason | null;
+	/** I282: the agent no longer has this tab's session. */
+	sessionGone?: boolean;
+	/** I282: close this tab (the gone notice's Close button). */
+	onCloseSessionGone?: () => void;
 	/**
 	 * The tab's view id. When present, MCP servers that failed to connect
 	 * (Kiro V3 status snapshots) are listed above the conversation.
@@ -388,6 +392,8 @@ export function MessageList({
 	isActive = true,
 	isFallbackRecovery = false,
 	fallbackReason = null,
+	sessionGone = false,
+	onCloseSessionGone,
 	viewId,
 	gettingStarted,
 }: MessageListProps) {
@@ -424,34 +430,52 @@ export function MessageList({
 	// single return path (vs. early return) so scrollRef is attached to
 	// the same DOM node in both empty and populated states.
 	if (messages.length === 0) {
+		const emptyState = deriveConversationEmptyState({
+			isRestoringSession,
+			lazyState,
+			sessionGone,
+		});
 		return (
 			<div ref={scrollRef} className="agent-client-chat-view-messages">
 				<div ref={contentRef} className="agent-client-chat-content">
 					{viewId && plugin.mcpAuthManager && (
 						<McpFailureNotice manager={plugin.mcpAuthManager} viewId={viewId} />
 					)}
-					{gettingStarted ? (
+					{emptyState.kind === "session-gone" ? (
+						<div
+							className="agent-client-chat-empty-state agent-client-session-gone"
+							role="status"
+						>
+							<span>{t("chat.sessionGone.body", { agent: agentLabel })}</span>
+							<button
+								type="button"
+								className="mod-cta agent-client-session-gone-close"
+								onClick={() => onCloseSessionGone?.()}
+							>
+								{t("chat.sessionGone.close")}
+							</button>
+						</div>
+					) : gettingStarted ? (
 						<GettingStarted info={gettingStarted} />
 					) : (
 						<div className="agent-client-chat-empty-state">
-							{isRestoringSession
+							{emptyState.kind === "restoring"
 								? t("chat.messages.restoringSession")
-								: lazyState === "idle" || lazyState === "released"
+								: emptyState.kind === "send-to-connect"
 									? t("chat.messages.sendToConnectTo", {
 											agent: agentLabel,
 										})
-									: lazyState === "error"
+									: emptyState.kind === "connect-failed"
 										? t("chat.messages.connectFailed", {
 												agent: agentLabel,
 											})
-										: !isSessionLive(lazyState)
-										? t("chat.messages.connectingTo", {
-												agent: agentLabel,
-											})
-										: t(
-												"chat.messages.startConversation",
-												{ agent: agentLabel },
-											)}
+										: emptyState.kind === "connecting"
+											? t("chat.messages.connectingTo", {
+													agent: agentLabel,
+												})
+											: t("chat.messages.startConversation", {
+													agent: agentLabel,
+												})}
 						</div>
 					)}
 				</div>

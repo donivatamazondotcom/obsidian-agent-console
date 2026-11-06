@@ -557,6 +557,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 		"{queueKey}로 대기열에 추가 · {steerKey}로 바로 보내기",
 	"chat.composer.queuedBannerReady":
 		"대기 중 — {agent}이(가) 끝나면 전송됩니다",
+	"chat.composer.queuedBannerGone": "보내지 않았습니다. 이 세션은 더 이상 {agent}에 없습니다.",
 	"chat.composer.queuedBannerFailed": "연결할 수 없음 — 편집한 다음 보내기로 다시 시도하세요",
 	"chat.composer.queuedBannerWaiting": "대기 중 — 준비되면 전송됩니다",
 	// ---- Phase 3: message list + landing ----
@@ -705,6 +706,8 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.sharedLinks.none": "아직 공유된 링크가 없습니다",
 	"chat.sharedLinks.count": "공유 링크({count})",
 	"chat.sharedLinks.countWithNew": "공유 링크({count}, 새 링크 {new}개)",
+	"chat.sessionGone.body": "이 세션은 더 이상 {agent}에 없습니다.",
+	"chat.sessionGone.close": "닫기",
 	"chat.lossyFallback.title": "기록에서 복원된 세션",
 	"chat.lossyFallback.body":
 		"원래 세션을 에이전트에서 더 이상 사용할 수 없습니다. 이전 대화의 기록을 바탕으로 작업하지만, 원래 세션의 내부 상태나 이전의 추론에는 접근할 수 없습니다. 일부 도구 출력도 잘렸을 수 있습니다.",

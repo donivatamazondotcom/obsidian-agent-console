@@ -50,6 +50,7 @@ import {
 	isSessionLive,
 } from "../resolvers/send-affordance";
 import { deriveTabState } from "../resolvers/tab-state";
+import { shouldShowRecoverableHistory } from "../resolvers/conversation-empty-state";
 import { useTabUnseen } from "../hooks/useTabUnseen";
 import { extractLinks, type SharedLink } from "../utils/link-extract";
 import {
@@ -281,6 +282,11 @@ export interface ChatPanelProps {
 	/** Close a specific tab by ID (used when its session is deleted) */
 	onCloseTab?: (tabId: string) => void;
 	/**
+	 * Close this tab the way its × does (I282: the "no longer on {agent}"
+	 * notice's Close). Unlike `onCloseTab` it also ends the agent process.
+	 */
+	onCloseSelf?: () => void;
+	/**
 	 * Open a history session in a matched-or-new tab (Track C). Restore/fork
 	 * route through here (ChatView orchestration) instead of restoring into the
 	 * current tab, so the active session is never clobbered.
@@ -450,6 +456,7 @@ export function ChatPanel({
 	findTabBySessionId,
 	onSwitchToTab,
 	onCloseTab,
+	onCloseSelf,
 	onOpenSessionInTab,
 	onSetTabLabelCustom,
 	restoredSessionId,
@@ -1574,6 +1581,9 @@ export function ChatPanel({
 					// from the mount snapshot (I209: a fresh tab that released
 					// has messages but no restoredMessages).
 					haveLocalHistory: () => messageCountRef.current > 0,
+					// I282: without a record, opening the row is the import, so
+					// a load that replays nothing is empty.
+					hasLocalRecord: () => sessionHistory.getRecordId() !== null,
 					onResumeError: (e) =>
 						logger.log("[Lazy] resume failed, trying load:", e),
 					onLoaded: (r) =>
@@ -1602,6 +1612,7 @@ export function ChatPanel({
 				restoredKiroEngine,
 				agent.updateSessionFromLoad,
 				agent.setIgnoreUpdates,
+				sessionHistory.getRecordId,
 				logger,
 			],
 		),
@@ -1716,6 +1727,12 @@ export function ChatPanel({
 			clearFallbackCarryOver();
 			sessionHistory.resetRecordBinding();
 		}, [clearFallbackCarryOver, sessionHistory.resetRecordBinding]),
+
+		// I282: an Agent-view row with no local record (the I269 binding)
+		// and nothing on screen has no transcript to carry over, so a failed
+		// load says the session is gone instead of falling back.
+		hasLocalRecord: () => sessionHistory.getRecordId() !== null,
+		haveLocalHistory: () => messageCountRef.current > 0,
 
 		sendPrompt: useCallback(async () => {
 			// Queue flush is owned by ChatPanel's connect-flush effect
@@ -3250,6 +3267,8 @@ export function ChatPanel({
 			isActive={isActive}
 			isFallbackRecovery={lazySession.isFallbackRecovery}
 			fallbackReason={lazySession.fallbackReason}
+			sessionGone={lazySession.sessionGone}
+			onCloseSessionGone={onCloseSelf}
 			viewId={viewId}
 			gettingStarted={gettingStarted}
 			a2ui={a2uiContext}
@@ -3290,10 +3309,13 @@ export function ChatPanel({
 	// on-demand history recovery (agent replay) instead of a silent blank.
 	// Auto-hides once a session goes live or any message is shown (recovery
 	// succeeded, or the user started typing a fresh conversation).
-	const showRecoverableHistory =
-		!!historyRecoverable &&
-		messages.length === 0 &&
-		lazySession.sessionId === null;
+	const showRecoverableHistory = shouldShowRecoverableHistory({
+		historyRecoverable: !!historyRecoverable,
+		messageCount: messages.length,
+		sessionId: lazySession.sessionId,
+		// I282: a reload of a session the agent said is gone fails the same way.
+		sessionGone: lazySession.sessionGone,
+	});
 
 	const recoverableHistoryBanner = showRecoverableHistory ? (
 		<div className="agent-client-recoverable-history" role="status">
@@ -3331,6 +3353,7 @@ export function ChatPanel({
 			isSending={isSending}
 			isSessionReady={isSessionReady}
 			lazyState={lazySession.state}
+			sessionGone={lazySession.sessionGone}
 			launches={composerAffordances.sendMode === "launch"}
 			isRestoringSession={sessionHistory.loading}
 			agentLabel={activeAgentLabel}

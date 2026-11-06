@@ -592,6 +592,7 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.placeholderQueueSteer":
 		"{queueKey} で待機列へ · {steerKey} で今すぐ送信",
 	"chat.composer.queuedBannerReady": "待機中 — {agent} の完了後に送信されます",
+	"chat.composer.queuedBannerGone": "送信されていません。このセッションは {agent} にはもうありません。",
 	"chat.composer.queuedBannerFailed": "接続できませんでした — 編集してから送信で再試行",
 	"chat.composer.queuedBannerWaiting": "待機中 — 準備でき次第送信されます",
 	// ---- Phase 3: message list + landing ----
@@ -747,6 +748,8 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.sharedLinks.none": "共有リンクはまだありません",
 	"chat.sharedLinks.count": "共有リンク（{count}）",
 	"chat.sharedLinks.countWithNew": "共有リンク（{count}、新着 {new} 件）",
+	"chat.sessionGone.body": "このセッションは {agent} にはもうありません。",
+	"chat.sessionGone.close": "閉じる",
 	"chat.lossyFallback.title": "履歴から復元されたセッション",
 	"chat.lossyFallback.body":
 		"元のセッションはエージェント側で利用できなくなりました。以前の会話の記録をもとに作業しますが、元のセッションの内部状態や以前の推論にはアクセスできません。一部のツール出力も切り詰められている可能性があります。",

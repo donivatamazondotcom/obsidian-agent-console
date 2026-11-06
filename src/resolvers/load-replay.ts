@@ -20,9 +20,13 @@ export type LoadReplayDecision = { kind: "loaded" } | { kind: "empty" };
 
 export function decideLoadReplay(input: {
 	replayedConversationUpdates: number | undefined;
-	haveLocalHistory: boolean;
+	/**
+	 * A real load should replay a conversation: a transcript is on screen
+	 * (I264), or the row has no local record, so the load is the import (I282).
+	 */
+	expectsConversation: boolean;
 }): LoadReplayDecision {
-	if (input.haveLocalHistory && input.replayedConversationUpdates === 0) {
+	if (input.expectsConversation && input.replayedConversationUpdates === 0) {
 		return { kind: "empty" };
 	}
 	return { kind: "loaded" };

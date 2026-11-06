@@ -109,6 +109,8 @@ Restoring a session reopens it in a **new tab** — your current chat is left un
 
 Use restore when you want to **continue where you left off** without losing your current chat.
 
+If you restore a session that exists only on the agent (not saved locally) and the agent can't open it any more, the tab says the session is no longer on that agent and offers **Close**. It doesn't start an empty chat in its place. The row stays in the Agent view until the agent stops listing it.
+
 ### Fork
 
 Forking opens a **new tab** that branches from a previous session:

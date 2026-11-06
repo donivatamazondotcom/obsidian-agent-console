@@ -8,14 +8,23 @@ import {
 	type SessionEngine,
 } from "../resolvers/session-engine";
 import { decideLoadReplay } from "../resolvers/load-replay";
+import type { RestoreFailureKind } from "../resolvers/restore-failure";
+import { classifyLoadError } from "../acp/load-error";
 
 /**
  * `fallbackReason` on a failure says why the session couldn't be reopened
  * when the reason is known (D2: `"engine-changed"`). Absent → generic.
+ * `failure` says what kind of failure it was (I282), so the owner can tell a
+ * session the agent doesn't have from an agent it couldn't reach.
  */
 export type SessionAcquisitionResult =
 	| { ok: true; sessionId: string }
-	| { ok: false; error: Error; fallbackReason?: "engine-changed" };
+	| {
+			ok: false;
+			error: Error;
+			fallbackReason?: "engine-changed";
+			failure?: RestoreFailureKind;
+	  };
 
 export interface LoadExistingSessionFlowArgs {
 	sessionId: string;
@@ -27,6 +36,12 @@ export interface LoadExistingSessionFlowArgs {
 	 * race) the replay is allowed through as the sole source. (I43 #12)
 	 */
 	haveLocalHistory: boolean;
+	/**
+	 * The tab is bound to a local history record (I269). Without one, opening
+	 * the row is the import, so a load that replays nothing is empty (I282).
+	 * Default true (unchanged I264 behavior).
+	 */
+	hasLocalRecord?: boolean;
 	loadSession: (sessionId: string, cwd: string) => Promise<SessionResult>;
 	onLoaded: (result: SessionResult) => void;
 	setIgnoreUpdates: (ignore: boolean) => void;
@@ -45,6 +60,7 @@ export async function loadExistingSessionFlow(
 ): Promise<SessionAcquisitionResult> {
 	const { sessionId, cwd, haveLocalHistory, loadSession, onLoaded, setIgnoreUpdates } =
 		args;
+	const hasLocalRecord = args.hasLocalRecord ?? true;
 	if (haveLocalHistory) setIgnoreUpdates(true);
 	try {
 		const result = await loadSession(sessionId, cwd);
@@ -53,11 +69,12 @@ export async function loadExistingSessionFlow(
 		// chat: fail, so the owner starts a new session with the transcript.
 		const replay = decideLoadReplay({
 			replayedConversationUpdates: result.replayedConversationUpdates,
-			haveLocalHistory,
+			expectsConversation: haveLocalHistory || !hasLocalRecord,
 		});
 		if (replay.kind === "empty") {
 			return {
 				ok: false,
+				failure: "empty",
 				error: new Error(
 					`Session ${sessionId} loaded with no conversation; the agent doesn't have it`,
 				),
@@ -69,6 +86,7 @@ export async function loadExistingSessionFlow(
 		return {
 			ok: false,
 			error: err instanceof Error ? err : new Error(String(err)),
+			failure: classifyLoadError(err),
 		};
 	} finally {
 		if (haveLocalHistory) setIgnoreUpdates(false);
@@ -106,6 +124,8 @@ export interface ReconnectExistingSessionArgs {
 	 * has a transcript by the time it is released (I209).
 	 */
 	haveLocalHistory: () => boolean;
+	/** I282: the tab is bound to a local history record (I269). */
+	hasLocalRecord?: () => boolean;
 	onLoaded: (result: SessionResult) => void;
 	setIgnoreUpdates: (ignore: boolean) => void;
 	/** A resume attempt threw; the flow falls back to load. Logging only. */
@@ -146,6 +166,7 @@ export async function reconnectExistingSession(
 			return {
 				ok: false,
 				error: err instanceof Error ? err : new Error(String(err)),
+				failure: "initialize",
 			};
 		}
 	}
@@ -163,6 +184,7 @@ export async function reconnectExistingSession(
 				`Session ran on Kiro ${engine.from}; this agent now runs ${engine.to}`,
 			),
 			fallbackReason: engine.reason,
+			failure: "engine-changed",
 		};
 	}
 	const capabilities = init?.capabilities ?? NO_AGENT_CAPABILITIES;
@@ -182,6 +204,7 @@ export async function reconnectExistingSession(
 		sessionId,
 		cwd,
 		haveLocalHistory,
+		hasLocalRecord: args.hasLocalRecord?.() ?? true,
 		loadSession: (id, c) => client.loadSession(id, c),
 		onLoaded: args.onLoaded,
 		setIgnoreUpdates: args.setIgnoreUpdates,

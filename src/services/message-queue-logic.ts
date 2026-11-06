@@ -143,8 +143,13 @@ export function buildQueuedBanner(params: {
 	 * ready" — it tells the user how to retry (I233).
 	 */
 	connectFailed?: boolean;
+	/** I282: the agent no longer has this session; nothing will send it. */
+	sessionGone?: boolean;
 }): string {
 	if (params.isAction) return t("chat.composer.queuedBannerAction");
+	if (params.sessionGone) {
+		return t("chat.composer.queuedBannerGone", { agent: params.agentLabel });
+	}
 	if (params.connectFailed) return t("chat.composer.queuedBannerFailed");
 	return params.isSessionReady
 		? t("chat.composer.queuedBannerReady", { agent: params.agentLabel })

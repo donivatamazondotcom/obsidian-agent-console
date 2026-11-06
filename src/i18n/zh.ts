@@ -542,6 +542,7 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.placeholderQueueSteer":
 		"{queueKey} 排队 · {steerKey} 立即发送",
 	"chat.composer.queuedBannerReady": "已排队 — {agent} 完成后发送",
+	"chat.composer.queuedBannerGone": "未发送。此会话已不在 {agent} 上。",
 	"chat.composer.queuedBannerFailed": "无法连接 — 点击编辑，然后发送以重试",
 	"chat.composer.queuedBannerWaiting": "已排队 — 准备就绪后发送",
 	// ---- Phase 3: message list + landing ----
@@ -705,6 +706,8 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.sharedLinks.none": "还没有共享链接",
 	"chat.sharedLinks.count": "共享链接（{count}）",
 	"chat.sharedLinks.countWithNew": "共享链接（{count}，{new} 个新）",
+	"chat.sessionGone.body": "此会话已不在 {agent} 上。",
+	"chat.sessionGone.close": "关闭",
 	"chat.lossyFallback.title": "从历史恢复的会话",
 	"chat.lossyFallback.body":
 		"原会话在代理端已不可用。我基于你之前对话的记录继续工作，但无法访问原会话的内部状态或之前的推理。部分工具输出也可能被截断。",

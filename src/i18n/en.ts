@@ -670,6 +670,7 @@ export const en = {
 	"chat.composer.placeholderQueueSteer":
 		"{queueKey} to queue · {steerKey} to send now",
 	"chat.composer.queuedBannerReady": "Queued — sends when {agent} is done",
+	"chat.composer.queuedBannerGone": "Not sent. This session is no longer on {agent}.",
 	"chat.composer.queuedBannerFailed":
 		"Couldn't connect — Edit, then Send to retry",
 	"chat.composer.queuedBannerWaiting": "Queued — sends when ready",
@@ -869,6 +870,8 @@ export const en = {
 	"chat.sharedLinks.none": "No shared links yet",
 	"chat.sharedLinks.count": "Shared links ({count})",
 	"chat.sharedLinks.countWithNew": "Shared links ({count}, {new} new)",
+	"chat.sessionGone.body": "This session is no longer on {agent}.",
+	"chat.sessionGone.close": "Close",
 	"chat.lossyFallback.title": "Session restored from history",
 	"chat.lossyFallback.body":
 		"The original session was no longer available on the agent. I'm working from a transcript of your previous conversation, but I don't have access to the original session's internal state or any reasoning from before. Some tool outputs may also have been truncated.",

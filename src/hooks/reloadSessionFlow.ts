@@ -49,7 +49,7 @@ export function assertLoadReplayed(
 ): void {
 	const decision = decideLoadReplay({
 		replayedConversationUpdates,
-		haveLocalHistory,
+		expectsConversation: haveLocalHistory,
 	});
 	if (decision.kind === "empty") throw new EmptyLoadError(sessionId);
 }

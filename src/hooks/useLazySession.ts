@@ -74,6 +74,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTabSessionState, type TabSessionState } from "./useTabSessionState";
 import type { SessionFallbackReason } from "../resolvers/session-engine";
+import {
+	decideRestoreFailure,
+	type RestoreFailureKind,
+} from "../resolvers/restore-failure";
 
 // ============================================================================
 // Public types
@@ -98,7 +102,13 @@ export type SessionAcquisitionResult =
 			/** Why a lossy acquisition started fresh. Defaults to "unavailable". */
 			fallbackReason?: SessionFallbackReason;
 	  }
-	| { ok: false; error: Error; fallbackReason?: "engine-changed" };
+	| {
+			ok: false;
+			error: Error;
+			fallbackReason?: "engine-changed";
+			/** What kind of failure a restore load was (I282). */
+			failure?: RestoreFailureKind;
+	  };
 
 export interface UseLazySessionOptions {
 	/**
@@ -169,6 +179,18 @@ export interface UseLazySessionOptions {
 	onReset?: () => void;
 
 	/**
+	 * Whether the tab is bound to a local history record (I269), read when a
+	 * restored load fails. Without one, and with nothing on screen, there is
+	 * no transcript to carry over, so the owner doesn't fall back: it reports
+	 * `sessionGone` (agent rejected or emptily loaded it) or a connect failure
+	 * (I282). Default: true (always fall back, as before).
+	 */
+	hasLocalRecord?: () => boolean;
+
+	/** Whether a transcript is on screen right now (I282). Default: true. */
+	haveLocalHistory?: () => boolean;
+
+	/**
 	 * Debounce window for typing-as-intent. Decision #8: 200ms. Configurable
 	 * for testing and future tuning.
 	 */
@@ -207,6 +229,14 @@ export interface UseLazySessionApi {
 	 * (failed load, local fork branch). Cleared by `reset()`.
 	 */
 	fallbackReason: SessionFallbackReason | null;
+
+	/**
+	 * The restored session couldn't be loaded and the tab has nothing local
+	 * to carry over (I282): the UI says the session is no longer on the agent
+	 * and offers Close. The tab stays in `error`; a send retries the load.
+	 * Cleared by `reset()` and by any successful acquisition.
+	 */
+	sessionGone: boolean;
 
 	/**
 	 * Notify the hook that the composer text changed. Drives the
@@ -328,6 +358,8 @@ export function useLazySession(
 		sendPrompt,
 		onSessionFallback,
 		onReset,
+		hasLocalRecord,
+		haveLocalHistory,
 		debounceMs = DEFAULT_DEBOUNCE_MS,
 	} = options;
 
@@ -339,6 +371,7 @@ export function useLazySession(
 	const [isFallbackRecovery, setIsFallbackRecovery] = useState(false);
 	const [fallbackReason, setFallbackReason] =
 		useState<SessionFallbackReason | null>(null);
+	const [sessionGone, setSessionGone] = useState(false);
 	// Latest bound sessionId for async/ref-called entry points (reloadNow is
 	// invoked through a ref from useChatActions, so its closure may be stale).
 	const sessionIdRef = useRef<string | null>(null);
@@ -371,6 +404,10 @@ export function useLazySession(
 	const sendPromptRef = useRef(sendPrompt);
 	const onSessionFallbackRef = useRef(onSessionFallback);
 	const onResetRef = useRef(onReset);
+	const hasLocalRecordRef = useRef(hasLocalRecord);
+	const haveLocalHistoryRef = useRef(haveLocalHistory);
+	hasLocalRecordRef.current = hasLocalRecord;
+	haveLocalHistoryRef.current = haveLocalHistory;
 	onSessionFallbackRef.current = onSessionFallback;
 	onResetRef.current = onReset;
 	acquireNewSessionRef.current = acquireNewSession;
@@ -403,6 +440,9 @@ export function useLazySession(
 		// Set when this acquisition ends in a new session the agent knows
 		// nothing about; reported before `ready` (I246).
 		let fallback: SessionFallbackReason | null = null;
+		// Set when a restored load failed with nothing to carry over and the
+		// agent rejected the session (I282).
+		let gone = false;
 		const forkId = forkFromSessionIdRef.current;
 		const restoredId = restoredSessionIdRef.current;
 		if (forkId && forkExistingSessionRef.current) {
@@ -418,23 +458,30 @@ export function useLazySession(
 			result = await forkExistingSessionRef.current(forkId);
 			if (result.ok) {
 				forkFromSessionIdRef.current = null;
-				if (result.lossy) {
-					setIsFallbackRecovery(true);
-					setFallbackReason("unavailable");
-					fallback = "unavailable";
-				}
+				if (result.lossy) fallback = "unavailable";
 			}
 		} else if (restoredId) {
 			result = await loadExistingSessionRef.current(restoredId);
-			if (!result.ok) {
+			const decision =
+				!result.ok && generation === acquisitionGenerationRef.current
+					? decideRestoreFailure({
+							hasLocalRecord: hasLocalRecordRef.current?.() ?? true,
+							haveLocalHistory: haveLocalHistoryRef.current?.() ?? true,
+							failure:
+								result.failure ??
+								(result.fallbackReason === "engine-changed"
+									? "engine-changed"
+									: undefined),
+						})
+					: null;
+			if (decision?.kind === "gone") gone = true;
+			if (decision?.kind === "fallback") {
 				// Fallback: forget the restored ID (so a future retry goes
 				// straight to new) and create a fresh session. The replay
 				// context block lives in the consumer; we just signal the
-				// fallback path was taken.
-				const reason = result.fallbackReason ?? "unavailable";
-				setIsFallbackRecovery(true);
-				setFallbackReason(reason);
-				fallback = reason;
+				// fallback path was taken. Gone and connect-failed (I282) keep
+				// the id, so a send retries the load.
+				fallback = decision.reason;
 				result = await acquireNewSessionRef.current();
 				// Cleared only after the new session settles, so the kept id
 				// stays persistable while it is in flight (I209: the consumer
@@ -454,6 +501,14 @@ export function useLazySession(
 		if (generation !== acquisitionGenerationRef.current) {
 			return;
 		}
+
+		// Flags are set only here, after the generation check, so a reset
+		// during a failing load can't leak a notice into the new chat (I282).
+		if (fallback !== null) {
+			setIsFallbackRecovery(true);
+			setFallbackReason(fallback);
+		}
+		setSessionGone(gone && !result.ok);
 
 		if (result.ok) {
 			if (fallback !== null) {
@@ -581,6 +636,7 @@ export function useLazySession(
 		setSessionId(null);
 		setIsFallbackRecovery(false);
 		setFallbackReason(null);
+		setSessionGone(false);
 		tabStateRef.current.reset();
 		onResetRef.current?.();
 	}, []);
@@ -747,6 +803,7 @@ export function useLazySession(
 		keptSessionId: restoredSessionIdRef.current,
 		isFallbackRecovery,
 		fallbackReason,
+		sessionGone,
 		onComposerChange,
 		onSendClick,
 		recoverHistory,

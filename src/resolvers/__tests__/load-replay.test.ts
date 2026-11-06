@@ -2,8 +2,10 @@
  * I264 — `decideLoadReplay` truth table.
  *
  * Kiro V3 answers `session/load` for an id it never had with success and no
- * conversation replay (probed 2026-11-02). A load that replays nothing while a
- * transcript is on screen is an empty load; everything else loaded. A missing
+ * conversation replay (probed 2026-11-02). A load that replays nothing when a
+ * conversation is expected is an empty load; everything else loaded. A
+ * conversation is expected when a transcript is on screen (I264) or when the
+ * row has no local record, so opening it is the import (I282). A missing
  * count (resume, or an agent path that doesn't count) can't be judged, so it
  * loads. Literals only (R5).
  */
@@ -19,10 +21,10 @@ describe("I264 decideLoadReplay", () => {
 		[undefined, true, "loaded"],
 		[undefined, false, "loaded"],
 	] as const)(
-		"replayed %s, transcript on screen %s → %s",
-		(replayedConversationUpdates, haveLocalHistory, kind) => {
+		"replayed %s, conversation expected %s → %s",
+		(replayedConversationUpdates, expectsConversation, kind) => {
 			expect(
-				decideLoadReplay({ replayedConversationUpdates, haveLocalHistory })
+				decideLoadReplay({ replayedConversationUpdates, expectsConversation })
 					.kind,
 			).toBe(kind);
 		},
