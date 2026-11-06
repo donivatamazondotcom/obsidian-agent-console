@@ -1551,6 +1551,10 @@ export function ChatPanel({
 		loadExistingSession: useCallback(
 			async (sessionId: string) => {
 				logger.log("[Lazy] Loading existing session:", sessionId);
+				// A new attempt ends an earlier failure, as createSession does.
+				// A retry after a failed fallback starts here (I280), so the
+				// tab must not sit "connecting" under "Session Creation Failed".
+				agent.clearError();
 				await releaseGateRef.current.wait();
 				// D2: the engine this chat last ran on — the session record
 				// (written per turn) first, then the tab's own value. Both read
@@ -1605,6 +1609,7 @@ export function ChatPanel({
 				return result;
 			},
 			[
+				agent.clearError,
 				initializeAgentForTab,
 				acpClient,
 				agentCwd,
