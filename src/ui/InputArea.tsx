@@ -217,6 +217,8 @@ export interface InputAreaProps {
 	isSessionReady: boolean;
 	/** Per-tab lazy session state (canonical readiness signal for send affordance) */
 	lazyState: TabSessionState;
+	/** I282: the agent no longer has this session (held-message banner copy). */
+	sessionGone?: boolean;
 	/** Whether a session is being restored (load/resume/fork) */
 	isRestoringSession: boolean;
 	/** Display name of the active agent */
@@ -354,6 +356,7 @@ export function InputArea({
 	isSending,
 	isSessionReady,
 	lazyState,
+	sessionGone = false,
 	isRestoringSession,
 	agentLabel,
 	availableCommands,
@@ -1645,6 +1648,7 @@ export function InputArea({
 								isSessionReady,
 								isAction: isQueuedAction,
 								connectFailed: lazyState === "error",
+								sessionGone,
 							})}
 						</span>
 						<div className="agent-client-queued-banner-actions">

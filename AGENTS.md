@@ -41,6 +41,7 @@ src/
 │   ├── acp-handler.ts           # SDK event handler + sessionId filter + listener broadcast
 │   ├── mcp-auth-parsers.ts      # Params parsers for _kiro.dev/mcp/* extension notifications (validate at edge)
 │   ├── claude-code-replay.ts    # Claude Code replay shape: `[@name](uri)` mention text back to a resource_link chip (I242)
+│   ├── load-error.ts            # classifyLoadError: a session/load JSON-RPC rejection ("no such session") vs a transport failure, so SDK errors stay in acp/ (I282)
 │   ├── kiro-startup-failure.ts  # D3: an older kiro-cli rejecting --agent-engine=v3 (exit code + stderr, never the version) → "Kiro CLI needs an update"
 │   ├── kiro-v3.ts               # Kiro CLI V3 adapter: launch-arg rewrite, initialize capabilities (hooks opt-in), per-session mode/model/effort, resource-link adapter + its `<attached_file>` replay inverse (I220/I222)
 │   ├── type-converter.ts        # ACP SDK ↔ internal type conversion; capability normalizer (toAgentCapabilities)
@@ -206,6 +207,7 @@ src/
 │   ├── composer-affordances.ts     # deriveComposerAffordances — pure composer send-target + control-composition resolver (surface × composer-caps × hasQuickPrompts → sendMode/quickPromptFire/context/showAttachments/showConfigSelectors); connection-state-independent (does NOT read lazyState); shared by the landing + in-tab composer so they can't drift; layers with deriveSendAffordance (enablement) — no overlap
 │   ├── composer-focus.ts           # Focus composer textarea + caret at end (restored-draft mount, TP-I03); send→refocus timing seam (I173)
 │   ├── deriveTabLabel.ts           # Derive tab label from session / first message
+│   ├── conversation-empty-state.ts # deriveConversationEmptyState — the tab's empty conversation copy (restoring > session gone > lazy state; I40, I249, I282) + shouldShowRecoverableHistory (I72 banner, hidden once gone)
 │   ├── empty-state-view.ts         # deriveEmptyStateView — pure empty-state affordance resolver (location × hasDetectedAgent → reason + redetect/installRows/agentPicks/landingActions/settings/hint); shared by GettingStarted (in-tab) and the zero-tab landing so the two can't drift
 │   ├── first-message.ts            # isFirstMessageOfSession — a send is a first message only on an empty transcript of a session that does not already exist (restored/forked tabs never are; I241)
 │   ├── header-slot.ts              # deriveHeaderSlot — pure 4-way header secondary-slot resolver (model / connecting / idle / none)
@@ -219,6 +221,7 @@ src/
 │   ├── session-engine.ts           # D2: parseSessionEngine (the one validator for a stored Kiro engine, on write/read/harness), resolveStoredSessionEngine (session record > tab > unknown), decideEngineRestore (V3 chat on V2 → start fresh without sending its id; else load). Read by reconnectExistingSession and soft reload
 │   ├── session-modes.ts            # readSessionModes (config option or legacy modes; shared by header + prompt targeting), lookupByIdOrName, resolveModeRequest (one-shot first-session mode)
 │   ├── history-capabilities.ts     # resolveHistoryCapabilities(live, cached) → { kind: live | cached | unknown, capabilities } — what the history view gates on before a tab connects (I260)
+│   ├── restore-failure.ts          # decideRestoreFailure — after a kept id fails to load: fallback with the transcript (local record or transcript on screen, or engine change; I246), gone (agent rejected or emptily loaded a row with nothing local; I282), or connect-failed (agent never answered)
 │   ├── session-history-view.ts     # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source, knowledge) → listSource/agentPill (available | unsupported | unknown, I260)/restore/fork/banner/folderFilterDefault); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
 │   ├── session-retention.ts        # I202 saved-chat retention: selectEvictions(sessions, cap, tabIds) → least recently updated first, never a tab's record; selectUnusedSessionFiles (cleanup command, 24h guard); parseMaxSavedSessions (25|50|100|250|500|null=unlimited, default 100); formatSize
 │   ├── session-title.ts            # Pure session-title resolver (I224/I227): resolveSessionTitle(local > agent > none, drops placeholder agent titles), overlayLocalTitles (Agent-view rows, live + cached, by session id), deriveRestoreTabLabel (restored/forked tab label); deriveSessionRecordTitle reads it too

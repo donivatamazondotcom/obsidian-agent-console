@@ -1645,6 +1645,7 @@ function ChatComponent({
 								findTabBySessionId={findTabBySessionId}
 								onSwitchToTab={tabManager.setActiveTab}
 								onCloseTab={tabManager.removeTab}
+								onCloseSelf={() => handleCloseTab(tab.tabId)}
 								onOpenSessionInTab={openSessionInTab}
 								onSetTabLabelCustom={(tabId, label) =>
 									tabManager.setTabLabel(tabId, label, true)

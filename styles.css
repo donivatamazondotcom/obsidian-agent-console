@@ -942,6 +942,14 @@ del.acp-header-branded-profile {
 	margin-top: 20px;
 }
 
+/* I282: the session is no longer on the agent – one line and a Close button. */
+.agent-client-session-gone {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 10px;
+}
+
 /* Getting-started empty state (Layer 2: never a dead end) */
 .agent-client-getting-started {
 	display: flex;
