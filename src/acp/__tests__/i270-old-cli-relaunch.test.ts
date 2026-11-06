@@ -17,21 +17,34 @@ import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, rmSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AcpClient } from "../acp-client";
+import { isInitializeSuperseded } from "../../utils/error-utils";
 import type AgentClientPlugin from "../../plugin";
 
 let dir: string;
 let oldCli: string;
 let failsAnyway: string;
+let newCli: string;
 
 /** argv log, then: reject --agent-engine like clap, else a minimal ACP agent. */
-const agentStub = (mode: "old" | "broken") => `#!/usr/bin/env node
+const agentStub = (mode: "old" | "broken" | "new") => `#!/usr/bin/env node
 const fs = require("fs");
 const path = require("path");
-fs.appendFileSync(path.join(__dirname, "argv-${mode}.log"), process.argv.slice(2).join(" ") + "\\n");
-if (process.argv.some((a) => a.startsWith("--agent-engine"))) {
+fs.appendFileSync(path.join(__dirname, "argv-old.log".replace("old", "${mode === "new" ? "old" : mode}")), process.argv.slice(2).join(" ") + "\\n");
+const reject = () => {
   process.stderr.write("error: unexpected argument '--agent-engine' found\\n\\n  tip: to pass '--agent-engine' as a value, use '-- --agent-engine'\\n");
   process.exit(2);
-}
+};
+if (${mode === "new" ? "false" : "true"} && process.argv.some((a) => a.startsWith("--agent-engine"))) {
+  // A test can hold the rejection until it says so (a HOLD marker), to land
+  // a disconnect deterministically while the pinned attempt is in flight.
+  const hold = path.join(__dirname, "HOLD");
+  if (fs.existsSync(hold)) {
+    const wait = () => (fs.existsSync(hold) ? setTimeout(wait, 10) : reject());
+    wait();
+  } else {
+    reject();
+  }
+} else {
 ${mode === "broken" ? 'process.stderr.write("error: something unrelated broke\\n"); process.exit(1);' : ""}
 let buf = "";
 process.stdin.on("data", (d) => {
@@ -50,12 +63,17 @@ process.stdin.on("data", (d) => {
     }
   }
 });
+}
 `;
 
 beforeAll(() => {
 	dir = mkdtempSync(join(tmpdir(), "i270-kiro-"));
 	oldCli = join(dir, "old", "kiro-cli");
 	failsAnyway = join(dir, "broken", "kiro-cli");
+	newCli = join(dir, "new", "kiro-cli");
+	mkdirSync(join(dir, "new"));
+	writeFileSync(newCli, agentStub("new").replace('"argv-old.log"', '"argv-new.log"'));
+	chmodSync(newCli, 0o755);
 	for (const [file, mode] of [
 		[oldCli, "old"],
 		[failsAnyway, "broken"],
@@ -76,6 +94,8 @@ beforeEach(() => {
 		const log = join(dir, mode, `argv-${mode}.log`);
 		if (existsSync(log)) rmSync(log);
 	}
+	rmSync(join(dir, "old", "HOLD"), { force: true });
+	writeFileSync(oldCli, agentStub("old"));
 });
 
 function makeClient(): AcpClient {
@@ -132,7 +152,7 @@ describe("I270 — V2 on a kiro-cli without --agent-engine", () => {
 		await client.disconnect();
 		await client.whenTornDown();
 		// The CLI is upgraded in place: it now accepts the flag.
-		writeFileSync(oldCli, agentStub("old").replace(/if \(process\.argv\.some[\s\S]*?\n\}\n/, ""));
+		writeFileSync(oldCli, agentStub("new"));
 		const result = await client.initialize(config(oldCli));
 		expect(spawns("old")).toEqual(["acp --agent-engine=v2", "acp", "acp --agent-engine=v2"]);
 		expect(result.kiroEngine).toBe("v2");
@@ -142,20 +162,80 @@ describe("I270 — V2 on a kiro-cli without --agent-engine", () => {
 		writeFileSync(oldCli, agentStub("old"));
 	}, 30_000);
 
+	/** Hold the stub's rejection until `release()`, once it has spawned. */
+	async function holdPinnedAttempt() {
+		const hold = join(dir, "old", "HOLD");
+		writeFileSync(hold, "");
+		return {
+			async spawned() {
+				for (let i = 0; i < 1500 && spawns("old").length === 0; i++) {
+					await new Promise((r) => setTimeout(r, 10));
+				}
+				expect(spawns("old")).toEqual(["acp --agent-engine=v2"]);
+			},
+			release: () => rmSync(hold, { force: true }),
+		};
+	}
+
 	it("a disconnect during the rejected pinned attempt doesn't relaunch", async () => {
 		const client = makeClient();
+		const held = await holdPinnedAttempt();
 		const pending = client.initialize(config(oldCli)).then(
 			() => null,
 			(e: unknown) => e,
 		);
-		// Wait until the pinned attempt has spawned, then close the tab.
-		for (let i = 0; i < 500 && spawns("old").length === 0; i++) {
-			await new Promise((r) => setTimeout(r, 10));
-		}
+		await held.spawned();
+		// Close the tab while the pinned attempt is in flight, then let the
+		// old CLI's rejection arrive.
+		const internals = client as unknown as { agentProcess: { kill: () => void } | null };
+		const proc = internals.agentProcess;
+		(internals as { agentProcess: unknown }).agentProcess = null; // keep it alive past disconnect
 		await client.disconnect();
+		held.release();
 		const err = await pending;
-		expect(err).toBeInstanceOf(Error);
+		expect((err as Error).message).toMatch(/superseded/);
 		expect(spawns("old")).toEqual(["acp --agent-engine=v2"]);
+		proc?.kill();
+		await client.whenTornDown();
+	}, 30_000);
+
+	it("an agent switch during the pinned attempt leaves the new agent's process alone", async () => {
+		const client = makeClient();
+		const held = await holdPinnedAttempt();
+		const first = client.initialize(config(oldCli)).catch((e: unknown) => e);
+		await held.spawned();
+		// The old attempt's process must outlive the switch to reach its
+		// rejection, as it would if the switch landed during the close wait.
+		const internals = client as unknown as { agentProcess: { kill: () => void } | null };
+		const oldProc = internals.agentProcess;
+		internals.agentProcess = null;
+		const other = { ...config(newCli), id: "other-agent", displayName: "Other" };
+		const switched = await client.initialize(other);
+		held.release();
+		const err = await first;
+		expect(isInitializeSuperseded(err)).toBe(true);
+		// No unpinned relaunch of the old agent, and the new agent is current.
+		expect(spawns("old")).toEqual(["acp --agent-engine=v2"]);
+		expect(switched.kiroEngine).toBe("v2");
+		expect(client.getLaunchKey()).toContain(newCli);
+		oldProc?.kill();
+		await client.disconnect();
+		await client.whenTornDown();
+	}, 30_000);
+
+	it("disconnect then initialize during the pinned attempt starts fresh and connects", async () => {
+		const client = makeClient();
+		const held = await holdPinnedAttempt();
+		const first = client.initialize(config(oldCli)).catch((e: unknown) => e);
+		await held.spawned();
+		await client.disconnect();
+		held.release();
+		const second = await client.initialize(config(oldCli));
+		expect(second.kiroEngine).toBe("v2");
+		expect((await first) as Error).toBeInstanceOf(Error);
+		// The restart pins first like any launch, then relaunches unpinned.
+		expect(spawns("old").slice(1)).toEqual(["acp --agent-engine=v2", "acp"]);
+		await client.disconnect();
 		await client.whenTornDown();
 	}, 30_000);
 

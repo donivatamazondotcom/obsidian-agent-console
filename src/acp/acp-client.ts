@@ -73,6 +73,7 @@ import {
 } from "../utils/paths";
 import {
 	AgentStartupError,
+	InitializeSupersededError,
 	extractStderrErrorHint,
 	getSpawnErrorInfo,
 	getCommandNotFoundSuggestion,
@@ -263,7 +264,7 @@ export class AcpClient {
 			// A disconnect or another initialize since this one started owns
 			// the client now; relaunching would orphan a process or kill theirs.
 			if (this.launchGeneration !== generation) {
-				throw new Error("Agent initialization was superseded");
+				throw new InitializeSupersededError();
 			}
 			this.logger.warn(
 				"Kiro CLI rejected --agent-engine=v2 (older CLI); relaunching without the flag",
@@ -1074,7 +1075,11 @@ export class AcpClient {
 	 */
 	disconnect(): Promise<void> {
 		this.logger.log("Disconnecting...");
+		// I270: a later initialize() must start fresh, not coalesce onto an
+		// attempt this disconnect superseded (that attempt then rejects).
 		this.launchGeneration++;
+		this.initializePromise = null;
+		this.initializingAgentId = null;
 
 		// Cancel all pending operations
 		this.cancelAllOperations();
