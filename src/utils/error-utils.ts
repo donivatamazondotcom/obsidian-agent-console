@@ -310,7 +310,7 @@ export function isAgentStartupError(error: unknown): error is AgentStartupError 
 export class InitializeSupersededError extends Error {
 	constructor() {
 		super("Agent initialization was superseded");
-		this.name = "InitializeSupersededError";
+		this.name = InitializeSupersededError.name;
 	}
 }
 
