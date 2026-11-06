@@ -132,6 +132,8 @@ const PER_FILE_ALLOW: Record<string, string[]> = {
 	],
 	// Detection patterns matched against agent stderr — not user copy.
 	"utils/error-utils.ts": [
+		// I270: internal; createSession drops this error, it is never shown.
+		"Agent initialization was superseded",
 		"API key is missing",
 		"LoadAPIKeyError",
 		"empty response text",
