@@ -301,3 +301,21 @@ export class AgentStartupError extends Error {
 export function isAgentStartupError(error: unknown): error is AgentStartupError {
 	return error instanceof AgentStartupError;
 }
+
+/**
+ * An initialize that a disconnect or another initialize replaced while it
+ * was still starting (the old-CLI relaunch, I270). The replacing call owns
+ * the tab's state, so this one must not show an error over it.
+ */
+export class InitializeSupersededError extends Error {
+	constructor() {
+		super("Agent initialization was superseded");
+		this.name = "InitializeSupersededError";
+	}
+}
+
+export function isInitializeSuperseded(
+	error: unknown,
+): error is InitializeSupersededError {
+	return error instanceof InitializeSupersededError;
+}
