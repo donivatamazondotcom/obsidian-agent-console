@@ -281,11 +281,16 @@ describe("I282 agent-only row: the agent can't load it", () => {
 				connectFailed: false,
 				sessionGone: row.hook.result.current.sessionGone,
 			}),
-		).not.toContain("Not sent");
+		).toBe("Queued — sends when ready");
 		await act(async () => {
 			row.releaseLoad();
 		});
 		await waitFor(() => expect(row.hook.result.current.state).toBe("ready"));
+		// It bound the original session; nothing fell back.
+		expect(row.hook.result.current.sessionGone).toBe(false);
+		expect(row.hook.result.current.sessionId).toBe("agent-row-1");
+		expect(row.acquireNewSession).not.toHaveBeenCalled();
+		expect(row.acp.client.loadSession).toHaveBeenCalledTimes(2);
 	});
 
 	it("New chat clears gone", async () => {
