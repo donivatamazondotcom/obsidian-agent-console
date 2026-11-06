@@ -82,7 +82,7 @@ The agent connected but couldn't create a session – for example because a sign
 
 **Solutions:**
 
-1. Fix the cause (for example, sign in again), then press **Send**. After a failed start the Send button reads **Retry connecting and send**: it starts a fresh session and sends your message once it's ready, so you don't lose what you typed
+1. Fix the cause (for example, sign in again), then press **Send**. After a failed start the Send button reads **Retry connecting and send**: it reconnects and sends your message once it's ready, so you don't lose what you typed. In a reopened chat it first tries the saved conversation again; if that can't be reopened, it starts a fresh session that gets the conversation so far
 2. Or click **+** in the tab bar to open a fresh session (or **Shift-click** the **↻ Reload** button to restart the agent with a fresh session)
 3. Check if your vault path contains special characters that might cause issues
 4. Reload the plugin

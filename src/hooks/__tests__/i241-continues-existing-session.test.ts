@@ -78,6 +78,37 @@ describe("useLazySession.continuesExistingSession", () => {
 		expect(result.current.continuesExistingSession()).toBe(false);
 	});
 
+	it("I280: a failed load whose new session also fails still continues; the later fallback does not", async () => {
+		const acquireNewSession = vi
+			.fn()
+			.mockResolvedValueOnce({ ok: false as const, error: new Error("down") })
+			.mockResolvedValue({ ok: true as const, sessionId: "fresh-1" });
+		const { result } = renderHook(() =>
+			useLazySession({
+				restoredSessionId: "sess_1",
+				acquireNewSession,
+				loadExistingSession: vi.fn(async () => ({
+					ok: false as const,
+					error: new Error("gone"),
+				})),
+				sendPrompt: vi.fn(async () => {}),
+				debounceMs: 0,
+			}),
+		);
+		await act(async () => {
+			result.current.onSendClick("hi");
+			await new Promise((r) => setTimeout(r, 0));
+		});
+		expect(result.current.state).toBe("error");
+		expect(result.current.continuesExistingSession()).toBe(true);
+		await act(async () => {
+			result.current.onSendClick("hi");
+			await new Promise((r) => setTimeout(r, 0));
+		});
+		expect(result.current.sessionId).toBe("fresh-1");
+		expect(result.current.continuesExistingSession()).toBe(false);
+	});
+
 	it("reset (New chat) ends the continuation", () => {
 		const { result } = render("sess_1", true);
 		act(() => result.current.reset());

@@ -410,6 +410,37 @@ describe("I269 — a fallback keeps one history record", () => {
 		await expectOneRecordAfterFallback(store, "fresh-2");
 	});
 
+	it("I280: a retry after the fallback's own new session failed rebinds the one record", async () => {
+		const store = await seededStore();
+		const tab = mountTab(store, {
+			restoredSessionId: "sess-x",
+			lazy: {
+				loadExistingSession: failingLoad(),
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValueOnce({
+						ok: false,
+						error: new Error("Session creation failed"),
+					})
+					.mockResolvedValue({ ok: true, sessionId: "new-1" }),
+			},
+		});
+		await act(async () => {
+			tab.result.current.lazy.onSendClick("What number did I ask you to remember?");
+		});
+		await settle();
+		expect(tab.result.current.lazy.state).toBe("error");
+
+		await send(tab, "What number did I ask you to remember?");
+		await settle();
+		// Rebound before any turn save: the record follows the chat.
+		expect(store.records()).toHaveLength(1);
+		expect(store.records()[0]?.sessionId).toBe("new-1");
+
+		await turnSave(tab, AFTER_FALLBACK);
+		await expectOneRecordAfterFallback(store, "new-1");
+	});
+
 	it("quit after the fallback, before any send: the tab still restores", async () => {
 		const store = await seededStore();
 		const tab = mountTab(store, {
