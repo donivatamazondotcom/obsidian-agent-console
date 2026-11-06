@@ -17,10 +17,12 @@
  *
  *   - **Restored-tab fallback path:** if `loadExistingSession` resolves
  *     `{ ok: false }`, the hook automatically falls through to
- *     `acquireNewSession`, sets `isFallbackRecovery = true` (the consumer
- *     renders the LossyFallbackNotice) and calls `onSessionFallback`
- *     before `ready`, so the consumer arms the transcript for the next send
- *     (I246). The hook itself does NOT build or send it — that separation
+ *     `acquireNewSession`. Once that session exists it sets
+ *     `isFallbackRecovery = true` (the consumer renders the
+ *     LossyFallbackNotice) and calls `onSessionFallback` before `ready`, so
+ *     the consumer arms the transcript for the next send (I246). If the new
+ *     session fails too, the restored id is kept, so the retry loads again
+ *     and falls back if it must (I280). The hook itself does NOT build or send it — that separation
  *     keeps it a pure trigger-and-state hook.
  *
  *   - **Send-while-connecting:** the hook does NOT queue internally. The
@@ -207,7 +209,9 @@ export interface UseLazySessionApi {
 	/**
 	 * The id held for the next acquisition: the restored id, or the id kept by
 	 * `release()` (I209). Null for a fresh tab that never released, and after
-	 * reset or a lossy fallback. The consumer passes THIS as the persisted id
+	 * reset or a lossy fallback. A failed fallback (load and new session both
+	 * failed) keeps it, so a quit before the retry still restores (I280). The
+	 * consumer passes THIS as the persisted id
 	 * to `resolveSessionIdForSave` instead of its mount-time snapshot, so a
 	 * fresh tab that released still survives a restart. (Not `sessionId ??
 	 * kept`: that would persist a fresh eager tab before its first message.)
@@ -215,8 +219,9 @@ export interface UseLazySessionApi {
 	keptSessionId: string | null;
 
 	/**
-	 * `true` if this session was acquired via `loadExistingSession` →
-	 * `acquireNewSession` fallback, or as a local fork branch. Drives the
+	 * `true` once a session was acquired via the `loadExistingSession` →
+	 * `acquireNewSession` fallback, or as a local fork branch; never while that
+	 * fallback is connecting or after it failed (I280). Drives the
 	 * LossyFallbackNotice. The transcript itself is delivered through
 	 * `onSessionFallback` (I246). Cleared by `reset()`.
 	 */
@@ -289,8 +294,9 @@ export interface UseLazySessionApi {
 	reset: () => void;
 	/**
 	 * Whether the tab continues a session that already exists: a restored id
-	 * that is still bound (load pending or succeeded) or a pending fork. False
-	 * after a failed load fell back to a new session, and after reset().
+	 * that is still bound (load pending or succeeded, or a fallback whose new
+	 * session failed, I280) or a pending fork. False once a failed load fell
+	 * back to a new session, and after reset().
 	 * Read at send time to decide "first message" (I241).
 	 */
 	continuesExistingSession: () => boolean;
@@ -446,6 +452,9 @@ export function useLazySession(
 		// Set when a restored load failed with nothing to carry over and the
 		// agent rejected the session (I282).
 		let gone = false;
+		// Set when the restored load failed and fell back; the restored id is
+		// forgotten only once the fallback session exists (I280).
+		let restoreFellBack = false;
 		const forkId = forkFromSessionIdRef.current;
 		const restoredId = restoredSessionIdRef.current;
 		if (forkId && forkExistingSessionRef.current) {
@@ -479,19 +488,16 @@ export function useLazySession(
 					: null;
 			if (decision?.kind === "gone") gone = true;
 			if (decision?.kind === "fallback") {
-				// Fallback: forget the restored ID (so a future retry goes
-				// straight to new) and create a fresh session. The replay
-				// context block lives in the consumer; we just signal the
-				// fallback path was taken. Gone and connect-failed (I282) keep
-				// the id, so a send retries the load.
+				// Fall back to a fresh session; the consumer carries the
+				// transcript over (I246). The restored id is kept until that
+				// session exists (cleared below): if the new session fails too,
+				// the retry loads again and falls back if it must, instead of
+				// starting a plain new chat with no transcript (I280). Gone and
+				// connect-failed (I282) keep the id too, so a send retries the
+				// load.
 				fallback = decision.reason;
+				restoreFellBack = true;
 				result = await acquireNewSessionRef.current();
-				// Cleared only after the new session settles, so the kept id
-				// stays persistable while it is in flight (I209: the consumer
-				// persists keptSessionId). Not cleared if a reset superseded us.
-				if (generation === acquisitionGenerationRef.current) {
-					restoredSessionIdRef.current = null;
-				}
 			}
 		} else {
 			result = await acquireNewSessionRef.current();
@@ -505,16 +511,18 @@ export function useLazySession(
 			return;
 		}
 
-		// Flags are set only here, after the generation check, so a reset
-		// during a failing load can't leak a notice into the new chat (I282).
-		if (fallback !== null) {
-			setIsFallbackRecovery(true);
-			setFallbackReason(fallback);
-		}
 		setSessionGone(gone && !result.ok);
 
 		if (result.ok) {
 			if (fallback !== null) {
+				// The fallback session exists: forget the restored id (before
+				// `ready`, so the connect-flush sees a fresh agent session),
+				// raise the notice, and report it (I246, I269, I280). Done only
+				// here, after the generation check, so a reset mid-flight never
+				// gets the notice (I282), and a failed fallback never shows it.
+				if (restoreFellBack) restoredSessionIdRef.current = null;
+				setIsFallbackRecovery(true);
+				setFallbackReason(fallback);
 				onSessionFallbackRef.current?.(fallback, result.sessionId);
 			}
 			setSessionId(result.sessionId);

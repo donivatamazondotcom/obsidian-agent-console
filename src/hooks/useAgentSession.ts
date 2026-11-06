@@ -601,6 +601,11 @@ export function useAgentSession(
 			models?: SessionModelState,
 			configOptions?: SessionConfigOption[],
 		) => {
+			// A load that succeeds ends any earlier failure, as createSession
+			// does: a retry that recovered the restored session must not sit
+			// under "Session Creation Failed". Cleared before any await (I280).
+			setErrorInfo(null);
+
 			// Pre-compute restored config BEFORE marking ready to avoid a UI
 			// race where the dropdowns briefly show the agent's current values
 			// before the user's saved selection is re-applied. See the matching
@@ -687,7 +692,7 @@ export function useAgentSession(
 				lastActivityAt: new Date(),
 			}));
 		},
-		[agentClient, settingsAccess],
+		[agentClient, settingsAccess, setErrorInfo],
 	);
 
 	const reloadSession = useCallback(async (
