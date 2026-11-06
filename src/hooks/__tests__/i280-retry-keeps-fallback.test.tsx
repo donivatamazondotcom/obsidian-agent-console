@@ -117,6 +117,8 @@ interface TabOptions {
 	newSession?: Step<Outcome>[];
 	/** The fork callback's outcome (local branch, lossy). */
 	fork?: Step<Outcome>[];
+	/** Whether the tab is bound to a local history record (I282). */
+	hasLocalRecord?: boolean;
 }
 
 function mountTab(opts: TabOptions) {
@@ -268,6 +270,8 @@ function mountTab(opts: TabOptions) {
 				actions.armFallbackCarryOver(reason);
 			},
 			onReset: actions.clearFallbackCarryOver,
+			hasLocalRecord: () => opts.hasLocalRecord ?? true,
+			haveLocalHistory: () => transcript.length > 0,
 			sendPrompt: vi.fn(),
 			debounceMs: 0,
 		});
@@ -425,6 +429,29 @@ describe("I280 — the retry after a failed fallback session keeps the fallback"
 		await tab.clickSend(Q);
 		await tab.send(Q);
 		expectFallbackFirstSend(tab.sent(0), Q);
+	});
+
+	it("agent-only row (no record, nothing on screen) on a changed engine: the failed fallback shows no notice, and the retry falls back", async () => {
+		const tab = mountTab({
+			restoredSessionId: "v3-agent-row",
+			storedEngine: "v3",
+			running: "v2",
+			transcript: [],
+			hasLocalRecord: false,
+			newSession: ["fail", "ok"],
+		});
+		await tab.clickSend("hi");
+		expect(tab.lazy().state).toBe("error");
+		expect(tab.lazy().isFallbackRecovery).toBe(false);
+		expect(tab.lazy().sessionGone).toBe(false);
+		expect(tab.lazy().keptSessionId).toBe("v3-agent-row");
+
+		await tab.clickSend("hi");
+		expect(tab.lazy().state).toBe("ready");
+		expect(tab.lazy().sessionId).toBe("new-1");
+		expect(tab.lazy().fallbackReason).toBe("engine-changed");
+		expect(tab.fallbackSpy).toHaveBeenCalledTimes(1);
+		expect(tab.client.loadSession).not.toHaveBeenCalled();
 	});
 
 	it("three failures, then success: exactly one fallback report", async () => {
