@@ -132,6 +132,9 @@ function mountTab(opts: TabOptions) {
 	const continuesRef: { current: (() => boolean) | null } = { current: null };
 	const fallbackSpy = vi.fn();
 	let newCount = 0;
+	// ChatPanel's shared error state (the banner renders from it):
+	// createSession clears it first and sets it on failure.
+	const banner = { error: null as string | null };
 
 	let initialized = false;
 	const client: ReconnectClientPort = {
@@ -165,9 +168,11 @@ function mountTab(opts: TabOptions) {
 		initialized = true;
 	});
 	const acquireNewSession = vi.fn(async (): Promise<SessionAcquisitionResult> => {
+		banner.error = null;
 		const step = take(newScript, "ok");
 		if (step.wait) await step.wait;
 		if (step.value === "fail") {
+			banner.error = "Session Creation Failed";
 			return { ok: false, error: new Error("Session creation failed") };
 		}
 		newCount += 1;
@@ -182,6 +187,10 @@ function mountTab(opts: TabOptions) {
 			client,
 			initialize,
 			haveLocalHistory: () => transcript.length > 0,
+			// As ChatPanel wires it: `agent.clearError`.
+			onAttemptStart: () => {
+				banner.error = null;
+			},
 			onLoaded: (r) => {
 				liveSession.sessionId = r.sessionId;
 			},
@@ -319,6 +328,7 @@ function mountTab(opts: TabOptions) {
 		acquireNewSession,
 		loadExistingSession,
 		fallbackSpy,
+		banner,
 	};
 }
 
@@ -549,6 +559,8 @@ describe("I280 — after the double failure", () => {
 		await tab.settle();
 		expect(tab.lazy().state).toBe("connecting");
 		expect(tab.lazy().isFallbackRecovery).toBe(false);
+		// The retry ended the earlier failure: no stale banner while connecting.
+		expect(tab.banner.error).toBeNull();
 
 		await act(async () => {
 			held.open();
@@ -556,6 +568,31 @@ describe("I280 — after the double failure", () => {
 		await tab.settle();
 		expect(tab.lazy().state).toBe("ready");
 		expect(tab.lazy().isFallbackRecovery).toBe(true);
+	});
+
+	it("the error banner clears when the retry starts and returns if the agent still can't start", async () => {
+		const held = gate();
+		const tab = mountTab({
+			restoredSessionId: "sess-x",
+			initialize: ["fail", { after: held.promise, then: "fail" }],
+			newSession: ["fail", "fail"],
+		});
+		await tab.clickSend(Q);
+		expect(tab.banner.error).toBe("Session Creation Failed");
+
+		await act(async () => {
+			tab.lazy().onSendClick(Q);
+		});
+		await tab.settle();
+		expect(tab.lazy().state).toBe("connecting");
+		expect(tab.banner.error).toBeNull();
+
+		await act(async () => {
+			held.open();
+		});
+		await tab.settle();
+		expect(tab.lazy().state).toBe("error");
+		expect(tab.banner.error).toBe("Session Creation Failed");
 	});
 
 	it("New chat after the double failure: a plain new chat, nothing armed", async () => {
