@@ -316,6 +316,24 @@ export function resolveAgentKiroEngine(
 }
 
 /**
+ * Whether a V2-resolved agent is a Kiro launch that gets `--agent-engine=v2`
+ * (I270): the built-in Kiro agent (any command, like V3), or a custom agent
+ * whose command is kiro-cli. Every other agent resolves to "v2" too but is
+ * not Kiro, so it gets no flag. A stored `engine: "v2"` alone doesn't count:
+ * a custom agent can keep one after its command changed to another agent,
+ * and the flag would break that launch.
+ */
+export function pinsKiroV2(
+	settings: Pick<AgentClientPluginSettings, "kiro" | "customAgents">,
+	agentId: string,
+): boolean {
+	if (agentId === settings.kiro.id) return true;
+	const custom = settings.customAgents.find((a) => a.id === agentId);
+	if (!custom) return false;
+	return isKiroCliCommand(custom.command);
+}
+
+/**
  * Launch key a NEW launch of this agent would have, from settings alone, or
  * null when the agent isn't configured (I260). Reads the same command and
  * engine `buildAgentConfigWithApiKey` launches with, through the one shared
@@ -381,8 +399,14 @@ export function buildAgentConfigWithApiKey(
 		};
 	}
 
-	if (resolveAgentKiroEngine(settings, agentId) === "v3") {
+	const kiroEngine = resolveAgentKiroEngine(settings, agentId);
+	if (kiroEngine === "v3") {
 		return { ...baseConfig, kiroEngine: "v3" as const };
+	}
+	// I270: V2 is pinned too. Without the flag kiro-cli follows Kiro's own
+	// engine setting and a "V2" chat can run V3.
+	if (pinsKiroV2(settings, agentId)) {
+		return { ...baseConfig, kiroEngine: "v2" as const };
 	}
 
 	// Custom agents — no API key injection

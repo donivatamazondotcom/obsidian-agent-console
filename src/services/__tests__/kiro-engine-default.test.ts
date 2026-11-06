@@ -120,11 +120,11 @@ describe("D1 resolution: Default launches V3", () => {
 		expect(resolveLaunchArgs(c)).toEqual(["acp", "--agent-engine=v3"]);
 	});
 
-	it("the built-in agent on V2 launches exactly as before", () => {
+	it("the built-in agent on V2 is pinned to V2 (I270)", () => {
 		const s = load({ kiro: { engine: "v2" }, kiroEngineDefaultMigrated: true });
 		const c = buildAgentConfigWithApiKey(s, s.kiro, s.kiro.id, "/vault");
-		expect(c.kiroEngine).toBeUndefined();
-		expect(resolveLaunchArgs(c)).toEqual(["acp"]);
+		expect(c.kiroEngine).toBe("v2");
+		expect(resolveLaunchArgs(c)).toEqual(["acp", "--agent-engine=v2"]);
 	});
 
 	it("a kiro-cli custom agent with no engine follows Default (V3)", () => {
@@ -136,8 +136,8 @@ describe("D1 resolution: Default launches V3", () => {
 	it("a kiro-cli custom agent set to V2 stays on V2", () => {
 		const s = load({ customAgents: [{ ...kiroCustom, engine: "v2" }] });
 		const c = buildAgentConfigWithApiKey(s, s.customAgents[0], "auto-sa", "/vault");
-		expect(c.kiroEngine).toBeUndefined();
-		expect(resolveLaunchArgs(c)).toEqual(kiroCustom.args);
+		expect(c.kiroEngine).toBe("v2");
+		expect(resolveLaunchArgs(c)).toContain("--agent-engine=v2");
 	});
 
 	it("a non-kiro custom agent never gets the Kiro V3 rewrite", () => {

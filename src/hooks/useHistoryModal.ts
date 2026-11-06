@@ -1,3 +1,4 @@
+import { readServerSessionCache } from "../services/server-session-cache";
 import { useRef, useCallback, useEffect } from "react";
 import { Notice } from "obsidian";
 import { SessionHistoryModal } from "../ui/SessionHistoryModal";
@@ -216,7 +217,7 @@ export function useHistoryModal(
 		const source = settings.sessionHistorySource;
 		const agentId = agent.session.agentId;
 		const agentSessionCache = withLocalTitles(
-			settings.agentSessionMetaCache[agentId] ?? null,
+			readServerSessionCache(settings, sessionHistory.historyLaunchKey),
 			plugin.settingsService.getSavedSessions(),
 			agentId,
 		);
@@ -282,6 +283,7 @@ export function useHistoryModal(
 		sessionHistory.error,
 		sessionHistory.hasMore,
 		sessionHistory.historyCapabilities,
+		sessionHistory.historyLaunchKey,
 		sessionHistory.loadSessionMessages,
 		sessionHistory.localSessionIds,
 		sessionHistory.fetchSessions,
@@ -319,7 +321,7 @@ export function useHistoryModal(
 				debugMode: debugMode,
 				initialSource: settings.sessionHistorySource,
 				agentSessionCache: withLocalTitles(
-					settings.agentSessionMetaCache[agentId] ?? null,
+					readServerSessionCache(settings, sessionHistory.historyLaunchKey),
 					plugin.settingsService.getSavedSessions(),
 					agentId,
 				),
@@ -342,6 +344,7 @@ export function useHistoryModal(
 		sessionHistory.error,
 		sessionHistory.hasMore,
 		sessionHistory.historyCapabilities,
+		sessionHistory.historyLaunchKey,
 		sessionHistory.loadSessionMessages,
 		sessionHistory.localSessionIds,
 		agentCwd,

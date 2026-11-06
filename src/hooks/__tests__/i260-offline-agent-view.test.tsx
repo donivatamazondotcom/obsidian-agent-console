@@ -86,9 +86,13 @@ function openDisconnectedHistory(setup: Setup) {
 		kiro: { ...KIRO, engine: setup.kiroEngine ?? "default" },
 		sessionHistorySource: "local",
 		agentCapabilityCache: setup.capabilityCache ?? {},
-		agentSessionMetaCache: setup.metaRows
+		serverSessionCache: setup.metaRows
 			? {
-					[setup.agentId]: {
+					// I270: keyed by the launch a connect would make.
+					[agentLaunchKey({
+						command: setup.agentId === CLAUDE.id ? CLAUDE.command : KIRO.command,
+						kiroEngine: setup.agentId === CLAUDE.id ? undefined : "v3",
+					})]: {
 						sessions: setup.metaRows,
 						syncedAt: "2026-11-01T04:55:00Z",
 					},

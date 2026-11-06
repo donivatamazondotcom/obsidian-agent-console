@@ -226,11 +226,13 @@ export interface AgentClientPluginSettings {
 	 */
 	sessionHistorySource: SessionListSource;
 	/**
-	 * Per-agent cache of server-session metadata (agentId → entry), mirrored
-	 * on connect via one `session/list`. Powers the disconnected Agent view
-	 * with a "synced N ago — connect to refresh" affordance (Decision 1).
+	 * Per-launch cache of server-session metadata (launch key → entry),
+	 * mirrored on connect via one `session/list`. Powers the disconnected
+	 * Agent view with a "synced N ago" affordance (Decision 1). Keyed by
+	 * launch, not agent id (I270); read and written only through
+	 * `services/server-session-cache.ts`.
 	 */
-	agentSessionMetaCache: Record<string, AgentSessionMetaCacheEntry>;
+	serverSessionCache: Record<string, AgentSessionMetaCacheEntry>;
 	/**
 	 * Capabilities from each agent launch's last `initialize` (launch key →
 	 * entry). Lets an unconnected tab offer the Agent view (I260).

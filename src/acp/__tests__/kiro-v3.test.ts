@@ -11,6 +11,7 @@
 import { describe, it, expect, vi } from "vitest";
 import * as acp from "@agentclientprotocol/sdk";
 import {
+	prepareKiroV2Launch,
 	prepareKiroV3Launch,
 	resolveLaunchArgs,
 	buildClientCapabilities,
@@ -206,7 +207,7 @@ describe("Kiro engine setting", () => {
 		expect(resolveKiroEngine({ engine: "default" })).toBe("v3");
 	});
 
-	it("the Kiro agent config carries the v3 intent only when v3 is selected", () => {
+	it("the Kiro agent config pins the selected engine (I270: V2 too)", () => {
 		const s = normalizeRawSettings({ kiro: { engine: "v3" } }, DEFAULT_SETTINGS, idKey);
 		expect(buildAgentConfigWithApiKey(s, s.kiro, s.kiro.id, "/vault").kiroEngine).toBe("v3");
 		const d = normalizeRawSettings(
@@ -214,7 +215,7 @@ describe("Kiro engine setting", () => {
 			DEFAULT_SETTINGS,
 			idKey,
 		);
-		expect(buildAgentConfigWithApiKey(d, d.kiro, d.kiro.id, "/vault").kiroEngine).toBeUndefined();
+		expect(buildAgentConfigWithApiKey(d, d.kiro, d.kiro.id, "/vault").kiroEngine).toBe("v2");
 		expect(
 			buildAgentConfigWithApiKey(s, s.claude, s.claude.id, "/vault").kiroEngine,
 		).toBeUndefined();
@@ -269,14 +270,15 @@ describe("Kiro engine on custom agents (S1b)", () => {
 		});
 	});
 
-	it("a custom agent set to V2 launches exactly as before", () => {
+	it("a custom agent set to V2 is pinned to V2 (I270)", () => {
 		const s = normalizeRawSettings(
 			{ customAgents: [{ ...autoSa, engine: "v2" }] },
 			DEFAULT_SETTINGS,
 			idKey,
 		);
 		const c = buildAgentConfigWithApiKey(s, s.customAgents[0], "auto-sa", "/vault");
-		expect(c.kiroEngine).toBeUndefined();
-		expect(resolveLaunchArgs(c)).toEqual(autoSa.args);
+		expect(c.kiroEngine).toBe("v2");
+		expect(resolveLaunchArgs(c)).toEqual(prepareKiroV2Launch(autoSa.args));
+		expect(resolveLaunchArgs(c)).toContain("--agent-engine=v2");
 	});
 });

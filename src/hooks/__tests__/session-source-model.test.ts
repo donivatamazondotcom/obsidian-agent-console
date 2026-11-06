@@ -37,6 +37,10 @@ const CLAUDE_CAPS: AgentCapabilities = {
 	reportsModels: false,
 };
 
+
+/** The live launch the fake client reports (I270: caches are keyed by launch). */
+const LAUNCH_KEY = "v2|claude-agent-acp";
+
 function saved(
 	sessionId: string,
 	agentId: string,
@@ -50,7 +54,8 @@ function makeSettings(savedSessions: SavedSessionInfo[]) {
 	let snapshot = {
 		savedSessions,
 		sessionHistorySource: "local" as const,
-		agentSessionMetaCache: {} as Record<string, unknown>,
+		serverSessionCache: {} as Record<string, unknown>,
+		agentCapabilityCache: {} as Record<string, unknown>,
 	};
 	const api = {
 		// Emulate the real getSavedSessions filtering contract.
@@ -78,7 +83,7 @@ function makeSettings(savedSessions: SavedSessionInfo[]) {
 function makeAgentClient(serverSessions: ListSessionsResult) {
 	const api = {
 		listSessions: vi.fn(async () => serverSessions),
-		getLaunchKey: () => null,
+		getLaunchKey: () => LAUNCH_KEY,
 		loadSession: vi.fn(),
 		resumeSession: vi.fn(),
 		forkSession: vi.fn(),
@@ -223,7 +228,7 @@ describe("Session History Source Model — Local view (unified store)", () => {
 describe("Session History Source Model — agent metadata cache", () => {
 	beforeEach(() => vi.clearAllMocks());
 
-	it("syncAgentSessionMetaCache mirrors the agent's session/list into the cache, keyed by agentId", async () => {
+	it("syncServerSessionCache mirrors the agent's session/list into the cache, keyed by launch (I270)", async () => {
 		const { hook, settings } = renderSessionHistory({
 			savedSessions: [],
 			serverSessions: {
@@ -236,20 +241,25 @@ describe("Session History Source Model — agent metadata cache", () => {
 		});
 
 		await act(async () => {
-			await hook.result.current.syncAgentSessionMetaCache();
+			await hook.result.current.syncServerSessionCache();
 		});
 
-		expect(settings.updateSettings).toHaveBeenCalledTimes(1);
-		const arg = settings.updateSettings.mock.calls[0][0] as {
-			agentSessionMetaCache: Record<
+		// Only the server-session writes (the I260 capability writer also runs).
+		const writes = settings.updateSettings.mock.calls.filter(
+			(c) => "serverSessionCache" in (c[0] as object),
+		);
+		expect(writes).toHaveLength(1);
+		const arg = writes[0][0] as {
+			serverSessionCache: Record<
 				string,
 				{ sessions: { sessionId: string }[]; syncedAt: string }
 			>;
 		};
-		expect(arg.agentSessionMetaCache.claude.sessions.map((s) => s.sessionId)).toEqual([
+		expect(arg.serverSessionCache[LAUNCH_KEY].sessions.map((s) => s.sessionId)).toEqual([
 			"s1",
 		]);
-		expect(typeof arg.agentSessionMetaCache.claude.syncedAt).toBe("string");
+		expect(typeof arg.serverSessionCache[LAUNCH_KEY].syncedAt).toBe("string");
+		expect(arg.serverSessionCache.claude).toBeUndefined();
 	});
 
 	it("does not sync for a non-listing agent (nothing to mirror)", async () => {
@@ -268,9 +278,13 @@ describe("Session History Source Model — agent metadata cache", () => {
 		});
 
 		await act(async () => {
-			await hook.result.current.syncAgentSessionMetaCache();
+			await hook.result.current.syncServerSessionCache();
 		});
 
-		expect(settings.updateSettings).not.toHaveBeenCalled();
+		expect(
+			settings.updateSettings.mock.calls.some(
+				(c) => "serverSessionCache" in (c[0] as object),
+			),
+		).toBe(false);
 	});
 });

@@ -6,6 +6,9 @@
  * never inferred from the wire. Everything v3-specific about launching and
  * opening sessions lives here as pure functions; `AcpClient` only calls them.
  *
+ * Every Kiro launch pins its engine with `--agent-engine` (I270): without
+ * the flag kiro-cli follows Kiro's own engine setting.
+ *
  * v3 differences handled here (CLI V3 ACP migration guide, 2026-10-09):
  * - Launch with `acp --agent-engine=v3`; v3 rejects `--agent`, `--model`,
  *   `--effort`, `--trust-all-tools` and `--trust-tools`.
@@ -142,11 +145,76 @@ export function requestedKiroAgent(args: readonly string[]): string | undefined 
 	return prepareKiroV3Launch(args).sessionMeta.modeId;
 }
 
-/** Spawn args for a config: v3 configs are rewritten, everything else untouched. */
-export function resolveLaunchArgs(config: AgentConfig): string[] {
-	return config.kiroEngine === "v3"
-		? prepareKiroV3Launch(config.args).args
-		: [...config.args];
+/**
+ * Drop every `--agent-engine` flag (inline or with a separate value). Total.
+ */
+function withoutEngineFlag(userArgs: readonly string[]): string[] {
+	const out: string[] = [];
+	for (let i = 0; i < userArgs.length; i++) {
+		const arg = userArgs[i];
+		if (arg === ENGINE_FLAG) {
+			i++; // drop "--agent-engine <value>"
+			continue;
+		}
+		if (arg.startsWith(`${ENGINE_FLAG}=`)) continue;
+		out.push(arg);
+	}
+	return out;
+}
+
+/**
+ * Index of the `acp` subcommand: the first `acp` that isn't the value of a
+ * flag that takes one (`--agent acp`). -1 when there is none.
+ */
+function acpSubcommandIndex(args: readonly string[]): number {
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+		if (arg === "acp") return i;
+		if (V2_ONLY_FLAGS[arg]?.value) i++; // skip the flag's value
+	}
+	return -1;
+}
+
+/**
+ * Rewrite user-configured kiro-cli args for the v2 server (I270). Pure and
+ * total. Without an engine flag kiro-cli follows Kiro's own engine setting,
+ * so a "V2" launch could run V3 under a V2 label (probe 2026-11-06). Drops
+ * any user engine flag and pins `--agent-engine=v2` after `acp`; the
+ * v2-only flags stay.
+ */
+export function prepareKiroV2Launch(userArgs: readonly string[]): string[] {
+	const out = withoutEngineFlag(userArgs);
+	const engineArg = `${ENGINE_FLAG}=v2`;
+	const acpIndex = acpSubcommandIndex(out);
+	if (acpIndex >= 0) out.splice(acpIndex + 1, 0, engineArg);
+	else out.push(engineArg);
+	return out;
+}
+
+/** How a launch treats the engine flag. */
+export interface LaunchArgsOptions {
+	/**
+	 * False only for the one relaunch of a V2 config on a kiro-cli that
+	 * rejected `--agent-engine` (an older CLI, which only has V2). Default true.
+	 */
+	pinEngine?: boolean;
+}
+
+/**
+ * Spawn args for a config. Kiro launches always pin their engine (V3
+ * rewritten, V2 pinned); other agents are untouched.
+ */
+export function resolveLaunchArgs(
+	config: AgentConfig,
+	options: LaunchArgsOptions = {},
+): string[] {
+	if (config.kiroEngine === "v3") return prepareKiroV3Launch(config.args).args;
+	if (config.kiroEngine === "v2") {
+		return options.pinEngine === false
+			? withoutEngineFlag(config.args)
+			: prepareKiroV2Launch(config.args);
+	}
+	return [...config.args];
 }
 
 /**
