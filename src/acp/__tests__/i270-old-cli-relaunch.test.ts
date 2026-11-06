@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AcpClient, resetKiroEngineFlagMemoForTests } from "../acp-client";
+import { AcpClient } from "../acp-client";
 import type AgentClientPlugin from "../../plugin";
 
 let dir: string;
@@ -72,7 +72,6 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-	resetKiroEngineFlagMemoForTests();
 	for (const mode of ["old", "broken"]) {
 		const log = join(dir, mode, `argv-${mode}.log`);
 		if (existsSync(log)) rmSync(log);
@@ -127,18 +126,40 @@ describe("I270 — V2 on a kiro-cli without --agent-engine", () => {
 		await client.whenTornDown();
 	}, 30_000);
 
-	it("remembers the CLI for the rest of the run, so the next launch skips the doomed spawn", async () => {
+	it("tries the pin again on the next launch, so a mid-run kiro-cli upgrade is pinned", async () => {
 		const client = makeClient();
 		await client.initialize(config(oldCli));
 		await client.disconnect();
 		await client.whenTornDown();
-		await client.initialize(config(oldCli));
-		expect(spawns("old")).toEqual(["acp --agent-engine=v2", "acp", "acp"]);
+		// The CLI is upgraded in place: it now accepts the flag.
+		writeFileSync(oldCli, agentStub("old").replace(/if \(process\.argv\.some[\s\S]*?\n\}\n/, ""));
+		const result = await client.initialize(config(oldCli));
+		expect(spawns("old")).toEqual(["acp --agent-engine=v2", "acp", "acp --agent-engine=v2"]);
+		expect(result.kiroEngine).toBe("v2");
+		expect(client.getLaunchKey()).not.toBeNull();
 		await client.disconnect();
+		await client.whenTornDown();
+		writeFileSync(oldCli, agentStub("old"));
+	}, 30_000);
+
+	it("a disconnect during the rejected pinned attempt doesn't relaunch", async () => {
+		const client = makeClient();
+		const pending = client.initialize(config(oldCli)).then(
+			() => null,
+			(e: unknown) => e,
+		);
+		// Wait until the pinned attempt has spawned, then close the tab.
+		for (let i = 0; i < 500 && spawns("old").length === 0; i++) {
+			await new Promise((r) => setTimeout(r, 10));
+		}
+		await client.disconnect();
+		const err = await pending;
+		expect(err).toBeInstanceOf(Error);
+		expect(spawns("old")).toEqual(["acp --agent-engine=v2"]);
 		await client.whenTornDown();
 	}, 30_000);
 
-	it("an unpinned launch that fails surfaces its error and forgets the memo", async () => {
+	it("an unpinned launch that fails surfaces its error", async () => {
 		const client = makeClient();
 		const err = await client.initialize(config(failsAnyway)).then(
 			() => null,

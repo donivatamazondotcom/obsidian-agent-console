@@ -131,18 +131,6 @@ export interface TerminalOutputResult {
 /** How long a failed initialize waits for the process to close (D3). */
 const STARTUP_CLOSE_WAIT_MS = 1000;
 
-/**
- * Commands that rejected `--agent-engine` this run (an older kiro-cli, I270),
- * so their V2 launches skip the doomed pinned spawn. Runtime-only; a failed
- * unpinned launch removes its command, so a mid-run upgrade gets pinned again.
- */
-const engineFlagRejected = new Set<string>();
-
-/** Test-only: forget which commands rejected the engine flag. */
-export function resetKiroEngineFlagMemoForTests(): void {
-	engineFlagRejected.clear();
-}
-
 /** A pinned V2 launch an older kiro-cli rejected for the flag (I270). */
 class KiroEngineFlagRejected extends Error {
 	constructor() {
@@ -158,6 +146,11 @@ export class AcpClient {
 	private currentConfig: AgentConfig | null = null;
 	/** Whether the running launch pinned its Kiro engine (I270). */
 	private currentLaunchPinned = true;
+	/**
+	 * Bumped by every non-coalesced initialize() and by disconnect(), so the
+	 * old-CLI relaunch can tell it was superseded (I270).
+	 */
+	private launchGeneration = 0;
 	private isInitializedFlag = false;
 	private currentAgentId: string | null = null;
 	private currentSessionId: string | null = null;
@@ -232,6 +225,7 @@ export class AcpClient {
 			return this.initializePromise;
 		}
 
+		this.launchGeneration++;
 		const promise = this.initializeWithEnginePin(config);
 		this.initializePromise = promise;
 		this.initializingAgentId = config.id;
@@ -258,32 +252,23 @@ export class AcpClient {
 	private async initializeWithEnginePin(
 		config: AgentConfig,
 	): Promise<InitializeResult> {
-		const command = config.command?.trim() ?? "";
-		const v2 = config.kiroEngine === "v2";
-		if (v2 && engineFlagRejected.has(command)) {
-			return this.relaunchUnpinned(config, command);
-		}
+		// Every launch tries the pin first, so a kiro-cli upgraded mid-run is
+		// pinned on its next launch (no memo of old CLIs). Cost on an old CLI:
+		// one rejected spawn per V2 launch.
+		const generation = this.launchGeneration;
 		try {
 			return await this.doInitialize(config, true);
 		} catch (error) {
 			if (!(error instanceof KiroEngineFlagRejected)) throw error;
+			// A disconnect or another initialize since this one started owns
+			// the client now; relaunching would orphan a process or kill theirs.
+			if (this.launchGeneration !== generation) {
+				throw new Error("Agent initialization was superseded");
+			}
 			this.logger.warn(
 				"Kiro CLI rejected --agent-engine=v2 (older CLI); relaunching without the flag",
 			);
-			engineFlagRejected.add(command);
-			return this.relaunchUnpinned(config, command);
-		}
-	}
-
-	private async relaunchUnpinned(
-		config: AgentConfig,
-		command: string,
-	): Promise<InitializeResult> {
-		try {
-			return await this.doInitialize(config, false);
-		} catch (error) {
-			engineFlagRejected.delete(command);
-			throw error;
+			return this.doInitialize(config, false);
 		}
 	}
 
@@ -1089,6 +1074,7 @@ export class AcpClient {
 	 */
 	disconnect(): Promise<void> {
 		this.logger.log("Disconnecting...");
+		this.launchGeneration++;
 
 		// Cancel all pending operations
 		this.cancelAllOperations();
@@ -1126,13 +1112,10 @@ export class AcpClient {
 	 * eager-init (Decision #10) discarded. Null before first init (I47).
 	 */
 	/**
-	 * The launch identity of the running agent (command + Kiro engine), or
-	 * null before the first `initialize`. Keys the capability cache (I260).
-	 */
-	/**
-	 * The launch key of the running process, or null when there is none or
-	 * the Kiro engine wasn't pinned (an older CLI's relaunch, I270): an
-	 * unpinned launch's engine isn't verified, so no cache records it.
+	 * The launch identity of the running agent (command + Kiro engine), which
+	 * keys the capability and server-session caches (I260, I270). Null before
+	 * the first `initialize`, after `disconnect`, and for an unpinned Kiro
+	 * relaunch on an older CLI, whose engine isn't verified.
 	 */
 	getLaunchKey(): string | null {
 		if (!this.currentConfig) return null;
