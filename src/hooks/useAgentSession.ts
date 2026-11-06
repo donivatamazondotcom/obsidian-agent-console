@@ -22,6 +22,7 @@ import { getLogger } from "../utils/logger";
 import {
 	extractErrorMessage,
 	isAgentStartupError,
+	isInitializeSuperseded,
 } from "../utils/error-utils";
 import {
 	type AgentDisplayInfo,
@@ -468,6 +469,9 @@ export function useAgentSession(
 
 				return sessionResult.sessionId;
 			} catch (error) {
+				// I270: a disconnect or another initialize replaced this one;
+				// that call owns the tab's state, so leave it alone.
+				if (isInitializeSuperseded(error)) return null;
 				setSession((prev) => ({ ...prev, state: "error" }));
 				// D3: a startup failure with a known reason shows that reason.
 				if (isAgentStartupError(error)) {
