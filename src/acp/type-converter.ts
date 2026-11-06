@@ -298,7 +298,7 @@ export class AcpTypeConverter {
 	 */
 	static toInitializeResult(
 		initResult: acp.InitializeResponse,
-		launch: { kiroEngine?: "v3"; command?: string },
+		launch: { kiroEngine?: "v2" | "v3"; command?: string },
 	): InitializeResult {
 		const promptCaps = initResult.agentCapabilities?.promptCapabilities;
 		const mcpCaps = initResult.agentCapabilities?.mcpCapabilities;
@@ -327,10 +327,11 @@ export class AcpTypeConverter {
 			},
 		};
 
-		// Whether this process is kiro-cli, from the launch command (or a V3
-		// launch, which only kiro-cli has), never the agent id (I247).
+		// Whether this process is kiro-cli, from the launch command (or a
+		// pinned Kiro engine, which only kiro-cli has), never the agent id
+		// (I247, I270).
 		const kiroCli =
-			launch.kiroEngine === "v3" ||
+			launch.kiroEngine !== undefined ||
 			(!!launch.command && isKiroCliCommand(launch.command));
 
 		return {

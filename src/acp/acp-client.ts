@@ -105,11 +105,12 @@ export interface AgentConfig {
 		envVarName: string;
 	};
 	/**
-	 * Kiro CLI only: launch the v3 ACP server. Set by
+	 * Kiro CLI only: the engine this launch pins with `--agent-engine`. Set by
 	 * buildAgentConfigWithApiKey() from the Kiro engine setting; absent means
-	 * the v2 server and today's launch/session behavior. See kiro-v3.ts.
+	 * not a Kiro launch (no flag). Without the pin kiro-cli follows Kiro's own
+	 * engine setting (I270). See kiro-v3.ts.
 	 */
-	kiroEngine?: "v3";
+	kiroEngine?: "v2" | "v3";
 }
 
 /**
@@ -130,11 +131,33 @@ export interface TerminalOutputResult {
 /** How long a failed initialize waits for the process to close (D3). */
 const STARTUP_CLOSE_WAIT_MS = 1000;
 
+/**
+ * Commands that rejected `--agent-engine` this run (an older kiro-cli, I270),
+ * so their V2 launches skip the doomed pinned spawn. Runtime-only; a failed
+ * unpinned launch removes its command, so a mid-run upgrade gets pinned again.
+ */
+const engineFlagRejected = new Set<string>();
+
+/** Test-only: forget which commands rejected the engine flag. */
+export function resetKiroEngineFlagMemoForTests(): void {
+	engineFlagRejected.clear();
+}
+
+/** A pinned V2 launch an older kiro-cli rejected for the flag (I270). */
+class KiroEngineFlagRejected extends Error {
+	constructor() {
+		super("kiro-cli rejected --agent-engine");
+		this.name = "KiroEngineFlagRejected";
+	}
+}
+
 export class AcpClient {
 	// Connection & process
 	private connection: acp.ClientConnection | null = null;
 	private agentProcess: ChildProcess | null = null;
 	private currentConfig: AgentConfig | null = null;
+	/** Whether the running launch pinned its Kiro engine (I270). */
+	private currentLaunchPinned = true;
 	private isInitializedFlag = false;
 	private currentAgentId: string | null = null;
 	private currentSessionId: string | null = null;
@@ -209,7 +232,7 @@ export class AcpClient {
 			return this.initializePromise;
 		}
 
-		const promise = this.doInitialize(config);
+		const promise = this.initializeWithEnginePin(config);
 		this.initializePromise = promise;
 		this.initializingAgentId = config.id;
 		try {
@@ -225,8 +248,48 @@ export class AcpClient {
 		}
 	}
 
+	/**
+	 * Launch, pinning the Kiro engine. A V2 launch an older kiro-cli rejects
+	 * for the pin relaunches once without it, inside this one initialize
+	 * (never back through `initialize()`, which would coalesce onto itself,
+	 * I46). That CLI only has V2. The unpinned launch reports no launch key,
+	 * so neither history cache records it (I270).
+	 */
+	private async initializeWithEnginePin(
+		config: AgentConfig,
+	): Promise<InitializeResult> {
+		const command = config.command?.trim() ?? "";
+		const v2 = config.kiroEngine === "v2";
+		if (v2 && engineFlagRejected.has(command)) {
+			return this.relaunchUnpinned(config, command);
+		}
+		try {
+			return await this.doInitialize(config, true);
+		} catch (error) {
+			if (!(error instanceof KiroEngineFlagRejected)) throw error;
+			this.logger.warn(
+				"Kiro CLI rejected --agent-engine=v2 (older CLI); relaunching without the flag",
+			);
+			engineFlagRejected.add(command);
+			return this.relaunchUnpinned(config, command);
+		}
+	}
+
+	private async relaunchUnpinned(
+		config: AgentConfig,
+		command: string,
+	): Promise<InitializeResult> {
+		try {
+			return await this.doInitialize(config, false);
+		} catch (error) {
+			engineFlagRejected.delete(command);
+			throw error;
+		}
+	}
+
 	private async doInitialize(
 		config: AgentConfig,
+		pinEngine: boolean,
 	): Promise<InitializeResult> {
 		this.logger.log(
 			"Starting initialization with config:",
@@ -248,6 +311,7 @@ export class AcpClient {
 		}
 
 		this.currentConfig = config;
+		this.currentLaunchPinned = pinEngine;
 
 		// Update auto-allow permissions from plugin settings
 		this.permissionManager.setAutoAllow(
@@ -262,7 +326,7 @@ export class AcpClient {
 		}
 
 		const command = config.command.trim();
-		const args = resolveLaunchArgs(config);
+		const args = resolveLaunchArgs(config, { pinEngine });
 		if (config.kiroEngine === "v3") {
 			const { stripped } = prepareKiroV3Launch(config.args);
 			if (stripped.length > 0) {
@@ -566,6 +630,7 @@ export class AcpClient {
 
 			const startupError = await this.recognizeStartupFailure(
 				config,
+				pinEngine,
 				startup,
 				startupClosed,
 			);
@@ -576,16 +641,20 @@ export class AcpClient {
 
 	/**
 	 * D3: a V3 launch the CLI rejected becomes an AgentStartupError with the
-	 * "update kiro-cli, or switch to V2" text. Waits briefly for the process
+	 * "update kiro-cli, or switch to V2" text. I270: a pinned V2 launch it
+	 * rejected becomes KiroEngineFlagRejected, which relaunches unpinned.
+	 * Waits briefly for the process
 	 * to close, so its exit code and the last of its stderr are in; the SDK
 	 * rejects initialize as soon as stdout ends, a little before that.
 	 */
 	private async recognizeStartupFailure(
 		config: AgentConfig,
+		pinEngine: boolean,
 		startup: { stderr: string; exitCode: number | null },
 		closed: Promise<void>,
-	): Promise<AgentStartupError | null> {
-		if (config.kiroEngine !== "v3") return null;
+	): Promise<Error | null> {
+		// Only a pinned Kiro launch can be rejected for the engine flag.
+		if (!config.kiroEngine || !pinEngine) return null;
 		let timer: number | undefined;
 		await Promise.race([
 			closed,
@@ -599,6 +668,7 @@ export class AcpClient {
 			exitCode: startup.exitCode,
 			stderr: startup.stderr,
 		});
+		if (failure === "engine-flag-unknown") return new KiroEngineFlagRejected();
 		if (failure !== "engine-unsupported") return null;
 		this.logger.warn(
 			"Kiro CLI rejected --agent-engine=v3 (older CLI without the V3 engine)",
@@ -1059,8 +1129,15 @@ export class AcpClient {
 	 * The launch identity of the running agent (command + Kiro engine), or
 	 * null before the first `initialize`. Keys the capability cache (I260).
 	 */
+	/**
+	 * The launch key of the running process, or null when there is none or
+	 * the Kiro engine wasn't pinned (an older CLI's relaunch, I270): an
+	 * unpinned launch's engine isn't verified, so no cache records it.
+	 */
 	getLaunchKey(): string | null {
-		return this.currentConfig ? agentLaunchKey(this.currentConfig) : null;
+		if (!this.currentConfig) return null;
+		if (this.currentConfig.kiroEngine && !this.currentLaunchPinned) return null;
+		return agentLaunchKey(this.currentConfig);
 	}
 
 	getInitializeResult(): InitializeResult | null {

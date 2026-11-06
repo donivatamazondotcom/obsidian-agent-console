@@ -59,6 +59,10 @@ const local = (
 	updatedAt: "2026-10-27T00:00:00Z",
 });
 
+
+/** The launch the history hook reads for (I270: the cache is keyed by launch). */
+const CACHE_KEY = "v3|kiro-cli";
+
 function filterSaved(
 	saved: SavedSessionInfo[],
 	agentId?: string,
@@ -91,7 +95,7 @@ async function liveRows(
 	const settings = {
 		getSavedSessions: (agentId?: string, cwd?: string) =>
 			filterSaved(saved, agentId, cwd),
-		getSnapshot: () => ({ savedSessions: saved, agentSessionMetaCache: {} }),
+		getSnapshot: () => ({ savedSessions: saved, serverSessionCache: {} }),
 		subscribe: vi.fn(() => () => {}),
 	} as unknown as ISettingsAccess;
 	const agentClient = {
@@ -159,6 +163,7 @@ function makeHistory(): UseSessionHistoryReturn {
 		hasMore: false,
 		capabilities: session.capabilities,
 		historyCapabilities: { kind: "live", capabilities: session.capabilities },
+		historyLaunchKey: CACHE_KEY,
 		localSessionIds: new Set<string>(),
 		fetchSessions: vi.fn(async () => {}),
 		loadMoreSessions: vi.fn(async () => {}),
@@ -185,8 +190,8 @@ function cachedRowsShownByModal(
 		settingsService: {
 			getSnapshot: () => ({
 				sessionHistorySource: "agent",
-				agentSessionMetaCache: {
-					[AGENT_ID]: { sessions: cached, syncedAt: "2026-10-27T00:00:00Z" },
+				serverSessionCache: {
+					[CACHE_KEY]: { sessions: cached, syncedAt: "2026-10-27T00:00:00Z" },
 				},
 				savedSessions: saved,
 			}),

@@ -69,7 +69,7 @@ describe("I128 — history rename must update an open tab with a custom label", 
 			settingsService: {
 				getSnapshot: () => ({
 					sessionHistorySource: "local",
-					agentSessionMetaCache: {},
+					serverSessionCache: {},
 				}),
 			},
 			getAvailableAgents: () => [],

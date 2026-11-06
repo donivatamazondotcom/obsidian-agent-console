@@ -5,7 +5,12 @@
  * Used by plugin.ts (loadSettings) and SettingsTab.ts.
  */
 
-import { readKiroEngineSetting, type KiroEngineSetting } from "../acp/kiro-v3";
+import {
+	isKiroCliCommand,
+	readKiroEngineSetting,
+	type KiroEngineSetting,
+} from "../acp/kiro-v3";
+import { normalizeServerSessionCache } from "./server-session-cache";
 import type {
 	AgentEnvVar,
 	CustomAgentSettings,
@@ -246,6 +251,29 @@ const CAPABILITY_KEYS: readonly (keyof AgentCapabilities)[] = [
  * is dropped and logged, never coerced: a coerced `false` would bring back
  * the wrong "doesn't keep a session list" tooltip this cache exists to fix.
  */
+/**
+ * I270: before the V2 pin, a Kiro "V2" launch passed no engine flag and ran
+ * whatever Kiro's own setting said, so its capability entry could record
+ * V3's session list. A pinned V2 can't list, so an entry for a V2 launch of
+ * kiro-cli that claims to is from such a launch. Standing rule: if kiro-cli
+ * V2 ever gains a list, this drops the entry on each load and the next
+ * connect rewrites it (accepted).
+ */
+function isUnpinnedKiroV2Entry(key: string, caps: AgentCapabilities): boolean {
+	if (!caps.listsSessions || !key.startsWith("v2|")) return false;
+	return isKiroCliCommand(key.slice("v2|".length));
+}
+
+/** Logs once that the pre-I270 agent-id-keyed cache is being dropped. */
+function warnDroppedAgentSessionMetaCache(old: unknown): undefined {
+	if (old && typeof old === "object" && Object.keys(old).length > 0) {
+		console.warn(
+			"[Agent Console] Dropping the old per-agent server-session cache; it refills on the next connect",
+		);
+	}
+	return undefined;
+}
+
 export function normalizeAgentCapabilityCache(
 	raw: unknown,
 ): Record<string, AgentCapabilityCacheEntry> {
@@ -271,6 +299,12 @@ export function normalizeAgentCapabilityCache(
 		const capabilities = Object.fromEntries(
 			CAPABILITY_KEYS.map((k) => [k, caps[k] as boolean]),
 		) as unknown as AgentCapabilities;
+		if (isUnpinnedKiroV2Entry(key, capabilities)) {
+			console.warn(
+				`[Agent Console] Dropping capability cache entry for "${key}": a Kiro V2 launch can't list sessions, so it was learned from a launch that ran V3`,
+			);
+			continue;
+		}
 		out[key] = { capabilities, learnedAt: entry.learnedAt as string };
 	}
 	return out;
@@ -501,7 +535,7 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	savedSessions: [],
 	maxSavedSessions: DEFAULT_MAX_SAVED_SESSIONS,
 	sessionHistorySource: "local",
-	agentSessionMetaCache: {},
+	serverSessionCache: {},
 	agentCapabilityCache: {},
 	lastUsedModels: {},
 	lastUsedModes: {},
@@ -785,12 +819,14 @@ export function normalizeRawSettings(
 			raw.sessionHistorySource === "local"
 				? raw.sessionHistorySource
 				: D.sessionHistorySource,
-		agentSessionMetaCache:
-			raw.agentSessionMetaCache &&
-			typeof raw.agentSessionMetaCache === "object" &&
-			!Array.isArray(raw.agentSessionMetaCache)
-				? (raw.agentSessionMetaCache as AgentClientPluginSettings["agentSessionMetaCache"])
-				: D.agentSessionMetaCache,
+		// I270: keyed by launch. The old agent-id-keyed `agentSessionMetaCache`
+		// can't be mapped to launches reliably; it's a cache, so it is dropped
+		// here and refills on the next connect.
+		serverSessionCache: normalizeServerSessionCache(
+			raw.serverSessionCache ??
+				warnDroppedAgentSessionMetaCache(raw.agentSessionMetaCache),
+			(message) => console.warn(`[Agent Console] ${message}`),
+		),
 		agentCapabilityCache: normalizeAgentCapabilityCache(
 			raw.agentCapabilityCache,
 		),

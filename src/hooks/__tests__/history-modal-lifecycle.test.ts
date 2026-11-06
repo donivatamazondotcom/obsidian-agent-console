@@ -26,7 +26,7 @@ function makePlugin() {
 		settingsService: {
 			getSnapshot: () => ({
 				sessionHistorySource: "local",
-				agentSessionMetaCache: {},
+				serverSessionCache: {},
 			}),
 			getSavedSessions: () => [],
 		},

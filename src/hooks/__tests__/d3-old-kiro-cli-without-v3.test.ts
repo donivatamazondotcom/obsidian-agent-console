@@ -169,7 +169,7 @@ describe("D3: older kiro-cli without V3", () => {
 		await client.whenTornDown();
 	}, 20_000);
 
-	it("retry after switching the agent to V2 launches without --agent-engine", async () => {
+	it("retry after switching the agent to V2: pinned, then relaunched without --agent-engine (I270)", async () => {
 		if (existsSync(argvLog)) rmSync(argvLog);
 		const { access, setEngine } = makeSettings("v3");
 		const client = makeClient();
@@ -184,9 +184,12 @@ describe("D3: older kiro-cli without V3", () => {
 			await hook.result.current.createSession();
 		});
 		const launches = readFileSync(argvLog, "utf8").trim().split("\n");
-		expect(launches).toHaveLength(2);
+		// V3 (rejected), then V2 pinned (rejected by this old CLI), then the
+		// one unpinned relaunch, which fails for the stub's unrelated reason.
+		expect(launches).toHaveLength(3);
 		expect(launches[0]).toMatch(/--agent-engine=v3/);
-		expect(launches[1]).not.toMatch(/--agent-engine/);
+		expect(launches[1]).toMatch(/--agent-engine=v2/);
+		expect(launches[2]).not.toMatch(/--agent-engine/);
 		expect(hook.result.current.errorInfo?.title).not.toBe(D3_TITLE);
 		await client.whenTornDown();
 	}, 30_000);

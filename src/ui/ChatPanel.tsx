@@ -1962,11 +1962,11 @@ export function ChatPanel({
 	useEffect(() => {
 		if (!isSessionReady || !sessionHistory.capabilities.listsSessions)
 			return;
-		void sessionHistory.syncAgentSessionMetaCache();
+		void sessionHistory.syncServerSessionCache();
 	}, [
 		isSessionReady,
 		sessionHistory.capabilities.listsSessions,
-		sessionHistory.syncAgentSessionMetaCache,
+		sessionHistory.syncServerSessionCache,
 	]);
 
 	// Apply configured model when session is ready
