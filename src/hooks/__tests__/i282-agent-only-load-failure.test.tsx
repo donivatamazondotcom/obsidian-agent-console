@@ -117,16 +117,23 @@ function mountRow(opts: {
 	}));
 	const onSessionFallback = vi.fn();
 	let releaseLoad: () => void = () => {};
-	const loadGate = new Promise<void>((r) => {
+	let loadGate = new Promise<void>((r) => {
 		releaseLoad = r;
 	});
+	let hold = opts.holdLoad ?? false;
+	const holdNextLoad = () => {
+		hold = true;
+		loadGate = new Promise<void>((r) => {
+			releaseLoad = r;
+		});
+	};
 	const onScreen = opts.transcriptOnScreen ?? 0;
 	const hook = renderHook(() =>
 		useLazySession({
 			restoredSessionId: "agent-row-1",
 			acquireNewSession,
 			loadExistingSession: async (id) => {
-				if (opts.holdLoad) await loadGate;
+				if (hold) await loadGate;
 				return reconnectExistingSession({
 					sessionId: id,
 					cwd: "/vault",
@@ -150,7 +157,15 @@ function mountRow(opts: {
 			hook.result.current.onSendClick("What did we decide?");
 		});
 	}
-	return { hook, acp, acquireNewSession, onSessionFallback, send, releaseLoad };
+	return {
+		hook,
+		acp,
+		acquireNewSession,
+		onSessionFallback,
+		send,
+		releaseLoad: () => releaseLoad(),
+		holdNextLoad,
+	};
 }
 
 function renderEmpty(lazy: {
@@ -246,6 +261,33 @@ describe("I282 agent-only row: the agent can't load it", () => {
 		expect(row.acp.client.loadSession).toHaveBeenCalledTimes(2);
 	});
 
+	it("while a retry is loading, the tab reads as connecting, not gone", async () => {
+		const row = mountRow({ answer: "v2-not-found", hasLocalRecord: false });
+		await row.send();
+		await waitFor(() => expect(row.hook.result.current.sessionGone).toBe(true));
+		row.acp.answerWith("known");
+		row.holdNextLoad();
+		await row.send();
+		await waitFor(() => expect(row.hook.result.current.state).toBe("connecting"));
+		expect(row.hook.result.current.sessionGone).toBe(false);
+		const { container, unmount } = renderEmpty(row.hook.result.current);
+		expect(container.textContent).not.toContain("no longer on");
+		expect(container.querySelector("button")).toBeNull();
+		unmount();
+		expect(
+			buildQueuedBanner({
+				agentLabel: "Claude Code",
+				isSessionReady: false,
+				connectFailed: false,
+				sessionGone: row.hook.result.current.sessionGone,
+			}),
+		).not.toContain("Not sent");
+		await act(async () => {
+			row.releaseLoad();
+		});
+		await waitFor(() => expect(row.hook.result.current.state).toBe("ready"));
+	});
+
 	it("New chat clears gone", async () => {
 		const row = mountRow({ answer: "v2-not-found", hasLocalRecord: false });
 		await row.send();
@@ -287,6 +329,19 @@ describe("I282 a row with a local record keeps the I246 fallback", () => {
 		expect(row.acquireNewSession).toHaveBeenCalledTimes(1);
 		expect(row.onSessionFallback).toHaveBeenCalledWith("unavailable", "new-1");
 		expect(row.hook.result.current.isFallbackRecovery).toBe(true);
+		expect(row.hook.result.current.sessionGone).toBe(false);
+	});
+
+	it("a record with a transcript on screen and a V3 empty load falls back (I264 unchanged)", async () => {
+		const row = mountRow({
+			answer: "v3-empty",
+			hasLocalRecord: true,
+			transcriptOnScreen: 2,
+		});
+		await row.send();
+		await waitFor(() => expect(row.hook.result.current.state).toBe("ready"));
+		expect(row.acquireNewSession).toHaveBeenCalledTimes(1);
+		expect(row.onSessionFallback).toHaveBeenCalledWith("unavailable", "new-1");
 		expect(row.hook.result.current.sessionGone).toBe(false);
 	});
 
