@@ -128,6 +128,13 @@ export interface ReconnectExistingSessionArgs {
 	hasLocalRecord?: () => boolean;
 	onLoaded: (result: SessionResult) => void;
 	setIgnoreUpdates: (ignore: boolean) => void;
+	/**
+	 * Runs first, before any launch or load. ChatPanel clears an earlier
+	 * failure here, as `createSession` does: a retry after a failed fallback
+	 * starts with this load (I280), so the tab must not sit "connecting"
+	 * under the old "Session Creation Failed" banner.
+	 */
+	onAttemptStart?: () => void;
 	/** A resume attempt threw; the flow falls back to load. Logging only. */
 	onResumeError?: (error: unknown) => void;
 	/**
@@ -159,6 +166,7 @@ export async function reconnectExistingSession(
 	args: ReconnectExistingSessionArgs,
 ): Promise<SessionAcquisitionResult> {
 	const { sessionId, cwd, client } = args;
+	args.onAttemptStart?.();
 	if (!client.isInitialized()) {
 		try {
 			await args.initialize();

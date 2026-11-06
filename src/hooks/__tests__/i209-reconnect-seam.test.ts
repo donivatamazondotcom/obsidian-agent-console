@@ -68,7 +68,7 @@ function fakeClient(opts: {
 function run(
 	c: ReturnType<typeof fakeClient>,
 	haveLocalHistory: boolean,
-	extra: { onResumeError?: (e: unknown) => void } = {},
+	extra: { onResumeError?: (e: unknown) => void; onAttemptStart?: () => void } = {},
 ) {
 	const onLoaded = vi.fn();
 	const setIgnoreUpdates = vi.fn();
@@ -172,5 +172,23 @@ describe("I209 reconnectExistingSession", () => {
 		count = 4;
 		await pending;
 		expect(setIgnoreUpdates.mock.calls).toEqual([[true], [false]]);
+	});
+});
+
+describe("I280 reconnectExistingSession onAttemptStart", () => {
+	it("runs before the launch and the load", async () => {
+		const c = fakeClient({ initialized: false });
+		const onAttemptStart = vi.fn(() => c.calls.push("attempt-start"));
+		await run(c, true, { onAttemptStart }).result;
+		expect(c.calls).toEqual(["attempt-start", "initialize", "load:s1"]);
+	});
+
+	it("runs even when the launch fails", async () => {
+		const c = fakeClient({ initialized: false });
+		c.initialize.mockRejectedValueOnce(new Error("Agent exited before initialize"));
+		const onAttemptStart = vi.fn();
+		const result = await run(c, true, { onAttemptStart }).result;
+		expect(result.ok).toBe(false);
+		expect(onAttemptStart).toHaveBeenCalledTimes(1);
 	});
 });
