@@ -56,22 +56,33 @@ export interface TabStateInput {
 	 * From the pure reducer in `resolvers/tab-unseen.ts`.
 	 */
 	unseen: TabUnseen;
+	/**
+	 * The tab holds a session id for its next connect: restored from disk, or
+	 * kept by an idle release (`useLazySession.keptSessionId !== null`). Tells
+	 * a restored tab that hasn't woken apart from a brand-new tab, since both
+	 * sit in `idle` (I292). Read from session state, never from the agent id.
+	 */
+	hasHeldSession: boolean;
 }
 
 /**
  * The single tab-icon-state decision ([[Tab Attention States]]). Precedence:
  *  1. `error` lifecycle → error (the session is dead).
  *  2. `connecting` → connecting.
- *  3. `idle` → a fresh lazy tab that connects on the first send: ready, or
- *     connecting once a send is pending. (Was `disconnected`, which made a
- *     new tab look like a dead one.)
+ *  3. `idle` → connecting once a send is pending. Otherwise:
+ *       - holding a session id (a restored tab that hasn't woken, I292) →
+ *         asleep like `released`: an unread result if there is one, else
+ *         released. A stale permission flag is ignored.
+ *       - no held id (a fresh lazy tab) → ready. (Was `disconnected`, which
+ *         made a new tab look like a dead one.)
  *  4. `released` → an unread result if there is one, else released. Stale
  *     sending / permission flags from before the release are ignored.
  *  5. live lifecycle (`ready`/`busy`/`permission`):
  *       permission → busy → stopped-unseen → done-unseen → ready
  */
 export function deriveTabState(input: TabStateInput): TabState {
-	const { lifecycle, isSending, hasActivePermission, unseen } = input;
+	const { lifecycle, isSending, hasActivePermission, unseen, hasHeldSession } =
+		input;
 	const unseenState: TabState | null =
 		unseen === null
 			? null
@@ -85,7 +96,8 @@ export function deriveTabState(input: TabStateInput): TabState {
 		case "connecting":
 			return "connecting";
 		case "idle":
-			return isSending ? "connecting" : "ready";
+			if (isSending) return "connecting";
+			return hasHeldSession ? (unseenState ?? "released") : "ready";
 		case "released":
 			return unseenState ?? "released";
 		case "ready":

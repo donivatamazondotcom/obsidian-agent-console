@@ -394,6 +394,17 @@ export function useLazySession(
 	// new agent while its live session belongs to the old one (I175).
 	const acquisitionGenerationRef = useRef(0);
 	const restoredSessionIdRef = useRef<string | null>(restoredSessionId);
+	// State mirror of the ref, so `keptSessionId` re-renders when it changes.
+	// A reset on an already-idle tab changes no other state, so a render-time
+	// ref read would keep reporting the forgotten id (I292). The ref stays the
+	// synchronous source for acquisition; every write goes through setKeptId.
+	const [keptSessionId, setKeptSessionIdState] = useState<string | null>(
+		restoredSessionId,
+	);
+	const setKeptId = useCallback((id: string | null) => {
+		restoredSessionIdRef.current = id;
+		setKeptSessionIdState(id);
+	}, []);
 	// Init-once (NOT re-synced every render) — mirrors restoredSessionIdRef.
 	// reset() clears this; a per-render resync would immediately undo that,
 	// letting a new-chat on a fork tab re-fork (caught by the reset test).
@@ -520,7 +531,7 @@ export function useLazySession(
 				// raise the notice, and report it (I246, I269, I280). Done only
 				// here, after the generation check, so a reset mid-flight never
 				// gets the notice (I282), and a failed fallback never shows it.
-				if (restoreFellBack) restoredSessionIdRef.current = null;
+				if (restoreFellBack) setKeptId(null);
 				setIsFallbackRecovery(true);
 				setFallbackReason(fallback);
 				onSessionFallbackRef.current?.(fallback, result.sessionId);
@@ -642,7 +653,7 @@ export function useLazySession(
 		acquisitionGenerationRef.current += 1;
 		// Forget any restored / fork-pending sessionId — "new chat" means brand
 		// new from now on.
-		restoredSessionIdRef.current = null;
+		setKeptId(null);
 		forkFromSessionIdRef.current = null;
 		setSessionId(null);
 		setIsFallbackRecovery(false);
@@ -665,7 +676,7 @@ export function useLazySession(
 		// Keep the id where the restored-tab path reads it, so the next
 		// fireAcquisition loads it instead of creating a new session. Without
 		// history there is nothing to resume: forget it (I237).
-		restoredSessionIdRef.current = opts?.keepSessionId === false ? null : id;
+		setKeptId(opts?.keepSessionId === false ? null : id);
 		sessionIdRef.current = null;
 		// Supersede anything still resolving against the released process.
 		acquisitionGenerationRef.current += 1;
@@ -811,7 +822,7 @@ export function useLazySession(
 		sessionId,
 		// Read at render: release(), reset() and a settled fallback all
 		// re-render, so the ref is current when this is read.
-		keptSessionId: restoredSessionIdRef.current,
+		keptSessionId,
 		isFallbackRecovery,
 		fallbackReason,
 		sessionGone,
