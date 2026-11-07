@@ -32,7 +32,7 @@ The tab bar appears at the top of the chat sidebar. Each tab shows:
   | Spinner | Working |
   | Dashed circle (slowly turning) | Connecting to the agent |
   | Dot in a circle | Ready for your next message. A brand-new tab shows this too, because it connects as soon as you send |
-  | Moon | Asleep to save memory (see [Sleeping tabs](#sleeping-tabs)) |
+  | Moon | Asleep to save memory, or reopened after a restart and not yet woken (see [Sleeping tabs](#sleeping-tabs)) |
   | Empty circle | Not connected yet |
 
   The tick and the `!` only appear on a tab you weren't looking at when the reply ended – a background tab, or any tab while Obsidian was in the background. They clear as soon as you switch to the tab, come back to the window, or send again. Stopping a reply yourself never leaves a mark.
@@ -244,7 +244,7 @@ Switching the agent for an existing tab also waits for interaction. It rebinds t
 
 **Keep lots of tabs open without slowing your computer down.** A tab you haven't used for an hour, while you work in another tab, goes to sleep: its agent stops to free memory. An agent with its tools can use several hundred megabytes, so a long day with many tabs adds up.
 
-A sleeping tab shows a small moon instead of its usual dot. Hover it to see "Asleep to save memory. Wakes up when you type." The conversation stays on screen. Start typing or send a message and the tab wakes up in the same conversation, after a short "connecting" moment. Picking a model or mode on a sleeping tab wakes it first, then applies your choice.
+A sleeping tab shows a small moon instead of its usual dot. Hover it to see "Asleep to save memory. Wakes up when you type." Tabs that come back after you restart Obsidian show the moon too, including the one you're looking at, because their agent hasn't picked the conversation back up yet. The conversation stays on screen. Start typing or send a message and the tab wakes up in the same conversation, after a short "connecting" moment. Picking a model or mode on a sleeping tab wakes it first, then applies your choice.
 
 A tab never goes to sleep while it's the tab you're looking at, or while something is going on in it: a reply streaming, a permission question, a queued message, a running terminal, an AI rename, or text in the message box.
 

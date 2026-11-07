@@ -2343,6 +2343,9 @@ export function ChatPanel({
 		isSending,
 		hasActivePermission: agent.hasActivePermission,
 		unseen,
+		// I292: a restored tab that hasn't woken holds its id while idle, so
+		// it shows the moon like a released tab instead of the ready dot.
+		hasHeldSession: lazySession.keptSessionId !== null,
 	});
 	useEffect(() => {
 		onStateChangeRef.current?.(tabState);
