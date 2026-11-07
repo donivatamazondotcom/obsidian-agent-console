@@ -308,4 +308,37 @@ describe("I257 — live prompt echo", () => {
 		await flushBatch();
 		expect(text(users(result.current.messages)[0])).toBe("hi!");
 	});
+
+	it("9. restored tab + echoing agent: replayed history, then the new words, then the reply", async () => {
+		const { result } = setup();
+		// session/load replay batched, not yet flushed (the I228 shape)…
+		act(() => {
+			result.current.enqueueUpdate({ type: "user_message_chunk", sessionId: SID, text: "old words" });
+			result.current.enqueueUpdate({ type: "agent_message_chunk", sessionId: SID, text: "old reply" });
+		});
+		// …then the queued first send on the connect edge, which agy echoes.
+		await send(result, "hi");
+		const msgs = result.current.messages;
+		expect(msgs.map((m) => m.role)).toEqual(["user", "assistant", "user", "assistant"]);
+		expect(msgs.map(text)).toEqual(["old words", "old reply", "hi", "Hello"]);
+	});
+
+	it("10. a send queued behind another keeps its own gate", async () => {
+		const { result, modes, held } = setup();
+		modes.push("echo-hold");
+		let bDone: Promise<void> = Promise.resolve();
+		act(() => {
+			void result.current.sendMessage("A", later);
+		});
+		await flushBatch();
+		act(() => {
+			bDone = result.current.sendMessage("B", later);
+		});
+		await act(async () => {
+			held[0].resolve({ stopReason: "end_turn" });
+			await bDone;
+		});
+		await flushBatch();
+		expect(users(result.current.messages).map(text)).toEqual(["A", "B"]);
+	});
 });
