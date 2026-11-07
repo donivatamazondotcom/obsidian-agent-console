@@ -236,6 +236,19 @@ export function useAgentMessages(
 		settled: Promise<void>;
 	} | null>(null);
 
+	// I257: set while a prompt this hook sent is in flight. Some agents
+	// (Antigravity CLI) echo the live prompt back as `user_message_chunk`
+	// before replying; the bubble already shows the user's words, so those
+	// echoes are dropped on arrival. History replay (`session/load`) finishes
+	// before the load is answered, so before any send, and is never gated.
+	// Cleared by the owning send (generation-checked) and by the reset owners
+	// (discardPendingTurn, clearMessages) so a never-settling prompt can't
+	// leave it armed.
+	const liveTurnRef = useRef<{
+		sessionId: string;
+		generation: number;
+	} | null>(null);
+
 	// ============================================================
 	// Streaming Update Batching
 	// ============================================================
@@ -271,8 +284,19 @@ export function useAgentMessages(
 				gate &&
 				(update.type === "agent_message_chunk" ||
 					update.type === "agent_thought_chunk" ||
-					update.type === "plan") &&
+					update.type === "plan" ||
+					// I257: a stopped turn's late prompt echo.
+					update.type === "user_message_chunk") &&
 				(!update.sessionId || update.sessionId === gate.sessionId)
+			) {
+				return;
+			}
+			// I257: drop the agent's echo of the prompt in flight.
+			const live = liveTurnRef.current;
+			if (
+				live &&
+				update.type === "user_message_chunk" &&
+				(!update.sessionId || update.sessionId === live.sessionId)
 			) {
 				return;
 			}
@@ -423,6 +447,8 @@ export function useAgentMessages(
 		setMessages((prev) => cancelActivePermissions(prev));
 		setIsSending(false);
 		titleBufferRef.current = null;
+		// I257: the stopped turn's echo is now covered by the I203 gate above.
+		liveTurnRef.current = null;
 		// I107: drop the (possibly never-settling) prior-send promise so the
 		// next send doesn't await a dead turn (it waits on the bounded I203
 		// gate instead).
@@ -442,6 +468,8 @@ export function useAgentMessages(
 		// so a new chat starts without a stale title.
 		titleBufferRef.current = null;
 		setSuggestedTitle(null);
+		// I257: a cleared chat has no prompt in flight to echo.
+		liveTurnRef.current = null;
 	}, [setErrorInfo]);
 
 	const setInitialMessages = useCallback(
@@ -641,6 +669,8 @@ export function useAgentMessages(
 			// and the replayed history is appended under it.
 			flushPendingUpdates();
 			addMessage(userMessage);
+			// I257: arm before the prompt goes out, so no echo can precede it.
+			liveTurnRef.current = { sessionId: currentSessionId, generation };
 
 			setIsSending(true);
 			setLastUserMessage(content);
@@ -713,6 +743,10 @@ export function useAgentMessages(
 				// must not wipe the redirect turn's ref (I203).
 				if (sendPromiseRef.current === sendPromise) {
 					sendPromiseRef.current = null;
+				}
+				// I257: only this send's gate; a newer send's stays armed.
+				if (liveTurnRef.current?.generation === generation) {
+					liveTurnRef.current = null;
 				}
 			}
 		},
