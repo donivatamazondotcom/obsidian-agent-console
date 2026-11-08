@@ -161,6 +161,8 @@ export class AcpClient {
 	 * else is ever deleted. Cleared whenever the process goes away.
 	 */
 	private unsentSessionIds = new Set<string>();
+	/** In-flight `session/delete` requests (I259), so a teardown can wait. */
+	private pendingDeletes = new Set<Promise<unknown>>();
 
 	/**
 	 * In-flight initialize() promise, used to coalesce concurrent
@@ -773,9 +775,17 @@ export class AcpClient {
 	async deleteUnsentSession(sessionId: string): Promise<void> {
 		const connection = this.requireConnection();
 		this.unsentSessionIds.delete(sessionId);
-		await connection.agent.request(acp.methods.agent.session.delete, {
-			sessionId,
-		});
+		const request = connection.agent.request(
+			acp.methods.agent.session.delete,
+			{ sessionId },
+		);
+		const tracked = request.then(
+			() => undefined,
+			() => undefined,
+		);
+		this.pendingDeletes.add(tracked);
+		void tracked.finally(() => this.pendingDeletes.delete(tracked));
+		await request;
 		this.logger.log(`Deleted never-sent session: ${sessionId}`);
 		if (this.currentSessionId === sessionId) {
 			this.currentSessionId = null;
@@ -788,6 +798,22 @@ export class AcpClient {
 	 * advertises it (`AgentCapabilities.closesSessions`). Rejects on failure;
 	 * the caller decides the fallback (I210 respawns).
 	 */
+	/**
+	 * Resolves once every in-flight `session/delete` has answered, or after
+	 * `timeoutMs` (I259). A tab's unmount teardown waits on this so it
+	 * doesn't kill the process while the close handler's delete is in flight.
+	 */
+	whenDeletesSettled(timeoutMs: number): Promise<void> {
+		if (this.pendingDeletes.size === 0) return Promise.resolve();
+		let timer: number | undefined;
+		return Promise.race([
+			Promise.all([...this.pendingDeletes]).then(() => undefined),
+			new Promise<void>((resolve) => {
+				timer = window.setTimeout(resolve, timeoutMs);
+			}),
+		]).finally(() => window.clearTimeout(timer));
+	}
+
 	async closeSession(sessionId: string): Promise<void> {
 		const connection = this.requireConnection();
 		await connection.agent.request(acp.methods.agent.session.close, {

@@ -163,3 +163,56 @@ describe("I259 deletesSessions capability", () => {
 		expect(init.capabilities.deletesSessions).toBe(false);
 	});
 });
+
+describe("I259 pending deletes (smoke finding: tab unmount disconnects mid-delete)", () => {
+	it("whenDeletesSettled waits for an in-flight session/delete", async () => {
+		const { client, seams } = makeClient();
+		const { sessionId } = await client.newSession("/tmp");
+		let answer: () => void = () => undefined;
+		const conn = seams.connection as { agent: { request: (m: string, p: unknown) => Promise<unknown> } };
+		const orig = conn.agent.request;
+		conn.agent.request = (m, p) =>
+			m === acp.methods.agent.session.delete
+				? new Promise((r) => {
+						answer = () => r({});
+					})
+				: orig(m, p);
+		const deleting = client.deleteUnsentSession(sessionId);
+		let settled = false;
+		const waited = client.whenDeletesSettled(1000).then(() => {
+			settled = true;
+		});
+		await Promise.resolve();
+		expect(settled).toBe(false);
+		answer();
+		await deleting;
+		await waited;
+		expect(settled).toBe(true);
+	});
+
+	it("gives up after the timeout on a hung delete", async () => {
+		vi.useFakeTimers();
+		try {
+			const { client, seams } = makeClient();
+			const { sessionId } = await client.newSession("/tmp");
+			(seams.connection as { agent: { request: unknown } }).agent.request = () =>
+				new Promise(() => undefined);
+			void client.deleteUnsentSession(sessionId).catch(() => undefined);
+			let settled = false;
+			void client.whenDeletesSettled(1000).then(() => {
+				settled = true;
+			});
+			await vi.advanceTimersByTimeAsync(999);
+			expect(settled).toBe(false);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(settled).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("resolves at once with nothing pending", async () => {
+		const { client } = makeClient();
+		await expect(client.whenDeletesSettled(1000)).resolves.toBeUndefined();
+	});
+});
