@@ -179,7 +179,7 @@ describe("I259 pending deletes (smoke finding: tab unmount disconnects mid-delet
 				: orig(m, p);
 		const deleting = client.deleteUnsentSession(sessionId);
 		let settled = false;
-		const waited = client.whenDeletesSettled(1000).then(() => {
+		const waited = client.whenDeletesSettled().then(() => {
 			settled = true;
 		});
 		await Promise.resolve();
@@ -199,7 +199,7 @@ describe("I259 pending deletes (smoke finding: tab unmount disconnects mid-delet
 				new Promise(() => undefined);
 			void client.deleteUnsentSession(sessionId).catch(() => undefined);
 			let settled = false;
-			void client.whenDeletesSettled(1000).then(() => {
+			void client.whenDeletesSettled().then(() => {
 				settled = true;
 			});
 			await vi.advanceTimersByTimeAsync(999);
@@ -213,6 +213,6 @@ describe("I259 pending deletes (smoke finding: tab unmount disconnects mid-delet
 
 	it("resolves at once with nothing pending", async () => {
 		const { client } = makeClient();
-		await expect(client.whenDeletesSettled(1000)).resolves.toBeUndefined();
+		await expect(client.whenDeletesSettled()).resolves.toBeUndefined();
 	});
 });

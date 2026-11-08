@@ -15,6 +15,7 @@
 
 import type { SessionRetirement } from "../resolvers/agent-switch";
 import type { UnsentDiscardDecision } from "../resolvers/unsent-discard";
+import { UNSENT_DELETE_DEADLINE_MS } from "../acp/acp-client";
 
 export interface SessionRetirementPort {
 	/** session/close the tab's live session on the current process. */
@@ -68,7 +69,7 @@ export async function retireLiveSession(
 // ============================================================================
 
 /** Upper bound on a `session/delete`: measured 3–72 ms on Kiro V3 and Claude. */
-export const UNSENT_DELETE_TIMEOUT_MS = 1000;
+export const UNSENT_DELETE_TIMEOUT_MS = UNSENT_DELETE_DEADLINE_MS;
 
 export interface UnsentDiscardPort {
 	/** AcpClient.isUnsentSession, re-checked right before the request. */
