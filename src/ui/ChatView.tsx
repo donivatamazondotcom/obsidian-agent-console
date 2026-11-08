@@ -357,10 +357,7 @@ function ChatComponent({
 		const map: Record<string, "v2" | "v3"> = {};
 		for (const t of restoredLeaf?.tabs ?? []) {
 			const engine = parseSessionEngine(t.kiroEngine, (raw) =>
-				getLogger().warn(
-					"[ChatView] Dropped invalid Kiro engine on tab:",
-					raw,
-				),
+				getLogger().warn("[ChatView] Dropped invalid Kiro engine on tab:", raw),
 			);
 			if (engine) map[t.tabId] = engine;
 		}
@@ -471,9 +468,7 @@ function ChatComponent({
 	const persistedRecordIdsRef = useRef<Map<string, string>>(
 		new Map(
 			(restoredLeaf?.tabs ?? [])
-				.filter(
-					(t) => typeof t.recordId === "string" && t.recordId !== "",
-				)
+				.filter((t) => typeof t.recordId === "string" && t.recordId !== "")
 				.map((t) => [t.tabId, t.recordId as string]),
 		),
 	);
@@ -571,10 +566,7 @@ function ChatComponent({
 				plugin.settingsService.saveTabStateForLeaf(leafId, state),
 			loadTabStateForLeaf: (leafId: string) =>
 				plugin.settingsService.loadTabStateForLeaf(leafId),
-			loadSessionMessages: (
-				sessionId: string,
-				recordId?: string | null,
-			) =>
+			loadSessionMessages: (sessionId: string, recordId?: string | null) =>
 				plugin.settingsService.loadSessionMessages(sessionId, recordId),
 			loadSessionContextNotes: (
 				sessionId: string,
@@ -643,8 +635,7 @@ function ChatComponent({
 
 	// Resolves a tab's session engine for persistence (D2).
 	const getKiroEngineForTab = useCallback(
-		(tabId: string) =>
-			tabHandlesRef.current.get(tabId)?.getKiroEngine() ?? "",
+		(tabId: string) => tabHandlesRef.current.get(tabId)?.getKiroEngine() ?? "",
 		[],
 	);
 
@@ -780,9 +771,7 @@ function ChatComponent({
 	// active tab's callbacks, so they work with zero tabs open too
 	// ([[Agent Console Quick Prompt URIs]]).
 	useEffect(() => {
-		view.setOpenPromptInNewTab((text, opts) =>
-			handleOpenInNewTab(text, opts),
-		);
+		view.setOpenPromptInNewTab((text, opts) => handleOpenInNewTab(text, opts));
 		return () => view.setOpenPromptInNewTab(null);
 	}, [view, handleOpenInNewTab]);
 
@@ -879,10 +868,7 @@ function ChatComponent({
 		// Load the closed session's transcript + context notes from disk —
 		// the same storage calls the mount-time restore path uses (U37/I61).
 		const [messages, contextNotes] = await Promise.all([
-			persistenceStorage.loadSessionMessages(
-				record.sessionId,
-				record.recordId,
-			),
+			persistenceStorage.loadSessionMessages(record.sessionId, record.recordId),
 			persistenceStorage.loadSessionContextNotes(
 				record.sessionId,
 				record.recordId,
@@ -985,8 +971,7 @@ function ChatComponent({
 							applyTabRename(tabId, tab.agentId, title),
 						// The modal hands focus back to the tab it was opened
 						// from; the user's next step is to type (TS-I09).
-						refocus: () =>
-							scheduleComposerRefocus(view.containerEl),
+						refocus: () => scheduleComposerRefocus(view.containerEl),
 					});
 				},
 				// Cancelling the rename leaves the flow the same way saving
@@ -1411,8 +1396,7 @@ function ChatComponent({
 			getWorkingDirectory: () =>
 				activeCallbacksRef.current?.getWorkingDirectory() ?? "",
 			getModeId: () => activeCallbacksRef.current?.getModeId() ?? "",
-			getKiroEngine: () =>
-				activeCallbacksRef.current?.getKiroEngine() ?? "",
+			getKiroEngine: () => activeCallbacksRef.current?.getKiroEngine() ?? "",
 			openHistory: () => activeCallbacksRef.current?.openHistory(),
 			flushSessionSave: async () =>
 				activeCallbacksRef.current?.flushSessionSave(),
@@ -1639,9 +1623,7 @@ function ChatComponent({
 								tabLabel={tab.label}
 								workingDirectory={restoredCwdByTabId[tab.tabId]}
 								restoredModeId={restoredModeByTabId[tab.tabId]}
-								restoredKiroEngine={
-									restoredEngineByTabId[tab.tabId]
-								}
+								restoredKiroEngine={restoredEngineByTabId[tab.tabId]}
 								restoredRecordId={persistedRecordIdsRef.current.get(
 									tab.tabId,
 								)}

@@ -89,7 +89,11 @@ interface DragState {
 	startWidth: number;
 	active: boolean;
 	lastX: number;
-	frame: number | null;
+	/** A preview frame is queued (a frame can run before its id is stored, so the id alone can't say). */
+	framePending: boolean;
+	frameId: number | null;
+	/** The handle's own window: a popout's frame is requested and cancelled there. */
+	win: Window;
 	mode: RailWidth["mode"];
 }
 
@@ -129,6 +133,8 @@ export function TabRail(props: TabRailProps) {
 		() => settingsStore.getSnapshot().tabRailNamedWidth,
 	);
 	const [viewWidth, setViewWidth] = useState<number>(Number.NaN);
+	/** Bumped on any view resize (height too), to keep the active key in view. */
+	const [resizeTick, setResizeTick] = useState(0);
 	/** Width chosen by a drag mode flip or a pending keyboard step. */
 	const [override, setOverride] = useState<number | null>(null);
 	const requested = override ?? stored;
@@ -173,7 +179,10 @@ export function TabRail(props: TabRailProps) {
 	useEffect(() => {
 		const host = railRef.current?.parentElement;
 		if (!host || typeof ResizeObserver === "undefined") return;
-		const observer = new ResizeObserver(() => measure());
+		const observer = new ResizeObserver(() => {
+			measure();
+			setResizeTick((n) => n + 1);
+		});
 		observer.observe(host);
 		return () => observer.disconnect();
 	}, [measure]);
@@ -322,7 +331,9 @@ export function TabRail(props: TabRailProps) {
 			const d = drag.current;
 			if (!d) return;
 			drag.current = null;
-			if (d.frame !== null) window.cancelAnimationFrame(d.frame);
+			if (d.framePending && d.frameId !== null) {
+				d.win.cancelAnimationFrame(d.frameId);
+			}
 			if (!d.active || kind === "revert") {
 				setOverride(null);
 				applyLiveWidth(
@@ -354,7 +365,11 @@ export function TabRail(props: TabRailProps) {
 				startWidth: live.current.resolved.width,
 				active: false,
 				lastX: e.clientX,
-				frame: null,
+				framePending: false,
+				frameId: null,
+				win:
+					(e.currentTarget as HTMLElement | null)?.ownerDocument
+						.defaultView ?? window,
 				mode: live.current.resolved.mode,
 			};
 			try {
@@ -378,14 +393,12 @@ export function TabRail(props: TabRailProps) {
 				d.active = true;
 				dispatch({ type: "dragStarted" });
 			}
-			if (d.frame !== null) return;
-			const win =
-				(e.currentTarget as HTMLElement | null)?.ownerDocument
-					.defaultView ?? window;
-			d.frame = win.requestAnimationFrame(() => {
+			if (d.framePending) return;
+			d.framePending = true;
+			d.frameId = d.win.requestAnimationFrame(() => {
 				const cur = drag.current;
 				if (!cur) return;
-				cur.frame = null;
+				cur.framePending = false;
 				const r = resolveRailWidth({
 					requested: cur.startWidth + (cur.startX - cur.lastX),
 					viewWidth: live.current.viewWidth,
@@ -487,6 +500,13 @@ export function TabRail(props: TabRailProps) {
 		const onLost = () => {
 			if (drag.current) endDrag("revert");
 		};
+		// A press on the handle must not take focus from the composer (the next
+		// arrow keys would resize the rail) or start a text selection. Keyboard
+		// Tab focus and dblclick are unaffected.
+		const onMouseDown = (ev: MouseEvent) => {
+			if (ev.button === 0) ev.preventDefault();
+		};
+		el.addEventListener("mousedown", onMouseDown);
 		el.addEventListener("pointerdown", onHandlePointerDown);
 		el.addEventListener("pointermove", onHandlePointerMove);
 		el.addEventListener("pointerup", onHandlePointerUp);
@@ -495,6 +515,7 @@ export function TabRail(props: TabRailProps) {
 		el.addEventListener("dblclick", toggle);
 		el.addEventListener("keydown", onHandleKeyDown);
 		return () => {
+			el.removeEventListener("mousedown", onMouseDown);
 			el.removeEventListener("pointerdown", onHandlePointerDown);
 			el.removeEventListener("pointermove", onHandlePointerMove);
 			el.removeEventListener("pointerup", onHandlePointerUp);
@@ -597,7 +618,7 @@ export function TabRail(props: TabRailProps) {
 			scrollTop: list.scrollTop,
 		});
 		if (next !== list.scrollTop) list.scrollTop = next;
-	}, [activeTabId, viewWidth]);
+	}, [activeTabId, viewWidth, resizeTick]);
 
 	const hasActiveTab = tabs.some((tb) => tb.tabId === activeTabId);
 	const maxNamed = Math.max(RAIL_ICON_WIDTH, maxNamedWidth(viewWidth));

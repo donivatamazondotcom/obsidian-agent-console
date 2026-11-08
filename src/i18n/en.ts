@@ -533,8 +533,7 @@ export const en = {
 	"modals.confirmTrashChats.cleanupTitle": "Clean up unused chat files?",
 	"modals.confirmTrashChats.cleanupBody":
 		"Found {count} chat file(s) ({size}) that no longer show up in your history. They will move to your trash.",
-	"modals.confirmTrashChats.warning":
-		"You can get them back from your trash.",
+	"modals.confirmTrashChats.warning": "You can get them back from your trash.",
 	"modals.confirmTrashChats.confirm": "Move to trash",
 	"modals.sessionIntent.agentFallback": "the new agent",
 	"modals.sessionIntent.switchTitle": "Switch to {agent}?",
@@ -682,8 +681,7 @@ export const en = {
 	"chat.composer.placeholderQueueSteer":
 		"{queueKey} to queue · {steerKey} to send now",
 	"chat.composer.queuedBannerReady": "Queued — sends when {agent} is done",
-	"chat.composer.queuedBannerGone":
-		"Not sent. This session is no longer on {agent}.",
+	"chat.composer.queuedBannerGone": "Not sent. This session is no longer on {agent}.",
 	"chat.composer.queuedBannerFailed":
 		"Couldn't connect — Edit, then Send to retry",
 	"chat.composer.queuedBannerWaiting": "Queued — sends when ready",
