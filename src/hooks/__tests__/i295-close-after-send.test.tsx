@@ -90,10 +90,12 @@ const DEBOUNCE_MS = 20;
 function makeStore(seed: SavedSessionInfo[] = []) {
 	const files = new Map<string, string>();
 	let failSessionWrites = false;
+	/** Session-file writes still to fail (one-shot, after any hold). */
+	let failNext = 0;
 	let fileGate: Promise<void> | null = null;
-	/** Session-file writes still to pass before `laterGate` applies. */
-	let passBeforeLaterGate = -1;
-	let laterGate: Promise<void> | null = null;
+	/** Index (among session-file writes from now) of the one write held. */
+	let holdIndex = -1;
+	let holdGate: Promise<void> | null = null;
 	let metadataGate: Promise<void> | null = null;
 	let state = {
 		savedSessions: seed,
@@ -110,9 +112,13 @@ function makeStore(seed: SavedSessionInfo[] = []) {
 		write: vi.fn(async (p: string, data: string) => {
 			if (p.startsWith(SESSIONS_DIR)) {
 				if (fileGate) await fileGate;
-				if (laterGate) {
-					if (passBeforeLaterGate === 0) await laterGate;
-					else passBeforeLaterGate--;
+				if (holdIndex >= 0) {
+					const mine = holdIndex--;
+					if (mine === 0 && holdGate) await holdGate;
+				}
+				if (failNext > 0) {
+					failNext--;
+					throw new Error(`EIO ${p}`);
 				}
 				if (failSessionWrites) throw new Error(`EIO ${p}`);
 			}
@@ -180,13 +186,17 @@ function makeStore(seed: SavedSessionInfo[] = []) {
 				d.resolve();
 			};
 		},
-		/** Hold the session-file write after the next `pass` ones. */
+		/** Fail the next `n` session-file writes that reach the disk check. */
+		failNextSessionWrites: (n: number) => {
+			failNext = n;
+		},
+		/** Hold only the session-file write after the next `pass` ones. */
 		holdFileWriteAfter: (pass: number) => {
 			const d = deferred();
-			passBeforeLaterGate = pass;
-			laterGate = d.promise;
+			holdIndex = pass;
+			holdGate = d.promise;
 			return () => {
-				laterGate = null;
+				holdGate = null;
 				d.resolve();
 			};
 		},
@@ -476,15 +486,51 @@ describe("I295: a record is written only after its transcript lands", () => {
 				msg("assistant", "hello", "a1"),
 			]);
 		});
+		let secondDone = false;
+		void second.then(() => {
+			secondDone = true;
+		});
 		const minted = h.result.current.history.getRecordId();
 		await first;
 		await settle();
+		expect(secondDone).toBe(false); // the hold really holds save 2
 		expect(h.result.current.history.getRecordId()).toBe(minted);
 
 		release();
 		await second;
 		await settle();
 		expect(h.result.current.history.getRecordId()).toBeNull();
+	});
+
+	it("a newer save failing while an older one is still writing keeps the binding", async () => {
+		const store = makeStore();
+		const h = mountChat(store);
+		// Save 1's first write is held; save 2's two attempts fail.
+		const release = store.holdFileWriteAfter(0);
+
+		let older!: Promise<void>;
+		let newer!: Promise<void>;
+		act(() => {
+			older = h.result.current.history.saveSessionMessages("sess-1", [
+				msg("user", "hi", "u1"),
+			]);
+			store.failNextSessionWrites(2);
+			newer = h.result.current.history.saveSessionMessages("sess-1", [
+				msg("user", "hi", "u1"),
+				msg("assistant", "hello", "a1"),
+			]);
+		});
+		const minted = h.result.current.history.getRecordId();
+		await newer;
+		await settle();
+		expect(h.result.current.history.getRecordId()).toBe(minted);
+
+		release();
+		await older;
+		await settle();
+		expect(store.records().map((r) => r.recordId)).toEqual([minted]);
+		expect(h.result.current.history.getRecordId()).toBe(minted);
+		expect(store.recordsWithoutFile()).toEqual([]);
 	});
 
 	it("a failed file write leaves an existing record unchanged", async () => {
