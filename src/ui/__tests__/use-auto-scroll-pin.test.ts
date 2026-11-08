@@ -3509,6 +3509,58 @@ describe("useAutoScrollPin — I304 user scroll input during streaming", () => {
 		expect(t.h.getResult().isAtBottom).toBe(false);
 	});
 
+	it("a key step smaller than the chunk it shares a scroll event with escapes", () => {
+		const t = setupStreaming();
+		t.chunk();
+		const before = t.top();
+		key(activeDocument.body, "ArrowUp");
+		act(() => {
+			// A 100 px chunk: the hook writes before + 100...
+			Object.defineProperty(t.h.scrollEl, "scrollHeight", {
+				configurable: true,
+				get: () => 5200,
+			});
+			fireResize(t.h.contentEl, 5200);
+			// ...and ArrowUp moves 40 px up from there in the same frame.
+			t.userScrollTo(before + 100 - 40);
+			flushTimers();
+		});
+		expect(t.h.getResult().isAtBottom).toBe(false);
+	});
+
+	it.each([
+		["pointer move with no button down", (doc: Document) =>
+			doc.dispatchEvent(new MouseEvent("pointermove", { buttons: 0, bubbles: true }))],
+		["window blur", (doc: Document) => doc.defaultView?.dispatchEvent(new Event("blur"))],
+	])("a lost scrollbar release ends on %s; a later layout scroll stays pinned", (_n, release) => {
+		const t = setupStreaming();
+		t.chunk();
+		act(() => {
+			t.pointer("pointerdown"); // no pointerup or mouseup ever arrives
+			release(activeDocument);
+			flushTimers(); // grace window ends
+		});
+		act(() => {
+			t.userScrollTo(t.top() - 1);
+			flushTimers();
+		});
+		expect(t.h.getResult().isAtBottom).toBe(true);
+	});
+
+	it("thumb jitter up then a drag back within the stick zone re-pins", () => {
+		const t = setupStreaming();
+		t.chunk();
+		const start = t.top();
+		act(() => {
+			t.pointer("pointerdown");
+			t.userScrollTo(start - 1);
+			t.userScrollTo(start);
+			t.pointer("pointerup");
+			flushTimers();
+		});
+		expect(t.h.getResult().isAtBottom).toBe(true);
+	});
+
 	it("a press on a message (not the scrollbar) is not scroll intent", () => {
 		const t = setupStreaming();
 		t.chunk();

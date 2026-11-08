@@ -631,6 +631,19 @@ export function useAutoScrollPin(
 		armIntentGrace();
 	}, [armIntentGrace]);
 
+	/**
+	 * Backstop for a release the browser never reports (Chromium can drop
+	 * the mouseup after a scrollbar drag): any pointer movement with no
+	 * button down, or the window losing focus, ends the hold. Without it a
+	 * stuck hold would let a 1 px layout scroll unpin the chat.
+	 */
+	const handlePointerMove = useCallback(
+		(event: MouseEvent) => {
+			if (scrollbarHeldRef.current && event.buttons === 0) handlePointerUp();
+		},
+		[handlePointerUp],
+	);
+
 	const handleScrollKey = useCallback(
 		(event: KeyboardEvent) => {
 			if (event.defaultPrevented) return;
@@ -677,6 +690,10 @@ export function useAutoScrollPin(
 				if (scrollEl) lastScrollTopRef.current = scrollEl.scrollTop;
 				return;
 			}
+			// Measure the user's movement from where the hook put the view,
+			// not from before the write: a 40 px step up from a 100 px chunk
+			// write would otherwise read as a scroll down and re-pin.
+			lastScrollTopRef.current = ownTop;
 		}
 
 		const scrollEl = scrollElRef.current;
@@ -821,6 +838,8 @@ export function useAutoScrollPin(
 				previous.ownerDocument.removeEventListener("pointerup", handlePointerUp);
 				previous.ownerDocument.removeEventListener("pointercancel", handlePointerUp);
 				previous.ownerDocument.removeEventListener("mouseup", handlePointerUp);
+				previous.ownerDocument.removeEventListener("pointermove", handlePointerMove);
+				previous.ownerDocument.defaultView?.removeEventListener("blur", handlePointerUp);
 				previous.ownerDocument.removeEventListener("keydown", handleScrollKey);
 				scrollObserverRef.current?.disconnect();
 				scrollObserverRef.current = null;
@@ -841,6 +860,8 @@ export function useAutoScrollPin(
 			el.ownerDocument.addEventListener("pointerup", handlePointerUp);
 			el.ownerDocument.addEventListener("pointercancel", handlePointerUp);
 			el.ownerDocument.addEventListener("mouseup", handlePointerUp);
+			el.ownerDocument.addEventListener("pointermove", handlePointerMove, { passive: true });
+			el.ownerDocument.defaultView?.addEventListener("blur", handlePointerUp);
 			el.ownerDocument.addEventListener("keydown", handleScrollKey);
 
 			// Container ResizeObserver — detects flex-sibling shrinks etc.
@@ -918,6 +939,7 @@ export function useAutoScrollPin(
 		[
 			applyRestore,
 			handlePointerDown,
+			handlePointerMove,
 			handlePointerUp,
 			handleScrollKey,
 			handleScroll,
@@ -1202,6 +1224,8 @@ export function useAutoScrollPin(
 				scrollEl.ownerDocument.removeEventListener("pointerup", handlePointerUp);
 				scrollEl.ownerDocument.removeEventListener("pointercancel", handlePointerUp);
 				scrollEl.ownerDocument.removeEventListener("mouseup", handlePointerUp);
+				scrollEl.ownerDocument.removeEventListener("pointermove", handlePointerMove);
+				scrollEl.ownerDocument.defaultView?.removeEventListener("blur", handlePointerUp);
 				scrollEl.ownerDocument.removeEventListener("keydown", handleScrollKey);
 			}
 			if (restoreTimerRef.current !== null) {
