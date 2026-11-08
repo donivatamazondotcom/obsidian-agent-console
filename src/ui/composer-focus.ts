@@ -132,3 +132,8 @@ export function holdNextActivationRefocus(doc: Document): void {
 export function isActivationRefocusHeld(doc: Document): boolean {
 	return activationRefocusHolds.has(doc);
 }
+
+/** Clear any hold now. For tests, which run many closes within 250 ms. */
+export function clearActivationRefocusHold(doc: Document): void {
+	activationRefocusHolds.delete(doc);
+}
