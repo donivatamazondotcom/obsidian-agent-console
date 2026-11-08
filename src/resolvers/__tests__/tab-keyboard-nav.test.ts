@@ -53,3 +53,25 @@ describe("deriveTabKeyTarget", () => {
 		expect(deriveTabKeyTarget({ key: "ArrowRight", index: 5, count: 3 })).toEqual({ kind: "none" });
 	});
 });
+
+// Vertical tab rail: the rail is a vertical tablist, so ArrowDown/ArrowUp
+// move focus (wrapping) and Left/Right do nothing there. The strip is
+// unchanged when no orientation is given.
+describe("deriveTabKeyTarget – vertical orientation (tab rail)", () => {
+	it("ArrowDown/ArrowUp move and wrap", () => {
+		expect(deriveTabKeyTarget({ key: "ArrowDown", index: 0, count: 3, orientation: "vertical" })).toEqual({ kind: "focus", index: 1 });
+		expect(deriveTabKeyTarget({ key: "ArrowDown", index: 2, count: 3, orientation: "vertical" })).toEqual({ kind: "focus", index: 0 });
+		expect(deriveTabKeyTarget({ key: "ArrowUp", index: 0, count: 3, orientation: "vertical" })).toEqual({ kind: "focus", index: 2 });
+	});
+	it("Home/End still work", () => {
+		expect(deriveTabKeyTarget({ key: "End", index: 0, count: 3, orientation: "vertical" })).toEqual({ kind: "focus", index: 2 });
+		expect(deriveTabKeyTarget({ key: "Home", index: 2, count: 3, orientation: "vertical" })).toEqual({ kind: "focus", index: 0 });
+	});
+	it("ArrowLeft/ArrowRight do nothing on the rail", () => {
+		expect(deriveTabKeyTarget({ key: "ArrowRight", index: 0, count: 3, orientation: "vertical" })).toEqual({ kind: "none" });
+		expect(deriveTabKeyTarget({ key: "ArrowLeft", index: 1, count: 3, orientation: "vertical" })).toEqual({ kind: "none" });
+	});
+	it("horizontal (explicit) ignores ArrowDown", () => {
+		expect(deriveTabKeyTarget({ key: "ArrowDown", index: 0, count: 3, orientation: "horizontal" })).toEqual({ kind: "none" });
+	});
+});

@@ -19,6 +19,12 @@ export interface TabKeyInput {
 	index: number;
 	/** Number of tabs in the strip. */
 	count: number;
+	/**
+	 * Strip (default) or the vertical tab rail. Vertical uses ArrowDown /
+	 * ArrowUp instead of ArrowRight / ArrowLeft ([[Agent Console Vertical Tab
+	 * Rail]]).
+	 */
+	orientation?: "horizontal" | "vertical";
 }
 
 export type TabKeyTarget = { kind: "focus"; index: number } | { kind: "none" };
@@ -30,9 +36,18 @@ const NONE: TabKeyTarget = { kind: "none" };
  * an open-ended `KeyboardEvent.key` string, not a union, so "any other key"
  * is a real case (returns none) rather than an impossible branch.
  */
-const NAV_KEYS: Readonly<Record<string, (index: number, count: number) => number>> = {
+type NavKeyMap = Readonly<Record<string, (index: number, count: number) => number>>;
+
+const NAV_KEYS: NavKeyMap = {
 	ArrowRight: (i, n) => (i + 1) % n,
 	ArrowLeft: (i, n) => (i - 1 + n) % n,
+	Home: () => 0,
+	End: (_i, n) => n - 1,
+};
+
+const VERTICAL_NAV_KEYS: NavKeyMap = {
+	ArrowDown: (i, n) => (i + 1) % n,
+	ArrowUp: (i, n) => (i - 1 + n) % n,
 	Home: () => 0,
 	End: (_i, n) => n - 1,
 };
@@ -41,11 +56,13 @@ export function deriveTabKeyTarget({
 	key,
 	index,
 	count,
+	orientation = "horizontal",
 }: TabKeyInput): TabKeyTarget {
 	if (!Number.isInteger(count) || count < 1) return NONE;
 	if (!Number.isInteger(index) || index < 0 || index >= count) return NONE;
 
-	if (!Object.prototype.hasOwnProperty.call(NAV_KEYS, key)) return NONE;
-	const next = NAV_KEYS[key](index, count);
+	const keys = orientation === "vertical" ? VERTICAL_NAV_KEYS : NAV_KEYS;
+	if (!Object.prototype.hasOwnProperty.call(keys, key)) return NONE;
+	const next = keys[key](index, count);
 	return next === index ? NONE : { kind: "focus", index: next };
 }
