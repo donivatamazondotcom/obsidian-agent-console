@@ -69,7 +69,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render } from "@testing-library/react";
+import { act, cleanup, render } from "@testing-library/react";
 import * as React from "react";
 
 import { useAutoScrollPin } from "../use-auto-scroll-pin";
@@ -529,6 +529,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	// vitest globals are off, so Testing Library's auto-cleanup never runs:
+	// unmount every harness so no test sees another test's DOM (I305 M1).
+	cleanup();
 	if (originalResizeObserver) {
 		(globalThis as unknown as { ResizeObserver: typeof globalThis.ResizeObserver }).ResizeObserver =
 			originalResizeObserver;
@@ -3445,6 +3448,119 @@ describe("useAutoScrollPin — I304 user scroll input during streaming", () => {
 		expect(t.top()).toBe(3000);
 	});
 
+	const key = (target: EventTarget, k: string) =>
+		act(() => {
+			target.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }));
+		});
+
+	it.each([
+		["ArrowUp", 40],
+		["PageUp (first animation frame)", 30],
+	])("%s in small steps between chunks escapes and holds", (k, step) => {
+		const t = setupStreaming();
+		t.chunk();
+		let expected = 0;
+		for (let i = 0; i < 3; i++) {
+			key(activeDocument.body, k.split(" ")[0] ?? k);
+			expected = t.top() - step;
+			act(() => {
+				t.userScrollTo(expected);
+				flushTimers();
+			});
+			t.chunk();
+		}
+		// Each step moved less than the stick zone; none may be undone.
+		expect(t.h.getResult().isAtBottom).toBe(false);
+		expect(t.top()).toBe(expected);
+	});
+
+	it("a short scrollbar drag (under the stick zone) escapes and holds", () => {
+		const t = setupStreaming();
+		t.chunk();
+		const start = t.top();
+		act(() => {
+			t.pointer("pointerdown");
+			t.userScrollTo(start - 20);
+			t.pointer("pointerup");
+			flushTimers();
+		});
+		t.chunk();
+		expect(t.h.getResult().isAtBottom).toBe(false);
+		expect(t.top()).toBe(start - 20);
+	});
+
+	it("a drag that lands in the same scroll event as the hook's own write still escapes", () => {
+		const t = setupStreaming();
+		t.chunk();
+		act(() => {
+			t.pointer("pointerdown");
+			// A chunk lands: the hook writes the new bottom...
+			Object.defineProperty(t.h.scrollEl, "scrollHeight", {
+				configurable: true,
+				get: () => 5300,
+			});
+			fireResize(t.h.contentEl, 5300);
+			// ...and the drag moves the view before the browser's one scroll
+			// event for that frame fires.
+			t.userScrollTo(3000);
+			t.pointer("pointerup");
+			flushTimers();
+		});
+		expect(t.h.getResult().isAtBottom).toBe(false);
+	});
+
+	it("a press on a message (not the scrollbar) is not scroll intent", () => {
+		const t = setupStreaming();
+		t.chunk();
+		act(() => {
+			t.h.contentEl.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+			t.userScrollTo(3000);
+			t.h.contentEl.dispatchEvent(new Event("pointerup", { bubbles: true }));
+			flushTimers();
+		});
+		expect(t.h.getResult().isAtBottom).toBe(true);
+	});
+
+	it("a scroll key another handler already consumed is not scroll intent", () => {
+		const t = setupStreaming();
+		t.chunk();
+		const consume = (e: Event) => e.preventDefault();
+		activeDocument.addEventListener("keydown", consume, { capture: true });
+		key(activeDocument.body, "PageUp");
+		activeDocument.removeEventListener("keydown", consume, { capture: true });
+		act(() => {
+			t.userScrollTo(3000);
+			flushTimers();
+		});
+		expect(t.h.getResult().isAtBottom).toBe(true);
+	});
+
+	it("Space on a focused button in the chat is not scroll intent", () => {
+		const t = setupStreaming();
+		t.chunk();
+		const button = activeDocument.createElement("button");
+		t.h.contentEl.appendChild(button);
+		key(button, " ");
+		act(() => {
+			t.userScrollTo(3000);
+			flushTimers();
+		});
+		expect(t.h.getResult().isAtBottom).toBe(true);
+	});
+
+	it("a scroll key doesn't arm a hidden tab's chat", () => {
+		const t = setupStreaming();
+		t.chunk();
+		Object.defineProperty(t.h.scrollEl, "clientHeight", { configurable: true, get: () => 0 });
+		key(activeDocument.body, "PageUp");
+		Object.defineProperty(t.h.scrollEl, "clientHeight", { configurable: true, get: () => CLIENT });
+		act(() => {
+			t.userScrollTo(3000);
+			flushTimers();
+		});
+		expect(t.h.getResult().isAtBottom).toBe(true);
+	});
+
 	it("a scroll-up with no user input stays pinned (layout scroll during a resize)", () => {
 		const t = setupStreaming();
 		t.chunk();
@@ -3561,7 +3677,7 @@ describe("useAutoScrollPin — I305 no-op writes don't arm the ignore flag", () 
 
 	it("typing in the composer while pinned at the bottom doesn't eat the next scroll-up", () => {
 		let handle: HarnessHandle | null = null;
-		render(
+		const { container } = render(
 			React.createElement(
 				"div",
 				{ className: "agent-client-chat-view-container" },
@@ -3597,7 +3713,7 @@ describe("useAutoScrollPin — I305 no-op writes don't arm the ignore flag", () 
 			cb(0);
 			return 0;
 		};
-		const composer = activeDocument.querySelector("[data-testid=composer]") as HTMLElement;
+		const composer = container.querySelector("[data-testid=composer]") as HTMLElement;
 		act(() => {
 			// A keystroke re-anchors to the bottom the chat is already at.
 			composer.dispatchEvent(new Event("input", { bubbles: true }));
