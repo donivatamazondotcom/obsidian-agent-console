@@ -846,7 +846,8 @@ export function useSessionHistory(
 				return Promise.resolve();
 
 			// Persist message content + crystallized context, then the record
-			// (I295). Returned so a teardown flush can AWAIT both (I193).
+			// (I295). The file write is returned so a teardown flush can await
+			// it (I193).
 			// I269: the file and the record both use the tab's record id, so
 			// a fallback's new agent session keeps writing the same chat.
 			const epoch = bindingEpochRef.current;
@@ -917,7 +918,6 @@ export function useSessionHistory(
 						adoptRecordId(adoptedId, epoch);
 						if (adoptedId && adoptedId !== recordId) {
 							const minted = recordId;
-							// Awaited, so a teardown flush keeps the adopted copy too.
 							return settingsAccess
 								.saveSessionMessages(
 									adoptedId,
@@ -949,10 +949,7 @@ export function useSessionHistory(
 					});
 			});
 
-			// Resolves once the transcript AND its record have landed, so the
-			// teardown flush (useDebouncedSessionSave.flushPending ->
-			// ChatView.onClose, I193) keeps both across a quit. Never rejects.
-			return recordPromise
+			void recordPromise
 				.then(
 					() => undefined,
 					(err) => {
@@ -964,6 +961,15 @@ export function useSessionHistory(
 						pendingSavesRef.current.count--;
 					}
 				});
+
+			// Resolves once the transcript has landed, so the teardown flush
+			// (useDebouncedSessionSave.flushPending -> ChatView.onClose, I193)
+			// keeps the final turn. It doesn't wait for the record: a data.json
+			// write can take hundreds of ms and runs one at a time per store
+			// (measured 15–663 ms, I295 smoke). A quit between the two leaves
+			// a transcript without a record, which restores (I269 § 2a); never
+			// the reverse. Never rejects.
+			return writePromise.then(() => undefined);
 		},
 		[
 			session.agentId,
