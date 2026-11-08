@@ -12,9 +12,19 @@
 
 import * as React from "react";
 const { useRef, useEffect, useCallback } = React;
-import { Menu, setIcon, setTooltip, type MenuItem } from "obsidian";
-import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
-import type { TabInfo, TabState } from "../types/tab";
+import { setIcon, setTooltip } from "obsidian";
+import type { TabInfo } from "../types/tab";
+import { TabStateIcon } from "./tab-state-icon";
+import { showTabContextMenu, showTabListMenu } from "./tab-menus";
+
+// Shared state-icon helpers live in a leaf module (no TabBar ↔ tab-menus
+// cycle); re-exported so existing imports from "./TabBar" keep working.
+export {
+	stateIcon,
+	stateIconClass,
+	stateLabel,
+	TabStateIcon,
+} from "./tab-state-icon";
 import {
 	deriveActiveTabLabelMax,
 	TAB_CHROME_WIDTH,
@@ -25,30 +35,6 @@ import { deriveTabScrollLeft } from "../resolvers/tab-scroll";
 import { deriveTabKeyTarget } from "../resolvers/tab-keyboard-nav";
 import { t } from "../i18n";
 import type { AiRenameAffordance } from "../resolvers/ai-rename-affordance";
-
-/**
- * I210 — the "Rename with AI" menu title. When the tab's agent can't close
- * the side session, the disabled item carries a muted second line saying so,
- * since a native menu item has no tooltip.
- */
-function aiRenameMenuTitle(
-	affordance: AiRenameAffordance,
-): string | DocumentFragment {
-	const label = t("chat.tabBar.renameWithAi");
-	if (
-		affordance.kind !== "disabled" ||
-		affordance.reason !== "agent-cannot-close"
-	) {
-		return label;
-	}
-	return createFragment((frag) => {
-		frag.createDiv({ text: label });
-		frag.createDiv({
-			text: t("chat.tabBar.renameWithAiUnavailable"),
-			cls: "agent-client-menu-item-note",
-		});
-	});
-}
 
 // ============================================================================
 // Props
@@ -78,105 +64,6 @@ export interface TabBarProps {
 	 * clicks the chevron, reusing the exact same menu path as a mouse click.
 	 */
 	onRegisterShowTabList?: (fn: () => void) => void;
-}
-
-// ============================================================================
-// State Icon Component (Colorblind-Safe)
-// ============================================================================
-
-/**
- * Maps a tab state to its colorblind-safe Lucide icon id.
- *
- * Single source of truth shared by the strip's {@link TabStateIcon} and the
- * chevron dropdown (handleChevronClick, which builds its own span in the row
- * title). Paired with {@link stateIconClass} so both surfaces share shape,
- * color and animation (I278). Shape is the primary signal by design — see
- * `types/tab.ts`. I238: Lucide icons replace Unicode glyphs, which depended on
- * the loaded font and read poorly at small sizes.
- */
-export function stateIcon(state: TabState): string {
-	switch (state) {
-		case "ready":
-			return "circle-dot";
-		case "busy":
-			return "loader-circle";
-		case "permission":
-			return "triangle-alert";
-		case "error":
-			return "circle-x";
-		case "disconnected":
-			return "circle";
-		case "released":
-			// I209: asleep to save memory. A moon reads as "asleep" and is a distinct
-			// shape from disconnected, so the two differ without relying on color.
-			// I238: chosen in the smoke test over circle-pause.
-			return "moon";
-		// Tab Attention States: finished / stopped early while you weren't
-		// looking, and a dashed ring while the agent starts.
-		case "doneUnseen":
-			// A bare tick, no ring: the ring made it read like the ready dot at
-			// tab-strip size (smoke H1, 2026-11-01).
-			return "check";
-		case "stoppedUnseen":
-			return "circle-alert";
-		case "connecting":
-			return "circle-dashed";
-	}
-}
-
-/**
- * Class string for a tab state icon: the base class plus the per-state class
- * that carries color and animation (styles.css § Tab State Icons). Pure, so
- * the strip can keep React as the only owner of its span's classes while the
- * dropdown builds its own span with the same classes (I278).
- */
-export function stateIconClass(state: TabState): string {
-	return `agent-client-tab-state-icon agent-client-tab-state-${state}`;
-}
-
-/**
- * Hover label for each tab state ([[Tab Attention States]]). Every state
- * explains itself; Obsidian shows `aria-label` as the tooltip.
- */
-export function stateLabel(state: TabState): string {
-	switch (state) {
-		case "ready":
-			return t("chat.tabBar.state.ready");
-		case "busy":
-			return t("chat.tabBar.state.busy");
-		case "permission":
-			return t("chat.tabBar.state.permission");
-		case "error":
-			return t("chat.tabBar.state.error");
-		case "disconnected":
-			return t("chat.tabBar.state.disconnected");
-		case "released":
-			return t("chat.tabBar.asleepToSaveMemory");
-		case "connecting":
-			return t("chat.tabBar.state.connecting");
-		case "doneUnseen":
-			return t("chat.tabBar.state.doneUnseen");
-		case "stoppedUnseen":
-			return t("chat.tabBar.state.stoppedUnseen");
-	}
-}
-
-/**
- * Renders a tab state icon using shape + color + animation.
- * No red/green contrast dependency.
- */
-export function TabStateIcon({ state }: { state: TabState }) {
-	const ref = useRef<HTMLSpanElement>(null);
-	const icon = stateIcon(state);
-	useEffect(() => {
-		if (ref.current) setIcon(ref.current, icon);
-	}, [icon]);
-	const className = stateIconClass(state);
-	// Obsidian shows aria-label as the hover tooltip.
-	const label = stateLabel(state);
-	return (
-		<span ref={ref} className={className} aria-label={label} role="img" />
-	);
 }
 
 // ============================================================================
@@ -432,70 +319,21 @@ export function TabBar({
 		return () => observer.disconnect();
 	}, [scrollActiveIntoView]);
 
-	// Right-click context menu on a tab (Obsidian Menu API)
+	// Right-click context menu on a tab — shared with the vertical tab rail
+	// (tab-menus.ts), so both surfaces offer the same actions.
 	const handleTabContextMenu = useCallback(
 		(e: React.MouseEvent, tab: TabInfo) => {
-			e.preventDefault();
-			const menu = new Menu();
-			registerOpenMenu(menu);
-
-			menu.addItem((item: MenuItem) => {
-				item.setTitle(t("chat.tabBar.rename"))
-					.setIcon("pencil")
-					.onClick(() => {
-						onRenameTab(tab.tabId);
-					});
+			showTabContextMenu(e, tab, {
+				tabs,
+				onCloseTab,
+				onCloseOtherTabs,
+				onCloseTabsToRight,
+				onRenameTab,
+				onAiRenameTab,
+				aiRenamingTabIds,
+				getAiRenameAffordance,
+				orientation: "horizontal",
 			});
-
-			if (onAiRenameTab) {
-				const affordance: AiRenameAffordance =
-					getAiRenameAffordance?.(tab.tabId) ??
-					(aiRenamingTabIds?.has(tab.tabId)
-						? { kind: "disabled", reason: "in-flight" }
-						: { kind: "enabled" });
-				menu.addItem((item: MenuItem) => {
-					item.setTitle(aiRenameMenuTitle(affordance))
-						.setIcon("sparkles")
-						.setDisabled(affordance.kind === "disabled")
-						.onClick(() => {
-							onAiRenameTab(tab.tabId);
-						});
-				});
-			}
-
-			menu.addSeparator();
-
-			// Close is always available — closing the last tab lands on the
-			// zero-tab landing screen (reverses T06/T41/I23 for this path).
-			menu.addItem((item: MenuItem) => {
-				item.setTitle(t("chat.tabBar.close"))
-					.setIcon("x")
-					.onClick(() => {
-						onCloseTab(tab.tabId);
-					});
-			});
-
-			// "Close others" / "Close to the right" only apply with >1 tab.
-			if (tabs.length > 1) {
-				menu.addItem((item: MenuItem) => {
-					item.setTitle(t("chat.tabBar.closeOthers")).onClick(() => {
-						onCloseOtherTabs(tab.tabId);
-					});
-				});
-
-				const tabIdx = tabs.findIndex((t) => t.tabId === tab.tabId);
-				if (tabIdx < tabs.length - 1) {
-					menu.addItem((item: MenuItem) => {
-						item.setTitle(t("chat.tabBar.closeToRight")).onClick(
-							() => {
-								onCloseTabsToRight(tab.tabId);
-							},
-						);
-					});
-				}
-			}
-
-			showMenuAtEvent(menu, e);
 		},
 		[
 			tabs,
@@ -505,50 +343,14 @@ export function TabBar({
 			onRenameTab,
 			onAiRenameTab,
 			aiRenamingTabIds,
+			getAiRenameAffordance,
 		],
 	);
 
-	// Chevron dropdown — list all tabs
+	// Chevron dropdown — list all tabs (shared with the vertical tab rail).
 	const handleChevronClick = useCallback(
 		(e: React.MouseEvent) => {
-			const menu = new Menu();
-			// Native (OS) menus render plain-text titles and would drop the
-			// state icon span below (I238, I278). Force a DOM menu so the list
-			// matches the tab strip.
-			menu.setUseNativeMenu(false);
-			// I278: the icon lives in the title so it can carry the state
-			// class (MenuItem has no setClass). Suppress the unused native slot.
-			menu.setNoIcon();
-			registerOpenMenu(menu);
-			for (const tab of tabs) {
-				// Tab Attention States: the active tab gets a bold label instead
-				// of setChecked's checkmark, because a tick now means "finished
-				// while you were away" and two ticks would read the same.
-				const isActive = tab.tabId === activeTabId;
-				const title = createFragment((f) => {
-					const row = f.createSpan({
-						cls: "agent-client-tab-list-title",
-					});
-					// aria-hidden: the row has no state label, and an
-					// aria-label would pop a tooltip over the open menu.
-					const icon = row.createSpan({
-						cls: stateIconClass(tab.state),
-					});
-					icon.setAttribute("aria-hidden", "true");
-					setIcon(icon, stateIcon(tab.state));
-					if (isActive) {
-						row.createEl("strong", { text: tab.label });
-					} else {
-						row.createSpan({ text: tab.label });
-					}
-				});
-				menu.addItem((item: MenuItem) => {
-					item.setTitle(title).onClick(() => {
-						onSelectTab(tab.tabId);
-					});
-				});
-			}
-			showMenuAtEvent(menu, e);
+			showTabListMenu(e, { tabs, activeTabId, onSelectTab });
 		},
 		[tabs, activeTabId, onSelectTab],
 	);
