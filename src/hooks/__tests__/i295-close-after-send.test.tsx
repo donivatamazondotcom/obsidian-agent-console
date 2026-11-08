@@ -613,6 +613,7 @@ describe("I295: a record is written only after its transcript lands", () => {
 		await settle();
 
 		expect(store.records()).toHaveLength(0);
+		expect(h.result.current.history.getRecordId()).toBeNull();
 	});
 
 	it("a failed file write leaves an existing record unchanged", async () => {

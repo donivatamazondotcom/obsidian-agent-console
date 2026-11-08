@@ -857,12 +857,14 @@ export function useSessionHistory(
 			pendingSavesRef.current.count++;
 			const recordId = bindRecordId(sessionId);
 			const agentId = session.agentId;
-			const writePromise = settingsAccess.saveSessionMessages(
-				recordId,
-				agentId,
-				messages,
-				contextNotes,
-			);
+			// A rejection (e.g. the sessions folder can't be created) counts as
+			// a failed write, so it takes the same warn-and-unbind branch.
+			const writePromise = settingsAccess
+				.saveSessionMessages(recordId, agentId, messages, contextNotes)
+				.catch((err) => {
+					getLogger().warn("[SessionHistory] Transcript write threw:", err);
+					return false;
+				});
 
 			// I295: the record is written only once its transcript is on
 			// disk, so a close, quit or crash can leave a transcript without a
@@ -969,12 +971,7 @@ export function useSessionHistory(
 			// (measured 15–663 ms, I295 smoke). A quit between the two leaves
 			// a transcript without a record, which restores (I269 § 2a); never
 			// the reverse. Never rejects.
-			// (A rejection, e.g. the sessions folder can't be created, is logged
-			// by the detached chain above.)
-			return writePromise.then(
-				() => undefined,
-				() => undefined,
-			);
+			return writePromise.then(() => undefined);
 		},
 		[
 			session.agentId,
