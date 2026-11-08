@@ -732,7 +732,15 @@ export function useAutoScrollPin(
 		// escapes now, before the deferral, so a chunk landing in between
 		// can't pull the view back. The deferred body below also skips the
 		// in-flight-resize bail and the I149 revert re-assert for it.
-		const userDriven = scrollIntentRef.current;
+		// A move up that still ends at the bottom can only be the bottom
+		// moving (content or the sticky jump pill shrinking, then the browser
+		// clamping), never the user. Without this, holding the thumb at the
+		// bottom oscillates: re-pin hides the pill, the clamp unpins, the pill
+		// returns (ST finding on I304).
+		const clampedAtBottom =
+			scrollTop < lastScrollTop &&
+			scrollEl.scrollHeight - scrollTop - scrollEl.clientHeight <= 1;
+		const userDriven = scrollIntentRef.current && !clampedAtBottom;
 		if (userDriven) {
 			if (!scrollbarHeldRef.current) armIntentGrace();
 			// Any upward movement escapes, as a wheel-up does: one ArrowUp or

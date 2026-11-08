@@ -3561,6 +3561,94 @@ describe("useAutoScrollPin — I304 user scroll input during streaming", () => {
 		expect(t.h.getResult().isAtBottom).toBe(true);
 	});
 
+	it("holding the thumb at the bottom doesn't oscillate when the jump pill toggles (ST finding)", () => {
+		// The jump-to-bottom pill is `position: sticky` inside the scroller,
+		// so it adds ~30 px of layout whenever the chat is unpinned. Model
+		// that, plus the browser clamping scrollTop when the bottom moves up.
+		let handle: HarnessHandle | null = null;
+		render(
+			React.createElement(Harness, {
+				isActive: true,
+				isSending: false,
+				view: makeView(),
+				onMount: (h) => {
+					handle = h;
+				},
+			}),
+		);
+		// biome-ignore lint/style/noNonNullAssertion: bound by render
+		const h = handle!;
+		const BASE = 5000;
+		const PILL = 30;
+		const height = () => BASE + (h.getResult().isAtBottom ? 0 : PILL);
+		let scrollTop = BASE - CLIENT - 1;
+		Object.defineProperty(h.scrollEl, "scrollHeight", { configurable: true, get: height });
+		Object.defineProperty(h.scrollEl, "clientHeight", { configurable: true, get: () => CLIENT });
+		Object.defineProperty(h.scrollEl, "scrollTop", {
+			configurable: true,
+			get: () => scrollTop,
+			set: (v: number) => {
+				scrollTop = Math.max(0, Math.min(v, height() - CLIENT));
+			},
+		});
+		act(() => {
+			fireResize(h.contentEl, BASE);
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+		const frame = (fn: () => void) =>
+			act(() => {
+				fn();
+				flushTimers();
+				// After React commits: if the bottom moved up past the view,
+				// the browser clamps and fires a scroll event.
+				const max = height() - CLIENT;
+				if (scrollTop > max) {
+					scrollTop = max;
+					fireScrollEvent(h.scrollEl);
+					flushTimers();
+				}
+			});
+		// Grab the thumb and drag it up: the chat unpins and the pill shows.
+		frame(() => {
+			h.scrollEl.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+			scrollTop -= 100;
+			fireScrollEvent(h.scrollEl);
+		});
+		expect(h.getResult().isAtBottom).toBe(false);
+		// Hold the thumb at the very bottom, jiggling as a hand does.
+		const states: boolean[] = [];
+		for (let i = 0; i < 12; i++) {
+			frame(() => {
+				const before = scrollTop;
+				scrollTop = height() - CLIENT;
+				if (scrollTop !== before) fireScrollEvent(h.scrollEl);
+			});
+			states.push(h.getResult().isAtBottom);
+		}
+		act(() => {
+			h.scrollEl.dispatchEvent(new Event("pointerup", { bubbles: true }));
+			flushTimers();
+		});
+		const flips = states.filter((v, i) => i > 0 && v !== states[i - 1]).length;
+		expect({ flips, last: h.getResult().isAtBottom }).toEqual({ flips: 0, last: true });
+	});
+
+	it("content shrinking right after a scroll key clamps without unpinning", () => {
+		const t = setupStreaming();
+		t.chunk();
+		key(activeDocument.body, "End");
+		act(() => {
+			// A tool call collapses: the bottom moves up 50 px and the browser
+			// clamps the view to it, inside the key's intent window.
+			const h2 = t.h.scrollEl.scrollHeight - 50;
+			Object.defineProperty(t.h.scrollEl, "scrollHeight", { configurable: true, get: () => h2 });
+			t.userScrollTo(h2 - CLIENT);
+			flushTimers();
+		});
+		expect(t.h.getResult().isAtBottom).toBe(true);
+	});
+
 	it("a press on a message (not the scrollbar) is not scroll intent", () => {
 		const t = setupStreaming();
 		t.chunk();
