@@ -27,11 +27,28 @@ import type { IChatViewHost } from "../view-host";
 import type { UseSuggestionsReturn } from "../../hooks/useSuggestions";
 import type { TabInfo } from "../../types/tab";
 
+// Like Chromium's IntersectionObserver: observe() reports the element's
+// visibility asynchronously. A tab's composer is hidden (display:none) while
+// the tab is inactive, so activation makes InputArea's I26 effect see it turn
+// visible and refocus it – the second activation-refocus path (smoke A7).
+const hidden = (el: Element | null): boolean => {
+	for (let e = el as HTMLElement | null; e; e = e.parentElement)
+		if (e.style?.display === "none") return true;
+	return false;
+};
 beforeAll(() => {
 	class IO {
-		observe() {}
+		private dead = false;
+		constructor(private cb: (entries: Array<{ isIntersecting: boolean }>) => void) {}
+		observe(el: Element) {
+			window.setTimeout(() => {
+				if (!this.dead) this.cb([{ isIntersecting: !hidden(el) }]);
+			}, 5);
+		}
 		unobserve() {}
-		disconnect() {}
+		disconnect() {
+			this.dead = true;
+		}
 	}
 	(window as unknown as { IntersectionObserver: unknown }).IntersectionObserver = IO;
 });
@@ -169,7 +186,7 @@ describe("I301 B1 – Delete on the active rail key keeps focus on the rail", ()
 		expect(document.activeElement?.getAttribute("aria-selected")).toBe("true");
 	});
 
-	it("two quick Deletes on the active key: a closed tab's refocus timer never uses up the hold", async () => {
+	it("two quick Deletes on the active key keep focus on the rail", async () => {
 		const { container } = render(<View />);
 		await settle();
 		keys(container)[1].focus(); // active "b"
@@ -181,12 +198,14 @@ describe("I301 B1 – Delete on the active rail key keeps focus on the rail", ()
 		expect(document.activeElement).toBe(keys(container)[0]);
 	});
 
-	it("the hold is one-shot: a later mouse switch still focuses the composer", async () => {
+	it("the hold lapses: a later mouse switch still focuses the composer", async () => {
 		const { container } = render(<View />);
 		await settle();
 		keys(container)[1].focus();
 		fireEvent.keyDown(keys(container)[1], { key: "Delete" });
-		await settle();
+		await act(async () => {
+			await new Promise((r) => window.setTimeout(r, 300));
+		});
 		fireEvent.click(keys(container)[0]); // switch to "a" with the mouse
 		await settle();
 		expect(document.activeElement).toBe(composer(container, "a"));

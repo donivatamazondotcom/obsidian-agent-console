@@ -40,7 +40,7 @@ import { deriveSendAffordance } from "../resolvers/send-affordance";
 import type { TabSessionState } from "../hooks/useTabSessionState";
 import {
 	focusComposerAtEnd,
-	takeActivationRefocusHold,
+	isActivationRefocusHeld,
 } from "./composer-focus";
 import { getLogger } from "../utils/logger";
 import { pushScopeWhileFocused } from "../utils/focus-scoped-push";
@@ -1437,15 +1437,13 @@ export function InputArea({
 	// Focus textarea when this tab becomes active (I19)
 	// Tabs are kept mounted and hidden via display:none; without this, hotkey-
 	// driven tab switches leave focus on the previously active tab's textarea.
-	// Skipped once when the tab rail keeps focus after a keyboard close of the
+	// Skipped while the tab rail keeps focus after a keyboard close of the
 	// active key (I301).
 	useEffect(() => {
 		if (isActive) {
 			window.setTimeout(() => {
 				const el = textareaRef.current;
-				// An unmounted composer (its tab just closed) never takes the hold.
-				if (!el) return;
-				if (takeActivationRefocusHold(el.ownerDocument)) return;
+				if (!el || isActivationRefocusHeld(el.ownerDocument)) return;
 				el.focus();
 			}, 0);
 		}
@@ -1481,7 +1479,11 @@ export function InputArea({
 				const visible = entry.isIntersecting;
 				if (visible && !panelWasVisibleRef.current && isActive) {
 					window.setTimeout(() => {
-						textareaRef.current?.focus();
+						const el = textareaRef.current;
+						// Tab activation shows the composer too; the rail may be
+						// holding focus after a keyboard close (I301).
+						if (!el || isActivationRefocusHeld(el.ownerDocument)) return;
+						el.focus();
 					}, 0);
 				}
 				panelWasVisibleRef.current = visible;

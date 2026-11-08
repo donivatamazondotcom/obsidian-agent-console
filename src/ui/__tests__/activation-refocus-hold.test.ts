@@ -1,53 +1,46 @@
 /**
- * One-shot activation-refocus hold (I301 code review B1, R1).
- * The rail sets it before a keyboard close of the active key; the next
- * activation refocus in that document consumes it. A hold nobody consumes
- * (for example the neighbor tab crashed and has no composer) must not skip a
- * later, unrelated refocus, and a hold in one window never touches another.
+ * Activation-refocus hold (I301). The rail sets it before a keyboard close of
+ * the active key; both activation refocus paths in InputArea (I19, I26) check
+ * it. It is a short window, checked and never consumed, so both paths see it;
+ * it expires on its own, so a hold nobody needed (the neighbor crashed and has
+ * no composer) never skips a later, unrelated refocus.
  */
 import { describe, it, expect } from "vitest";
 import {
 	holdNextActivationRefocus,
-	takeActivationRefocusHold,
+	isActivationRefocusHeld,
 } from "../composer-focus";
 
 const wait = (ms: number) =>
 	new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
 describe("activation refocus hold", () => {
-	it("is consumed once by the next refocus in the same tick chain", () => {
+	it("holds for both refocus paths: checking doesn't clear it", async () => {
 		holdNextActivationRefocus(document);
-		expect(takeActivationRefocusHold(document)).toBe(true);
-		expect(takeActivationRefocusHold(document)).toBe(false);
+		expect(isActivationRefocusHeld(document)).toBe(true); // I19, setTimeout 0
+		await wait(40);
+		expect(isActivationRefocusHeld(document)).toBe(true); // I26, a frame or so later
 	});
 
-	it("a refocus scheduled in the same commit (setTimeout 0) still finds it", async () => {
+	it("expires, so a later refocus is not skipped", async () => {
 		holdNextActivationRefocus(document);
-		const seen = await new Promise<boolean>((r) =>
-			window.setTimeout(() => r(takeActivationRefocusHold(document)), 0),
-		);
-		expect(seen).toBe(true);
-	});
-
-	it("an unconsumed hold expires, so a later refocus is not skipped", async () => {
-		holdNextActivationRefocus(document);
-		await wait(150);
-		expect(takeActivationRefocusHold(document)).toBe(false);
+		await wait(300);
+		expect(isActivationRefocusHeld(document)).toBe(false);
 	});
 
 	it("a hold in one document doesn't affect another (popouts)", () => {
 		const other = document.implementation.createHTMLDocument("popout");
 		holdNextActivationRefocus(other);
-		expect(takeActivationRefocusHold(document)).toBe(false);
-		expect(takeActivationRefocusHold(other)).toBe(true);
+		expect(isActivationRefocusHeld(document)).toBe(false);
+		expect(isActivationRefocusHeld(other)).toBe(true);
 	});
 
-	it("a second hold isn't cleared early by the first one's expiry", async () => {
+	it("a newer hold survives an older one's expiry", async () => {
+		await wait(300); // let earlier tests' holds lapse
 		holdNextActivationRefocus(document);
-		await wait(60);
+		await wait(150);
 		holdNextActivationRefocus(document);
-		// The first hold's expiry fires here; the second must survive it.
-		await wait(60);
-		expect(takeActivationRefocusHold(document)).toBe(true);
+		await wait(150); // the first hold's expiry has fired
+		expect(isActivationRefocusHeld(document)).toBe(true);
 	});
 });
