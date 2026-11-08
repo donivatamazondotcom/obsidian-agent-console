@@ -140,6 +140,9 @@ class KiroEngineFlagRejected extends Error {
 	}
 }
 
+/** How long a never-sent session's `session/delete` may take (I259). */
+export const UNSENT_DELETE_DEADLINE_MS = 1000;
+
 export class AcpClient {
 	// Connection & process
 	private connection: acp.ClientConnection | null = null;
@@ -161,8 +164,11 @@ export class AcpClient {
 	 * else is ever deleted. Cleared whenever the process goes away.
 	 */
 	private unsentSessionIds = new Set<string>();
-	/** In-flight `session/delete` requests (I259), so a teardown can wait. */
-	private pendingDeletes = new Set<Promise<unknown>>();
+	/**
+	 * In-flight `session/delete` requests (I259) and the time each one stops
+	 * being worth waiting for, so a teardown can wait without extending it.
+	 */
+	private pendingDeletes = new Map<Promise<unknown>, number>();
 
 	/**
 	 * In-flight initialize() promise, used to coalesce concurrent
@@ -772,7 +778,10 @@ export class AcpClient {
 	 * `discardUnsentSession`. The id is forgotten before the request whatever
 	 * the outcome: there is no retry. Rejects on failure.
 	 */
-	async deleteUnsentSession(sessionId: string): Promise<void> {
+	async deleteUnsentSession(
+		sessionId: string,
+		deadlineMs: number = UNSENT_DELETE_DEADLINE_MS,
+	): Promise<void> {
 		const connection = this.requireConnection();
 		this.unsentSessionIds.delete(sessionId);
 		const request = connection.agent.request(
@@ -783,7 +792,7 @@ export class AcpClient {
 			() => undefined,
 			() => undefined,
 		);
-		this.pendingDeletes.add(tracked);
+		this.pendingDeletes.set(tracked, Date.now() + deadlineMs);
 		void tracked.finally(() => this.pendingDeletes.delete(tracked));
 		await request;
 		this.logger.log(`Deleted never-sent session: ${sessionId}`);
@@ -793,27 +802,33 @@ export class AcpClient {
 	}
 
 	/**
-	 * Close one session on the live process (`session/close`), freeing its
-	 * resources without restarting the agent. Only call when the agent
-	 * advertises it (`AgentCapabilities.closesSessions`). Rejects on failure;
-	 * the caller decides the fallback (I210 respawns).
+	 * Resolves once every in-flight `session/delete` has answered, or once
+	 * the last one's own deadline (set when it started) has passed (I259). A
+	 * tab's unmount teardown waits on this so it doesn't kill the process
+	 * while the close handler's delete is in flight, and never waits past the
+	 * delete's 1 s budget.
 	 */
-	/**
-	 * Resolves once every in-flight `session/delete` has answered, or after
-	 * `timeoutMs` (I259). A tab's unmount teardown waits on this so it
-	 * doesn't kill the process while the close handler's delete is in flight.
-	 */
-	whenDeletesSettled(timeoutMs: number): Promise<void> {
+	whenDeletesSettled(): Promise<void> {
 		if (this.pendingDeletes.size === 0) return Promise.resolve();
+		const timeoutMs = Math.max(
+			0,
+			Math.max(...this.pendingDeletes.values()) - Date.now(),
+		);
 		let timer: number | undefined;
 		return Promise.race([
-			Promise.all([...this.pendingDeletes]).then(() => undefined),
+			Promise.all([...this.pendingDeletes.keys()]).then(() => undefined),
 			new Promise<void>((resolve) => {
 				timer = window.setTimeout(resolve, timeoutMs);
 			}),
 		]).finally(() => window.clearTimeout(timer));
 	}
 
+	/**
+	 * Close one session on the live process (`session/close`), freeing its
+	 * resources without restarting the agent. Only call when the agent
+	 * advertises it (`AgentCapabilities.closesSessions`). Rejects on failure;
+	 * the caller decides the fallback (I210 respawns).
+	 */
 	async closeSession(sessionId: string): Promise<void> {
 		const connection = this.requireConnection();
 		await connection.agent.request(acp.methods.agent.session.close, {
