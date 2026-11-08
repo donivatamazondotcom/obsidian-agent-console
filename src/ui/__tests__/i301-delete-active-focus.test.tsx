@@ -169,6 +169,18 @@ describe("I301 B1 – Delete on the active rail key keeps focus on the rail", ()
 		expect(document.activeElement?.getAttribute("aria-selected")).toBe("true");
 	});
 
+	it("two quick Deletes on the active key: a closed tab's refocus timer never uses up the hold", async () => {
+		const { container } = render(<View />);
+		await settle();
+		keys(container)[1].focus(); // active "b"
+		fireEvent.keyDown(keys(container)[1], { key: "Delete" });
+		// "c" is now active and focused; close it before any refocus timer runs.
+		fireEvent.keyDown(document.activeElement!, { key: "Delete" });
+		await settle();
+		expect(keys(container).map((k) => k.dataset.tabId)).toEqual(["a"]);
+		expect(document.activeElement).toBe(keys(container)[0]);
+	});
+
 	it("the hold is one-shot: a later mouse switch still focuses the composer", async () => {
 		const { container } = render(<View />);
 		await settle();
