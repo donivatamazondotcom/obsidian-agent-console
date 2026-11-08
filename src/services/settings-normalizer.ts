@@ -928,6 +928,7 @@ export function normalizeRawSettings(
 		legacySessionsMigrated: bool(raw.legacySessionsMigrated, false),
 		kiroEngineDefaultMigrated: true,
 		settingsImportOfferShown: bool(raw.settingsImportOfferShown, false),
+		kiroV3UpdateTipDismissed: bool(raw.kiroV3UpdateTipDismissed, false),
 		pluginUpdateCheck: parsePluginUpdateCache(raw.pluginUpdateCheck),
 		lastSeenVersion: readLastSeenVersion(raw.lastSeenVersion),
 		hasCompletedSetup: bool(raw.hasCompletedSetup, false),

@@ -777,6 +777,7 @@ export function ChatPanel({
 		const engine = deriveHeaderEngine({
 			kiroCli: session.kiroCli,
 			kiroEngine: session.kiroEngine,
+			kiroEngineFallback: session.kiroEngineFallback,
 			agentInfo: session.agentInfo,
 		});
 		const effort = deriveHeaderEffort({ configOptions: session.configOptions });
@@ -817,6 +818,7 @@ export function ChatPanel({
 		session.agentInfo,
 		session.kiroEngine,
 		session.kiroCli,
+		session.kiroEngineFallback,
 		agentCwd,
 		session.models,
 		session.modes,
@@ -3333,6 +3335,7 @@ export function ChatPanel({
 			isActive={isActive}
 			isFallbackRecovery={lazySession.isFallbackRecovery}
 			fallbackReason={lazySession.fallbackReason}
+			kiroEngineFallback={session.kiroEngineFallback}
 			sessionGone={lazySession.sessionGone}
 			onCloseSessionGone={onCloseSelf}
 			viewId={viewId}

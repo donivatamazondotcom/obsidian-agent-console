@@ -17,9 +17,24 @@ const BAD_VALUE =
 const NO_ACP = "error: unrecognized subcommand 'acp'\n";
 
 describe("classifyKiroStartupFailure (D3)", () => {
-	it("V3 launch, exit 2, stderr rejects the flag: engine-unsupported", () => {
+	it("V3 launch, exit 2, clap doesn't know the flag: engine-flag-unknown (I302)", () => {
+		// The client maps this to D3's error for V3 chosen by name, and to
+		// the V2 relaunch for the Default engine.
 		expect(
 			classifyKiroStartupFailure({ launchedEngine: "v3", exitCode: 2, stderr: UNKNOWN_FLAG }),
+		).toBe("engine-flag-unknown");
+	});
+
+	it("V3 launch, other non-zero exit naming the flag: engine-unsupported (I302 H1)", () => {
+		expect(
+			classifyKiroStartupFailure({ launchedEngine: "v3", exitCode: 1, stderr: UNKNOWN_FLAG }),
+		).toBe("engine-unsupported");
+		expect(
+			classifyKiroStartupFailure({
+				launchedEngine: "v3",
+				exitCode: 1,
+				stderr: "error: could not start the agent for --agent-engine=v3",
+			}),
 		).toBe("engine-unsupported");
 	});
 

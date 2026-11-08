@@ -4268,3 +4268,36 @@ del.acp-header-branded-profile {
 	font-size: var(--font-ui-smaller);
 	color: var(--text-muted);
 }
+
+/* I302: "update Kiro CLI to get V3" tip at the top of a V2-fallback chat */
+.agent-client-kiro-update-tip {
+	margin: 8px 0;
+	padding: 8px 12px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-left: 3px solid var(--interactive-accent);
+	border-radius: var(--radius-s);
+	font-size: var(--font-ui-small);
+}
+
+.agent-client-kiro-update-tip-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.agent-client-kiro-update-tip-title {
+	flex: 1;
+	min-width: 0;
+	font-weight: 600;
+}
+
+.agent-client-kiro-update-tip-body {
+	margin: 4px 0 0;
+}
+
+.agent-client-kiro-update-tip ul {
+	margin: 4px 0 0;
+	padding-left: 18px;
+	color: var(--text-muted);
+}

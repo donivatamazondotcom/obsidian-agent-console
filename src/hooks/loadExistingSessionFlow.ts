@@ -1,10 +1,12 @@
 import {
 	NO_AGENT_CAPABILITIES,
 	type AgentCapabilities,
+	type KiroEngineFallback,
 	type SessionResult,
 } from "../types/session";
 import {
 	decideEngineRestore,
+	type EngineChangeReason,
 	type SessionEngine,
 } from "../resolvers/session-engine";
 import { decideLoadReplay } from "../resolvers/load-replay";
@@ -22,7 +24,7 @@ export type SessionAcquisitionResult =
 	| {
 			ok: false;
 			error: Error;
-			fallbackReason?: "engine-changed";
+			fallbackReason?: EngineChangeReason;
 			failure?: RestoreFailureKind;
 	  };
 
@@ -104,6 +106,8 @@ export interface ReconnectClientPort {
 		capabilities: AgentCapabilities;
 		/** Engine the process was launched with (I235). */
 		kiroEngine?: SessionEngine;
+		/** Why it runs V2 instead of the Default V3 (I302). */
+		kiroEngineFallback?: KiroEngineFallback;
 	} | null;
 	loadSession: (sessionId: string, cwd: string) => Promise<SessionResult>;
 	resumeSession: (sessionId: string, cwd: string) => Promise<SessionResult>;
@@ -184,6 +188,7 @@ export async function reconnectExistingSession(
 	const engine = decideEngineRestore({
 		stored: args.storedEngine,
 		running: init?.kiroEngine,
+		runningFallback: init?.kiroEngineFallback,
 	});
 	if (engine.kind === "start-fresh") {
 		return {
@@ -192,7 +197,7 @@ export async function reconnectExistingSession(
 				`Session ran on Kiro ${engine.from}; this agent now runs ${engine.to}`,
 			),
 			fallbackReason: engine.reason,
-			failure: "engine-changed",
+			failure: engine.reason,
 		};
 	}
 	const capabilities = init?.capabilities ?? NO_AGENT_CAPABILITIES;

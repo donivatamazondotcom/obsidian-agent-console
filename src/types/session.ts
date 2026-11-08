@@ -315,6 +315,14 @@ export interface ChatSession {
 	 */
 	kiroCli?: boolean;
 
+	/**
+	 * Why this process runs V2 although its agent follows the Default (V3)
+	 * engine, recorded from {@link InitializeResult.kiroEngineFallback}: the
+	 * kiro-cli is too old for V3 (I302). The init result is the truth for its
+	 * process, so a later V3 launch's undefined replaces it.
+	 */
+	kiroEngineFallback?: KiroEngineFallback;
+
 	/** Timestamp when the session was created */
 	createdAt: Date;
 
@@ -951,4 +959,15 @@ export interface InitializeResult {
 	 * the launch config, never from the agent id (I247).
 	 */
 	kiroCli: boolean;
+
+	/**
+	 * Set when the agent follows the Default (V3) engine but the kiro-cli
+	 * rejected `--agent-engine` (too old for V3), so this process was
+	 * relaunched without it and runs V2 (I302). Normalized at the `acp/`
+	 * edge from the launch config.
+	 */
+	kiroEngineFallback?: KiroEngineFallback;
 }
+
+/** Why a Kiro process runs V2 instead of its Default V3 (I302). */
+export type KiroEngineFallback = "old-cli";

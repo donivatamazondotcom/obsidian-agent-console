@@ -316,6 +316,28 @@ export function resolveAgentKiroEngine(
 }
 
 /**
+ * Whether an agent's V3 engine comes from the Default setting rather than a
+ * V3 picked by name (I302). Only then may a kiro-cli too old for V3 relaunch
+ * on V2 instead of showing D3's error. Mirrors `resolveAgentKiroEngine`: a
+ * custom agent follows Default only on a kiro-cli command.
+ */
+export function followsKiroDefault(
+	settings: Pick<AgentClientPluginSettings, "kiro" | "customAgents">,
+	agentId: string,
+): boolean {
+	if (resolveAgentKiroEngine(settings, agentId) !== "v3") return false;
+	if (agentId === settings.kiro.id) {
+		return readKiroEngineSetting(settings.kiro) === "default";
+	}
+	const custom = settings.customAgents.find((a) => a.id === agentId);
+	if (!custom) return false;
+	return (
+		readKiroEngineSetting(custom) === "default" &&
+		isKiroCliCommand(custom.command)
+	);
+}
+
+/**
  * Whether a V2-resolved agent is a Kiro launch that gets `--agent-engine=v2`
  * (I270): the built-in Kiro agent (any command, like V3), or a custom agent
  * whose command is kiro-cli. Every other agent resolves to "v2" too but is
@@ -401,7 +423,14 @@ export function buildAgentConfigWithApiKey(
 
 	const kiroEngine = resolveAgentKiroEngine(settings, agentId);
 	if (kiroEngine === "v3") {
-		return { ...baseConfig, kiroEngine: "v3" as const };
+		return {
+			...baseConfig,
+			kiroEngine: "v3" as const,
+			// I302: Default may fall back to V2 on a kiro-cli without V3.
+			...(followsKiroDefault(settings, agentId)
+				? { kiroEngineFollowsDefault: true as const }
+				: {}),
+		};
 	}
 	// I270: V2 is pinned too. Without the flag kiro-cli follows Kiro's own
 	// engine setting and a "V2" chat can run V3.

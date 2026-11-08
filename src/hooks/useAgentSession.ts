@@ -44,7 +44,8 @@ import {
 	restoreLegacyConfig,
 } from "../services/session-state";
 import { resolveModeRequest } from "../resolvers/session-modes";
-import { launchedEngine } from "../resolvers/session-engine";
+import { launchedEngine,
+	launchedFallback } from "../resolvers/session-engine";
 import {
 	assertEngineCanResume,
 	assertLoadReplayed,
@@ -312,6 +313,10 @@ export function useAgentSession(
 				kiroEngine:
 					agentId === prev.agentId ? prev.kiroEngine : undefined,
 				kiroCli: agentId === prev.agentId ? prev.kiroCli : undefined,
+				// I302: kept for the same agent so the update tip doesn't
+				// flicker through a V2 respawn; the new init result replaces it.
+				kiroEngineFallback:
+					agentId === prev.agentId ? prev.kiroEngineFallback : undefined,
 				createdAt: new Date(),
 				lastActivityAt: new Date(),
 			}));
@@ -464,6 +469,9 @@ export function useAgentSession(
 						? initResult.kiroCli
 						: (agentClient.getInitializeResult()?.kiroCli ??
 							prev.kiroCli),
+					kiroEngineFallback: initResult
+						? initResult.kiroEngineFallback
+						: launchedFallback(agentClient.getInitializeResult(), prev),
 					lastActivityAt: new Date(),
 				}));
 
@@ -472,7 +480,12 @@ export function useAgentSession(
 				// I270: a disconnect or another initialize replaced this one;
 				// that call owns the tab's state, so leave it alone.
 				if (isInitializeSuperseded(error)) return null;
-				setSession((prev) => ({ ...prev, state: "error" }));
+				// I302: a failed start shows its error, not the update tip.
+				setSession((prev) => ({
+					...prev,
+					state: "error",
+					kiroEngineFallback: undefined,
+				}));
 				// D3: a startup failure with a known reason shows that reason.
 				if (isAgentStartupError(error)) {
 					setErrorInfo(error.info);
@@ -594,6 +607,7 @@ export function useAgentSession(
 				agentInfo: undefined,
 				kiroEngine: undefined,
 				kiroCli: undefined,
+				kiroEngineFallback: undefined,
 				lastActivityAt: new Date(),
 			}));
 			setErrorInfo(null);
@@ -692,6 +706,10 @@ export function useAgentSession(
 				kiroCli:
 					agentClient.getInitializeResult()?.kiroCli ??
 					prev.kiroCli,
+				kiroEngineFallback: launchedFallback(
+					agentClient.getInitializeResult(),
+					prev,
+				),
 				// I247: the header's Engine line for non-Kiro agents.
 				agentInfo:
 					agentClient.getInitializeResult()?.agentInfo ??
@@ -754,6 +772,7 @@ export function useAgentSession(
 				assertEngineCanResume(
 					prev.kiroEngine,
 					agentClient.getInitializeResult()?.kiroEngine,
+					agentClient.getInitializeResult()?.kiroEngineFallback,
 				);
 				const result = await agentClient.loadSession(sid, effectiveCwd);
 				// I264: an empty load for a chat with a transcript means the
@@ -940,6 +959,7 @@ export function useAgentSession(
 			capabilities: init.capabilities ?? prev.capabilities,
 			kiroEngine: init.kiroEngine,
 			kiroCli: init.kiroCli ?? prev.kiroCli,
+			kiroEngineFallback: init.kiroEngineFallback,
 			agentInfo: init.agentInfo ?? prev.agentInfo,
 		}));
 	}, [agentClient]);

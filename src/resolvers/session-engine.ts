@@ -22,11 +22,20 @@
  * A missing running engine is unknown, so a non-Kiro chat always loads.
  */
 
+import type { KiroEngineFallback } from "../types/session";
+
 /** Engine a chat ran on. Same union as `InitializeResult.kiroEngine`. */
 export type SessionEngine = "v2" | "v3";
 
 /** Why a restored chat started a new session instead of loading its own. */
-export type SessionFallbackReason = "unavailable" | "engine-changed";
+/**
+ * Why a stored V3 chat can't load on the running V2: the agent was set to V2
+ * (`engine-changed`, D2), or the agent follows the Default engine and the
+ * kiro-cli is too old for V3 (`engine-changed-old-cli`, I302).
+ */
+export type EngineChangeReason = "engine-changed" | "engine-changed-old-cli";
+
+export type SessionFallbackReason = "unavailable" | EngineChangeReason;
 
 /**
  * Parse a stored engine. `undefined`/`null` → unknown (silent). Anything else
@@ -61,6 +70,18 @@ export function launchedEngine(
 }
 
 /**
+ * Why the launched Kiro process runs V2 instead of its Default V3 (I302),
+ * with `launchedEngine`'s rule: an init result is the truth for its process,
+ * so a V3 init's undefined replaces an older "old-cli". Same scope note.
+ */
+export function launchedFallback(
+	init: { kiroEngineFallback?: KiroEngineFallback } | null | undefined,
+	prev: { kiroEngineFallback?: KiroEngineFallback },
+): KiroEngineFallback | undefined {
+	return init ? init.kiroEngineFallback : prev.kiroEngineFallback;
+}
+
+/**
  * The engine tab persistence keeps for this tab's session id. A live session
  * whose process is known (`kiroCli` set at initialize) replaces it with the
  * engine it launched with, including "none" for a non-Kiro agent. Otherwise
@@ -91,7 +112,7 @@ export type EngineRestoreDecision =
 	| { kind: "load" }
 	| {
 			kind: "start-fresh";
-			reason: "engine-changed";
+			reason: EngineChangeReason;
 			from: "v3";
 			to: "v2";
 	  };
@@ -103,9 +124,19 @@ export type EngineRestoreDecision =
 export function decideEngineRestore(input: {
 	stored: SessionEngine | undefined;
 	running: SessionEngine | undefined;
+	/** Why the running process is V2, when it fell back (I302). */
+	runningFallback?: KiroEngineFallback;
 }): EngineRestoreDecision {
 	if (input.stored === "v3" && input.running === "v2") {
-		return { kind: "start-fresh", reason: "engine-changed", from: "v3", to: "v2" };
+		return {
+			kind: "start-fresh",
+			reason:
+				input.runningFallback === "old-cli"
+					? "engine-changed-old-cli"
+					: "engine-changed",
+			from: "v3",
+			to: "v2",
+		};
 	}
 	return { kind: "load" };
 }

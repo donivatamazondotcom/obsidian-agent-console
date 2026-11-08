@@ -15,10 +15,13 @@ import type { ErrorInfo } from "../types/errors";
 import { t } from "../i18n";
 
 /**
- * - `engine-unsupported`: a V3 launch an older CLI rejected (D3).
- * - `engine-flag-unknown`: a V2 launch an older CLI rejected for the
- *   `--agent-engine` pin (I270). That CLI only has V2, so the client
- *   relaunches once without the flag.
+ * - `engine-flag-unknown`: the CLI doesn't know `--agent-engine` at all
+ *   (clap's unknown-argument error, exit 2), on either engine. That CLI only
+ *   has V2. A V2 launch relaunches once without the flag (I270); so does a
+ *   V3 launch that follows the Default engine (I302). A V3 launch the user
+ *   chose by name shows D3's error instead.
+ * - `engine-unsupported`: any other V3 launch the CLI rejected naming
+ *   `--agent-engine` (D3).
  */
 export type KiroStartupFailure = "engine-unsupported" | "engine-flag-unknown";
 
@@ -35,7 +38,7 @@ export interface KiroStartupFailureInput {
 const ENGINE_FLAG_REJECTED = /--agent-engine/;
 
 /**
- * Narrow match for the V2 relaunch (I270): only clap's unknown-argument
+ * Narrow match for the unpinned relaunch (I270, I302): only clap's unknown-argument
  * error, in clap 4 wording (`unexpected argument '--agent-engine' found`,
  * measured for D3) or clap 3 wording (`Found argument '--agent-engine'
  * which wasn't expected`, not measured on kiro-cli). An unpinned launch is
@@ -47,22 +50,38 @@ const ENGINE_FLAG_UNKNOWN =
 	/unexpected argument '--agent-engine'|Found argument '--agent-engine' which wasn't expected/;
 
 /**
- * `engine-unsupported` only for a V3 launch that exited non-zero with stderr
- * naming `--agent-engine`; `engine-flag-unknown` only for a V2 launch that
- * exited 2 with clap's unknown-argument error. Everything else is null.
+ * `engine-flag-unknown` for a Kiro launch (either engine) that exited 2
+ * with clap's unknown-argument error; `engine-unsupported` for any other V3
+ * launch that exited non-zero with stderr naming `--agent-engine`.
+ * Everything else is null.
  */
 export function classifyKiroStartupFailure(
 	input: KiroStartupFailureInput,
 ): KiroStartupFailure | null {
-	if (input.launchedEngine === "v2") {
-		return input.exitCode === 2 && ENGINE_FLAG_UNKNOWN.test(input.stderr)
-			? "engine-flag-unknown"
-			: null;
+	if (input.launchedEngine !== "v2" && input.launchedEngine !== "v3") {
+		return null;
 	}
-	if (input.launchedEngine !== "v3") return null;
+	if (input.exitCode === 2 && ENGINE_FLAG_UNKNOWN.test(input.stderr)) {
+		return "engine-flag-unknown";
+	}
+	if (input.launchedEngine === "v2") return null;
 	if (input.exitCode === null || input.exitCode === 0) return null;
 	if (!ENGINE_FLAG_REJECTED.test(input.stderr)) return null;
 	return "engine-unsupported";
+}
+
+/**
+ * What the chat shows when the V2 relaunch of an agent on the Default engine
+ * also exits before answering (I302). Same title and message as D3, but
+ * update-only advice: switching to V2 (legacy) can't help, this CLI just
+ * failed on V2.
+ */
+export function kiroOldCliFailedInfo(): ErrorInfo {
+	return {
+		title: t("chat.acpErrors.kiroEngineUnsupportedTitle"),
+		message: t("chat.acpErrors.kiroEngineUnsupported"),
+		suggestion: t("chat.acpErrors.kiroOldCliFailedSuggestion"),
+	};
 }
 
 /**

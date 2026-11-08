@@ -218,6 +218,20 @@ export function resolveLaunchArgs(
 }
 
 /**
+ * The config for the one unpinned relaunch after a kiro-cli rejected
+ * `--agent-engine` as unknown (I270, I302). A V2 config relaunches as is
+ * (unpinned). A V3 config that follows the Default engine becomes V2: that
+ * CLI predates the flag, so it only has V2. `kiroEngineFallback` records why,
+ * for the session and the update tip. Pure.
+ */
+export function relaunchConfig(config: AgentConfig): AgentConfig {
+	if (config.kiroEngine !== "v3") return config;
+	const out: AgentConfig = { ...config, kiroEngine: "v2", kiroEngineFallback: "old-cli" };
+	delete out.kiroEngineFollowsDefault;
+	return out;
+}
+
+/**
  * `initialize` client capabilities. `baseMeta` carries the client's own
  * `_meta` entries (the a2ui binding); the v2 shape is otherwise unchanged.
  */
