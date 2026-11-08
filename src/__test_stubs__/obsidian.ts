@@ -102,12 +102,37 @@ export class FuzzySuggestModal<T> {
 	close() {}
 }
 
+function makeNoticeEl(): {
+	classes: Set<string>;
+	listeners: Array<() => void>;
+	addClass: (cls: string) => void;
+	addEventListener: (type: string, fn: () => void) => void;
+} {
+	const classes = new Set<string>();
+	const listeners: Array<() => void> = [];
+	return {
+		classes,
+		listeners,
+		addClass: (cls) => {
+			classes.add(cls);
+		},
+		addEventListener: (_type, fn) => {
+			listeners.push(fn);
+		},
+	};
+}
+
 export class Notice {
 	/** Messages/fragments passed to the constructor, for test assertions. */
 	static instances: Notice[] = [];
 	message: string | DocumentFragment;
 	duration: number | undefined;
 	hidden = false;
+	/**
+	 * Minimal stand-in for Obsidian's Notice element: records added classes
+	 * and click listeners, which is all callers use.
+	 */
+	containerEl = makeNoticeEl();
 	constructor(message: string | DocumentFragment, duration?: number) {
 		this.message = message;
 		this.duration = duration;
