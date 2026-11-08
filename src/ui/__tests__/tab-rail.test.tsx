@@ -651,7 +651,7 @@ describe("TabRail – review findings", () => {
 		expect(flyout()).toBeNull();
 	});
 
-	it("middle-click closing the tab under the pointer leaves no flyout", () => {
+	it("closing the tab whose flyout is showing leaves no flyout", () => {
 		vi.useFakeTimers();
 		const p = props();
 		const store = fakeStore({ tabRailWidth: 32, tabRailNamedWidth: 160 });
@@ -672,6 +672,11 @@ describe("TabRail – review findings", () => {
 		act(() => {
 			vi.advanceTimersByTime(250);
 		});
+		// Precondition: the closing tab's flyout is showing.
+		expect(
+			container.querySelector(".agent-client-tab-rail-flyout:not(.is-hidden)")
+				?.textContent,
+		).toContain("Beta");
 		rerender(
 			<div className="test-view">
 				<TabRail
@@ -696,6 +701,46 @@ describe("TabRail – review findings", () => {
 			vi.advanceTimersByTime(250);
 		});
 		expect(flyout()?.textContent).toContain("Alpha");
+	});
+});
+
+describe("TabRail – delta review findings", () => {
+	it("a drag frame is requested and cancelled on the handle's own window (popouts)", () => {
+		const { handle } = renderRail();
+		const win = handle.ownerDocument.defaultView!;
+		const req = vi.spyOn(win, "requestAnimationFrame").mockImplementation(() => 42);
+		const cancel = vi.spyOn(win, "cancelAnimationFrame").mockImplementation(() => {});
+		fireEvent.pointerDown(handle, { clientX: 500, button: 0, pointerId: 1, pointerType: "mouse" });
+		fireEvent.pointerMove(handle, { clientX: 400, pointerId: 1, pointerType: "mouse" });
+		expect(req).toHaveBeenCalledTimes(1);
+		fireEvent.pointerCancel(handle, { pointerId: 1, pointerType: "mouse" });
+		expect(cancel).toHaveBeenCalledWith(42);
+	});
+
+	it("a view resize that only changes height scrolls the active key back into view", () => {
+		let observerCb: (() => void) | null = null;
+		class RO {
+			constructor(cb: () => void) {
+				observerCb = cb;
+			}
+			observe() {}
+			disconnect() {}
+		}
+		vi.stubGlobal("ResizeObserver", RO);
+		try {
+			const tabs = Array.from({ length: 12 }, (_, i) => tab(`t${i}`, `Tab ${i}`));
+			const { container } = renderRail({ tabs, activeTabId: "t11" });
+			const list = container.querySelector<HTMLElement>(".agent-client-tab-rail-list")!;
+			const active = container.querySelector<HTMLElement>(".agent-client-tab-rail-key.is-active")!;
+			// The list shrinks to 100px tall; the active key now sits below it.
+			vi.spyOn(list, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 100, left: 0, right: 32, width: 32, height: 100, x: 0, y: 0, toJSON: () => ({}) } as DOMRect);
+			vi.spyOn(active, "getBoundingClientRect").mockReturnValue({ top: 300, bottom: 328, left: 0, right: 32, width: 32, height: 28, x: 0, y: 300, toJSON: () => ({}) } as DOMRect);
+			list.scrollTop = 0;
+			act(() => observerCb?.());
+			expect(list.scrollTop).toBe(228);
+		} finally {
+			vi.unstubAllGlobals();
+		}
 	});
 });
 
