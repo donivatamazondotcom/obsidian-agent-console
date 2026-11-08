@@ -112,6 +112,27 @@ function setScrollTopInstant(scrollEl: HTMLElement, value: number): void {
 }
 
 /**
+ * I305: the hook's own scrollTop write. Records the position it landed on
+ * so handleScroll can skip the scroll event the write causes, matched by
+ * value, so a user scroll that lands in the same event is still
+ * classified. Returns whether the view moved. Browsers fire no scroll
+ * event for a no-op write, so a no-op records nothing: a recorded value
+ * would sit until the user's next real scroll and swallow it.
+ */
+function writeOwnScroll(
+	scrollEl: HTMLElement,
+	value: number,
+	ownScrollTopRef: { current: number | null },
+): boolean {
+	const before = scrollEl.scrollTop;
+	setScrollTopInstant(scrollEl, value);
+	const after = scrollEl.scrollTop;
+	if (Math.abs(after - before) < 1) return false;
+	ownScrollTopRef.current = after;
+	return true;
+}
+
+/**
  * Compute the scroll-top value that places the viewport at the bottom.
  * Uses `scrollHeight - clientHeight - 1` (matching use-stick-to-bottom)
  * — the `-1` provides a 1-px buffer to absorb sub-pixel rounding.
@@ -140,6 +161,25 @@ function bottomGap(scrollEl: HTMLElement): number {
  * period. Any user scroll input ends it early.
  */
 const RESTORE_HOLD_MS = 2000;
+
+/**
+ * I304: how long scroll intent outlives its input. A track click or a
+ * released scrollbar drag can deliver its scroll event a frame after
+ * pointerup, and a smooth keyboard or track-click scroll animates for
+ * ~100–200 ms. Each scroll inside the window extends it.
+ */
+const SCROLL_INTENT_GRACE_MS = 150;
+
+/** I304: keys that scroll the message list when it (or the page) has focus. */
+const SCROLL_KEYS = new Set([
+	"ArrowUp",
+	"ArrowDown",
+	"PageUp",
+	"PageDown",
+	"Home",
+	"End",
+	" ",
+]);
 
 /** The message row at the top of the view, and how far into it. */
 interface ReadingAnchor {
@@ -242,7 +282,7 @@ export function useAutoScrollPin(
 	 * The next scroll event after the flag is set is therefore ours;
 	 * the one after that is the user's.
 	 */
-	const ignoreNextScrollEventRef = useRef(false);
+	const ownScrollTopRef = useRef<number | null>(null);
 
 	/**
 	 * I149 fix: target scrollTop of a pending container-shrink re-anchor.
@@ -311,8 +351,7 @@ export function useAutoScrollPin(
 			bottomScrollTop(scrollEl),
 		);
 		if (Math.abs(scrollEl.scrollTop - desired) <= 1) return;
-		ignoreNextScrollEventRef.current = true;
-		setScrollTopInstant(scrollEl, desired);
+		writeOwnScroll(scrollEl, desired, ownScrollTopRef);
 		lastScrollTopRef.current = scrollEl.scrollTop;
 	}, [endRestore]);
 
@@ -446,8 +485,7 @@ export function useAutoScrollPin(
 				}
 				scrollEl.scrollTop = target;
 			} else {
-				ignoreNextScrollEventRef.current = true;
-				setScrollTopInstant(scrollEl, target);
+				writeOwnScroll(scrollEl, target, ownScrollTopRef);
 			}
 
 			setIsAtBottom(true);
@@ -533,7 +571,7 @@ export function useAutoScrollPin(
 	 *
 	 * The deferred body bails on:
 	 *   1. resizeDifferenceRef !== 0 (a resize is in flight)
-	 *   2. ignoreNextScrollEventRef (the hook's own scrollTop write
+	 *   2. ownScrollTopRef (the hook's own scrollTop write
 	 *      produced this scroll event — see I-S7)
 	 *
 	 * Otherwise it classifies by direction (scrollingUp vs scrollingDown
@@ -549,6 +587,90 @@ export function useAutoScrollPin(
 	 * are scrollingDown (does not unpin), layout shrinks are guarded by
 	 * resizeDifferenceRef.
 	 */
+	/**
+	 * I304: user scroll intent for inputs that produce only scroll events:
+	 * a scrollbar drag, a track click, a scroll key. Wheel and touch unpin
+	 * from their own handlers; these three have nothing but the scroll
+	 * event, and while a response streams the direction classifier is
+	 * almost always bailed on an in-flight resize. Intent is held while the
+	 * pointer is down on the scrollbar, then for SCROLL_INTENT_GRACE_MS.
+	 */
+	const scrollIntentRef = useRef(false);
+	const scrollbarHeldRef = useRef(false);
+	const intentTimerRef = useRef<number | null>(null);
+
+	const armIntentGrace = useCallback(() => {
+		if (intentTimerRef.current !== null) {
+			window.clearTimeout(intentTimerRef.current);
+		}
+		intentTimerRef.current = window.setTimeout(() => {
+			intentTimerRef.current = null;
+			if (!scrollbarHeldRef.current) scrollIntentRef.current = false;
+		}, SCROLL_INTENT_GRACE_MS);
+	}, []);
+
+	const handlePointerDown = useCallback(
+		(event: PointerEvent) => {
+			cancelRestore(); // I284
+			// The scroller itself is the target only for its scrollbar (and
+			// bare padding); a press on a message targets a descendant.
+			if (event.target !== scrollElRef.current) return;
+			scrollbarHeldRef.current = true;
+			scrollIntentRef.current = true;
+			if (intentTimerRef.current !== null) {
+				window.clearTimeout(intentTimerRef.current);
+				intentTimerRef.current = null;
+			}
+		},
+		[cancelRestore],
+	);
+
+	const handlePointerUp = useCallback(() => {
+		if (!scrollbarHeldRef.current) return;
+		scrollbarHeldRef.current = false;
+		armIntentGrace();
+	}, [armIntentGrace]);
+
+	/**
+	 * Backstop for a release the browser never reports (Chromium can drop
+	 * the mouseup after a scrollbar drag): any pointer movement with no
+	 * button down, or the window losing focus, ends the hold. Without it a
+	 * stuck hold would let a 1 px layout scroll unpin the chat.
+	 */
+	const handlePointerMove = useCallback(
+		(event: MouseEvent) => {
+			if (scrollbarHeldRef.current && event.buttons === 0) handlePointerUp();
+		},
+		[handlePointerUp],
+	);
+
+	const handleScrollKey = useCallback(
+		(event: KeyboardEvent) => {
+			if (event.defaultPrevented) return;
+			if (!SCROLL_KEYS.has(event.key)) return;
+			const scrollEl = scrollElRef.current;
+			// A hidden tab's panel stays mounted; it can't be the one scrolling.
+			if (!scrollEl || scrollEl.clientHeight === 0) return;
+			const target = event.target as HTMLElement | null;
+			const doc = scrollEl.ownerDocument;
+			const onPage = !target || target === doc.body || target === doc.documentElement;
+			// Keys typed elsewhere (the file explorer, an editor, another
+			// tab's chat) belong to whatever has focus there.
+			if (!onPage) {
+				const view = scrollEl.closest(".agent-client-chat-view-container") ?? scrollEl;
+				if (!view.contains(target)) return;
+				if (target.isContentEditable || target.closest("[contenteditable]:not([contenteditable='false'])")) return;
+				if (target.closest("textarea, input, select")) return;
+				// Space on a focused control activates it rather than scrolling.
+				if (event.key === " " && target.closest("button, a, summary, [role='button']")) return;
+			}
+			cancelRestore(); // I284
+			scrollIntentRef.current = true;
+			armIntentGrace();
+		},
+		[armIntentGrace, cancelRestore],
+	);
+
 	const handleScroll = useCallback(() => {
 		// I-S7 fast-path: a scroll event fired by the hook's own scrollTop
 		// write must not be misinterpreted as a user scroll. The flag is
@@ -557,11 +679,21 @@ export function useAutoScrollPin(
 		// deferral so consumption is ordered against subsequent scroll
 		// events. Capture lastScrollTop before the deferral so direction
 		// is computed against the scrollTop AT scroll-event-fire time.
-		if (ignoreNextScrollEventRef.current) {
-			ignoreNextScrollEventRef.current = false;
+		const ownTop = ownScrollTopRef.current;
+		if (ownTop !== null) {
+			ownScrollTopRef.current = null;
 			const scrollEl = scrollElRef.current;
-			if (scrollEl) lastScrollTopRef.current = scrollEl.scrollTop;
-			return;
+			// I305: only the event that reports the position the hook wrote
+			// is the hook's own. A different position means the user (or
+			// layout) moved the view in the same frame, so classify it.
+			if (!scrollEl || Math.abs(scrollEl.scrollTop - ownTop) <= 1) {
+				if (scrollEl) lastScrollTopRef.current = scrollEl.scrollTop;
+				return;
+			}
+			// Measure the user's movement from where the hook put the view,
+			// not from before the write: a 40 px step up from a 100 px chunk
+			// write would otherwise read as a scroll down and re-pin.
+			lastScrollTopRef.current = ownTop;
 		}
 
 		const scrollEl = scrollElRef.current;
@@ -596,6 +728,32 @@ export function useAutoScrollPin(
 		const lastScrollTop = lastScrollTopRef.current ?? scrollTop;
 		lastScrollTopRef.current = scrollTop;
 
+		// I304: a scroll the user is driving through the scrollbar or keys
+		// escapes now, before the deferral, so a chunk landing in between
+		// can't pull the view back. The deferred body below also skips the
+		// in-flight-resize bail and the I149 revert re-assert for it.
+		// A move up that still ends at the bottom can only be the bottom
+		// moving (content or the sticky jump pill shrinking, then the browser
+		// clamping), never the user. Without this, holding the thumb at the
+		// bottom oscillates: re-pin hides the pill, the clamp unpins, the pill
+		// returns (ST finding on I304).
+		const clampedAtBottom =
+			scrollTop < lastScrollTop &&
+			scrollEl.scrollHeight - scrollTop - scrollEl.clientHeight <= 1;
+		const userDriven = scrollIntentRef.current && !clampedAtBottom;
+		if (userDriven) {
+			if (!scrollbarHeldRef.current) armIntentGrace();
+			// Any upward movement escapes, as a wheel-up does: one ArrowUp or
+			// the first frame of a track-click animation moves less than
+			// STICK_OFFSET_PX, and the next chunk would undo it. The I39
+			// momentum guard is for trackpads, which never set intent.
+			if (scrollTop < lastScrollTop && scrollEl.scrollHeight > scrollEl.clientHeight) {
+				pendingAnchorTargetRef.current = null;
+				setEscapedFromLock(true);
+				setIsAtBottom(false);
+			}
+		}
+
 		// I-S12 round-3: defer the body via setTimeout(1) per
 		// useStickToBottom.ts line 436, citing
 		// WICG/resize-observer#25#issuecomment-248757228 — scroll events
@@ -608,7 +766,7 @@ export function useAutoScrollPin(
 			// during the rendering update — synthesized by Chromium for
 			// the layout shrink, by scroll preservation reverts, or by
 			// our own RO-driven writes — fall through this check.
-			if (resizeDifferenceRef.current !== 0) {
+			if (resizeDifferenceRef.current !== 0 && !userDriven) {
 				return;
 			}
 
@@ -622,14 +780,18 @@ export function useAutoScrollPin(
 			// instead of letting the direction classifier read it as user escape,
 			// until scrollTop settles at the target.
 			const pendingTarget = pendingAnchorTargetRef.current;
-			if (pendingTarget !== null) {
+			if (pendingTarget !== null && !userDriven) {
 				if (Math.abs(scrollTop - pendingTarget) <= 1) {
 					pendingAnchorTargetRef.current = null;
 				} else if (isAtBottomRef.current && !escapedFromLockRef.current) {
 					const target = bottomScrollTop(currentScrollEl);
-					pendingAnchorTargetRef.current = target;
-					ignoreNextScrollEventRef.current = true;
-					setScrollTopInstant(currentScrollEl, target);
+					pendingAnchorTargetRef.current = writeOwnScroll(
+						currentScrollEl,
+						target,
+						ownScrollTopRef,
+					)
+						? target
+						: null;
 					lastScrollTopRef.current = currentScrollEl.scrollTop;
 					return;
 				}
@@ -643,7 +805,7 @@ export function useAutoScrollPin(
 			// Momentum scroll deceleration produces tiny upward bounces while
 			// still within STICK_OFFSET_PX — these are noise, not user intent.
 			const gap = bottomGap(currentScrollEl);
-			if (isScrollingUp && !isSelecting() && gap > STICK_OFFSET_PX) {
+			if (isScrollingUp && (userDriven || (!isSelecting() && gap > STICK_OFFSET_PX))) {
 				setEscapedFromLock(true);
 				setIsAtBottom(false);
 			}
@@ -663,7 +825,7 @@ export function useAutoScrollPin(
 				setIsAtBottom(true);
 			}
 		}, 1);
-	}, [isSelecting, setEscapedFromLock, setIsAtBottom]);
+	}, [armIntentGrace, isSelecting, setEscapedFromLock, setIsAtBottom]);
 
 	// ------------------------------------------------------------------------
 	// scrollRef — RefCallback that attaches/detaches event listeners and
@@ -680,7 +842,13 @@ export function useAutoScrollPin(
 				previous.removeEventListener("wheel", handleWheel);
 				previous.removeEventListener("touchstart", handleTouchStart);
 				previous.removeEventListener("touchmove", handleTouchMove);
-				previous.removeEventListener("pointerdown", cancelRestore);
+				previous.removeEventListener("pointerdown", handlePointerDown);
+				previous.ownerDocument.removeEventListener("pointerup", handlePointerUp);
+				previous.ownerDocument.removeEventListener("pointercancel", handlePointerUp);
+				previous.ownerDocument.removeEventListener("mouseup", handlePointerUp);
+				previous.ownerDocument.removeEventListener("pointermove", handlePointerMove);
+				previous.ownerDocument.defaultView?.removeEventListener("blur", handlePointerUp);
+				previous.ownerDocument.removeEventListener("keydown", handleScrollKey);
 				scrollObserverRef.current?.disconnect();
 				scrollObserverRef.current = null;
 			}
@@ -693,7 +861,16 @@ export function useAutoScrollPin(
 			el.addEventListener("wheel", handleWheel, { passive: true });
 			el.addEventListener("touchstart", handleTouchStart, { passive: true });
 			el.addEventListener("touchmove", handleTouchMove, { passive: true });
-			el.addEventListener("pointerdown", cancelRestore, { passive: true });
+			el.addEventListener("pointerdown", handlePointerDown, { passive: true });
+			// I304: a drag can end anywhere, and a scroll key fires on
+			// whatever holds focus (often the body), so both listen on the
+			// scroller's own document (popout-safe).
+			el.ownerDocument.addEventListener("pointerup", handlePointerUp);
+			el.ownerDocument.addEventListener("pointercancel", handlePointerUp);
+			el.ownerDocument.addEventListener("mouseup", handlePointerUp);
+			el.ownerDocument.addEventListener("pointermove", handlePointerMove, { passive: true });
+			el.ownerDocument.defaultView?.addEventListener("blur", handlePointerUp);
+			el.ownerDocument.addEventListener("keydown", handleScrollKey);
 
 			// Container ResizeObserver — detects flex-sibling shrinks etc.
 			// (per spec Decision #21 Finding 1, closes use-stick-to-bottom Issue #40).
@@ -737,11 +914,14 @@ export function useAutoScrollPin(
 					// misinterpretation by handleScroll.
 					if (escapedFromLockRef.current) return;
 					if (!isAtBottomRef.current) return;
-					ignoreNextScrollEventRef.current = true;
-					setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
 					// I149: mark the anchor pending so handleScroll re-asserts the
-					// bottom if the browser reverts this write after the guard clears.
-					pendingAnchorTargetRef.current = bottomScrollTop(scrollEl);
+					// bottom if the browser reverts this write after the guard
+					// clears. I305: only when the write moved the view; a no-op
+					// write fires no scroll event to clear it.
+					const target = bottomScrollTop(scrollEl);
+					pendingAnchorTargetRef.current = writeOwnScroll(scrollEl, target, ownScrollTopRef)
+						? target
+						: null;
 				} else if (height > previous) {
 					// I-S12 fix for grow symptom: container grew (e.g., textarea cleared).
 					// If the grow brought the bottom back into view (within
@@ -766,7 +946,10 @@ export function useAutoScrollPin(
 		},
 		[
 			applyRestore,
-			cancelRestore,
+			handlePointerDown,
+			handlePointerMove,
+			handlePointerUp,
+			handleScrollKey,
 			handleScroll,
 			handleWheel,
 			handleTouchStart,
@@ -871,8 +1054,7 @@ export function useAutoScrollPin(
 							// MessageChannel delivery (e.g., user wheel-up).
 							if (escapedFromLockRef.current) return;
 							if (!isAtBottomRef.current) return;
-							ignoreNextScrollEventRef.current = true;
-							setScrollTopInstant(el, bottomScrollTop(el));
+							writeOwnScroll(el, bottomScrollTop(el), ownScrollTopRef);
 						};
 						// Lazy-create the channel on first use. Its onmessage
 						// handler reads-and-clears pendingInitialDeferralRef,
@@ -890,8 +1072,7 @@ export function useAutoScrollPin(
 						return;
 					}
 
-					ignoreNextScrollEventRef.current = true;
-					setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
+					writeOwnScroll(scrollEl, bottomScrollTop(scrollEl), ownScrollTopRef);
 				} else if (shrank) {
 					// Content shrank. If the shrink brought the bottom back
 					// into view (within STICK_OFFSET_PX), re-pin — even from
@@ -959,8 +1140,7 @@ export function useAutoScrollPin(
 		if (!isAtBottomRef.current) return; // wasn't pinned; preserve
 		const scrollEl = scrollElRef.current;
 		if (!scrollEl) return;
-		ignoreNextScrollEventRef.current = true;
-		setScrollTopInstant(scrollEl, bottomScrollTop(scrollEl));
+		writeOwnScroll(scrollEl, bottomScrollTop(scrollEl), ownScrollTopRef);
 	}, [isActive]);
 
 	// ------------------------------------------------------------------------
@@ -997,9 +1177,9 @@ export function useAutoScrollPin(
 				if (!sc) return;
 				if (escapedFromLockRef.current || !isAtBottomRef.current) return;
 				const target = bottomScrollTop(sc);
-				pendingAnchorTargetRef.current = target;
-				ignoreNextScrollEventRef.current = true;
-				setScrollTopInstant(sc, target);
+				pendingAnchorTargetRef.current = writeOwnScroll(sc, target, ownScrollTopRef)
+					? target
+					: null;
 			});
 		};
 		container.addEventListener("input", onInput);
@@ -1024,6 +1204,10 @@ export function useAutoScrollPin(
 	// ------------------------------------------------------------------------
 	useEffect(() => {
 		return () => {
+			if (intentTimerRef.current !== null) {
+				window.clearTimeout(intentTimerRef.current);
+				intentTimerRef.current = null;
+			}
 			scrollObserverRef.current?.disconnect();
 			contentObserverRef.current?.disconnect();
 			scrollObserverRef.current = null;
@@ -1044,7 +1228,13 @@ export function useAutoScrollPin(
 				scrollEl.removeEventListener("wheel", handleWheel);
 				scrollEl.removeEventListener("touchstart", handleTouchStart);
 				scrollEl.removeEventListener("touchmove", handleTouchMove);
-				scrollEl.removeEventListener("pointerdown", cancelRestore);
+				scrollEl.removeEventListener("pointerdown", handlePointerDown);
+				scrollEl.ownerDocument.removeEventListener("pointerup", handlePointerUp);
+				scrollEl.ownerDocument.removeEventListener("pointercancel", handlePointerUp);
+				scrollEl.ownerDocument.removeEventListener("mouseup", handlePointerUp);
+				scrollEl.ownerDocument.removeEventListener("pointermove", handlePointerMove);
+				scrollEl.ownerDocument.defaultView?.removeEventListener("blur", handlePointerUp);
+				scrollEl.ownerDocument.removeEventListener("keydown", handleScrollKey);
 			}
 			if (restoreTimerRef.current !== null) {
 				window.clearTimeout(restoreTimerRef.current);
