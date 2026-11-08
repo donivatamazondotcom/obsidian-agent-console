@@ -159,6 +159,15 @@ export interface UseSessionHistoryReturn {
 	resetRecordBinding: () => void;
 
 	/**
+	 * Register the tab's pending-save flush (I296). `resetRecordBinding`
+	 * runs it first, so an unsaved snapshot of the old chat is written under
+	 * the old binding and no later flush can bind the new chat to the old
+	 * record. The flush returns whether it had a pending snapshot. One slot;
+	 * the returned unregister clears it only if it still holds this flush.
+	 */
+	registerPendingFlush: (flush: () => boolean) => () => void;
+
+	/**
 	 * Delete a session (local metadata + message file).
 	 * @param sessionId - Session to delete
 	 */
@@ -458,9 +467,32 @@ export function useSessionHistory(
 		[sessionStore],
 	);
 
+	const pendingFlushRef = useRef<(() => boolean) | null>(null);
+	const registerPendingFlush = useCallback((flush: () => boolean) => {
+		pendingFlushRef.current = flush;
+		return () => {
+			if (pendingFlushRef.current === flush) pendingFlushRef.current = null;
+		};
+	}, []);
+
 	const resetRecordBinding = useCallback(() => {
-		bindingEpochRef.current++;
-		setBinding(null);
+		// I296: write the old chat's unsaved snapshot while the old binding
+		// and epoch still stand. A flush after the reset then finds nothing
+		// pending, so it can't bind the new chat to the old record.
+		const started = performance.now();
+		try {
+			const wrote = pendingFlushRef.current?.() ?? false;
+			if (wrote) {
+				getLogger().log(
+					`[I296] reset wrote the pending snapshot (${(performance.now() - started).toFixed(2)} ms)`,
+				);
+			}
+		} catch (err) {
+			getLogger().error("[SessionHistory] Flush at reset failed:", err);
+		} finally {
+			bindingEpochRef.current++;
+			setBinding(null);
+		}
 	}, [setBinding]);
 
 	// State
@@ -1078,6 +1110,7 @@ export function useSessionHistory(
 			getRecordId,
 			rebindRecord,
 			resetRecordBinding,
+			registerPendingFlush,
 			deleteSession,
 			updateSessionTitle,
 			saveSessionLocally,
@@ -1105,6 +1138,7 @@ export function useSessionHistory(
 			getRecordId,
 			rebindRecord,
 			resetRecordBinding,
+			registerPendingFlush,
 			deleteSession,
 			updateSessionTitle,
 			saveSessionLocally,

@@ -24,6 +24,12 @@ import type { ContextNote } from "../types/context";
  *    survived. `flushPending` gives the teardown path the same awaitable
  *    durability the tab-state flush already had.
  *
+ *  - **Flush at reset** (I296): the flush is registered with the record
+ *    binding owner (`registerPendingFlush`), which runs it before a reset
+ *    clears the binding. Without that, the old chat's unsaved snapshot
+ *    outlives `clearMessages` and a later flush binds the new chat to the
+ *    old record.
+ *
  * No-ops while `sessionId` is null or `messages` is empty.
  *
  * @returns `{ flushPending }` — an awaitable flush for teardown callers.
@@ -37,6 +43,7 @@ export function useDebouncedSessionSave(
 		messages: ChatMessage[],
 		contextNotes: ContextNote[],
 	) => void | Promise<void>,
+	registerPendingFlush: (flush: () => boolean) => () => void,
 	debounceMs = 1000,
 	maxWaitMs = 1000,
 ): { flushPending: () => Promise<void> } {
@@ -114,6 +121,18 @@ export function useDebouncedSessionSave(
 			void flushRef.current();
 		};
 	}, []);
+
+	// I296: the binding owner flushes us before a reset. Returns whether a
+	// snapshot was pending.
+	useEffect(
+		() =>
+			registerPendingFlush(() => {
+				const wasDirty = dirtyRef.current && latestRef.current !== null;
+				void flushRef.current();
+				return wasDirty;
+			}),
+		[registerPendingFlush],
+	);
 
 	// Awaitable flush for teardown (ChatView.onClose) — resolves after the
 	// pending write settles, mirroring the tab-state flushSave (I193).

@@ -22,6 +22,9 @@ import { useDebouncedSessionSave } from "../useDebouncedSessionSave";
 import type { ChatMessage } from "../../types/chat";
 import type { ContextNote } from "../../types/context";
 
+/** The binding owner is out of scope here (I296 is pinned in its own test). */
+const noRegister = () => () => {};
+
 function msg(text: string): ChatMessage {
 	return {
 		id: `m-${text}`,
@@ -39,7 +42,7 @@ describe("useDebouncedSessionSave (I48)", () => {
 		const save = vi.fn();
 		const { rerender, unmount } = renderHook(
 			({ messages }) =>
-				useDebouncedSessionSave("sess-1", messages, [], save, 1000, 1000),
+				useDebouncedSessionSave("sess-1", messages, [], save, noRegister, 1000, 1000),
 			{ initialProps: { messages: [msg("a")] } },
 		);
 
@@ -58,7 +61,7 @@ describe("useDebouncedSessionSave (I48)", () => {
 		const save = vi.fn();
 		let messages: ChatMessage[] = [msg("0")];
 		const { rerender } = renderHook(
-			({ m }) => useDebouncedSessionSave("sess-1", m, [], save, 1000, 1000),
+			({ m }) => useDebouncedSessionSave("sess-1", m, [], save, noRegister, 1000, 1000),
 			{ initialProps: { m: messages } },
 		);
 
@@ -77,7 +80,7 @@ describe("useDebouncedSessionSave (I48)", () => {
 	it("does not save when there is no session or no messages", () => {
 		const save = vi.fn();
 		const { rerender } = renderHook(
-			({ sid, m }) => useDebouncedSessionSave(sid, m, [], save, 1000, 1000),
+			({ sid, m }) => useDebouncedSessionSave(sid, m, [], save, noRegister, 1000, 1000),
 			{ initialProps: { sid: null as string | null, m: [] as ChatMessage[] } },
 		);
 		rerender({ sid: null, m: [msg("a")] });
@@ -96,7 +99,7 @@ describe("useDebouncedSessionSave (I48)", () => {
 		];
 		const { rerender, unmount } = renderHook(
 			({ messages, notes }) =>
-				useDebouncedSessionSave("sess-1", messages, notes, save, 1000, 1000),
+				useDebouncedSessionSave("sess-1", messages, notes, save, noRegister, 1000, 1000),
 			{ initialProps: { messages: [msg("a")], notes: notesA } },
 		);
 

@@ -23,6 +23,9 @@ import { useDebouncedSessionSave } from "../useDebouncedSessionSave";
 import type { ChatMessage } from "../../types/chat";
 import type { ContextNote } from "../../types/context";
 
+/** The binding owner is out of scope here (I296 is pinned in its own test). */
+const noRegister = () => () => {};
+
 function msg(text: string): ChatMessage {
 	return {
 		id: `m-${text}`,
@@ -49,7 +52,7 @@ describe("useDebouncedSessionSave — I193 awaited teardown flush", () => {
 
 		const { result, rerender } = renderHook(
 			({ m }) =>
-				useDebouncedSessionSave("sess-1", m, [], save, 1000, 1000),
+				useDebouncedSessionSave("sess-1", m, [], save, noRegister, 1000, 1000),
 			{ initialProps: { m: [msg("a")] as ChatMessage[] } },
 		);
 
