@@ -2837,6 +2837,12 @@ del.acp-header-branded-profile {
 	scrollbar-width: thin;
 }
 
+/* Names mode only: a classic scrollbar sits right of the close button, not over
+   it (I301). The icon-only list reserves nothing, so 32px icons stay centered. */
+.agent-client-tab-rail.is-names .agent-client-tab-rail-list {
+	scrollbar-gutter: stable;
+}
+
 /* Keys are native buttons; reset Obsidian's button chrome. Two classes so the
    reset outranks Obsidian's `button:not(.clickable-icon)` fill and shadow
    (specificity 0,1,1) – otherwise every key is painted --interactive-normal
@@ -2865,7 +2871,13 @@ del.acp-header-branded-profile {
 	padding: 0;
 }
 
-.agent-client-tab-rail .agent-client-tab-rail-key:hover {
+.agent-client-tab-rail-row {
+	position: relative;
+}
+
+/* Hover lives on the row (I301), so moving the pointer from the key onto its
+   close button doesn't flicker the key's background. */
+.agent-client-tab-rail .agent-client-tab-rail-row:hover .agent-client-tab-rail-key {
 	background-color: var(--background-modifier-hover);
 }
 
@@ -2874,6 +2886,14 @@ del.acp-header-branded-profile {
 .agent-client-tab-rail .agent-client-tab-rail-key.is-active {
 	background-color: var(--background-modifier-active-hover);
 	color: var(--text-normal);
+}
+
+.agent-client-tab-rail
+	.agent-client-tab-rail-row:hover
+	.agent-client-tab-rail-key.is-active {
+	/* The row-level hover rule outranks the resting active rule; keep the active
+	   fill on hover (half of the never-color-alone active cue). */
+	background-color: var(--background-modifier-active-hover);
 }
 
 .agent-client-tab-rail-key.is-active::before {
@@ -2916,6 +2936,89 @@ del.acp-header-branded-profile {
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	text-align: left;
+}
+
+/* Close button on named keys, 100px and wider (I301). Hover-only, overlaid on
+   the end of the name at the row's trailing edge (Arc's model). Sizes come from
+   TabRail (one set of constants shared with the flyout's truncation check).
+   The fill is opaque: --background-modifier-hover is a translucent tint, so it
+   is layered as an image over the rail's --background-secondary (the queued
+   banner's technique), and the name never shows through. */
+.agent-client-tab-rail .agent-client-tab-rail-row .agent-client-tab-rail-close {
+	--ac-rail-close-tint: var(--background-modifier-hover);
+	display: none;
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	right: var(--ac-rail-close-inset, 4px);
+	width: var(--ac-rail-close-size, 24px);
+	height: auto;
+	padding: 0;
+	margin: 0;
+	align-items: center;
+	justify-content: center;
+	border: none;
+	border-radius: 0;
+	box-shadow: none;
+	color: var(--text-muted);
+	background-color: var(--background-secondary);
+	background-image: linear-gradient(
+		var(--ac-rail-close-tint),
+		var(--ac-rail-close-tint)
+	);
+	cursor: pointer;
+}
+
+/* On the active row the overlay matches the active fill. */
+.agent-client-tab-rail
+	.agent-client-tab-rail-key.is-active
+	+ .agent-client-tab-rail-close {
+	--ac-rail-close-tint: var(--background-modifier-active-hover);
+}
+
+/* Shown only while the pointer is over the row; display:none at rest (never
+   opacity:0), so a hidden × can't be clicked. */
+.agent-client-tab-rail .agent-client-tab-rail-row:hover .agent-client-tab-rail-close {
+	display: flex;
+}
+
+/* The ×'s own hover adds a third layer; the base stays opaque. Outranks
+   Obsidian's .clickable-icon:hover, which would swap in the translucent tint. */
+.agent-client-tab-rail
+	.agent-client-tab-rail-row:hover
+	.agent-client-tab-rail-close:hover {
+	color: var(--text-normal);
+	background-color: var(--background-secondary);
+	background-image:
+		linear-gradient(
+			var(--background-modifier-hover),
+			var(--background-modifier-hover)
+		),
+		linear-gradient(var(--ac-rail-close-tint), var(--ac-rail-close-tint));
+}
+
+.agent-client-tab-rail-close svg {
+	width: 16px;
+	height: 16px;
+}
+
+/* The fade into the name: same layered fill, faded out with a mask. Not
+   clickable – a click on the faded part of the name hits the key. */
+.agent-client-tab-rail .agent-client-tab-rail-close::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	right: 100%;
+	width: var(--ac-rail-close-fade, 12px);
+	pointer-events: none;
+	background-color: var(--background-secondary);
+	background-image: linear-gradient(
+		var(--ac-rail-close-tint),
+		var(--ac-rail-close-tint)
+	);
+	-webkit-mask-image: linear-gradient(to right, transparent, #000);
+	mask-image: linear-gradient(to right, transparent, #000);
 }
 
 /* Resize handle on the inner (left) edge. */

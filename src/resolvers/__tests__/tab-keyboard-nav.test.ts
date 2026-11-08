@@ -75,3 +75,35 @@ describe("deriveTabKeyTarget – vertical orientation (tab rail)", () => {
 		expect(deriveTabKeyTarget({ key: "ArrowDown", index: 0, count: 3, orientation: "horizontal" })).toEqual({ kind: "none" });
 	});
 });
+
+// I301: Delete/Backspace on a focused rail key closes it (WAI-ARIA tabs,
+// optional "Delete" key). A held or modified key closes nothing, so holding
+// Delete can't cascade through the list. The strip is unchanged.
+describe("deriveTabKeyTarget – close on the rail (I301)", () => {
+	const v = { orientation: "vertical" as const };
+	it.each(["Delete", "Backspace"])("vertical + %s → close", (key) => {
+		expect(deriveTabKeyTarget({ key, index: 1, count: 3, ...v })).toEqual({ kind: "close" });
+	});
+	it("one tab + Delete → close (checked before the nav lookup)", () => {
+		expect(deriveTabKeyTarget({ key: "Delete", index: 0, count: 1, ...v })).toEqual({ kind: "close" });
+	});
+	it("a repeated Delete closes nothing", () => {
+		expect(deriveTabKeyTarget({ key: "Delete", index: 1, count: 3, repeat: true, ...v })).toEqual({ kind: "none" });
+		expect(deriveTabKeyTarget({ key: "Backspace", index: 1, count: 3, repeat: true, ...v })).toEqual({ kind: "none" });
+	});
+	it("a modified Delete closes nothing", () => {
+		expect(deriveTabKeyTarget({ key: "Delete", index: 1, count: 3, hasModifier: true, ...v })).toEqual({ kind: "none" });
+	});
+	it("repeat and modifiers don't affect arrow keys (held ArrowDown still moves)", () => {
+		expect(deriveTabKeyTarget({ key: "ArrowDown", index: 0, count: 3, repeat: true, ...v })).toEqual({ kind: "focus", index: 1 });
+		expect(deriveTabKeyTarget({ key: "End", index: 0, count: 3, hasModifier: true, ...v })).toEqual({ kind: "focus", index: 2 });
+	});
+	it("out-of-range index → none", () => {
+		expect(deriveTabKeyTarget({ key: "Delete", index: 3, count: 3, ...v })).toEqual({ kind: "none" });
+		expect(deriveTabKeyTarget({ key: "Delete", index: 0, count: 0, ...v })).toEqual({ kind: "none" });
+	});
+	it("the strip never closes on Delete (with or without explicit orientation)", () => {
+		expect(deriveTabKeyTarget({ key: "Delete", index: 1, count: 3 })).toEqual({ kind: "none" });
+		expect(deriveTabKeyTarget({ key: "Backspace", index: 1, count: 3, orientation: "horizontal" })).toEqual({ kind: "none" });
+	});
+});

@@ -14,6 +14,8 @@
  * defined (pinned by the table test), never throws.
  */
 
+import { showsCloseButton, RAIL_CLOSE_OVERLAY_PX } from "./tab-rail-width";
+
 export const RAIL_WARM_MS = 250;
 export const RAIL_COOL_MS = 400;
 
@@ -181,4 +183,27 @@ export function shouldShowFlyout({
 	truncated: boolean;
 }): boolean {
 	return mode === "icons" || truncated;
+}
+
+/**
+ * Whether a key's name counts as cut off for the flyout (I301). Cut off at
+ * rest, or – while the hover-only close button covers the end of it – cut off
+ * by the overlay. CSS `:hover` shows the ×, so only a pointer-opened flyout
+ * at a width that has one (`showsCloseButton`) subtracts the overlay; a
+ * keyboard-focus flyout never does.
+ */
+export function isLabelCut({
+	scrollWidth,
+	clientWidth,
+	via,
+	width,
+}: {
+	scrollWidth: number;
+	clientWidth: number;
+	via: RailHoverVia;
+	width: number;
+}): boolean {
+	const covered =
+		via === "pointer" && showsCloseButton(width) ? RAIL_CLOSE_OVERLAY_PX : 0;
+	return scrollWidth > clientWidth - covered;
 }

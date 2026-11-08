@@ -25,6 +25,34 @@ export const RAIL_KEY_STEP = 10;
 /** Default width the toggle returns to before the user picks one. */
 export const RAIL_DEFAULT_NAMED_WIDTH = 160;
 
+/**
+ * Close button (I301): named keys this wide or wider show a hover-only ×,
+ * overlaid on the end of the name. Below this the label would be squeezed to
+ * almost nothing, so the key stays label-only (and icon-only rails never get one).
+ */
+export const RAIL_CLOSE_MIN = 100;
+/** The × button's size. */
+export const RAIL_CLOSE_BUTTON_PX = 24;
+/** Gap between the × and the row's trailing edge. */
+export const RAIL_CLOSE_INSET_PX = 4;
+/** Width of the fade drawn left of the ×, over the end of the name. */
+export const RAIL_CLOSE_FADE_PX = 12;
+/** The key's own trailing padding (`styles.css`, `.agent-client-tab-rail-key`). */
+const RAIL_KEY_PAD_END_PX = 6;
+/**
+ * How much of the label's box the overlay (inset + × + fade) covers while it
+ * shows. The truncation check subtracts it, so a name that ends under the ×
+ * still gets its flyout. TabRail writes the fade width to CSS from the same
+ * constants, so the check and the drawing can't drift.
+ */
+export const RAIL_CLOSE_OVERLAY_PX =
+	RAIL_CLOSE_INSET_PX + RAIL_CLOSE_BUTTON_PX + RAIL_CLOSE_FADE_PX - RAIL_KEY_PAD_END_PX;
+
+/** Whether a rail rendered at `width` shows the close button on hover. */
+export function showsCloseButton(width: number): boolean {
+	return Number.isFinite(width) && width >= RAIL_CLOSE_MIN;
+}
+
 export type RailWidth =
 	| { mode: "icons"; width: typeof RAIL_ICON_WIDTH }
 	| { mode: "names"; width: number };

@@ -8,6 +8,7 @@ import {
 	nextRailHover,
 	shouldShowFlyout,
 	flyoutKey,
+	isLabelCut,
 	RAIL_WARM_MS,
 	RAIL_COOL_MS,
 	type RailHoverState,
@@ -198,5 +199,32 @@ describe("shouldShowFlyout", () => {
 		["names", true, true],
 	] as const)("mode %s, truncated %s → %s", (mode, truncated, expected) => {
 		expect(shouldShowFlyout({ mode, truncated })).toBe(expected);
+	});
+});
+
+// I301: while the close button shows, a name that ends under it counts as cut,
+// so its flyout shows. The × shows only on pointer hover (CSS :hover), so a
+// keyboard-focus flyout never subtracts the overlay.
+describe("isLabelCut (I301)", () => {
+	const fits = { scrollWidth: 80, clientWidth: 100 };
+	it("a cut-off name is cut in every case", () => {
+		for (const via of ["pointer", "focus"] as const) {
+			for (const width of [60, 160]) {
+				expect(isLabelCut({ scrollWidth: 120, clientWidth: 100, via, width })).toBe(true);
+			}
+		}
+	});
+	it("a name that fits but ends under the × is cut on pointer hover at 100 px+", () => {
+		expect(isLabelCut({ ...fits, via: "pointer", width: 160 })).toBe(true);
+		expect(isLabelCut({ ...fits, via: "pointer", width: 100 })).toBe(true);
+	});
+	it("…but not for a keyboard-focus flyout", () => {
+		expect(isLabelCut({ ...fits, via: "focus", width: 160 })).toBe(false);
+	});
+	it("…and not below 100 px, where there is no ×", () => {
+		expect(isLabelCut({ ...fits, via: "pointer", width: 99 })).toBe(false);
+	});
+	it("a name that ends left of the overlay is not cut", () => {
+		expect(isLabelCut({ scrollWidth: 40, clientWidth: 100, via: "pointer", width: 160 })).toBe(false);
 	});
 });

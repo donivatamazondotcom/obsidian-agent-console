@@ -743,6 +743,13 @@ describe("TabRail – delta review findings", () => {
 			requestAnimationFrame: vi.fn(() => 42),
 			cancelAnimationFrame: vi.fn(),
 		};
+		// Restore exactly what was there: under vitest's jsdom the document's
+		// defaultView is an own property, and deleting it would leave later
+		// tests on jsdom's inner window instead of the test `window` (I301).
+		const ownView = Object.getOwnPropertyDescriptor(
+			handle.ownerDocument,
+			"defaultView",
+		);
 		Object.defineProperty(handle.ownerDocument, "defaultView", {
 			configurable: true,
 			get: () => popout,
@@ -762,9 +769,13 @@ describe("TabRail – delta review findings", () => {
 			expect(mainReq).not.toHaveBeenCalled();
 			expect(mainCancel).not.toHaveBeenCalled();
 		} finally {
-			delete (
-				handle.ownerDocument as unknown as { defaultView?: unknown }
-			).defaultView;
+			if (ownView) {
+				Object.defineProperty(handle.ownerDocument, "defaultView", ownView);
+			} else {
+				delete (
+					handle.ownerDocument as unknown as { defaultView?: unknown }
+				).defaultView;
+			}
 		}
 	});
 
@@ -857,5 +868,355 @@ describe("TabRail – shared tab actions", () => {
 			)!,
 		);
 		expect(onAddTab).toHaveBeenCalled();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// I301: close button on named rail keys (100 px and wider, hover-only, an
+// overlay at the row's trailing edge) and Delete/Backspace on a focused key.
+// jsdom loads no CSS, so these pin structure, events and focus; visibility at
+// rest vs hover, the fade, label width and the active fill on hover are
+// smoke-only.
+// ---------------------------------------------------------------------------
+describe("TabRail – close button and Delete (I301)", () => {
+	const NAMED = { tabRailWidth: 160, tabRailNamedWidth: 160 };
+	const closes = (c: HTMLElement) =>
+		Array.from(
+			c.querySelectorAll<HTMLButtonElement>(".agent-client-tab-rail-close"),
+		);
+	const syncFrames = () =>
+		vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+			act(() => cb(0));
+			return 1;
+		});
+	const eightTabs = () =>
+		Array.from({ length: 8 }, (_, i) => tab(`t${i + 1}`, `Tab ${i + 1}`));
+
+	/** A rail whose parent owns the tab list, like ChatView + useTabManager. */
+	function Harness({
+		init,
+		active,
+		onClose,
+		stored,
+	}: {
+		init: TabInfo[];
+		active: string;
+		onClose: (id: string) => void;
+		stored: { tabRailWidth: number; tabRailNamedWidth: number };
+	}) {
+		const [state, setState] = React.useState({ tabs: init, active });
+		const store = React.useMemo(() => fakeStore(stored), [stored]);
+		return (
+			<div className="test-view">
+				<TabRail
+					{...props({
+						tabs: state.tabs,
+						activeTabId: state.active,
+						onCloseTab: (id) => {
+							onClose(id);
+							setState((s) => {
+								const i = s.tabs.findIndex((t) => t.tabId === id);
+								const next = s.tabs.filter((t) => t.tabId !== id);
+								const nextActive =
+									id === s.active
+										? (next[Math.min(i, next.length - 1)]?.tabId ?? "")
+										: s.active;
+								return { tabs: next, active: nextActive };
+							});
+						},
+					})}
+					settingsStore={store}
+				/>
+			</div>
+		);
+	}
+	function renderHarness(
+		init: TabInfo[],
+		active: string,
+		stored = NAMED,
+	) {
+		const onClose = vi.fn();
+		const utils = render(
+			<Harness init={init} active={active} onClose={onClose} stored={stored} />,
+		);
+		const keys = () =>
+			Array.from(
+				utils.container.querySelectorAll<HTMLButtonElement>(
+					".agent-client-tab-rail-key",
+				),
+			);
+		return { ...utils, onClose, keys };
+	}
+
+	// Test 3 – structure, click, middle-click, right-click.
+	it("a named rail at 160 has one aria-hidden, untabbable × per row, a sibling of the key", () => {
+		const { container, keys } = renderRail({}, NAMED);
+		const xs = closes(container);
+		expect(xs).toHaveLength(3);
+		xs.forEach((x, i) => {
+			expect(x.tagName).toBe("BUTTON");
+			expect(x.classList.contains("clickable-icon")).toBe(true);
+			expect(x.getAttribute("aria-hidden")).toBe("true");
+			expect(x.tabIndex).toBe(-1);
+			const row = x.parentElement!;
+			expect(row.classList.contains("agent-client-tab-rail-row")).toBe(true);
+			expect(row.getAttribute("role")).toBe("presentation");
+			expect(keys()[i].parentElement).toBe(row);
+			expect(keys()[i].contains(x)).toBe(false);
+		});
+		expect(h.setIcon).toHaveBeenCalledWith(xs[0], "x");
+	});
+
+	it("a click on × closes that tab once and selects nothing", () => {
+		const onCloseTab = vi.fn();
+		const onSelectTab = vi.fn();
+		const { container } = renderRail({ onCloseTab, onSelectTab }, NAMED);
+		fireEvent.click(closes(container)[1]);
+		expect(onCloseTab).toHaveBeenCalledTimes(1);
+		expect(onCloseTab).toHaveBeenCalledWith("t2");
+		expect(onSelectTab).not.toHaveBeenCalled();
+	});
+
+	it("middle-click on × closes the tab", () => {
+		const onCloseTab = vi.fn();
+		const { container } = renderRail({ onCloseTab }, NAMED);
+		fireEvent.mouseDown(closes(container)[2], { button: 1 });
+		expect(onCloseTab).toHaveBeenCalledWith("t3");
+	});
+
+	it("right-click on × opens the shared context menu, like the key", () => {
+		const { container } = renderRail({}, NAMED);
+		fireEvent.contextMenu(closes(container)[0]);
+		const menu = h.menus[h.menus.length - 1];
+		expect(menu.shown).toBe(true);
+		expect(menu.titles).toContain("Close below");
+	});
+
+	// Test 4 – no × where it doesn't fit.
+	it("no × in icon-only mode or at 90 px", () => {
+		expect(closes(renderRail().container)).toHaveLength(0);
+		cleanup();
+		const at90 = renderRail({}, { tabRailWidth: 90, tabRailNamedWidth: 90 });
+		expect(at90.container.querySelector(".is-names")).not.toBeNull();
+		expect(closes(at90.container)).toHaveLength(0);
+	});
+
+	it("the scrollbar gutter is reserved only in names mode (icons stay centered)", async () => {
+		const fs = await import("node:fs");
+		const path = await import("node:path");
+		const css = fs.readFileSync(path.resolve(__dirname, "../../../styles.css"), "utf8");
+		const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter((m) =>
+			/scrollbar-gutter\s*:\s*stable/.test(m[2]),
+		);
+		expect(rules.length).toBeGreaterThan(0);
+		for (const m of rules) {
+			expect(m[1]).toContain(".agent-client-tab-rail.is-names");
+			expect(m[1]).toContain(".agent-client-tab-rail-list");
+		}
+	});
+
+	// Test 5 – accessibility.
+	it("no aria-label anywhere inside the tablist, with an AI rename in flight", () => {
+		const { container } = renderRail(
+			{ aiRenamingTabIds: new Set(["t2"]) },
+			NAMED,
+		);
+		const list = container.querySelector('[role="tablist"]')!;
+		expect(list.querySelectorAll("[aria-label]")).toHaveLength(0);
+	});
+
+	it("the list has one Tab stop, and arrow keys never land on a ×", () => {
+		const { container, keys } = renderRail({}, NAMED);
+		const list = container.querySelector('[role="tablist"]')!;
+		const stops = Array.from(list.querySelectorAll<HTMLElement>("button")).filter(
+			(b) => b.tabIndex === 0,
+		);
+		expect(stops).toEqual([keys()[0]]);
+		keys()[0].focus();
+		for (let i = 0; i < 7; i++) {
+			fireEvent.keyDown(document.activeElement!, { key: i % 2 ? "End" : "ArrowDown" });
+			expect(document.activeElement?.getAttribute("role")).toBe("tab");
+		}
+	});
+
+	// Test 6 – focus.
+	it("a left press on × doesn't take focus (the composer keeps it)", () => {
+		const { container } = renderRail({}, NAMED);
+		const md = new MouseEvent("mousedown", { button: 0, bubbles: true, cancelable: true });
+		closes(container)[1].dispatchEvent(md);
+		expect(md.defaultPrevented).toBe(true);
+	});
+
+	it("Delete on a focused inactive key closes it and focuses the key now at its index, not the active tab", () => {
+		const { keys, onClose } = renderHarness(eightTabs(), "t1");
+		keys()[5].focus();
+		fireEvent.keyDown(keys()[5], { key: "Delete" });
+		expect(onClose).toHaveBeenCalledWith("t6");
+		expect(keys()).toHaveLength(7);
+		expect(document.activeElement).toBe(keys()[5]);
+		expect(keys()[5].dataset.tabId).toBe("t7");
+	});
+
+	it("Delete on the focused active key focuses the new active neighbor", () => {
+		const { keys } = renderHarness(eightTabs(), "t3");
+		keys()[2].focus();
+		fireEvent.keyDown(keys()[2], { key: "Delete" });
+		expect(document.activeElement).toBe(keys()[2]);
+		expect(keys()[2].dataset.tabId).toBe("t4");
+		expect(keys()[2].getAttribute("aria-selected")).toBe("true");
+	});
+
+	it("Delete on the last key focuses the new last key", () => {
+		const { keys } = renderHarness(eightTabs(), "t1");
+		keys()[7].focus();
+		fireEvent.keyDown(keys()[7], { key: "Backspace" });
+		expect(keys()).toHaveLength(7);
+		expect(document.activeElement).toBe(keys()[6]);
+	});
+
+	it("held (repeated) and modified Delete close nothing more", () => {
+		const { keys, onClose } = renderHarness(eightTabs(), "t1");
+		keys()[3].focus();
+		fireEvent.keyDown(keys()[3], { key: "Delete" });
+		fireEvent.keyDown(document.activeElement!, { key: "Delete", repeat: true });
+		fireEvent.keyDown(document.activeElement!, { key: "Delete", repeat: true });
+		fireEvent.keyDown(document.activeElement!, { key: "Delete", metaKey: true });
+		fireEvent.keyDown(document.activeElement!, { key: "Backspace", altKey: true });
+		expect(onClose).toHaveBeenCalledTimes(1);
+		expect(keys()).toHaveLength(7);
+	});
+
+	it("Delete works in icon-only mode", () => {
+		const { keys, onClose } = renderHarness(eightTabs(), "t1", {
+			tabRailWidth: 32,
+			tabRailNamedWidth: 160,
+		});
+		keys()[1].focus();
+		fireEvent.keyDown(keys()[1], { key: "Delete" });
+		expect(onClose).toHaveBeenCalledWith("t2");
+	});
+
+	// Test 10 – the close path reads the current tabs, not a stale list.
+	it("after a same-length reorder, Delete closes the tab now at that index", () => {
+		const onCloseTab = vi.fn();
+		const p = props({ onCloseTab });
+		const store = fakeStore(NAMED);
+		const { container, rerender } = render(
+			<div className="test-view">
+				<TabRail {...p} settingsStore={store} />
+			</div>,
+		);
+		rerender(
+			<div className="test-view">
+				<TabRail {...p} tabs={[...p.tabs].reverse()} settingsStore={store} />
+			</div>,
+		);
+		const k0 = container.querySelectorAll<HTMLElement>(".agent-client-tab-rail-key")[0];
+		k0.focus();
+		fireEvent.keyDown(k0, { key: "Delete" });
+		expect(onCloseTab).toHaveBeenCalledWith("t3");
+	});
+
+	// Test 7 – drag across 100 px, and the render-count bar.
+	function dragCommits(moves: number[]) {
+		const frames = syncFrames();
+		let commits = 0;
+		const store = fakeStore(NAMED);
+		const utils = render(
+			<div className="test-view">
+				<React.Profiler id="rail" onRender={() => commits++}>
+					<TabRail {...props()} settingsStore={store} />
+				</React.Profiler>
+			</div>,
+		);
+		const handle = utils.container.querySelector<HTMLElement>(
+			".agent-client-tab-rail-handle",
+		)!;
+		const seen: number[] = [];
+		const before = commits;
+		fireEvent.pointerDown(handle, { clientX: 500, button: 0, pointerId: 1, pointerType: "mouse" });
+		for (const x of moves) {
+			fireEvent.pointerMove(handle, { clientX: x, pointerId: 1, pointerType: "mouse" });
+			seen.push(closes(utils.container).length);
+		}
+		const during = commits - before;
+		cleanup();
+		frames.mockRestore();
+		return { during, seen };
+	}
+
+	it("dragging 160 → 90 hides the × during the drag; back to 120 shows it", () => {
+		const { seen } = dragCommits([570, 540]);
+		expect(seen).toEqual([0, 3]);
+	});
+
+	it("render count: a 100 px crossing costs one rail render each; a mode + × flip costs one", () => {
+		const base = dragCommits([460]).during; // 160 → 200: no flip
+		const twoCrossings = dragCommits([570, 540]).during; // 160 → 90 → 120
+		const bothFlip = dragCommits([620]).during; // 160 → 40: icons and no × together
+		expect(twoCrossings - base).toBe(2);
+		expect(bothFlip - base).toBe(1);
+	});
+
+	// Test 8 – key and × are one hover target.
+	function cutLabels(scroll: number, client: number) {
+		vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (this: HTMLElement) {
+			return this.classList.contains("agent-client-tab-rail-key-label") ? scroll : 0;
+		});
+		vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (this: HTMLElement) {
+			return this.classList.contains("agent-client-tab-rail-key-label") ? client : 0;
+		});
+	}
+
+	it("moving the pointer from a key onto its × keeps the flyout", () => {
+		vi.useFakeTimers();
+		cutLabels(200, 100);
+		const { container, keys, rail, flyout } = renderRail({}, NAMED);
+		fireEvent.pointerEnter(rail, { pointerType: "mouse" });
+		fireEvent.pointerEnter(keys()[1], { pointerType: "mouse" });
+		act(() => {
+			vi.advanceTimersByTime(250);
+		});
+		expect(flyout()?.textContent).toContain("Beta");
+		const x = closes(container)[1];
+		fireEvent.pointerOut(keys()[1], { pointerType: "mouse", relatedTarget: x });
+		fireEvent.pointerOver(x, { pointerType: "mouse", relatedTarget: keys()[1] });
+		expect(flyout()?.textContent).toContain("Beta");
+	});
+
+	it("closing via × leaves no flyout on the closed key", () => {
+		vi.useFakeTimers();
+		cutLabels(200, 100);
+		const { container, keys } = renderHarness(eightTabs(), "t1");
+		fireEvent.pointerEnter(container.querySelector(".agent-client-tab-rail")!, { pointerType: "mouse" });
+		fireEvent.pointerEnter(keys()[2], { pointerType: "mouse" });
+		act(() => {
+			vi.advanceTimersByTime(250);
+		});
+		const shown = () =>
+			container.querySelector(".agent-client-tab-rail-flyout:not(.is-hidden)");
+		expect(shown()?.textContent).toContain("Tab 3");
+		fireEvent.click(closes(container)[2]);
+		expect(shown()).toBeNull();
+	});
+
+	// Test 9, component side – the overlay counts only for a pointer flyout.
+	it("a name that fits but ends under the × shows its flyout on hover, not on keyboard focus", () => {
+		vi.useFakeTimers();
+		cutLabels(80, 100);
+		const { keys, rail, flyout } = renderRail({}, NAMED);
+		fireEvent.pointerEnter(rail, { pointerType: "mouse" });
+		fireEvent.pointerEnter(keys()[1], { pointerType: "mouse" });
+		act(() => {
+			vi.advanceTimersByTime(250);
+		});
+		expect(flyout()?.textContent).toContain("Beta");
+		fireEvent.pointerLeave(keys()[1], { pointerType: "mouse" });
+		fireEvent.pointerLeave(rail, { pointerType: "mouse" });
+		act(() => {
+			vi.advanceTimersByTime(400);
+		});
+		fireEvent.focus(keys()[2]);
+		expect(flyout()).toBeNull();
 	});
 });

@@ -41,13 +41,18 @@ import {
 	maxNamedWidth,
 	nextRailWidthFromKey,
 	toggleRailWidth,
+	showsCloseButton,
 	RAIL_ICON_WIDTH,
+	RAIL_CLOSE_BUTTON_PX,
+	RAIL_CLOSE_INSET_PX,
+	RAIL_CLOSE_FADE_PX,
 	type RailWidth,
 } from "../resolvers/tab-rail-width";
 import {
 	nextRailHover,
 	flyoutKey,
 	shouldShowFlyout,
+	isLabelCut,
 	type RailHoverEvent,
 	type RailHoverState,
 } from "../resolvers/tab-rail-hover";
@@ -95,6 +100,8 @@ interface DragState {
 	/** The handle's own window: a popout's frame is requested and cancelled there. */
 	win: Window;
 	mode: RailWidth["mode"];
+	/** Whether the live width shows the close button (I301): a flip re-renders, like a mode flip. */
+	closeShown: boolean;
 }
 
 export function TabRail(props: TabRailProps) {
@@ -140,6 +147,8 @@ export function TabRail(props: TabRailProps) {
 	const requested = override ?? stored;
 	const resolved = resolveRailWidth({ requested, viewWidth });
 	const named = resolved.mode === "names";
+	/** Hover-only × on named keys at 100 px and wider (I301). */
+	const closeShown = named && showsCloseButton(resolved.width);
 
 	// Latest values for event handlers and cleanups.
 	const live = useRef({
@@ -281,6 +290,7 @@ export function TabRail(props: TabRailProps) {
 	}, [tabIdsKey, dispatch]);
 
 	const shownId = flyoutKey(hover);
+	const shownVia = hover.kind === "showing" ? hover.via : null;
 	const shownTab: TabInfo | undefined = shownId
 		? tabs.find((tb) => tb.tabId === shownId)
 		: undefined;
@@ -300,14 +310,23 @@ export function TabRail(props: TabRailProps) {
 		const label = key.querySelector<HTMLElement>(
 			".agent-client-tab-rail-key-label",
 		);
-		setTruncated(label ? label.scrollWidth > label.clientWidth : false);
+		setTruncated(
+			label
+				? isLabelCut({
+						scrollWidth: label.scrollWidth,
+						clientWidth: label.clientWidth,
+						via: shownVia ?? "focus",
+						width: resolved.width,
+					})
+				: false,
+		);
 		const k = key.getBoundingClientRect();
 		const r = rail.getBoundingClientRect();
 		fly.style.setProperty(
 			"--ac-rail-flyout-top",
 			`${k.top - r.top + k.height / 2}px`,
 		);
-	}, [shownId, repositionTick, resolved.width]);
+	}, [shownId, shownVia, repositionTick, resolved.width]);
 
 	const flyoutVisible =
 		shownTab !== undefined &&
@@ -371,6 +390,7 @@ export function TabRail(props: TabRailProps) {
 					(e.currentTarget as HTMLElement | null)?.ownerDocument
 						.defaultView ?? window,
 				mode: live.current.resolved.mode,
+				closeShown: showsCloseButton(live.current.resolved.width),
 			};
 			try {
 				(e.currentTarget as HTMLElement | null)?.setPointerCapture?.(
@@ -403,8 +423,12 @@ export function TabRail(props: TabRailProps) {
 					requested: cur.startWidth + (cur.startX - cur.lastX),
 					viewWidth: live.current.viewWidth,
 				});
-				if (r.mode !== cur.mode) {
+				// One render per flip of the mode or the close button (one call
+				// when both flip in the same frame, e.g. 160 → 40), never per frame.
+				const closeShown = showsCloseButton(r.width);
+				if (r.mode !== cur.mode || closeShown !== cur.closeShown) {
 					cur.mode = r.mode;
+					cur.closeShown = closeShown;
 					setOverride(r.width);
 				}
 				applyLiveWidth(r);
@@ -584,6 +608,13 @@ export function TabRail(props: TabRailProps) {
 	);
 
 	// ---------------------------------------------------------------- keys
+	/**
+	 * Delete/Backspace close (I301): the closed key's index, so focus can land on
+	 * the key now at that position once the list re-renders.
+	 */
+	const pendingCloseFocus = useRef<{ index: number; tabId: string } | null>(
+		null,
+	);
 	const onKeyNav = useCallback(
 		(index: number) => (e: React.KeyboardEvent) => {
 			const target = deriveTabKeyTarget({
@@ -591,15 +622,41 @@ export function TabRail(props: TabRailProps) {
 				index,
 				count: tabs.length,
 				orientation: "vertical",
+				repeat: e.repeat,
+				hasModifier: e.metaKey || e.ctrlKey || e.altKey || e.shiftKey,
 			});
+			if (target.kind === "close") {
+				const tab = tabs[index];
+				if (!tab) return;
+				e.preventDefault();
+				pendingCloseFocus.current = { index, tabId: tab.tabId };
+				onCloseTab(tab.tabId);
+				return;
+			}
 			if (target.kind !== "focus") return;
 			e.preventDefault();
 			const keys =
 				listRef.current?.querySelectorAll<HTMLElement>('[role="tab"]');
 			keys?.[target.index]?.focus();
 		},
-		[tabs.length],
+		[tabs, onCloseTab],
 	);
+
+	// After a Delete close, focus the key now at the closed key's position (its
+	// neighbor, active or not), or the last key. Not "the new active key":
+	// activation is manual, so that could be an unrelated tab, and a second
+	// Delete would close the chat the user is working in. Cleared on every run.
+	useLayoutEffect(() => {
+		const pending = pendingCloseFocus.current;
+		pendingCloseFocus.current = null;
+		if (!pending) return;
+		const ids = tabIdsKey.split("\u0000");
+		if (tabIdsKey !== "" && ids.includes(pending.tabId)) return;
+		const keys =
+			listRef.current?.querySelectorAll<HTMLElement>('[role="tab"]');
+		if (!keys || keys.length === 0) return;
+		keys[Math.min(pending.index, keys.length - 1)]?.focus();
+	}, [tabIdsKey]);
 
 	// Keep the active key in view, scrolling only the list.
 	useEffect(() => {
@@ -630,6 +687,9 @@ export function TabRail(props: TabRailProps) {
 			style={
 				{
 					"--ac-rail-width": `${resolved.width}px`,
+					"--ac-rail-close-size": `${RAIL_CLOSE_BUTTON_PX}px`,
+					"--ac-rail-close-inset": `${RAIL_CLOSE_INSET_PX}px`,
+					"--ac-rail-close-fade": `${RAIL_CLOSE_FADE_PX}px`,
 				} as React.CSSProperties
 			}
 			onPointerEnter={(e) => {
@@ -703,8 +763,24 @@ export function TabRail(props: TabRailProps) {
 					const status = stateLabel(tab.state);
 					const nameId = `${uid}-name-${index}`;
 					return (
-						<button
+						<div
 							key={tab.tabId}
+							className="agent-client-tab-rail-row"
+							role="presentation"
+							onPointerEnter={(e) => {
+								if (isHoverPointer(e)) {
+									dispatch({
+										type: "pointerEnterKey",
+										key: tab.tabId,
+									});
+								}
+							}}
+							onPointerLeave={(e) => {
+								if (isHoverPointer(e))
+									dispatch({ type: "pointerLeaveKey" });
+							}}
+						>
+						<button
 							type="button"
 							role="tab"
 							data-tab-id={tab.tabId}
@@ -739,18 +815,6 @@ export function TabRail(props: TabRailProps) {
 									pointerInside: pointerInside.current,
 								})
 							}
-							onPointerEnter={(e) => {
-								if (isHoverPointer(e)) {
-									dispatch({
-										type: "pointerEnterKey",
-										key: tab.tabId,
-									});
-								}
-							}}
-							onPointerLeave={(e) => {
-								if (isHoverPointer(e))
-									dispatch({ type: "pointerLeaveKey" });
-							}}
 						>
 							<TabStateIcon state={tab.state} decorative />
 							{named && (
@@ -774,6 +838,13 @@ export function TabRail(props: TabRailProps) {
 										})}
 							</span>
 						</button>
+						{closeShown && (
+							<RailCloseButton
+								onClose={() => onCloseTab(tab.tabId)}
+								onContextMenu={(e) => onKeyContextMenu(e, tab)}
+							/>
+						)}
+						</div>
 					);
 				})}
 			</div>
@@ -804,6 +875,41 @@ export function TabRail(props: TabRailProps) {
 }
 
 /** The AI-rename sparkles in a named key: decorative, no label (no tooltip). */
+/**
+ * The hover-only × on a named key (I301). Mouse-only: `aria-hidden`, no name
+ * and out of the Tab order, so it doesn't break the tablist's children rule or
+ * get Obsidian's aria-label tooltip; keyboard and screen-reader users close
+ * with Delete or the context menu. A press never takes focus (the composer
+ * keeps it); a middle press also closes, like the key.
+ */
+function RailCloseButton({
+	onClose,
+	onContextMenu,
+}: {
+	onClose: () => void;
+	onContextMenu: (e: React.MouseEvent) => void;
+}) {
+	const ref = useRef<HTMLButtonElement>(null);
+	useEffect(() => {
+		if (ref.current) setIcon(ref.current, "x");
+	}, []);
+	return (
+		<button
+			ref={ref}
+			type="button"
+			className="agent-client-tab-rail-close clickable-icon"
+			aria-hidden="true"
+			tabIndex={-1}
+			onMouseDown={(e) => {
+				if (e.button === 0 || e.button === 1) e.preventDefault();
+				if (e.button === 1) onClose();
+			}}
+			onClick={onClose}
+			onContextMenu={onContextMenu}
+		/>
+	);
+}
+
 function RailRenamingIcon() {
 	const ref = useRef<HTMLSpanElement>(null);
 	useEffect(() => {
