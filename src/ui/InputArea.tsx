@@ -1443,8 +1443,10 @@ export function InputArea({
 		if (isActive) {
 			window.setTimeout(() => {
 				const el = textareaRef.current;
-				if (takeActivationRefocusHold(el?.ownerDocument ?? document)) return;
-				el?.focus();
+				// An unmounted composer (its tab just closed) never takes the hold.
+				if (!el) return;
+				if (takeActivationRefocusHold(el.ownerDocument)) return;
+				el.focus();
 			}, 0);
 		}
 	}, [isActive]);

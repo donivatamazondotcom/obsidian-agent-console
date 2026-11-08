@@ -106,16 +106,24 @@ export function sendAndReturnFocus(
  * neighbor, whose composer would otherwise take focus a tick later, so focus
  * would leave the rail and a second Backspace would edit the next chat's draft.
  *
- * Per document, so a popout window's rail and composers pair up. Consumed by
- * the very next activation refocus in that document, which the close always
- * triggers (closing the active tab with a neighbor activates it in the same
- * update), so a hold never outlives the close that set it. Every other
- * activation (mouse switch, × click, commands) refocuses the composer as before.
+ * Per document, so a popout window's rail and composers pair up. The next
+ * activation refocus in that document consumes it. It also expires after
+ * ACTIVATION_HOLD_MS, because the refocus it targets may never run (for
+ * example the neighbor tab crashed and shows its error fallback with no
+ * composer); a stale hold would otherwise skip some later, unrelated refocus.
+ * Every other activation (mouse switch, × click, commands) refocuses as before.
  */
-const activationRefocusHolds = new WeakSet<Document>();
+const ACTIVATION_HOLD_MS = 100;
+const activationRefocusHolds = new WeakMap<Document, number>();
+let nextHoldToken = 0;
 
 export function holdNextActivationRefocus(doc: Document): void {
-	activationRefocusHolds.add(doc);
+	const token = ++nextHoldToken;
+	activationRefocusHolds.set(doc, token);
+	(doc.defaultView ?? window).setTimeout(() => {
+		if (activationRefocusHolds.get(doc) === token)
+			activationRefocusHolds.delete(doc);
+	}, ACTIVATION_HOLD_MS);
 }
 
 /** True (and clears the hold) when the next activation refocus must be skipped. */
