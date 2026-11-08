@@ -91,6 +91,9 @@ function makeStore(seed: SavedSessionInfo[] = []) {
 	const files = new Map<string, string>();
 	let failSessionWrites = false;
 	let fileGate: Promise<void> | null = null;
+	/** Session-file writes still to pass before `laterGate` applies. */
+	let passBeforeLaterGate = -1;
+	let laterGate: Promise<void> | null = null;
 	let metadataGate: Promise<void> | null = null;
 	let state = {
 		savedSessions: seed,
@@ -107,6 +110,10 @@ function makeStore(seed: SavedSessionInfo[] = []) {
 		write: vi.fn(async (p: string, data: string) => {
 			if (p.startsWith(SESSIONS_DIR)) {
 				if (fileGate) await fileGate;
+				if (laterGate) {
+					if (passBeforeLaterGate === 0) await laterGate;
+					else passBeforeLaterGate--;
+				}
 				if (failSessionWrites) throw new Error(`EIO ${p}`);
 			}
 			files.set(p, data);
@@ -173,6 +180,16 @@ function makeStore(seed: SavedSessionInfo[] = []) {
 				d.resolve();
 			};
 		},
+		/** Hold the session-file write after the next `pass` ones. */
+		holdFileWriteAfter: (pass: number) => {
+			const d = deferred();
+			passBeforeLaterGate = pass;
+			laterGate = d.promise;
+			return () => {
+				laterGate = null;
+				d.resolve();
+			};
+		},
 		holdMetadata: () => {
 			const d = deferred();
 			metadataGate = d.promise;
@@ -199,6 +216,8 @@ function mountChat(
 	store: Store,
 	opts: {
 		sessionId?: string;
+		/** The tab's persisted record id (from tab state). */
+		restoredRecordId?: string;
 		/** The agent's answer to session/prompt. */
 		prompt?: () => Promise<unknown>;
 		/** Held vault read for the selection (pins the prepare window). */
@@ -256,7 +275,7 @@ function mountChat(
 			agentCwd: "/vault",
 			onSessionLoad: vi.fn(),
 			restoredSessionId: null,
-			restoredRecordId: null,
+			restoredRecordId: opts.restoredRecordId ?? null,
 		} as Parameters<typeof useSessionHistory>[0]);
 		const agent = deepMock({
 			clearError: vi.fn(),
@@ -420,6 +439,22 @@ describe("I295: a record is written only after its transcript lands", () => {
 		await settle(DEBOUNCE_MS * 3);
 
 		expect(store.records()).toHaveLength(0);
+	});
+
+	it("a failed file write leaves the tab unbound (no dangling record id)", async () => {
+		const store = makeStore();
+		store.failSessionWrites();
+		const h = mountChat(store);
+
+		await act(async () => {
+			await h.result.current.history.saveSessionMessages("sess-1", [
+				msg("user", "hi", "u1"),
+			]);
+		});
+		await settle();
+
+		expect(store.records()).toHaveLength(0);
+		expect(h.result.current.history.getRecordId()).toBeNull();
 	});
 
 	it("a failed file write leaves an existing record unchanged", async () => {
@@ -703,7 +738,9 @@ describe("I295: other turn-save callers", () => {
 
 	it("adopt branch: a record created elsewhere gets the transcript; the minted file is removed", async () => {
 		const store = makeStore();
-		const h = mountChat(store);
+		// The tab is bound to an id no record claims (its own record never
+		// landed), so the store adopts the other record for this session.
+		const h = mountChat(store, { restoredRecordId: "rec-minted" });
 		await store.sessionStore.renameSession({
 			recordId: null,
 			sessionId: "sess-1",
@@ -713,7 +750,6 @@ describe("I295: other turn-save callers", () => {
 			createIfMissing: true,
 		});
 		const adoptedId = store.records()[0].recordId;
-		// The tab bound its own id before the store saw the other record.
 		const files0 = new Set(store.files.keys());
 
 		await act(async () => {
@@ -730,6 +766,41 @@ describe("I295: other turn-save callers", () => {
 			(f) => !files0.has(f) && f.startsWith(SESSIONS_DIR),
 		);
 		expect(newFiles).toEqual([fileOf(adoptedId)]);
+		expect(h.result.current.history.getRecordId()).toBe(adoptedId);
+	});
+
+	it("adopt branch: the save resolves only after the adopted copy is on disk", async () => {
+		const store = makeStore();
+		// The tab is bound to an id no record claims (its own record never
+		// landed), so the store adopts the other record for this session.
+		const h = mountChat(store, { restoredRecordId: "rec-minted" });
+		await store.sessionStore.renameSession({
+			recordId: null,
+			sessionId: "sess-1",
+			agentId: "kiro",
+			cwd: "/vault",
+			title: "Renamed from history",
+			createIfMissing: true,
+		});
+		const adoptedId = store.records()[0].recordId;
+		// The minted file passes; the copy under the adopted id is held.
+		const release = store.holdFileWriteAfter(1);
+
+		let saved = false;
+		let save!: Promise<void>;
+		act(() => {
+			save = h.result.current.history
+				.saveSessionMessages("sess-1", [msg("user", "hi", "u1")])
+				.then(() => {
+					saved = true;
+				});
+		});
+		await settle();
+		expect(saved).toBe(false);
+
+		release();
+		await save;
+		expect(store.files.has(fileOf(adoptedId))).toBe(true);
 	});
 
 	it("an AI title during a held first file write: one record, AI title kept, file present", async () => {

@@ -870,6 +870,19 @@ export function useSessionHistory(
 						"[SessionHistory] Transcript write failed; record not written:",
 						recordId,
 					);
+					// A minted id that no record claims would leave the tab bound
+					// to nothing (INV-3, I259 reads it as a record): unbind, unless
+					// a reset or another write moved the binding since.
+					if (
+						epoch === bindingEpochRef.current &&
+						recordIdRef.current === recordId &&
+						!findSessionRecord(settingsAccess.getSavedSessions(), {
+							by: "recordId",
+							id: recordId,
+						})
+					) {
+						setBinding(null);
+					}
 					return;
 				}
 				return sessionStore
@@ -888,9 +901,11 @@ export function useSessionHistory(
 						// The store adopted another record for this session (one
 						// created elsewhere mid-turn): write the transcript under
 						// its id too, so file and record agree from this turn on.
+						adoptRecordId(adoptedId, epoch);
 						if (adoptedId && adoptedId !== recordId) {
 							const minted = recordId;
-							void settingsAccess
+							// Awaited, so a teardown flush keeps the adopted copy too.
+							return settingsAccess
 								.saveSessionMessages(
 									adoptedId,
 									agentId,
@@ -918,7 +933,6 @@ export function useSessionHistory(
 									),
 								);
 						}
-						adoptRecordId(adoptedId, epoch);
 					});
 			});
 
@@ -941,6 +955,7 @@ export function useSessionHistory(
 			restoredAgentTitle,
 			bindRecordId,
 			adoptRecordId,
+			setBinding,
 		],
 	);
 
