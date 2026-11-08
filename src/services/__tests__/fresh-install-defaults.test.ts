@@ -35,6 +35,7 @@ import {
 	DEFAULT_SETTINGS,
 } from "../settings-normalizer";
 import AgentClientPlugin from "../../plugin";
+import { Notice } from "obsidian";
 
 type Written = { tabDisplay: string; tabRailWidth: number; defaultAgentId: string };
 
@@ -127,5 +128,79 @@ describe("I299 first-run onboarding keeps the fresh-install display", () => {
 		expect(last.tabDisplay).toBe("vertical");
 		expect(last.tabRailWidth).toBe(32);
 		expect(plugin.settings.tabDisplay).toBe("vertical");
+	});
+});
+
+/**
+ * I306: the "found Agent Client settings" toast shows only on a fresh install.
+ * An existing data.json without `settingsImportOfferShown` (every install that
+ * predates v1.2.0) used to get the offer on its first post-upgrade launch.
+ */
+describe("I306 the settings-import offer is for fresh installs only", () => {
+	type OfferPlugin = {
+		createImportSources: () => Array<{
+			id: string;
+			displayName: string;
+			detect: () => Promise<boolean>;
+		}>;
+		maybeOfferSettingsImport: () => Promise<void>;
+		maybeFirstRunOnboarding: () => Promise<void>;
+		detectAgents: () => Promise<Set<string>>;
+		activateView: () => Promise<void>;
+	};
+
+	async function offerAfterLoad(
+		raw: Record<string, unknown> | null,
+		opts: { onboardingFirst?: boolean } = {},
+	) {
+		const { plugin, writes } = await runLoad(raw);
+		const p = plugin as unknown as OfferPlugin;
+		const detect = vi.fn(async () => true);
+		p.createImportSources = () => [
+			{ id: "agent-client", displayName: "Agent Client", detect },
+		];
+		p.detectAgents = async () => new Set(["kiro"]);
+		p.activateView = async () => {};
+
+		if (opts.onboardingFirst) await p.maybeFirstRunOnboarding();
+		const notices = (
+			Notice as unknown as {
+				instances: Array<{ containerEl: { classes: Set<string> } }>;
+			}
+		).instances;
+		const noticesBefore = notices.length;
+		const writesBefore = writes.length;
+		await p.maybeOfferSettingsImport();
+
+		const toasts = notices
+			.slice(noticesBefore)
+			.filter((n) => n.containerEl.classes.has("agent-client-import-notice"));
+		const offerWrites = writes.slice(writesBefore) as unknown as Array<{
+			settingsImportOfferShown?: boolean;
+		}>;
+		return { toasts, detect, offerWrites };
+	}
+
+	it("an existing data.json without the flag gets no toast, no detection read, and no save", async () => {
+		const { toasts, detect, offerWrites } = await offerAfterLoad({});
+		expect(toasts).toHaveLength(0);
+		expect(detect).not.toHaveBeenCalled();
+		expect(offerWrites).toHaveLength(0);
+	});
+
+	it("a fresh install with Agent Client data gets the toast and saves the flag", async () => {
+		const { toasts, offerWrites } = await offerAfterLoad(null);
+		expect(toasts).toHaveLength(1);
+		expect(offerWrites.length).toBeGreaterThan(0);
+		expect(offerWrites[offerWrites.length - 1].settingsImportOfferShown).toBe(
+			true,
+		);
+	});
+
+	it("the offer still appears on a fresh install after onboarding has run", async () => {
+		const { toasts } = await offerAfterLoad(null, {
+			onboardingFirst: true,
+		});
+		expect(toasts).toHaveLength(1);
 	});
 });

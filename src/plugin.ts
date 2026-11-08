@@ -14,6 +14,7 @@ import {
 } from "obsidian";
 import { ConfirmTrashChatsModal } from "./ui/ConfirmTrashChatsModal";
 import { formatSize, tabSessionIds } from "./resolvers/session-retention";
+import { mayOfferSettingsImport } from "./resolvers/settings-import-offer";
 import * as semver from "semver";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
@@ -371,6 +372,13 @@ export default class AgentClientPlugin extends Plugin {
 	 * auto-open). Self-clears once onboarding saves settings.
 	 */
 	private isFirstRun = false;
+
+	/**
+	 * I306: whether this launch found no data.json. Set once in loadSettings()
+	 * and never changed, unlike isFirstRun, which onboarding clears. Gates the
+	 * first-run settings-import offer.
+	 */
+	private isFreshInstall = false;
 
 	/**
 	 * Session-cached agent-detection result, **invalidatable**. Detection costs
@@ -1813,13 +1821,16 @@ export default class AgentClientPlugin extends Plugin {
 	async loadSettings() {
 		// A genuine fresh install has no data.json yet → loadData() returns
 		// null. This is the trigger for one-time first-run onboarding (Phase B
-		// + Layer 3); existing users always have a data.json, so they are never
-		// re-onboarded and their default agent is never overridden.
+		// + Layer 3), the I299 fresh-install defaults and the I306 settings-
+		// import offer. Existing users always have a data.json, so they are
+		// never re-onboarded, their default agent is never overridden, and they
+		// are never offered an import.
 		const loaded = (await this.loadData()) as Record<
 			string,
 			unknown
 		> | null;
 		this.isFirstRun = loaded == null;
+		this.isFreshInstall = this.isFirstRun;
 		const raw = loaded ?? {};
 		let migratedSecrets = false;
 
@@ -1930,17 +1941,27 @@ export default class AgentClientPlugin extends Plugin {
 	}
 
 	/**
-	 * First-run, one-shot offer to import settings from another agent plugin.
-	 * Fail-soft; shows a sticky, dismissible Notice only when a source is
-	 * detected, and sets the one-shot guard so it is never shown twice.
+	 * Fresh-install-only, one-shot offer to import settings from another agent
+	 * plugin. Existing installs are never offered (I306) and skip detection
+	 * entirely. Fail-soft; on a fresh install, shows a sticky, dismissible
+	 * Notice only when a source is detected, and sets the one-shot guard so it
+	 * is never shown twice.
 	 */
 	private async maybeOfferSettingsImport(): Promise<void> {
-		if (this.settings.settingsImportOfferShown) return;
+		if (
+			!mayOfferSettingsImport({
+				isFreshInstall: this.isFreshInstall,
+				offerShown: this.settings.settingsImportOfferShown === true,
+			})
+		)
+			return;
 		try {
 			const detected = await firstDetectedSource(
 				this.createImportSources(),
 			);
-			if (!detected) return; // nothing to offer; re-check on a later launch
+			// Nothing to offer. Later launches aren't fresh installs, so this
+			// install is never offered; manual import stays available.
+			if (!detected) return;
 			const notice = new Notice(
 				t("notices.importSettingsFound", { plugin: detected.displayName }),
 				0,
