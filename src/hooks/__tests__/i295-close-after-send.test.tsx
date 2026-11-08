@@ -322,6 +322,7 @@ function mountChat(
 			msgs.messages,
 			[],
 			history.saveSessionMessages,
+			history.registerPendingFlush,
 			DEBOUNCE_MS,
 			DEBOUNCE_MS,
 		);

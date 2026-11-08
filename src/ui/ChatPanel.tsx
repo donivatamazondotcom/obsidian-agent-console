@@ -1143,6 +1143,9 @@ export function ChatPanel({
 						).dir,
 					);
 				}
+				// I296: keep the agent change and the lazy reset in the same
+				// tick. The reset flushes the old chat's pending save, which
+				// reads the agent id from the last committed render.
 				agent.setAgentWithoutSession(decision.agentId);
 				if (decision.kind === "recreate-eager") {
 					void lazyAcquireNowRef.current?.();
@@ -1272,6 +1275,7 @@ export function ChatPanel({
 				// the sole owner. The override ref covers the pre-render state window.
 				setAgentCwd(directory);
 				acquisitionCwdOverrideRef.current = directory;
+				// I296: same tick as the reset below (see handleNewChatWithPersist).
 				agent.setAgentWithoutSession(decision.agentId);
 				void lazyAcquireNowRef.current?.();
 				sessionHistory.invalidateCache();
@@ -2234,6 +2238,7 @@ export function ChatPanel({
 		messages,
 		contextNotes.notes,
 		sessionHistory.saveSessionMessages,
+		sessionHistory.registerPendingFlush,
 	);
 
 	// ============================================================
