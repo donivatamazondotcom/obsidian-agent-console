@@ -2892,7 +2892,13 @@ del.acp-header-branded-profile {
 	box-shadow: inset 0 0 0 2px var(--background-modifier-border-focus);
 }
 
-/* Rail icons match the ribbon's 16px icons (the strip keeps 12px). */
+/* Rail icons match the ribbon's 16px icons (the strip keeps 12px), and the
+   AI-rename sparkles in a named key match them. */
+.agent-client-tab-rail-key .agent-client-tab-ai-renaming svg {
+	width: 16px;
+	height: 16px;
+}
+
 .agent-client-tab-rail-key .agent-client-tab-state-icon {
 	width: 18px;
 	height: 18px;

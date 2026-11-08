@@ -788,8 +788,16 @@ const noDuplicateTooltips: Invariant = {
  * rendered outcome, so a future child (an icon, a badge) that brings its own
  * label is caught.
  *
+ * Also fails when the key list itself carries an aria-label (an Obsidian
+ * "Tab list" tooltip over the whole rail, smoke H2) or an inactive key that
+ * isn't hovered or tapped has a filled background (Obsidian's
+ * `button:not(.clickable-icon)` fill winning over the rail's reset, smoke H1).
+ * A community theme that styles buttons more specifically than the rail's
+ * reset fails it too – intended: the rail no longer matches the theme.
+ *
  * Skips when no rail is rendered (Tab display is Horizontal). Self-test: plants
- * an offending key in the live rail and requires the scan to find it.
+ * an offending key, a labelled list and a filled key in the live rail and
+ * requires the scan to find all three.
  */
 const railKeysHaveNoAriaLabel: Invariant = {
 	id: "INV-10",
@@ -819,7 +827,7 @@ const railKeysHaveNoAriaLabel: Invariant = {
 			for (const list of Array.from(document.querySelectorAll('[data-type="${VIEW_TYPE}"] .agent-client-tab-rail-list'))) {
 				if (list.hasAttribute("aria-label") || list.hasAttribute("title")) offenders.push("tablist: aria-label/title on the key list");
 			}
-			const filled = keys.filter((k) => !k.classList.contains("is-active") && !k.matches(":hover") && getComputedStyle(k).backgroundColor !== "rgba(0, 0, 0, 0)").map((k) => (k.getAttribute("data-tab-id") ?? "?") + " bg=" + getComputedStyle(k).backgroundColor);
+			const filled = keys.filter((k) => !k.classList.contains("is-active") && !k.matches(":hover") && !k.classList.contains("mobile-tap") && getComputedStyle(k).backgroundColor !== "rgba(0, 0, 0, 0)").map((k) => (k.getAttribute("data-tab-id") ?? "?") + " bg=" + getComputedStyle(k).backgroundColor);
 			return { rails: document.querySelectorAll('[data-type="${VIEW_TYPE}"] .agent-client-tab-rail').length, keys: keys.length, named, offenders, filled };
 		`;
 		interface Scan {
@@ -843,13 +851,22 @@ const railKeysHaveNoAriaLabel: Invariant = {
 			 probe.className = "agent-client-tab-rail-key";
 			 probe.setAttribute("data-tab-id", "__inv10_control__");
 			 probe.setAttribute("aria-label", "__inv10_control__");
+			 const filled = document.createElement("button");
+			 filled.className = "agent-client-tab-rail-key";
+			 filled.setAttribute("data-tab-id", "__inv10_filled__");
+			 filled.style.setProperty("background-color", "rgb(1, 2, 3)");
 			 list.appendChild(probe);
-			 try { ${SCAN} } finally { probe.remove(); }`,
+			 list.appendChild(filled);
+			 list.setAttribute("aria-label", "__inv10_list__");
+			 try { ${SCAN} } finally { probe.remove(); filled.remove(); list.removeAttribute("aria-label"); }`,
 		);
-		if (!control.offenders.some((o) => o.startsWith("__inv10_control__"))) {
+		const sawKey = control.offenders.some((o) => o.startsWith("__inv10_control__"));
+		const sawList = control.offenders.some((o) => o.startsWith("tablist"));
+		const sawFill = control.filled.some((o) => o.startsWith("__inv10_filled__"));
+		if (!sawKey || !sawList || !sawFill) {
 			return {
 				status: "fail",
-				detail: `probe is inert — the scanner did not find its own planted key (keys=${control.keys})`,
+				detail: `probe is inert — the scanner missed a planted offender (key=${sawKey}, list=${sawList}, fill=${sawFill}, keys=${control.keys})`,
 			};
 		}
 		const r = await evalJson<Scan>(cdp, SCAN);
