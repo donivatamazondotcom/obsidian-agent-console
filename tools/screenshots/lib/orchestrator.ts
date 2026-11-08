@@ -464,7 +464,23 @@ export async function captureEntry(
 		await deps.cdp.focusWindow();
 	}
 
+	// Prior values of the keys initialState.pluginSettings touches, restored in
+	// the finally below so a failed capture can't leave the studio fixture
+	// changed (e.g. vertical tabs) for later entries.
+	let restorePluginSettings: Record<string, unknown> | null = null;
+
 	try {
+		// 0.25 Per-entry plugin settings through the settings single writer, so
+		// React subscribers (useSyncExternalStore) re-render – direct mutation of
+		// plugin.settings, as the overrides below do, wouldn't notify them.
+		if (entry.initialState?.pluginSettings) {
+			const patch = entry.initialState.pluginSettings;
+			restorePluginSettings = await deps.cdp.evaluate<Record<string, unknown>>(
+				`(async () => { const p = app.plugins.plugins["agent-console"]; const patch = ${JSON.stringify(patch)}; const prior = {}; for (const k of Object.keys(patch)) prior[k] = p.settings[k]; await p.settingsService.updateSettings(patch); return prior; })()`,
+			);
+			await sleep(SETTLE_MS);
+		}
+
 		// 0.5 Dismiss any leftover Obsidian modal from a prior capture so this shot
 		// starts clean. A modal opened by an earlier entry (e.g. confirm-close via
 		// forceCloseConfirm, or settings-import) is an APP modal that survives the
@@ -839,10 +855,11 @@ export async function captureEntry(
 			const specs = entry.initialState.forceTabStates;
 			const VIEW =
 				`app.workspace.getLeavesOfType(${VIEW_JSON})[0]?.view`;
-			// Wait for the panel's initial tab to mount.
+			// Wait for the panel's initial tab to mount – a strip tab, or a key
+			// on the vertical tab rail (initialState.pluginSettings tabDisplay).
 			await deps.cdp
 				.waitForElement(
-					`${ACTIVE_PANEL} .agent-client-tab`,
+					`.agent-client-tab, .agent-client-tab-rail-key`,
 					HOVER_TOOLTIP_TIMEOUT_MS,
 				)
 				.catch(() => {});
@@ -1499,6 +1516,14 @@ export async function captureEntry(
 			);
 		}
 	} finally {
+		if (restorePluginSettings) {
+			const prior = restorePluginSettings;
+			await deps.cdp
+				.evaluate(
+					`(async () => { await app.plugins.plugins["agent-console"].settingsService.updateSettings(${JSON.stringify(prior)}); return true; })()`,
+				)
+				.catch(() => {});
+		}
 		// I13: always un-float the fixtures window so it never lingers over the
 		// user's daily vault — even if an assert or the content guard threw.
 		if (screenMode) {

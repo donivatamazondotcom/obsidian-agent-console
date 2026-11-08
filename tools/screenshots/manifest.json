@@ -1690,6 +1690,134 @@
 			"caption": "Choose how many chats to keep",
 			"altText": "Agent Console Sessions settings with the Max saved chats dropdown set to 100",
 			"docPage": "docs/usage/session-history.md"
+		},
+		{
+			"name": "tab-rail-icons",
+			"pending": true,
+			"width": 400,
+			"height": 520,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 400,
+				"height": 520
+			},
+			"cropSelector": "[data-type=\"agent-console-chat-view\"]",
+			"cropPadding": 0,
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 40,
+			"placement": "feature",
+			"docPage": "docs/usage/tabbed-sessions.md",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 400,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"pluginSettings": {
+					"tabDisplay": "vertical",
+					"tabRailWidth": 32
+				},
+				"clickRibbon": true,
+				"forceTabStates": [
+					{
+						"label": "Draft newsletter",
+						"state": "doneUnseen"
+					},
+					{
+						"label": "Summarize meeting notes",
+						"state": "busy"
+					},
+					{
+						"label": "Reorganize vault notes",
+						"state": "permission"
+					},
+					{
+						"label": "Long research report",
+						"state": "stoppedUnseen"
+					},
+					{
+						"label": "Import reading list",
+						"state": "error"
+					},
+					{
+						"label": "Plan Japan itinerary",
+						"state": "connecting"
+					},
+					{
+						"label": "New chat",
+						"state": "ready"
+					}
+				]
+			},
+			"purpose": "Vertical tabs \u2013 a slim column of status icons shows which chat needs you without opening a list.",
+			"differentiator": "Vertical tab rail with per-tab status icons",
+			"mustShow": ".agent-client-tab-rail",
+			"caption": "Every chat's status in one slim column",
+			"altText": "Agent Console with tabs in a slim column on the right, each tab shown only as its status icon",
+			"captureNote": "pluginSettings switches Tab display to Vertical (icon-only, 32px) for this entry and is restored after it; forceTabStates seeds seven tabs in the attention states."
+		},
+		{
+			"name": "tab-rail-names",
+			"pending": true,
+			"width": 400,
+			"height": 520,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 400,
+				"height": 520
+			},
+			"cropSelector": "[data-type=\"agent-console-chat-view\"]",
+			"cropPadding": 0,
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 40,
+			"placement": "feature",
+			"docPage": "docs/usage/tabbed-sessions.md",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 400,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"pluginSettings": {
+					"tabDisplay": "vertical",
+					"tabRailWidth": 150
+				},
+				"clickRibbon": true,
+				"forceTabStates": [
+					{
+						"label": "Draft newsletter",
+						"state": "doneUnseen"
+					},
+					{
+						"label": "Summarize meeting notes",
+						"state": "busy"
+					},
+					{
+						"label": "Reorganize vault notes",
+						"state": "permission"
+					},
+					{
+						"label": "Long research report",
+						"state": "stoppedUnseen"
+					},
+					{
+						"label": "Import reading list",
+						"state": "error"
+					},
+					{
+						"label": "Plan Japan itinerary",
+						"state": "connecting"
+					},
+					{
+						"label": "New chat",
+						"state": "ready"
+					}
+				]
+			},
+			"purpose": "Drag the vertical tab column wider to see every chat's name next to its status icon.",
+			"differentiator": "Resizable vertical tab rail with names",
+			"mustShow": ".agent-client-tab-rail-key-label",
+			"caption": "Widen the column to see names",
+			"altText": "Agent Console tabs in a widened column on the right, each with its status icon and name",
+			"captureNote": "pluginSettings switches Tab display to Vertical at 150px for this entry (restored after it). rightSplitWidth 400 keeps the chat view \u2265 310px so 150 renders unclamped; a clamp would drop the labels and fail mustShow."
 		}
 	]
 }
