@@ -969,7 +969,12 @@ export function useSessionHistory(
 			// (measured 15–663 ms, I295 smoke). A quit between the two leaves
 			// a transcript without a record, which restores (I269 § 2a); never
 			// the reverse. Never rejects.
-			return writePromise.then(() => undefined);
+			// (A rejection, e.g. the sessions folder can't be created, is logged
+			// by the detached chain above.)
+			return writePromise.then(
+				() => undefined,
+				() => undefined,
+			);
 		},
 		[
 			session.agentId,
