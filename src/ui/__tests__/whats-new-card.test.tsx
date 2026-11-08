@@ -251,7 +251,7 @@ describe("I300 keyboard dismiss returns focus (review F2)", () => {
 		expect(onDismissed).toHaveBeenCalledTimes(1);
 	});
 
-	it("doesn't move focus when the card wasn't focused (mouse dismiss elsewhere)", async () => {
+	it("doesn't call onDismissed when focus wasn't in the card (e.g. a jsdom click without focus; in Obsidian a mouse click focuses the button, so it refocuses too)", async () => {
 		const { service } = makeStore({});
 		const onDismissed = vi.fn();
 		const { container } = render(

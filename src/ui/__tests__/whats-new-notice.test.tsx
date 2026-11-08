@@ -57,9 +57,11 @@ function Panel() {
 }
 
 const notices: React.ReactElement[] = [];
+// Stands in for ChatView's useCallback([view]) – stable for the view's life.
+const stableRefocus = () => {};
 function ChatViewShape({ host, tabs }: { host: Host; tabs: string[] }) {
 	const tabDisplay = useTabDisplay(host.settingsService);
-	const notice = useWhatsNewNotice(host);
+	const notice = useWhatsNewNotice(host, stableRefocus);
 	notices.push(notice);
 	if (tabs.length === 0) {
 		return <div className="landing">{notice}</div>;
