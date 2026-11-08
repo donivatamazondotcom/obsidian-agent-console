@@ -423,8 +423,12 @@ export function useSessionHistory(
 	 * write for the old chat can't bind the new chat to the old record.
 	 */
 	const bindingEpochRef = useRef(0);
-	/** Turn saves still in flight; a failed one unbinds only when it is alone. */
-	const pendingSavesRef = useRef(0);
+	/**
+	 * Turn saves still in flight for the current binding epoch; a failed one
+	 * unbinds only when it is the epoch's last. Saves from before a reset
+	 * don't count against the new chat.
+	 */
+	const pendingSavesRef = useRef({ epoch: 0, count: 0 });
 
 	/**
 	 * The store adopted a different record than we guessed: follow it, unless
@@ -846,7 +850,10 @@ export function useSessionHistory(
 			// I269: the file and the record both use the tab's record id, so
 			// a fallback's new agent session keeps writing the same chat.
 			const epoch = bindingEpochRef.current;
-			pendingSavesRef.current++;
+			if (pendingSavesRef.current.epoch !== epoch) {
+				pendingSavesRef.current = { epoch, count: 0 };
+			}
+			pendingSavesRef.current.count++;
 			const recordId = bindRecordId(sessionId);
 			const agentId = session.agentId;
 			const writePromise = settingsAccess.saveSessionMessages(
@@ -878,7 +885,8 @@ export function useSessionHistory(
 					// a reset or another write moved the binding since, or another
 					// save is still in flight (it may yet land, in either order).
 					if (
-						pendingSavesRef.current === 1 &&
+						pendingSavesRef.current.epoch === epoch &&
+						pendingSavesRef.current.count === 1 &&
 						epoch === bindingEpochRef.current &&
 						recordIdRef.current === recordId &&
 						!findSessionRecord(settingsAccess.getSavedSessions(), {
@@ -952,7 +960,9 @@ export function useSessionHistory(
 					},
 				)
 				.finally(() => {
-					pendingSavesRef.current--;
+					if (pendingSavesRef.current.epoch === epoch) {
+						pendingSavesRef.current.count--;
+					}
 				});
 		},
 		[
