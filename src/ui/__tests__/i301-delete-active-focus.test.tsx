@@ -21,6 +21,7 @@ vi.mock("obsidian", async (importOriginal) => {
 vi.mock("../keyboard-focus", () => ({ isKeyboardFocus: () => false }));
 
 import { TabRail, type RailSettingsStore } from "../TabRail";
+import { clearActivationRefocusHold } from "../composer-focus";
 import { InputArea, type InputAreaProps } from "../InputArea";
 import type AgentClientPlugin from "../../plugin";
 import type { IChatViewHost } from "../view-host";
@@ -60,6 +61,7 @@ beforeEach(() => {
 	});
 });
 afterEach(() => {
+	clearActivationRefocusHold(document);
 	cleanup();
 	vi.restoreAllMocks();
 });

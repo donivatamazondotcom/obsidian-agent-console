@@ -5,11 +5,14 @@
  * it expires on its own, so a hold nobody needed (the neighbor crashed and has
  * no composer) never skips a later, unrelated refocus.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
 	holdNextActivationRefocus,
 	isActivationRefocusHeld,
+	clearActivationRefocusHold,
 } from "../composer-focus";
+
+afterEach(() => clearActivationRefocusHold(document));
 
 const wait = (ms: number) =>
 	new Promise<void>((resolve) => window.setTimeout(resolve, ms));
@@ -36,7 +39,6 @@ describe("activation refocus hold", () => {
 	});
 
 	it("a newer hold survives an older one's expiry", async () => {
-		await wait(300); // let earlier tests' holds lapse
 		holdNextActivationRefocus(document);
 		await wait(150);
 		holdNextActivationRefocus(document);
