@@ -48,7 +48,7 @@ A `˅` chevron beside it opens a dropdown listing **every** tab — including an
 
 ## Vertical tabs
 
-See which chat needs you without opening a list. In **Settings → Tabs → Tab display**, choose **Vertical**. The tabs move from the top into a narrow column on the right edge of the chat view. Each tab shows only its [status icon](#the-tab-bar), so in a narrow sidebar you can see 20 tabs or more at a glance. Choose **Horizontal** to go back to the top bar. The change takes effect at once and doesn't disturb your open chats.
+See which chat needs you without opening a list. New installs start with vertical tabs, icons only. If you've used Agent Console before, your tabs stay in the top bar until you choose **Vertical** in **Settings → Tabs → Tab display**. The tabs move from the top into a narrow column on the right edge of the chat view. Each tab shows only its [status icon](#the-tab-bar), so in a narrow sidebar you can see 20 tabs or more at a glance. Choose **Horizontal** to go back to the top bar. The change takes effect at once and doesn't disturb your open chats.
 
 - **See a tab's name** – hover a tab. The first one takes a moment; after that, every tab you pass shows its name and status straight away. Press `Esc` to hide it.
 - **Show names all the time** – drag the column's inner edge to make it wider. From about twice its narrow width it shows names, cut off with "…" when they're long; let go below that and it snaps back to icons only. Double-click the edge to switch between icons only and your last width. Your width is kept across restarts.
