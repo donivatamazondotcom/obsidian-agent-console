@@ -132,7 +132,7 @@ function makeTab(updateSettings = vi.fn().mockResolvedValue(undefined)) {
 describe("declarative settings pilot (Obsidian 1.13)", () => {
 	beforeEach(() => vi.clearAllMocks());
 
-	it("T1: exposes the Tabs group with both toggles bound to real settings keys", () => {
+	it("T1: exposes the Tabs group with its controls bound to real settings keys", () => {
 		const { tab } = makeTab();
 		const defs = tab.getSettingDefinitions();
 
@@ -145,20 +145,26 @@ describe("declarative settings pilot (Obsidian 1.13)", () => {
 		expect(group.heading).toBeTruthy();
 
 		const keys = group.items.map((i: ToggleDef) => i.control.key);
+		// Vertical tab rail: "Tab display" leads the group as a dropdown.
 		expect(keys).toEqual([
+			"tabDisplay",
 			"restoreTabsOnStartup",
 			"confirmCloseWithMultipleTabs",
 		]);
 		// Every declarative key must exist on the real settings object —
 		// controls bind by string key, so a typo binds to nothing, silently.
-		for (const key of keys) {
+		const expectedType: Record<string, [string, string]> = {
+			tabDisplay: ["dropdown", "string"],
+			restoreTabsOnStartup: ["toggle", "boolean"],
+			confirmCloseWithMultipleTabs: ["toggle", "boolean"],
+		};
+		for (const item of group.items) {
+			const key = item.control.key;
 			expect(DEFAULT_SETTINGS).toHaveProperty(key);
+			expect(item.control.type).toBe(expectedType[key][0]);
 			expect(
 				typeof DEFAULT_SETTINGS[key as keyof typeof DEFAULT_SETTINGS],
-			).toBe("boolean");
-		}
-		for (const item of group.items) {
-			expect(item.control.type).toBe("toggle");
+			).toBe(expectedType[key][1]);
 			expect(item.name).toBeTruthy();
 		}
 	});
