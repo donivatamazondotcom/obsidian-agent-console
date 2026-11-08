@@ -78,6 +78,31 @@ export interface LossyFallbackNoticeProps {
  * identity hook the integration layer uses when filtering / persisting
  * the notice in message history (per U67).
  */
+/** Notice copy for each fallback reason (D2, I302). */
+function fallbackNoticeKeys(
+	reason: SessionFallbackReason | undefined,
+): { title: TranslationKey; body: TranslationKey } {
+	switch (reason) {
+		case "engine-changed":
+			return {
+				title: "chat.lossyFallback.engineChanged.title",
+				body: "chat.lossyFallback.engineChanged.body",
+			};
+		case "engine-changed-old-cli":
+			return {
+				title: "chat.lossyFallback.engineChanged.title",
+				body: "chat.lossyFallback.engineChangedOldCli.body",
+			};
+		case "unavailable":
+		case undefined:
+			return { title: "chat.lossyFallback.title", body: "chat.lossyFallback.body" };
+		default: {
+			const unhandled: never = reason;
+			return unhandled;
+		}
+	}
+}
+
 export function LossyFallbackNotice({
 	isFallbackRecovery,
 	reason,
@@ -85,13 +110,7 @@ export function LossyFallbackNotice({
 	if (!isFallbackRecovery) {
 		return null;
 	}
-	const keys: { title: TranslationKey; body: TranslationKey } =
-		reason === "engine-changed"
-			? {
-					title: "chat.lossyFallback.engineChanged.title",
-					body: "chat.lossyFallback.engineChanged.body",
-				}
-			: { title: "chat.lossyFallback.title", body: "chat.lossyFallback.body" };
+	const keys = fallbackNoticeKeys(reason);
 
 	return (
 		<div

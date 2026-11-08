@@ -546,6 +546,15 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.header.tooltipAgent": "エージェント: {value}",
 	"chat.header.tooltipEngine": "エンジン: {value}",
 	"chat.header.engineKiroCli": "Kiro CLI {engine}",
+	"chat.header.engineKiroOldCli": "Kiro CLI {engine}（この Kiro CLI は V3 に対応していない古いバージョンです）",
+	"chat.kiroUpdateTip.title": "このチャットは Kiro CLI V2 で動作しています",
+	"chat.kiroUpdateTip.body": "お使いの Kiro CLI は V3 エンジンに対応していない古いバージョンのため、ここでは {agent} が V2 で動作しています。V3 を使うには {command} を実行してください：",
+	"chat.kiroUpdateTip.benefitAgents": "最近の auto-sa のように V3 が必要なエージェントが、設定どおりに読み込まれます。",
+	"chat.kiroUpdateTip.benefitHooks": "エージェントのフックがこれらのチャットで実行されます。",
+	"chat.kiroUpdateTip.benefitMcp": "サインインが必要な MCP サーバーを、チャット内でそのままサインインできます。",
+	"chat.kiroUpdateTip.benefitNewChat": "同じタブで新しいチャットを Kiro を再起動せずに始められ、AI による名前の変更も使えます。",
+	"chat.kiroUpdateTip.benefitAlwaysAllow": "「常に許可」の選択をこの保管庫に記憶できます。",
+	"chat.kiroUpdateTip.dismiss": "OK",
 	"chat.header.tooltipModel": "モデル: {value}",
 	"chat.header.tooltipEffort": "推論の深さ: {value}",
 	"chat.header.tooltipMode": "モード: {value}",
@@ -755,7 +764,9 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 		"元のセッションはエージェント側で利用できなくなりました。以前の会話の記録をもとに作業しますが、元のセッションの内部状態や以前の推論にはアクセスできません。一部のツール出力も切り詰められている可能性があります。",
 	"chat.lossyFallback.engineChanged.title": "新しいセッションを開始しました",
 	"chat.lossyFallback.engineChanged.body":
-		"このチャットは Kiro V3 エンジンで実行されていました。このエージェントは現在 V2 を使用しており、V2 では V3 のチャットを開けないため、会話の記録をもとに続けます。元のセッションに戻るには、設定でこのエージェントを V3 に戻してください。",
+		"このチャットは Kiro V3 エンジンで実行されていました。このエージェントは現在 V2 を使用しており、V2 では V3 のチャットを開けないため、会話の記録をもとに続けます。",
+	"chat.lossyFallback.engineChangedOldCli.body":
+		"このチャットは Kiro V3 エンジンで実行されていました。この Kiro CLI は V3 に対応していない古いバージョンのため、会話の記録をもとに続けます。V3 を使うには kiro-cli update を実行してください。",
 	"chat.historyBanner.notStored":
 		"このタブの履歴はローカルに保存されていません。",
 	"chat.historyBanner.reloading": "再読み込み中…",

@@ -9,6 +9,8 @@ import type { SessionFallbackReason } from "./session-engine";
  *   expected (Kiro V3, I264).
  * - `engine-changed`: the chat ran on Kiro V3 and the agent now runs V2 (D2);
  *   the id was never sent.
+ * - `engine-changed-old-cli`: the same, because the agent follows the
+ *   Default engine and the kiro-cli is too old for V3 (I302).
  * - `transport`: the request got no real answer (closed, timed out).
  */
 export type RestoreFailureKind =
@@ -16,6 +18,7 @@ export type RestoreFailureKind =
 	| "rejected"
 	| "empty"
 	| "engine-changed"
+	| "engine-changed-old-cli"
 	| "transport";
 
 export type RestoreFailureDecision =
@@ -45,17 +48,21 @@ export function decideRestoreFailure(input: {
 	haveLocalHistory: boolean;
 	failure: RestoreFailureKind | undefined;
 }): RestoreFailureDecision {
-	const reason: SessionFallbackReason =
-		input.failure === "engine-changed" ? "engine-changed" : "unavailable";
-	if (
-		input.hasLocalRecord ||
-		input.haveLocalHistory ||
-		input.failure === "engine-changed"
-	) {
-		return { kind: "fallback", reason };
+	const reason: SessionFallbackReason = "unavailable";
+	const keepsFallback = input.hasLocalRecord || input.haveLocalHistory;
+	switch (input.failure) {
+		case "engine-changed":
+		case "engine-changed-old-cli":
+			// The session still exists on the other engine: always fall back.
+			return { kind: "fallback", reason: input.failure };
+		case "rejected":
+		case "empty":
+			return keepsFallback ? { kind: "fallback", reason } : { kind: "gone" };
+		case "initialize":
+		case "transport":
+		case undefined:
+			return keepsFallback
+				? { kind: "fallback", reason }
+				: { kind: "connect-failed" };
 	}
-	if (input.failure === "rejected" || input.failure === "empty") {
-		return { kind: "gone" };
-	}
-	return { kind: "connect-failed" };
 }

@@ -11,6 +11,8 @@ import { MessageBubble, type A2uiBubbleContext } from "./MessageBubble";
 import { LossyFallbackNotice } from "./LossyFallbackNotice";
 import type { SessionFallbackReason } from "../resolvers/session-engine";
 import { McpFailureNotice } from "./McpFailureNotice";
+import { KiroUpdateTip } from "./KiroUpdateTip";
+import type { KiroEngineFallback } from "../types/session";
 import { deriveConversationEmptyState } from "../resolvers/conversation-empty-state";
 import {
 	deriveEmptyStateView,
@@ -308,6 +310,8 @@ export interface MessageListProps {
 	isFallbackRecovery?: boolean;
 	/** Why the fallback happened (D2); picks the notice copy. */
 	fallbackReason?: SessionFallbackReason | null;
+	/** Why this tab's Kiro process runs V2 instead of Default V3 (I302). */
+	kiroEngineFallback?: KiroEngineFallback;
 	/** I282: the agent no longer has this tab's session. */
 	sessionGone?: boolean;
 	/** I282: close this tab (the gone notice's Close button). */
@@ -392,6 +396,7 @@ export function MessageList({
 	isActive = true,
 	isFallbackRecovery = false,
 	fallbackReason = null,
+	kiroEngineFallback,
 	sessionGone = false,
 	onCloseSessionGone,
 	viewId,
@@ -426,6 +431,17 @@ export function MessageList({
 		);
 	}
 
+	// I302: the update tip, in both branches. Mounted only for a fallback
+	// tab, so other tabs pay nothing.
+	const kiroUpdateTip =
+		kiroEngineFallback && plugin.settingsService ? (
+			<KiroUpdateTip
+				store={plugin.settingsService}
+				fallback={kiroEngineFallback}
+				agentName={agentLabel}
+			/>
+		) : null;
+
 	// Empty state — same container, different children. Unified into a
 	// single return path (vs. early return) so scrollRef is attached to
 	// the same DOM node in both empty and populated states.
@@ -438,6 +454,7 @@ export function MessageList({
 		return (
 			<div ref={scrollRef} className="agent-client-chat-view-messages">
 				<div ref={contentRef} className="agent-client-chat-content">
+					{kiroUpdateTip}
 					{viewId && plugin.mcpAuthManager && (
 						<McpFailureNotice manager={plugin.mcpAuthManager} viewId={viewId} />
 					)}
@@ -490,6 +507,7 @@ export function MessageList({
 					isFallbackRecovery={isFallbackRecovery}
 					reason={fallbackReason ?? undefined}
 				/>
+				{kiroUpdateTip}
 				{viewId && plugin.mcpAuthManager && (
 					<McpFailureNotice manager={plugin.mcpAuthManager} viewId={viewId} />
 				)}

@@ -11,6 +11,7 @@ import {
 	KIRO_TERMINAL_SHELL_TYPE_METHOD,
 	kiroV3SessionMeta,
 	prepareKiroV3Launch,
+	relaunchConfig,
 	resolveLaunchArgs,
 } from "./kiro-v3";
 import {
@@ -54,6 +55,7 @@ import {
 import {
 	classifyKiroStartupFailure,
 	kiroEngineUnsupportedInfo,
+	kiroOldCliFailedInfo,
 } from "./kiro-startup-failure";
 import type { McpAuthEvent } from "../types/mcp-auth";
 import { getLogger, Logger } from "../utils/logger";
@@ -112,6 +114,18 @@ export interface AgentConfig {
 	 * engine setting (I270). See kiro-v3.ts.
 	 */
 	kiroEngine?: "v2" | "v3";
+	/**
+	 * Kiro CLI only: true when `kiroEngine` is "v3" because the agent follows
+	 * the Default engine, not because the user picked V3 (I302). Then a
+	 * kiro-cli too old for V3 relaunches once on V2 instead of showing D3's
+	 * error. Set by buildAgentConfigWithApiKey().
+	 */
+	kiroEngineFollowsDefault?: true;
+	/**
+	 * Set only on that relaunch's config (`relaunchConfig`): this V2 launch
+	 * replaces a Default V3 launch the CLI rejected (I302).
+	 */
+	kiroEngineFallback?: "old-cli";
 }
 
 /**
@@ -132,7 +146,10 @@ export interface TerminalOutputResult {
 /** How long a failed initialize waits for the process to close (D3). */
 const STARTUP_CLOSE_WAIT_MS = 1000;
 
-/** A pinned V2 launch an older kiro-cli rejected for the flag (I270). */
+/**
+ * A pinned launch an older kiro-cli rejected for the flag: V2 (I270), or V3
+ * on the Default engine (I302). Relaunches once unpinned.
+ */
 class KiroEngineFlagRejected extends Error {
 	constructor() {
 		super("kiro-cli rejected --agent-engine");
@@ -262,7 +279,8 @@ export class AcpClient {
 	 * for the pin relaunches once without it, inside this one initialize
 	 * (never back through `initialize()`, which would coalesce onto itself,
 	 * I46). That CLI only has V2. The unpinned launch reports no launch key,
-	 * so neither history cache records it (I270).
+	 * so neither history cache records it (I270). A Default V3 launch the
+	 * CLI rejects the same way relaunches the same way, as V2 (I302).
 	 */
 	private async initializeWithEnginePin(
 		config: AgentConfig,
@@ -281,9 +299,9 @@ export class AcpClient {
 				throw new InitializeSupersededError();
 			}
 			this.logger.warn(
-				"Kiro CLI rejected --agent-engine=v2 (older CLI); relaunching without the flag",
+				`Kiro CLI rejected --agent-engine=${config.kiroEngine ?? "v2"} (older CLI); relaunching on V2 without the flag`,
 			);
-			return this.doInitialize(config, false);
+			return this.doInitialize(relaunchConfig(config), false);
 		}
 	}
 
@@ -291,6 +309,9 @@ export class AcpClient {
 		config: AgentConfig,
 		pinEngine: boolean,
 	): Promise<InitializeResult> {
+		// The launch this attempt belongs to; a disconnect or a newer
+		// initialize bumps it (I270, I302).
+		const generation = this.launchGeneration;
 		this.logger.log(
 			"Starting initialization with config:",
 			this.getSafeConfigForLog(config),
@@ -639,6 +660,7 @@ export class AcpClient {
 				pinEngine,
 				startup,
 				startupClosed,
+				generation,
 			);
 			startup.settled = true;
 			throw startupError ?? error;
@@ -658,9 +680,44 @@ export class AcpClient {
 		pinEngine: boolean,
 		startup: { stderr: string; exitCode: number | null },
 		closed: Promise<void>,
+		generation: number,
 	): Promise<Error | null> {
+		// I302: the V2 relaunch of a Default V3 launch. If it exits before
+		// answering too, say to update; D3's V2 hint can't help here.
+		if (!pinEngine && config.kiroEngineFallback === "old-cli") {
+			await this.waitForStartupClose(closed);
+			if (this.launchGeneration !== generation) {
+				return new InitializeSupersededError();
+			}
+			if (startup.exitCode === null || startup.exitCode === 0) return null;
+			this.logger.warn(
+				"Kiro CLI exited before answering on the V2 relaunch (older CLI)",
+			);
+			return new AgentStartupError(kiroOldCliFailedInfo());
+		}
 		// Only a pinned Kiro launch can be rejected for the engine flag.
 		if (!config.kiroEngine || !pinEngine) return null;
+		await this.waitForStartupClose(closed);
+		const failure = classifyKiroStartupFailure({
+			launchedEngine: config.kiroEngine,
+			exitCode: startup.exitCode,
+			stderr: startup.stderr,
+		});
+		if (
+			failure === "engine-flag-unknown" &&
+			(config.kiroEngine === "v2" || config.kiroEngineFollowsDefault)
+		) {
+			return new KiroEngineFlagRejected();
+		}
+		if (failure === null) return null;
+		this.logger.warn(
+			"Kiro CLI rejected --agent-engine=v3 (older CLI without the V3 engine)",
+		);
+		return new AgentStartupError(kiroEngineUnsupportedInfo(config.displayName));
+	}
+
+	/** Wait up to STARTUP_CLOSE_WAIT_MS for a failed start's process to close. */
+	private async waitForStartupClose(closed: Promise<void>): Promise<void> {
 		let timer: number | undefined;
 		await Promise.race([
 			closed,
@@ -669,17 +726,6 @@ export class AcpClient {
 			}),
 		]);
 		window.clearTimeout(timer);
-		const failure = classifyKiroStartupFailure({
-			launchedEngine: config.kiroEngine,
-			exitCode: startup.exitCode,
-			stderr: startup.stderr,
-		});
-		if (failure === "engine-flag-unknown") return new KiroEngineFlagRejected();
-		if (failure !== "engine-unsupported") return null;
-		this.logger.warn(
-			"Kiro CLI rejected --agent-engine=v3 (older CLI without the V3 engine)",
-		);
-		return new AgentStartupError(kiroEngineUnsupportedInfo(config.displayName));
 	}
 
 	private getSafeConfigForLog(config: AgentConfig): {

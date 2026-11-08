@@ -299,7 +299,11 @@ export class AcpTypeConverter {
 	 */
 	static toInitializeResult(
 		initResult: acp.InitializeResponse,
-		launch: { kiroEngine?: "v2" | "v3"; command?: string },
+		launch: {
+			kiroEngine?: "v2" | "v3";
+			command?: string;
+			kiroEngineFallback?: "old-cli";
+		},
 	): InitializeResult {
 		const promptCaps = initResult.agentCapabilities?.promptCapabilities;
 		const mcpCaps = initResult.agentCapabilities?.mcpCapabilities;
@@ -360,6 +364,10 @@ export class AcpTypeConverter {
 			kiroEngine:
 				launch.kiroEngine === "v3" ? "v3" : kiroCli ? "v2" : undefined,
 			kiroCli,
+			// I302: only a V2 process can be a fallback.
+			...(launch.kiroEngineFallback === "old-cli" && launch.kiroEngine === "v2"
+				? { kiroEngineFallback: "old-cli" as const }
+				: {}),
 		};
 	}
 }

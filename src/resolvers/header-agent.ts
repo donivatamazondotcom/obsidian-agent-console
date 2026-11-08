@@ -84,7 +84,12 @@ export function deriveHeaderModelName(input: {
 }
 
 export type HeaderEngine =
-	| { kind: "kiroCli"; engine: "v2" | "v3" }
+	| {
+			kind: "kiroCli";
+			engine: "v2" | "v3";
+			/** Why a Default agent runs V2: its kiro-cli is too old (I302). */
+			reason?: "old-cli";
+	  }
 	| { kind: "reported"; label: string }
 	| { kind: "unknown" };
 
@@ -93,6 +98,8 @@ export interface HeaderEngineInput {
 	kiroCli?: boolean;
 	/** Engine the running process was launched with (`session.kiroEngine`). */
 	kiroEngine?: "v2" | "v3";
+	/** Why the process runs V2 instead of Default V3 (`session.kiroEngineFallback`, I302). */
+	kiroEngineFallback?: "old-cli";
 	agentInfo?: { name: string; title?: string; version?: string };
 }
 
@@ -104,6 +111,10 @@ export interface HeaderEngineInput {
  */
 export function deriveHeaderEngine(input: HeaderEngineInput): HeaderEngine {
 	if (input.kiroCli && input.kiroEngine) {
+		// I302: the reason applies only while the tab really runs V2.
+		if (input.kiroEngine === "v2" && input.kiroEngineFallback === "old-cli") {
+			return { kind: "kiroCli", engine: "v2", reason: "old-cli" };
+		}
 		return { kind: "kiroCli", engine: input.kiroEngine };
 	}
 	const info = input.agentInfo;

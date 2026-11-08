@@ -75,7 +75,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTabSessionState, type TabSessionState } from "./useTabSessionState";
-import type { SessionFallbackReason } from "../resolvers/session-engine";
+import type {
+	EngineChangeReason,
+	SessionFallbackReason,
+} from "../resolvers/session-engine";
 import {
 	decideRestoreFailure,
 	type RestoreFailureKind,
@@ -107,7 +110,7 @@ export type SessionAcquisitionResult =
 	| {
 			ok: false;
 			error: Error;
-			fallbackReason?: "engine-changed";
+			fallbackReason?: EngineChangeReason;
 			/** What kind of failure a restore load was (I282). */
 			failure?: RestoreFailureKind;
 	  };
@@ -490,11 +493,7 @@ export function useLazySession(
 					? decideRestoreFailure({
 							hasLocalRecord: hasLocalRecordRef.current?.() ?? true,
 							haveLocalHistory: haveLocalHistoryRef.current?.() ?? true,
-							failure:
-								result.failure ??
-								(result.fallbackReason === "engine-changed"
-									? "engine-changed"
-									: undefined),
+							failure: result.failure ?? result.fallbackReason,
 						})
 					: null;
 			if (decision?.kind === "gone") gone = true;

@@ -313,6 +313,11 @@ export interface AgentClientPluginSettings {
 
 	/** One-shot guard for the first-run settings-import offer. */
 	settingsImportOfferShown?: boolean;
+	/**
+	 * I302: the user dismissed the "update Kiro CLI to get V3" tip. Per vault
+	 * install; never reset. Outside the settings-import slice.
+	 */
+	kiroV3UpdateTipDismissed?: boolean;
 	/** Saved result of the plugin update check; see resolvers/update-check-decision.ts. */
 	pluginUpdateCheck?: PluginUpdateCache;
 	/**

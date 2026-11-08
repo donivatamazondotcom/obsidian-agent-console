@@ -185,6 +185,7 @@ src/
 │   ├── McpAuthBanner.tsx        # Inline re-auth affordance under auth-failed tool calls
 │   ├── McpAuthModal.ts          # "Re-authenticate MCP servers" picker + confirm-gated reconnect modal
 │   ├── McpFailureNotice.tsx     # Kiro V3: in-chat list of MCP servers that didn't connect
+│   ├── KiroUpdateTip.tsx        # I302: "update Kiro CLI to get V3" tip on a Default tab that fell back to V2 (old kiro-cli); one-flag subscription
 │   ├── ErrorBanner.tsx          # Error/notification overlay
 │   ├── SessionHistoryModal.tsx  # Session history modal (Local/Agent source toggle, per-row agent badge, search, confirm delete, migration empty-state, disconnected-Agent sync affordance)
 │   ├── session-intent-confirm.ts # SEAM (Track 1↔2): shared confirm/carry-over modal interface — Track 2 owns the component, Track 1 defines the contract
@@ -231,6 +232,7 @@ src/
 │   ├── history-launch-key.ts       # historyLaunchKey({ liveLaunchKey, sessionState, nextLaunchKey }) → live | unkeyed | next | none — which launch Session history reads capabilities and server rows for (I270)
 │   ├── history-capabilities.ts     # resolveHistoryCapabilities(live, cached) → { kind: live | cached | unknown, capabilities } — what the history view gates on before a tab connects (I260)
 │   ├── unsent-discard.ts           # decideUnsentDiscard — pure resolver: does retiring this tab delete its agent session (created here with session/new, never sent to, nothing on screen, no record, agent advertises delete; I259)
+│   ├── kiro-update-tip.ts          # deriveKiroUpdateTip — show the update tip only on a V2-fallback tab that hasn't dismissed it (I302)
 │   ├── restore-failure.ts          # decideRestoreFailure — after a kept id fails to load: fallback with the transcript (local record or transcript on screen, or engine change; I246), gone (agent rejected or emptily loaded a row with nothing local; I282), or connect-failed (agent never answered)
 │   ├── session-history-view.ts     # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source, knowledge) → listSource/agentPill (available | unsupported | unknown, I260)/restore/fork/banner/folderFilterDefault); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
 │   ├── session-retention.ts        # I202 saved-chat retention: selectEvictions(sessions, cap, tabIds) → least recently updated first, never a tab's record; selectUnusedSessionFiles (cleanup command, 24h guard); parseMaxSavedSessions (25|50|100|250|500|null=unlimited, default 100); formatSize

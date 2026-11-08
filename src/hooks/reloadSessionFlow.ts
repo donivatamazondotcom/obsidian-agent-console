@@ -18,9 +18,12 @@
 
 import {
 	decideEngineRestore,
+	type EngineChangeReason,
 	type SessionEngine,
 	type SessionFallbackReason,
 } from "../resolvers/session-engine";
+import type { KiroEngineFallback } from "../types/session";
+import type { TranslationKey } from "../i18n";
 import { decideLoadReplay } from "../resolvers/load-replay";
 
 /**
@@ -64,6 +67,8 @@ export class EngineChangedError extends Error {
 	constructor(
 		readonly from: SessionEngine,
 		readonly to: SessionEngine,
+		/** Why (D2, or I302's too-old kiro-cli). */
+		readonly reason: EngineChangeReason = "engine-changed",
 	) {
 		super(`Session ran on Kiro ${from}; this agent now runs ${to}`);
 		this.name = "EngineChangedError";
@@ -78,10 +83,11 @@ export class EngineChangedError extends Error {
 export function assertEngineCanResume(
 	stored: SessionEngine | undefined,
 	running: SessionEngine | undefined,
+	runningFallback?: KiroEngineFallback,
 ): void {
-	const decision = decideEngineRestore({ stored, running });
+	const decision = decideEngineRestore({ stored, running, runningFallback });
 	if (decision.kind === "start-fresh") {
-		throw new EngineChangedError(decision.from, decision.to);
+		throw new EngineChangedError(decision.from, decision.to, decision.reason);
 	}
 }
 
@@ -131,12 +137,14 @@ export interface ReloadSessionFlowArgs {
  *   a fresh session was created as a fallback. Not a capability gap. (I230)
  * - `reason: "engine-changed"` — the session ran on Kiro V3 and the agent now
  *   runs V2, so it was never sent; a fresh session was created. (D2)
+ * - `reason: "engine-changed-old-cli"` — the same, because the kiro-cli is
+ *   too old for V3 and the Default engine fell back to V2. (I302)
  */
 export type ReloadSessionFlowResult =
 	| { resumed: true; sessionId: string }
 	| {
 			resumed: false;
-			reason: "unsupported" | "resume-failed" | "engine-changed";
+			reason: "unsupported" | "resume-failed" | EngineChangeReason;
 			sessionId: string | null;
 	  };
 
@@ -171,7 +179,7 @@ export async function reloadSessionFlow(
 			// one. Start fresh; the transcript stays on screen.
 			if (error instanceof EngineChangedError) {
 				const freshId = await freshSession();
-				return { resumed: false, reason: "engine-changed", sessionId: freshId };
+				return { resumed: false, reason: error.reason, sessionId: freshId };
 			}
 			// Resume failed mid-flight → degrade to a fresh session, keeping
 			// the transcript on screen (mirrors the lazy loadSession fallback).
@@ -213,7 +221,43 @@ export function reloadResultToAcquisition(
 		ok: true,
 		sessionId: result.sessionId,
 		lossy: true,
-		fallbackReason:
-			result.reason === "engine-changed" ? "engine-changed" : "unavailable",
+		fallbackReason: reloadFallbackReason(result.reason),
 	};
+}
+
+type ReloadFreshReason = Extract<ReloadSessionFlowResult, { resumed: false }>["reason"];
+
+function reloadFallbackReason(reason: ReloadFreshReason): SessionFallbackReason {
+	switch (reason) {
+		case "engine-changed":
+		case "engine-changed-old-cli":
+			return reason;
+		case "unsupported":
+		case "resume-failed":
+			return "unavailable";
+		default: {
+			const unhandled: never = reason;
+			return unhandled;
+		}
+	}
+}
+
+/** Which toast a soft reload that didn't resume shows (I230, D2, I302). */
+export function reloadNoticeKey(
+	result: Extract<ReloadSessionFlowResult, { resumed: false }>,
+): TranslationKey {
+	switch (result.reason) {
+		case "resume-failed":
+			return "notices.sessionReloadResumeFailed";
+		case "engine-changed":
+			return "notices.sessionReloadEngineChanged";
+		case "engine-changed-old-cli":
+			return "notices.sessionReloadEngineChangedOldCli";
+		case "unsupported":
+			return "notices.sessionReloadedFresh";
+		default: {
+			const unhandled: never = result.reason;
+			return unhandled;
+		}
+	}
 }

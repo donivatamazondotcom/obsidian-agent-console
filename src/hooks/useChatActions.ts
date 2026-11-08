@@ -22,6 +22,7 @@ import type { UseContextNotesReturn } from "./useContextNotes";
 import {
 	reloadResultToAcquisition,
 	type ReloadSessionFlowResult,
+	reloadNoticeKey,
 } from "./reloadSessionFlow";
 import { extractMentionedPaths } from "./useContextVaultEvents";
 import { MAX_CONTEXT_NOTES } from "../types/context";
@@ -676,15 +677,7 @@ export function useChatActions(
 					sessionHistory.invalidateCache();
 					// I230: a resume that threw is not a capability gap, so don't
 					// tell the user the agent can't resume.
-					new Notice(
-						t(
-							reload.reason === "resume-failed"
-								? "notices.sessionReloadResumeFailed"
-								: reload.reason === "engine-changed"
-									? "notices.sessionReloadEngineChanged"
-									: "notices.sessionReloadedFresh",
-						),
-					);
+					new Notice(t(reloadNoticeKey(reload)));
 				}
 			} catch (error) {
 				logger.error("[ChatPanel] Reload error:", error);

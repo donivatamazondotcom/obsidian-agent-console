@@ -181,9 +181,12 @@ describe("classifyKiroStartupFailure (I270)", () => {
 		).toBeNull();
 	});
 
-	it("V3 keeps the broad match", () => {
+	it("V3 gets the narrow kind for clap's unknown flag, the broad one otherwise (I302)", () => {
 		expect(
 			classifyKiroStartupFailure({ launchedEngine: "v3", exitCode: 2, stderr: CLAP }),
+		).toBe("engine-flag-unknown");
+		expect(
+			classifyKiroStartupFailure({ launchedEngine: "v3", exitCode: 1, stderr: CLAP }),
 		).toBe("engine-unsupported");
 	});
 });

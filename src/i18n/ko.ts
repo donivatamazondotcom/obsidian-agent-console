@@ -510,6 +510,15 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.header.tooltipAgent": "에이전트: {value}",
 	"chat.header.tooltipEngine": "엔진: {value}",
 	"chat.header.engineKiroCli": "Kiro CLI {engine}",
+	"chat.header.engineKiroOldCli": "Kiro CLI {engine} – 이 Kiro CLI는 V3를 지원하지 않는 이전 버전입니다",
+	"chat.kiroUpdateTip.title": "이 채팅은 Kiro CLI V2에서 실행 중입니다",
+	"chat.kiroUpdateTip.body": "사용 중인 Kiro CLI는 V3 엔진을 지원하지 않는 이전 버전이라 여기서는 {agent}이(가) V2로 실행됩니다. V3를 사용하려면 {command}를 실행하세요:",
+	"chat.kiroUpdateTip.benefitAgents": "최신 auto-sa처럼 V3가 필요한 에이전트가 설정대로 로드됩니다.",
+	"chat.kiroUpdateTip.benefitHooks": "에이전트의 훅이 이 채팅에서 실행됩니다.",
+	"chat.kiroUpdateTip.benefitMcp": "로그인이 필요한 MCP 서버가 채팅 안에서 바로 로그인을 요청합니다.",
+	"chat.kiroUpdateTip.benefitNewChat": "같은 탭에서 Kiro를 다시 시작하지 않고 새 채팅을 시작할 수 있고, AI로 이름 바꾸기도 쓸 수 있습니다.",
+	"chat.kiroUpdateTip.benefitAlwaysAllow": "항상 허용을 이 보관소에 기억하도록 할 수 있습니다.",
+	"chat.kiroUpdateTip.dismiss": "확인",
 	"chat.header.tooltipModel": "모델: {value}",
 	"chat.header.tooltipEffort": "추론 수준: {value}",
 	"chat.header.tooltipMode": "모드: {value}",
@@ -713,7 +722,9 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 		"원래 세션을 에이전트에서 더 이상 사용할 수 없습니다. 이전 대화의 기록을 바탕으로 작업하지만, 원래 세션의 내부 상태나 이전의 추론에는 접근할 수 없습니다. 일부 도구 출력도 잘렸을 수 있습니다.",
 	"chat.lossyFallback.engineChanged.title": "새 세션을 시작했습니다",
 	"chat.lossyFallback.engineChanged.body":
-		"이 채팅은 Kiro V3 엔진에서 실행되었습니다. 이 에이전트는 이제 V2를 사용하며, V2는 V3 채팅을 열 수 없으므로 대화 기록을 바탕으로 계속합니다. 원래 세션으로 돌아가려면 설정에서 이 에이전트를 V3로 되돌리세요.",
+		"이 채팅은 Kiro V3 엔진에서 실행되었습니다. 이 에이전트는 이제 V2를 사용하며, V2는 V3 채팅을 열 수 없으므로 대화 기록을 바탕으로 계속합니다.",
+	"chat.lossyFallback.engineChangedOldCli.body":
+		"이 채팅은 Kiro V3 엔진에서 실행되었습니다. 이 Kiro CLI는 V3를 지원하지 않는 이전 버전이므로 대화 기록을 바탕으로 계속합니다. V3를 사용하려면 kiro-cli update를 실행하세요.",
 	"chat.historyBanner.notStored":
 		"이 탭의 기록이 로컬에 저장되어 있지 않습니다.",
 	"chat.historyBanner.reloading": "다시 불러오는 중…",
