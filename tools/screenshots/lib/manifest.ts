@@ -151,14 +151,6 @@ export interface InitialState {
 	 */
 	forceConnectingHold?: boolean;
 	/**
-	 * Rewrite one configured agent's launch settings before the panel opens.
-	 * `id` matches the agent's `id` (built-in or custom); `args` replaces its
-	 * args and `engine` its Kiro engine. Drives the kiro-v3-header-fallback
-	 * shot: Kiro CLI V3 launched with `--agent` naming an agent that doesn't
-	 * exist, so the header strikes it through. An unknown `id` fails the shot.
-	 * setup.sh restores the real settings from the template on the next run.
-	 */
-	/**
 	 * Plugin settings to apply for this entry only, through
 	 * `settingsService.updateSettings` (so React subscribers see them – a
 	 * direct mutation of `plugin.settings` wouldn't). The orchestrator records
@@ -167,6 +159,14 @@ export interface InitialState {
 	 * (`tabDisplay`, `tabRailWidth`), which no command can set.
 	 */
 	pluginSettings?: Record<string, string | number | boolean>;
+	/**
+	 * Rewrite one configured agent's launch settings before the panel opens.
+	 * `id` matches the agent's `id` (built-in or custom); `args` replaces its
+	 * args and `engine` its Kiro engine. Drives the kiro-v3-header-fallback
+	 * shot: Kiro CLI V3 launched with `--agent` naming an agent that doesn't
+	 * exist, so the header strikes it through. An unknown `id` fails the shot.
+	 * setup.sh restores the real settings from the template on the next run.
+	 */
 	agentOverride?: {
 		id: string;
 		args?: string[];

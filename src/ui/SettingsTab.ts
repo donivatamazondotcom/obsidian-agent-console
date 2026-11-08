@@ -153,9 +153,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			.setDesc(describeCwd(this.plugin.settings.defaultWorkingDirectory));
 		cwdSetting.addText((text) =>
 			text
-				.setPlaceholder(
-					t("settings.defaultWorkingDirectory.placeholder"),
-				)
+				.setPlaceholder(t("settings.defaultWorkingDirectory.placeholder"))
 				.setValue(this.plugin.settings.defaultWorkingDirectory)
 				.onChange(async (value) => {
 					await this.plugin.settingsService.updateSettings({
@@ -170,9 +168,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				.setTooltip(t("settings.defaultWorkingDirectory.tooltip"))
 				.onClick(async () => {
 					const picked = await pickFolder({
-						title: t(
-							"settings.defaultWorkingDirectory.pickerTitle",
-						),
+						title: t("settings.defaultWorkingDirectory.pickerTitle"),
 						defaultPath:
 							this.plugin.settings.defaultWorkingDirectory ||
 							this.resolveVaultRootPath(),
@@ -207,10 +203,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			patch: Partial<typeof this.plugin.settings.obsidianSystemPrompt>,
 		): Promise<void> => {
 			await this.plugin.settingsService.updateSettings({
-				obsidianSystemPrompt: {
-					...this.plugin.settings.obsidianSystemPrompt,
-					...patch,
-				},
+				obsidianSystemPrompt: { ...this.plugin.settings.obsidianSystemPrompt, ...patch },
 			});
 		};
 		const hcbComposed = (appendOverride?: string): string => {
@@ -221,8 +214,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					{
 						cwd: hcbVaultRoot,
 						vaultRoot: hcbVaultRoot,
-						replyLanguageName:
-							getReplyLanguage()?.englishName ?? null,
+						replyLanguageName: getReplyLanguage()?.englishName ?? null,
 					},
 				) ?? "";
 			const add = (appendOverride ?? cur.appendText ?? "").trim();
@@ -234,198 +226,179 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			);
 		};
 		const renderBody = (body: HTMLElement): void => {
-			let previewTa: import("obsidian").TextAreaComponent | null = null;
-			let appendTa: import("obsidian").TextAreaComponent | null = null;
-			let fullTa: import("obsidian").TextAreaComponent | null = null;
-			const liveText = (): string => {
-				const cur = hcb();
-				if ((cur.mode ?? "options") === "full") {
-					return (
-						fullTa?.inputEl?.value ??
-						cur.customText ??
-						""
-					).trim();
-				}
-				return hcbComposed(appendTa?.inputEl?.value).trim();
-			};
-			const refreshPreview = (): void => {
-				if (!previewTa) return;
-				previewTa.setValue(
-					liveText() || t("settings.obsidianPrompt.previewEmpty"),
-				);
-			};
-			new Setting(body).setDesc(t("settings.sendMessageShortcut.desc2"));
-
-			if ((hcb().mode ?? "options") === "options") {
-				const blockToggle = (
-					name: string,
-					desc: string,
-					key: keyof typeof this.plugin.settings.obsidianSystemPrompt.blocks,
-				): void => {
-					new Setting(body)
-						.setName(name)
-						.setDesc(desc)
-						.addToggle((toggle) =>
-							toggle
-								.setValue(hcb().blocks[key])
-								.onChange(async (value) => {
-									await setHcb({
-										blocks: {
-											...hcb().blocks,
-											[key]: value,
-										},
-									});
-									// Avoid a full re-render (which scrolls the
-									// pane and jumps the view) — just refresh
-									// the live preview. The vault-note hint's
-									// visibility depends on the vaultCollaboration
-									// block, so only that toggle re-renders.
-									if (key === "vaultCollaboration") {
-										this.rerender();
-									} else {
-										refreshPreview();
-									}
-								}),
-						);
+				let previewTa: import("obsidian").TextAreaComponent | null = null;
+				let appendTa: import("obsidian").TextAreaComponent | null = null;
+				let fullTa: import("obsidian").TextAreaComponent | null = null;
+				const liveText = (): string => {
+					const cur = hcb();
+					if ((cur.mode ?? "options") === "full") {
+						return (fullTa?.inputEl?.value ?? cur.customText ?? "").trim();
+					}
+					return hcbComposed(appendTa?.inputEl?.value).trim();
 				};
-				blockToggle(
-					t("settings.obsidianPrompt.hostIdentity.name"),
-					t("settings.obsidianPrompt.hostIdentity.desc"),
-					"hostIdentity",
-				);
-				blockToggle(
-					t("settings.obsidianPrompt.rendering.name"),
-					t("settings.obsidianPrompt.rendering.desc"),
-					"rendering",
-				);
-				blockToggle(
-					t("settings.obsidianPrompt.workingDirectory.name"),
-					t("settings.obsidianPrompt.workingDirectory.desc"),
-					"workingDirectory",
-				);
-				blockToggle(
-					t("settings.obsidianPrompt.vaultCollaboration.name"),
-					t("settings.obsidianPrompt.vaultCollaboration.desc"),
-					"vaultCollaboration",
-				);
-				blockToggle(
-					t("settings.obsidianPrompt.interactiveButtons.name"),
-					t("settings.obsidianPrompt.interactiveButtons.desc"),
-					"interactiveButtons",
-				);
-				blockToggle(
-					t("settings.obsidianPrompt.respondInLanguage.name"),
-					t("settings.obsidianPrompt.respondInLanguage.desc"),
-					"respondInLanguage",
-				);
+				const refreshPreview = (): void => {
+					if (!previewTa) return;
+					previewTa.setValue(
+						liveText() ||
+							t("settings.obsidianPrompt.previewEmpty"),
+					);
+				};
+				new Setting(body).setDesc(t("settings.sendMessageShortcut.desc2"));
 
-				new Setting(body)
-					.setName(t("settings.yourVaultContext.name"))
-					.setDesc(t("settings.yourVaultContext.desc"))
-					.addTextArea((ta) => {
-						appendTa = ta;
-						ta.setValue(hcb().appendText ?? "");
-						ta.inputEl.rows = 4;
-						hcbFullWidth(ta.inputEl);
-						ta.onChange(async (value) => {
-							await setHcb({ appendText: value });
-							refreshPreview();
+				if ((hcb().mode ?? "options") === "options") {
+					const blockToggle = (
+						name: string,
+						desc: string,
+						key: keyof typeof this.plugin.settings.obsidianSystemPrompt.blocks,
+					): void => {
+						new Setting(body)
+							.setName(name)
+							.setDesc(desc)
+							.addToggle((toggle) =>
+								toggle
+									.setValue(hcb().blocks[key])
+									.onChange(async (value) => {
+										await setHcb({
+											blocks: { ...hcb().blocks, [key]: value },
+										});
+										// Avoid a full re-render (which scrolls the
+										// pane and jumps the view) — just refresh
+										// the live preview. The vault-note hint's
+										// visibility depends on the vaultCollaboration
+										// block, so only that toggle re-renders.
+										if (key === "vaultCollaboration") {
+											this.rerender();
+										} else {
+											refreshPreview();
+										}
+									}),
+							);
+					};
+					blockToggle(
+						t("settings.obsidianPrompt.hostIdentity.name"),
+						t("settings.obsidianPrompt.hostIdentity.desc"),
+						"hostIdentity",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.rendering.name"),
+						t("settings.obsidianPrompt.rendering.desc"),
+						"rendering",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.workingDirectory.name"),
+						t("settings.obsidianPrompt.workingDirectory.desc"),
+						"workingDirectory",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.vaultCollaboration.name"),
+						t("settings.obsidianPrompt.vaultCollaboration.desc"),
+						"vaultCollaboration",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.interactiveButtons.name"),
+						t("settings.obsidianPrompt.interactiveButtons.desc"),
+						"interactiveButtons",
+					);
+					blockToggle(
+						t("settings.obsidianPrompt.respondInLanguage.name"),
+						t("settings.obsidianPrompt.respondInLanguage.desc"),
+						"respondInLanguage",
+					);
+
+					new Setting(body)
+						.setName(t("settings.yourVaultContext.name"))
+						.setDesc(t("settings.yourVaultContext.desc"))
+						.addTextArea((ta) => {
+							appendTa = ta;
+							ta.setValue(hcb().appendText ?? "");
+							ta.inputEl.rows = 4;
+							hcbFullWidth(ta.inputEl);
+							ta.onChange(async (value) => {
+								await setHcb({ appendText: value });
+								refreshPreview();
+							});
 						});
-					});
 
-				new Setting(body)
-					.setName(t("settings.editTheFullPrompt.name"))
-					.setDesc(t("settings.editTheFullPrompt.desc"))
-					.addButton((btn) =>
-						btn
-							.setButtonText(
-								t("settings.editTheFullPrompt.button"),
-							)
-							.onClick(async () => {
-								const seeded = hcbComposed(
-									appendTa?.inputEl?.value,
-								);
+					new Setting(body)
+						.setName(t("settings.editTheFullPrompt.name"))
+						.setDesc(t("settings.editTheFullPrompt.desc"))
+						.addButton((btn) =>
+							btn.setButtonText(t("settings.editTheFullPrompt.button")).onClick(async () => {
+								const seeded = hcbComposed(appendTa?.inputEl?.value);
 								this.pendingFocusObsidianFullPrompt = true;
-								await setHcb({
-									mode: "full",
-									customText: seeded,
-								});
+								await setHcb({ mode: "full", customText: seeded });
 								this.rerender();
 							}),
-					);
-			} else {
-				new Setting(body)
-					.setName(t("settings.fullPrompt.name"))
-					.setDesc(t("settings.fullPrompt.desc"))
-					.addTextArea((ta) => {
-						fullTa = ta;
-						ta.setValue(hcb().customText ?? "");
-						ta.inputEl.rows = 10;
-						hcbFullWidth(ta.inputEl);
-						ta.onChange(async (value) => {
-							await setHcb({ customText: value });
-							refreshPreview();
-						});
-						// Just switched into full mode: focus the editable
-						// box, put the cursor at the end, and scroll it into
-						// view so the user doesn't land on the read-only
-						// "What gets sent" preview below.
-						if (this.pendingFocusObsidianFullPrompt) {
-							this.pendingFocusObsidianFullPrompt = false;
-							const inputEl = ta.inputEl;
-							window.requestAnimationFrame(() => {
-								inputEl.focus();
-								const end = inputEl.value.length;
-								inputEl.setSelectionRange(end, end);
-								inputEl.scrollIntoView({ block: "center" });
+						);
+				} else {
+					new Setting(body)
+						.setName(t("settings.fullPrompt.name"))
+						.setDesc(t("settings.fullPrompt.desc"))
+						.addTextArea((ta) => {
+							fullTa = ta;
+							ta.setValue(hcb().customText ?? "");
+							ta.inputEl.rows = 10;
+							hcbFullWidth(ta.inputEl);
+							ta.onChange(async (value) => {
+								await setHcb({ customText: value });
+								refreshPreview();
 							});
-						}
-					});
-				new Setting(body)
-					.setName(t("settings.backToOptions.name"))
-					.setDesc(t("settings.backToOptions.desc"))
-					.addButton((btn) =>
-						btn
-							.setButtonText(t("settings.backToOptions.button"))
-							.onClick(async () => {
+							// Just switched into full mode: focus the editable
+							// box, put the cursor at the end, and scroll it into
+							// view so the user doesn't land on the read-only
+							// "What gets sent" preview below.
+							if (this.pendingFocusObsidianFullPrompt) {
+								this.pendingFocusObsidianFullPrompt = false;
+								const inputEl = ta.inputEl;
+								window.requestAnimationFrame(() => {
+									inputEl.focus();
+									const end = inputEl.value.length;
+									inputEl.setSelectionRange(end, end);
+									inputEl.scrollIntoView({ block: "center" });
+								});
+							}
+						});
+					new Setting(body)
+						.setName(t("settings.backToOptions.name"))
+						.setDesc(t("settings.backToOptions.desc"))
+						.addButton((btn) =>
+							btn.setButtonText(t("settings.backToOptions.button")).onClick(async () => {
 								await setHcb({ mode: "options" });
 								this.rerender();
 							}),
-					);
-			}
+						);
+				}
 
-			// "What gets sent" is ALWAYS present — the constant, honest
-			// picture of the exact text the agent receives. In options mode
-			// it tracks the toggles + vault context; in full mode it mirrors
-			// the hand-edited prompt live (the full-prompt box's onChange
-			// calls refreshPreview, and liveText() reads that box in full
-			// mode). Rendering it after the mode-specific section keeps the
-			// input-above-output reading order in both modes.
-			new Setting(body)
-				.setName(t("settings.whatGetsSent.name"))
-				.setDesc(t("settings.whatGetsSent.desc"))
-				.addTextArea((ta) => {
-					previewTa = ta;
-					ta.inputEl.rows = 8;
-					ta.inputEl.readOnly = true;
-					ta.inputEl.classList.add("agent-client-hcb-readonly");
-					hcbFullWidth(ta.inputEl);
-					refreshPreview();
-				});
-			if (
-				(hcb().mode ?? "options") === "options" &&
-				hcb().blocks.vaultCollaboration
-			) {
-				new Setting(body).setDesc(t("settings.whatGetsSent.desc2"));
-			}
+				// "What gets sent" is ALWAYS present — the constant, honest
+				// picture of the exact text the agent receives. In options mode
+				// it tracks the toggles + vault context; in full mode it mirrors
+				// the hand-edited prompt live (the full-prompt box's onChange
+				// calls refreshPreview, and liveText() reads that box in full
+				// mode). Rendering it after the mode-specific section keeps the
+				// input-above-output reading order in both modes.
+				new Setting(body)
+					.setName(t("settings.whatGetsSent.name"))
+					.setDesc(t("settings.whatGetsSent.desc"))
+					.addTextArea((ta) => {
+						previewTa = ta;
+						ta.inputEl.rows = 8;
+						ta.inputEl.readOnly = true;
+						ta.inputEl.classList.add("agent-client-hcb-readonly");
+						hcbFullWidth(ta.inputEl);
+						refreshPreview();
+					});
+				if (
+					(hcb().mode ?? "options") === "options" &&
+					hcb().blocks.vaultCollaboration
+				) {
+					new Setting(body).setDesc(t("settings.whatGetsSent.desc2"));
+				}
 
-			new Setting(body)
-				.setName(t("settings.resetToDefaults.name"))
-				.setDesc(t("settings.resetToDefaults.desc"))
-				.addButton((btn) =>
-					btn
-						.setButtonText(t("settings.resetToDefaults.button"))
-						.onClick(async () => {
+				new Setting(body)
+					.setName(t("settings.resetToDefaults.name"))
+					.setDesc(t("settings.resetToDefaults.desc"))
+					.addButton((btn) =>
+						btn.setButtonText(t("settings.resetToDefaults.button")).onClick(async () => {
 							const doReset = async (): Promise<void> => {
 								await setHcb(
 									structuredClone(
@@ -445,7 +418,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 								await doReset();
 							}
 						}),
-				);
+					);
 		};
 		if (wrap) {
 			this.renderCollapsibleSection(
@@ -498,8 +471,9 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		);
 		const row = rows.find(
 			(el) =>
-				el.querySelector(".setting-item-name")?.textContent?.trim() ===
-				pageName,
+				el
+					.querySelector(".setting-item-name")
+					?.textContent?.trim() === pageName,
 		);
 		if (!(row instanceof HTMLElement)) {
 			return false;
@@ -623,9 +597,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			name: t("settings.importSettingsFromAnother.name"),
 			desc: t("settings.importSettingsFromAnother.desc"),
 			visible: () =>
-				deriveImportPlacement(
-					this.plugin.settings.hasCompletedSetup,
-				) === placement,
+				deriveImportPlacement(this.plugin.settings.hasCompletedSetup) ===
+				placement,
 			render: (setting) => {
 				setting.addButton((btn) =>
 					btn
@@ -689,26 +662,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			heading: t("settings.heading.builtInAgents"),
 			cls: "agent-client-settings-group",
 			items: [
-				this.agentPage(
-					() => s().claude.displayName || "Claude Code",
-					() => this.claudeRows(),
-				),
-				this.agentPage(
-					() => s().codex.displayName || "Codex",
-					() => this.codexRows(),
-				),
-				this.agentPage(
-					() => s().gemini.displayName || "Gemini CLI",
-					() => this.geminiRows(),
-				),
-				this.agentPage(
-					() => s().kiro.displayName || "Kiro CLI",
-					() => this.kiroRows(),
-				),
-				this.agentPage(
-					() => s().opencode.displayName || "OpenCode",
-					() => this.opencodeRows(),
-				),
+				this.agentPage(() => s().claude.displayName || "Claude Code", () => this.claudeRows()),
+				this.agentPage(() => s().codex.displayName || "Codex", () => this.codexRows()),
+				this.agentPage(() => s().gemini.displayName || "Gemini CLI", () => this.geminiRows()),
+				this.agentPage(() => s().kiro.displayName || "Kiro CLI", () => this.kiroRows()),
+				this.agentPage(() => s().opencode.displayName || "OpenCode", () => this.opencodeRows()),
 			] as SettingGroupItem[],
 		};
 	}
@@ -734,10 +692,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					const labelCounts = new Map<string, number>();
 					for (const a of this.plugin.settings.customAgents) {
 						const label = a.displayName || a.id;
-						labelCounts.set(
-							label,
-							(labelCounts.get(label) ?? 0) + 1,
-						);
+						labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
 					}
 					return this.plugin.settings.customAgents.map((agent) => {
 						const label = agent.displayName || agent.id;
@@ -822,9 +777,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					control: {
 						type: "text",
 						key: "quickPromptsFolder",
-						placeholder: t(
-							"settings.quickPromptsFolder.placeholder",
-						),
+						placeholder: t("settings.quickPromptsFolder.placeholder"),
 					},
 				},
 				{
@@ -834,9 +787,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						type: "dropdown",
 						key: "sendMessageShortcut",
 						options: {
-							enter: t(
-								"settings.sendMessageShortcut.optionEnter",
-							),
+							enter: t("settings.sendMessageShortcut.optionEnter"),
 							"cmd-enter": t(
 								"settings.sendMessageShortcut.optionCmdEnter",
 							),
@@ -946,9 +897,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						type: "dropdown",
 						key: "tabDisplay",
 						options: {
-							horizontal: t(
-								"settings.tabDisplay.optionHorizontal",
-							),
+							horizontal: t("settings.tabDisplay.optionHorizontal"),
 							vertical: t("settings.tabDisplay.optionVertical"),
 						},
 					},
@@ -1033,9 +982,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						type: "dropdown",
 						key: "exportSettings.imageLocation",
 						options: {
-							obsidian: t(
-								"settings.imageLocation.optionObsidian",
-							),
+							obsidian: t("settings.imageLocation.optionObsidian"),
 							custom: t("settings.imageLocation.optionCustom"),
 							base64: t("settings.imageLocation.optionBase64"),
 						},
@@ -1049,9 +996,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					control: {
 						type: "text",
 						key: "exportSettings.imageCustomFolder",
-						placeholder: t(
-							"settings.customImageFolder.placeholder",
-						),
+						placeholder: t("settings.customImageFolder.placeholder"),
 					},
 				},
 				{
@@ -1102,17 +1047,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 									);
 								});
 						});
-						this.addAutoDetectButton(
-							setting,
-							"node",
-							async (path) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										nodePath: path,
-									},
-								);
-							},
-						);
+						this.addAutoDetectButton(setting, "node", async (path) => {
+							await this.plugin.settingsService.updateSettings({
+								nodePath: path,
+							});
+						});
 					},
 				},
 				// WSL lives inside Advanced (matches the pre-1.13 layout).
@@ -1297,7 +1236,9 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		const getCurrentDisplayValue = (): string => {
 			const currentFontSize =
 				this.plugin.settings.displaySettings.fontSize;
-			return currentFontSize === null ? "" : String(currentFontSize);
+			return currentFontSize === null
+				? ""
+				: String(currentFontSize);
 		};
 
 		// When no explicit size is set (fontSize === null), the field
@@ -1318,7 +1259,8 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			const messages = probe.createDiv({
 				cls: "agent-client-chat-view-messages",
 			});
-			const computedFontSize = getComputedStyle(messages).fontSize;
+			const computedFontSize =
+				getComputedStyle(messages).fontSize;
 			probe.remove();
 			return parseComputedFontSizePx(computedFontSize);
 		};
@@ -1335,7 +1277,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		const persistChatFontSize = async (
 			fontSize: number | null,
 		): Promise<void> => {
-			if (this.plugin.settings.displaySettings.fontSize === fontSize) {
+			if (
+				this.plugin.settings.displaySettings.fontSize ===
+				fontSize
+			) {
 				return;
 			}
 
@@ -1448,9 +1393,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		});
 		docContainer.createSpan({ text: t("settings.docLink.suffix") });
 
-		new Setting(containerEl)
-			.setName(t("settings.heading.agents"))
-			.setHeading();
+		new Setting(containerEl).setName(t("settings.heading.agents")).setHeading();
 
 		this.renderAgentSelector(containerEl);
 
@@ -1463,9 +1406,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 
 		this.configureCwdSetting(new Setting(containerEl));
 
-		new Setting(containerEl)
-			.setName(t("settings.heading.builtInAgents"))
-			.setHeading();
+		new Setting(containerEl).setName(t("settings.heading.builtInAgents")).setHeading();
 
 		this.agentExpansion = syncAgentExpansion(
 			this.agentExpansion,
@@ -1502,15 +1443,11 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			(el) => this.renderOpenCodeSettings(el),
 		);
 
-		new Setting(containerEl)
-			.setName(t("settings.heading.customAgents"))
-			.setHeading();
+		new Setting(containerEl).setName(t("settings.heading.customAgents")).setHeading();
 
 		this.renderCustomAgents(containerEl);
 
-		new Setting(containerEl)
-			.setName(t("settings.heading.chatBehavior"))
-			.setHeading();
+		new Setting(containerEl).setName(t("settings.heading.chatBehavior")).setHeading();
 
 		new Setting(containerEl)
 			.setName(t("settings.activeNoteAsDefault.name"))
@@ -1556,9 +1493,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			.setName(t("settings.quickPromptsFolder.name"))
 			.setDesc(t("settings.quickPromptsFolder.desc"))
 			.addText((text) => {
-				text.setPlaceholder(
-					t("settings.quickPromptsFolder.placeholder"),
-				)
+				text.setPlaceholder(t("settings.quickPromptsFolder.placeholder"))
 					.setValue(this.plugin.settings.quickPromptsFolder)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
@@ -1591,7 +1526,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 
 		this.renderObsidianSystemPromptSection(containerEl);
 
-		new Setting(containerEl)
+				new Setting(containerEl)
 			.setName(t("settings.heading.appearanceNotifications"))
 			.setHeading();
 
@@ -1600,21 +1535,29 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			.setName(t("settings.language.name"))
 			.setDesc(t("settings.language.desc"))
 			.addDropdown((dropdown) => {
-				dropdown.addOption("auto", t("settings.language.optionAuto"));
+				dropdown.addOption(
+					"auto",
+					t("settings.language.optionAuto"),
+				);
 				// Match Obsidian's own language dropdown: options sorted by
 				// ISO language code (Auto stays on top as the default — it is
 				// not a real language). Verified against Obsidian's General →
 				// Language list (am, ar, be, … en, es, fr …).
 				for (const locale of [...SUPPORTED_LOCALES].sort()) {
-					dropdown.addOption(locale, LOCALE_DISPLAY_NAMES[locale]);
+					dropdown.addOption(
+						locale,
+						LOCALE_DISPLAY_NAMES[locale],
+					);
 				}
 				dropdown
 					.setValue(this.plugin.settings.language)
 					.onChange(async (value) => {
-						await this.plugin.settingsService.updateSettings({
-							language:
-								value as typeof this.plugin.settings.language,
-						});
+						await this.plugin.settingsService.updateSettings(
+							{
+								language:
+									value as typeof this.plugin.settings.language,
+							},
+						);
 						new Notice(languageReloadNotice(value));
 					});
 			});
@@ -1685,9 +1628,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				this.configureMaxSavedSessionsDropdown(dropdown),
 			);
 
-		new Setting(containerEl)
-			.setName(t("settings.heading.tabs"))
-			.setHeading();
+		new Setting(containerEl).setName(t("settings.heading.tabs")).setHeading();
 
 		new Setting(containerEl)
 			.setName(t("settings.tabDisplay.name"))
@@ -1698,17 +1639,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						"horizontal",
 						t("settings.tabDisplay.optionHorizontal"),
 					)
-					.addOption(
-						"vertical",
-						t("settings.tabDisplay.optionVertical"),
-					)
+					.addOption("vertical", t("settings.tabDisplay.optionVertical"))
 					.setValue(this.plugin.settings.tabDisplay)
 					.onChange(async (value) => {
 						await this.plugin.settingsService.updateSettings({
 							tabDisplay:
-								value === "vertical"
-									? "vertical"
-									: "horizontal",
+								value === "vertical" ? "vertical" : "horizontal",
 						});
 					}),
 			);
@@ -1739,9 +1675,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(containerEl)
-			.setName(t("settings.heading.permissions"))
-			.setHeading();
+		new Setting(containerEl).setName(t("settings.heading.permissions")).setHeading();
 
 		new Setting(containerEl)
 			.setName(t("settings.autoAllowPermissions.name"))
@@ -1762,87 +1696,104 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			containerEl,
 			t("settings.section.export"),
 			(containerEl) => {
-				new Setting(containerEl)
-					.setName(t("settings.exportFolder.name"))
-					.setDesc(t("settings.exportFolder.desc"))
-					.addText((text) =>
-						text
-							.setPlaceholder(
-								t("settings.exportFolder.placeholder"),
-							)
-							.setValue(
-								this.plugin.settings.exportSettings
-									.defaultFolder,
-							)
-							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										exportSettings: {
-											...this.plugin.settings
-												.exportSettings,
-											defaultFolder: value,
-										},
-									},
-								);
-							}),
-					);
+			new Setting(containerEl)
+				.setName(t("settings.exportFolder.name"))
+				.setDesc(t("settings.exportFolder.desc"))
+				.addText((text) =>
+					text
+						.setPlaceholder(t("settings.exportFolder.placeholder"))
+						.setValue(
+							this.plugin.settings.exportSettings.defaultFolder,
+						)
+						.onChange(async (value) => {
+							await this.plugin.settingsService.updateSettings({
+								exportSettings: {
+									...this.plugin.settings.exportSettings,
+									defaultFolder: value,
+								},
+							});
+						}),
+				);
 
-				new Setting(containerEl)
-					.setName(t("settings.filename.name"))
-					.setDesc(t("settings.filename.desc"))
-					.addText((text) =>
-						text
-							.setPlaceholder(t("settings.filename.placeholder"))
-							.setValue(
-								this.plugin.settings.exportSettings
-									.filenameTemplate,
-							)
-							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										exportSettings: {
-											...this.plugin.settings
-												.exportSettings,
-											filenameTemplate: value,
-										},
-									},
-								);
-							}),
-					);
+			new Setting(containerEl)
+				.setName(t("settings.filename.name"))
+				.setDesc(t("settings.filename.desc"))
+				.addText((text) =>
+					text
+						.setPlaceholder(t("settings.filename.placeholder"))
+						.setValue(
+							this.plugin.settings.exportSettings
+								.filenameTemplate,
+						)
+						.onChange(async (value) => {
+							await this.plugin.settingsService.updateSettings({
+								exportSettings: {
+									...this.plugin.settings.exportSettings,
+									filenameTemplate: value,
+								},
+							});
+						}),
+				);
 
-				new Setting(containerEl)
-					.setName(t("settings.frontmatterTag.name"))
-					.setDesc(t("settings.frontmatterTag.desc"))
-					.addText((text) =>
-						text
-							.setPlaceholder(
-								t("settings.frontmatterTag.placeholder"),
-							)
-							.setValue(
-								this.plugin.settings.exportSettings
-									.frontmatterTag,
-							)
-							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										exportSettings: {
-											...this.plugin.settings
-												.exportSettings,
-											frontmatterTag: value,
-										},
-									},
-								);
-							}),
-					);
+			new Setting(containerEl)
+				.setName(t("settings.frontmatterTag.name"))
+				.setDesc(t("settings.frontmatterTag.desc"))
+				.addText((text) =>
+					text
+						.setPlaceholder(t("settings.frontmatterTag.placeholder"))
+						.setValue(
+							this.plugin.settings.exportSettings.frontmatterTag,
+						)
+						.onChange(async (value) => {
+							await this.plugin.settingsService.updateSettings({
+								exportSettings: {
+									...this.plugin.settings.exportSettings,
+									frontmatterTag: value,
+								},
+							});
+						}),
+				);
 
+			new Setting(containerEl)
+				.setName(t("settings.includeImages.name"))
+				.setDesc(t("settings.includeImages.desc"))
+				.addToggle((toggle) =>
+					toggle
+						.setValue(
+							this.plugin.settings.exportSettings.includeImages,
+						)
+						.onChange(async (value) => {
+							await this.plugin.settingsService.updateSettings({
+								exportSettings: {
+									...this.plugin.settings.exportSettings,
+									includeImages: value,
+								},
+							});
+							this.rerender();
+						}),
+				);
+
+			if (this.plugin.settings.exportSettings.includeImages) {
 				new Setting(containerEl)
-					.setName(t("settings.includeImages.name"))
-					.setDesc(t("settings.includeImages.desc"))
-					.addToggle((toggle) =>
-						toggle
+					.setName(t("settings.imageLocation.name"))
+					.setDesc(t("settings.imageLocation.desc"))
+					.addDropdown((dropdown) =>
+						dropdown
+							.addOption(
+								"obsidian",
+								t("settings.imageLocation.optionObsidian"),
+							)
+							.addOption(
+								"custom",
+								t("settings.imageLocation.optionCustom"),
+							)
+							.addOption(
+								"base64",
+								t("settings.imageLocation.optionBase64"),
+							)
 							.setValue(
 								this.plugin.settings.exportSettings
-									.includeImages,
+									.imageLocation,
 							)
 							.onChange(async (value) => {
 								await this.plugin.settingsService.updateSettings(
@@ -1850,7 +1801,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 										exportSettings: {
 											...this.plugin.settings
 												.exportSettings,
-											includeImages: value,
+											imageLocation: value as
+												| "obsidian"
+												| "custom"
+												| "base64",
 										},
 									},
 								);
@@ -1858,27 +1812,19 @@ export class AgentClientSettingTab extends PluginSettingTab {
 							}),
 					);
 
-				if (this.plugin.settings.exportSettings.includeImages) {
+				if (
+					this.plugin.settings.exportSettings.imageLocation ===
+					"custom"
+				) {
 					new Setting(containerEl)
-						.setName(t("settings.imageLocation.name"))
-						.setDesc(t("settings.imageLocation.desc"))
-						.addDropdown((dropdown) =>
-							dropdown
-								.addOption(
-									"obsidian",
-									t("settings.imageLocation.optionObsidian"),
-								)
-								.addOption(
-									"custom",
-									t("settings.imageLocation.optionCustom"),
-								)
-								.addOption(
-									"base64",
-									t("settings.imageLocation.optionBase64"),
-								)
+						.setName(t("settings.customImageFolder.name"))
+						.setDesc(t("settings.customImageFolder.desc"))
+						.addText((text) =>
+							text
+								.setPlaceholder(t("settings.customImageFolder.placeholder"))
 								.setValue(
 									this.plugin.settings.exportSettings
-										.imageLocation,
+										.imageCustomFolder,
 								)
 								.onChange(async (value) => {
 									await this.plugin.settingsService.updateSettings(
@@ -1886,117 +1832,72 @@ export class AgentClientSettingTab extends PluginSettingTab {
 											exportSettings: {
 												...this.plugin.settings
 													.exportSettings,
-												imageLocation: value as
-													| "obsidian"
-													| "custom"
-													| "base64",
+												imageCustomFolder: value,
 											},
 										},
 									);
-									this.rerender();
 								}),
 						);
-
-					if (
-						this.plugin.settings.exportSettings.imageLocation ===
-						"custom"
-					) {
-						new Setting(containerEl)
-							.setName(t("settings.customImageFolder.name"))
-							.setDesc(t("settings.customImageFolder.desc"))
-							.addText((text) =>
-								text
-									.setPlaceholder(
-										t(
-											"settings.customImageFolder.placeholder",
-										),
-									)
-									.setValue(
-										this.plugin.settings.exportSettings
-											.imageCustomFolder,
-									)
-									.onChange(async (value) => {
-										await this.plugin.settingsService.updateSettings(
-											{
-												exportSettings: {
-													...this.plugin.settings
-														.exportSettings,
-													imageCustomFolder: value,
-												},
-											},
-										);
-									}),
-							);
-					}
 				}
+			}
 
-				new Setting(containerEl)
-					.setName(t("settings.autoExportOnNew.name"))
-					.setDesc(t("settings.autoExportOnNew.desc"))
-					.addToggle((toggle) =>
-						toggle
-							.setValue(
-								this.plugin.settings.exportSettings
-									.autoExportOnNewChat,
-							)
-							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										exportSettings: {
-											...this.plugin.settings
-												.exportSettings,
-											autoExportOnNewChat: value,
-										},
-									},
-								);
-							}),
-					);
+			new Setting(containerEl)
+				.setName(t("settings.autoExportOnNew.name"))
+				.setDesc(t("settings.autoExportOnNew.desc"))
+				.addToggle((toggle) =>
+					toggle
+						.setValue(
+							this.plugin.settings.exportSettings
+								.autoExportOnNewChat,
+						)
+						.onChange(async (value) => {
+							await this.plugin.settingsService.updateSettings({
+								exportSettings: {
+									...this.plugin.settings.exportSettings,
+									autoExportOnNewChat: value,
+								},
+							});
+						}),
+				);
 
-				new Setting(containerEl)
-					.setName(t("settings.autoExportOnClose.name"))
-					.setDesc(t("settings.autoExportOnClose.desc"))
-					.addToggle((toggle) =>
-						toggle
-							.setValue(
-								this.plugin.settings.exportSettings
-									.autoExportOnCloseChat,
-							)
-							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										exportSettings: {
-											...this.plugin.settings
-												.exportSettings,
-											autoExportOnCloseChat: value,
-										},
-									},
-								);
-							}),
-					);
+			new Setting(containerEl)
+				.setName(t("settings.autoExportOnClose.name"))
+				.setDesc(t("settings.autoExportOnClose.desc"))
+				.addToggle((toggle) =>
+					toggle
+						.setValue(
+							this.plugin.settings.exportSettings
+								.autoExportOnCloseChat,
+						)
+						.onChange(async (value) => {
+							await this.plugin.settingsService.updateSettings({
+								exportSettings: {
+									...this.plugin.settings.exportSettings,
+									autoExportOnCloseChat: value,
+								},
+							});
+						}),
+				);
 
-				new Setting(containerEl)
-					.setName(t("settings.openNoteAfterExport.name"))
-					.setDesc(t("settings.openNoteAfterExport.desc"))
-					.addToggle((toggle) =>
-						toggle
-							.setValue(
-								this.plugin.settings.exportSettings
-									.openFileAfterExport,
-							)
-							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										exportSettings: {
-											...this.plugin.settings
-												.exportSettings,
-											openFileAfterExport: value,
-										},
-									},
-								);
-							}),
-					);
-			},
-		);
+			new Setting(containerEl)
+				.setName(t("settings.openNoteAfterExport.name"))
+				.setDesc(t("settings.openNoteAfterExport.desc"))
+				.addToggle((toggle) =>
+					toggle
+						.setValue(
+							this.plugin.settings.exportSettings
+								.openFileAfterExport,
+						)
+						.onChange(async (value) => {
+							await this.plugin.settingsService.updateSettings({
+								exportSettings: {
+									...this.plugin.settings.exportSettings,
+									openFileAfterExport: value,
+								},
+							});
+						}),
+				);
+		});
 
 		this.renderCollapsibleSection(
 			containerEl,
@@ -2006,9 +1907,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					.setName(t("settings.nodeJsPath.name"))
 					.setDesc(t("settings.nodeJsPath.desc"))
 					.addText((text) => {
-						text.setPlaceholder(
-							t("settings.nodeJsPath.placeholder"),
-						)
+						text.setPlaceholder(t("settings.nodeJsPath.placeholder"))
 							.setValue(this.plugin.settings.nodePath)
 							.onChange(async (value) => {
 								await this.plugin.settingsService.updateSettings(
@@ -2055,11 +1954,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 							.setDesc(t("settings.wslDistribution.desc"))
 							.addText((text) =>
 								text
-									.setPlaceholder(
-										t(
-											"settings.wslDistribution.placeholder",
-										),
-									)
+									.setPlaceholder(t("settings.wslDistribution.placeholder"))
 									.setValue(
 										this.plugin.settings
 											.windowsWslDistribution || "",
@@ -2196,14 +2091,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						new SecretComponent(this.app, el)
 							.setValue(gemini.apiKeySecretId)
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										gemini: {
-											...this.plugin.settings.gemini,
-											apiKeySecretId: value,
-										},
+								await this.plugin.settingsService.updateSettings({
+									gemini: {
+										...this.plugin.settings.gemini,
+										apiKeySecretId: value,
 									},
-								);
+								});
 							}),
 					);
 				},
@@ -2217,28 +2110,22 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						text.setPlaceholder(t("settings.path.placeholder"))
 							.setValue(gemini.command)
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										gemini: {
-											...this.plugin.settings.gemini,
-											command: value.trim(),
-										},
+								await this.plugin.settingsService.updateSettings({
+									gemini: {
+										...this.plugin.settings.gemini,
+										command: value.trim(),
 									},
-								);
+								});
 							});
 					});
-					this.addAutoDetectButton(
-						setting,
-						"gemini",
-						async (path) => {
-							await this.plugin.settingsService.updateSettings({
-								gemini: {
-									...this.plugin.settings.gemini,
-									command: path,
-								},
-							});
-						},
-					);
+					this.addAutoDetectButton(setting, "gemini", async (path) => {
+						await this.plugin.settingsService.updateSettings({
+							gemini: {
+								...this.plugin.settings.gemini,
+								command: path,
+							},
+						});
+					});
 				},
 			},
 			this.installHintRow("@google/gemini-cli"),
@@ -2251,14 +2138,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						text.setPlaceholder(t("settings.arguments.placeholder"))
 							.setValue(this.formatArgs(gemini.args))
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										gemini: {
-											...this.plugin.settings.gemini,
-											args: this.parseArgs(value),
-										},
+								await this.plugin.settingsService.updateSettings({
+									gemini: {
+										...this.plugin.settings.gemini,
+										args: this.parseArgs(value),
 									},
-								);
+								});
 							});
 						text.inputEl.rows = 3;
 					});
@@ -2270,19 +2155,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				render: (setting) => {
 					const gemini = this.plugin.settings.gemini;
 					setting.addTextArea((text) => {
-						text.setPlaceholder(
-							t("settings.environmentVariables.placeholder"),
-						)
+						text.setPlaceholder(t("settings.environmentVariables.placeholder"))
 							.setValue(this.formatEnv(gemini.env))
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										gemini: {
-											...this.plugin.settings.gemini,
-											env: this.parseEnv(value),
-										},
+								await this.plugin.settingsService.updateSettings({
+									gemini: {
+										...this.plugin.settings.gemini,
+										env: this.parseEnv(value),
 									},
-								);
+								});
 							});
 						text.inputEl.rows = 3;
 					});
@@ -2322,28 +2203,22 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						text.setPlaceholder(t("settings.path.placeholder2"))
 							.setValue(kiro.command)
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										kiro: {
-											...this.plugin.settings.kiro,
-											command: value.trim(),
-										},
+								await this.plugin.settingsService.updateSettings({
+									kiro: {
+										...this.plugin.settings.kiro,
+										command: value.trim(),
 									},
-								);
+								});
 							});
 					});
-					this.addAutoDetectButton(
-						setting,
-						"kiro-cli",
-						async (path) => {
-							await this.plugin.settingsService.updateSettings({
-								kiro: {
-									...this.plugin.settings.kiro,
-									command: path,
-								},
-							});
-						},
-					);
+					this.addAutoDetectButton(setting, "kiro-cli", async (path) => {
+						await this.plugin.settingsService.updateSettings({
+							kiro: {
+								...this.plugin.settings.kiro,
+								command: path,
+							},
+						});
+					});
 				},
 			},
 			{
@@ -2353,24 +2228,17 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					const kiro = this.plugin.settings.kiro;
 					setting.addDropdown((dropdown) =>
 						dropdown
-							.addOption(
-								"default",
-								t("settings.kiroEngine.default"),
-							)
+							.addOption("default", t("settings.kiroEngine.default"))
 							.addOption("v3", t("settings.kiroEngine.v3"))
 							.addOption("v2", t("settings.kiroEngine.v2"))
 							.setValue(readKiroEngineSetting(kiro))
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										kiro: {
-											...this.plugin.settings.kiro,
-											engine: readKiroEngineSetting({
-												engine: value,
-											}),
-										},
+								await this.plugin.settingsService.updateSettings({
+									kiro: {
+										...this.plugin.settings.kiro,
+										engine: readKiroEngineSetting({ engine: value }),
 									},
-								);
+								});
 							}),
 					);
 				},
@@ -2381,19 +2249,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				render: (setting) => {
 					const kiro = this.plugin.settings.kiro;
 					setting.addTextArea((text) => {
-						text.setPlaceholder(
-							t("settings.arguments.placeholder2"),
-						)
+						text.setPlaceholder(t("settings.arguments.placeholder2"))
 							.setValue(this.formatArgs(kiro.args))
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										kiro: {
-											...this.plugin.settings.kiro,
-											args: this.parseArgs(value),
-										},
+								await this.plugin.settingsService.updateSettings({
+									kiro: {
+										...this.plugin.settings.kiro,
+										args: this.parseArgs(value),
 									},
-								);
+								});
 							});
 						text.inputEl.rows = 3;
 					});
@@ -2405,19 +2269,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				render: (setting) => {
 					const kiro = this.plugin.settings.kiro;
 					setting.addTextArea((text) => {
-						text.setPlaceholder(
-							t("settings.environmentVariables.placeholder2"),
-						)
+						text.setPlaceholder(t("settings.environmentVariables.placeholder2"))
 							.setValue(this.formatEnv(kiro.env))
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										kiro: {
-											...this.plugin.settings.kiro,
-											env: this.parseEnv(value),
-										},
+								await this.plugin.settingsService.updateSettings({
+									kiro: {
+										...this.plugin.settings.kiro,
+										env: this.parseEnv(value),
 									},
-								);
+								});
 							});
 						text.inputEl.rows = 3;
 					});
@@ -2457,28 +2317,22 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						text.setPlaceholder(t("settings.path.placeholder3"))
 							.setValue(opencode.command)
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										opencode: {
-											...this.plugin.settings.opencode,
-											command: value.trim(),
-										},
+								await this.plugin.settingsService.updateSettings({
+									opencode: {
+										...this.plugin.settings.opencode,
+										command: value.trim(),
 									},
-								);
+								});
 							});
 					});
-					this.addAutoDetectButton(
-						setting,
-						"opencode",
-						async (path) => {
-							await this.plugin.settingsService.updateSettings({
-								opencode: {
-									...this.plugin.settings.opencode,
-									command: path,
-								},
-							});
-						},
-					);
+					this.addAutoDetectButton(setting, "opencode", async (path) => {
+						await this.plugin.settingsService.updateSettings({
+							opencode: {
+								...this.plugin.settings.opencode,
+								command: path,
+							},
+						});
+					});
 				},
 			},
 			{
@@ -2487,19 +2341,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				render: (setting) => {
 					const opencode = this.plugin.settings.opencode;
 					setting.addTextArea((text) => {
-						text.setPlaceholder(
-							t("settings.arguments.placeholder3"),
-						)
+						text.setPlaceholder(t("settings.arguments.placeholder3"))
 							.setValue(this.formatArgs(opencode.args))
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										opencode: {
-											...this.plugin.settings.opencode,
-											args: this.parseArgs(value),
-										},
+								await this.plugin.settingsService.updateSettings({
+									opencode: {
+										...this.plugin.settings.opencode,
+										args: this.parseArgs(value),
 									},
-								);
+								});
 							});
 						text.inputEl.rows = 3;
 					});
@@ -2511,27 +2361,22 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				render: (setting) => {
 					const opencode = this.plugin.settings.opencode;
 					setting.addTextArea((text) => {
-						text.setPlaceholder(
-							t("settings.environmentVariables.placeholder3"),
-						)
+						text.setPlaceholder(t("settings.environmentVariables.placeholder3"))
 							.setValue(this.formatEnv(opencode.env))
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										opencode: {
-											...this.plugin.settings.opencode,
-											env: this.parseEnv(value),
-										},
+								await this.plugin.settingsService.updateSettings({
+									opencode: {
+										...this.plugin.settings.opencode,
+										env: this.parseEnv(value),
 									},
-								);
+								});
 							});
 						text.inputEl.rows = 3;
 					});
 				},
 			},
 			this.agentWorkingDirectoryRow(
-				() =>
-					this.plugin.settings.opencode.defaultWorkingDirectory ?? "",
+				() => this.plugin.settings.opencode.defaultWorkingDirectory ?? "",
 				async (value) => {
 					await this.plugin.settingsService.updateSettings({
 						opencode: {
@@ -2559,14 +2404,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						new SecretComponent(this.app, el)
 							.setValue(claude.apiKeySecretId)
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										claude: {
-											...this.plugin.settings.claude,
-											apiKeySecretId: value,
-										},
+								await this.plugin.settingsService.updateSettings({
+									claude: {
+										...this.plugin.settings.claude,
+										apiKeySecretId: value,
 									},
-								);
+								});
 							}),
 					);
 				},
@@ -2580,14 +2423,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						text.setPlaceholder(t("settings.path.placeholder4"))
 							.setValue(claude.command)
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										claude: {
-											...this.plugin.settings.claude,
-											command: value.trim(),
-										},
+								await this.plugin.settingsService.updateSettings({
+									claude: {
+										...this.plugin.settings.claude,
+										command: value.trim(),
 									},
-								);
+								});
 							});
 					});
 					this.addAutoDetectButton(
@@ -2611,19 +2452,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				render: (setting) => {
 					const claude = this.plugin.settings.claude;
 					setting.addTextArea((text) => {
-						text.setPlaceholder(
-							t("settings.arguments.placeholder4"),
-						)
+						text.setPlaceholder(t("settings.arguments.placeholder4"))
 							.setValue(this.formatArgs(claude.args))
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										claude: {
-											...this.plugin.settings.claude,
-											args: this.parseArgs(value),
-										},
+								await this.plugin.settingsService.updateSettings({
+									claude: {
+										...this.plugin.settings.claude,
+										args: this.parseArgs(value),
 									},
-								);
+								});
 							});
 						text.inputEl.rows = 3;
 					});
@@ -2635,19 +2472,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				render: (setting) => {
 					const claude = this.plugin.settings.claude;
 					setting.addTextArea((text) => {
-						text.setPlaceholder(
-							t("settings.environmentVariables.placeholder4"),
-						)
+						text.setPlaceholder(t("settings.environmentVariables.placeholder4"))
 							.setValue(this.formatEnv(claude.env))
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										claude: {
-											...this.plugin.settings.claude,
-											env: this.parseEnv(value),
-										},
+								await this.plugin.settingsService.updateSettings({
+									claude: {
+										...this.plugin.settings.claude,
+										env: this.parseEnv(value),
 									},
-								);
+								});
 							});
 						text.inputEl.rows = 3;
 					});
@@ -2682,14 +2515,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						new SecretComponent(this.app, el)
 							.setValue(codex.apiKeySecretId)
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										codex: {
-											...this.plugin.settings.codex,
-											apiKeySecretId: value,
-										},
+								await this.plugin.settingsService.updateSettings({
+									codex: {
+										...this.plugin.settings.codex,
+										apiKeySecretId: value,
 									},
-								);
+								});
 							}),
 					);
 				},
@@ -2703,14 +2534,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 						text.setPlaceholder(t("settings.path.placeholder5"))
 							.setValue(codex.command)
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										codex: {
-											...this.plugin.settings.codex,
-											command: value.trim(),
-										},
+								await this.plugin.settingsService.updateSettings({
+									codex: {
+										...this.plugin.settings.codex,
+										command: value.trim(),
 									},
-								);
+								});
 							});
 					});
 					this.addAutoDetectButton(
@@ -2734,19 +2563,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				render: (setting) => {
 					const codex = this.plugin.settings.codex;
 					setting.addTextArea((text) => {
-						text.setPlaceholder(
-							t("settings.arguments.placeholder5"),
-						)
+						text.setPlaceholder(t("settings.arguments.placeholder5"))
 							.setValue(this.formatArgs(codex.args))
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										codex: {
-											...this.plugin.settings.codex,
-											args: this.parseArgs(value),
-										},
+								await this.plugin.settingsService.updateSettings({
+									codex: {
+										...this.plugin.settings.codex,
+										args: this.parseArgs(value),
 									},
-								);
+								});
 							});
 						text.inputEl.rows = 3;
 					});
@@ -2758,19 +2583,15 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				render: (setting) => {
 					const codex = this.plugin.settings.codex;
 					setting.addTextArea((text) => {
-						text.setPlaceholder(
-							t("settings.environmentVariables.placeholder5"),
-						)
+						text.setPlaceholder(t("settings.environmentVariables.placeholder5"))
 							.setValue(this.formatEnv(codex.env))
 							.onChange(async (value) => {
-								await this.plugin.settingsService.updateSettings(
-									{
-										codex: {
-											...this.plugin.settings.codex,
-											env: this.parseEnv(value),
-										},
+								await this.plugin.settingsService.updateSettings({
+									codex: {
+										...this.plugin.settings.codex,
+										env: this.parseEnv(value),
 									},
-								);
+								});
 							});
 						text.inputEl.rows = 3;
 					});
@@ -3072,9 +2893,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			.setName(t("settings.environmentVariables.name6"))
 			.setDesc(t("settings.displayName.desc4"))
 			.addTextArea((text) => {
-				text.setPlaceholder(
-					t("settings.environmentVariables.placeholder6"),
-				)
+				text.setPlaceholder(t("settings.environmentVariables.placeholder6"))
 					.setValue(this.formatEnv(agent.env))
 					.onChange(async (value) => {
 						this.plugin.settings.customAgents[index].env =
@@ -3179,18 +2998,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		frag.appendText(t("settings.installHint.prefix"));
 		frag.createEl("code", { text: command });
 		setting.setDesc(frag).addButton((btn) => {
-			btn.setButtonText(
-				t("settings.environmentVariables.button2"),
-			).onClick(() => {
+			btn.setButtonText(t("settings.environmentVariables.button2")).onClick(() => {
 				void navigator.clipboard.writeText(command).then(
 					() => {
-						btn.setButtonText(
-							t("settings.environmentVariables.button3"),
-						);
+						btn.setButtonText(t("settings.environmentVariables.button3"));
 						window.setTimeout(() => {
-							btn.setButtonText(
-								t("settings.environmentVariables.button4"),
-							);
+							btn.setButtonText(t("settings.environmentVariables.button4"));
 						}, 1500);
 					},
 					() => undefined,
@@ -3220,9 +3033,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					}),
 				)
 				.onClick(async () => {
-					btn.setButtonText(
-						t("settings.environmentVariables.button6"),
-					);
+					btn.setButtonText(t("settings.environmentVariables.button6"));
 					btn.setDisabled(true);
 					try {
 						const found = isWsl
@@ -3236,24 +3047,16 @@ export class AgentClientSettingTab extends PluginSettingTab {
 							await onResolved(found);
 							this.rerender();
 						} else {
-							btn.setButtonText(
-								t("settings.environmentVariables.button7"),
-							);
+							btn.setButtonText(t("settings.environmentVariables.button7"));
 							window.setTimeout(() => {
-								btn.setButtonText(
-									t("settings.environmentVariables.button8"),
-								);
+								btn.setButtonText(t("settings.environmentVariables.button8"));
 								btn.setDisabled(false);
 							}, 2000);
 						}
 					} catch {
-						btn.setButtonText(
-							t("settings.environmentVariables.button9"),
-						);
+						btn.setButtonText(t("settings.environmentVariables.button9"));
 						window.setTimeout(() => {
-							btn.setButtonText(
-								t("settings.environmentVariables.button10"),
-							);
+							btn.setButtonText(t("settings.environmentVariables.button10"));
 							btn.setDisabled(false);
 						}, 2000);
 					}
@@ -3271,13 +3074,9 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			.setName(t("settings.importSettingsFromAnother.name"))
 			.setDesc(t("settings.importSettingsFromAnother.desc"))
 			.addButton((btn) =>
-				btn
-					.setButtonText(
-						t("settings.importSettingsFromAnother.button"),
-					)
-					.onClick(() => {
-						this.plugin.openImportSettingsModal();
-					}),
+				btn.setButtonText(t("settings.importSettingsFromAnother.button")).onClick(() => {
+					this.plugin.openImportSettingsModal();
+				}),
 			);
 	}
 
