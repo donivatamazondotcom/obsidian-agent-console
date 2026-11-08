@@ -58,6 +58,7 @@ import {
 } from "./ui/McpAuthModal";
 import {
 	DEFAULT_SETTINGS,
+	applyFreshInstallDefaults,
 	normalizeRawSettings,
 } from "./services/settings-normalizer";
 import {
@@ -256,8 +257,10 @@ export interface AgentClientPluginSettings {
 	restoreTabsOnStartup: boolean;
 
 	/**
-	 * Where chat tabs show: the top strip (default) or the vertical rail on
-	 * the right edge. See [[Agent Console Vertical Tab Rail]].
+	 * Where chat tabs show: the top strip or the vertical rail on the right
+	 * edge. New installs start vertical (`applyFreshInstallDefaults`, I299);
+	 * an existing data.json without the key reads as horizontal. See
+	 * [[Agent Console Vertical Tab Rail]].
 	 */
 	tabDisplay: TabDisplay;
 	/** Rail width: 32 = icon-only, else a whole-pixel width in 60..260. */
@@ -1847,6 +1850,13 @@ export default class AgentClientPlugin extends Plugin {
 			// I269: a corrupt saved-session entry is dropped and logged.
 			(message, entry) => getLogger().warn(message, entry),
 		);
+
+		// I299: fresh-install-only defaults (vertical tabs). Applied before both
+		// saves below, so the first data.json already carries them. Existing
+		// installs skip this and keep the normalizer defaults.
+		if (this.isFirstRun) {
+			this.settings = applyFreshInstallDefaults(this.settings);
+		}
 
 		this.ensureDefaultAgentId();
 

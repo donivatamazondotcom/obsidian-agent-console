@@ -914,3 +914,21 @@ export function normalizeRawSettings(
 		hasCompletedSetup: bool(raw.hasCompletedSetup, false),
 	};
 }
+
+/**
+ * Defaults that only a true fresh install (no data.json yet) gets, applied by
+ * `loadSettings` before its first save. Existing installs never pass through
+ * here, so a data.json without one of these keys keeps the normalizer default
+ * (I299: a missing `tabDisplay` stays horizontal for existing users).
+ *
+ * - `tabDisplay: "vertical"` – new users start on the tab rail; `tabRailWidth`
+ *   keeps its default 32 (icons only).
+ */
+export function applyFreshInstallDefaults(
+	settings: AgentClientPluginSettings,
+): AgentClientPluginSettings {
+	return {
+		...settings,
+		tabDisplay: "vertical",
+	};
+}
