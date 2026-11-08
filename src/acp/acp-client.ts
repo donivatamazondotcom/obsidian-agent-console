@@ -155,6 +155,12 @@ export class AcpClient {
 	private isInitializedFlag = false;
 	private currentAgentId: string | null = null;
 	private currentSessionId: string | null = null;
+	/**
+	 * Sessions this process created with `session/new` and never sent a
+	 * prompt to (I259). Retirement may `session/delete` one of these; nothing
+	 * else is ever deleted. Cleared whenever the process goes away.
+	 */
+	private unsentSessionIds = new Set<string>();
 
 	/**
 	 * In-flight initialize() promise, used to coalesce concurrent
@@ -289,6 +295,8 @@ export class AcpClient {
 		if (this.agentProcess) {
 			this.killProcessTree();
 		}
+		// A new process: earlier sessions are no longer addressable here (I259).
+		this.unsentSessionIds.clear();
 
 		// Clean up existing connection
 		if (this.connection) {
@@ -740,6 +748,7 @@ export class AcpClient {
 				response,
 			);
 			this.currentSessionId = result.sessionId;
+			this.unsentSessionIds.add(result.sessionId);
 			return result;
 		} catch (error) {
 			this.logger.error("New Session Error:", error);
@@ -753,6 +762,32 @@ export class AcpClient {
 	 * advertises it (`AgentCapabilities.closesSessions`). Rejects on failure;
 	 * the caller decides the fallback (I210 respawns).
 	 */
+	/**
+	 * Whether this process created `sessionId` with `session/new` and never
+	 * sent it a prompt (I259). Loaded, resumed and forked sessions never are.
+	 */
+	isUnsentSession(sessionId: string): boolean {
+		return this.unsentSessionIds.has(sessionId);
+	}
+
+	/**
+	 * `session/delete` a never-sent session (I259). Only call when the agent
+	 * advertises it (`AgentCapabilities.deletesSessions`), through
+	 * `discardUnsentSession`. The id is forgotten before the request whatever
+	 * the outcome: there is no retry. Rejects on failure.
+	 */
+	async deleteUnsentSession(sessionId: string): Promise<void> {
+		const connection = this.requireConnection();
+		this.unsentSessionIds.delete(sessionId);
+		await connection.agent.request(acp.methods.agent.session.delete, {
+			sessionId,
+		});
+		this.logger.log(`Deleted never-sent session: ${sessionId}`);
+		if (this.currentSessionId === sessionId) {
+			this.currentSessionId = null;
+		}
+	}
+
 	async closeSession(sessionId: string): Promise<void> {
 		const connection = this.requireConnection();
 		await connection.agent.request(acp.methods.agent.session.close, {
@@ -861,6 +896,8 @@ export class AcpClient {
 		content: PromptContent[],
 	): Promise<{ stopKind: TurnStopKind }> {
 		const connection = this.requireConnection();
+		// I259: any send attempt, even one that fails, makes it a real session.
+		this.unsentSessionIds.delete(sessionId);
 
 		this.handler.resetUpdateCount();
 		this.recentStderr = "";
@@ -996,6 +1033,7 @@ export class AcpClient {
 		this.connection = null;
 		this.isInitializedFlag = false;
 		this.currentSessionId = null;
+		this.unsentSessionIds.clear();
 	}
 
 	/** OS boundary for process teardown; overridden in tests. */
@@ -1099,6 +1137,7 @@ export class AcpClient {
 		this.isInitializedFlag = false;
 		this.currentAgentId = null;
 		this.currentSessionId = null;
+		this.unsentSessionIds.clear();
 
 		this.logger.log("Disconnected");
 		return Promise.resolve();
@@ -1405,6 +1444,7 @@ export class AcpClient {
 	 */
 	async loadSession(sessionId: string, cwd: string): Promise<SessionResult> {
 		const connection = this.requireConnection();
+		this.unsentSessionIds.delete(sessionId);
 
 		// Set sessionId before await so replay updates pass the sessionId filter
 		this.currentSessionId = sessionId;
@@ -1456,6 +1496,7 @@ export class AcpClient {
 		cwd: string,
 	): Promise<SessionResult> {
 		const connection = this.requireConnection();
+		this.unsentSessionIds.delete(sessionId);
 
 		// Set sessionId before await so any updates pass the sessionId filter
 		this.currentSessionId = sessionId;

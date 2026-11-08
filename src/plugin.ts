@@ -1,4 +1,6 @@
 import { migrateContextNoteSettings } from "./services/settings-migration";
+import type { UnsentDiscardDecision } from "./resolvers/unsent-discard";
+import { retireClosedTabClient } from "./services/retire-live-session";
 import { initLocale, t } from "./i18n";
 import type { LanguageSetting } from "./i18n";
 import {
@@ -904,13 +906,22 @@ export default class AgentClientPlugin extends Plugin {
 	 * Remove and disconnect the AcpClient for a specific view.
 	 * Called when a ChatView is closed.
 	 */
-	async removeAcpClient(viewId: string): Promise<void> {
+	async removeAcpClient(
+		viewId: string,
+		unsentDiscard?: UnsentDiscardDecision,
+	): Promise<void> {
 		this.mcpAuthUnsubscribers.get(viewId)?.();
 		this.mcpAuthUnsubscribers.delete(viewId);
 		const client = this._acpClients.get(viewId);
 		if (client) {
 			try {
-				await client.disconnect();
+				// I259: an explicit tab close deletes a never-sent session
+				// first. View close, unmount and unload pass nothing (keep).
+				await retireClosedTabClient(
+					client,
+					unsentDiscard ?? { kind: "keep", reason: "no-session" },
+					(message, error) => getLogger().warn(message, error),
+				);
 			} catch (error) {
 				getLogger().warn(
 					`Failed to disconnect client for view ${viewId}:`,

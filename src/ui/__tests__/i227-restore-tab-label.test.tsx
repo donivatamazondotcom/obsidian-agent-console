@@ -30,6 +30,7 @@ const CAPS = {
 	restoresViaResume: false,
 	forks: false,
 	closesSessions: false,
+	deletesSessions: false,
 	reportsModels: false,
 };
 const RESTORE_LABEL_RE = /restore|resume|open/i;

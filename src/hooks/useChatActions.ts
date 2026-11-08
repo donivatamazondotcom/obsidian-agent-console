@@ -5,6 +5,7 @@
  * config changes, and related UI state (restoredMessage, agentUpdateNotification).
  */
 
+import type { SessionRetirementApi } from "./useSessionRetirement";
 import { useState, useCallback, useRef } from "react";
 import {
 	decideFirstMessage,
@@ -162,6 +163,11 @@ export function useChatActions(
 	 * A ref for the same ordering reason as `lazyAcquireNowRef`.
 	 */
 	lazyContinuesSessionRef?: { current: (() => boolean) | null },
+	/**
+	 * I259: ref to the tab's retirement owner. Hard reload retires the old
+	 * session through it, deleting a never-sent one first.
+	 */
+	sessionRetirementRef?: { current: SessionRetirementApi | null },
 ): UseChatActionsReturn {
 	const logger = getLogger();
 
@@ -586,6 +592,10 @@ export function useChatActions(
 
 	const handleReload = useCallback(
 		async (hard: boolean) => {
+			// I259: decided before any await below can clear state.
+			const unsentDiscard = hard
+				? sessionRetirementRef?.current?.snapshot()
+				: undefined;
 			// Spinner on for the whole reload so the user sees the click
 			// registered even when the resume takes a few seconds.
 			setIsReloading(true);
@@ -617,7 +627,21 @@ export function useChatActions(
 						await autoExportIfEnabled("newChat", messages, session);
 					}
 					agent.clearMessages();
-					await agent.closeSession();
+					const retirement = sessionRetirementRef?.current;
+					if (retirement && unsentDiscard) {
+						await retirement.retire(
+							"respawn",
+							{
+								closeLiveSession: agent.closeLiveSession,
+								respawn: agent.closeSession,
+								warn: (message, error) =>
+									logger.warn(message, error),
+							},
+							unsentDiscard,
+						);
+					} else {
+						await agent.closeSession();
+					}
 					await lazyAcquireNowRef.current?.();
 					sessionHistory.invalidateCache();
 					new Notice(t("notices.sessionRestartedFresh"));
@@ -674,8 +698,10 @@ export function useChatActions(
 			agent.cancelOperation,
 			agent.clearMessages,
 			agent.closeSession,
+			agent.closeLiveSession,
 			lazyAcquireNowRef,
 			lazyReloadNowRef,
+			sessionRetirementRef,
 			agent.reloadSession,
 			messages,
 			session,

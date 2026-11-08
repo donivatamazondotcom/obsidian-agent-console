@@ -55,6 +55,7 @@ const LISTS: AgentCapabilities = {
 	restoresViaResume: false,
 	forks: true,
 	closesSessions: true,
+	deletesSessions: false,
 	reportsModels: true,
 };
 const NO_LIST: AgentCapabilities = {
@@ -63,6 +64,7 @@ const NO_LIST: AgentCapabilities = {
 	restoresViaResume: false,
 	forks: false,
 	closesSessions: false,
+	deletesSessions: false,
 	reportsModels: true,
 };
 

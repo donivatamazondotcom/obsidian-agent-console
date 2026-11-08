@@ -249,6 +249,7 @@ const CAPABILITY_KEYS: readonly (keyof AgentCapabilities)[] = [
 	"restoresViaResume",
 	"forks",
 	"closesSessions",
+	"deletesSessions",
 	"reportsModels",
 ];
 

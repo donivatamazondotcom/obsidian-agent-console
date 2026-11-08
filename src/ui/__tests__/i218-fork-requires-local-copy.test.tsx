@@ -26,6 +26,7 @@ const LISTING_FORKING_CAPS = {
 	restoresViaResume: false,
 	forks: true,
 	closesSessions: false,
+	deletesSessions: false,
 	reportsModels: false,
 };
 
@@ -36,6 +37,7 @@ const LISTING_NON_FORKING_CAPS = {
 	restoresViaResume: false,
 	forks: false,
 	closesSessions: false,
+	deletesSessions: false,
 	reportsModels: false,
 };
 

@@ -153,3 +153,18 @@ export function resolveRestoredLeaf(
 ): PerLeafTabState | null {
 	return idMatch ?? adopt();
 }
+
+/**
+ * I259: the session id a closed tab's record keeps. A session deleted on
+ * close isn't kept, so reopen-closed never loads a deleted id (with no id
+ * the tab isn't captured, the same as a never-used tab).
+ */
+export function closedTabSessionId(
+	unsentDiscard: { kind: "delete"; sessionId: string } | { kind: "keep" },
+	sessionId: string | null,
+): string | null {
+	if (unsentDiscard.kind === "delete" && unsentDiscard.sessionId === sessionId) {
+		return null;
+	}
+	return sessionId;
+}
