@@ -80,6 +80,16 @@ describe("I299 loadSettings picks the display by install age", () => {
 		expect(writes[writes.length - 1].tabRailWidth).toBe(32);
 	});
 
+	it("the second launch reads the first launch's data.json as vertical and isn't a first run", async () => {
+		const first = await runLoad(null);
+		const second = await runLoad(
+			first.writes[first.writes.length - 1] as unknown as Record<string, unknown>,
+		);
+		expect(second.plugin.settings.tabDisplay).toBe("vertical");
+		expect(second.plugin.settings.tabRailWidth).toBe(32);
+		expect((second.plugin as unknown as { isFirstRun: boolean }).isFirstRun).toBe(false);
+	});
+
 	it("an existing data.json without the key stays horizontal", async () => {
 		const { plugin, writes } = await runLoad({});
 		expect(plugin.settings.tabDisplay).toBe("horizontal");
