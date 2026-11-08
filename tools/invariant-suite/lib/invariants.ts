@@ -778,6 +778,91 @@ const noDuplicateTooltips: Invariant = {
 	},
 };
 
+/**
+ * INV-10 — Vertical tab rail keys carry no `aria-label`.
+ *
+ * Obsidian shows any `aria-label` as a hover tooltip. On the rail that tooltip
+ * doubles the piano-key flyout (it did in the studio mock), so keys take their
+ * name from `aria-labelledby` and nothing inside a key may carry an
+ * aria-label ([[Agent Console Vertical Tab Rail]] § Accessibility). Asserts the
+ * rendered outcome, so a future child (an icon, a badge) that brings its own
+ * label is caught.
+ *
+ * Skips when no rail is rendered (Tab display is Horizontal). Self-test: plants
+ * an offending key in the live rail and requires the scan to find it.
+ */
+const railKeysHaveNoAriaLabel: Invariant = {
+	id: "INV-10",
+	name: "Tab rail keys carry no aria-label",
+	guards: "tooltip doubling the rail flyout (vertical tab rail)",
+	async run(cdp) {
+		const SCAN = `
+			const keys = Array.from(document.querySelectorAll(
+				'[data-type="${VIEW_TYPE}"] .agent-client-tab-rail-key'
+			));
+			const offenders = [];
+			for (const k of keys) {
+				const bad = [k, ...Array.from(k.querySelectorAll("*"))].filter(
+					(el) => el.hasAttribute("aria-label") || (el.hasAttribute("title") && el.getAttribute("title") !== "")
+				);
+				if (bad.length > 0) offenders.push((k.getAttribute("data-tab-id") ?? "?") + ": " + bad.map((el) => el.tagName.toLowerCase() + "." + String(el.className).split(" ").join(".")).join(", "));
+			}
+			const named = keys.filter((k) => {
+				const id = k.getAttribute("aria-labelledby");
+				const el = id ? document.getElementById(id) : null;
+				return el !== null && (el.textContent ?? "").trim() !== "";
+			}).length;
+			return { rails: document.querySelectorAll('[data-type="${VIEW_TYPE}"] .agent-client-tab-rail').length, keys: keys.length, named, offenders };
+		`;
+		interface Scan {
+			rails: number;
+			keys: number;
+			named: number;
+			offenders: string[];
+		}
+		const first = await evalJson<Scan>(cdp, SCAN);
+		if (first.rails === 0) {
+			return {
+				status: "skip",
+				detail: "no tab rail rendered (Tab display is Horizontal)",
+			};
+		}
+		const control = await evalJson<Scan>(
+			cdp,
+			`const list = document.querySelector('[data-type="${VIEW_TYPE}"] .agent-client-tab-rail-list');
+			 const probe = document.createElement("button");
+			 probe.className = "agent-client-tab-rail-key";
+			 probe.setAttribute("data-tab-id", "__inv10_control__");
+			 probe.setAttribute("aria-label", "__inv10_control__");
+			 list.appendChild(probe);
+			 try { ${SCAN} } finally { probe.remove(); }`,
+		);
+		if (!control.offenders.some((o) => o.startsWith("__inv10_control__"))) {
+			return {
+				status: "fail",
+				detail: `probe is inert — the scanner did not find its own planted key (keys=${control.keys})`,
+			};
+		}
+		const r = await evalJson<Scan>(cdp, SCAN);
+		if (r.offenders.length > 0) {
+			return {
+				status: "fail",
+				detail: `rail keys with an aria-label or title inside (Obsidian tooltip doubles the flyout): ${r.offenders.join(" | ")}`,
+			};
+		}
+		if (r.named !== r.keys) {
+			return {
+				status: "fail",
+				detail: `${r.keys - r.named} of ${r.keys} rail keys have no aria-labelledby name`,
+			};
+		}
+		return {
+			status: "pass",
+			detail: `${r.keys} rail keys, none with an aria-label or title; every key named via aria-labelledby`,
+		};
+	},
+};
+
 /** Chat view must exist before DOM probes run. */
 export async function ensureChatViewOpen(cdp: Cdp): Promise<void> {
 	const count = await cdp.evaluate<number>(
@@ -799,4 +884,5 @@ export const invariants: Invariant[] = [
 	a2uiButtonLabelContainment,
 	idleIndicatorNotAnimating,
 	noDuplicateTooltips,
+	railKeysHaveNoAriaLabel,
 ];

@@ -161,6 +161,11 @@ src/
 │   ├── ChatView.tsx             # Sidebar view (ItemView wrapper)
 │   ├── chat-view-type.ts        # I157: namespaced "agent-console-chat-view" view-type constant (avoids collision with upstream Agent Client)
 │   ├── TabBar.tsx               # Tab bar UI for parallel agent sessions (drag-reorder, +button, status icons)
+│   ├── TabRail.tsx              # Vertical tab rail (Tab display: Vertical): status-icon keys, piano-key flyouts, resize handle; owns the rail width state ([[Agent Console Vertical Tab Rail]])
+│   ├── TabsLayout.tsx           # One-root, fixed-slot layout for strip or rail + useTabDisplay (primitive subscription) so a display switch never remounts a panel
+│   ├── tab-state-icon.tsx       # stateIcon / stateIconClass / stateLabel / TabStateIcon (decorative mode) shared by strip, tab list and rail
+│   ├── tab-menus.ts             # Tab context menu + chevron tab list, shared by TabBar and TabRail ('Close below' on the rail)
+│   ├── keyboard-focus.ts        # isKeyboardFocus (:focus-visible) — rail flyouts open on keyboard focus only
 │   ├── tab-rename.ts            # commitTabRename — save step of the tab rename flow: duplicate check → label → single-writer persist → rename-tab focus contract (TS-I09)
 │   ├── TabErrorBoundary.tsx     # Per-tab React error boundary with Retry
 │   ├── ZeroTabLanding.tsx       # Zero-tab landing screen shown when every tab is closed (minimal placeholder in Slice 1; reason-tagged empty-state shell in Slice 2)
@@ -227,7 +232,10 @@ src/
 │   ├── session-history-view.ts     # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source, knowledge) → listSource/agentPill (available | unsupported | unknown, I260)/restore/fork/banner/folderFilterDefault); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
 │   ├── session-retention.ts        # I202 saved-chat retention: selectEvictions(sessions, cap, tabIds) → least recently updated first, never a tab's record; selectUnusedSessionFiles (cleanup command, 24h guard); parseMaxSavedSessions (25|50|100|250|500|null=unlimited, default 100); formatSize
 │   ├── session-title.ts            # Pure session-title resolver (I224/I227): resolveSessionTitle(local > agent > none, drops placeholder agent titles), overlayLocalTitles (Agent-view rows, live + cached, by session id), deriveRestoreTabLabel (restored/forked tab label); deriveSessionRecordTitle reads it too
-│   ├── tab-keyboard-nav.ts         # deriveTabKeyTarget — pure resolver for Left/Right/Home/End focus movement across the tab strip (WAI-ARIA tabs, manual activation; TS-I08)
+│   ├── tab-keyboard-nav.ts         # deriveTabKeyTarget — pure resolver for Left/Right/Home/End focus movement across the tab strip (WAI-ARIA tabs, manual activation; TS-I08); `orientation: "vertical"` uses Up/Down for the tab rail
+│   ├── tab-rail-width.ts           # resolveRailWidth / maxNamedWidth / nextRailWidthFromKey / toggleRailWidth — vertical tab rail snap, clamp, keyboard steps and toggle
+│   ├── tab-rail-hover.ts           # nextRailHover — total piano-key flyout state machine with declarative timer effects + shouldShowFlyout
+│   ├── tab-rail-scroll.ts          # deriveRailScrollTop — keeps the active rail key in view, scrolling only the key list
 │   ├── tab-label-width.ts          # deriveActiveTabLabelMax — pure resolver for the active tab's label max-width so the whole active tab stays visible in the strip
 │   ├── tab-scroll.ts               # deriveTabScrollLeft — pure resolver for the horizontal scrollLeft that keeps the active tab in view on tab-change and strip resize (TS-I07)
 │   ├── tab-state.ts                # deriveTabState — pure tab-icon-state resolver (lifecycle × isSending × hasActivePermission → ready/busy/permission/error/disconnected); gates busy on intent, not a connect-edge, so a lazy first-send or mid-turn permission can't strand the icon (I172)

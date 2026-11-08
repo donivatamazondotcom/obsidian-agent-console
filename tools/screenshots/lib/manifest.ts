@@ -158,6 +158,15 @@ export interface InitialState {
 	 * exist, so the header strikes it through. An unknown `id` fails the shot.
 	 * setup.sh restores the real settings from the template on the next run.
 	 */
+	/**
+	 * Plugin settings to apply for this entry only, through
+	 * `settingsService.updateSettings` (so React subscribers see them – a
+	 * direct mutation of `plugin.settings` wouldn't). The orchestrator records
+	 * the touched keys' prior values and restores them when the entry ends,
+	 * even if the capture fails. Drives the vertical tab rail shots
+	 * (`tabDisplay`, `tabRailWidth`), which no command can set.
+	 */
+	pluginSettings?: Record<string, string | number | boolean>;
 	agentOverride?: {
 		id: string;
 		args?: string[];
@@ -936,6 +945,27 @@ export function validateManifest(
 				throw new Error(
 					`manifest entry "${entry.name}" has invalid initialState.restoreSessions.activeIndex: must be a non-negative integer`,
 				);
+			}
+		}
+
+		const ps: unknown = entry.initialState?.pluginSettings;
+		if (ps !== undefined) {
+			if (
+				typeof ps !== "object" ||
+				ps === null ||
+				Array.isArray(ps) ||
+				Object.keys(ps).length === 0
+			) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid initialState.pluginSettings: must be a non-empty object`,
+				);
+			}
+			for (const [k, v] of Object.entries(ps as Record<string, unknown>)) {
+				if (!["string", "number", "boolean"].includes(typeof v)) {
+					throw new Error(
+						`manifest entry "${entry.name}" has invalid initialState.pluginSettings.${k}: must be a string, number or boolean`,
+					);
+				}
 			}
 		}
 

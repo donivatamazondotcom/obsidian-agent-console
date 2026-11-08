@@ -1036,3 +1036,37 @@ describe("validateManifest — initialState.agentOverride", () => {
 		).toThrow(/agentOverride\.engine/);
 	});
 });
+
+// Vertical tab rail: the rail shots need plugin settings (tabDisplay, rail
+// width) that no command can set, so an entry may apply a partial settings
+// object through settingsService.updateSettings (restored after the entry).
+describe("validateManifest — initialState.pluginSettings", () => {
+	const base = {
+		name: "ps",
+		width: 100,
+		height: 100,
+		crop: { x: 0, y: 0, width: 10, height: 10 },
+	};
+	const check = (pluginSettings: unknown) => () =>
+		validateManifest(
+			{
+				entries: [
+					{ ...base, initialState: { pluginSettings } } as unknown as ManifestEntry,
+				],
+			},
+			makeFixtureRoot(),
+		);
+
+	it("accepts a flat object of primitive values", () => {
+		expect(check({ tabDisplay: "vertical", tabRailWidth: 150, x: true })).not.toThrow();
+	});
+	it("rejects a non-object, an array, or an empty object", () => {
+		expect(check("vertical")).toThrow(/pluginSettings/);
+		expect(check(["tabDisplay"])).toThrow(/pluginSettings/);
+		expect(check({})).toThrow(/pluginSettings/);
+	});
+	it("rejects nested or null values", () => {
+		expect(check({ tabDisplay: { a: 1 } })).toThrow(/pluginSettings\.tabDisplay/);
+		expect(check({ tabRailWidth: null })).toThrow(/pluginSettings\.tabRailWidth/);
+	});
+});
