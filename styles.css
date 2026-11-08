@@ -2819,7 +2819,7 @@ del.acp-header-branded-profile {
 }
 
 /* Named: + and ˅ side by side in a row as tall as the chat header (Obsidian's
-   .nav-header: 24px icons + 8px padding = 40px), so their icons line up with
+   .nav-header: 24px icons + 8px padding top and bottom = 40px), so their icons line up with
    the header's at the default width. */
 .agent-client-tab-rail.is-names .agent-client-tab-rail-toolbar {
 	flex-direction: row;

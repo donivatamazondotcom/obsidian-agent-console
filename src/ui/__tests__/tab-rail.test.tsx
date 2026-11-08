@@ -674,8 +674,9 @@ describe("TabRail – review findings", () => {
 		});
 		// Precondition: the closing tab's flyout is showing.
 		expect(
-			container.querySelector(".agent-client-tab-rail-flyout:not(.is-hidden)")
-				?.textContent,
+			container.querySelector(
+				".agent-client-tab-rail-flyout:not(.is-hidden)",
+			)?.textContent,
 		).toContain("Beta");
 		rerender(
 			<div className="test-view">
@@ -707,14 +708,54 @@ describe("TabRail – review findings", () => {
 describe("TabRail – delta review findings", () => {
 	it("a drag frame is requested and cancelled on the handle's own window (popouts)", () => {
 		const { handle } = renderRail();
-		const win = handle.ownerDocument.defaultView!;
-		const req = vi.spyOn(win, "requestAnimationFrame").mockImplementation(() => 42);
-		const cancel = vi.spyOn(win, "cancelAnimationFrame").mockImplementation(() => {});
-		fireEvent.pointerDown(handle, { clientX: 500, button: 0, pointerId: 1, pointerType: "mouse" });
-		fireEvent.pointerMove(handle, { clientX: 400, pointerId: 1, pointerType: "mouse" });
-		expect(req).toHaveBeenCalledTimes(1);
-		fireEvent.pointerCancel(handle, { pointerId: 1, pointerType: "mouse" });
-		expect(cancel).toHaveBeenCalledWith(42);
+		// Build the events first: fireEvent constructs them from the document's
+		// defaultView, which the popout stub below replaces.
+		const down = new PointerEvent("pointerdown", {
+			clientX: 500,
+			button: 0,
+			pointerId: 1,
+			pointerType: "mouse",
+			bubbles: true,
+		});
+		const move = new PointerEvent("pointermove", {
+			clientX: 400,
+			pointerId: 1,
+			pointerType: "mouse",
+			bubbles: true,
+		});
+		const cancelEv = new PointerEvent("pointercancel", {
+			pointerId: 1,
+			pointerType: "mouse",
+			bubbles: true,
+		});
+		// A popout: the handle's document belongs to a different window.
+		const popout = {
+			requestAnimationFrame: vi.fn(() => 42),
+			cancelAnimationFrame: vi.fn(),
+		};
+		Object.defineProperty(handle.ownerDocument, "defaultView", {
+			configurable: true,
+			get: () => popout,
+		});
+		const mainReq = vi.spyOn(window, "requestAnimationFrame");
+		const mainCancel = vi.spyOn(window, "cancelAnimationFrame");
+		try {
+			act(() => {
+				handle.dispatchEvent(down);
+				handle.dispatchEvent(move);
+			});
+			expect(popout.requestAnimationFrame).toHaveBeenCalledTimes(1);
+			act(() => {
+				handle.dispatchEvent(cancelEv);
+			});
+			expect(popout.cancelAnimationFrame).toHaveBeenCalledWith(42);
+			expect(mainReq).not.toHaveBeenCalled();
+			expect(mainCancel).not.toHaveBeenCalled();
+		} finally {
+			delete (
+				handle.ownerDocument as unknown as { defaultView?: unknown }
+			).defaultView;
+		}
 	});
 
 	it("a view resize that only changes height scrolls the active key back into view", () => {
@@ -728,13 +769,39 @@ describe("TabRail – delta review findings", () => {
 		}
 		vi.stubGlobal("ResizeObserver", RO);
 		try {
-			const tabs = Array.from({ length: 12 }, (_, i) => tab(`t${i}`, `Tab ${i}`));
+			const tabs = Array.from({ length: 12 }, (_, i) =>
+				tab(`t${i}`, `Tab ${i}`),
+			);
 			const { container } = renderRail({ tabs, activeTabId: "t11" });
-			const list = container.querySelector<HTMLElement>(".agent-client-tab-rail-list")!;
-			const active = container.querySelector<HTMLElement>(".agent-client-tab-rail-key.is-active")!;
+			const list = container.querySelector<HTMLElement>(
+				".agent-client-tab-rail-list",
+			)!;
+			const active = container.querySelector<HTMLElement>(
+				".agent-client-tab-rail-key.is-active",
+			)!;
 			// The list shrinks to 100px tall; the active key now sits below it.
-			vi.spyOn(list, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 100, left: 0, right: 32, width: 32, height: 100, x: 0, y: 0, toJSON: () => ({}) } as DOMRect);
-			vi.spyOn(active, "getBoundingClientRect").mockReturnValue({ top: 300, bottom: 328, left: 0, right: 32, width: 32, height: 28, x: 0, y: 300, toJSON: () => ({}) } as DOMRect);
+			vi.spyOn(list, "getBoundingClientRect").mockReturnValue({
+				top: 0,
+				bottom: 100,
+				left: 0,
+				right: 32,
+				width: 32,
+				height: 100,
+				x: 0,
+				y: 0,
+				toJSON: () => ({}),
+			} as DOMRect);
+			vi.spyOn(active, "getBoundingClientRect").mockReturnValue({
+				top: 300,
+				bottom: 328,
+				left: 0,
+				right: 32,
+				width: 32,
+				height: 28,
+				x: 0,
+				y: 300,
+				toJSON: () => ({}),
+			} as DOMRect);
 			list.scrollTop = 0;
 			act(() => observerCb?.());
 			expect(list.scrollTop).toBe(228);
