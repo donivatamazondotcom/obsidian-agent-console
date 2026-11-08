@@ -79,6 +79,10 @@ import {
 	type SessionRetirementApi,
 } from "../hooks/useSessionRetirement";
 import type { UnsentDiscardDecision } from "../resolvers/unsent-discard";
+import { idleReleaseDiscardSteps } from "../hooks/useSessionRetirement";
+
+/** I259: without a retirement owner (never in practice), keep the session. */
+const KEEP_NO_OWNER: UnsentDiscardDecision = { kind: "keep", reason: "no-session" };
 import {
 	deriveAiRenameAffordance,
 	type AiRenameAffordance,
@@ -196,9 +200,6 @@ import { t } from "../i18n";
  * Used by ChatView to implement IChatViewContainer
  * by delegating to the React component's state and handlers.
  */
-/** I259: without a retirement owner (never in practice), keep the session. */
-const KEEP_NO_OWNER: UnsentDiscardDecision = { kind: "keep", reason: "no-session" };
-
 export interface ChatPanelCallbacks {
 	/**
 	 * I259: whether closing this tab deletes its never-sent agent session.
@@ -2274,22 +2275,14 @@ export function ChatPanel({
 					flush: flushSessionSave,
 					// I237: keep the id only when there is something to resume —
 					// a transcript, or an id restored from disk.
-					// I259: decided after the last recheck, before the id is nulled.
-					snapshotDiscard: () => {
-						const unsentDiscard =
-							retirementRef.current?.snapshot() ?? KEEP_NO_OWNER;
-						return async () => {
-							await retirementRef.current?.discard(unsentDiscard);
-						};
-					},
-					lazyRelease: () => {
-						const keepSessionId =
-							messageCountRef.current > 0 || !!restoredSessionId;
-						const released = lazySession.release({ keepSessionId });
-						// I259: a discarded id takes its send attempt with it.
-						if (released && !keepSessionId) agent.resetSendAttempt();
-						return released;
-					},
+					...idleReleaseDiscardSteps({
+						keepSessionId: () =>
+							messageCountRef.current > 0 || !!restoredSessionId,
+						retirement: () => retirementRef.current,
+						lazyRelease: (keepSessionId) =>
+							lazySession.release({ keepSessionId }),
+						resetSendAttempt: agent.resetSendAttempt,
+					}),
 					agentRelease: agent.releaseSession,
 					gate: releaseGateRef.current,
 					newSessionGate: newSessionGateRef.current,
@@ -2729,9 +2722,9 @@ export function ChatPanel({
 	// one, then I210's close/respawn).
 	const sessionRetirement = useSessionRetirement({
 		client: acpClient,
-		sessionId: session.sessionId ?? null,
-		messageCount: messages.length,
-		isQueued: queue.isQueued,
+		getSessionId: () => sessionRef.current.sessionId ?? null,
+		getMessageCount: () => messageCountRef.current,
+		isQueued: () => isQueuedRef.current,
 		hasAttemptedSend: agent.hasAttemptedSend,
 		getRecordId: sessionHistory.getRecordId,
 		warn: (message, error) => getLogger().warn(message, error),

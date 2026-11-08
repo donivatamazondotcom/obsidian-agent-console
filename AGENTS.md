@@ -124,7 +124,7 @@ src/
 │   ├── useDebouncedSessionSave.ts # Debounced session persistence (messages + context notes)
 │   ├── useOwnedNotifications.ts # Ties a panel's system notifications to its lifetime; closes them when the tab closes (I52)
 │   ├── useEagerInitialize.ts    # Decision #10 eager initialize, gated by decideProcessHold — fires at most once per panel, when the tab may hold a process (I208)
-│   ├── useSessionRetirement.ts  # I259 retirement owner: snapshot() (decideUnsentDiscard over refs), discard, retire (delete a never-sent session, then I210 close/respawn)
+│   ├── useSessionRetirement.ts  # I259 retirement owner: snapshot() (decideUnsentDiscard over live getters), discard, retire (delete a never-sent session, then I210 close/respawn); idleReleaseDiscardSteps (a kept id is never deleted)
 │   ├── useIdleRelease.ts        # Idle release (I209): one timer per panel on decideProcessHold; release sequence (flush → released → kill, wait for tree exit), reconnect gate, apply-after-reconnect for pickers
 │   ├── useContextNotes.ts       # Crystallized context-note state per chat (add/remove/seen)
 │   ├── useContextVaultEvents.ts # Vault rename/delete sync for crystallized context notes
