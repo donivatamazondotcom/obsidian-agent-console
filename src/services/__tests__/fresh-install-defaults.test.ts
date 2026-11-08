@@ -151,11 +151,11 @@ describe("I306 the settings-import offer is for fresh installs only", () => {
 
 	async function offerAfterLoad(
 		raw: Record<string, unknown> | null,
-		opts: { onboardingFirst?: boolean } = {},
+		opts: { onboardingFirst?: boolean; sourcePresent?: boolean } = {},
 	) {
 		const { plugin, writes } = await runLoad(raw);
 		const p = plugin as unknown as OfferPlugin;
-		const detect = vi.fn(async () => true);
+		const detect = vi.fn(async () => opts.sourcePresent ?? true);
 		p.createImportSources = () => [
 			{ id: "agent-client", displayName: "Agent Client", detect },
 		];
@@ -195,6 +195,15 @@ describe("I306 the settings-import offer is for fresh installs only", () => {
 		expect(offerWrites[offerWrites.length - 1].settingsImportOfferShown).toBe(
 			true,
 		);
+	});
+
+	it("a fresh install with no other plugin's data gets no toast and no save", async () => {
+		const { toasts, detect, offerWrites } = await offerAfterLoad(null, {
+			sourcePresent: false,
+		});
+		expect(detect).toHaveBeenCalledTimes(1);
+		expect(toasts).toHaveLength(0);
+		expect(offerWrites).toHaveLength(0);
 	});
 
 	it("the offer still appears on a fresh install after onboarding has run", async () => {
