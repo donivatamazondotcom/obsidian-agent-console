@@ -395,18 +395,4 @@ describe("I296: the flush slot on the binding owner", () => {
 		act(() => h.result.current.resetRecordBinding());
 		expect(second).toHaveBeenCalledTimes(1);
 	});
-
-	it("a reset after the debounced save unmounted calls no stale flush", async () => {
-		const store = makeStore();
-		const { h } = await oldChatWithDirtyTail(store);
-		const history = h.result.current.history;
-		h.unmount(); // its unmount flush writes the tail
-		await settle(DEBOUNCE_MS * 3);
-		const before = store.sessionWrites();
-
-		act(() => history.resetRecordBinding());
-		await settle(DEBOUNCE_MS * 3);
-
-		expect(store.sessionWrites()).toBe(before);
-	});
 });

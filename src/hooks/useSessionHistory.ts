@@ -154,7 +154,10 @@ export interface UseSessionHistoryReturn {
 
 	/**
 	 * Forget the tab's record (New chat, agent switch, hard reload): the next
-	 * message starts a new record.
+	 * message starts a new record. Runs the registered pending-save flush
+	 * first (I296), which saves under the agent id of the last committed
+	 * render: callers change the agent and reset in the same tick, with no
+	 * await or `flushSync` between.
 	 */
 	resetRecordBinding: () => void;
 
