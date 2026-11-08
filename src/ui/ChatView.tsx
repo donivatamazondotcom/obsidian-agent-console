@@ -1525,7 +1525,16 @@ function ChatComponent({
 	// "What's new" card (I300): one stable element for this view, shown above
 	// the panels or on the landing. Must stay above the early return below –
 	// beside the TabsLayout JSX it would change the hook count.
-	const whatsNewNotice = useWhatsNewNotice(plugin);
+	// A keyboard dismiss returns focus to this view's composer instead of
+	// leaving it on <body> when the card unmounts.
+	const refocusComposerAfterWhatsNew = useCallback(
+		() => scheduleComposerRefocus(view.containerEl),
+		[view],
+	);
+	const whatsNewNotice = useWhatsNewNotice(
+		plugin,
+		refocusComposerAfterWhatsNew,
+	);
 
 	// ============================================================
 	// Render

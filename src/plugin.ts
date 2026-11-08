@@ -1364,7 +1364,6 @@ export default class AgentClientPlugin extends Plugin {
 			callback: () => {
 				void showWhatsNew({
 					currentVersion: this.manifest.version,
-					lastSeen: this.settings.lastSeenVersion,
 					forcedStore: this.whatsNewForced,
 					activateView: () => this.activateView(),
 					openUrl: (url) => {

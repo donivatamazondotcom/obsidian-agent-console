@@ -112,7 +112,7 @@ describe("I300 useWhatsNewNotice placement (6b)", () => {
 
 	it("ChatView calls useWhatsNewNotice above its zero-tab early return", () => {
 		const src = readFileSync(resolve(__dirname, "../ChatView.tsx"), "utf8");
-		const hook = src.indexOf("useWhatsNewNotice(plugin)");
+		const hook = src.indexOf("= useWhatsNewNotice(");
 		const early = src.indexOf("if (tabs.length === 0) {");
 		expect(hook).toBeGreaterThan(-1);
 		expect(early).toBeGreaterThan(-1);
@@ -168,7 +168,6 @@ describe("I300 Show what's new command (8)", () => {
 	) {
 		return {
 			currentVersion: host.manifest.version,
-			lastSeen: host.settingsService.getSnapshot().lastSeenVersion,
 			forcedStore: host.whatsNewForced,
 			activateView: vi.fn(async () => {}),
 			openUrl: vi.fn(),

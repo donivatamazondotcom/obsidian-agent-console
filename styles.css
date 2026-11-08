@@ -2821,6 +2821,7 @@ del.acp-header-branded-profile {
 .agent-client-whats-new-heading {
 	flex: 1;
 	min-width: 0;
+	margin: 0;
 	font-weight: var(--font-semibold);
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);

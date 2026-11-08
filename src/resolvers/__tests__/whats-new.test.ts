@@ -10,7 +10,7 @@ import {
 	nextLastSeenVersion,
 	type WhatsNewHighlight,
 } from "../whats-new";
-import { HIGHLIGHTS } from "../../whats-new/highlights";
+import { FIRST_TRACKED, HIGHLIGHTS } from "../../whats-new/highlights";
 
 const h = (id: string, version: string): WhatsNewHighlight => ({
 	id,
@@ -33,6 +33,7 @@ const run = (
 			current: releaseCore(current)!,
 			lastSeen,
 			forced,
+			firstTracked: FIRST_TRACKED,
 		}),
 	);
 
@@ -107,5 +108,55 @@ describe("I300 nextLastSeenVersion", () => {
 	it("raises it to the current version", () => {
 		expect(nextLastSeenVersion("2.4.0", "2.5.0")).toBe("2.5.0");
 		expect(nextLastSeenVersion(undefined, "2.5.0")).toBe("2.5.0");
+	});
+});
+
+describe("I300 the resolver is total (review F1)", () => {
+	it("skips a registry entry whose version isn't a release core", () => {
+		expect(
+			run(
+				[VT, h("typo", "2.6"), h("pre", "2.5.0-beta.1")],
+				"2.6.0",
+				undefined,
+			),
+		).toEqual(["vertical-tabs"]);
+	});
+	it("reads an invalid lastSeen as undefined", () => {
+		expect(run([VT], "2.5.0", "garbage")).toEqual(["vertical-tabs"]);
+	});
+	it("an invalid current shows nothing and doesn't throw", () => {
+		expect(
+			deriveWhatsNewHighlights({
+				highlights: [VT],
+				current: "nope",
+				lastSeen: undefined,
+				forced: true,
+				firstTracked: FIRST_TRACKED,
+			}),
+		).toEqual([]);
+	});
+	it("nextLastSeenVersion ignores an invalid stored value and refuses an invalid current", () => {
+		expect(nextLastSeenVersion("garbage", "2.5.0")).toBe("2.5.0");
+		expect(nextLastSeenVersion("2.4.0", "nope")).toBeUndefined();
+	});
+});
+
+describe("I300 the shipped registry is valid (review F1)", () => {
+	it("every entry is a release core at or after FIRST_TRACKED, with a unique id", () => {
+		const seen = new Set<string>();
+		for (const e of HIGHLIGHTS) {
+			expect(releaseCore(e.version)).toBe(e.version);
+			expect(
+				deriveWhatsNewHighlights({
+					highlights: [e],
+					current: e.version,
+					lastSeen: undefined,
+					forced: false,
+					firstTracked: FIRST_TRACKED,
+				}),
+			).toHaveLength(1);
+			expect(seen.has(e.id)).toBe(false);
+			seen.add(e.id);
+		}
 	});
 });

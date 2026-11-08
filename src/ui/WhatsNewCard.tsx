@@ -22,7 +22,7 @@ import {
 	releaseNotesUrl,
 	type WhatsNewHighlight,
 } from "../resolvers/whats-new";
-import { HIGHLIGHTS } from "../whats-new/highlights";
+import { FIRST_TRACKED, HIGHLIGHTS } from "../whats-new/highlights";
 import type { WhatsNewForcedStore } from "../whats-new/forced-store";
 import { t } from "../i18n";
 import { getLogger } from "../utils/logger";
@@ -42,6 +42,11 @@ interface WhatsNewCardProps {
 	settingsStore: WhatsNewSettingsStore;
 	forcedStore: WhatsNewForcedStore;
 	currentVersion: string;
+	/**
+	 * Called after a dismiss that happened while focus was inside the card,
+	 * so keyboard focus isn't left on `body` when the card unmounts.
+	 */
+	onDismissed?: () => void;
 	/** Test seam: the shipped registry by default. */
 	highlights?: readonly WhatsNewHighlight[];
 }
@@ -71,8 +76,10 @@ function WhatsNewCardImpl({
 	settingsStore,
 	forcedStore,
 	currentVersion,
+	onDismissed,
 	highlights = HIGHLIGHTS,
 }: WhatsNewCardProps) {
+	const regionRef = useRef<HTMLDivElement>(null);
 	const lastSeen = useSyncExternalStore(
 		settingsStore.subscribe,
 		() => settingsStore.getSnapshot().lastSeenVersion,
@@ -103,6 +110,7 @@ function WhatsNewCardImpl({
 						current,
 						lastSeen,
 						forced,
+						firstTracked: FIRST_TRACKED,
 					}),
 		[highlights, current, lastSeen, forced],
 	);
@@ -112,12 +120,18 @@ function WhatsNewCardImpl({
 	const notesUrl = releaseNotesUrl(current);
 
 	const onDismiss = () => {
+		const doc = regionRef.current?.ownerDocument;
+		const hadFocus =
+			doc !== undefined &&
+			regionRef.current?.contains(doc.activeElement) === true;
 		forcedStore.set(false);
-		settingsStore
-			.updateSettings({
-				lastSeenVersion: nextLastSeenVersion(lastSeen, current),
-			})
-			.catch(logWriteFailure("the dismissed version"));
+		const next = nextLastSeenVersion(lastSeen, current);
+		if (next !== undefined) {
+			settingsStore
+				.updateSettings({ lastSeenVersion: next })
+				.catch(logWriteFailure("the dismissed version"));
+		}
+		if (hadFocus) onDismissed?.();
 	};
 
 	const onToggleTabDisplay = () => {
@@ -148,14 +162,15 @@ function WhatsNewCardImpl({
 
 	return (
 		<div
+			ref={regionRef}
 			className="agent-client-whats-new"
 			role="region"
 			aria-labelledby={headingId}
 		>
 			<div className="agent-client-whats-new-header">
-				<div id={headingId} className="agent-client-whats-new-heading">
+				<h3 id={headingId} className="agent-client-whats-new-heading">
 					{t("chat.whatsNew.heading")}
-				</div>
+				</h3>
 				<DismissButton onClick={onDismiss} />
 			</div>
 			{shown.map((h) => (
@@ -198,7 +213,10 @@ export interface WhatsNewHost {
  * JSX would change the hook count between the landing and tabs and crash
  * with "Rendered more hooks".
  */
-export function useWhatsNewNotice(host: WhatsNewHost): React.ReactElement {
+export function useWhatsNewNotice(
+	host: WhatsNewHost,
+	onDismissed?: () => void,
+): React.ReactElement {
 	const { settingsService, whatsNewForced } = host;
 	const version = host.manifest.version;
 	return useMemo(
@@ -207,8 +225,9 @@ export function useWhatsNewNotice(host: WhatsNewHost): React.ReactElement {
 				settingsStore={settingsService}
 				forcedStore={whatsNewForced}
 				currentVersion={version}
+				onDismissed={onDismissed}
 			/>
 		),
-		[settingsService, whatsNewForced, version],
+		[settingsService, whatsNewForced, version, onDismissed],
 	);
 }
