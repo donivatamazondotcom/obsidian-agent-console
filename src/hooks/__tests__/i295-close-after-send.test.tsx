@@ -457,6 +457,36 @@ describe("I295: a record is written only after its transcript lands", () => {
 		expect(h.result.current.history.getRecordId()).toBeNull();
 	});
 
+	it("a failed write doesn't unbind while a later save of the same id is in flight", async () => {
+		const store = makeStore();
+		store.failSessionWrites();
+		const h = mountChat(store);
+		// Writes interleave (two attempts each): the first three fail and
+		// settle save 1; save 2's retry is held, so save 2 is still in flight.
+		const release = store.holdFileWriteAfter(3);
+
+		let first!: Promise<void>;
+		let second!: Promise<void>;
+		act(() => {
+			first = h.result.current.history.saveSessionMessages("sess-1", [
+				msg("user", "hi", "u1"),
+			]);
+			second = h.result.current.history.saveSessionMessages("sess-1", [
+				msg("user", "hi", "u1"),
+				msg("assistant", "hello", "a1"),
+			]);
+		});
+		const minted = h.result.current.history.getRecordId();
+		await first;
+		await settle();
+		expect(h.result.current.history.getRecordId()).toBe(minted);
+
+		release();
+		await second;
+		await settle();
+		expect(h.result.current.history.getRecordId()).toBeNull();
+	});
+
 	it("a failed file write leaves an existing record unchanged", async () => {
 		const existing: SavedSessionInfo = {
 			recordId: "rec-1",
