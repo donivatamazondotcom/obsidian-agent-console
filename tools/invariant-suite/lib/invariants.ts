@@ -793,7 +793,7 @@ const noDuplicateTooltips: Invariant = {
  */
 const railKeysHaveNoAriaLabel: Invariant = {
 	id: "INV-10",
-	name: "Tab rail keys carry no aria-label",
+	name: "Tab rail keys carry no aria-label and follow the theme",
 	guards: "tooltip doubling the rail flyout (vertical tab rail)",
 	async run(cdp) {
 		const SCAN = `
@@ -812,13 +812,22 @@ const railKeysHaveNoAriaLabel: Invariant = {
 				const el = id ? document.getElementById(id) : null;
 				return el !== null && (el.textContent ?? "").trim() !== "";
 			}).length;
-			return { rails: document.querySelectorAll('[data-type="${VIEW_TYPE}"] .agent-client-tab-rail').length, keys: keys.length, named, offenders };
+			// The key list itself must not carry an aria-label either (smoke H2:
+			// a "Tab list" tooltip over the rail), and an inactive key must take
+			// the theme's transparent background, not Obsidian's button fill
+			// (smoke H1: button:not(.clickable-icon) out-ranked the reset).
+			for (const list of Array.from(document.querySelectorAll('[data-type="${VIEW_TYPE}"] .agent-client-tab-rail-list'))) {
+				if (list.hasAttribute("aria-label") || list.hasAttribute("title")) offenders.push("tablist: aria-label/title on the key list");
+			}
+			const filled = keys.filter((k) => !k.classList.contains("is-active") && !k.matches(":hover") && getComputedStyle(k).backgroundColor !== "rgba(0, 0, 0, 0)").map((k) => (k.getAttribute("data-tab-id") ?? "?") + " bg=" + getComputedStyle(k).backgroundColor);
+			return { rails: document.querySelectorAll('[data-type="${VIEW_TYPE}"] .agent-client-tab-rail').length, keys: keys.length, named, offenders, filled };
 		`;
 		interface Scan {
 			rails: number;
 			keys: number;
 			named: number;
 			offenders: string[];
+			filled: string[];
 		}
 		const first = await evalJson<Scan>(cdp, SCAN);
 		if (first.rails === 0) {
@@ -848,6 +857,12 @@ const railKeysHaveNoAriaLabel: Invariant = {
 			return {
 				status: "fail",
 				detail: `rail keys with an aria-label or title inside (Obsidian tooltip doubles the flyout): ${r.offenders.join(" | ")}`,
+			};
+		}
+		if (r.filled.length > 0) {
+			return {
+				status: "fail",
+				detail: `inactive rail keys with a filled background (theme mismatch): ${r.filled.join(" | ")}`,
 			};
 		}
 		if (r.named !== r.keys) {

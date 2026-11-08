@@ -234,6 +234,16 @@ describe("TabRail – accessible names without tooltips", () => {
 		expect(name(keys()[1])).toBe("Beta, Ready, renaming with AI");
 	});
 
+	it("the key list carries no aria-label (no 'Tab list' tooltip over the rail); it is named by aria-labelledby", () => {
+		const { container } = renderRail();
+		const list = container.querySelector('[role="tablist"]')!;
+		expect(list.hasAttribute("aria-label")).toBe(false);
+		expect(
+			document.getElementById(list.getAttribute("aria-labelledby")!)
+				?.textContent,
+		).toBe("Tab list");
+	});
+
 	it("keys are native buttons with role tab in a vertical tablist", () => {
 		const { keys, container } = renderRail();
 		expect(keys()[0].tagName).toBe("BUTTON");

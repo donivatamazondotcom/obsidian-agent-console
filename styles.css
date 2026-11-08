@@ -2837,8 +2837,11 @@ del.acp-header-branded-profile {
 	scrollbar-width: thin;
 }
 
-/* Keys are native buttons; reset Obsidian's button chrome. */
-.agent-client-tab-rail-key {
+/* Keys are native buttons; reset Obsidian's button chrome. Two classes so the
+   reset outranks Obsidian's `button:not(.clickable-icon)` fill and shadow
+   (specificity 0,1,1) – otherwise every key is painted --interactive-normal
+   instead of the theme's sidebar background (smoke H1). */
+.agent-client-tab-rail .agent-client-tab-rail-key {
 	position: relative;
 	display: flex;
 	align-items: center;
@@ -2862,13 +2865,13 @@ del.acp-header-branded-profile {
 	padding: 0;
 }
 
-.agent-client-tab-rail-key:hover {
+.agent-client-tab-rail .agent-client-tab-rail-key:hover {
 	background-color: var(--background-modifier-hover);
 }
 
 /* Active: filled background plus an accent bar on the inner edge – never
    color alone. */
-.agent-client-tab-rail-key.is-active {
+.agent-client-tab-rail .agent-client-tab-rail-key.is-active {
 	background-color: var(--background-modifier-active-hover);
 	color: var(--text-normal);
 }
@@ -2884,9 +2887,20 @@ del.acp-header-branded-profile {
 	background-color: var(--interactive-accent);
 }
 
-.agent-client-tab-rail-key:focus-visible {
+.agent-client-tab-rail .agent-client-tab-rail-key:focus-visible {
 	outline: none;
 	box-shadow: inset 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+/* Rail icons match the ribbon's 16px icons (the strip keeps 12px). */
+.agent-client-tab-rail-key .agent-client-tab-state-icon {
+	width: 18px;
+	height: 18px;
+}
+
+.agent-client-tab-rail-key .agent-client-tab-state-icon svg {
+	width: 16px;
+	height: 16px;
 }
 
 .agent-client-tab-rail-key-label {
