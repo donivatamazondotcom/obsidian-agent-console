@@ -5,6 +5,7 @@
  * and session-level update processing.
  */
 
+import { UNSENT_DELETE_TIMEOUT_MS } from "../services/retire-live-session";
 import * as React from "react";
 const { useState, useCallback, useRef, useEffect } = React;
 
@@ -499,6 +500,9 @@ export function useAgentSession(
 	);
 
 	const closeSession = useCallback(async () => {
+		// I259: a tab close's session/delete may still be in flight (the tab's
+		// unmount cleanup lands here); don't kill the process under it.
+		await agentClient.whenDeletesSettled(UNSENT_DELETE_TIMEOUT_MS);
 		const s = sessionRef.current;
 		if (s.sessionId) {
 			try {
