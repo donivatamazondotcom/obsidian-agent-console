@@ -423,8 +423,8 @@ export function useSessionHistory(
 	 * write for the old chat can't bind the new chat to the old record.
 	 */
 	const bindingEpochRef = useRef(0);
-	/** Counts turn saves; only the latest one may unbind after a failure. */
-	const saveSeqRef = useRef(0);
+	/** Turn saves still in flight; a failed one unbinds only when it is alone. */
+	const pendingSavesRef = useRef(0);
 
 	/**
 	 * The store adopted a different record than we guessed: follow it, unless
@@ -846,7 +846,7 @@ export function useSessionHistory(
 			// I269: the file and the record both use the tab's record id, so
 			// a fallback's new agent session keeps writing the same chat.
 			const epoch = bindingEpochRef.current;
-			const seq = ++saveSeqRef.current;
+			pendingSavesRef.current++;
 			const recordId = bindRecordId(sessionId);
 			const agentId = session.agentId;
 			const writePromise = settingsAccess.saveSessionMessages(
@@ -875,10 +875,10 @@ export function useSessionHistory(
 					);
 					// A minted id that no record claims would leave the tab bound
 					// to nothing (INV-3, I259 reads it as a record): unbind, unless
-					// a reset or another write moved the binding since, or a later
-					// save of the same id is still in flight (it may yet land).
+					// a reset or another write moved the binding since, or another
+					// save is still in flight (it may yet land, in either order).
 					if (
-						seq === saveSeqRef.current &&
+						pendingSavesRef.current === 1 &&
 						epoch === bindingEpochRef.current &&
 						recordIdRef.current === recordId &&
 						!findSessionRecord(settingsAccess.getSavedSessions(), {
@@ -944,12 +944,16 @@ export function useSessionHistory(
 			// Resolves once the transcript AND its record have landed, so the
 			// teardown flush (useDebouncedSessionSave.flushPending ->
 			// ChatView.onClose, I193) keeps both across a quit. Never rejects.
-			return recordPromise.then(
-				() => undefined,
-				(err) => {
-					getLogger().error("[SessionHistory] Turn save refused:", err);
-				},
-			);
+			return recordPromise
+				.then(
+					() => undefined,
+					(err) => {
+						getLogger().error("[SessionHistory] Turn save refused:", err);
+					},
+				)
+				.finally(() => {
+					pendingSavesRef.current--;
+				});
 		},
 		[
 			session.agentId,
