@@ -16,6 +16,13 @@ import type {
 	CustomAgentSettings,
 	AgentClientPluginSettings,
 } from "../plugin";
+import type { TabDisplay } from "../plugin";
+import {
+	RAIL_ICON_WIDTH,
+	RAIL_NAMED_MIN,
+	RAIL_NAMED_MAX,
+	RAIL_DEFAULT_NAMED_WIDTH,
+} from "../resolvers/tab-rail-width";
 import type {
 	AgentCapabilities,
 	AgentCapabilityCacheEntry,
@@ -356,6 +363,44 @@ function readMaxSavedSessions(raw: unknown): SavedSessionsCap {
 	return cap;
 }
 
+/**
+ * Tab display ([[Agent Console Vertical Tab Rail]]). A missing key (every
+ * install before the rail) is horizontal without a log; any other invalid
+ * value is logged, never coerced silently.
+ */
+function readTabDisplay(raw: unknown, fallback: TabDisplay): TabDisplay {
+	if (raw === undefined) return fallback;
+	if (raw === "horizontal" || raw === "vertical") return raw;
+	getLogger().warn(
+		`[Settings] Ignoring invalid tabDisplay ${JSON.stringify(raw)}; using ${fallback}`,
+	);
+	return fallback;
+}
+
+/**
+ * Rail widths are whole pixels: 60..260 with names, and 32 (icon-only) for
+ * `tabRailWidth` only. A present but invalid value is logged and replaced by
+ * the default – never clamped into range, so a bad write can't pass as a
+ * real choice.
+ */
+function readRailWidth(
+	key: "tabRailWidth" | "tabRailNamedWidth",
+	raw: unknown,
+	fallback: number,
+): number {
+	if (raw === undefined) return fallback;
+	const valid =
+		typeof raw === "number" &&
+		Number.isInteger(raw) &&
+		((key === "tabRailWidth" && raw === RAIL_ICON_WIDTH) ||
+			(raw >= RAIL_NAMED_MIN && raw <= RAIL_NAMED_MAX));
+	if (valid) return raw;
+	getLogger().warn(
+		`[Settings] Ignoring invalid ${key} ${JSON.stringify(raw)}; using ${String(fallback)}`,
+	);
+	return fallback;
+}
+
 /** Extract a boolean value, falling back to default if not a boolean */
 export function bool(raw: unknown, fallback: boolean): boolean {
 	return typeof raw === "boolean" ? raw : fallback;
@@ -541,6 +586,9 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 	lastUsedModes: {},
 	lastUsedThoughtLevels: {},
 	restoreTabsOnStartup: true,
+	tabDisplay: "horizontal",
+	tabRailWidth: RAIL_ICON_WIDTH,
+	tabRailNamedWidth: RAIL_DEFAULT_NAMED_WIDTH,
 	confirmCloseWithMultipleTabs: true,
 	quickPromptsFolder: "Quick Prompts",
 };
@@ -837,6 +885,13 @@ export function normalizeRawSettings(
 			typeof raw.restoreTabsOnStartup === "boolean"
 				? raw.restoreTabsOnStartup
 				: D.restoreTabsOnStartup,
+		tabDisplay: readTabDisplay(raw.tabDisplay, D.tabDisplay),
+		tabRailWidth: readRailWidth("tabRailWidth", raw.tabRailWidth, D.tabRailWidth),
+		tabRailNamedWidth: readRailWidth(
+			"tabRailNamedWidth",
+			raw.tabRailNamedWidth,
+			D.tabRailNamedWidth,
+		),
 		confirmCloseWithMultipleTabs:
 			typeof raw.confirmCloseWithMultipleTabs === "boolean"
 				? raw.confirmCloseWithMultipleTabs

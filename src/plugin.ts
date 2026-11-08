@@ -154,6 +154,9 @@ export type SendMessageShortcut = "enter" | "cmd-enter";
  */
 export type ChatViewLocation = "right" | "left";
 
+/** Where chat tabs show ([[Agent Console Vertical Tab Rail]]). */
+export type TabDisplay = "horizontal" | "vertical";
+
 export interface AgentClientPluginSettings {
 	gemini: GeminiAgentSettings;
 	claude: ClaudeAgentSettings;
@@ -249,6 +252,16 @@ export interface AgentClientPluginSettings {
 	// Tab settings
 	/** Restore open tabs on startup (default: true). See [[ACP Tab Persistence Across Restarts]] § Setting. */
 	restoreTabsOnStartup: boolean;
+
+	/**
+	 * Where chat tabs show: the top strip (default) or the vertical rail on
+	 * the right edge. See [[Agent Console Vertical Tab Rail]].
+	 */
+	tabDisplay: TabDisplay;
+	/** Rail width: 32 = icon-only, else a whole-pixel width in 60..260. */
+	tabRailWidth: number;
+	/** Last width with names, restored by the rail's toggle (60..260). */
+	tabRailNamedWidth: number;
 
 	/**
 	 * Confirm before closing the panel (focused Cmd+W) when it has 2+ open
