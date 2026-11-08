@@ -9,6 +9,7 @@ import {
 	maxNamedWidth,
 	nextRailWidthFromKey,
 	toggleRailWidth,
+	showsCloseButton,
 	RAIL_ICON_WIDTH,
 } from "../tab-rail-width";
 
@@ -124,5 +125,23 @@ describe("toggleRailWidth", () => {
 		expect(
 			toggleRailWidth({ stored: 32, namedWidth: 180, viewWidth: 200 }),
 		).toEqual({ tabRailWidth: 180, tabRailNamedWidth: 180 });
+	});
+});
+
+// I301: the hover-only close button shows on named keys at 100 px and wider.
+describe("showsCloseButton (I301)", () => {
+	it.each([
+		[32, false],
+		[60, false],
+		[99, false],
+		[100, true],
+		[160, true],
+		[260, true],
+	])("width %i → %s", (width, expected) => {
+		expect(showsCloseButton(width)).toBe(expected);
+	});
+	it("non-finite widths never show it", () => {
+		expect(showsCloseButton(Number.NaN)).toBe(false);
+		expect(showsCloseButton(Number.POSITIVE_INFINITY)).toBe(false);
 	});
 });
