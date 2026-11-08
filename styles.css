@@ -2818,11 +2818,14 @@ del.acp-header-branded-profile {
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-/* Named: + and ˅ side by side, in a 32px row like the chat header. */
+/* Named: + and ˅ side by side in a row as tall as the chat header (Obsidian's
+   .nav-header: 24px icons + 8px padding = 40px), so their icons line up with
+   the header's at the default width. */
 .agent-client-tab-rail.is-names .agent-client-tab-rail-toolbar {
 	flex-direction: row;
 	justify-content: flex-end;
-	height: 32px;
+	align-items: center;
+	height: 40px;
 	padding: 0 2px;
 }
 
