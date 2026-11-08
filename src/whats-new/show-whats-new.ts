@@ -10,12 +10,11 @@ import {
 	releaseNotesUrl,
 	type WhatsNewHighlight,
 } from "../resolvers/whats-new";
-import { HIGHLIGHTS } from "./highlights";
+import { FIRST_TRACKED, HIGHLIGHTS } from "./highlights";
 import type { WhatsNewForcedStore } from "./forced-store";
 
 export async function showWhatsNew(deps: {
 	currentVersion: string;
-	lastSeen: string | undefined;
 	forcedStore: WhatsNewForcedStore;
 	activateView: () => Promise<void>;
 	openUrl: (url: string) => void;
@@ -29,8 +28,10 @@ export async function showWhatsNew(deps: {
 			: deriveWhatsNewHighlights({
 					highlights: deps.highlights ?? HIGHLIGHTS,
 					current,
-					lastSeen: deps.lastSeen,
+					// Forced ignores lastSeen.
+					lastSeen: undefined,
 					forced: true,
+					firstTracked: FIRST_TRACKED,
 				});
 	if (shown.length === 0) {
 		const url = releaseNotesUrl(deps.currentVersion);

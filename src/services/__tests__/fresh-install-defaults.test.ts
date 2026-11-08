@@ -260,3 +260,48 @@ describe("I300 fresh installs start with lastSeenVersion set", () => {
 		for (const w of writes) expect(w.lastSeenVersion).toBeUndefined();
 	});
 });
+
+describe("I300 the plugin side of the What's new card", () => {
+	it("onboarding's save keeps the fresh-install lastSeenVersion", async () => {
+		const { plugin, writes } = await runLoad(null, "2.5.0");
+		const p = plugin as unknown as {
+			detectAgents: () => Promise<Set<string>>;
+			activateView: () => Promise<void>;
+			maybeFirstRunOnboarding: () => Promise<void>;
+		};
+		p.detectAgents = async () => new Set(["kiro"]);
+		p.activateView = async () => {};
+		await p.maybeFirstRunOnboarding();
+		expect(writes[writes.length - 1].lastSeenVersion).toBe("2.5.0");
+	});
+
+	it("the registered show-whats-new command forces the card through the plugin's own store (review F3)", async () => {
+		const { plugin } = await runLoad({ lastSeenVersion: "2.5.0" }, "2.5.0");
+		const commands: Array<{ id: string; name: string; callback?: () => void }> =
+			[];
+		const p = plugin as unknown as {
+			addCommand: (c: { id: string; name: string; callback?: () => void }) => void;
+			activateView: () => Promise<void>;
+			registerCoreCommands: () => void;
+			whatsNewForced: { get: () => boolean };
+		};
+		p.addCommand = (c) => {
+			commands.push(c);
+		};
+		const activateView = vi.fn(async () => {});
+		p.activateView = activateView;
+		// Object.create skips field initializers; give it the real store.
+		const { createWhatsNewForcedStore } = await import(
+			"../../whats-new/forced-store"
+		);
+		(p as unknown as { whatsNewForced: unknown }).whatsNewForced =
+			createWhatsNewForcedStore();
+		p.registerCoreCommands();
+		const cmd = commands.find((c) => c.id === "show-whats-new");
+		expect(cmd?.name).toBe("Show what's new");
+		cmd!.callback!();
+		await Promise.resolve();
+		expect(p.whatsNewForced.get()).toBe(true);
+		expect(activateView).toHaveBeenCalledTimes(1);
+	});
+});

@@ -232,3 +232,38 @@ describe("I300 WhatsNewCard render cost (6a)", () => {
 		expect(renders).toBe(0);
 	});
 });
+
+describe("I300 keyboard dismiss returns focus (review F2)", () => {
+	it("calls onDismissed when focus was in the card", async () => {
+		const { service } = makeStore({});
+		const onDismissed = vi.fn();
+		const { container } = render(
+			<WhatsNewCard
+				settingsStore={service}
+				forcedStore={createWhatsNewForcedStore()}
+				currentVersion="2.5.0"
+				onDismissed={onDismissed}
+			/>,
+		);
+		dismissButton(container)!.focus();
+		await act(async () => fireEvent.click(dismissButton(container)!));
+		expect(region(container)).toBeNull();
+		expect(onDismissed).toHaveBeenCalledTimes(1);
+	});
+
+	it("doesn't move focus when the card wasn't focused (mouse dismiss elsewhere)", async () => {
+		const { service } = makeStore({});
+		const onDismissed = vi.fn();
+		const { container } = render(
+			<WhatsNewCard
+				settingsStore={service}
+				forcedStore={createWhatsNewForcedStore()}
+				currentVersion="2.5.0"
+				onDismissed={onDismissed}
+			/>,
+		);
+		(document.activeElement as HTMLElement | null)?.blur();
+		await act(async () => fireEvent.click(dismissButton(container)!));
+		expect(onDismissed).not.toHaveBeenCalled();
+	});
+});

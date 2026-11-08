@@ -996,8 +996,6 @@ export const en = {
 	"chat.updateBanner.updateTitle": "Agent Update Available",
 	"chat.updateBanner.updateAvailable":
 		"{package}: {current} → {latest}.\nRun the following in your terminal:",
-	"modals.mcpAuth.linkExpiry":
-		"Sign-in links expire after a while – if the page shows an error, restart the session to get a fresh one.",
 	// "What's new" card (I300)
 	"chat.whatsNew.heading": "What's new in Agent Console",
 	"chat.whatsNew.verticalTabs.title": "Vertical tabs",
@@ -1007,4 +1005,6 @@ export const en = {
 	"chat.whatsNew.switchBackToTopTabs": "Switch back to top tabs",
 	"chat.whatsNew.releaseNotes": "Release notes",
 	"chat.whatsNew.dismiss": "Dismiss",
+	"modals.mcpAuth.linkExpiry":
+		"Sign-in links expire after a while – if the page shows an error, restart the session to get a fresh one.",
 } as const;
