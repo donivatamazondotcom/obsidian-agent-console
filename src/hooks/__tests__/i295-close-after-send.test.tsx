@@ -615,7 +615,7 @@ describe("I295: a record is written only after its transcript lands", () => {
 		expect(store.records()).toEqual([existing]);
 	});
 
-	it("the teardown flush resolves only after the file and the record land", async () => {
+	it("the teardown flush waits for the transcript, not the record; the record follows", async () => {
 		const store = makeStore();
 		const turn = deferred<unknown>();
 		const h = mountChat(store, { prompt: () => turn.promise });
@@ -623,15 +623,17 @@ describe("I295: a record is written only after its transcript lands", () => {
 		void send(h);
 		await settle(); // user message in state, debounced save armed
 		const releaseMetadata = store.holdMetadata();
-		let flushed = false;
-		const flush = h.result.current.flushPending().then(() => {
-			flushed = true;
-		});
-		await settle();
-		expect(flushed).toBe(false);
+		await h.result.current.flushPending();
+
+		// The flush resolved with the record write still held: the
+		// transcript is on disk and no record exists yet (never the reverse).
+		expect(store.records()).toHaveLength(0);
+		expect(
+			[...store.files.keys()].filter((f) => f.startsWith(SESSIONS_DIR)),
+		).toHaveLength(1);
 
 		releaseMetadata();
-		await flush;
+		await settle();
 		expect(store.records()).toHaveLength(1);
 		expect(store.recordsWithoutFile()).toEqual([]);
 		turn.resolve({ stopKind: "end_turn" });
@@ -902,10 +904,8 @@ describe("I295: other turn-save callers", () => {
 		expect(h.result.current.history.getRecordId()).toBe(adoptedId);
 	});
 
-	it("adopt branch: the save resolves only after the adopted copy is on disk", async () => {
+	it("adopt branch: the adopted copy lands after the record, even when it is slow", async () => {
 		const store = makeStore();
-		// The tab is bound to an id no record claims (its own record never
-		// landed), so the store adopts the other record for this session.
 		const h = mountChat(store, { restoredRecordId: "rec-minted" });
 		await store.sessionStore.renameSession({
 			recordId: null,
@@ -919,21 +919,19 @@ describe("I295: other turn-save callers", () => {
 		// The minted file passes; the copy under the adopted id is held.
 		const release = store.holdFileWriteAfter(1);
 
-		let saved = false;
-		let save!: Promise<void>;
-		act(() => {
-			save = h.result.current.history
-				.saveSessionMessages("sess-1", [msg("user", "hi", "u1")])
-				.then(() => {
-					saved = true;
-				});
+		await act(async () => {
+			await h.result.current.history.saveSessionMessages("sess-1", [
+				msg("user", "hi", "u1"),
+			]);
 		});
 		await settle();
-		expect(saved).toBe(false);
+		expect(store.files.has(fileOf(adoptedId))).toBe(false);
 
 		release();
-		await save;
+		await settle();
 		expect(store.files.has(fileOf(adoptedId))).toBe(true);
+		expect(store.files.has(fileOf("rec-minted"))).toBe(false);
+		expect(store.recordsWithoutFile()).toEqual([]);
 	});
 
 	it("an AI title during a held first file write: one record, AI title kept, file present", async () => {
