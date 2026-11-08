@@ -38,7 +38,10 @@ import { tooltipRef } from "./shared/useTooltip";
 import { InputToolbar } from "./InputToolbar";
 import { deriveSendAffordance } from "../resolvers/send-affordance";
 import type { TabSessionState } from "../hooks/useTabSessionState";
-import { focusComposerAtEnd } from "./composer-focus";
+import {
+	focusComposerAtEnd,
+	takeActivationRefocusHold,
+} from "./composer-focus";
 import { getLogger } from "../utils/logger";
 import { pushScopeWhileFocused } from "../utils/focus-scoped-push";
 import { deriveQueuedBannerActions } from "../resolvers/queued-banner-actions";
@@ -1434,12 +1437,14 @@ export function InputArea({
 	// Focus textarea when this tab becomes active (I19)
 	// Tabs are kept mounted and hidden via display:none; without this, hotkey-
 	// driven tab switches leave focus on the previously active tab's textarea.
+	// Skipped once when the tab rail keeps focus after a keyboard close of the
+	// active key (I301).
 	useEffect(() => {
 		if (isActive) {
 			window.setTimeout(() => {
-				if (textareaRef.current) {
-					textareaRef.current.focus();
-				}
+				const el = textareaRef.current;
+				if (takeActivationRefocusHold(el?.ownerDocument ?? document)) return;
+				el?.focus();
 			}, 0);
 		}
 	}, [isActive]);
