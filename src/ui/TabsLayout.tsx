@@ -3,7 +3,8 @@
  * Rail]] § Layout).
  *
  * One root element in both modes; only a class changes. Fixed slots:
- * `[strip?] [panels] [rail?]`, with the panels in a keyed wrapper, so
+ * `[strip?] [panels] [rail?]`, with the panels in a keyed wrapper (an
+ * optional notice sits first inside it), so
  * switching the setting swaps strip ↔ rail without remounting (or moving) a
  * tab panel – a remount would tear down the tab's agent session.
  */
@@ -33,11 +34,18 @@ export function TabsLayout({
 	tabDisplay,
 	strip,
 	rail,
+	notice,
 	children,
 }: {
 	tabDisplay: TabDisplay;
 	strip: React.ReactNode;
 	rail: React.ReactNode;
+	/**
+	 * Shown once above the panels (the "What's new" card, I300). A sibling
+	 * before `children`, not part of the keyed panel list, so showing or
+	 * hiding it never remounts a panel.
+	 */
+	notice?: React.ReactNode;
 	children: React.ReactNode;
 }) {
 	const vertical = tabDisplay === "vertical";
@@ -47,6 +55,7 @@ export function TabsLayout({
 		>
 			{!vertical && strip}
 			<div key="panels" className="agent-client-tab-panels">
+				{notice}
 				{children}
 			</div>
 			{vertical && rail}

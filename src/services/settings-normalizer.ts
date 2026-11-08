@@ -44,6 +44,7 @@ import {
 	type SavedSessionsCap,
 } from "../resolvers/session-retention";
 import { getLogger } from "../utils/logger";
+import { releaseCore } from "../resolvers/whats-new";
 import {
 	DEFAULT_OBSIDIAN_SYSTEM_PROMPT_SETTINGS,
 	normalizeObsidianSystemPromptSettings,
@@ -376,6 +377,23 @@ function readTabDisplay(raw: unknown, fallback: TabDisplay): TabDisplay {
 		`[Settings] Ignoring invalid tabDisplay ${JSON.stringify(raw)}; using ${fallback}`,
 	);
 	return fallback;
+}
+
+/**
+ * `lastSeenVersion` (I300): the newest release core whose "What's new"
+ * highlights the user dismissed. Missing (every install before the card) →
+ * undefined without a log; valid semver → its release core; anything else
+ * present is logged and dropped, never coerced.
+ */
+function readLastSeenVersion(raw: unknown): string | undefined {
+	if (raw === undefined) return undefined;
+	const core = typeof raw === "string" ? releaseCore(raw) : undefined;
+	if (core === undefined) {
+		getLogger().warn(
+			`[Settings] Ignoring invalid lastSeenVersion ${JSON.stringify(raw)}`,
+		);
+	}
+	return core;
 }
 
 /**
@@ -911,6 +929,7 @@ export function normalizeRawSettings(
 		kiroEngineDefaultMigrated: true,
 		settingsImportOfferShown: bool(raw.settingsImportOfferShown, false),
 		pluginUpdateCheck: parsePluginUpdateCache(raw.pluginUpdateCheck),
+		lastSeenVersion: readLastSeenVersion(raw.lastSeenVersion),
 		hasCompletedSetup: bool(raw.hasCompletedSetup, false),
 	};
 }
@@ -923,12 +942,18 @@ export function normalizeRawSettings(
  *
  * - `tabDisplay: "vertical"` – new users start on the tab rail; `tabRailWidth`
  *   keeps its default 32 (icons only).
+ * - `lastSeenVersion` – the running version's release core (I300), so new
+ *   users never see the "What's new" card. Left unset if `version` isn't
+ *   semver.
  */
 export function applyFreshInstallDefaults(
 	settings: AgentClientPluginSettings,
+	version?: string,
 ): AgentClientPluginSettings {
+	const lastSeenVersion = releaseCore(version);
 	return {
 		...settings,
 		tabDisplay: "vertical",
+		...(lastSeenVersion !== undefined ? { lastSeenVersion } : {}),
 	};
 }

@@ -37,15 +37,26 @@ import {
 import AgentClientPlugin from "../../plugin";
 import { Notice } from "obsidian";
 
-type Written = { tabDisplay: string; tabRailWidth: number; defaultAgentId: string };
+type Written = {
+	tabDisplay: string;
+	tabRailWidth: number;
+	defaultAgentId: string;
+	lastSeenVersion?: string;
+};
 
 type TestPlugin = AgentClientPlugin & {
 	loadData: () => Promise<unknown>;
 	saveData: (d: unknown) => Promise<void>;
 };
 
-async function runLoad(raw: Record<string, unknown> | null) {
+async function runLoad(
+	raw: Record<string, unknown> | null,
+	version = "2.5.0",
+) {
 	const plugin = Object.create(AgentClientPlugin.prototype) as TestPlugin;
+	(plugin as unknown as { manifest: { version: string } }).manifest = {
+		version,
+	};
 	// Snapshot each write: onboarding mutates this.settings after the first save.
 	const writes: Written[] = [];
 	const saveData = vi.fn(async (d: unknown) => {
@@ -211,5 +222,41 @@ describe("I306 the settings-import offer is for fresh installs only", () => {
 			onboardingFirst: true,
 		});
 		expect(toasts).toHaveLength(1);
+	});
+});
+
+/**
+ * I300: a fresh install is already "up to date" on what's new, so new users
+ * never see the card. An existing data.json without the key is a user who
+ * updated and should see it.
+ */
+describe("I300 fresh installs start with lastSeenVersion set", () => {
+	it("applyFreshInstallDefaults stores the release core of the version", () => {
+		expect(
+			applyFreshInstallDefaults(DEFAULT_SETTINGS, "2.5.0").lastSeenVersion,
+		).toBe("2.5.0");
+		expect(
+			applyFreshInstallDefaults(DEFAULT_SETTINGS, "2.5.0-beta.1")
+				.lastSeenVersion,
+		).toBe("2.5.0");
+	});
+
+	it("an invalid version leaves lastSeenVersion unset", () => {
+		expect(
+			applyFreshInstallDefaults(DEFAULT_SETTINGS, "nope").lastSeenVersion,
+		).toBeUndefined();
+	});
+
+	it("a fresh install (no data.json) saves the current version", async () => {
+		const { plugin, writes } = await runLoad(null, "2.5.0");
+		expect(plugin.settings.lastSeenVersion).toBe("2.5.0");
+		expect(writes.length).toBeGreaterThan(0);
+		expect(writes[writes.length - 1].lastSeenVersion).toBe("2.5.0");
+	});
+
+	it("an existing data.json without the key leaves it unset", async () => {
+		const { plugin, writes } = await runLoad({}, "2.5.0");
+		expect(plugin.settings.lastSeenVersion).toBeUndefined();
+		for (const w of writes) expect(w.lastSeenVersion).toBeUndefined();
 	});
 });

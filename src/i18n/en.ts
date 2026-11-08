@@ -559,6 +559,7 @@ export const en = {
 
 	// ---- Phase 3: commands ----
 	"commands.openChat": "Open chat",
+	"commands.showWhatsNew": "Show what's new",
 	"commands.cleanUpChatFiles": "Clean up unused chat files",
 	"commands.focusNextView": "Focus next chat view",
 	"commands.focusPreviousView": "Focus previous chat view",
@@ -997,4 +998,13 @@ export const en = {
 		"{package}: {current} → {latest}.\nRun the following in your terminal:",
 	"modals.mcpAuth.linkExpiry":
 		"Sign-in links expire after a while – if the page shows an error, restart the session to get a fresh one.",
+	// "What's new" card (I300)
+	"chat.whatsNew.heading": "What's new in Agent Console",
+	"chat.whatsNew.verticalTabs.title": "Vertical tabs",
+	"chat.whatsNew.verticalTabs.body":
+		"See every chat's status at a glance in a narrow column on the right. Drag it wider to see names.",
+	"chat.whatsNew.tryVerticalTabs": "Try vertical tabs",
+	"chat.whatsNew.switchBackToTopTabs": "Switch back to top tabs",
+	"chat.whatsNew.releaseNotes": "Release notes",
+	"chat.whatsNew.dismiss": "Dismiss",
 } as const;

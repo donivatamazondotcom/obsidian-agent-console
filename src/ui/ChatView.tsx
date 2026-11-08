@@ -49,6 +49,7 @@ import { ChatPanel, type ChatPanelCallbacks } from "./ChatPanel";
 import { TabBar, type TabBarProps } from "./TabBar";
 import { TabRail } from "./TabRail";
 import { TabsLayout, useTabDisplay } from "./TabsLayout";
+import { useWhatsNewNotice } from "./WhatsNewCard";
 import { ZeroTabLanding } from "./ZeroTabLanding";
 import { TabErrorBoundary } from "./TabErrorBoundary";
 import { EditTitleModal } from "./SessionHistoryModal";
@@ -1521,6 +1522,10 @@ function ChatComponent({
 	// so per-turn session saves and rail width commits don't re-render this
 	// component and its unmemoized panels. Above the zero-tab early return.
 	const tabDisplay = useTabDisplay(plugin.settingsService);
+	// "What's new" card (I300): one stable element for this view, shown above
+	// the panels or on the landing. Must stay above the early return below –
+	// beside the TabsLayout JSX it would change the hook count.
+	const whatsNewNotice = useWhatsNewNotice(plugin);
 
 	// ============================================================
 	// Render
@@ -1553,6 +1558,7 @@ function ChatComponent({
 					height: "100%",
 				}}
 			>
+				{whatsNewNotice}
 				{hasDetectedAgent ? (
 					<ZeroTabLanding
 						plugin={plugin}
@@ -1622,6 +1628,7 @@ function ChatComponent({
 					settingsStore={plugin.settingsService}
 				/>
 			}
+			notice={whatsNewNotice}
 		>
 			{tabs.map((tab) => (
 				<div
