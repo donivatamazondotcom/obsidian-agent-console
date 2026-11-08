@@ -788,70 +788,72 @@ export function TabRail(props: TabRailProps) {
 									dispatch({ type: "pointerLeaveKey" });
 							}}
 						>
-						<button
-							type="button"
-							role="tab"
-							data-tab-id={tab.tabId}
-							className={`agent-client-tab-rail-key${isActive ? " is-active" : ""}`}
-							aria-selected={isActive}
-							aria-labelledby={nameId}
-							tabIndex={
-								isActive || (!hasActiveTab && index === 0)
-									? 0
-									: -1
-							}
-							onClick={() => onSelectTab(tab.tabId)}
-							onMouseDown={(e) => {
-								if (e.button === 1) {
-									e.preventDefault();
-									onCloseTab(tab.tabId);
+							<button
+								type="button"
+								role="tab"
+								data-tab-id={tab.tabId}
+								className={`agent-client-tab-rail-key${isActive ? " is-active" : ""}`}
+								aria-selected={isActive}
+								aria-labelledby={nameId}
+								tabIndex={
+									isActive || (!hasActiveTab && index === 0)
+										? 0
+										: -1
 								}
-							}}
-							onContextMenu={(e) => onKeyContextMenu(e, tab)}
-							onKeyDown={onKeyNav(index)}
-							onFocus={(e) => {
-								if (isKeyboardFocus(e.currentTarget)) {
-									dispatch({
-										type: "focusKey",
-										key: tab.tabId,
-									});
-								}
-							}}
-							onBlur={() =>
-								dispatch({
-									type: "blurKey",
-									pointerInside: pointerInside.current,
-								})
-							}
-						>
-							<TabStateIcon state={tab.state} decorative />
-							{named && (
-								<span className="agent-client-tab-rail-key-label">
-									{tab.label}
-								</span>
-							)}
-							{named && renaming && <RailRenamingIcon />}
-							<span
-								id={nameId}
-								className="agent-client-visually-hidden"
-							>
-								{renaming
-									? t("chat.tabRail.keyNameRenaming", {
-											label: tab.label,
-											status,
-										})
-									: t("chat.tabRail.keyName", {
-											label: tab.label,
-											status,
-										})}
-							</span>
-						</button>
-						{closeShown && (
-							<RailCloseButton
-								onClose={() => onCloseTab(tab.tabId)}
+								onClick={() => onSelectTab(tab.tabId)}
+								onMouseDown={(e) => {
+									if (e.button === 1) {
+										e.preventDefault();
+										onCloseTab(tab.tabId);
+									}
+								}}
 								onContextMenu={(e) => onKeyContextMenu(e, tab)}
-							/>
-						)}
+								onKeyDown={onKeyNav(index)}
+								onFocus={(e) => {
+									if (isKeyboardFocus(e.currentTarget)) {
+										dispatch({
+											type: "focusKey",
+											key: tab.tabId,
+										});
+									}
+								}}
+								onBlur={() =>
+									dispatch({
+										type: "blurKey",
+										pointerInside: pointerInside.current,
+									})
+								}
+							>
+								<TabStateIcon state={tab.state} decorative />
+								{named && (
+									<span className="agent-client-tab-rail-key-label">
+										{tab.label}
+									</span>
+								)}
+								{named && renaming && <RailRenamingIcon />}
+								<span
+									id={nameId}
+									className="agent-client-visually-hidden"
+								>
+									{renaming
+										? t("chat.tabRail.keyNameRenaming", {
+												label: tab.label,
+												status,
+											})
+										: t("chat.tabRail.keyName", {
+												label: tab.label,
+												status,
+											})}
+								</span>
+							</button>
+							{closeShown && (
+								<RailCloseButton
+									onClose={() => onCloseTab(tab.tabId)}
+									onContextMenu={(e) =>
+										onKeyContextMenu(e, tab)
+									}
+								/>
+							)}
 						</div>
 					);
 				})}
