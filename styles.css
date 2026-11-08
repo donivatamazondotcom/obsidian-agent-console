@@ -2774,6 +2774,202 @@ del.acp-header-branded-profile {
 	height: 14px;
 }
 
+/* ===== Tab layout + Vertical Tab Rail ([[Agent Console Vertical Tab Rail]]) =====
+   One root in both modes; only the direction changes, so switching the Tab
+   display setting never remounts a tab panel. */
+.agent-client-tabs-layout {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.agent-client-tabs-layout.is-vertical {
+	flex-direction: row;
+}
+
+/* min-height/min-width 0 so the message list can still shrink and scroll. */
+.agent-client-tab-panels {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+	min-width: 0;
+}
+
+/* No overflow clipping here: the rail hosts its own flyout. Only the key list
+   scrolls. --ac-rail-width is set by TabRail (32px icon-only, 60–260 named). */
+.agent-client-tab-rail {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	flex: 0 0 var(--ac-rail-width, 32px);
+	width: var(--ac-rail-width, 32px);
+	min-height: 0;
+	background-color: var(--background-secondary);
+	border-left: 1px solid var(--background-modifier-border);
+}
+
+.agent-client-tab-rail-toolbar {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	flex-shrink: 0;
+	padding: 2px 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* Named: + and ˅ side by side, in a 32px row like the chat header. */
+.agent-client-tab-rail.is-names .agent-client-tab-rail-toolbar {
+	flex-direction: row;
+	justify-content: flex-end;
+	height: 32px;
+	padding: 0 2px;
+}
+
+.agent-client-tab-rail-list {
+	flex: 1;
+	min-height: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	scrollbar-width: thin;
+}
+
+/* Keys are native buttons; reset Obsidian's button chrome. */
+.agent-client-tab-rail-key {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	height: 28px;
+	padding: 0 6px 0 9px;
+	margin: 0;
+	border: none;
+	border-radius: 0;
+	box-shadow: none;
+	background-color: transparent;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	cursor: pointer;
+	user-select: none;
+}
+
+.agent-client-tab-rail.is-icons .agent-client-tab-rail-key {
+	justify-content: center;
+	padding: 0;
+}
+
+.agent-client-tab-rail-key:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+/* Active: filled background plus an accent bar on the inner edge – never
+   color alone. */
+.agent-client-tab-rail-key.is-active {
+	background-color: var(--background-modifier-active-hover);
+	color: var(--text-normal);
+}
+
+.agent-client-tab-rail-key.is-active::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	top: 4px;
+	bottom: 4px;
+	width: 3px;
+	border-radius: 0 var(--radius-s) var(--radius-s) 0;
+	background-color: var(--interactive-accent);
+}
+
+.agent-client-tab-rail-key:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+.agent-client-tab-rail-key-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	text-align: left;
+}
+
+/* Resize handle on the inner (left) edge. */
+.agent-client-tab-rail-handle {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: -3px;
+	width: 6px;
+	z-index: 2;
+	cursor: col-resize;
+	touch-action: none;
+}
+
+.agent-client-tab-rail-handle:hover {
+	background-color: var(--background-modifier-border);
+}
+
+.agent-client-tab-rail-handle:focus-visible {
+	outline: none;
+	background-color: var(--interactive-accent);
+}
+
+/* Piano-key flyout, left of its key. Ignores the pointer so moving between
+   keys never lands on it. Position set by TabRail (--ac-rail-flyout-top). */
+.agent-client-tab-rail-flyout {
+	position: absolute;
+	right: calc(100% + 4px);
+	top: var(--ac-rail-flyout-top, 0px);
+	transform: translateY(-50%);
+	z-index: var(--layer-tooltip);
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 260px;
+	padding: 4px 8px;
+	pointer-events: none;
+	white-space: nowrap;
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	box-shadow: var(--shadow-s);
+}
+
+.agent-client-tab-rail-flyout.is-hidden {
+	display: none;
+}
+
+.agent-client-tab-rail-flyout-text {
+	min-width: 0;
+}
+
+.agent-client-tab-rail-flyout-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+}
+
+.agent-client-tab-rail-flyout-status {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+/* Screen-reader-only text (rail key names, handle name). */
+.agent-client-visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
 /* ===== Tab State Icons (Colorblind-Safe) ===== */
 
 .agent-client-tab-state-icon {

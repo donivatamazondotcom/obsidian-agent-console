@@ -43,6 +43,9 @@ export const en = {
 		"How many chats to keep in your history. When you go over, the oldest chats move to your trash, so you can still get them back. Chats open in a tab are always kept.",
 	"settings.maxSavedSessions.unlimited": "Unlimited",
 	"settings.restoreTabsOnStartup.name": "Restore tabs on startup",
+	"settings.tabDisplay.name": "Tab display",
+	"settings.tabDisplay.optionHorizontal": "Horizontal",
+	"settings.tabDisplay.optionVertical": "Vertical",
 	"settings.confirmBeforeClosingMultiple.name":
 		"Confirm before closing multiple chats",
 	"settings.heading.permissions": "Permissions",
@@ -170,6 +173,8 @@ export const en = {
 		"Show a notification when the agent finishes a reply or asks for permission. Completion notifications name the tab and switch to it when clicked. Notifications stay quiet while Obsidian is focused.",
 	"settings.restoreTabsOnStartup.desc":
 		"Save open tabs when Obsidian quits and restore them on next launch. Each view restores its own tabs independently.",
+	"settings.tabDisplay.desc":
+		"Show tabs along the top, or as a narrow column of status icons on the right. Drag the column wider to see names.",
 	"settings.confirmBeforeClosingMultiple.desc":
 		"Warn before closing the panel with Cmd+W when it has 2 or more open chats, so you don't lose several running agents at once.",
 	"settings.autoAllowPermissions.desc":
@@ -528,7 +533,8 @@ export const en = {
 	"modals.confirmTrashChats.cleanupTitle": "Clean up unused chat files?",
 	"modals.confirmTrashChats.cleanupBody":
 		"Found {count} chat file(s) ({size}) that no longer show up in your history. They will move to your trash.",
-	"modals.confirmTrashChats.warning": "You can get them back from your trash.",
+	"modals.confirmTrashChats.warning":
+		"You can get them back from your trash.",
 	"modals.confirmTrashChats.confirm": "Move to trash",
 	"modals.sessionIntent.agentFallback": "the new agent",
 	"modals.sessionIntent.switchTitle": "Switch to {agent}?",
@@ -637,6 +643,11 @@ export const en = {
 	"chat.tabBar.closeOthers": "Close others",
 	"chat.tabBar.closeToRight": "Close to the right",
 	"chat.tabBar.closeBelow": "Close below",
+	"chat.tabRail.keyName": "{label}, {status}",
+	"chat.tabRail.keyNameRenaming": "{label}, {status}, renaming with AI",
+	"chat.tabRail.resize": "Resize tab column",
+	"chat.tabRail.iconsOnly": "Icons only",
+	"chat.tabRail.showingNames": "Showing names",
 	"chat.tabBar.closeTab": "Close tab",
 	"chat.tabBar.newSessionTab": "New session tab",
 	"chat.tabBar.tabList": "Tab list",
@@ -671,7 +682,8 @@ export const en = {
 	"chat.composer.placeholderQueueSteer":
 		"{queueKey} to queue · {steerKey} to send now",
 	"chat.composer.queuedBannerReady": "Queued — sends when {agent} is done",
-	"chat.composer.queuedBannerGone": "Not sent. This session is no longer on {agent}.",
+	"chat.composer.queuedBannerGone":
+		"Not sent. This session is no longer on {agent}.",
 	"chat.composer.queuedBannerFailed":
 		"Couldn't connect — Edit, then Send to retry",
 	"chat.composer.queuedBannerWaiting": "Queued — sends when ready",
