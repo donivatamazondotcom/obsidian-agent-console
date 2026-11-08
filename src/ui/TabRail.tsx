@@ -688,9 +688,18 @@ export function TabRail(props: TabRailProps) {
 				className="agent-client-tab-rail-list"
 				role="tablist"
 				aria-orientation="vertical"
-				aria-label={t("chat.tabBar.tabList")}
+				aria-labelledby={`${uid}-list`}
 				onScroll={() => dispatch({ type: "listScrolled" })}
 			>
+				{/* Named by a hidden span, not aria-label: Obsidian shows any
+				    aria-label as a hover tooltip, which popped "Tab list" over
+				    the whole rail (smoke H2). */}
+				<span
+					id={`${uid}-list`}
+					className="agent-client-visually-hidden"
+				>
+					{t("chat.tabBar.tabList")}
+				</span>
 				{tabs.map((tab, index) => {
 					const isActive = tab.tabId === activeTabId;
 					const renaming = aiRenamingTabIds?.has(tab.tabId) ?? false;
