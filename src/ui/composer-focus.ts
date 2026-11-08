@@ -100,20 +100,22 @@ export function sendAndReturnFocus(
 }
 
 /**
- * One-shot hold on the composer refocus that runs when a tab becomes active
- * (InputArea's I19 effect). Set by the vertical tab rail just before Delete or
- * Backspace closes the focused ACTIVE key (I301): closing it activates the
- * neighbor, whose composer would otherwise take focus a tick later, so focus
- * would leave the rail and a second Backspace would edit the next chat's draft.
+ * Short hold on the composer refocus that runs when a tab becomes active. Set
+ * by the vertical tab rail just before Delete or Backspace closes the focused
+ * ACTIVE key (I301): closing it activates the neighbor, whose composer would
+ * otherwise take focus, so focus would leave the rail and a second Backspace
+ * would edit the next chat's draft.
  *
- * Per document, so a popout window's rail and composers pair up. The next
- * activation refocus in that document consumes it. It also expires after
- * ACTIVATION_HOLD_MS, because the refocus it targets may never run (for
- * example the neighbor tab crashed and shows its error fallback with no
- * composer); a stale hold would otherwise skip some later, unrelated refocus.
- * Every other activation (mouse switch, × click, commands) refocuses as before.
+ * Two InputArea paths refocus on activation, both read the hold: the I19
+ * effect (a setTimeout 0 when `isActive` turns true) and the I26
+ * IntersectionObserver (the composer turning visible, one frame or so later).
+ * So the hold is a window, not one-shot: it lasts ACTIVATION_HOLD_MS and is
+ * only checked, never consumed. It expires on its own, because the refocus it
+ * targets may never run (for example the neighbor tab crashed and shows its
+ * error fallback). A token keeps a newer hold from being cleared by an older
+ * one's expiry. Per document, so a popout's rail and composers pair up.
  */
-const ACTIVATION_HOLD_MS = 100;
+const ACTIVATION_HOLD_MS = 250;
 const activationRefocusHolds = new WeakMap<Document, number>();
 let nextHoldToken = 0;
 
@@ -126,7 +128,7 @@ export function holdNextActivationRefocus(doc: Document): void {
 	}, ACTIVATION_HOLD_MS);
 }
 
-/** True (and clears the hold) when the next activation refocus must be skipped. */
-export function takeActivationRefocusHold(doc: Document): boolean {
-	return activationRefocusHolds.delete(doc);
+/** True while an activation refocus in this document must be skipped. */
+export function isActivationRefocusHeld(doc: Document): boolean {
+	return activationRefocusHolds.has(doc);
 }
