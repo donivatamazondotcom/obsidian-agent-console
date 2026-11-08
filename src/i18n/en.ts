@@ -636,6 +636,7 @@ export const en = {
 	"chat.tabBar.close": "Close",
 	"chat.tabBar.closeOthers": "Close others",
 	"chat.tabBar.closeToRight": "Close to the right",
+	"chat.tabBar.closeBelow": "Close below",
 	"chat.tabBar.closeTab": "Close tab",
 	"chat.tabBar.newSessionTab": "New session tab",
 	"chat.tabBar.tabList": "Tab list",
