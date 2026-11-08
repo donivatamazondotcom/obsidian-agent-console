@@ -25,6 +25,8 @@ The toggle remembers your last choice.
 
 **Titles on the Agent view.** When Agent Console also has its own copy of a session, the Agent view shows the title you know it by – including one you renamed – instead of the agent's title. Only sessions the plugin has never saved show the agent's own title. That way a session reads the same in both views, even when the agent changes its titles later.
 
+**Empty chats don't pile up.** If you open a chat and close it, start a new chat, or switch agents without sending anything, Agent Console removes that empty session from the agent's list, for agents that support deleting sessions (Kiro CLI V3, Claude Code). An empty tab left open when you quit Obsidian can still leave one behind. Chats you sent anything in are never removed.
+
 ### The Agent view when you're not connected
 
 Agent Console keeps a small list of your agent's sessions, refreshed each time the agent connects. So even before this tab connects (for example, after a restart), the Agent view can show that list, as long as the agent has connected once before — marked with when it was last refreshed (for example, "Synced 5 minutes ago – send a message to reconnect and refresh"). Sending a message connects the agent and pulls the latest.

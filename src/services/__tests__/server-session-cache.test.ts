@@ -46,6 +46,7 @@ describe("settings edge (I270)", () => {
 		restoresViaResume: false,
 		forks: true,
 		closesSessions: true,
+		deletesSessions: false,
 		reportsModels: true,
 	};
 	const learnedAt = "2026-11-01T00:00:00Z";

@@ -74,7 +74,11 @@ import { useLinkOriginTab } from "../hooks/useLinkOriginTab";
 
 // Service imports
 import { getLogger } from "../utils/logger";
-import { retireLiveSession } from "../services/retire-live-session";
+import {
+	useSessionRetirement,
+	type SessionRetirementApi,
+} from "../hooks/useSessionRetirement";
+import type { UnsentDiscardDecision } from "../resolvers/unsent-discard";
 import {
 	deriveAiRenameAffordance,
 	type AiRenameAffordance,
@@ -192,7 +196,16 @@ import { t } from "../i18n";
  * Used by ChatView to implement IChatViewContainer
  * by delegating to the React component's state and handlers.
  */
+/** I259: without a retirement owner (never in practice), keep the session. */
+const KEEP_NO_OWNER: UnsentDiscardDecision = { kind: "keep", reason: "no-session" };
+
 export interface ChatPanelCallbacks {
+	/**
+	 * I259: whether closing this tab deletes its never-sent agent session.
+	 * Called synchronously by ChatView's close handlers before the tab is
+	 * removed; reads refs only.
+	 */
+	snapshotUnsentDiscard?: () => UnsentDiscardDecision;
 	getDisplayName: () => string;
 	getInputState: () => ChatInputState | null;
 	setInputState: (state: ChatInputState) => void;
@@ -820,6 +833,8 @@ export function ChatPanel({
 	// Forward ref to useLazySession.acquireNow (created later). restart-agent
 	// and hard-reload route their re-acquisition through the single owner.
 	const lazyAcquireNowRef = useRef<(() => Promise<void>) | null>(null);
+	// I259: forward ref to useSessionRetirement (created after the queue).
+	const retirementRef = useRef<SessionRetirementApi | null>(null);
 	// Forward ref to useLazySession.reloadNow (created later): soft reload
 	// runs through the same owner so the tab passes through `connecting` and
 	// the connect-flush delivers a message sent mid-reload (I229).
@@ -850,6 +865,7 @@ export function ChatPanel({
 		agentCwd,
 		lazyReloadNowRef,
 		lazyContinuesSessionRef,
+		retirementRef,
 	);
 
 	const {
@@ -1002,6 +1018,9 @@ export function ChatPanel({
 	const handleNewChatWithPersist = useCallback(
 		async (requestedAgentId?: string) => {
 			try {
+				// I259: decide before anything below clears messages or
+				// rebinds the agent.
+				const unsentDiscard = retirementRef.current?.snapshot() ?? KEEP_NO_OWNER;
 				const decision = decideSessionIntent({
 					intent: (requestedAgentId
 						? "switch-agent"
@@ -1089,13 +1108,18 @@ export function ChatPanel({
 					sessionHistory.invalidateCache();
 
 					// I210: don't leave the old session running on the same
-					// process before the next session/new.
-					await retireLiveSession(decision.retire, {
-						closeLiveSession: agent.closeLiveSession,
-						respawn: agent.closeSession,
-						warn: (message, error) =>
-							getLogger().warn(`[I210] ${message}`, error),
-					});
+					// process before the next session/new. I259: delete it
+					// first when it was never sent to (agent switch included).
+					await retirementRef.current?.retire(
+						decision.retire,
+						{
+							closeLiveSession: agent.closeLiveSession,
+							respawn: agent.closeSession,
+							warn: (message, error) =>
+								getLogger().warn(`[I210] ${message}`, error),
+						},
+						unsentDiscard,
+					);
 				}
 
 				// Rebind without creating a session directly. Lazy decisions reset
@@ -1208,6 +1232,7 @@ export function ChatPanel({
 	const handleNewChatInDirectory = useCallback(
 		async (directory: string) => {
 			try {
+				const unsentDiscard = retirementRef.current?.snapshot() ?? KEEP_NO_OWNER;
 				const decision = decideSessionIntent({
 					intent: "new-chat-in-directory",
 					currentAgentId: session.agentId,
@@ -1230,13 +1255,18 @@ export function ChatPanel({
 				suggestions.mentions.toggleAutoMention(false);
 				agent.clearMessages();
 				setCarriedOver(null);
-				// I210: retire the old session on this process first.
-				await retireLiveSession(decision.retire, {
-					closeLiveSession: agent.closeLiveSession,
-					respawn: agent.closeSession,
-					warn: (message, error) =>
-						getLogger().warn(`[I210] ${message}`, error),
-				});
+				// I210: retire the old session on this process first (I259:
+				// deleting a never-sent one).
+				await retirementRef.current?.retire(
+					decision.retire,
+					{
+						closeLiveSession: agent.closeLiveSession,
+						respawn: agent.closeSession,
+						warn: (message, error) =>
+							getLogger().warn(`[I210] ${message}`, error),
+					},
+					unsentDiscard,
+				);
 				// Change cwd, rebind the same agent, then acquire immediately through
 				// the sole owner. The override ref covers the pre-render state window.
 				setAgentCwd(directory);
@@ -1416,6 +1446,9 @@ export function ChatPanel({
 	// I209: a reconnect that starts while an idle release is in flight waits
 	// for the old tree to exit (Kiro V2 rejects session/load until then).
 	const releaseGateRef = useRef(createReleaseGate());
+	// I259: a new session waits only until a release has called disconnect()
+	// (after deleting a never-sent session), not for the full tree exit.
+	const newSessionGateRef = useRef(createReleaseGate());
 
 	useEagerInitialize({
 		// Spawn gate only: liveSession/idle/busy are fed by useIdleRelease,
@@ -1497,6 +1530,9 @@ export function ChatPanel({
 
 		acquireNewSession: useCallback(async () => {
 			try {
+				// I259: never start session/new on a process an idle release
+				// is about to kill.
+				await newSessionGateRef.current.wait();
 				// Source of truth is the LIVE tab agent (session.agentId,
 				// updated on switch via setAgentWithoutSession). The mount-time
 				// config?.agent / initialAgentId snapshot is intentionally NOT
@@ -2238,13 +2274,25 @@ export function ChatPanel({
 					flush: flushSessionSave,
 					// I237: keep the id only when there is something to resume —
 					// a transcript, or an id restored from disk.
-					lazyRelease: () =>
-						lazySession.release({
-							keepSessionId:
-								messageCountRef.current > 0 || !!restoredSessionId,
-						}),
+					// I259: decided after the last recheck, before the id is nulled.
+					snapshotDiscard: () => {
+						const unsentDiscard =
+							retirementRef.current?.snapshot() ?? KEEP_NO_OWNER;
+						return async () => {
+							await retirementRef.current?.discard(unsentDiscard);
+						};
+					},
+					lazyRelease: () => {
+						const keepSessionId =
+							messageCountRef.current > 0 || !!restoredSessionId;
+						const released = lazySession.release({ keepSessionId });
+						// I259: a discarded id takes its send attempt with it.
+						if (released && !keepSessionId) agent.resetSendAttempt();
+						return released;
+					},
 					agentRelease: agent.releaseSession,
 					gate: releaseGateRef.current,
+					newSessionGate: newSessionGateRef.current,
 				});
 				if (ran) logger.log("[ChatPanel] Idle release: agent process freed");
 			} catch (e) {
@@ -2677,6 +2725,18 @@ export function ChatPanel({
 	// Queue refs (#82) — read latest queue state from the once-registered
 	// broadcast/send callbacks (same ref pattern as the values above).
 	const isQueuedRef = useRef(queue.isQueued);
+	// I259: the owner of "retire this tab's session" (delete a never-sent
+	// one, then I210's close/respawn).
+	const sessionRetirement = useSessionRetirement({
+		client: acpClient,
+		sessionId: session.sessionId ?? null,
+		messageCount: messages.length,
+		isQueued: queue.isQueued,
+		hasAttemptedSend: agent.hasAttemptedSend,
+		getRecordId: sessionHistory.getRecordId,
+		warn: (message, error) => getLogger().warn(message, error),
+	});
+	retirementRef.current = sessionRetirement;
 	const handleQueueMessageRef = useRef(handleQueueMessage);
 	isQueuedRef.current = queue.isQueued;
 	handleQueueMessageRef.current = handleQueueMessage;
@@ -2834,6 +2894,8 @@ export function ChatPanel({
 
 	useEffect(() => {
 		onRegisterCallbacks?.({
+			snapshotUnsentDiscard: () =>
+				retirementRef.current?.snapshot() ?? KEEP_NO_OWNER,
 			flushSessionSave,
 			getDisplayName: () => activeAgentLabel,
 			getInputState: () => ({

@@ -430,6 +430,7 @@ describe("normalizeAgentCapabilityCache (I260)", () => {
 		restoresViaResume: false,
 		forks: true,
 		closesSessions: false,
+		deletesSessions: true,
 		reportsModels: false,
 	};
 
@@ -451,6 +452,26 @@ describe("normalizeAgentCapabilityCache (I260)", () => {
 		});
 		expect(Object.keys(out)).toEqual(["good"]);
 		expect(warn).toHaveBeenCalledTimes(2);
+		warn.mockRestore();
+	});
+
+	it("drops an entry saved before I259 (no deletesSessions) and logs it", () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const out = normalizeAgentCapabilityCache({
+			"v3|kiro-cli": {
+				capabilities: {
+					listsSessions: true,
+					restoresViaLoad: true,
+					restoresViaResume: false,
+					forks: true,
+					closesSessions: true,
+					reportsModels: false,
+				},
+				learnedAt: "2026-11-01T00:00:00Z",
+			},
+		});
+		expect(out).toEqual({});
+		expect(warn).toHaveBeenCalledTimes(1);
 		warn.mockRestore();
 	});
 

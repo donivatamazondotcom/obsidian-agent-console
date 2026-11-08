@@ -287,6 +287,7 @@ export class AcpTypeConverter {
 			restoresViaResume: sessionCaps?.resume !== undefined,
 			forks: sessionCaps?.fork !== undefined,
 			closesSessions: sessionCaps?.close !== undefined,
+			deletesSessions: sessionCaps?.delete !== undefined,
 			// ACP SDK 0.14.1 has no initialize-time model capability; this is
 			// the single wire-point if that ever changes. See AgentCapabilities.
 			reportsModels: false,
@@ -312,6 +313,8 @@ export class AcpTypeConverter {
 						fork: sessionCaps.fork ?? undefined,
 						list: sessionCaps.list ?? undefined,
 						close: sessionCaps.close ?? undefined,
+						// SDK: null means "not supported" (I259).
+						delete: sessionCaps.delete ?? undefined,
 					}
 				: undefined,
 			mcpCapabilities: mcpCaps

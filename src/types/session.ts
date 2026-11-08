@@ -776,6 +776,8 @@ export interface SessionCapabilities {
 	list?: Record<string, unknown>;
 	/** session/close support (unstable) — used only inside `acp/` (F15) */
 	close?: Record<string, unknown>;
+	/** session/delete support — used only inside `acp/` (I259) */
+	delete?: Record<string, unknown>;
 }
 
 /**
@@ -836,6 +838,13 @@ export interface AgentCapabilities {
 	closesSessions: boolean;
 
 	/**
+	 * Agent advertises `session/delete` (removes a session from its
+	 * `session/list`). Retirement deletes a session this process created and
+	 * never sent to, so empty chats don't pile up in the Agent view (I259).
+	 */
+	deletesSessions: boolean;
+
+	/**
 	 * Agent reports model state the header can display.
 	 *
 	 * ACP SDK 0.14.1 exposes NO model capability in `initialize` (model
@@ -859,6 +868,7 @@ export const NO_AGENT_CAPABILITIES: AgentCapabilities = {
 	restoresViaResume: false,
 	forks: false,
 	closesSessions: false,
+	deletesSessions: false,
 	reportsModels: false,
 };
 

@@ -78,7 +78,7 @@ src/
 │   ├── carried-over-preview.ts  # Cross-agent carry-over preview builder (pure)
 │   ├── carry-over-builder.ts    # Carry-over transcript + content blocks for an agent switch or a fallback to a new session (pure)
 │   ├── ai-title-service.ts      # F15 Rename with AI: local-transcript excerpt, title-only prompt, tolerant reply parse, requestAiTitle over the side-title port
-│   ├── retire-live-session.ts   # I210 executor for decideSessionIntent's `retire`: session/close the old session, or respawn (also the close-failed fallback)
+│   ├── retire-live-session.ts   # I210 executor for decideSessionIntent's `retire`: session/close the old session, or respawn (also the close-failed fallback). I259: first deletes a never-sent session (discardUnsentSession, ≤ 1 s, never throws); retireClosedTabClient for tab close
 │   ├── chat-exporter.ts         # Markdown export with frontmatter
 │   ├── view-registry.ts         # Multi-view management, focus, broadcast
 │   ├── register-chat-view.ts    # I157: guarded chat-view registration — a duplicate-view-type collision degrades to a notice, not an onload crash
@@ -124,6 +124,7 @@ src/
 │   ├── useDebouncedSessionSave.ts # Debounced session persistence (messages + context notes)
 │   ├── useOwnedNotifications.ts # Ties a panel's system notifications to its lifetime; closes them when the tab closes (I52)
 │   ├── useEagerInitialize.ts    # Decision #10 eager initialize, gated by decideProcessHold — fires at most once per panel, when the tab may hold a process (I208)
+│   ├── useSessionRetirement.ts  # I259 retirement owner: snapshot() (decideUnsentDiscard over refs), discard, retire (delete a never-sent session, then I210 close/respawn)
 │   ├── useIdleRelease.ts        # Idle release (I209): one timer per panel on decideProcessHold; release sequence (flush → released → kill, wait for tree exit), reconnect gate, apply-after-reconnect for pickers
 │   ├── useContextNotes.ts       # Crystallized context-note state per chat (add/remove/seen)
 │   ├── useContextVaultEvents.ts # Vault rename/delete sync for crystallized context notes
@@ -228,6 +229,7 @@ src/
 │   ├── session-modes.ts            # readSessionModes (config option or legacy modes; shared by header + prompt targeting), lookupByIdOrName, resolveModeRequest (one-shot first-session mode)
 │   ├── history-launch-key.ts       # historyLaunchKey({ liveLaunchKey, sessionState, nextLaunchKey }) → live | unkeyed | next | none — which launch Session history reads capabilities and server rows for (I270)
 │   ├── history-capabilities.ts     # resolveHistoryCapabilities(live, cached) → { kind: live | cached | unknown, capabilities } — what the history view gates on before a tab connects (I260)
+│   ├── unsent-discard.ts           # decideUnsentDiscard — pure resolver: does retiring this tab delete its agent session (created here with session/new, never sent to, nothing on screen, no record, agent advertises delete; I259)
 │   ├── restore-failure.ts          # decideRestoreFailure — after a kept id fails to load: fallback with the transcript (local record or transcript on screen, or engine change; I246), gone (agent rejected or emptily loaded a row with nothing local; I282), or connect-failed (agent never answered)
 │   ├── session-history-view.ts     # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source, knowledge) → listSource/agentPill (available | unsupported | unknown, I260)/restore/fork/banner/folderFilterDefault); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
 │   ├── session-retention.ts        # I202 saved-chat retention: selectEvictions(sessions, cap, tabIds) → least recently updated first, never a tab's record; selectUnusedSessionFiles (cleanup command, 24h guard); parseMaxSavedSessions (25|50|100|250|500|null=unlimited, default 100); formatSize

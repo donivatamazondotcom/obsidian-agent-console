@@ -184,6 +184,17 @@ export interface RunIdleReleaseArgs {
 	/** `useAgentSession.releaseSession()`: disconnect, resolve on tree exit. */
 	agentRelease: () => Promise<void>;
 	gate: ReleaseGate;
+	/**
+	 * I259: take the never-sent-session decision (after the last recheck,
+	 * before `lazyRelease` nulls the id) and return its bound executor.
+	 */
+	snapshotDiscard?: () => () => Promise<unknown>;
+	/**
+	 * I259: held from `lazyRelease` until `agentRelease` has called
+	 * `disconnect()`, so a new-session acquisition during the delete starts
+	 * on a fresh process. Narrower than `gate` (tree exit).
+	 */
+	newSessionGate?: ReleaseGate;
 }
 
 /**
@@ -195,8 +206,26 @@ export async function runIdleRelease(args: RunIdleReleaseArgs): Promise<boolean>
 	await args.flush();
 	// The flush awaited: a send or keystroke may have landed meanwhile.
 	if (!args.recheck()) return false;
+	const discard = args.snapshotDiscard?.();
 	if (!args.lazyRelease()) return false;
-	const releasing = args.agentRelease();
+	let openNewSessionGate: () => void = () => undefined;
+	args.newSessionGate?.hold(
+		new Promise<void>((resolve) => {
+			openNewSessionGate = resolve;
+		}),
+	);
+	const releasing = (async () => {
+		try {
+			if (discard) await discard();
+			// releaseSession calls disconnect() before its first await, so the
+			// process is already going once this call returns.
+			const done = args.agentRelease();
+			openNewSessionGate();
+			await done;
+		} finally {
+			openNewSessionGate();
+		}
+	})();
 	args.gate.hold(releasing);
 	await releasing;
 	return true;

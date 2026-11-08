@@ -7,6 +7,8 @@ import {
 	getAllTags,
 	type MenuItem,
 } from "obsidian";
+import type { UnsentDiscardDecision } from "../resolvers/unsent-discard";
+import { closedTabSessionId } from "../services/recently-closed-stack";
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import {
 	focusActiveTabComposer,
@@ -535,8 +537,8 @@ function ChatComponent({
 	);
 
 	const removeClient = useCallback(
-		async (tabId: string) => {
-			await plugin.removeAcpClient(tabId);
+		async (tabId: string, unsentDiscard?: UnsentDiscardDecision) => {
+			await plugin.removeAcpClient(tabId, unsentDiscard);
 			acpClientsRef.current.delete(tabId);
 			tabSessionIdsRef.current.delete(tabId);
 			tabRecordIdsRef.current.delete(tabId);
@@ -775,23 +777,39 @@ function ChatComponent({
 		return () => view.setOpenPromptInNewTab(null);
 	}, [view, handleOpenInNewTab]);
 
+	// I259: a tab's own decision on whether closing it deletes its
+	// never-sent agent session. No handle means keep.
+	const snapshotUnsentDiscard = useCallback(
+		(tabId: string): UnsentDiscardDecision =>
+			tabHandlesRef.current.get(tabId)?.snapshotUnsentDiscard?.() ?? {
+				kind: "keep",
+				reason: "no-session",
+			},
+		[],
+	);
+
 	const handleCloseTab = useCallback(
 		(tabId: string) => {
 			// Closing the last tab is allowed — it lands on the zero-tab
 			// landing screen (Decision 1). No single-tab guard here.
 			const idx = tabs.findIndex((t) => t.tabId === tabId);
 			const tab = tabs[idx];
+			// I259: decide before the tab (and its handle) goes away.
+			const unsentDiscard = snapshotUnsentDiscard(tabId);
 			if (tab) {
 				recentlyClosed.capture(
 					buildClosedTabRecord({
 						tab,
-						sessionId: getSessionIdForTab(tabId),
+						sessionId: closedTabSessionId(
+							unsentDiscard,
+							getSessionIdForTab(tabId),
+						),
 						recordId: getRecordIdForTab(tabId),
 						position: idx,
 					}),
 				);
 			}
-			void removeClient(tabId);
+			void removeClient(tabId, unsentDiscard);
 			tabManager.removeTab(tabId);
 		},
 		[
@@ -801,6 +819,7 @@ function ChatComponent({
 			recentlyClosed,
 			getSessionIdForTab,
 			getRecordIdForTab,
+			snapshotUnsentDiscard,
 		],
 	);
 
@@ -808,15 +827,19 @@ function ChatComponent({
 		(tabId: string) => {
 			tabs.forEach((tab, idx) => {
 				if (tab.tabId !== tabId) {
+					const unsentDiscard = snapshotUnsentDiscard(tab.tabId);
 					recentlyClosed.capture(
 						buildClosedTabRecord({
 							tab,
-							sessionId: getSessionIdForTab(tab.tabId),
+							sessionId: closedTabSessionId(
+								unsentDiscard,
+								getSessionIdForTab(tab.tabId),
+							),
 							recordId: getRecordIdForTab(tab.tabId),
 							position: idx,
 						}),
 					);
-					void removeClient(tab.tabId);
+					void removeClient(tab.tabId, unsentDiscard);
 				}
 			});
 			tabManager.removeOtherTabs(tabId);
@@ -828,6 +851,7 @@ function ChatComponent({
 			recentlyClosed,
 			getSessionIdForTab,
 			getRecordIdForTab,
+			snapshotUnsentDiscard,
 		],
 	);
 
@@ -835,15 +859,19 @@ function ChatComponent({
 		(tabId: string) => {
 			const idx = tabs.findIndex((t) => t.tabId === tabId);
 			for (let i = idx + 1; i < tabs.length; i++) {
+				const unsentDiscard = snapshotUnsentDiscard(tabs[i].tabId);
 				recentlyClosed.capture(
 					buildClosedTabRecord({
 						tab: tabs[i],
-						sessionId: getSessionIdForTab(tabs[i].tabId),
+						sessionId: closedTabSessionId(
+							unsentDiscard,
+							getSessionIdForTab(tabs[i].tabId),
+						),
 						recordId: getRecordIdForTab(tabs[i].tabId),
 						position: i,
 					}),
 				);
-				void removeClient(tabs[i].tabId);
+				void removeClient(tabs[i].tabId, unsentDiscard);
 			}
 			tabManager.removeTabsToRight(tabId);
 		},
@@ -854,6 +882,7 @@ function ChatComponent({
 			recentlyClosed,
 			getSessionIdForTab,
 			getRecordIdForTab,
+			snapshotUnsentDiscard,
 		],
 	);
 

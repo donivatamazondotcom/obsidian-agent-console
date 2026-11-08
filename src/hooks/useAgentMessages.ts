@@ -125,6 +125,13 @@ export interface UseAgentMessagesReturn {
 		options: SendMessageOptions,
 	) => Promise<void>;
 	clearMessages: () => void;
+	/**
+	 * I259: a send was started on this tab (even one still preparing or one
+	 * that failed). Cleared by clearMessages and resetSendAttempt.
+	 */
+	hasAttemptedSend: () => boolean;
+	/** I259: forget the send attempt (an idle release discarded the id). */
+	resetSendAttempt: () => void;
 	setInitialMessages: (
 		history: Array<{
 			role: string;
@@ -221,6 +228,12 @@ export function useAgentMessages(
 	// Track the current send promise so a new sendMessage() can wait for
 	// the previous one to settle before starting (avoids interleaved sends).
 	const sendPromiseRef = useRef<Promise<void> | null>(null);
+	// I259: set on the first line of sendMessage, before any await.
+	const sendAttemptedRef = useRef(false);
+	const hasAttemptedSend = useCallback(() => sendAttemptedRef.current, []);
+	const resetSendAttempt = useCallback(() => {
+		sendAttemptedRef.current = false;
+	}, []);
 
 	// I203 settle gate. ACP lets an agent keep streaming a cancelled turn's
 	// `session/update`s until it answers that turn's `session/prompt` with
@@ -470,6 +483,7 @@ export function useAgentMessages(
 		setSuggestedTitle(null);
 		// I257: a cleared chat has no prompt in flight to echo.
 		liveTurnRef.current = null;
+		sendAttemptedRef.current = false;
 	}, [setErrorInfo]);
 
 	const setInitialMessages = useCallback(
@@ -521,6 +535,7 @@ export function useAgentMessages(
 
 	const sendMessage = useCallback(
 		async (content: string, options: SendMessageOptions): Promise<void> => {
+			sendAttemptedRef.current = true;
 			if (!session.sessionId) {
 				setErrorInfo({
 					title: t("chat.acpErrors.cannotSendTitle"),
@@ -836,6 +851,8 @@ export function useAgentMessages(
 		suggestedTitle,
 		sendMessage,
 		clearMessages,
+		hasAttemptedSend,
+		resetSendAttempt,
 		setInitialMessages,
 		setMessagesFromLocal,
 		clearError,

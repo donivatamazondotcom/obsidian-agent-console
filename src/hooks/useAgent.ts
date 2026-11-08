@@ -104,6 +104,10 @@ export interface UseAgentReturn {
 		options: SendMessageOptions,
 	) => Promise<void>;
 	clearMessages: () => void;
+	/** I259: a send was started on this tab since the last clear. */
+	hasAttemptedSend: () => boolean;
+	/** I259: forget the send attempt. */
+	resetSendAttempt: () => void;
 	setInitialMessages: (
 		history: Array<{
 			role: string;
@@ -274,6 +278,8 @@ export function useAgent(
 			// Message operations
 			sendMessage: agentMessages.sendMessage,
 			clearMessages: agentMessages.clearMessages,
+			hasAttemptedSend: agentMessages.hasAttemptedSend,
+			resetSendAttempt: agentMessages.resetSendAttempt,
 			setInitialMessages: agentMessages.setInitialMessages,
 			setMessagesFromLocal: agentMessages.setMessagesFromLocal,
 			clearError: agentMessages.clearError,
@@ -312,6 +318,8 @@ export function useAgent(
 			agentSession.setConfigOption,
 			agentMessages.sendMessage,
 			agentMessages.clearMessages,
+			agentMessages.hasAttemptedSend,
+			agentMessages.resetSendAttempt,
 			agentMessages.setInitialMessages,
 			agentMessages.setMessagesFromLocal,
 			agentMessages.clearError,
