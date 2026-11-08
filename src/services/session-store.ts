@@ -20,7 +20,9 @@
  *
  * Scope: the `savedSessions` metadata/title array only (the path the three
  * racing writers touch). Per-session message FILES (`sessions/{id}.json`) are
- * an independent concern and stay fire-and-forget in the caller. Fork/delete
+ * written by the caller (`useSessionHistory.saveSessionMessages`), which
+ * enqueues the turn save only after the file lands, so a record never exists
+ * without its transcript (I295). Fork/delete
  * are not part of the title race and remain on the existing serialized
  * `saveSession`/`deleteSession` (both already guarded by SessionStorage's
  * sessionLock).
@@ -287,16 +289,15 @@ export class SessionStore {
 	}
 
 	/**
-	 * Persist first-message metadata for a brand-new session through the single
-	 * serialized writer (replaces the direct `saveSessionLocally`
-	 * `settingsService.saveSession`).
+	 * Bump an existing record's recency after its first message, through the
+	 * single serialized writer. The existing (AI / manual / fork) title is
+	 * preserved; the first-message text is never written over it.
 	 *
-	 * The first-message title is a FALLBACK, never an override: if a record
-	 * already exists (an AI title or rename resolved before the first-message
-	 * save landed) its title is preserved and only `updatedAt` is bumped. This
-	 * is the existing-title > first-message branch of `deriveSessionRecordTitle`
-	 * applied inside the critical section, so a concurrent higher-precedence
-	 * write is never clobbered — the exact race the direct write caused.
+	 * Never creates a record (I295, [[Session History Invariants]] invariant
+	 * 1): a record is created only by `recordTurnSave`, which the caller runs
+	 * after the transcript file lands. A first-message save with no record
+	 * (the tab closed before the message reached state, or the turn save
+	 * hasn't run) writes nothing and resolves to null.
 	 */
 	recordFirstMessage(
 		params: RecordTarget & {
@@ -311,24 +312,12 @@ export class SessionStore {
 			if (!params.sessionId || !params.agentId || !fallback) return null;
 			const now = params.now ?? new Date().toISOString();
 			const existing = this.find(params);
-			if (existing) {
-				// Preserve the existing (AI / manual / fork) title; bump only
-				// recency. Never downgrade to the first-message text.
-				if (existing.updatedAt === now) return existing.recordId; // de-dupe
-				await this.port.saveSession({ ...existing, updatedAt: now });
-				return existing.recordId;
-			}
-			const recordId = params.recordId ?? newRecordId();
-			await this.port.saveSession({
-				recordId,
-				sessionId: params.sessionId,
-				agentId: params.agentId,
-				cwd: params.cwd,
-				title: fallback,
-				createdAt: now,
-				updatedAt: now,
-			});
-			return recordId;
+			if (!existing) return null;
+			// Preserve the existing (AI / manual / fork) title; bump only
+			// recency. Never downgrade to the first-message text.
+			if (existing.updatedAt === now) return existing.recordId; // de-dupe
+			await this.port.saveSession({ ...existing, updatedAt: now });
+			return existing.recordId;
 		});
 	}
 }

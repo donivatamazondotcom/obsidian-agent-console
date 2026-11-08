@@ -397,19 +397,19 @@ describe("SessionStore.renameSession (explicit title wins)", () => {
 });
 
 describe("SessionStore.recordFirstMessage (first-message title is a fallback)", () => {
-	it("creates a first-message title when no record exists", async () => {
+	it("never creates a record when none exists (I295: a record needs its transcript)", async () => {
 		const port = new FakePort([]);
 		const store = new SessionStore(port);
 
-		await store.recordFirstMessage({
+		const written = await store.recordFirstMessage({
 			sessionId: SID,
 			agentId: AGENT,
 			cwd: CWD,
 			firstMessageTitle: FIRST_MESSAGE,
 		});
 
-		expect(port.sessions).toHaveLength(1);
-		expect(titleOf(port)).toBe(FIRST_MESSAGE);
+		expect(written).toBeNull();
+		expect(port.sessions).toHaveLength(0);
 	});
 
 	it("never downgrades an existing AI title (the saveSessionLocally race)", async () => {

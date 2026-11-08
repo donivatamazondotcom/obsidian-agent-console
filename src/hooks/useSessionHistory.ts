@@ -417,9 +417,21 @@ export function useSessionHistory(
 		[settingsAccess, setBinding],
 	);
 
-	/** The store adopted a different record than we guessed: follow it. */
+	/**
+	 * Bumped by every reset (I295). A write captures it before its await and
+	 * adopts its result only when no reset happened in between, so a late
+	 * write for the old chat can't bind the new chat to the old record.
+	 */
+	const bindingEpochRef = useRef(0);
+
+	/**
+	 * The store adopted a different record than we guessed: follow it, unless
+	 * the binding was reset since `epoch` was captured. A skip makes no
+	 * `setBinding` call at all: the new chat may already hold its own binding.
+	 */
 	const adoptRecordId = useCallback(
-		(written: string | null) => {
+		(written: string | null, epoch: number) => {
+			if (epoch !== bindingEpochRef.current) return;
 			if (written) setBinding(written);
 		},
 		[setBinding],
@@ -441,6 +453,7 @@ export function useSessionHistory(
 	);
 
 	const resetRecordBinding = useCallback(() => {
+		bindingEpochRef.current++;
 		setBinding(null);
 	}, [setBinding]);
 
@@ -771,12 +784,19 @@ export function useSessionHistory(
 	);
 
 	/**
-	 * Save session metadata locally.
-	 * Called when the first message is sent in a new session.
+	 * Bump the recency of the tab's record after its first message.
+	 * Called once the first turn has ended. Creates nothing (I295): a record
+	 * is created only by the turn save, after its transcript lands. With no
+	 * bound record (the turn save hasn't run, the tab closed before the
+	 * message reached state, or New chat reset the binding) it does nothing,
+	 * so it can never adopt the old chat's record after a reset.
 	 */
 	const saveSessionLocally = useCallback(
 		async (sessionId: string, messageContent: string) => {
 			if (!session.agentId) return;
+			const recordId = recordIdRef.current;
+			if (!recordId) return;
+			const epoch = bindingEpochRef.current;
 
 			const title =
 				messageContent.length > 50
@@ -788,15 +808,16 @@ export function useSessionHistory(
 			// or rename instead of overwriting it with the first-message text.
 			adoptRecordId(
 				await sessionStore.recordFirstMessage({
-					recordId: bindRecordId(sessionId),
+					recordId,
 					sessionId,
 					agentId: session.agentId,
 					cwd: agentCwd,
 					firstMessageTitle: title,
 				}),
+				epoch,
 			);
 		},
-		[session.agentId, agentCwd, sessionStore, bindRecordId, adoptRecordId],
+		[session.agentId, agentCwd, sessionStore, adoptRecordId],
 	);
 
 	/**
@@ -818,85 +839,98 @@ export function useSessionHistory(
 			if (!session.agentId || messages.length === 0)
 				return Promise.resolve();
 
-			// Persist message content + crystallized context. Returned so a
-			// teardown flush (useDebouncedSessionSave.flushPending ->
-			// ChatView.onClose) can AWAIT the write, so the final turn survives
-			// a quit/reload (I193). The message FILE is an independent concern
-			// from the savedSessions metadata array and not part of the title
-			// race.
+			// Persist message content + crystallized context, then the record
+			// (I295). Returned so a teardown flush can AWAIT both (I193).
 			// I269: the file and the record both use the tab's record id, so
 			// a fallback's new agent session keeps writing the same chat.
+			const epoch = bindingEpochRef.current;
 			const recordId = bindRecordId(sessionId);
-			const writePromise = settingsAccess
-				.saveSessionMessages(recordId, session.agentId, messages, contextNotes)
-				.then(() => undefined);
+			const agentId = session.agentId;
+			const writePromise = settingsAccess.saveSessionMessages(
+				recordId,
+				agentId,
+				messages,
+				contextNotes,
+			);
 
+			// I295: the record is written only once its transcript is on
+			// disk, so a close, quit or crash can leave a transcript without a
+			// record (restorable; the next save recreates it, I58) but never
+			// a record without a transcript.
+			//
 			// Upsert session metadata through the single serialized writer
 			// (I114). The owner re-reads the latest snapshot inside its critical
 			// section and consults the title-precedence resolver, so a
-			// concurrent AI-title write is never clobbered by a stale read, and
-			// a transcript-on-disk session is never orphaned from the history
-			// list (I58). A carried `suggestedTitle` sets the AI title; omitting
-			// it preserves the existing title.
-			sessionStore
-				.recordTurnSave({
-					recordId,
-					sessionId,
-					agentId: session.agentId,
-					cwd: agentCwd,
-					messages,
-					suggestedTitle: suggestedTitle ?? null,
-					seedTitle: restoredAgentTitle ?? null,
-					// D2: the engine this turn ran on (launched engine, I235).
-					kiroEngine: session.kiroEngine,
-				})
-				.then((written) => {
-					// The store adopted another record for this session (one
-					// created elsewhere mid-turn): write the transcript under
-					// its id too, so file and record agree from this turn on.
-					if (written && written !== recordId && session.agentId) {
-						const minted = recordId;
-						// Wait for both writes (settled, not all): a failed first
-						// write is reported by the teardown flush, not here.
-						void Promise.allSettled([
-							writePromise,
-							settingsAccess.saveSessionMessages(
-								written,
-								session.agentId,
-								messages,
-								contextNotes,
-							),
-						])
-							.then(([, adopted]) => {
-								// Only once the copy under the adopted id is on
-								// disk: otherwise the minted file is the only one.
-								if (adopted.status !== "fulfilled" || adopted.value !== true) {
-									return;
-								}
-								// The id minted for this turn names no record:
-								// drop its file.
-								const claimed = findSessionRecord(
-									settingsAccess.getSavedSessions(),
-									{ by: "recordId", id: minted },
+			// concurrent AI-title write is never clobbered by a stale read. A
+			// carried `suggestedTitle` sets the AI title; omitting it preserves
+			// the existing title.
+			const recordPromise = writePromise.then((written) => {
+				if (written !== true) {
+					getLogger().warn(
+						"[SessionHistory] Transcript write failed; record not written:",
+						recordId,
+					);
+					return;
+				}
+				return sessionStore
+					.recordTurnSave({
+						recordId,
+						sessionId,
+						agentId,
+						cwd: agentCwd,
+						messages,
+						suggestedTitle: suggestedTitle ?? null,
+						seedTitle: restoredAgentTitle ?? null,
+						// D2: the engine this turn ran on (launched engine, I235).
+						kiroEngine: session.kiroEngine,
+					})
+					.then((adoptedId) => {
+						// The store adopted another record for this session (one
+						// created elsewhere mid-turn): write the transcript under
+						// its id too, so file and record agree from this turn on.
+						if (adoptedId && adoptedId !== recordId) {
+							const minted = recordId;
+							void settingsAccess
+								.saveSessionMessages(
+									adoptedId,
+									agentId,
+									messages,
+									contextNotes,
+								)
+								.then((copied) => {
+									// Only once the copy under the adopted id is on
+									// disk: otherwise the minted file is the only one.
+									if (copied !== true) return;
+									// The id minted for this turn names no record:
+									// drop its file.
+									const claimed = findSessionRecord(
+										settingsAccess.getSavedSessions(),
+										{ by: "recordId", id: minted },
+									);
+									if (!claimed) {
+										return settingsAccess.deleteSessionMessages(minted);
+									}
+								})
+								.catch((err) =>
+									getLogger().warn(
+										"[SessionHistory] Cleanup after adopt failed:",
+										err,
+									),
 								);
-								if (!claimed) {
-									return settingsAccess.deleteSessionMessages(minted);
-								}
-							})
-							.catch((err) =>
-								getLogger().warn(
-									"[SessionHistory] Cleanup after adopt failed:",
-									err,
-								),
-							);
-					}
-					adoptRecordId(written);
-				})
-				.catch((err) =>
-					getLogger().error("[SessionHistory] Turn save refused:", err),
-				);
+						}
+						adoptRecordId(adoptedId, epoch);
+					});
+			});
 
-			return writePromise;
+			// Resolves once the transcript AND its record have landed, so the
+			// teardown flush (useDebouncedSessionSave.flushPending ->
+			// ChatView.onClose, I193) keeps both across a quit. Never rejects.
+			return recordPromise.then(
+				() => undefined,
+				(err) => {
+					getLogger().error("[SessionHistory] Turn save refused:", err);
+				},
+			);
 		},
 		[
 			session.agentId,
@@ -919,6 +953,7 @@ export function useSessionHistory(
 	const applySessionTitle = useCallback(
 		(sessionId: string, suggestedTitle: string, sessionCwd: string) => {
 			if (!session.agentId) return;
+			const epoch = bindingEpochRef.current;
 			sessionStore
 				.applySuggestedTitle({
 					recordId: bindRecordId(sessionId),
@@ -927,7 +962,7 @@ export function useSessionHistory(
 					cwd: sessionCwd,
 					suggestedTitle,
 				})
-				.then(adoptRecordId)
+				.then((written) => adoptRecordId(written, epoch))
 				.catch((err) =>
 					getLogger().error("[SessionHistory] Title write refused:", err),
 				);

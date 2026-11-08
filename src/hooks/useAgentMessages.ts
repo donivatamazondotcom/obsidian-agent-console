@@ -230,6 +230,12 @@ export function useAgentMessages(
 	const sendPromiseRef = useRef<Promise<void> | null>(null);
 	// I259: set on the first line of sendMessage, before any await.
 	const sendAttemptedRef = useRef(false);
+	// I295: bumped only by clearMessages (New chat, hard reload, agent
+	// switch). A send that sees it change before its message is added was
+	// meant for a chat that no longer exists, so it is dropped. Separate from
+	// generationRef, which newer sends and cancels also bump: a superseded or
+	// cancelled send still adds its message and goes out.
+	const resetEpochRef = useRef(0);
 	const hasAttemptedSend = useCallback(() => sendAttemptedRef.current, []);
 	const resetSendAttempt = useCallback(() => {
 		sendAttemptedRef.current = false;
@@ -484,6 +490,10 @@ export function useAgentMessages(
 		// I257: a cleared chat has no prompt in flight to echo.
 		liveTurnRef.current = null;
 		sendAttemptedRef.current = false;
+		// I295: drop a send still preparing for the cleared chat, and stop a
+		// live turn's late result or error from landing on it.
+		resetEpochRef.current++;
+		generationRef.current++;
 	}, [setErrorInfo]);
 
 	const setInitialMessages = useCallback(
@@ -536,6 +546,8 @@ export function useAgentMessages(
 	const sendMessage = useCallback(
 		async (content: string, options: SendMessageOptions): Promise<void> => {
 			sendAttemptedRef.current = true;
+			const resetEpoch = resetEpochRef.current;
+			const chatWasReset = () => resetEpochRef.current !== resetEpoch;
 			if (!session.sessionId) {
 				setErrorInfo({
 					title: t("chat.acpErrors.cannotSendTitle"),
@@ -555,6 +567,7 @@ export function useAgentMessages(
 			if (cancelledTurnRef.current) {
 				await cancelledTurnRef.current.settled;
 			}
+			if (chatWasReset()) return;
 
 			const currentSessionId = session.sessionId;
 			const generation = ++generationRef.current;
@@ -599,6 +612,7 @@ export function useAgentMessages(
 				} catch {
 					selectionContext = null;
 				}
+				if (chatWasReset()) return;
 			}
 
 			const prepared = await preparePrompt(
@@ -633,6 +647,7 @@ export function useAgentMessages(
 				vaultAccess,
 				vaultAccess, // IMentionService (same object)
 			);
+			if (chatWasReset()) return;
 
 			const userMessageContent: MessageContent[] = [];
 
