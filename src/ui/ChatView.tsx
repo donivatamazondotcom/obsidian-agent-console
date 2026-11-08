@@ -13,6 +13,7 @@ import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import {
 	focusActiveTabComposer,
 	scheduleComposerRefocus,
+	scheduleViewRefocus,
 } from "./composer-focus";
 import { commitTabRename } from "./tab-rename";
 import { applyComposerFocus } from "../resolvers/composer-focus";
@@ -1528,7 +1529,7 @@ function ChatComponent({
 	// A keyboard dismiss returns focus to this view's composer instead of
 	// leaving it on <body> when the card unmounts.
 	const refocusComposerAfterWhatsNew = useCallback(
-		() => scheduleComposerRefocus(view.containerEl),
+		() => scheduleViewRefocus(view.containerEl),
 		[view],
 	);
 	const whatsNewNotice = useWhatsNewNotice(

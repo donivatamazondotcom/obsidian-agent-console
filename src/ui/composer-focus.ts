@@ -62,6 +62,27 @@ export function scheduleComposerRefocus(container: HTMLElement | null): void {
 	window.requestAnimationFrame(() => focusActiveTabComposer(container));
 }
 
+/**
+ * After a focused control inside the view is removed (the "What's new" card's
+ * Dismiss, I300): focus the active composer, or – on the no-agent landing,
+ * which has none – the view's first visible control, so keyboard focus never
+ * falls back to <body>. Runs on the next animation frame, after the unmount.
+ */
+export function scheduleViewRefocus(container: HTMLElement | null): void {
+	if (!container) return;
+	window.requestAnimationFrame(() => {
+		focusActiveTabComposer(container);
+		const doc = container.ownerDocument;
+		if (container.contains(doc.activeElement)) return;
+		const first = Array.from(
+			container.querySelectorAll<HTMLElement>(
+				"textarea, button:not([disabled]), a[href], input:not([disabled])",
+			),
+		).find((el) => !isHiddenByDisplay(el));
+		first?.focus();
+	});
+}
+
 /** True when the element or any ancestor is hidden via an inline display:none. */
 function isHiddenByDisplay(el: HTMLElement): boolean {
 	let node: HTMLElement | null = el;
