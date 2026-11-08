@@ -64,6 +64,7 @@ These appear only when a chat view is open.
 | Command | Description |
 |---------|-------------|
 | **Import settings from another agent plugin** | Import agent definitions, defaults, and API keys from another plugin (e.g. Agent Client). Shows a preview first. See [Importing Settings](/usage/importing-settings). |
+| **Show what's new** | Show the **What's new** card again in every open chat view – the one that appears once after an update, with a one-click way to try a new feature. If this version has nothing to show, it opens the release notes instead. See [Tabbed Sessions](/usage/tabbed-sessions#what-s-new-after-an-update) |
 | **Clean up unused chat files** | Find saved chat files that no longer appear in your history or in any tab, show how many there are and how much space they use, and move them to your trash after you confirm. Files changed in the last day are left alone. See [Session History](/usage/session-history#how-many-chats-are-kept) |
 
 ## Broadcast Commands

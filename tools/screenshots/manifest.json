@@ -1818,6 +1818,40 @@
 			"caption": "Widen the column to see names",
 			"altText": "Agent Console tabs in a widened column on the right, each with its status icon and name",
 			"captureNote": "pluginSettings switches Tab display to Vertical at 150px for this entry (restored after it). rightSplitWidth 400 keeps the chat view \u2265 310px so 150 renders unclamped; a clamp would drop the labels and fail mustShow."
+		},
+		{
+			"name": "whats-new-card",
+			"pending": true,
+			"width": 400,
+			"height": 520,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 400,
+				"height": 520
+			},
+			"cropSelector": "[data-type=\"agent-console-chat-view\"]",
+			"cropPadding": 0,
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 40,
+			"placement": "feature",
+			"docPage": "docs/usage/tabbed-sessions.md",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 400,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"pluginSettings": {
+					"tabDisplay": "horizontal",
+					"lastSeenVersion": "2.4.0"
+				},
+				"clickRibbon": true
+			},
+			"purpose": "After an update, a one-time card tells existing users about vertical tabs, with a one-click way to try them and a way back.",
+			"differentiator": "In-panel What's new card after an update",
+			"mustShow": ".agent-client-whats-new",
+			"caption": "Try new features in one click after an update",
+			"altText": "Agent Console chat view with a What's new card above the chat offering Try vertical tabs and Release notes",
+			"captureNote": "pluginSettings makes this an existing user who last dismissed 2.4.0, on the top tab strip. The card shows only when the running version is 2.5.0 or later: capture before the npm version bump with studio's plugin manifest.json copied (not symlinked) and its version set to 2.5.0, then restore the symlink."
 		}
 	]
 }

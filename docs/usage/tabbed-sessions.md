@@ -58,6 +58,10 @@ See which chat needs you without opening a list. New installs start with vertica
 
 Reordering tabs by dragging works in the top bar only.
 
+### What's new after an update
+
+When you update Agent Console, a small **What's new** card appears once at the top of the chat view – not once per tab. For this release it offers **Try vertical tabs**, which moves your tabs into the column straight away, and **Switch back to top tabs** to undo it. The button always matches your current setting, even after a restart. Click **×** to dismiss the card; it stays gone in every chat view until the next update with something new. To see it again, run **Show what's new** from the command palette. New installs start on vertical tabs already, so they don't get the card.
+
 ## Creating tabs
 
 Three ways:

@@ -163,7 +163,8 @@ src/
 │   ├── chat-view-type.ts        # I157: namespaced "agent-console-chat-view" view-type constant (avoids collision with upstream Agent Client)
 │   ├── TabBar.tsx               # Tab bar UI for parallel agent sessions (drag-reorder, +button, status icons)
 │   ├── TabRail.tsx              # Vertical tab rail (Tab display: Vertical): status-icon keys, piano-key flyouts, resize handle; owns the rail width state ([[Agent Console Vertical Tab Rail]])
-│   ├── TabsLayout.tsx           # One-root, fixed-slot layout for strip or rail + useTabDisplay (primitive subscription) so a display switch never remounts a panel
+│   ├── TabsLayout.tsx           # One-root, fixed-slot layout for strip or rail + useTabDisplay (primitive subscription) so a display switch never remounts a panel; optional `notice` slot above the panels
+│   ├── WhatsNewCard.tsx         # "What's new" card shown once per chat view after an update (I300) + useWhatsNewNotice (stable element, called above ChatView's zero-tab early return); memoized, three primitive subscriptions
 │   ├── tab-state-icon.tsx       # stateIcon / stateIconClass / stateLabel / TabStateIcon (decorative mode) shared by strip, tab list and rail
 │   ├── tab-menus.ts             # Tab context menu + chevron tab list, shared by TabBar and TabRail ('Close below' on the rail)
 │   ├── keyboard-focus.ts        # isKeyboardFocus (:focus-visible) — rail flyouts open on keyboard focus only
@@ -235,6 +236,7 @@ src/
 │   ├── session-retention.ts        # I202 saved-chat retention: selectEvictions(sessions, cap, tabIds) → least recently updated first, never a tab's record; selectUnusedSessionFiles (cleanup command, 24h guard); parseMaxSavedSessions (25|50|100|250|500|null=unlimited, default 100); formatSize
 │   ├── session-title.ts            # Pure session-title resolver (I224/I227): resolveSessionTitle(local > agent > none, drops placeholder agent titles), overlayLocalTitles (Agent-view rows, live + cached, by session id), deriveRestoreTabLabel (restored/forked tab label); deriveSessionRecordTitle reads it too
 │   ├── tab-keyboard-nav.ts         # deriveTabKeyTarget — pure resolver for Left/Right/Home/End focus movement across the tab strip (WAI-ARIA tabs, manual activation; TS-I08); `orientation: "vertical"` uses Up/Down for the tab rail
+│   ├── whats-new.ts                # releaseCore / deriveWhatsNewHighlights / releaseNotesUrl / nextLastSeenVersion — which "What's new" highlights show after an update (I300)
 │   ├── tab-rail-width.ts           # resolveRailWidth / maxNamedWidth / nextRailWidthFromKey / toggleRailWidth — vertical tab rail snap, clamp, keyboard steps and toggle
 │   ├── tab-rail-hover.ts           # nextRailHover — total piano-key flyout state machine with declarative timer effects + shouldShowFlyout
 │   ├── tab-rail-scroll.ts          # deriveRailScrollTop — keeps the active rail key in view, scrolling only the key list
@@ -288,6 +290,10 @@ src/
 │   ├── preserve-scroll.ts        # redrawPreservingScroll — rebuild a settings sub-page without losing its scroll (I215)
 │   ├── textarea-autosize.ts     # decideTextareaResize/clampTextareaHeight — pure composer auto-resize (avoids scroll-pin jump, I-S13)
 │   └── logger.ts                # Debug-mode logger
+├── whats-new/                   # "What's new" card data and command (I300)
+│   ├── highlights.ts            # Highlights registry (data only) + FIRST_TRACKED
+│   ├── forced-store.ts          # In-memory "show it anyway" flag for the command, shaped for useSyncExternalStore
+│   └── show-whats-new.ts        # "Show what's new" command: force the card on, or open the release notes when nothing applies
 ├── __test_stubs__/              # Test-only Obsidian/jsdom shims (not shipped)
 │   ├── obsidian.ts              # Obsidian module stub for vitest
 │   └── vitest.setup.ts          # jsdom setup: activeDocument/activeWindow + HTMLElement.setCssProps shims

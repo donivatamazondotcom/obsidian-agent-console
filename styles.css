@@ -2796,6 +2796,64 @@ del.acp-header-branded-profile {
 	min-width: 0;
 }
 
+/* "What's new" card (I300): once per chat view, above the tab panels or
+   at the top of the zero-tab landing. Theme variables only. */
+.agent-client-whats-new {
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	margin: var(--size-4-2) var(--size-4-2) 0;
+	padding: var(--size-4-3);
+	border: var(--border-width) solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background-color: var(--background-secondary);
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+.agent-client-whats-new-header {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.agent-client-whats-new-heading {
+	flex: 1;
+	min-width: 0;
+	font-weight: var(--font-semibold);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.agent-client-whats-new-item {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--size-4-1);
+}
+
+.agent-client-whats-new-title {
+	font-weight: var(--font-semibold);
+	font-size: var(--font-ui-medium);
+}
+
+.agent-client-whats-new-body {
+	color: var(--text-muted);
+	line-height: var(--line-height-normal);
+}
+
+.agent-client-whats-new-action {
+	margin-top: var(--size-4-1);
+}
+
+.agent-client-whats-new-link {
+	align-self: flex-start;
+	font-size: var(--font-ui-smaller);
+}
+
 /* No overflow clipping here: the rail hosts its own flyout. Only the key list
    scrolls. --ac-rail-width is set by TabRail (32px icon-only, 60–260 named). */
 .agent-client-tab-rail {
@@ -3811,7 +3869,11 @@ del.acp-header-branded-profile {
 .agent-client-zero-tab-landing {
 	display: flex;
 	flex-direction: column;
-	height: 100%;
+	/* flex: 1 in the landing wrapper (a 100%-high column), so the "What's
+	   new" card above it (I300) takes its height from the landing instead of
+	   pushing it past the bottom. Same height as before when there's no card. */
+	flex: 1;
+	min-height: 0;
 }
 
 .agent-client-zero-tab-landing-center {

@@ -16,6 +16,11 @@ import { ConfirmTrashChatsModal } from "./ui/ConfirmTrashChatsModal";
 import { formatSize, tabSessionIds } from "./resolvers/session-retention";
 import { mayOfferSettingsImport } from "./resolvers/settings-import-offer";
 import * as semver from "semver";
+import {
+	createWhatsNewForcedStore,
+	type WhatsNewForcedStore,
+} from "./whats-new/forced-store";
+import { showWhatsNew } from "./whats-new/show-whats-new";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
 import {
@@ -310,6 +315,13 @@ export interface AgentClientPluginSettings {
 	settingsImportOfferShown?: boolean;
 	/** Saved result of the plugin update check; see resolvers/update-check-decision.ts. */
 	pluginUpdateCheck?: PluginUpdateCache;
+	/**
+	 * The newest release core (`major.minor.patch`) whose "What's new"
+	 * highlights the user dismissed (I300). Fresh installs get the running
+	 * version (`applyFreshInstallDefaults`), so only users who update see the
+	 * card. Missing = an install from before the card, which sees it.
+	 */
+	lastSeenVersion?: string;
 
 	/**
 	 * One-time forward latch: set true the first time the user sends a
@@ -379,6 +391,12 @@ export default class AgentClientPlugin extends Plugin {
 	 * first-run settings-import offer.
 	 */
 	private isFreshInstall = false;
+
+	/**
+	 * "Show what's new" forces the card on in every open chat view (I300).
+	 * In memory only; a dismiss clears it.
+	 */
+	readonly whatsNewForced: WhatsNewForcedStore = createWhatsNewForcedStore();
 
 	/**
 	 * Session-cached agent-detection result, **invalidatable**. Detection costs
@@ -1339,6 +1357,23 @@ export default class AgentClientPlugin extends Plugin {
 			},
 		});
 
+		// I300: re-show the "What's new" card (or the release notes).
+		this.addCommand({
+			id: "show-whats-new",
+			name: t("commands.showWhatsNew"),
+			callback: () => {
+				void showWhatsNew({
+					currentVersion: this.manifest.version,
+					lastSeen: this.settings.lastSeenVersion,
+					forcedStore: this.whatsNewForced,
+					activateView: () => this.activateView(),
+					openUrl: (url) => {
+						window.open(url, "_blank");
+					},
+				});
+			},
+		});
+
 		// I202: move transcript files no chat or tab uses to the trash.
 		this.addCommand({
 			id: "clean-up-unused-chat-files",
@@ -1862,11 +1897,16 @@ export default class AgentClientPlugin extends Plugin {
 			(message, entry) => getLogger().warn(message, entry),
 		);
 
-		// I299: fresh-install-only defaults (vertical tabs). Applied before both
-		// saves below, so the first data.json already carries them. Existing
-		// installs skip this and keep the normalizer defaults.
+		// I299/I300: fresh-install-only defaults – vertical tabs, and the
+		// running version marked as seen so new users get no "What's new"
+		// card. Applied before both saves below, so the first data.json
+		// already carries them. Existing installs skip this and keep the
+		// normalizer defaults.
 		if (this.isFirstRun) {
-			this.settings = applyFreshInstallDefaults(this.settings);
+			this.settings = applyFreshInstallDefaults(
+				this.settings,
+				this.manifest.version,
+			);
 		}
 
 		this.ensureDefaultAgentId();
