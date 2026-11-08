@@ -857,8 +857,16 @@ const railKeysHaveNoAriaLabel: Invariant = {
 			 filled.style.setProperty("background-color", "rgb(1, 2, 3)");
 			 list.appendChild(probe);
 			 list.appendChild(filled);
+			 // Restore the list's own label afterwards (not remove it): a real
+			 // label must still be there for the decisive scan below.
+			 const priorLabel = list.getAttribute("aria-label");
 			 list.setAttribute("aria-label", "__inv10_list__");
-			 try { ${SCAN} } finally { probe.remove(); filled.remove(); list.removeAttribute("aria-label"); }`,
+			 try { ${SCAN} } finally {
+				 probe.remove();
+				 filled.remove();
+				 if (priorLabel === null) list.removeAttribute("aria-label");
+				 else list.setAttribute("aria-label", priorLabel);
+			 }`,
 		);
 		const sawKey = control.offenders.some((o) => o.startsWith("__inv10_control__"));
 		const sawList = control.offenders.some((o) => o.startsWith("tablist"));
