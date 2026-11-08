@@ -247,7 +247,8 @@ function makeHistorySettings() {
 				info,
 			];
 		}),
-		saveSessionMessages: vi.fn(async () => {}),
+		// The real write resolves true on success (the record waits for it, I295).
+		saveSessionMessages: vi.fn(async () => true),
 		loadSessionMessages: vi.fn(async () => null),
 		loadSessionContextNotes: vi.fn(async () => null),
 		subscribe: vi.fn(() => () => {}),

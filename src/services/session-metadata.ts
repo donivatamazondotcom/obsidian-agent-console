@@ -98,9 +98,9 @@ export function deriveSessionRecordTitle(inputs: {
  * I58: a session with a transcript on disk must always have a history entry,
  * otherwise it silently disappears from the Session History modal. When an
  * entry already exists we bump `updatedAt` (last-used ordering). When none
- * exists — e.g. the first-message `saveSessionLocally` gate was skipped on the
- * queued send-before-connect path — we MUST create one here so the session is
- * never orphaned.
+ * exists we MUST create one here so the session is never orphaned. This is
+ * the only path that creates a record with messages (I295): the caller runs it
+ * after the transcript lands, and the first-message save never creates.
  *
  * I114: the title is resolved via `deriveSessionRecordTitle`, so a write that
  * carries the AI-suggested title sets it (create OR existing path), while a
