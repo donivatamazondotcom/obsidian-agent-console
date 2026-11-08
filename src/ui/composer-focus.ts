@@ -98,3 +98,27 @@ export function sendAndReturnFocus(
 	// the turn stream in the background.
 	focusAfter("send");
 }
+
+/**
+ * One-shot hold on the composer refocus that runs when a tab becomes active
+ * (InputArea's I19 effect). Set by the vertical tab rail just before Delete or
+ * Backspace closes the focused ACTIVE key (I301): closing it activates the
+ * neighbor, whose composer would otherwise take focus a tick later, so focus
+ * would leave the rail and a second Backspace would edit the next chat's draft.
+ *
+ * Per document, so a popout window's rail and composers pair up. Consumed by
+ * the very next activation refocus in that document, which the close always
+ * triggers (closing the active tab with a neighbor activates it in the same
+ * update), so a hold never outlives the close that set it. Every other
+ * activation (mouse switch, × click, commands) refocuses the composer as before.
+ */
+const activationRefocusHolds = new WeakSet<Document>();
+
+export function holdNextActivationRefocus(doc: Document): void {
+	activationRefocusHolds.add(doc);
+}
+
+/** True (and clears the hold) when the next activation refocus must be skipped. */
+export function takeActivationRefocusHold(doc: Document): boolean {
+	return activationRefocusHolds.delete(doc);
+}

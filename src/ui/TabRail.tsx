@@ -35,6 +35,7 @@ import type { TabBarProps } from "./TabBar";
 import { TabStateIcon, stateLabel } from "./tab-state-icon";
 import { showTabContextMenu, showTabListMenu } from "./tab-menus";
 import { isKeyboardFocus } from "./keyboard-focus";
+import { holdNextActivationRefocus } from "./composer-focus";
 import { deriveTabKeyTarget } from "../resolvers/tab-keyboard-nav";
 import {
 	resolveRailWidth,
@@ -630,6 +631,13 @@ export function TabRail(props: TabRailProps) {
 				if (!tab) return;
 				e.preventDefault();
 				pendingCloseFocus.current = { index, tabId: tab.tabId };
+				// Closing the active key activates its neighbor, whose composer
+				// would take focus a tick later; keep it on the rail (B1).
+				if (tab.tabId === activeTabId && tabs.length > 1) {
+					holdNextActivationRefocus(
+						listRef.current?.ownerDocument ?? document,
+					);
+				}
 				onCloseTab(tab.tabId);
 				return;
 			}
@@ -639,7 +647,7 @@ export function TabRail(props: TabRailProps) {
 				listRef.current?.querySelectorAll<HTMLElement>('[role="tab"]');
 			keys?.[target.index]?.focus();
 		},
-		[tabs, onCloseTab],
+		[tabs, activeTabId, onCloseTab],
 	);
 
 	// After a Delete close, focus the key now at the closed key's position (its
@@ -874,7 +882,6 @@ export function TabRail(props: TabRailProps) {
 	);
 }
 
-/** The AI-rename sparkles in a named key: decorative, no label (no tooltip). */
 /**
  * The hover-only × on a named key (I301). Mouse-only: `aria-hidden`, no name
  * and out of the Tab order, so it doesn't break the tablist's children rule or
@@ -910,6 +917,7 @@ function RailCloseButton({
 	);
 }
 
+/** The AI-rename sparkles in a named key: decorative, no label (no tooltip). */
 function RailRenamingIcon() {
 	const ref = useRef<HTMLSpanElement>(null);
 	useEffect(() => {

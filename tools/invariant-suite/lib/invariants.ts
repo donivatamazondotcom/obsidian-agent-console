@@ -827,7 +827,7 @@ const railKeysHaveNoAriaLabel: Invariant = {
 			for (const list of Array.from(document.querySelectorAll('[data-type="${VIEW_TYPE}"] .agent-client-tab-rail-list'))) {
 				if (list.hasAttribute("aria-label") || list.hasAttribute("title")) offenders.push("tablist: aria-label/title on the key list");
 			}
-			const filled = keys.filter((k) => !k.classList.contains("is-active") && !k.matches(":hover") && !k.classList.contains("mobile-tap") && getComputedStyle(k).backgroundColor !== "rgba(0, 0, 0, 0)").map((k) => (k.getAttribute("data-tab-id") ?? "?") + " bg=" + getComputedStyle(k).backgroundColor);
+			const filled = keys.filter((k) => !k.classList.contains("is-active") && !(k.closest(".agent-client-tab-rail-row") ?? k).matches(":hover") && !k.classList.contains("mobile-tap") && getComputedStyle(k).backgroundColor !== "rgba(0, 0, 0, 0)").map((k) => (k.getAttribute("data-tab-id") ?? "?") + " bg=" + getComputedStyle(k).backgroundColor);
 			return { rails: document.querySelectorAll('[data-type="${VIEW_TYPE}"] .agent-client-tab-rail').length, keys: keys.length, named, offenders, filled };
 		`;
 		interface Scan {
