@@ -90,6 +90,7 @@ const DEBOUNCE_MS = 20;
 function makeStore(seed: SavedSessionInfo[] = []) {
 	const files = new Map<string, string>();
 	let failSessionWrites = false;
+	let failMkdir = false;
 	/** Session-file writes still to fail (one-shot, after any hold). */
 	let failNext = 0;
 	let fileGate: Promise<void> | null = null;
@@ -102,8 +103,12 @@ function makeStore(seed: SavedSessionInfo[] = []) {
 		titleStrategy: "prompt-derived",
 	} as unknown as AgentClientPluginSettings;
 	const adapter = {
-		exists: vi.fn(async (p: string) => files.has(p) || p === SESSIONS_DIR),
-		mkdir: vi.fn(async () => {}),
+		exists: vi.fn(
+			async (p: string) => files.has(p) || (p === SESSIONS_DIR && !failMkdir),
+		),
+		mkdir: vi.fn(async () => {
+			if (failMkdir) throw new Error("EACCES mkdir");
+		}),
 		read: vi.fn(async (p: string) => {
 			const v = files.get(p);
 			if (v === undefined) throw new Error(`ENOENT ${p}`);
@@ -175,6 +180,9 @@ function makeStore(seed: SavedSessionInfo[] = []) {
 		sessionStore,
 		files,
 		records: () => state.savedSessions,
+		failMkdir: () => {
+			failMkdir = true;
+		},
 		failSessionWrites: () => {
 			failSessionWrites = true;
 		},
@@ -588,6 +596,23 @@ describe("I295: a record is written only after its transcript lands", () => {
 		await old;
 		await settle();
 		expect(h.result.current.history.getRecordId()).toBeNull();
+	});
+
+	it("a write that rejects outside the retry loop: the save resolves, no record", async () => {
+		const store = makeStore();
+		const h = mountChat(store);
+		store.failMkdir();
+
+		await act(async () => {
+			await expect(
+				h.result.current.history.saveSessionMessages("sess-1", [
+					msg("user", "hi", "u1"),
+				]),
+			).resolves.toBeUndefined();
+		});
+		await settle();
+
+		expect(store.records()).toHaveLength(0);
 	});
 
 	it("a failed file write leaves an existing record unchanged", async () => {
