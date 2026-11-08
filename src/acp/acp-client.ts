@@ -757,12 +757,6 @@ export class AcpClient {
 	}
 
 	/**
-	 * Close one session on the live process (`session/close`), freeing its
-	 * resources without restarting the agent. Only call when the agent
-	 * advertises it (`AgentCapabilities.closesSessions`). Rejects on failure;
-	 * the caller decides the fallback (I210 respawns).
-	 */
-	/**
 	 * Whether this process created `sessionId` with `session/new` and never
 	 * sent it a prompt (I259). Loaded, resumed and forked sessions never are.
 	 */
@@ -788,6 +782,12 @@ export class AcpClient {
 		}
 	}
 
+	/**
+	 * Close one session on the live process (`session/close`), freeing its
+	 * resources without restarting the agent. Only call when the agent
+	 * advertises it (`AgentCapabilities.closesSessions`). Rejects on failure;
+	 * the caller decides the fallback (I210 respawns).
+	 */
 	async closeSession(sessionId: string): Promise<void> {
 		const connection = this.requireConnection();
 		await connection.agent.request(acp.methods.agent.session.close, {

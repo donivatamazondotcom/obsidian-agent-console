@@ -35,12 +35,12 @@ export interface SessionRetirementClient extends UnsentDiscardClient {
 
 export interface UseSessionRetirementArgs {
 	client: SessionRetirementClient;
-	/** The tab's live agent session id (this render). */
-	sessionId: string | null;
-	/** Messages on screen (this render). */
-	messageCount: number;
-	/** A send is held in the queue (this render). */
-	isQueued: boolean;
+	/** The tab's live agent session id, read at call time. */
+	getSessionId: () => string | null;
+	/** Messages on screen, read at call time. */
+	getMessageCount: () => number;
+	/** A send is held in the queue, read at call time. */
+	isQueued: () => boolean;
 	/** A send was started on this tab and not cleared by New chat. */
 	hasAttemptedSend: () => boolean;
 	/** The tab's local history record binding (I269). */
@@ -67,15 +67,15 @@ export function useSessionRetirement(
 	return useMemo<SessionRetirementApi>(() => {
 		const snapshot = (): UnsentDiscardDecision => {
 			const a = argsRef.current;
-			const id = a.sessionId;
+			const id = a.getSessionId();
 			return decideUnsentDiscard({
 				sessionId: id,
 				deletesSessions:
 					a.client.getInitializeResult()?.capabilities.deletesSessions ??
 					false,
 				createdHereUnsent: id !== null && a.client.isUnsentSession(id),
-				sendAttempted: a.hasAttemptedSend() || a.isQueued,
-				messageCount: a.messageCount,
+				sendAttempted: a.hasAttemptedSend() || a.isQueued(),
+				messageCount: a.getMessageCount(),
 				hasLocalRecord: a.getRecordId() !== null,
 			});
 		};
@@ -96,4 +96,44 @@ export function useSessionRetirement(
 				}),
 		};
 	}, []);
+}
+
+// ============================================================================
+// Idle release (I209 + I259)
+// ============================================================================
+
+export interface IdleReleaseDiscardArgs {
+	/** I237: keep the id when there is something to resume. */
+	keepSessionId: () => boolean;
+	retirement: () => SessionRetirementApi | null;
+	/** useLazySession.release({ keepSessionId }). */
+	lazyRelease: (keepSessionId: boolean) => boolean;
+	/** useAgent.resetSendAttempt: a discarded id takes its attempt with it. */
+	resetSendAttempt: () => void;
+}
+
+/**
+ * The `snapshotDiscard` and `lazyRelease` steps of `runIdleRelease`, from one
+ * keep decision. A kept id (I237) is never deleted, because the next
+ * keystroke loads it: deleting it would land on the I282 notice.
+ */
+export function idleReleaseDiscardSteps(args: IdleReleaseDiscardArgs): {
+	snapshotDiscard: () => () => Promise<unknown>;
+	lazyRelease: () => boolean;
+} {
+	let keep = true;
+	return {
+		snapshotDiscard: () => {
+			keep = args.keepSessionId();
+			const retirement = args.retirement();
+			if (keep || !retirement) return () => Promise.resolve();
+			const decision = retirement.snapshot();
+			return () => retirement.discard(decision);
+		},
+		lazyRelease: () => {
+			const released = args.lazyRelease(keep);
+			if (released && !keep) args.resetSendAttempt();
+			return released;
+		},
+	};
 }

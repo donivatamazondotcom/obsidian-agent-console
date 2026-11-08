@@ -25,6 +25,8 @@ import { useSessionRetirement } from "../useSessionRetirement";
 import { decideSessionIntent } from "../../resolvers/agent-switch";
 import { retireClosedTabClient } from "../../services/retire-live-session";
 import { createReleaseGate, runIdleRelease } from "../useIdleRelease";
+import { idleReleaseDiscardSteps } from "../useSessionRetirement";
+import { closedTabSessionId } from "../../services/recently-closed-stack";
 
 const RAW: Record<"v3" | "v2" | "claude", RawAgentCapabilities> = {
 	v3: { loadSession: true, sessionCapabilities: { list: {}, close: {}, delete: {}, fork: {} } },
@@ -108,9 +110,9 @@ function mountTab(client: AcpClient, initial: Partial<TabState> = {}) {
 	const hook = renderHook(() =>
 		useSessionRetirement({
 			client,
-			sessionId: state.sessionId,
-			messageCount: state.messageCount,
-			isQueued: state.isQueued,
+			getSessionId: () => state.sessionId,
+			getMessageCount: () => state.messageCount,
+			isQueued: () => state.isQueued,
 			hasAttemptedSend: () => state.sendAttempted,
 			getRecordId: () => state.recordId,
 			warn,
@@ -251,9 +253,10 @@ describe("I259 — sessions that must never be deleted", () => {
 		const { client, log } = makeAgent("v3");
 		const tab = mountTab(client, { sessionId: null });
 		const { sessionId } = await client.newSession("/tmp");
-		// The send lands after the last render: snapshot must still see it.
+		// The session and its send land after the last render: snapshot must
+		// still see both (the tab-close path reaches it through a handle).
+		tab.state.sessionId = sessionId;
 		await client.sendPrompt(sessionId, [{ type: "text", text: "hi" }]);
-		tab.update({ sessionId });
 		expect(tab.hook.result.current.snapshot()).toEqual({
 			kind: "keep",
 			reason: "sent-or-not-ours",
@@ -435,5 +438,66 @@ describe("I259 — idle release", () => {
 		});
 		await expect(running).rejects.toThrow("teardown failed");
 		await expect(newSessionGate.wait()).resolves.toBeUndefined();
+	});
+});
+
+describe("I259 — idle release keeps a kept id (review B1)", () => {
+	function realSteps(
+		client: AcpClient,
+		tab: ReturnType<typeof mountTab>,
+		keep: boolean,
+	) {
+		const lazyRelease = vi.fn((_keep: boolean) => true);
+		const resetSendAttempt = vi.fn();
+		const steps = idleReleaseDiscardSteps({
+			keepSessionId: () => keep,
+			retirement: () => tab.hook.result.current,
+			lazyRelease,
+			resetSendAttempt,
+		});
+		const run = runIdleRelease({
+			recheck: () => true,
+			flush: async () => undefined,
+			...steps,
+			agentRelease: () => client.disconnect(),
+			gate: createReleaseGate(),
+			newSessionGate: createReleaseGate(),
+		});
+		return { run, lazyRelease, resetSendAttempt };
+	}
+
+	it("a New chat on a restored tab, released idle: the kept id is not deleted", async () => {
+		// restoredSessionId stays set after New chat, so I237 keeps the new id
+		// for the next keystroke's session/load.
+		const { client, log } = makeAgent("v3");
+		const { sessionId } = await client.newSession("/tmp");
+		const tab = mountTab(client, { sessionId });
+		const { run, lazyRelease } = realSteps(client, tab, true);
+		await run;
+		expect(lazyRelease).toHaveBeenCalledWith(true);
+		expect(log).toEqual(["session/new", "disconnect"]);
+	});
+
+	it("an empty fresh tab, released idle: deleted, then the send attempt is forgotten", async () => {
+		const { client, log } = makeAgent("v3");
+		const { sessionId } = await client.newSession("/tmp");
+		const tab = mountTab(client, { sessionId });
+		const { run, lazyRelease, resetSendAttempt } = realSteps(client, tab, false);
+		await run;
+		expect(lazyRelease).toHaveBeenCalledWith(false);
+		expect(resetSendAttempt).toHaveBeenCalledTimes(1);
+		expect(log).toEqual(["session/new", "session/delete sess_1", "disconnect"]);
+	});
+});
+
+describe("I259 — closed-tab record", () => {
+	it("drops a deleted id so reopen-closed never loads it", () => {
+		expect(
+			closedTabSessionId({ kind: "delete", sessionId: "sess_1" }, "sess_1"),
+		).toBeNull();
+		expect(closedTabSessionId({ kind: "keep" }, "sess_1")).toBe("sess_1");
+		expect(
+			closedTabSessionId({ kind: "delete", sessionId: "sess_1" }, "sess_9"),
+		).toBe("sess_9");
 	});
 });
