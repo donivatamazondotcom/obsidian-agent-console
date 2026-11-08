@@ -523,6 +523,7 @@ describe("I295: a record is written only after its transcript lands", () => {
 		const minted = h.result.current.history.getRecordId();
 		await newer;
 		await settle();
+		expect(store.records()).toEqual([]); // the newer save really failed
 		expect(h.result.current.history.getRecordId()).toBe(minted);
 
 		release();
@@ -531,6 +532,62 @@ describe("I295: a record is written only after its transcript lands", () => {
 		expect(store.records().map((r) => r.recordId)).toEqual([minted]);
 		expect(h.result.current.history.getRecordId()).toBe(minted);
 		expect(store.recordsWithoutFile()).toEqual([]);
+	});
+
+	it("both saves fail in reverse order: the last to finish unbinds", async () => {
+		const store = makeStore();
+		store.failSessionWrites();
+		const h = mountChat(store);
+		const release = store.holdFileWriteAfter(0); // the older save's first write
+
+		let older!: Promise<void>;
+		let newer!: Promise<void>;
+		act(() => {
+			older = h.result.current.history.saveSessionMessages("sess-1", [
+				msg("user", "hi", "u1"),
+			]);
+			newer = h.result.current.history.saveSessionMessages("sess-1", [
+				msg("user", "hi", "u1"),
+				msg("assistant", "hello", "a1"),
+			]);
+		});
+		const minted = h.result.current.history.getRecordId();
+		await newer;
+		await settle();
+		expect(h.result.current.history.getRecordId()).toBe(minted);
+
+		release();
+		await older;
+		await settle();
+		expect(store.records()).toEqual([]);
+		expect(h.result.current.history.getRecordId()).toBeNull();
+	});
+
+	it("New chat while an old save is writing: the new chat's failed save still unbinds", async () => {
+		const store = makeStore();
+		const h = mountChat(store);
+		const release = store.holdFileWriteAfter(0); // the old chat's save
+
+		let old!: Promise<void>;
+		act(() => {
+			old = h.result.current.history.saveSessionMessages("sess-1", [
+				msg("user", "old", "u1"),
+			]);
+		});
+		act(() => h.result.current.history.resetRecordBinding());
+		store.failNextSessionWrites(2);
+		await act(async () => {
+			await h.result.current.history.saveSessionMessages("sess-2", [
+				msg("user", "new", "u2"),
+			]);
+		});
+		await settle();
+		expect(h.result.current.history.getRecordId()).toBeNull();
+
+		release();
+		await old;
+		await settle();
+		expect(h.result.current.history.getRecordId()).toBeNull();
 	});
 
 	it("a failed file write leaves an existing record unchanged", async () => {
