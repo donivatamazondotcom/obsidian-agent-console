@@ -17,6 +17,10 @@
  *   ✓ Wheel-up escape (sets escapedFromLock, clears isAtBottom)
  *   ✓ Wheel-up suppression during text-selection drag
  *   ✓ Touch-drag-down escape (mobile)
+ *   ✓ Every user scroll input escapes while streaming: wheel, touch,
+ *     scrollbar drag, track click, PageUp/ArrowUp (I304, one table — a new
+ *     input belongs in that table, not a one-off test)
+ *   ✓ A no-op hook write doesn't swallow the user's next scroll (I305)
  *   ✓ Scroll-near-bottom re-pin (user dismisses pill by scrolling)
  *   ✓ ResizeObserver(contentRef) positive resize → write scrollTop while pinned
  *   ✓ ResizeObserver(contentRef) positive resize → NO write while escaped
@@ -3287,5 +3291,336 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 		layoutRows(t.geom, IDS, 500);
 		t.show();
 		expect(t.geom.scrollTop).toBe(5032 - 600 - 1);
+	});
+});
+
+// ============================================================================
+// I304: every user scroll input escapes the pin while the chat is streaming
+// ============================================================================
+
+describe("useAutoScrollPin — I304 user scroll input during streaming", () => {
+	/**
+	 * While an agent streams, a content ResizeObserver entry lands on almost
+	 * every chunk, so resizeDifferenceRef is nearly always non-zero and the
+	 * direction classifier in handleScroll bails. Wheel and touch unpin
+	 * directly from their own handlers. A scrollbar drag, a track click and
+	 * a keyboard scroll produce only scroll events, so each needs its own
+	 * intent signal or the next chunk snaps the chat back to the bottom.
+	 *
+	 * JSDOM never fires scroll events for scrollTop writes, so `chunk()`
+	 * dispatches the hook's own scroll event the way a browser would, and
+	 * never flushes rAF: the resize stays "in flight" for the whole test.
+	 */
+	const CLIENT = 800;
+
+	function setupStreaming() {
+		let handle: HarnessHandle | null = null;
+		render(
+			React.createElement(Harness, {
+				isActive: true,
+				isSending: false,
+				view: makeView(),
+				onMount: (h) => {
+					handle = h;
+				},
+			}),
+		);
+		// biome-ignore lint/style/noNonNullAssertion: bound by render
+		const h = handle!;
+		let scrollHeight = 5000;
+		let scrollTop = scrollHeight - CLIENT - 1;
+		Object.defineProperty(h.scrollEl, "scrollHeight", {
+			configurable: true,
+			get: () => scrollHeight,
+		});
+		Object.defineProperty(h.scrollEl, "clientHeight", {
+			configurable: true,
+			get: () => CLIENT,
+		});
+		Object.defineProperty(h.scrollEl, "scrollTop", {
+			configurable: true,
+			get: () => scrollTop,
+			set: (v: number) => {
+				scrollTop = v;
+			},
+		});
+		act(() => {
+			fireResize(h.contentEl, scrollHeight);
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+		const chunk = () => {
+			scrollHeight += 100;
+			const before = scrollTop;
+			act(() => {
+				fireResize(h.contentEl, scrollHeight);
+				// The browser fires a scroll event for the hook's own write.
+				if (scrollTop !== before) fireScrollEvent(h.scrollEl);
+				flushTimers();
+			});
+		};
+		const userScrollTo = (v: number) => {
+			scrollTop = v;
+			fireScrollEvent(h.scrollEl);
+		};
+		const pointer = (type: "pointerdown" | "pointerup") =>
+			h.scrollEl.dispatchEvent(new Event(type, { bubbles: true }));
+		return { h, chunk, userScrollTo, pointer, top: () => scrollTop };
+	}
+
+	const inputs: Array<[string, (t: ReturnType<typeof setupStreaming>) => void]> = [
+		[
+			"wheel up",
+			(t) =>
+				act(() => {
+					fireWheel(t.h.scrollEl, -100);
+					t.userScrollTo(3000);
+					flushTimers();
+				}),
+		],
+		[
+			"touch drag",
+			(t) =>
+				act(() => {
+					fireTouchStart(t.h.scrollEl, 100);
+					fireTouchMove(t.h.scrollEl, 200);
+					t.userScrollTo(3000);
+					flushTimers();
+				}),
+		],
+		[
+			"scrollbar drag",
+			(t) =>
+				act(() => {
+					t.pointer("pointerdown");
+					t.userScrollTo(3800);
+					t.userScrollTo(3400);
+					t.userScrollTo(3000);
+					t.pointer("pointerup");
+					flushTimers();
+				}),
+		],
+		[
+			"track click (scroll event lands after release)",
+			(t) =>
+				act(() => {
+					t.pointer("pointerdown");
+					t.pointer("pointerup");
+					t.userScrollTo(3000);
+					flushTimers();
+				}),
+		],
+		[
+			"PageUp",
+			(t) =>
+				act(() => {
+					activeDocument.body.dispatchEvent(
+						new KeyboardEvent("keydown", { key: "PageUp", bubbles: true }),
+					);
+					t.userScrollTo(3000);
+					flushTimers();
+				}),
+		],
+		[
+			"ArrowUp",
+			(t) =>
+				act(() => {
+					activeDocument.body.dispatchEvent(
+						new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }),
+					);
+					t.userScrollTo(3000);
+					flushTimers();
+				}),
+		],
+	];
+
+	it.each(inputs)("%s unpins, and the next chunk keeps the position", (_name, input) => {
+		const t = setupStreaming();
+		t.chunk();
+		expect(t.h.getResult().isAtBottom).toBe(true);
+		input(t);
+		expect(t.h.getResult().isAtBottom).toBe(false);
+		t.chunk();
+		t.chunk();
+		expect(t.top()).toBe(3000);
+	});
+
+	it("a scroll-up with no user input stays pinned (layout scroll during a resize)", () => {
+		const t = setupStreaming();
+		t.chunk();
+		act(() => {
+			t.userScrollTo(3000);
+			flushTimers();
+		});
+		expect(t.h.getResult().isAtBottom).toBe(true);
+	});
+
+	it("the intent window closes after release: a later layout scroll-up stays pinned", () => {
+		const t = setupStreaming();
+		t.chunk();
+		act(() => {
+			t.pointer("pointerdown");
+			t.pointer("pointerup");
+			flushTimers(); // the grace window ends with no scroll in it
+		});
+		act(() => {
+			t.userScrollTo(3000);
+			flushTimers();
+		});
+		expect(t.h.getResult().isAtBottom).toBe(true);
+	});
+
+	it("typing a scroll key in the composer is not scroll intent", () => {
+		const t = setupStreaming();
+		t.chunk();
+		const ta = activeDocument.createElement("textarea");
+		activeDocument.body.appendChild(ta);
+		act(() => {
+			ta.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+			t.userScrollTo(3000);
+			flushTimers();
+		});
+		ta.remove();
+		expect(t.h.getResult().isAtBottom).toBe(true);
+	});
+
+	it("a scrollbar drag escapes even with a stale text selection in the chat", () => {
+		const t = setupStreaming();
+		t.chunk();
+		const range = { commonAncestorContainer: t.h.contentEl } as unknown as Range;
+		window.getSelection = () =>
+			({ rangeCount: 1, getRangeAt: () => range }) as unknown as Selection;
+		act(() => {
+			activeDocument.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+			t.pointer("pointerdown");
+			t.userScrollTo(3000);
+			t.pointer("pointerup");
+			activeDocument.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+			flushTimers();
+		});
+		expect(t.h.getResult().isAtBottom).toBe(false);
+	});
+});
+
+// ============================================================================
+// I305: a no-op hook write must not swallow the user's next scroll
+// ============================================================================
+
+describe("useAutoScrollPin — I305 no-op writes don't arm the ignore flag", () => {
+	/**
+	 * Browsers fire no scroll event when scrollTop is written to its current
+	 * value. If the hook arms ignoreNextScrollEventRef before such a write,
+	 * the flag stays set and eats the user's next real scroll: no direction
+	 * classification, no reading-position save.
+	 */
+	function setupAtBottom(isActive: boolean) {
+		let handle: HarnessHandle | null = null;
+		const view = makeView();
+		const el = (active: boolean) =>
+			React.createElement(Harness, {
+				isActive: active,
+				isSending: false,
+				view,
+				onMount: (h) => {
+					handle = h;
+				},
+			});
+		const r = render(el(isActive));
+		// biome-ignore lint/style/noNonNullAssertion: bound by render
+		const h = handle!;
+		let scrollTop = 5000 - 800 - 1;
+		Object.defineProperty(h.scrollEl, "scrollHeight", { configurable: true, get: () => 5000 });
+		Object.defineProperty(h.scrollEl, "clientHeight", { configurable: true, get: () => 800 });
+		Object.defineProperty(h.scrollEl, "scrollTop", {
+			configurable: true,
+			get: () => scrollTop,
+			set: (v: number) => {
+				scrollTop = v;
+			},
+		});
+		act(() => {
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+		const userScrollTo = (v: number) =>
+			act(() => {
+				scrollTop = v;
+				fireScrollEvent(h.scrollEl);
+				flushTimers();
+			});
+		return { h, r, el, userScrollTo };
+	}
+
+	it("tab re-activation while already at the bottom doesn't eat the next scroll-up", () => {
+		const t = setupAtBottom(true);
+		t.r.rerender(t.el(false));
+		t.r.rerender(t.el(true)); // writes bottom: same value, no scroll event
+		t.userScrollTo(3000);
+		expect(t.h.getResult().isAtBottom).toBe(false);
+	});
+
+	it("typing in the composer while pinned at the bottom doesn't eat the next scroll-up", () => {
+		let handle: HarnessHandle | null = null;
+		render(
+			React.createElement(
+				"div",
+				{ className: "agent-client-chat-view-container" },
+				React.createElement(Harness, {
+					isActive: true,
+					isSending: false,
+					view: makeView(),
+					onMount: (h) => {
+						handle = h;
+					},
+				}),
+				React.createElement("textarea", { "data-testid": "composer" }),
+			),
+		);
+		// biome-ignore lint/style/noNonNullAssertion: bound by render
+		const h = handle!;
+		let scrollTop = 5000 - 800 - 1;
+		Object.defineProperty(h.scrollEl, "scrollHeight", { configurable: true, get: () => 5000 });
+		Object.defineProperty(h.scrollEl, "clientHeight", { configurable: true, get: () => 800 });
+		Object.defineProperty(h.scrollEl, "scrollTop", {
+			configurable: true,
+			get: () => scrollTop,
+			set: (v: number) => {
+				scrollTop = v;
+			},
+		});
+		act(() => {
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+		const raf = window.requestAnimationFrame;
+		window.requestAnimationFrame = (cb: FrameRequestCallback) => {
+			cb(0);
+			return 0;
+		};
+		const composer = activeDocument.querySelector("[data-testid=composer]") as HTMLElement;
+		act(() => {
+			// A keystroke re-anchors to the bottom the chat is already at.
+			composer.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		window.requestAnimationFrame = raf;
+		act(() => {
+			scrollTop = 3000;
+			fireScrollEvent(h.scrollEl);
+			flushTimers();
+		});
+		expect(h.getResult().isAtBottom).toBe(false);
+	});
+
+	it("a write that moves the view still ignores its own scroll event", () => {
+		const t = setupAtBottom(true);
+		t.r.rerender(t.el(false));
+		Object.defineProperty(t.h.scrollEl, "scrollHeight", { configurable: true, get: () => 6000 });
+		t.r.rerender(t.el(true)); // moves 4199 → 5199
+		// The browser's scroll event for that write must not read as user input.
+		act(() => {
+			fireScrollEvent(t.h.scrollEl);
+			flushTimers();
+		});
+		expect(t.h.getResult().isAtBottom).toBe(true);
 	});
 });
