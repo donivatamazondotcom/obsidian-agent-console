@@ -497,10 +497,10 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.header.tooltipAgent": "代理：{value}",
 	"chat.header.tooltipEngine": "引擎：{value}",
 	"chat.header.engineKiroCli": "Kiro CLI {engine}",
-	"chat.header.engineKiroOldCli": "Kiro CLI {engine}（此 Kiro CLI 版本过旧，不支持 V3）",
+	"chat.header.engineKiroOldCli": "Kiro CLI V2 – 更新 Kiro CLI 即可使用 V3",
 	"chat.kiroUpdateTip.title": "此对话运行在 Kiro CLI V2 上",
-	"chat.kiroUpdateTip.body": "你的 Kiro CLI 版本过旧，不支持 V3 引擎，因此 {agent} 在这里运行在 V2 上。运行 {command} 即可使用 V3：",
-	"chat.kiroUpdateTip.benefitAgents": "需要 V3 的代理（例如最新的 auto-sa）会按设置加载。",
+	"chat.kiroUpdateTip.body": "你的 Kiro CLI 没有 V3 引擎，因此 {agent} 在这里运行在 V2 上。运行 {command} 即可使用 V3：",
+	"chat.kiroUpdateTip.benefitAgents": "为 V3 构建的代理会按设置加载。",
 	"chat.kiroUpdateTip.benefitHooks": "代理的钩子会在这些对话中运行。",
 	"chat.kiroUpdateTip.benefitMcp": "需要登录的 MCP 服务器会直接在对话中提示你登录。",
 	"chat.kiroUpdateTip.benefitNewChat": "在同一标签页中开始新对话无需重启 Kiro，并且可以使用 AI 重命名。",
@@ -723,8 +723,7 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.lossyFallback.engineChanged.title": "已开始新会话",
 	"chat.lossyFallback.engineChanged.body":
 		"此对话运行在 Kiro V3 引擎上。此代理现在使用 V2，而 V2 无法打开 V3 对话，因此我将基于你的对话记录继续。",
-	"chat.lossyFallback.engineChangedOldCli.body":
-		"此对话运行在 Kiro V3 引擎上。此 Kiro CLI 版本过旧，不支持 V3，因此我将基于你的对话记录继续。要使用 V3，请运行 kiro-cli update。",
+	"chat.lossyFallback.engineChangedOldCli.body": "此对话运行在 Kiro V3 引擎上。此 Kiro CLI 没有 V3，因此我将基于你的对话记录继续。要使用 V3，请运行 kiro-cli update。",
 	"chat.historyBanner.notStored": "此标签页的历史未存储在本地。",
 	"chat.historyBanner.reloading": "重新加载中…",
 	"chat.historyBanner.reloadFromAgent": "从代理重新加载",

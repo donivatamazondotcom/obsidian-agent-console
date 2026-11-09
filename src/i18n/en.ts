@@ -392,8 +392,7 @@ export const en = {
 		"[Agent Console] Couldn't pick up the conversation, so the agent started fresh. Your messages are still here.",
 	"notices.sessionReloadEngineChanged":
 		"[Agent Console] Started a new session – this chat ran on Kiro V3, and the agent now uses V2. Your messages are still here.",
-	"notices.sessionReloadEngineChangedOldCli":
-		"[Agent Console] Started a new session – this chat ran on Kiro V3, and this Kiro CLI is too old for it. Your messages are still here.",
+	"notices.sessionReloadEngineChangedOldCli": "[Agent Console] Started a new session – this chat ran on Kiro V3, and this Kiro CLI doesn't have V3. Your messages are still here.",
 	"notices.sessionReloadFailed": "[Agent Console] Failed to reload session",
 	"notices.invalidWorkingDirectory":
 		"Agent Console: a configured working directory is not a valid absolute directory. New chat started in {dir}.",
@@ -618,7 +617,7 @@ export const en = {
 	"chat.header.tooltipAgent": "Agent: {value}",
 	"chat.header.tooltipEngine": "Engine: {value}",
 	"chat.header.engineKiroCli": "Kiro CLI {engine}",
-	"chat.header.engineKiroOldCli": "Kiro CLI {engine} – this Kiro CLI is too old for V3",
+	"chat.header.engineKiroOldCli": "Kiro CLI V2 – update Kiro CLI to use V3",
 	"chat.header.tooltipModel": "Model: {value}",
 	"chat.header.tooltipEffort": "Effort: {value}",
 	"chat.header.tooltipMode": "Mode: {value}",
@@ -879,8 +878,8 @@ export const en = {
 		"Kiro saves this rule in its own settings for this vault, so it applies in new chats too.",
 	"chat.permission.back": "Back",
 	"chat.kiroUpdateTip.title": "This chat runs on Kiro CLI V2",
-	"chat.kiroUpdateTip.body": "Your Kiro CLI is too old for the V3 engine, so {agent} runs on V2 here. Run {command} to get V3:",
-	"chat.kiroUpdateTip.benefitAgents": "Agents that need V3, like recent auto-sa releases, load as set up.",
+	"chat.kiroUpdateTip.body": "Your Kiro CLI doesn't have the V3 engine, so {agent} runs on V2 here. Run {command} to get V3:",
+	"chat.kiroUpdateTip.benefitAgents": "Agents built for V3 load the way they're set up.",
 	"chat.kiroUpdateTip.benefitHooks": "Your agent's hooks run in these chats.",
 	"chat.kiroUpdateTip.benefitMcp": "MCP servers that need sign-in ask you right in the chat.",
 	"chat.kiroUpdateTip.benefitNewChat": "A new chat in the same tab starts without restarting Kiro, and Rename with AI works.",
@@ -900,8 +899,7 @@ export const en = {
 	"chat.lossyFallback.engineChanged.title": "Started a new session",
 	"chat.lossyFallback.engineChanged.body":
 		"This chat ran on the Kiro V3 engine. This agent now uses V2, which can't open V3 chats, so I'm continuing from a transcript of your conversation.",
-	"chat.lossyFallback.engineChangedOldCli.body":
-		"This chat ran on the Kiro V3 engine. This Kiro CLI is too old for V3, so I'm continuing from a transcript of your conversation. Run kiro-cli update to use V3.",
+	"chat.lossyFallback.engineChangedOldCli.body": "This chat ran on the Kiro V3 engine. This Kiro CLI doesn't have V3, so I'm continuing from a transcript of your conversation. Run kiro-cli update to use V3.",
 	"chat.historyBanner.notStored":
 		"History for this tab is not stored locally.",
 	"chat.historyBanner.reloading": "Reloading…",
