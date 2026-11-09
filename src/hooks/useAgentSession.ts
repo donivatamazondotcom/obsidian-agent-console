@@ -939,6 +939,8 @@ export function useAgentSession(
 	// completes but before the user types / connects (I54).
 	const applyInitFailure = useCallback(
 		(error: unknown): boolean => {
+			// I270: a newer start owns the tab's state; leave it alone.
+			if (isInitializeSuperseded(error)) return false;
 			// I302: whatever failed, the old process's V2 fallback no longer
 			// describes this tab, so the update tip and tooltip reason go.
 			setSession((prev) =>
