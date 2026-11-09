@@ -19,9 +19,9 @@ import type {
 	NoteMetadata,
 	EditorPosition,
 } from "../services/vault-service";
-import { AcpErrorCode, type AcpError } from "../types/errors";
+import type { AcpError } from "../types/errors";
 import {
-	extractErrorCode,
+	isAuthRequiredError,
 	toAcpError,
 	isEmptyResponseError,
 } from "../utils/error-utils";
@@ -1185,10 +1185,10 @@ async function handleSendError(
 		};
 	}
 
-	const errorCode = extractErrorCode(error);
-
-	// Only attempt authentication retry for -32000 (Authentication Required)
-	if (errorCode === AcpErrorCode.AUTHENTICATION_REQUIRED) {
+	// Only attempt authentication retry for -32000 (Authentication Required).
+	// I317: Kiro also sends service errors (throttling, usage limits) on
+	// -32000; those carry data.errorType and must not trigger a login.
+	if (isAuthRequiredError(error)) {
 		// Check if authentication methods are available
 		if (authMethods && authMethods.length > 0) {
 			// Try automatic authentication retry if only one method available
