@@ -291,7 +291,8 @@ export class AcpClient {
 	 * (never back through `initialize()`, which would coalesce onto itself,
 	 * I46). That CLI only has V2. The unpinned launch reports no launch key,
 	 * so neither history cache records it (I270). A Default V3 launch the
-	 * CLI rejects the same way relaunches the same way, as V2 (I302).
+	 * CLI rejects relaunches once as V2 (I302): unpinned when it doesn't know
+	 * the flag, pinned (and keyed) when it knows it but has no V3.
 	 */
 	private async initializeWithEnginePin(
 		config: AgentConfig,
@@ -687,7 +688,10 @@ export class AcpClient {
 	 * D3: a V3 launch the CLI rejected becomes an AgentStartupError with the
 	 * "update kiro-cli, or switch to V2" text. I270: a pinned V2 launch it
 	 * rejected becomes KiroEngineFlagRejected, which relaunches unpinned.
-	 * Waits briefly for the process
+	 * I302: on the Default engine, the same rejection of V3 also relaunches
+	 * unpinned, and "no v3 in the engine list" becomes KiroV3Missing, which
+	 * relaunches pinned on V2. A fallback relaunch that exits before
+	 * answering gets update-only advice. Waits briefly for the process
 	 * to close, so its exit code and the last of its stderr are in; the SDK
 	 * rejects initialize as soon as stdout ends, a little before that.
 	 */

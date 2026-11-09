@@ -218,11 +218,12 @@ export function resolveLaunchArgs(
 }
 
 /**
- * The config for the one unpinned relaunch after a kiro-cli rejected
- * `--agent-engine` as unknown (I270, I302). A V2 config relaunches as is
- * (unpinned). A V3 config that follows the Default engine becomes V2: that
- * CLI predates the flag, so it only has V2. `kiroEngineFallback` records why,
- * for the session and the update tip. Pure.
+ * The config for the one relaunch after a kiro-cli rejected the engine pin
+ * (I270, I302). A V2 config relaunches as is (unpinned: the CLI doesn't know
+ * the flag). A V3 config that follows the Default engine becomes V2, because
+ * that CLI has no V3: unpinned when it doesn't know the flag, pinned when it
+ * knows it but lists no `v3` (kiro-cli 2.7.1). `kiroEngineFallback` records
+ * why, for the session and the update tip. Pure.
  */
 export function relaunchConfig(config: AgentConfig): AgentConfig {
 	if (config.kiroEngine !== "v3") return config;
