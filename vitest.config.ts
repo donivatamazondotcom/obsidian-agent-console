@@ -42,5 +42,18 @@ export default defineConfig({
 		// Each test gets a clean DOM. Vitest defaults to per-file isolation
 		// which is sufficient for our hook-level tests.
 		setupFiles: ["src/__test_stubs__/vitest.setup.ts"],
+		// Fork workers: kill themselves when the parent vitest process dies
+		// (tools/vitest/orphan-guard.cjs), and cap each worker's heap so one
+		// runaway can't grow to Node's 4.6 GB default. Healthy workers peak
+		// around 270 MB.
+		poolOptions: {
+			forks: {
+				execArgv: [
+					"--require",
+					path.resolve(__dirname, "tools/vitest/orphan-guard.cjs"),
+					"--max-old-space-size=1536",
+				],
+			},
+		},
 	},
 });
