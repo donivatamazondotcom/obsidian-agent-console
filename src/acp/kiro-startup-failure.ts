@@ -63,8 +63,9 @@ const ENGINE_V3_MISSING = /invalid value 'v3' for '--agent-engine/;
 
 /**
  * `engine-flag-unknown` for a Kiro launch (either engine) that exited 2
- * with clap's unknown-argument error; `engine-unsupported` for any other V3
- * launch that exited non-zero with stderr naming `--agent-engine`.
+ * with clap's unknown-argument error; `engine-v3-missing` for a V3 launch
+ * that exited 2 because the CLI lists no `v3`; `engine-unsupported` for any
+ * other V3 launch that exited non-zero with stderr naming `--agent-engine`.
  * Everything else is null.
  */
 export function classifyKiroStartupFailure(
