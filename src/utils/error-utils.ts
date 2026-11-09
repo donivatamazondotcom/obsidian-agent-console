@@ -74,17 +74,28 @@ export function extractErrorData(error: unknown): unknown {
  * Kiro CLI V3 sends every user-facing service failure (throttling, usage
  * limits, network faults) as JSON-RPC -32000 with the display message and the
  * error class in `data.errorType`. -32000 is also ACP's "auth required" code,
- * so the code alone can't tell them apart. A real auth request carries no
- * `data.errorType`.
+ * so the code alone can't tell them apart. A generic auth request carries no
+ * `data.errorType`; Kiro's own sign-in errors (SignInRequiredError,
+ * ModelRegistryUnauthenticatedError, token and credential errors) do, and
+ * they stay auth errors.
  */
 export function isAgentServiceError(data: unknown): boolean {
 	return (
 		!!data &&
 		typeof data === "object" &&
 		"errorType" in data &&
-		typeof data.errorType === "string"
+		typeof data.errorType === "string" &&
+		!AUTH_ERROR_TYPE.test(data.errorType)
 	);
 }
+
+/**
+ * Error classes that mean "sign in again" (Kiro CLI V3 names, 3.1.2).
+ * AccessDeniedError is deliberately absent: the account is signed in but not
+ * allowed, and re-entering credentials won't help.
+ */
+const AUTH_ERROR_TYPE =
+	/SignIn|Unauthenticated|Unauthorized|Authentication|AuthRefreshFailed|Token(Expired|Invalid)|CredentialAbsent/;
 
 /** I317: the service error is a throttle ("busy, try again"). */
 export function isThrottleError(data: unknown): boolean {

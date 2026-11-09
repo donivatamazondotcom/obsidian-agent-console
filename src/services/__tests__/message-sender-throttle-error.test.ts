@@ -39,6 +39,22 @@ const USAGE_LIMIT_ERROR = {
 	data: { errorType: "UsageLimitReachedError", retryErrorType: "CLIENT_ERROR" },
 };
 const AUTH_ERROR = { code: -32000, message: "Authentication required" };
+// Kiro's own auth errors also carry data.errorType (acp-server.js,
+// SignInRequiredError / ModelRegistryUnauthenticatedError). Review r1.
+const SIGN_IN_ERROR = {
+	code: -32000,
+	message: "Sign in to Kiro to send a prompt.",
+	data: { errorType: "SignInRequiredError", retryErrorType: "CLIENT_ERROR" },
+};
+const REGISTRY_UNAUTH_ERROR = {
+	code: -32000,
+	message:
+		"Kiro could not load the available models because you are not signed in. Please sign in and retry.",
+	data: {
+		errorType: "ModelRegistryUnauthenticatedError",
+		retryErrorType: "CLIENT_ERROR",
+	},
+};
 
 function input(authMethods: AuthenticationMethod[] = []) {
 	return {
@@ -79,6 +95,44 @@ describe("I317: a Kiro service error on -32000 is not an auth error", () => {
 		expect(c.authenticate).not.toHaveBeenCalled();
 		expect(c.sendPrompt).toHaveBeenCalledTimes(1);
 		expect(r.requiresAuth).toBeUndefined();
+		expect(r.error?.title).toBe("Service Busy");
+	});
+
+	it.each([
+		["SignInRequiredError", SIGN_IN_ERROR],
+		["ModelRegistryUnauthenticatedError", REGISTRY_UNAUTH_ERROR],
+	])("keeps Kiro's %s on the auth path (title, suggestion, retry)", async (_name, error) => {
+		const r = await sendPreparedPrompt(input(), client(error));
+		expect(r.error?.title).toBe("Authentication Required");
+		expect(r.error?.suggestion).toBe(
+			"Check if you are logged in or if your API key is set correctly.",
+		);
+		const c = client(error);
+		await sendPreparedPrompt(input(AUTH_ONE), c);
+		expect(c.authenticate).toHaveBeenCalledWith("oauth");
+	});
+
+	it("treats a ThrottleError class as busy even without retryErrorType", async () => {
+		const r = await sendPreparedPrompt(
+			input(),
+			client({
+				code: -32000,
+				message: "Too many requests.",
+				data: { errorType: "ServiceThrottleError" },
+			}),
+		);
+		expect(r.error?.title).toBe("Service Busy");
+	});
+
+	it("titles THROTTLING as busy on any error code, by design", async () => {
+		const r = await sendPreparedPrompt(
+			input(),
+			client({
+				code: -32603,
+				message: "Slow down.",
+				data: { retryErrorType: "THROTTLING" },
+			}),
+		);
 		expect(r.error?.title).toBe("Service Busy");
 	});
 

@@ -755,6 +755,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.acpErrors.titleAuthRequired": "인증 필요",
 	"chat.acpErrors.titleResourceNotFound": "리소스를 찾을 수 없음",
 	"chat.acpErrors.titleAgent": "에이전트 오류",
+	"chat.acpErrors.titleBusy": "서비스 혼잡",
 	"chat.acpErrors.unexpected": "예기치 않은 오류가 발생했습니다.",
 	"chat.acpErrors.suggestTooLong":
 		"대화가 너무 깁니다. 가능하면 압축(compact) 명령을 사용하거나 새 채팅을 시작하세요.",
