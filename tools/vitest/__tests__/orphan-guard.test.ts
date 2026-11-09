@@ -87,15 +87,16 @@ describe("installParentDeathGuard", () => {
 		expect(h.unrefCalled()).toBe(true);
 	});
 
-	// A worker still building its jsdom environment when the parent dies
-	// installs the guard late: ppid is already 1 and "disconnect" has
-	// already fired, so neither signal would ever arrive.
-	it("exits at install when it is already reparented", () => {
+	// vitest itself can run as PID 1 (a container with no init process), so
+	// a parent pid of 1 alone is not a reason to exit.
+	it("stays alive when its live parent is PID 1", () => {
 		const h = harness(1);
-		expect(h.exits).toEqual([1]);
-		expect(h.scheduled()).toBe(false);
+		h.tick();
+		expect(h.exits).toEqual([]);
 	});
 
+	// If the guard installs after the parent already died, "disconnect" has
+	// already fired and would never arrive.
 	it("exits at install when the IPC channel is already closed", () => {
 		const h = harness(4242, false);
 		expect(h.exits).toEqual([1]);

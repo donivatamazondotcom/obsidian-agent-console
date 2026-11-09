@@ -16,9 +16,13 @@
  * process.exit in workers with a function that throws.
  *
  * Signals (any one kills the worker):
- *  1. already orphaned or disconnected when the guard installs;
+ *  1. the IPC channel is already closed when the guard installs;
  *  2. the IPC channel to the parent disconnects;
  *  3. a slow poll sees the worker reparented (ppid changed).
+ *
+ * Limit: both live signals need the event loop. A worker stuck in a
+ * synchronous loop stays alive until the loop yields; the heap cap in
+ * vitest.config.ts stops one that allocates while it spins.
  */
 "use strict";
 
@@ -30,7 +34,8 @@ function installParentDeathGuard(deps, pollMs) {
 		deps.exit(1);
 	};
 
-	if (deps.initialPpid === 1 || !deps.isConnected()) {
+	// Not ppid === 1: vitest itself can be PID 1 in a container.
+	if (!deps.isConnected()) {
 		exitOnce();
 		return;
 	}
