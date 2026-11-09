@@ -91,11 +91,14 @@ export function isAgentServiceError(data: unknown): boolean {
 
 /**
  * Error classes that mean "sign in again" (Kiro CLI V3 names, 3.1.2).
- * AccessDeniedError is deliberately absent: the account is signed in but not
- * allowed, and re-entering credentials won't help.
+ * Deliberately absent, because signing in again won't help:
+ * AccessDeniedError (signed in but not allowed) and
+ * ProxyAuthenticationRequiredError (HTTP 407; the proxy needs credentials).
+ * Keep the pattern to these names: a bare "Authentication" or "Token" would
+ * also match those and TokenEstimationError.
  */
 const AUTH_ERROR_TYPE =
-	/SignIn|Unauthenticated|Unauthorized|Authentication|AuthRefreshFailed|Token(Expired|Invalid)|CredentialAbsent/;
+	/SignIn|Unauthenticated|AuthRefreshFailed|Token(Expired|Invalid)|CredentialAbsent/;
 
 /** I317: the service error is a throttle ("busy, try again"). */
 export function isThrottleError(data: unknown): boolean {

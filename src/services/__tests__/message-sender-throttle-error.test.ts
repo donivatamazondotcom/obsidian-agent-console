@@ -112,6 +112,23 @@ describe("I317: a Kiro service error on -32000 is not an auth error", () => {
 		expect(c.authenticate).toHaveBeenCalledWith("oauth");
 	});
 
+	it.each([
+		// HTTP 407: Kiro's message says to check the proxy, not to sign in. Review r2.
+		["ProxyAuthenticationRequiredError", "TRANSIENT"],
+		// "Token" for a reason other than credentials.
+		["TokenEstimationError", "CLIENT_ERROR"],
+	])("keeps %s a service error (no auth title, no auth retry)", async (errorType, retryErrorType) => {
+		const error = {
+			code: -32000,
+			message: "Check your proxy settings.",
+			data: { errorType, retryErrorType },
+		};
+		const c = client(error);
+		const r = await sendPreparedPrompt(input(AUTH_ONE), c);
+		expect(r.error?.title).toBe("Agent Error");
+		expect(c.authenticate).not.toHaveBeenCalled();
+	});
+
 	it("treats a ThrottleError class as busy even without retryErrorType", async () => {
 		const r = await sendPreparedPrompt(
 			input(),
