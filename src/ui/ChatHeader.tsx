@@ -384,9 +384,7 @@ function engineLabel(engine: HeaderEngine): string | null {
 	switch (engine.kind) {
 		case "kiroCli":
 			if (engine.reason === "old-cli") {
-				return t("chat.header.engineKiroOldCli", {
-					engine: t("settings.kiroEngine.v2"),
-				});
+				return t("chat.header.engineKiroOldCli");
 			}
 			return t("chat.header.engineKiroCli", {
 				engine: t(

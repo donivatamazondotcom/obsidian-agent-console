@@ -111,6 +111,8 @@ describe("I302 update tip in the chat", () => {
 		expect(tip?.querySelector("code")?.textContent).toBe("kiro-cli update");
 		expect(tip?.querySelectorAll("li")).toHaveLength(5);
 		expect(text).toContain("hooks");
+		// Public plugin: no internal setup named in the copy (smoke H1).
+		expect(text).not.toMatch(/auto-sa/i);
 	});
 
 	it("conversation on a fallback tab shows it too", () => {

@@ -72,10 +72,10 @@ describe("I302 deriveHeaderEngine: the old-CLI reason", () => {
 });
 
 describe("I302 header tooltip text", () => {
-	it("says the CLI is too old for V3", () => {
+	it("says to update Kiro CLI to use V3", () => {
 		expect(tooltipFor({ kind: "kiroCli", engine: "v2", reason: "old-cli" })).toEqual([
 			"Agent: Kiro CLI",
-			"Engine: Kiro CLI V2 (legacy) – this Kiro CLI is too old for V3",
+			"Engine: Kiro CLI V2 – update Kiro CLI to use V3",
 		]);
 	});
 
