@@ -69,9 +69,72 @@ export function extractErrorData(error: unknown): unknown {
 // ============================================================================
 
 /**
+ * I317: a service error the agent already wrote for the user, sent on -32000.
+ *
+ * Kiro CLI V3 sends every user-facing service failure (throttling, usage
+ * limits, network faults) as JSON-RPC -32000 with the display message and the
+ * error class in `data.errorType`. -32000 is also ACP's "auth required" code,
+ * so the code alone can't tell them apart. A generic auth request carries no
+ * `data.errorType`; Kiro's own sign-in errors (SignInRequiredError,
+ * ModelRegistryUnauthenticatedError, token and credential errors) do, and
+ * they stay auth errors.
+ */
+export function isAgentServiceError(data: unknown): boolean {
+	return (
+		!!data &&
+		typeof data === "object" &&
+		"errorType" in data &&
+		typeof data.errorType === "string" &&
+		!AUTH_ERROR_TYPE.test(data.errorType)
+	);
+}
+
+/**
+ * Error classes that mean "sign in again" (Kiro CLI V3 names, 3.1.2).
+ * Deliberately absent, because signing in again won't help:
+ * AccessDeniedError (signed in but not allowed) and
+ * ProxyAuthenticationRequiredError (HTTP 407; the proxy needs credentials).
+ * Keep the pattern to these names: a bare "Authentication" or "Token" would
+ * also match those and TokenEstimationError.
+ */
+const AUTH_ERROR_TYPE =
+	/SignIn|Unauthenticated|AuthRefreshFailed|Token(Expired|Invalid)|CredentialAbsent/;
+
+/** I317: the service error is a throttle ("busy, try again"). */
+export function isThrottleError(data: unknown): boolean {
+	if (!data || typeof data !== "object") return false;
+	if ("retryErrorType" in data && data.retryErrorType === "THROTTLING") {
+		return true;
+	}
+	return (
+		"errorType" in data &&
+		typeof data.errorType === "string" &&
+		/ThrottleError$/.test(data.errorType)
+	);
+}
+
+/** I317: -32000 means "authenticate" only when it isn't a service error. */
+export function isAuthRequiredError(error: unknown): boolean {
+	return (
+		extractErrorCode(error) === AcpErrorCode.AUTHENTICATION_REQUIRED &&
+		!isAgentServiceError(extractErrorData(error))
+	);
+}
+
+/**
  * Get user-friendly title for ACP error code.
  */
-export function getErrorTitle(code: number | undefined): string {
+export function getErrorTitle(
+	code: number | undefined,
+	data?: unknown,
+): string {
+	if (isThrottleError(data)) return t("chat.acpErrors.titleBusy");
+	if (
+		code === AcpErrorCode.AUTHENTICATION_REQUIRED &&
+		isAgentServiceError(data)
+	) {
+		return t("chat.acpErrors.titleAgent");
+	}
 	switch (code) {
 		case AcpErrorCode.PARSE_ERROR:
 			return t("chat.acpErrors.titleProtocol");
@@ -99,7 +162,15 @@ export function getErrorTitle(code: number | undefined): string {
 export function getErrorSuggestion(
 	code: number | undefined,
 	message: string,
+	data?: unknown,
 ): string {
+	if (isThrottleError(data)) return t("chat.acpErrors.suggestBusy");
+	if (
+		code === AcpErrorCode.AUTHENTICATION_REQUIRED &&
+		isAgentServiceError(data)
+	) {
+		return t("chat.acpErrors.suggestTryAgainRestart");
+	}
 	// Check for context exhaustion in message (Internal Error)
 	if (code === AcpErrorCode.INTERNAL_ERROR) {
 		const lowerMsg = message.toLowerCase();
@@ -156,8 +227,8 @@ export function toAcpError(
 		data,
 		sessionId,
 		originalError: error,
-		title: getErrorTitle(code),
-		suggestion: getErrorSuggestion(code, message),
+		title: getErrorTitle(code, data),
+		suggestion: getErrorSuggestion(code, message, data),
 	};
 }
 

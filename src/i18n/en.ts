@@ -932,6 +932,7 @@ export const en = {
 	"chat.acpErrors.titleAuthRequired": "Authentication Required",
 	"chat.acpErrors.titleResourceNotFound": "Resource Not Found",
 	"chat.acpErrors.titleAgent": "Agent Error",
+	"chat.acpErrors.titleBusy": "Service Busy",
 	"chat.acpErrors.unexpected": "An unexpected error occurred.",
 	"chat.acpErrors.suggestTooLong":
 		"The conversation is too long. Try using a compact command if available, or start a new chat.",

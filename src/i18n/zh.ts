@@ -755,6 +755,7 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.acpErrors.titleAuthRequired": "需要身份验证",
 	"chat.acpErrors.titleResourceNotFound": "找不到资源",
 	"chat.acpErrors.titleAgent": "代理错误",
+	"chat.acpErrors.titleBusy": "服务繁忙",
 	"chat.acpErrors.unexpected": "发生了意外错误。",
 	"chat.acpErrors.suggestTooLong":
 		"对话太长。可尝试压缩命令（如可用），或开始新聊天。",

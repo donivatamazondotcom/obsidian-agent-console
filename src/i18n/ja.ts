@@ -797,6 +797,7 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.acpErrors.titleAuthRequired": "認証が必要",
 	"chat.acpErrors.titleResourceNotFound": "リソースが見つかりません",
 	"chat.acpErrors.titleAgent": "エージェントエラー",
+	"chat.acpErrors.titleBusy": "サービス混雑中",
 	"chat.acpErrors.unexpected": "予期しないエラーが発生しました。",
 	"chat.acpErrors.suggestTooLong":
 		"会話が長すぎます。利用できる場合は compact コマンドを使うか、新しいチャットを始めてください。",

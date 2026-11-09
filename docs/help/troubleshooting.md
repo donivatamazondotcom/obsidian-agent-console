@@ -206,6 +206,7 @@ If you need more detailed information about an issue, enable Debug mode:
 | Authentication Required | API key missing or login needed | Add API key or run agent in Terminal first |
 | No Authentication Methods | Agent configuration issue | Reload the plugin |
 | Rate Limit Exceeded | Too many API requests | Wait and retry |
+| Service Busy | The agent's model or service is under heavy load | Wait and retry, or pick another model |
 | Session Creation Failed | Agent couldn't start session | Click New Chat |
 | Agent Not Found | Invalid agent ID in settings | Select valid agent |
 | Cannot Send Message | No active session | Wait for connection or click New Chat |
