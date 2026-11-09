@@ -20,7 +20,7 @@ import type {
 import type {
 	ChatSession,
 	SessionUpdate,
-	TurnStopKind,
+	TurnEnd,
 } from "../types/session";
 import type { AcpClient } from "../acp/acp-client";
 import type { IVaultAccess, NoteMetadata } from "../services/vault-service";
@@ -176,11 +176,7 @@ export interface UseAgentMessagesReturn {
 // Hook Implementation
 // ============================================================================
 
-/** One turn-end event: how it ended, and a monotonically rising counter. */
-export interface TurnEnd {
-	seq: number;
-	outcome: TurnStopKind | "failed";
-}
+export type { TurnEnd } from "../types/session";
 
 export function useAgentMessages(
 	agentClient: AcpClient,
@@ -197,8 +193,12 @@ export function useAgentMessages(
 	const [isSending, setIsSending] = useState(false);
 	const [lastTurnEnd, setLastTurnEnd] = useState<TurnEnd | null>(null);
 	const recordTurnEnd = useCallback(
-		(outcome: TurnEnd["outcome"]) =>
-			setLastTurnEnd((prev) => ({ seq: (prev?.seq ?? 0) + 1, outcome })),
+		(outcome: TurnEnd["outcome"], errorInfo?: ErrorInfo) =>
+			setLastTurnEnd((prev) => ({
+				seq: (prev?.seq ?? 0) + 1,
+				outcome,
+				...(errorInfo ? { errorInfo } : {}),
+			})),
 		[],
 	);
 	const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
@@ -733,33 +733,31 @@ export function useAgentMessages(
 						}
 					} else {
 						setIsSending(false);
-						recordTurnEnd("failed");
-						setErrorInfo(
-							result.error
-								? {
-										title: result.error.title,
-										message: result.error.message,
-										suggestion: result.error.suggestion,
-									}
-								: {
-										title: t(
-											"chat.acpErrors.sendFailedTitle",
-										),
-										message: t(
-											"chat.acpErrors.sendFailed",
-										),
-									},
-						);
+						// I316: one object for both, so the tab can tell this
+						// turn's banner from any later error by identity.
+						const info: ErrorInfo = result.error
+							? {
+									title: result.error.title,
+									message: result.error.message,
+									suggestion: result.error.suggestion,
+								}
+							: {
+									title: t("chat.acpErrors.sendFailedTitle"),
+									message: t("chat.acpErrors.sendFailed"),
+								};
+						recordTurnEnd("failed", info);
+						setErrorInfo(info);
 					}
 				} catch (error) {
 					if (generationRef.current !== generation) return;
 					flushTitleBuffer(currentSessionId);
 					setIsSending(false);
-					recordTurnEnd("failed");
-					setErrorInfo({
+					const info: ErrorInfo = {
 						title: "Send Message Failed",
 						message: `Failed to send message: ${extractErrorMessage(error)}`,
-					});
+					};
+					recordTurnEnd("failed", info);
+					setErrorInfo(info);
 				}
 			})();
 

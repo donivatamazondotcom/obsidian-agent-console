@@ -38,7 +38,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { deriveTabState } from "../tab-state";
+import { deriveTabState, hasFailedTurnBanner } from "../tab-state";
+import type { ErrorInfo } from "../../types/errors";
 import type { TabSessionState, TabState, TabUnseen } from "../../types/tab";
 
 const LIFECYCLES: TabSessionState[] = [
@@ -63,11 +64,20 @@ function expected(
 	hasActivePermission: boolean,
 	unseen: TabUnseen,
 	hasHeldSession: boolean,
+	failedBanner: boolean,
 ): TabState {
 	if (lifecycle === "error") return "error";
 	if (lifecycle === "connecting") return "connecting";
+	// Attention order (I316): stopped early unseen → last message failed →
+	// finished unseen. A failed turn and a finished one can't both be true.
 	const unseenState: TabState | null =
-		unseen === null ? null : unseen.kind === "done" ? "doneUnseen" : "stoppedUnseen";
+		unseen?.kind === "stopped"
+			? "stoppedUnseen"
+			: failedBanner
+				? "failed"
+				: unseen?.kind === "done"
+					? "doneUnseen"
+					: null;
 	// idle with no held id = a fresh lazy tab that connects on the first send.
 	if (lifecycle === "idle" && !hasHeldSession) return isSending ? "connecting" : "ready";
 	// idle holding an id = a restored tab that hasn't woken (I292): asleep,
@@ -90,20 +100,23 @@ describe("deriveTabState — exhaustive truth table", () => {
 			for (const hasActivePermission of BOOLS) {
 				for (const unseen of UNSEEN) {
 					for (const hasHeldSession of BOOLS) {
-						const label = `${lifecycle}/sending=${isSending}/perm=${hasActivePermission}/unseen=${unseen?.kind ?? "none"}/held=${hasHeldSession}`;
-						it(label, () => {
-							expect(
-								deriveTabState({
-									lifecycle,
-									isSending,
-									hasActivePermission,
-									unseen,
-									hasHeldSession,
-								}),
-							).toBe(
-								expected(lifecycle, isSending, hasActivePermission, unseen, hasHeldSession),
-							);
-						});
+						for (const failedBanner of BOOLS) {
+							const label = `${lifecycle}/sending=${isSending}/perm=${hasActivePermission}/unseen=${unseen?.kind ?? "none"}/held=${hasHeldSession}/failed=${failedBanner}`;
+							it(label, () => {
+								expect(
+									deriveTabState({
+										lifecycle,
+										isSending,
+										hasActivePermission,
+										unseen,
+										hasHeldSession,
+										hasFailedTurnBanner: failedBanner,
+									}),
+								).toBe(
+									expected(lifecycle, isSending, hasActivePermission, unseen, hasHeldSession, failedBanner),
+								);
+							});
+						}
 					}
 				}
 			}
@@ -115,13 +128,13 @@ describe("deriveTabState — reproduce cases", () => {
 	// I172: active tab just connected on its first send and is streaming.
 	it("lazy first-send, now streaming: ready lifecycle + isSending → busy", () => {
 		expect(
-			deriveTabState({ lifecycle: "ready", isSending: true, hasActivePermission: false, unseen: null, hasHeldSession: false }),
+			deriveTabState({ lifecycle: "ready", isSending: true, hasActivePermission: false, unseen: null, hasHeldSession: false, hasFailedTurnBanner: false }),
 		).toBe("busy");
 	});
 
 	it("active permission wins over sending: → permission", () => {
 		expect(
-			deriveTabState({ lifecycle: "ready", isSending: true, hasActivePermission: true, unseen: null, hasHeldSession: false }),
+			deriveTabState({ lifecycle: "ready", isSending: true, hasActivePermission: true, unseen: null, hasHeldSession: false, hasFailedTurnBanner: false }),
 		).toBe("permission");
 	});
 
@@ -129,39 +142,39 @@ describe("deriveTabState — reproduce cases", () => {
 	// reads as ready, not as a dead session (was → disconnected).
 	it("new lazy tab (never sent): idle → ready", () => {
 		expect(
-			deriveTabState({ lifecycle: "idle", isSending: false, hasActivePermission: false, unseen: null, hasHeldSession: false }),
+			deriveTabState({ lifecycle: "idle", isSending: false, hasActivePermission: false, unseen: null, hasHeldSession: false, hasFailedTurnBanner: false }),
 		).toBe("ready");
 	});
 
 	// Tab Attention States: connecting gets its own icon (was → disconnected).
 	it("connecting with a pending send: → connecting", () => {
 		expect(
-			deriveTabState({ lifecycle: "connecting", isSending: true, hasActivePermission: false, unseen: null, hasHeldSession: false }),
+			deriveTabState({ lifecycle: "connecting", isSending: true, hasActivePermission: false, unseen: null, hasHeldSession: false, hasFailedTurnBanner: false }),
 		).toBe("connecting");
 	});
 
 	// The reported problem: a finished background tab looked like a new one.
 	it("finished turn not yet viewed: → doneUnseen", () => {
 		expect(
-			deriveTabState({ lifecycle: "ready", isSending: false, hasActivePermission: false, unseen: { kind: "done" }, hasHeldSession: false }),
+			deriveTabState({ lifecycle: "ready", isSending: false, hasActivePermission: false, unseen: { kind: "done" }, hasHeldSession: false, hasFailedTurnBanner: false }),
 		).toBe("doneUnseen");
 	});
 
 	it("a new send hides the tick while working: → busy", () => {
 		expect(
-			deriveTabState({ lifecycle: "ready", isSending: true, hasActivePermission: false, unseen: { kind: "done" }, hasHeldSession: false }),
+			deriveTabState({ lifecycle: "ready", isSending: true, hasActivePermission: false, unseen: { kind: "done" }, hasHeldSession: false, hasFailedTurnBanner: false }),
 		).toBe("busy");
 	});
 
 	it("unread result outranks asleep: released + done → doneUnseen", () => {
 		expect(
-			deriveTabState({ lifecycle: "released", isSending: false, hasActivePermission: false, unseen: { kind: "done" }, hasHeldSession: false }),
+			deriveTabState({ lifecycle: "released", isSending: false, hasActivePermission: false, unseen: { kind: "done" }, hasHeldSession: false, hasFailedTurnBanner: false }),
 		).toBe("doneUnseen");
 	});
 
 	it("acquisition failed: → error regardless of other signals", () => {
 		expect(
-			deriveTabState({ lifecycle: "error", isSending: true, hasActivePermission: true, unseen: { kind: "done" }, hasHeldSession: false }),
+			deriveTabState({ lifecycle: "error", isSending: true, hasActivePermission: true, unseen: { kind: "done" }, hasHeldSession: false, hasFailedTurnBanner: false }),
 		).toBe("error");
 	});
 });
@@ -171,25 +184,84 @@ describe("deriveTabState — reproduce cases", () => {
 describe("deriveTabState — I292 restored tab that hasn't woken", () => {
 	it("idle + held session → released (the moon)", () => {
 		expect(
-			deriveTabState({ lifecycle: "idle", isSending: false, hasActivePermission: false, unseen: null, hasHeldSession: true }),
+			deriveTabState({ lifecycle: "idle", isSending: false, hasActivePermission: false, unseen: null, hasHeldSession: true, hasFailedTurnBanner: false }),
 		).toBe("released");
 	});
 
 	it("idle + no held session → ready (a fresh tab)", () => {
 		expect(
-			deriveTabState({ lifecycle: "idle", isSending: false, hasActivePermission: false, unseen: null, hasHeldSession: false }),
+			deriveTabState({ lifecycle: "idle", isSending: false, hasActivePermission: false, unseen: null, hasHeldSession: false, hasFailedTurnBanner: false }),
 		).toBe("ready");
 	});
 
 	it("idle + held session + sending → connecting", () => {
 		expect(
-			deriveTabState({ lifecycle: "idle", isSending: true, hasActivePermission: false, unseen: null, hasHeldSession: true }),
+			deriveTabState({ lifecycle: "idle", isSending: true, hasActivePermission: false, unseen: null, hasHeldSession: true, hasFailedTurnBanner: false }),
 		).toBe("connecting");
 	});
 
 	it("idle + held session + unseen done → doneUnseen", () => {
 		expect(
-			deriveTabState({ lifecycle: "idle", isSending: false, hasActivePermission: false, unseen: { kind: "done" }, hasHeldSession: true }),
+			deriveTabState({ lifecycle: "idle", isSending: false, hasActivePermission: false, unseen: { kind: "done" }, hasHeldSession: true, hasFailedTurnBanner: false }),
 		).toBe("doneUnseen");
+	});
+});
+
+// I316: a failed turn you've seen used to read "Ready" while its error banner
+// was still up (11/09, Kiro V3 throttle, rail flyout). Literals only (R5).
+describe("deriveTabState — I316 last message failed", () => {
+	const live = { isSending: false, hasActivePermission: false, hasHeldSession: false };
+
+	it("live + seen failed turn with its banner up → failed (was ready)", () => {
+		expect(deriveTabState({ lifecycle: "ready", ...live, unseen: null, hasFailedTurnBanner: true })).toBe("failed");
+	});
+
+	it("an unseen failure keeps its stopped-early mark", () => {
+		expect(deriveTabState({ lifecycle: "ready", ...live, unseen: { kind: "stopped" }, hasFailedTurnBanner: true })).toBe("stoppedUnseen");
+	});
+
+	it("sending again shows busy", () => {
+		expect(deriveTabState({ lifecycle: "ready", ...live, isSending: true, unseen: null, hasFailedTurnBanner: true })).toBe("busy");
+	});
+
+	it("a pending permission outranks it", () => {
+		expect(deriveTabState({ lifecycle: "ready", ...live, hasActivePermission: true, unseen: null, hasFailedTurnBanner: true })).toBe("permission");
+	});
+
+	it("a dead session still shows error", () => {
+		expect(deriveTabState({ lifecycle: "error", ...live, unseen: null, hasFailedTurnBanner: true })).toBe("error");
+	});
+
+	it("asleep with the banner still up → failed, not the moon", () => {
+		expect(deriveTabState({ lifecycle: "released", ...live, unseen: null, hasFailedTurnBanner: true })).toBe("failed");
+	});
+
+	it("restored idle tab with a held session and a banner → failed (defensive: errorInfo starts null on restore)", () => {
+		expect(deriveTabState({ lifecycle: "idle", ...live, hasHeldSession: true, unseen: null, hasFailedTurnBanner: true })).toBe("failed");
+	});
+
+	it("a fresh lazy tab ignores the flag (it can't have a failed turn)", () => {
+		expect(deriveTabState({ lifecycle: "idle", ...live, unseen: null, hasFailedTurnBanner: true })).toBe("ready");
+	});
+});
+
+describe("hasFailedTurnBanner — I316", () => {
+	const err: ErrorInfo = { title: "Agent Error", message: "high traffic" };
+
+	it("true when the banner on screen is the one the failed turn raised", () => {
+		expect(hasFailedTurnBanner({ seq: 1, outcome: "failed", errorInfo: err }, err)).toBe(true);
+	});
+
+	it("false once the banner is dismissed", () => {
+		expect(hasFailedTurnBanner({ seq: 1, outcome: "failed", errorInfo: err }, null)).toBe(false);
+	});
+
+	it("false when a different error replaced the banner (identity, not equality)", () => {
+		expect(hasFailedTurnBanner({ seq: 1, outcome: "failed", errorInfo: err }, { ...err })).toBe(false);
+	});
+
+	it("false when the last turn didn't fail", () => {
+		expect(hasFailedTurnBanner({ seq: 2, outcome: "endTurn" }, err)).toBe(false);
+		expect(hasFailedTurnBanner(null, err)).toBe(false);
 	});
 });

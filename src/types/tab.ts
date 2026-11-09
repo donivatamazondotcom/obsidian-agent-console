@@ -22,7 +22,8 @@ export type TabState =
 	| "released" // moon, muted — asleep to save memory; wakes on typing (I209)
 	| "connecting" // circle-dashed, muted, slow spin — agent starting
 	| "doneUnseen" // check, accent — finished, not viewed yet
-	| "stoppedUnseen"; // circle-alert, yellow — stopped early, not viewed yet
+	| "stoppedUnseen" // circle-alert, yellow — stopped early, not viewed yet
+	| "failed"; // message-circle-warning, yellow — last message failed, its error banner is still up (I316)
 
 /**
  * Unseen-result flag for a tab ([[Tab Attention States]] § Unseen flag).

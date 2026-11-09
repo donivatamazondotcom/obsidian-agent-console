@@ -46,6 +46,7 @@ function iconFor(lazy: ReturnType<typeof useLazySession>): TabState {
 		hasActivePermission: false,
 		unseen: null,
 		hasHeldSession: lazy.keptSessionId !== null,
+		hasFailedTurnBanner: false,
 	});
 }
 

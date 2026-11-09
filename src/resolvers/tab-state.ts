@@ -32,6 +32,8 @@
  * `src/resolvers/__tests__/tab-state.test.ts` for the exhaustive truth table.
  */
 
+import type { ErrorInfo } from "../types/errors";
+import type { TurnEnd } from "../types/session";
 import type { TabSessionState, TabState, TabUnseen } from "../types/tab";
 
 export interface TabStateInput {
@@ -63,6 +65,29 @@ export interface TabStateInput {
 	 * sit in `idle` (I292). Read from session state, never from the agent id.
 	 */
 	hasHeldSession: boolean;
+	/**
+	 * The error banner on screen is the one the last failed turn raised
+	 * ({@link hasFailedTurnBanner}). I316: without it a failure you had seen
+	 * read "Ready" while the banner was still up.
+	 */
+	hasFailedTurnBanner: boolean;
+}
+
+/**
+ * I316: the banner on screen is the last failed turn's own. Compared by
+ * identity, so dismissing it, a later turn, or a different error replacing it
+ * each clear the state without extra bookkeeping. `errorInfo` is a single
+ * `useState` and every writer passes a fresh object.
+ */
+export function hasFailedTurnBanner(
+	lastTurnEnd: TurnEnd | null,
+	errorInfo: ErrorInfo | null,
+): boolean {
+	return (
+		lastTurnEnd?.outcome === "failed" &&
+		errorInfo !== null &&
+		errorInfo === lastTurnEnd.errorInfo
+	);
 }
 
 /**
@@ -78,17 +103,30 @@ export interface TabStateInput {
  *  4. `released` → an unread result if there is one, else released. Stale
  *     sending / permission flags from before the release are ignored.
  *  5. live lifecycle (`ready`/`busy`/`permission`):
- *       permission → busy → stopped-unseen → done-unseen → ready
+ *       permission → busy → stopped-unseen → failed → done-unseen → ready
+ *
+ * I316: `failed` (the last turn failed and its banner is still up) sits in the
+ * attention order wherever an unread mark can show, so it also outranks the
+ * moon on an asleep tab. A turn can't both fail and finish, so `failed` and
+ * done-unseen never compete.
  */
 export function deriveTabState(input: TabStateInput): TabState {
-	const { lifecycle, isSending, hasActivePermission, unseen, hasHeldSession } =
-		input;
+	const {
+		lifecycle,
+		isSending,
+		hasActivePermission,
+		unseen,
+		hasHeldSession,
+		hasFailedTurnBanner: failedBanner,
+	} = input;
 	const unseenState: TabState | null =
-		unseen === null
-			? null
-			: unseen.kind === "done"
-				? "doneUnseen"
-				: "stoppedUnseen";
+		unseen?.kind === "stopped"
+			? "stoppedUnseen"
+			: failedBanner
+				? "failed"
+				: unseen?.kind === "done"
+					? "doneUnseen"
+					: null;
 
 	switch (lifecycle) {
 		case "error":

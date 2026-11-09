@@ -43,6 +43,18 @@ export type TurnStopKind =
 	| "cancelled"
 	| "unknown";
 
+/**
+ * One turn-end event: how it ended, and a monotonically rising counter.
+ * `errorInfo` is the exact banner object a failed turn raised, so the tab
+ * state can tell "this turn's error is still on screen" from any other error
+ * by identity (I316, `resolvers/tab-state.ts` `hasFailedTurnBanner`).
+ */
+export interface TurnEnd {
+	seq: number;
+	outcome: TurnStopKind | "failed";
+	errorInfo?: ErrorInfo;
+}
+
 // ============================================================================
 // Authentication
 // ============================================================================
@@ -351,7 +363,7 @@ import type {
 	ToolCallStatus,
 	PermissionOption,
 } from "./chat";
-import type { ProcessError } from "./errors";
+import type { ErrorInfo, ProcessError } from "./errors";
 
 // ============================================================================
 // Base Type

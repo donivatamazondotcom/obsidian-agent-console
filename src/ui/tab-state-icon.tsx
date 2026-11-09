@@ -45,6 +45,10 @@ export function stateIcon(state: TabState): string {
 			return "check";
 		case "stoppedUnseen":
 			return "circle-alert";
+		case "failed":
+			// I316: a speech bubble with "!", a different shape from the
+			// stopped-early ring and the error cross, so color isn't needed.
+			return "message-circle-warning";
 		case "connecting":
 			return "circle-dashed";
 	}
@@ -84,6 +88,8 @@ export function stateLabel(state: TabState): string {
 			return t("chat.tabBar.state.doneUnseen");
 		case "stoppedUnseen":
 			return t("chat.tabBar.state.stoppedUnseen");
+		case "failed":
+			return t("chat.tabBar.state.failed");
 	}
 }
 

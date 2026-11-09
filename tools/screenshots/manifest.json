@@ -674,12 +674,12 @@
 			"name": "tab-status-dropdown",
 			"pending": true,
 			"width": 550,
-			"height": 480,
+			"height": 520,
 			"crop": {
 				"x": 0,
 				"y": 0,
 				"width": 550,
-				"height": 480
+				"height": 520
 			},
 			"initialState": {
 				"openNote": "Welcome.md",
@@ -710,6 +710,10 @@
 						"state": "connecting"
 					},
 					{
+						"label": "Fix broken links",
+						"state": "failed"
+					},
+					{
 						"label": "New chat",
 						"state": "ready"
 					}
@@ -724,11 +728,11 @@
 			"placement": "feature",
 			"purpose": "Per-tab status icons \u2013 spot finished, stuck, or waiting sessions at a glance.",
 			"differentiator": "Per-tab status icons in the tab-list dropdown",
-			"mustShow": ".menu-item",
+			"mustShow": ".menu .agent-client-tab-state-failed",
 			"caption": "See every session's status at a glance",
-			"altText": "Agent Console tab-list dropdown: seven sessions, each with its status icon, including finished and stopped-early marks.",
+			"altText": "Agent Console tab-list dropdown: eight sessions, each with its status icon, including finished, stopped-early and failed marks.",
 			"docPage": "docs/usage/tabbed-sessions.md",
-			"captureNote": "Driven by initialState.forceTabStates: seeds 7 labeled tabs forced into the attention states (Tab Attention States) with nativeMenus off (so the chevron opens a DOM .menu), then clickSelector opens the chevron. Window-mode, dpr-independent \u2014 no screen-mode crop.",
+			"captureNote": "Driven by initialState.forceTabStates: seeds 8 labeled tabs forced into the attention states (Tab Attention States; I316 adds failed) with nativeMenus off (so the chevron opens a DOM .menu), then clickSelector opens the chevron. Window-mode, dpr-independent \u2014 no screen-mode crop.",
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 680
 		},

@@ -49,7 +49,7 @@ import {
 	deriveSendAffordance,
 	isSessionLive,
 } from "../resolvers/send-affordance";
-import { deriveTabState } from "../resolvers/tab-state";
+import { deriveTabState, hasFailedTurnBanner } from "../resolvers/tab-state";
 import { shouldShowRecoverableHistory } from "../resolvers/conversation-empty-state";
 import { useTabUnseen } from "../hooks/useTabUnseen";
 import { extractLinks, type SharedLink } from "../utils/link-extract";
@@ -2402,6 +2402,9 @@ export function ChatPanel({
 		// I292: a restored tab that hasn't woken holds its id while idle, so
 		// it shows the moon like a released tab instead of the ready dot.
 		hasHeldSession: lazySession.keptSessionId !== null,
+		// I316: a failed turn whose banner is still up reads "Last message
+		// failed", not "Ready".
+		hasFailedTurnBanner: hasFailedTurnBanner(agent.lastTurnEnd, errorInfo),
 	});
 	useEffect(() => {
 		onStateChangeRef.current?.(tabState);

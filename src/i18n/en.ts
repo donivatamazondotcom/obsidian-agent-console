@@ -640,6 +640,7 @@ export const en = {
 	"chat.tabBar.state.connecting": "Connecting…",
 	"chat.tabBar.state.doneUnseen": "Finished – you haven't looked yet",
 	"chat.tabBar.state.stoppedUnseen": "Stopped early – you haven't looked yet",
+	"chat.tabBar.state.failed": "Last message failed",
 	"chat.tabBar.close": "Close",
 	"chat.tabBar.closeOthers": "Close others",
 	"chat.tabBar.closeToRight": "Close to the right",
