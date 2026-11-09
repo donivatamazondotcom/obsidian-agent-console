@@ -16,11 +16,8 @@ import type { ISettingsAccess } from "../services/settings-service";
 import type { ErrorInfo } from "../types/errors";
 import type { IMentionService } from "../utils/mention-parser";
 import { useAgentSession } from "./useAgentSession";
-import {
-	useAgentMessages,
-	type SendMessageOptions,
-	type TurnEnd,
-} from "./useAgentMessages";
+import { useAgentMessages, type SendMessageOptions } from "./useAgentMessages";
+import type { TurnEnd } from "../types/session";
 
 // Re-export types that ChatPanel uses
 export type { SendMessageOptions } from "./useAgentMessages";

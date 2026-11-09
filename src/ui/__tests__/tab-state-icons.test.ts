@@ -26,6 +26,8 @@ const EXPECTED: Record<TabState, string> = {
 	doneUnseen: "check",
 	stoppedUnseen: "circle-alert",
 	connecting: "circle-dashed",
+	// I316: last message failed, its error still shown
+	failed: "message-circle-warning",
 };
 
 describe("stateIcon (I238)", () => {

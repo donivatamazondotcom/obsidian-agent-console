@@ -3232,6 +3232,12 @@ del.acp-header-branded-profile {
 	color: var(--color-yellow);
 }
 
+/* I316: the last message failed and its error is still shown. Same yellow as
+   stopped early; the speech-bubble shape tells them apart. */
+.agent-client-tab-state-failed {
+	color: var(--color-yellow);
+}
+
 .agent-client-tab-state-connecting {
 	color: var(--text-muted);
 	animation: agent-client-spin 3s linear infinite;

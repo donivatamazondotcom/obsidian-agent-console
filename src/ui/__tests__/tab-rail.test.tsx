@@ -85,6 +85,7 @@ const STATES: TabState[] = [
 	"doneUnseen",
 	"stoppedUnseen",
 	"connecting",
+	"failed",
 ];
 
 function tab(id: string, label: string, state: TabState = "ready"): TabInfo {
@@ -313,6 +314,15 @@ describe("TabRail – keyboard", () => {
 });
 
 describe("TabRail – flyout", () => {
+	// I316: the flyout is where the 11/09 report saw "Ready" under an error.
+	it("a tab whose last message failed says so in the flyout", () => {
+		const { keys, flyout } = renderRail({
+			tabs: [tab("t1", "Alpha"), tab("t2", "Beta", "failed")],
+		});
+		act(() => keys()[1].focus());
+		expect(flyout()?.textContent).toContain("Last message failed");
+		expect(flyout()?.textContent).not.toContain("Ready");
+	});
 	it("keyboard focus shows the flyout at once with name and status", () => {
 		const { keys, flyout } = renderRail();
 		act(() => keys()[1].focus());

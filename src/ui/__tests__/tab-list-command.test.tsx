@@ -249,6 +249,7 @@ describe("show-tab-list command wiring (TabBar.onRegisterShowTabList)", () => {
 			"doneUnseen",
 			"stoppedUnseen",
 			"connecting",
+			"failed",
 		];
 		let opener: (() => void) | undefined;
 		render(

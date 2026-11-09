@@ -231,7 +231,8 @@ export interface InitialState {
 			| "disconnected"
 			| "connecting"
 			| "doneUnseen"
-			| "stoppedUnseen";
+			| "stoppedUnseen"
+			| "failed";
 	}[];
 	/**
 	 * Surface the ConfirmCloseModal for the confirm-close shot. The modal is

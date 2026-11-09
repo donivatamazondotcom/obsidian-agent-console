@@ -28,6 +28,7 @@ The tab bar appears at the top of the chat sidebar. Each tab shows:
   | Warning triangle (pulsing) | Needs your approval – the agent paused on a tool call |
   | Crossed circle | Something went wrong |
   | Circle with `!` | Stopped early while you were away – the agent hit a length or step limit, declined to continue, or the send failed |
+  | Speech bubble with `!` | Your last message failed and its error is still shown below the chat. Close the error or send again to clear it |
   | Tick | Finished while you were away |
   | Spinner | Working |
   | Dashed circle (slowly turning) | Connecting to the agent |
@@ -35,7 +36,7 @@ The tab bar appears at the top of the chat sidebar. Each tab shows:
   | Moon | Asleep to save memory, or reopened and not yet woken (see [Sleeping tabs](#sleeping-tabs)) |
   | Empty circle | Not connected yet |
 
-  The tick and the `!` only appear on a tab you weren't looking at when the reply ended – a background tab, or any tab while Obsidian was in the background. They clear as soon as you switch to the tab, come back to the window, or send again. Stopping a reply yourself never leaves a mark.
+  The tick and the circle with `!` only appear on a tab you weren't looking at when the reply ended – a background tab, or any tab while Obsidian was in the background. They clear as soon as you switch to the tab, come back to the window, or send again. Stopping a reply yourself never leaves a mark. A failed message you've already seen shows the speech bubble instead, for as long as its error is on screen – even on a sleeping tab.
 - **Close button** (×) — appears on hover
 
 A `+` button on the right of the tab bar opens a new tab.

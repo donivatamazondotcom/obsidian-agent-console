@@ -42,6 +42,7 @@ describe("I209 released mappings", () => {
 					hasActivePermission,
 					unseen: null,
 					hasHeldSession: true,
+					hasFailedTurnBanner: false,
 				}),
 			).toBe("released");
 		},

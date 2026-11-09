@@ -72,6 +72,11 @@ describe("useAgentMessages — lastTurnEnd", () => {
 			}),
 		);
 		await send(result);
-		expect(result.current.lastTurnEnd).toEqual({ seq: 1, outcome: "failed" });
+		// I316: a failed turn also carries the banner it raised.
+		expect(result.current.lastTurnEnd).toEqual({
+			seq: 1,
+			outcome: "failed",
+			errorInfo: expect.objectContaining({ message: expect.any(String) }),
+		});
 	});
 });

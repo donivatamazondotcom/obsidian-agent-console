@@ -12,7 +12,7 @@
 import * as React from "react";
 import { isBeingViewed, nextTabUnseen } from "../resolvers/tab-unseen";
 import type { TabUnseen } from "../types/tab";
-import type { TurnEnd } from "./useAgentMessages";
+import type { TurnEnd } from "../types/session";
 
 const { useCallback, useEffect, useReducer, useRef } = React;
 
