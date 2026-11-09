@@ -20,10 +20,16 @@ import { t } from "../i18n";
  *   has V2. A V2 launch relaunches once without the flag (I270); so does a
  *   V3 launch that follows the Default engine (I302). A V3 launch the user
  *   chose by name shows D3's error instead.
+ * - `engine-v3-missing`: a V3 launch on a CLI that knows `--agent-engine`
+ *   but lists no `v3` (clap's `invalid value 'v3'`, exit 2; kiro-cli 2.7.1,
+ *   measured 2026-11-09). The Default engine relaunches pinned on V2 (I302).
  * - `engine-unsupported`: any other V3 launch the CLI rejected naming
  *   `--agent-engine` (D3).
  */
-export type KiroStartupFailure = "engine-unsupported" | "engine-flag-unknown";
+export type KiroStartupFailure =
+	| "engine-unsupported"
+	| "engine-flag-unknown"
+	| "engine-v3-missing";
 
 export interface KiroStartupFailureInput {
 	/** Engine the process was launched with. */
@@ -50,6 +56,12 @@ const ENGINE_FLAG_UNKNOWN =
 	/unexpected argument '--agent-engine'|Found argument '--agent-engine' which wasn't expected/;
 
 /**
+ * A CLI that knows the flag and has no V3: clap lists the engines it has,
+ * and a CLI with V3 never calls `v3` an invalid value (I302).
+ */
+const ENGINE_V3_MISSING = /invalid value 'v3' for '--agent-engine/;
+
+/**
  * `engine-flag-unknown` for a Kiro launch (either engine) that exited 2
  * with clap's unknown-argument error; `engine-unsupported` for any other V3
  * launch that exited non-zero with stderr naming `--agent-engine`.
@@ -65,6 +77,9 @@ export function classifyKiroStartupFailure(
 		return "engine-flag-unknown";
 	}
 	if (input.launchedEngine === "v2") return null;
+	if (input.exitCode === 2 && ENGINE_V3_MISSING.test(input.stderr)) {
+		return "engine-v3-missing";
+	}
 	if (input.exitCode === null || input.exitCode === 0) return null;
 	if (!ENGINE_FLAG_REJECTED.test(input.stderr)) return null;
 	return "engine-unsupported";
