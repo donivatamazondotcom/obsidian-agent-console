@@ -939,6 +939,13 @@ export function useAgentSession(
 	// completes but before the user types / connects (I54).
 	const applyInitFailure = useCallback(
 		(error: unknown): boolean => {
+			// I302: whatever failed, the old process's V2 fallback no longer
+			// describes this tab, so the update tip and tooltip reason go.
+			setSession((prev) =>
+				prev.kiroEngineFallback === undefined
+					? prev
+					: { ...prev, kiroEngineFallback: undefined },
+			);
 			if (!isAgentStartupError(error)) return false;
 			setSession((prev) => ({ ...prev, state: "error" }));
 			setErrorInfo(error.info);

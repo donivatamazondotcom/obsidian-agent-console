@@ -152,6 +152,19 @@ describe("I302: kiroEngineFallback travels with the session", () => {
 		expect(hook.result.current.session.kiroEngineFallback).toBeUndefined();
 	});
 
+	it("a failed restore initialize clears it (applyInitFailure, review M1)", async () => {
+		const { client } = makeClient();
+		const hook = renderHook(() => useAgent(client, makeSettings(), vault, CWD, AGENT));
+		await act(async () => {
+			await hook.result.current.createSession();
+		});
+		expect(hook.result.current.session.kiroEngineFallback).toBe("old-cli");
+		act(() => {
+			hook.result.current.applyInitFailure(new Error("spawn failed"));
+		});
+		expect(hook.result.current.session.kiroEngineFallback).toBeUndefined();
+	});
+
 	it("agent switch clears it", async () => {
 		const { client } = makeClient();
 		const hook = renderHook(() => useAgent(client, makeSettings(), vault, CWD, AGENT));

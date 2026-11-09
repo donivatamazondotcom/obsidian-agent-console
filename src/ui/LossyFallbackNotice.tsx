@@ -62,22 +62,6 @@ export interface LossyFallbackNoticeProps {
 	reason?: SessionFallbackReason;
 }
 
-/**
- * Renders the lossy-fallback notice when `isFallbackRecovery` is true.
- * Returns `null` otherwise — the absence of a session-recovery context
- * is the common case and the component should be cheap to mount in
- * every message list.
- *
- * The literal `ℹ️` sigil at the start of the copy serves as the
- * info-icon prefix (matches the spec's "info-icon prefixed" wording
- * without committing to a separate Lucide-icon child). The bordered
- * callout look is delivered via the `agent-client-fallback-notice`
- * className in `styles.css`.
- *
- * The `data-message-type="fallback-notice"` attribute is the stable
- * identity hook the integration layer uses when filtering / persisting
- * the notice in message history (per U67).
- */
 /** Notice copy for each fallback reason (D2, I302). */
 function fallbackNoticeKeys(
 	reason: SessionFallbackReason | undefined,
@@ -103,6 +87,22 @@ function fallbackNoticeKeys(
 	}
 }
 
+/**
+ * Renders the lossy-fallback notice when `isFallbackRecovery` is true.
+ * Returns `null` otherwise — the absence of a session-recovery context
+ * is the common case and the component should be cheap to mount in
+ * every message list.
+ *
+ * The literal `ℹ️` sigil at the start of the copy serves as the
+ * info-icon prefix (matches the spec's "info-icon prefixed" wording
+ * without committing to a separate Lucide-icon child). The bordered
+ * callout look is delivered via the `agent-client-fallback-notice`
+ * className in `styles.css`.
+ *
+ * The `data-message-type="fallback-notice"` attribute is the stable
+ * identity hook the integration layer uses when filtering / persisting
+ * the notice in message history (per U67).
+ */
 export function LossyFallbackNotice({
 	isFallbackRecovery,
 	reason,
