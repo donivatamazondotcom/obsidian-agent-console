@@ -17,6 +17,7 @@ import { act, renderHook } from "@testing-library/react";
 import { useAgent } from "../useAgent";
 import { AcpClient } from "../../acp/acp-client";
 import { AcpTypeConverter } from "../../acp/type-converter";
+import { InitializeSupersededError } from "../../utils/error-utils";
 import type AgentClientPlugin from "../../plugin";
 import type { ISettingsAccess } from "../../services/settings-service";
 import type { IVaultAccess } from "../../services/vault-service";
@@ -163,6 +164,18 @@ describe("I302: kiroEngineFallback travels with the session", () => {
 			hook.result.current.applyInitFailure(new Error("spawn failed"));
 		});
 		expect(hook.result.current.session.kiroEngineFallback).toBeUndefined();
+	});
+
+	it("a superseded start leaves the newer start's fallback alone (review L4)", async () => {
+		const { client } = makeClient();
+		const hook = renderHook(() => useAgent(client, makeSettings(), vault, CWD, AGENT));
+		await act(async () => {
+			await hook.result.current.createSession();
+		});
+		act(() => {
+			hook.result.current.applyInitFailure(new InitializeSupersededError());
+		});
+		expect(hook.result.current.session.kiroEngineFallback).toBe("old-cli");
 	});
 
 	it("agent switch clears it", async () => {
