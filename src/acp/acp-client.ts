@@ -157,6 +157,17 @@ class KiroEngineFlagRejected extends Error {
 	}
 }
 
+/**
+ * A Default V3 launch rejected by a kiro-cli that knows `--agent-engine` but
+ * has no V3 (I302). Relaunches once pinned on V2, which that CLI accepts.
+ */
+class KiroV3Missing extends Error {
+	constructor() {
+		super("kiro-cli has no V3 engine");
+		this.name = "KiroV3Missing";
+	}
+}
+
 /** How long a never-sent session's `session/delete` may take (I259). */
 export const UNSENT_DELETE_DEADLINE_MS = 1000;
 
@@ -292,16 +303,21 @@ export class AcpClient {
 		try {
 			return await this.doInitialize(config, true);
 		} catch (error) {
-			if (!(error instanceof KiroEngineFlagRejected)) throw error;
+			const flagUnknown = error instanceof KiroEngineFlagRejected;
+			if (!flagUnknown && !(error instanceof KiroV3Missing)) throw error;
 			// A disconnect or another initialize since this one started owns
 			// the client now; relaunching would orphan a process or kill theirs.
 			if (this.launchGeneration !== generation) {
 				throw new InitializeSupersededError();
 			}
+			// No flag at all: relaunch unpinned (I270). Flag known, no V3:
+			// relaunch pinned on V2, which this CLI has (I302).
 			this.logger.warn(
-				`Kiro CLI rejected --agent-engine=${config.kiroEngine ?? "v2"} (older CLI); relaunching on V2 without the flag`,
+				flagUnknown
+					? `Kiro CLI rejected --agent-engine=${config.kiroEngine ?? "v2"} (older CLI); relaunching on V2 without the flag`
+					: "Kiro CLI has no V3 engine (older CLI); relaunching on V2",
 			);
-			return this.doInitialize(relaunchConfig(config), false);
+			return this.doInitialize(relaunchConfig(config), !flagUnknown);
 		}
 	}
 
@@ -684,7 +700,7 @@ export class AcpClient {
 	): Promise<Error | null> {
 		// I302: the V2 relaunch of a Default V3 launch. If it exits before
 		// answering too, say to update; D3's V2 hint can't help here.
-		if (!pinEngine && config.kiroEngineFallback === "old-cli") {
+		if (config.kiroEngineFallback === "old-cli") {
 			await this.waitForStartupClose(closed);
 			if (this.launchGeneration !== generation) {
 				return new InitializeSupersededError();
@@ -708,6 +724,9 @@ export class AcpClient {
 			(config.kiroEngine === "v2" || config.kiroEngineFollowsDefault)
 		) {
 			return new KiroEngineFlagRejected();
+		}
+		if (failure === "engine-v3-missing" && config.kiroEngineFollowsDefault) {
+			return new KiroV3Missing();
 		}
 		if (failure === null) return null;
 		this.logger.warn(

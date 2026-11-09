@@ -28,7 +28,7 @@ import { AcpClient } from "../acp-client";
 import { isInitializeSuperseded } from "../../utils/error-utils";
 import type AgentClientPlugin from "../../plugin";
 
-type Mode = "old" | "oldbroken" | "current" | "unrelated" | "oldheld";
+type Mode = "old" | "oldbroken" | "current" | "unrelated" | "oldheld" | "v2only";
 
 let dir: string;
 const cli = (mode: Mode) => join(dir, mode, "kiro-cli");
@@ -48,6 +48,11 @@ const path = require("path");
 fs.appendFileSync(path.join(__dirname, "argv.log"), process.argv.slice(2).join(" ") + "\\n");
 const flagged = process.argv.some((a) => a.startsWith("--agent-engine"));
 const mode = ${JSON.stringify(mode)};
+if (mode === "v2only" && process.argv.includes("--agent-engine=v3")) {
+  // kiro-cli 2.7.1, measured 2026-11-09: knows the flag, has no V3.
+  process.stderr.write("error: invalid value 'v3' for '--agent-engine <ENGINE>'\\n  [possible values: v2, v1, kas]\\n\\nFor more information, try '--help'.\\n");
+  process.exit(2);
+}
 if (mode === "unrelated") {
   process.stderr.write("error: could not start the agent for --agent-engine=v3: workspace config missing\\n");
   process.exit(1);
@@ -57,7 +62,7 @@ const reject = () => {
   process.exit(2);
 };
 const hold = path.join(__dirname, "HOLD");
-if (mode !== "current" && flagged) {
+if (mode !== "current" && mode !== "v2only" && flagged) {
   // A test can hold the rejection (HOLD marker) to land a disconnect first.
   const wait = () => (fs.existsSync(hold) ? setTimeout(wait, 10) : reject());
   wait();
@@ -92,7 +97,7 @@ process.stdin.on("data", (d) => {
 }
 `;
 
-const MODES: Mode[] = ["old", "oldbroken", "current", "unrelated", "oldheld"];
+const MODES: Mode[] = ["old", "oldbroken", "current", "unrelated", "oldheld", "v2only"];
 
 beforeAll(() => {
 	dir = mkdtempSync(join(tmpdir(), "i302-kiro-"));
@@ -212,6 +217,29 @@ describe("I302 — Default (V3) on a kiro-cli without V3", () => {
 		const err = await settle(client.initialize(config("unrelated")));
 		expect(errorTitle(err)).toBe("Kiro CLI needs an update");
 		expect(spawns("unrelated")).toHaveLength(1);
+		await client.whenTornDown();
+	}, 30_000);
+
+	it("a CLI that knows the flag but has no V3 (kiro-cli 2.7.1) relaunches pinned on V2", async () => {
+		const client = makeClient();
+		const result = await client.initialize(config("v2only"));
+		expect(spawns("v2only")).toEqual([
+			"acp --agent-engine=v3",
+			"acp --agent-engine=v2 --agent auto-sa",
+		]);
+		expect(result.kiroEngine).toBe("v2");
+		expect(result.kiroEngineFallback).toBe("old-cli");
+		// The pin is valid on this CLI, so the engine is verified: keyed.
+		expect(client.getLaunchKey()).not.toBeNull();
+		await client.disconnect();
+		await client.whenTornDown();
+	}, 30_000);
+
+	it("the same CLI with V3 picked by name keeps D3's error", async () => {
+		const client = makeClient();
+		const err = await settle(client.initialize(config("v2only", "explicit")));
+		expect(errorTitle(err)).toBe("Kiro CLI needs an update");
+		expect(spawns("v2only")).toEqual(["acp --agent-engine=v3"]);
 		await client.whenTornDown();
 	}, 30_000);
 

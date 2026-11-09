@@ -38,9 +38,23 @@ describe("classifyKiroStartupFailure (D3)", () => {
 		).toBe("engine-unsupported");
 	});
 
-	it("V3 launch, stderr rejects the value: engine-unsupported", () => {
+	it("V3 launch, exit 2, the CLI lists engines without v3: engine-v3-missing (I302)", () => {
+		// kiro-cli 2.7.1, measured 2026-11-09.
 		expect(
 			classifyKiroStartupFailure({ launchedEngine: "v3", exitCode: 2, stderr: BAD_VALUE }),
+		).toBe("engine-v3-missing");
+	});
+
+	it("a bad value other than v3, or another exit code, stays engine-unsupported", () => {
+		expect(
+			classifyKiroStartupFailure({
+				launchedEngine: "v3",
+				exitCode: 2,
+				stderr: "error: invalid value 'v9' for '--agent-engine <ENGINE>'\n",
+			}),
+		).toBe("engine-unsupported");
+		expect(
+			classifyKiroStartupFailure({ launchedEngine: "v3", exitCode: 1, stderr: BAD_VALUE }),
 		).toBe("engine-unsupported");
 	});
 
