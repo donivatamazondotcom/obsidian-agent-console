@@ -24,7 +24,7 @@ describe("I209 TabStateIcon", () => {
 		expect(setIcon).toHaveBeenCalledWith(el, "moon");
 		expect(el.className).toContain("agent-client-tab-state-released");
 		expect(el.getAttribute("aria-label")).toBe(
-			"Asleep to save memory. Wakes up when you type.",
+			"Asleep to save memory",
 		);
 	});
 

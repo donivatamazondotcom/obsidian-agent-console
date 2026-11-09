@@ -628,8 +628,7 @@ export const en = {
 	"chat.tabBar.renameWithAi": "Rename with AI",
 	"chat.tabBar.renameWithAiUnavailable": "Not available for this agent",
 	"chat.tabBar.renamingWithAi": "Renaming with AI…",
-	"chat.tabBar.asleepToSaveMemory":
-		"Asleep to save memory. Wakes up when you type.",
+	"chat.tabBar.asleepToSaveMemory": "Asleep to save memory",
 	"chat.tabBar.state.ready": "Ready",
 	"chat.tabBar.state.busy": "Working",
 	"chat.tabBar.state.permission": "Needs your approval",
