@@ -1615,8 +1615,15 @@ export function ChatPanel({
 					cwd: agentCwd,
 					client: acpClient,
 					initialize: async () => {
-						if (!(await initializeAgentForTab(agentCwd))) {
-							throw new Error("No agent configured for this tab");
+						try {
+							if (!(await initializeAgentForTab(agentCwd))) {
+								throw new Error("No agent configured for this tab");
+							}
+						} catch (e) {
+							// I302: clear the old process's fallback (and show a
+							// startup error's reason, as eager init does).
+							agent.applyInitFailure(e);
+							throw e;
 						}
 					},
 					// Suppress the agent's replay only when a transcript is on
@@ -1651,6 +1658,7 @@ export function ChatPanel({
 			},
 			[
 				agent.clearError,
+				agent.applyInitFailure,
 				initializeAgentForTab,
 				acpClient,
 				agentCwd,

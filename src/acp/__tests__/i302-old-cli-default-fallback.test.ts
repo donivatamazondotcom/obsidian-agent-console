@@ -258,6 +258,34 @@ describe("I302 — Default (V3) on a kiro-cli without V3", () => {
 		await client.whenTornDown();
 	}, 30_000);
 
+	it("an agent switch during the rejected V3 attempt leaves the new agent alone", async () => {
+		const client = makeClient();
+		const hold = join(dir, "old", "HOLD");
+		writeFileSync(hold, "");
+		try {
+			const first = settle(client.initialize(config("old")));
+			for (let i = 0; i < 1500 && spawns("old").length === 0; i++) {
+				await new Promise((r) => setTimeout(r, 10));
+			}
+			const internals = client as unknown as { agentProcess: { kill: () => void } | null };
+			const oldProc = internals.agentProcess;
+			internals.agentProcess = null;
+			const other = { ...config("current"), id: "other-agent", displayName: "Other" };
+			const switched = await client.initialize(other);
+			rmSync(hold, { force: true });
+			expect(isInitializeSuperseded(await first)).toBe(true);
+			// No V2 relaunch of the old agent; the new agent stays current.
+			expect(spawns("old")).toEqual(["acp --agent-engine=v3"]);
+			expect(switched.kiroEngine).toBe("v3");
+			expect(client.isInitialized()).toBe(true);
+			oldProc?.kill();
+			await client.disconnect();
+			await client.whenTornDown();
+		} finally {
+			rmSync(hold, { force: true });
+		}
+	}, 30_000);
+
 	it("a disconnect during the rejected V3 attempt doesn't relaunch", async () => {
 		const client = makeClient();
 		const hold = join(dir, "old", "HOLD");
