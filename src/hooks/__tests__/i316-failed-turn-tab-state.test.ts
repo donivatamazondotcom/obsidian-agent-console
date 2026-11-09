@@ -5,18 +5,21 @@
  *
  * Seam: the real `useAgentMessages` send path with only the ACP port faked
  * (R2, R4). `errorInfo` lives in a `useState`, exactly as `useAgent` holds it
- * (`useAgent.ts:159`), and is fed through `hasFailedTurnBanner` +
+ * (`useAgent.ts:156`), and is fed through `hasFailedTurnBanner` +
  * `deriveTabState` as ChatPanel wires them. Outcome: the tab state the user
  * sees (R3). The tab is live and being viewed (`unseen: null`), which is the
  * reported case.
  */
 import * as React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 
 import { useAgentMessages } from "../useAgentMessages";
+import { useAgent } from "../useAgent";
+import { useTabUnseen } from "../useTabUnseen";
+import { AcpClient } from "../../acp/acp-client";
+import type AgentClientPlugin from "../../plugin";
 import { deriveTabState, hasFailedTurnBanner } from "../../resolvers/tab-state";
-import type { AcpClient } from "../../acp/acp-client";
 import type { ISettingsAccess } from "../../services/settings-service";
 import type { IVaultAccess } from "../../services/vault-service";
 import type { IMentionService } from "../../utils/mention-parser";
@@ -138,5 +141,110 @@ describe("I316: a seen failed turn shows failed while its banner is up", () => {
 		await send(result);
 		expect(result.current.errorInfo).not.toBe(first);
 		expect(result.current.tabState).toBe("failed");
+	});
+});
+
+/**
+ * Review r1 findings 1 and 2: the same decision through the real `useAgent`
+ * (the shared `errorInfo` the banner renders from) and the real
+ * `useTabUnseen`, wired exactly as ChatPanel wires them (`ChatPanel.tsx`
+ * `deriveTabState` call). Only the ACP wire (`sendPrompt`) and the browser
+ * focus / visibility signals are controlled (R4).
+ */
+describe("I316 through useAgent + useTabUnseen (ChatPanel wiring)", () => {
+	afterEach(() => vi.restoreAllMocks());
+
+	const AGENT = "test-agent";
+	function agentSettings() {
+		const snapshot: Record<string, unknown> = {
+			defaultAgentId: AGENT,
+			claude: { id: "claude", displayName: "Claude" },
+			codex: { id: "codex", displayName: "Codex" },
+			gemini: { id: "gemini", displayName: "Gemini" },
+			kiro: { id: "kiro", displayName: "Kiro" },
+			opencode: { id: "opencode-acp", displayName: "OpenCode" },
+			customAgents: [
+				{ id: AGENT, displayName: "Test Agent", command: "fake-acp", args: [], env: [] },
+			],
+			lastUsedModels: {},
+			lastUsedModes: {},
+			lastUsedThoughtLevels: {},
+			titleStrategy: "agent-timestamp",
+			windowsWslMode: false,
+		};
+		return {
+			getSnapshot: () => snapshot,
+			updateSettings: vi.fn(async () => {}),
+		} as unknown as ISettingsAccess;
+	}
+
+	async function mount(isActive: boolean) {
+		let focused = true;
+		vi.spyOn(document, "hasFocus").mockImplementation(() => focused);
+		vi.spyOn(document, "visibilityState", "get").mockImplementation(() => "visible");
+		const plugin = {
+			settings: { autoAllowPermissions: false, windowsWslMode: false },
+			manifest: { version: "0.0.0-test" },
+		} as unknown as AgentClientPlugin;
+		const client = new AcpClient(plugin);
+		vi.spyOn(client, "sendPrompt").mockRejectedValue(THROTTLE);
+		const container = document.createElement("div");
+		document.body.appendChild(container);
+		const containerRef = { current: container };
+		const settings = agentSettings();
+		const hook = renderHook(
+			({ active }: { active: boolean }) => {
+				const agent = useAgent(client, settings, vaultAccess, "/vault", AGENT);
+				const unseen = useTabUnseen({
+					lastTurnEnd: agent.lastTurnEnd,
+					isSending: agent.isSending,
+					isActive: active,
+					containerRef,
+				});
+				const tabState = deriveTabState({
+					lifecycle: "ready",
+					isSending: agent.isSending,
+					hasActivePermission: agent.hasActivePermission,
+					unseen,
+					hasHeldSession: false,
+					hasFailedTurnBanner: hasFailedTurnBanner(agent.lastTurnEnd, agent.errorInfo),
+				});
+				return { agent, unseen, tabState };
+			},
+			{ initialProps: { active: isActive } },
+		);
+		await act(async () => {
+			await hook.result.current.agent.updateSessionFromLoad("sess-x");
+		});
+		const sendFailing = async () => {
+			await act(async () => {
+				await hook.result.current.agent.sendMessage("hi", {
+					vaultBasePath: "/vault",
+					contextNotes: [],
+					isFirstMessage: false,
+				});
+			});
+		};
+		return { hook, sendFailing, setFocused: (f: boolean) => (focused = f) };
+	}
+
+	it("a failure on the tab you're watching reads failed, then ready once dismissed", async () => {
+		const { hook, sendFailing } = await mount(true);
+		await sendFailing();
+		expect(hook.result.current.agent.errorInfo).not.toBeNull();
+		expect(hook.result.current.unseen).toBeNull();
+		expect(hook.result.current.tabState).toBe("failed");
+		act(() => hook.result.current.agent.clearError());
+		expect(hook.result.current.tabState).toBe("ready");
+	});
+
+	it("a background failure settles on stopped early, then reads failed once viewed", async () => {
+		const { hook, sendFailing } = await mount(false);
+		await sendFailing();
+		expect(hook.result.current.unseen).toEqual({ kind: "stopped" });
+		expect(hook.result.current.tabState).toBe("stoppedUnseen");
+		hook.rerender({ active: true });
+		expect(hook.result.current.unseen).toBeNull();
+		expect(hook.result.current.tabState).toBe("failed");
 	});
 });
