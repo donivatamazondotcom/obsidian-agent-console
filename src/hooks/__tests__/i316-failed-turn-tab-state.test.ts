@@ -152,7 +152,11 @@ describe("I316: a seen failed turn shows failed while its banner is up", () => {
  * focus / visibility signals are controlled (R4).
  */
 describe("I316 through useAgent + useTabUnseen (ChatPanel wiring)", () => {
-	afterEach(() => vi.restoreAllMocks());
+	const cleanups: Array<() => void> = [];
+	afterEach(() => {
+		while (cleanups.length) cleanups.pop()!();
+		vi.restoreAllMocks();
+	});
 
 	const AGENT = "test-agent";
 	function agentSettings() {
@@ -179,8 +183,7 @@ describe("I316 through useAgent + useTabUnseen (ChatPanel wiring)", () => {
 	}
 
 	async function mount(isActive: boolean) {
-		let focused = true;
-		vi.spyOn(document, "hasFocus").mockImplementation(() => focused);
+		vi.spyOn(document, "hasFocus").mockImplementation(() => true);
 		vi.spyOn(document, "visibilityState", "get").mockImplementation(() => "visible");
 		const plugin = {
 			settings: { autoAllowPermissions: false, windowsWslMode: false },
@@ -213,6 +216,10 @@ describe("I316 through useAgent + useTabUnseen (ChatPanel wiring)", () => {
 			},
 			{ initialProps: { active: isActive } },
 		);
+		cleanups.push(() => {
+			hook.unmount();
+			container.remove();
+		});
 		await act(async () => {
 			await hook.result.current.agent.updateSessionFromLoad("sess-x");
 		});
@@ -225,7 +232,7 @@ describe("I316 through useAgent + useTabUnseen (ChatPanel wiring)", () => {
 				});
 			});
 		};
-		return { hook, sendFailing, setFocused: (f: boolean) => (focused = f) };
+		return { hook, sendFailing };
 	}
 
 	it("a failure on the tab you're watching reads failed, then ready once dismissed", async () => {
