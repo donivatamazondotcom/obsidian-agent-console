@@ -10,8 +10,9 @@
  * - Auto title: `ChatPanel` hands `agent.suggestedTitle` to the tab through
  *   `onLabelChange` → `ChatView.handleTabLabelChange` (truncate + suffix
  *   against the OTHER open tabs), and separately the same raw title to the
- *   record through `useSessionHistory.applySessionTitle` →
- *   `SessionStore.applySuggestedTitle`.
+ *   record through two writers: `useSessionHistory.applySessionTitle` →
+ *   `SessionStore.applySuggestedTitle`, and the turn-end save
+ *   `saveSessionMessages` → `SessionStore.recordTurnSave`.
  * - Rename with AI: `ChatView` runs `decideAiTitleApply` and passes its label
  *   to `applyTabRename` → `setTabLabel(custom)` + `SessionStore.renameSession`.
  *
@@ -19,6 +20,9 @@
  * history modal content. The two ChatView callbacks are inline in the
  * component, so their argument shapes are mirrored exactly (as in the I227
  * test); the store sits behind an in-memory port (the settings boundary).
+ * Known limit: this test stays green if ChatPanel or ChatView starts handing
+ * a record writer the suffixed label; pinning that needs the label
+ * computation moved into a pure resolver.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { act, cleanup, render, renderHook } from "@testing-library/react";
