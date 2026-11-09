@@ -9,11 +9,20 @@ import { afterEach, describe, expect, it } from "vitest";
  */
 const GUARD = path.resolve(__dirname, "../orphan-guard.cjs");
 
+// Like a real vitest worker, the child's process.exit throws and an
+// uncaughtException handler swallows the error, so a guard that called
+// process.exit instead of SIGKILL would leave it running.
+const CHILD_SRC = `
+process.exit = (code) => { throw new Error("process.exit unexpectedly called with " + code); };
+process.on("uncaughtException", () => {});
+setInterval(() => {}, 1000);
+`;
+
 // The parent forks a guarded child that idles forever, prints the child's
 // pid, then idles itself until the test kills it.
 const PARENT_SRC = `
 const { fork } = require("node:child_process");
-const child = fork("-e", ["setInterval(() => {}, 1000)"], {
+const child = fork("-e", [${JSON.stringify(CHILD_SRC)}], {
 	execArgv: ["--require", ${JSON.stringify(GUARD)}],
 	stdio: ["ignore", "ignore", "ignore", "ipc"],
 });
@@ -66,13 +75,18 @@ describe("orphan guard at the process boundary (I309)", () => {
 		expect(alive(childPid)).toBe(false);
 	}, 15000);
 
-	it("is preloaded, with the heap cap, into the worker running this test", () => {
-		// This test runs inside a vitest fork worker, so its own execArgv is
-		// the real wiring from vitest.config.ts, not a copy of it.
-		const argv = process.execArgv;
-		// vmForks prepends its own --require, so check every preload.
-		const preloads = argv.filter((_, i) => argv[i - 1] === "--require");
-		expect(preloads).toContain(GUARD);
-		expect(argv).toContain("--max-old-space-size=1536");
-	});
+	// Thread pools need no guard (threads die with their process), so this
+	// wiring check applies only when this test runs in a process worker.
+	it.skipIf(typeof process.send !== "function")(
+		"is preloaded, with the heap cap, into the worker running this test",
+		() => {
+			// This test runs inside a vitest fork worker, so its own execArgv is
+			// the real wiring from vitest.config.ts, not a copy of it.
+			const argv = process.execArgv;
+			// vmForks prepends its own --require, so check every preload.
+			const preloads = argv.filter((_, i) => argv[i - 1] === "--require");
+			expect(preloads).toContain(GUARD);
+			expect(argv).toContain("--max-old-space-size=1536");
+		},
+	);
 });
