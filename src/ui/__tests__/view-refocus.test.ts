@@ -43,6 +43,18 @@ describe("I300 scheduleViewRefocus", () => {
 		expect(document.activeElement?.id).toBe("install");
 	});
 
+	it("skips a control that refuses focus (hidden by a stylesheet) and takes the next", () => {
+		const v = view(
+			'<div><button id="css-hidden">x</button></div>' +
+				'<div><button id="install">Install</button></div>',
+		);
+		const hidden = v.querySelector<HTMLButtonElement>("#css-hidden")!;
+		// jsdom has no layout; model a stylesheet-hidden button refusing focus.
+		hidden.focus = () => {};
+		scheduleViewRefocus(v);
+		expect(document.activeElement?.id).toBe("install");
+	});
+
 	it("does nothing for a missing container", () => {
 		expect(() => scheduleViewRefocus(null)).not.toThrow();
 	});

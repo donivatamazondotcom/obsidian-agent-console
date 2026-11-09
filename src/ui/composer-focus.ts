@@ -74,12 +74,16 @@ export function scheduleViewRefocus(container: HTMLElement | null): void {
 		focusActiveTabComposer(container);
 		const doc = container.ownerDocument;
 		if (container.contains(doc.activeElement)) return;
-		const first = Array.from(
-			container.querySelectorAll<HTMLElement>(
-				"textarea, button:not([disabled]), a[href], input:not([disabled])",
-			),
-		).find((el) => !isHiddenByDisplay(el));
-		first?.focus();
+		// Try candidates in order until one takes focus: a control hidden by
+		// a stylesheet (not an inline display:none) silently refuses focus().
+		const candidates = container.querySelectorAll<HTMLElement>(
+			"textarea, button:not([disabled]), a[href], input:not([disabled])",
+		);
+		for (const el of Array.from(candidates)) {
+			if (isHiddenByDisplay(el)) continue;
+			el.focus();
+			if (doc.activeElement === el) return;
+		}
 	});
 }
 
