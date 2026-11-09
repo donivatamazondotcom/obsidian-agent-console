@@ -1526,15 +1526,17 @@ function ChatComponent({
 	// "What's new" card (I300): one stable element for this view, shown above
 	// the panels or on the landing. Must stay above the early return below –
 	// beside the TabsLayout JSX it would change the hook count.
-	// A keyboard dismiss returns focus to this view's composer instead of
-	// leaving it on <body> when the card unmounts.
-	const refocusComposerAfterWhatsNew = useCallback(
-		() => scheduleViewRefocus(view.containerEl),
+	// A keyboard dismiss returns focus to this view's composer – or, on the
+	// no-agent landing, its first control – instead of leaving it on <body>
+	// when the card unmounts. Scoped to contentEl (where React mounts), so
+	// Obsidian's own view-header buttons are never picked.
+	const refocusViewAfterWhatsNew = useCallback(
+		() => scheduleViewRefocus(view.contentEl),
 		[view],
 	);
 	const whatsNewNotice = useWhatsNewNotice(
 		plugin,
-		refocusComposerAfterWhatsNew,
+		refocusViewAfterWhatsNew,
 	);
 
 	// ============================================================
