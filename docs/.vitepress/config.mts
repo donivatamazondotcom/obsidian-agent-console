@@ -66,6 +66,7 @@ export default defineConfig({
           { text: "Gemini CLI", link: "/agent-setup/gemini-cli" },
           { text: "Kiro CLI", link: "/agent-setup/kiro-cli" },
           { text: "OpenCode", link: "/agent-setup/opencode" },
+          { text: "Antigravity CLI", link: "/agent-setup/antigravity-cli" },
           { text: "Custom Agents", link: "/agent-setup/custom-agents" },
         ],
       },

@@ -4,7 +4,7 @@
 
 ## Overview
 
-Obsidian plugin for parallel AI agent interaction (Claude Code, Codex, Gemini CLI, Kiro CLI, custom agents) via the Agent Client Protocol (ACP). Optimized for tabbed multi-session UX so users can run several agents at once without losing context.
+Obsidian plugin for parallel AI agent interaction (Claude Code, Codex, Gemini CLI, Kiro CLI, OpenCode, Antigravity CLI, custom agents) via the Agent Client Protocol (ACP). Optimized for tabbed multi-session UX so users can run several agents at once without losing context.
 
 **Tech**: React 18, TypeScript, Obsidian API, Agent Client Protocol (ACP)
 
@@ -27,7 +27,7 @@ src/
 ├── types/                       # Type definitions (no logic, no dependencies)
 │   ├── chat.ts                  # ChatMessage, MessageContent, PromptContent, AttachedFile, ActivePermission
 │   ├── session.ts               # ChatSession, SessionUpdate (12-type union), SessionInfo, AgentCapabilities (normalized) + RawAgentCapabilities
-│   ├── agent.ts                 # AgentConfig, agent settings (Claude/Codex/Gemini/Kiro/Custom)
+│   ├── agent.ts                 # AgentConfig, agent settings (Claude/Codex/Gemini/Kiro/OpenCode/Antigravity/Custom)
 │   ├── errors.ts                # AcpError, ProcessError, ErrorInfo
 │   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref) + TabSessionState lifecycle union (moved from hooks/ so resolvers/services need no hooks edge)
 │   ├── vault.ts                 # NoteMetadata — vault file metadata (moved from services/vault-service so leaf modules need no services edge; re-exported there)
@@ -72,6 +72,7 @@ src/
 │   ├── agent-detection.ts       # First-run agent detection (probe commands) + default-by-priority selection (pure)
 │   ├── agent-installer.ts       # In-plugin agent install (first-run): one-line npm -g install via login-shell PATH; summarizeInstallFailure → guidance
 │   ├── agent-packages.ts        # Built-in agent install metadata (npm package, docs setup slug, install-command form) — single source of truth
+│   ├── builtin-agents.ts        # The one list of built-in agents (settings keys in presentation order) + ids and commands key derived from it (I313); type-only imports, so the normalizer can use it
 │   ├── session-state.ts         # Session state updates (legacy mode/model, config restore)
 │   ├── message-state.ts         # Message array transforms (upsert, merge, streaming apply); replayed user text is stripped of injected blocks here (I222)
 │   ├── message-sender.ts        # Prompt preparation + sending (pure functions)
@@ -585,6 +586,7 @@ Agent Console runs on all three desktop platforms. Shared code must not bake in 
 - Gemini CLI: `@google/gemini-cli` (GEMINI_API_KEY)
 - Kiro CLI: `kiro-cli acp` (built-in ACP; Kiro account sign-in, no API key)
 - OpenCode: `opencode acp` (built-in ACP; model backend configured in OpenCode, e.g. local ollama; no API key)
+- Antigravity CLI: `agy acp` (built-in ACP; Google sign-in through `agy`, optional GEMINI_API_KEY from secret storage)
 - Custom: Any ACP-compatible agent
 
 ## Keeping This File Current

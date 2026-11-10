@@ -9,7 +9,9 @@ On a brand-new install, Agent Console checks which supported agent CLIs are on y
 1. Kiro CLI
 2. Claude Code
 3. Codex
-4. Gemini CLI
+4. Antigravity CLI
+5. Gemini CLI
+6. OpenCode
 
 So if you already have one installed, your first chat connects to it without visiting settings. If none is found, the default stays Claude Code and the panel guides you from there (see below).
 
@@ -26,14 +28,14 @@ Still on that first install, Agent Console opens the chat panel once so you don'
 If no agent is connectable yet — nothing installed, or the configured command can't be found — the panel shows a **getting-started** screen instead of an endless "Connecting…":
 
 - **One-click picks** for any agent it detected on your machine. Click one to start chatting with it.
-- **Install an agent without leaving Obsidian.** When nothing is detected, each supported agent shows an **Install** button that runs the one-line install for you and streams the output right there. If your setup needs a permission the plugin doesn't have (some system Node installs do), the install stops with a plain explanation and a **Copy command** button so you can finish in your terminal. Kiro links to its setup guide instead, since it isn't an npm package.
+- **Install an agent without leaving Obsidian.** When nothing is detected, each supported agent shows an **Install** button that runs the one-line install for you and streams the output right there. If your setup needs a permission the plugin doesn't have (some system Node installs do), the install stops with a plain explanation and a **Copy command** button so you can finish in your terminal. Kiro CLI, OpenCode and Antigravity CLI link to their setup guides instead, since they aren't npm packages.
 - Each agent name links to its **setup guide** on this site, so you can read the details first.
 - An **Open settings** button that jumps straight to Agent Console's settings, where you can choose a provider or set a CLI path by hand.
 - A **Re-detect** button that re-runs the scan. If you installed an agent outside Obsidian – or set it up with environment variables only – it may not show up until you click Re-detect, which refreshes the list without restarting Obsidian.
 - A hint for the case where you installed a CLI somewhere custom — point Agent Console at it with an absolute path in settings.
 
 <p align="center">
-  <img src="/images/first-run-activation.webp" alt="Agent Console first-run panel with no agent installed, listing Claude Code, Codex, Gemini CLI and Kiro CLI with Install and Copy buttons" />
+  <img src="/images/first-run-activation.webp" alt="Agent Console first-run panel with no agent installed, listing Claude Code, Codex, Gemini CLI, Kiro CLI, OpenCode and Antigravity CLI" />
 </p>
 
 While this screen is up, the message box is turned off — there's no agent to send to yet. It turns back on the moment an agent is installed or picked.
