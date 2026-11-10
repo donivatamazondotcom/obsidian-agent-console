@@ -209,7 +209,9 @@
 			"cropPadding": 12,
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 560,
-			"captureNote": "Window mode: native menus off so the More menu renders as a DOM .menu; crop is the union of the chat header and the menu."
+			"captureNote": "Window mode: native menus off so the More menu renders as a DOM .menu; crop is the union of the chat header and the menu.",
+			"pending": true,
+			"followUp": "Recapture: the More menu Switch agent list now includes Antigravity CLI (Antigravity built-in PR)."
 		},
 		{
 			"name": "export",
@@ -290,7 +292,9 @@
 			"differentiator": "Multiple agents / default selection",
 			"mustShow": ".vertical-tab-content select",
 			"caption": "Set your default agent",
-			"altText": "Agent Console settings with the Default agent dropdown open, listing the available agents"
+			"altText": "Agent Console settings with the Default agent dropdown open, listing the available agents",
+			"pending": true,
+			"followUp": "Recapture: the Default agent dropdown now lists Antigravity CLI (Antigravity built-in PR)."
 		},
 		{
 			"name": "editing",
@@ -820,7 +824,7 @@
 		},
 		{
 			"name": "new-chat-agent-picker",
-			"pending": false,
+			"pending": true,
 			"width": 620,
 			"height": 300,
 			"crop": {
@@ -847,7 +851,8 @@
 			"altText": "Agent Console New chat with agent fuzzy picker listing the configured agents",
 			"docPage": "docs/usage/commands.md",
 			"manualCapture": true,
-			"captureNote": "FuzzySuggestModal launched by running the 'New chat with agent' command; needs command execution the pipeline can't drive yet -- capture manually."
+			"captureNote": "FuzzySuggestModal launched by running the 'New chat with agent' command; needs command execution the pipeline can't drive yet -- capture manually.",
+			"followUp": "Recapture: the New chat with agent picker now lists Antigravity CLI (Antigravity built-in PR)."
 		},
 		{
 			"name": "settings-import",
@@ -1089,7 +1094,7 @@
 		},
 		{
 			"name": "first-run-activation",
-			"pending": false,
+			"pending": true,
 			"width": 664,
 			"height": 388,
 			"crop": {
@@ -1114,9 +1119,10 @@
 			"differentiator": "First-run activation (v1.3.0)",
 			"mustShow": ".agent-client-getting-started",
 			"caption": "Get started even when no agent is installed yet",
-			"altText": "Agent Console first-run panel with no agent installed, listing Claude Code, Codex, Gemini CLI and Kiro CLI with Install and Copy buttons",
+			"altText": "Agent Console first-run panel with no agent installed, listing the built-in agents with Install buttons and setup links",
 			"docPage": "docs/getting-started/first-run.md",
-			"captureNote": "v1.3.0 first-run-activation PR. Needs the no-agent state: deploy the fixtures studio with smoke-test-spawn.sh --first-run --no-agents (or drop the .force-no-agents marker), open a new chat. Confirm the .agent-client-getting-started crop selector + final dims at capture."
+			"captureNote": "v1.3.0 first-run-activation PR. Needs the no-agent state: deploy the fixtures studio with smoke-test-spawn.sh --first-run --no-agents (or drop the .force-no-agents marker), open a new chat. Confirm the .agent-client-getting-started crop selector + final dims at capture.",
+			"followUp": "Recapture: the first-run panel now lists OpenCode and Antigravity CLI (Antigravity built-in PR)."
 		},
 		{
 			"name": "obsidian-system-prompt",
