@@ -758,3 +758,21 @@ describe("remove × from the keyboard: Delete and Backspace (smoke H3)", () => {
 		expect(onAttachedFilesChange).not.toHaveBeenCalled();
 	});
 });
+
+describe("image sent as a file (smoke H4, option b)", () => {
+	it("an image that goes as a file link explains why on its chip", async () => {
+		const h = renderHarness({ supportsImages: false, imageCapabilityKnown: true });
+		await pick(h.container, [pngFile()]);
+		const chip = q<HTMLElement>(h.container, ".agent-client-attachment-preview-file");
+		expect(chip.getAttribute("aria-label")).toBe(
+			"Sent as a file – this agent can't see images, so it opens the file instead",
+		);
+	});
+
+	it("a non-image file chip has no such tooltip", async () => {
+		const h = renderHarness({ supportsImages: false, imageCapabilityKnown: true });
+		await pick(h.container, [textFile()]);
+		const chip = q<HTMLElement>(h.container, ".agent-client-attachment-preview-file");
+		expect(chip.hasAttribute("aria-label")).toBe(false);
+	});
+});

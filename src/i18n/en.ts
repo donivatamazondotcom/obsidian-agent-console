@@ -688,6 +688,8 @@ export const en = {
 	"chat.composer.attachFullReason": "You can attach up to {count} files",
 	"chat.composer.removeAttachment": "Remove {name}",
 	"chat.composer.removeImage": "Remove image",
+	"chat.composer.imageSentAsFile":
+		"Sent as a file – this agent can't see images, so it opens the file instead",
 	"chat.composer.delete": "Delete",
 	"chat.composer.mode": "Mode",
 	"chat.composer.model": "Model",
