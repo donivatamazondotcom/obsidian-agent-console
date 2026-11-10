@@ -40,7 +40,7 @@ Embedding images in messages requires agent support. If the agent doesn't suppor
 
 Attached files appear as thumbnails or file icons below the text area.
 
-- **Remove an attachment**: Hover over it and click the **×** button. From the keyboard, `Tab` to the **×** (it shows when focused) and press `Enter`; focus moves to the next attachment, so you can clear several in a row
+- **Remove an attachment**: Hover over it and click the **×** button. From the keyboard, `Tab` to the **×** (it shows when focused) and press `Enter`, `Delete` or `Backspace`; focus moves to the next attachment, so you can clear several in a row
 - **Attachments are sent with your message**: When you send, all attached files are included
 - **While a message is queued**, its attachments are locked in with it: you can't add or remove files until it sends. The paperclip says so, and a drop or paste shows `[Agent Console] Wait for the queued message to send, then attach files.`
 

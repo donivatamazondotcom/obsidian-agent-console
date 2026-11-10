@@ -2035,10 +2035,10 @@ del.acp-header-branded-profile {
    The selector out-ranks `body:not(.is-mobile) .clickable-icon:hover`. */
 .agent-client-attachment-preview-strip
 	.agent-client-attachment-preview-item
-	.agent-client-attachment-preview-remove:hover,
+	.agent-client-attachment-preview-remove:not([aria-disabled="true"]):hover,
 .agent-client-attachment-preview-strip
 	.agent-client-attachment-preview-item
-	.agent-client-attachment-preview-remove:focus-visible {
+	.agent-client-attachment-preview-remove:not([aria-disabled="true"]):focus-visible {
 	background-color: var(--interactive-hover);
 	color: var(--text-normal);
 }
@@ -3543,8 +3543,9 @@ del.acp-header-branded-profile {
    ========================================================================== */
 
 /* Composer row: the text area and the composer rail side by side. The
-   queued banner above and the attachment strip + toolbar below stay
-   full-width. See [[Agent Console Attachment Button]] § Placement. */
+   queued banner above and the toolbar below stay full-width; the
+   attachment strip sits in the text column (.agent-client-composer-main),
+   so the rail stays directly above Send. See [[Agent Console Attachment Button]] § Placement. */
 .agent-client-composer-row {
 	/* Takes the vertical share the text area wrapper used to take directly. */
 	flex: 1;

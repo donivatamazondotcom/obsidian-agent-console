@@ -738,6 +738,9 @@ describe("remove × from the keyboard: Delete and Backspace (smoke H3)", () => {
 		const x = removes(h.container)[0];
 		await act(async () => {
 			fireEvent.keyDown(x, { key: "Delete", metaKey: true });
+			fireEvent.keyDown(x, { key: "Delete", ctrlKey: true });
+			fireEvent.keyDown(x, { key: "Backspace", altKey: true });
+			fireEvent.keyDown(x, { key: "Backspace", shiftKey: true });
 			fireEvent.keyDown(x, { key: "Backspace", repeat: true });
 		});
 		expect(onAttachedFilesChange).not.toHaveBeenCalled();
