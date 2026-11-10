@@ -25,6 +25,8 @@ While the reload runs, the **↻** icon spins and a "Reloading session…" notic
 
 You don't have to wait for it. While the agent restarts, the tab shows it's connecting. A message you send during that time waits in the composer and goes out as soon as the agent is back.
 
+Reload also works on a chat that hasn't connected yet, like one you just opened from Session history or a sleeping tab (the moon). It restarts the agent and picks that conversation back up, the same as sending a message would. If the agent can't be reached, a "Failed to reload session" notice tells you, and sending a message tries again.
+
 ::: tip
 Resuming the same conversation needs an agent that supports session resume. If your agent can't resume, Agent Console keeps the transcript visible and starts a fresh session underneath. Your next message brings the conversation so far along with it, so the agent can pick up where you left off. Very long chats are trimmed to the most recent messages, and tool output, images and the agent's reasoning aren't carried over.
 

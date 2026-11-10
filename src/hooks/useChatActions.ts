@@ -47,6 +47,7 @@ import {
 } from "../services/carry-over-builder";
 import type { SessionFallbackReason } from "../resolvers/session-engine";
 import { t } from "../i18n";
+import type { UseLazySessionApi } from "./useLazySession";
 
 // ============================================================================
 // Types
@@ -148,14 +149,7 @@ export function useChatActions(
 	 * `lazyAcquireNowRef`.
 	 */
 	lazyReloadNowRef?: {
-		current:
-			| ((
-					run: () => Promise<
-						| { ok: true; sessionId: string }
-						| { ok: false; error: Error }
-					>,
-			  ) => Promise<void>)
-			| null;
+		current: UseLazySessionApi["reloadNow"] | null;
 	},
 	/**
 	 * Ref to useLazySession.continuesExistingSession (I241): whether the tab
@@ -659,18 +653,39 @@ export function useChatActions(
 					// would stay `ready` and strand a queued send (I229).
 					throw new Error("Soft reload: lazy session owner not wired");
 				}
-				new Notice(t("notices.sessionReloading"));
 				const outcome: { result: ReloadSessionFlowResult | null } = {
 					result: null,
 				};
-				await reloadNow(async () => {
-					const result = await agent.reloadSession();
-					outcome.result = result;
-					return reloadResultToAcquisition(result);
-				});
+				const path = await reloadNow(
+					async () => {
+						const result = await agent.reloadSession();
+						outcome.result = result;
+						return reloadResultToAcquisition(result);
+					},
+					{
+						// Only once a reload or connect actually starts (I251).
+						onStart: () => new Notice(t("notices.sessionReloading")),
+						// No bound session: restart the agent, then connect.
+						teardown: agent.restartForReload,
+					},
+				);
+				// Already connecting: the tab shows it, and a queued send flushes
+				// on ready. Nothing new started, so say nothing.
+				if (path.kind === "busy") return;
+				if (path.kind === "connected") {
+					// I251: a tab with no bound session (restored from history,
+					// released, fresh) connected through the lazy owner. A fallback
+					// shows the in-chat transcript notice instead of a toast; a
+					// superseded run (new chat, agent switch) reports nothing.
+					if (path.result === "bound") {
+						new Notice(t("notices.sessionReloaded"));
+					} else if (path.result === "failed") {
+						new Notice(t("notices.sessionReloadFailed"));
+					}
+					return;
+				}
 				const reload = outcome.result;
-				// reloadNow is a no-op while another acquisition is in flight.
-				if (!reload) return;
+				if (path.superseded || !reload) return;
 				if (reload.resumed) {
 					new Notice(t("notices.sessionReloaded"));
 				} else {
@@ -696,6 +711,7 @@ export function useChatActions(
 			lazyReloadNowRef,
 			sessionRetirementRef,
 			agent.reloadSession,
+			agent.restartForReload,
 			messages,
 			session,
 			autoExportIfEnabled,

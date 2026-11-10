@@ -90,12 +90,17 @@ function setup(
 	const contextNotes = { notes: [], add: vi.fn() } as unknown as Params[8];
 	const acquireNow = vi.fn().mockResolvedValue(undefined);
 	const lazyAcquireNowRef = { current: acquireNow } as Params[12];
-	// I229: the lazy owner's reloadNow. The fake runs the reload and records
-	// the acquisition result it was handed, like useLazySession.reloadNow.
+	// I229: the lazy owner's reloadNow on a bound tab. The fake announces the
+	// start, runs the reload and records the acquisition result it was handed,
+	// like useLazySession.reloadNow's `reload` path (I251).
 	const reloadNowResults: Array<Awaited<ReturnType<ReloadRun>>> = [];
-	const reloadNow = vi.fn(async (run: ReloadRun) => {
-		reloadNowResults.push(await run());
-	});
+	const reloadNow = vi.fn(
+		async (run: ReloadRun, reloadOpts?: { onStart?: () => void }) => {
+			reloadOpts?.onStart?.();
+			reloadNowResults.push(await run());
+			return { kind: "reloaded" as const, superseded: false };
+		},
+	);
 	const lazyReloadNowRef = {
 		current: opts.wireReloadNow === false ? null : reloadNow,
 	} as Params[15];

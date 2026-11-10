@@ -109,6 +109,7 @@ import {
 } from "../hooks/useIdleRelease";
 import { decideGrabToggle } from "../utils/activeNoteGrabToggle";
 import { useRestoredMessages } from "../hooks/useRestoredMessages";
+import { prepareForkAcquisition } from "../hooks/forkSessionFlow";
 import { reconnectExistingSession } from "../hooks/loadExistingSessionFlow";
 
 // Adapter imports
@@ -1681,10 +1682,17 @@ export function ChatPanel({
 		forkExistingSession: useCallback(
 			async (originalSessionId: string) => {
 				const agentId = session.agentId;
-				const serverForks = session.capabilities?.forks ?? false;
 				let newId: string;
 				let lossy = false;
 				try {
+					// I251: a reload restarts the agent before acquiring, and
+					// `forkSession` needs a live connection.
+					const { serverForks } = await prepareForkAcquisition({
+						client: acpClient,
+						initialize: () => initializeAgentForTab(agentCwd),
+						applyInitFailure: agent.applyInitFailure,
+						knownCapabilities: session.capabilities,
+					});
 					if (serverForks) {
 						const result = await acpClient.forkSession(
 							originalSessionId,
@@ -1749,6 +1757,8 @@ export function ChatPanel({
 				session.capabilities,
 				acpClient,
 				agentCwd,
+				initializeAgentForTab,
+				agent.applyInitFailure,
 				agent.createSession,
 				agent.updateSessionFromLoad,
 				sessionHistory.saveSessionMessages,
