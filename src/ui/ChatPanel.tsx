@@ -52,6 +52,7 @@ import {
 	isSessionLive,
 } from "../resolvers/send-affordance";
 import { deriveTabState, hasFailedTurnBanner } from "../resolvers/tab-state";
+import { decideKeepSessionId } from "../resolvers/keep-session-id";
 import { shouldShowRecoverableHistory } from "../resolvers/conversation-empty-state";
 import { useTabUnseen } from "../hooks/useTabUnseen";
 import { extractLinks, type SharedLink } from "../utils/link-extract";
@@ -2284,10 +2285,15 @@ export function ChatPanel({
 					recheck,
 					flush: flushSessionSave,
 					// I237: keep the id only when there is something to resume —
-					// a transcript, or an id restored from disk.
+					// a transcript, or an id the lazy owner still holds. Read
+					// live: New chat and hard reload clear the owner's kept id
+					// but not the mount-time restoredSessionId (I318).
 					...idleReleaseDiscardSteps({
 						keepSessionId: () =>
-							messageCountRef.current > 0 || !!restoredSessionId,
+							decideKeepSessionId({
+								hasMessages: messageCountRef.current > 0,
+								holdsKeptId: lazySession.continuesExistingSession(),
+							}),
 						retirement: () => retirementRef.current,
 						lazyRelease: (keepSessionId) =>
 							lazySession.release({ keepSessionId }),

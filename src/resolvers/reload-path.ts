@@ -19,7 +19,7 @@ export type ReloadPath =
 	| { kind: "connect" };
 
 export interface ReloadPathInput {
-	/** The lazy owner has a bound session id (it stays bound after a failed reload). */
+	/** The lazy owner has a bound session id (a failed reload unbinds it, I318). */
 	hasBoundSession: boolean;
 	/** An acquisition is running in the lazy owner. */
 	acquisitionInFlight: boolean;

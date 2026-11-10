@@ -75,6 +75,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { decideReloadPath } from "../resolvers/reload-path";
+import { decideKeepSessionId } from "../resolvers/keep-session-id";
 import { useTabSessionState, type TabSessionState } from "./useTabSessionState";
 import type {
 	EngineChangeReason,
@@ -816,8 +817,29 @@ export function useLazySession(
 
 			isAcquiringRef.current = true;
 			const generation = acquisitionGenerationRef.current;
+			// I318: the id this reload resumes. Kept through the reload when
+			// there is something to resume, so a restart mid-reload persists
+			// it and a failed reload leaves it for the next connect.
+			const boundId = sessionIdRef.current;
+			const keep = decideKeepSessionId({
+				hasMessages: haveLocalHistoryRef.current?.() ?? true,
+				holdsKeptId: restoredSessionIdRef.current !== null,
+			});
+			if (keep) setKeptId(boundId);
 
 			tabStateRef.current.startConnect();
+
+			// I318: a failed bound reload leaves no live session behind (the
+			// agent already dropped its id). Unbind, so send, typing and Reload
+			// connect again through fireAcquisition, on the kept id when there
+			// is one. No generation bump: nothing else is in flight.
+			const unbindAfterFailure = () => {
+				sessionIdRef.current = null;
+				setSessionId(null);
+				setKeptId(keep ? boundId : null);
+				tabStateRef.current.connectFailed();
+				isAcquiringRef.current = false;
+			};
 
 			let result: SessionAcquisitionResult;
 			try {
@@ -827,8 +849,7 @@ export function useLazySession(
 				if (generation !== acquisitionGenerationRef.current) {
 					return { kind: "reloaded", superseded: true };
 				}
-				tabStateRef.current.connectFailed();
-				isAcquiringRef.current = false;
+				unbindAfterFailure();
 				throw error;
 			}
 
@@ -841,20 +862,25 @@ export function useLazySession(
 				// A soft reload that started fresh keeps its toast and shows no
 				// in-chat notice, but the agent still needs the transcript (I246).
 				if (result.lossy) {
+					// The agent knows nothing of the old id: forget it, as a
+					// restore fallback does (I280, I318).
+					setKeptId(null);
 					onSessionFallbackRef.current?.(
 						result.fallbackReason ?? "unavailable",
 						result.sessionId,
 					);
+				} else if (keep) {
+					setKeptId(result.sessionId);
 				}
 				setSessionId(result.sessionId);
 				tabStateRef.current.connectSucceeded();
-			} else {
-				tabStateRef.current.connectFailed();
+				isAcquiringRef.current = false;
+				return { kind: "reloaded", superseded: false };
 			}
-			isAcquiringRef.current = false;
+			unbindAfterFailure();
 			return { kind: "reloaded", superseded: false };
 		},
-		[fireAcquisition],
+		[fireAcquisition, setKeptId],
 	);
 
 	const continuesExistingSession = useCallback(

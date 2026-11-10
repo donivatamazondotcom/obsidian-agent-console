@@ -330,11 +330,17 @@ describe("useChatActions handleReload — single lazy owner (I229)", () => {
 			sessionId: null,
 		});
 		const { result, reloadNowResults } = setup({ reloadSession }, [msg()]);
+		noticeMessages.length = 0;
 
 		await result.current.handleReload(false);
 
 		expect(reloadNowResults).toHaveLength(1);
 		expect(reloadNowResults[0].ok).toBe(false);
+		// I318: nothing started fresh, so the toast says the reload failed.
+		expect(noticeMessages).toEqual([
+			"[Agent Console] Reloading session…",
+			"[Agent Console] Failed to reload session",
+		]);
 	});
 
 	it("does not reload behind the owner's back when the lazy owner isn't wired", async () => {
