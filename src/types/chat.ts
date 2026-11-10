@@ -269,6 +269,14 @@ export interface AttachedFile {
 
 	/** File size in bytes (only for kind === "file", for display + resource_link) */
 	size?: number;
+
+	/**
+	 * Why a file that could have gone inline went as a file link instead. Set
+	 * at intake only when an image the composer would embed went as a file
+	 * because the agent can't take images; drives the chip's explanation.
+	 * Display-only: never sent to the agent.
+	 */
+	sentAsFile?: "agent-no-images";
 }
 
 /**

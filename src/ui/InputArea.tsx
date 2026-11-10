@@ -629,7 +629,10 @@ export function InputArea({
 	 * Returns the converted attachments without updating state.
 	 */
 	const convertFilesToAttachments = useCallback(
-		(files: File[]): AttachedFile[] => {
+		(
+			files: File[],
+			sentAsFile?: AttachedFile["sentAsFile"],
+		): AttachedFile[] => {
 			const result: AttachedFile[] = [];
 			for (const file of files) {
 				const filePath = getFilePathForFile(file);
@@ -644,6 +647,7 @@ export function InputArea({
 					name: file.name,
 					path: filePath,
 					size: file.size,
+					...(sentAsFile ? { sentAsFile } : {}),
 				});
 			}
 			return result;
@@ -715,7 +719,10 @@ export function InputArea({
 					// Caps known, images unsupported: try resource_link
 					// fallback (works for files copied from Finder, not for
 					// clipboard screenshots).
-					const converted = convertFilesToAttachments(imageFiles);
+					const converted = convertFilesToAttachments(
+						imageFiles,
+						"agent-no-images",
+					);
 					if (converted.length > 0) {
 						newAttachments.push(...converted);
 					} else {
@@ -794,7 +801,10 @@ export function InputArea({
 					// Files from disk have paths, so a file link works even
 					// for agents that don't take images.
 					newAttachments.push(
-						...convertFilesToAttachments(imageFiles),
+						...convertFilesToAttachments(
+							imageFiles,
+							"agent-no-images",
+						),
 					);
 				}
 			}
