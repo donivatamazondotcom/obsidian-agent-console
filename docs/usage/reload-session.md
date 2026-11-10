@@ -27,6 +27,8 @@ You don't have to wait for it. While the agent restarts, the tab shows it's conn
 
 Reload also works on a chat that hasn't connected yet, like one you just opened from Session history or a sleeping tab (the moon). It restarts the agent and picks that conversation back up, the same as sending a message would. If the agent can't be reached, a "Failed to reload session" notice tells you, and sending a message tries again.
 
+The same goes for a chat that was connected when Reload failed, for example because the agent's command no longer runs. You'll see "Failed to reload session". Once the agent can start again, send a message or click **↻** again: Agent Console reconnects and picks up the same conversation. If you sent a message while the failed reload was running, it waits in the composer with "Couldn't connect — Edit, then Send to retry". Choose **Edit**, then **Send**, or click **↻**, and it goes out once.
+
 ::: tip
 Resuming the same conversation needs an agent that supports session resume. If your agent can't resume, Agent Console keeps the transcript visible and starts a fresh session underneath. Your next message brings the conversation so far along with it, so the agent can pick up where you left off. Very long chats are trimmed to the most recent messages, and tool output, images and the agent's reasoning aren't carried over.
 
