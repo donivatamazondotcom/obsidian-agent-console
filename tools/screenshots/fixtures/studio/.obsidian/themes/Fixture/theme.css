@@ -53,8 +53,17 @@ body.acp-capturing .agent-client-error-overlay--info { display: none !important;
    re-renders periodically, so an inline display:none (manifest hideSelectors)
    is wiped — this !important CSS persists across the re-render. Same
    capture-time gate as above, so smoke testing still shows the real state. */
-body.acp-capturing .acp-header-branded-connecting,
-body.acp-capturing .acp-header-branded-sep:has(+ .acp-header-branded-connecting) { display: none !important; }
+body.acp-capturing .acp-header-branded-connecting { display: none !important; }
+/* The separator before "Not connected" is always the second-to-last child.
+   CSS can't pick it only when "Not connected" follows (that needs a parent
+   selector, which the store review flags), so hide the second-to-last
+   separator in every header and draw it back in front of a trailing model. */
+body.acp-capturing .acp-header-branded-sep:nth-last-child(2) { display: none !important; }
+body.acp-capturing .acp-header-branded-model:last-child::before {
+	content: " · ";
+	white-space: pre;
+	color: var(--text-faint);
+}
 
 /* Screenshot fixtures: hide the "Session restored from history" lossy-fallback
    notice (.agent-client-fallback-notice, LossyFallbackNotice.tsx). Restoring a
