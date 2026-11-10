@@ -280,6 +280,13 @@ export interface ChatSession {
 	confirmedModelId?: string;
 
 	/**
+	 * The model selection (config option value, else legacy currentModelId)
+	 * when `confirmedModelId` arrived. The header ignores the confirmation
+	 * once the selection changes (I258).
+	 */
+	confirmedUnder?: string;
+
+	/**
 	 * Prompt capabilities supported by the agent.
 	 * Indicates which content types (image, audio, etc.) can be included in prompts.
 	 * Set during initialization and persists for the session lifetime.

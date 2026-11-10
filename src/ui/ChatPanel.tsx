@@ -789,10 +789,11 @@ export function ChatPanel({
 		});
 		const folder = deriveHeaderFolder({ cwd: agentCwd });
 
-		// Confirmed model (SDK 0.24+), then legacy models, then the `model`
-		// config option (Kiro CLI V3 sends only that).
+		// Confirmed model while its selection is unchanged, then the `model`
+		// config option, then legacy models (I258).
 		const model = deriveHeaderModelName({
 			confirmedModelId: session.confirmedModelId,
+			confirmedUnder: session.confirmedUnder,
 			models: session.models,
 			configOptions: session.configOptions,
 		});
@@ -825,6 +826,7 @@ export function ChatPanel({
 		session.modes,
 		session.configOptions,
 		session.confirmedModelId,
+		session.confirmedUnder,
 	]);
 
 	const availableAgents = useMemo(() => {
