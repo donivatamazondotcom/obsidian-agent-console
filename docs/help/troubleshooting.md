@@ -54,6 +54,11 @@ The agent requires authentication before processing requests.
 - Set your Google API key in **Settings → Agent Console → Gemini CLI → API key**
 - Or run `gemini` in Terminal first to authenticate with your Google account
 
+**For Antigravity CLI:**
+- Run `agy` in Terminal first to sign in with your Google account (or `agy acp --login` without a browser)
+- Or set a Gemini API key in **Settings → Agent Console → Antigravity CLI → API key**
+- A signed-out Antigravity CLI shows **Session Creation Failed** with "Authentication required" when the chat connects; sign in, then press **Send** to retry
+
 ### "No Authentication Methods" error
 
 The agent didn't provide authentication options.

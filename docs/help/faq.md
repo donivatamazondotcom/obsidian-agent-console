@@ -6,7 +6,7 @@ Frequently asked questions about Agent Console.
 
 ### What is Agent Console?
 
-Agent Console is an Obsidian plugin that lets you chat with AI agents directly within Obsidian. It supports Claude Code, Codex, Gemini CLI, and any ACP-compatible agent. The plugin uses the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/) to communicate with agents.
+Agent Console is an Obsidian plugin that lets you chat with AI agents directly within Obsidian. It supports Claude Code, Codex, Gemini CLI, Kiro CLI, OpenCode, Antigravity CLI, and any ACP-compatible agent. The plugin uses the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/) to communicate with agents.
 
 ### Is this an official Anthropic/OpenAI/Google plugin?
 
@@ -71,7 +71,7 @@ Agent Console runs in the sidebar and multiplexes with in-panel tabs, so new cha
 
 ### What is a custom agent?
 
-Any ACP-compatible agent beyond the built-in ones (Claude Code, Codex, Gemini CLI). You can add custom agents in **Settings → Agent Console → Custom agents**. See [Custom Agents](/agent-setup/custom-agents).
+Any ACP-compatible agent beyond the built-in ones (Claude Code, Codex, Gemini CLI, Kiro CLI, OpenCode, Antigravity CLI). You can add custom agents in **Settings → Agent Console → Custom agents**. See [Custom Agents](/agent-setup/custom-agents).
 
 ### Do all agents support the same features?
 
