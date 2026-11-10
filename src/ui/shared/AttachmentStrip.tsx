@@ -43,7 +43,16 @@ function RemoveButton({
 		if (ref.current) setIcon(ref.current, "x");
 	}, []);
 	// Icon-only: the label travels as the reason (see deriveTooltipText).
-	useTooltip(ref, { visibleLabel: null, reason: removeLabel(file) });
+	// Locked: keep the label and say why it can't remove right now.
+	useTooltip(
+		ref,
+		locked
+			? {
+					visibleLabel: removeLabel(file),
+					reason: t("chat.composer.attachLockedReason"),
+				}
+			: { visibleLabel: null, reason: removeLabel(file) },
+	);
 	const setRef = useCallback(
 		(el: HTMLButtonElement | null) => {
 			ref.current = el;

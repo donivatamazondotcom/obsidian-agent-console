@@ -627,3 +627,66 @@ describe("composer rail — where the attach button lives", () => {
 		});
 	});
 });
+
+describe("queueing in the same tick as an attach (I319, review L2)", () => {
+	const QUEUED_NOTICE =
+		"[Agent Console] Wait for the queued message to send, then attach files.";
+
+	it("Enter queues while an image is still converting: the queued message carries what was attached, and the late image is refused", async () => {
+		const onQueueMessage = vi.fn();
+		const h = renderHarness({
+			supportsImages: true,
+			isStreaming: true,
+			isSending: true,
+			isSessionReady: true,
+			inputValue: "look",
+			onQueueMessage,
+			initialFiles: [{ id: "a", ...TEXT_EXPECTED } as AttachedFile],
+		});
+		await settle();
+		await act(async () => {
+			fireEvent.drop(inputBox(h.container), {
+				dataTransfer: { files: [pngFile()], types: ["Files"] },
+			});
+			fireEvent.keyDown(textarea(h.container), { key: "Enter" });
+		});
+		await act(async () => {
+			await new Promise((r) => window.setTimeout(r, 20));
+		});
+		expect(onQueueMessage).toHaveBeenCalledTimes(1);
+		const [content, files] = onQueueMessage.mock.calls[0] as [string, AttachedFile[]];
+		expect(content).toBe("look");
+		expect(files.map(strip)).toEqual([TEXT_EXPECTED]);
+		// The image never joined the strip, and the user was told why.
+		expect(h.last().map(strip)).not.toContainEqual(PNG_INLINE_EXPECTED);
+		expect(noticeTexts()).toContain(QUEUED_NOTICE);
+	});
+
+	it("two picks in the same tick are both kept", async () => {
+		const h = renderHarness();
+		const input = fileInput(h.container);
+		await act(async () => {
+			Object.defineProperty(input, "files", { value: [textFile()], configurable: true });
+			fireEvent.change(input);
+			Object.defineProperty(input, "files", {
+				value: [diskFile("b.txt", "text/plain")],
+				configurable: true,
+			});
+			fireEvent.change(input);
+		});
+		await settle();
+		expect(h.last().map((f) => f.name)).toEqual(["notes.txt", "b.txt"]);
+	});
+
+	it("the locked × says why it can't remove", () => {
+		const h = renderHarness({
+			isQueued: true,
+			attachedFiles: [{ id: "a", ...TEXT_EXPECTED } as AttachedFile],
+			onAttachedFilesChange: () => undefined,
+		});
+		const x = q<HTMLButtonElement>(h.container, ".agent-client-attachment-preview-remove");
+		expect(x.getAttribute("aria-label")).toBe(
+			"Remove notes.txt — Wait for the queued message to send",
+		);
+	});
+});

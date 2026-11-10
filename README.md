@@ -58,7 +58,7 @@ Because the agents live in your vault, you stay in control: you pin what they se
 ## Features
 
 * **Save your go-to prompts and fire them in one click** – turn the kickoffs you retype every session (“debrief this meeting”, “summarize the selection”) into notes, then launch them from context-aware chips above the composer, a `!` search right in the message box, or the command palette
-* **Work from the notes you’ve already written** – @mention a note and the agent reads it, and the notes it links to, as context. Drag in images, run slash commands – it starts from your knowledge, not a blank slate
+* **Work from the notes you’ve already written** – @mention a note and the agent reads it, and the notes it links to, as context. Attach images and files, run slash commands – it starts from your knowledge, not a blank slate
 * **Let your second brain grow itself** – ask an agent to write back: capture decisions, draft notes, and link ideas straight into your vault, without the manual upkeep
 * **Stop waiting on one agent before starting the next** – run several agent chats side by side in one sidebar
 * **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, OpenCode, Antigravity CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol); on a fresh install Agent Console defaults to one it finds installed and opens the panel for you

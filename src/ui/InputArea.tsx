@@ -1206,8 +1206,11 @@ export function InputArea({
 		const filesToSend =
 			currentFiles.length > 0 ? [...currentFiles] : undefined;
 
-		// Clear input, files, and hint state immediately
+		// Clear input, files, and hint state immediately. Write the ref too, so
+		// an image conversion that finishes before the next render doesn't
+		// rebuild from the just-sent list and put those files back.
 		onInputChange("");
+		attachedFilesRef.current = [];
 		onAttachedFilesChange([]);
 		setHintText(null);
 		setCommandText("");

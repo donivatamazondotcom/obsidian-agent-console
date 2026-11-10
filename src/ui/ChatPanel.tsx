@@ -1798,6 +1798,16 @@ export function ChatPanel({
 	// useCallback identity, so reassigning each render is a no-op cost.
 	lazyResetRef.current = lazySession.reset;
 	lazyAcquireNowRef.current = lazySession.acquireNow;
+	// Attaching a file is intent, like a keystroke: start connecting now so a
+	// picked image can go inline (Attachment Button spec). Read through refs so
+	// the callback is stable and InputArea's attach handlers aren't rebuilt on
+	// every keystroke.
+	const attachIntentRef = useRef(() => {});
+	attachIntentRef.current = () => {
+		idleRelease.noteActivity();
+		lazySession.onAttachIntent();
+	};
+	const handleAttachIntent = useCallback(() => attachIntentRef.current(), []);
 	lazyReloadNowRef.current = lazySession.reloadNow;
 	lazyMarkConnectFailedRef.current = lazySession.markConnectFailed;
 	lazyContinuesSessionRef.current = lazySession.continuesExistingSession;
@@ -3507,12 +3517,7 @@ export function ChatPanel({
 			attachedFiles={attachedFiles}
 			onAttachedFilesChange={setAttachedFiles}
 			showAttachButton={composerAffordances.showAttachButton}
-			onAttachIntent={() => {
-				idleRelease.noteActivity();
-				// Attaching is intent, like a keystroke: start connecting now
-				// so a picked image can go inline (Attachment Button spec).
-				lazySession.onAttachIntent();
-			}}
+			onAttachIntent={handleAttachIntent}
 			// Error overlay props
 			errorInfo={errorInfo}
 			onClearError={handleClearError}
