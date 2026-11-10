@@ -85,14 +85,17 @@ const settle = async () => {
 describe("I251: restartForReload", () => {
 	it("waits for a pending never-sent delete, then kills the tree and waits for it to exit", async () => {
 		const c = makeClient();
+		const setErrorInfo = vi.fn();
 		const { result } = renderHook(() =>
-			useAgentSession(c.client, makeSettings(), "/cwd", () => {}, "test-agent"),
+			useAgentSession(c.client, makeSettings(), "/cwd", setErrorInfo, "test-agent"),
 		);
 
 		let done: Promise<void> = Promise.resolve();
 		act(() => {
 			done = result.current.restartForReload(() => true);
 		});
+		// An old "Session Creation Failed" overlay doesn't sit under Connecting.
+		expect(setErrorInfo).toHaveBeenLastCalledWith(null);
 		await act(settle);
 		// Shown as starting up while it waits; the delete hasn't settled.
 		expect(result.current.session.state).toBe("initializing");

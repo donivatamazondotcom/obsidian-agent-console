@@ -90,6 +90,8 @@ function deferred() {
 
 interface SetupOpts {
 	restoredSessionId: string | null;
+	/** A tab opened from Session history as a fork of this id. */
+	forkFromSessionId?: string;
 	/** "fails": the load fails; "rejected": the agent rejects the id. */
 	load?: "ok" | "fails" | "rejected";
 	/** The new-session fallback fails too (the agent can't be reached). */
@@ -98,6 +100,8 @@ interface SetupOpts {
 	haveLocalHistory?: boolean;
 	/** Hold the restart until the test releases it. */
 	holdTeardown?: boolean;
+	/** The restart itself throws. */
+	teardownThrows?: boolean;
 	/** Hold the load until the test releases it. */
 	holdLoad?: boolean;
 	debounceMs?: number;
@@ -143,8 +147,14 @@ function setup(opts: SetupOpts) {
 		newCount += 1;
 		return { ok: true as const, sessionId: `fresh-${newCount}` };
 	});
+	const forkExistingSession = vi.fn(async (sid: string) => {
+		ensureInit();
+		calls.push(`fork:${sid}`);
+		return { ok: true as const, sessionId: "branch-1" };
+	});
 	const restartForReload = vi.fn(async (stillCurrent: () => boolean) => {
 		calls.push("restart");
+		if (opts.teardownThrows) throw new Error("disconnect failed");
 		if (opts.holdTeardown) await teardownGate.promise;
 		stillCurrentSeen.push(stillCurrent());
 		if (!stillCurrent()) return;
@@ -167,6 +177,8 @@ function setup(opts: SetupOpts) {
 	const hook = renderHook(() => {
 		const lazy = useLazySession({
 			restoredSessionId: opts.restoredSessionId,
+			forkFromSessionId: opts.forkFromSessionId ?? null,
+			forkExistingSession,
 			acquireNewSession,
 			loadExistingSession,
 			sendPrompt: vi.fn(async () => {}),
@@ -311,6 +323,50 @@ describe("I251: Reload on a tab with no bound session", () => {
 		]);
 		expect(t.result.current.lazy.sessionId).toBe("launch-check");
 		expect(t.result.current.lazy.state).toBe("ready");
+	});
+
+	it("a restart that throws: error state, failure toast, and a send retries", async () => {
+		const t = setup({ restoredSessionId: "launch-check", teardownThrows: true });
+
+		await act(async () => {
+			await t.result.current.actions.handleReload(false);
+		});
+
+		expect(t.loadExistingSession).not.toHaveBeenCalled();
+		expect(t.result.current.lazy.state).toBe("error");
+		expect(t.result.current.lazy.isAcquisitionPending()).toBe(false);
+		expect(noticeMessages).toEqual([RELOADING, FAILED]);
+
+		await act(async () => {
+			t.result.current.lazy.onSendClick("hi");
+			await settle();
+		});
+		expect(t.loadExistingSession.mock.calls).toEqual([["launch-check"]]);
+		expect(t.result.current.lazy.state).toBe("ready");
+	});
+
+	it("Reload from the error state after a failed first connect retries", async () => {
+		const t = setup({
+			restoredSessionId: "launch-check",
+			load: "fails",
+			newSession: "fails",
+		});
+		await act(async () => {
+			t.result.current.lazy.onSendClick("hi");
+			await settle();
+		});
+		expect(t.result.current.lazy.state).toBe("error");
+		t.opts.load = "ok";
+		t.calls.length = 0;
+		noticeMessages.length = 0;
+
+		await act(async () => {
+			await t.result.current.actions.handleReload(false);
+		});
+
+		expect(t.calls).toEqual(["restart", "initialize", "load:launch-check"]);
+		expect(t.result.current.lazy.state).toBe("ready");
+		expect(noticeMessages).toEqual([RELOADING, RELOADED]);
 	});
 
 	it("restored id the agent rejected with nothing to carry over: the gone state, and a failure toast", async () => {
@@ -469,6 +525,18 @@ describe("I251: Reload on a tab with no bound session", () => {
 		});
 		expect(t.loadExistingSession).toHaveBeenCalledTimes(1);
 		expect(t.result.current.lazy.state).toBe("ready");
+	});
+
+	it("fork-pending tab: restarts, then forks (the branch, not a plain load)", async () => {
+		const t = setup({ restoredSessionId: null, forkFromSessionId: "origin-1" });
+
+		await act(async () => {
+			await t.result.current.actions.handleReload(false);
+		});
+
+		expect(t.calls).toEqual(["restart", "initialize", "fork:origin-1"]);
+		expect(t.result.current.lazy.sessionId).toBe("branch-1");
+		expect(noticeMessages).toEqual([RELOADING, RELOADED]);
 	});
 
 	it("hard reload on a restored tab still starts a fresh session", async () => {
