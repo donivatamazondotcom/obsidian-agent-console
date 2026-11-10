@@ -1,5 +1,9 @@
 # Gemini CLI Setup
 
+::: warning Legacy
+Google is replacing Gemini CLI with [Antigravity CLI](./antigravity-cli). Since 6/18/2026, Gemini CLI no longer serves Google AI Pro, Google AI Ultra or free individual accounts; Gemini Code Assist Standard and Enterprise licenses and paid API keys still work ([Google's announcement](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/)). If you sign in with a personal Google account, use [Antigravity CLI](./antigravity-cli) instead.
+:::
+
 Gemini CLI is Google's AI assistant. You can authenticate using your **Google account**, an **API key**, or **Vertex AI**.
 
 ## Install and Configure

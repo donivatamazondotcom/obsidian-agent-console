@@ -10,9 +10,11 @@ Agent Console supports multiple AI agents. Choose one to start:
 |-------|----------|-------------|
 | **[Claude Code](/agent-setup/claude-code)** | Anthropic | via [ACP adapter](https://github.com/agentclientprotocol/claude-agent-acp) |
 | **[Codex](/agent-setup/codex)** | OpenAI | via the [ACP adapter](https://github.com/agentclientprotocol/codex-acp) |
-| **[Gemini CLI](/agent-setup/gemini-cli)** | Google | with `--experimental-acp` option |
+| **[Gemini CLI](/agent-setup/gemini-cli)** | Google | with `--experimental-acp` option (legacy – see Antigravity CLI) |
 | **[Kiro CLI](/agent-setup/kiro-cli)** | Amazon | Built-in ACP — install from [kiro.dev](https://kiro.dev) |
-| **[Custom](/agent-setup/custom-agents)** | Various | [Any ACP-compatible agent](https://agentclientprotocol.com/overview/agents) (e.g., OpenCode, Qwen Code) |
+| **[OpenCode](/agent-setup/opencode)** | Open source | Built-in ACP — install from [opencode.ai](https://opencode.ai) |
+| **[Antigravity CLI](/agent-setup/antigravity-cli)** | Google | Built-in ACP (`agy acp`) |
+| **[Custom](/agent-setup/custom-agents)** | Various | [Any ACP-compatible agent](https://agentclientprotocol.com/overview/agents) (e.g., Qwen Code) |
 
 ## Step 2: Install and Configure the Agent
 
@@ -21,6 +23,9 @@ Follow the setup guide for your chosen agent:
 - [Claude Code Setup](/agent-setup/claude-code)
 - [Codex Setup](/agent-setup/codex)
 - [Gemini CLI Setup](/agent-setup/gemini-cli)
+- [Kiro CLI Setup](/agent-setup/kiro-cli)
+- [OpenCode Setup](/agent-setup/opencode)
+- [Antigravity CLI Setup](/agent-setup/antigravity-cli)
 - [Custom Agents](/agent-setup/custom-agents)
 
 Each guide covers installation, path configuration, and authentication.

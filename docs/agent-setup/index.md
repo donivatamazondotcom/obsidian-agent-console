@@ -8,9 +8,10 @@ Agent Console supports multiple AI agents through the [Agent Client Protocol (AC
 |-------|----------|---------|
 | [Claude Code](./claude-code) | Anthropic | `@agentclientprotocol/claude-agent-acp` |
 | [Codex](./codex) | OpenAI | `@agentclientprotocol/codex-acp` |
-| [Gemini CLI](./gemini-cli) | Google | `@google/gemini-cli` |
+| [Gemini CLI](./gemini-cli) | Google | `@google/gemini-cli` (legacy – Google moved individual accounts to [Antigravity CLI](./antigravity-cli)) |
 | [Kiro CLI](./kiro-cli) | Amazon | Built-in ACP — install from [kiro.dev](https://kiro.dev) |
 | [OpenCode](./opencode) | Open source | Built-in ACP — install from [opencode.ai](https://opencode.ai); runs local models via ollama |
+| [Antigravity CLI](./antigravity-cli) | Google | Built-in ACP (`agy acp`) — install from [antigravity.google](https://antigravity.google/docs/cli/getting-started) |
 | [Custom Agents](./custom-agents) | Various | Any ACP-compatible agent |
 
 Each agent is configured under **Settings → Agent Console**. On Obsidian 1.13 and later, each agent gets its own page — click the agent's name to open it, and use the settings search box to jump straight to any setting by name. On older Obsidian versions, agents appear as collapsible sections so the pane stays scannable:
