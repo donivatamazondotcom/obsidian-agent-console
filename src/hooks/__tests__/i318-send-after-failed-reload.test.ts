@@ -541,4 +541,38 @@ describe("I318: a send after a failed reload retries the connection", () => {
 		expect(t.fallbacks).toEqual([["unavailable", "fresh-9"]]);
 		expect(t.delivered).toEqual(["after"]);
 	});
+
+	it("a resumed reload keeps the id the agent returned; a later failed reload loads that id", async () => {
+		const t = setup({ reloadFailure: "throws" });
+		act(() => {
+			t.result.current.lazy.onSendClick("");
+		});
+		await act(settle);
+		expect(t.result.current.lazy.sessionId).toBe("fresh-1");
+
+		t.reloadSession.mockImplementationOnce(async () => {
+			t.calls.push("reload");
+			return { resumed: true as const, sessionId: "fresh-1b" };
+		});
+		await act(async () => {
+			await t.result.current.actions.handleReload(false);
+		});
+		expect(t.result.current.lazy.sessionId).toBe("fresh-1b");
+		expect(t.result.current.lazy.keptSessionId).toBe("fresh-1b");
+
+		t.agent.reachable = false;
+		await act(async () => {
+			await t.result.current.actions.handleReload(false);
+		});
+		expect(t.result.current.lazy.keptSessionId).toBe("fresh-1b");
+
+		t.agent.reachable = true;
+		t.calls.length = 0;
+		act(() => {
+			t.result.current.lazy.onSendClick("");
+		});
+		await act(settle);
+		expect(t.calls).toEqual(["initialize", "load:fresh-1b"]);
+		expect(t.fallbacks).toEqual([]);
+	});
 });

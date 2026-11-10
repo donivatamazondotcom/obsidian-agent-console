@@ -688,7 +688,7 @@ export function useChatActions(
 				if (path.superseded || !reload) return;
 				// I318: the reload ended with no session (the agent couldn't
 				// start). Nothing started fresh; say it failed.
-				if (reload.sessionId === null) {
+				if (!reload.sessionId) {
 					new Notice(t("notices.sessionReloadFailed"));
 					return;
 				}
