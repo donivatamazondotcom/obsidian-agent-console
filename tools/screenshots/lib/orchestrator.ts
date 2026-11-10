@@ -913,6 +913,45 @@ export async function captureEntry(
 				}
 			}
 		}
+		// 3c-quater-bis. Fire an obsidian://agent-console link through the
+		// plugin's own URI handler (#323 shot): opens the link-origin tab with its
+		// banner and the staged prompt, exactly as a clicked link would.
+		if (entry.initialState?.fireQuickPromptUri) {
+			await deps.cdp.evaluate(
+				`(async () => { await app.plugins.plugins["agent-console"].handleQuickPromptUri(${JSON.stringify(entry.initialState.fireQuickPromptUri)}); return true; })()`,
+			);
+			await deps.cdp
+				.waitForElement(
+					`${ACTIVE_PANEL} .agent-client-link-origin-banner`,
+					HOVER_TOOLTIP_TIMEOUT_MS,
+				)
+				.catch(() => {});
+			await sleep(SETTLE_MS);
+		}
+		// 3c-quater-ter. Kiro V3 MCP failure notice (S4 shot): inject a status
+		// snapshot with the listed servers failed, keyed to the active tab's
+		// viewId (the notice reads its own tab's status), then open Details.
+		if (entry.initialState?.forceMcpFailures?.length) {
+			const servers = entry.initialState.forceMcpFailures.map((f) => ({
+				name: f.name,
+				status: "failed",
+				failedAuthorization: false,
+				...(f.message !== undefined && { errorMessage: f.message }),
+			}));
+			await deps.cdp.evaluate(
+				`(() => { const v = app.workspace.getLeavesOfType(${VIEW_JSON})[0]?.view; const mgr = app.plugins.plugins["agent-console"].mcpAuthManager; if (!v || !mgr) return false; mgr.handleEvent(v.tabManagerRef.activeTabId, { kind: "status_snapshot", sessionId: "screenshot-mcp-failures", servers: ${JSON.stringify(servers)} }); return true; })()`,
+			);
+			await deps.cdp
+				.waitForElement(
+					`${ACTIVE_PANEL} .agent-client-mcp-failure-notice`,
+					HOVER_TOOLTIP_TIMEOUT_MS,
+				)
+				.catch(() => {});
+			await deps.cdp.evaluate(
+				`(() => { document.querySelectorAll(".agent-client-mcp-failure-notice details").forEach((d) => { d.open = true; }); return true; })()`,
+			);
+			await sleep(SETTLE_MS);
+		}
 		// 3c-quinquies-pre. Restore saved sessions into tabs, building a
 		// multi-session tab bar where each restored tab carries its own seeded
 		// transcript (the deterministic alternative to live `prompts`). Each
@@ -2013,6 +2052,16 @@ async function captureSettingsWindowEntry(
 			if (step.waitFor) {
 				await waitForActiveDocumentSelector(deps, step.waitFor);
 			}
+		}
+
+		// The capture is the settings window's viewport, so a group below the
+		// fold must be scrolled into view first: put the named setting's group
+		// (or the setting itself) at the top of the pane.
+		if (entry.initialState?.scrollToSettingText) {
+			const txt = JSON.stringify(entry.initialState.scrollToSettingText);
+			await deps.cdp.evaluate<boolean>(
+				`(() => { const item = [...activeDocument.querySelectorAll(".setting-item")].find((e) => e.querySelector(".setting-item-name")?.textContent?.trim() === ${txt}); if (!item) return false; (item.closest(".setting-group") ?? item).scrollIntoView({ block: "start" }); return true; })()`,
+			);
 		}
 
 		if (entry.mustShow) {
