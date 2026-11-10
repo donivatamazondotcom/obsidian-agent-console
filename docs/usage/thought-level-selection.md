@@ -16,7 +16,7 @@ Effort levels control how much the agent "thinks" before responding. Higher leve
 3. Select the desired level from the available options
 
 <p align="center">
-  <img src="/images/thought-level-selection.webp" alt="Effort-level menu showing Default, Low, Medium, High, and Max" />
+  <img src="/images/thought-level-selection.webp" alt="Effort-level menu showing Default, Low, Medium, High, Xhigh, and Max" />
 </p>
 
 ::: tip

@@ -74,9 +74,7 @@
 			"rightSplitWidth": 530,
 			"awaitSelector": ".callout",
 			"captureMode": "screen-window",
-			"captureNote": "Staged on the vertical rail, icons only (the new-install default, decided 11/08) via initialState.pluginSettings. Tabs restored but not reconnected show the moon (I292).",
-			"pending": true,
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"captureNote": "Staged on the vertical rail, icons only (the new-install default, decided 11/08) via initialState.pluginSettings. Tabs restored but not reconnected show the moon (I292)."
 		},
 		{
 			"name": "session-history-button",
@@ -104,6 +102,7 @@
 		},
 		{
 			"name": "mode-selection",
+			"rightSplitWidth": 530,
 			"width": 734,
 			"height": 308,
 			"crop": {
@@ -126,12 +125,11 @@
 			"differentiator": "Per-session permission modes",
 			"mustShow": ".agent-client-config-selector-mode",
 			"caption": "Control what the agent can do",
-			"altText": "Agent Console permission-mode menu showing Default, Accept Edits, Plan Mode, Don't Ask, and Bypass Permissions",
-			"pending": true,
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"altText": "Agent Console permission-mode menu showing Manual, Accept edits, Plan, Auto, and Bypass permissions"
 		},
 		{
 			"name": "model-selection",
+			"rightSplitWidth": 530,
 			"width": 734,
 			"height": 308,
 			"crop": {
@@ -153,12 +151,11 @@
 			"differentiator": "Model selection",
 			"mustShow": ".agent-client-config-selector-model",
 			"caption": "Choose your model",
-			"altText": "Agent Console model menu listing the available models for the session",
-			"pending": true,
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"altText": "Agent Console model menu listing the available models for the session"
 		},
 		{
 			"name": "thought-level-selection",
+			"rightSplitWidth": 530,
 			"width": 734,
 			"height": 308,
 			"crop": {
@@ -181,9 +178,7 @@
 			"differentiator": "Per-session reasoning effort",
 			"mustShow": ".agent-client-config-selector-thought_level",
 			"caption": "Dial the agent\u2019s effort up or down",
-			"altText": "Agent Console effort-level menu showing Default, Low, Medium, High, and Max",
-			"pending": true,
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"altText": "Agent Console effort-level menu showing Default, Low, Medium, High, Xhigh, and Max"
 		},
 		{
 			"name": "switch-agent",
@@ -217,9 +212,7 @@
 			"cropPadding": 12,
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 560,
-			"captureNote": "Window mode: native menus off so the More menu renders as a DOM .menu; crop is the union of the chat header and the menu.",
-			"pending": true,
-			"followUp": "Recapture: the More menu Switch agent list now includes Antigravity CLI (Antigravity built-in PR)."
+			"captureNote": "Window mode: native menus off so the More menu renders as a DOM .menu; crop is the union of the chat header and the menu."
 		},
 		{
 			"name": "export",
@@ -251,6 +244,7 @@
 		},
 		{
 			"name": "sending-messages",
+			"rightSplitWidth": 560,
 			"width": 1300,
 			"height": 460,
 			"crop": {
@@ -275,36 +269,34 @@
 			"differentiator": "Context strip / @-mention notes",
 			"mustShow": ".context-strip",
 			"caption": "Pin notes into the chat",
-			"altText": "Agent Console composer with the Welcome note pinned in the context strip, ready to chat",
-			"pending": true,
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"altText": "Agent Console composer with the Welcome note pinned in the context strip, ready to chat"
 		},
 		{
 			"name": "switch-default-agent",
-			"width": 1540,
-			"height": 214,
+			"width": 1256,
+			"height": 248,
 			"crop": {
-				"x": 860,
-				"y": 320,
-				"width": 1540,
-				"height": 214
+				"x": 0,
+				"y": 0,
+				"width": 1256,
+				"height": 248
 			},
+			"cropSelector": ".vertical-tab-content .setting-item:has(option[value=\"antigravity-acp\"])",
+			"cropPadding": 16,
 			"initialState": {
 				"openNote": "Welcome.md",
 				"openSettings": "agent-console",
-				"openNativeSelect": ".vertical-tab-content select"
+				"scrollToSettingText": "Default agent"
 			},
-			"approvalThreshold": 0.01,
-			"minDistinctColors": 2500,
-			"captureMode": "screen",
+			"approvalThreshold": 0.05,
+			"captureMode": "settings-window",
 			"placement": "reference",
 			"purpose": "Pick the agent every new chat opens with.",
 			"differentiator": "Multiple agents / default selection",
 			"mustShow": ".vertical-tab-content select",
 			"caption": "Set your default agent",
-			"altText": "Agent Console settings with the Default agent dropdown open, listing the available agents",
-			"pending": true,
-			"followUp": "Recapture: the Default agent dropdown now lists Antigravity CLI (Antigravity built-in PR)."
+			"altText": "Agent Console settings with the Default agent dropdown set to Claude Code",
+			"captureNote": "Settings open in a popout window on Obsidian 1.13+, where a native select popup can't be captured, so the shot shows the row with the dropdown closed (decided 11/10). The agent list is shown by switch-agent, new-chat-agent-picker and first-run-activation."
 		},
 		{
 			"name": "editing",
@@ -389,13 +381,14 @@
 		},
 		{
 			"name": "sending-images",
-			"width": 700,
-			"height": 620,
+			"rightSplitWidth": 560,
+			"width": 1200,
+			"height": 660,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 700,
-				"height": 620
+				"width": 1200,
+				"height": 660
 			},
 			"cropPadding": 12,
 			"cropSelectors": [
@@ -414,9 +407,7 @@
 			"differentiator": "Image & file attachments",
 			"mustShow": ".agent-client-attachment-preview-thumbnail",
 			"caption": "Drop in images and files",
-			"altText": "Agent Console composer with an image thumbnail attached below the message box, ready to send",
-			"pending": true,
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"altText": "Agent Console composer with an image thumbnail attached below the message box, ready to send"
 		},
 		{
 			"name": "remove-image",
@@ -451,15 +442,16 @@
 		},
 		{
 			"name": "attach-button",
-			"width": 520,
-			"height": 260,
+			"rightSplitWidth": 560,
+			"width": 1160,
+			"height": 300,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 520,
-				"height": 260
+				"width": 1160,
+				"height": 300
 			},
-			"cropPadding": 12,
+			"cropPadding": 4,
 			"cropSelectors": [
 				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-box",
 				".tooltip"
@@ -476,8 +468,6 @@
 			"mustShow": ".agent-client-attach-button",
 			"caption": "Attach files from a button",
 			"altText": "The paperclip above the send button in the Agent Console composer, with its Attach files tooltip",
-			"pending": true,
-			"followUp": "New shot for the attachment button. Capture in the pass after the attachment button and Antigravity built-in merge, then embed it in docs/usage/sending-images.md under 'The Attach Button' (left out until the image exists, since check.ts fails on a reference to a missing image).",
 			"docPage": "docs/usage/sending-images.md"
 		},
 		{
@@ -535,9 +525,7 @@
 				".context-strip",
 				".agent-client-chat-input-container"
 			],
-			"cropPadding": 0,
-			"pending": true,
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"cropPadding": 0
 		},
 		{
 			"name": "mention-context",
@@ -599,9 +587,7 @@
 				]
 			},
 			"collapseLeftSidebar": true,
-			"rightSplitWidth": 620,
-			"pending": true,
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"rightSplitWidth": 620
 		},
 		{
 			"name": "parallel-sessions",
@@ -659,9 +645,7 @@
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 620,
 			"cropSelector": ".workspace-leaf-content[data-type=\"agent-console-chat-view\"]",
-			"cropPadding": 0,
-			"pending": true,
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"cropPadding": 0
 		},
 		{
 			"name": "multi-session-animated",
@@ -736,9 +720,7 @@
 			},
 			"cropSelector": ".workspace-leaf-content[data-type=\"agent-console-chat-view\"]",
 			"cropPadding": 0,
-			"captureNote": "Staged on the vertical rail, icons only (new-install default, decided 11/08); frames crop to the chat leaf, rail included. GIF only, no separate video (decided 11/08).",
-			"pending": true,
-			"followUp": "Recapture on the vertical rail. The #376 GIF was shot on the top bar because the animation path skipped pluginSettings (fixed in #380). Capture in the pass after the attachment button and Antigravity built-in merge, with their shots. Also: Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"captureNote": "Staged on the vertical rail, icons only (new-install default, decided 11/08); frames crop to the chat leaf, rail included. GIF only, no separate video (decided 11/08)."
 		},
 		{
 			"name": "tab-status-dropdown",
@@ -873,7 +855,6 @@
 		},
 		{
 			"name": "new-chat-agent-picker",
-			"pending": true,
 			"width": 620,
 			"height": 300,
 			"crop": {
@@ -900,8 +881,7 @@
 			"altText": "Agent Console New chat with agent fuzzy picker listing the configured agents",
 			"docPage": "docs/usage/commands.md",
 			"manualCapture": true,
-			"captureNote": "FuzzySuggestModal launched by running the 'New chat with agent' command; needs command execution the pipeline can't drive yet -- capture manually.",
-			"followUp": "Recapture: the New chat with agent picker now lists Antigravity CLI (Antigravity built-in PR)."
+			"captureNote": "FuzzySuggestModal launched by running the 'New chat with agent' command; needs command execution the pipeline can't drive yet -- capture manually."
 		},
 		{
 			"name": "settings-import",
@@ -1000,7 +980,7 @@
 		},
 		{
 			"name": "queue-next-message",
-			"pending": true,
+			"rightSplitWidth": 720,
 			"width": 696,
 			"height": 469,
 			"crop": {
@@ -1026,12 +1006,11 @@
 			"docPage": "docs/usage/tabbed-sessions.md",
 			"captureNote": "v1.3.0 PR #97. Confirm the queued-message element selector + final dims at capture; requires driving a session into streaming state with a queued message.",
 			"promptFile": "queue-next-message.txt",
-			"awaitSelector": ".agent-client-queued-banner",
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"awaitSelector": ".agent-client-queued-banner"
 		},
 		{
 			"name": "mid-stream-steering",
-			"pending": true,
+			"rightSplitWidth": 720,
 			"width": 696,
 			"height": 380,
 			"crop": {
@@ -1055,8 +1034,7 @@
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true
-			},
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			}
 		},
 		{
 			"name": "shared-links-bubble",
@@ -1145,7 +1123,7 @@
 		},
 		{
 			"name": "first-run-activation",
-			"pending": true,
+			"rightSplitWidth": 720,
 			"width": 664,
 			"height": 388,
 			"crop": {
@@ -1172,8 +1150,7 @@
 			"caption": "Get started even when no agent is installed yet",
 			"altText": "Agent Console first-run panel with no agent installed, listing the built-in agents with Install buttons and setup links",
 			"docPage": "docs/getting-started/first-run.md",
-			"captureNote": "v1.3.0 first-run-activation PR. Needs the no-agent state: deploy the fixtures studio with smoke-test-spawn.sh --first-run --no-agents (or drop the .force-no-agents marker), open a new chat. Confirm the .agent-client-getting-started crop selector + final dims at capture.",
-			"followUp": "Recapture: the first-run panel now lists OpenCode and Antigravity CLI (Antigravity built-in PR)."
+			"captureNote": "v1.3.0 first-run-activation PR. Needs the no-agent state: deploy the fixtures studio with smoke-test-spawn.sh --first-run --no-agents (or drop the .force-no-agents marker), open a new chat. Confirm the .agent-client-getting-started crop selector + final dims at capture."
 		},
 		{
 			"name": "obsidian-system-prompt",
@@ -1233,21 +1210,21 @@
 		},
 		{
 			"name": "quick-prompts",
-			"pending": true,
-			"width": 760,
-			"height": 620,
+			"rightSplitWidth": 720,
+			"width": 1500,
+			"height": 880,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 760,
-				"height": 620
+				"width": 1500,
+				"height": 880
 			},
 			"cropSelectors": [
 				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-mention-dropdown",
 				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-quick-prompt-bar",
 				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-box"
 			],
-			"cropPadding": 12,
+			"cropPadding": 4,
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true
@@ -1262,8 +1239,7 @@
 			"caption": "Reuse your favorite prompts",
 			"altText": "Agent Console composer with quick-prompt chips above the box and the ! launcher dropdown open: prompts, a Create row, and a key legend",
 			"docPage": "docs/usage/quick-prompts.md",
-			"captureNote": "v1.3.0 quick-prompts (#130/#144/#150/#152/#161/#169). Seeded Quick Prompts/ fixture notes (3 always-show chips: a {{selection}} chip, a new-tab chip, a plain one; plus search-only prompts). No agent connection needed (composer is live pre-connect); draftMessage ! opens the launcher; union-crops chip bar + ! dropdown + composer box.",
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"captureNote": "v1.3.0 quick-prompts (#130/#144/#150/#152/#161/#169). Seeded Quick Prompts/ fixture notes (3 always-show chips: a {{selection}} chip, a new-tab chip, a plain one; plus search-only prompts). No agent connection needed (composer is live pre-connect); draftMessage ! opens the launcher; union-crops chip bar + ! dropdown + composer box."
 		},
 		{
 			"name": "confirm-close-multiple-tabs",
@@ -1352,8 +1328,7 @@
 			"caption": "One-tap prompts, grounded in the note you're on",
 			"purpose": "Kick off common asks \u2014 summarize, explain, draft \u2014 against the note you're viewing, without typing a prompt.",
 			"altText": "Agent Console beside a Weekly review note: tabbed sessions, a meeting-prep chat, and the quick-prompt menu open with one-tap prompts",
-			"followUp": "Tab status indicators (.agent-client-tab-state-icon) are not lit up: only the active tab reconnects (reconnectActive), so the inactive restored tabs show unlit/idle status glyphs. Next cycle: reconnect all restored tabs (or seed a lit status) so every tab's state icon reads as connected. Also: Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge.",
-			"pending": true
+			"followUp": "Tab status indicators (.agent-client-tab-state-icon) are not lit up: only the active tab reconnects (reconnectActive), so the inactive restored tabs show unlit/idle status glyphs. Next cycle: reconnect all restored tabs (or seed a lit status) so every tab's state icon reads as connected. Also: Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
 		},
 		{
 			"name": "reload-control",
@@ -1775,9 +1750,7 @@
 				}
 			},
 			"captureNote": "fireQuickPromptUri runs the plugin's obsidian://agent-console handler for the draft-a-reply prompt with a selection, so the tab shows the link banner and the staged prompt.",
-			"docPage": "docs/usage/quick-prompts.md",
-			"pending": true,
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"docPage": "docs/usage/quick-prompts.md"
 		},
 		{
 			"name": "kiro-v3-mcp-failure-notice",
@@ -1936,9 +1909,7 @@
 			"mustShow": ".agent-client-tab-rail",
 			"caption": "Every chat's status in one slim column",
 			"altText": "Agent Console with tabs in a slim column on the right, each tab shown only as its status icon",
-			"captureNote": "pluginSettings switches Tab display to Vertical (icon-only, 32px) for this entry and is restored after it; forceTabStates seeds seven tabs in the attention states.",
-			"pending": true,
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"captureNote": "pluginSettings switches Tab display to Vertical (icon-only, 32px) for this entry and is restored after it; forceTabStates seeds seven tabs in the attention states."
 		},
 		{
 			"name": "tab-rail-names",
@@ -2001,9 +1972,7 @@
 			"mustShow": ".agent-client-tab-rail-key-label",
 			"caption": "Widen the column to see names",
 			"altText": "Agent Console tabs in a widened column on the right, each with its status icon and name",
-			"captureNote": "pluginSettings switches Tab display to Vertical at 150px for this entry (restored after it). rightSplitWidth 400 keeps the chat view \u2265 310px so 150 renders unclamped; a clamp would drop the labels and fail mustShow.",
-			"pending": true,
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"captureNote": "pluginSettings switches Tab display to Vertical at 150px for this entry (restored after it). rightSplitWidth 400 keeps the chat view \u2265 310px so 150 renders unclamped; a clamp would drop the labels and fail mustShow."
 		},
 		{
 			"name": "whats-new-card",
@@ -2036,9 +2005,7 @@
 			"mustShow": ".agent-client-whats-new",
 			"caption": "Try new features in one click after an update",
 			"altText": "Agent Console chat view with a What's new card above the chat offering Try vertical tabs and Release notes",
-			"captureNote": "pluginSettings makes this an existing user who last dismissed 2.4.0, on the top tab strip. The card shows only when the running version is 2.5.0 or later: capture before the npm version bump with studio's plugin manifest.json copied (not symlinked) and its version set to 2.5.0, then restore the symlink.",
-			"pending": true,
-			"followUp": "Recapture: the composer now shows the composer rail (paperclip above Send, attachment button PR). Capture in the pass after the attachment button and Antigravity built-in merge."
+			"captureNote": "pluginSettings makes this an existing user who last dismissed 2.4.0, on the top tab strip. The card shows only when the running version is 2.5.0 or later: capture before the npm version bump with studio's plugin manifest.json copied (not symlinked) and its version set to 2.5.0, then restore the symlink."
 		}
 	]
 }
