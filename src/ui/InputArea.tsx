@@ -1884,8 +1884,11 @@ export function InputArea({
 					</div>
 				)}
 
-				{/* Text area + composer rail (message actions, above Send) */}
+				{/* Text column (text area + attachment strip) beside the composer
+				    rail, so the rail stays directly above Send even when files
+				    are attached. */}
 				<div className="agent-client-composer-row">
+				<div className="agent-client-composer-main">
 				{/* Textarea with Hint Overlay */}
 				<div className="agent-client-textarea-wrapper">
 					<textarea
@@ -1919,6 +1922,15 @@ export function InputArea({
 						</div>
 					)}
 				</div>
+
+				{/* Attachment Preview Strip (images + file references) */}
+				<AttachmentStrip
+					files={attachedFiles}
+					onRemove={removeFile}
+					locked={isQueued}
+					onFocusComposer={focusComposer}
+				/>
+				</div>
 				<ComposerRail>
 					{attachIntake.kind !== "hidden" && (
 						<AttachButton
@@ -1939,14 +1951,6 @@ export function InputArea({
 					/>
 				)}
 				</div>
-
-				{/* Attachment Preview Strip (images + file references) */}
-				<AttachmentStrip
-					files={attachedFiles}
-					onRemove={removeFile}
-					locked={isQueued}
-					onFocusComposer={focusComposer}
-				/>
 
 				{/* Input Actions (Config Options / Mode Selector / Model Selector + Send Button) */}
 				<InputToolbar

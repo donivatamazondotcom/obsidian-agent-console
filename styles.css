@@ -2028,6 +2028,21 @@ del.acp-header-branded-profile {
 	opacity: 1;
 }
 
+/* The × sits on an --interactive-normal chip. Obsidian's clickable-icon
+   hover swaps that for a translucent wash, so under the pointer the × got
+   fainter — the inverse of a hover. Keep the solid chip and raise the glyph
+   to full text colour instead (darker on light themes, brighter on dark).
+   The selector out-ranks `body:not(.is-mobile) .clickable-icon:hover`. */
+.agent-client-attachment-preview-strip
+	.agent-client-attachment-preview-item
+	.agent-client-attachment-preview-remove:hover,
+.agent-client-attachment-preview-strip
+	.agent-client-attachment-preview-item
+	.agent-client-attachment-preview-remove:focus-visible {
+	background-color: var(--interactive-hover);
+	color: var(--text-normal);
+}
+
 /* Queued: the × stays focusable (aria-disabled) but can't remove (I319). */
 .agent-client-attachment-preview-remove[aria-disabled="true"] {
 	cursor: not-allowed;
@@ -3537,9 +3552,14 @@ del.acp-header-branded-profile {
 	align-items: stretch;
 	min-width: 0;
 }
-.agent-client-composer-row > .agent-client-textarea-wrapper {
+.agent-client-composer-main {
+	/* Text area on top, attachment strip below it; the composer rail sits
+	   beside this whole column, so attachments never push it away from
+	   Send. */
 	flex: 1 1 auto;
 	min-width: 0;
+	display: flex;
+	flex-direction: column;
 }
 
 /* Composer rail: message actions (attach; voice input later), directly above
