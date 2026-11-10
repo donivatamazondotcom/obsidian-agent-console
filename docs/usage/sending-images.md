@@ -4,6 +4,14 @@ Attach images and files to your messages to provide context to the AI agent.
 
 ## Attaching Files
 
+### The Attach Button
+
+1. Click the paperclip at the right of the text area, just above the send button
+2. Pick one or more files in the file picker that opens
+3. Thumbnails (images) or file icons (other files) appear below the text area
+
+From the keyboard: press `Tab` from the text area to reach the paperclip, then `Enter` or `Space` to open the picker. After you pick, the cursor goes back to the text area.
+
 ### Drag and Drop
 
 1. Drag files from Finder/Explorer onto the input area
@@ -21,19 +29,20 @@ Attach images and files to your messages to provide context to the AI agent.
 </p>
 
 ::: info
-On a brand-new chat, image paste becomes available once the agent finishes connecting (usually a second or two). If you paste a screenshot before then, you'll see `[Agent Console] Still connecting to the agent – paste the image again in a moment.` – just paste again once it connects.
+Images can be attached once the agent has connected (usually a second or two). Clicking the paperclip starts connecting, so a picked image usually goes straight in. If you attach an image before then, you'll see `[Agent Console] Still connecting to the agent – attach the image again in a moment.` (or `… paste the image again …` for a paste) – just try again once it connects. If the agent didn't start, reload the chat first.
 :::
 
 ::: tip
-Embedding images in messages requires agent support. If the agent doesn't support images, image files are sent as file references instead (via drag and drop or paste from Finder/Explorer).
+Embedding images in messages requires agent support. If the agent doesn't support images, image files are sent as file references instead (via the paperclip, drag and drop, or paste from Finder/Explorer).
 :::
 
 ## Managing Attachments
 
 Attached files appear as thumbnails or file icons below the text area.
 
-- **Remove an attachment**: Hover over it and click the **×** button
+- **Remove an attachment**: Hover over it and click the **×** button. From the keyboard, `Tab` to the **×** (it shows when focused) and press `Enter`; focus moves to the next attachment, so you can clear several in a row
 - **Attachments are sent with your message**: When you send, all attached files are included
+- **While a message is queued**, its attachments are locked in with it: you can't add or remove files until it sends. The paperclip says so, and a drop or paste shows `[Agent Console] Wait for the queued message to send, then attach files.`
 
 <p align="center">
   <img src="/images/remove-image.webp" alt="Remove attachment button" class="inline-shot" width="360" />
@@ -54,6 +63,10 @@ Non-image files have no format restriction.
 Non-image files are sent as file path references. How the agent processes the file depends on its capabilities and available tools.
 :::
 
+::: tip
+To give the agent a note from your vault, pin it in the context strip or `@`-mention it instead – see [Context Strip](./context-strip.md) and [Note Mentions](./mentions.md). That sends the note's content, not just its path.
+:::
+
 ## Limits
 
 | Limit | Value |
@@ -65,4 +78,6 @@ Non-image files are sent as file path references. How the agent processes the fi
 If you exceed these limits, a notification will inform you:
 - `[Agent Console] Image too large (max 5MB)`
 - `[Agent Console] Maximum 10 attachments allowed`
+
+At 10 attachments the paperclip is greyed out and says so.
 :::

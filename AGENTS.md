@@ -207,20 +207,24 @@ src/
 │   └── shared/
 │       ├── IconButton.tsx       # Icon button + Lucide icon wrapper
 │       ├── MarkdownRenderer.tsx # Obsidian markdown rendering
-│       ├── AttachmentStrip.tsx  # Attachment preview strip
+│       ├── AttachmentStrip.tsx  # Attachment preview strip; remove × names the file, is aria-disabled while queued (I319), and owns focus after a remove (next ×, previous ×, then composer)
+│       ├── AttachButton.tsx     # The composer's paperclip: native clickable-icon button, aria-disabled (not disabled) when queued/full so the reason stays reachable; tooltip opens left
+│       ├── ComposerRail.tsx     # Composer rail: column beside the text area, above Send, for message actions (attach; voice input later); max two buttons; renders nothing when empty
 │       └── useTooltip.ts        # attachTooltip / tooltipRef / useTooltip — the ONE sanctioned way to attach a tooltip; wraps Obsidian setTooltip (whose mechanism IS aria-label), composes visible label + reason via deriveTooltipText so the accessible name keeps the visible text (WCAG 2.5.3), and clears a stale tooltip. The DOM `title` attribute is an ESLint error (I199)
 ├── resolvers/                   # Pure decision functions (derive*/decide*) — no React/Obsidian/SDK imports; exhaustive switches (resolver-zone.test.ts)
 │   ├── a2ui-dispatch.ts            # deriveA2uiTabDispatch — pure tab-level resolver for what activating an interactive-surface control does (sendNow / acquireAndSend / refuse+reason); read by BOTH the surface renderer (via deriveSurfaceActionAffordance) and SessionDispatchPort so an enabled button always has a dispatchable port; gates on intent, not connection state (A2UI-I08)
 │   ├── ai-title-apply.ts           # decideAiTitleApply — F15: apply an AI title only if the user didn't rename meanwhile; suffix on collision
 │   ├── ai-rename-affordance.ts     # deriveAiRenameAffordance — I210: Rename with AI is disabled when the agent can't close the side session
 │   ├── agent-picker-options.ts     # deriveAgentPickerOptions — pure landing agent-picker resolver (detection-gated, default-first, shown only on a real choice)
+│   ├── attach-intake.ts            # deriveAttachIntake — may the composer take files now (hidden / open / locked while queued / full); one decision for the attach button, drop, file paste and remove × (I319); returns the tooltip halves
 │   ├── agent-switch.ts             # Switch a lazy tab's agent so the first message connects to the switched agent; decideSessionIntent's `retire` closes or respawns the old session on a same-process New chat (I210)
-│   ├── composer-affordances.ts     # deriveComposerAffordances — pure composer send-target + control-composition resolver (surface × composer-caps × hasQuickPrompts → sendMode/quickPromptFire/context/showAttachments/showConfigSelectors); connection-state-independent (does NOT read lazyState); shared by the landing + in-tab composer so they can't drift; layers with deriveSendAffordance (enablement) — no overlap
+│   ├── composer-affordances.ts     # deriveComposerAffordances — pure composer send-target + control-composition resolver (surface × composer-caps × hasQuickPrompts → sendMode/quickPromptFire/context/showAttachments (images inline)/showAttachButton/showConfigSelectors); connection-state-independent (does NOT read lazyState); shared by the landing + in-tab composer so they can't drift; layers with deriveSendAffordance (enablement) — no overlap
 │   ├── composer-focus.ts           # Focus composer textarea + caret at end (restored-draft mount, TP-I03); send→refocus timing seam (I173)
 │   ├── deriveTabLabel.ts           # Derive tab label from session / first message
 │   ├── conversation-empty-state.ts # deriveConversationEmptyState — the tab's empty conversation copy (restoring > session gone > lazy state; I40, I249, I282) + shouldShowRecoverableHistory (I72 banner, hidden once gone)
 │   ├── empty-state-view.ts         # deriveEmptyStateView — pure empty-state affordance resolver (location × hasDetectedAgent → reason + redetect/installRows/agentPicks/landingActions/settings/hint); shared by GettingStarted (in-tab) and the zero-tab landing so the two can't drift
 │   ├── first-message.ts            # isFirstMessageOfSession — a send is a first message only on an empty transcript of a session that does not already exist (restored/forked tabs never are; I241)
+│   ├── image-intake-notice.ts      # deriveImageIntakeNotice — which notice when an image arrives before image support is known (paste vs attach wording; "agent didn't start" on error)
 │   ├── header-slot.ts              # deriveHeaderSlot — pure 4-way header secondary-slot resolver (model / connecting / idle / none)
 │   ├── header-agent.ts             # deriveHeaderAgent / deriveHeaderModelName / deriveHeaderRuntime — which agent, model and runtime the header names; reads modes via session-modes (I207)
 │   ├── notify-gate.ts              # shouldNotifySystem — pure resolver: should an OS notification fire for a backgrounded panel; gates on the flush signal, not an instantaneous focus read (I168)
@@ -289,6 +293,7 @@ src/
 │   ├── file-mention.ts          # Pure `[@name](file://…)` pattern + isFileMentionTitle (I242), shared by acp/claude-code-replay and resolvers/session-title
 │   ├── format-session-title.ts  # Pure display-formatter for session-history titles (renders markdown links/wikilinks to readable text, collapses whitespace; no truncation — CSS owns width); used by SessionHistoryModal, carries into HistoryRow
 │   ├── folder-picker.ts         # Shared Electron native folder picker (modal + settings Browse)
+│   ├── file-path.ts             # getFilePathForFile — the disk path behind a dropped/pasted/picked File (Electron webUtils); the composer's one host seam, mocked in tests
 │   ├── agent-launch-key.ts      # agentLaunchKey({ command, kiroEngine }) — the launch identity that keys the persisted capability cache (I260; never the agent id)
 │   ├── working-directory.ts     # Resolve/validate the default working directory for new chats
 │   ├── agent-expansion.ts       # Per-session expand/collapse state for settings agent sections
