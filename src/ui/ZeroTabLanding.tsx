@@ -236,6 +236,9 @@ export function ZeroTabLanding({
 				onInputChange={setInputValue}
 				attachedFiles={[]}
 				onAttachedFilesChange={() => {}}
+				// Hidden on the landing: a launch can't carry attachments
+				// into the new tab yet (I320).
+				showAttachButton={composerAffordances.showAttachButton}
 				errorInfo={null}
 				onClearError={() => {}}
 				agentUpdateNotification={null}

@@ -421,6 +421,12 @@ export const en = {
 		"[Agent Console] Could not determine file path",
 	"notices.imagePasteConnecting":
 		"[Agent Console] Still connecting to the agent – paste the image again in a moment.",
+	"notices.imageAttachConnecting":
+		"[Agent Console] Still connecting to the agent – attach the image again in a moment.",
+	"notices.imageAttachAgentFailed":
+		"[Agent Console] The agent didn't start, so the image wasn't attached. Reload the chat, then try again.",
+	"notices.attachWhileQueued":
+		"[Agent Console] Wait for the queued message to send, then attach files.",
 	"notices.imagePasteUnsupported":
 		"[Agent Console] This agent does not support image paste. Try drag & drop instead.",
 	"notices.tabRestoreCorrupted":
@@ -677,6 +683,11 @@ export const en = {
 	"chat.composer.sendNowReason":
 		"stops the current reply and sends this message ({key})",
 	"chat.composer.edit": "Edit",
+	"chat.composer.attachFiles": "Attach files",
+	"chat.composer.attachLockedReason": "Wait for the queued message to send",
+	"chat.composer.attachFullReason": "You can attach up to {count} files",
+	"chat.composer.removeAttachment": "Remove {name}",
+	"chat.composer.removeImage": "Remove image",
 	"chat.composer.delete": "Delete",
 	"chat.composer.mode": "Mode",
 	"chat.composer.model": "Model",

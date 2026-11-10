@@ -299,10 +299,9 @@ export function InputToolbar({
 
 	return (
 		<div className="agent-client-chat-input-actions">
-			{/* Context Usage Indicator — sits in the left cluster, right of the
-			    zap launcher (left/right split is owned by the spacer below, not
-			    this element, so the launcher stays text-left-anchored even for
-			    agents that don't report usage). */}
+			{/* Context Usage Indicator — the left cluster. The left/right split
+			    is owned by the spacer below, not this element. (Message actions
+			    such as attach live in the composer rail above Send, not here.) */}
 			{usage && (
 				<span
 					className={`agent-client-usage-indicator ${getUsageColorClass(Math.round((usage.used / usage.size) * 100))}`}
@@ -320,7 +319,7 @@ export function InputToolbar({
 			)}
 
 			{/* Flex spacer — always present, owns the left/right split so the
-			    zap launcher (+ optional usage %) stay text-left while the
+			    optional usage % stays text-left while the
 			    dropdowns + send button stay right, regardless of which
 			    conditional elements render. */}
 			<span className="agent-client-toolbar-spacer" aria-hidden="true" />

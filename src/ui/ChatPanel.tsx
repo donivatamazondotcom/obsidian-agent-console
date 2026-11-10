@@ -3506,6 +3506,13 @@ export function ChatPanel({
 			}}
 			attachedFiles={attachedFiles}
 			onAttachedFilesChange={setAttachedFiles}
+			showAttachButton={composerAffordances.showAttachButton}
+			onAttachIntent={() => {
+				idleRelease.noteActivity();
+				// Attaching is intent, like a keystroke: start connecting now
+				// so a picked image can go inline (Attachment Button spec).
+				lazySession.onAttachIntent();
+			}}
 			// Error overlay props
 			errorInfo={errorInfo}
 			onClearError={handleClearError}

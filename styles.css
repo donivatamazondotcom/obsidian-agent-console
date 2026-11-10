@@ -2021,8 +2021,16 @@ del.acp-header-branded-profile {
 }
 
 .agent-client-attachment-preview-item:hover
-	.agent-client-attachment-preview-remove {
+	.agent-client-attachment-preview-remove,
+.agent-client-attachment-preview-item:focus-within
+	.agent-client-attachment-preview-remove,
+.agent-client-attachment-preview-remove:focus-visible {
 	opacity: 1;
+}
+
+/* Queued: the × stays focusable (aria-disabled) but can't remove (I319). */
+.agent-client-attachment-preview-remove[aria-disabled="true"] {
+	cursor: not-allowed;
 }
 
 /* ===== Message Resource Link (in chat history) ===== */
@@ -3515,32 +3523,73 @@ del.acp-header-branded-profile {
 }
 
 /* ==========================================================================
-   Quick Prompts — toolbar launcher + ephemeral contextual chips row
+   Composer row + rail, and the Quick Prompts ephemeral contextual chips row
    See [[Agent Console Quick Prompts and Workflows]].
    ========================================================================== */
 
-/* Zap launcher in the composer toolbar (leftmost). A clickable-icon button,
-   so it stays reachable even while the composer is locked/queued. */
-.agent-client-quick-prompt-launcher {
+/* Composer row: the text area and the composer rail side by side. The
+   queued banner above and the attachment strip + toolbar below stay
+   full-width. See [[Agent Console Attachment Button]] § Placement. */
+.agent-client-composer-row {
+	/* Takes the vertical share the text area wrapper used to take directly. */
+	flex: 1;
+	display: flex;
+	align-items: stretch;
+	min-width: 0;
+}
+.agent-client-composer-row > .agent-client-textarea-wrapper {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/* Composer rail: message actions (attach; voice input later), directly above
+   Send. Bottom-anchored so the buttons stay next to Send as the text grows.
+   No bottom padding: the toolbar's 4px top padding is the gap to Send, which
+   matches the 4px gap between rail buttons. The end padding centers the 24px
+   buttons on Send's column (Send: 20px wide inside the toolbar's 12px end
+   padding, center 22px from the edge). Logical property, so RTL lines up. */
+.agent-client-composer-rail {
 	flex: 0 0 auto;
-	/* Negate the clickable-icon's internal left padding (--size-2-3 = 6px) so the
-	   zap GLYPH — not the button box — aligns to the composer text inset (under
-	   the placeholder), per spec § Three surfaces "toolbar zap → composer
-	   text-left". The actions row's 12px padding already lands the button box at
-	   the textarea's 12px text inset; this shifts the padded glyph back onto it. */
-	margin-left: calc(-1 * var(--size-2-3));
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	gap: 4px;
+	padding-inline-end: 10px;
+}
+
+/* Attach button (composer rail). Overrides clickable-icon's padding the way
+   the Send button does, so its box is exactly 24px and centers on Send. */
+.agent-client-attach-button {
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	--icon-size: 16px;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	color: var(--text-muted);
 }
-.agent-client-quick-prompt-launcher:hover {
+.agent-client-attach-button:hover {
 	color: var(--text-normal);
+}
+/* Queued or full: still focusable (aria-disabled), so the reason in its name
+   stays reachable from the keyboard; looks and acts inert. */
+.agent-client-attach-button[aria-disabled="true"] {
+	cursor: not-allowed;
+	opacity: 0.5;
+}
+.agent-client-attach-button[aria-disabled="true"]:hover {
+	color: var(--text-muted);
+}
+
+/* The attach button's file input: opened by the button, never shown. */
+.agent-client-attach-input {
+	display: none;
 }
 
 /* Owns the left/right split in the composer toolbar actions row: pushes the
-   dropdowns + send button to the right while the zap launcher (and optional
-   usage %) stay text-left. Always rendered, so the split is independent of the
+   dropdowns + send button to the right while the optional usage % stays
+   text-left. Always rendered, so the split is independent of the
    conditional usage indicator (which only renders for usage-reporting agents). */
 .agent-client-toolbar-spacer {
 	flex: 1 1 auto;
@@ -3548,8 +3597,8 @@ del.acp-header-branded-profile {
 }
 
 /* Ephemeral chips row, directly above the composer box. Aligns to the
-   box-border edge (the context-strip / `+` reference); the toolbar zap aligns
-   to the composer text-left — two references, different containers. The row is
+   box-border edge (the context-strip / `+` reference); the composer
+   text starts at the text-left inset — two references, different containers. The row is
    not rendered at all when no prompts match (empty = no row). */
 .agent-client-quick-prompt-bar {
 	display: flex;

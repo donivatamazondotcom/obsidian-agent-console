@@ -28,15 +28,21 @@
  */
 import * as React from "react";
 const { useEffect } = React;
-import { setTooltip } from "obsidian";
+import { setTooltip, type TooltipPlacement } from "obsidian";
 import { t } from "../../i18n";
 import {
 	deriveTooltipText,
 	type TooltipTextInput,
 } from "../../resolvers/tooltip-text";
 
-/** What a call site supplies: the two halves, never a pre-joined string. */
-export type TooltipSpec = Omit<TooltipTextInput, "separator">;
+/**
+ * What a call site supplies: the two halves, never a pre-joined string, plus
+ * an optional side for the tooltip (Obsidian's default is below the element;
+ * the composer rail opens its tooltips to the left so they don't cover Send).
+ */
+export type TooltipSpec = Omit<TooltipTextInput, "separator"> & {
+	placement?: TooltipPlacement;
+};
 
 /**
  * Apply (or clear) an element's tooltip. Safe to call with `null`, so it drops
@@ -49,7 +55,8 @@ export function attachTooltip(
 	if (el === null) return;
 
 	const decided = deriveTooltipText({
-		...spec,
+		visibleLabel: spec.visibleLabel,
+		reason: spec.reason,
 		separator: t("chat.tooltipSeparator"),
 	});
 
@@ -63,7 +70,11 @@ export function attachTooltip(
 			el.removeAttribute("data-tooltip");
 			return;
 		case "text":
-			setTooltip(el, decided.text);
+			if (spec.placement) {
+				setTooltip(el, decided.text, { placement: spec.placement });
+			} else {
+				setTooltip(el, decided.text);
+			}
 			return;
 	}
 }
@@ -94,8 +105,8 @@ export function useTooltip(
 	ref: React.RefObject<HTMLElement | null>,
 	spec: TooltipSpec,
 ): void {
-	const { visibleLabel, reason } = spec;
+	const { visibleLabel, reason, placement } = spec;
 	useEffect(() => {
-		attachTooltip(ref.current, { visibleLabel, reason });
-	}, [ref, visibleLabel, reason]);
+		attachTooltip(ref.current, { visibleLabel, reason, placement });
+	}, [ref, visibleLabel, reason, placement]);
 }

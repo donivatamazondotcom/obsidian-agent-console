@@ -265,6 +265,18 @@ export interface UseLazySessionApi {
 	onSendClick: (message: string) => void;
 
 	/**
+	 * Attaching a file is intent, like a keystroke ([[Agent Console
+	 * Attachment Button]]). Fires acquisition right away — no debounce, the
+	 * click is explicit — so the agent is usually connected by the time the
+	 * OS file dialog closes and a picked image can go inline. Same guards as
+	 * `onComposerChange` (no-op with a session id set or an acquisition in
+	 * flight), and clears a pending typing timer first, as `onSendClick` does:
+	 * the timer callback doesn't re-check `sessionId`, so a timer left armed
+	 * across a finished acquisition would acquire a second session.
+	 */
+	onAttachIntent: () => void;
+
+	/**
 	 * Explicitly acquire the restored session on demand (I72). Backs the
 	 * "history not stored locally — reload from agent" affordance for a
 	 * restored tab whose local message file was missing: triggers
@@ -682,6 +694,20 @@ export function useLazySession(
 	);
 
 	// ============================================================================
+	// onAttachIntent — attaching a file is intent (attachment button)
+	// ============================================================================
+
+	const onAttachIntent = useCallback(() => {
+		if (sessionId !== null) return;
+		if (isAcquiringRef.current) return;
+		if (debounceTimerRef.current !== null) {
+			window.clearTimeout(debounceTimerRef.current);
+			debounceTimerRef.current = null;
+		}
+		void fireAcquisition();
+	}, [sessionId, fireAcquisition]);
+
+	// ============================================================================
 	// recoverHistory — explicit on-demand load of the restored session (I72)
 	// ============================================================================
 
@@ -933,6 +959,7 @@ export function useLazySession(
 		sessionGone,
 		onComposerChange,
 		onSendClick,
+		onAttachIntent,
 		recoverHistory,
 		acquireNow,
 		reloadNow,
