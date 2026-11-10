@@ -571,3 +571,31 @@ describe("queueOrchestrationReducer — properties", () => {
 		expect(isQueued({ pending: MSG })).toBe(true);
 	});
 });
+
+// I319: the queued message carries the attachments it was queued with — the
+// composer's strip is cleared before the flush, so anything attached after
+// queueing would be lost. The attach intake gate relies on this contract.
+describe("queueOrchestrationReducer — queued attachments (I319)", () => {
+	it("a queued message flushes with exactly its own attachments, after clearComposer", () => {
+		const withFiles: QueuedMessage = {
+			content: "look at these",
+			attachments: [
+				{ id: "a", kind: "file", name: "a.txt", path: "/a.txt", mimeType: "text/plain", size: 1 },
+				{ id: "b", kind: "image", mimeType: "image/png", data: "AAAA" },
+			],
+		};
+		const queued = queueOrchestrationReducer(EMPTY, {
+			type: "sendWhileStreaming",
+			message: withFiles,
+		});
+		const flushed = queueOrchestrationReducer(queued.state, {
+			type: "turnEnded",
+			hadError: false,
+			wasCancelled: false,
+		});
+		expect(flushed.effects).toEqual([
+			{ kind: "clearComposer" },
+			{ kind: "flushDispatch", message: withFiles },
+		]);
+	});
+});

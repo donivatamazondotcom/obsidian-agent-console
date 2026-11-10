@@ -119,6 +119,11 @@ describe("ZeroTabLanding — InputArea launcher wiring", () => {
 		expect(h.props!.launches).toBe(true);
 	});
 
+	it("passes showAttachButton:false from the resolver — the landing can't carry attachments", () => {
+		render(<ZeroTabLanding {...makeProps()} />);
+		expect(h.props!.showAttachButton).toBe(false);
+	});
+
 	it("send launches with the content (empty context); whitespace is a no-op", async () => {
 		const props = makeProps();
 		render(<ZeroTabLanding {...props} />);

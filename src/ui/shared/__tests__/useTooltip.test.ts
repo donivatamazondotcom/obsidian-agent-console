@@ -89,6 +89,26 @@ describe("attachTooltip", () => {
 	});
 });
 
+describe("attachTooltip — placement", () => {
+	it("passes a requested side through to setTooltip", () => {
+		const target = el();
+		attachTooltip(target, {
+			visibleLabel: null,
+			reason: "Attach files",
+			placement: "left",
+		});
+		expect(setTooltip).toHaveBeenCalledWith(target, "Attach files", {
+			placement: "left",
+		});
+	});
+
+	it("keeps the two-argument call when no side is requested", () => {
+		const target = el();
+		attachTooltip(target, { visibleLabel: null, reason: "Close tab" });
+		expect(vi.mocked(setTooltip).mock.calls[0]).toHaveLength(2);
+	});
+});
+
 describe("tooltipRef", () => {
 	it("applies on mount and clears on unmount-style null", () => {
 		const target = el();

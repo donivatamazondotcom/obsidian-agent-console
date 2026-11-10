@@ -44,6 +44,9 @@ describe("deriveComposerAffordances — exhaustive truth table", () => {
 							expect(r.context).toBe("carry");
 							expect(r.showAttachments).toBe(false);
 							expect(r.showConfigSelectors).toBe(false);
+							// The landing can't carry attachments into the
+							// launched tab, so it offers no attach button.
+							expect(r.showAttachButton).toBe(false);
 							expect(r.quickPromptFire).toBe(
 								hasQuickPrompts ? "launch" : "none",
 							);
@@ -57,6 +60,9 @@ describe("deriveComposerAffordances — exhaustive truth table", () => {
 							// Satellite controls follow data/capability ONLY —
 							// no connection-state gate.
 							expect(r.showAttachments).toBe(supportsImages);
+							// Files attach on every tab; image support only
+							// decides inline vs file link.
+							expect(r.showAttachButton).toBe(true);
 							expect(r.showConfigSelectors).toBe(
 								hasConfigSelectors,
 							);
@@ -81,6 +87,7 @@ describe("deriveComposerAffordances — landmark cases", () => {
 			quickPromptFire: "launch",
 			context: "carry",
 			showAttachments: false, // forced off on the landing even if capable
+			showAttachButton: false, // the landing can't carry attachments (I320)
 			showConfigSelectors: false, // forced off on the landing even if capable
 		});
 	});
@@ -106,6 +113,7 @@ describe("deriveComposerAffordances — landmark cases", () => {
 			quickPromptFire: "current",
 			context: "session",
 			showAttachments: true,
+			showAttachButton: true,
 			showConfigSelectors: true,
 		});
 	});
