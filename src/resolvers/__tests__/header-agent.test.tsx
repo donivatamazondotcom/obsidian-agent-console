@@ -107,20 +107,52 @@ describe("deriveHeaderModelName", () => {
 		expect(deriveHeaderModelName({ configOptions: [modelOption] })).toBe("Claude Opus 5.5");
 	});
 
-	it("confirmed model and legacy models still win (V2 unchanged)", () => {
+	const legacy = { currentModelId: "a", availableModels: [{ modelId: "a", name: "Legacy A" }] };
+
+	it("V2: legacy models alone still name the model", () => {
+		expect(deriveHeaderModelName({ models: legacy })).toBe("Legacy A");
+	});
+
+	it("I258: legacy list + config option, no confirmation → the config option (what the picker writes)", () => {
+		expect(deriveHeaderModelName({ models: legacy, configOptions: [modelOption] })).toBe(
+			"Claude Opus 5.5",
+		);
+	});
+
+	it("I258: a confirmed model wins while the selection it was confirmed under is unchanged", () => {
 		expect(
 			deriveHeaderModelName({
 				confirmedModelId: "x-confirmed",
-				models: { currentModelId: "a", availableModels: [{ modelId: "a", name: "Legacy A" }] },
+				confirmedUnder: "claude-opus-5.5",
+				models: legacy,
 				configOptions: [modelOption],
 			}),
 		).toBe("x-confirmed");
+	});
+
+	it("I258: all three sources, only the config option changed → the header follows it", () => {
 		expect(
 			deriveHeaderModelName({
-				models: { currentModelId: "a", availableModels: [{ modelId: "a", name: "Legacy A" }] },
+				confirmedModelId: "x-confirmed",
+				confirmedUnder: "older-pick",
+				models: legacy,
 				configOptions: [modelOption],
 			}),
+		).toBe("Claude Opus 5.5");
+	});
+
+	it("I258: legacy-only selection change drops a stale confirmation", () => {
+		expect(
+			deriveHeaderModelName({
+				confirmedModelId: "x-confirmed",
+				confirmedUnder: "older-pick",
+				models: legacy,
+			}),
 		).toBe("Legacy A");
+	});
+
+	it("a confirmation with no stamp (no selection known at the time) still wins", () => {
+		expect(deriveHeaderModelName({ confirmedModelId: "x-confirmed" })).toBe("x-confirmed");
 	});
 
 	it("no model anywhere → null", () => {
