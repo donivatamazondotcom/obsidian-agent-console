@@ -419,6 +419,15 @@ export async function captureEntry(
 	entry: ManifestEntry,
 	deps: OrchestratorDeps,
 ): Promise<void> {
+	// Clear a tooltip a prior hover shot left behind (attach-button, export).
+	// Obsidian's `.tooltip` lives in document.body, so it survives the setup.sh
+	// plugin reload and sat over the next composer shots. Runs before every
+	// capture path; a shot that wants a tooltip makes its own via hoverSelector.
+	await deps.cdp
+		.evaluate(
+			`(() => { const ts = document.querySelectorAll(".tooltip"); ts.forEach((t) => t.remove()); return ts.length; })()`,
+		)
+		.catch(() => 0);
 	// Per-entry plugin settings through the settings single writer, so React
 	// subscribers (useSyncExternalStore) re-render – direct mutation of
 	// plugin.settings wouldn't notify them. Applied around every capture path

@@ -3450,3 +3450,105 @@ describe("captureEntry — per-entry plugin settings on every capture path", () 
 		expect(evals.findIndex(RESTORE)).toBeGreaterThan(applyIdx);
 	});
 });
+
+// A hover shot (attach-button, export) leaves Obsidian's `.tooltip` node in
+// document.body. It is app-level DOM, so it survives the setup.sh plugin
+// reload and was captured over the next composer shots ("Attach files" next
+// to the paperclip in sending-messages, queue-next-message, ...). Every capture
+// path clears it before driving state; a shot that wants a tooltip makes its
+// own afterward (hoverSelector).
+describe("captureEntry — leftover tooltip (hover leak fix)", () => {
+	const TOOLTIP_CLEAR = (e: string) =>
+		e.includes('querySelectorAll(".tooltip")') && e.includes(".remove()");
+
+	function healthySharp() {
+		const raw = {
+			data: Buffer.from(
+				Array.from({ length: 256 * 3 }, (_, k) =>
+					k % 3 === 0 ? Math.floor(k / 3) : 0,
+				),
+			),
+			info: { width: 16, height: 16, channels: 3 },
+		};
+		const instance = {
+			extract: vi.fn().mockReturnThis(),
+			resize: vi.fn().mockReturnThis(),
+			extend: vi.fn().mockReturnThis(),
+			raw: vi.fn().mockReturnThis(),
+			png: vi.fn().mockReturnThis(),
+			webp: vi.fn().mockReturnThis(),
+			toFile: vi.fn().mockResolvedValue(undefined),
+			metadata: vi.fn().mockResolvedValue({ width: 1400, height: 760 }),
+			toBuffer: vi
+				.fn()
+				.mockImplementation((opts?: { resolveWithObject?: boolean }) =>
+					opts?.resolveWithObject
+						? Promise.resolve(raw)
+						: Promise.resolve(Buffer.from("framepng")),
+				),
+		};
+		return vi.fn().mockReturnValue(instance);
+	}
+
+	function clearRunsBeforeFirstShot(deps: OrchestratorDeps): void {
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		const evals = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		const clearIdx = evals.findIndex(TOOLTIP_CLEAR);
+		expect(clearIdx).toBeGreaterThanOrEqual(0);
+		const firstShot = (deps.cdp.screenshot as ReturnType<typeof vi.fn>).mock
+			.invocationCallOrder[0];
+		expect(firstShot).toBeDefined();
+		expect(evalMock.mock.invocationCallOrder[clearIdx]).toBeLessThan(firstShot);
+	}
+
+	it("clears a leftover tooltip before a still capture", async () => {
+		const deps = makeDeps();
+
+		await captureEntry(makeEntry({ initialState: { clickRibbon: true } }), deps);
+
+		clearRunsBeforeFirstShot(deps);
+	});
+
+	it("clears a leftover tooltip before the first frame of an animation", async () => {
+		const deps = makeDeps({
+			sharp: healthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+
+		await captureEntry(
+			makeEntry({
+				name: "mention-context",
+				width: 400,
+				height: 300,
+				crop: { x: 0, y: 0, width: 800, height: 600 },
+				initialState: { clickRibbon: true },
+				animation: { fps: 4, maxBytes: 2_000_000, frames: [{ holdMs: 500 }] },
+			}),
+			deps,
+		);
+
+		clearRunsBeforeFirstShot(deps);
+	});
+
+	it("clears the leftover tooltip before hovering, so a hover shot keeps its own", async () => {
+		const deps = makeDeps();
+
+		await captureEntry(
+			makeEntry({
+				initialState: {
+					clickRibbon: true,
+					hoverSelector: ".agent-client-attach-button",
+				},
+			}),
+			deps,
+		);
+
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		const evals = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		const clearIdx = evals.findIndex(TOOLTIP_CLEAR);
+		expect(clearIdx).toBeGreaterThanOrEqual(0);
+		const hoverOrder = (deps.cdp.hoverElement as ReturnType<typeof vi.fn>).mock
+			.invocationCallOrder[0];
+		expect(hoverOrder).toBeDefined();
+		expect(evalMock.mock.invocationCallOrder[clearIdx]).toBeLessThan(hoverOrder);
+	});
+});

@@ -12,6 +12,10 @@ Attach images and files to your messages to provide context to the AI agent.
 
 From the keyboard: press `Tab` from the text area to reach the paperclip, then `Enter` or `Space` to open the picker. After you pick, the cursor goes back to the text area.
 
+<p align="center">
+  <img src="/images/attach-button.webp" alt="The paperclip above the send button in the Agent Console composer, with its Attach files tooltip" class="inline-shot" width="560" />
+</p>
+
 ### Drag and Drop
 
 1. Drag files from Finder/Explorer onto the input area
