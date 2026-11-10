@@ -1612,7 +1612,7 @@
 					]
 				}
 			},
-			"promptFile": "connect.txt",
+			"promptFile": "header-fallback.txt",
 			"awaitSelector": "del.acp-header-branded-profile",
 			"placement": "feature",
 			"purpose": "Shows the header naming the agent that is actually running when the chosen Kiro agent couldn't load.",
