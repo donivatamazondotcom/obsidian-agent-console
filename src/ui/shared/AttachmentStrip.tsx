@@ -86,6 +86,28 @@ function RemoveButton({
 	);
 }
 
+/**
+ * A file chip. When the file is an image that goes as a file link (the agent
+ * can't take images), its tooltip says so, so the missing thumbnail reads as
+ * intended, not broken (smoke H4).
+ */
+function FileChip({ file }: { file: AttachedFile }) {
+	const ref = useRef<HTMLDivElement | null>(null);
+	const imageAsFile = file.mimeType.startsWith("image/");
+	useTooltip(ref, {
+		visibleLabel: null,
+		reason: imageAsFile ? t("chat.composer.imageSentAsFile") : null,
+	});
+	return (
+		<div ref={ref} className="agent-client-attachment-preview-file">
+			<FileIcon />
+			<span className="agent-client-attachment-preview-file-name">
+				{file.name ?? "file"}
+			</span>
+		</div>
+	);
+}
+
 /** File icon with a stable ref so setIcon runs once on mount. */
 function FileIcon() {
 	const ref = useRef<HTMLSpanElement>(null);
@@ -167,12 +189,7 @@ export function AttachmentStrip({
 							className="agent-client-attachment-preview-thumbnail"
 						/>
 					) : (
-						<div className="agent-client-attachment-preview-file">
-							<FileIcon />
-							<span className="agent-client-attachment-preview-file-name">
-								{file.name ?? "file"}
-							</span>
-						</div>
+						<FileChip file={file} />
 					)}
 					<RemoveButton
 						file={file}
