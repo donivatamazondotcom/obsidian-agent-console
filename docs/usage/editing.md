@@ -31,6 +31,10 @@ On the Kiro CLI V3 engine, **Always allow** and **Always deny** ask one more que
 - **Remember for:** **This vault** (the default) keeps the rule for new chats in this vault too. **This chat only** forgets it when the chat ends. Kiro saves vault rules in its own settings, not in your vault.
 - **Applies to** (shell commands only): **this exact command** (the default), or every command that starts the same way, such as `npm *`.
 
+<p align="center">
+  <img src="/images/kiro-v3-permission-scope.webp" alt="Permission step with This vault and This chat only, and the exact command or a pattern such as npm *" />
+</p>
+
 Click the button again to confirm, or **Back** to choose differently. To allow a command in every workspace, add a rule to Kiro's own permission settings.
 
 ### Auto-Allow Permissions

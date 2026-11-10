@@ -180,8 +180,8 @@
 		},
 		{
 			"name": "switch-agent",
-			"width": 660,
-			"height": 414,
+			"width": 1200,
+			"height": 680,
 			"crop": {
 				"x": 1620,
 				"y": 90,
@@ -191,17 +191,26 @@
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true,
-				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"More\"]"
+				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"More\"]",
+				"disableNativeMenus": true,
+				"waitSelector": ".menu"
 			},
 			"approvalThreshold": 0.01,
 			"promptFile": "connect.txt",
-			"captureMode": "screen",
 			"placement": "reference",
 			"purpose": "Switch the active session to a different agent.",
 			"differentiator": "Multiple agents",
 			"mustShow": "[aria-label=\"More\"]",
 			"caption": "Switch between agents",
-			"altText": "Agent Console More menu open with the Switch agent option"
+			"altText": "Agent Console More menu open with the Switch agent option",
+			"cropSelectors": [
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-view-header",
+				".menu"
+			],
+			"cropPadding": 12,
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 560,
+			"captureNote": "Window mode: native menus off so the More menu renders as a DOM .menu; crop is the union of the chat header and the menu."
 		},
 		{
 			"name": "export",
@@ -882,7 +891,7 @@
 				"height": 150
 			},
 			"cropSelector": ".agent-client-chat-view-header",
-			"cropPadding": 10,
+			"cropPadding": 0,
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true,
@@ -1622,7 +1631,8 @@
 			"altText": "Chat header with the chosen agent name struck through, followed by the agent that is running instead",
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 680,
-			"cropPadding": 0
+			"cropPadding": 0,
+			"docPage": "docs/usage/index.md"
 		},
 		{
 			"name": "kiro-v3-permission-scope",
@@ -1676,7 +1686,8 @@
 				"scrollIntoViewSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-permission-scope"
 			},
 			"captureNote": "Live Kiro CLI V3 turn. clickSequence waits for the session, switches Autopilot to Supervised (so Kiro asks), sends the drafted npm install request (a write, so Kiro asks; the shot never confirms, so it never runs), then clicks Always allow to open the scope step (This vault is the default).",
-			"draftMessage": "Run the shell command `npm install left-pad` in this folder."
+			"draftMessage": "Run the shell command `npm install left-pad` in this folder.",
+			"docPage": "docs/usage/editing.md"
 		},
 		{
 			"name": "quick-prompt-uri-banner",
@@ -1703,7 +1714,8 @@
 					"mode": "plan"
 				}
 			},
-			"captureNote": "fireQuickPromptUri runs the plugin's obsidian://agent-console handler for the draft-a-reply prompt with a selection, so the tab shows the link banner and the staged prompt."
+			"captureNote": "fireQuickPromptUri runs the plugin's obsidian://agent-console handler for the draft-a-reply prompt with a selection, so the tab shows the link banner and the staged prompt.",
+			"docPage": "docs/usage/quick-prompts.md"
 		},
 		{
 			"name": "kiro-v3-mcp-failure-notice",
@@ -1734,7 +1746,8 @@
 					}
 				]
 			},
-			"captureNote": "forceMcpFailures injects a Kiro V3 status snapshot with two failed servers for the active tab, then opens Details."
+			"captureNote": "forceMcpFailures injects a Kiro V3 status snapshot with two failed servers for the active tab, then opens Details.",
+			"docPage": "docs/usage/mcp-tools.md"
 		},
 		{
 			"name": "sleeping-tab",
@@ -1770,7 +1783,8 @@
 					}
 				]
 			},
-			"captureNote": "forceTabStates seeds three strip tabs; the middle one is forced into the released (asleep) state so its moon sits beside live tabs."
+			"captureNote": "forceTabStates seeds three strip tabs; the middle one is forced into the released (asleep) state so its moon sits beside live tabs.",
+			"docPage": "docs/usage/tabbed-sessions.md"
 		},
 		{
 			"name": "settings-max-saved-chats",

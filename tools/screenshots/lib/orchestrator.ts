@@ -489,6 +489,12 @@ export async function captureEntry(
 		await deps.cdp.evaluate(
 			`(() => { let n = 0; document.querySelectorAll(".modal-container").forEach((m) => { const b = m.querySelector(".modal-close-button"); if (b) { b.click(); } else { m.remove(); } n++; }); return n; })()`,
 		);
+		// 0.6 Close any DOM menu a prior shot left open (a nativeMenus-off
+		// dropdown survives the plugin reload, like a modal). Shots that need a
+		// menu open their own later in the flow.
+		await deps.cdp.evaluate(
+			`(() => { const ms = document.querySelectorAll(".menu"); ms.forEach((m) => m.remove()); return ms.length; })()`,
+		);
 
 		// 1. Mobile emulation (before any UI driving)
 		if (entry.mobile) {

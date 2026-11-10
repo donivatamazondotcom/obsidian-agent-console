@@ -148,6 +148,10 @@ The quickest way to get a prompt's link is to right-click its chip and pick **Co
 - **Links can't flood you.** Only one link opens every 2 seconds, and the same link clicked again within 10 seconds is ignored.
 - **Mistakes do nothing.** An unknown prompt id, an unknown agent, or an empty value shows a notice and opens nothing.
 
+<p align="center">
+  <img src="/images/quick-prompt-uri-banner.webp" alt="Agent Console tab opened by a link, with the Opened by link banner naming the agent and mode, and the prompt staged" />
+</p>
+
 Two properties on the prompt note control how links can use it:
 
 - **`uri send`** (checkbox) — lets a link send the prompt straight away, but only when the link names the prompt and nothing else. Add any `selection`, `url`, `title`, `agent` or `mode` and it waits for you again. Use it for fixed kickoffs like "start my daily review".
