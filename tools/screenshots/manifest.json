@@ -53,6 +53,10 @@
 					"requireActiveHeaderIncludes": "Claude Code",
 					"reconnectActive": true,
 					"requireActiveSelector": ".callout"
+				},
+				"pluginSettings": {
+					"tabDisplay": "vertical",
+					"tabRailWidth": 32
 				}
 			},
 			"hideSelectors": [
@@ -61,17 +65,17 @@
 			"approvalThreshold": 0.1,
 			"minDistinctColors": 1500,
 			"placement": "hero",
-			"purpose": "Run several agent sessions side by side, each tab showing its own status, with rich Obsidian-rendered replies.",
-			"differentiator": "Tabbed sessions with per-tab status",
-			"mustShow": ".agent-client-tab-state-icon",
+			"purpose": "Run several agent sessions side by side, each shown as a status icon in the vertical tab rail, with rich Obsidian-rendered replies.",
+			"differentiator": "Vertical tab rail with per-tab status",
+			"mustShow": ".agent-client-tab-rail .agent-client-tab-state-icon",
 			"caption": "See every agent at a glance",
-			"altText": "Agent Console sidebar with multiple session tabs each showing a status icon, beside a Bases dashboard and a rich agent reply",
+			"altText": "Agent Console with a slim column of session status icons on the right, beside a Bases dashboard and a rich agent reply",
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 530,
 			"awaitSelector": ".callout",
 			"captureMode": "screen-window",
-			"followUp": "Tab status indicators (.agent-client-tab-state-icon) are not lit up: only the active tab reconnects (reconnectActive), so the inactive restored tabs show unlit/idle status glyphs. Next cycle: reconnect all restored tabs (or seed a lit status) so every tab's state icon reads as connected.",
-			"pending": true
+			"pending": true,
+			"captureNote": "Staged on the vertical rail, icons only (the new-install default, decided 11/08) via initialState.pluginSettings. Tabs restored but not reconnected show the moon (I292)."
 		},
 		{
 			"name": "session-history-button",
@@ -596,14 +600,13 @@
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 620,
 			"cropSelector": ".workspace-leaf-content[data-type=\"agent-console-chat-view\"]",
-			"cropPadding": 0,
-			"pending": true
+			"cropPadding": 0
 		},
 		{
 			"name": "multi-session-animated",
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 680,
-			"purpose": "Run several agent sessions in parallel tabs, cycling the active tab to show each keeps its own conversation and status.",
+			"purpose": "Run several agent sessions in parallel, cycling the vertical tab rail to show each keeps its own conversation and status.",
 			"width": 680,
 			"height": 720,
 			"crop": {
@@ -622,14 +625,18 @@
 						"Newsletter"
 					],
 					"activeIndex": 0
+				},
+				"pluginSettings": {
+					"tabDisplay": "vertical",
+					"tabRailWidth": 32
 				}
 			},
 			"minDistinctColors": 1500,
 			"placement": "hero",
-			"differentiator": "Tabbed sessions with per-tab status",
-			"mustShow": ".agent-client-tab-state-icon",
+			"differentiator": "Vertical tab rail with per-tab status",
+			"mustShow": ".agent-client-tab-rail .agent-client-tab-state-icon",
 			"caption": "Run agents in parallel tabs",
-			"altText": "Agent Console cycling three parallel session tabs \u2014 Japan trip, Launch check, Newsletter \u2014 each with its own conversation and status",
+			"altText": "Agent Console cycling three sessions from the vertical tab rail: Japan trip, Launch check, Newsletter, each with its own chat",
 			"animation": {
 				"fps": 5,
 				"maxBytes": 3500000,
@@ -668,11 +675,10 @@
 			},
 			"cropSelector": ".workspace-leaf-content[data-type=\"agent-console-chat-view\"]",
 			"cropPadding": 0,
-			"pending": true
+			"captureNote": "Staged on the vertical rail, icons only (new-install default, decided 11/08); frames crop to the chat leaf, rail included. GIF only, no separate video (decided 11/08)."
 		},
 		{
 			"name": "tab-status-dropdown",
-			"pending": true,
 			"width": 550,
 			"height": 520,
 			"crop": {
@@ -1593,7 +1599,6 @@
 			"width": 680,
 			"height": 48,
 			"cropSelector": ".agent-client-chat-view-header",
-			"pending": true,
 			"agentId": "kiro-cli",
 			"initialState": {
 				"clickRibbon": true,
@@ -1614,63 +1619,161 @@
 			"differentiator": "Honest agent header (struck-through agent that couldn't load)",
 			"mustShow": "del.acp-header-branded-profile",
 			"caption": "See when your chosen agent couldn't load",
-			"altText": "Chat header with the chosen agent name struck through, followed by the agent that is running instead"
+			"altText": "Chat header with the chosen agent name struck through, followed by the agent that is running instead",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 680,
+			"cropPadding": 0
 		},
 		{
 			"name": "kiro-v3-permission-scope",
 			"width": 680,
 			"height": 260,
 			"cropSelector": ".agent-client-permission-scope",
-			"pending": true,
 			"placement": "feature",
 			"purpose": "Shows the step after Always allow on Kiro V3: remember for this vault or this chat, and the exact command or a pattern.",
 			"differentiator": "Choose how long Always allow lasts (Kiro V3)",
 			"mustShow": ".agent-client-permission-scope-group",
 			"caption": "Decide how long Always allow lasts",
-			"altText": "Permission step with This vault and This chat only, and the exact command or a pattern such as npm *"
+			"altText": "Permission step with This vault and This chat only, and the exact command or a pattern such as npm *",
+			"agentId": "kiro-cli",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 680,
+			"cropPadding": 8,
+			"minDistinctColors": 40,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"disableNativeMenus": true,
+				"agentOverride": {
+					"id": "kiro-cli",
+					"engine": "v3",
+					"args": [
+						"acp"
+					]
+				},
+				"clickSequence": [
+					{
+						"selector": ".agent-client-tab-panel:not([style*=\"none\"]) textarea",
+						"waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Autopilot\"]"
+					},
+					{
+						"selector": ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Autopilot\"]",
+						"waitFor": ".menu"
+					},
+					{
+						"selector": ".menu .menu-item.tappable:nth-child(3)",
+						"waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Supervised \u2014 Autopilot\"]"
+					},
+					{
+						"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-send-button",
+						"waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-permission-kind-allow_always"
+					},
+					{
+						"selector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-permission-kind-allow_always",
+						"waitFor": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-permission-scope"
+					}
+				],
+				"scrollIntoViewSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-permission-scope"
+			},
+			"captureNote": "Live Kiro CLI V3 turn. clickSequence waits for the session, switches Autopilot to Supervised (so Kiro asks), sends the drafted npm install request (a write, so Kiro asks; the shot never confirms, so it never runs), then clicks Always allow to open the scope step (This vault is the default).",
+			"draftMessage": "Run the shell command `npm install left-pad` in this folder."
 		},
 		{
 			"name": "quick-prompt-uri-banner",
 			"width": 680,
 			"height": 320,
-			"cropSelector": ".agent-client-chat-view-container",
-			"pending": true,
+			"cropSelector": ".agent-client-tab-panel:not([style*=\"none\"])",
 			"placement": "feature",
 			"purpose": "Shows a tab opened by an obsidian://agent-console link: the origin banner and the staged prompt waiting for Enter.",
 			"differentiator": "Prompts you can fire from email and web links, staged for review",
 			"mustShow": ".agent-client-link-origin-banner",
 			"caption": "Start a prompt from a link, and see what it picked",
-			"altText": "Agent Console tab opened by a link, with the Opened by link banner naming the agent and mode, and the prompt staged"
+			"altText": "Agent Console tab opened by a link, with the Opened by link banner naming the agent and mode, and the prompt staged",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 680,
+			"cropPadding": 0,
+			"minDistinctColors": 40,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"fireQuickPromptUri": {
+					"prompt": "draft-a-reply",
+					"selection": "Hi! Can we move Thursday's sync to Friday at 10?",
+					"agent": "claude-code-acp",
+					"mode": "plan"
+				}
+			},
+			"captureNote": "fireQuickPromptUri runs the plugin's obsidian://agent-console handler for the draft-a-reply prompt with a selection, so the tab shows the link banner and the staged prompt."
 		},
 		{
 			"name": "kiro-v3-mcp-failure-notice",
 			"width": 680,
 			"height": 120,
 			"cropSelector": ".agent-client-mcp-failure-notice",
-			"pending": true,
 			"placement": "feature",
 			"purpose": "Shows the note at the top of a Kiro V3 chat that lists MCP servers that didn't connect, with Kiro's reason under Details.",
 			"differentiator": "MCP failures surfaced in the chat (Kiro V3)",
 			"mustShow": ".agent-client-mcp-failure-notice details[open]",
 			"caption": "See which MCP servers didn't connect, and why",
-			"altText": "Note at the top of a chat listing MCP servers that didn't connect, with each server's reason under Details"
+			"altText": "Note at the top of a chat listing MCP servers that didn't connect, with each server's reason under Details",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 680,
+			"cropPadding": 8,
+			"minDistinctColors": 40,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"forceMcpFailures": [
+					{
+						"name": "github",
+						"message": "Couldn't start: npx not found on PATH"
+					},
+					{
+						"name": "jira",
+						"message": "Timed out after 30 seconds"
+					}
+				]
+			},
+			"captureNote": "forceMcpFailures injects a Kiro V3 status snapshot with two failed servers for the active tab, then opens Details."
 		},
 		{
 			"name": "sleeping-tab",
 			"width": 680,
 			"height": 48,
 			"cropSelector": ".agent-client-tab-bar",
-			"pending": true,
 			"placement": "feature",
 			"purpose": "Shows a background tab asleep to save memory, marked with a moon icon next to live tabs.",
 			"differentiator": "Idle tabs go to sleep to free memory and wake on the next keystroke",
 			"mustShow": ".agent-client-tab-state-released",
 			"caption": "Idle tabs sleep to save memory",
-			"altText": "Tab bar with one tab showing a moon icon, meaning it is asleep to save memory"
+			"altText": "Tab bar with one tab showing a moon icon, meaning it is asleep to save memory",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 680,
+			"cropPadding": 0,
+			"approvalThreshold": 0.01,
+			"minDistinctColors": 40,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"forceTabStates": [
+					{
+						"label": "Japan trip",
+						"state": "ready"
+					},
+					{
+						"label": "Launch check",
+						"state": "released"
+					},
+					{
+						"label": "Newsletter",
+						"state": "doneUnseen"
+					}
+				]
+			},
+			"captureNote": "forceTabStates seeds three strip tabs; the middle one is forced into the released (asleep) state so its moon sits beside live tabs."
 		},
 		{
 			"name": "settings-max-saved-chats",
-			"pending": true,
 			"width": 760,
 			"height": 300,
 			"crop": {
@@ -1693,11 +1796,11 @@
 			"mustShow": ".vertical-tab-content",
 			"caption": "Choose how many chats to keep",
 			"altText": "Agent Console Sessions settings with the Max saved chats dropdown set to 100",
-			"docPage": "docs/usage/session-history.md"
+			"docPage": "docs/usage/session-history.md",
+			"captureMode": "settings-window"
 		},
 		{
 			"name": "tab-rail-icons",
-			"pending": true,
 			"width": 400,
 			"height": 520,
 			"crop": {
@@ -1706,7 +1809,7 @@
 				"width": 400,
 				"height": 520
 			},
-			"cropSelector": "[data-type=\"agent-console-chat-view\"]",
+			"cropSelector": ".workspace-leaf-content[data-type=\"agent-console-chat-view\"]",
 			"cropPadding": 0,
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 40,
@@ -1761,7 +1864,6 @@
 		},
 		{
 			"name": "tab-rail-names",
-			"pending": true,
 			"width": 400,
 			"height": 520,
 			"crop": {
@@ -1770,7 +1872,7 @@
 				"width": 400,
 				"height": 520
 			},
-			"cropSelector": "[data-type=\"agent-console-chat-view\"]",
+			"cropSelector": ".workspace-leaf-content[data-type=\"agent-console-chat-view\"]",
 			"cropPadding": 0,
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 40,
@@ -1825,7 +1927,6 @@
 		},
 		{
 			"name": "whats-new-card",
-			"pending": true,
 			"width": 400,
 			"height": 520,
 			"crop": {
@@ -1834,7 +1935,7 @@
 				"width": 400,
 				"height": 520
 			},
-			"cropSelector": "[data-type=\"agent-console-chat-view\"]",
+			"cropSelector": ".workspace-leaf-content[data-type=\"agent-console-chat-view\"]",
 			"cropPadding": 0,
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 40,

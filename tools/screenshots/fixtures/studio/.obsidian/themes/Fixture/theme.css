@@ -54,7 +54,7 @@ body.acp-capturing .agent-client-error-overlay--info { display: none !important;
    is wiped — this !important CSS persists across the re-render. Same
    capture-time gate as above, so smoke testing still shows the real state. */
 body.acp-capturing .acp-header-branded-connecting,
-body.acp-capturing .acp-header-branded-sep { display: none !important; }
+body.acp-capturing .acp-header-branded-sep:has(+ .acp-header-branded-connecting) { display: none !important; }
 
 /* Screenshot fixtures: hide the "Session restored from history" lossy-fallback
    notice (.agent-client-fallback-notice, LossyFallbackNotice.tsx). Restoring a

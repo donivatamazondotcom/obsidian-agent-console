@@ -2671,6 +2671,70 @@ describe("captureEntry — v1.3.0 driving primitives", () => {
 		expect(injectIdx).toBeGreaterThan(sweepIdx);
 	});
 
+	// S4 shot: the failure notice renders only from a Kiro V3 status snapshot
+	// on the tab's own viewId, so the drive injects one through the real
+	// manager path and opens Details for the reasons.
+	it("forceMcpFailures injects a failed-server status snapshot for the active tab and opens Details", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: {
+				clickRibbon: true,
+				forceMcpFailures: [
+					{ name: "github", message: "spawn npx ENOENT" },
+					{ name: "jira", message: "timed out after 30s" },
+				],
+			},
+		});
+
+		await captureEntry(entry, deps);
+
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		const inject = evals.find(
+			(e) =>
+				e.includes("mcpAuthManager") &&
+				e.includes('"status_snapshot"') &&
+				e.includes("tabManagerRef.activeTabId"),
+		);
+		expect(inject).toBeDefined();
+		expect(inject).toContain('"github"');
+		expect(inject).toContain('"spawn npx ENOENT"');
+		expect(inject).toContain('"failed"');
+		const openIdx = evals.findIndex(
+			(e) =>
+				e.includes(".agent-client-mcp-failure-notice details") &&
+				e.includes("open = true"),
+		);
+		expect(openIdx).toBeGreaterThan(evals.indexOf(inject!));
+	});
+
+	// #323 shot: a tab opened by an obsidian://agent-console link. The drive
+	// goes through the plugin's own URI handler, so the banner and staged
+	// prompt come from the real code path.
+	it("fireQuickPromptUri calls the plugin's URI handler with the given params", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			initialState: {
+				clickRibbon: true,
+				fireQuickPromptUri: {
+					prompt: "draft-a-reply",
+					selection: "Can we move the sync to Thursday?",
+				},
+			},
+		});
+
+		await captureEntry(entry, deps);
+
+		const evals = (
+			deps.cdp.evaluate as ReturnType<typeof vi.fn>
+		).mock.calls.map((c: unknown[]) => c[0] as string);
+		const fire = evals.find((e) => e.includes("handleQuickPromptUri("));
+		expect(fire).toBeDefined();
+		expect(fire).toContain('"prompt":"draft-a-reply"');
+		expect(fire).toContain('"selection":"Can we move the sync to Thursday?"');
+	});
+
 	it("disableNativeMenus turns native menus off so a Menu renders as a DOM .menu", async () => {
 		const deps = makeDeps();
 		const entry = makeEntry({
@@ -3064,6 +3128,40 @@ describe("captureEntry — settings-window mode (I187 durable CDP capture)", () 
 			deps.cdp.captureSettingsWindow as ReturnType<typeof vi.fn>
 		).mock.invocationCallOrder[0];
 		expect(openOrder).toBeLessThan(capOrder);
+	});
+
+	// A settings group below the fold is only in the capture if the drive
+	// scrolls it into the settings window's viewport first (the window
+	// capture is the viewport, not the scrolled-away content).
+	it("scrolls the scrollToSettingText group to the top of the settings window before capture", async () => {
+		const deps = makeSettingsDeps();
+
+		await captureEntry(
+			makeSettingsEntry({
+				name: "settings-max-saved-chats",
+				initialState: {
+					openSettings: "agent-console",
+					scrollToSettingText: "Max saved chats",
+				},
+			}),
+			deps,
+		);
+
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		const calls = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		const scrollIdx = calls.findIndex(
+			(e) =>
+				e.includes("activeDocument") &&
+				e.includes('"Max saved chats"') &&
+				e.includes("scrollIntoView"),
+		);
+		expect(scrollIdx).toBeGreaterThanOrEqual(0);
+		expect(calls[scrollIdx]).toContain('block: "start"');
+		const scrollOrder = evalMock.mock.invocationCallOrder[scrollIdx];
+		const capOrder = (
+			deps.cdp.captureSettingsWindow as ReturnType<typeof vi.fn>
+		).mock.invocationCallOrder[0];
+		expect(scrollOrder).toBeLessThan(capOrder);
 	});
 });
 

@@ -182,6 +182,20 @@ export interface InitialState {
 	 */
 	forceMcpAuthNotice?: boolean;
 	/**
+	 * Kiro V3 (S4): force the in-chat "MCP servers didn't connect" notice by
+	 * injecting a `status_snapshot` with these servers marked failed into the
+	 * plugin's mcpAuthManager for the active tab, then open its Details so the
+	 * reasons show. Same manager path a real `_kiro/mcp/status` takes.
+	 */
+	forceMcpFailures?: { name: string; message?: string }[];
+	/**
+	 * Fire an `obsidian://agent-console` link through the plugin's own URI
+	 * handler with these query params (e.g. `{ prompt: "draft-a-reply",
+	 * selection: "…" }`), so the link-origin banner and staged prompt come from
+	 * the real code path.
+	 */
+	fireQuickPromptUri?: Record<string, string>;
+	/**
 	 * Disable native menus before capture so an Obsidian `Menu` popover renders
 	 * as a window-capturable DOM `.menu` instead of an OS popup (which would
 	 * otherwise need screen-mode). Mirrors the forceTabStates path.
@@ -232,7 +246,8 @@ export interface InitialState {
 			| "connecting"
 			| "doneUnseen"
 			| "stoppedUnseen"
-			| "failed";
+			| "failed"
+			| "released";
 	}[];
 	/**
 	 * Surface the ConfirmCloseModal for the confirm-close shot. The modal is
