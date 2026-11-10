@@ -93,10 +93,15 @@ function RemoveButton({
  */
 function FileChip({ file }: { file: AttachedFile }) {
 	const ref = useRef<HTMLDivElement | null>(null);
-	const imageAsFile = file.mimeType.startsWith("image/");
+	// Marked at intake, where the reason is known: an SVG or HEIC is always a
+	// file chip, even for an agent that takes images, so the mime type alone
+	// would make a false claim.
 	useTooltip(ref, {
 		visibleLabel: null,
-		reason: imageAsFile ? t("chat.composer.imageSentAsFile") : null,
+		reason:
+			file.sentAsFile === "agent-no-images"
+				? t("chat.composer.imageSentAsFile")
+				: null,
 	});
 	return (
 		<div ref={ref} className="agent-client-attachment-preview-file">

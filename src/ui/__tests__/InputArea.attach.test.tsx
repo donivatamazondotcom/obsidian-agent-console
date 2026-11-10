@@ -159,6 +159,7 @@ const PNG_LINK_EXPECTED = {
 	path: "/Users/me/shot.png",
 	mimeType: "image/png",
 	size: PNG_BYTES.length,
+	sentAsFile: "agent-no-images",
 };
 
 // ---- gestures ----------------------------------------------------------------
@@ -767,6 +768,13 @@ describe("image sent as a file (smoke H4, option b)", () => {
 		expect(chip.getAttribute("aria-label")).toBe(
 			"Sent as a file – this agent can't see images, so it opens the file instead",
 		);
+	});
+
+	it("an image format that never goes inline (SVG) makes no claim, even for an agent that takes images", async () => {
+		const h = renderHarness({ supportsImages: true, imageCapabilityKnown: true });
+		await pick(h.container, [diskFile("logo.svg", "image/svg+xml", "<svg/>")]);
+		const chip = q<HTMLElement>(h.container, ".agent-client-attachment-preview-file");
+		expect(chip.hasAttribute("aria-label")).toBe(false);
 	});
 
 	it("a non-image file chip has no such tooltip", async () => {

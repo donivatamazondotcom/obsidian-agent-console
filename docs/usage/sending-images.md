@@ -33,7 +33,7 @@ Images can be attached once the agent has connected (usually a second or two). C
 :::
 
 ::: tip
-Embedding images in messages requires agent support. If the agent doesn't support images, image files are sent as file references instead (via the paperclip, drag and drop, or paste from Finder/Explorer). They show as a file chip instead of a thumbnail; hover it to see why. The agent opens the file with its own tools.
+Embedding images in messages requires agent support. If the agent doesn't support images, image files are sent as file references instead (via the paperclip, drag and drop, or paste from Finder/Explorer). They show as a file chip instead of a thumbnail; hover it to see why. The agent can open the file with its own tools.
 :::
 
 ## Managing Attachments
