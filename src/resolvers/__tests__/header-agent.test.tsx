@@ -155,6 +155,12 @@ describe("deriveHeaderModelName", () => {
 		expect(deriveHeaderModelName({ confirmedModelId: "x-confirmed" })).toBe("x-confirmed");
 	});
 
+	it("I258: an unstamped confirmation goes stale once a selection appears", () => {
+		expect(
+			deriveHeaderModelName({ confirmedModelId: "x-confirmed", configOptions: [modelOption] }),
+		).toBe("Claude Opus 5.5");
+	});
+
 	it("no model anywhere → null", () => {
 		expect(deriveHeaderModelName({})).toBeNull();
 	});
