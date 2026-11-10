@@ -39,7 +39,7 @@ where.exe agy
 
 5. Keep **Arguments** set to `acp` (the default).
 
-Added `agy acp` as a custom agent before this built-in existed? Delete that custom agent under **Custom agents**, so Antigravity doesn't appear twice in your agent lists.
+Added `agy acp` as a custom agent before this built-in existed? Delete that custom agent under **Custom agents**, so Antigravity doesn't appear twice in your agent lists. Chats you started with the custom agent keep running on it until you delete it. If you gave the custom agent the id `antigravity-acp`, Agent Console renames it with a `-2` suffix the next time you edit its id, because that id now belongs to the built-in.
 
 ## Authentication
 
@@ -60,7 +60,7 @@ To sign in without a browser (for example over SSH), run `agy acp --login` inste
 1. Get an API key from [Google AI Studio](https://aistudio.google.com/apikey).
 2. In **Settings → Agent Console → Antigravity CLI → API key**, choose or create a secret with the key.
 
-Agent Console passes the key to Antigravity CLI as `GEMINI_API_KEY`. The key is kept in Obsidian's secret storage, not in your vault's plugin settings. When a key is chosen, it replaces any `GEMINI_API_KEY` in the **Environment variables** field.
+Agent Console passes the key to Antigravity CLI as `GEMINI_API_KEY`. The key is kept in Obsidian's secret storage, not in your vault's plugin settings. When a key is chosen, it replaces any `GEMINI_API_KEY` in the **Environment variables** field. If the chosen secret has no value on this device (for example after your settings synced from another computer), Antigravity CLI starts with an empty key and falls back to your sign-in; choose the secret again or clear the field.
 
 ## Models and thinking level
 

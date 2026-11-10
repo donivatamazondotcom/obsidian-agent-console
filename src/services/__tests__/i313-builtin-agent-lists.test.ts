@@ -24,6 +24,9 @@ import {
 	resolveUniqueAgentId,
 } from "../session-helpers";
 import { DEFAULT_SETTINGS, normalizeRawSettings as normalize } from "../settings-normalizer";
+import { BUILTIN_AGENT_INSTALLS } from "../agent-packages";
+import { DEFAULT_AGENT_PRIORITY, chooseFirstRunDefault, detectAvailableAgents } from "../agent-detection";
+import { buildAgentDetectionCandidates } from "../session-helpers";
 
 /** Load raw settings the way plugin.ts does; secret ids pass through unchanged. */
 const normalizeRawSettings = (raw: Record<string, unknown>) =>
@@ -66,6 +69,34 @@ describe("I313: built-in agents come from one list", () => {
 			expect(getCurrentAgent(DEFAULT_SETTINGS, id).displayName).toBe(name);
 		},
 	);
+
+	it("the first-run panel and the detection order cover every built-in", () => {
+		const ids = builtInAgentIds(DEFAULT_SETTINGS);
+		expect(BUILTIN_AGENT_INSTALLS.map((a) => a.id)).toEqual(ids);
+		expect([...DEFAULT_AGENT_PRIORITY].sort()).toEqual([...ids].sort());
+	});
+
+	it.each([["opencode"], ["agy"]])(
+		"first run with only %s installed: the detected default survives the next load",
+		async (command) => {
+			const detected = await detectAvailableAgents(
+				buildAgentDetectionCandidates(DEFAULT_SETTINGS),
+				async (cmd) => (cmd === command ? `/bin/${cmd}` : null),
+			);
+			const chosen = chooseFirstRunDefault(detected, DEFAULT_SETTINGS.defaultAgentId);
+			expect(chosen).not.toBe(DEFAULT_SETTINGS.defaultAgentId);
+			expect(normalizeRawSettings({ defaultAgentId: chosen }).defaultAgentId).toBe(chosen);
+		},
+	);
+
+	it("the header label for a custom agent and an unknown id is unchanged", () => {
+		const withCustom = {
+			...DEFAULT_SETTINGS,
+			customAgents: [{ id: "custom-agent", displayName: "My Agent", command: "x", args: [], env: [] }],
+		};
+		expect(getCurrentAgent(withCustom, "custom-agent").displayName).toBe("My Agent");
+		expect(getCurrentAgent(withCustom, "test-agent-gone").displayName).toBe("test-agent-gone");
+	});
 
 	it("an unknown agent id still falls back to Claude Code on load", () => {
 		expect(normalizeRawSettings({ defaultAgentId: "test-agent-gone" }).defaultAgentId).toBe("claude-code-acp");
