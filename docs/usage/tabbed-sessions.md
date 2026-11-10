@@ -51,17 +51,29 @@ A `˅` chevron beside it opens a dropdown listing **every** tab — including an
 
 See which chat needs you without opening a list. New installs start with vertical tabs, icons only. If you've used Agent Console before, your tabs stay in the top bar until you choose **Vertical** in **Settings → Tabs → Tab display**. The tabs move from the top into a narrow column on the right edge of the chat view. Each tab shows only its [status icon](#the-tab-bar), so in a narrow sidebar you can see 20 tabs or more at a glance. Choose **Horizontal** to go back to the top bar. The change takes effect at once and doesn't disturb your open chats.
 
+<p align="center">
+  <img src="/images/tab-rail-icons.webp" alt="Agent Console with tabs in a slim column on the right, each tab shown only as its status icon" />
+</p>
+
 - **See a tab's name** – hover a tab. The first one takes a moment; after that, every tab you pass shows its name and status straight away. Press `Esc` to hide it.
 - **Show names all the time** – drag the column's inner edge to make it wider. From about twice its narrow width it shows names, cut off with "…" when they're long; let go below that and it snaps back to icons only. Double-click the edge to switch between icons only and your last width. Your width is kept across restarts.
 - **Close a tab in one click** – when the column is wide enough to show names (about three times its narrow width), hover a tab and click the × that appears at its right end. The × shows only while you hover, so a resting column shows just status and names. In the narrow, icons-only column there's no × – middle-click or right-click instead, or widen the column.
 - **Everything else works the same** – click a tab to switch, middle-click to close it, and right-click for Rename, Rename with AI and Close (on the column, "Close to the right" reads "Close below"). `+` and `˅` sit at the top of the column.
 - **Keyboard** – `Tab` to the column, then `↑` / `↓` to move between tabs and `Enter` to switch. Press `Delete` (or `Backspace`) to close the tab you're on; focus moves to the tab that takes its place. Holding the key closes just one tab. You can also press the context-menu key or `Shift+F10` and choose **Close**. The resize edge is a `Tab` stop too: `←` makes the column wider, `→` narrower, and `Enter` switches between icons only and names.
 
+<p align="center">
+  <img src="/images/tab-rail-names.webp" alt="Agent Console tabs in a widened column on the right, each with its status icon and name" />
+</p>
+
 Reordering tabs by dragging works in the top bar only.
 
 ### What's new after an update
 
 When you update Agent Console, a small **What's new** card appears once at the top of the chat view – not once per tab. For this release it offers **Try vertical tabs**, which moves your tabs into the column straight away, and **Switch back to top tabs** to undo it. The button always matches your current setting, even after a restart. Click **×** to dismiss the card; it stays gone in every chat view until the next update with something new. To see it again, run **Show what's new** from the command palette. New installs start on vertical tabs already, so they don't get the card.
+
+<p align="center">
+  <img src="/images/whats-new-card.webp" alt="Agent Console chat view with a What's new card above the chat offering Try vertical tabs and Release notes" />
+</p>
 
 ## Creating tabs
 
@@ -263,6 +275,10 @@ Switching the agent for an existing tab also waits for interaction. It rebinds t
 **Keep lots of tabs open without slowing your computer down.** A tab you haven't used for an hour, while you work in another tab, goes to sleep: its agent stops to free memory. An agent with its tools can use several hundred megabytes, so a long day with many tabs adds up.
 
 A sleeping tab shows a small moon instead of its usual dot. Hover it to see "Asleep to save memory." Tabs that come back after you restart Obsidian or reopen the panel, and chats you reopen (a closed tab, or a chat restored from session history), show the moon too. That includes the tab you're looking at, because its agent hasn't picked the conversation back up yet. The conversation stays on screen. Start typing or send a message and the tab wakes up in the same conversation, after a short "connecting" moment. Picking a model or mode on a sleeping tab wakes it first, then applies your choice.
+
+<p align="center">
+  <img src="/images/sleeping-tab.webp" alt="Tab bar with one tab showing a moon icon, meaning it is asleep to save memory" />
+</p>
 
 A tab never goes to sleep while it's the tab you're looking at, or while something is going on in it: a reply streaming, a permission question, a queued message, a running terminal, an AI rename, or text in the message box.
 

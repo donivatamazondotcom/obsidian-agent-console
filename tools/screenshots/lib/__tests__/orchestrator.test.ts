@@ -2943,6 +2943,26 @@ describe("captureEntry — modal hygiene (leftover-modal leak fix)", () => {
 	const MODAL_CLOSE = (e: string) =>
 		e.includes(".modal-container") && e.includes(".modal-close-button");
 
+	// A DOM .menu opened by an earlier shot (tab-status-dropdown with native
+	// menus off) is app state that survives the plugin reload, and it was
+	// captured over the next shot's update pill.
+	it("closes any leftover DOM menu at the start of every capture", async () => {
+		const deps = makeDeps();
+
+		await captureEntry(makeEntry(), deps);
+
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		const evals = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		const menuIdx = evals.findIndex(
+			(e) =>
+				e.includes('querySelectorAll(".menu")') && e.includes(".remove()"),
+		);
+		expect(menuIdx).toBeGreaterThanOrEqual(0);
+		const shotOrder = (deps.cdp.screenshot as ReturnType<typeof vi.fn>).mock
+			.invocationCallOrder[0];
+		expect(evalMock.mock.invocationCallOrder[menuIdx]).toBeLessThan(shotOrder);
+	});
+
 	it("dismisses any leftover modal at the start of every capture", async () => {
 		const deps = makeDeps();
 		const entry = makeEntry();

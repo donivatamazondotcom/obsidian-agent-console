@@ -113,3 +113,7 @@ server that failed to start, with Kiro's reason under **Details** (for
 example, a command that isn't installed). The note updates by itself and
 goes away when the servers connect. **Dismiss** hides it until a different
 server fails.
+
+<p align="center">
+  <img src="/images/kiro-v3-mcp-failure-notice.webp" alt="Note at the top of a chat listing MCP servers that didn't connect, with each server's reason under Details" />
+</p>
