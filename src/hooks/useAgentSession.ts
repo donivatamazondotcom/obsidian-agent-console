@@ -93,9 +93,10 @@ export interface UseAgentSessionReturn {
 	 * when it has EXITED (I230). Skips the disconnect when `stillCurrent()`
 	 * turned false (a reset happened). Sends no cancel: nothing is in flight.
 	 * Keeps last-known models, modes and commands for display. The next
-	 * acquisition re-initializes. If that acquisition fails without a
-	 * startup error, or a reset skips it, `state` stays `initializing`; no
-	 * reader depends on it (the tab reads the lazy owner's state).
+	 * acquisition re-initializes. If the restart throws, the acquisition
+	 * fails without a startup error, or a reset skips it, `state` stays
+	 * `initializing`; readers treat it like any non-ready state (the tab
+	 * reads the lazy owner's state).
 	 */
 	restartForReload: (stillCurrent: () => boolean) => Promise<void>;
 	/**
