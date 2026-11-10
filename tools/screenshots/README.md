@@ -160,6 +160,10 @@ It fails (non-zero) if:
 
 It does **not** regenerate screenshots: most shots are driven by a real agent and are non-deterministic by design (Decision 2), so a content-hash compare is infeasible — true visual-regression is deferred to F02 (Percy/Chromatic, loose thresholds). CI runs this check (plus the unit tests) on every PR — see `.github/workflows/ci.yaml`.
 
+## Tab display during captures
+
+The fixtures vault opens on vertical tabs (`tabDisplay: "vertical"` in `data.template.json`), the layout smoke tests are run in. Most committed shots show the top tab bar, so every capture applies `tabDisplay: "horizontal"` for the length of the entry and then puts the vault's own value back. An entry that wants the vertical rail sets it in `initialState.pluginSettings` (for example `{ "tabDisplay": "vertical", "tabRailWidth": 32 }`). `pluginSettings` applies on every capture path: stills, animated GIFs and settings-window shots.
+
 ## Fixture theme: capture-only styling
 
 The fixtures vault uses a custom `Fixture` theme (`fixtures/studio/.obsidian/themes/Fixture/theme.css`) to keep captures clean and deterministic — e.g. hiding the transient scroll-to-bottom pill and the network-driven info banners that must never appear in docs images.

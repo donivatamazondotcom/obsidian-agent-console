@@ -210,6 +210,10 @@ keep = {
 	"migrationNoticeShown", "legacySessionsMigrated", "settingsImportOfferShown",
 }
 seeded = {k: v for k, v in d.items() if k in keep}
+# Smoke vaults open on vertical tabs, the layout smoke tests are run in. The
+# code default for a vault that already has data.json is the top bar, so set
+# it here; --first-run deletes data.json and gets the new-install default.
+seeded["tabDisplay"] = "vertical"
 json.dump(seeded, open(p, "w"), indent=2)
 PY
 	fi

@@ -162,5 +162,6 @@
   "perLeafTabStates": [],
   "legacySessionsMigrated": true,
   "settingsImportOfferShown": true,
-  "defaultWorkingDirectory": "/tmp/notes"
+  "defaultWorkingDirectory": "/tmp/notes",
+  "tabDisplay": "vertical"
 }
