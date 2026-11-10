@@ -44,6 +44,7 @@ import {
 	restoreLegacyConfig,
 } from "../services/session-state";
 import { resolveModeRequest } from "../resolvers/session-modes";
+import { deriveModelSelection } from "../resolvers/header-agent";
 import { launchedEngine,
 	launchedFallback } from "../resolvers/session-engine";
 import {
@@ -259,9 +260,12 @@ export function useAgentSession(
 					}));
 					break;
 				case "model_update":
+					// I258: stamp the selection this confirmation arrived
+					// under, so a later picker switch makes it stale.
 					setSession((prev) => ({
 						...prev,
 						confirmedModelId: update.modelId,
+						confirmedUnder: deriveModelSelection(prev),
 					}));
 					break;
 				case "process_error":
@@ -314,6 +318,7 @@ export function useAgentSession(
 				// hasn't confirmed one yet, so the header must not carry the
 				// old model through the initializing window (I197).
 				confirmedModelId: undefined,
+				confirmedUnder: undefined,
 				configOptions: undefined,
 				usage: undefined,
 				promptCapabilities: prev.promptCapabilities,
@@ -628,6 +633,7 @@ export function useAgentSession(
 				// switch — the header reads confirmedModelId directly, so a
 				// stale value renders the old model under the new agent (I197).
 				confirmedModelId: undefined,
+				confirmedUnder: undefined,
 				configOptions: undefined,
 				usage: undefined,
 				promptCapabilities: undefined,

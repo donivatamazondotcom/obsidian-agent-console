@@ -13,8 +13,9 @@
  *     (non-Kiro) and sessions with no mode info yet (connecting).
  * The mode config option (Kiro CLI V3) wins over the legacy `modes` state.
  *
- * `deriveHeaderModelName` — confirmed model, then legacy `models`, then the
- * `model` config option (Kiro CLI V3 sends only that).
+ * `deriveHeaderModelName` — the confirmed model while the selection it was
+ * confirmed under is unchanged, then the `model` config option (what the
+ * picker writes), then legacy `models` (I258).
  *
  * `deriveHeaderEngine` — the tooltip's Engine line: Kiro CLI V2 or V3 for a
  * kiro-cli process (`session.kiroCli`), else what the agent reported in
@@ -64,23 +65,51 @@ export function deriveHeaderAgent(input: HeaderAgentInput): HeaderAgent {
 		: { kind: "notLoaded", label, running: state.current.name };
 }
 
+/**
+ * The model the user has selected: the `model` config option's value, else
+ * the legacy `models.currentModelId`. The config option wins because it is
+ * what the picker shows and writes when an agent sends both (I258).
+ */
+export function deriveModelSelection(input: {
+	models?: SessionModelState | null;
+	configOptions?: SessionConfigOption[];
+}): string | undefined {
+	return (
+		findOption(input.configOptions, "model")?.currentValue ||
+		input.models?.currentModelId ||
+		undefined
+	);
+}
+
 export function deriveHeaderModelName(input: {
 	confirmedModelId?: string | null;
+	/** Selection the confirmation was reported under (`session.confirmedUnder`). */
+	confirmedUnder?: string;
 	models?: SessionModelState | null;
 	configOptions?: SessionConfigOption[];
 }): string | null {
-	if (input.confirmedModelId) return input.confirmedModelId;
-	const models = input.models;
-	const legacy = models?.availableModels.find(
-		(m) => m.modelId === models.currentModelId,
-	)?.name;
-	if (legacy) return legacy;
+	// I258: a confirmation describes the selection it arrived under. Once the
+	// user picks another model it is stale until the agent confirms again.
+	if (
+		input.confirmedModelId &&
+		(input.confirmedUnder === undefined ||
+			input.confirmedUnder === deriveModelSelection(input))
+	) {
+		return input.confirmedModelId;
+	}
 	const option = findOption(input.configOptions, "model");
-	if (!option) return null;
-	const current = flattenConfigSelectOptions(option.options).find(
-		(o) => o.value === option.currentValue,
+	if (option) {
+		const current = flattenConfigSelectOptions(option.options).find(
+			(o) => o.value === option.currentValue,
+		);
+		const name = current?.name || option.currentValue;
+		if (name) return name;
+	}
+	const models = input.models;
+	return (
+		models?.availableModels.find((m) => m.modelId === models.currentModelId)
+			?.name ?? null
 	);
-	return current?.name || option.currentValue || null;
 }
 
 export type HeaderEngine =
