@@ -38,6 +38,8 @@ export const DEFAULT_AGENT_PRIORITY: readonly string[] = [
 	"kiro-cli",
 	"claude-code-acp",
 	"codex-acp",
+	// Ahead of Gemini CLI: Google moved individual accounts to Antigravity.
+	"antigravity-acp",
 	"gemini-cli",
 	"opencode-acp",
 ];

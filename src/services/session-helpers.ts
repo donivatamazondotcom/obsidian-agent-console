@@ -14,11 +14,13 @@ import type {
 	BaseAgentSettings,
 	ClaudeAgentSettings,
 	GeminiAgentSettings,
+	AntigravityAgentSettings,
 	CodexAgentSettings,
 } from "../types/agent";
 import type { ChatSession, SavedSessionInfo } from "../types/session";
 import type { AgentCandidate } from "./agent-detection";
 import { toAgentConfig } from "./settings-normalizer";
+import { builtInAgentIds, builtInAgentSettings } from "./builtin-agents";
 import { agentLaunchKey } from "../utils/agent-launch-key";
 import {
 	resolveAgentWorkingDirectory,
@@ -58,26 +60,10 @@ export function getAvailableAgentsFromSettings(
 	settings: AgentClientPluginSettings,
 ): AgentDisplayInfo[] {
 	return [
-		{
-			id: settings.claude.id,
-			displayName: settings.claude.displayName || settings.claude.id,
-		},
-		{
-			id: settings.codex.id,
-			displayName: settings.codex.displayName || settings.codex.id,
-		},
-		{
-			id: settings.gemini.id,
-			displayName: settings.gemini.displayName || settings.gemini.id,
-		},
-		{
-			id: settings.kiro.id,
-			displayName: settings.kiro.displayName || settings.kiro.id,
-		},
-		{
-			id: settings.opencode.id,
-			displayName: settings.opencode.displayName || settings.opencode.id,
-		},
+		...builtInAgentSettings(settings).map((agent) => ({
+			id: agent.id,
+			displayName: agent.displayName || agent.id,
+		})),
 		...settings.customAgents.map((agent) => ({
 			id: agent.id,
 			displayName: agent.displayName || agent.id,
@@ -164,7 +150,7 @@ export function indexOfCurrentAgent(
 
 /**
  * All agent ids currently in use EXCEPT the custom agent at `excludeIndex`
- * (pass -1 to exclude none). Includes the four built-in ids plus every other
+ * (pass -1 to exclude none). Includes every built-in id (I313) plus every other
  * custom agent's id. Used to validate a custom agent id for uniqueness (I105
  * prevention) so a custom agent can't be saved with an id that collides a
  * built-in (where findAgentSettings would shadow it) or another custom agent.
@@ -173,12 +159,7 @@ export function collectAgentIdsExcept(
 	settings: AgentClientPluginSettings,
 	excludeIndex: number,
 ): string[] {
-	const ids = [
-		settings.claude.id,
-		settings.codex.id,
-		settings.gemini.id,
-		settings.kiro.id,
-	];
+	const ids = builtInAgentIds(settings);
 	settings.customAgents.forEach((agent, i) => {
 		if (i !== excludeIndex) ids.push(agent.id);
 	});
@@ -234,21 +215,10 @@ export function findAgentSettings(
 	settings: AgentClientPluginSettings,
 	agentId: string,
 ): BaseAgentSettings | null {
-	if (agentId === settings.claude.id) {
-		return settings.claude;
-	}
-	if (agentId === settings.codex.id) {
-		return settings.codex;
-	}
-	if (agentId === settings.gemini.id) {
-		return settings.gemini;
-	}
-	if (agentId === settings.kiro.id) {
-		return settings.kiro;
-	}
-	if (agentId === settings.opencode.id) {
-		return settings.opencode;
-	}
+	const builtIn = builtInAgentSettings(settings).find(
+		(agent) => agent.id === agentId,
+	);
+	if (builtIn) return builtIn;
 	// Search in custom agents
 	const customAgent = settings.customAgents.find(
 		(agent) => agent.id === agentId,
@@ -419,6 +389,14 @@ export function buildAgentConfigWithApiKey(
 				envVarName: "GEMINI_API_KEY",
 			},
 		};
+	}
+	if (agentId === settings.antigravity.id) {
+		// Optional key: unlike Gemini CLI, pass nothing when no secret is set,
+		// so a signed-in launch (or an env-field key) is left alone.
+		const secretId = (agentSettings as AntigravityAgentSettings).apiKeySecretId;
+		return secretId
+			? { ...baseConfig, apiKey: { secretId, envVarName: "GEMINI_API_KEY" } }
+			: baseConfig;
 	}
 
 	const kiroEngine = resolveAgentKiroEngine(settings, agentId);

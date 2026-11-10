@@ -64,6 +64,12 @@ export const BUILTIN_AGENT_INSTALLS: readonly BuiltInAgentInstall[] = [
 		docsSlug: "opencode",
 		npmPackage: null,
 	},
+	{
+		id: "antigravity-acp",
+		displayName: "Antigravity CLI",
+		docsSlug: "antigravity-cli",
+		npmPackage: null,
+	},
 ];
 
 /** The one-line global install command for an npm package. */

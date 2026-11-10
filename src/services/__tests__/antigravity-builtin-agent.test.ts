@@ -115,7 +115,7 @@ describe("Antigravity CLI built-in agent", () => {
 			apiKeySecretId: "",
 		});
 		expect(
-			normalizeRawSettings({ antigravity: { id: "hijack", command: 7, args: "x" } }).antigravity,
+			normalizeRawSettings({ antigravity: { id: "hijack", command: 7, args: 7 } }).antigravity,
 		).toMatchObject({ id: ID, command: "agy", args: ["acp"] });
 	});
 

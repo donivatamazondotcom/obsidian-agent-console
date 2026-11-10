@@ -222,6 +222,15 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 		'opencode의 명령 이름 또는 경로입니다. "opencode"만 입력하면 로그인 셸이 찾아 주고, 절대 경로를 입력할 수도 있습니다(보통 ~/.opencode/bin/opencode).',
 	"settings.arguments.desc3":
 		'인수를 공백이나 줄 바꿈으로 구분해 입력하세요. 공백이 포함된 인수는 따옴표로 감싸세요. OpenCode는 "acp" 하위 명령이 필요합니다.',
+	"settings.setup.desc9": "Antigravity CLI는 Google 계정으로 로그인합니다. 터미널에서 \"agy\"를 한 번 실행해 로그인한 다음 Antigravity CLI를 선택하세요. 이런 앱에는 Google이 Gemini API 키 사용을 권장합니다. Antigravity CLI 설정 가이드를 참고하세요.",
+	"settings.apiKey.name4": "API 키",
+	"settings.apiKey.desc4": "선택 사항인 Gemini API 키로, GEMINI_API_KEY로 Antigravity CLI에 전달됩니다. 비워 두면 Antigravity 로그인을 사용합니다. Obsidian 키체인에서 선택하거나 새 시크릿을 만드세요.",
+	"settings.path.name7": "경로",
+	"settings.path.desc7": "agy의 명령 이름 또는 경로입니다. \"agy\"만 입력하면 로그인 셸이 찾고, 절대 경로(보통 /opt/homebrew/bin/agy)를 입력할 수도 있습니다.",
+	"settings.arguments.name7": "인수",
+	"settings.arguments.desc7": "인수를 공백이나 줄바꿈으로 구분해 입력하세요. 공백이 있는 인수는 따옴표로 감싸세요. Antigravity CLI에는 \"acp\" 하위 명령이 필요합니다.",
+	"settings.environmentVariables.name7": "환경 변수",
+	"settings.environmentVariables.desc7": "KEY=VALUE를 한 줄에 하나씩 입력하세요. 필요한 경우가 아니면 비워 두세요. 위에서 API 키를 선택하면 여기 설정한 GEMINI_API_KEY 대신 사용됩니다.",
 	"settings.path.desc4":
 		'claude-agent-acp의 명령 이름 또는 경로입니다. "claude-agent-acp"만 입력하면 로그인 셸이 찾아 주고, 절대 경로를 입력할 수도 있습니다.',
 	"settings.path.desc5":

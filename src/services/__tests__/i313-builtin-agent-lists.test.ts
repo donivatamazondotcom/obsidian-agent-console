@@ -31,7 +31,7 @@ const normalizeRawSettings = (raw: Record<string, unknown>) =>
 import {
 	builtInAgentIds,
 	builtInAgentSettings,
-	deriveBuiltInCommandsKey,
+	builtInAgentCommandsKey,
 } from "../builtin-agents";
 
 /** Every DEFAULT_SETTINGS entry that is an agent (an object with an id). */
@@ -53,7 +53,7 @@ describe("I313: built-in agents come from one list", () => {
 		expect(getAvailableAgentsFromSettings(DEFAULT_SETTINGS).map((a) => a.id)).toContain(id);
 		expect(findAgentSettings(DEFAULT_SETTINGS, id)?.id).toBe(id);
 		expect(collectAgentIdsExcept(DEFAULT_SETTINGS, -1)).toContain(id);
-		expect(deriveBuiltInCommandsKey(DEFAULT_SETTINGS).split("\u0000")).toContain(agent.command);
+		expect(builtInAgentCommandsKey(DEFAULT_SETTINGS).split("\u0000")).toContain(agent.command);
 	});
 
 	it.each(BUILT_INS.map((a) => [a.id] as const))("a %s default survives a settings load", (id) => {
@@ -68,7 +68,7 @@ describe("I313: built-in agents come from one list", () => {
 	);
 
 	it("an unknown agent id still falls back to Claude Code on load", () => {
-		expect(normalizeRawSettings({ defaultAgentId: "gone-agent" }).defaultAgentId).toBe("claude-code-acp");
+		expect(normalizeRawSettings({ defaultAgentId: "test-agent-gone" }).defaultAgentId).toBe("claude-code-acp");
 	});
 
 	it("a custom agent renamed to a built-in id gets a suffix", () => {

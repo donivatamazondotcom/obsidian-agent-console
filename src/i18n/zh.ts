@@ -212,6 +212,15 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 		'opencode 的命令名称或路径。只填 "opencode" 可由登录 shell 解析，也可以输入绝对路径（通常为 ~/.opencode/bin/opencode）。',
 	"settings.arguments.desc3":
 		'输入参数，用空格或换行分隔。含空格的参数请加引号。OpenCode 需要 "acp" 子命令。',
+	"settings.setup.desc9": "Antigravity CLI 使用你的 Google 账号登录。在终端中运行一次 \"agy\" 完成登录，然后选择 Antigravity CLI。对于此类应用，Google 建议使用 Gemini API 密钥，详见 Antigravity CLI 设置指南。",
+	"settings.apiKey.name4": "API 密钥",
+	"settings.apiKey.desc4": "可选的 Gemini API 密钥，会以 GEMINI_API_KEY 传给 Antigravity CLI。留空则使用你的 Antigravity 登录。从 Obsidian 钥匙串中选择或新建一个密钥。",
+	"settings.path.name7": "路径",
+	"settings.path.desc7": "agy 的命令名称或路径。只填 \"agy\" 会由登录 shell 解析，也可以填绝对路径（通常是 /opt/homebrew/bin/agy）。",
+	"settings.arguments.name7": "参数",
+	"settings.arguments.desc7": "用空格或换行分隔参数。包含空格的参数请加引号。Antigravity CLI 需要 \"acp\" 子命令。",
+	"settings.environmentVariables.name7": "环境变量",
+	"settings.environmentVariables.desc7": "每行输入一个 KEY=VALUE。除非你的环境需要，否则留空。上方选择了 API 密钥时，它会替代这里设置的 GEMINI_API_KEY。",
 	"settings.path.desc4":
 		'claude-agent-acp 的命令名称或路径。只填 "claude-agent-acp" 可由登录 shell 解析，也可以输入绝对路径。',
 	"settings.path.desc5":

@@ -65,6 +65,7 @@ function makeSettings(engine: Engine) {
 		gemini: { id: "gemini", displayName: "Gemini" },
 		kiro: { id: "kiro", displayName: "Kiro" },
 		opencode: { id: "opencode-acp", displayName: "OpenCode" },
+		antigravity: { id: "antigravity-acp", displayName: "Antigravity CLI", command: "agy", args: ["acp"], env: [], apiKeySecretId: "" },
 		customAgents: [agent],
 		lastUsedModels: {},
 		lastUsedModes: {},

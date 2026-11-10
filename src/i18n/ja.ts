@@ -226,6 +226,15 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 		"opencode のコマンド名またはパスです。「opencode」とだけ入力するとログインシェルが解決します。絶対パスも入力できます（通常は ~/.opencode/bin/opencode）。",
 	"settings.arguments.desc3":
 		"引数はスペースまたは改行で区切って入力してください。スペースを含む引数は引用符で囲んでください。OpenCode には「acp」サブコマンドが必要です。",
+	"settings.setup.desc9": "Antigravity CLI は Google アカウントでサインインします。ターミナルで一度「agy」を実行してサインインしてから、Antigravity CLI を選択してください。このようなアプリでは Google は Gemini API キーの使用を推奨しています。Antigravity CLI のセットアップガイドをご覧ください。",
+	"settings.apiKey.name4": "API キー",
+	"settings.apiKey.desc4": "任意の Gemini API キー。GEMINI_API_KEY として Antigravity CLI に渡されます。空のままにすると Antigravity のサインインを使います。Obsidian のキーチェーンから選択するか、新しいシークレットを作成してください。",
+	"settings.path.name7": "パス",
+	"settings.path.desc7": "agy のコマンド名またはパス。「agy」だけを入力するとログインシェルで解決されます。絶対パス（通常は /opt/homebrew/bin/agy）も指定できます。",
+	"settings.arguments.name7": "引数",
+	"settings.arguments.desc7": "引数をスペースまたは改行で区切って入力します。スペースを含む引数は引用符で囲んでください。Antigravity CLI には「acp」サブコマンドが必要です。",
+	"settings.environmentVariables.name7": "環境変数",
+	"settings.environmentVariables.desc7": "KEY=VALUE を 1 行に 1 つずつ入力します。必要な場合以外は空のままにしてください。上で API キーを選択すると、ここで設定した GEMINI_API_KEY より優先されます。",
 	"settings.path.desc4":
 		"claude-agent-acp のコマンド名またはパスです。「claude-agent-acp」とだけ入力するとログインシェルが解決します。絶対パスも入力できます。",
 	"settings.path.desc5":

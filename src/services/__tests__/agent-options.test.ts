@@ -19,6 +19,7 @@ const base = {
 	gemini: { id: "gemini-cli", displayName: "Gemini CLI" },
 	kiro: { id: "kiro-cli", displayName: "Kiro CLI" },
 	opencode: { id: "opencode-acp", displayName: "OpenCode" },
+	antigravity: { id: "antigravity-acp", displayName: "Antigravity CLI", command: "agy", args: ["acp"], env: [], apiKeySecretId: "" },
 	customAgents: [],
 } as unknown as AgentClientPluginSettings;
 
@@ -32,6 +33,7 @@ describe("agentOptionsFromSettings (Default-agent dropdown)", () => {
 			"gemini-cli",
 			"kiro-cli",
 			"opencode-acp",
+			"antigravity-acp",
 		]);
 	});
 

@@ -72,6 +72,8 @@ import {
 	collectAgentIdsExcept,
 	resolveUniqueAgentId,
 } from "../services/session-helpers";
+import { builtInAgentSettings } from "../services/builtin-agents";
+import type { AntigravityAgentSettings } from "../types/agent";
 import { deriveImportPlacement } from "../utils/settings-layout";
 import { redrawPreservingScroll } from "../utils/preserve-scroll";
 
@@ -667,6 +669,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 				this.agentPage(() => s().gemini.displayName || "Gemini CLI", () => this.geminiRows()),
 				this.agentPage(() => s().kiro.displayName || "Kiro CLI", () => this.kiroRows()),
 				this.agentPage(() => s().opencode.displayName || "OpenCode", () => this.opencodeRows()),
+				this.agentPage(() => s().antigravity.displayName || "Antigravity CLI", () => this.antigravityRows()),
 			] as SettingGroupItem[],
 		};
 	}
@@ -1441,6 +1444,12 @@ export class AgentClientSettingTab extends PluginSettingTab {
 			this.plugin.settings.opencode.id,
 			this.plugin.settings.opencode.displayName || "OpenCode",
 			(el) => this.renderOpenCodeSettings(el),
+		);
+		this.renderCollapsibleAgentSection(
+			containerEl,
+			this.plugin.settings.antigravity.id,
+			this.plugin.settings.antigravity.displayName || "Antigravity CLI",
+			(el) => this.renderAntigravitySettings(el),
 		);
 
 		new Setting(containerEl).setName(t("settings.heading.customAgents")).setHeading();
@@ -2389,6 +2398,88 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		];
 	}
 
+	private renderAntigravitySettings(sectionEl: HTMLElement) {
+		this.renderAgentRows(sectionEl, this.antigravityRows());
+	}
+
+	private antigravityRows(): AgentRow[] {
+		const update = async (patch: Partial<AntigravityAgentSettings>) => {
+			await this.plugin.settingsService.updateSettings({
+				antigravity: { ...this.plugin.settings.antigravity, ...patch },
+			});
+		};
+		return [
+			{
+				name: t("settings.setup.name"),
+				desc: t("settings.setup.desc9"),
+				render: () => {},
+			},
+			{
+				name: t("settings.apiKey.name4"),
+				desc: t("settings.apiKey.desc4"),
+				render: (setting) => {
+					setting.addComponent((el) =>
+						new SecretComponent(this.app, el)
+							.setValue(this.plugin.settings.antigravity.apiKeySecretId)
+							.onChange(async (value) => {
+								await update({ apiKeySecretId: value });
+							}),
+					);
+				},
+			},
+			{
+				name: t("settings.path.name7"),
+				desc: t("settings.path.desc7"),
+				render: (setting) => {
+					setting.addText((text) => {
+						text.setPlaceholder(t("settings.path.placeholder7"))
+							.setValue(this.plugin.settings.antigravity.command)
+							.onChange(async (value) => {
+								await update({ command: value.trim() });
+							});
+					});
+					this.addAutoDetectButton(setting, "agy", async (path) => {
+						await update({ command: path });
+					});
+				},
+			},
+			{
+				name: t("settings.arguments.name7"),
+				desc: t("settings.arguments.desc7"),
+				render: (setting) => {
+					setting.addTextArea((text) => {
+						text.setPlaceholder(t("settings.arguments.placeholder7"))
+							.setValue(this.formatArgs(this.plugin.settings.antigravity.args))
+							.onChange(async (value) => {
+								await update({ args: this.parseArgs(value) });
+							});
+						text.inputEl.rows = 3;
+					});
+				},
+			},
+			{
+				name: t("settings.environmentVariables.name7"),
+				desc: t("settings.environmentVariables.desc7"),
+				render: (setting) => {
+					setting.addTextArea((text) => {
+						text.setPlaceholder(t("settings.environmentVariables.placeholder7"))
+							.setValue(this.formatEnv(this.plugin.settings.antigravity.env))
+							.onChange(async (value) => {
+								await update({ env: this.parseEnv(value) });
+							});
+						text.inputEl.rows = 3;
+					});
+				},
+			},
+			this.agentWorkingDirectoryRow(
+				() => this.plugin.settings.antigravity.defaultWorkingDirectory ?? "",
+				async (value) => {
+					await update({ defaultWorkingDirectory: value });
+				},
+			),
+		];
+	}
+
 	private renderClaudeSettings(sectionEl: HTMLElement) {
 		this.renderAgentRows(sectionEl, this.claudeRows());
 	}
@@ -2934,18 +3025,10 @@ export class AgentClientSettingTab extends PluginSettingTab {
 
 	private generateCustomAgentDisplayName(): string {
 		const base = t("settings.customAgents.defaultName");
-		const existing = new Set<string>();
-		existing.add(
-			this.plugin.settings.claude.displayName ||
-				this.plugin.settings.claude.id,
-		);
-		existing.add(
-			this.plugin.settings.codex.displayName ||
-				this.plugin.settings.codex.id,
-		);
-		existing.add(
-			this.plugin.settings.gemini.displayName ||
-				this.plugin.settings.gemini.id,
+		const existing = new Set<string>(
+			builtInAgentSettings(this.plugin.settings).map(
+				(agent) => agent.displayName || agent.id,
+			),
 		);
 		for (const item of this.plugin.settings.customAgents) {
 			existing.add(item.displayName || item.id);

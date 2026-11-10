@@ -167,6 +167,7 @@ describe("I316 through useAgent + useTabUnseen (ChatPanel wiring)", () => {
 			gemini: { id: "gemini", displayName: "Gemini" },
 			kiro: { id: "kiro", displayName: "Kiro" },
 			opencode: { id: "opencode-acp", displayName: "OpenCode" },
+			antigravity: { id: "antigravity-acp", displayName: "Antigravity CLI", command: "agy", args: ["acp"], env: [], apiKeySecretId: "" },
 			customAgents: [
 				{ id: AGENT, displayName: "Test Agent", command: "fake-acp", args: [], env: [] },
 			],
