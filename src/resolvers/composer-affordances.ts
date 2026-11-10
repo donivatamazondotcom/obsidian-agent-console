@@ -114,8 +114,20 @@ export interface ComposerAffordances {
 	quickPromptFire: ComposerQuickPromptFire;
 	/** Context behavior on send. */
 	context: ComposerContext;
-	/** Show the image-attachment control. */
+	/**
+	 * Images go inline (as Base64 `image` blocks). Despite the name, this is
+	 * NOT "attachments are live": non-image files attach on every tab, and an
+	 * image goes as a file link when this is false. Fed to InputArea as
+	 * `supportsImages`.
+	 */
 	showAttachments: boolean;
+	/**
+	 * Offer the attach button (and accept files at all). False on the landing,
+	 * which can't carry attachments into the tab it launches (I320); true on
+	 * every tab, whatever the capabilities. `deriveAttachIntake` refines it
+	 * per moment (queued, full).
+	 */
+	showAttachButton: boolean;
 	/** Show the mode/model/config selectors. */
 	showConfigSelectors: boolean;
 }
@@ -137,6 +149,7 @@ export function deriveComposerAffordances(
 			quickPromptFire: hasQuickPrompts ? "launch" : "none",
 			context: "carry",
 			showAttachments: false,
+			showAttachButton: false,
 			showConfigSelectors: false,
 		};
 	}
@@ -150,6 +163,7 @@ export function deriveComposerAffordances(
 		quickPromptFire: hasQuickPrompts ? "current" : "none",
 		context: "session",
 		showAttachments: capabilities.supportsImages,
+		showAttachButton: true,
 		showConfigSelectors: capabilities.hasConfigSelectors,
 	};
 }

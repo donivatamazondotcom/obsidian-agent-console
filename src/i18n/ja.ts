@@ -387,6 +387,8 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 		"[Agent Console] ファイルパスを特定できませんでした",
 	"notices.imagePasteConnecting":
 		"[Agent Console] エージェントに接続中です – 少し待ってから画像を貼り付け直してください。",
+	"notices.imageAttachConnecting":
+		"[Agent Console] エージェントに接続中です – 少し待ってから画像を添付し直してください。",
 	"notices.imagePasteUnsupported":
 		"[Agent Console] このエージェントは画像の貼り付けに対応していません。ドラッグ＆ドロップをお試しください。",
 	"notices.tabRestoreCorrupted":

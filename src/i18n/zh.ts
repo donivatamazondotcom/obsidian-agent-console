@@ -352,6 +352,8 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"notices.filePathUndetermined": "[Agent Console] 无法确定文件路径",
 	"notices.imagePasteConnecting":
 		"[Agent Console] 仍在连接代理 – 请稍后再粘贴图片。",
+	"notices.imageAttachConnecting":
+		"[Agent Console] 仍在连接代理 – 请稍后再附加图片。",
 	"notices.imagePasteUnsupported":
 		"[Agent Console] 此代理不支持粘贴图片。请尝试拖放。",
 	"notices.tabRestoreCorrupted": "无法恢复之前的标签页 — 保存的状态已损坏。",

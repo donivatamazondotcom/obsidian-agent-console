@@ -34,6 +34,11 @@ import type { QuickPrompt } from "../types/quick-prompt";
 import type { QuickPromptGesture } from "../services/quick-prompts-logic";
 import { ErrorBanner } from "./ErrorBanner";
 import { AttachmentStrip } from "./shared/AttachmentStrip";
+import { AttachButton } from "./shared/AttachButton";
+import { ComposerRail } from "./shared/ComposerRail";
+import { deriveAttachIntake } from "../resolvers/attach-intake";
+import { deriveImageIntakeNotice } from "../resolvers/image-intake-notice";
+import { getFilePathForFile } from "../utils/file-path";
 import { tooltipRef } from "./shared/useTooltip";
 import { InputToolbar } from "./InputToolbar";
 import { deriveSendAffordance } from "../resolvers/send-affordance";
@@ -341,6 +346,19 @@ export interface InputAreaProps {
 	 * (in-tab composer). See I169.
 	 */
 	launches?: boolean;
+	/**
+	 * Offer the attach button. From `deriveComposerAffordances`
+	 * (`showAttachButton`): false on the landing, true on a tab. Defaults to
+	 * false so a surface that doesn't pass it never gets the button by
+	 * accident. See [[Agent Console Attachment Button]].
+	 */
+	showAttachButton?: boolean;
+	/**
+	 * Attaching a file is intent, like a keystroke: start connecting the
+	 * agent (`useLazySession.onAttachIntent`). Not called while a message is
+	 * queued or after the agent failed to start.
+	 */
+	onAttachIntent?: () => void;
 }
 
 /**
@@ -411,6 +429,8 @@ export function InputArea({
 	onCreateQuickPrompt,
 	quickPromptSearchSignal,
 	launches = false,
+	showAttachButton = false,
+	onAttachIntent,
 }: InputAreaProps) {
 	const {
 		mentions,
@@ -448,20 +468,73 @@ export function InputArea({
 		[composerElRef],
 	);
 	const dragCounterRef = useRef(0);
+	const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-	// Clear attached files when agent changes
+	// The current attachment list and queued state, for code that runs after
+	// an await (image conversion) or twice in one tick. Synced from props on
+	// every render (covers clears from outside: send, queued flush,
+	// broadcast) and written synchronously wherever this component changes
+	// the list, so two attaches that finish together both land.
+	const attachedFilesRef = useRef(attachedFiles);
+	attachedFilesRef.current = attachedFiles;
+	const isQueuedRef = useRef(isQueued);
+	isQueuedRef.current = isQueued;
+	// Bumped when the agent changes; an attach that started before the switch
+	// drops its late result instead of re-adding a file the switch cleared.
+	const attachGenerationRef = useRef(0);
+	const onAttachedFilesChangeRef = useRef(onAttachedFilesChange);
+	onAttachedFilesChangeRef.current = onAttachedFilesChange;
+	const lastAgentIdRef = useRef(agentId);
+
+	// Clear attached files when the agent changes (not on mount, and not when
+	// only the parent's callback identity changes).
 	useEffect(() => {
-		onAttachedFilesChange([]);
-	}, [agentId, onAttachedFilesChange]);
+		if (lastAgentIdRef.current === agentId) return;
+		lastAgentIdRef.current = agentId;
+		attachGenerationRef.current += 1;
+		attachedFilesRef.current = [];
+		onAttachedFilesChangeRef.current([]);
+	}, [agentId]);
+
+	// May the composer take files right now (I319)? One decision for the
+	// attach button, drop, file paste and the remove buttons.
+	const attachIntake = deriveAttachIntake({
+		showAttachButton,
+		isQueued,
+		attachedCount: attachedFiles.length,
+		maxCount: MAX_ATTACHMENT_COUNT,
+	});
+
+	/** Start connecting the agent — not while queued or after a failed start. */
+	const fireAttachIntent = useCallback(() => {
+		if (isQueuedRef.current || lazyState === "error") return;
+		onAttachIntent?.();
+	}, [lazyState, onAttachIntent]);
 
 	/**
 	 * Add multiple attachments at once with limit enforcement.
 	 * Single state update avoids stale closure issues.
 	 */
 	const addAttachments = useCallback(
-		(newFiles: AttachedFile[]) => {
+		(newFiles: AttachedFile[], startedAtGeneration?: number) => {
 			if (newFiles.length === 0) return;
-			const remaining = MAX_ATTACHMENT_COUNT - attachedFiles.length;
+			// A result that outlived an agent switch is dropped (the switch
+			// already cleared the strip).
+			if (
+				startedAtGeneration !== undefined &&
+				startedAtGeneration !== attachGenerationRef.current
+			) {
+				return;
+			}
+			// A message got queued while this attach was converting: the
+			// queued message won't carry it and the flush would delete it
+			// (I319), so refuse it the same way a queued drop is refused.
+			if (isQueuedRef.current) {
+				new Notice(t("notices.attachWhileQueued"));
+				return;
+			}
+			const current = attachedFilesRef.current;
+			const remaining = MAX_ATTACHMENT_COUNT - current.length;
 			if (remaining <= 0) {
 				new Notice(
 					t("notices.maxAttachments", { count: MAX_ATTACHMENT_COUNT }),
@@ -474,9 +547,11 @@ export function InputArea({
 					t("notices.maxAttachments", { count: MAX_ATTACHMENT_COUNT }),
 				);
 			}
-			onAttachedFilesChange([...attachedFiles, ...toAdd]);
+			const next = [...current, ...toAdd];
+			attachedFilesRef.current = next;
+			onAttachedFilesChange(next);
 		},
-		[attachedFiles, onAttachedFilesChange],
+		[onAttachedFilesChange],
 	);
 
 	/**
@@ -484,11 +559,21 @@ export function InputArea({
 	 */
 	const removeFile = useCallback(
 		(id: string) => {
-			onAttachedFilesChange(attachedFiles.filter((f) => f.id !== id));
-			textareaRef.current?.focus();
+			// Queued: the queued message already holds its copy, so a removed
+			// file would be sent anyway (I319). The strip's × is aria-disabled
+			// then; this is the backstop. Focus after a remove is owned by
+			// AttachmentStrip.
+			if (isQueuedRef.current) return;
+			const next = attachedFilesRef.current.filter((f) => f.id !== id);
+			attachedFilesRef.current = next;
+			onAttachedFilesChange(next);
 		},
-		[attachedFiles, onAttachedFilesChange],
+		[onAttachedFilesChange],
 	);
+
+	const focusComposer = useCallback(() => {
+		textareaRef.current?.focus();
+	}, []);
 
 	/**
 	 * Convert a File to Base64 string.
@@ -545,14 +630,9 @@ export function InputArea({
 	 */
 	const convertFilesToAttachments = useCallback(
 		(files: File[]): AttachedFile[] => {
-			// Get file path via Electron's webUtils API (File.path was removed in Electron 32)
-			// eslint-disable-next-line @typescript-eslint/no-require-imports -- electron is a runtime-only module provided by Obsidian's host environment
-			const { webUtils } = require("electron") as {
-				webUtils: { getPathForFile: (file: File) => string };
-			};
 			const result: AttachedFile[] = [];
 			for (const file of files) {
-				const filePath = webUtils.getPathForFile(file);
+				const filePath = getFilePathForFile(file);
 				if (!filePath) {
 					new Notice(t("notices.filePathUndetermined"));
 					continue;
@@ -605,6 +685,14 @@ export function InputArea({
 
 			e.preventDefault();
 
+			// I319: same gate as drop and the attach button.
+			if (isQueuedRef.current) {
+				new Notice(t("notices.attachWhileQueued"));
+				return;
+			}
+			fireAttachIntent();
+			const generation = attachGenerationRef.current;
+
 			const newAttachments: AttachedFile[] = [];
 
 			if (imageFiles.length > 0) {
@@ -620,7 +708,9 @@ export function InputArea({
 					// I72: capabilities not loaded yet — show an accurate
 					// transient notice and skip these images (avoids the
 					// spurious "Could not determine file path" fallback).
-					new Notice(t("notices.imagePasteConnecting"));
+					new Notice(
+						t(deriveImageIntakeNotice({ via: "paste", lazyState })),
+					);
 				} else {
 					// Caps known, images unsupported: try resource_link
 					// fallback (works for files copied from Finder, not for
@@ -640,15 +730,116 @@ export function InputArea({
 				);
 			}
 
-			addAttachments(newAttachments);
+			addAttachments(newAttachments, generation);
 		},
 		[
 			supportsImages,
 			imageCapabilityKnown,
+			lazyState,
+			fireAttachIntent,
 			convertImagesToAttachments,
 			convertFilesToAttachments,
 			addAttachments,
 		],
+	);
+
+	/**
+	 * The one attach path for files that come from the disk: a drop, or a pick
+	 * from the attach button's file picker ([[Agent Console Attachment
+	 * Button]]). Images go inline when the agent takes images, otherwise as a
+	 * file link (they have a path); other files always go as a file link.
+	 */
+	const attachFromFiles = useCallback(
+		async (files: File[]) => {
+			if (files.length === 0) return;
+			// I319: nothing gets in while a message is queued.
+			if (isQueuedRef.current) {
+				new Notice(t("notices.attachWhileQueued"));
+				return;
+			}
+			fireAttachIntent();
+			const generation = attachGenerationRef.current;
+
+			const imageFiles: File[] = [];
+			const nonImageFiles: File[] = [];
+			for (const file of files) {
+				if (
+					SUPPORTED_IMAGE_TYPES.includes(
+						file.type as SupportedImageType,
+					)
+				) {
+					imageFiles.push(file);
+				} else if (file.type || file.name) {
+					nonImageFiles.push(file);
+				}
+			}
+
+			const newAttachments: AttachedFile[] = [];
+
+			if (imageFiles.length > 0) {
+				const imageOutcome = classifyImagePaste({
+					supportsImages,
+					imageCapabilityKnown,
+				});
+				if (imageOutcome === "attach-as-image") {
+					newAttachments.push(
+						...(await convertImagesToAttachments(imageFiles)),
+					);
+				} else if (imageOutcome === "connecting") {
+					// I72: capabilities not loaded yet — say which wait applies.
+					new Notice(
+						t(deriveImageIntakeNotice({ via: "attach", lazyState })),
+					);
+				} else {
+					// Files from disk have paths, so a file link works even
+					// for agents that don't take images.
+					newAttachments.push(
+						...convertFilesToAttachments(imageFiles),
+					);
+				}
+			}
+
+			if (nonImageFiles.length > 0) {
+				newAttachments.push(
+					...convertFilesToAttachments(nonImageFiles),
+				);
+			}
+
+			addAttachments(newAttachments, generation);
+		},
+		[
+			supportsImages,
+			imageCapabilityKnown,
+			lazyState,
+			fireAttachIntent,
+			convertImagesToAttachments,
+			convertFilesToAttachments,
+			addAttachments,
+		],
+	);
+
+	/** The attach button: start connecting, then open the OS file picker. */
+	const handleAttachClick = useCallback(() => {
+		fireAttachIntent();
+		fileInputRef.current?.click();
+	}, [fireAttachIntent]);
+
+	/**
+	 * Files chosen in the picker. Copy the list before resetting the input
+	 * (so picking the same file again fires `change`), then attach like a drop
+	 * and hand focus back to the composer.
+	 */
+	const handlePickChange = useCallback(
+		(e: React.ChangeEvent<HTMLInputElement>) => {
+			const input = e.currentTarget;
+			const files = input.files ? Array.from(input.files) : [];
+			input.value = "";
+			if (files.length === 0) return;
+			void attachFromFiles(files).then(() => {
+				textareaRef.current?.focus();
+			});
+		},
+		[attachFromFiles],
 	);
 
 	/**
@@ -669,7 +860,10 @@ export function InputArea({
 		if (e.dataTransfer?.types.includes("Files")) {
 			e.preventDefault();
 			dragCounterRef.current++;
-			if (dragCounterRef.current === 1) {
+			// Queued: the drop will be refused with a notice (I319), so don't
+			// light up as if it would be taken. dragover still accepts the
+			// drop so the notice can show and Obsidian doesn't take the file.
+			if (dragCounterRef.current === 1 && !isQueuedRef.current) {
 				setIsDraggingOver(true);
 			}
 		}
@@ -699,62 +893,9 @@ export function InputArea({
 			if (!files || files.length === 0) return;
 
 			e.preventDefault();
-
-			const droppedFiles = Array.from(files);
-			const imageFiles: File[] = [];
-			const nonImageFiles: File[] = [];
-
-			for (const file of droppedFiles) {
-				if (
-					SUPPORTED_IMAGE_TYPES.includes(
-						file.type as SupportedImageType,
-					)
-				) {
-					imageFiles.push(file);
-				} else if (file.type || file.name) {
-					nonImageFiles.push(file);
-				}
-			}
-
-			// Convert all files, then update state once
-			const newAttachments: AttachedFile[] = [];
-
-			if (imageFiles.length > 0) {
-				const imageOutcome = classifyImagePaste({
-					supportsImages,
-					imageCapabilityKnown,
-				});
-				if (imageOutcome === "attach-as-image") {
-					newAttachments.push(
-						...(await convertImagesToAttachments(imageFiles)),
-					);
-				} else if (imageOutcome === "connecting") {
-					// I72: capabilities not loaded yet — transient notice.
-					new Notice(t("notices.imagePasteConnecting"));
-				} else {
-					// Dropped files have paths, so resource_link works even
-					// for no-image agents.
-					newAttachments.push(
-						...convertFilesToAttachments(imageFiles),
-					);
-				}
-			}
-
-			if (nonImageFiles.length > 0) {
-				newAttachments.push(
-					...convertFilesToAttachments(nonImageFiles),
-				);
-			}
-
-			addAttachments(newAttachments);
+			await attachFromFiles(Array.from(files));
 		},
-		[
-			supportsImages,
-			imageCapabilityKnown,
-			convertImagesToAttachments,
-			convertFilesToAttachments,
-			addAttachments,
-		],
+		[attachFromFiles],
 	);
 
 	/**
@@ -1061,8 +1202,9 @@ export function InputArea({
 
 		// Save input value and files before clearing
 		const messageToSend = inputValue.trim();
+		const currentFiles = attachedFilesRef.current;
 		const filesToSend =
-			attachedFiles.length > 0 ? [...attachedFiles] : undefined;
+			currentFiles.length > 0 ? [...currentFiles] : undefined;
 
 		// Clear input, files, and hint state immediately
 		onInputChange("");
@@ -1248,7 +1390,8 @@ export function InputArea({
 		if (action === "send") {
 			void handleSendOrStop();
 		} else if (action === "queue") {
-			onQueueMessage?.(inputValue.trim(), attachedFiles);
+			isQueuedRef.current = true;
+			onQueueMessage?.(inputValue.trim(), attachedFilesRef.current);
 		}
 	}, [
 		isSending,
@@ -1325,14 +1468,22 @@ export function InputArea({
 						// place (it becomes the locked queued message). The
 						// toolbar button remains Stop so cancelling the live
 						// turn stays reachable.
-						onQueueMessage?.(inputValue.trim(), attachedFiles);
+						isQueuedRef.current = true;
+						onQueueMessage?.(
+							inputValue.trim(),
+							attachedFilesRef.current,
+						);
 					} else if (action === "steer") {
 						// Mid-Stream Steering (#81): the steer gesture while a
 						// turn is streaming interrupts it and sends the composer
 						// text as the next prompt. The composer text stays in
 						// place (locked, showing the steering banner) until the
 						// cancel settles and the redirect flushes.
-						onSteerMessage?.(inputValue.trim(), attachedFiles);
+						isQueuedRef.current = true;
+						onSteerMessage?.(
+							inputValue.trim(),
+							attachedFilesRef.current,
+						);
 					}
 				}
 				// If not shouldSend, allow default behavior (newline)
@@ -1730,6 +1881,8 @@ export function InputArea({
 					</div>
 				)}
 
+				{/* Text area + composer rail (message actions, above Send) */}
+				<div className="agent-client-composer-row">
 				{/* Textarea with Hint Overlay */}
 				<div className="agent-client-textarea-wrapper">
 					<textarea
@@ -1763,9 +1916,34 @@ export function InputArea({
 						</div>
 					)}
 				</div>
+				<ComposerRail>
+					{attachIntake.kind !== "hidden" && (
+						<AttachButton
+							intake={attachIntake}
+							onActivate={handleAttachClick}
+						/>
+					)}
+				</ComposerRail>
+				{attachIntake.kind !== "hidden" && (
+					<input
+						ref={fileInputRef}
+						type="file"
+						multiple
+						className="agent-client-attach-input"
+						tabIndex={-1}
+						aria-hidden="true"
+						onChange={handlePickChange}
+					/>
+				)}
+				</div>
 
 				{/* Attachment Preview Strip (images + file references) */}
-				<AttachmentStrip files={attachedFiles} onRemove={removeFile} />
+				<AttachmentStrip
+					files={attachedFiles}
+					onRemove={removeFile}
+					locked={isQueued}
+					onFocusComposer={focusComposer}
+				/>
 
 				{/* Input Actions (Config Options / Mode Selector / Model Selector + Send Button) */}
 				<InputToolbar

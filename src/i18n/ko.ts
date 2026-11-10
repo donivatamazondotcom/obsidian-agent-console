@@ -356,6 +356,8 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 		"[Agent Console] 파일 경로를 확인할 수 없습니다",
 	"notices.imagePasteConnecting":
 		"[Agent Console] 아직 에이전트에 연결 중입니다 – 잠시 후 이미지를 다시 붙여넣으세요.",
+	"notices.imageAttachConnecting":
+		"[Agent Console] 아직 에이전트에 연결 중입니다 – 잠시 후 이미지를 다시 첨부하세요.",
 	"notices.imagePasteUnsupported":
 		"[Agent Console] 이 에이전트는 이미지 붙여넣기를 지원하지 않습니다. 드래그 앤 드롭을 사용해 보세요.",
 	"notices.tabRestoreCorrupted":
