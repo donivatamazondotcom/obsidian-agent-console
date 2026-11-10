@@ -3273,3 +3273,180 @@ describe("captureEntry — agentOverride (kiro-v3-header-fallback)", () => {
 		);
 	});
 });
+
+// The fixtures vault now defaults to vertical tabs (smoke tests), but most
+// committed shots show the top tab bar. Every capture path applies a per-entry
+// settings patch, with tabDisplay "horizontal" unless the entry says
+// otherwise, and puts the prior values back afterwards.
+describe("captureEntry — per-entry plugin settings on every capture path", () => {
+	const APPLY = (e: string) =>
+		e.includes("settingsService.updateSettings") && e.includes("const prior");
+	const RESTORE = (e: string) =>
+		e.includes("settingsService.updateSettings") && !e.includes("const prior");
+
+	function healthySharp() {
+		const raw = {
+			data: Buffer.from(
+				Array.from({ length: 256 * 3 }, (_, k) =>
+					k % 3 === 0 ? Math.floor(k / 3) : 0,
+				),
+			),
+			info: { width: 16, height: 16, channels: 3 },
+		};
+		const instance = {
+			extract: vi.fn().mockReturnThis(),
+			resize: vi.fn().mockReturnThis(),
+			extend: vi.fn().mockReturnThis(),
+			raw: vi.fn().mockReturnThis(),
+			png: vi.fn().mockReturnThis(),
+			webp: vi.fn().mockReturnThis(),
+			toFile: vi.fn().mockResolvedValue(undefined),
+			metadata: vi.fn().mockResolvedValue({ width: 1400, height: 760 }),
+			toBuffer: vi
+				.fn()
+				.mockImplementation((opts?: { resolveWithObject?: boolean }) =>
+					opts?.resolveWithObject
+						? Promise.resolve(raw)
+						: Promise.resolve(Buffer.from("framepng")),
+				),
+		};
+		return vi.fn().mockReturnValue(instance);
+	}
+
+	// The apply call returns the vault's prior values, which the restore
+	// writes back – the fixtures vault itself is on vertical tabs.
+	function returnPrior(deps: OrchestratorDeps) {
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		const base = evalMock.getMockImplementation();
+		evalMock.mockImplementation((expr: string) =>
+			APPLY(expr)
+				? Promise.resolve({ tabDisplay: "vertical" })
+				: base
+					? base(expr)
+					: Promise.resolve(undefined),
+		);
+	}
+
+	function evalCalls(deps: OrchestratorDeps): string[] {
+		return (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c: unknown[]) => c[0] as string,
+		);
+	}
+
+	function evalOrder(deps: OrchestratorDeps, idx: number): number {
+		return (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock
+			.invocationCallOrder[idx];
+	}
+
+	it("applies tabDisplay horizontal to an entry that sets no tabDisplay, then restores it", async () => {
+		const deps = makeDeps();
+		returnPrior(deps);
+
+		await captureEntry(makeEntry({ initialState: { clickRibbon: true } }), deps);
+
+		const evals = evalCalls(deps);
+		const applyIdx = evals.findIndex(APPLY);
+		expect(applyIdx).toBeGreaterThanOrEqual(0);
+		expect(evals[applyIdx]).toContain('"tabDisplay":"horizontal"');
+		const shotOrder = (deps.cdp.screenshot as ReturnType<typeof vi.fn>).mock
+			.invocationCallOrder[0];
+		expect(evalOrder(deps, applyIdx)).toBeLessThan(shotOrder);
+		const restoreIdx = evals.findIndex(RESTORE);
+		expect(restoreIdx).toBeGreaterThan(applyIdx);
+		expect(evals[restoreIdx]).toContain('"tabDisplay":"vertical"');
+	});
+
+	it("keeps an entry's own tabDisplay instead of the horizontal baseline", async () => {
+		const deps = makeDeps();
+
+		await captureEntry(
+			makeEntry({
+				initialState: {
+					clickRibbon: true,
+					pluginSettings: { tabDisplay: "vertical", tabRailWidth: 32 },
+				},
+			}),
+			deps,
+		);
+
+		const apply = evalCalls(deps).find(APPLY);
+		expect(apply).toContain('"tabDisplay":"vertical"');
+		expect(apply).toContain('"tabRailWidth":32');
+		expect(apply).not.toContain('"horizontal"');
+	});
+
+	it("applies pluginSettings on the animation path before the first frame, and restores them", async () => {
+		const deps = makeDeps({
+			sharp: healthySharp() as unknown as OrchestratorDeps["sharp"],
+		});
+		returnPrior(deps);
+
+		await captureEntry(
+			makeEntry({
+				name: "multi-session-animated",
+				width: 400,
+				height: 300,
+				crop: { x: 0, y: 0, width: 800, height: 600 },
+				initialState: {
+					clickRibbon: true,
+					pluginSettings: { tabDisplay: "vertical", tabRailWidth: 32 },
+				},
+				animation: { fps: 4, maxBytes: 2_000_000, frames: [{ holdMs: 500 }] },
+			}),
+			deps,
+		);
+
+		const evals = evalCalls(deps);
+		const applyIdx = evals.findIndex(APPLY);
+		expect(applyIdx).toBeGreaterThanOrEqual(0);
+		expect(evals[applyIdx]).toContain('"tabDisplay":"vertical"');
+		const firstFrame = (deps.cdp.screenshot as ReturnType<typeof vi.fn>).mock
+			.invocationCallOrder[0];
+		expect(firstFrame).toBeDefined();
+		expect(evalOrder(deps, applyIdx)).toBeLessThan(firstFrame);
+		expect(evals.findIndex(RESTORE)).toBeGreaterThan(applyIdx);
+	});
+
+	it("applies the horizontal baseline on the settings-window path before the capture", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
+			(expr: string) => {
+				if (expr.startsWith("!!activeDocument.querySelector")) {
+					return Promise.resolve(true);
+				}
+				if (expr.includes("getBoundingClientRect")) {
+					return Promise.resolve({
+						winX: 0,
+						winY: 0,
+						winW: 900,
+						winH: 700,
+						dpr: 1,
+						rect: { x: 225, y: 30, width: 675, height: 670 },
+					});
+				}
+				return Promise.resolve(undefined);
+			},
+		);
+		returnPrior(deps);
+
+		await captureEntry(
+			makeEntry({
+				name: "settings-max-saved-chats",
+				captureMode: "settings-window",
+				cropSelector: ".vertical-tab-content",
+				initialState: { openSettings: "agent-console" },
+			}),
+			deps,
+		);
+
+		const evals = evalCalls(deps);
+		const applyIdx = evals.findIndex(APPLY);
+		expect(applyIdx).toBeGreaterThanOrEqual(0);
+		expect(evals[applyIdx]).toContain('"tabDisplay":"horizontal"');
+		const capOrder = (
+			deps.cdp.captureSettingsWindow as ReturnType<typeof vi.fn>
+		).mock.invocationCallOrder[0];
+		expect(evalOrder(deps, applyIdx)).toBeLessThan(capOrder);
+		expect(evals.findIndex(RESTORE)).toBeGreaterThan(applyIdx);
+	});
+});

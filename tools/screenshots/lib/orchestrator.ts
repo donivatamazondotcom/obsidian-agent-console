@@ -397,7 +397,54 @@ async function restoreSessionsIntoTabs(
 /**
  * Capture a single manifest entry: drive UI state → screenshot → crop → write.
  */
+/**
+ * Tab display every capture assumes unless its entry sets `tabDisplay`. The
+ * fixtures vault defaults to vertical tabs for smoke testing, while most
+ * committed shots show the top tab bar, so each capture pins this for the
+ * duration of the entry and then puts the vault's own value back.
+ */
+export const CAPTURE_BASELINE_TAB_DISPLAY = "horizontal";
+
+/** The settings patch a capture applies: the baseline under the entry's own. */
+export function capturePluginSettings(
+	entry: ManifestEntry,
+): Record<string, string | number | boolean> {
+	return {
+		tabDisplay: CAPTURE_BASELINE_TAB_DISPLAY,
+		...(entry.initialState?.pluginSettings ?? {}),
+	};
+}
+
 export async function captureEntry(
+	entry: ManifestEntry,
+	deps: OrchestratorDeps,
+): Promise<void> {
+	// Per-entry plugin settings through the settings single writer, so React
+	// subscribers (useSyncExternalStore) re-render – direct mutation of
+	// plugin.settings wouldn't notify them. Applied around every capture path
+	// (still, animation, settings window) and restored in the finally, so a
+	// failed capture can't leave the fixtures vault changed for later entries.
+	const patch = capturePluginSettings(entry);
+	const prior = await deps.cdp
+		.evaluate<Record<string, unknown>>(
+			`(async () => { const p = app.plugins.plugins["agent-console"]; const patch = ${JSON.stringify(patch)}; const prior = {}; for (const k of Object.keys(patch)) prior[k] = p.settings[k]; await p.settingsService.updateSettings(patch); return prior; })()`,
+		)
+		.catch(() => null);
+	await sleep(SETTLE_MS);
+	try {
+		await captureEntryWithSettings(entry, deps);
+	} finally {
+		if (prior) {
+			await deps.cdp
+				.evaluate(
+					`(async () => { await app.plugins.plugins["agent-console"].settingsService.updateSettings(${JSON.stringify(prior)}); return true; })()`,
+				)
+				.catch(() => {});
+		}
+	}
+}
+
+async function captureEntryWithSettings(
 	entry: ManifestEntry,
 	deps: OrchestratorDeps,
 ): Promise<void> {
@@ -464,22 +511,9 @@ export async function captureEntry(
 		await deps.cdp.focusWindow();
 	}
 
-	// Prior values of the keys initialState.pluginSettings touches, restored in
-	// the finally below so a failed capture can't leave the studio fixture
-	// changed (e.g. vertical tabs) for later entries.
-	let restorePluginSettings: Record<string, unknown> | null = null;
-
 	try {
-		// 0.25 Per-entry plugin settings through the settings single writer, so
-		// React subscribers (useSyncExternalStore) re-render – direct mutation of
-		// plugin.settings, as the overrides below do, wouldn't notify them.
-		if (entry.initialState?.pluginSettings) {
-			const patch = entry.initialState.pluginSettings;
-			restorePluginSettings = await deps.cdp.evaluate<Record<string, unknown>>(
-				`(async () => { const p = app.plugins.plugins["agent-console"]; const patch = ${JSON.stringify(patch)}; const prior = {}; for (const k of Object.keys(patch)) prior[k] = p.settings[k]; await p.settingsService.updateSettings(patch); return prior; })()`,
-			);
-			await sleep(SETTLE_MS);
-		}
+		// 0.25 Per-entry plugin settings are applied by captureEntry, around
+		// every capture path.
 
 		// 0.5 Dismiss any leftover Obsidian modal from a prior capture so this shot
 		// starts clean. A modal opened by an earlier entry (e.g. confirm-close via
@@ -1561,14 +1595,6 @@ export async function captureEntry(
 			);
 		}
 	} finally {
-		if (restorePluginSettings) {
-			const prior = restorePluginSettings;
-			await deps.cdp
-				.evaluate(
-					`(async () => { await app.plugins.plugins["agent-console"].settingsService.updateSettings(${JSON.stringify(prior)}); return true; })()`,
-				)
-				.catch(() => {});
-		}
 		// I13: always un-float the fixtures window so it never lingers over the
 		// user's daily vault — even if an assert or the content guard threw.
 		if (screenMode) {

@@ -18,6 +18,12 @@ Each git worktree under `.trees/<name>` can get its own isolated vault,
 - **Real build copies, not symlinks.** Each studio's `main.js` / `styles.css` /
   `manifest.json` are real copies of the worktree's build, so they survive the
   worktree being removed.
+- **Vertical tabs by default.** A fresh studio opens with tabs in the column on
+  the right (`tabDisplay: "vertical"`), the layout smoke tests are run in. Every
+  other UI setting starts at the plugin's default. `--first-run` deletes
+  `data.json`, so it gets the new-install default instead (also vertical).
+  A studio spawned before this change keeps its own setting until it's spawned
+  fresh.
 
 ## Usage
 
