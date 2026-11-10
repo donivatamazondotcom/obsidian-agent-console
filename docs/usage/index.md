@@ -26,12 +26,13 @@ The chat panel opens in the right sidebar.
 
 ## Sending Images and Files
 
-You can attach images and files to your messages by pasting or dragging and dropping.
+You can attach images and files to your messages three ways:
 
-1. **Paste**: Copy a file or image and paste (`Cmd/Ctrl + V`) in the input field
-2. **Drag and Drop**: Drag files directly onto the input area
+1. **Attach button**: Click the paperclip just above the send button and pick files
+2. **Paste**: Copy a file or image and paste (`Cmd/Ctrl + V`) in the input field
+3. **Drag and Drop**: Drag files directly onto the input area
 
-Attached files appear as thumbnails or file icons below the text area. Click the **×** to remove.
+Attached files appear as thumbnails or file icons below the text area. Click the **×** to remove. See [Sending Images and Files](./sending-images.md) for the details.
 
 <p align="center">
   <img src="/images/sending-images.webp" alt="Sending Images and Files" />
