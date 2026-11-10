@@ -608,8 +608,26 @@ describe("composer rail — where the attach button lives", () => {
 		expect(rail).not.toBeNull();
 		const row = rail!.parentElement!;
 		expect(row.classList.contains("agent-client-composer-row")).toBe(true);
-		expect(row.querySelector(":scope > .agent-client-textarea-wrapper")).not.toBeNull();
+		expect(
+			row.querySelector(":scope > .agent-client-composer-main > .agent-client-textarea-wrapper"),
+		).not.toBeNull();
 		expect(b.closest(".agent-client-chat-input-actions")).toBeNull();
+	});
+
+	it("attachments sit in the text column beside the rail, so the rail stays right above Send (smoke)", () => {
+		const h = renderHarness({
+			initialFiles: [{ id: "a", ...TEXT_EXPECTED } as AttachedFile],
+		});
+		const strip = q<HTMLElement>(h.container, ".agent-client-attachment-preview-strip");
+		const main = strip.parentElement!;
+		expect(main.classList.contains("agent-client-composer-main")).toBe(true);
+		expect(main.querySelector(":scope > .agent-client-textarea-wrapper")).not.toBeNull();
+		const row = main.parentElement!;
+		expect(row.classList.contains("agent-client-composer-row")).toBe(true);
+		// The rail is the row's last visible column, and the toolbar comes
+		// right after the row: nothing sits between the rail and Send.
+		expect(row.querySelector(":scope > .agent-client-composer-rail")).not.toBeNull();
+		expect(row.nextElementSibling?.classList.contains("agent-client-chat-input-actions")).toBe(true);
 	});
 
 	it("no rail at all when the surface hides the button (landing keeps a full-width textarea)", () => {
@@ -688,5 +706,52 @@ describe("queueing in the same tick as an attach (I319, review L2)", () => {
 		expect(x.getAttribute("aria-label")).toBe(
 			"Remove notes.txt — Wait for the queued message to send",
 		);
+	});
+});
+
+describe("remove × from the keyboard: Delete and Backspace (smoke H3)", () => {
+	const two = [
+		{ id: "a", ...TEXT_EXPECTED, name: "a.txt" } as AttachedFile,
+		{ id: "b", ...TEXT_EXPECTED, name: "b.txt" } as AttachedFile,
+	];
+	const removes = (c: HTMLElement) =>
+		Array.from(
+			c.querySelectorAll<HTMLButtonElement>(".agent-client-attachment-preview-remove"),
+		);
+
+	it.each(["Delete", "Backspace"])("%s on a focused × removes it and moves focus to the next ×", async (key) => {
+		const h = renderHarness({ initialFiles: two });
+		await settle();
+		removes(h.container)[0].focus();
+		await act(async () => {
+			fireEvent.keyDown(removes(h.container)[0], { key });
+		});
+		const left = removes(h.container);
+		expect(left.map((x) => x.getAttribute("aria-label"))).toEqual(["Remove b.txt"]);
+		expect(document.activeElement).toBe(left[0]);
+	});
+
+	it("does nothing with a modifier, on key repeat, or while queued", async () => {
+		const onAttachedFilesChange = vi.fn();
+		const h = renderHarness({ attachedFiles: two, onAttachedFilesChange });
+		await settle();
+		const x = removes(h.container)[0];
+		await act(async () => {
+			fireEvent.keyDown(x, { key: "Delete", metaKey: true });
+			fireEvent.keyDown(x, { key: "Backspace", repeat: true });
+		});
+		expect(onAttachedFilesChange).not.toHaveBeenCalled();
+		h.rerender(
+			<Harness
+				onList={(l) => h.lists.push(l)}
+				attachedFiles={two}
+				onAttachedFilesChange={onAttachedFilesChange}
+				isQueued={true}
+			/>,
+		);
+		await act(async () => {
+			fireEvent.keyDown(removes(h.container)[0], { key: "Delete" });
+		});
+		expect(onAttachedFilesChange).not.toHaveBeenCalled();
 	});
 });

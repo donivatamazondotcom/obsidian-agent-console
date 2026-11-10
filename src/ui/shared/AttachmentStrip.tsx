@@ -67,6 +67,17 @@ function RemoveButton({
 			onClick={() => {
 				if (!locked) onActivate(file.id);
 			}}
+			// Delete/Backspace on a focused × removes it too, like Delete on a
+			// focused vertical tab rail key (I301). Plain, non-repeat only, so a
+			// held key can't clear the whole strip.
+			onKeyDown={(e) => {
+				if (e.key !== "Delete" && e.key !== "Backspace") return;
+				if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) {
+					return;
+				}
+				e.preventDefault();
+				if (!locked) onActivate(file.id);
+			}}
 			aria-disabled={locked ? "true" : undefined}
 			// keep in sync with FOCUS_CLUSTER_ATTR (composer-focus-tracker)
 			data-acp-focus-cluster=""
