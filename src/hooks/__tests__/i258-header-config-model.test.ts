@@ -171,6 +171,72 @@ describe("I258: the header follows a config-option model switch", () => {
 		expect(header(result.current.session)).toBe("model-b-routed");
 	});
 
+	it("a failed switch rolls back: the confirmed model counts again", async () => {
+		const client = makeClient();
+		(client.setSessionConfigOption as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+			new Error("rejected"),
+		);
+		const { result } = mount(client);
+		await act(async () => {
+			await result.current.createSession();
+		});
+		act(() =>
+			result.current.handleSessionUpdate({
+				sessionId: "s1",
+				type: "model_update",
+				modelId: "model-a-routed",
+			}),
+		);
+		await act(async () => {
+			await result.current.setConfigOption("model", "model-b");
+		});
+
+		expect(header(result.current.session)).toBe("model-a-routed");
+	});
+
+	it("an agent-pushed config_option_update model change updates the header", async () => {
+		const { result } = mount(makeClient());
+		await act(async () => {
+			await result.current.createSession();
+		});
+		act(() =>
+			result.current.handleSessionUpdate({
+				sessionId: "s1",
+				type: "model_update",
+				modelId: "model-a-routed",
+			}),
+		);
+		act(() =>
+			result.current.handleSessionUpdate({
+				sessionId: "s1",
+				type: "config_option_update",
+				configOptions: [modelOption("model-b")],
+			}),
+		);
+
+		expect(header(result.current.session)).toBe("Model B (Thinking)");
+	});
+
+	it("an agent switch clears the stamp with the confirmation", async () => {
+		const { result } = mount(makeClient());
+		await act(async () => {
+			await result.current.createSession();
+		});
+		act(() =>
+			result.current.handleSessionUpdate({
+				sessionId: "s1",
+				type: "model_update",
+				modelId: "model-a-routed",
+			}),
+		);
+		expect(result.current.session.confirmedUnder).toBe("model-a");
+
+		act(() => result.current.setAgentWithoutSession("test-agent"));
+
+		expect(result.current.session.confirmedModelId).toBeUndefined();
+		expect(result.current.session.confirmedUnder).toBeUndefined();
+	});
+
 	it("restore: a loaded session whose config option differs from the legacy list shows the config option", async () => {
 		const { result } = mount(makeClient());
 		await act(async () => {

@@ -92,8 +92,7 @@ export function deriveHeaderModelName(input: {
 	// user picks another model it is stale until the agent confirms again.
 	if (
 		input.confirmedModelId &&
-		(input.confirmedUnder === undefined ||
-			input.confirmedUnder === deriveModelSelection(input))
+		input.confirmedUnder === deriveModelSelection(input)
 	) {
 		return input.confirmedModelId;
 	}
