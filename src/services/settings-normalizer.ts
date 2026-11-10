@@ -5,6 +5,7 @@
  * Used by plugin.ts (loadSettings) and SettingsTab.ts.
  */
 
+import { builtInAgentIds } from "./builtin-agents";
 import {
 	isKiroCliCommand,
 	readKiroEngineSetting,
@@ -564,6 +565,14 @@ export const DEFAULT_SETTINGS: AgentClientPluginSettings = {
 		args: ["acp"],
 		env: [],
 	},
+	antigravity: {
+		id: "antigravity-acp",
+		displayName: "Antigravity CLI",
+		apiKeySecretId: "",
+		command: "agy",
+		args: ["acp"],
+		env: [],
+	},
 	customAgents: [],
 	defaultAgentId: "claude-code-acp",
 	autoAllowPermissions: false,
@@ -679,6 +688,7 @@ export function normalizeRawSettings(
 	const rg = obj(raw.gemini) ?? {};
 	const rki = obj(raw.kiro) ?? {};
 	const rop = obj(raw.opencode) ?? {};
+	const rag = obj(raw.antigravity) ?? {};
 	const re = obj(raw.exportSettings) ?? {};
 	const rd = obj(raw.displaySettings) ?? {};
 
@@ -692,11 +702,10 @@ export function normalizeRawSettings(
 		: [];
 
 	// Migration: defaultAgentId ← activeAgentId (old name)
+	// I313: every built-in from the one list, so an OpenCode or Antigravity
+	// default isn't reset to Claude Code on load.
 	const availableAgentIds = [
-		D.claude.id,
-		D.codex.id,
-		D.gemini.id,
-		D.kiro.id,
+		...builtInAgentIds(D),
 		...customAgents.map((a) => a.id),
 	];
 	const rawDefaultId =
@@ -787,6 +796,19 @@ export function normalizeRawSettings(
 					: D.opencode.args,
 			env: normalizeEnvVars(rop.env),
 			defaultWorkingDirectory: str(rop.defaultWorkingDirectory, ""),
+		},
+		antigravity: {
+			id: D.antigravity.id,
+			displayName: str(rag.displayName, D.antigravity.displayName),
+			// No migrateKey: this key never had a legacy plaintext form.
+			apiKeySecretId: str(rag.apiKeySecretId, D.antigravity.apiKeySecretId),
+			command: str(rag.command, "") || D.antigravity.command,
+			args:
+				sanitizeArgs(rag.args).length > 0
+					? sanitizeArgs(rag.args)
+					: D.antigravity.args,
+			env: normalizeEnvVars(rag.env),
+			defaultWorkingDirectory: str(rag.defaultWorkingDirectory, ""),
 		},
 		customAgents,
 		defaultAgentId,

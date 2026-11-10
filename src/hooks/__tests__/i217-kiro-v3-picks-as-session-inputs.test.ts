@@ -55,6 +55,7 @@ function makeSettings(saved: { model?: string; effort?: string }) {
 		gemini: { id: "gemini", displayName: "Gemini" },
 		kiro: { id: "kiro", displayName: "Kiro" },
 		opencode: { id: "opencode-acp", displayName: "OpenCode" },
+		antigravity: { id: "antigravity-acp", displayName: "Antigravity CLI", command: "agy", args: ["acp"], env: [], apiKeySecretId: "" },
 		customAgents: [{ id: AGENT, displayName: "Test Agent", command: "kiro-cli", args: ["acp"], env: [], engine: "v3" }],
 		lastUsedModels: saved.model ? { [AGENT]: saved.model } : {},
 		lastUsedModes: {},

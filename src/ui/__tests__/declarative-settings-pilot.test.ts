@@ -298,6 +298,7 @@ describe("declarative settings pilot (Obsidian 1.13)", () => {
 			"Gemini CLI",
 			"Kiro CLI",
 			"OpenCode",
+			"Antigravity CLI",
 		]);
 
 		const custom = defs[2] as {

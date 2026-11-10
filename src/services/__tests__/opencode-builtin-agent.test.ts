@@ -62,11 +62,19 @@ const settings = {
 		args: ["acp"],
 		env: [],
 	},
+	antigravity: {
+		id: "antigravity-acp",
+		displayName: "Antigravity CLI",
+		apiKeySecretId: "",
+		command: "agy",
+		args: ["acp"],
+		env: [],
+	},
 	customAgents: [],
 } as unknown as AgentClientPluginSettings;
 
 describe("OpenCode built-in agent", () => {
-	it("is enumerated as an available agent after Kiro", () => {
+	it("is enumerated after Kiro, before Antigravity CLI", () => {
 		const ids = getAvailableAgentsFromSettings(settings).map((a) => a.id);
 		expect(ids).toEqual([
 			"claude-code-acp",
@@ -74,6 +82,7 @@ describe("OpenCode built-in agent", () => {
 			"gemini-cli",
 			"kiro-cli",
 			"opencode-acp",
+			"antigravity-acp",
 		]);
 	});
 

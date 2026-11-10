@@ -249,6 +249,18 @@ export const en = {
 		'Command name or path to opencode. Use just "opencode" to let the login shell resolve it, or enter an absolute path (commonly ~/.opencode/bin/opencode).',
 	"settings.arguments.desc3":
 		'Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. OpenCode requires the "acp" subcommand.',
+	"settings.setup.desc9": "Antigravity CLI signs in with your Google account. Run \"agy\" once in a terminal to sign in, then select Antigravity CLI. For apps like this one, Google recommends a Gemini API key; see the Antigravity CLI setup guide.",
+	"settings.apiKey.name4": "API key",
+	"settings.apiKey.desc4": "Optional Gemini API key, passed to Antigravity CLI as GEMINI_API_KEY. Leave empty to use your Antigravity sign-in. Select from Obsidian's Keychain or create a new secret.",
+	"settings.path.name7": "Path",
+	"settings.path.placeholder7": "agy",
+	"settings.path.desc7": "Command name or path to agy. Use just \"agy\" to let the login shell resolve it, or enter an absolute path (commonly /opt/homebrew/bin/agy).",
+	"settings.arguments.name7": "Arguments",
+	"settings.arguments.placeholder7": "acp",
+	"settings.arguments.desc7": "Enter arguments separated by spaces or new lines. Quote an argument that contains spaces. Antigravity CLI requires the \"acp\" subcommand.",
+	"settings.environmentVariables.name7": "Environment variables",
+	"settings.environmentVariables.placeholder7": "",
+	"settings.environmentVariables.desc7": "Enter KEY=VALUE pairs, one per line. Leave empty unless your setup requires it. When an API key is chosen above, it replaces any GEMINI_API_KEY set here.",
 	"settings.path.desc4":
 		'Command name or path to claude-agent-acp. Use just "claude-agent-acp" to let the login shell resolve it, or enter an absolute path.',
 	"settings.path.desc5":

@@ -136,3 +136,16 @@ export interface KiroAgentSettings extends BaseAgentSettings {
  * settings — the plugin configures only the ACP launch, never the model.
  */
 export type OpenCodeAgentSettings = BaseAgentSettings;
+
+/**
+ * Configuration for the Antigravity CLI agent (`agy acp`).
+ *
+ * Antigravity CLI signs in through its own cached login (run `agy` once).
+ * The API key is optional: when a secret is chosen it is passed as
+ * GEMINI_API_KEY, which Google recommends for third-party clients. Empty
+ * means no key, and the launch environment is left as it is.
+ */
+export interface AntigravityAgentSettings extends BaseAgentSettings {
+	/** Secret storage ID for an optional Gemini API key (GEMINI_API_KEY). */
+	apiKeySecretId: string;
+}

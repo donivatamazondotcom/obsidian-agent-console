@@ -74,6 +74,7 @@ function makeAgentSettings(command: string) {
 		gemini: { id: "gemini", displayName: "Gemini" },
 		kiro: { id: "kiro", displayName: "Kiro" },
 		opencode: { id: "opencode-acp", displayName: "OpenCode" },
+		antigravity: { id: "antigravity-acp", displayName: "Antigravity CLI", command: "agy", args: ["acp"], env: [], apiKeySecretId: "" },
 		customAgents: [
 			{ id: AGENT, displayName: "Test Agent", command, args: ["acp"], env: [], engine: "v2" },
 		],

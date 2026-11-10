@@ -25,6 +25,7 @@ const baseBuiltins = {
 	gemini: { id: "gemini-cli", displayName: "Gemini CLI" },
 	kiro: { id: "kiro-cli", displayName: "Kiro CLI" },
 	opencode: { id: "opencode-acp", displayName: "OpenCode" },
+	antigravity: { id: "antigravity-acp", displayName: "Antigravity CLI", command: "agy", args: ["acp"], env: [], apiKeySecretId: "" },
 };
 
 describe("I105: configured agents stay visible (no dedup)", () => {
@@ -44,6 +45,7 @@ describe("I105: configured agents stay visible (no dedup)", () => {
 			"Gemini CLI",
 			"Kiro CLI",
 			"OpenCode",
+			"Antigravity CLI",
 			"Kiro",
 		]);
 		expect(agents.filter((a) => a.id === "kiro-cli")).toHaveLength(2);
@@ -65,6 +67,7 @@ describe("I105: configured agents stay visible (no dedup)", () => {
 			"gemini-cli",
 			"kiro-cli",
 			"opencode-acp",
+			"antigravity-acp",
 			"custom-agent",
 		]);
 	});

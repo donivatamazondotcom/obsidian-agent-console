@@ -43,7 +43,9 @@ import {
 	resolveSessionIdForSave,
 	keptIdForSave,
 	findAgentSettings,
+	getCurrentAgent,
 } from "../services/session-helpers";
+import { builtInAgentIds, builtInAgentCommandsKey } from "../services/builtin-agents";
 import { deriveNewLeaf, shouldOpenFromActivation } from "../utils/link-leaf";
 import {
 	deriveSendAffordance,
@@ -728,31 +730,12 @@ export function ChatPanel({
 	// ============================================================
 	// Computed Values
 	// ============================================================
-	const activeAgentLabel = useMemo(() => {
-		const activeId = session.agentId;
-		if (activeId === plugin.settings.claude.id) {
-			return (
-				plugin.settings.claude.displayName || plugin.settings.claude.id
-			);
-		}
-		if (activeId === plugin.settings.codex.id) {
-			return (
-				plugin.settings.codex.displayName || plugin.settings.codex.id
-			);
-		}
-		if (activeId === plugin.settings.gemini.id) {
-			return (
-				plugin.settings.gemini.displayName || plugin.settings.gemini.id
-			);
-		}
-		if (activeId === plugin.settings.kiro.id) {
-			return plugin.settings.kiro.displayName || plugin.settings.kiro.id;
-		}
-		const custom = plugin.settings.customAgents.find(
-			(agent) => agent.id === activeId,
-		);
-		return custom?.displayName || custom?.id || activeId;
-	}, [session.agentId, plugin.settings]);
+	// I313: every built-in and custom agent through the one agent list, so
+	// OpenCode and Antigravity show their name, not their id.
+	const activeAgentLabel = useMemo(
+		() => getCurrentAgent(plugin.settings, session.agentId).displayName,
+		[session.agentId, plugin.settings],
+	);
 
 	/**
 	 * Header branding segments — see Agent Console Header Branding spec.
@@ -3122,12 +3105,7 @@ export function ChatPanel({
 	// user fixes a path the panel pointed them to), invalidate cached
 	// detection so the panel re-probes and clears without needing a new chat
 	// — matching the Install button's re-detect on success.
-	const builtInCommandsKey = [
-		settings.claude.command,
-		settings.codex.command,
-		settings.gemini.command,
-		settings.kiro.command,
-	].join("\u0000");
+	const builtInCommandsKey = builtInAgentCommandsKey(settings);
 	const prevBuiltInCommandsKeyRef = useRef(builtInCommandsKey);
 	useEffect(() => {
 		if (prevBuiltInCommandsKeyRef.current !== builtInCommandsKey) {
@@ -3148,12 +3126,7 @@ export function ChatPanel({
 		// A custom agent the user configured is never treated as a dead end
 		// (I-FRO2): detection covers only the built-ins, so membership alone
 		// would wrongly flag every custom-agent default.
-		const builtInIds = new Set([
-			plugin.settings.claude.id,
-			plugin.settings.codex.id,
-			plugin.settings.gemini.id,
-			plugin.settings.kiro.id,
-		]);
+		const builtInIds = new Set(builtInAgentIds(plugin.settings));
 		if (
 			!shouldShowGettingStarted({
 				messageCount: messages.length,

@@ -53,6 +53,14 @@ const settings = {
 		args: ["acp"],
 		env: [],
 	},
+	antigravity: {
+		id: "antigravity-acp",
+		displayName: "Antigravity CLI",
+		apiKeySecretId: "",
+		command: "agy",
+		args: ["acp"],
+		env: [],
+	},
 	customAgents: [],
 } as unknown as AgentClientPluginSettings;
 
@@ -65,6 +73,7 @@ describe("Kiro CLI built-in agent", () => {
 			"gemini-cli",
 			"kiro-cli",
 			"opencode-acp",
+			"antigravity-acp",
 		]);
 	});
 

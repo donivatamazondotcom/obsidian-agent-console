@@ -17,6 +17,8 @@ const settings = {
 	codex: { id: "codex-acp", displayName: "Codex" },
 	gemini: { id: "gemini-cli", displayName: "Gemini CLI" },
 	kiro: { id: "kiro-cli", displayName: "Kiro CLI" },
+	opencode: { id: "opencode-acp", displayName: "OpenCode" },
+	antigravity: { id: "antigravity-acp", displayName: "Antigravity CLI" },
 	customAgents: [
 		{ id: "custom-agent", displayName: "Custom agent" },
 		{ id: "custom-agent-2", displayName: "Custom agent 2" },
@@ -30,6 +32,9 @@ describe("collectAgentIdsExcept", () => {
 			"codex-acp",
 			"gemini-cli",
 			"kiro-cli",
+			// I313: every built-in, OpenCode and Antigravity CLI included.
+			"opencode-acp",
+			"antigravity-acp",
 			"custom-agent-2",
 		]);
 	});

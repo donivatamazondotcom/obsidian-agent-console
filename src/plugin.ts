@@ -78,6 +78,7 @@ import {
 	type AgentCandidate,
 	type DetectionCache,
 } from "./services/agent-detection";
+import { builtInAgentIds } from "./services/builtin-agents";
 import {
 	AgentEnvVar,
 	GeminiAgentSettings,
@@ -86,6 +87,7 @@ import {
 	CustomAgentSettings,
 	KiroAgentSettings,
 	OpenCodeAgentSettings,
+	AntigravityAgentSettings,
 } from "./types/agent";
 import type {
 	SavedSessionInfo,
@@ -172,6 +174,7 @@ export interface AgentClientPluginSettings {
 	codex: CodexAgentSettings;
 	kiro: KiroAgentSettings;
 	opencode: OpenCodeAgentSettings;
+	antigravity: AntigravityAgentSettings;
 	customAgents: CustomAgentSettings[];
 	/** Default agent ID for new views (renamed from activeAgentId for multi-session) */
 	defaultAgentId: string;
@@ -2256,12 +2259,7 @@ export default class AgentClientPlugin extends Plugin {
 	}
 
 	private collectAvailableAgentIds(): string[] {
-		const ids = new Set<string>();
-		ids.add(this.settings.claude.id);
-		ids.add(this.settings.codex.id);
-		ids.add(this.settings.gemini.id);
-		ids.add(this.settings.kiro.id);
-		ids.add(this.settings.opencode.id);
+		const ids = new Set<string>(builtInAgentIds(this.settings));
 		for (const agent of this.settings.customAgents) {
 			if (agent.id && agent.id.length > 0) {
 				ids.add(agent.id);

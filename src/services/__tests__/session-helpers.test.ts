@@ -118,6 +118,7 @@ describe("resolveCwdForAgent (I131)", () => {
 			gemini: { id: "gemini" },
 			kiro: { id: "kiro" },
 			opencode: { id: "opencode-acp" },
+			antigravity: { id: "antigravity-acp", displayName: "Antigravity CLI", command: "agy", args: ["acp"], env: [], apiKeySecretId: "" },
 			customAgents: [],
 			defaultAgentId: "claude",
 			defaultWorkingDirectory: opts.globalDir ?? "",
