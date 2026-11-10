@@ -683,7 +683,9 @@
 			},
 			"cropSelector": ".workspace-leaf-content[data-type=\"agent-console-chat-view\"]",
 			"cropPadding": 0,
-			"captureNote": "Staged on the vertical rail, icons only (new-install default, decided 11/08); frames crop to the chat leaf, rail included. GIF only, no separate video (decided 11/08)."
+			"captureNote": "Staged on the vertical rail, icons only (new-install default, decided 11/08); frames crop to the chat leaf, rail included. GIF only, no separate video (decided 11/08).",
+			"pending": true,
+			"followUp": "Recapture on the vertical rail. The #376 GIF was shot on the top bar because the animation path skipped pluginSettings (fixed in #380). Capture in the pass after the attachment button and Antigravity built-in merge, with their shots."
 		},
 		{
 			"name": "tab-status-dropdown",
