@@ -74,7 +74,6 @@
 			"rightSplitWidth": 530,
 			"awaitSelector": ".callout",
 			"captureMode": "screen-window",
-			"pending": true,
 			"captureNote": "Staged on the vertical rail, icons only (the new-install default, decided 11/08) via initialState.pluginSettings. Tabs restored but not reconnected show the moon (I292)."
 		},
 		{
