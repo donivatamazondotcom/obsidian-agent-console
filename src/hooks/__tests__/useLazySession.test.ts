@@ -746,3 +746,83 @@ describe("useLazySession — fork acquisition (Track C / RC-2)", () => {
 		expect(result.current.sessionId).toBe("fresh-1");
 	});
 });
+
+// ============================================================================
+// onAttachIntent — attaching a file is intent, like a keystroke
+// ([[Agent Console Attachment Button]] § Resolvers)
+// ============================================================================
+
+describe("useLazySession — onAttachIntent", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("idle: acquires right away, with no debounce", async () => {
+		const options = makeOptions();
+		const { result } = renderHook(() => useLazySession(options));
+		await act(async () => {
+			result.current.onAttachIntent();
+			await vi.advanceTimersByTimeAsync(0);
+		});
+		expect(options.acquireNewSession).toHaveBeenCalledTimes(1);
+		expect(result.current.state).toBe("ready");
+	});
+
+	it("no-op once a session is live", async () => {
+		const options = makeOptions();
+		const { result } = renderHook(() => useLazySession(options));
+		await act(async () => {
+			result.current.onAttachIntent();
+			await vi.advanceTimersByTimeAsync(0);
+		});
+		await act(async () => {
+			result.current.onAttachIntent();
+			await vi.advanceTimersByTimeAsync(500);
+		});
+		expect(options.acquireNewSession).toHaveBeenCalledTimes(1);
+	});
+
+	it("no-op while an acquisition is in flight", async () => {
+		let resolve!: (v: { ok: true; sessionId: string }) => void;
+		const options = makeOptions({
+			acquireNewSession: vi.fn(
+				() =>
+					new Promise<{ ok: true; sessionId: string }>((r) => {
+						resolve = r;
+					}),
+			),
+		});
+		const { result } = renderHook(() => useLazySession(options));
+		await act(async () => {
+			result.current.onAttachIntent();
+			await vi.advanceTimersByTimeAsync(0);
+		});
+		await act(async () => {
+			result.current.onAttachIntent();
+			await vi.advanceTimersByTimeAsync(0);
+		});
+		expect(options.acquireNewSession).toHaveBeenCalledTimes(1);
+		await act(async () => {
+			resolve({ ok: true, sessionId: "s" });
+			await vi.advanceTimersByTimeAsync(0);
+		});
+	});
+
+	it("typing then attaching inside the debounce window acquires exactly once", async () => {
+		const options = makeOptions();
+		const { result } = renderHook(() => useLazySession(options));
+		act(() => result.current.onComposerChange("h"));
+		await act(async () => {
+			result.current.onAttachIntent();
+			await vi.advanceTimersByTimeAsync(0);
+		});
+		// The first acquisition has finished; the typing timer must not fire a second.
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(1000);
+		});
+		expect(options.acquireNewSession).toHaveBeenCalledTimes(1);
+	});
+});
