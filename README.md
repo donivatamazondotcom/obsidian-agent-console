@@ -12,7 +12,7 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/donivatamazondotcom/obsidian-agent-console/ci.yaml?branch=main&label=build&color=8b5cf6)](https://github.com/donivatamazondotcom/obsidian-agent-console/actions/workflows/ci.yaml)
 [![Docs](https://img.shields.io/badge/docs-online-8b5cf6)](https://donivatamazondotcom.github.io/obsidian-agent-console/)
 
-<img src="docs/public/images/multi-session.webp" alt="Agent Console in Obsidian – three agent tabs (Kiro CLI active) beside a live Reading list dashboard, with a warning callout and a release run-of-show in the active chat" width="800">
+<img src="docs/public/images/multi-session.webp" alt="Agent Console in Obsidian – a Claude Code chat beside a Reading list dashboard, with the tabs as status icons in a slim column on the right" width="800">
 
 **[📦 Install from Obsidian](https://community.obsidian.md/plugins/agent-console) &nbsp;·&nbsp; [📖 Documentation](https://donivatamazondotcom.github.io/obsidian-agent-console/) &nbsp;·&nbsp; [💬 Discussions](https://github.com/donivatamazondotcom/obsidian-agent-console/discussions)**
 
@@ -58,24 +58,25 @@ Because the agents live in your vault, you stay in control: you pin what they se
 ## Features
 
 * **Save your go-to prompts and fire them in one click** – turn the kickoffs you retype every session (“debrief this meeting”, “summarize the selection”) into notes, then launch them from context-aware chips above the composer, a `!` search right in the message box, or the command palette
-* **Work from the notes you’ve already written** – @mention a note and the agent reads it, and the notes it links to, as context. Attach images and files, run slash commands – it starts from your knowledge, not a blank slate
+* **Work from the notes you’ve already written** – @mention a note and the agent reads it, and the notes it links to, as context. Attach images and files with the paperclip or by drag and drop, run slash commands – it starts from your knowledge, not a blank slate
 * **Let your second brain grow itself** – ask an agent to write back: capture decisions, draft notes, and link ideas straight into your vault, without the manual upkeep
 * **Stop waiting on one agent before starting the next** – run several agent chats side by side in one sidebar
+* **See which chat needs you at a glance** – each tab’s icon shows busy, waiting on you, finished while you were away, or a failed message. New installs show the tabs as a slim column of status icons on the side; drag it wider for names, or switch back to tabs along the top
 * **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, OpenCode, Antigravity CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol); on a fresh install Agent Console defaults to one it finds installed and opens the panel for you
 * **Your sessions are safe** – your tabs and conversations reopen after an Obsidian restart or a panel close, closing a panel with two or more chats checks first, you can undo a closed chat to bring it back with its full transcript, and half-typed messages survive a restart
-* **Search your whole chat history** – find a past conversation by title or by what was actually said inside it, then reopen it in a tab and pick up where you left off
+* **Search your whole chat history** – find a past conversation by title or by what was actually said inside it, then reopen it in a tab and pick up where you left off. Past the number of chats you choose to keep, the one you used least recently goes to the trash, so it’s never lost for good
 * **Take a conversation to another agent** – switch a chat to a different agent and bring the conversation along, shown as a collapsible read-only block; nothing is cleared without asking first
 * **Agents know they’re in Obsidian** – each agent gets a short briefing on the first message so it renders links, math, and diagrams and works with your notes; you choose exactly what it’s told
-* **Your context budget goes further** – context notes are referenced, not re-pasted into every message, so a long chat uses 65–80% fewer context tokens than re-sending the full note each turn
+* **Your context budget goes further** – a pinned note goes in full with your first message, then as a link, so a long chat uses 62–77% fewer context tokens than re-sending the full note each turn
 * **Drive it all from the keyboard** – every control is keyboard-operable with a clear focus ring; bind hotkeys to switch tabs, show the tab list, and fire quick prompts
 
 <details>
 <summary><strong>More features</strong></summary>
 
-* **See what every agent is doing without clicking around** – status icons show ready, busy, waiting on you, or stuck; the “agent finished” notification names the tab it came from, and clicking it jumps there
+* **Know which tab just finished** – the “agent finished” notification names the tab it came from, and clicking it jumps there
 * **Tabs name themselves** – each tab picks up a short title from what you’re working on, so a wall of tabs stays readable; rename any one yourself, drag to reorder, right-click to close
-* **Scroll up to read while the agent is still typing** – the incoming stream won’t yank you back to the bottom; tabs also keep their scroll position when you switch away and back
-* **Tabs don’t spin up until you type** – opening a tab won’t start an agent session, or any of its MCP servers, until you actually type, so rereading past chats stays light
+* **Scroll up to read while the agent is still typing** – whether you use the wheel, the scrollbar or the keyboard, the incoming stream won’t yank you back to the bottom; tabs also keep their scroll position when you switch away and back
+* **Tabs don’t spin up until you type** – opening a tab won’t start an agent session, or any of its MCP servers, until you actually type, so rereading past chats stays light; a tab you haven’t touched in an hour puts its agent to sleep to free memory and wakes up when you type
 * **A working directory per chat** – point each chat, or a specific agent, at the folder it should work in, and that choice sticks across restarts
 * **Pick the right model for each task** – switch modes and models per chat without restarting
 * **Read the conversation, not the logs** – tool calls render as a single tappable summary row by default. Click to expand, click to collapse, errors auto-expand so you don’t miss them.
@@ -112,7 +113,7 @@ Obsidian updates the plugin automatically when a new version is released. When a
 
 You’ll need an AI agent installed on your computer. Popular choices:
 
-* [Kiro CLI](https://kiro.dev) – Amazon's agent
+* [Kiro CLI](https://kiro.dev) – Amazon’s agent; Agent Console runs its V3 engine, or V2 on older versions
 * [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) – Anthropic’s coding agent
 * [Codex](https://github.com/agentclientprotocol/codex-acp) – the Agent Client Protocol Codex adapter
 * [Antigravity CLI](https://antigravity.google/docs/cli/acp/) – Google’s command-line agent, successor to Gemini CLI
@@ -151,9 +152,9 @@ Whatever your agent can do, Agent Console lets you do many of those at once.
 
 A plugin that runs live agent sessions in your vault has to be dependable. A few things keep it that way:
 
-* **Bugs come back with a test** – when something breaks, the fix ships with an automated test that reproduces the bug first, so it stays fixed. There are 1,800+ tests across the plugin’s core logic.
+* **Bugs come back with a test** – when something breaks, the fix ships with an automated test that reproduces the bug first, so it stays fixed. There are 5,000+ tests across the plugin’s core logic.
 * **Every change is checked before it lands** – each pull request runs linting, type-checking, and a full build before it can merge.
-* **The efficiency claim is measured, not asserted** – the “65–80% fewer context tokens” figure comes from a benchmark you can run yourself (`npm run bench:tokens`), with a test that keeps it honest against the shipped code.
+* **The efficiency claim is measured, not asserted** – the “62–77% fewer context tokens” figure comes from a benchmark you can run yourself (`npm run bench:tokens`), with a test that keeps it honest against the shipped code.
 * **Performance is tracked against a baseline** – rendering and context-handling are benchmarked against a saved baseline on every change, so a slowdown gets flagged before it ships.
 
 ## Contributing

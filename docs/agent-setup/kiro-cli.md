@@ -44,10 +44,10 @@ Kiro CLI natively supports ACP, so no additional adapter is required. Just point
 
 ## Choose the engine
 
-Kiro CLI has two engines. Agent Console uses the newer one, V3, unless you pick otherwise. Some agent configs, such as recent auto-sa releases, only load on V3.
+Kiro CLI has two engines. Agent Console uses the newer one, V3, unless you pick otherwise. Some Kiro agent configs only load on V3.
 
 1. In the **Kiro CLI** section, **Kiro CLI engine** has three choices: **Default (V3)**, **V3** and **V2 (legacy)**. Leave it on **Default (V3)** to follow Agent Console's default. **V2 (legacy)** is the older engine: pick it if a chat won't start on V3. The engine you pick here is the one that runs, even if Kiro CLI's own engine setting says otherwise. If you run Kiro through a custom agent instead (for example one per Kiro profile), the same setting appears on that custom agent whenever its path is `kiro-cli`, and it starts on **Default (V3)** too.
-2. Keep your arguments as they are, for example `acp --agent auto-sa`. V3 doesn't accept `--agent`, `--model` or `--effort` on launch, so Agent Console passes them to each new chat instead. `--trust-all-tools` and `--trust-tools` are dropped; V3 uses its own permission rules. In a V3 chat, **Always allow** asks whether to remember the choice for this vault or this chat (see [Permission Controls](../usage/editing.md#permission-controls)).
+2. Keep your arguments as they are, for example `acp --agent my-agent`. V3 doesn't accept `--agent`, `--model` or `--effort` on launch, so Agent Console passes them to each new chat instead. `--trust-all-tools` and `--trust-tools` are dropped; V3 uses its own permission rules. In a V3 chat, **Always allow** asks whether to remember the choice for this vault or this chat (see [Permission Controls](../usage/editing.md#permission-controls)).
 3. A change applies to chats you start after it. Open chats keep the engine they started on. To see which engine a chat runs on, hover over the chat header.
 
 Older versions of Kiro CLI don't have V3. You don't have to update to keep working: on **Default (V3)**, Agent Console starts the chat on V2 instead, and a tip at the top of the chat lists what V3 adds once you run `kiro-cli update`. Select **Got it** to hide the tip; hovering the chat header still says why the chat runs on V2. If you picked **V3** by name, the chat shows **Kiro CLI needs an update** instead of connecting. Run `kiro-cli update`, or set **Kiro CLI engine** to **V2 (legacy)** or **Default (V3)**, then send your message again.

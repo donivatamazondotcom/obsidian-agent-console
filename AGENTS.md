@@ -46,6 +46,7 @@ src/
 │   ├── kiro-v3.ts               # Kiro CLI V3 adapter: launch-arg rewrite, initialize capabilities (hooks opt-in), per-session mode/model/effort, resource-link adapter + its `<attached_file>` replay inverse (I220/I222)
 │   ├── type-converter.ts        # ACP SDK ↔ internal type conversion; capability normalizer (toAgentCapabilities)
 │   ├── permission-handler.ts    # Permission queue, auto-approve, Promise resolution
+│   ├── stop-kind.ts             # toTurnStopKind — ACP StopReason → TurnStopKind at the acp/ edge; an unknown or missing value maps to `unknown` (Tab Attention States)
 │   ├── process-teardown.ts      # teardownProcessTree — single owner of agent teardown (I211): snapshot tree, stdin EOF, group SIGTERM, grace, SIGKILL snapshot survivors incl. own-group MCP servers
 │   └── terminal-handler.ts      # Terminal process create/output/kill
 ├── i18n/                        # UI string localization boundary ([[Agent Console I18N]])
@@ -119,6 +120,7 @@ src/
 │   ├── useQueueOrchestration.ts # #82 React adapter over queueOrchestrationReducer: owns the pending slot, runs effects (acquire / flushDispatch=raw / clearComposer)
 │   ├── useTabPersistence.ts     # Save/restore per-leaf tab state across restarts
 │   ├── useTabSessionState.ts    # Six-state per-tab session state machine
+│   ├── useTabUnseen.ts          # Runtime half of Tab Attention States: feeds turn ends, sends and viewing events into nextTabUnseen; returns the tab's unseen flag for deriveTabState
 │   ├── useRestoredMessages.ts   # Replay transcript for restored tabs with no live session
 │   ├── forkSessionFlow.ts       # prepareForkAcquisition — before a fork: initialize a stopped agent and read fork support from the running process (a reload restarts first, I251)
 │   ├── loadExistingSessionFlow.ts # Kept-id reconnect: reconnectExistingSession initializes a stopped agent, then resume → load (restored and released tabs, I209)
@@ -241,10 +243,13 @@ src/
 │   ├── kiro-update-tip.ts          # deriveKiroUpdateTip — show the update tip only on a V2-fallback tab that hasn't dismissed it (I302)
 │   ├── reload-path.ts              # decideReloadPath — soft reload: busy (acquisition in flight), reload (session bound; I229 resume), or connect (no bound session: restart, then the first-send acquisition; I251)
 │   ├── keep-session-id.ts          # decideKeepSessionId — whether a tab losing its live session keeps the id for its next connect (messages on screen, or a held kept id); idle release (I237) and a failed bound reload (I318)
+│   ├── load-replay.ts              # decideLoadReplay — did a successful session/load replay the conversation (loaded) or come back empty (Kiro V3 answers an unknown id with an empty session; I264)
 │   ├── restore-failure.ts          # decideRestoreFailure — after a kept id fails to load: fallback with the transcript (local record or transcript on screen, or engine change; I246), gone (agent rejected or emptily loaded a row with nothing local; I282), or connect-failed (agent never answered)
+│   ├── settings-import-offer.ts    # mayOfferSettingsImport — gate for the first-run settings-import offer; an upgrading install never sees it (I306)
 │   ├── session-history-view.ts     # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source, knowledge) → listSource/agentPill (available | unsupported | unknown, I260)/restore/fork/banner/folderFilterDefault); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
 │   ├── session-retention.ts        # I202 saved-chat retention: selectEvictions(sessions, cap, tabIds) → least recently updated first, never a tab's record; selectUnusedSessionFiles (cleanup command, 24h guard); parseMaxSavedSessions (25|50|100|250|500|null=unlimited, default 100); formatSize
 │   ├── session-title.ts            # Pure session-title resolver (I224/I227): resolveSessionTitle(local > agent > none, drops placeholder agent titles), overlayLocalTitles (Agent-view rows, live + cached, by session id), deriveRestoreTabLabel (restored/forked tab label); deriveSessionRecordTitle reads it too
+│   ├── tab-unseen.ts               # nextTabUnseen / isBeingViewed — the tab's unseen-result flag: a turn ending while the tab isn't viewed marks finished or stopped early; viewing or sending clears it; a cancel never marks
 │   ├── tab-keyboard-nav.ts         # deriveTabKeyTarget — pure resolver for Left/Right/Home/End focus movement across the tab strip (WAI-ARIA tabs, manual activation; TS-I08); `orientation: "vertical"` uses Up/Down for the tab rail
 │   ├── whats-new.ts                # releaseCore / deriveWhatsNewHighlights / releaseNotesUrl / nextLastSeenVersion — which "What's new" highlights show after an update (I300)
 │   ├── tab-rail-width.ts           # resolveRailWidth / maxNamedWidth / nextRailWidthFromKey / toggleRailWidth — vertical tab rail snap, clamp, keyboard steps and toggle
@@ -611,4 +616,4 @@ If you're touching `src/` and your change introduces or changes any of the above
 
 ---
 
-**Last Updated**: July 2026 | **Architecture**: useAgent facade + sub-hooks + tab layer + context-note lifecycle + jsx-a11y keyboard-accessibility lint | **Version**: 2.0.0
+**Last Updated**: November 2026 | **Architecture**: useAgent facade + sub-hooks + tab layer + context-note lifecycle + jsx-a11y keyboard-accessibility lint | **Version**: 2.5.0

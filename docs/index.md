@@ -7,7 +7,7 @@ hero:
   tagline: "Agent Console connects your vault to the best AI models. Point them at the notes that matter – they follow the links to see the full picture, then help you build: docs, slides, projects, even code. Everything you work out gets saved back to your notes – so each new project starts further ahead than the last."
   image:
     src: /images/multi-session-animated.gif
-    alt: Three agent sessions in parallel tabs beside an open note in Obsidian – each tab keeps its own conversation and status icon
+    alt: Agent Console switching between three chats from the vertical tab rail – a Japan trip plan, a launch check and a newsletter – each with its own conversation
   actions:
     - theme: brand
       text: Get Started
@@ -19,19 +19,22 @@ hero:
 features:
   - icon: 🧠
     title: Grounded in Your Notes
-    details: Agents work from the notes you've already written. @mention a note and they read it – plus the notes it links to – so the answers fit your world, not generic advice off the internet. Your own knowledge is the starting point, never a blank chat.
+    details: Agents work from the notes you've already written. @mention a note and they read it – plus the notes it links to – so the answers fit your world, not generic advice off the internet. Need a PDF or a screenshot too? Click the paperclip to attach it. Your own knowledge is the starting point, never a blank chat.
   - icon: 🌱
     title: Your Second Brain Pays You Back
     details: Agents don't just read – they write back. Let one capture decisions and draft notes as you work, so what you figure out lands back in your vault. Each project leaves your notes richer for the next.
   - icon: 🤖
     title: Any Agent, Several at Once
-    details: Claude Code, Codex, Gemini CLI, Kiro CLI, OpenCode, Antigravity CLI, or any custom ACP-compatible agent. Run several side by side in a tabbed sidebar – each tab its own session. Fresh chats start connecting immediately, while restored chats survive an Obsidian restart and stay quiet until you interact. Tabs name themselves from what you're working on, so you can tell them apart at a glance – or rename any one yourself. New installs start with the tabs in a slim column of status icons on the side, so you see every chat's state without opening a list – drag it wider for names, or switch back to tabs along the top. Updated from an earlier version? A one-time "What's new" card lets you try the column in one click, and switch back just as fast. Keep as many tabs as you like – one you haven't touched in an hour puts its agent to sleep to free memory and wakes up when you type. Closed the panel? Just open it again – your tabs come back. On a fresh install it defaults to an agent you already have installed, so your first chat just works. Close the panel with multiple chats open and it checks before dropping them all. Close every tab, even the last, and you land on a blank launcher – type a prompt or fire a quick prompt to start fresh, like a browser's new-tab page.
+    details: Claude Code, Codex, Gemini CLI, Kiro CLI, OpenCode, Antigravity CLI, or any custom ACP-compatible agent. Run several side by side in a tabbed sidebar – each tab its own session. Fresh chats start connecting immediately, while restored chats survive an Obsidian restart and stay quiet until you interact. Tabs name themselves from what you're working on, so you can tell them apart at a glance – or rename any one yourself. Keep as many tabs as you like – one you haven't touched in an hour puts its agent to sleep to free memory and wakes up when you type. Closed the panel? Just open it again – your tabs come back. On a fresh install it defaults to an agent you already have installed, so your first chat just works. Close the panel with multiple chats open and it checks before dropping them all. Close every tab, even the last, and you land on a blank launcher – type a prompt or fire a quick prompt to start fresh, like a browser's new-tab page.
+  - icon: 👀
+    title: See Which Chat Needs You
+    details: Every tab's icon tells you what its agent is up to – busy, waiting on you, finished while you were away, stopped early, or your last message failed. New installs put the tabs in a slim column of status icons on the side, so you see every chat at a glance without opening a list – drag it wider for names, or switch back to tabs along the top. Updated from an earlier version? A one-time "What's new" card lets you try the column in one click, and switch back just as fast.
   - icon: 💻
     title: See and Approve What Runs
     details: When an agent runs a command, you see it and its output right in the chat – and anything that touches your system waits for your approval first. No black-box actions. When a connected service needs you to sign in, a prompt shows exactly where the sign-in page leads – nothing opens without your click.
   - icon: 🪶
     title: Context Budget Goes Further
-    details: Pinned notes are referenced, not re-pasted into every message – so a long multi-turn chat uses 65–80% fewer context tokens than re-sending a note's full content each turn. More window left for the actual work.
+    details: A pinned note goes to the agent in full with your first message, so it can start right away. After that it's sent as a link, not re-pasted every turn – so a long multi-turn chat uses 62–77% fewer context tokens than re-sending the note each time. More window left for the actual work.
   - icon: 🎛️
     title: A Model for Every Task
     details: Run a fast model in one tab and a heavyweight one in another. Switch model or mode mid-conversation – each tab keeps its own choice, so the right tool is always one tab away.
@@ -40,7 +43,7 @@ features:
     details: Save the prompts you retype every session – "debrief this meeting", "summarize the selection" – as little notes, then fire them in one click from the composer or the command palette. Relevant ones show up as chips only on the notes they fit, so the right kickoff is one tap away and nothing clutters the rest.
   - icon: 🔍
     title: Search Your History
-    details: Find that conversation you half-remember. Search across every past chat by title or by what was actually said inside it, then reopen any session in a tab and pick up right where it left off.
+    details: Find that conversation you half-remember. Search across every past chat by title or by what was actually said inside it, then reopen any session in a tab and pick up right where it left off. Keep as many chats as you choose – past that, the one you used least recently goes to the trash, so nothing piles up and nothing is lost for good.
   - icon: 🔗
     title: Every Shared Link, One Click Away
     details: As the agent points you at notes and web pages, they collect in a link list in the chat header – with files it just created this session set apart from ones that already existed. Jump back to anything it shared without scrolling the conversation.
@@ -64,7 +67,7 @@ features:
     details: Agent Console follows the language you set for Obsidian – Korean, Chinese, and Japanese alongside English. Settings, notices, dialogs, the chat panel, and command names all localize, and it can ask the agent to reply in your language too. Leave it on Auto or pick one under Appearance & notifications.
   - icon: 🛡️
     title: Enterprise-Grade Quality
-    details: "Built with the rigor you'd expect from enterprise software: 2,400+ automated tests, lint and build checks on every change, a token-efficiency benchmark you can run yourself, and performance tracked against a baseline – so updates stay solid as the plugin grows."
+    details: "Built with the rigor you'd expect from enterprise software: 5,000+ automated tests, lint and build checks on every change, a token-efficiency benchmark you can run yourself, and performance tracked against a baseline – so updates stay solid as the plugin grows."
 ---
 
 <p align="center"><em>Agent Console was built start to finish this way – the plugin is its own proof.</em></p>
@@ -82,7 +85,7 @@ Agent Console is based on [Agent Client](https://github.com/RAIT-09/obsidian-age
 | **[Claude Code](https://github.com/anthropics/claude-code)** | Anthropic | via [ACP adapter](https://github.com/agentclientprotocol/claude-agent-acp) |
 | **[Codex](https://github.com/openai/codex)** | OpenAI | via the [ACP adapter](https://github.com/agentclientprotocol/codex-acp) |
 | **[Gemini CLI](https://github.com/google-gemini/gemini-cli)** | Google | with `--experimental-acp` option (legacy – see Antigravity CLI) |
-| **[Kiro CLI](https://kiro.dev)** | Amazon | via built-in ACP support |
+| **[Kiro CLI](https://kiro.dev)** | Amazon | via built-in ACP support (V3 engine; older versions run on V2) |
 | **[OpenCode](https://opencode.ai)** | Open source | via built-in ACP support (runs local models via ollama) |
 | **[Antigravity CLI](/agent-setup/antigravity-cli)** | Google | via built-in ACP support (`agy acp`) |
 | **Custom** | Various | [Any ACP-compatible agent](https://agentclientprotocol.com/overview/agents) (e.g., Qwen Code) |
@@ -100,7 +103,7 @@ Agent Console is based on [Agent Client](https://github.com/RAIT-09/obsidian-age
 
 ### Why parallel?
 
-AI agents work asynchronously. Tell one to research, another to draft a section, a third to fix a script. Switch tabs while they work. Status icons show what each agent is doing – ready, busy, waiting on you, or stuck. Stop the context-switch tax of waiting for one agent before starting the next.
+AI agents work asynchronously. Tell one to research, another to draft a section, a third to fix a script. Switch tabs while they work. Status icons show what each agent is doing – ready, busy, waiting on you, finished, or stuck. Stop the context-switch tax of waiting for one agent before starting the next.
 
 The mental model: tell agents *what work to do*, not *how to do it*. With the right [skills](https://agentskills.io/home), agents figure out the steps. You stay focused on the work itself, with several streams progressing at once.
 

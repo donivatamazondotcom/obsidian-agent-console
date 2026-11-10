@@ -53,8 +53,10 @@ To switch agents for the current view:
 
 The header names the agent you chose. If the session ends up running a different one, the header shows both:
 
-- **~~Auto SA~~ kiro_default** – the agent you chose couldn't load, so the agent's default is running instead. Hover the header for details.
-- **Auto SA › trd-pro** – you switched to another mode from the composer. For Kiro CLI, a mode is one of your Kiro agents.
+- **~~Research~~ kiro_default** – the agent you chose couldn't load, so the agent's default is running instead. Hover the header for details.
+- **Research › writer** – you switched to another mode from the composer. For Kiro CLI, a mode is one of your Kiro agents.
+
+Hovering the header lists what that tab is running: agent, engine, model, effort, mode and folder, each when it applies.
 
 <p align="center">
   <img src="/images/kiro-v3-header-fallback.webp" alt="Chat header with the chosen agent name struck through, followed by the agent that is running instead" />
