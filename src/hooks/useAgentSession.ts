@@ -87,6 +87,16 @@ export interface UseAgentSessionReturn {
 	 */
 	releaseSession: () => Promise<void>;
 	/**
+	 * Restart the agent before a reload on a tab with no bound session
+	 * (I251). Shows `initializing`, clears a stale error, waits for any
+	 * never-sent `session/delete` (I259), then kills the tree and resolves
+	 * when it has EXITED (I230). Skips the disconnect when `stillCurrent()`
+	 * turned false (a reset happened). Sends no cancel: nothing is in flight.
+	 * Keeps last-known models, modes and commands for display. The next
+	 * acquisition re-initializes.
+	 */
+	restartForReload: (stillCurrent: () => boolean) => Promise<void>;
+	/**
 	 * Soft reload: disconnect the subprocess, re-initialize (fresh harness,
 	 * MCP reloaded), and resume the SAME session when the agent supports
 	 * `loadSession`. Falls back to a fresh session otherwise. Never clears the
@@ -552,6 +562,22 @@ export function useAgentSession(
 		await agentClient.disconnect();
 		await agentClient.whenTornDown();
 	}, [agentClient]);
+
+	const restartForReload = useCallback(
+		async (stillCurrent: () => boolean) => {
+			setErrorInfo(null);
+			setSession((prev) => ({
+				...prev,
+				sessionId: null,
+				state: "initializing",
+			}));
+			await agentClient.whenDeletesSettled();
+			if (!stillCurrent()) return;
+			await agentClient.disconnect();
+			await agentClient.whenTornDown();
+		},
+		[agentClient],
+	);
 
 	const forceRestartAgent = useCallback(async () => {
 		const currentAgentId = sessionRef.current.agentId;
@@ -1026,6 +1052,7 @@ export function useAgentSession(
 		restartSession,
 		closeSession,
 		releaseSession,
+		restartForReload,
 		closeLiveSession,
 		forceRestartAgent,
 		reloadSession,

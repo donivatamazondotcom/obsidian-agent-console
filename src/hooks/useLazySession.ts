@@ -74,6 +74,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { decideReloadPath } from "../resolvers/reload-path";
 import { useTabSessionState, type TabSessionState } from "./useTabSessionState";
 import type {
 	EngineChangeReason,
@@ -288,11 +289,20 @@ export interface UseLazySessionApi {
 	 * new session) as an acquisition: `ready → connecting → ready`, so the
 	 * queue's connect-flush edge delivers any message sent during the reload.
 	 * Unlike `acquireNow` it does NOT reset — the restored id and transcript
-	 * stay. Binds the id `run` returns (it changes on a fallback). No-op when
-	 * no session is bound or an acquisition is already in flight. A throwing
-	 * `run` ends in `error` and rethrows to the caller.
+	 * stay. Binds the id `run` returns (it changes on a fallback). A throwing
+	 * `run` ends in `error` and rethrows to the caller, unless a reset
+	 * superseded it (then `{ kind: "reloaded", superseded: true }`).
+	 *
+	 * With no bound session (a chat restored from history, a released or
+	 * fresh tab, a failed first connect) it runs `opts.teardown` inside a
+	 * normal acquisition, then the fork / kept-id / new-session path a first
+	 * send takes (I251). `busy` when an acquisition is already in flight:
+	 * nothing starts and `opts.onStart` isn't called. See `decideReloadPath`.
 	 */
-	reloadNow: (run: () => Promise<SessionAcquisitionResult>) => Promise<void>;
+	reloadNow: (
+		run: () => Promise<SessionAcquisitionResult>,
+		opts?: ReloadNowOptions,
+	) => Promise<ReloadNowOutcome>;
 	/** Reset to `idle`, release sessionId, clear fallback flag. */
 	reset: () => void;
 	/**
@@ -318,7 +328,8 @@ export interface UseLazySessionApi {
 
 	/**
 	 * Reconnect a released tab now on its kept id (I209): a picker change
-	 * before typing, or a soft reload. No-op unless the tab is `released` and
+	 * before typing. (A soft reload takes `reloadNow`'s connect path, I251.)
+	 * No-op unless the tab is `released` and
 	 * nothing is acquiring. Resolves when the acquisition settles.
 	 */
 	reconnectNow: () => Promise<void>;
@@ -347,6 +358,34 @@ export interface UseLazySessionApi {
 	/** Permission decision made. permission → ready. */
 	resolvePermission: () => void;
 }
+
+/**
+ * How a `fireAcquisition` run ended (I251). `skipped`: another acquisition
+ * was already in flight. `superseded`: a reset or agent switch moved the
+ * generation while it ran, so nothing was bound.
+ */
+export type AcquisitionOutcome =
+	| "bound"
+	| "fellBack"
+	| "failed"
+	| "superseded"
+	| "skipped";
+
+export interface ReloadNowOptions {
+	/** Called once a reload or connect actually starts (not when busy). */
+	onStart?: () => void;
+	/**
+	 * Connect path only: restart the agent before acquiring, so Reload gives
+	 * a fresh process. Runs inside the claimed acquisition (the tab already
+	 * shows connecting). `stillCurrent()` is false once a reset happened.
+	 */
+	teardown?: (stillCurrent: () => boolean) => Promise<void>;
+}
+
+export type ReloadNowOutcome =
+	| { kind: "busy" }
+	| { kind: "reloaded"; superseded: boolean }
+	| { kind: "connected"; result: AcquisitionOutcome };
 
 // ============================================================================
 // Hook
@@ -445,18 +484,41 @@ export function useLazySession(
 	// fireAcquisition — the core async pipeline
 	// ============================================================================
 
-	const fireAcquisition = useCallback(async () => {
-		if (isAcquiringRef.current) return;
+	const fireAcquisition = useCallback(async (
+		opts?: {
+			beforeAcquire?: (stillCurrent: () => boolean) => Promise<void>;
+		},
+	): Promise<AcquisitionOutcome> => {
+		if (isAcquiringRef.current) return "skipped";
 		isAcquiringRef.current = true;
 		// Snapshot the generation for this run. A reset() (e.g. an agent swap)
 		// while we await below bumps the ref; on resolve we compare and discard
 		// a stale result rather than binding it (I175).
 		const generation = acquisitionGenerationRef.current;
+		const stillCurrent = () =>
+			generation === acquisitionGenerationRef.current;
 
 		tabStateRef.current.startConnect();
 		// A retry is in flight: stop saying the session is gone until this
 		// attempt settles (I282 code review).
 		setSessionGone(false);
+
+		// I251: a reload on a tab with no bound session restarts the agent
+		// first. Inside the claimed acquisition, so a send in this window is
+		// held as a pre-ready send and nothing else starts an acquisition.
+		if (opts?.beforeAcquire) {
+			try {
+				await opts.beforeAcquire(stillCurrent);
+			} catch {
+				if (!stillCurrent()) return "superseded";
+				tabStateRef.current.connectFailed();
+				isAcquiringRef.current = false;
+				return "failed";
+			}
+			// A reset during the teardown: don't acquire on the new chat's
+			// process (the reset already cleared isAcquiringRef).
+			if (!stillCurrent()) return "superseded";
+		}
 
 		// Acquisition source, in precedence order: fork > restore > new.
 		let result: SessionAcquisitionResult;
@@ -518,7 +580,7 @@ export function useLazySession(
 		// reset already drove the machine to idle and cleared isAcquiringRef,
 		// so leave both untouched.
 		if (generation !== acquisitionGenerationRef.current) {
-			return;
+			return "superseded";
 		}
 
 		setSessionGone(gone && !result.ok);
@@ -546,6 +608,8 @@ export function useLazySession(
 		}
 
 		isAcquiringRef.current = false;
+		if (!result.ok) return "failed";
+		return fallback !== null ? "fellBack" : "bound";
 	}, []);
 
 	// ============================================================================
@@ -699,7 +763,7 @@ export function useLazySession(
 	// acquireNow — explicit eager acquisition through the single owner
 	// ============================================================================
 
-	const acquireNow = useCallback(() => {
+	const acquireNow = useCallback(async () => {
 		// Reset any prior session/queue/restored-id state, then immediately
 		// fire a fresh acquisition — no keystroke, no queued message. The
 		// "respawn now" intents (Restart agent / hard reload) route through
@@ -707,7 +771,7 @@ export function useLazySession(
 		// caller disconnects the subprocess first so this re-initializes.
 		// Returns the acquisition promise so callers can await readiness.
 		reset();
-		return fireAcquisition();
+		await fireAcquisition();
 	}, [reset, fireAcquisition]);
 
 	// ============================================================================
@@ -721,26 +785,37 @@ export function useLazySession(
 			window.clearTimeout(debounceTimerRef.current);
 			debounceTimerRef.current = null;
 		}
-		return fireAcquisition();
+		await fireAcquisition();
 	}, [fireAcquisition]);
 
 	const reloadNow = useCallback(
-		async (run: () => Promise<SessionAcquisitionResult>) => {
-			// I209: a released tab has no process to tear down, so a reload is
-			// the normal reconnect on the kept id — that IS a fresh harness.
-			if (tabStateRef.current.state === "released") {
-				return reconnectNow();
-			}
-			// Nothing to reload, or the owner is already acquiring (a first
-			// send, reconnect or another reload) — one acquisition at a time.
-			if (sessionIdRef.current === null) return;
-			if (isAcquiringRef.current) return;
-			isAcquiringRef.current = true;
-			const generation = acquisitionGenerationRef.current;
+		async (
+			run: () => Promise<SessionAcquisitionResult>,
+			opts?: ReloadNowOptions,
+		): Promise<ReloadNowOutcome> => {
+			const path = decideReloadPath({
+				hasBoundSession: sessionIdRef.current !== null,
+				acquisitionInFlight: isAcquiringRef.current,
+			});
+			if (path.kind === "busy") return { kind: "busy" };
 			if (debounceTimerRef.current !== null) {
 				window.clearTimeout(debounceTimerRef.current);
 				debounceTimerRef.current = null;
 			}
+			opts?.onStart?.();
+
+			// I251: no bound session (restored from history, released, fresh,
+			// failed first connect). Restart the agent, then the acquisition a
+			// first send runs: fork, kept id, or a new session.
+			if (path.kind === "connect") {
+				const result = await fireAcquisition({
+					beforeAcquire: opts?.teardown,
+				});
+				return { kind: "connected", result };
+			}
+
+			isAcquiringRef.current = true;
+			const generation = acquisitionGenerationRef.current;
 
 			tabStateRef.current.startConnect();
 
@@ -748,15 +823,19 @@ export function useLazySession(
 			try {
 				result = await run();
 			} catch (error) {
-				if (generation === acquisitionGenerationRef.current) {
-					tabStateRef.current.connectFailed();
-					isAcquiringRef.current = false;
+				// A reset superseded it: no failure to report (I251 L-a).
+				if (generation !== acquisitionGenerationRef.current) {
+					return { kind: "reloaded", superseded: true };
 				}
+				tabStateRef.current.connectFailed();
+				isAcquiringRef.current = false;
 				throw error;
 			}
 
 			// Superseded mid-flight (reset / agent swap): discard (I175).
-			if (generation !== acquisitionGenerationRef.current) return;
+			if (generation !== acquisitionGenerationRef.current) {
+				return { kind: "reloaded", superseded: true };
+			}
 
 			if (result.ok) {
 				// A soft reload that started fresh keeps its toast and shows no
@@ -773,8 +852,9 @@ export function useLazySession(
 				tabStateRef.current.connectFailed();
 			}
 			isAcquiringRef.current = false;
+			return { kind: "reloaded", superseded: false };
 		},
-		[reconnectNow],
+		[fireAcquisition],
 	);
 
 	const continuesExistingSession = useCallback(

@@ -119,6 +119,7 @@ src/
 │   ├── useTabPersistence.ts     # Save/restore per-leaf tab state across restarts
 │   ├── useTabSessionState.ts    # Six-state per-tab session state machine
 │   ├── useRestoredMessages.ts   # Replay transcript for restored tabs with no live session
+│   ├── forkSessionFlow.ts       # prepareForkAcquisition — before a fork: initialize a stopped agent and read fork support from the running process (a reload restarts first, I251)
 │   ├── loadExistingSessionFlow.ts # Kept-id reconnect: reconnectExistingSession initializes a stopped agent, then resume → load (restored and released tabs, I209)
 │   ├── reloadSessionFlow.ts     # Pure soft-reload orchestration (resume same session / fresh fallback)
 │   ├── useDebouncedSessionSave.ts # Debounced session persistence (messages + context notes)
@@ -233,6 +234,7 @@ src/
 │   ├── history-capabilities.ts     # resolveHistoryCapabilities(live, cached) → { kind: live | cached | unknown, capabilities } — what the history view gates on before a tab connects (I260)
 │   ├── unsent-discard.ts           # decideUnsentDiscard — pure resolver: does retiring this tab delete its agent session (created here with session/new, never sent to, nothing on screen, no record, agent advertises delete; I259)
 │   ├── kiro-update-tip.ts          # deriveKiroUpdateTip — show the update tip only on a V2-fallback tab that hasn't dismissed it (I302)
+│   ├── reload-path.ts              # decideReloadPath — soft reload: busy (acquisition in flight), reload (session bound; I229 resume), or connect (no bound session: restart, then the first-send acquisition; I251)
 │   ├── restore-failure.ts          # decideRestoreFailure — after a kept id fails to load: fallback with the transcript (local record or transcript on screen, or engine change; I246), gone (agent rejected or emptily loaded a row with nothing local; I282), or connect-failed (agent never answered)
 │   ├── session-history-view.ts     # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source, knowledge) → listSource/agentPill (available | unsupported | unknown, I260)/restore/fork/banner/folderFilterDefault); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
 │   ├── session-retention.ts        # I202 saved-chat retention: selectEvictions(sessions, cap, tabIds) → least recently updated first, never a tab's record; selectUnusedSessionFiles (cleanup command, 24h guard); parseMaxSavedSessions (25|50|100|250|500|null=unlimited, default 100); formatSize

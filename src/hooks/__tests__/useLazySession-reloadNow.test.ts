@@ -57,7 +57,7 @@ describe("useLazySession.reloadNow (I229)", () => {
 		const { result } = await mountReady();
 		const { run, resolve } = deferredRun();
 
-		let done: Promise<void> = Promise.resolve();
+		let done: Promise<unknown> = Promise.resolve();
 		act(() => {
 			done = result.current.reloadNow(run);
 		});
@@ -111,14 +111,17 @@ describe("useLazySession.reloadNow (I229)", () => {
 		expect(result.current.state).toBe("error");
 	});
 
-	it("does nothing when no session is bound", async () => {
+	it("with no session bound, connects instead of reloading (I251)", async () => {
 		const { result } = renderHook(() => useLazySession(makeOptions()));
 		const run = vi.fn(async () => ({ ok: true as const, sessionId: "x" }));
+		let outcome: unknown;
 		await act(async () => {
-			await result.current.reloadNow(run);
+			outcome = await result.current.reloadNow(run);
 		});
+		// The bound-session reload never runs; the first-send acquisition does.
 		expect(run).not.toHaveBeenCalled();
-		expect(result.current.state).toBe("idle");
+		expect(outcome).toEqual({ kind: "connected", result: "bound" });
+		expect(result.current.state).toBe("ready");
 	});
 
 	it("does nothing while another acquisition or reload is in flight", async () => {
@@ -126,7 +129,7 @@ describe("useLazySession.reloadNow (I229)", () => {
 		const first = deferredRun();
 		const second = vi.fn(async () => ({ ok: true as const, sessionId: "s9" }));
 
-		let done: Promise<void> = Promise.resolve();
+		let done: Promise<unknown> = Promise.resolve();
 		act(() => {
 			done = result.current.reloadNow(first.run);
 		});
@@ -146,7 +149,7 @@ describe("useLazySession.reloadNow (I229)", () => {
 		const { result } = await mountReady();
 		const { run, resolve } = deferredRun();
 
-		let done: Promise<void> = Promise.resolve();
+		let done: Promise<unknown> = Promise.resolve();
 		act(() => {
 			done = result.current.reloadNow(run);
 		});

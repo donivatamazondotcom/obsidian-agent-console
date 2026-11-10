@@ -380,7 +380,7 @@ describe("I265 fallback: the new session's first send carries the system instruc
 		});
 		await tab.send("Hello again");
 		let finish: (() => void) | null = null;
-		let reload: Promise<void> | null = null;
+		let reload: Promise<unknown> | null = null;
 		await act(async () => {
 			reload = tab.hook.result.current.lazy.reloadNow(
 				() =>

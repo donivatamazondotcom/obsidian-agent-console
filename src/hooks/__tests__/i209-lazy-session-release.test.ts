@@ -254,7 +254,9 @@ describe("I209 × I229: reload on a released tab", () => {
 		expect(result.current.sessionId).toBe("s1");
 	});
 
-	it("a plain idle tab with no session still ignores reload", async () => {
+	// I251 changed this row: Reload on a tab with no bound session connects
+	// it (restart, then the first-send acquisition) instead of doing nothing.
+	it("a plain idle tab with no session connects a new session on reload (I251)", async () => {
 		const options = makeOptions();
 		const { result } = renderHook(() => useLazySession(options));
 		const run = vi.fn();
@@ -263,7 +265,7 @@ describe("I209 × I229: reload on a released tab", () => {
 		});
 		expect(run).not.toHaveBeenCalled();
 		expect(options.loadExistingSession).not.toHaveBeenCalled();
-		expect(options.acquireNewSession).not.toHaveBeenCalled();
-		expect(result.current.state).toBe("idle");
+		expect(options.acquireNewSession).toHaveBeenCalledTimes(1);
+		expect(result.current.state).toBe("ready");
 	});
 });

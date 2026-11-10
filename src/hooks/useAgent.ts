@@ -75,6 +75,8 @@ export interface UseAgentReturn {
 	forceRestartAgent: () => Promise<void>;
 	/** Idle release (I209); resolves on tree exit. */
 	releaseSession: () => Promise<void>;
+	/** Restart before a reload on an unbound tab (I251); resolves on tree exit. */
+	restartForReload: (stillCurrent: () => boolean) => Promise<void>;
 	reloadSession: () => Promise<ReloadSessionFlowResult>;
 	cancelOperation: () => Promise<void>;
 	getAvailableAgents: () => AgentDisplayInfo[];
@@ -259,6 +261,7 @@ export function useAgent(
 			closeLiveSession: agentSession.closeLiveSession,
 			forceRestartAgent: agentSession.forceRestartAgent,
 			releaseSession: agentSession.releaseSession,
+			restartForReload: agentSession.restartForReload,
 			reloadSession,
 			cancelOperation,
 			getAvailableAgents: agentSession.getAvailableAgents,
@@ -303,6 +306,8 @@ export function useAgent(
 			agentSession.closeSession,
 			agentSession.closeLiveSession,
 			agentSession.forceRestartAgent,
+			agentSession.releaseSession,
+			agentSession.restartForReload,
 			reloadSession,
 			cancelOperation,
 			agentSession.getAvailableAgents,
