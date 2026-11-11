@@ -4,7 +4,7 @@
 
 # Agent Console
 
-**Finally put your second brain to work.**
+**Your AI agents, working from your notes.**
 
 [![Version](https://img.shields.io/github/v/release/donivatamazondotcom/obsidian-agent-console?label=version&color=8b5cf6)](https://github.com/donivatamazondotcom/obsidian-agent-console/releases)
 [![Obsidian downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&query=%24%5B%22agent-console%22%5D.downloads&label=downloads&color=8b5cf6)](https://community.obsidian.md/plugins/agent-console)
@@ -20,11 +20,11 @@
 
 ## Why Agent Console
 
-Most AI agents start every chat from zero – they know nothing about you until you paste it in. Agent Console brings agents into your Obsidian vault instead, so they work from the notes you’ve already written. @mention a note and the agent reads it – and the notes it links to – for context. Ask it to write back – capture a decision, draft a note, link an idea – and your second brain grows as you work, without the tedious upkeep.
+Most AI agents start every chat knowing nothing about you. Agent Console runs your agents inside your Obsidian vault. @mention a note and the agent starts from it, and it can follow the links. Ask it to write back – capture a decision, draft a note – and your second brain grows as you work.
 
-Because the agents live in your vault, you stay in control: you pin what they see, and you approve anything that runs. And since they work asynchronously, you can run several at once – one researching, one drafting, one vibe-coding a script – each in its own tab, each showing whether it’s ready, busy, or waiting on you. Stop waiting on one before starting the next.
+When an agent asks to edit a file or run a command, you choose Allow or Reject. Keep the prompts you retype as notes, and fire one from a chip, a `!` search, or a bookmark in your browser. Keep several jobs going, each in its own tab, with an icon that shows whether it’s busy, done, or waiting on you.
 
-> **The shift in how you work:** Tell the agent *what you want done*, not *how to do it*. With the right [skills](https://agentskills.io/home), the agent figures out the steps. You stay focused on the work itself. With many tabs, you can have several things happening at once, without losing track.
+> **The shift in how you work:** Tell the agent *what you want done*, not *how to do it*. With the right [skills](https://agentskills.io/home), it works out the steps, and you stay on the work itself.
 
 ## See it in action
 
@@ -32,55 +32,59 @@ Because the agents live in your vault, you stay in control: you pin what they se
 <tr>
 <td width="50%" align="center">
 <img src="docs/public/images/sending-messages.webp" alt="The composer with a vault note pinned in the context strip" width="380"><br>
-<b>Bring your notes in as context</b><br>
-<sub>Pin notes in the context strip, or @-mention any note.</sub>
+<b>Start from your own notes</b><br>
+<sub>Pin a note to the chat, or @mention any note.</sub>
 </td>
-<td width="50%" align="center">
-<img src="docs/public/images/slash-commands-1.webp" alt="The slash-command menu open in the composer" width="380"><br>
-<b>Slash commands, built in</b><br>
-<sub>Type / to run your agent's commands.</sub>
-</td>
-</tr>
-<tr>
 <td width="50%" align="center">
 <img src="docs/public/images/model-selection.webp" alt="The model picker open in a chat tab" width="380"><br>
 <b>A model for every task</b><br>
 <sub>Switch model or mode per tab, mid-chat.</sub>
 </td>
+</tr>
+<tr>
+<td width="50%" align="center">
+<img src="docs/public/images/quick-prompts.webp" alt="Agent Console composer with quick-prompt chips above the box and the ! launcher dropdown open: prompts, a Create row, and a key legend" width="380"><br>
+<b>Your go-to prompts, one click away</b><br>
+<sub>Click a chip, or type ! to search them.</sub>
+</td>
 <td width="50%" align="center">
 <img src="docs/public/images/editing.webp" alt="A file-edit permission card showing a diff with Allow and Reject buttons" width="380"><br>
 <b>See and approve what runs</b><br>
-<sub>Edits and commands wait for your OK.</sub>
+<sub>Review the diff, then Allow or Reject.</sub>
 </td>
 </tr>
 </table>
 
 ## Features
 
-* **Save your go-to prompts and fire them in one click** – turn the kickoffs you retype every session (“debrief this meeting”, “summarize the selection”) into notes, then launch them from context-aware chips above the composer, a `!` search right in the message box, or the command palette; a prompt can also pick its own agent and mode, so you don’t switch by hand
-* **Work from the notes you’ve already written** – @mention a note and the agent reads it, and the notes it links to, as context. Attach images and files with the paperclip or by drag and drop, run slash commands – it starts from your knowledge, not a blank slate
+* **Work from the notes you’ve already written** – @mention a note and the agent reads it, and it can follow the links to related notes. Send PDFs and images to the agent too, by copy-pasting them or with the attach button
 * **Let your second brain grow itself** – ask an agent to write back: capture decisions, draft notes, and link ideas straight into your vault, without the manual upkeep
-* **Stop waiting on one agent before starting the next** – run several agent chats side by side in one sidebar
-* **See which chat needs you at a glance** – each tab’s icon shows busy, waiting on you, finished while you were away, or a failed message. New installs show the tabs as a slim column of status icons on the side; drag it wider for names, or switch back to tabs along the top
-* **Use the agent you’ve already set up** – Kiro CLI, Claude Code, Codex, Gemini CLI, OpenCode, Antigravity CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol); on a fresh install Agent Console defaults to one it finds installed and opens the panel for you
-* **Your sessions are safe** – your tabs and conversations reopen after an Obsidian restart or a panel close, closing a panel with two or more chats checks first, you can undo a closed chat to bring it back with its full transcript, and half-typed messages survive a restart
-* **Search your whole chat history** – find a past conversation by title or by what was actually said inside it, then reopen it in a tab and pick up where you left off. Past the number of chats you choose to keep, the one you used least recently goes to the trash, so it’s never lost for good
-* **Take a conversation to another agent** – switch a chat to a different agent and bring the conversation along, shown as a collapsible read-only block; nothing is cleared without asking first
-* **Agents know they’re in Obsidian** – each agent gets a short briefing on the first message so it renders links, math, and diagrams and works with your notes; you choose exactly what it’s told
+* **Fire your go-to prompts in one click** – keep kickoffs like “debrief this meeting” as notes and launch them from a chip or a `!` search. `show when` puts a chip only on the notes it fits, and a prompt can pick its own agent and mode
+* **See which chat needs you at a glance** – each tab’s icon shows busy, waiting on you, finished while you were away, stopped early, or a failed message. New installs show the tabs as a slim column of icons; drag it wider for names
+* **Stop waiting on one agent before starting the next** – run several chats side by side, each in its own tab: one researching, one drafting, one fixing a script
+* **Use the agent you’ve already set up** – Claude Code, Codex, Kiro CLI, OpenCode, Antigravity CLI, Gemini CLI, or any custom agent built on the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol). A fresh install picks one it finds, and a chat can switch agents with its conversation
+* **See and approve what runs** – commands the agent runs show in the chat with their output. When an agent asks before editing a file or running a command, you see the diff or the command and choose Allow or Reject
+* **Your chats come back** – tabs, conversations, and half-typed messages survive a restart, and **Reopen closed session tab** brings back a chat you closed. Search every past chat by title or by what was said in it
 * **Your context budget goes further** – a pinned note goes in full with your first message, then as a link, so a long chat uses 62–77% fewer context tokens than re-sending the full note each turn
+* **Agents know they’re in Obsidian** – each agent gets a short briefing on the first message so it writes links, math, and diagrams that render and works with your notes; you choose exactly what it’s told
 * **Drive it all from the keyboard** – every control is keyboard-operable with a clear focus ring; bind hotkeys to switch tabs, show the tab list, and fire quick prompts
 
 <details>
 <summary><strong>More features</strong></summary>
 
 * **Know which tab just finished** – the “agent finished” notification names the tab it came from, and clicking it jumps there
-* **Tabs name themselves** – each tab picks up a short title from what you’re working on, so a wall of tabs stays readable; rename any one yourself, drag to reorder, right-click to close
-* **Scroll up to read while the agent is still typing** – whether you use the wheel, the scrollbar or the keyboard, the incoming stream won’t yank you back to the bottom; tabs also keep their scroll position when you switch away and back
-* **Tabs don’t spin up until you type** – opening a tab won’t start an agent session, or any of its MCP servers, until you actually type, so rereading past chats stays light; a tab you haven’t touched in an hour puts its agent to sleep to free memory and wakes up when you type
+* **Tabs name themselves** – each tab picks up a short title from what you’re working on; rename any one yourself, drag to reorder, right-click to close
+* **Scroll up to read while the agent is still typing** – whether you use the wheel, scrollbar, or keys, the stream won’t pull you back down, and tabs keep their place
+* **Idle tabs don’t hold memory** – restored tabs don’t start their agent or MCP servers until you type, and a tab left alone for an hour puts its agent to sleep
+* **Choose how many chats to keep** – past that number, the least recently used goes to the trash instead of being deleted; closing a panel with several chats asks first
 * **A working directory per chat** – point each chat, or a specific agent, at the folder it should work in, and that choice sticks across restarts
 * **Pick the right model for each task** – switch modes and models per chat without restarting
-* **Read the conversation, not the logs** – tool calls render as a single tappable summary row by default. Click to expand, click to collapse, errors auto-expand so you don’t miss them.
+* **Read the conversation, not the logs** – tool calls render as one summary row you click to expand or collapse, and a failed call is flagged so you don’t miss it
+* **Your agent’s slash commands, built in** – type / in the message box to see and run the commands your agent offers
+* **Answer with one click** – when an agent offers a few options, it can show them as buttons; click one to send your pick as a normal message
+* **Every link the agent shared, in one list** – the header’s link button collects the notes and pages it pointed you to, newly created files first
 * **Your MCP tools come along** – whatever MCP servers your agent uses keep working in Agent Console with no extra setup
+* **Use it in your language** – Agent Console follows Obsidian’s language, with Korean, Chinese, and Japanese alongside English
 * **Switching from another agent plugin? Bring your setup** – import agent definitions, defaults, and API keys from another plugin (like Agent Client) in one click
 * **Looks like part of your Obsidian** – it adopts Obsidian’s own styling and your theme’s variables instead of hardcoded colors and chrome, so any custom theme restyles it like a built-in panel
 
@@ -88,10 +92,10 @@ Because the agents live in your vault, you stay in control: you pin what they se
 
 ## What you can do with it
 
-* **Do several things at once** – ask one agent to research a topic, another to prep your next meeting, a third to clean up your email. Each one works at its own pace.
+* **Do several things at once** – ask one agent to research a topic, another to prep your next meeting, and a third to draft a newsletter
 * **Vibe-code a script or tool** – describe what you want, get working code back, and review the diff
-* **Pull in your notes** – type `@` and the name of any note – meeting notes, contact info, project pages – and the agent uses it as context for the task
-* **Make your vault fill itself** – with the right skills, agents write meeting notes, research summaries, and action items straight into your vault. No manual capture.
+* **Pull in your notes** – type `@` and a note’s name, like a meeting note or a project page, and the agent works from it
+* **Make your vault fill itself** – with the right skills, agents write meeting notes, research summaries, and action items straight into your vault
 * **Compare two agents** – give the same task to two different agents in side-by-side tabs and see which answer you like better
 * **Stay focused** – status icons tell you when an agent is ready or still working, so you don’t break your flow checking on it
 
@@ -158,18 +162,18 @@ Three things come together, and you control all of them:
 
 * **Your notes give the agent context** – it reads notes, mentions, and attachments from your vault, so it works with your knowledge instead of starting from scratch
 * **Your agent stays itself** – task instructions, custom rules, tools – Agent Console doesn’t get in the way of anything your agent already supports
-* **Agent Console keeps everything running** – many tabs, status icons, parallel chats. The piece that lets you do more without losing track.
+* **Agent Console keeps it all in view** – many tabs, each with a status icon, so you can run more at once without losing track
 
-Whatever your agent can do, Agent Console lets you do many of those at once.
+Whatever your agent can do, Agent Console lets you run several of those jobs at once.
 
 ## Enterprise-grade quality
 
 A plugin that runs live agent sessions in your vault has to be dependable. A few things keep it that way:
 
-* **Bugs come back with a test** – when something breaks, the fix ships with an automated test that reproduces the bug first, so it stays fixed. There are 5,000+ tests across the plugin’s core logic.
-* **Every change is checked before it lands** – each pull request runs linting, type-checking, and a full build before it can merge.
-* **The efficiency claim is measured, not asserted** – the “62–77% fewer context tokens” figure comes from a benchmark you can run yourself (`npm run bench:tokens`), with a test that keeps it honest against the shipped code.
-* **Performance is tracked against a baseline** – rendering and context-handling are benchmarked against a saved baseline on every change, so a slowdown gets flagged before it ships.
+* **Every bug fix ships with a test** – the test reproduces the bug first, so it stays fixed. There are 5,000+ tests across the plugin’s core logic
+* **Every change is checked before it lands** – each pull request runs linting, type-checking, the full test suite, and a build before it can merge
+* **You can check the efficiency claim yourself** – the “62–77% fewer context tokens” figure comes from a benchmark you can run (`npm run bench:tokens`), and a test keeps it in line with the shipped code
+* **Slower context handling blocks a release** – context-handling benchmarks run on every change, and a release can’t ship if they’re more than 15% slower than the saved baseline
 
 ## Contributing
 
