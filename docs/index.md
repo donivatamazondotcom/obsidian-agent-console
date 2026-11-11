@@ -40,7 +40,7 @@ features:
     details: Run a fast model in one tab and a heavyweight one in another. Switch model or mode mid-conversation – each tab keeps its own choice, so the right tool is always one tab away.
   - icon: ⚡
     title: One-Click Kickoffs
-    details: Save the prompts you retype every session – "debrief this meeting", "summarize the selection" – as little notes, then fire them in one click from the composer or the command palette. Relevant ones show up as chips only on the notes they fit, so the right kickoff is one tap away and nothing clutters the rest.
+    details: Save the prompts you retype every session – "debrief this meeting", "summarize the selection" – as little notes, then fire them in one click from the composer or the command palette. Relevant ones show up as chips only on the notes they fit, so the right kickoff is one tap away and nothing clutters the rest. A prompt can pick its own agent and mode, and a link can start one from an email, a doc or a bookmark.
   - icon: 🔍
     title: Search Your History
     details: Find that conversation you half-remember. Search across every past chat by title or by what was actually said inside it, then reopen any session in a tab and pick up right where it left off. Keep as many chats as you choose – past that, the one you used least recently goes to the trash, so nothing piles up and nothing is lost for good.
