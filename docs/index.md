@@ -3,11 +3,11 @@ layout: home
 
 hero:
   name: "Agent Console"
-  text: "Finally put your second brain to work."
-  tagline: "Agent Console connects your vault to the best AI models. Point them at the notes that matter – they follow the links to see the full picture, then help you build: docs, slides, projects, even code. Everything you work out gets saved back to your notes – so each new project starts further ahead than the last."
+  text: "Your AI agents, working from your notes."
+  tagline: "They can also save what they figure out back to your vault – a plan, a draft, a meeting's action items. Run several at once."
   image:
     src: /images/multi-session-animated.gif
-    alt: Agent Console switching between three chats from the vertical tab rail – a Japan trip plan, a launch check and a newsletter – each with its own conversation
+    alt: Agent Console switching between three chats on its vertical tab rail – a Japan trip plan, a release check, and a newsletter draft – with saved-prompt chips above the composer
   actions:
     - theme: brand
       text: Get Started
@@ -19,96 +19,98 @@ hero:
 features:
   - icon: 🧠
     title: Grounded in Your Notes
-    details: Agents work from the notes you've already written. @mention a note and they read it – plus the notes it links to – so the answers fit your world, not generic advice off the internet. Need a PDF or a screenshot too? Click the paperclip to attach it. Your own knowledge is the starting point, never a blank chat.
+    details: Agents work from the notes you've already written. @mention a note and the agent reads it, and it can follow the links to related notes, so answers fit your world instead of generic advice. Send PDFs and images to the agent by copy-pasting them or with the attach button.
   - icon: 🌱
     title: Your Second Brain Pays You Back
-    details: Agents don't just read – they write back. Let one capture decisions and draft notes as you work, so what you figure out lands back in your vault. Each project leaves your notes richer for the next.
-  - icon: 🤖
-    title: Any Agent, Several at Once
-    details: Claude Code, Codex, Gemini CLI, Kiro CLI, OpenCode, Antigravity CLI, or any custom ACP-compatible agent. Run several side by side in a tabbed sidebar – each tab its own session. Fresh chats start connecting immediately, while restored chats survive an Obsidian restart and stay quiet until you interact. Tabs name themselves from what you're working on, so you can tell them apart at a glance – or rename any one yourself. Keep as many tabs as you like – one you haven't touched in an hour puts its agent to sleep to free memory and wakes up when you type. Closed the panel? Just open it again – your tabs come back. On a fresh install it defaults to an agent you already have installed, so your first chat just works. Close the panel with multiple chats open and it checks before dropping them all. Close every tab, even the last, and you land on a blank launcher – type a prompt or fire a quick prompt to start fresh, like a browser's new-tab page.
-  - icon: 👀
-    title: See Which Chat Needs You
-    details: Every tab's icon tells you what its agent is up to – busy, waiting on you, finished while you were away, stopped early, or your last message failed. New installs put the tabs in a slim column of status icons on the side, so you see every chat at a glance without opening a list – drag it wider for names, or switch back to tabs along the top. Updated from an earlier version? A one-time "What's new" card lets you try the column in one click, and switch back just as fast.
-  - icon: 💻
-    title: See and Approve What Runs
-    details: When an agent runs a command, you see it and its output right in the chat – and anything that touches your system waits for your approval first. No black-box actions. When a connected service needs you to sign in, a prompt shows exactly where the sign-in page leads – nothing opens without your click.
-  - icon: 🪶
-    title: Context Budget Goes Further
-    details: A pinned note goes to the agent in full with your first message, so it can start right away. After that it's sent as a link, not re-pasted every turn – so a long multi-turn chat uses 62–77% fewer context tokens than re-sending the note each time. More window left for the actual work.
-  - icon: 🎛️
-    title: A Model for Every Task
-    details: Run a fast model in one tab and a heavyweight one in another. Switch model or mode mid-conversation – each tab keeps its own choice, so the right tool is always one tab away.
+    details: Agents can write back, too. Ask one to turn a meeting note into action items, capture a decision, or draft a page, and the result lands in your vault. Each project leaves your notes richer for the next.
   - icon: ⚡
     title: One-Click Kickoffs
-    details: Save the prompts you retype every session – "debrief this meeting", "summarize the selection" – as little notes, then fire them in one click from the composer or the command palette. Relevant ones show up as chips only on the notes they fit, so the right kickoff is one tap away and nothing clutters the rest. A prompt can also pick its own agent and mode, so you don't switch by hand after it lands.
+    details: Keep the prompts you retype, like "debrief this meeting" or "summarize the selection", as notes you can edit, version, and share. Fire one from a chip or a ! search. A "show when" property puts a prompt's chip only on the notes it fits, and each prompt can pick its own agent and mode.
   - icon: 📨
     title: Hand Any Page to Your Saved Prompts
     details: Reading an email thread in your browser? Select the part you care about, click a bookmark, and your "draft a reply" prompt opens in a new chat with that text in it. Every saved prompt has its own obsidian:// link, so scripts can start one too. A link waits for Enter unless it's a plain link to a prompt you explicitly set to auto-run.
+  - icon: 👀
+    title: See Which Chat Needs You
+    details: Every tab's icon shows what its agent is up to – busy, waiting on you, finished while you were away, stopped early, or your last message failed. New installs put the tabs in a slim column of icons on the side, so every chat's status shows at once. Drag it wider for names, or put the tabs back on top.
+  - icon: 🗂️
+    title: Keep Several Jobs Going
+    details: Start research in one tab, a draft in another, and a script fix in a third, then keep working while they run. Each tab is its own session and names itself from what you're working on. A tab you haven't touched in an hour puts its agent to sleep to free memory and wakes when you type.
+  - icon: 🤖
+    title: Use the Agent You Already Have
+    details: Bring Claude Code, Codex, Kiro CLI, OpenCode, Antigravity CLI, Gemini CLI, or any agent built on the Agent Client Protocol. A fresh install picks one it finds on your machine, so your first chat connects without a trip to settings. Switch a chat to another agent and the conversation comes along, in a block you can collapse.
+  - icon: 💻
+    title: See and Approve What Runs
+    details: Commands an agent runs show in the chat with their output. When an agent asks before it edits a file or runs a command, you see what it wants to do and choose Allow or Reject. When a connected service needs you to sign in, the prompt shows where the sign-in page leads, and nothing opens until you click.
   - icon: 🔍
-    title: Search Your History
-    details: Find that conversation you half-remember. Search across every past chat by title or by what was actually said inside it, then reopen any session in a tab and pick up right where it left off. Keep as many chats as you choose – past that, the one you used least recently goes to the trash, so nothing piles up and nothing is lost for good.
+    title: Your Chats Come Back
+    details: Tabs and chats come back after a restart, and a closed chat is one command away. Search every past chat by title or by what was said in it, then pick up where you left off. Past the limit you set, the least recently used chat goes to the trash instead of being deleted, so its transcript isn't lost.
+  - icon: 🪶
+    title: Context Budget Goes Further
+    details: A pinned note goes to the agent in full with your first message, so it can start right away. After that it's sent as a link instead of being pasted again every turn, so a long chat uses 62–77% fewer context tokens than re-sending the note each time. That leaves more of the window for the work.
+  - icon: 🎛️
+    title: A Model for Every Task
+    details: Run a fast model in one tab and a heavyweight one in another. Switch model or mode mid-conversation – each tab keeps its own choice, so the right tool is always one tab away.
+  - icon: 🧭
+    title: Agents That Know They're in Obsidian
+    details: From the first message, each agent gets a short system prompt about its surroundings – that it's in Obsidian, that its replies render links, math, and diagrams, and that it can work with your notes when the chat runs in your vault. It acts native out of the box, and you choose exactly what it's told.
+  - icon: 🔘
+    title: Answer With One Click
+    details: When an agent offers you a choice, like minimal fix or full refactor, it can show buttons right in the reply. Click one and your pick is sent as a visible, ordinary message. Buttons are drawn by the plugin in your theme, and agents can't inject styling, links, or code.
+  - icon: 🌐
+    title: Use It in Your Language
+    details: Agent Console follows the language you set for Obsidian – Korean, Chinese, and Japanese alongside English. Settings, notices, dialogs, the chat panel, and command names all localize, and it can ask the agent to reply in your language too. Leave it on Auto or pick one under Appearance & notifications.
   - icon: 🔗
     title: Every Shared Link, One Click Away
     details: As the agent points you at notes and web pages, they collect in a link list in the chat header – with files it just created this session set apart from ones that already existed. Jump back to anything it shared without scrolling the conversation.
-  - icon: 🔀
-    title: Take Your Conversation to Any Agent
-    details: Switch a chat from one agent to another and bring the conversation along – the new agent picks up with the earlier messages as context, shown in a read-only block you can collapse. Nothing is ever cleared without asking first.
   - icon: 📥
     title: Bring Your Setup With You
     details: Switching from another agent plugin? Import its agent definitions, defaults, and API keys in one click. Agent Console offers it on first run and keeps your keys where they already live.
   - icon: 🎨
     title: Native & Theme-Friendly
-    details: Agent Console adopts Obsidian’s native styling and theme variables instead of hardcoded colors and chrome, so it looks like part of your Obsidian and adapts to any custom theme.
-  - icon: 🔘
-    title: Answer With One Click
-    details: When an agent offers you a choice — minimal fix or full refactor, which file first — it can show buttons right in the reply. Click one and your pick is sent as a visible, ordinary message. Buttons are drawn by the plugin in your theme; agents can't inject styling, links, or code.
-  - icon: 🧭
-    title: Agents That Know They're in Obsidian
-    details: From the first message, each agent gets a short system prompt about its surroundings – that it's in Obsidian, that your replies render links, math, and diagrams, and that it can work with your notes when the chat runs in your vault. It acts native out of the box, and you choose exactly what it's told.
-  - icon: 🌐
-    title: Use It in Your Language
-    details: Agent Console follows the language you set for Obsidian – Korean, Chinese, and Japanese alongside English. Settings, notices, dialogs, the chat panel, and command names all localize, and it can ask the agent to reply in your language too. Leave it on Auto or pick one under Appearance & notifications.
+    details: Agent Console adopts Obsidian's native styling and theme variables instead of hardcoded colors and chrome, so it looks like part of your Obsidian and adapts to any custom theme.
   - icon: 🛡️
     title: Enterprise-Grade Quality
-    details: "Built with the rigor you'd expect from enterprise software: 5,000+ automated tests, lint and build checks on every change, a token-efficiency benchmark you can run yourself, and performance tracked against a baseline – so updates stay solid as the plugin grows."
+    details: 5,000+ automated tests, and when something breaks, the fix ships with a test that reproduces it first. Lint, type checks, the full test suite, and a build run on every change. You can rerun the token benchmark yourself, and a release can't ship if context handling gets more than 15% slower than its saved baseline.
 ---
-
-<p align="center"><em>Agent Console was built start to finish this way – the plugin is its own proof.</em></p>
 
 ## What is Agent Console?
 
-Agent Console is an Obsidian plugin built on the [Agent Client Protocol (ACP)](https://github.com/zed-industries/agent-client-protocol). It brings AI agents into your vault, where your notes live. Instead of starting from a blank chat, an agent draws on the notes you've already written – and writes new ones back – so it works from your own knowledge whether you're researching, drafting, planning, or vibe-coding. Run several at once in a tabbed sidebar, so you can keep working while agents work.
+Agent Console is an Obsidian plugin built on the [Agent Client Protocol (ACP)](https://github.com/zed-industries/agent-client-protocol). It brings AI agents into your vault, where your notes live. Instead of starting from a blank chat, an agent draws on the notes you've already written – and can write new ones back – so it works from your own knowledge whether you're researching, drafting, planning, or vibe-coding. Run several at once, each in its own tab, and keep working while they do.
 
 Agent Console is based on [Agent Client](https://github.com/RAIT-09/obsidian-agent-client) by [@RAIT-09](https://github.com/RAIT-09), originally released under Apache-2.0. See [NOTICE](https://github.com/donivatamazondotcom/obsidian-agent-console/blob/main/NOTICE) for full attribution.
 
 ### Supported Agents
 
+Use the agent you already have. A fresh install picks the first one it finds on your machine, and any agent built on the Agent Client Protocol works too.
+
 | Agent | Provider | Integration |
 |-------|----------|-------------|
 | **[Claude Code](https://github.com/anthropics/claude-code)** | Anthropic | via [ACP adapter](https://github.com/agentclientprotocol/claude-agent-acp) |
 | **[Codex](https://github.com/openai/codex)** | OpenAI | via the [ACP adapter](https://github.com/agentclientprotocol/codex-acp) |
-| **[Gemini CLI](https://github.com/google-gemini/gemini-cli)** | Google | with `--experimental-acp` option (legacy – see Antigravity CLI) |
 | **[Kiro CLI](https://kiro.dev)** | Amazon | via built-in ACP support (V3 engine; older versions run on V2) |
 | **[OpenCode](https://opencode.ai)** | Open source | via built-in ACP support (runs local models via ollama) |
 | **[Antigravity CLI](/agent-setup/antigravity-cli)** | Google | via built-in ACP support (`agy acp`) |
+| **[Gemini CLI](https://github.com/google-gemini/gemini-cli)** | Google | with `--experimental-acp` option (legacy – see Antigravity CLI) |
 | **Custom** | Various | [Any ACP-compatible agent](https://agentclientprotocol.com/overview/agents) (e.g., Qwen Code) |
 
 ### What you can do
 
-- **Turn a rough outline into a finished draft** – open a note, start a chat, and ask the agent to expand your bullet points into prose.
+- **Turn a rough outline into a finished draft** – open the note, start a chat, and ask the agent to expand your bullets into prose.
 - **Interrogate your own vault** – ask about the note you're in; the agent reads it as context and answers in place.
 - **Vibe-code a script or tool** – describe what you want, get working code back, and review the diff.
 - **Keep a working log** – let an agent capture decisions and action items as you talk a problem through.
 - **Run parallel trains of thought** – keep one tab digging into research while another drafts the summary.
-- **Line up your next message while the agent works** – type your follow-up and press Enter; it queues and sends the moment the current reply finishes, so you never wait on the cursor.
+- **Line up your next message while the agent works** – press Enter and it sends the moment the current reply finishes.
 - **Redirect the agent the moment it goes sideways** – one keypress stops the current reply and sends your correction instead, without losing the conversation.
-- **Fire a saved prompt in one click** – keep your recurring kickoffs as notes and launch them from context-aware chips above the composer, or a quick `!` search right in the message box.
+- **Fire a saved prompt in one click** – keep recurring kickoffs as notes and launch one from a chip or a `!` search.
 - **Hand an agent what you're reading** – select part of an email thread in your browser, click a bookmark, and your "draft a reply" prompt opens with that text already in it.
 
 ### Why parallel?
 
-AI agents work asynchronously. Tell one to research, another to draft a section, a third to fix a script. Switch tabs while they work. Status icons show what each agent is doing – ready, busy, waiting on you, finished, or stuck. Stop the context-switch tax of waiting for one agent before starting the next.
+An agent can work for minutes on its own. Tell one to research, another to draft a section, and a third to fix a script, then switch tabs while they work. Each tab's icon shows whether its agent is busy, waiting on you, finished, or stopped early, so you start the next job instead of waiting on the last.
 
-The mental model: tell agents *what work to do*, not *how to do it*. With the right [skills](https://agentskills.io/home), agents figure out the steps. You stay focused on the work itself, with several streams progressing at once.
+The mental model: tell agents *what work to do*, not *how to do it*. With the right [skills](https://agentskills.io/home), agents figure out the steps. You stay focused on the work itself, with several streams moving at once.
+
+*Agent Console was built start to finish this way – the plugin is its own proof.*
 
 Ready to get started? Check out the [Installation Guide](/getting-started/).
