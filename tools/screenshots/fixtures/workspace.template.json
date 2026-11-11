@@ -1,0 +1,194 @@
+{
+	"main": {
+		"id": "5fd5c8e6dc7faae1",
+		"type": "split",
+		"children": [
+			{
+				"id": "301031552aba2064",
+				"type": "tabs",
+				"children": [
+					{
+						"id": "50a267c312176f60",
+						"type": "leaf",
+						"state": {
+							"type": "markdown",
+							"state": {
+								"file": "Welcome.md",
+								"mode": "source",
+								"source": false
+							},
+							"icon": "lucide-file",
+							"title": "Welcome"
+						}
+					}
+				]
+			}
+		],
+		"direction": "vertical"
+	},
+	"left": {
+		"id": "8f9191f70271a1f5",
+		"type": "split",
+		"children": [
+			{
+				"id": "15f45638f3d4b603",
+				"type": "tabs",
+				"children": [
+					{
+						"id": "fb07f7d959971da0",
+						"type": "leaf",
+						"state": {
+							"type": "file-explorer",
+							"state": {
+								"sortOrder": "alphabetical",
+								"autoReveal": false,
+								"showSearch": false,
+								"searchQuery": ""
+							},
+							"icon": "lucide-folder-closed",
+							"title": "Files"
+						}
+					},
+					{
+						"id": "a88e9137a05ad17d",
+						"type": "leaf",
+						"state": {
+							"type": "search",
+							"state": {
+								"query": "",
+								"matchingCase": false,
+								"explainSearch": false,
+								"collapseAll": false,
+								"extraContext": false,
+								"sortOrder": "alphabetical"
+							},
+							"icon": "lucide-search",
+							"title": "Search"
+						}
+					},
+					{
+						"id": "be91d57bab5204a0",
+						"type": "leaf",
+						"state": {
+							"type": "bookmarks",
+							"state": {},
+							"icon": "lucide-bookmark",
+							"title": "Bookmarks"
+						}
+					}
+				]
+			}
+		],
+		"direction": "horizontal",
+		"width": 300,
+		"collapsed": true
+	},
+	"right": {
+		"id": "a7c36103fd6cbc3d",
+		"type": "split",
+		"children": [
+			{
+				"id": "ffad4ab27af7eb64",
+				"type": "tabs",
+				"children": [
+					{
+						"id": "39682b3127f1108d",
+						"type": "leaf",
+						"state": {
+							"type": "backlink",
+							"state": {
+								"file": "Welcome.md",
+								"collapseAll": false,
+								"extraContext": false,
+								"sortOrder": "alphabetical",
+								"showSearch": false,
+								"searchQuery": "",
+								"backlinkCollapsed": false,
+								"unlinkedCollapsed": true
+							},
+							"icon": "links-coming-in",
+							"title": "Backlinks for Welcome"
+						}
+					},
+					{
+						"id": "555160109662d3b3",
+						"type": "leaf",
+						"state": {
+							"type": "outgoing-link",
+							"state": {
+								"file": "Welcome.md",
+								"linksCollapsed": false,
+								"unlinkedCollapsed": true
+							},
+							"icon": "links-going-out",
+							"title": "Outgoing links from Welcome"
+						}
+					},
+					{
+						"id": "0e75624830e95f8b",
+						"type": "leaf",
+						"state": {
+							"type": "tag",
+							"state": {
+								"sortOrder": "frequency",
+								"useHierarchy": true,
+								"showSearch": false,
+								"searchQuery": ""
+							},
+							"icon": "lucide-tags",
+							"title": "Tags"
+						}
+					},
+					{
+						"id": "c9b56eba0fe581ff",
+						"type": "leaf",
+						"state": {
+							"type": "all-properties",
+							"state": {
+								"sortOrder": "frequency",
+								"showSearch": false,
+								"searchQuery": ""
+							},
+							"icon": "lucide-archive",
+							"title": "All properties"
+						}
+					},
+					{
+						"id": "30002ab53af99ba3",
+						"type": "leaf",
+						"state": {
+							"type": "outline",
+							"state": {
+								"file": "Welcome.md",
+								"followCursor": false,
+								"showSearch": false,
+								"searchQuery": ""
+							},
+							"icon": "lucide-list",
+							"title": "Outline"
+						}
+					}
+				],
+				"currentTab": 4
+			}
+		],
+		"direction": "horizontal",
+		"width": 492.75390625
+	},
+	"left-ribbon": {
+		"hiddenItems": {
+			"switcher:Open quick switcher": false,
+			"graph:Open graph view": false,
+			"canvas:Create new canvas": false,
+			"daily-notes:Open today's daily note": false,
+			"templates:Insert template": false,
+			"command-palette:Open command palette": false,
+			"bases:Create new base": false,
+			"agent-console:Agent Console": false
+		}
+	},
+	"active": "30002ab53af99ba3",
+	"lastOpenFiles": [
+		"Welcome.md"
+	]
+}
