@@ -161,6 +161,26 @@ Two properties on the prompt note control how links can use it:
 A prompt that tells the agent to open `{{url}}` hands the agent whatever is on that page, with its tools available. Only write prompts like that for links you trust. Quoting outside text helps you review it, but it doesn't stop an agent from following instructions hidden in it – reading before you press Enter does.
 :::
 
+### Send what you're reading from your browser
+
+A bookmarklet turns any web page into a one-click hand-off. Select the part you care about, click the bookmark, and a new chat opens with your prompt, the selected text, and the page's address and title.
+
+1. Right-click the prompt's chip and pick **Copy link**.
+2. Make a new bookmark in your browser and paste this as its address (URL):
+
+   ```
+   javascript:(()=>{const e=encodeURIComponent,s=String(getSelection()).trim(),t=document.title.trim();const u='LINK'+(s?'&selection='+e(s):'')+'&url='+e(location.href)+(t?'&title='+e(t):'');location.href=u})()
+   ```
+
+3. Replace `LINK` with the link you copied, keeping the quotes around it. If your vault's name has an apostrophe, change it to `%27` in the link.
+4. On any page, select some text and click the bookmark. Your browser may ask whether to open Obsidian.
+
+- **Nothing selected?** The link carries just the page's address and title. A prompt that uses `{{selection}}` then lands in the message box with a notice asking for a selection.
+- **Where the address goes.** Put `{{url}}` and `{{title}}` in the prompt where you want the page's address and title. Without them, only the heading above the selected text names the site.
+- **It still waits for you.** The selected text arrives quoted, like any outside text, and the chat waits for you to press **Enter**. That holds even for a prompt set to send on its own, because the link carries the page's address.
+
+Make one bookmark per prompt you use this way – for example "Draft a reply" for email threads and "Summarize this" for articles.
+
 ## Contextual chips
 
 Prompts can show up as **chips right above the composer**. There are two ways to make a prompt appear as a chip — otherwise it stays search-only (you'll still find it by typing `!` in the composer, it just doesn't take up space in the row).
