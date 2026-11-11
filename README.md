@@ -57,7 +57,7 @@ Because the agents live in your vault, you stay in control: you pin what they se
 
 ## Features
 
-* **Save your go-to prompts and fire them in one click** – turn the kickoffs you retype every session (“debrief this meeting”, “summarize the selection”) into notes, then launch them from context-aware chips above the composer, a `!` search right in the message box, or the command palette; a prompt can pick its own agent and mode, and an `obsidian://agent-console` link starts one from anywhere
+* **Save your go-to prompts and fire them in one click** – turn the kickoffs you retype every session (“debrief this meeting”, “summarize the selection”) into notes, then launch them from context-aware chips above the composer, a `!` search right in the message box, or the command palette; a prompt can also pick its own agent and mode, so you don’t switch by hand
 * **Work from the notes you’ve already written** – @mention a note and the agent reads it, and the notes it links to, as context. Attach images and files with the paperclip or by drag and drop, run slash commands – it starts from your knowledge, not a blank slate
 * **Let your second brain grow itself** – ask an agent to write back: capture decisions, draft notes, and link ideas straight into your vault, without the manual upkeep
 * **Stop waiting on one agent before starting the next** – run several agent chats side by side in one sidebar
@@ -96,6 +96,20 @@ Because the agents live in your vault, you stay in control: you pin what they se
 * **Stay focused** – status icons tell you when an agent is ready or still working, so you don’t break your flow checking on it
 
 The pattern: tell the agent what you want done. Switch tabs. Come back when status says ready.
+
+## Start agent work from your other apps
+
+Start a saved prompt from wherever the work shows up, with its agent, its mode, and your text already in place.
+
+* **Hand off what’s in your browser** – select part of an email thread or a GitHub issue, click a bookmark, and “draft a reply” or “fix this issue” opens in a new chat with that text
+* **Start your day from a bookmark** – it runs your daily review
+* **Pick up where a script left off** – have your script or terminal agent open the link when it finishes, and the follow-up waits in a new tab
+
+```
+obsidian://agent-console?vault=My%20Vault&prompt=draft-a-reply&selection=…&url=…&title=…&agent=…&mode=…
+```
+
+**Copy link** on a prompt chip gives you the link, and [prompt links](https://donivatamazondotcom.github.io/obsidian-agent-console/usage/quick-prompts#fire-a-prompt-from-a-link) has the bookmarklet. A link only starts prompts already in your vault, and it waits for Enter unless it’s a plain link to a prompt you’ve explicitly set to auto-run (`uri send`).
 
 ## Install
 
