@@ -40,7 +40,10 @@ features:
     details: Run a fast model in one tab and a heavyweight one in another. Switch model or mode mid-conversation – each tab keeps its own choice, so the right tool is always one tab away.
   - icon: ⚡
     title: One-Click Kickoffs
-    details: Save the prompts you retype every session – "debrief this meeting", "summarize the selection" – as little notes, then fire them in one click from the composer or the command palette. Relevant ones show up as chips only on the notes they fit, so the right kickoff is one tap away and nothing clutters the rest.
+    details: Save the prompts you retype every session – "debrief this meeting", "summarize the selection" – as little notes, then fire them in one click from the composer or the command palette. Relevant ones show up as chips only on the notes they fit, so the right kickoff is one tap away and nothing clutters the rest. A prompt can also pick its own agent and mode, so you don't switch by hand after it lands.
+  - icon: 📨
+    title: Hand Any Page to Your Saved Prompts
+    details: Reading an email thread in your browser? Select the part you care about, click a bookmark, and your "draft a reply" prompt opens in a new chat with that text in it. Every saved prompt has its own obsidian:// link, so scripts can start one too. A link waits for Enter unless it's a plain link to a prompt you explicitly set to auto-run.
   - icon: 🔍
     title: Search Your History
     details: Find that conversation you half-remember. Search across every past chat by title or by what was actually said inside it, then reopen any session in a tab and pick up right where it left off. Keep as many chats as you choose – past that, the one you used least recently goes to the trash, so nothing piles up and nothing is lost for good.
@@ -100,6 +103,7 @@ Agent Console is based on [Agent Client](https://github.com/RAIT-09/obsidian-age
 - **Line up your next message while the agent works** – type your follow-up and press Enter; it queues and sends the moment the current reply finishes, so you never wait on the cursor.
 - **Redirect the agent the moment it goes sideways** – one keypress stops the current reply and sends your correction instead, without losing the conversation.
 - **Fire a saved prompt in one click** – keep your recurring kickoffs as notes and launch them from context-aware chips above the composer, or a quick `!` search right in the message box.
+- **Hand an agent what you're reading** – select part of an email thread in your browser, click a bookmark, and your "draft a reply" prompt opens with that text already in it.
 
 ### Why parallel?
 
