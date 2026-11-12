@@ -150,9 +150,9 @@ describe("materializeRun", () => {
 		for (const f of ["main.js", "styles.css"]) writeFileSync(path.join(repo, f), f);
 		writeFileSync(path.join(repo, "manifest.json"), JSON.stringify({ id: "agent-console", version: "2.4.0" }));
 		const runRoot = path.join(tmp, "run");
-		const r = materializeRun({ repoRoot: repo, runRoot, profile: "screenshot", ctx, manifestVersionOverride: "2.5.0", now: 1 });
+		const r = materializeRun({ repoRoot: repo, runRoot, profile: "screenshot", ctx, now: 1 });
 		expect(path.basename(r.vault)).toBe("studio");
-		expect(JSON.parse(readFileSync(path.join(r.pluginDir, "manifest.json"), "utf8")).version).toBe("2.5.0");
+		expect(JSON.parse(readFileSync(path.join(r.pluginDir, "manifest.json"), "utf8")).version).toBe("2.4.0");
 		const ws = JSON.parse(readFileSync(path.join(r.vault, configDirOf(r.vault), "workspace.json"), "utf8"));
 		expect(ws.lastOpenFiles).toEqual(["Welcome.md"]);
 		const oj = JSON.parse(readFileSync(path.join(r.userData, "obsidian.json"), "utf8"));

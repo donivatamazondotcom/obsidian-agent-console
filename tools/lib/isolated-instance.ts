@@ -14,6 +14,7 @@
  */
 import { execFile, spawn, spawnSync } from "node:child_process";
 import {
+	copyFileSync,
 	closeSync,
 	existsSync,
 	mkdirSync,
@@ -34,6 +35,12 @@ import { collectDescendants, type ProcessRow } from "../../src/acp/process-teard
 export const RUN_PARENT = "/tmp/agent-console-video";
 export const OBSIDIAN_APP = "/Applications/Obsidian.app";
 export const CLI_SOCKET = path.join(homedir(), ".obsidian-cli.sock");
+/**
+ * Focus steals a run may cause: the instance launch, and the settings window
+ * Obsidian opens after the vault-trust click (it activates the app before a
+ * non-focusable hook can run). Probed 2026-11-11.
+ */
+export const FOCUS_STEAL_BUDGET = 2;
 export const LAUNCH_FLAGS: readonly string[] = [
 	"--remote-debugging-port=0",
 	"--disable-backgrounding-occluded-windows",
@@ -159,7 +166,9 @@ export function planSignals(matched: MarkedRow[]): { groups: number[]; pids: num
 
 export async function listMarkedProcesses(): Promise<MarkedRow[]> {
 	const stdout = await new Promise<string>((resolve, reject) => {
-		execFile("ps", ["-axww", "-E", "-o", "pid=,ppid=,pgid=,lstart=,command="], { maxBuffer: 256 * 1024 * 1024, timeout: STEP_TIMEOUT_MS }, (err, out) => (err ? reject(new Error(err.message)) : resolve(out)));
+		// `lstart` follows the locale (en_GB prints "Wed 11 Nov …"); the parser
+		// reads the C form, so force it, or every row is dropped.
+		execFile("ps", ["-axww", "-E", "-o", "pid=,ppid=,pgid=,lstart=,command="], { maxBuffer: 256 * 1024 * 1024, timeout: STEP_TIMEOUT_MS, env: { ...process.env, LC_ALL: "C" } }, (err, out) => (err ? reject(new Error(err.message)) : resolve(out)));
 	});
 	return parseMarkerPs(stdout);
 }
@@ -192,7 +201,8 @@ export function breakStaleLock(file: string, rows: ProcessRow[]): boolean {
 		return false;
 	}
 	const live = rows.find((r) => r.pid === h.pid);
-	if (live && live.started === h.started) return false;
+	// An empty recorded start time can't prove the pid was reused: keep the lock.
+	if (live && (!h.started || live.started === h.started)) return false;
 	rmSync(file, { force: true });
 	return true;
 }
@@ -206,6 +216,8 @@ export interface TeardownOps {
 	/** Raw CDP `Browser.close`, when a connection exists. */
 	closeBrowser?: () => Promise<void>;
 	log(msg: string): void;
+	/** Clock for {@link finishTake}'s deadline; `Date.now` by default. */
+	now?: () => number;
 }
 
 export const nodeTeardownOps = (log: (m: string) => void, closeBrowser?: () => Promise<void>): TeardownOps => ({
@@ -222,26 +234,52 @@ export const nodeTeardownOps = (log: (m: string) => void, closeBrowser?: () => P
 	log,
 });
 
+/** A teardown step's result, or undefined when it fails or overruns: teardown must never stop early. */
 const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T | undefined> =>
-	Promise.race([p, sleep(ms).then(() => undefined)]);
+	Promise.race([p.catch(() => undefined), sleep(ms).then(() => undefined)]);
+
+/** Listing attempts before teardown gives up on a take (an unknown listing is never treated as empty). */
+const LIST_ATTEMPTS = 3;
+
+/**
+ * The process table, or null when it can't be read after a few tries. A table
+ * that doesn't list the caller itself is unreadable too (a parse that dropped
+ * every row must never read as "nothing left to stop").
+ */
+async function listOrNull(ops: TeardownOps, selfPid: number): Promise<MarkedRow[] | null> {
+	for (let i = 0; i < LIST_ATTEMPTS; i++) {
+		const rows = await withTimeout(ops.list(), STEP_TIMEOUT_MS);
+		if (rows && rows.some((r) => r.pid === selfPid)) return rows;
+		if (i < LIST_ATTEMPTS - 1) await ops.sleep(500);
+	}
+	return null;
+}
 
 /**
  * Tear down the current take. Takes the take's lock, closes the browser,
  * signals everything carrying the run markers, then removes the take's run
  * folder. The state file survives for the next take and the watchdog.
- * Returns false when another process holds a live lock.
+ * Returns false when another process holds a live lock, or when the process
+ * table can't be read: then the take is left unfinished (no done marker, lock
+ * released) so the watchdog tears it down again.
  */
 export async function teardownTake(state: RunState, self: LockHolder, ops: TeardownOps): Promise<boolean> {
 	const lock = takeLockPath(state.runId, state.take);
-	const rows0 = await withTimeout(ops.list(), STEP_TIMEOUT_MS) ?? [];
 	if (!acquireLock(lock, self)) {
-		if (!breakStaleLock(lock, rows0) || !acquireLock(lock, self)) return false;
+		// Only break a lock whose holder we can see is gone.
+		const rows0 = await listOrNull(ops, self.pid);
+		if (!rows0 || !breakStaleLock(lock, rows0) || !acquireLock(lock, self)) return false;
 	}
 	if (ops.closeBrowser) await withTimeout(ops.closeBrowser(), STEP_TIMEOUT_MS);
 	await ops.sleep(1000);
 	const markers = { userData: state.userData, runId: state.runId };
 	for (const [signal, wait] of [["SIGTERM", 2500], ["SIGKILL", 500]] as const) {
-		const rows = await withTimeout(ops.list(), STEP_TIMEOUT_MS) ?? [];
+		const rows = await listOrNull(ops, self.pid);
+		if (!rows) {
+			ops.log(`teardown take ${state.take}: can't list processes; leaving the take for the watchdog`);
+			rmSync(lock, { force: true });
+			return false;
+		}
 		const exclude = new Set([...ancestors(rows, state.recorderPid), ...(state.watchdogPid ? ancestors(rows, state.watchdogPid) : []), ...ancestors(rows, self.pid)]);
 		const matched = matchRun(rows, markers, exclude);
 		if (!matched.length) break;
@@ -256,10 +294,36 @@ export async function teardownTake(state: RunState, self: LockHolder, ops: Teard
 	return true;
 }
 
+/** Wall-clock budget for {@link finishTake}. */
+export const FINISH_BUDGET_MS = 90_000;
+
+/**
+ * Tear a take down unless it is already done, retrying while another
+ * process holds the lock (the recorder may still be exiting) or the process
+ * table can't be read, until `budgetMs` has passed. The browser is closed on
+ * the first attempt only. True once the take is done.
+ */
+export async function finishTake(state: RunState, self: LockHolder, ops: TeardownOps, budgetMs = FINISH_BUDGET_MS): Promise<boolean> {
+	const now = ops.now ?? Date.now;
+	const deadline = now() + budgetMs;
+	let attemptOps = ops;
+	while (now() < deadline) {
+		if (existsSync(takeDonePath(state.runId, state.take))) return true;
+		if (await teardownTake(state, self, attemptOps)) return true;
+		attemptOps = { ...ops, closeBrowser: undefined };
+		await ops.sleep(2000);
+	}
+	return existsSync(takeDonePath(state.runId, state.take));
+}
+
 /** Post-run assertion: nothing carries the run markers, and the user's CLI socket is unchanged. */
-export async function assertClean(state: RunState, list: () => Promise<MarkedRow[]>): Promise<string[]> {
+export async function assertClean(state: RunState, list: () => Promise<MarkedRow[]>, selfPid = process.pid): Promise<string[]> {
 	const problems: string[] = [];
-	const rows = await list();
+	const rows = await list().catch((): MarkedRow[] => []);
+	if (!rows.some((r) => r.pid === selfPid)) {
+		problems.push("couldn't read the process table, so the run can't be confirmed clean (check `ps` for --user-data-dir=/tmp/agent-console-video/…)");
+		return problems;
+	}
 	const exclude = new Set([...ancestors(rows, state.recorderPid), ...(state.watchdogPid ? ancestors(rows, state.watchdogPid) : [])]);
 	const left = matchRun(rows, { userData: state.userData, runId: state.runId }, exclude);
 	if (left.length) problems.push(`${left.length} process(es) still carry the run markers: ${left.map((r) => r.pid).join(", ")}`);
@@ -428,6 +492,29 @@ export function cleanKiroSessionRecords(runRoot: string, kiroHome = path.join(ho
 
 // ---------------------------------------------------------------- runner ----
 
+/** Repeat signals closer than this are one Ctrl-C (`npx tsx` relays a second SIGINT ~30 ms later). */
+const SIGNAL_REPEAT_MS = 1000;
+
+/** Decides what a SIGINT/SIGTERM does: start the teardown, ignore a relayed duplicate, or exit now. */
+export function signalGate(now: () => number = Date.now): () => "start" | "ignore" | "exit" {
+	let first: number | null = null;
+	return () => {
+		const t = now();
+		if (first === null) {
+			first = t;
+			return "start";
+		}
+		return t - first < SIGNAL_REPEAT_MS ? "ignore" : "exit";
+	};
+}
+
+/** Copy an app asar into a user-data folder under its own name, where Obsidian's loader finds it. */
+export function stageAppAsar(asar: string, userData: string): string {
+	const dest = path.join(userData, path.basename(asar));
+	copyFileSync(asar, dest);
+	return dest;
+}
+
 export interface RunOptions {
 	repoRoot: string;
 	profile: "screenshot" | "video";
@@ -436,6 +523,12 @@ export interface RunOptions {
 	log?: (m: string) => void;
 	/** Builds the run folder for a take; defaults to fixtures-vault's materializeRun. */
 	materialize: (runRoot: string, runId: string) => { vault: string; userData: string; home: string };
+	/**
+	 * A verified `obsidian-<v>.asar` (see obsidian-app.ts) staged into each
+	 * take's user data so the instance runs that app version, not the
+	 * installer's bundled one.
+	 */
+	appAsar?: string;
 }
 
 export interface Take {
@@ -481,19 +574,28 @@ export async function withIsolatedRun(o: RunOptions, body: (t: Take) => Promise<
 	writeState(state);
 
 	let stopping = false;
+	const gate = signalGate();
 	let current: { close?: () => Promise<void> } = {};
 	// A signal tears the current take down now and exits; further signals are
 	// ignored so the teardown can't be cut short.
 	const onSignal = (): void => {
-		if (stopping) return;
+		const g = gate();
+		if (g === "ignore") return;
+		if (g === "exit") {
+			// A second Ctrl-C exits now; the watchdog sees the closed pipe and
+			// finishes the teardown from the state file.
+			log("second signal: exiting now; the watchdog finishes the teardown");
+			process.exit(130);
+		}
 		stopping = true;
-		log("signal received: tearing down and stopping");
+		log("signal received: tearing down and stopping (signal again to exit now)");
 		void (async () => {
-			await teardownTake(state, self, nodeTeardownOps(log, current.close)).catch(() => false);
+			const done = await finishTake(state, self, nodeTeardownOps(log, current.close)).catch(() => false);
 			cleanKiroSessionRecords(runRoot);
 			writeFileSync(runDonePath(runId), "");
 			wd.release();
-			removeRunFiles(runId);
+			// A failed teardown keeps the state file for the watchdog.
+			if (done) removeRunFiles(runId);
 			process.exit(130);
 		})();
 	};
@@ -502,12 +604,14 @@ export async function withIsolatedRun(o: RunOptions, body: (t: Take) => Promise<
 
 	let ok = false;
 	let steals = 0;
+	const unfinished: number[] = [];
 	try {
 		for (let n = 1; n <= takes && !ok && !stopping; n++) {
 			state.take = n;
 			state.takeStartedAt = Date.now();
 			writeState(state);
 			const r = o.materialize(runRoot, runId);
+			if (o.appAsar) stageAppAsar(o.appAsar, r.userData);
 			state.userData = r.userData;
 			writeState(state);
 			const isInstance = (pid: number): boolean => pid === state.mainPid;
@@ -521,7 +625,7 @@ export async function withIsolatedRun(o: RunOptions, body: (t: Take) => Promise<
 			} finally {
 				guard.stop();
 				steals += guard.steals;
-				await teardownTake(state, self, nodeTeardownOps(log, current.close));
+				if (!(await finishTake(state, self, nodeTeardownOps(log, current.close)))) unfinished.push(n);
 				current = {};
 				for (const f of cleanKiroSessionRecords(runRoot)) log(`removed Kiro session record ${f}`);
 			}
@@ -534,7 +638,12 @@ export async function withIsolatedRun(o: RunOptions, body: (t: Take) => Promise<
 		wd.release();
 	}
 	const problems = await assertClean(state, listMarkedProcesses);
-	removeRunFiles(runId);
+	if (unfinished.length) {
+		// Keep the state file so the watchdog can finish the teardown.
+		problems.push(`take ${unfinished.join(", ")} couldn't be torn down; the watchdog tries once more for ${FINISH_BUDGET_MS / 1000} s`);
+	} else {
+		removeRunFiles(runId);
+	}
 	return { ok: ok && problems.length === 0, problems, steals };
 }
 
@@ -569,11 +678,4 @@ export function userObsidianVersion(userDataDir = path.join(homedir(), "Library/
 		/* no user data */
 	}
 	return { version: null, source: "unknown" };
-}
-
-/** Warning text when the instance and the user's app differ; null when they match. */
-export function versionWarning(instanceUa: string, user: { version: string | null; source: string }): string | null {
-	const inst = /obsidian\/(\d+\.\d+\.\d+)/.exec(instanceUa)?.[1] ?? null;
-	if (!inst || !user.version || inst === user.version) return null;
-	return `isolated Obsidian ${inst} differs from your Obsidian ${user.version} (${user.source}); shots may not match what you see`;
 }

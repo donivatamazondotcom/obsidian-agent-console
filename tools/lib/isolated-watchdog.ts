@@ -20,8 +20,8 @@ import {
 	readState,
 	removeRunFiles,
 	runDonePath,
-	takeDonePath,
-	teardownTake,
+	finishTake,
+	cleanKiroSessionRecords,
 } from "./isolated-instance";
 
 const stateFile = process.argv[2];
@@ -34,11 +34,20 @@ const self = { pid: process.pid, started: "" };
 const ops = nodeTeardownOps(() => {});
 
 async function main(): Promise<void> {
-	const rows: MarkedRow[] = await listMarkedProcesses().catch((): MarkedRow[] => []);
-	self.started = rows.find((r) => r.pid === process.pid)?.started ?? "";
+	// Our start time identifies our lock; retry the listing instead of locking with "".
+	for (let i = 0; i < 5 && !self.started; i++) {
+		const rows: MarkedRow[] = await listMarkedProcesses().catch((): MarkedRow[] => []);
+		self.started = rows.find((r) => r.pid === process.pid)?.started ?? "";
+		if (!self.started) await sleep(500);
+	}
 	for (;;) {
 		const s = readState(stateFile);
 		if (s && existsSync(runDonePath(s.runId))) {
+			// The recorder's own teardown can fail; a take without its done
+			// marker still has processes to stop.
+			if (!(await finishTake(s, self, ops))) process.stderr.write(`isolated-watchdog: take ${s.take} of ${s.runId} couldn't be torn down\n`);
+			// The recorder may have exited before cleaning these (a second Ctrl-C).
+			cleanKiroSessionRecords(s.runRoot);
 			// Whichever process finishes last removes the run's files.
 			while (!recorderGone) await sleep(250);
 			removeRunFiles(s.runId);
@@ -48,7 +57,9 @@ async function main(): Promise<void> {
 		const takeExpired = s && now > s.takeStartedAt + s.perTakeMs;
 		const runExpired = s && now > s.runDeadline;
 		if (s && (recorderGone || takeExpired || runExpired)) {
-			if (!existsSync(takeDonePath(s.runId, s.take))) await teardownTake(s, self, ops);
+			if (!(await finishTake(s, self, ops))) process.stderr.write(`isolated-watchdog: take ${s.take} of ${s.runId} couldn't be torn down\n`);
+			// The recorder may have exited before cleaning these (a second Ctrl-C).
+			cleanKiroSessionRecords(s.runRoot);
 			if (recorderGone || runExpired) {
 				await assertClean(s, listMarkedProcesses).catch(() => []);
 				removeRunFiles(s.runId);

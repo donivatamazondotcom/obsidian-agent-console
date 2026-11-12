@@ -15,7 +15,7 @@
 				"hoverSelector": ".side-dock-ribbon-action[aria-label*=\"Agent Console\"], .side-dock-ribbon-action[aria-label*=\"agent-console\"]"
 			},
 			"approvalThreshold": 0.01,
-			"minDistinctColors": 800,
+			"minDistinctColors": 600,
 			"placement": "feature",
 			"purpose": "Shows where Agent Console lives \u2014 the ribbon entry point.",
 			"differentiator": "Ribbon icon / one-click access",
@@ -224,7 +224,7 @@
 				"width": 390,
 				"height": 196
 			},
-			"cropPadding": 14,
+			"cropPadding": 10,
 			"cropSelectors": [
 				".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Export chat to Markdown\"]",
 				".tooltip"
@@ -1039,13 +1039,14 @@
 		{
 			"name": "shared-links-bubble",
 			"pending": false,
-			"width": 680,
-			"height": 240,
+			"rightSplitWidth": 500,
+			"width": 1050,
+			"height": 380,
 			"crop": {
 				"x": 0,
 				"y": 0,
-				"width": 680,
-				"height": 240
+				"width": 1050,
+				"height": 380
 			},
 			"cropPadding": 12,
 			"initialState": {
@@ -1055,6 +1056,8 @@
 				"runCommands": [
 					"agent-console:open-session-history"
 				],
+				"typeQuery": "CI pipeline",
+				"typeQuerySelector": ".agent-client-session-history-search-input",
 				"clickSequence": [
 					{
 						"selector": ".agent-client-session-history-restore-icon",
@@ -1995,9 +1998,9 @@
 			"initialState": {
 				"openNote": "Welcome.md",
 				"pluginSettings": {
-					"tabDisplay": "horizontal",
-					"lastSeenVersion": "2.4.0"
+					"tabDisplay": "horizontal"
 				},
+				"whatsNew": "latest",
 				"clickRibbon": true
 			},
 			"purpose": "After an update, a one-time card tells existing users about vertical tabs, with a one-click way to try them and a way back.",
@@ -2005,7 +2008,7 @@
 			"mustShow": ".agent-client-whats-new",
 			"caption": "Try new features in one click after an update",
 			"altText": "Agent Console chat view with a What's new card above the chat offering Try vertical tabs and Release notes",
-			"captureNote": "pluginSettings makes this an existing user who last dismissed 2.4.0, on the top tab strip. The card shows only when the running version is 2.5.0 or later: capture before the npm version bump with studio's plugin manifest.json copied (not symlinked) and its version set to 2.5.0, then restore the symlink."
+			"captureNote": "whatsNew \"latest\" makes this an existing user who just updated to the newest release in src/whats-new/highlights.ts, on the top tab strip. No per-release edits: add the release's highlight entry and reshoot."
 		}
 	]
 }

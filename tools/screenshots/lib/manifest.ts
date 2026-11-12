@@ -182,6 +182,14 @@ export interface InitialState {
 	 */
 	forceMcpAuthNotice?: boolean;
 	/**
+	 * Show the What's-new card for the newest release in the plugin's
+	 * highlights registry (`src/whats-new/highlights.ts`), whatever version the
+	 * repo is at: for this entry the running plugin version is set to that
+	 * release and `lastSeenVersion` to the release before it, in memory, and
+	 * both are restored afterwards. No per-release manifest edits.
+	 */
+	whatsNew?: "latest";
+	/**
 	 * Kiro V3 (S4): force the in-chat "MCP servers didn't connect" notice by
 	 * injecting a `status_snapshot` with these servers marked failed into the
 	 * plugin's mcpAuthManager for the active tab, then open its Details so the
@@ -962,6 +970,13 @@ export function validateManifest(
 					`manifest entry "${entry.name}" has invalid initialState.restoreSessions.activeIndex: must be a non-negative integer`,
 				);
 			}
+		}
+
+		const wn: unknown = entry.initialState?.whatsNew;
+		if (wn !== undefined && wn !== "latest") {
+			throw new Error(
+				`manifest entry "${entry.name}" has invalid initialState.whatsNew: must be "latest"`,
+			);
 		}
 
 		const ps: unknown = entry.initialState?.pluginSettings;

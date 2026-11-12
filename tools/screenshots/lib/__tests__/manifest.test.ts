@@ -1070,3 +1070,23 @@ describe("validateManifest — initialState.pluginSettings", () => {
 		expect(check({ tabRailWidth: null })).toThrow(/pluginSettings\.tabRailWidth/);
 	});
 });
+
+describe("validateManifest — initialState.whatsNew", () => {
+	const check = (whatsNew: unknown) => () =>
+		validateManifest(
+			{
+				entries: [
+					{ name: "wn", width: 100, height: 100, crop: { x: 0, y: 0, width: 10, height: 10 }, initialState: { whatsNew } } as unknown as ManifestEntry,
+				],
+			},
+			makeFixtureRoot(),
+		);
+
+	it("accepts \"latest\"", () => {
+		expect(check("latest")).not.toThrow();
+	});
+	it("rejects anything else, including a pinned version", () => {
+		expect(check("2.5.0")).toThrow(/whatsNew/);
+		expect(check(true)).toThrow(/whatsNew/);
+	});
+});

@@ -26,7 +26,7 @@
  */
 import { spawn, execSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 
 export interface CdpOptions {
 	/**
@@ -47,7 +47,22 @@ export interface CdpOptions {
 	screenshotTimeout?: number;
 	/** Poll interval in ms for both wait operations. Default 50. */
 	pollInterval?: number;
+	/**
+	 * Isolated mode: talk to a separate Obsidian instance over a direct CDP
+	 * session instead of the `obsidian` CLI. Window-raising calls become
+	 * no-ops, and capture paths that need the real screen throw.
+	 * Spec: [[Agent Console Isolated Screenshot Capture]] § Screenshot driver.
+	 */
+	transport?: CdpTransport;
 }
+
+/** A direct CDP session on the workspace page of an isolated instance. */
+export interface CdpTransport {
+	send(method: string, params: Record<string, unknown>): Promise<unknown>;
+}
+
+/** Thrown for a capture path the isolated driver can't run without taking the screen. */
+export class IsolatedUnsupportedError extends Error {}
 
 export interface Rect {
 	x: number;
@@ -84,6 +99,7 @@ export class Cdp {
 	private readonly waitTimeout: number;
 	private readonly screenshotTimeout: number;
 	private readonly pollInterval: number;
+	private readonly transport: CdpTransport | undefined;
 
 	constructor(opts: CdpOptions = {}) {
 		this.binary = opts.binary ?? "obsidian";
@@ -91,6 +107,16 @@ export class Cdp {
 		this.waitTimeout = opts.waitTimeout ?? 5000;
 		this.screenshotTimeout = opts.screenshotTimeout ?? 5000;
 		this.pollInterval = opts.pollInterval ?? 50;
+		this.transport = opts.transport;
+	}
+
+	/** True when driving an isolated instance over a direct CDP session. */
+	get isolated(): boolean {
+		return this.transport !== undefined;
+	}
+
+	private requireScreen(what: string): void {
+		if (this.transport) throw new IsolatedUnsupportedError(`${what} needs the real screen; run this entry with SCREENSHOT_LEGACY=1`);
 	}
 
 	/**
@@ -223,7 +249,7 @@ export class Cdp {
 	 * popup renders on top of the screen for the subsequent screencapture.
 	 */
 	async clickWithCoords(selector: string): Promise<void> {
-		try {
+		if (!this.transport) try {
 			execSync('osascript -e \'tell application "Obsidian" to activate\'', {
 				timeout: 3000,
 			});
@@ -233,7 +259,7 @@ export class Cdp {
 				`(() => { try { require("@electron/remote").getCurrentWindow().focus(); } catch (e) {} })()`,
 			);
 		}
-		await sleep(300); // Let the activation propagate before opening the menu.
+		if (!this.transport) await sleep(300); // Let the activation propagate before opening the menu.
 		const expr = `(() => {
 			const el = document.querySelector(${JSON.stringify(selector)});
 			if (!el) return false;
@@ -356,6 +382,7 @@ export class Cdp {
 	 * the window doesn't linger over the user's daily vault (I13).
 	 */
 	async setWindowAlwaysOnTop(enabled: boolean): Promise<void> {
+		if (this.transport) return;
 		const expr = enabled
 			? `(() => { try { const w = require("@electron/remote").getCurrentWindow(); w.setAlwaysOnTop(true, "floating"); w.moveTop(); return true; } catch (e) { return false; } })()`
 			: `(() => { try { require("@electron/remote").getCurrentWindow().setAlwaysOnTop(false); return true; } catch (e) { return false; } })()`;
@@ -416,6 +443,7 @@ export class Cdp {
 		outputPath: string,
 		region: { x: number; y: number; width: number; height: number },
 	): Promise<void> {
+		this.requireScreen("screenCaptureRegion");
 		const rectArg = `-R${region.x},${region.y},${region.width},${region.height}`;
 		await new Promise<void>((resolve, reject) => {
 			const proc = spawn("screencapture", ["-x", rectArg, outputPath]);
@@ -466,6 +494,7 @@ export class Cdp {
 	 * readiness is gated by the caller's subsequent `activeDocument` waits.
 	 */
 	async openSettingsHidden(tabId: string): Promise<void> {
+		this.requireScreen("the settings window");
 		const expression = `(async () => {
 			try {
 				const remote = require("@electron/remote");
@@ -524,6 +553,7 @@ export class Cdp {
 	 * is unchanged.
 	 */
 	async captureSettingsWindow(outputPath: string): Promise<void> {
+		this.requireScreen("the settings window");
 		const prefix = settingsWindowTitlePrefix(this.vault);
 		const expression = `(async () => {
 			try {
@@ -611,6 +641,7 @@ export class Cdp {
 
 	/** Toggle `dev:mobile on|off`. */
 	async setMobileEmulation(enabled: boolean): Promise<void> {
+		this.requireScreen("dev:mobile");
 		await this.runRaw(["dev:mobile", enabled ? "on" : "off"]);
 	}
 
@@ -687,6 +718,7 @@ export class Cdp {
 	 * (z-order) — focus alone loses the z-order race to the daily-driver.
 	 */
 	async focusWindow(): Promise<void> {
+		if (this.transport) return;
 		const params = JSON.stringify({
 			expression: `(() => { try { require("@electron/remote").getCurrentWindow().focus(); return true; } catch (e) { return false; } })()`,
 			returnByValue: true,
@@ -726,13 +758,36 @@ export class Cdp {
 	}
 
 	/**
-	 * Spawn `obsidian` with the given args and resolve with the captured
+	 * Serve the CLI verbs over a direct CDP session, returning what the CLI
+	 * would print, so every method keeps its existing parsing.
+	 */
+	private async runTransport(transport: CdpTransport, args: string[]): Promise<string> {
+		const [verb, ...rest] = args;
+		const kv = Object.fromEntries(rest.map((a) => { const i = a.indexOf("="); return [a.slice(0, i), a.slice(i + 1)]; }));
+		if (verb === "dev:cdp") {
+			try {
+				return JSON.stringify(await transport.send(kv.method, JSON.parse(kv.params || "{}") as Record<string, unknown>));
+			} catch (e) {
+				return `Error: ${e instanceof Error ? e.message : String(e)}`;
+			}
+		}
+		if (verb === "dev:screenshot") {
+			const r = (await transport.send("Page.captureScreenshot", { format: "png" })) as { data: string };
+			writeFileSync(kv.path, Buffer.from(r.data, "base64"));
+			return "";
+		}
+		throw new IsolatedUnsupportedError(`${verb} is not available in isolated mode`);
+	}
+
+	/**
+	 * Spawn `obsidian` (or, in isolated mode, use the CDP transport) with the given args and resolve with the captured
 	 * stdout. Stderr is read but discarded (it's all sandbox-init noise
 	 * in our environment). Rejects only on spawn-level errors (binary
 	 * missing, EACCES). Exit code is NOT checked because `obsidian` exits
 	 * 0 on most CDP errors.
 	 */
 	private runRaw(args: string[]): Promise<string> {
+		if (this.transport) return this.runTransport(this.transport, args);
 		return new Promise<string>((resolve, reject) => {
 			const fullArgs = this.vault ? [`vault=${this.vault}`, ...args] : args;
 			const proc = spawn(

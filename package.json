@@ -25,7 +25,7 @@
 		"docs:dev": "vitepress dev docs",
 		"docs:build": "vitepress build docs",
 		"docs:preview": "vitepress preview docs",
-		"docs:screenshots": "npm run build && bash tools/screenshots/setup.sh && npx tsx tools/screenshots/run.ts",
+		"docs:screenshots": "npm run build && npx tsx tools/screenshots/run.ts",
 		"capture:verify": "AC_CAPTURE_VERIFY=1 tsx tools/lib/isolated-verify.ts",
 		"docs:screenshots:check": "npx tsx tools/screenshots/check.ts",
 		"docs:screenshots:check:strict": "npx tsx tools/screenshots/check.ts --strict",
