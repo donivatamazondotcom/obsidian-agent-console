@@ -607,7 +607,10 @@ export function ChatPanel({
 	// Context Note Lifecycle (crystallized notes + selection)
 	// ============================================================
 	const contextNotes = useContextNotes();
-	const selectionTracker = useSelectionTracker(vaultService);
+	// I326: a link-opened tab ignores the lines selected when the link fired.
+	const selectionTracker = useSelectionTracker(vaultService, {
+		ignoreInitialSelection: initialPrompt?.suppressAutoContext === true,
+	});
 
 	const vaultEventSource = useMemo<VaultEventSource>(
 		() => ({

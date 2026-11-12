@@ -31,6 +31,21 @@ export interface SelectionState {
 	toLine: number;
 }
 
+export interface UseSelectionTrackerOptions {
+	/**
+	 * Hide the selection first observed after mount until the user changes
+	 * it (I326). For a tab opened by an `obsidian://agent-console` link: the
+	 * lines selected when the link fired belong to an unrelated note. Read at
+	 * mount only.
+	 */
+	ignoreInitialSelection?: boolean;
+}
+
+/** Path plus lines, so a re-read of the same selection compares equal. */
+function selectionKey(path: string, selection: SelectionState | null): string {
+	return selection ? `${path}:${selection.fromLine}-${selection.toLine}` : `${path}:`;
+}
+
 export interface UseSelectionTrackerReturn {
 	/** Vault-relative path of the last active markdown note (persists across chat focus). */
 	activeNotePath: string | null;
@@ -47,7 +62,10 @@ export interface UseSelectionTrackerReturn {
  * becomes active. When focus moves to the chat textarea (getActiveNote
  * returns null), the last known markdown note persists.
  */
-export function useSelectionTracker(source: SelectionSource): UseSelectionTrackerReturn {
+export function useSelectionTracker(
+	source: SelectionSource,
+	options: UseSelectionTrackerOptions = {},
+): UseSelectionTrackerReturn {
 	const [activeNotePath, setActiveNotePath] = useState<string | null>(null);
 	const [activeNoteName, setActiveNoteName] = useState<string | null>(null);
 	const [selection, setSelection] = useState<SelectionState | null>(null);
@@ -57,21 +75,37 @@ export function useSelectionTracker(source: SelectionSource): UseSelectionTracke
 	// re-subscribing on every path change. (I85)
 	const activeNotePathRef = useRef(activeNotePath);
 	activeNotePathRef.current = activeNotePath;
+	// I326: while ignoring, the key of the first selection observed; null
+	// until that observation. Cleared for good once the user changes it.
+	const ignoreRef = useRef<{ key: string | null } | null>(
+		options.ignoreInitialSelection ? { key: null } : null,
+	);
 
 	const handleSelectionChange = useCallback(async () => {
 		const note = await sourceRef.current.getActiveNote();
+		// I326: no note open when the link fired means nothing to ignore.
+		if (!note && ignoreRef.current?.key === null) ignoreRef.current = null;
 		if (note) {
 			// A real markdown note is active — update everything
 			setActiveNotePath(note.path);
 			setActiveNoteName(note.name);
-			if (note.selection) {
-				setSelection({
-					fromLine: note.selection.from.line,
-					toLine: note.selection.to.line,
-				});
-			} else {
-				setSelection(null);
+			const next: SelectionState | null = note.selection
+				? {
+						fromLine: note.selection.from.line,
+						toLine: note.selection.to.line,
+					}
+				: null;
+			const ignore = ignoreRef.current;
+			if (ignore) {
+				const key = selectionKey(note.path, next);
+				if (ignore.key === null) ignore.key = key;
+				if (ignore.key === key) {
+					setSelection(null);
+					return;
+				}
+				ignoreRef.current = null;
 			}
+			setSelection(next);
 		} else if (!sourceRef.current.hasOpenMarkdownLeaves()) {
 			// No markdown leaves at all — the user closed every note.
 			// Clear the stale path so the provisional pill disappears.
@@ -94,6 +128,11 @@ export function useSelectionTracker(source: SelectionSource): UseSelectionTracke
 			if (activeNotePathRef.current === oldPath) {
 				setActiveNotePath(newPath);
 				setActiveNoteName(basename(newPath));
+			}
+			// I326: a rename doesn't change which lines the user selected.
+			const ignore = ignoreRef.current;
+			if (ignore?.key?.startsWith(`${oldPath}:`)) {
+				ignore.key = newPath + ignore.key.slice(oldPath.length);
 			}
 		});
 		// I100: deleting the currently-tracked active note must clear the

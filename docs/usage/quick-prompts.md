@@ -144,7 +144,7 @@ The quickest way to get a prompt's link is to right-click its chip and pick **Co
 - **Outside text is marked.** Text from `selection` is quoted under a line that shows how long it is and where the link *claims* it came from (for example "External text · 48,212 chars · claimed source: example.com"). It says *claims* because whoever wrote the link picks the `url` and `title`. If the prompt has no `{{selection}}`, the quoted text is added at the end.
 - **Hidden characters are removed.** Invisible characters that can hide or reorder text are stripped out, and a notice tells you how many.
 - **You see who you're talking to.** When a link picks the agent or mode, the new tab shows "Opened by link · Agent: … · Mode: …" until you send or close the banner.
-- **Your open note stays out of it.** A link-opened tab doesn't offer the note you happen to have open as context – it has nothing to do with the email you clicked from.
+- **Your open note stays out of it.** A link-opened tab doesn't offer the note you happen to have open as context, or send the lines you had selected in it – they have nothing to do with the email you clicked from. Select something after the tab opens and it goes along as usual.
 - **Links can't flood you.** Only one link opens every 2 seconds, and the same link clicked again within 10 seconds is ignored.
 - **Mistakes do nothing.** An unknown prompt id, an unknown agent, or an empty value shows a notice and opens nothing.
 
