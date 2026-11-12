@@ -104,8 +104,12 @@ function makeSettings(picks: Picks) {
 	};
 }
 
-function makeClient(freshProcess: SessionConfigOption[] = config("m-b", "low", "default")) {
+function makeClient(
+	freshProcess: SessionConfigOption[] = config("m-b", "low", "default"),
+	opts: { picksAsInputs?: boolean; failNewSession?: number } = {},
+) {
 	let server: SessionConfigOption[] = freshProcess;
+	let failures = opts.failNewSession ?? 0;
 	const setSessionConfigOption = vi.fn(async (_s: string, id: string, value: string) => {
 		server = server.map((o) => (o.id === id ? { ...o, currentValue: value } : o));
 		return server;
@@ -114,9 +118,13 @@ function makeClient(freshProcess: SessionConfigOption[] = config("m-b", "low", "
 		isInitialized: () => true,
 		getCurrentAgentId: () => AGENT,
 		initialize: vi.fn(),
-		acceptsInitialConfigPicks: () => false,
+		acceptsInitialConfigPicks: () => opts.picksAsInputs === true,
 		storesSessionConfig: () => false,
-		newSession: vi.fn(async () => {
+		newSession: vi.fn(async (_cwd: string, _inputs?: { modelId?: string; effortLevel?: string }) => {
+			if (failures > 0) {
+				failures--;
+				throw new Error("agent exited during session/new");
+			}
 			server = freshProcess;
 			return { sessionId: "s-new", configOptions: server };
 		}),
@@ -124,6 +132,7 @@ function makeClient(freshProcess: SessionConfigOption[] = config("m-b", "low", "
 		setSessionConfigOption,
 		setSessionModel: vi.fn(async () => {}),
 		setSessionMode: vi.fn(async () => {}),
+		cancel: vi.fn(async () => {}),
 		disconnect: vi.fn(async () => {}),
 		whenTornDown: vi.fn(async () => {}),
 		whenDeletesSettled: vi.fn(async () => {}),
@@ -131,6 +140,11 @@ function makeClient(freshProcess: SessionConfigOption[] = config("m-b", "low", "
 	return {
 		client,
 		setSessionConfigOption,
+		/** Server-side state change, as a config_option_update reports it. */
+		setServer: (next: SessionConfigOption[]) => {
+			server = next;
+		},
+		newSession: client.newSession as ReturnType<typeof vi.fn>,
 		setSessionModel: client.setSessionModel as ReturnType<typeof vi.fn>,
 		setSessionMode: client.setSessionMode as ReturnType<typeof vi.fn>,
 	};
@@ -142,8 +156,14 @@ const valueOf = (o: SessionConfigOption[] | undefined, category: string) =>
 const TAB: Picks = { model: "m-a", thought: "high", mode: "plan" };
 const OTHER_TAB: Picks = { model: "m-b", thought: "low", mode: "default" };
 
-function mount(c: ReturnType<typeof makeClient>, s: ReturnType<typeof makeSettings>) {
-	return renderHook(() => useAgentSession(c.client, s.access, "/cwd", () => {}, AGENT));
+function mount(
+	c: ReturnType<typeof makeClient>,
+	s: ReturnType<typeof makeSettings>,
+	restoredModeId?: string,
+) {
+	return renderHook(() =>
+		useAgentSession(c.client, s.access, "/cwd", () => {}, AGENT, undefined, restoredModeId),
+	);
 }
 
 /** Connect the tab in TAB's picks, then let another tab change the saved picks. */
@@ -266,5 +286,163 @@ describe("I325: a released tab reconnects in its own picks", () => {
 		const opts = result.current.session.configOptions;
 		expect(valueOf(opts, "model")).toBe("m-b");
 		expect(valueOf(opts, "mode")).toBe("default");
+	});
+	it("a retry after a failed fallback still starts in the tab's picks", async () => {
+		const c = makeClient(undefined, { failNewSession: 1 });
+		const s = makeSettings(TAB);
+		const { result } = mount(c, s);
+		await connectThenOtherTabPicks(c, s, result);
+
+		await act(async () => {
+			await result.current.releaseSession();
+		});
+		await act(async () => {
+			await result.current.createSession(AGENT);
+		});
+		expect(result.current.session.state).toBe("error");
+		await act(async () => {
+			await result.current.createSession(AGENT);
+		});
+
+		expect(valueOf(result.current.session.configOptions, "mode")).toBe("plan");
+		expect(valueOf(result.current.session.configOptions, "model")).toBe("m-a");
+	});
+
+	it("a hard reload of a released tab starts from the saved picks, as on a live tab", async () => {
+		const c = makeClient();
+		const s = makeSettings(TAB);
+		const { result } = mount(c, s);
+		await connectThenOtherTabPicks(c, s, result);
+
+		await act(async () => {
+			await result.current.releaseSession();
+		});
+		// Hard reload and Restart agent: closeSession, then a fresh session.
+		await act(async () => {
+			await result.current.closeSession();
+		});
+		await act(async () => {
+			await result.current.createSession(AGENT);
+		});
+
+		expect(valueOf(result.current.session.configOptions, "mode")).toBe("default");
+		expect(c.setSessionConfigOption).not.toHaveBeenCalled();
+	});
+
+	it("legacy API: a failed reconnect's new session starts in the tab's mode and model", async () => {
+		const c = makeClient();
+		(c.newSession as ReturnType<typeof vi.fn>).mockImplementation(async () => ({
+			sessionId: "s-new",
+			modes: legacyModes("default"),
+			models: legacyModels("m-b"),
+		}));
+		const s = makeSettings(TAB);
+		const { result } = mount(c, s);
+		await act(async () => {
+			await result.current.updateSessionFromLoad("s1", legacyModes("plan"), legacyModels("m-a"));
+		});
+		s.pick(OTHER_TAB);
+
+		await act(async () => {
+			await result.current.releaseSession();
+		});
+		await act(async () => {
+			await result.current.createSession(AGENT);
+		});
+
+		expect(c.setSessionMode).toHaveBeenLastCalledWith("s-new", "plan");
+		expect(c.setSessionModel).toHaveBeenLastCalledWith("s-new", "m-a");
+	});
+
+	it("V3-style inputs: the fallback sends the tab's picks and never saves a late option", async () => {
+		// The respawned process reports no effort option yet.
+		const noEffort = [option("model", "m-b", ["m-a", "m-b"]), option("mode", "default", ["default", "plan"])];
+		const c = makeClient(noEffort, { picksAsInputs: true });
+		const s = makeSettings(TAB);
+		const { result } = mount(c, s);
+		await connectThenOtherTabPicks(c, s, result);
+
+		await act(async () => {
+			await result.current.releaseSession();
+		});
+		await act(async () => {
+			await result.current.createSession(AGENT);
+		});
+		expect(c.newSession).toHaveBeenLastCalledWith("/cwd", { modelId: "m-a", effortLevel: "high" });
+
+		// The effort option arrives late.
+		const withEffort = [...noEffort, option("thought_level", "low", ["low", "high"])];
+		c.setServer(withEffort);
+		await act(async () => {
+			result.current.handleSessionUpdate({
+				type: "config_option_update",
+				sessionId: "s-new",
+				configOptions: withEffort,
+			});
+		});
+		await vi.waitFor(() =>
+			expect(c.setSessionConfigOption).toHaveBeenCalledWith("s-new", "thought_level", "high"),
+		);
+		// Let the late apply finish, including any settings save after it.
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 0));
+		});
+
+		// Another tab's saved picks stay as they were.
+		expect(s.updateSettings).not.toHaveBeenCalled();
+	});
+});
+
+describe("I325: a restored tab's own mode (I231) and the release", () => {
+	it("a restored tab whose load fails starts its new session in its own mode", async () => {
+		const c = makeClient();
+		const s = makeSettings(OTHER_TAB);
+		const { result } = mount(c, s, "plan");
+
+		await act(async () => {
+			await result.current.createSession(AGENT);
+		});
+
+		expect(valueOf(result.current.session.configOptions, "mode")).toBe("plan");
+		expect(s.updateSettings).not.toHaveBeenCalled();
+	});
+
+	it("a mode picked after the restore wins over the restored mode at the reconnect", async () => {
+		const c = makeClient();
+		const s = makeSettings(OTHER_TAB);
+		const { result } = mount(c, s, "plan");
+		// Restored tab's load failed: a new session in its own mode.
+		await act(async () => {
+			await result.current.createSession(AGENT);
+		});
+		// The user picks Manual in this tab (saved as the agent's default too).
+		await act(async () => {
+			await result.current.setConfigOption("mode", "default");
+		});
+		s.pick({ ...OTHER_TAB, mode: "plan" });
+
+		await act(async () => {
+			await result.current.releaseSession();
+		});
+		await act(async () => {
+			await result.current.updateSessionFromLoad("s-new", undefined, undefined, config("m-b", "low", "plan"));
+		});
+
+		expect(valueOf(result.current.session.configOptions, "mode")).toBe("default");
+	});
+
+	it("New chat on a restored tab uses the saved mode, not the restored one", async () => {
+		const c = makeClient();
+		const s = makeSettings(OTHER_TAB);
+		const { result } = mount(c, s, "plan");
+
+		await act(async () => {
+			result.current.setAgentWithoutSession(AGENT);
+		});
+		await act(async () => {
+			await result.current.createSession(AGENT);
+		});
+
+		expect(valueOf(result.current.session.configOptions, "mode")).toBe("default");
 	});
 });
