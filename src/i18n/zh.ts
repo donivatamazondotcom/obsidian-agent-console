@@ -653,6 +653,8 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 		"此聊天的智能体不提供模式“{mode}”。请使用模式下拉菜单中的名称。",
 	"chat.quickPrompts.modeNotOffered":
 		"此聊天的智能体不提供模式“{mode}”，因此提示未发送。请检查提示笔记中的模式。",
+	"chat.quickPrompts.modeNotKeptAfterSwitch":
+		"提示要求在此聊天之前使用的智能体上使用模式“{mode}”，因此提示未发送。请检查模式后再发送。",
 	"chat.quickPrompts.newTabTooltip":
 		"点击：在新标签页打开 · {mod}-点击：在后台打开 · {alt}-点击：放入输入框先编辑",
 	"chat.quickPrompts.thisTabTooltip":

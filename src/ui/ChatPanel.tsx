@@ -837,6 +837,9 @@ export function ChatPanel({
 	const lazyReloadNowRef = useRef<UseLazySessionApi["reloadNow"] | null>(
 		null,
 	);
+	// I322: forward ref to the queue's Edit (created later). An agent switch
+	// that drops a quick prompt's mode gives a held prompt back with it.
+	const releaseHeldPromptRef = useRef<(() => void) | null>(null);
 	const actions = useChatActions(
 		plugin,
 		agent,
@@ -1135,7 +1138,19 @@ export function ChatPanel({
 				// I296: keep the agent change and the lazy reset in the same
 				// tick. The reset flushes the old chat's pending save, which
 				// reads the agent id from the last committed render.
-				agent.setAgentWithoutSession(decision.agentId);
+				const droppedMode = agent.setAgentWithoutSession(decision.agentId);
+				// I322: the quick prompt asked for a mode of the old agent. A held
+				// prompt goes back to the composer unsent, and the notice says why.
+				if (droppedMode) {
+					releaseHeldPromptRef.current?.();
+					new Notice(
+						t("notices.prefixed", {
+							message: t("chat.quickPrompts.modeNotKeptAfterSwitch", {
+								mode: droppedMode,
+							}),
+						}),
+					);
+				}
 				if (decision.kind === "recreate-eager") {
 					void lazyAcquireNowRef.current?.();
 				} else {
@@ -1901,21 +1916,16 @@ export function ChatPanel({
 	// once. The connect-flush above has already returned the prompt to the
 	// composer unsent. Spec: [[Agent Console Quick Prompt Agent and Mode]].
 	const unmetModeRequest = agent.session.unmetModeRequest;
-	const unmetAfterSwitch = agent.session.unmetModeRequestAfterSwitch === true;
 	useEffect(() => {
 		if (!unmetModeRequest) return;
 		new Notice(
 			t("notices.prefixed", {
-				// I322: after an agent switch the request was never tried.
-				message: t(
-					unmetAfterSwitch
-						? "chat.quickPrompts.modeNotKeptAfterSwitch"
-						: "chat.quickPrompts.modeNotOffered",
-					{ mode: unmetModeRequest },
-				),
+				message: t("chat.quickPrompts.modeNotOffered", {
+					mode: unmetModeRequest,
+				}),
 			}),
 		);
-	}, [unmetModeRequest, unmetAfterSwitch]);
+	}, [unmetModeRequest]);
 
 	// Send wrapper: ready → handleSendMessage directly. Not-ready → enqueue the
 	// message (queue-of-one) and trigger lazy acquisition; the connect-flush
@@ -1976,6 +1986,7 @@ export function ChatPanel({
 	const handleEditQueued = useCallback(() => {
 		queue.dispatch({ type: "editQueued" });
 	}, [queue.dispatch]);
+	releaseHeldPromptRef.current = handleEditQueued;
 
 	// Delete: clear the slot AND empty the composer (discard the message).
 	// (Edit keeps the text; Delete removes it — the label distinction the user
