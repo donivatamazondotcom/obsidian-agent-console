@@ -79,7 +79,8 @@ export function useSelectionTracker(
 	const activeNotePathRef = useRef(activeNotePath);
 	activeNotePathRef.current = activeNotePath;
 	// I326: while ignoring, the key of the first selection observed; null
-	// until that observation. Cleared for good once the user changes it.
+	// until that observation. Kept for the tab's life; cleared only when
+	// nothing was selected at mount.
 	const ignoreRef = useRef<{ key: string | null } | null>(
 		options.ignoreInitialSelection ? { key: null } : null,
 	);
