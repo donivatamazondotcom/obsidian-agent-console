@@ -165,7 +165,8 @@ export function useAgentSession(
 	initialAgentId?: string,
 	/**
 	 * Mode a quick prompt asked this tab to start in (id or display name).
-	 * One-shot: applied to the first session's pre-ready re-apply only, and
+	 * One-shot: applied to the first session that reaches ready (a failed
+	 * start keeps it for the retry, I322), dropped by an agent switch, and
 	 * never saved as the agent's default.
 	 */
 	initialModeRequest?: string,
@@ -312,8 +313,9 @@ export function useAgentSession(
 			const settings = settingsAccess.getSnapshot();
 			const agentId = overrideAgentId || getDefaultAgentId(settings);
 			const currentAgent = getCurrentAgent(settings, agentId);
+			// I322: kept until a session is ready, so a retry after a failed
+			// start still runs in the quick prompt's mode.
 			const modeRequest = pendingModeRequestRef.current;
-			pendingModeRequestRef.current = undefined;
 
 			setSession((prev) => ({
 				...prev,
@@ -487,6 +489,9 @@ export function useAgentSession(
 				}
 				if (pendingRestoredModeRef.current === restoredMode) {
 					pendingRestoredModeRef.current = undefined;
+				}
+				if (pendingModeRequestRef.current === modeRequest) {
+					pendingModeRequestRef.current = undefined;
 				}
 				setSession((prev) => ({
 					...prev,
@@ -668,6 +673,8 @@ export function useAgentSession(
 			// picks, as on a tab that was never released.
 			releasedPicksRef.current = undefined;
 			pendingRestoredModeRef.current = undefined;
+			// I322: a quick prompt's mode belongs to the agent it was asked of.
+			pendingModeRequestRef.current = undefined;
 			const settings = settingsAccess.getSnapshot();
 			const nextAgent = getCurrentAgent(settings, agentId);
 			setSession((prev) => ({
