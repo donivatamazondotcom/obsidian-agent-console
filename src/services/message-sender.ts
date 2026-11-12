@@ -749,6 +749,7 @@ async function preparePromptWithContextNotes(
 		selection: input.selectionContext ?? null,
 		useEmbeddedContext: input.supportsEmbeddedContext ?? false,
 		vaultPath: input.vaultBasePath,
+		convertToWsl: input.convertToWsl ?? false,
 		hydrationBodies,
 	});
 

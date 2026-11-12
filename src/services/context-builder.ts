@@ -11,6 +11,8 @@ import {
 	takeLeadingSentence,
 	takeLeadingWrappedBlock,
 } from "../utils/injected-blocks";
+import { buildFileUri as fileUriFromAbsolute } from "../utils/paths";
+import { convertWindowsPathToWsl } from "../utils/platform";
 
 export interface BuildContextBlocksInput {
 	contextNotes: ContextNote[];
@@ -22,6 +24,11 @@ export interface BuildContextBlocksInput {
 	} | null;
 	useEmbeddedContext: boolean;
 	vaultPath: string;
+	/**
+	 * Windows WSL mode: link to the WSL path (`/mnt/c/...`) the agent sees,
+	 * as @-mentions already do (I324 review).
+	 */
+	convertToWsl?: boolean;
 	/**
 	 * Channel 1 bodies to embed this turn, keyed by vault-relative path
 	 * ([[ACP Context Note Hydration]] H1). The caller reads and gates them;
@@ -37,9 +44,19 @@ function displayName(path: string): string {
 	return dot > 0 ? base.slice(0, dot) : base;
 }
 
-function buildFileUri(vaultPath: string, notePath: string): string {
-	const abs = `${vaultPath}/${notePath}`;
-	return `file://${abs}`;
+/**
+ * A note's `file://` link: the vault root joined with its vault-relative
+ * path, through the same helpers @-mentions use, so Windows paths come out
+ * as `file:///C:/...` and WSL mode links to `/mnt/c/...` (I324 review).
+ */
+function buildFileUri(
+	vaultPath: string,
+	notePath: string,
+	convertToWsl = false,
+): string {
+	let abs = vaultPath ? `${vaultPath}/${notePath}` : notePath;
+	if (convertToWsl) abs = convertWindowsPathToWsl(abs);
+	return fileUriFromAbsolute(abs);
 }
 
 /**
@@ -56,7 +73,7 @@ export function buildContextBlocks(input: BuildContextBlocksInput): PromptConten
 	for (const note of input.contextNotes) {
 		const body = input.hydrationBodies?.get(note.path);
 		if (body !== undefined) {
-			const ref = buildFileUri(input.vaultPath, note.path);
+			const ref = buildFileUri(input.vaultPath, note.path, input.convertToWsl);
 			if (input.useEmbeddedContext) {
 				// Body + the usual link. The link keeps the ref handle on every
 				// message and is what replays as the pill's file chip (I222 a3,
@@ -83,12 +100,12 @@ export function buildContextBlocks(input: BuildContextBlocksInput): PromptConten
 		if (input.useEmbeddedContext) {
 			blocks.push({
 				type: "resource_link",
-				uri: buildFileUri(input.vaultPath, note.path),
+				uri: buildFileUri(input.vaultPath, note.path, input.convertToWsl),
 				name: displayName(note.path),
 				mimeType: "text/markdown",
 			});
 		} else {
-			const ref = buildFileUri(input.vaultPath, note.path);
+			const ref = buildFileUri(input.vaultPath, note.path, input.convertToWsl);
 			blocks.push({
 				type: "text",
 				text: `<obsidian_context_note ref="${ref}">\nThe user has set this note as context for this chat. The conversation involves this note. Use the Read tool to examine its content when relevant.\n</obsidian_context_note>`,
@@ -99,7 +116,7 @@ export function buildContextBlocks(input: BuildContextBlocksInput): PromptConten
 	// Channel 2: Selection
 	if (input.selection) {
 		const { path, fromLine, toLine, text } = input.selection;
-		const ref = buildFileUri(input.vaultPath, path);
+		const ref = buildFileUri(input.vaultPath, path, input.convertToWsl);
 
 		if (input.useEmbeddedContext) {
 			blocks.push({
