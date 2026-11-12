@@ -34,7 +34,8 @@ describe("listMarkedProcesses — locale", () => {
 	it("parses an en_GB-formatted line as nothing, which is why the listing forces LC_ALL=C", () => {
 		expect(parseMarkerPs("  4242     1  4242 Wed 11 Nov 16:00:17 2026     node x")).toEqual([]);
 	});
-	it("still lists this process when the caller's locale isn't C or en_US", async () => {
+	// Runs the real BSD `ps` (the harness is macOS-only); CI runs on Linux.
+	it.skipIf(process.platform !== "darwin")("still lists this process when the caller's locale isn't C or en_US", async () => {
 		const prev = process.env.LC_ALL;
 		process.env.LC_ALL = "en_GB.UTF-8";
 		try {
