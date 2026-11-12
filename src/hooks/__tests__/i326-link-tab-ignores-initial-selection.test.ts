@@ -10,8 +10,8 @@
  *
  * Fix: `ignoreInitialSelection` makes the tracker hide the selection it first
  * observes, for the tab's life. Any other selection shows as usual, and a
- * no-selection report doesn't count as a change. A selection made after the link
- * opened counts, and from then on the tab behaves like any other.
+ * no-selection report doesn't count as a change. A different selection made
+ * after the link opened is sent; the first one never is.
  *
  * [[I326 A link-opened tab sends the editor selection with its first message]].
  * Entered at the hook's public API with only the selection source mocked.
