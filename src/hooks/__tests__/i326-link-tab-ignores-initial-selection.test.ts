@@ -9,7 +9,8 @@
  * context block. `suppressAutoContext` only covered the active-note pill.
  *
  * Fix: `ignoreInitialSelection` makes the tracker hide the selection it first
- * observes, until the user changes it. A selection made after the link
+ * observes, until the user makes a different one. A no-selection report
+ * doesn't count as a change. A selection made after the link
  * opened counts, and from then on the tab behaves like any other.
  *
  * [[I326 A link-opened tab sends the editor selection with its first message]].
@@ -119,11 +120,23 @@ describe("I326: a link-opened tab ignores the selection already in the editor", 
 		expect(result.current.selection).toEqual({ fromLine: 8, toLine: 9 });
 	});
 
-	it("after a change, behaves like any tab, even back on the first lines", async () => {
+	it("a deselect and re-report of the same lines keeps hiding them", async () => {
 		const s = makeSource(note("Notes/Unrelated.md", [3, 5]));
 		const { result } = await mount(s.source, true);
 
+		// The vault service re-attaching to the note reports no selection,
+		// then the selection the editor still holds.
 		await s.emit(note("Notes/Unrelated.md"));
+		await s.emit(note("Notes/Unrelated.md", [3, 5]));
+
+		expect(result.current.selection).toBeNull();
+	});
+
+	it("after a different selection, behaves like any tab, even back on the first lines", async () => {
+		const s = makeSource(note("Notes/Unrelated.md", [3, 5]));
+		const { result } = await mount(s.source, true);
+
+		await s.emit(note("Notes/Unrelated.md", [8, 9]));
 		await s.emit(note("Notes/Unrelated.md", [3, 5]));
 
 		expect(result.current.selection).toEqual({ fromLine: 3, toLine: 5 });

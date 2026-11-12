@@ -33,17 +33,20 @@ export interface SelectionState {
 
 export interface UseSelectionTrackerOptions {
 	/**
-	 * Hide the selection first observed after mount until the user changes
-	 * it (I326). For a tab opened by an `obsidian://agent-console` link: the
+	 * Hide the selection first observed after mount until the user makes a
+	 * different one (I326). For a tab opened by an `obsidian://agent-console` link: the
 	 * lines selected when the link fired belong to an unrelated note. Read at
 	 * mount only.
 	 */
 	ignoreInitialSelection?: boolean;
 }
 
-/** Path plus lines, so a re-read of the same selection compares equal. */
-function selectionKey(path: string, selection: SelectionState | null): string {
-	return selection ? `${path}:${selection.fromLine}-${selection.toLine}` : `${path}:`;
+/** Path plus the exact range, so a re-read of the same selection compares equal. */
+function selectionKey(
+	path: string,
+	s: { from: { line: number; ch: number }; to: { line: number; ch: number } },
+): string {
+	return `${path}:${s.from.line}:${s.from.ch}-${s.to.line}:${s.to.ch}`;
 }
 
 export interface UseSelectionTrackerReturn {
@@ -97,7 +100,16 @@ export function useSelectionTracker(
 				: null;
 			const ignore = ignoreRef.current;
 			if (ignore) {
-				const key = selectionKey(note.path, next);
+				if (!note.selection) {
+					// Nothing selected at mount: nothing to ignore. Later, a
+					// no-selection report is the vault service re-attaching (a
+					// leaf switch, another note, a rename's lag), not the user
+					// picking new lines, so it doesn't end the ignore.
+					if (ignore.key === null) ignoreRef.current = null;
+					setSelection(null);
+					return;
+				}
+				const key = selectionKey(note.path, note.selection);
 				if (ignore.key === null) ignore.key = key;
 				if (ignore.key === key) {
 					setSelection(null);
