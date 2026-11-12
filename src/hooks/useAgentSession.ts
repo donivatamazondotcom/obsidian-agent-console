@@ -516,7 +516,10 @@ export function useAgentSession(
 					...prev,
 					sessionId: sessionResult.sessionId,
 					state: "ready",
-					unmetModeRequest: modeTarget.unmet,
+					// A start that finishes after an agent switch reports nothing for
+					// the new agent: the switch already said why the prompt came back.
+					unmetModeRequest:
+						prev.agentId === agentId ? modeTarget.unmet : undefined,
 					authMethods: initResult?.authMethods ?? [],
 					modes: finalModes,
 					models: finalModels,

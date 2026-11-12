@@ -234,6 +234,37 @@ describe("I322: a quick prompt's mode request outlives a failed first start", ()
 		expect(result.current.session.unmetModeRequest).toBeUndefined();
 	});
 
+	it("an old agent's start that finishes after the switch adds no second notice", async () => {
+		const c = makeClient();
+		let finishFirst: () => void = () => {};
+		// The old agent doesn't offer the requested mode.
+		c.newSession.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finishFirst = () => resolve({ sessionId: "s-old", configOptions: [modeOption("default")] });
+				}),
+		);
+		const s = makeSettings();
+		const { result } = renderHook(() =>
+			useAgentSession(c.client, s.access, "/cwd", () => {}, AGENT, "yolo"),
+		);
+
+		let firstStart: Promise<unknown> = Promise.resolve();
+		await act(async () => {
+			firstStart = result.current.createSession(AGENT);
+			await Promise.resolve();
+		});
+		await act(async () => {
+			result.current.setAgentWithoutSession(OTHER);
+		});
+		await act(async () => {
+			finishFirst();
+			await firstStart;
+		});
+
+		expect(result.current.session.unmetModeRequest).toBeUndefined();
+	});
+
 	it("switching away drops the request for good, even after switching back", async () => {
 		const c = makeClient();
 		const s = makeSettings();
