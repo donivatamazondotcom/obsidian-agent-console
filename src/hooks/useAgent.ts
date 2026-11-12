@@ -80,7 +80,7 @@ export interface UseAgentReturn {
 	reloadSession: () => Promise<ReloadSessionFlowResult>;
 	cancelOperation: () => Promise<void>;
 	getAvailableAgents: () => AgentDisplayInfo[];
-	setAgentWithoutSession: (agentId: string) => void;
+	setAgentWithoutSession: (agentId: string) => string | undefined;
 	updateSessionFromLoad: (
 		sessionId: string,
 		modes?: SessionModeState,
