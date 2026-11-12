@@ -4,7 +4,8 @@
  * Drives the real chain from the options useChatActions builds to the prompt
  * handed to `AcpClient.sendPrompt`: useAgentMessages.sendMessage →
  * preparePrompt → buildContextBlocks / processNote. Asserts the URIs of a
- * pinned note (reference-only and the over-16,000-character link-only case),
+ * pinned note (reference-only, sent with its body on first send, and the
+ * over-16,000-character link-only case),
  * an @-mention and the selection, in both prompt shapes (embedded resources
  * and text), plus Windows and WSL vault paths. Every send runs in a working
  * folder that isn't the vault root.
@@ -22,6 +23,8 @@ type AMParams = Parameters<typeof useAgentMessages>;
 
 const NOTE = "Projects/Plan.md";
 const BIG = "Projects/Big.md";
+/** Pinned and not yet sent: its body goes with this message (hydration). */
+const SMALL = "Projects/Small.md";
 const big = "x".repeat(16_001);
 
 function mount(opts: { embedded: boolean; wsl?: boolean }) {
@@ -37,6 +40,7 @@ function mount(opts: { embedded: boolean; wsl?: boolean }) {
 	const files = [
 		{ path: NOTE, basename: "Plan", extension: "md", stat: { mtime: 0 } },
 		{ path: BIG, basename: "Big", extension: "md", stat: { mtime: 0 } },
+		{ path: SMALL, basename: "Small", extension: "md", stat: { mtime: 0 } },
 	];
 	const vaultAccess = {
 		getAllFiles: () => files,
@@ -62,6 +66,19 @@ function mentionUris(content: PromptContent[]): string[] {
 		if (b.type === "resource" && b.annotations?.priority === 1) out.push(b.resource.uri);
 		if (b.type === "text") {
 			const m = b.text.match(/^<obsidian_mentioned_note ref="([^"]+)">/);
+			if (m) out.push(m[1]);
+		}
+	}
+	return out;
+}
+
+/** The selection blocks: embedded resources at priority 0.9, or the selection wrapper. */
+function selectionUris(content: PromptContent[]): string[] {
+	const out: string[] = [];
+	for (const b of content) {
+		if (b.type === "resource" && b.annotations?.priority === 0.9) out.push(b.resource.uri);
+		if (b.type === "text") {
+			const m = b.text.match(/^<obsidian_selection ref="([^"]+)"/);
 			if (m) out.push(m[1]);
 		}
 	}
@@ -97,13 +114,16 @@ async function send(
 			contextNotes: [
 				{ path: NOTE, source: "user", seen: false, hydrated: true },
 				{ path: BIG, source: "user", seen: false, hydrated: false },
+				{ path: SMALL, source: "user", seen: false, hydrated: false },
 			],
 			selection: { path: NOTE, fromLine: 0, toLine: 1 },
 		});
 	});
 	expect(hook.sent).toHaveLength(1);
-	// The @-mention really ran (one block), so its link is checked too.
+	// The @-mention and the selection really ran (one block each), so their
+	// links are checked too.
 	expect(mentionUris(hook.sent[0])).toHaveLength(1);
+	expect(selectionUris(hook.sent[0])).toHaveLength(1);
 	return uris(hook.sent[0]);
 }
 
@@ -124,6 +144,8 @@ describe("I324: note links the agent receives", () => {
 			expect(got).toContain("file:///vault/Projects/Plan.md");
 			// The over-16,000-character note goes as a link only.
 			expect(got).toContain("file:///vault/Projects/Big.md");
+			// A newly pinned note sent with its body.
+			expect(got).toContain("file:///vault/Projects/Small.md");
 			for (const u of got) expect(u.startsWith("file:///vault/")).toBe(true);
 		});
 
@@ -133,6 +155,7 @@ describe("I324: note links the agent receives", () => {
 			const got = await send(hook, "C:\\Users\\me\\vault", "D:\\work\\repo");
 
 			expect(got).toContain("file:///C:/Users/me/vault/Projects/Big.md");
+			expect(got).toContain("file:///C:/Users/me/vault/Projects/Small.md");
 			for (const u of got) expect(u.startsWith("file:///C:/Users/me/vault/")).toBe(true);
 		});
 
@@ -142,6 +165,7 @@ describe("I324: note links the agent receives", () => {
 			const got = await send(hook, "C:\\Users\\me\\vault", "D:\\work\\repo");
 
 			expect(got).toContain("file:///mnt/c/Users/me/vault/Projects/Big.md");
+			expect(got).toContain("file:///mnt/c/Users/me/vault/Projects/Small.md");
 			for (const u of got) expect(u.startsWith("file:///mnt/c/Users/me/vault/")).toBe(true);
 		});
 	}
