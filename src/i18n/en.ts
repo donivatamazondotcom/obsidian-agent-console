@@ -809,6 +809,8 @@ export const en = {
 		"This chat's agent doesn't offer the mode \"{mode}\". Use a mode name from the mode dropdown.",
 	"chat.quickPrompts.modeNotOffered":
 		"This chat's agent doesn't offer the mode \"{mode}\", so the prompt wasn't sent. Check the mode in the prompt note.",
+	"chat.quickPrompts.modeNotKeptAfterSwitch":
+		"The prompt asked for the mode \"{mode}\" on the agent this chat used before, so it wasn't sent. Check the mode, then send it.",
 	"chat.quickPrompts.newTabTooltip":
 		"Click: open in a new tab · {mod}-click: open in the background · {alt}-click: drop into the box to edit first",
 	"chat.quickPrompts.thisTabTooltip":

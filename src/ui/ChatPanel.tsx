@@ -1901,16 +1901,21 @@ export function ChatPanel({
 	// once. The connect-flush above has already returned the prompt to the
 	// composer unsent. Spec: [[Agent Console Quick Prompt Agent and Mode]].
 	const unmetModeRequest = agent.session.unmetModeRequest;
+	const unmetAfterSwitch = agent.session.unmetModeRequestAfterSwitch === true;
 	useEffect(() => {
 		if (!unmetModeRequest) return;
 		new Notice(
 			t("notices.prefixed", {
-				message: t("chat.quickPrompts.modeNotOffered", {
-					mode: unmetModeRequest,
-				}),
+				// I322: after an agent switch the request was never tried.
+				message: t(
+					unmetAfterSwitch
+						? "chat.quickPrompts.modeNotKeptAfterSwitch"
+						: "chat.quickPrompts.modeNotOffered",
+					{ mode: unmetModeRequest },
+				),
 			}),
 		);
-	}, [unmetModeRequest]);
+	}, [unmetModeRequest, unmetAfterSwitch]);
 
 	// Send wrapper: ready → handleSendMessage directly. Not-ready → enqueue the
 	// message (queue-of-one) and trigger lazy acquisition; the connect-flush

@@ -1,13 +1,15 @@
 /**
  * I322: a quick prompt's mode request survives a failed first session start,
- * and an agent switch drops it.
+ * and is never applied to another agent.
  *
  * Root cause: `createSession` read and cleared `pendingModeRequestRef` before
  * any await, and its catch never restored it. The retry (send again, or
  * Restart agent) then started in the agent's saved mode, and the held message
- * went out in that mode, possibly a more permissive one. Separately,
- * `setAgentWithoutSession` didn't clear the request, so switching agents
- * before the first start applied the old agent's mode id to the new agent.
+ * went out in that mode, possibly a more permissive one. Separately, an agent
+ * switch before the first start could apply the old agent's mode id to the
+ * new agent. The request now carries the agent it was asked of: a start on
+ * another agent reports it unmet, which returns the held prompt to the
+ * composer unsent (queue `degradeToDraft`).
  *
  * [[I322 A quick prompt mode request is lost when the first session start fails]].
  * Entered at the public hook API with only the ACP client port mocked.
@@ -157,7 +159,7 @@ describe("I322: a quick prompt's mode request outlives a failed first start", ()
 		expect(modeOf(result.current.session.configOptions)).toBe("default");
 	});
 
-	it("an agent switch before the first start drops the request", async () => {
+	it("an agent switch before the first start never applies the request, and holds the prompt", async () => {
 		const c = makeClient();
 		const s = makeSettings();
 		const { result } = mount(c, s);
@@ -171,6 +173,61 @@ describe("I322: a quick prompt's mode request outlives a failed first start", ()
 
 		expect(c.setSessionConfigOption).not.toHaveBeenCalledWith("s1", "mode", "plan");
 		expect(modeOf(result.current.session.configOptions)).toBe("default");
+		// Unmet: the connect-flush returns the held prompt to the composer.
+		expect(result.current.session.unmetModeRequest).toBe("plan");
+		expect(result.current.session.unmetModeRequestAfterSwitch).toBe(true);
+	});
+
+	it("New chat in directory on the same agent keeps the request", async () => {
+		const c = makeClient(1);
+		const s = makeSettings();
+		const { result } = mount(c, s);
+
+		await act(async () => {
+			await result.current.createSession(AGENT);
+		});
+		await act(async () => {
+			result.current.setAgentWithoutSession(AGENT);
+		});
+		await act(async () => {
+			await result.current.createSession(AGENT, "/other-folder");
+		});
+
+		expect(modeOf(result.current.session.configOptions)).toBe("plan");
 		expect(result.current.session.unmetModeRequest).toBeUndefined();
+	});
+
+	it("switching away and back before the first start still applies the request", async () => {
+		const c = makeClient();
+		const s = makeSettings();
+		const { result } = mount(c, s);
+
+		await act(async () => {
+			result.current.setAgentWithoutSession(OTHER);
+		});
+		await act(async () => {
+			result.current.setAgentWithoutSession(AGENT);
+		});
+		await act(async () => {
+			await result.current.createSession(AGENT);
+		});
+
+		expect(modeOf(result.current.session.configOptions)).toBe("plan");
+		expect(result.current.session.unmetModeRequestAfterSwitch).toBeUndefined();
+	});
+
+	it("a loaded session uses the request up, so a later new session doesn't apply it", async () => {
+		const c = makeClient();
+		const s = makeSettings();
+		const { result } = mount(c, s);
+
+		await act(async () => {
+			await result.current.updateSessionFromLoad("s0", undefined, undefined, [modeOption("default")]);
+		});
+		await act(async () => {
+			await result.current.createSession(AGENT);
+		});
+
+		expect(modeOf(result.current.session.configOptions)).toBe("default");
 	});
 });

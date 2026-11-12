@@ -111,7 +111,7 @@ Write a spec for the feature described in this note.
 **One rule decides where it lands:** if the prompt needs a different agent or mode than the chat you're in, it opens a new tab set up that way. Otherwise it fires in the current chat, as usual.
 
 - **Your current chat never changes under you.** A prompt never switches the agent or mode of a chat you're working in.
-- **The mode is set before anything is sent.** The new tab starts in the prompt's mode, so the first reply comes from the right one. If the agent fails to start and you try again, the retry still uses the prompt's mode.
+- **The mode is set before anything is sent.** The new tab starts in the prompt's mode, so the first reply comes from the right one. If the agent fails to start and you try again, the retry still uses the prompt's mode. If you switch the tab to another agent before it connects, the prompt goes back to the message box unsent, with a notice.
 - **Your defaults stay yours.** A prompt's mode applies to that one tab. New chats still open in the mode you last picked yourself.
 - **Use the names you see.** Both properties accept the name shown in Agent Console (`Claude Code`, `Plan Mode`) or the id from settings and the agent. Capitalization doesn't matter.
 - **Nothing is sent by mistake.** If no agent matches, or the agent doesn't offer the mode, you get a notice and nothing is sent. If a new tab's agent turns out not to offer the mode, the prompt waits in that tab's composer, unsent.

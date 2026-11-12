@@ -251,6 +251,11 @@ export interface ChatSession {
 	 * Spec: [[Agent Console Quick Prompt Agent and Mode]].
 	 */
 	unmetModeRequest?: string;
+	/**
+	 * The unmet request was made of another agent: the tab switched agents
+	 * before its first session (I322). Set and cleared with unmetModeRequest.
+	 */
+	unmetModeRequestAfterSwitch?: boolean;
 
 	/**
 	 * DEPRECATED: Use configOptions instead. Kept for backward compatibility
