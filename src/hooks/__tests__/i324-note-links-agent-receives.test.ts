@@ -6,7 +6,8 @@
  * preparePrompt → buildContextBlocks / processNote. Asserts the URIs of a
  * pinned note (reference-only and the over-16,000-character link-only case),
  * an @-mention and the selection, in both prompt shapes (embedded resources
- * and text), plus Windows and WSL vault paths.
+ * and text), plus Windows and WSL vault paths. Every send runs in a working
+ * folder that isn't the vault root.
  *
  * [[I324 Note paths use the working folder instead of the vault root]].
  */
@@ -34,8 +35,8 @@ function mount(opts: { embedded: boolean; wsl?: boolean }) {
 		getSnapshot: () => ({ titleStrategy: "off", windowsWslMode: opts.wsl === true }),
 	} as unknown as AMParams[1];
 	const files = [
-		{ path: NOTE, basename: "Plan", extension: "md" },
-		{ path: BIG, basename: "Big", extension: "md" },
+		{ path: NOTE, basename: "Plan", extension: "md", stat: { mtime: 0 } },
+		{ path: BIG, basename: "Big", extension: "md", stat: { mtime: 0 } },
 	];
 	const vaultAccess = {
 		getAllFiles: () => files,
@@ -52,6 +53,19 @@ function mount(opts: { embedded: boolean; wsl?: boolean }) {
 		useAgentMessages(agentClient, settingsAccess, vaultAccess, session, vi.fn()),
 	);
 	return { ...hook, sent };
+}
+
+/** The @-mention blocks: embedded resources at priority 1, or the mention wrapper. */
+function mentionUris(content: PromptContent[]): string[] {
+	const out: string[] = [];
+	for (const b of content) {
+		if (b.type === "resource" && b.annotations?.priority === 1) out.push(b.resource.uri);
+		if (b.type === "text") {
+			const m = b.text.match(/^<obsidian_mentioned_note ref="([^"]+)">/);
+			if (m) out.push(m[1]);
+		}
+	}
+	return out;
 }
 
 /** Every file URI in the prompt: resource and link URIs, and `ref="…"` attributes. */
@@ -71,11 +85,15 @@ function uris(content: PromptContent[]): string[] {
 async function send(
 	hook: ReturnType<typeof mount>,
 	vaultBasePath: string,
+	/** The chat's working folder: never the vault root here (I324). */
+	workingDirectory: string,
 	text = "summarize @[[Plan]]",
 ) {
 	await act(async () => {
 		await hook.result.current.sendMessage(text, {
 			vaultBasePath,
+			workingDirectory,
+			vaultRootPath: vaultBasePath,
 			contextNotes: [
 				{ path: NOTE, source: "user", seen: false, hydrated: true },
 				{ path: BIG, source: "user", seen: false, hydrated: false },
@@ -84,6 +102,8 @@ async function send(
 		});
 	});
 	expect(hook.sent).toHaveLength(1);
+	// The @-mention really ran (one block), so its link is checked too.
+	expect(mentionUris(hook.sent[0])).toHaveLength(1);
 	return uris(hook.sent[0]);
 }
 
@@ -98,7 +118,7 @@ describe("I324: note links the agent receives", () => {
 
 		it(`${shape}: every note link starts at the vault root`, async () => {
 			const hook = mount({ embedded });
-			const got = await send(hook, "/vault");
+			const got = await send(hook, "/vault", "/work/repo");
 
 			expect(got.length).toBeGreaterThan(0);
 			expect(got).toContain("file:///vault/Projects/Plan.md");
@@ -110,7 +130,7 @@ describe("I324: note links the agent receives", () => {
 		it(`${shape}: a Windows vault gets file:///C:/ links`, async () => {
 			platform.isWin = true;
 			const hook = mount({ embedded });
-			const got = await send(hook, "C:\\Users\\me\\vault");
+			const got = await send(hook, "C:\\Users\\me\\vault", "D:\\work\\repo");
 
 			expect(got).toContain("file:///C:/Users/me/vault/Projects/Big.md");
 			for (const u of got) expect(u.startsWith("file:///C:/Users/me/vault/")).toBe(true);
@@ -119,7 +139,7 @@ describe("I324: note links the agent receives", () => {
 		it(`${shape}: WSL mode links to /mnt/c paths`, async () => {
 			platform.isWin = true;
 			const hook = mount({ embedded, wsl: true });
-			const got = await send(hook, "C:\\Users\\me\\vault");
+			const got = await send(hook, "C:\\Users\\me\\vault", "D:\\work\\repo");
 
 			expect(got).toContain("file:///mnt/c/Users/me/vault/Projects/Big.md");
 			for (const u of got) expect(u.startsWith("file:///mnt/c/Users/me/vault/")).toBe(true);

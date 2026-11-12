@@ -381,7 +381,8 @@ export function useChatActions(
 				await agent.sendMessage(content, {
 					// I324: note paths are vault-relative, so they join onto the
 					// vault root, never the chat's working folder (agentCwd), which
-					// may be a subfolder or a folder outside the vault.
+					// may be a subfolder or a folder outside the vault. ChatPanel always
+					// passes a vault root; the fallback serves callers that don't.
 					vaultBasePath: vaultRoot || vaultPath,
 					// #277: the host-context briefing must describe the agent's
 					// REAL session cwd (agentCwd — per-agent → global → vault),

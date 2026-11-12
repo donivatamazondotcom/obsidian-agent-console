@@ -43,4 +43,4 @@ This is a one-off: it starts a new chat in the folder you pick and leaves your d
 
 ## Your notes still reach the agent
 
-A chat's folder only changes where the agent works. Notes you attach or `@`-mention are always sent with their real place in your vault, even when the chat runs in a subfolder or in a folder outside the vault.
+A chat's folder only changes where the agent works. Notes you pin or `@`-mention are always sent with their real place in your vault, even when the chat runs in a subfolder or in a folder outside the vault.
