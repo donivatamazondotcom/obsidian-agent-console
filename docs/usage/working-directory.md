@@ -40,3 +40,7 @@ Each agent's row shows the folder it resolves to, and an invalid path falls back
 You don't have to change the default to work somewhere else once. From the chat header menu, choose **New chat in directory…**. A small window opens where you can type a path or click **Browse…** to pick a folder, then **Start** to open a fresh chat there.
 
 This is a one-off: it starts a new chat in the folder you pick and leaves your default untouched. When a chat is running in a folder other than your default, a small banner shows you which folder it's in.
+
+## Your notes still reach the agent
+
+A chat's folder only changes where the agent works. Notes you attach or `@`-mention are always sent with their real place in your vault, so the agent can open them from any folder, including one outside the vault.
