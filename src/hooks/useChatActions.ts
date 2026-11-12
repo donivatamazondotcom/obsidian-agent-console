@@ -379,7 +379,10 @@ export function useChatActions(
 				}
 
 				await agent.sendMessage(content, {
-					vaultBasePath: vaultPath,
+					// I324: note paths are vault-relative, so they join onto the
+					// vault root, never the chat's working folder (agentCwd), which
+					// may be a subfolder or a folder outside the vault.
+					vaultBasePath: vaultRoot || vaultPath,
 					// #277: the host-context briefing must describe the agent's
 					// REAL session cwd (agentCwd — per-agent → global → vault),
 					// the same value handed to session/new. Feeding vaultPath
