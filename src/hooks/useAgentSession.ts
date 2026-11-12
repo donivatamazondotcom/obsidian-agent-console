@@ -38,6 +38,8 @@ import {
 	restoreConfigOptions,
 	CONFIG_PICK_SETTINGS_KEY,
 	savedConfigPicks,
+	livePicksOf,
+	overlayPicks,
 	findUnofferedModel,
 	reconcilePendingPicks,
 	type SavedConfigPicks,
@@ -175,6 +177,13 @@ export function useAgentSession(
 ): UseAgentSessionReturn {
 	const pendingModeRequestRef = useRef<string | undefined>(initialModeRequest);
 	const pendingRestoredModeRef = useRef<string | undefined>(restoredModeId);
+	/**
+	 * I325: the picks a released tab was running with. Its reconnect, or the
+	 * new session a failed reconnect falls back to, re-applies them instead of
+	 * the agent's saved picks. Cleared once a session is ready, and by New
+	 * chat or an agent switch.
+	 */
+	const releasedPicksRef = useRef<SavedConfigPicks | undefined>(undefined);
 	// ============================================================
 	// Session State
 	// ============================================================
@@ -371,7 +380,12 @@ export function useAgentSession(
 				// Kiro CLI V3 takes the saved model / effort as session/new
 				// inputs and applies them itself, so the restore can't race a
 				// model list that arrives after the response (I217).
-				const savedPicks = savedConfigPicks(settings, agentId);
+				// I325: a released tab's own picks win over the agent's saved ones.
+				const releasedPicks = releasedPicksRef.current;
+				const savedPicks = overlayPicks(
+					savedConfigPicks(settings, agentId),
+					releasedPicks,
+				);
 				const picksAsInputs =
 					typeof agentClient.acceptsInitialConfigPicks === "function" &&
 					agentClient.acceptsInitialConfigPicks();
@@ -445,13 +459,16 @@ export function useAgentSession(
 					const restored = await restoreLegacyConfig(
 						agentClient,
 						sessionResult,
-						settings.lastUsedModels[agentId],
+						picks.model,
 						picks.mode,
 					);
 					finalModes = restored.modes;
 					finalModels = restored.models;
 				}
 
+				if (releasedPicksRef.current === releasedPicks) {
+					releasedPicksRef.current = undefined;
+				}
 				setSession((prev) => ({
 					...prev,
 					sessionId: sessionResult.sessionId,
@@ -524,6 +541,8 @@ export function useAgentSession(
 
 	const restartSession = useCallback(
 		async (newAgentId?: string, overrideCwd?: string) => {
+			// I325: a new chat starts from the agent's saved picks.
+			releasedPicksRef.current = undefined;
 			await createSession(newAgentId, overrideCwd);
 		},
 		[createSession],
@@ -562,6 +581,8 @@ export function useAgentSession(
 	const releaseSession = useCallback(async () => {
 		// No cancel: an idle tab has nothing in flight (busy signals hold the
 		// release otherwise). Models, modes and commands stay for display.
+		// I325: the reconnect re-applies the picks this tab is running with.
+		releasedPicksRef.current = livePicksOf(sessionRef.current);
 		setSession((prev) => ({
 			...prev,
 			sessionId: null,
@@ -617,6 +638,9 @@ export function useAgentSession(
 	// No ACP call; the lazy path connects to this agent on first send.
 	const setAgentWithoutSession = useCallback(
 		(agentId: string) => {
+			// I325: New chat and an agent switch start from the agent's saved
+			// picks, as on a tab that was never released.
+			releasedPicksRef.current = undefined;
 			const settings = settingsAccess.getSnapshot();
 			const nextAgent = getCurrentAgent(settings, agentId);
 			setSession((prev) => ({
@@ -679,7 +703,12 @@ export function useAgentSession(
 			// silently (a restore must never block a send).
 			const restoredMode = pendingRestoredModeRef.current;
 			pendingRestoredModeRef.current = undefined;
-			const savedPicks = savedConfigPicks(settings, agentId);
+			// I325: a released tab's own picks win over the agent's saved ones.
+			const releasedPicks = releasedPicksRef.current;
+			const savedPicks = overlayPicks(
+				savedConfigPicks(settings, agentId),
+				releasedPicks,
+			);
 			const tabMode = restoredMode
 				? resolveModeRequest(restoredMode, {
 						modes,
@@ -708,13 +737,16 @@ export function useAgentSession(
 				const restored = await restoreLegacyConfig(
 					agentClient,
 					{ sessionId, modes, models, configOptions: undefined },
-					settings.lastUsedModels[agentId],
+					picks.model,
 					picks.mode,
 				);
 				finalModes = restored.modes;
 				finalModels = restored.models;
 			}
 
+			if (releasedPicksRef.current === releasedPicks) {
+				releasedPicksRef.current = undefined;
+			}
 			setSession((prev) => ({
 				...prev,
 				sessionId,
