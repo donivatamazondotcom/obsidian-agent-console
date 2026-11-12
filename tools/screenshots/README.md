@@ -1,42 +1,58 @@
 # Screenshot Automation
 
-Regenerate documentation screenshots reproducibly by driving a live Obsidian instance via the Obsidian CLI's Chrome DevTools Protocol surface.
+Regenerate documentation screenshots reproducibly. By default each run launches its own isolated Obsidian (separate user data, fake `HOME`, mock keychain, pinned app version) and drives it over a direct Chrome DevTools Protocol session, so it never touches your own Obsidian or takes your screen beyond two brief focus flashes at launch.
 
 ## Prerequisites
 
-- **macOS** (v0 is Mac-only)
-- **Obsidian ≥ 1.12** — `dev:screenshot` requires a recent installer. Download from https://obsidian.md/download
+- **macOS** (Mac-only)
+- **`/Applications/Obsidian.app`** recent enough to load the pinned app version (see below). Download from https://obsidian.md/download
 - **Node.js ≥ 18** with `npx tsx` available
-- **`obsidian` CLI** on PATH (installed via Obsidian settings → General → "Install CLI")
-- **Runs from inside Agent Console's kiro-cli session _or_ a regular Terminal** — the driver *attaches* to the running Obsidian via the `obsidian` CLI's CDP surface (`dev:cdp` / `dev:screenshot`) and uses macOS `screencapture` for native-popup shots. It does **not** launch a second Obsidian, so the macOS App Sandbox (`__CFBundleIdentifier=md.obsidian`) does not block it (`dev:*` is IPC, `screencapture` is a system binary). The one requirement: the fixtures vault must be open as the Obsidian window targeted by `vault="studio"`.
+- **A normal terminal.** The launcher needs `open` and `ps`, which the agent sandbox (ASBX) blocks. Preflight fails with a clear message when they're unavailable.
 
 ## Quick Start
 
 ```bash
-# Regenerate the v0 screenshots (ribbon-icon, multi-session)
+# Regenerate every entry the isolated driver supports
 npm run docs:screenshots
 
-# Regenerate a single screenshot by name
+# One entry, or several in a single launch
 npm run docs:screenshots -- ribbon-icon
+npm run docs:screenshots -- ribbon-icon,export,zero-tab-landing
+
+# The old path: the `studio` window inside your own Obsidian, via the `obsidian` CLI
+SCREENSHOT_LEGACY=1 npm run docs:screenshots -- language-setting
 ```
 
-Output lands in `docs/public/images/<name>.webp`.
+Output lands in `docs/public/images/<name>.webp` (or `.gif`).
+
+Entries that still need the real screen (the settings window, native popups and the screen-captured heroes) are skipped on the isolated path and listed at the end of the run; capture them with `SCREENSHOT_LEGACY=1` until they move over. A run that captures nothing exits non-zero.
+
+## Pinned Obsidian version
+
+`fixtures/obsidian-app.json` pins the Obsidian **app** version and the sha256 of its `obsidian-<version>.asar`. `/Applications/Obsidian.app` is only the installer; Obsidian runs the newest asar in its user-data folder, so each run copies the pinned asar into its own user data. The asar comes from `~/Library/Caches/agent-console/`, else your own downloaded update, else the official `obsidianmd/obsidian-releases` asset; every source is checked against the pinned hash. The run fails if the instance isn't on the pinned version.
+
+To move to a new Obsidian release, update both fields:
+
+```bash
+curl -sSL https://github.com/obsidianmd/obsidian-releases/releases/download/v<version>/obsidian-<version>.asar.gz | gunzip | shasum -a 256
+```
 
 ## How It Works
 
 1. Reads `manifest.json` for the list of screenshots to capture
-2. For each entry, drives the running Obsidian instance via `obsidian dev:cdp`:
-   - Opens fixture notes, clicks ribbon, opens chat views
-   - Sends templated prompts to the real agent (if specified)
-3. Captures via `obsidian dev:screenshot`
-4. Crops to the manifest's region (scaled by device pixel ratio)
-5. Resizes and encodes to `.webp` via `sharp`
+2. Launches the isolated Obsidian on a fresh copy of the `studio` fixtures vault, trusts it, and closes the settings window Obsidian opens after the trust prompt
+3. For each entry, drives the instance over CDP: opens fixture notes and the chat view, sends templated prompts to the real agent (if specified), and afterwards restores the plugin settings, agent configs, layout and stubs it changed (the vault-wide `nativeMenus` config is left off, as the fixtures vault ships it)
+4. Captures with `Page.captureScreenshot`, crops to the manifest's region (scaled by device pixel ratio), and encodes to `.webp` via `sharp`
+5. Tears the instance down by its run markers and checks nothing is left behind
+
+The `▶ [i/n] <entry>` lines and the focus-guard lines tie any focus steal to the entry that caused it. More than two steals fails the run.
 
 ## Environment Variables
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `SCREENSHOT_DPR` | `2` | Device pixel ratio for crop scaling (2 = retina Mac) |
+| `SCREENSHOT_DPR` | `2` (isolated); the window's DPR (legacy) | Device pixel ratio for capture and crop scaling |
+| `SCREENSHOT_LEGACY` | unset | `1` runs the old path in your own Obsidian (`setup.sh` + the `studio` window) |
 
 ## File Layout
 

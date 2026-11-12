@@ -30,7 +30,10 @@ vi.mock("node:timers/promises", () => {
 import type { ManifestEntry } from "../manifest";
 import {
 	captureEntry,
+	selectEntries,
+	whatsNewCaptureVersions,
 	captureAll,
+	needsScreen,
 	type OrchestratorDeps,
 } from "../orchestrator";
 import { scaleRectByDevicePixelRatio } from "../crop";
@@ -1033,6 +1036,18 @@ describe("captureAll", () => {
 		expect(results).toHaveLength(1);
 		expect(results[0].name).toBe("a");
 		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(1);
+	});
+
+	it("filters a comma-separated list of names, in manifest order", async () => {
+		const deps = makeDeps();
+		const entries = [makeEntry({ name: "a" }), makeEntry({ name: "b" }), makeEntry({ name: "c" })];
+		const results = await captureAll(entries, deps, { filter: "c, a" });
+		expect(results.map((r) => r.name)).toEqual(["a", "c"]);
+	});
+
+	it("throws, naming them, when some listed names match no entry", async () => {
+		const deps = makeDeps();
+		await expect(captureAll([makeEntry({ name: "a" })], deps, { filter: "a,zzz" })).rejects.toThrow(/zzz/);
 	});
 
 	it("throws when filter matches no entries", async () => {
@@ -3550,5 +3565,424 @@ describe("captureEntry — leftover tooltip (hover leak fix)", () => {
 			.invocationCallOrder[0];
 		expect(hoverOrder).toBeDefined();
 		expect(evalMock.mock.invocationCallOrder[clearIdx]).toBeLessThan(hoverOrder);
+	});
+});
+
+describe("captureEntry — agent config does not leak into later entries", () => {
+	// A tiny fake page: expressions that touch plugin settings run for real
+	// against this object; anything else (DOM work) resolves undefined.
+	function makeSettingsPage() {
+		const settings: Record<string, unknown> = {
+			defaultAgentId: "claude-code-acp",
+			claude: { id: "claude-code-acp", command: "claude-agent-acp", args: [] as string[] },
+			codex: { id: "codex-acp", command: "codex-acp", args: [] as string[] },
+			gemini: { id: "gemini-cli", command: "gemini", args: ["--experimental-acp"] },
+			kiro: { id: "kiro-cli", command: "kiro-cli", args: ["acp"], engine: "default" },
+			customAgents: [] as unknown[],
+		};
+		const app = {
+			plugins: { plugins: { "agent-console": { settings, settingsService: { updateSettings: (p: Record<string, unknown>) => { Object.assign(settings, p); return Promise.resolve(); } } } } },
+			vault: { setConfig: () => {} },
+			workspace: { openLinkText: () => {} },
+		};
+		const evaluate = vi.fn((expr: string) => {
+			try {
+				// eslint-disable-next-line @typescript-eslint/no-implied-eval
+				const doc = { querySelectorAll: () => [], querySelector: () => null };
+				return Promise.resolve(new Function("app", "document", "activeDocument", `return (${expr});`)(app, doc, doc) as unknown);
+			} catch {
+				return Promise.resolve(undefined);
+			}
+		});
+		return { settings, evaluate };
+	}
+
+	it("restores the default agent's command after a forceConnectingHold entry", async () => {
+		const page = makeSettingsPage();
+		const deps = makeDeps();
+		(deps.cdp as unknown as { evaluate: unknown }).evaluate = page.evaluate;
+		await captureEntry(makeEntry({ initialState: { clickRibbon: true, forceConnectingHold: true } }), deps).catch(() => {});
+		expect((page.settings.claude as { command: string }).command).toBe("claude-agent-acp");
+		expect((page.settings.claude as { args: string[] }).args).toEqual([]);
+	});
+
+	it("restores defaultAgentId and overridden args after agentId/agentOverride entries, even when the capture throws", async () => {
+		const page = makeSettingsPage();
+		const deps = makeDeps();
+		(deps.cdp as unknown as { evaluate: unknown }).evaluate = page.evaluate;
+		(deps.cdp.screenshot as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+		await expect(
+			captureEntry(makeEntry({ agentId: "gemini-cli", initialState: { clickRibbon: true, agentOverride: { id: "kiro-cli", args: ["acp", "--agent", "x"], engine: "v3" } } }), deps),
+		).rejects.toThrow();
+		expect(page.settings.defaultAgentId).toBe("claude-code-acp");
+		expect((page.settings.kiro as { args: string[]; engine: string }).args).toEqual(["acp"]);
+		expect((page.settings.kiro as { engine: string }).engine).toBe("default");
+	});
+});
+
+describe("captureAll — isolated skip list", () => {
+	it("skips entries the isolated driver can't run yet, without touching the page", async () => {
+		const deps = makeDeps();
+		const entries = [
+			makeEntry({ name: "plain" }),
+			makeEntry({ name: "menu", captureMode: "screen" }),
+			makeEntry({ name: "hero", captureMode: "screen-window" }),
+			makeEntry({ name: "settings", captureMode: "settings-window" }),
+			makeEntry({ name: "opens-settings", initialState: { openSettings: "agent-console" } }),
+		];
+		const results = await captureAll(entries, deps, { skip: needsScreen });
+		expect(results.map((r) => [r.name, r.success, Boolean(r.skipped)])).toEqual([
+			["plain", true, false],
+			["menu", true, true],
+			["hero", true, true],
+			["settings", true, true],
+			["opens-settings", true, true],
+		]);
+		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("captureEntry — stray settings window (isolated dialog cluster)", () => {
+	// On a fresh isolated launch Obsidian opens a settings window after the
+	// vault-trust click. While it is open, activeWindow/activeDocument point at
+	// it, so every Modal, prompt and Notice an entry opens mounts there, off the
+	// captured page (the command palette, agent picker and history modal all
+	// "never opened" in the first isolated run).
+	const CLOSE = (e: string) => e.includes("app.setting.close()") && e.includes("activeDocument");
+	const ON_MAIN = (e: string) => e.includes("activeDocument === document") && !e.includes("app.setting.close()");
+	const MODAL_CLOSE = (e: string) => e.includes(".modal-container") && e.includes(".modal-close-button");
+
+	it("closes a stray settings window before clearing modals and capturing", async () => {
+		const deps = makeDeps();
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		evalMock.mockImplementation((e: string) =>
+			Promise.resolve(CLOSE(e) ? "Settings - studio - Obsidian 1.14.5" : ON_MAIN(e) ? true : undefined),
+		);
+
+		await captureEntry(makeEntry(), deps);
+
+		const evals = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		const closeIdx = evals.findIndex(CLOSE);
+		expect(closeIdx).toBeGreaterThanOrEqual(0);
+		expect(closeIdx).toBeLessThan(evals.findIndex(MODAL_CLOSE));
+		expect(evals.some(ON_MAIN)).toBe(true);
+		const shotOrder = (deps.cdp.screenshot as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+		expect(evalMock.mock.invocationCallOrder[closeIdx]).toBeLessThan(shotOrder);
+	});
+
+	it("fails the entry, naming the window, when the main page never becomes active", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation((e: string) =>
+			Promise.resolve(CLOSE(e) ? "Untitled - popout" : ON_MAIN(e) ? false : undefined),
+		);
+
+		await expect(captureEntry(makeEntry(), deps)).rejects.toThrow(/another window is active \("Untitled - popout"\)/);
+		expect(deps.cdp.screenshot).not.toHaveBeenCalled();
+	});
+
+	it("doesn't wait when the main page is already active", async () => {
+		const deps = makeDeps();
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		evalMock.mockImplementation((e: string) => Promise.resolve(CLOSE(e) ? "main" : undefined));
+
+		await captureEntry(makeEntry(), deps);
+
+		const evals = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(evals.some(CLOSE)).toBe(true);
+		expect(evals.some(ON_MAIN)).toBe(false);
+	});
+});
+
+describe("captureAll — progress callback", () => {
+	it("reports each entry it captures, in order, and none it skips", async () => {
+		const deps = makeDeps();
+		const seen: string[] = [];
+		await captureAll(
+			[makeEntry({ name: "a" }), makeEntry({ name: "b", captureMode: "screen" }), makeEntry({ name: "c" })],
+			deps,
+			{ skip: needsScreen, onEntry: (e, i, n) => seen.push(`${e.name} ${i}/${n}`) },
+		);
+		expect(seen).toEqual(["a 1/2", "c 2/2"]);
+	});
+});
+
+describe("whatsNew: \"latest\" (version-independent What's-new card)", () => {
+	const hl = (version: string) => ({ id: `h${version}`, version, titleKey: "t", bodyKey: "b" }) as never;
+
+	it("picks the newest registry release and the release before it", () => {
+		expect(whatsNewCaptureVersions([hl("2.5.0"), hl("2.7.0"), hl("2.6.1"), hl("2.7.0")])).toEqual({ current: "2.7.0", lastSeen: "2.6.1" });
+	});
+	it("falls back to the previous minor, or patch, when the registry has one release", () => {
+		expect(whatsNewCaptureVersions([hl("2.5.0")])).toEqual({ current: "2.5.0", lastSeen: "2.4.0" });
+		expect(whatsNewCaptureVersions([hl("2.5.3")])).toEqual({ current: "2.5.3", lastSeen: "2.5.2" });
+		expect(whatsNewCaptureVersions([hl("3.0.0")])).toEqual({ current: "3.0.0", lastSeen: "2.0.0" });
+	});
+	it("throws on an empty registry", () => {
+		expect(() => whatsNewCaptureVersions([])).toThrow(/registry/);
+	});
+
+	function makePluginPage() {
+		const plugin = {
+			manifest: { version: "2.4.0" },
+			settings: { lastSeenVersion: "2.4.0" } as Record<string, unknown>,
+			settingsService: { updateSettings: (p: Record<string, unknown>) => { Object.assign(plugin.settings, p); return Promise.resolve(); } },
+		};
+		const app = {
+			plugins: { plugins: { "agent-console": plugin } },
+			vault: { setConfig: () => {} },
+			workspace: { openLinkText: () => {}, detachLeavesOfType: () => {} },
+		};
+		const evaluate = vi.fn((expr: string) => {
+			try {
+				// eslint-disable-next-line @typescript-eslint/no-implied-eval
+				const doc = { querySelectorAll: () => [], querySelector: () => null, body: { classList: { add() {}, remove() {} } } };
+				return Promise.resolve(new Function("app", "document", "activeDocument", `return (${expr});`)(app, doc, doc) as unknown);
+			} catch {
+				return Promise.resolve(undefined);
+			}
+		});
+		return { plugin, evaluate };
+	}
+
+	it("runs the plugin as the newest release with lastSeen one release back while it captures, then restores both", async () => {
+		const page = makePluginPage();
+		const deps = makeDeps({ whatsNewHighlights: [hl("2.5.0"), hl("2.6.0")] });
+		(deps.cdp as unknown as { evaluate: unknown }).evaluate = page.evaluate;
+		let atShot: unknown;
+		(deps.cdp.screenshot as ReturnType<typeof vi.fn>).mockImplementation(() => {
+			atShot = { version: page.plugin.manifest.version, lastSeen: page.plugin.settings.lastSeenVersion };
+			return Promise.resolve();
+		});
+		await captureEntry(makeEntry({ initialState: { whatsNew: "latest", clickRibbon: true } }), deps);
+		expect(atShot).toEqual({ version: "2.6.0", lastSeen: "2.5.0" });
+		expect(page.plugin.manifest.version).toBe("2.4.0");
+		expect(page.plugin.settings.lastSeenVersion).toBe("2.4.0");
+	});
+
+	it("restores the real version even when the capture throws", async () => {
+		const page = makePluginPage();
+		const deps = makeDeps({ whatsNewHighlights: [hl("2.6.0")] });
+		(deps.cdp as unknown as { evaluate: unknown }).evaluate = page.evaluate;
+		(deps.cdp.screenshot as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+		await expect(captureEntry(makeEntry({ initialState: { whatsNew: "latest" } }), deps)).rejects.toThrow();
+		expect(page.plugin.manifest.version).toBe("2.4.0");
+		expect(page.plugin.settings.lastSeenVersion).toBe("2.4.0");
+	});
+});
+
+describe("captureEntry — per-entry settings snapshot awaits the page", () => {
+	it("asks CDP to await the async snapshot and restore, so the prior values come back as values", async () => {
+		const deps = makeDeps();
+		await captureEntry(makeEntry({ initialState: { pluginSettings: { tabRailWidth: 32 } } }), deps);
+		const calls = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls as [string, { awaitPromise?: boolean }?][];
+		const settingsCalls = calls.filter(([e]) => e.includes("settingsService.updateSettings"));
+		expect(settingsCalls.length).toBeGreaterThanOrEqual(1);
+		for (const [, opts] of settingsCalls) expect(opts?.awaitPromise).toBe(true);
+	});
+});
+
+describe("captureEntry — layout overrides don't leak into later entries", () => {
+	function makeLayoutPage() {
+		const rs = { style: { width: "492px" } };
+		const leftSplit = { collapsed: false, collapse() { this.collapsed = true; }, expand() { this.collapsed = false; } };
+		const app = {
+			plugins: { plugins: { "agent-console": { settings: {}, manifest: { version: "2.4.0" }, settingsService: { updateSettings: () => Promise.resolve() } } } },
+			vault: { setConfig: () => {} },
+			workspace: { leftSplit, openLinkText: () => {}, detachLeavesOfType: () => {} },
+		};
+		const doc = { querySelectorAll: () => [], querySelector: (s: string) => (s.includes("mod-right-split") ? rs : null), body: { classList: { add() {}, remove() {} } } };
+		const evaluate = vi.fn((expr: string) => {
+			try {
+				// eslint-disable-next-line @typescript-eslint/no-implied-eval
+				return Promise.resolve(new Function("app", "document", "activeDocument", `return (${expr});`)(app, doc, doc) as unknown);
+			} catch {
+				return Promise.resolve(undefined);
+			}
+		});
+		return { rs, leftSplit, evaluate };
+	}
+
+	it("puts the right split width and left sidebar back after the entry", async () => {
+		const page = makeLayoutPage();
+		const deps = makeDeps();
+		(deps.cdp as unknown as { evaluate: unknown }).evaluate = page.evaluate;
+		let atShot: unknown;
+		(deps.cdp.screenshot as ReturnType<typeof vi.fn>).mockImplementation(() => {
+			atShot = { width: page.rs.style.width, collapsed: page.leftSplit.collapsed };
+			return Promise.resolve();
+		});
+		await captureEntry(makeEntry({ rightSplitWidth: 560, collapseLeftSidebar: true, initialState: { clickRibbon: true } }), deps);
+		expect(atShot).toEqual({ width: "560px", collapsed: true });
+		expect(page.rs.style.width).toBe("492px");
+		expect(page.leftSplit.collapsed).toBe(false);
+	});
+});
+
+describe("captureEntry — forceGettingStarted doesn't leak into later entries", () => {
+	it("puts the plugin's agent detection back after the entry, even when the capture throws", async () => {
+		class FakePlugin {
+			_detectedAgentsPromise: Promise<Set<string>> | null = null;
+			settings: Record<string, unknown> = { defaultAgentId: "claude-code-acp" };
+			manifest = { version: "2.4.0" };
+			settingsService = { updateSettings: (p: Record<string, unknown>) => { Object.assign(this.settings, p); return Promise.resolve(); } };
+			detectAgents(): Promise<Set<string>> {
+				return Promise.resolve(new Set(["claude-code-acp"]));
+			}
+		}
+		const plugin = new FakePlugin();
+		const original = Promise.resolve(new Set(["claude-code-acp"]));
+		plugin._detectedAgentsPromise = original;
+		const app = { plugins: { plugins: { "agent-console": plugin } }, vault: { setConfig: () => {} }, workspace: { openLinkText: () => {}, detachLeavesOfType: () => {} } };
+		const doc = { querySelectorAll: () => [], querySelector: () => null, body: { classList: { add() {}, remove() {} } } };
+		const deps = makeDeps();
+		(deps.cdp as unknown as { evaluate: unknown }).evaluate = vi.fn((expr: string) => {
+			try {
+				// eslint-disable-next-line @typescript-eslint/no-implied-eval
+				return Promise.resolve(new Function("app", "document", "activeDocument", `return (${expr});`)(app, doc, doc) as unknown);
+			} catch {
+				return Promise.resolve(undefined);
+			}
+		});
+		let detectedAtShot: Set<string> | undefined;
+		(deps.cdp.screenshot as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+			detectedAtShot = await plugin.detectAgents();
+			throw new Error("boom");
+		});
+		await expect(
+			captureEntry(makeEntry({ initialState: { forceGettingStarted: { defaultAgentId: "kiro-cli", detectedAgentIds: [] } } }), deps),
+		).rejects.toThrow();
+		expect(detectedAtShot?.size).toBe(0);
+		expect(Object.prototype.hasOwnProperty.call(plugin, "detectAgents")).toBe(false);
+		expect((await plugin.detectAgents()).has("claude-code-acp")).toBe(true);
+		expect(plugin._detectedAgentsPromise).toBe(original);
+		expect(plugin.settings.defaultAgentId).toBe("claude-code-acp");
+	});
+});
+
+describe("captureEntry — a failing setup step still restores everything applied before it", () => {
+	it("restores the version, lastSeen and plugin settings when the whatsNew step fails part-way", async () => {
+		const plugin = {
+			manifest: { version: "2.4.0" },
+			settings: { lastSeenVersion: "2.4.0", tabDisplay: "vertical" } as Record<string, unknown>,
+			settingsService: {
+				calls: 0,
+				updateSettings(p: Record<string, unknown>) {
+					this.calls++;
+					// Like settings-service: commit in memory, then flush. The whatsNew
+					// step's lastSeen write is the second call; its flush fails.
+					Object.assign(plugin.settings, p);
+					if (this.calls === 2) return Promise.reject(new Error("disk full"));
+					return Promise.resolve();
+				},
+			},
+		};
+		const app = { plugins: { plugins: { "agent-console": plugin } }, vault: { setConfig: () => {} }, workspace: { openLinkText: () => {}, detachLeavesOfType: () => {} } };
+		const doc = { querySelectorAll: () => [], querySelector: () => null, body: { classList: { add() {}, remove() {} } } };
+		const deps = makeDeps({ whatsNewHighlights: [{ version: "2.6.0" }] });
+		(deps.cdp as unknown as { evaluate: unknown }).evaluate = vi.fn((expr: string) => {
+			try {
+				// eslint-disable-next-line @typescript-eslint/no-implied-eval
+				return Promise.resolve(new Function("app", "document", "activeDocument", `return (${expr});`)(app, doc, doc) as unknown);
+			} catch (e) {
+				return Promise.reject(e instanceof Error ? e : new Error(String(e)));
+			}
+		});
+		await expect(captureEntry(makeEntry({ initialState: { whatsNew: "latest" } }), deps)).rejects.toThrow();
+		expect(plugin.manifest.version).toBe("2.4.0");
+		expect(plugin.settings.lastSeenVersion).toBe("2.4.0");
+		expect(plugin.settings.tabDisplay).toBe("vertical");
+		expect(deps.cdp.screenshot).not.toHaveBeenCalled();
+	});
+});
+
+describe("ensureMainWindowActive — animation path and non-English titles", () => {
+	const CLOSE = (e: string) => e.includes("app.setting.close()") && e.includes("activeDocument");
+	it("runs before an animation entry's first frame", async () => {
+		const deps = makeDeps();
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		evalMock.mockImplementation((e: string) => Promise.resolve(CLOSE(e) ? "main" : undefined));
+		await captureEntry(
+			makeEntry({ animation: { fps: 5, maxBytes: 3_000_000, frames: [{ actions: [], holdMs: 200 }] } } as Partial<ManifestEntry>),
+			deps,
+		).catch(() => {});
+		const evals = evalMock.mock.calls.map((c: unknown[]) => c[0] as string);
+		const idx = evals.findIndex(CLOSE);
+		expect(idx).toBeGreaterThanOrEqual(0);
+		const shot = (deps.cdp.screenshot as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+		expect(shot).toBeDefined();
+		expect(evalMock.mock.invocationCallOrder[idx]).toBeLessThan(shot);
+	});
+
+	it("closes the settings window by its document, whatever its title says", async () => {
+		const main = { title: "Welcome - studio" };
+		const settingsDoc = { title: "Einstellungen - studio - Obsidian 1.15.0" };
+		let active: object = settingsDoc;
+		const app = { setting: { activeTab: { containerEl: { ownerDocument: settingsDoc } }, close: () => { active = main; } } };
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation((expr: string) => {
+			if (!expr.includes("activeDocument")) return Promise.resolve(undefined);
+			// eslint-disable-next-line @typescript-eslint/no-implied-eval
+			return Promise.resolve(new Function("app", "document", "activeDocument", `return (${expr});`)(app, main, active) as unknown);
+		});
+		await captureEntry(makeEntry(), deps);
+		expect(active).toBe(main);
+		expect(deps.cdp.screenshot).toHaveBeenCalled();
+	});
+});
+
+describe("captureEntry — a settings patch whose disk write fails is still restored", () => {
+	it("restores the per-entry patch when updateSettings commits in memory and then rejects", async () => {
+		const plugin = {
+			manifest: { version: "2.4.0" },
+			settings: { tabDisplay: "vertical", tabRailWidth: 150 } as Record<string, unknown>,
+			settingsService: {
+				calls: 0,
+				updateSettings(p: Record<string, unknown>) {
+					this.calls++;
+					Object.assign(plugin.settings, p);
+					// The entry's patch is the first call; its flush fails.
+					return this.calls === 1 ? Promise.reject(new Error("disk full")) : Promise.resolve();
+				},
+			},
+		};
+		const app = { plugins: { plugins: { "agent-console": plugin } }, vault: { setConfig: () => {} }, workspace: { openLinkText: () => {}, detachLeavesOfType: () => {} } };
+		const doc = { querySelectorAll: () => [], querySelector: () => null, body: { classList: { add() {}, remove() {} } } };
+		const deps = makeDeps();
+		(deps.cdp as unknown as { evaluate: unknown }).evaluate = vi.fn((expr: string) => {
+			try {
+				// eslint-disable-next-line @typescript-eslint/no-implied-eval
+				return Promise.resolve(new Function("app", "document", "activeDocument", `return (${expr});`)(app, doc, doc) as unknown);
+			} catch (e) {
+				return Promise.reject(e instanceof Error ? e : new Error(String(e)));
+			}
+		});
+		await captureEntry(makeEntry({ initialState: { pluginSettings: { tabRailWidth: 32 } } }), deps).catch(() => {});
+		expect(plugin.settings.tabRailWidth).toBe(150);
+		expect(plugin.settings.tabDisplay).toBe("vertical");
+	});
+});
+
+describe("selectEntries", () => {
+	it("returns every entry without a filter, and the listed ones in manifest order with one", () => {
+		const es = [makeEntry({ name: "a" }), makeEntry({ name: "b" }), makeEntry({ name: "c" })];
+		expect(selectEntries(es).map((e) => e.name)).toEqual(["a", "b", "c"]);
+		expect(selectEntries(es, "c,a").map((e) => e.name)).toEqual(["a", "c"]);
+		expect(() => selectEntries(es, "a,zz")).toThrow(/zz/);
+	});
+});
+
+describe("captureEntry — hover tooltip settles before capture", () => {
+	it("waits in the page for the tooltip's fade-in to finish, after it appears and before the screenshot", async () => {
+		const deps = makeDeps();
+		await captureEntry(makeEntry({ initialState: { hoverSelector: ".side-dock-ribbon-action" } }), deps);
+		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		const calls = evalMock.mock.calls as [string, { awaitPromise?: boolean }?][];
+		const idx = calls.findIndex(([e]) => e.includes(".tooltip") && e.includes("getAnimations"));
+		expect(idx).toBeGreaterThanOrEqual(0);
+		expect(calls[idx][1]?.awaitPromise).toBe(true);
+		const waitOrder = (deps.cdp.waitForElement as ReturnType<typeof vi.fn>).mock.invocationCallOrder.at(-1) ?? 0;
+		const shot = (deps.cdp.screenshot as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+		expect(evalMock.mock.invocationCallOrder[idx]).toBeGreaterThan(waitOrder);
+		expect(evalMock.mock.invocationCallOrder[idx]).toBeLessThan(shot);
 	});
 });

@@ -42,6 +42,8 @@ import {
 	type ChromeFrameOptions,
 } from "./frame";
 import { VIEW_TYPE_CHAT } from "../../../src/ui/chat-view-type";
+import { HIGHLIGHTS } from "../../../src/whats-new/highlights";
+import * as semver from "semver";
 
 /** I205: JSON-quoted current chat view type for the in-page expressions. */
 const VIEW_JSON = JSON.stringify(VIEW_TYPE_CHAT);
@@ -130,6 +132,8 @@ interface SharpPipeline {
 
 export interface OrchestratorDeps {
 	cdp: CdpLike;
+	/** What's-new registry for `whatsNew: "latest"`; the shipped one by default. */
+	whatsNewHighlights?: readonly { version: string }[];
 	sharp: SharpFactory;
 	repoRoot: string;
 	fixtureRoot: string;
@@ -176,10 +180,29 @@ export interface CaptureResult {
 	name: string;
 	success: boolean;
 	error?: string;
+	/** Set when the entry was skipped on purpose (not a failure). */
+	skipped?: string;
 }
 
 export interface CaptureAllOptions {
+	/** An entry name, or a comma-separated list of names. */
 	filter?: string;
+	/** Returns a reason to skip an entry, or undefined to capture it. */
+	skip?: (entry: ManifestEntry) => string | undefined;
+	/** Called before each entry is captured (1-based index over captured entries). */
+	onEntry?: (entry: ManifestEntry, index: number, total: number) => void;
+}
+
+/**
+ * Why an entry can't run on the isolated driver yet, or undefined if it can.
+ * Settings and real-screen captures move to the isolated path in later PRs
+ * ([[Agent Console Isolated Screenshot Capture]] PR 2b/2c).
+ */
+export function needsScreen(entry: ManifestEntry): string | undefined {
+	if (entry.captureMode === "screen" || entry.captureMode === "screen-window") return `captureMode "${entry.captureMode}" needs the real screen`;
+	if (entry.captureMode === "settings-window" || entry.initialState?.openSettings) return "the settings window isn't on the isolated path yet";
+	if (entry.initialState?.openNativeSelect) return "a native <select> popup needs the real screen";
+	return undefined;
 }
 
 const SETTLE_MS = 500;
@@ -415,6 +438,26 @@ export function capturePluginSettings(
 	};
 }
 
+/**
+ * Versions for a `whatsNew: "latest"` capture: the newest release in the
+ * registry, and the release before it as `lastSeen` (the next-newest registry
+ * release, else the previous patch, minor or major), so the card shows exactly
+ * the newest release's highlights.
+ */
+export function whatsNewCaptureVersions(highlights: readonly { version: string }[]): { current: string; lastSeen: string } {
+	const vs = [...new Set(highlights.map((h) => semver.valid(h.version)).filter((v): v is string => v !== null))].sort(semver.rcompare);
+	const current = vs[0];
+	if (current === undefined) throw new Error("whatsNew: the highlights registry has no release versions");
+	if (vs[1] !== undefined) return { current, lastSeen: vs[1] };
+	const { major, minor, patch } = semver.parse(current) as semver.SemVer;
+	const lastSeen = patch > 0 ? `${major}.${minor}.${patch - 1}` : minor > 0 ? `${major}.${minor - 1}.0` : `${major - 1}.0.0`;
+	return { current, lastSeen };
+}
+
+/** Settings keys holding agent selection and launch config, restored after every entry. */
+export const AGENT_STATE_KEYS = ["defaultAgentId", "claude", "codex", "gemini", "kiro", "opencode", "antigravity", "customAgents"] as const;
+const AGENT_STATE_KEYS_JSON = JSON.stringify(AGENT_STATE_KEYS);
+
 export async function captureEntry(
 	entry: ManifestEntry,
 	deps: OrchestratorDeps,
@@ -436,17 +479,92 @@ export async function captureEntry(
 	const patch = capturePluginSettings(entry);
 	const prior = await deps.cdp
 		.evaluate<Record<string, unknown>>(
-			`(async () => { const p = app.plugins.plugins["agent-console"]; const patch = ${JSON.stringify(patch)}; const prior = {}; for (const k of Object.keys(patch)) prior[k] = p.settings[k]; await p.settingsService.updateSettings(patch); return prior; })()`,
+			// Return the prior values even when the disk write fails: the
+			// settings writer commits in memory before it flushes.
+			`(async () => { const p = app.plugins.plugins["agent-console"]; const patch = ${JSON.stringify(patch)}; const prior = {}; for (const k of Object.keys(patch)) prior[k] = p.settings[k]; try { await p.settingsService.updateSettings(patch); } catch (e) {} return prior; })()`,
+			{ awaitPromise: true },
 		)
 		.catch(() => null);
-	await sleep(SETTLE_MS);
+	// Everything below is snapshotted inside the try, so a failing setup step
+	// still runs every restore for what was applied before it.
+	let agentSnapshot: string | undefined;
+	let whatsNewArmed = false;
+	const stubsDetection = Boolean(entry.initialState?.forceGettingStarted);
+	let layoutPrior: { width: string | null; leftCollapsed: boolean } | undefined;
 	try {
+		// Entries that set `agentId`, `forceConnectingHold` or `agentOverride`
+		// mutate agent configs directly; snapshot them and put them back
+		// through the settings writer so the change can't leak into later
+		// entries in the same run.
+		// No .catch: inside the try, a failed snapshot stops the entry before
+		// it changes anything it couldn't put back.
+		agentSnapshot = await deps.cdp.evaluate<string>(
+			`(() => { const s = app.plugins.plugins["agent-console"].settings; return JSON.stringify(${AGENT_STATE_KEYS_JSON}.reduce((o, k) => { o[k] = s[k]; return o; }, {})); })()`,
+		);
+		// whatsNew: "latest": run as the newest highlighted release, one release
+		// past lastSeen, so the card shows on any repo version. The prior values
+		// are stashed on the page before anything changes.
+		if (entry.initialState?.whatsNew === "latest") {
+			const v = whatsNewCaptureVersions(deps.whatsNewHighlights ?? HIGHLIGHTS);
+			whatsNewArmed = true;
+			await deps.cdp.evaluate(
+				`(async () => { const p = app.plugins.plugins["agent-console"]; p.__acCaptureWhatsNewPrior = { version: p.manifest.version, lastSeen: p.settings.lastSeenVersion ?? null }; p.manifest.version = ${JSON.stringify(v.current)}; await p.settingsService.updateSettings({ lastSeenVersion: ${JSON.stringify(v.lastSeen)} }); return true; })()`,
+				{ awaitPromise: true },
+			);
+		}
+		// forceGettingStarted stubs the plugin's agent detection; a later entry
+		// would see "no agents" (zero-tab-landing showed the getting-started
+		// shell). The prior state holds a Promise, so it stays on the page.
+		if (stubsDetection) {
+			await deps.cdp.evaluate(
+				`(() => { const p = app.plugins.plugins["agent-console"]; p.__acCaptureDetectPrior = { promise: p._detectedAgentsPromise, own: Object.prototype.hasOwnProperty.call(p, "detectAgents"), fn: p.detectAgents }; return true; })()`,
+			);
+		}
+		// collapseLeftSidebar / rightSplitWidth change workspace layout, which
+		// outlives the entry.
+		if (entry.collapseLeftSidebar || entry.rightSplitWidth) {
+			layoutPrior = await deps.cdp.evaluate<{ width: string | null; leftCollapsed: boolean }>(
+				`(() => { const rs = document.querySelector(".workspace-split.mod-right-split"); return { width: rs ? rs.style.width : null, leftCollapsed: !!app.workspace.leftSplit.collapsed }; })()`,
+			);
+		}
+		await sleep(SETTLE_MS);
 		await captureEntryWithSettings(entry, deps);
 	} finally {
+		if (stubsDetection) {
+			await deps.cdp
+				.evaluate(
+					`(() => { const p = app.plugins.plugins["agent-console"]; const prior = p.__acCaptureDetectPrior; if (!prior) return false; if (prior.own) p.detectAgents = prior.fn; else delete p.detectAgents; p._detectedAgentsPromise = prior.promise; delete p.__acCaptureDetectPrior; return true; })()`,
+				)
+				.catch(() => {});
+		}
+		if (layoutPrior) {
+			await deps.cdp
+				.evaluate(
+					`(() => { const prior = ${JSON.stringify(layoutPrior)}; const rs = document.querySelector(".workspace-split.mod-right-split"); if (rs && prior.width !== null) rs.style.width = prior.width; if (!prior.leftCollapsed && app.workspace.leftSplit.collapsed) app.workspace.leftSplit.expand(); return true; })()`,
+				)
+				.catch(() => {});
+		}
+		if (whatsNewArmed) {
+			await deps.cdp
+				.evaluate(
+					`(async () => { const p = app.plugins.plugins["agent-console"]; const prior = p.__acCaptureWhatsNewPrior; if (!prior) return false; delete p.__acCaptureWhatsNewPrior; p.manifest.version = prior.version; await p.settingsService.updateSettings({ lastSeenVersion: prior.lastSeen ?? undefined }); return true; })()`,
+					{ awaitPromise: true },
+				)
+				.catch(() => {});
+		}
+		if (typeof agentSnapshot === "string") {
+			await deps.cdp
+				.evaluate(
+					`(async () => { await app.plugins.plugins["agent-console"].settingsService.updateSettings(JSON.parse(${JSON.stringify(agentSnapshot)})); return true; })()`,
+					{ awaitPromise: true },
+				)
+				.catch(() => {});
+		}
 		if (prior) {
 			await deps.cdp
 				.evaluate(
 					`(async () => { await app.plugins.plugins["agent-console"].settingsService.updateSettings(${JSON.stringify(prior)}); return true; })()`,
+					{ awaitPromise: true },
 				)
 				.catch(() => {});
 		}
@@ -459,6 +577,7 @@ async function captureEntryWithSettings(
 ): Promise<void> {
 	// v2: animation entries take a dedicated multi-frame capture+encode path.
 	if (entry.animation) {
+		await ensureMainWindowActive(deps);
 		await captureAnimationEntry(entry, deps);
 		return;
 	}
@@ -524,6 +643,12 @@ async function captureEntryWithSettings(
 		// 0.25 Per-entry plugin settings are applied by captureEntry, around
 		// every capture path.
 
+		// 0.4 Close a settings window left open: Obsidian opens one after the
+		// vault-trust click on a fresh (isolated) launch, and an entry may leave
+		// one behind. While another window is active, Obsidian mounts every
+		// Modal, prompt and Notice into it (activeDocument), off the captured page.
+		await ensureMainWindowActive(deps);
+
 		// 0.5 Dismiss any leftover Obsidian modal from a prior capture so this shot
 		// starts clean. A modal opened by an earlier entry (e.g. confirm-close via
 		// forceCloseConfirm, or settings-import) is an APP modal that survives the
@@ -548,8 +673,8 @@ async function captureEntryWithSettings(
 		// opened below (clickRibbon/openChatView) connects with it. The
 		// slash-command shots use Gemini CLI (its public command set) rather than
 		// the default Claude Code, whose internal toolbox build leaks internal
-		// slash commands. Set live on the settings object; setup.sh restores the
-		// template next run.
+		// slash commands. Set live on the settings object; captureEntry restores
+		// it after the entry.
 		if (entry.agentId) {
 			await deps.cdp.evaluate(
 				`(() => { const s = app.plugins.plugins["agent-console"].settings; s.defaultAgentId = ${JSON.stringify(entry.agentId)}; return s.defaultAgentId; })()`,
@@ -561,7 +686,7 @@ async function captureEntryWithSettings(
 		// the ACP handshake. A message sent into a connecting session is held in
 		// the LOCKED composer (queue-of-one, #82 Decision 9) — the subject of that
 		// shot. Runs before clickRibbon so the first tab connects to the hung
-		// command. setup.sh restores the real command from the template next run.
+		// command. captureEntry restores the real command after the entry.
 		if (entry.initialState?.forceConnectingHold) {
 			await deps.cdp.evaluate(
 				`(() => { const s = app.plugins.plugins["agent-console"].settings; const id = s.defaultAgentId; const all = [s.claude, s.codex, s.gemini, s.kiro, ...(s.customAgents || [])]; for (const a of all) { if (a && a.id === id) { a.command = "sleep"; a.args = ["86400"]; } } return id; })()`,
@@ -572,7 +697,7 @@ async function captureEntryWithSettings(
 		// the panel opens, so the first tab launches with them. Drives the
 		// kiro-v3-header-fallback shot (V3 + `--agent` naming a missing agent).
 		// An unknown id is a hard error: a silently ignored override would shoot
-		// the ordinary header. setup.sh restores the template config next run.
+		// the ordinary header. captureEntry restores the agent config after the entry.
 		const agentOverride = entry.initialState?.agentOverride;
 		if (agentOverride) {
 			const applied = await deps.cdp.evaluate(
@@ -587,7 +712,8 @@ async function captureEntryWithSettings(
 
 		// 1c. Disable native menus so an Obsidian Menu popover renders as a
 		// window-capturable DOM `.menu` (not an OS popup that screen-mode would
-		// need). Mirrors the forceTabStates path; setup.sh restores config next run.
+		// need). Mirrors the forceTabStates path. Not restored: the fixtures
+		// vault ships with nativeMenus off (appearance.json).
 		if (entry.initialState?.disableNativeMenus) {
 			await deps.cdp.evaluate(
 				`app.vault.setConfig("nativeMenus", false)`,
@@ -700,6 +826,15 @@ async function captureEntryWithSettings(
 			// which races the delay and yields a tooltip-less capture (I06; same
 			// "wait on a signal, not a sleep" lesson as I01).
 			await deps.cdp.waitForElement(".tooltip", HOVER_TOOLTIP_TIMEOUT_MS);
+			// The tooltip fades in; capturing mid-fade made ribbon-icon vary
+			// run to run (570–805 colors). Wait in the page for its animations
+			// to finish (bounded, so a looping animation can't hang the run).
+			await deps.cdp
+				.evaluate(
+					`(async () => { const t = document.querySelector(".tooltip"); if (!t) return false; const done = Promise.all(t.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {}))); await Promise.race([done, new Promise((r) => setTimeout(r, ${TOOLTIP_SETTLE_MAX_MS}))]); return getComputedStyle(t).opacity; })()`,
+					{ awaitPromise: true },
+				)
+				.catch(() => {});
 		}
 
 		// 3. Send prompt(s). `prompts` (multi-tab) takes precedence over a single
@@ -1622,6 +1757,21 @@ async function captureEntryWithSettings(
 }
 
 /**
+ * The entries a run captures: all of them, or those named by `filter` (one
+ * name or a comma-separated list), in manifest order. Throws on unknown names.
+ */
+export function selectEntries(entries: ManifestEntry[], filter?: string): ManifestEntry[] {
+	if (!filter) return entries;
+	const names = filter.split(",").map((n) => n.trim()).filter(Boolean);
+	const targets = entries.filter((e) => names.includes(e.name));
+	const missing = names.filter((n) => !entries.some((e) => e.name === n));
+	if (targets.length === 0 || missing.length) {
+		throw new Error(`No manifest entry matches filter "${missing.length ? missing.join(", ") : filter}"`);
+	}
+	return targets;
+}
+
+/**
  * Capture all (or filtered) manifest entries. Continues on error.
  */
 export async function captureAll(
@@ -1629,19 +1779,18 @@ export async function captureAll(
 	deps: OrchestratorDeps,
 	options: CaptureAllOptions = {},
 ): Promise<CaptureResult[]> {
-	let targets = entries;
-
-	if (options.filter) {
-		targets = entries.filter((e) => e.name === options.filter);
-		if (targets.length === 0) {
-			throw new Error(
-				`No manifest entry matches filter "${options.filter}"`,
-			);
-		}
-	}
+	const targets = selectEntries(entries, options.filter);
 
 	const results: CaptureResult[] = [];
+	const total = targets.filter((e) => !options.skip?.(e)).length;
+	let index = 0;
 	for (const entry of targets) {
+		const skipReason = options.skip?.(entry);
+		if (skipReason) {
+			results.push({ name: entry.name, success: true, skipped: skipReason });
+			continue;
+		}
+		options.onEntry?.(entry, ++index, total);
 		try {
 			// Mark capture-in-progress so the Fixture theme's capture-only hides
 			// (the transient scroll-to-bottom pill and non-deterministic info
@@ -1709,6 +1858,30 @@ async function resolveCropRectCss(
 
 function sleep(ms: number): Promise<void> {
 	return delay(ms);
+}
+
+/** Longest the capture waits in the page for a hover tooltip's fade-in. */
+const TOOLTIP_SETTLE_MAX_MS = 1500;
+
+/** Poll budget for the main page to become active again after a settings close. */
+const MAIN_WINDOW_POLLS = 20;
+
+/**
+ * Make the workspace page Obsidian's active document. Closes a settings
+ * window if one is active (matched by its document, so any UI language), then waits for `activeDocument` to return to the
+ * main page; throws, naming the window, if it doesn't.
+ */
+async function ensureMainWindowActive(deps: OrchestratorDeps): Promise<void> {
+	const other = await deps.cdp.evaluate<string | undefined>(
+		`(() => { if (typeof activeDocument === "undefined" || activeDocument === document) return "main"; const t = activeDocument.title; const sd = app.setting && app.setting.activeTab && app.setting.activeTab.containerEl ? app.setting.activeTab.containerEl.ownerDocument : null; if (sd === activeDocument || t.startsWith("Settings - ")) app.setting.close(); return t; })()`,
+	);
+	if (typeof other !== "string" || other === "main") return;
+	for (let i = 0; i < MAIN_WINDOW_POLLS; i++) {
+		await sleep(100);
+		const onMain = await deps.cdp.evaluate<boolean>(`activeDocument === document`).catch(() => false);
+		if (onMain) return;
+	}
+	throw new Error(`another window is active (${JSON.stringify(other)}); modals and notices would open there instead of the captured page`);
 }
 
 /** Poll interval (ms) for the animation per-frame content wait. */

@@ -237,8 +237,6 @@ export interface MaterializeOptions {
 	ctx: SeedContext;
 	/** Video profile only. */
 	video?: Omit<VideoOverrides, "vaultPath" | "manifestVersion">;
-	/** Overrides the deployed manifest.json `version` (whats-new-card). */
-	manifestVersionOverride?: string;
 	now?: number;
 }
 
@@ -263,11 +261,6 @@ export function materializeRun(o: MaterializeOptions): MaterializedRun {
 	const configDir = configDirOf(vault);
 	const pluginDir = path.join(vault, pluginRel(configDir));
 	deployBuild(o.repoRoot, pluginDir);
-	if (o.manifestVersionOverride) {
-		const mp = path.join(pluginDir, "manifest.json");
-		const m = JSON.parse(readFileSync(mp, "utf8")) as Record<string, unknown>;
-		writeFileSync(mp, JSON.stringify({ ...m, version: o.manifestVersionOverride }, null, "\t"));
-	}
 	seedSessions(pluginDir);
 	const template = JSON.parse(readFileSync(path.join(pluginDir, "data.template.json"), "utf8")) as Record<string, unknown>;
 	let data: Record<string, unknown>;

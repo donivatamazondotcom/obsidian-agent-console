@@ -4,7 +4,7 @@
  *   AC_CAPTURE_VERIFY=1 npx tsx tools/lib/isolated-verify.ts
  *
  * 1. A normal run: launch, trust the vault off camera, capture one
- *    screenshot, tear down. Asserts at most one focus steal, a non-blank
+ *    screenshot, tear down. Asserts the focus-steal budget, a non-blank
  *    capture, the user's CLI socket unchanged, and no leftovers.
  * 2. SIGINT mid-take and SIGKILL of the recorder (the watchdog must clean up).
  *
@@ -18,20 +18,25 @@ import { chromium } from "playwright-core";
 import { log, logError } from "./cli-log";
 import { materializeRun } from "./fixtures-vault";
 import {
+	FOCUS_STEAL_BUDGET,
 	RUN_PARENT,
 	listMarkedProcesses,
 	loginShell,
 	socketInode,
 	userObsidianVersion,
-	versionWarning,
 	withIsolatedRun,
 } from "./isolated-instance";
+import { appVersionProblem, pinDriftNote, readAppPin, readInstanceAppVersion, resolveAppAsar } from "./obsidian-app";
 
 const REPO = path.resolve(__dirname, "../..");
 const mode = process.argv[2] ?? "all";
 
 async function oneRun(hangMs = 0): Promise<{ ok: boolean; problems: string[]; steals: number; bytes: number }> {
 	const shell = loginShell();
+	const pin = readAppPin(REPO);
+	const appAsar = await resolveAppAsar(pin);
+	const drift = pinDriftNote(userObsidianVersion(), pin);
+	if (drift) log(`  note: ${drift}`);
 	let bytes = 0;
 	const res = await withIsolatedRun(
 		{
@@ -40,6 +45,7 @@ async function oneRun(hangMs = 0): Promise<{ ok: boolean; problems: string[]; st
 			takes: 1,
 			perTakeMs: 3 * 60_000,
 			log: (m) => log(`  ${m}`),
+			appAsar,
 			materialize: (runRoot, runId) =>
 				materializeRun({ repoRoot: REPO, runRoot, profile: "screenshot", ctx: { runId, realHome: process.env.HOME ?? "", loginPath: shell.path, resolveCommand: shell.resolve } }),
 		},
@@ -56,12 +62,11 @@ async function oneRun(hangMs = 0): Promise<{ ok: boolean; problems: string[]; st
 			}
 			if (!page) throw new Error("no workspace page");
 			await page.waitForSelector(".workspace", { timeout: 40_000 });
+			const appProblem = appVersionProblem(await readInstanceAppVersion(page), pin);
+			if (appProblem) throw new Error(appProblem);
 			const trust = page.getByRole("button", { name: /Trust author and enable plugins/i });
 			await trust.waitFor({ timeout: 30_000 }).then(() => trust.click()).catch(() => {});
 			await page.waitForSelector(".agent-console-ribbon-icon", { timeout: 30_000 });
-			const ver = (await (await browser.newBrowserCDPSession()).send("Browser.getVersion")) as { userAgent: string };
-			const w = versionWarning(ver.userAgent, userObsidianVersion());
-			if (w) log(`  warning: ${w}`);
 			if (hangMs) await sleep(hangMs);
 			const cdp = await page.context().newCDPSession(page);
 			const shot = (await cdp.send("Page.captureScreenshot", { format: "png" }));
@@ -110,7 +115,7 @@ async function main(): Promise<void> {
 	const r = await oneRun();
 	log(`   ok=${r.ok} steals=${r.steals} capture=${r.bytes} bytes problems=${JSON.stringify(r.problems)}`);
 	if (!r.ok) failures.push("normal run failed");
-	if (r.steals > 1) failures.push(`expected at most 1 focus steal, saw ${r.steals}`);
+	if (r.steals > FOCUS_STEAL_BUDGET) failures.push(`expected at most ${FOCUS_STEAL_BUDGET} focus steals, saw ${r.steals}`);
 	for (const s of ["SIGINT", "SIGKILL"] as const) {
 		log(`2. recorder ${s} mid-take`);
 		const left = await childCase(s);

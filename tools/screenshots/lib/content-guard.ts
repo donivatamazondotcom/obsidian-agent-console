@@ -21,6 +21,11 @@
  * webp (ribbon-icon 1713, session-history-button 520, mode-selection 2794,
  * multi-session 4800).
  *
+ * Re-measured on the isolated driver at the pinned Obsidian 1.15.0
+ * (2026-11-11): ribbon-icon is 805 once the tooltip's fade-in has finished
+ * (the capture now waits for it; two runs gave 805), 570–805 when caught
+ * mid-fade, and 270 with no tooltip, so its manifest floor is 600.
+ *
  * Spec: [[Agent Console Screenshot Automation]] § Known Issues (I11 follow-up).
  * Test contract: tools/screenshots/lib/__tests__/content-guard.test.ts.
  */
