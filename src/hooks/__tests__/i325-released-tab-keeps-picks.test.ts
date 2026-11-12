@@ -106,7 +106,7 @@ function makeSettings(picks: Picks) {
 
 function makeClient(
 	freshProcess: SessionConfigOption[] = config("m-b", "low", "default"),
-	opts: { picksAsInputs?: boolean; failNewSession?: number } = {},
+	opts: { picksAsInputs?: boolean; failNewSession?: number; canResume?: boolean } = {},
 ) {
 	let server: SessionConfigOption[] = freshProcess;
 	let failures = opts.failNewSession ?? 0;
@@ -128,7 +128,14 @@ function makeClient(
 			server = freshProcess;
 			return { sessionId: "s-new", configOptions: server };
 		}),
-		getInitializeResult: () => null,
+		getInitializeResult: () =>
+			opts.canResume
+				? { capabilities: { restoresViaLoad: true, restoresViaResume: false } }
+				: null,
+		loadSession: vi.fn(async (sid: string) => {
+			server = freshProcess;
+			return { sessionId: sid, configOptions: server, replayedConversationUpdates: 3 };
+		}),
 		setSessionConfigOption,
 		setSessionModel: vi.fn(async () => {}),
 		setSessionMode: vi.fn(async () => {}),
@@ -444,5 +451,121 @@ describe("I325: a restored tab's own mode (I231) and the release", () => {
 		});
 
 		expect(valueOf(result.current.session.configOptions, "mode")).toBe("default");
+	});
+});
+
+describe("I325 round 3: soft reload, late V3 options, recovery", () => {
+	it("a soft reload of a live tab resumes in the tab's picks", async () => {
+		const c = makeClient(undefined, { canResume: true });
+		const s = makeSettings(TAB);
+		const { result } = mount(c, s);
+		await connectThenOtherTabPicks(c, s, result);
+
+		await act(async () => {
+			await result.current.reloadSession();
+		});
+
+		const opts = result.current.session.configOptions;
+		expect(valueOf(opts, "model")).toBe("m-a");
+		expect(valueOf(opts, "thought_level")).toBe("high");
+		expect(valueOf(opts, "mode")).toBe("plan");
+		expect(s.updateSettings).not.toHaveBeenCalled();
+	});
+
+	it("a soft reload that starts fresh keeps the tab's picks too", async () => {
+		const c = makeClient();
+		const s = makeSettings(TAB);
+		const { result } = mount(c, s);
+		await connectThenOtherTabPicks(c, s, result);
+
+		await act(async () => {
+			await result.current.reloadSession();
+		});
+
+		expect(c.newSession).toHaveBeenCalled();
+		expect(valueOf(result.current.session.configOptions, "mode")).toBe("plan");
+		expect(valueOf(result.current.session.configOptions, "model")).toBe("m-a");
+	});
+
+	it("V3: a restored tab whose load fails gets its mode when the mode option arrives late", async () => {
+		const noMode = [option("model", "m-b", ["m-a", "m-b"])];
+		const c = makeClient(noMode, { picksAsInputs: true });
+		const s = makeSettings(OTHER_TAB);
+		const { result } = mount(c, s, "plan");
+
+		await act(async () => {
+			await result.current.createSession(AGENT);
+		});
+		const withMode = [...noMode, option("mode", "default", ["default", "plan"])];
+		c.setServer(withMode);
+		await act(async () => {
+			result.current.handleSessionUpdate({ type: "config_option_update", sessionId: "s-new", configOptions: withMode });
+		});
+		await vi.waitFor(() =>
+			expect(c.setSessionConfigOption).toHaveBeenCalledWith("s-new", "mode", "plan"),
+		);
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 0));
+		});
+
+		expect(valueOf(result.current.session.configOptions, "mode")).toBe("plan");
+		expect(s.updateSettings).not.toHaveBeenCalled();
+	});
+
+	it("V3: when a released tab's model is gone, the fallback model doesn't replace another tab's saved one", async () => {
+		// The new process offers m-b and m-c, but reports the requested m-a.
+		const reportsGone = [
+			{ ...option("model", "m-a", ["m-b", "m-c"]) },
+			option("mode", "default", ["default", "plan"]),
+		];
+		const c = makeClient(reportsGone, { picksAsInputs: true });
+		const s = makeSettings(TAB);
+		const { result } = mount(c, s);
+		await connectThenOtherTabPicks(c, s, result);
+		s.pick({ ...OTHER_TAB, model: "m-c" });
+
+		await act(async () => {
+			await result.current.releaseSession();
+		});
+		await act(async () => {
+			await result.current.createSession(AGENT);
+		});
+		await vi.waitFor(() =>
+			expect(c.setSessionConfigOption).toHaveBeenCalledWith("s-new", "model", "m-b"),
+		);
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 0));
+		});
+
+		const saved = s.access.getSnapshot() as { lastUsedModels: Record<string, string> };
+		expect(saved.lastUsedModels[AGENT]).toBe("m-c");
+	});
+
+	it("V3: a user pick on a still-pending option isn't overwritten by the re-apply", async () => {
+		const noEffort = [option("model", "m-b", ["m-a", "m-b"]), option("mode", "default", ["default", "plan"])];
+		const c = makeClient(noEffort, { picksAsInputs: true });
+		const s = makeSettings(TAB);
+		const { result } = mount(c, s);
+		await connectThenOtherTabPicks(c, s, result);
+
+		await act(async () => {
+			await result.current.releaseSession();
+		});
+		await act(async () => {
+			await result.current.createSession(AGENT);
+		});
+		// The user picks low effort; the server's reply is the first snapshot
+		// that contains the effort option.
+		c.setServer([...noEffort, option("thought_level", "low", ["low", "high"])]);
+		c.setSessionConfigOption.mockClear();
+		await act(async () => {
+			await result.current.setConfigOption("thought_level", "low");
+		});
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 0));
+		});
+
+		expect(c.setSessionConfigOption).not.toHaveBeenCalledWith("s-new", "thought_level", "high");
+		expect(valueOf(result.current.session.configOptions, "thought_level")).toBe("low");
 	});
 });

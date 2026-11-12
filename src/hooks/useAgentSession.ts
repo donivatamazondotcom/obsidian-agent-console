@@ -39,6 +39,7 @@ import {
 	CONFIG_PICK_SETTINGS_KEY,
 	savedConfigPicks,
 	livePicksOf,
+	dropPendingPick,
 	overlayPicks,
 	findUnofferedModel,
 	reconcilePendingPicks,
@@ -170,18 +171,20 @@ export function useAgentSession(
 	initialModeRequest?: string,
 	/**
 	 * A restored tab's own mode id (persisted per tab). One-shot: replaces
-	 * the agent's saved mode for the first load's re-apply only; never
-	 * saved, and silently ignored when the session no longer offers it (I231).
+	 * the agent's saved mode for the tab's first session (its load, or the
+	 * new session a failed load falls back to, I325); never saved, and
+	 * silently ignored when the session no longer offers it (I231).
 	 */
 	restoredModeId?: string,
 ): UseAgentSessionReturn {
 	const pendingModeRequestRef = useRef<string | undefined>(initialModeRequest);
 	const pendingRestoredModeRef = useRef<string | undefined>(restoredModeId);
 	/**
-	 * I325: the picks a released tab was running with. Its reconnect, or the
-	 * new session a failed reconnect falls back to, re-applies them instead of
-	 * the agent's saved picks. Cleared once a session is ready, and by New
-	 * chat or an agent switch.
+	 * I325: the picks a tab was running with when its process went away (idle
+	 * release, soft reload). Its reconnect, or the new session a failed
+	 * reconnect falls back to, re-applies them instead of the agent's saved
+	 * picks, never saving them. Cleared once a session is ready, and by New
+	 * chat, an agent switch, a hard reload and Restart agent (closeSession).
 	 */
 	const releasedPicksRef = useRef<SavedConfigPicks | undefined>(undefined);
 	// ============================================================
@@ -432,7 +435,8 @@ export function useAgentSession(
 						? resolveModeRequest(restoredMode, {
 								modes: sessionResult.modes,
 								configOptions: baseConfigOptions,
-								modeListMayArriveLate: false,
+								// A stored mode id; on V3 its option can arrive late.
+								modeListMayArriveLate: picksAsInputs,
 							}).modeId
 						: undefined;
 				// A quick prompt's mode wins, then the restored tab's own mode.
@@ -818,6 +822,12 @@ export function useAgentSession(
 		const sessionId = prev.sessionId;
 		const agentId = prev.agentId;
 		const canResume = prev.capabilities?.restoresViaLoad === true;
+		// I325: a reload is the same chat, so its resume or fresh session keeps
+		// the picks this tab runs with, not the agent's saved ones.
+		if (sessionId) {
+			releasedPicksRef.current = livePicksOf(prev);
+			pendingRestoredModeRef.current = undefined;
+		}
 		const effectiveCwd = workingDirectory;
 
 		return reloadSessionFlow({
@@ -991,15 +1001,20 @@ export function useAgentSession(
 					value,
 				);
 				configSnapshots.current.set(s.sessionId, updatedOptions);
+				const changedOption = updatedOptions.find(
+					(o) => o.id === configId,
+				);
+				const category = changedOption?.category;
+				// A user pick wins over a re-apply still waiting for this option,
+				// so the late-option effect must not put the old value back (I325).
+				if (persist && category) {
+					dropPendingPick(pendingPicks.current, s.sessionId, category);
+				}
 				setSession((prev) => ({
 					...prev,
 					configOptions: updatedOptions,
 				}));
 
-				const changedOption = updatedOptions.find(
-					(o) => o.id === configId,
-				);
-				const category = changedOption?.category;
 				const persistKey =
 					category && category in CONFIG_PICK_SETTINGS_KEY
 						? CONFIG_PICK_SETTINGS_KEY[
@@ -1115,8 +1130,22 @@ export function useAgentSession(
 				fallback: unoffered.fallback.name,
 			}),
 		);
-		void setConfigOption(unoffered.configId, unoffered.fallback.value);
-	}, [session.sessionId, session.state, session.configOptions, setConfigOption]);
+		// Replace the agent's saved model only when that is the one that's
+		// gone: the rejected model may be a released tab's own pick (I325).
+		const saved = settingsAccess.getSnapshot().lastUsedModels?.[session.agentId];
+		void applyConfigOption(
+			unoffered.configId,
+			unoffered.fallback.value,
+			saved === unoffered.rejected,
+		);
+	}, [
+		session.sessionId,
+		session.state,
+		session.configOptions,
+		session.agentId,
+		settingsAccess,
+		applyConfigOption,
+	]);
 
 	// ============================================================
 	// Return

@@ -148,6 +148,26 @@ export function overlayPicks(
 	};
 }
 
+/**
+ * Drop the pending re-apply of one config-option category for a session
+ * (I325): the user has just picked a value for it.
+ */
+export function dropPendingPick(
+	pending: Map<string, SavedConfigPicks>,
+	sessionId: string,
+	category: string,
+): void {
+	const picks = pending.get(sessionId);
+	if (!picks) return;
+	const key = (Object.keys(PICK_CATEGORY) as Array<keyof SavedConfigPicks>).find(
+		(k) => PICK_CATEGORY[k] === category,
+	);
+	if (!key || picks[key] === undefined) return;
+	const next = { ...picks };
+	delete next[key];
+	pending.set(sessionId, next);
+}
+
 /** Settings key that remembers each config-option category per agent. */
 export const CONFIG_PICK_SETTINGS_KEY = {
 	model: "lastUsedModels",
