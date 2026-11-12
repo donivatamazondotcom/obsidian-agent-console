@@ -51,9 +51,9 @@ function makeNote(path: string, sel: Sel) {
 	return { file, view, st };
 }
 
-function world() {
+function world(otherSel: Sel = null) {
 	const N = makeNote("Notes/Unrelated.md", { anchor: { line: 3, ch: 0 }, head: { line: 5, ch: 3 } });
-	const B = makeNote("Notes/Other.md", null);
+	const B = makeNote("Notes/Other.md", otherSel);
 	let active: MarkdownView | null = N.view;
 	let activeFile = N.file;
 	let leafChange: ((leaf: unknown) => void) | null = null;
@@ -102,8 +102,12 @@ function world() {
 	};
 }
 
-async function scenario(steps: (w: ReturnType<typeof world>) => Promise<void>, ignore = true) {
-	const w = world();
+async function scenario(
+	steps: (w: ReturnType<typeof world>) => Promise<void>,
+	ignore = true,
+	otherSel: Sel = null,
+) {
+	const w = world(otherSel);
 	w.svc.subscribeSelectionChanges(() => {}); // another tab keeps tracking live
 	await w.chat(); // opening the link focuses the chat leaf
 	const { result } = renderHook(() =>
@@ -154,6 +158,29 @@ describe("I326: link-opened tab vs the real vault service", () => {
 			await w.chat();
 		});
 		expect(r.end).toEqual({ fromLine: 8, toLine: 9 });
+	});
+
+	it("visiting another note that holds a selection doesn't bring the first lines back", async () => {
+		const r = await scenario(
+			async (w) => {
+				await w.leaf(w.B);
+				await w.chat();
+				await w.leaf(w.N);
+				await w.chat();
+			},
+			true,
+			{ anchor: { line: 1, ch: 0 }, head: { line: 2, ch: 4 } },
+		);
+		expect(r.end).toBeNull();
+	});
+
+	it("the same lines with different columns count as a new selection", async () => {
+		const r = await scenario(async (w) => {
+			w.N.st.sel = { anchor: { line: 3, ch: 1 }, head: { line: 5, ch: 3 } };
+			await w.leaf(w.N);
+			await w.chat();
+		});
+		expect(r.end).toEqual({ fromLine: 3, toLine: 5 });
 	});
 
 	it("a tab not opened by a link still picks up the selection", async () => {

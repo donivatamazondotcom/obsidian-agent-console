@@ -33,10 +33,10 @@ export interface SelectionState {
 
 export interface UseSelectionTrackerOptions {
 	/**
-	 * Hide the selection first observed after mount until the user makes a
-	 * different one (I326). For a tab opened by an `obsidian://agent-console` link: the
-	 * lines selected when the link fired belong to an unrelated note. Read at
-	 * mount only.
+	 * Hide the selection first observed after mount, for the tab's life
+	 * (I326). Any other selection shows as usual. For a tab opened by an
+	 * `obsidian://agent-console` link: the lines selected when the link fired
+	 * belong to an unrelated note. Read at mount only.
 	 */
 	ignoreInitialSelection?: boolean;
 }
@@ -115,7 +115,9 @@ export function useSelectionTracker(
 					setSelection(null);
 					return;
 				}
-				ignoreRef.current = null;
+				// A different selection shows, but the first one stays hidden:
+				// another note can hold its own selection, and coming back
+				// must not bring the stale lines back.
 			}
 			setSelection(next);
 		} else if (!sourceRef.current.hasOpenMarkdownLeaves()) {
