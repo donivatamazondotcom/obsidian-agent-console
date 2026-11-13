@@ -8,6 +8,7 @@ import {
 	Menu,
 	MenuItem,
 	Plugin,
+	Platform,
 	TFile,
 	WorkspaceLeaf,
 	Notice,
@@ -120,19 +121,12 @@ import {
 } from "./services/quick-prompts";
 import {
 	buildChipMenuItems,
-	executeUriPrompt,
-	planUriFire,
 	runCreateWithFolderGate,
-	uriBadParamNotice,
-	uriRateLimitedNotice,
-	uriUnknownPromptNotice,
+	runUriFire,
 	type QuickPromptMenuAction,
 } from "./services/quick-prompts-logic";
 import {
-	checkUriRateLimit,
-	parseQuickPromptUri,
 	QUICK_PROMPT_URI_ACTION,
-	uriFireKey,
 	type UriRateLimitState,
 } from "./utils/quick-prompt-uri";
 import type { QuickPrompt } from "./types/quick-prompt";
@@ -540,67 +534,39 @@ export default class AgentClientPlugin extends Plugin {
 	private uriRateLimit: UriRateLimitState = {};
 
 	/**
-	 * Handle an `obsidian://agent-console?prompt=…` fire: rate limit → parse →
-	 * open/reveal the chat view → plan → open a new foreground tab. A link can
-	 * stage a prompt; only the vault (`uri send: true`, bare link) can send.
-	 * Errors are a notice and a no-op — nothing is guessed or coerced.
+	 * Handle an `obsidian://agent-console?prompt=…` fire. The rules live in
+	 * `runUriFire`; this passes it the plugin's real state and views.
 	 */
 	private async handleQuickPromptUri(
 		params: Record<string, string | undefined>,
 	): Promise<void> {
-		const notify = (message: string) =>
-			new Notice(t("notices.prefixed", { message }));
-
-		const gate = checkUriRateLimit(
-			this.uriRateLimit,
-			uriFireKey(params),
-			Date.now(),
-		);
-		if (!gate.ok) {
-			notify(uriRateLimitedNotice(gate.reason));
-			return;
-		}
-		this.uriRateLimit = gate.state;
-
-		const parsed = parseQuickPromptUri(
-			params,
-			this.quickPromptLibrary.getPrompts(),
-		);
-		if (parsed.kind === "unknown-prompt") {
-			notify(uriUnknownPromptNotice(parsed.promptId));
-			return;
-		}
-		if (parsed.kind === "bad-param") {
-			notify(uriBadParamNotice(parsed.field));
-			return;
-		}
-
-		const plan = planUriFire(parsed.prompt, parsed.context, {
-			agents: this.getAvailableAgents().map((a) => ({
-				id: a.id,
-				name: a.displayName,
-			})),
-			defaultAgentId: this.settings.defaultAgentId,
-		});
-		if (plan.kind === "unknown-agent") {
-			executeUriPrompt(parsed.prompt, plan, {
-				openInNewTab: () => {},
-				notify,
-			});
-			return;
-		}
-
-		await this.activateView();
-		const view = await this.waitForChatViewOpener();
-		if (!view) {
-			getLogger().error("[QuickPrompts] URI: chat view never mounted");
-			return;
-		}
-		executeUriPrompt(parsed.prompt, plan, {
-			openInNewTab: (text, opts) => {
-				view.openPromptInNewTab(text, opts);
+		await runUriFire(params, {
+			rateLimit: {
+				get: () => this.uriRateLimit,
+				set: (state) => {
+					this.uriRateLimit = state;
+				},
 			},
-			notify,
+			now: () => Date.now(),
+			prompts: () => this.quickPromptLibrary.getPrompts(),
+			// The stray-key rule stays macOS-only until probe P2 shows Obsidian
+			// adds no keys of its own on Windows and Linux.
+			strictKeys: Platform.isMacOS,
+			planContext: () => ({
+				agents: this.getAvailableAgents().map((a) => ({
+					id: a.id,
+					name: a.displayName,
+				})),
+				defaultAgentId: this.settings.defaultAgentId,
+			}),
+			openChatView: async () => {
+				await this.activateView();
+				return this.waitForChatViewOpener();
+			},
+			notify: (message) => {
+				new Notice(t("notices.prefixed", { message }));
+			},
+			logError: (message) => getLogger().error(message),
 		});
 	}
 

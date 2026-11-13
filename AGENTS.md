@@ -90,7 +90,7 @@ src/
 │   ├── recently-closed-stack.ts # F13 undo-close: closed-tab record + LIFO push/pop/build (pure)
 │   ├── message-queue-logic.ts   # #82 queue-of-one pure decisions: queue/flush/Enter-action/broadcast-skip
 │   ├── queue-orchestration-reducer.ts # #82 dispatch-owning single-slot reducer: (state,event)->{state,effects}; flush is raw-by-construction (closes Q4)
-│   ├── quick-prompts-logic.ts   # Quick Prompts pure logic: parse/label/slug-id/folder-scope/{{selection}}-resolve + the browser-true 2×2 action decision (where × commitment: fire/queue/insert/disabled/new-tab + foreground) + tag matching + launcher helpers (capRestingChips / parseQuickPromptTrigger / stripQuickPromptTrigger / rankLauncherPrompts)
+│   ├── quick-prompts-logic.ts   # Quick Prompts pure logic: parse/label/slug-id/folder-scope/{{selection}}-resolve + the browser-true 2×2 action decision (where × commitment: fire/queue/insert/disabled/new-tab + foreground) + tag matching + launcher helpers (capRestingChips / parseQuickPromptTrigger / stripQuickPromptTrigger / rankLauncherPrompts) + the URI fire (planUriFire, runUriFire with its notices)
 │   ├── picker-source-configs.ts # The three PickerSource configs (mention/slash/quick-prompt) that drive usePicker — all variance as pure, dependency-injected config (moved from utils/: it wires domain services, so it lives in the services layer; utils is a shared leaf)
 │   ├── quick-prompts.ts         # QuickPromptLibrary (scan/watch/reconcile) + VaultQuickPromptSource adapter
 │   ├── quick-prompt-chip-copy.ts # Chip menu Copy prompt / Copy link: clipboard write + notice, then return focus to the active composer (I234)
@@ -284,7 +284,8 @@ src/
 │   ├── slash-command-logic.ts   # Pure / trigger detection (start-of-line only) + command filtering (Unified Picker Control Tier 3)
 │   ├── link-leaf.ts             # Resolve click modifiers → Obsidian leaf/pane (Keymap.isModEvent) for internal links
 │   ├── quick-prompt-gesture.ts  # Map a click/keypress → the Quick Prompts 2×2 gesture (openElsewhere/foreground/insert) via Keymap.isModEvent + shift/alt
-│   ├── quick-prompt-uri.ts      # obsidian://agent-console links: parse params (tagged union), strip invisible chars, rate limit + duplicate drop, quote outside text, build a prompt's base link
+│   ├── quick-prompt-uri.ts      # obsidian://agent-console links: parse params (tagged union) with the CRC and stray-key check (cut-short), strip invisible chars, rate limit + duplicate drop, quote outside text, build a prompt's base link
+│   ├── crc32.ts                 # CRC-32 over UTF-8 (what Python's zlib.crc32 computes), as eight hex digits — the `crc` check on quick-prompt links
 │   ├── link-extract.ts          # Derive per-tab shared-link set from messages (Shared Links Bubble) + new/old classification
 │   ├── notification-content.ts  # buildCompletionNotificationContent — pure turn-end notification title/body/tag (tab label in title)
 │   ├── notification-click.ts    # Pure orchestrator for a completion-notification click (reveal owning leaf/window + switch to producing tab); I52 recurrence

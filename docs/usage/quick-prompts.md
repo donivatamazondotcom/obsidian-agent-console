@@ -136,17 +136,22 @@ The quickest way to get a prompt's link is to right-click its chip and pick **Co
 | `title` | no | Fills `{{title}}` |
 | `agent` | no | The agent to use, by name or id. Takes the place of the prompt's own `agent` |
 | `mode` | no | The mode to use, by name or id. Takes the place of the prompt's own `mode` |
+| `crc` | no | A check value for `selection`: its CRC-32 in UTF-8, as eight hex digits. If the text arrives cut short or changed, the link opens nothing |
 
 **A link can't make the agent do anything by itself.** Any web page or email can hold a link like this, and your agent can use tools, so links are kept on a short leash:
 
 - **It always opens a new tab.** A link never touches the chat you were typing in.
-- **It waits for you.** The prompt lands in the message box, and you press **Enter** to send. A link can't add free text of its own – it can only name a prompt that's already in your vault.
+- **It waits for you.** The prompt lands in the message box, and you press **Enter** to send. A link's own text always arrives quoted as External text, under a prompt that's already in your vault.
 - **Outside text is marked.** Text from `selection` is quoted under a line that shows how long it is and where the link *claims* it came from (for example "External text · 48,212 chars · claimed source: example.com"). It says *claims* because whoever wrote the link picks the `url` and `title`, so both are kept on one line, even when the link puts a line break in them. If the prompt has no `{{selection}}`, the quoted text is added at the end.
 - **Hidden characters are removed.** Characters that don't show on screen but that an agent still reads, such as zero-width and direction marks, invisible tag characters and stray control characters, are stripped out, and a notice tells you how many. Emoji keep their shape, including combined ones like 👨‍👩‍👧 and 1️⃣. The zero-width non-joiner that Persian and some Indic scripts use is removed too, so a word that used it may show its letters joined.
 - **You see who you're talking to.** When a link picks the agent or mode, the new tab shows "Opened by link · Agent: … · Mode: …" until you send or close the banner.
 - **Your open note stays out of it.** A link-opened tab doesn't offer the note you happen to have open as context – it has nothing to do with the email you clicked from.
 - **Links can't flood you.** Only one link opens every 2 seconds, and the same link clicked again within 10 seconds is ignored.
-- **Mistakes do nothing.** An unknown prompt id, an unknown agent, or an empty value shows a notice and opens nothing.
+- **Mistakes do nothing.** An unknown prompt id, an unknown agent, or an empty value shows a notice and opens nothing. So does a damaged link: one whose text has an `&` or `#` that wasn't encoded, which cuts the text short, or whose `crc` doesn't match its text. If Agent Console wasn't ready when a link arrived, a notice says so; try the link again.
+
+::: tip Links you built by hand
+A link that carries `selection`, `url` or `title` and also a part Agent Console doesn't know now opens nothing, because an extra part is what an unencoded `&` leaves behind. If you built a Shortcuts or Alfred link with extra parts, remove them. `x-success`, `x-error`, `x-cancel` and `x-source` are still allowed. For now this check runs on macOS only.
+:::
 
 <p align="center">
   <img src="/images/quick-prompt-uri-banner.webp" alt="Agent Console tab opened by a link, with the Opened by link banner naming the agent and mode, and the prompt staged" />
@@ -180,6 +185,81 @@ A bookmarklet turns any web page into a one-click hand-off. Select the part you 
 - **It still waits for you.** The selected text arrives quoted, like any outside text, and the chat waits for you to press **Enter**. That holds even for a prompt set to send on its own, because the link carries the page's address.
 
 Make one bookmark per prompt you use this way – for example "Draft a reply" for email threads and "Summarize this" for articles.
+
+## Hand off to a fresh chat
+
+Long chats get slow and lose focus. A handoff moves your work into a new chat with one request. The agent writes up where things stand, and a new tab opens with that write-up ready to send. You read it, switch the agent if you like, and press **Enter**.
+
+It's built from two quick prompts you keep in your folder. Nothing is saved as a note, so there's nothing to clean up.
+
+### Set it up
+
+First, make a prompt note named **Continue handoff**. Its id must be `continue-handoff`, because the other prompt links to it. `uri override: false` stops a link from choosing the agent or mode for it.
+
+```text
+---
+label: Continue handoff
+uri override: false
+---
+Continue the work in the handoff below, written at the end of an earlier chat. Start by reading the notes and files it points to.
+
+{{selection}}
+```
+
+Then make a second prompt note, for example **Resume prompt**, with the text below. Replace `<vault>` with your vault's name, once, when you set it up. In the name, write each `'` as `\x27`, each `"` as `\x22` and each `\` as `\\`. A plain `'` breaks the command's quoting, and lines of a handoff could then run as commands.
+
+```text
+Write a self-contained prompt to resume this work in a fresh session: the goal, what's done, where the notes and files are, the next steps and when it's done.
+
+Then send it to a new chat tab by running the command below once. Put the prompt where <the prompt> is. Replace both <8 random letters and digits> placeholders with the same new random suffix: a different one every time you run it, and not one that appears anywhere in the prompt. Keep every other line exactly as written: the Python lines, the HANDOFF-COMPLETE line and the closing HANDOFF_ line at the left edge, and on the first line the quotes around 'HANDOFF_…' and the ; exit after it. Without those quotes, the shell runs anything in the prompt that looks like a command.
+
+python3 -c '
+import sys, zlib, subprocess, urllib.parse as u
+END = "HANDOFF-COMPLETE"
+s = sys.stdin.buffer.read().decode("utf-8").rstrip("\n")
+if not s.endswith("\n" + END):
+    sys.exit("The handoff did not end with HANDOFF-COMPLETE, so nothing was opened. Check the end lines and run the command again.")
+s = s[: -len(END)].rstrip("\n")
+link = "obsidian://agent-console?vault=%s&prompt=continue-handoff&crc=%08x&selection=%s" % (u.quote("<vault>", safe=""), zlib.crc32(s.encode("utf-8")), u.quote(s, safe=""))
+if "--link" in sys.argv:
+    print(link)
+    sys.exit()
+try:
+    ok = subprocess.run(["open", link]).returncode == 0
+except OSError:
+    ok = False
+print("sent" if ok else link)
+' <<'HANDOFF_<8 random letters and digits>' ; exit
+<the prompt>
+HANDOFF-COMPLETE
+HANDOFF_<8 random letters and digits>
+
+Don't encode or retype the prompt yourself.
+- If the command prints "sent", tell me: "I passed the handoff to Agent Console for a new tab, ready for you to send. If no tab opened, ask me for the link."
+- If it prints a link, give it to me as a markdown link labeled "Continue in a new chat", copied exactly.
+- If I ask for the link, run the same command again with --link added right after the closing quote of the Python code, and give me what it prints as that markdown link.
+- If you can't run the command (no shell, plan or read-only mode, I declined it, or python3 is missing or asks to install developer tools), or it still fails after one retry with a new suffix, don't rewrite it, change the prompt's text, or build a link yourself. Give me the prompt in a fenced block with four backticks, so I can copy it.
+```
+
+The command needs Python 3. On a Mac, it comes with the Command Line Tools (`xcode-select --install`) or any other Python 3 install.
+
+### Use it
+
+Type `!` in the composer and pick your Resume prompt. The agent writes the handoff and runs one command, and your agent may ask you to approve it. A new tab opens with the handoff quoted under the Continue handoff text. Nothing is sent until you press **Enter**.
+
+- **"Sent" doesn't prove a tab opened.** It only means your computer accepted the link. If no tab opened, ask the agent for the link. It runs the same command with `--link` and gives you a **Continue in a new chat** link to click.
+- **When the agent can't run commands**, for example in plan or read-only mode, without `python3`, or when you decline the command, it gives you the handoff in a block to copy instead.
+- **Check a link before you click it.** A real handoff link starts with `obsidian://agent-console?` (hover to see it) and only ever opens a staged tab.
+- **The handoff checks itself.** The link carries a `crc` check value, so a handoff that arrives cut short or changed opens nothing and shows a notice.
+
+### Good to know
+
+- **Another vault needs its own copy.** A copy of these prompts in another vault needs that vault's name in the command, or the tab opens in the wrong vault.
+- **Prompt ids come from filenames.** The id is the filename in lowercase, with every run of other characters turned into one hyphen, and hyphens trimmed from the ends. "Résumé prompt" becomes `r-sum-prompt`.
+- **Tab titles.** With **Session title** set to **Generated from your first message**, every handoff tab gets the same label, because each starts with the Continue handoff sentence.
+- **Other systems.** The recipe is tested on macOS. On Linux, change `"open"` to `"xdg-open"`. Windows isn't tested yet: there the agent's shell must be bash, and the link would open with `os.startfile`.
+- **Long handoffs are fine.** On macOS, a 600,000-character handoff arrived intact, and a 1,000-word handoff is about 10 kB as a link. Not yet tested: on Windows, a link from outside Obsidian is likely capped at 32,767 characters (about 20 kB of prose), and Linux allows 128 kB.
+- **Building your own links.** For a link that will be pasted into markdown or a chat reply, encode every character of a value except `A–Z a–z 0–9 - . _ ~`, as Python's `urllib.parse.quote(s, safe="")` does, so the link has no `(` or `)` to end a markdown link early. The bookmarklet above opens its link directly, so `encodeURIComponent` is fine there.
 
 ## Contextual chips
 

@@ -673,6 +673,16 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.quickPrompts.uriUnknownAgent": "没有与“{agent}”匹配的智能体。请检查链接或提示笔记。",
 	"chat.quickPrompts.uriRateLimited": "链接打开过快。请稍后再试。",
 	"chat.quickPrompts.uriDuplicate": "该链接刚刚已打开，已忽略重复。",
+	"chat.quickPrompts.uriCutShortKey":
+		"此链接包含意外的部分（“{key}”），其文本可能因未编码的 & 或 # 而被截断。未打开任何内容。",
+	"chat.quickPrompts.uriCutShortUnnamed":
+		"此链接包含意外的部分，其文本可能因未编码的 & 或 # 而被截断。未打开任何内容。",
+	"chat.quickPrompts.uriCutShortHash":
+		"此链接的文本含有未编码的 #，因此部分内容被截断。未打开任何内容。",
+	"chat.quickPrompts.uriCutShortCrc":
+		"此链接的文本与其校验值不符，因此部分内容丢失或被更改。未打开任何内容。",
+	"chat.quickPrompts.uriNotReady":
+		"Agent Console 尚未就绪，因此该链接未打开任何内容。请再次尝试该链接。",
 	"chat.quickPrompts.linkOrigin": "由链接打开",
 	"chat.quickPrompts.linkOriginAgent": "智能体：{agent}",
 	"chat.quickPrompts.linkOriginMode": "模式：{mode}",

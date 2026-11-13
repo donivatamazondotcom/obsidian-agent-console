@@ -4,11 +4,15 @@
  * build a prompt's base link. No Obsidian, no React, no i18n (a utils leaf).
  *
  * Design principle: a link can stage a prompt, but only the vault can
- * authorize a send. The contract deliberately has no `send`, no `open`, and
- * no free-text body — a link can only name a prompt that already exists.
+ * authorize a send. The contract deliberately has no `send` and no `open`.
+ * A link's own text always arrives quoted as External text, under a prompt
+ * that's already in the vault.
  *
- * Spec: [[Agent Console Quick Prompt URIs]].
+ * Spec: [[Agent Console Quick Prompt URIs]]; the `crc` check and the
+ * stray-key rule: [[Agent Console Fresh-Session Handoff]].
  */
+
+import { crc32Hex } from "./crc32";
 
 /** The protocol action registered with `registerObsidianProtocolHandler`. */
 export const QUICK_PROMPT_URI_ACTION = "agent-console";
@@ -31,23 +35,103 @@ export type UriContextField = (typeof URI_CONTEXT_FIELDS)[number];
 /** Outside context a link carries. Only keys the link set are present. */
 export type UriContext = Partial<Record<UriContextField, string>>;
 
+/** The params that carry free text, where an unencoded `&` or `#` can cut. */
+export const URI_FREE_TEXT_FIELDS = ["selection", "url", "title"] as const;
+
+/**
+ * Every key the link contract defines. Built from `URI_CONTEXT_FIELDS`, so a
+ * field added later can't make links that use it fail the stray-key rule.
+ */
+export const URI_CONTRACT_KEYS: readonly string[] = [
+	"action",
+	"vault",
+	"prompt",
+	"crc",
+	...URI_CONTEXT_FIELDS,
+];
+
+/** x-callback-url keys, allowed so Shortcuts and Drafts links keep working. */
+export const URI_XCALLBACK_KEYS = [
+	"x-success",
+	"x-error",
+	"x-cancel",
+	"x-source",
+] as const;
+
+const ALLOWED_KEYS: ReadonlySet<string> = new Set([
+	...URI_CONTRACT_KEYS,
+	...URI_XCALLBACK_KEYS,
+]);
+
+/** Why a link's text was judged cut short or changed. */
+export type UriCutShortReason = "hash" | "stray-key" | "crc";
+
 export type QuickPromptUriParse<P extends { id: string }> =
 	| { kind: "ok"; prompt: P; context: UriContext }
 	| { kind: "unknown-prompt"; promptId: string }
-	| { kind: "bad-param"; field: "prompt" | UriContextField };
+	| { kind: "bad-param"; field: "prompt" | UriContextField }
+	| { kind: "cut-short"; reason: UriCutShortReason; key?: string };
+
+export interface ParseQuickPromptUriOptions {
+	/**
+	 * Fail a free-text link that has a `hash` or a key outside the contract
+	 * (rule 1). Default true. plugin.ts turns it off outside macOS until
+	 * probe P2 shows Obsidian adds no keys of its own on Windows and Linux;
+	 * the `crc` rules run either way.
+	 */
+	strictKeys?: boolean;
+}
+
+const CRC_RE = /^[0-9a-f]{8}$/i;
+
+/**
+ * The cut-short rules, in order. They run whenever the link has any
+ * free-text key (even blank) or a `crc`, before every other check:
+ * 1. a `hash` key or a key outside the contract (when `strictKeys`);
+ * 2. a `crc` that isn't eight hex digits;
+ * 3. a `crc` with no `selection`;
+ * 4. a `crc` that doesn't match the CRC-32 of `selection`, checked on the
+ *    text as decoded, before hidden characters are stripped.
+ */
+function cutShortReason(
+	params: Readonly<Record<string, string | undefined>>,
+	strictKeys: boolean,
+): { reason: UriCutShortReason; key?: string } | null {
+	const crc = params.crc;
+	const hasFreeText = URI_FREE_TEXT_FIELDS.some((f) => params[f] !== undefined);
+	if (!hasFreeText && crc === undefined) return null;
+
+	if (strictKeys) {
+		for (const [key, value] of Object.entries(params)) {
+			if (value === undefined) continue;
+			if (key === "hash") return { reason: "hash" };
+			if (!ALLOWED_KEYS.has(key)) return { reason: "stray-key", key };
+		}
+	}
+	if (crc === undefined) return null;
+	const selection = params.selection;
+	if (!CRC_RE.test(crc) || selection === undefined) return { reason: "crc" };
+	if (crc.toLowerCase() !== crc32Hex(selection)) return { reason: "crc" };
+	return null;
+}
 
 /**
  * Parse protocol params against the loaded prompts. Total: never throws,
- * never coerces. The prompt id must match exactly (ids are filename slugs and
- * stable across re-scans; labels are not addressable). A present-but-blank
- * optional param is `bad-param`, so a malformed link fails loud instead of
- * silently behaving like a different link. Params outside the contract
- * (`vault`, `action`, and anything else) are ignored.
+ * never coerces. The cut-short rules run first (see `cutShortReason`). The
+ * prompt id must match exactly (ids are filename slugs and stable across
+ * re-scans; labels are not addressable). A present-but-blank optional param
+ * is `bad-param`, so a malformed link fails loud instead of silently
+ * behaving like a different link. A link with no free text and no `crc`
+ * ignores keys outside the contract, as it always has.
  */
 export function parseQuickPromptUri<P extends { id: string }>(
 	params: Readonly<Record<string, string | undefined>>,
 	prompts: readonly P[],
+	options: ParseQuickPromptUriOptions = {},
 ): QuickPromptUriParse<P> {
+	const cut = cutShortReason(params, options.strictKeys ?? true);
+	if (cut) return { kind: "cut-short", ...cut };
+
 	const id = params.prompt;
 	if (id === undefined || id.trim() === "") {
 		return { kind: "bad-param", field: "prompt" };

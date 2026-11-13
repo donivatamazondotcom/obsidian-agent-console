@@ -838,6 +838,16 @@ export const en = {
 		"Links are opening too fast. Wait a moment and try again.",
 	"chat.quickPrompts.uriDuplicate":
 		"That link just opened. Ignored the repeat.",
+	"chat.quickPrompts.uriCutShortKey":
+		'This link has an unexpected part ("{key}"), so its text may be cut short by an & or # that wasn\'t encoded. Nothing was opened.',
+	"chat.quickPrompts.uriCutShortUnnamed":
+		"This link has an unexpected part, so its text may be cut short by an & or # that wasn't encoded. Nothing was opened.",
+	"chat.quickPrompts.uriCutShortHash":
+		"This link's text has a # that wasn't encoded, so part of it was cut off. Nothing was opened.",
+	"chat.quickPrompts.uriCutShortCrc":
+		"This link's text doesn't match its check value, so part of it was lost or changed. Nothing was opened.",
+	"chat.quickPrompts.uriNotReady":
+		"Agent Console wasn't ready, so the link opened nothing. Try the link again.",
 	"chat.quickPrompts.linkOrigin": "Opened by link",
 	"chat.quickPrompts.linkOriginAgent": "Agent: {agent}",
 	"chat.quickPrompts.linkOriginMode": "Mode: {mode}",

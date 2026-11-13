@@ -5,10 +5,15 @@ import {
 } from "../resolvers/prompt-target";
 import type { NamedItem } from "../resolvers/session-modes";
 import {
+	checkUriRateLimit,
 	claimedSourceLabel,
 	formatExternalBlock,
+	parseQuickPromptUri,
 	sanitizeExternalText,
 	toOneLine,
+	uriFireKey,
+	type UriCutShortReason,
+	type UriRateLimitState,
 } from "../utils/quick-prompt-uri";
 // Moved to types/quick-prompt.ts (utils-leaf refactor, G2); re-exported so the
 // existing ui/hooks/services consumers keep their import path.
@@ -826,6 +831,122 @@ export function uriRateLimitedNotice(reason: "rate-limit" | "duplicate"): string
 	return reason === "duplicate"
 		? t("chat.quickPrompts.uriDuplicate")
 		: t("chat.quickPrompts.uriRateLimited");
+}
+
+/** A stray key is shown cut to this many code points. */
+const STRAY_KEY_MAX_CHARS = 40;
+
+/**
+ * The notice for a link judged cut short. A stray key is shown with its
+ * hidden characters stripped, on one line, and cut to 40 code points
+ * (`Array.from`, so an emoji isn't split in half); a key that is empty once
+ * cleaned, as from a trailing `&&`, is left out of the notice.
+ */
+export function uriCutShortNotice(
+	reason: UriCutShortReason,
+	key?: string,
+): string {
+	if (reason === "hash") return t("chat.quickPrompts.uriCutShortHash");
+	if (reason === "crc") return t("chat.quickPrompts.uriCutShortCrc");
+	const name = Array.from(toOneLine(sanitizeExternalText(key ?? "").text))
+		.slice(0, STRAY_KEY_MAX_CHARS)
+		.join("");
+	return name
+		? t("chat.quickPrompts.uriCutShortKey", { key: name })
+		: t("chat.quickPrompts.uriCutShortUnnamed");
+}
+
+export function uriNotReadyNotice(): string {
+	return t("chat.quickPrompts.uriNotReady");
+}
+
+/** What a URI fire needs from the plugin. plugin.ts passes the real ones. */
+export interface UriFireDeps {
+	/** The plugin's rate-limit state (read, then replaced). */
+	rateLimit: {
+		get: () => UriRateLimitState;
+		set: (state: UriRateLimitState) => void;
+	};
+	now: () => number;
+	prompts: () => readonly QuickPrompt[];
+	/** See `ParseQuickPromptUriOptions.strictKeys`. */
+	strictKeys: boolean;
+	planContext: () => UriFireContext;
+	/**
+	 * Reveal the chat view and wait for its new-tab opener. Null when the
+	 * view never mounts.
+	 */
+	openChatView: () => Promise<{
+		openPromptInNewTab: (text: string, opts: NewTabPromptOpts) => void;
+	} | null>;
+	notify: (message: string) => void;
+	logError: (message: string) => void;
+}
+
+/**
+ * Handle an `obsidian://agent-console?prompt=…` fire: rate limit → parse →
+ * plan → open/reveal the chat view → open a new foreground tab. A link can
+ * stage a prompt; only the vault (`uri send: true`, bare link) can send.
+ * Errors are a notice and a no-op — nothing is guessed or coerced.
+ *
+ * Every refused fire, a damaged link included, still counts against the
+ * rate limit, so a redirect loop can't keep itself alive. The one exception
+ * is a chat view that never mounted: that fire's repeat key is cleared, so
+ * the same link works again once the 2 s limit passes.
+ */
+export async function runUriFire(
+	params: Record<string, string | undefined>,
+	deps: UriFireDeps,
+): Promise<void> {
+	const key = uriFireKey(params);
+	const gate = checkUriRateLimit(deps.rateLimit.get(), key, deps.now());
+	if (!gate.ok) {
+		deps.notify(uriRateLimitedNotice(gate.reason));
+		return;
+	}
+	deps.rateLimit.set(gate.state);
+
+	const parsed = parseQuickPromptUri(params, deps.prompts(), {
+		strictKeys: deps.strictKeys,
+	});
+	if (parsed.kind === "cut-short") {
+		deps.notify(uriCutShortNotice(parsed.reason, parsed.key));
+		return;
+	}
+	if (parsed.kind === "unknown-prompt") {
+		deps.notify(uriUnknownPromptNotice(parsed.promptId));
+		return;
+	}
+	if (parsed.kind === "bad-param") {
+		deps.notify(uriBadParamNotice(parsed.field));
+		return;
+	}
+
+	const plan = planUriFire(parsed.prompt, parsed.context, deps.planContext());
+	if (plan.kind === "unknown-agent") {
+		executeUriPrompt(parsed.prompt, plan, {
+			openInNewTab: () => {},
+			notify: deps.notify,
+		});
+		return;
+	}
+
+	const view = await deps.openChatView();
+	if (!view) {
+		deps.logError("[QuickPrompts] URI: chat view never mounted");
+		deps.notify(uriNotReadyNotice());
+		const current = deps.rateLimit.get();
+		if (current.lastKey === key) {
+			deps.rateLimit.set({ lastAt: current.lastAt });
+		}
+		return;
+	}
+	executeUriPrompt(parsed.prompt, plan, {
+		openInNewTab: (text, opts) => {
+			view.openPromptInNewTab(text, opts);
+		},
+		notify: deps.notify,
+	});
 }
 
 // ============================================================================
