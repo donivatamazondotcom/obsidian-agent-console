@@ -64,13 +64,31 @@ export function parseQuickPromptUri<P extends { id: string }>(
 	return { kind: "ok", prompt, context };
 }
 
+/** Line breaks other than `\n`, normalized to `\n` and not counted. */
+const LINE_BREAK_RE = /\r\n?|[\u0085\u2028\u2029]/g;
+
 /**
- * Zero-width, directional marks, bidi embeddings/overrides, isolates, word
- * joiner / invisible operators, and BOM. These can hide or reorder text, so
- * outside text is stripped of them before it is staged.
+ * Characters that render as nothing but that an agent still reads, so
+ * outside text is stripped of them before it is staged (I329, I330).
+ *
+ * Removed: every Default_Ignorable_Code_Point (zero-width characters,
+ * U+200C included, bidi marks and overrides, BOM, soft hyphen, fillers,
+ * variation selectors, tag characters), the interlinear annotation marks,
+ * and control characters other than tab and newline.
+ *
+ * Kept, because real text needs them and one of each carries no hidden text:
+ * - the England, Scotland and Wales flags, the only standard emoji built
+ *   from tag characters (any other tag run is removed);
+ * - one U+FE0E or U+FE0F right after an emoji base (keycaps like 1️⃣, ✔️);
+ * - one zero-width joiner between two emoji (👨‍👩‍👧, 👩🏽‍💻, ❤️‍🔥);
+ * - one ideographic variation selector right after a Han character.
+ *
+ * The kept alternatives come first, and each lookbehind reads the original
+ * text, so a second selector or joiner in a row is always removed.
+ * Known limit: Mongolian free variation selectors are removed too.
  */
-const INVISIBLE_RE =
-	/[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+const HIDDEN_RE =
+	/(\u{1F3F4}\u{E0067}\u{E0062}(?:\u{E0065}\u{E006E}\u{E0067}|\u{E0073}\u{E0063}\u{E0074}|\u{E0077}\u{E006C}\u{E0073})\u{E007F}|(?<=\p{Emoji})[\uFE0E\uFE0F]|(?<=[\p{Extended_Pictographic}\p{Emoji_Modifier}]\uFE0F?)\u200D(?=\p{Extended_Pictographic})|(?<=\p{Unified_Ideograph})[\u{E0100}-\u{E01EF}])|(?![\t\n])\p{Cc}|[\p{Default_Ignorable_Code_Point}\uFFF9-\uFFFB]/gu;
 
 export interface SanitizedText {
 	text: string;
@@ -80,10 +98,13 @@ export interface SanitizedText {
 
 export function sanitizeExternalText(s: string): SanitizedText {
 	let removed = 0;
-	const text = s.replace(INVISIBLE_RE, () => {
-		removed++;
-		return "";
-	});
+	const text = s
+		.replace(LINE_BREAK_RE, "\n")
+		.replace(HIDDEN_RE, (match: string, kept: string | undefined) => {
+			if (kept !== undefined) return match;
+			removed += [...match].length;
+			return "";
+		});
 	return { text, removed };
 }
 
