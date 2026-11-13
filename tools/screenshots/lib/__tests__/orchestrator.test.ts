@@ -34,6 +34,7 @@ import {
 	whatsNewCaptureVersions,
 	captureAll,
 	needsScreen,
+	clampPadding,
 	type OrchestratorDeps,
 } from "../orchestrator";
 import { scaleRectByDevicePixelRatio } from "../crop";
@@ -58,7 +59,8 @@ function makeEntry(overrides: Partial<ManifestEntry> = {}): ManifestEntry {
 }
 
 function makeMockCdp() {
-	return {
+	const cdp = {
+		isolated: false,
 		evaluate: vi.fn().mockResolvedValue(undefined),
 		executeCommand: vi.fn().mockResolvedValue(undefined),
 		clickElement: vi.fn().mockResolvedValue(undefined),
@@ -93,7 +95,14 @@ function makeMockCdp() {
 			.fn()
 			.mockResolvedValue({ x: 0, y: 0, width: 100, height: 100 }),
 		clearViewport: vi.fn().mockResolvedValue(undefined),
+		// The legacy driver runs settings DOM work on the main page, where
+		// activeDocument follows the settings window.
+		evaluateInSettings: vi.fn(),
 	};
+	cdp.evaluateInSettings.mockImplementation((e: string, o?: unknown) =>
+		o === undefined ? cdp.evaluate(e) : cdp.evaluate(e, o),
+	);
+	return cdp;
 }
 
 function makeMockSharp() {
@@ -3059,12 +3068,8 @@ describe("captureEntry — settings-window mode (I187 durable CDP capture)", () 
 				// geometry + cropSelector bounds read
 				if (expr.includes("getBoundingClientRect")) {
 					return Promise.resolve({
-						winX: 100,
-						winY: 50,
-						winW: 900,
-						winH: 700,
 						dpr: 1,
-						rect: { x: 225, y: 30, width: 675, height: 670 },
+						rects: [{ x: 225, y: 30, width: 675, height: 670 }],
 					});
 				}
 				return Promise.resolve(undefined);
@@ -3150,7 +3155,7 @@ describe("captureEntry — settings-window mode (I187 durable CDP capture)", () 
 
 		// Open must route through openSettingsHidden (keeps the window off-screen
 		// for the shot) — not a raw evaluate that shows+focuses the window.
-		expect(deps.cdp.openSettingsHidden).toHaveBeenCalledWith("agent-console");
+		expect(deps.cdp.openSettingsHidden).toHaveBeenCalledWith("agent-console", { width: 1200, height: 900, dpr: 2 });
 		const evals = (
 			deps.cdp.evaluate as ReturnType<typeof vi.fn>
 		).mock.calls.map((c: unknown[]) => c[0] as string);
@@ -3431,12 +3436,8 @@ describe("captureEntry — per-entry plugin settings on every capture path", () 
 				}
 				if (expr.includes("getBoundingClientRect")) {
 					return Promise.resolve({
-						winX: 0,
-						winY: 0,
-						winW: 900,
-						winH: 700,
 						dpr: 1,
-						rect: { x: 225, y: 30, width: 675, height: 670 },
+						rects: [{ x: 225, y: 30, width: 675, height: 670 }],
 					});
 				}
 				return Promise.resolve(undefined);
@@ -3627,18 +3628,21 @@ describe("captureAll — isolated skip list", () => {
 			makeEntry({ name: "plain" }),
 			makeEntry({ name: "menu", captureMode: "screen" }),
 			makeEntry({ name: "hero", captureMode: "screen-window" }),
-			makeEntry({ name: "settings", captureMode: "settings-window" }),
-			makeEntry({ name: "opens-settings", initialState: { openSettings: "agent-console" } }),
+			makeEntry({ name: "native", initialState: { openSettings: "agent-console", openNativeSelect: "select" } }),
 		];
 		const results = await captureAll(entries, deps, { skip: needsScreen });
 		expect(results.map((r) => [r.name, r.success, Boolean(r.skipped)])).toEqual([
 			["plain", true, false],
 			["menu", true, true],
 			["hero", true, true],
-			["settings", true, true],
-			["opens-settings", true, true],
+			["native", true, true],
 		]);
 		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(1);
+	});
+
+	it("captures settings-window and openSettings entries (PR 2b)", () => {
+		expect(needsScreen(makeEntry({ captureMode: "settings-window" }))).toBeUndefined();
+		expect(needsScreen(makeEntry({ initialState: { openSettings: "agent-console" } }))).toBeUndefined();
 	});
 });
 
@@ -3984,5 +3988,502 @@ describe("captureEntry — hover tooltip settles before capture", () => {
 		const shot = (deps.cdp.screenshot as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
 		expect(evalMock.mock.invocationCallOrder[idx]).toBeGreaterThan(waitOrder);
 		expect(evalMock.mock.invocationCallOrder[idx]).toBeLessThan(shot);
+	});
+});
+
+// [[Agent Console Isolated Screenshot Capture]] PR 2b: settings shots on the
+// isolated driver. DOM work runs on the settings page (evaluateInSettings),
+// app.* on the main page; the seeded agent paths never reach the capture.
+describe("captureEntry — settings path on the isolated driver (PR 2b)", () => {
+	type Fn = ReturnType<typeof vi.fn>;
+	const PROBE = "__cleanliness_probe__";
+
+	function isolatedDeps(o: { dpr?: number; probe?: { selectors: string[]; text: string[] }; rects?: unknown[]; pane?: unknown; inner?: number[] } = {}) {
+		const deps = makeDeps();
+		const cdp = deps.cdp as unknown as Record<string, Fn> & { isolated: boolean };
+		cdp.isolated = true;
+		const asked = () => (cdp.openSettingsHidden.mock.calls.at(-1)?.[1] as { width: number; height: number } | undefined) ?? { width: 0, height: 0 };
+		cdp.evaluateInSettings = vi.fn((e: string) => {
+			if (e.includes(PROBE)) return Promise.resolve(o.probe ?? { selectors: [], text: [] });
+			if (e.includes("getBoundingClientRect"))
+				return Promise.resolve({ dpr: o.dpr ?? 2, rects: o.rects ?? [{ x: 20, y: 30, width: 600, height: 500 }], pane: o.pane ?? null, inner: o.inner ?? [asked().width, asked().height] });
+			return Promise.resolve(true);
+		});
+		return { deps, cdp };
+	}
+	const settingsEntry = (overrides: Partial<ManifestEntry> = {}) =>
+		makeEntry({ name: "opencode-builtin", cropSelector: ".vertical-tab-content", initialState: { openSettings: "agent-console" }, ...overrides });
+	const exprs = (fn: Fn) => fn.mock.calls.map((c: unknown[]) => c[0] as string);
+
+	it("routes an openSettings entry to the settings path on the isolated driver", async () => {
+		const { deps, cdp } = isolatedDeps();
+		await captureEntry(settingsEntry(), deps);
+		expect(cdp.openSettingsHidden).toHaveBeenCalledWith("agent-console", { width: 1200, height: 900, dpr: 2 });
+		expect(cdp.captureSettingsWindow).toHaveBeenCalledTimes(1);
+		expect(cdp.screenshot).not.toHaveBeenCalled();
+	});
+
+	it("keeps an openSettings entry on today's main-page path with the legacy driver", async () => {
+		const deps = makeDeps();
+		await captureEntry(settingsEntry(), deps);
+		expect(deps.cdp.openSettingsHidden).not.toHaveBeenCalled();
+		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(1);
+	});
+
+	it("passes the entry's settingsWindowSize to the open", async () => {
+		const { deps, cdp } = isolatedDeps();
+		await captureEntry(settingsEntry({ settingsWindowSize: { width: 1000, height: 820 } }), deps);
+		expect(cdp.openSettingsHidden).toHaveBeenCalledWith("agent-console", { width: 1000, height: 820, dpr: 2 });
+	});
+
+	it("runs DOM work on the settings page and app.* calls on the main page", async () => {
+		const { deps, cdp } = isolatedDeps();
+		await captureEntry(
+			settingsEntry({
+				mustShow: ".setting-page-back-button",
+				initialState: {
+					openSettings: "agent-console",
+					openSettingPage: "OpenCode",
+					clickSequence: [{ selector: ".a", waitFor: ".b" }],
+					scrollToSettingText: "Path",
+					scrollIntoViewSelector: ".c",
+				},
+			}),
+			deps,
+		);
+		const inSettings = exprs(cdp.evaluateInSettings);
+		expect(inSettings.some((e) => e.includes('"OpenCode"'))).toBe(true);
+		expect(inSettings.some((e) => e.includes('"Path"') && e.includes("scrollIntoView"))).toBe(true);
+		expect(inSettings.some((e) => e.includes('".c"') && e.includes("scrollIntoView"))).toBe(true);
+		expect(inSettings.some((e) => e.includes(PROBE))).toBe(true);
+		expect(inSettings.filter((e) => /\bapp\./.test(e))).toEqual([]);
+		expect(exprs(cdp.evaluate).some((e) => e.includes("app.setting.close"))).toBe(true);
+	});
+
+	it("opens the named settings row, waits for its page, then captures", async () => {
+		const { deps, cdp } = isolatedDeps();
+		await captureEntry(settingsEntry({ initialState: { openSettings: "agent-console", openSettingPage: "OpenCode" } }), deps);
+		const inSettings = exprs(cdp.evaluateInSettings);
+		const click = inSettings.findIndex((e) => e.includes('"OpenCode"') && e.includes(".click()"));
+		const wait = inSettings.findIndex((e, i) => i > click && e.includes(".setting-page-back-button"));
+		expect(click).toBeGreaterThanOrEqual(0);
+		expect(wait).toBeGreaterThan(click);
+		expect(cdp.evaluateInSettings.mock.invocationCallOrder[wait]).toBeLessThan(cdp.captureSettingsWindow.mock.invocationCallOrder[0]);
+	});
+
+	it("fails the entry, naming the row, when no settings row has that name", async () => {
+		const { deps, cdp } = isolatedDeps();
+		cdp.evaluateInSettings.mockImplementation((e: string) => Promise.resolve(e.includes('"OpenCode"') ? false : true));
+		await expect(captureEntry(settingsEntry({ initialState: { openSettings: "agent-console", openSettingPage: "OpenCode" } }), deps)).rejects.toThrow(/no settings row named "OpenCode"/);
+		expect(cdp.captureSettingsWindow).not.toHaveBeenCalled();
+	});
+
+	it("fails before capture when forbidden text shows in the settings page, checking input values too", async () => {
+		const { deps, cdp } = isolatedDeps({ probe: { selectors: [], text: ["/Users/"] } });
+		await expect(captureEntry(settingsEntry({ forbiddenText: ["/Users/", "AC_VIDEO_RUN"] }), deps)).rejects.toThrow(/forbidden text present: "\/Users\/"/);
+		expect(cdp.captureSettingsWindow).not.toHaveBeenCalled();
+		const probe = exprs(cdp.evaluateInSettings).find((e) => e.includes(PROBE)) ?? "";
+		expect(probe).toContain('"/Users/"');
+		expect(probe).toContain("input, textarea");
+		expect(probe).toContain("activeDocument");
+	});
+
+	it("fails the entry when the settings page doesn't render at the run's DPR", async () => {
+		const { deps, cdp } = isolatedDeps({ dpr: 1 });
+		await expect(captureEntry(settingsEntry(), deps)).rejects.toThrow(/settings window devicePixelRatio is 1, expected 2/);
+		expect(cdp.captureSettingsWindow).not.toHaveBeenCalled();
+	});
+
+	it("crops a cropSelectors union on the settings path", async () => {
+		const { deps } = isolatedDeps({ rects: [{ x: 20, y: 30, width: 100, height: 50 }, { x: 200, y: 300, width: 50, height: 40 }] });
+		await captureEntry(settingsEntry({ cropSelector: undefined, cropSelectors: [".a", ".b"], cropPadding: 10 }), deps);
+		// union {20,30,230,310} + 10 padding at dpr 2 → {20,40,500,660}
+		const sharpInstance = (deps.sharp as unknown as Fn).mock.results[0].value;
+		expect(sharpInstance.extract).toHaveBeenCalledWith({ left: 20, top: 40, width: 500, height: 660 });
+	});
+
+	it("fails the entry, naming the selector, when a crop selector is missing in the settings page", async () => {
+		const { deps } = isolatedDeps({ rects: [{ x: 1, y: 1, width: 1, height: 1 }, null] });
+		await expect(captureEntry(settingsEntry({ cropSelector: undefined, cropSelectors: [".a", ".gone"] }), deps)).rejects.toThrow(/cropSelector "\.gone" not found in the settings window/);
+	});
+
+	it("runs the content guard on a settings capture and deletes a blank one", async () => {
+		const { deps } = isolatedDeps();
+		(deps.loadRaw as Fn).mockResolvedValue({ data: Buffer.from([9, 9, 9, 255]), channels: 4 });
+		await expect(captureEntry(settingsEntry(), deps)).rejects.toThrow(/content guard/);
+		expect(deps.unlink).toHaveBeenCalledTimes(1);
+	});
+
+	// The seeded run writes absolute agent paths and the run marker into
+	// data.json, and the settings UI shows each agent's Path and Environment.
+	function seededPage() {
+		const settings: Record<string, unknown> = {
+			defaultAgentId: "claude-code-acp",
+			lastUsedModes: {},
+			claude: { id: "claude-code-acp", command: "/Users/me/bin/claude-agent-acp", args: [], env: [{ key: "HOME", value: "/Users/me" }, { key: "AC_VIDEO_RUN", value: "r1" }] },
+			kiro: { id: "kiro-cli", command: "/Users/me/bin/kiro-cli", args: ["acp"], env: [{ key: "AC_VIDEO_RUN", value: "r1" }] },
+			customAgents: [{ id: "c1", command: "/Users/me/c", args: [], env: [] }],
+		};
+		const app = {
+			plugins: { plugins: { "agent-console": { settings, settingsService: { updateSettings: (p: Record<string, unknown>) => { Object.assign(settings, p); return Promise.resolve(); } } } } },
+			setting: { close: () => {} },
+			vault: { setConfig: () => {} },
+			workspace: { openLinkText: () => {}, detachLeavesOfType: () => {} },
+		};
+		const evaluate = vi.fn((expr: string) => {
+			try {
+				// eslint-disable-next-line @typescript-eslint/no-implied-eval
+				const doc = { querySelectorAll: () => [], querySelector: () => null };
+				return Promise.resolve(new Function("app", "document", "activeDocument", `return (${expr});`)(app, doc, doc) as unknown);
+			} catch {
+				return Promise.resolve(undefined);
+			}
+		});
+		return { settings, evaluate };
+	}
+	const TEMPLATE = {
+		claude: { command: "claude-agent-acp", env: [{ key: "AWS_REGION", value: "us-west-2" }] },
+		kiro: { command: "kiro-cli", env: [] },
+		customAgents: [],
+	};
+
+	it("shows the template's agent command and env while settings are open, then restores the seeded values", async () => {
+		const page = seededPage();
+		const { deps, cdp } = isolatedDeps();
+		cdp.evaluate = page.evaluate;
+		deps.agentTemplate = TEMPLATE;
+		let during: unknown;
+		cdp.captureSettingsWindow.mockImplementation(() => {
+			during = JSON.parse(JSON.stringify({ claude: page.settings.claude, kiro: page.settings.kiro, customAgents: page.settings.customAgents }));
+			return Promise.resolve();
+		});
+		await captureEntry(settingsEntry(), deps);
+		expect(during).toEqual({
+			claude: { id: "claude-code-acp", command: "claude-agent-acp", args: [], env: [{ key: "AWS_REGION", value: "us-west-2" }] },
+			kiro: { id: "kiro-cli", command: "kiro-cli", args: ["acp"], env: [] },
+			customAgents: [],
+		});
+		expect((page.settings.claude as { command: string }).command).toBe("/Users/me/bin/claude-agent-acp");
+		expect((page.settings.kiro as { env: unknown[] }).env).toEqual([{ key: "AC_VIDEO_RUN", value: "r1" }]);
+		expect(page.settings.customAgents).toEqual([{ id: "c1", command: "/Users/me/c", args: [], env: [] }]);
+	});
+
+	it("swaps the template in before settings open and restores the seeded values when the capture throws", async () => {
+		const page = seededPage();
+		const { deps, cdp } = isolatedDeps();
+		cdp.evaluate = page.evaluate;
+		deps.agentTemplate = TEMPLATE;
+		let atOpen = "";
+		cdp.openSettingsHidden.mockImplementation(() => {
+			atOpen = (page.settings.claude as { command: string }).command;
+			return Promise.resolve();
+		});
+		cdp.captureSettingsWindow.mockRejectedValue(new Error("boom"));
+		await expect(captureEntry(settingsEntry(), deps)).rejects.toThrow(/boom/);
+		expect(atOpen).toBe("claude-agent-acp");
+		expect((page.settings.claude as { command: string }).command).toBe("/Users/me/bin/claude-agent-acp");
+	});
+
+	// D3: the user's ~/.claude defaultMode can be "auto", which applies edits
+	// with no permission card. sessionMode sets the saved mode pick, so the
+	// new session starts in that mode through the plugin's restore path.
+	it("sets the saved mode pick for the default agent before the panel opens, and restores it", async () => {
+		const page = seededPage();
+		const deps = makeDeps();
+		(deps.cdp as unknown as { evaluate: unknown }).evaluate = page.evaluate;
+		let atOpen: unknown;
+		(deps.cdp.executeCommand as Fn).mockImplementation((id: string) => {
+			if (id === "agent-console:open-chat-view") atOpen = { ...(page.settings.lastUsedModes as object) };
+			return Promise.resolve();
+		});
+		await captureEntry(makeEntry({ initialState: { clickRibbon: true, sessionMode: "default" } }), deps);
+		expect(atOpen).toEqual({ "claude-code-acp": "default" });
+		expect(page.settings.lastUsedModes).toEqual({});
+	});
+
+	it("uses the entry's agentId for the mode pick and restores it when the capture throws", async () => {
+		const page = seededPage();
+		page.settings.lastUsedModes = { "claude-code-acp": "plan" };
+		const deps = makeDeps();
+		(deps.cdp as unknown as { evaluate: unknown }).evaluate = page.evaluate;
+		let atOpen: unknown;
+		(deps.cdp.executeCommand as Fn).mockImplementation(() => {
+			atOpen = { ...(page.settings.lastUsedModes as object) };
+			return Promise.resolve();
+		});
+		(deps.cdp.screenshot as Fn).mockRejectedValue(new Error("boom"));
+		await expect(captureEntry(makeEntry({ agentId: "kiro-cli", initialState: { clickRibbon: true, sessionMode: "default" } }), deps)).rejects.toThrow(/boom/);
+		expect(atOpen).toEqual({ "claude-code-acp": "plan", "kiro-cli": "default" });
+		expect(page.settings.lastUsedModes).toEqual({ "claude-code-acp": "plan" });
+	});
+});
+
+// Review round 1 of PR 2b.
+describe("captureEntry — settings path, review round 1 (PR 2b)", () => {
+	type Fn = ReturnType<typeof vi.fn>;
+	const PROBE = "__cleanliness_probe__";
+	function isoDeps(geom: Record<string, unknown> = {}) {
+		const deps = makeDeps();
+		const cdp = deps.cdp as unknown as Record<string, Fn> & { isolated: boolean };
+		cdp.isolated = true;
+		const asked = () => (cdp.openSettingsHidden.mock.calls.at(-1)?.[1] as { width: number; height: number } | undefined) ?? { width: 0, height: 0 };
+		cdp.evaluateInSettings = vi.fn((e: string) => {
+			if (e.includes(PROBE)) return Promise.resolve({ selectors: [], text: [] });
+			if (e.includes("getBoundingClientRect"))
+				return Promise.resolve({ dpr: 2, rects: [{ x: 20, y: 30, width: 600, height: 500 }], pane: null, inner: [asked().width, asked().height], ...geom });
+			return Promise.resolve(true);
+		});
+		return { deps, cdp };
+	}
+	const entry = (o: Partial<ManifestEntry> = {}) =>
+		makeEntry({ name: "settings-agent-page", cropSelector: ".vertical-tab-content", initialState: { openSettings: "agent-console" }, ...o });
+
+	it("never lets the crop padding reach past the settings pane (no titlebar or nav in the shot)", async () => {
+		const pane = { x: 20, y: 30, width: 300, height: 200 };
+		const { deps } = isoDeps({ pane, rects: [pane] });
+		await captureEntry(entry({ cropPadding: 16 }), deps);
+		const sharpInstance = (deps.sharp as unknown as Fn).mock.results[0].value;
+		// rect = pane; padding 16 would give {4,14,332,232}; clamped to the pane → {20,30,300,200}, at dpr 2
+		expect(sharpInstance.extract).toHaveBeenCalledWith({ left: 40, top: 60, width: 600, height: 400 });
+	});
+
+	it("gives settings shots the shared drop shadow, before the content guard reads the file", async () => {
+		const { deps } = isoDeps();
+		const post = vi.fn().mockResolvedValue(undefined);
+		deps.postProcess = post;
+		await captureEntry(entry(), deps);
+		expect(post).toHaveBeenCalledTimes(1);
+		expect(post.mock.invocationCallOrder[0]).toBeLessThan((deps.loadRaw as Fn).mock.invocationCallOrder[0]);
+	});
+
+	it("fails the entry when the settings page doesn't render at the requested size", async () => {
+		const { deps, cdp } = isoDeps({ inner: [1000, 900] });
+		await expect(captureEntry(entry(), deps)).rejects.toThrow(/settings window renders at 1000×900, expected 1200×900/);
+		expect(cdp.captureSettingsWindow).not.toHaveBeenCalled();
+	});
+
+	it("checks the run's own seeded strings, inside the crop, after the geometry read", async () => {
+		const { deps, cdp } = isoDeps({ pane: { x: 20, y: 30, width: 600, height: 500 } });
+		deps.seededText = ["/opt/homebrew/bin/claude-agent-acp", "run-123"];
+		await captureEntry(entry({ forbiddenText: ["/Users/"] }), deps);
+		const calls = cdp.evaluateInSettings.mock.calls.map((c: unknown[]) => c[0] as string);
+		const probeIdx = calls.findIndex((e) => e.includes(PROBE));
+		const geomIdx = calls.findIndex((e) => e.includes("getBoundingClientRect"));
+		expect(calls[probeIdx]).toContain('"/opt/homebrew/bin/claude-agent-acp"');
+		expect(calls[probeIdx]).toContain('"run-123"');
+		expect(calls[probeIdx]).toContain('"/Users/"');
+		expect(calls[probeIdx]).toContain('{"x":20,"y":30,"width":600,"height":500}');
+		expect(geomIdx).toBeLessThan(probeIdx);
+	});
+
+	function seeded(onRestore?: () => Promise<void>) {
+		const settings: Record<string, unknown> = {
+			defaultAgentId: "claude-code-acp",
+			claude: { id: "claude-code-acp", command: "/opt/x/claude-agent-acp", env: [{ key: "AC_VIDEO_RUN", value: "r1" }] },
+			newagent: { id: "new", command: "/opt/x/new", env: [{ key: "HOME", value: "/Users/me" }] },
+			customAgents: [],
+		};
+		let calls = 0;
+		const app = {
+			plugins: { plugins: { "agent-console": { settings, settingsService: { updateSettings: (p: Record<string, unknown>) => {
+				calls++;
+				if (onRestore && "claude" in p) return onRestore();
+				Object.assign(settings, p);
+				return Promise.resolve();
+			} } } } },
+			setting: { close: () => {} },
+			workspace: { openLinkText: () => {} },
+		};
+		const evaluate = vi.fn((expr: string) => {
+			try {
+				// eslint-disable-next-line @typescript-eslint/no-implied-eval
+				const doc = { querySelectorAll: () => [], querySelector: () => null };
+				return Promise.resolve(new Function("app", "document", "activeDocument", `return (${expr});`)(app, doc, doc) as unknown);
+			} catch (e) {
+				return Promise.reject(e instanceof Error ? e : new Error(String(e)));
+			}
+		});
+		return { settings, evaluate, calls: () => calls };
+	}
+
+	it("swaps every agent the template names, not a hand-kept list", async () => {
+		const page = seeded();
+		const { deps, cdp } = isoDeps();
+		cdp.evaluate = page.evaluate;
+		deps.agentTemplate = { claude: { command: "claude-agent-acp", env: [] }, newagent: { command: "new", env: [] }, customAgents: [] };
+		let during = "";
+		cdp.captureSettingsWindow.mockImplementation(() => {
+			during = (page.settings.newagent as { command: string }).command;
+			return Promise.resolve();
+		});
+		await captureEntry(entry(), deps);
+		expect(during).toBe("new");
+		expect((page.settings.newagent as { command: string }).command).toBe("/opt/x/new");
+	});
+
+	it("fails the entry when the agent settings can't be restored, naming the capture error too", async () => {
+		const page = seeded(() => Promise.reject(new Error("disk full")));
+		const { deps, cdp } = isoDeps();
+		cdp.evaluate = page.evaluate;
+		deps.agentTemplate = { claude: { command: "claude-agent-acp", env: [] }, customAgents: [] };
+		await expect(captureEntry(entry(), deps)).rejects.toThrow(/couldn't restore the agent settings after "settings-agent-page": .*disk full/);
+		// A fresh page: the failed restore above left the template values in place.
+		const page2 = seeded(() => Promise.reject(new Error("disk full")));
+		cdp.evaluate = page2.evaluate;
+		cdp.captureSettingsWindow.mockRejectedValue(new Error("boom"));
+		await expect(captureEntry(entry(), deps)).rejects.toThrow(/boom.*couldn't restore the agent settings.*disk full/);
+	});
+});
+
+describe("captureAll — a failed agent-settings restore stops the run", () => {
+	it("skips every later entry with the reason, instead of shooting them with another entry's agent config", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation((e: string) => {
+			if (e.includes("JSON.parse(") && e.includes("updateSettings")) return Promise.reject(new Error("disk full"));
+			if (e.includes("JSON.stringify(") && e.includes(".reduce(")) return Promise.resolve(e.includes("__acReadBack") ? '{"x":2}' : '{"x":1}');
+			return Promise.resolve(undefined);
+		});
+		const results = await captureAll([makeEntry({ name: "a" }), makeEntry({ name: "b" }), makeEntry({ name: "c" })], deps);
+		expect(results.map((r) => [r.name, r.success])).toEqual([["a", false], ["b", false], ["c", false]]);
+		expect(results[0].error).toMatch(/couldn't restore the agent settings after "a": disk full/);
+		expect(results[1].error).toMatch(/not captured: "a" couldn't restore the agent settings/);
+		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("captureAll — restore failure, review round 3", () => {
+	it("still reports skipped entries as skipped after the run stops", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation((e: string) => {
+			if (e.includes("JSON.parse(") && e.includes("updateSettings")) return Promise.reject(new Error("disk full"));
+			if (e.includes("JSON.stringify(") && e.includes(".reduce(")) return Promise.resolve(e.includes("__acReadBack") ? '{"x":2}' : '{"x":1}');
+			return Promise.resolve(undefined);
+		});
+		const results = await captureAll([makeEntry({ name: "a" }), makeEntry({ name: "menu", captureMode: "screen" }), makeEntry({ name: "c" })], deps, { skip: needsScreen });
+		expect(results.map((r) => [r.name, r.success, Boolean(r.skipped)])).toEqual([["a", false, false], ["menu", true, true], ["c", false, false]]);
+	});
+
+	it("doesn't stop the run when the restore's response is lost but the settings are back", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation((e: string) => {
+			// The legacy CLI drops a response when window focus shifts.
+			if (e.includes("JSON.parse(") && e.includes("updateSettings")) return Promise.reject(new Error("CDP evaluate: empty output from obsidian"));
+			if (e.includes("JSON.stringify(") && e.includes(".reduce(")) return Promise.resolve('{"x":1}');
+			return Promise.resolve(undefined);
+		});
+		const results = await captureAll([makeEntry({ name: "a" }), makeEntry({ name: "b" })], deps);
+		expect(results.map((r) => [r.name, r.success])).toEqual([["a", true], ["b", true]]);
+	});
+});
+
+// The settings window sits under the user's pointer while invisible, so a
+// row could be captured in its hover state.
+describe("captureEntry — settings shots never show a hover state", () => {
+	type Fn = ReturnType<typeof vi.fn>;
+	it("turns pointer hover off in the settings page before the cleanliness check and the capture", async () => {
+		const deps = makeDeps();
+		const cdp = deps.cdp as unknown as Record<string, Fn> & { isolated: boolean };
+		cdp.isolated = true;
+		cdp.evaluateInSettings = vi.fn((e: string) => {
+			if (e.includes("__cleanliness_probe__")) return Promise.resolve({ selectors: [], text: [] });
+			if (e.includes("getBoundingClientRect"))
+				return Promise.resolve({ dpr: 2, rects: [{ x: 20, y: 30, width: 600, height: 500 }], pane: null, inner: [1200, 900] });
+			return Promise.resolve(true);
+		});
+		await captureEntry(makeEntry({ name: "s", cropSelector: ".vertical-tab-content", initialState: { openSettings: "agent-console" } }), deps);
+		const calls = cdp.evaluateInSettings.mock.calls.map((c: unknown[]) => c[0] as string);
+		const noHover = calls.findIndex((e) => e.includes("pointer-events: none"));
+		const probe = calls.findIndex((e) => e.includes("__cleanliness_probe__"));
+		expect(noHover).toBeGreaterThanOrEqual(0);
+		expect(noHover).toBeLessThan(probe);
+		expect(calls[probe]).toContain('".setting-item:hover"');
+		expect(cdp.evaluateInSettings.mock.invocationCallOrder[noHover]).toBeLessThan(cdp.captureSettingsWindow.mock.invocationCallOrder[0]);
+	});
+});
+
+describe("captureEntry — settings crop padding and pointer, review round 5", () => {
+	type Fn = ReturnType<typeof vi.fn>;
+	function deps2(rect: Record<string, number>) {
+		const deps = makeDeps();
+		const cdp = deps.cdp as unknown as Record<string, Fn> & { isolated: boolean };
+		cdp.isolated = true;
+		cdp.settingsPointerAway = vi.fn().mockResolvedValue(undefined);
+		cdp.evaluateInSettings = vi.fn((e: string) => {
+			if (e.includes("__cleanliness_probe__")) return Promise.resolve({ selectors: [], text: [] });
+			if (e.includes("getBoundingClientRect"))
+				return Promise.resolve({ dpr: 2, rects: [rect], pane: { x: 250, y: 30, width: 950, height: 570 }, inner: [1200, 900] });
+			return Promise.resolve(true);
+		});
+		return { deps, cdp };
+	}
+	const entry = () => makeEntry({ name: "s", cropSelector: ".vertical-tab-content", cropPadding: 16, initialState: { openSettings: "agent-console" } });
+
+	it("stops the padding at the nearest dropped unit", async () => {
+		const { deps } = deps2({ x: 375, y: 50, width: 300, height: 200, limitBottom: 258 });
+		await captureEntry(entry(), deps);
+		const sharpInstance = (deps.sharp as unknown as Fn).mock.results[0].value;
+		// box 50..250 + 16 would end at 266; the next card starts at 258 → bottom 257, at dpr 2
+		expect(sharpInstance.extract).toHaveBeenCalledWith({ left: 718, top: 68, width: 664, height: 446 });
+	});
+
+	it("moves the settings page's pointer away after hover is turned off and before the capture", async () => {
+		const { deps, cdp } = deps2({ x: 375, y: 50, width: 300, height: 200 });
+		await captureEntry(entry(), deps);
+		const calls = cdp.evaluateInSettings.mock.calls.map((c: unknown[]) => c[0] as string);
+		const style = cdp.evaluateInSettings.mock.invocationCallOrder[calls.findIndex((e) => e.includes("pointer-events: none"))];
+		const away = cdp.settingsPointerAway.mock.invocationCallOrder[0];
+		expect(away).toBeGreaterThan(style);
+		expect(away).toBeLessThan(cdp.captureSettingsWindow.mock.invocationCallOrder[0]);
+	});
+});
+
+describe("captureEntry — the no-hover style doesn't outlive the entry", () => {
+	it("removes the style from the workspace page after the settings window closes, even when the capture fails", async () => {
+		const deps = makeDeps();
+		(deps.cdp.captureSettingsWindow as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation((e: string) =>
+			Promise.resolve(e.includes("getBoundingClientRect") ? { dpr: 2, rects: [{ x: 0, y: 0, width: 10, height: 10 }], pane: null, inner: [1200, 900] } : e.includes("__cleanliness_probe__") ? { selectors: [], text: [] } : true),
+		);
+		await expect(captureEntry(makeEntry({ captureMode: "settings-window", cropSelector: ".x", initialState: { openSettings: "agent-console" } }), deps)).rejects.toThrow(/boom/);
+		const calls = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map((c: unknown[]) => c[0] as string);
+		const close = calls.findIndex((e) => e.includes("app.setting.close()") && e.includes('"closed"'));
+		const remove = calls.findIndex((e) => e.includes('document.getElementById("ac-capture-no-hover")') && e.includes(".remove()"));
+		expect(close).toBeGreaterThanOrEqual(0);
+		expect(remove).toBeGreaterThan(close);
+	});
+});
+
+describe("clampPadding, review round 6", () => {
+	it("ignores a limit that lies inside the content itself (several crop selectors)", () => {
+		const content = { x: 375, y: 46, width: 700, height: 554 };
+		const padded = { x: 359, y: 30, width: 732, height: 586 };
+		// One box's dropped group (limitBottom 288) sits inside another box.
+		expect(clampPadding(padded, [{ limitBottom: 288 }, {}], content)).toEqual(padded);
+	});
+
+	it("honours a limit within the content-box rounding slack (0.5 px)", () => {
+		const content = { x: 375, y: 50, width: 700, height: 200 };
+		const padded = { x: 359, y: 34, width: 732, height: 232 };
+		// The crop expression reports a dropped unit up to 0.5 px inside the content edge.
+		expect(clampPadding(padded, [{ limitBottom: 249.6 }], content)).toEqual({ x: 359, y: 34, width: 732, height: 216 });
+	});
+
+	it("doesn't shave a kept row that a dropped row touches", () => {
+		const content = { x: 375, y: 50, width: 700, height: 200 };
+		const padded = { x: 359, y: 34, width: 732, height: 232 };
+		expect(clampPadding(padded, [{ limitBottom: 250 }], content)).toEqual({ x: 359, y: 34, width: 732, height: 216 });
+	});
+});
+
+describe("captureEntry — the no-hover style is removed even when closing settings fails", () => {
+	it("still removes the style from the workspace page", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation((e: string) => {
+			if (e.includes("app.setting.close()") && e.includes('"closed"')) return Promise.reject(new Error("close failed"));
+			return Promise.resolve(e.includes("getBoundingClientRect") ? { dpr: 2, rects: [{ x: 0, y: 0, width: 10, height: 10 }], pane: null, inner: [1200, 900] } : e.includes("__cleanliness_probe__") ? { selectors: [], text: [] } : true);
+		});
+		await expect(captureEntry(makeEntry({ captureMode: "settings-window", cropSelector: ".x", initialState: { openSettings: "agent-console" } }), deps)).rejects.toThrow(/close failed/);
+		const calls = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(calls.some((e) => e.includes('document.getElementById("ac-capture-no-hover")') && e.includes(".remove()"))).toBe(true);
 	});
 });

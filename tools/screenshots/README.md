@@ -25,7 +25,23 @@ SCREENSHOT_LEGACY=1 npm run docs:screenshots -- language-setting
 
 Output lands in `docs/public/images/<name>.webp` (or `.gif`).
 
-Entries that still need the real screen (the settings window, native popups and the screen-captured heroes) are skipped on the isolated path and listed at the end of the run; capture them with `SCREENSHOT_LEGACY=1` until they move over. A run that captures nothing exits non-zero.
+Entries that still need the real screen (native popups and the screen-captured heroes) are skipped on the isolated path and listed at the end of the run; capture them with `SCREENSHOT_LEGACY=1` until they move over. A run that captures nothing exits non-zero.
+
+## Settings shots
+
+Settings open in their own window on Obsidian 1.13+. On the isolated path every entry with `captureMode: "settings-window"` or `initialState.openSettings` (but no `openNativeSelect`) is captured from that window:
+
+- `lib/settings-window-hook.cjs` runs in the isolated instance's main process and tames the window inside its creation event: `show()` becomes `showInactive()`, `focus()` is ignored, and the window is invisible, non-focusable and click-through. A listener in the renderer is called back over IPC and can lose the race with Obsidian showing the window, which takes focus.
+- The driver renders the settings page at `settingsWindowSize` (default 1200×900 CSS px) and the run's device pixel ratio, and the entry fails if it renders at anything else. The shot gets the shared drop shadow.
+- The crop is the visible content, not the whole pane (`lib/settings-crop.ts`): whole groups, the page title and whole rows inside the window, plus `cropPadding`, never past `.vertical-tab-content` and never into a group or row it left out. A group or row cut by the window edge is left out, so size `settingsWindowSize` to fit what the shot is about. Hover is turned off in the settings page before capture, so no row shows its hover state.
+- `app.*` calls run on the main page. DOM work (`openSettingPage`, `clickSequence`, `scrollToSettingText`, `scrollIntoViewSelector`, `mustShow`, the crop) runs on the settings page, so write it against `activeDocument`.
+- `initialState.openSettingPage: "<row name>"` clicks the settings row with that name (a sub-page such as `"OpenCode"`, or an action such as `"Add custom agent"`) and waits for the sub-page.
+- While settings are open, each agent shows the fixtures template's `command` and an empty environment (the plugin default), not the run's absolute paths or the fixtures' env vars. Every settings entry lists `"/Users/"`, `"/home/"`, `"AC_VIDEO_RUN"` and `"BEDROCK"` in `forbiddenText` (so a legacy run of `settings-agent-page`, which shows the fixtures' env as is, fails by design); the run adds its own seeded values (agent commands, `HOME`, `PATH`, run id, run folder) and every seeded env var name with an underscore, such as `CLAUDE_CODE_USE_BEDROCK`. Don't seed an env var whose name the settings UI prints (for example `ANTHROPIC_API_KEY`, `OLLAMA_CONTEXT_LENGTH`): its shot would fail. Text and visible input values inside the crop are checked.
+- Only the fields the settings path drives are allowed on these entries; `validateManifest` names any other.
+
+## Session mode
+
+`initialState.sessionMode: "<mode id>"` starts the entry's session in that mode: the run writes it as the saved mode pick for the entry's agent before the panel opens, and restores the pick afterwards. `editing` uses `"default"`, because a user-level Claude Code `permissions.defaultMode` such as `auto` applies the edit with no permission card.
 
 ## Pinned Obsidian version
 
@@ -53,6 +69,7 @@ The `▶ [i/n] <entry>` lines and the focus-guard lines tie any focus steal to t
 |----------|---------|---------|
 | `SCREENSHOT_DPR` | `2` (isolated); the window's DPR (legacy) | Device pixel ratio for capture and crop scaling |
 | `SCREENSHOT_LEGACY` | unset | `1` runs the old path in your own Obsidian (`setup.sh` + the `studio` window) |
+| `SCREENSHOT_SETTINGS_HOOK_LOG` | unset | A file path: the settings-window hook logs each window it creates and tames, every window that gets focus, and each time the instance becomes active. Use it to trace a focus steal. |
 
 ## File Layout
 

@@ -9,9 +9,10 @@
  *
  * By default the capture runs in an isolated Obsidian instance (separate
  * user data, fake HOME, mock keychain) driven over a direct CDP session, so it
- * never takes the user's screen or touches their own Obsidian. Entries that
- * still need the real screen (settings window, native popups, screen-capture
- * heroes) are skipped and listed. `SCREENSHOT_LEGACY=1` runs the old path:
+ * never takes the user's screen or touches their own Obsidian. Settings shots
+ * capture the settings window, which opens non-focusable. Entries that still
+ * need the real screen (native popups, screen-capture heroes) are skipped and
+ * listed. `SCREENSHOT_LEGACY=1` runs the old path:
  * the `studio` window inside the user's Obsidian via the `obsidian` CLI.
  *
  * Run from a normal terminal: the isolated launcher needs `open` and `ps`,
@@ -33,10 +34,10 @@ import path from "node:path";
 import { log, logError } from "../lib/cli-log";
 import { parseManifest, validateManifest } from "./lib/manifest";
 import { captureAll, needsScreen, selectEntries, type OrchestratorDeps } from "./lib/orchestrator";
-import { Cdp, type CdpTransport } from "./lib/cdp";
-import { chromium, type Browser } from "playwright-core";
+import { Cdp, newestTitledPage, type CdpTransport } from "./lib/cdp";
+import { chromium, type Browser, type CDPSession, type Page } from "playwright-core";
 import { setTimeout as sleep } from "node:timers/promises";
-import { materializeRun } from "../lib/fixtures-vault";
+import { configDirOf, materializeRun, seededText, templateAgentConfig } from "../lib/fixtures-vault";
 import { FOCUS_STEAL_BUDGET, loginShell, userObsidianVersion, withIsolatedRun } from "../lib/isolated-instance";
 import { appVersionProblem, pinDriftNote, readAppPin, readInstanceAppVersion, resolveAppAsar } from "../lib/obsidian-app";
 import { addDropShadow } from "./lib/shadow";
@@ -60,7 +61,7 @@ async function main() {
 	// Create temp dir for raw captures
 	const tmpDir = mkdtempSync(path.join(tmpdir(), "screenshots-"));
 
-	const capture = async (cdp: Cdp, isolated: boolean) => {
+	const capture = async (cdp: Cdp, isolated: boolean, seeded?: string[]) => {
 
 		// Window sized to fit the tabs + active note + full chat transcript AND
 		// the composer (showing its context-note pill + an example draft message).
@@ -94,6 +95,11 @@ async function main() {
 		const sharp = (await import("sharp")).default;
 		const deps: OrchestratorDeps = {
 			cdp,
+			// Settings shots show the template's agent paths, not the seeded
+			// run's absolute ones (the legacy studio vault already holds them).
+			agentTemplate: isolated ? readAgentTemplate(fixtureRoot) : undefined,
+			// The run's own seeded values; a settings shot showing one fails.
+			seededText: seeded,
 			sharp: (input: string | Buffer) => sharp(input),
 			repoRoot,
 			fixtureRoot,
@@ -181,11 +187,18 @@ main().catch((err) => {
 
 type Results = Awaited<ReturnType<typeof captureAll>>;
 
+/** The fixtures template's agent command/env, shown by settings shots. */
+function readAgentTemplate(fixtureRoot: string): Record<string, unknown> {
+	const studio = path.join(fixtureRoot, "studio");
+	const tpl = path.join(studio, configDirOf(studio), "plugins/agent-console/data.template.json");
+	return templateAgentConfig(JSON.parse(readFileSync(tpl, "utf-8")) as Record<string, unknown>);
+}
+
 /** Run-level failures reported after the per-entry results (focus budget, leftovers). */
 const runProblems: string[] = [];
 
 /** The old path: the `studio` window in the user's Obsidian, via the obsidian CLI. */
-async function runLegacy(capture: (cdp: Cdp, isolated: boolean) => Promise<Results>, repoRoot: string): Promise<Results> {
+async function runLegacy(capture: (cdp: Cdp, isolated: boolean, seeded?: string[]) => Promise<Results>, repoRoot: string): Promise<Results> {
 	await new Promise<void>((resolve, reject) => {
 		const p = spawn("bash", [path.join(repoRoot, "tools/screenshots/setup.sh")], { stdio: "inherit" });
 		p.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`setup.sh exited ${code}`))));
@@ -198,13 +211,14 @@ async function runLegacy(capture: (cdp: Cdp, isolated: boolean) => Promise<Resul
 let onSteal: (() => Promise<void>) | undefined;
 
 /** The default path: a fresh isolated Obsidian for this run. */
-async function runIsolated(capture: (cdp: Cdp, isolated: boolean) => Promise<Results>, repoRoot: string): Promise<Results | null> {
+async function runIsolated(capture: (cdp: Cdp, isolated: boolean, seeded?: string[]) => Promise<Results>, repoRoot: string): Promise<Results | null> {
 	const shell = loginShell();
 	const pin = readAppPin(repoRoot);
 	const appAsar = await resolveAppAsar(pin);
 	const drift = pinDriftNote(userObsidianVersion(), pin);
 	if (drift) log(`  note: ${drift}`);
 	let results: Results | null = null;
+	let seeded: string[] = [];
 	const run = await withIsolatedRun(
 		{
 			repoRoot,
@@ -216,8 +230,12 @@ async function runIsolated(capture: (cdp: Cdp, isolated: boolean) => Promise<Res
 				if (m.includes("restored focus")) void onSteal?.();
 			},
 			appAsar,
-			materialize: (runRoot, runId) =>
-				materializeRun({ repoRoot, runRoot, profile: "screenshot", ctx: { runId, realHome: process.env.HOME ?? "", loginPath: shell.path, resolveCommand: shell.resolve } }),
+			materialize: (runRoot, runId) => {
+				const m = materializeRun({ repoRoot, runRoot, profile: "screenshot", ctx: { runId, realHome: process.env.HOME ?? "", loginPath: shell.path, resolveCommand: shell.resolve } });
+				const read = (f: string) => JSON.parse(readFileSync(path.join(m.pluginDir, f), "utf-8")) as Record<string, unknown>;
+				seeded = seededText(read("data.json"), read("data.template.json"), [runId, runRoot]);
+				return m;
+			},
 		},
 		async (take) => {
 			const browser: Browser = await chromium.connectOverCDP(`http://127.0.0.1:${take.port}`);
@@ -277,8 +295,25 @@ async function runIsolated(capture: (cdp: Cdp, isolated: boolean) => Promise<Res
 			});
 			await sleep(800);
 			const session = await page.context().newCDPSession(page);
-			const transport: CdpTransport = { send: (method, params) => session.send(method as never, params as never) };
-			results = await capture(new Cdp({ vault: "studio", transport }), true);
+			const workspace = page;
+			// The settings window is its own page target; one CDP session per page.
+			const sessions = new WeakMap<Page, CDPSession>();
+			const transport: CdpTransport = {
+				send: (method, params) => session.send(method as never, params as never),
+				page: async (prefix) => {
+					const pages = browser.contexts().flatMap((c) => c.pages());
+					const p = await newestTitledPage(pages, workspace, prefix, (x) => x.title(), (x) => x.isClosed());
+					if (!p) return null;
+					let s = sessions.get(p);
+					if (!s) {
+						s = await p.context().newCDPSession(p);
+						sessions.set(p, s);
+					}
+					const ps = s;
+					return { send: (method, params) => ps.send(method as never, params as never) };
+				},
+			};
+			results = await capture(new Cdp({ vault: "studio", transport }), true, seeded);
 			return true;
 		},
 	);

@@ -89,6 +89,15 @@ export function resolveCleanlinessConfig(
 	};
 }
 
+/** Where the probe runs: the main page's `document` or the settings window's `activeDocument`. */
+export interface ProbeOptions {
+	root?: "document" | "activeDocument";
+	/** Also check visible input, textarea and select values (settings pages show agent paths in them). */
+	inputValues?: boolean;
+	/** Check only text and values whose element meets this CSS-px rect (the crop). */
+	clip?: { x: number; y: number; width: number; height: number };
+}
+
 /** What the renderer probe returns: which forbidden things were actually found. */
 export interface CleanlinessProbeResult {
 	/** Forbidden selectors that matched at least one VISIBLE element. */
@@ -111,22 +120,53 @@ export interface CleanlinessProbeResult {
  */
 export function buildCleanlinessProbeExpression(
 	config: CleanlinessConfig,
+	opts: ProbeOptions = {},
 ): string {
 	const sel = JSON.stringify(config.selectors);
 	const txt = JSON.stringify(config.text);
+	const root = opts.root ?? "document";
+	const clip = opts.clip
+		? JSON.stringify({ x: opts.clip.x, y: opts.clip.y, width: opts.clip.width, height: opts.clip.height })
+		: "null";
 	return `/*__cleanliness_probe__*/(() => {
 		const sels = ${sel}, txts = ${txt};
+		const root = ${root};
+		const clip = ${clip};
+		const view = root.defaultView || window;
 		const vis = (el) => {
 			const rects = el.getClientRects();
 			if (!rects || rects.length === 0) return false;
-			const cs = getComputedStyle(el);
+			const cs = view.getComputedStyle(el);
 			return cs.visibility !== "hidden" && cs.display !== "none";
 		};
 		const selectors = sels.filter((s) =>
-			Array.from(document.querySelectorAll(s)).some(vis),
+			Array.from(root.querySelectorAll(s)).some(vis),
 		);
-		const bodyText = (document.body && document.body.innerText) || "";
-		const lc = bodyText.toLowerCase();
+		const inClip = (el) => {
+			if (!clip) return true;
+			const r = el.getBoundingClientRect();
+			return r.right > clip.x && r.left < clip.x + clip.width && r.bottom > clip.y && r.top < clip.y + clip.height;
+		};
+		const texts = [];
+		if (clip) {
+			// Only text that can land in the crop: each text node, by its element.
+			const walker = root.createTreeWalker(root.body || root, 4);
+			for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+				const el = n.parentElement;
+				if (el && (n.textContent || "").trim() && vis(el) && inClip(el)) texts.push(n.textContent);
+			}
+		} else {
+			texts.push((root.body && root.body.innerText) || "");
+		}
+		// innerText never includes form values.
+		if (${opts.inputValues === true}) {
+			for (const el of root.querySelectorAll("input, textarea, select")) {
+				if (!vis(el) || !inClip(el)) continue;
+				// A <select> shows its chosen option's label, not its value.
+				texts.push(el.tagName === "SELECT" ? Array.from(el.selectedOptions || [], (o) => o.label || o.textContent || "").join(" ") : el.value || "");
+			}
+		}
+		const lc = texts.join(" ").toLowerCase();
 		const text = txts.filter((t) => lc.includes(String(t).toLowerCase()));
 		return { selectors, text };
 	})()`;

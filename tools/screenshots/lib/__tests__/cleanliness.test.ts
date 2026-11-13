@@ -91,6 +91,76 @@ describe("buildCleanlinessProbeExpression", () => {
 	});
 });
 
+// PR 2b: settings pages show agent paths in input values, which innerText
+// never includes, and the settings path probes the settings document.
+describe("buildCleanlinessProbeExpression — input values and root document", () => {
+	const run = (expr: string, doc: Document) =>
+		// eslint-disable-next-line @typescript-eslint/no-implied-eval
+		new Function("activeDocument", `return (${expr});`)(doc) as { selectors: string[]; text: string[] };
+	const shown = (el: Element) => {
+		(el as HTMLElement).getClientRects = () => [{}] as unknown as DOMRectList;
+	};
+
+	it("finds forbidden text in visible input and textarea values, ignoring hidden ones", () => {
+		document.body.innerHTML = `<input id="a"><textarea id="b"></textarea><input id="h">`;
+		(document.getElementById("a") as HTMLInputElement).value = "/Users/me/bin/claude-agent-acp";
+		(document.getElementById("b") as HTMLTextAreaElement).value = "HOME=/tmp";
+		(document.getElementById("h") as HTMLInputElement).value = "AC_VIDEO_RUN=r1";
+		shown(document.getElementById("a") as Element);
+		shown(document.getElementById("b") as Element);
+		const expr = buildCleanlinessProbeExpression({ selectors: [], text: ["/Users/", "AC_VIDEO_RUN"] }, { root: "activeDocument", inputValues: true });
+		expect(run(expr, document).text).toEqual(["/Users/"]);
+	});
+
+	it("checks the option a visible <select> shows", () => {
+		document.body.innerHTML = `<select id="s"><option>Claude Code</option><option selected>/Users/me/bin/x</option></select>`;
+		shown(document.getElementById("s") as Element);
+		const expr = buildCleanlinessProbeExpression({ selectors: [], text: ["/Users/"] }, { root: "activeDocument", inputValues: true });
+		expect(run(expr, document).text).toEqual(["/Users/"]);
+	});
+
+	it("checks a <select> inside the crop on the clip path, by its option label", () => {
+		document.body.innerHTML = `<select id="s"><option label="/Users/me/bin/x" selected>x</option></select>`;
+		const el = document.getElementById("s") as HTMLElement;
+		shown(el);
+		el.getBoundingClientRect = () => ({ x: 10, y: 10, width: 100, height: 20, top: 10, left: 10, right: 110, bottom: 30, toJSON() {} }) as DOMRect;
+		const expr = buildCleanlinessProbeExpression({ selectors: [], text: ["/Users/"] }, { root: "activeDocument", inputValues: true, clip: { x: 0, y: 0, width: 600, height: 500 } });
+		expect(run(expr, document).text).toEqual(["/Users/"]);
+	});
+
+	it("ignores input values unless asked (main-path entries are unchanged)", () => {
+		document.body.innerHTML = `<input id="a">`;
+		(document.getElementById("a") as HTMLInputElement).value = "/Users/me";
+		shown(document.getElementById("a") as Element);
+		const expr = buildCleanlinessProbeExpression({ selectors: [], text: ["/Users/"] }, { root: "activeDocument" });
+		expect(run(expr, document).text).toEqual([]);
+	});
+
+	it("with a clip, checks only text and values inside the crop", () => {
+		document.body.innerHTML = `<div id="in">Path /Users/me/a</div><div id="out">Vault /Users/me/b RUN-9</div><textarea id="t"></textarea>`;
+		const at = (id: string, r: { x: number; y: number; width: number; height: number }) => {
+			const el = document.getElementById(id) as HTMLElement;
+			shown(el);
+			el.getBoundingClientRect = () => ({ ...r, top: r.y, left: r.x, right: r.x + r.width, bottom: r.y + r.height, toJSON() {} }) as DOMRect;
+		};
+		at("in", { x: 10, y: 10, width: 100, height: 20 });
+		at("out", { x: 10, y: 900, width: 100, height: 20 });
+		at("t", { x: 10, y: 40, width: 100, height: 20 });
+		(document.getElementById("t") as HTMLTextAreaElement).value = "HOME=/home/me";
+		const expr = buildCleanlinessProbeExpression(
+			{ selectors: [], text: ["/Users/me/a", "/Users/me/b", "RUN-9", "/home/"] },
+			{ root: "activeDocument", inputValues: true, clip: { x: 0, y: 0, width: 600, height: 500 } },
+		);
+		expect(run(expr, document).text).toEqual(["/Users/me/a", "/home/"]);
+	});
+
+	it("probes the main document by default", () => {
+		const expr = buildCleanlinessProbeExpression({ selectors: [], text: ["x"] });
+		expect(expr).toContain("const root = document;");
+		expect(expr).not.toContain("activeDocument");
+	});
+});
+
 describe("evaluateCleanliness", () => {
 	it("passes a clean probe result", () => {
 		const v = evaluateCleanliness({ selectors: [], text: [] });

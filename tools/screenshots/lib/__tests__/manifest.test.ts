@@ -16,6 +16,9 @@ import path from "node:path";
 import {
 	parseManifest,
 	validateManifest,
+	isSettingsPathEntry,
+	settingsPathUnsupportedFields,
+	SETTINGS_FORBIDDEN_TEXT,
 	type ManifestEntry,
 } from "../manifest";
 
@@ -1088,5 +1091,86 @@ describe("validateManifest — initialState.whatsNew", () => {
 	it("rejects anything else, including a pinned version", () => {
 		expect(check("2.5.0")).toThrow(/whatsNew/);
 		expect(check(true)).toThrow(/whatsNew/);
+	});
+});
+
+// [[Agent Console Isolated Screenshot Capture]] PR 2b: settings-path fields.
+describe("validateManifest — settings path (PR 2b)", () => {
+	const base = { name: "s", width: 100, height: 100, crop: { x: 0, y: 0, width: 10, height: 10 } };
+	const check = (extra: Record<string, unknown>) => () =>
+		validateManifest({ entries: [{ ...base, ...extra } as unknown as ManifestEntry] }, makeFixtureRoot());
+
+	it("accepts openSettingPage as a non-empty row name and rejects anything else", () => {
+		expect(check({ initialState: { openSettings: "agent-console", openSettingPage: "OpenCode" }, cropSelector: ".x" })).not.toThrow();
+		expect(check({ initialState: { openSettings: "agent-console", openSettingPage: " " }, cropSelector: ".x" })).toThrow(/openSettingPage/);
+		expect(check({ initialState: { openSettings: "agent-console", openSettingPage: 3 }, cropSelector: ".x" })).toThrow(/openSettingPage/);
+	});
+
+	it("accepts sessionMode as a non-empty mode id", () => {
+		expect(check({ initialState: { clickRibbon: true, sessionMode: "default" } })).not.toThrow();
+		expect(check({ initialState: { clickRibbon: true, sessionMode: "" } })).toThrow(/sessionMode/);
+	});
+
+	it("accepts settingsWindowSize as positive integers", () => {
+		const s = (size: unknown) => check({ captureMode: "settings-window", cropSelector: ".x", initialState: { openSettings: "agent-console" }, settingsWindowSize: size });
+		expect(s({ width: 1000, height: 800 })).not.toThrow();
+		expect(s({ width: 0, height: 800 })).toThrow(/settingsWindowSize/);
+		expect(s({ width: 1000.5, height: 800 })).toThrow(/settingsWindowSize/);
+		expect(s([1000, 800])).toThrow(/settingsWindowSize/);
+	});
+
+	it("rejects a field the settings path can't drive, naming it", () => {
+		expect(check({ captureMode: "settings-window", cropSelector: ".x", initialState: { openSettings: "agent-console", hoverSelector: ".h" } })).toThrow(/initialState\.hoverSelector.*settings path/);
+		expect(check({ cropSelector: ".x", draftMessage: "hi", initialState: { openSettings: "agent-console" } })).toThrow(/draftMessage.*settings path/);
+	});
+
+	it("an entry that opens a native select is not on the settings path yet (PR 2c)", () => {
+		expect(isSettingsPathEntry({ ...base, captureMode: "screen", initialState: { openSettings: "agent-console", openNativeSelect: "select" } } as ManifestEntry)).toBe(false);
+		expect(isSettingsPathEntry({ ...base, initialState: { openSettings: "agent-console" } } as ManifestEntry)).toBe(true);
+		expect(isSettingsPathEntry({ ...base, captureMode: "settings-window" } as ManifestEntry)).toBe(true);
+	});
+});
+
+describe("manifest.json — settings-path entries (PR 2b)", () => {
+	const manifestPath = path.join(__dirname, "..", "..", "manifest.json");
+	const manifest = parseManifest(readFileSync(manifestPath, "utf8"));
+	const settingsEntries = manifest.entries.filter(isSettingsPathEntry);
+
+	it("moves the 8 settings shots onto the settings path", () => {
+		expect(settingsEntries.map((e) => e.name).sort()).toEqual([
+			"custom-agents-form",
+			"obsidian-system-prompt",
+			"opencode-builtin",
+			"settings-agent-page",
+			"settings-max-saved-chats",
+			"settings-root-declarative",
+			"settings-working-directory",
+			"switch-default-agent",
+		]);
+	});
+
+	it("every settings-path entry forbids the seeded paths, the run marker and the fixtures' Bedrock setup, on both drivers", () => {
+		for (const e of settingsEntries) {
+			for (const t of SETTINGS_FORBIDDEN_TEXT) expect(e.forbiddenText ?? [], e.name).toContain(t);
+		}
+		// The legacy driver shows the template's env as is, so the manifest
+		// itself must forbid it (CLAUDE_CODE_USE_BEDROCK, I344).
+		expect(SETTINGS_FORBIDDEN_TEXT).toEqual(["/Users/", "/home/", "AC_VIDEO_RUN", "BEDROCK"]);
+	});
+
+	it("every settings-path entry uses only fields the settings path supports", () => {
+		for (const e of settingsEntries) expect(settingsPathUnsupportedFields(e), e.name).toEqual([]);
+	});
+
+	it("no settings shot targets the pre-1.13 accordion (I333)", () => {
+		for (const e of settingsEntries) {
+			const text = JSON.stringify(e);
+			expect(text, e.name).not.toMatch(/agent-client-agent-section|data-agent-id|button\.mod-cta/);
+		}
+	});
+
+	it("editing starts Claude Code in its default mode, so the permission card shows (D3)", () => {
+		const editing = manifest.entries.find((e) => e.name === "editing");
+		expect(editing?.initialState?.sessionMode).toBe("default");
 	});
 });

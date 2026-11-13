@@ -101,6 +101,25 @@ export interface InitialState {
 	 */
 	openSettings?: string;
 	/**
+	 * Settings path only: the displayed name of a settings row to click once
+	 * settings are open, e.g. "OpenCode". On Obsidian 1.13+ agents, custom
+	 * agents and the Obsidian system prompt are sub-pages behind navigable
+	 * rows, and "Add custom agent" is an action row that opens the new
+	 * agent's page. The driver clicks the row inside the settings page and
+	 * waits for the sub-page's back button. English UI names, like
+	 * `scrollToSettingText`. [[I333 Four settings shots still target the pre-1.13 settings layout]].
+	 */
+	openSettingPage?: string;
+	/**
+	 * Mode id the entry's session starts in, e.g. "default". Written as the
+	 * saved mode pick (`lastUsedModes`) for the entry's agent (its `agentId`,
+	 * else the default agent) before the panel opens, so the plugin's own
+	 * restore path applies it; restored after the entry. Drives `editing`:
+	 * a user-level Claude Code mode such as "auto" applies edits without a
+	 * permission card.
+	 */
+	sessionMode?: string;
+	/**
 	 * CSS selector for a native `<select>` whose option popup to open via
 	 * `HTMLSelectElement.showPicker()` (screen-mode only). A native select
 	 * popup is an OS window invisible to dev:screenshot and undrivable by
@@ -570,6 +589,11 @@ export interface ManifestEntry {
 	 */
 	captureMode?: "window" | "screen" | "screen-window" | "settings-window";
 	/**
+	 * Settings path only: content size of the settings window, in CSS px,
+	 * before capture. Default 1200×900.
+	 */
+	settingsWindowSize?: { width: number; height: number };
+	/**
 	 * Approval-test threshold for `pixelmatch` — fraction of differing
 	 * pixels above which the test fails. Default 0.05 (loose enough for
 	 * real-agent variability per Decision 2; tighten per-entry for
@@ -763,6 +787,47 @@ export function parseManifest(json: string): Manifest {
  * - Crop region is NOT validated against (width, height) — they live in
  *   different coordinate spaces. See manifest.test.ts pin.
  */
+/**
+ * Text no settings shot may show: the seeded run's absolute agent paths, its
+ * run marker, and the fixtures' Claude Code-via-Bedrock setup (the legacy
+ * driver shows the template's env as is). Every settings-path entry lists
+ * these in `forbiddenText`.
+ */
+export const SETTINGS_FORBIDDEN_TEXT: readonly string[] = ["/Users/", "/home/", "AC_VIDEO_RUN", "BEDROCK"];
+
+/**
+ * True for an entry captured from the settings window: `captureMode:
+ * "settings-window"`, or one that opens settings (the isolated driver routes
+ * those there too). An entry that opens a native `<select>` waits for the
+ * replica (PR 2c).
+ */
+export function isSettingsPathEntry(entry: ManifestEntry): boolean {
+	if (entry.captureMode === "settings-window") return true;
+	return entry.initialState?.openSettings !== undefined && entry.initialState.openNativeSelect === undefined;
+}
+
+/** Entry fields the settings path drives or ignores safely. */
+const SETTINGS_PATH_ENTRY_KEYS = new Set([
+	"name", "pending", "width", "height", "crop", "cropSelector", "cropSelectors", "cropPadding",
+	"initialState", "captureMode", "settingsWindowSize", "approvalThreshold", "minDistinctColors",
+	"forbiddenSelectors", "forbiddenText", "mustShow",
+	"purpose", "differentiator", "placement", "caption", "altText", "followUp", "docPage", "captureNote",
+]);
+/** `initialState` fields the settings path drives (`pluginSettings`, `whatsNew` apply around every path). */
+const SETTINGS_PATH_INITIAL_STATE_KEYS = new Set([
+	"openSettings", "openNote", "openSettingPage", "clickSequence", "scrollToSettingText",
+	"scrollIntoViewSelector", "pluginSettings", "whatsNew",
+]);
+
+/** Fields of a settings-path entry the settings path doesn't drive, e.g. `initialState.hoverSelector`. */
+export function settingsPathUnsupportedFields(entry: ManifestEntry): string[] {
+	const out = Object.keys(entry).filter((k) => !SETTINGS_PATH_ENTRY_KEYS.has(k));
+	for (const k of Object.keys(entry.initialState ?? {})) {
+		if (!SETTINGS_PATH_INITIAL_STATE_KEYS.has(k)) out.push(`initialState.${k}`);
+	}
+	return out;
+}
+
 export function validateManifest(
 	manifest: Manifest,
 	fixtureRoot: string,
@@ -1029,6 +1094,8 @@ export function validateManifest(
 		const selectorStrings: Array<[string, string | undefined]> = [
 			["openSettings", entry.initialState?.openSettings],
 			["openNativeSelect", entry.initialState?.openNativeSelect],
+			["openSettingPage", entry.initialState?.openSettingPage],
+			["sessionMode", entry.initialState?.sessionMode],
 		];
 		for (const [label, value] of selectorStrings) {
 			if (
@@ -1037,6 +1104,26 @@ export function validateManifest(
 			) {
 				throw new Error(
 					`manifest entry "${entry.name}" has invalid initialState.${label}: must be a non-empty string`,
+				);
+			}
+		}
+
+		const sws: unknown = entry.settingsWindowSize;
+		if (sws !== undefined) {
+			const s = sws as { width?: unknown; height?: unknown };
+			const ok = (v: unknown) => typeof v === "number" && Number.isInteger(v) && v > 0;
+			if (typeof sws !== "object" || sws === null || Array.isArray(sws) || !ok(s.width) || !ok(s.height)) {
+				throw new Error(
+					`manifest entry "${entry.name}" has invalid settingsWindowSize: must be { width, height } in positive whole CSS px`,
+				);
+			}
+		}
+
+		if (isSettingsPathEntry(entry)) {
+			const unsupported = settingsPathUnsupportedFields(entry);
+			if (unsupported.length) {
+				throw new Error(
+					`manifest entry "${entry.name}" uses ${unsupported.join(", ")}, which the settings path doesn't drive`,
 				);
 			}
 		}
