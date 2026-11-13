@@ -4,7 +4,9 @@
  * cut-short notices, the not-ready notice and its retry, and the repeat
  * notice for a refused link.
  * Spec: [[Agent Console Fresh-Session Handoff]] T01, T02 (displayed notice
- * text), T08; [[I340 The repeat-link notice claims a tab that never opened]].
+ * text), T08; [[I340 The repeat-link notice claims a tab that never opened]];
+ * [[I342 A link that arrives before the chat view is ready opens nothing
+ * silently]].
  *
  * Red-first: written before `runUriFire` and `uriCutShortNotice` existed.
  */
@@ -73,6 +75,7 @@ function harness(opts: { strictKeys?: boolean } = {}) {
 	let duringOpen: (() => void) | undefined;
 	const notify = vi.fn<(message: string) => void>();
 	const openPromptInNewTab = vi.fn<(text: string, o: NewTabPromptOpts) => void>();
+	const logError = vi.fn<(message: string, err?: unknown) => void>();
 	const openChatView = vi.fn(async () => {
 		duringOpen?.();
 		if (mounted === "throws") throw new Error("setViewState failed");
@@ -94,7 +97,7 @@ function harness(opts: { strictKeys?: boolean } = {}) {
 		}),
 		openChatView,
 		notify,
-		logError: vi.fn(),
+		logError,
 	};
 	return {
 		fire: (params: Record<string, string>) => runUriFire(params, deps),
@@ -114,6 +117,7 @@ function harness(opts: { strictKeys?: boolean } = {}) {
 		state: () => state,
 		now: () => clock,
 		notify,
+		logError,
 		openChatView,
 		openPromptInNewTab,
 	};
@@ -176,6 +180,7 @@ describe("runUriFire (T08)", () => {
 		expect(h.openChatView).toHaveBeenCalledTimes(1);
 		expect(h.notify).toHaveBeenCalledWith(NOT_READY);
 		expect(h.openPromptInNewTab).not.toHaveBeenCalled();
+		expect(h.logError.mock.calls).toEqual([["[QuickPrompts] URI: chat view never mounted"]]);
 	});
 
 	it("retrying the same link 3 s after not-ready goes through, not as a repeat", async () => {
@@ -197,6 +202,9 @@ describe("runUriFire (T08)", () => {
 		h.setMounted("throws");
 		await expect(h.fire(link)).resolves.toBeUndefined();
 		expect(h.notify).toHaveBeenCalledWith(NOT_READY);
+		expect(h.logError).toHaveBeenCalledTimes(1);
+		expect(h.logError.mock.calls[0][0]).toBe("[QuickPrompts] URI: opening the chat view failed");
+		expect(h.logError.mock.calls[0][1]).toBeInstanceOf(Error);
 		h.setMounted(true);
 		h.advance(3_000);
 		await h.fire(link);

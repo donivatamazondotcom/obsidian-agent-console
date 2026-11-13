@@ -10,8 +10,6 @@
  * test honest (R5) and fails if the docs and the plugin drift apart.
  *
  * Red-first: written before the docs recipe and the `crc` rules existed.
- * Related: [[I342 A link that arrives before the chat view is ready opens
- * nothing silently]] is covered in quick-prompts-uri-fire.test.ts.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { spawnSync } from "child_process";
