@@ -17,6 +17,10 @@
  * confirmed under is unchanged, then the `model` config option (what the
  * picker writes), then legacy `models` (I258).
  *
+ * `deriveConfirmedModelDiffers` — whether that current confirmation names a
+ * different model than the pick (the header then shows the model next to the
+ * composer's own picker).
+ *
  * `deriveHeaderEngine` — the tooltip's Engine line: Kiro CLI V2 or V3 for a
  * kiro-cli process (`session.kiroCli`), else what the agent reported in
  * `agentInfo`, else nothing (I247). The engine is the one the tab's
@@ -82,21 +86,43 @@ export function deriveModelSelection(input: {
 	);
 }
 
-export function deriveHeaderModelName(input: {
+export interface HeaderModelInput {
 	confirmedModelId?: string | null;
 	/** Selection the confirmation was reported under (`session.confirmedUnder`). */
 	confirmedUnder?: string;
 	models?: SessionModelState | null;
 	configOptions?: SessionConfigOption[];
-}): string | null {
-	// I258: a confirmation describes the selection it arrived under. Once the
-	// user picks another model it is stale until the agent confirms again.
-	if (
-		input.confirmedModelId &&
+}
+
+/**
+ * I258: a confirmation describes the selection it arrived under. Once the user
+ * picks another model it is stale until the agent confirms again. Returns the
+ * confirmed id while it is current, else undefined.
+ */
+function currentConfirmation(input: HeaderModelInput): string | undefined {
+	return input.confirmedModelId &&
 		input.confirmedUnder === deriveModelSelection(input)
-	) {
-		return input.confirmedModelId;
-	}
+		? input.confirmedModelId
+		: undefined;
+}
+
+/** A model id's display name from the model option or the legacy list. */
+function modelNameFor(input: HeaderModelInput, id: string): string | undefined {
+	const option = findOption(input.configOptions, "model");
+	const fromOption = option
+		? flattenConfigSelectOptions(option.options).find((o) => o.value === id)
+				?.name
+		: undefined;
+	return (
+		fromOption ||
+		input.models?.availableModels.find((m) => m.modelId === id)?.name ||
+		undefined
+	);
+}
+
+export function deriveHeaderModelName(input: HeaderModelInput): string | null {
+	const confirmed = currentConfirmation(input);
+	if (confirmed) return modelNameFor(input, confirmed) ?? confirmed;
 	const option = findOption(input.configOptions, "model");
 	if (option) {
 		const current = flattenConfigSelectOptions(option.options).find(
@@ -110,6 +136,18 @@ export function deriveHeaderModelName(input: {
 		models?.availableModels.find((m) => m.modelId === models.currentModelId)
 			?.name ?? null
 	);
+}
+
+/**
+ * True when the agent reported running a different model than the pick it ran
+ * under, and that report is still current (same staleness rule as
+ * `deriveHeaderModelName`). The header then shows the model even when the
+ * composer has a model picker, because the picker shows the pick, not what ran
+ * (Header Branding decision #8). Spec: [[Session Title in the Chat Header]].
+ */
+export function deriveConfirmedModelDiffers(input: HeaderModelInput): boolean {
+	const confirmed = currentConfirmation(input);
+	return confirmed !== undefined && confirmed !== input.confirmedUnder;
 }
 
 export type HeaderEngine =
