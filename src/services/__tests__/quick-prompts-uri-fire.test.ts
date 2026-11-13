@@ -4,7 +4,7 @@
  * cut-short notices, the not-ready notice and its retry, and the repeat
  * notice for a refused link.
  * Spec: [[Agent Console Fresh-Session Handoff]] T01, T02 (displayed notice
- * text), T08.
+ * text), T08; [[I340 The repeat-link notice claims a tab that never opened]].
  *
  * Red-first: written before `runUriFire` and `uriCutShortNotice` existed.
  */
@@ -28,7 +28,7 @@ const CRC =
 	"This link's text doesn't match its check value, so part of it was lost or changed. Nothing was opened.";
 const NOT_READY =
 	"Agent Console wasn't ready, so the link opened nothing. Try the link again.";
-const REPEAT = "That link just opened. Ignored the repeat.";
+const REPEAT = "That link was just used. Ignored the repeat.";
 const TOO_FAST = "Links are opening too fast. Wait a moment and try again.";
 
 describe("uriCutShortNotice (T01, T02 displayed text)", () => {
@@ -188,6 +188,20 @@ describe("runUriFire (T08)", () => {
 		h.advance(1_000);
 		await h.fire(link);
 		expect(h.notify).toHaveBeenLastCalledWith(TOO_FAST);
+		expect(h.openPromptInNewTab).not.toHaveBeenCalled();
+	});
+});
+
+describe("I340: the repeat notice doesn't claim a tab opened", () => {
+	it.each([
+		["unknown prompt", { ...LINK, prompt: "test-nope" }],
+		["cut-short link", { ...LINK, selection: "Fix A", "B then C": "" }],
+	])("a refused %s fired again within 10 s gets the plain repeat wording", async (_n, link) => {
+		const h = harness();
+		await h.fire(link);
+		h.advance(3_000);
+		await h.fire(link);
+		expect(h.notify).toHaveBeenLastCalledWith(REPEAT);
 		expect(h.openPromptInNewTab).not.toHaveBeenCalled();
 	});
 });

@@ -837,7 +837,7 @@ export const en = {
 	"chat.quickPrompts.uriRateLimited":
 		"Links are opening too fast. Wait a moment and try again.",
 	"chat.quickPrompts.uriDuplicate":
-		"That link just opened. Ignored the repeat.",
+		"That link was just used. Ignored the repeat.",
 	"chat.quickPrompts.uriCutShortKey":
 		'This link has an unexpected part ("{key}"), so its text may be cut short by an & or # that wasn\'t encoded. Nothing was opened.',
 	"chat.quickPrompts.uriCutShortUnnamed":

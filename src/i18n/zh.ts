@@ -672,7 +672,7 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.quickPrompts.uriBadParam": "链接中的“{field}”值缺失或为空。未打开任何内容。",
 	"chat.quickPrompts.uriUnknownAgent": "没有与“{agent}”匹配的智能体。请检查链接或提示笔记。",
 	"chat.quickPrompts.uriRateLimited": "链接打开过快。请稍后再试。",
-	"chat.quickPrompts.uriDuplicate": "该链接刚刚已打开，已忽略重复。",
+	"chat.quickPrompts.uriDuplicate": "该链接刚刚已使用，已忽略重复。",
 	"chat.quickPrompts.uriCutShortKey":
 		"此链接包含意外的部分（“{key}”），其文本可能因未编码的 & 或 # 而被截断。未打开任何内容。",
 	"chat.quickPrompts.uriCutShortUnnamed":
