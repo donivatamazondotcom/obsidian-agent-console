@@ -880,7 +880,7 @@ export interface UriFireDeps {
 		openPromptInNewTab: (text: string, opts: NewTabPromptOpts) => void;
 	} | null>;
 	notify: (message: string) => void;
-	logError: (message: string) => void;
+	logError: (message: string, err?: unknown) => void;
 }
 
 /**
@@ -931,15 +931,14 @@ export async function runUriFire(
 		return;
 	}
 
-	let view: Awaited<ReturnType<UriFireDeps["openChatView"]>>;
+	let view: Awaited<ReturnType<UriFireDeps["openChatView"]>> = null;
 	try {
 		view = await deps.openChatView();
+		if (!view) deps.logError("[QuickPrompts] URI: chat view never mounted");
 	} catch (err) {
-		deps.logError(`[QuickPrompts] URI: opening the chat view failed: ${String(err)}`);
-		view = null;
+		deps.logError("[QuickPrompts] URI: opening the chat view failed", err);
 	}
 	if (!view) {
-		deps.logError("[QuickPrompts] URI: chat view never mounted");
 		deps.notify(uriNotReadyNotice());
 		const current = deps.rateLimit.get();
 		if (current.lastKey === key) {

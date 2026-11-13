@@ -566,7 +566,7 @@ export default class AgentClientPlugin extends Plugin {
 			notify: (message) => {
 				new Notice(t("notices.prefixed", { message }));
 			},
-			logError: (message) => getLogger().error(message),
+			logError: (message, err) => getLogger().error(message, err),
 		});
 	}
 

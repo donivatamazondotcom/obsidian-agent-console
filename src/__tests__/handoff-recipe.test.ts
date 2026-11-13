@@ -10,6 +10,8 @@
  * test honest (R5) and fails if the docs and the plugin drift apart.
  *
  * Red-first: written before the docs recipe and the `crc` rules existed.
+ * Related: [[I342 A link that arrives before the chat view is ready opens
+ * nothing silently]] is covered in quick-prompts-uri-fire.test.ts.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { spawnSync } from "child_process";
@@ -51,18 +53,24 @@ function readRecipe(): string {
  */
 function readContinuePrompt() {
 	const md = readFileSync(DOCS, "utf8");
+	// The note's name comes from the docs' own setup step, so a rename there
+	// changes the id this test checks.
+	const name = md.match(/make a prompt note named \*\*([^*]+)\*\*/)?.[1];
+	if (!name) throw new Error("Continue handoff note name not found in the docs");
 	const m = md.match(/```text\n---\n((?:[^\n]*\n)*?)---\n([\s\S]*?\{\{selection\}\})\n```/);
 	if (!m) throw new Error("Continue handoff block not found in docs/usage/quick-prompts.md");
 	const frontmatter: Record<string, unknown> = {};
 	for (const line of m[1].split("\n").filter(Boolean)) {
-		const i = line.indexOf(":");
-		const value = line.slice(i + 1).trim();
-		frontmatter[line.slice(0, i).trim()] =
-			value === "true" ? true : value === "false" ? false : value;
+		// Plain top-level `key: value` only; anything else fails loud.
+		const kv = /^([a-z][a-z ]*[a-z]): (\S.*)$/.exec(line);
+		if (!kv) throw new Error(`unexpected frontmatter line: ${JSON.stringify(line)}`);
+		const [, key, value] = kv;
+		if (key in frontmatter) throw new Error(`duplicate frontmatter key: ${key}`);
+		frontmatter[key] = value === "true" ? true : value === "false" ? false : value;
 	}
 	return buildQuickPrompt({
-		path: "Quick Prompts/Continue handoff.md",
-		basename: "Continue handoff",
+		path: `Quick Prompts/${name}.md`,
+		basename: name,
 		frontmatter,
 		body: m[2],
 	});
@@ -148,7 +156,9 @@ describe.skipIf(process.platform === "win32")("handoff recipe (T07, T17)", () =>
 		};
 		delete env.BASH_ENV;
 		delete env.ENV;
-		const args = shell.endsWith("zsh") ? ["-f", "-c", script] : ["-c", script];
+		const args = shell.endsWith("zsh")
+			? ["-f", "-c", script]
+			: ["--norc", "--noprofile", "-c", script];
 		return spawnSync(shell, args, { encoding: "utf8", env });
 	};
 
@@ -221,6 +231,7 @@ describe.skipIf(process.platform === "win32")("handoff recipe (T07, T17)", () =>
 			"bash",
 			fill(readRecipe(), { vault: "Sam\\x27s Vault", handoff, link: true }),
 		);
+		expect(r.status).toBe(0);
 		// Someone appends agent and mode; the crc covers only the selection.
 		const params = linkParams(`${r.stdout.trim()}&agent=test-other&mode=plan`);
 		const parsed = parseQuickPromptUri(params, [prompt], { strictKeys: true });
