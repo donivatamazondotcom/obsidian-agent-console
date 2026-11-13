@@ -147,7 +147,7 @@ The quickest way to get a prompt's link is to right-click its chip and pick **Co
 - **You see who you're talking to.** When a link picks the agent or mode, the new tab shows "Opened by link · Agent: … · Mode: …" until you send or close the banner.
 - **Your open note stays out of it.** A link-opened tab doesn't offer the note you happen to have open as context – it has nothing to do with the email you clicked from.
 - **Links can't flood you.** Only one link opens every 2 seconds, and the same link clicked again within 10 seconds is ignored.
-- **Mistakes do nothing.** An unknown prompt id, an unknown agent, or an empty value shows a notice and opens nothing. So does a damaged link: one whose text has an `&` or `#` that wasn't encoded, which cuts the text short, or whose `crc` doesn't match its text. If Agent Console wasn't ready when a link arrived, a notice says so; try the link again.
+- **Mistakes do nothing.** An unknown prompt id, an unknown agent, or an empty value shows a notice and opens nothing. So does a damaged link: one whose `crc` doesn't match its text, or, on macOS, one whose text was cut short by an `&` or `#` that wasn't encoded. Without a `crc`, an unencoded `&` that happens to form a known part, such as `&mode=`, still gets through, so add a `crc` to links that carry long text. If Agent Console wasn't ready when a link arrived, a notice says so; try the link again.
 
 ::: tip Links you built by hand
 A link that carries `selection`, `url` or `title` and also a part Agent Console doesn't know now opens nothing, because an extra part is what an unencoded `&` leaves behind. If you built a Shortcuts or Alfred link with extra parts, remove them. `x-success`, `x-error`, `x-cancel` and `x-source` are still allowed. For now this check runs on macOS only.
@@ -249,7 +249,8 @@ Type `!` in the composer and pick your Resume prompt. The agent writes the hando
 
 - **"Sent" doesn't prove a tab opened.** It only means your computer accepted the link. If no tab opened, ask the agent for the link. It runs the same command with `--link` and gives you a **Continue in a new chat** link to click.
 - **When the agent can't run commands**, for example in plan or read-only mode, without `python3`, or when you decline the command, it gives you the handoff in a block to copy instead.
-- **Check a link before you click it.** A real handoff link starts with `obsidian://agent-console?` (hover to see it) and only ever opens a staged tab.
+- **Only trust a handoff you asked for.** Any web page or email can hold a link to Continue handoff, and the tab it opens looks the same as a real one. If a Continue handoff tab opens when you didn't ask an agent for a handoff, close it without sending.
+- **Check a link before you click it.** A real handoff link in a reply starts with `obsidian://agent-console?` (hover to see it). A link that starts any other way may belong to another plugin that acts without waiting for you.
 - **The handoff checks itself.** The link carries a `crc` check value, so a handoff that arrives cut short or changed opens nothing and shows a notice.
 
 ### Good to know

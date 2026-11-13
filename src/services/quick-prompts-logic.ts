@@ -891,8 +891,8 @@ export interface UriFireDeps {
  *
  * Every refused fire, a damaged link included, still counts against the
  * rate limit, so a redirect loop can't keep itself alive. The one exception
- * is a chat view that never mounted: that fire's repeat key is cleared, so
- * the same link works again once the 2 s limit passes.
+ * is a chat view that never mounted, or failed to open: that fire's repeat
+ * key is cleared, so the same link works again once the 2 s limit passes.
  */
 export async function runUriFire(
 	params: Record<string, string | undefined>,
@@ -931,7 +931,13 @@ export async function runUriFire(
 		return;
 	}
 
-	const view = await deps.openChatView();
+	let view: Awaited<ReturnType<UriFireDeps["openChatView"]>>;
+	try {
+		view = await deps.openChatView();
+	} catch (err) {
+		deps.logError(`[QuickPrompts] URI: opening the chat view failed: ${String(err)}`);
+		view = null;
+	}
 	if (!view) {
 		deps.logError("[QuickPrompts] URI: chat view never mounted");
 		deps.notify(uriNotReadyNotice());

@@ -69,10 +69,15 @@ const PROMPT = buildQuickPrompt({
 function harness(opts: { strictKeys?: boolean } = {}) {
 	let state: UriRateLimitState = {};
 	let clock = 1_000_000;
-	let mounted = true;
+	let mounted: boolean | "throws" = true;
+	let duringOpen: (() => void) | undefined;
 	const notify = vi.fn<(message: string) => void>();
 	const openPromptInNewTab = vi.fn<(text: string, o: NewTabPromptOpts) => void>();
-	const openChatView = vi.fn(async () => (mounted ? { openPromptInNewTab } : null));
+	const openChatView = vi.fn(async () => {
+		duringOpen?.();
+		if (mounted === "throws") throw new Error("setViewState failed");
+		return mounted ? { openPromptInNewTab } : null;
+	});
 	const deps: UriFireDeps = {
 		rateLimit: {
 			get: () => state,
@@ -96,8 +101,15 @@ function harness(opts: { strictKeys?: boolean } = {}) {
 		advance: (ms: number) => {
 			clock += ms;
 		},
-		setMounted: (m: boolean) => {
+		setMounted: (m: boolean | "throws") => {
 			mounted = m;
+		},
+		/** Run something while the fire waits for the chat view. */
+		whileOpening: (fn: () => void) => {
+			duringOpen = fn;
+		},
+		setState: (s: UriRateLimitState) => {
+			state = s;
 		},
 		state: () => state,
 		now: () => clock,
@@ -177,6 +189,27 @@ describe("runUriFire (T08)", () => {
 		await h.fire(link);
 		expect(h.notify).not.toHaveBeenCalledWith(REPEAT);
 		expect(h.openPromptInNewTab).toHaveBeenCalledTimes(1);
+	});
+
+	it("a chat view that fails to open counts as not ready, and a retry works", async () => {
+		const h = harness();
+		const link = { ...LINK, crc: TEXT_CRC, selection: TEXT };
+		h.setMounted("throws");
+		await expect(h.fire(link)).resolves.toBeUndefined();
+		expect(h.notify).toHaveBeenCalledWith(NOT_READY);
+		h.setMounted(true);
+		h.advance(3_000);
+		await h.fire(link);
+		expect(h.openPromptInNewTab).toHaveBeenCalledTimes(1);
+	});
+
+	it("not-ready leaves a newer fire's repeat key alone", async () => {
+		const h = harness();
+		h.setMounted(false);
+		h.whileOpening(() => h.setState({ lastAt: h.now() + 2_500, lastKey: "newer" }));
+		await h.fire({ ...LINK, crc: TEXT_CRC, selection: TEXT });
+		expect(h.notify).toHaveBeenCalledWith(NOT_READY);
+		expect(h.state()).toEqual({ lastAt: h.now() + 2_500, lastKey: "newer" });
 	});
 
 	it("a retry within 2 s of not-ready is still rate limited", async () => {

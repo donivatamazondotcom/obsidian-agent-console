@@ -26,6 +26,7 @@ import { join } from "path";
 import { parseQuickPromptUri } from "../utils/quick-prompt-uri";
 import { crc32Hex } from "../utils/crc32";
 import { extractLinks } from "../utils/link-extract";
+import { buildQuickPrompt, planUriFire } from "../services/quick-prompts-logic";
 
 const DOCS = join(__dirname, "../../docs/usage/quick-prompts.md");
 const SUFFIX = "Zq7Xw2Lp";
@@ -41,6 +42,30 @@ function readRecipe(): string {
 		);
 	}
 	return found[0];
+}
+
+/**
+ * The docs' Continue handoff note, built the way the plugin builds a prompt
+ * note. The block's frontmatter is plain `key: value` lines, so a tiny
+ * parser stands in for Obsidian's YAML (booleans as booleans).
+ */
+function readContinuePrompt() {
+	const md = readFileSync(DOCS, "utf8");
+	const m = md.match(/```text\n---\n((?:[^\n]*\n)*?)---\n([\s\S]*?\{\{selection\}\})\n```/);
+	if (!m) throw new Error("Continue handoff block not found in docs/usage/quick-prompts.md");
+	const frontmatter: Record<string, unknown> = {};
+	for (const line of m[1].split("\n").filter(Boolean)) {
+		const i = line.indexOf(":");
+		const value = line.slice(i + 1).trim();
+		frontmatter[line.slice(0, i).trim()] =
+			value === "true" ? true : value === "false" ? false : value;
+	}
+	return buildQuickPrompt({
+		path: "Quick Prompts/Continue handoff.md",
+		basename: "Continue handoff",
+		frontmatter,
+		body: m[2],
+	});
 }
 
 /** Fill the recipe the way the docs tell the user and the agent to. */
@@ -114,11 +139,18 @@ describe.skipIf(process.platform === "win32")("handoff recipe (T07, T17)", () =>
 		if (dir) rmSync(dir, { recursive: true, force: true });
 	});
 
-	const run = (shell: string, script: string) =>
-		spawnSync(shell, ["-c", script], {
-			encoding: "utf8",
-			env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ""}`, LC_ALL: "C" },
-		});
+	/** Run with no startup files, so a developer's shell config can't interfere. */
+	const run = (shell: string, script: string) => {
+		const env: NodeJS.ProcessEnv = {
+			...process.env,
+			PATH: `${bin}:${process.env.PATH ?? ""}`,
+			LC_ALL: "C",
+		};
+		delete env.BASH_ENV;
+		delete env.ENV;
+		const args = shell.endsWith("zsh") ? ["-f", "-c", script] : ["-c", script];
+		return spawnSync(shell, args, { encoding: "utf8", env });
+	};
 
 	for (const shell of SHELLS) {
 		it(`${shell}: --link prints a link the plugin parses back to the exact text`, () => {
@@ -179,6 +211,40 @@ describe.skipIf(process.platform === "win32")("handoff recipe (T07, T17)", () =>
 			for (const m of markers) expect(existsSync(m)).toBe(false);
 		});
 	}
+
+	it("stages the handoff under the docs' Continue handoff prompt, ignoring a link's agent and mode", () => {
+		const prompt = readContinuePrompt();
+		expect(prompt.id).toBe("continue-handoff");
+		expect(prompt.uriOverride).toBe(false);
+
+		const r = run(
+			"bash",
+			fill(readRecipe(), { vault: "Sam\\x27s Vault", handoff, link: true }),
+		);
+		// Someone appends agent and mode; the crc covers only the selection.
+		const params = linkParams(`${r.stdout.trim()}&agent=test-other&mode=plan`);
+		const parsed = parseQuickPromptUri(params, [prompt], { strictKeys: true });
+		if (parsed.kind !== "ok") throw new Error(`expected ok, got ${parsed.kind}`);
+		const plan = planUriFire(prompt, parsed.context, {
+			agents: [
+				{ id: "test-claude", name: "Test Claude" },
+				{ id: "test-other", name: "Test Other" },
+			],
+			defaultAgentId: "test-claude",
+		});
+		if (plan.kind !== "new-tab") throw new Error("expected new-tab");
+		expect(plan).toMatchObject({ send: false, agentId: "test-claude", linkOrigin: false });
+		expect(plan.modeId).toBeUndefined();
+
+		const lines = plan.text.split("\n");
+		const heading = lines.findIndex((l) => l.startsWith("External text · "));
+		expect(lines.slice(0, heading).join("\n")).toBe(
+			"Continue the work in the handoff below, written at the end of an earlier chat. Start by reading the notes and files it points to.\n",
+		);
+		const quoted = lines.slice(heading + 1);
+		expect(quoted).toEqual(handoff.split("\n").map((l) => (l === "" ? ">" : `> ${l}`)));
+		expect(quoted[quoted.length - 1]).not.toBe(">");
+	});
 
 	it("a reply's markdown link keeps the whole target (T07)", () => {
 		const r = run(

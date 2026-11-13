@@ -102,9 +102,10 @@ function cutShortReason(
 	if (!hasFreeText && crc === undefined) return null;
 
 	if (strictKeys) {
+		// `hash` first, so its more specific notice doesn't depend on key order.
+		if (params.hash !== undefined) return { reason: "hash" };
 		for (const [key, value] of Object.entries(params)) {
 			if (value === undefined) continue;
-			if (key === "hash") return { reason: "hash" };
 			if (!ALLOWED_KEYS.has(key)) return { reason: "stray-key", key };
 		}
 	}

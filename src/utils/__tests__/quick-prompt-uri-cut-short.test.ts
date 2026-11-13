@@ -30,6 +30,17 @@ describe("T01: an unencoded # cuts the text", () => {
 			),
 		).toEqual({ kind: "cut-short", reason: "hash" });
 	});
+
+	it("the # reason wins over a stray key whatever their order", () => {
+		const strayFirst = { prompt: "continue-handoff", selection: "Fix A", "B then ": "", hash: "42" };
+		const hashFirst = { hash: "42", prompt: "continue-handoff", selection: "Fix A", "B then ": "" };
+		for (const params of [strayFirst, hashFirst]) {
+			expect(parseQuickPromptUri(params, PROMPTS, STRICT)).toEqual({
+				kind: "cut-short",
+				reason: "hash",
+			});
+		}
+	});
 });
 
 describe("T02: a stray key cuts the text", () => {
