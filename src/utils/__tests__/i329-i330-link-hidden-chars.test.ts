@@ -11,7 +11,7 @@
  * Red-first: written before the filter was rewritten.
  */
 import { describe, it, expect, vi } from "vitest";
-import { sanitizeExternalText } from "../quick-prompt-uri";
+import { sanitizeExternalText, toOneLine } from "../quick-prompt-uri";
 import {
 	buildQuickPrompt,
 	executeUriPrompt,
@@ -168,6 +168,30 @@ describe("I330: combined emoji survive the filter", () => {
 			text: "\u0930\u094D\u200D\u092F",
 			removed: 1,
 		});
+	});
+
+	it.each([
+		["Bengali RAB", "\u09B0\u200D\u09CD\u09AF\u09BE\u09AC"],
+		["old Devanagari eyelash ra", "\u0930\u200D\u094D\u092F"],
+		["Kannada", "\u0CB0\u200D\u0CCD\u0C95"],
+	])("keeps one joiner between a letter and a virama: %s, count 0", (_name, word) => {
+		expect(sanitizeExternalText(`(${word})`)).toEqual({
+			text: `(${word})`,
+			removed: 0,
+		});
+	});
+
+	it("removes a doubled joiner before a virama", () => {
+		expect(sanitizeExternalText("\u09B0\u200D\u200D\u09CD\u09AF")).toEqual({
+			text: "\u09B0\u09CD\u09AF",
+			removed: 2,
+		});
+	});
+});
+
+describe("toOneLine", () => {
+	it("collapses every line break, NEL included, and trims", () => {
+		expect(toOneLine(" a\u0085b\nc\u2028d\t e ")).toBe("a b c d e");
 	});
 });
 
