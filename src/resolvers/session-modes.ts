@@ -20,6 +20,7 @@ import {
 	type SessionConfigOption,
 	type SessionModeState,
 } from "../types/session";
+import { matchesOptionKind } from "./composer-pickers";
 
 export interface NamedItem {
 	id: string;
@@ -38,8 +39,8 @@ export interface SessionModesInput {
 
 /** Null when the session advertises no modes (or none yet — connecting). */
 export function readSessionModes(input: SessionModesInput): SessionModes | null {
-	const option = input.configOptions?.find(
-		(o) => o.id === "mode" || o.category === "mode",
+	const option = input.configOptions?.find((o) =>
+		matchesOptionKind(o, "mode"),
 	);
 	if (option) {
 		const offered = flattenConfigSelectOptions(option.options).map((o) => ({

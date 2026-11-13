@@ -55,6 +55,7 @@ import { MOD_KEY, SHIFT_KEY, ENTER_KEY, modCombo } from "../utils/platform";
 import type { ErrorInfo } from "../types/errors";
 import type { AgentUpdateNotification } from "../services/update-checker";
 import { useSettings } from "../hooks/useSettings";
+import type { ComposerPickers } from "../resolvers/composer-pickers";
 import { classifyImagePaste } from "../utils/image-paste";
 import { t } from "../i18n";
 import {
@@ -288,6 +289,12 @@ export interface InputAreaProps {
 	configOptions?: SessionConfigOption[];
 	/** Callback when a config option is changed */
 	onConfigOptionChange?: (configId: string, value: string) => void;
+	/**
+	 * Which pickers the composer shows, from `deriveComposerPickers`. ChatPanel
+	 * passes the same value to the chat header so the two agree. Optional: the
+	 * toolbar derives it from its own props when absent (zero-tab landing).
+	 */
+	composerPickers?: ComposerPickers;
 	/** Context window usage (shown as percentage indicator) */
 	usage?: SessionUsage;
 	/** Whether the agent supports image attachments */
@@ -404,6 +411,7 @@ export function InputArea({
 	onModelChange,
 	configOptions,
 	onConfigOptionChange,
+	composerPickers,
 	usage,
 	supportsImages = false,
 	imageCapabilityKnown = false,
@@ -1976,6 +1984,7 @@ export function InputArea({
 					onModelChange={onModelChange}
 					configOptions={configOptions}
 					onConfigOptionChange={onConfigOptionChange}
+					composerPickers={composerPickers}
 					usage={usage}
 					lazyState={lazyState}
 				/>

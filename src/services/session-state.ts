@@ -14,6 +14,7 @@ import type {
 import { flattenConfigSelectOptions } from "../types/session";
 import type { AcpClient } from "../acp/acp-client";
 import type { AgentClientPluginSettings } from "../plugin";
+import { matchesOptionKind } from "../resolvers/composer-pickers";
 
 // ============================================================================
 // Legacy Config Helpers
@@ -258,7 +259,7 @@ export function findUnofferedModel(
 	configOptions: SessionConfigOption[] | undefined,
 ): UnofferedModel | null {
 	const option = configOptions?.find(
-		(o) => o.id === "model" || o.category === "model",
+		(o) => matchesOptionKind(o, "model"),
 	);
 	if (!option) return null;
 	const offered = flattenConfigSelectOptions(option.options);
