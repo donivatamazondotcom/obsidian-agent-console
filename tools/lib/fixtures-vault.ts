@@ -195,6 +195,56 @@ export function seedScreenshotData(
 	return d;
 }
 
+/**
+ * What settings shots show instead of the seeded values: each built-in
+ * agent's template `command` with an empty environment (the plugin default),
+ * plus the template's custom agents, also with an empty environment. The template's env (Claude Code via
+ * Bedrock, for the fixtures agent to run) is setup, not docs. Pure.
+ */
+export function templateAgentConfig(template: Record<string, unknown>): Record<string, unknown> {
+	const out: Record<string, unknown> = {};
+	for (const k of BUILTIN_AGENT_KEYS) {
+		const a = template[k] as AgentConfigLike | undefined;
+		if (a && typeof a === "object") out[k] = { command: a.command ?? "", env: [] };
+	}
+	out.customAgents = Array.isArray(template.customAgents)
+		? (template.customAgents as AgentConfigLike[]).map((a) => ({ ...structuredClone(a), env: [] }))
+		: [];
+	return out;
+}
+
+/**
+ * The seeded run's own agent values that its template doesn't have (resolved
+ * commands, HOME, PATH, the run marker), every env var name with an
+ * underscore (settings shots show an empty environment; "HOME" and "PATH"
+ * are skipped because they match the "Path" row label case-insensitively),
+ * plus `extras` such as the run id and run folder. A settings shot must show
+ * none of them. Pure.
+ */
+export function seededText(
+	data: Record<string, unknown>,
+	template: Record<string, unknown>,
+	extras: readonly string[] = [],
+): string[] {
+	const out = new Set<string>();
+	const add = (a: AgentConfigLike | undefined, t: AgentConfigLike | undefined) => {
+		if (!a || typeof a !== "object") return;
+		if (typeof a.command === "string" && a.command && a.command !== t?.command) out.add(a.command);
+		const tEnv = new Map((t?.env ?? []).map((e) => [e.key, e.value]));
+		for (const e of a.env ?? []) {
+			if (e.value && tEnv.get(e.key) !== e.value) out.add(e.value);
+			if (e.key.includes("_")) out.add(e.key);
+		}
+	};
+	for (const k of BUILTIN_AGENT_KEYS) add(data[k] as AgentConfigLike | undefined, template[k] as AgentConfigLike | undefined);
+	const tCustom = Array.isArray(template.customAgents) ? (template.customAgents as AgentConfigLike[]) : [];
+	if (Array.isArray(data.customAgents)) {
+		for (const a of data.customAgents as AgentConfigLike[]) add(a, tCustom.find((c) => c.id === a.id));
+	}
+	for (const x of extras) if (x) out.add(x);
+	return [...out];
+}
+
 /** Video seeding: screenshot seeding plus the demo-video overrides. Pure. */
 export function seedVideoData(
 	template: Record<string, unknown>,

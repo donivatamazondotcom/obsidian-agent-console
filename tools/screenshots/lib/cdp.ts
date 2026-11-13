@@ -27,6 +27,13 @@
 import { spawn, execSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { existsSync, writeFileSync } from "node:fs";
+import path from "node:path";
+
+/** How long an open waits for a new settings window before reusing an open one. */
+const REUSE_WAIT_MS = 400;
+
+/** Main-process helper that tames the settings window as it is created. */
+export const SETTINGS_WINDOW_HOOK = path.join(__dirname, "settings-window-hook.cjs");
 
 export interface CdpOptions {
 	/**
@@ -59,6 +66,18 @@ export interface CdpOptions {
 /** A direct CDP session on the workspace page of an isolated instance. */
 export interface CdpTransport {
 	send(method: string, params: Record<string, unknown>): Promise<unknown>;
+	/**
+	 * A session on another page of the same instance whose title starts with
+	 * `titlePrefix` (the settings window), or null when there is none yet.
+	 */
+	page?(titlePrefix: string): Promise<CdpTransport | null>;
+}
+
+/** Content size (CSS px) and device pixel ratio the settings window is captured at. */
+export interface SettingsWindowOptions {
+	width: number;
+	height: number;
+	dpr: number;
 }
 
 /** Thrown for a capture path the isolated driver can't run without taking the screen. */
@@ -493,8 +512,8 @@ export class Cdp {
 	 * CDP response when window focus shifts, so the result is ignored and
 	 * readiness is gated by the caller's subsequent `activeDocument` waits.
 	 */
-	async openSettingsHidden(tabId: string): Promise<void> {
-		this.requireScreen("the settings window");
+	async openSettingsHidden(tabId: string, opts?: SettingsWindowOptions): Promise<void> {
+		if (this.transport) return this.openSettingsIsolated(tabId, opts ?? { width: 1200, height: 900, dpr: 2 });
 		const expression = `(async () => {
 			try {
 				const remote = require("@electron/remote");
@@ -553,7 +572,11 @@ export class Cdp {
 	 * is unchanged.
 	 */
 	async captureSettingsWindow(outputPath: string): Promise<void> {
-		this.requireScreen("the settings window");
+		if (this.transport) {
+			const r = (await this.sendToSettings("Page.captureScreenshot", { format: "png" })) as { data: string };
+			writeFileSync(outputPath, Buffer.from(r.data, "base64"));
+			return;
+		}
 		const prefix = settingsWindowTitlePrefix(this.vault);
 		const expression = `(async () => {
 			try {
@@ -593,6 +616,131 @@ export class Cdp {
 					`captureSettingsWindow: file ${outputPath} never appeared within ${this.screenshotTimeout}ms (timeout)`,
 				);
 			}
+			await sleep(this.pollInterval);
+		}
+	}
+
+	/**
+	 * Isolated settings open. Obsidian creates the settings window on
+	 * `app.setting.open()` and focuses it, so a `browser-window-created` hook
+	 * registered just before the open makes it non-focusable at creation
+	 * (probe S2b: 0 of 6 opens stole focus); an already-open settings window
+	 * gets the same as a backstop. Then the window is concealed (opacity 0,
+	 * as on the legacy path), sized, and moved onto a display at the target
+	 * scale factor. If its page still renders at another DPR, the page is
+	 * forced to it with device-metrics emulation.
+	 * Spec: [[Agent Console Isolated Screenshot Capture]] § Window, DPR and focus.
+	 */
+	private async openSettingsIsolated(tabId: string, o: SettingsWindowOptions): Promise<void> {
+		const prefix = settingsWindowTitlePrefix(this.vault);
+		const expression = `(async () => {
+			try {
+				const remote = require("@electron/remote");
+				const prefix = ${JSON.stringify(prefix)};
+				const isSettings = (w) => { try { return !w.isDestroyed() && w.getTitle().startsWith(prefix); } catch (e) { return false; } };
+				// The hook runs in the main process, inside the creation event,
+				// so it can't lose the race with Obsidian showing the window.
+				// It makes the window non-focusable and click-through, and turns
+				// show() into showInactive().
+				const hook = remote.require(${JSON.stringify(SETTINGS_WINDOW_HOOK)});
+				hook.setLog(${JSON.stringify(process.env.SCREENSHOT_SETTINGS_HOOK_LOG ?? "")});
+				if (${JSON.stringify(Boolean(process.env.SCREENSHOT_SETTINGS_HOOK_LOG))}) hook.watchFocus();
+				const all = () => remote.BrowserWindow.getAllWindows().filter(isSettings).sort((a, b) => b.id - a.id);
+				// A settings window listed before the open may be closing, and
+				// Obsidian can create its replacement after open() returns.
+				const before = new Set(all().map((w) => w.id));
+				for (const w of all()) hook.tame(w);
+				// Armed on every open and disarmed below on every exit path, so
+				// it can't catch a later window.
+				hook.armOnce();
+				let sw;
+				try {
+					app.setting.open();
+					app.setting.openTabById(${JSON.stringify(tabId)});
+					const start = Date.now();
+					while (!sw && Date.now() - start < ${this.waitTimeout}) {
+						const ws = all();
+						// A new window wins. An old one is reused only after a
+						// bounded wait sees no new one.
+						sw = ws.find((w) => !before.has(w.id)) || (Date.now() - start >= ${Math.min(REUSE_WAIT_MS, Math.floor(this.waitTimeout / 2))} ? ws[0] : undefined);
+						if (!sw) await new Promise((r) => setTimeout(r, 20));
+					}
+				} finally {
+					hook.disarm();
+				}
+				if (!sw) return "no settings window titled " + prefix;
+				hook.tame(sw);
+				const conceal = () => { try { sw.setOpacity(0); } catch (e) {} };
+				sw.on("show", conceal);
+				conceal();
+				sw.setContentSize(${o.width}, ${o.height});
+				const here = remote.screen.getDisplayMatching(sw.getBounds());
+				if (!here || here.scaleFactor !== ${o.dpr}) {
+					const d = remote.screen.getAllDisplays().find((x) => x.scaleFactor === ${o.dpr});
+					if (d) sw.setPosition(d.workArea.x + 20, d.workArea.y + 20);
+				}
+				return "ok";
+			} catch (e) { return "err:" + String(e); }
+		})()`;
+		const r = await this.evaluate<string>(expression, { awaitPromise: true });
+		if (r !== "ok") throw new Error(`openSettingsHidden: ${r}`);
+		// Render at exactly the requested size and DPR, whatever the screen
+		// allowed the window to be; the orchestrator checks both.
+		await this.sendToSettings("Emulation.setDeviceMetricsOverride", { width: o.width, height: o.height, deviceScaleFactor: o.dpr, mobile: false });
+	}
+
+	/**
+	 * Send to the settings page. Only when the target has closed (a settings
+	 * window being replaced) is it sent once more, on a fresh lookup; any other
+	 * failure isn't retried, because the command may have run (a click).
+	 */
+	private async sendToSettings(method: string, params: Record<string, unknown>): Promise<unknown> {
+		const fail = (e: unknown) => new Error(`CDP ${method} (settings window): ${e instanceof Error ? e.message : String(e)}`);
+		try {
+			return await (await this.settingsPage()).send(method, params);
+		} catch (first) {
+			if (!isTargetClosed(first)) throw fail(first);
+			try {
+				return await (await this.settingsPage()).send(method, params);
+			} catch (second) {
+				throw fail(second);
+			}
+		}
+	}
+
+	/**
+	 * Move the settings page's pointer off every element, so no row is
+	 * captured in its hover state (the invisible window can sit under the
+	 * user's pointer). Pair with `pointer-events: none` in the page, which
+	 * makes every point miss. The legacy driver can't send input to the
+	 * settings window, so this is a no-op there.
+	 */
+	async settingsPointerAway(): Promise<void> {
+		if (!this.transport) return;
+		await this.sendToSettings("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
+	}
+
+	/**
+	 * Run an expression where the settings window's DOM lives. Isolated: on
+	 * the settings page itself, where `app` is undefined and `activeDocument`
+	 * is `document`. Legacy: on the main page, where `activeDocument` follows
+	 * the settings window. Write expressions against `activeDocument` /
+	 * `activeWindow` so they run on both.
+	 */
+	async evaluateInSettings<T = unknown>(expression: string, opts?: { awaitPromise?: boolean }): Promise<T> {
+		if (!this.transport) return this.evaluate<T>(expression, opts);
+		const r = await this.sendToSettings("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: opts?.awaitPromise ?? false });
+		return parseEvaluateResponse<T>(JSON.stringify(r));
+	}
+
+	/** The settings window's page session; waits for the target to appear. */
+	private async settingsPage(): Promise<CdpTransport> {
+		const prefix = settingsWindowTitlePrefix(this.vault);
+		const deadline = Date.now() + this.waitTimeout;
+		for (;;) {
+			const page = (await this.transport?.page?.(prefix)) ?? null;
+			if (page) return page;
+			if (Date.now() >= deadline) throw new Error(`no settings page titled "${prefix}…" (is the settings window open?)`);
 			await sleep(this.pollInterval);
 		}
 	}
@@ -809,6 +957,32 @@ export class Cdp {
 			proc.on("error", (err) => reject(err));
 		});
 	}
+}
+
+/** True for a CDP error saying the page or session has gone (Playwright, Chromium). */
+export function isTargetClosed(e: unknown): boolean {
+	return /target (page, context or browser )?(has been )?closed|session closed|no target with given id|target closed/i.test(e instanceof Error ? e.message : String(e));
+}
+
+/**
+ * The newest page (last in `pages`) whose title starts with `prefix`,
+ * skipping `exclude`, closed pages and pages whose title can't be read. A
+ * settings window that is closing can still be listed next to the new one.
+ */
+export async function newestTitledPage<P>(
+	pages: readonly P[],
+	exclude: unknown,
+	prefix: string,
+	title: (p: P) => Promise<string>,
+	isClosed: (p: P) => boolean,
+): Promise<P | null> {
+	for (let i = pages.length - 1; i >= 0; i--) {
+		const p = pages[i];
+		if (p === exclude || isClosed(p)) continue;
+		const t = await title(p).catch(() => "");
+		if (t.startsWith(prefix)) return p;
+	}
+	return null;
 }
 
 /**

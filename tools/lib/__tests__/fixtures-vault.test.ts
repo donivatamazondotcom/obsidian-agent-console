@@ -12,6 +12,8 @@ import {
 	obsidianJson,
 	seedScreenshotData,
 	seedVideoData,
+	templateAgentConfig,
+	seededText,
 	type SeedContext,
 } from "../fixtures-vault";
 import { normalizeRawSettings, DEFAULT_SETTINGS, type MigrateKeyFn } from "../../../src/services/settings-normalizer";
@@ -164,5 +166,68 @@ describe("materializeRun", () => {
 	it("writes a 16-character vault id", () => {
 		const id = Object.keys(JSON.parse(obsidianJson("/v", "r1234abcd", 0)).vaults)[0];
 		expect(id).toHaveLength(16);
+	});
+});
+
+describe("templateAgentConfig (settings shots show the template, PR 2b)", () => {
+	it("keeps each built-in agent's command with an empty environment (the plugin default), plus the custom agents", () => {
+		const tpl = {
+			claude: { id: "claude-code-acp", command: "claude-agent-acp", args: [], env: [{ key: "AWS_REGION", value: "us-west-2" }] },
+			kiro: { id: "kiro-cli", command: "kiro-cli", args: ["acp"] },
+			customAgents: [{ id: "c1", command: "c" }],
+			defaultAgentId: "claude-code-acp",
+		};
+		expect(templateAgentConfig(tpl)).toEqual({
+			claude: { command: "claude-agent-acp", env: [] },
+			kiro: { command: "kiro-cli", env: [] },
+			customAgents: [{ id: "c1", command: "c", env: [] }],
+		});
+	});
+
+	it("shows custom agents with an empty environment too", () => {
+		expect(templateAgentConfig({ customAgents: [{ id: "c1", command: "c", env: [{ key: "TOKEN_X", value: "1" }] }] }).customAgents).toEqual([
+			{ id: "c1", command: "c", env: [] },
+		]);
+	});
+
+	it("matches the committed fixtures template, whose values hold no absolute paths", () => {
+		const tplPath = path.join(__dirname, "../../screenshots/fixtures/studio/.obsidian/plugins/agent-console/data.template.json");
+		const out = JSON.stringify(templateAgentConfig(JSON.parse(readFileSync(tplPath, "utf8")) as Record<string, unknown>));
+		expect(out).not.toMatch(/\/Users\/|\/home\/|AC_VIDEO_RUN|BEDROCK|AWS_REGION/i);
+		expect(out).toContain('"claude-agent-acp"');
+	});
+});
+
+describe("seededText (the run's own values a settings shot must not show)", () => {
+	it("lists seeded commands and env values the template doesn't have, env var names, and the extras", () => {
+		const template = {
+			claude: { command: "claude-agent-acp", env: [{ key: "AWS_REGION", value: "us-west-2" }] },
+			kiro: { command: "kiro-cli", env: [] },
+			customAgents: [{ id: "c", command: "c", env: [] }],
+		};
+		const data = {
+			claude: { command: "/opt/homebrew/bin/claude-agent-acp", env: [{ key: "AWS_REGION", value: "us-west-2" }, { key: "PATH", value: "/opt/homebrew/bin:/usr/bin" }, { key: "AC_VIDEO_RUN", value: "run-7" }] },
+			kiro: { command: "kiro-cli", env: [{ key: "HOME", value: "/Users/me" }] },
+			customAgents: [{ id: "c", command: "/opt/c", env: [] }],
+		};
+		// Settings shots show an empty environment, so every env var name is
+		// forbidden too: names with an underscore only, because "PATH" and
+		// "HOME" would match the "Path" row label case-insensitively.
+		expect(seededText(data, template, ["/tmp/agent-console-video/run-7", ""]).sort()).toEqual(
+			["/opt/homebrew/bin/claude-agent-acp", "/opt/homebrew/bin:/usr/bin", "run-7", "/Users/me", "/opt/c", "/tmp/agent-console-video/run-7", "AWS_REGION", "AC_VIDEO_RUN"].sort(),
+		);
+	});
+});
+
+describe("agent key lists match the plugin's agents", () => {
+	it("BUILTIN_AGENT_KEYS names every built-in agent in DEFAULT_SETTINGS, and the capture snapshot covers them", async () => {
+		const { BUILTIN_AGENT_KEYS } = await import("../fixtures-vault");
+		const { AGENT_STATE_KEYS } = await import("../../screenshots/lib/orchestrator");
+		const agents = Object.entries(DEFAULT_SETTINGS as unknown as Record<string, unknown>)
+			.filter(([, v]) => v !== null && typeof v === "object" && !Array.isArray(v) && "command" in (v as object))
+			.map(([k]) => k)
+			.sort();
+		expect([...BUILTIN_AGENT_KEYS].sort()).toEqual(agents);
+		for (const k of agents) expect(AGENT_STATE_KEYS as readonly string[]).toContain(k);
 	});
 });

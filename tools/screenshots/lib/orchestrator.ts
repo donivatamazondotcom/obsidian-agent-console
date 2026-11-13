@@ -10,7 +10,9 @@
  */
 import { setTimeout as delay } from "node:timers/promises";
 import path from "node:path";
-import type { ManifestEntry, AnimationAction } from "./manifest";
+import { isSettingsPathEntry, type ManifestEntry, type AnimationAction } from "./manifest";
+import type { SettingsWindowOptions } from "./cdp";
+import { settingsContentBoxesExpression } from "./settings-crop";
 import type {
 	AnimationFrameInput,
 	EncodeGifOptions,
@@ -92,7 +94,16 @@ export interface CdpLike {
 		region: { x: number; y: number; width: number; height: number },
 	): Promise<void>;
 	captureSettingsWindow(outputPath: string): Promise<void>;
-	openSettingsHidden(tabId: string): Promise<void>;
+	openSettingsHidden(tabId: string, opts: SettingsWindowOptions): Promise<void>;
+	/** Run a DOM expression where the settings window's document lives (see Cdp.evaluateInSettings). */
+	evaluateInSettings<T = unknown>(
+		expression: string,
+		opts?: { awaitPromise?: boolean },
+	): Promise<T>;
+	/** Move the settings page's pointer off every element (see Cdp.settingsPointerAway). */
+	settingsPointerAway?(): Promise<void>;
+	/** True for the isolated driver, which routes every openSettings entry to the settings path. */
+	readonly isolated?: boolean;
 	screenshot(outputPath: string): Promise<void>;
 	setMobileEmulation(enabled: boolean): Promise<void>;
 	clearViewport(): Promise<void>;
@@ -132,6 +143,17 @@ interface SharpPipeline {
 
 export interface OrchestratorDeps {
 	cdp: CdpLike;
+	/**
+	 * The fixtures template's agent `command`/`env` (and `customAgents`).
+	 * When set, settings shots show these instead of the seeded run's
+	 * absolute paths and run marker (isolated runs only).
+	 */
+	agentTemplate?: Record<string, unknown>;
+	/**
+	 * The seeded run's own values (resolved agent commands, HOME, PATH, run
+	 * id, run folder). Settings shots fail if any shows in the crop.
+	 */
+	seededText?: readonly string[];
 	/** What's-new registry for `whatsNew: "latest"`; the shipped one by default. */
 	whatsNewHighlights?: readonly { version: string }[];
 	sharp: SharpFactory;
@@ -195,12 +217,12 @@ export interface CaptureAllOptions {
 
 /**
  * Why an entry can't run on the isolated driver yet, or undefined if it can.
- * Settings and real-screen captures move to the isolated path in later PRs
- * ([[Agent Console Isolated Screenshot Capture]] PR 2b/2c).
+ * Real-screen captures and the native select move to the isolated path in
+ * PR 2c ([[Agent Console Isolated Screenshot Capture]]).
  */
 export function needsScreen(entry: ManifestEntry): string | undefined {
+	// Settings shots run on the isolated driver since PR 2b.
 	if (entry.captureMode === "screen" || entry.captureMode === "screen-window") return `captureMode "${entry.captureMode}" needs the real screen`;
-	if (entry.captureMode === "settings-window" || entry.initialState?.openSettings) return "the settings window isn't on the isolated path yet";
 	if (entry.initialState?.openNativeSelect) return "a native <select> popup needs the real screen";
 	return undefined;
 }
@@ -455,8 +477,30 @@ export function whatsNewCaptureVersions(highlights: readonly { version: string }
 }
 
 /** Settings keys holding agent selection and launch config, restored after every entry. */
-export const AGENT_STATE_KEYS = ["defaultAgentId", "claude", "codex", "gemini", "kiro", "opencode", "antigravity", "customAgents"] as const;
-const AGENT_STATE_KEYS_JSON = JSON.stringify(AGENT_STATE_KEYS);
+export const AGENT_STATE_KEYS = ["defaultAgentId", "claude", "codex", "gemini", "kiro", "opencode", "antigravity", "customAgents", "lastUsedModes"] as const;
+
+/**
+ * An entry couldn't put the agent settings back. captureAll stops there:
+ * later entries would launch agents with this entry's command or env.
+ */
+/**
+ * Reads the agent settings an entry can change, as JSON: the agent keys plus
+ * every agent the settings-shot template swaps, so the restore covers exactly
+ * what the swap can change. `readBack` marks the post-restore comparison read.
+ */
+function agentStateExpression(deps: OrchestratorDeps, readBack = false): string {
+	const keys = JSON.stringify([...new Set([...AGENT_STATE_KEYS, ...Object.keys(deps.agentTemplate ?? {})])]);
+	return `(() => { ${readBack ? "/*__acReadBack*/ " : ""}const s = app.plugins.plugins["agent-console"].settings; return JSON.stringify(${keys}.reduce((o, k) => { o[k] = s[k]; return o; }, {})); })()`;
+}
+
+export class AgentRestoreError extends Error {
+	/** The error the restore itself threw. */
+	readonly restoreCause: unknown;
+	constructor(message: string, readonly entryName: string, options?: { cause?: unknown }) {
+		super(message);
+		this.restoreCause = options?.cause;
+	}
+}
 
 export async function captureEntry(
 	entry: ManifestEntry,
@@ -491,6 +535,8 @@ export async function captureEntry(
 	let whatsNewArmed = false;
 	const stubsDetection = Boolean(entry.initialState?.forceGettingStarted);
 	let layoutPrior: { width: string | null; leftCollapsed: boolean } | undefined;
+	let captureError: unknown;
+	let agentRestoreError: unknown;
 	try {
 		// Entries that set `agentId`, `forceConnectingHold` or `agentOverride`
 		// mutate agent configs directly; snapshot them and put them back
@@ -498,9 +544,17 @@ export async function captureEntry(
 		// entries in the same run.
 		// No .catch: inside the try, a failed snapshot stops the entry before
 		// it changes anything it couldn't put back.
-		agentSnapshot = await deps.cdp.evaluate<string>(
-			`(() => { const s = app.plugins.plugins["agent-console"].settings; return JSON.stringify(${AGENT_STATE_KEYS_JSON}.reduce((o, k) => { o[k] = s[k]; return o; }, {})); })()`,
-		);
+		agentSnapshot = await deps.cdp.evaluate<string>(agentStateExpression(deps));
+		// sessionMode: the saved mode pick for the entry's agent, so the
+		// session opened below starts in that mode through the plugin's own
+		// restore path. lastUsedModes is in the agent snapshot.
+		const mode = entry.initialState?.sessionMode;
+		if (mode) {
+			await deps.cdp.evaluate(
+				`(async () => { const p = app.plugins.plugins["agent-console"]; const id = ${JSON.stringify(entry.agentId ?? null)} ?? p.settings.defaultAgentId; await p.settingsService.updateSettings({ lastUsedModes: { ...(p.settings.lastUsedModes || {}), [id]: ${JSON.stringify(mode)} } }); return id; })()`,
+				{ awaitPromise: true },
+			);
+		}
 		// whatsNew: "latest": run as the newest highlighted release, one release
 		// past lastSeen, so the card shows on any repo version. The prior values
 		// are stashed on the page before anything changes.
@@ -529,6 +583,9 @@ export async function captureEntry(
 		}
 		await sleep(SETTLE_MS);
 		await captureEntryWithSettings(entry, deps);
+	} catch (e) {
+		captureError = e;
+		throw e;
 	} finally {
 		if (stubsDetection) {
 			await deps.cdp
@@ -553,12 +610,22 @@ export async function captureEntry(
 				.catch(() => {});
 		}
 		if (typeof agentSnapshot === "string") {
+			// Not swallowed: a failed restore would leave later entries
+			// launching agents with another entry's command or env.
 			await deps.cdp
 				.evaluate(
 					`(async () => { await app.plugins.plugins["agent-console"].settingsService.updateSettings(JSON.parse(${JSON.stringify(agentSnapshot)})); return true; })()`,
 					{ awaitPromise: true },
 				)
-				.catch(() => {});
+				.catch((e: unknown) => {
+					agentRestoreError = e;
+				});
+			// The legacy CLI can drop a response that did land: read the
+			// agent settings back and fail only if they differ.
+			if (agentRestoreError !== undefined) {
+				const now = await deps.cdp.evaluate<string>(agentStateExpression(deps, true)).catch(() => undefined);
+				if (now === agentSnapshot) agentRestoreError = undefined;
+			}
 		}
 		if (prior) {
 			await deps.cdp
@@ -567,6 +634,12 @@ export async function captureEntry(
 					{ awaitPromise: true },
 				)
 				.catch(() => {});
+		}
+		if (agentRestoreError !== undefined) {
+			const why = (e: unknown) => (e instanceof Error ? e.message : String(e));
+			const restore = `couldn't restore the agent settings after "${entry.name}": ${why(agentRestoreError)}`;
+			// eslint-disable-next-line no-unsafe-finally -- the restore failure must reach the run report
+			throw new AgentRestoreError(captureError === undefined ? restore : `${why(captureError)}; also ${restore}`, entry.name, { cause: agentRestoreError });
 		}
 	}
 }
@@ -585,7 +658,13 @@ async function captureEntryWithSettings(
 	// I187: Obsidian 1.13 declarative settings open in a standalone window the
 	// main-window capture path can't reach. This branch drives + captures that
 	// window via activeWindow/activeDocument + screencapture -R.
-	if (entry.captureMode === "settings-window") {
+	// The isolated driver also routes entries that only set openSettings:
+	// on Obsidian 1.13+ settings open in their own window, which the
+	// main-page path can't capture. The legacy driver keeps today's routing.
+	if (
+		entry.captureMode === "settings-window" ||
+		(deps.cdp.isolated === true && isSettingsPathEntry(entry))
+	) {
 		await captureSettingsWindowEntry(entry, deps);
 		return;
 	}
@@ -1784,8 +1863,13 @@ export async function captureAll(
 	const results: CaptureResult[] = [];
 	const total = targets.filter((e) => !options.skip?.(e)).length;
 	let index = 0;
+	let stopped: string | undefined;
 	for (const entry of targets) {
 		const skipReason = options.skip?.(entry);
+		if (stopped && !skipReason) {
+			results.push({ name: entry.name, success: false, error: stopped });
+			continue;
+		}
 		if (skipReason) {
 			results.push({ name: entry.name, success: true, skipped: skipReason });
 			continue;
@@ -1807,6 +1891,9 @@ export async function captureAll(
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
 			results.push({ name: entry.name, success: false, error: msg });
+			if (err instanceof AgentRestoreError) {
+				stopped = `not captured: "${err.entryName}" couldn't restore the agent settings, so later entries would run with its agent config`;
+			}
 		} finally {
 			// Always clear the marker — even when the capture threw — so a
 			// failed shot can't leave the fixtures vault with chrome hidden for
@@ -2210,7 +2297,7 @@ async function waitForActiveDocumentSelector(
 	const deadline = Date.now() + timeoutMs;
 	const expr = `!!activeDocument.querySelector(${JSON.stringify(selector)})`;
 	while (true) {
-		const ok = await deps.cdp.evaluate<boolean>(expr);
+		const ok = await deps.cdp.evaluateInSettings<boolean>(expr);
 		if (ok) return;
 		if (Date.now() >= deadline) {
 			throw new Error(
@@ -2221,13 +2308,70 @@ async function waitForActiveDocumentSelector(
 	}
 }
 
+/** Settings window content size when an entry doesn't set `settingsWindowSize`. */
+export const DEFAULT_SETTINGS_WINDOW_SIZE = { width: 1200, height: 900 };
+
+/**
+ * Put the template's agent `command`/`env` (every agent the template names)
+ * and custom agents in place while settings are open, so the seeded absolute
+ * paths and run marker never render. Written straight to the settings object
+ * without a save, but a settings action during the entry ("Add custom agent")
+ * can save it; captureEntry's agent snapshot puts the seeded values back
+ * through the settings writer either way, and fails the entry if it can't.
+ */
+function templateSwapExpression(template: Record<string, unknown>): string {
+	return `(() => { const s = app.plugins.plugins["agent-console"].settings; const t = ${JSON.stringify(template)}; for (const k of Object.keys(t)) { if (k === "customAgents") continue; const a = t[k]; if (a && s[k]) s[k] = { ...s[k], command: a.command ?? "", env: a.env ?? [] }; } s.customAgents = Array.isArray(t.customAgents) ? t.customAgents : []; return true; })()`;
+}
+
+/** Id of the style that turns pointer hover off in the settings page. */
+const NO_HOVER_STYLE_ID = "ac-capture-no-hover";
+
+/**
+ * Stop the crop padding 1 px short of the nearest unit the content box left
+ * out above or below (`limitTop` / `limitBottom`), so a dropped card's edge
+ * never shows. `content` is the unpadded content: a limit inside it (from
+ * another crop selector's box) is ignored, and the clamp never cuts into it.
+ * Unchanged when no box has a usable limit.
+ */
+export function clampPadding(
+	r: Rect,
+	boxes: readonly { limitTop?: number; limitBottom?: number }[],
+	content: Rect,
+): Rect {
+	const cTop = content.y;
+	const cBottom = content.y + content.height;
+	// The content box reports limits with 0.5 px rounding slack.
+	const tops = boxes.map((b) => b?.limitTop).filter((v): v is number => typeof v === "number" && v <= cTop + 0.5);
+	const bottoms = boxes.map((b) => b?.limitBottom).filter((v): v is number => typeof v === "number" && v >= cBottom - 0.5);
+	const top = tops.length ? Math.max(r.y, Math.min(cTop, Math.max(...tops) + 1)) : r.y;
+	const bottom = bottoms.length ? Math.min(r.y + r.height, Math.max(cBottom, Math.min(...bottoms) - 1)) : r.y + r.height;
+	return bottom > top ? { ...r, y: top, height: bottom - top } : r;
+}
+
+/** `r` clipped to `bound` (unchanged when there is no bound or no overlap). */
+export function clampRectTo(r: Rect, bound: Rect | null): Rect {
+	if (!bound) return r;
+	const x = Math.max(r.x, bound.x);
+	const y = Math.max(r.y, bound.y);
+	const right = Math.min(r.x + r.width, bound.x + bound.width);
+	const bottom = Math.min(r.y + r.height, bound.y + bound.height);
+	if (right <= x || bottom <= y) return r;
+	return { x, y, width: right - x, height: bottom - y };
+}
+
+/** Click the settings row with this displayed name (a sub-page or action row). */
+function settingRowClickExpression(name: string): string {
+	return `(() => { const want = ${JSON.stringify(name)}; const norm = (s) => (s || "").replace(/\\s+/g, " ").trim(); const row = Array.from(activeDocument.querySelectorAll(".vertical-tab-content .setting-item")).find((it) => norm(it.querySelector(".setting-item-name") && it.querySelector(".setting-item-name").textContent) === want); if (!row) return false; row.click(); return true; })()`;
+}
+
 /**
  * Capture an entry whose subject is Obsidian 1.13's standalone declarative
- * settings window (I187). Drives `openSettings` + optional `clickSequence`
- * (evaluated against `activeDocument`), asserts `mustShow` there, then reads the
- * window's screen origin + the `cropSelector` element's bounds and screencaptures
- * exactly that region. The captured PNG is already the content crop; run.ts adds
- * the shared drop shadow. Leaves the settings window closed (cleanliness).
+ * settings window (I187). Opens settings through the driver (non-focusable
+ * on the isolated driver), drives `openSettingPage`, `clickSequence`,
+ * `scrollToSettingText` and `scrollIntoViewSelector` where the settings DOM
+ * lives (`evaluateInSettings`; `app.*` stays on the main page), asserts
+ * `mustShow` and cleanliness there, then captures the settings page and crops
+ * it to `cropSelector`/`cropSelectors`. Leaves the settings window closed.
  */
 async function captureSettingsWindowEntry(
 	entry: ManifestEntry,
@@ -2239,7 +2383,12 @@ async function captureSettingsWindowEntry(
 			`settings-window entry "${entry.name}" requires initialState.openSettings`,
 		);
 	}
-	if (!entry.cropSelector) {
+	const cropSels = entry.cropSelectors?.length
+		? entry.cropSelectors
+		: entry.cropSelector
+			? [entry.cropSelector]
+			: [];
+	if (cropSels.length === 0) {
 		throw new Error(
 			`settings-window entry "${entry.name}" requires cropSelector`,
 		);
@@ -2249,18 +2398,35 @@ async function captureSettingsWindowEntry(
 			`app.workspace.openLinkText("${entry.initialState.openNote}", "", false)`,
 		);
 	}
+	const inSettings = <T>(expr: string): Promise<T> =>
+		deps.cdp.evaluateInSettings<T>(expr);
 	try {
-		// Open settings to the target tab but keep the standalone 1.13 settings
-		// window off-screen for the whole shot (I187): the capture reads the
-		// window's own render buffer, so it never needs to be visible or focused.
-		// This bounds any on-screen appearance to ~one frame instead of the full
-		// capture duration. activeDocument still resolves to the hidden window,
-		// so the drive below is unchanged.
-		await deps.cdp.openSettingsHidden(tabId);
+		if (deps.agentTemplate) {
+			await deps.cdp.evaluate(templateSwapExpression(deps.agentTemplate));
+		}
+		// The capture reads the settings window's own render buffer, so it
+		// never needs to be visible or focused.
+		const size = entry.settingsWindowSize ?? DEFAULT_SETTINGS_WINDOW_SIZE;
+		await deps.cdp.openSettingsHidden(tabId, {
+			width: size.width,
+			height: size.height,
+			dpr: deps.devicePixelRatio,
+		});
 		await sleep(SETTLE_MS);
 
+		const page = entry.initialState?.openSettingPage;
+		if (page) {
+			const clicked = await inSettings<boolean>(settingRowClickExpression(page));
+			if (clicked !== true) {
+				throw new Error(
+					`settings-window entry "${entry.name}": no settings row named ${JSON.stringify(page)}`,
+				);
+			}
+			await waitForActiveDocumentSelector(deps, ".setting-page-back-button");
+		}
+
 		for (const step of entry.initialState?.clickSequence ?? []) {
-			await deps.cdp.evaluate<boolean>(
+			await inSettings<boolean>(
 				`(() => { const el = activeDocument.querySelector(${JSON.stringify(step.selector)}); if (el) el.click(); return Boolean(el); })()`,
 			);
 			if (step.waitFor) {
@@ -2273,8 +2439,13 @@ async function captureSettingsWindowEntry(
 		// (or the setting itself) at the top of the pane.
 		if (entry.initialState?.scrollToSettingText) {
 			const txt = JSON.stringify(entry.initialState.scrollToSettingText);
-			await deps.cdp.evaluate<boolean>(
+			await inSettings<boolean>(
 				`(() => { const item = [...activeDocument.querySelectorAll(".setting-item")].find((e) => e.querySelector(".setting-item-name")?.textContent?.trim() === ${txt}); if (!item) return false; (item.closest(".setting-group") ?? item).scrollIntoView({ block: "start" }); return true; })()`,
+			);
+		}
+		if (entry.initialState?.scrollIntoViewSelector) {
+			await inSettings<boolean>(
+				`(() => { const el = activeDocument.querySelector(${JSON.stringify(entry.initialState.scrollIntoViewSelector)}); if (!el) return false; el.scrollIntoView({ block: "start", inline: "nearest" }); return true; })()`,
 			);
 		}
 
@@ -2283,45 +2454,82 @@ async function captureSettingsWindowEntry(
 		}
 		await sleep(SETTLE_MS);
 		// I184: the Obsidian 1.13 sub-page transition paints async after the DOM
-		// lands (the waitFor above passes pre-paint), so a navigated capture needs
-		// an extra settle for the fade/slide to finish before screencapture.
-		if (entry.initialState?.clickSequence?.length) {
+		// lands (the waits above pass pre-paint), so a navigated capture needs
+		// an extra settle for the fade/slide to finish.
+		if (page || entry.initialState?.clickSequence?.length) {
 			await sleep(1200);
 		}
 
-		const geom = await deps.cdp.evaluate<{
-			winX: number;
-			winY: number;
-			winW: number;
-			winH: number;
-			dpr: number;
-			rect: Rect | null;
-		}>(
-			`(() => { const e = activeDocument.querySelector(${JSON.stringify(
-				entry.cropSelector,
-			)}); const r = e ? e.getBoundingClientRect() : null; return { winX: activeWindow.screenX, winY: activeWindow.screenY, winW: activeWindow.outerWidth, winH: activeWindow.outerHeight, dpr: activeWindow.devicePixelRatio, rect: r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null }; })()`,
+		// No hover state in the shot: the invisible settings window can sit
+		// under the user's pointer. Nothing in the page takes the pointer any
+		// more, and the pointer is moved so hover is recomputed. The settings
+		// window is destroyed after the entry; the finally below also removes
+		// the style from the workspace page, where the legacy driver can put it.
+		await inSettings<boolean>(
+			`(() => { const s = activeDocument.createElement("style"); s.id = ${JSON.stringify(NO_HOVER_STYLE_ID)}; s.textContent = "* { pointer-events: none !important; transition: none !important; }"; activeDocument.head.appendChild(s); return true; })()`,
 		);
-		if (!geom.rect) {
+		await deps.cdp.settingsPointerAway?.();
+		// Longer than Obsidian's 150 ms row background fade.
+		await sleep(250);
+
+		const geom = await inSettings<{ dpr: number; rects: ((Rect & { limitTop?: number; limitBottom?: number }) | null)[]; pane: Rect | null; inner: number[] }>(
+			`(() => { const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }; return { dpr: activeWindow.devicePixelRatio, rects: ${settingsContentBoxesExpression(cropSels)}, pane: box(activeDocument.querySelector(".vertical-tab-content")), inner: [activeWindow.innerWidth, activeWindow.innerHeight] }; })()`,
+		);
+		const missing = cropSels.find((_, i) => !geom?.rects?.[i]);
+		if (missing !== undefined) {
 			throw new Error(
-				`settings-window entry "${entry.name}": cropSelector "${entry.cropSelector}" not found in the settings window`,
+				`settings-window entry "${entry.name}": cropSelector "${missing}" not found in the settings window`,
 			);
 		}
-		// Capture the settings window's OWN render buffer via CDP
-		// Page.captureScreenshot on its webContents (I187 durable fix): unlike
-		// the interim `screencapture -R` path this is z-order independent — it
-		// works with the settings window in the background and needs no
-		// raise-to-front, so it never disrupts other windows. The capture is
-		// the full window viewport (frameless window: outerWidth==innerWidth,
-		// custom titlebar drawn in the web contents), so the element client
-		// rect maps 1:1 into the capture whose (0,0) is the window top-left —
-		// identical framing to the whole-window screencapture it replaces. The
-		// PNG is at backing-scale px (like screencapture output), so the DPR
-		// crop scaling below is unchanged.
+		if (deps.cdp.isolated === true) {
+			if (geom.dpr !== deps.devicePixelRatio) {
+				throw new Error(
+					`settings-window entry "${entry.name}": settings window devicePixelRatio is ${geom.dpr}, expected ${deps.devicePixelRatio}`,
+				);
+			}
+			const [w, h] = geom.inner ?? [];
+			if (w !== size.width || h !== size.height) {
+				throw new Error(
+					`settings-window entry "${entry.name}": settings window renders at ${w}×${h}, expected ${size.width}×${size.height}`,
+				);
+			}
+		}
+		// The padding never reaches past the settings pane, so the window
+		// title and the settings nav stay out of the shot.
+		const contentUnion = unionRects(geom.rects as Rect[]);
+		const contentCss = clampPadding(
+			clampRectTo(
+				computeCropRect(contentUnion, {
+					padding: entry.cropPadding ?? 16,
+				}),
+				geom.pane,
+			),
+			geom.rects as { limitTop?: number; limitBottom?: number }[],
+			contentUnion,
+		);
+
+		// Cleanliness (rubric P7) on what the crop shows, including input
+		// values: the settings UI shows each agent's Path and Environment.
+		{
+			const cfg = resolveCleanlinessConfig(
+				[...(entry.forbiddenSelectors ?? []), ".setting-item:hover"],
+				[...(entry.forbiddenText ?? []), ...(deps.seededText ?? [])],
+			);
+			const probe = await inSettings<CleanlinessProbeResult>(
+				buildCleanlinessProbeExpression(cfg, { root: "activeDocument", inputValues: true, clip: contentCss }),
+			);
+			const { ok, violations } = evaluateCleanliness(probe);
+			if (!ok) {
+				throw new Error(
+					`cleanliness assert: "${entry.name}" — ${violations.join("; ")}`,
+				);
+			}
+		}
+		// The settings page capture is the full window viewport (frameless:
+		// the titlebar is drawn in the page), so element client rects map 1:1
+		// into the capture, at the window's device pixel ratio.
 		const tmpPath = path.join(deps.tmpDir, `${entry.name}.png`);
 		await deps.cdp.captureSettingsWindow(tmpPath);
-		const contentCss = computeCropRect(geom.rect, {
-			padding: entry.cropPadding ?? 16,
-		});
 		const scaled = scaleRectByDevicePixelRatio(contentCss, geom.dpr);
 		const meta = await deps.sharp(tmpPath).metadata();
 		const imgW = meta.width ?? scaled.x + scaled.width;
@@ -2334,7 +2542,29 @@ async function captureSettingsWindowEntry(
 			.extract({ left: scaled.x, top: scaled.y, width: cw, height: ch })
 			.webp({ quality: 90 })
 			.toFile(outputPath);
+		// The shared drop shadow, as on the main path.
+		await deps.postProcess?.(outputPath);
+
+		// Content guard (I11 follow-up), as on the main path.
+		const floor = entry.minDistinctColors ?? DEFAULT_MIN_DISTINCT_COLORS;
+		const { data, channels } = await deps.loadRaw(outputPath);
+		const distinct = countDistinctColors(data, channels);
+		if (distinct < floor) {
+			deps.unlink(outputPath);
+			throw new Error(
+				`content guard: "${entry.name}" has ${distinct} distinct colors, below the floor of ${floor} — capture is blank/degraded; deleted ${outputPath}`,
+			);
+		}
 	} finally {
-		await deps.cdp.evaluate(`(app.setting.close(), "closed")`);
+		try {
+			await deps.cdp.evaluate(`(app.setting.close(), "closed")`);
+		} finally {
+			// On the legacy driver the no-hover style lands in whatever document
+			// is active; take it out of the workspace page too, even when
+			// closing settings failed.
+			await deps.cdp
+				.evaluate(`(() => { document.getElementById(${JSON.stringify(NO_HOVER_STYLE_ID)})?.remove(); return true; })()`)
+				.catch(() => {});
+		}
 	}
 }

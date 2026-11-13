@@ -273,8 +273,8 @@
 		},
 		{
 			"name": "switch-default-agent",
-			"width": 1256,
-			"height": 248,
+			"width": 1544,
+			"height": 298,
 			"crop": {
 				"x": 0,
 				"y": 0,
@@ -296,7 +296,13 @@
 			"mustShow": ".vertical-tab-content select",
 			"caption": "Set your default agent",
 			"altText": "Agent Console settings with the Default agent dropdown set to Claude Code",
-			"captureNote": "Settings open in a popout window on Obsidian 1.13+, where a native select popup can't be captured, so the shot shows the row with the dropdown closed (decided 11/10). The agent list is shown by switch-agent, new-chat-agent-picker and first-run-activation."
+			"captureNote": "Settings open in a popout window on Obsidian 1.13+, where a native select popup can't be captured, so the shot shows the row with the dropdown closed (decided 11/10). The agent list is shown by switch-agent, new-chat-agent-picker and first-run-activation.",
+			"forbiddenText": [
+				"/Users/",
+				"/home/",
+				"AC_VIDEO_RUN",
+				"BEDROCK"
+			]
 		},
 		{
 			"name": "editing",
@@ -310,7 +316,8 @@
 			},
 			"initialState": {
 				"openNote": "Draft.md",
-				"clickRibbon": true
+				"clickRibbon": true,
+				"sessionMode": "default"
 			},
 			"promptFile": "editing.txt",
 			"awaitSelector": ".agent-client-message-permission-request",
@@ -1158,8 +1165,8 @@
 		{
 			"name": "obsidian-system-prompt",
 			"pending": false,
-			"width": 960,
-			"height": 756,
+			"width": 1544,
+			"height": 1692,
 			"crop": {
 				"x": 0,
 				"y": 0,
@@ -1171,23 +1178,30 @@
 			"initialState": {
 				"openNote": "Welcome.md",
 				"openSettings": "agent-console",
-				"scrollToSettingText": "Obsidian system prompt"
+				"openSettingPage": "Obsidian system prompt"
 			},
 			"approvalThreshold": 0.05,
 			"placement": "feature",
-			"purpose": "An editable Obsidian system prompt the agent receives on its first message, with per-block toggles and reset to defaults.",
+			"purpose": "An editable Obsidian system prompt the agent receives on its first message, with per-block toggles and your own vault context.",
 			"differentiator": "Obsidian system prompt / host-context briefing (v1.3.0)",
-			"mustShow": ".vertical-tab-content",
+			"mustShow": ".setting-page-back-button",
 			"caption": "Tell the agent it runs in Obsidian",
-			"altText": "Agent Console settings showing the editable Obsidian system prompt with per-block include toggles and a reset-to-defaults button",
+			"altText": "Agent Console settings showing the Obsidian system prompt page with per-block include toggles and a box for your own vault context",
 			"docPage": "docs/usage/obsidian-context.md",
-			"captureNote": "v1.3.0 PRs #168/#170 (shipped as Obsidian System Prompt). Confirm the Obsidian-system-prompt settings-section selector + final dims at capture; scroll the settings pane to that accordion first."
+			"captureNote": "The Obsidian system prompt is a settings sub-page on Obsidian 1.13+; openSettingPage opens it.",
+			"forbiddenText": [
+				"/Users/",
+				"/home/",
+				"AC_VIDEO_RUN",
+				"BEDROCK"
+			],
+			"captureMode": "settings-window"
 		},
 		{
 			"name": "settings-working-directory",
 			"pending": false,
-			"width": 760,
-			"height": 300,
+			"width": 1544,
+			"height": 1686,
 			"crop": {
 				"x": 0,
 				"y": 0,
@@ -1209,7 +1223,14 @@
 			"caption": "Choose where chats run",
 			"altText": "Agent Console settings showing the Default working directory option that sets where new chats start",
 			"docPage": "docs/usage/working-directory.md",
-			"captureNote": "v1.3.0 PR #100/#154. scrollToSettingText centers the Default working directory setting-item."
+			"captureNote": "v1.3.0 PR #100/#154. scrollToSettingText centers the Default working directory setting-item.",
+			"forbiddenText": [
+				"/Users/",
+				"/home/",
+				"AC_VIDEO_RUN",
+				"BEDROCK"
+			],
+			"captureMode": "settings-window"
 		},
 		{
 			"name": "quick-prompts",
@@ -1365,36 +1386,38 @@
 		{
 			"name": "custom-agents-form",
 			"pending": false,
-			"width": 1632,
-			"height": 1457,
+			"width": 1528,
+			"height": 1377,
 			"crop": {
 				"x": 0,
 				"y": 0,
 				"width": 780,
 				"height": 900
 			},
-			"cropSelector": ".vertical-tab-content details.agent-client-agent-section:nth-of-type(5)",
+			"cropSelector": ".vertical-tab-content",
 			"cropPadding": 12,
 			"initialState": {
 				"openNote": "Welcome.md",
 				"openSettings": "agent-console",
-				"clickSequence": [
-					{
-						"selector": ".vertical-tab-content button.mod-cta",
-						"waitFor": ".vertical-tab-content details.agent-client-agent-section:nth-of-type(5)"
-					},
-					{
-						"selector": ".vertical-tab-content details.agent-client-agent-section:nth-of-type(5) > summary",
-						"waitFor": ".vertical-tab-content details.agent-client-agent-section:nth-of-type(5)[open]"
-					}
-				],
-				"scrollIntoViewSelector": ".vertical-tab-content details.agent-client-agent-section:nth-of-type(5) > summary"
+				"openSettingPage": "Add custom agent"
 			},
 			"approvalThreshold": 0.05,
 			"placement": "reference",
 			"purpose": "The Add-custom-agent form: Agent ID, Display name, Path, Arguments, and environment variables.",
 			"altText": "Agent Console settings showing the Add custom agent form with Agent ID, Display name, and Path fields",
-			"docPage": "docs/agent-setup/custom-agents.md"
+			"docPage": "docs/agent-setup/custom-agents.md",
+			"forbiddenText": [
+				"/Users/",
+				"/home/",
+				"AC_VIDEO_RUN",
+				"BEDROCK"
+			],
+			"captureMode": "settings-window",
+			"mustShow": ".setting-page-back-button",
+			"settingsWindowSize": {
+				"width": 1200,
+				"height": 720
+			}
 		},
 		{
 			"name": "zero-tab-landing",
@@ -1428,20 +1451,20 @@
 		{
 			"name": "opencode-builtin",
 			"pending": false,
-			"width": 1632,
-			"height": 1264,
+			"width": 1528,
+			"height": 1295,
 			"cropPadding": 12,
-			"cropSelector": "[data-agent-id=\"opencode-acp\"][open]",
+			"cropSelector": ".vertical-tab-content",
 			"initialState": {
 				"openNote": "Welcome.md",
 				"openSettings": "agent-console",
-				"scrollToSettingText": "OpenCode"
+				"openSettingPage": "OpenCode"
 			},
 			"approvalThreshold": 0.05,
 			"placement": "feature",
 			"purpose": "OpenCode is a built-in agent \u2014 a link-only setup like Kiro CLI, and the way to run Agent Console offline against a local model.",
 			"differentiator": "OpenCode built-in (v2.1.0)",
-			"mustShow": "[data-agent-id=\"opencode-acp\"][open]",
+			"mustShow": ".setting-page-back-button",
 			"caption": "OpenCode, built in",
 			"altText": "Agent Console settings showing the OpenCode built-in agent section with Path and Arguments fields",
 			"docPage": "docs/agent-setup/opencode.md",
@@ -1450,6 +1473,17 @@
 				"y": 0,
 				"width": 780,
 				"height": 600
+			},
+			"forbiddenText": [
+				"/Users/",
+				"/home/",
+				"AC_VIDEO_RUN",
+				"BEDROCK"
+			],
+			"captureMode": "settings-window",
+			"settingsWindowSize": {
+				"width": 1200,
+				"height": 680
 			}
 		},
 		{
@@ -1534,8 +1568,8 @@
 			"purpose": "The Obsidian 1.13 declarative settings root: built-in agents shown as navigable page rows.",
 			"mustShow": ".setting-item.mod-navigable.tappable",
 			"altText": "Agent Console settings on Obsidian 1.13 with built-in agents listed as navigable page rows",
-			"width": 691,
-			"height": 686,
+			"width": 1544,
+			"height": 1245,
 			"crop": {
 				"x": 0,
 				"y": 0,
@@ -1555,7 +1589,13 @@
 			"caption": "Settings you can search and navigate",
 			"docPage": "docs/agent-setup/index.md",
 			"captureNote": "v2.3.0 #270. Declarative root: openSettings agent-console + scrollToSettingText 'Built-in agents'; crop the .vertical-tab-content. Set width/height to the captured native size after the first run.",
-			"captureMode": "settings-window"
+			"captureMode": "settings-window",
+			"forbiddenText": [
+				"/Users/",
+				"/home/",
+				"AC_VIDEO_RUN",
+				"BEDROCK"
+			]
 		},
 		{
 			"name": "settings-agent-page",
@@ -1564,8 +1604,8 @@
 			"purpose": "A built-in agent's settings sub-page (Claude Code): API key, path with Auto-detect, arguments, environment variables.",
 			"mustShow": ".setting-page-back-button",
 			"altText": "Claude Code settings sub-page with API key, path and Auto-detect, arguments, and environment variables",
-			"width": 691,
-			"height": 686,
+			"width": 1544,
+			"height": 1366,
 			"crop": {
 				"x": 0,
 				"y": 0,
@@ -1590,7 +1630,13 @@
 			"caption": "Each agent gets its own settings page",
 			"docPage": "docs/agent-setup/claude-code.md",
 			"captureNote": "v2.3.0 #270. Clicks the first navigable row (Claude Code) and waits for .setting-page-back-button; crop .vertical-tab-content. Set width/height to the captured native size after the first run.",
-			"captureMode": "settings-window"
+			"captureMode": "settings-window",
+			"forbiddenText": [
+				"/Users/",
+				"/home/",
+				"AC_VIDEO_RUN",
+				"BEDROCK"
+			]
 		},
 		{
 			"name": "tab-ai-rename-menu",
@@ -1826,8 +1872,8 @@
 		},
 		{
 			"name": "settings-max-saved-chats",
-			"width": 760,
-			"height": 300,
+			"width": 1544,
+			"height": 1374,
 			"crop": {
 				"x": 0,
 				"y": 0,
@@ -1849,7 +1895,17 @@
 			"caption": "Choose how many chats to keep",
 			"altText": "Agent Console Sessions settings with the Max saved chats dropdown set to 100",
 			"docPage": "docs/usage/session-history.md",
-			"captureMode": "settings-window"
+			"captureMode": "settings-window",
+			"forbiddenText": [
+				"/Users/",
+				"/home/",
+				"AC_VIDEO_RUN",
+				"BEDROCK"
+			],
+			"settingsWindowSize": {
+				"width": 1200,
+				"height": 720
+			}
 		},
 		{
 			"name": "tab-rail-icons",
