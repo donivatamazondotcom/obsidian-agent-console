@@ -204,7 +204,7 @@ describe("runUriFire (T08)", () => {
 		expect(h.notify).toHaveBeenCalledWith(NOT_READY);
 		expect(h.logError).toHaveBeenCalledTimes(1);
 		expect(h.logError.mock.calls[0][0]).toBe("[QuickPrompts] URI: opening the chat view failed");
-		expect(h.logError.mock.calls[0][1]).toBeInstanceOf(Error);
+		expect(h.logError.mock.calls[0][1]).toEqual(new Error("setViewState failed"));
 		h.setMounted(true);
 		h.advance(3_000);
 		await h.fire(link);

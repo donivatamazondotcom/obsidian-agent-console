@@ -241,13 +241,13 @@ Don't encode or retype the prompt yourself.
 - If you can't run the command (no shell, plan or read-only mode, I declined it, or python3 is missing or asks to install developer tools), or it still fails after one retry with a new suffix, don't rewrite it, change the prompt's text, or build a link yourself. Give me the prompt in a fenced block with four backticks, so I can copy it.
 ```
 
-The command needs Python 3. On a Mac, it comes with the Command Line Tools (`xcode-select --install`) or any other Python 3 install. Without them, macOS offers to install the tools the first time the agent runs the command, and the agent gives you the handoff to copy instead.
+The command needs Python 3. On a Mac, it comes with the Command Line Tools (`xcode-select --install`) or any other Python 3 install. If you have neither, macOS offers to install the tools when the agent runs the command. You can cancel it, and the agent gives you the handoff to copy instead.
 
 ### Use it
 
 Type `!` in the composer and pick your Resume prompt. The agent writes the handoff and runs one command. A new tab opens with the handoff quoted under the Continue handoff text. Nothing is sent until you press **Enter**.
 
-- **Expect to approve the command each time.** Most agents ask before they run a command, and this one is new on every run, so an approval for "this exact command" won't match the next one. Don't add a rule that allows `python3` everywhere: it would let the agent run any Python without asking. The approval is also your chance to read the handoff before it opens.
+- **Approve it once, each time.** Most agents ask before they run a command, and this one is new on every run. Pick the plain approve option, not an "always" one. An always rule for this exact command never matches the next handoff, and a rule that allows any `python3` command, even in one vault, lets the agent run any Python without asking. The approval is also your chance to read the handoff before it opens. See [Permission controls](./editing.md#permission-controls).
 - **"Sent" doesn't prove a tab opened.** It only means your computer accepted the link. An agent that runs commands in a sandbox may not be able to open links at all. If no tab opened, ask the agent for the link. It runs the same command with `--link` and gives you a **Continue in a new chat** link to click.
 - **When the agent can't run commands**, for example in plan or read-only mode, without `python3`, or when you decline the command, it gives you the handoff in a block to copy instead.
 - **Only trust a handoff you asked for.** Any web page or email can hold a link to Continue handoff, and the tab it opens looks the same as a real one. If a Continue handoff tab opens when you didn't ask an agent for a handoff, close it without sending.
