@@ -824,7 +824,9 @@ export const en = {
 	"chat.quickPrompts.externalTextHeading": "External text · {count} chars",
 	"chat.quickPrompts.externalTextHeadingWithSource":
 		"External text · {count} chars · claimed source: {source}",
-	"chat.quickPrompts.uriHiddenRemoved":
+	"chat.quickPrompts.uriHiddenRemoved_one":
+		"Removed 1 hidden character from the linked text.",
+	"chat.quickPrompts.uriHiddenRemoved_other":
 		"Removed {count} hidden characters from the linked text.",
 	"chat.quickPrompts.uriUnknownPrompt":
 		'No quick prompt has the id "{id}". Check the link.',

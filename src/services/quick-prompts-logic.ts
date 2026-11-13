@@ -8,6 +8,7 @@ import {
 	claimedSourceLabel,
 	formatExternalBlock,
 	sanitizeExternalText,
+	toOneLine,
 } from "../utils/quick-prompt-uri";
 // Moved to types/quick-prompt.ts (utils-leaf refactor, G2); re-exported so the
 // existing ui/hooks/services consumers keep their import path.
@@ -735,8 +736,10 @@ export function planUriFire(
 		return r.text;
 	};
 	const selection = clean(ext.selection);
-	const url = clean(ext.url);
-	const title = clean(ext.title);
+	const oneLine = (v: string | undefined) =>
+		v === undefined ? undefined : toOneLine(v);
+	const url = oneLine(clean(ext.url));
+	const title = oneLine(clean(ext.title));
 
 	const block =
 		selection !== undefined
@@ -809,7 +812,9 @@ export function executeUriPrompt(
 }
 
 export function uriHiddenRemovedNotice(count: number): string {
-	return t("chat.quickPrompts.uriHiddenRemoved", { count });
+	return count === 1
+		? t("chat.quickPrompts.uriHiddenRemoved_one")
+		: t("chat.quickPrompts.uriHiddenRemoved_other", { count });
 }
 export function uriUnknownPromptNotice(id: string): string {
 	return t("chat.quickPrompts.uriUnknownPrompt", { id });

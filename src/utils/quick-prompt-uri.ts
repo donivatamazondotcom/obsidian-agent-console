@@ -74,21 +74,27 @@ const LINE_BREAK_RE = /\r\n?|[\u0085\u2028\u2029]/g;
  * Removed: every Default_Ignorable_Code_Point (zero-width characters,
  * U+200C included, bidi marks and overrides, BOM, soft hyphen, fillers,
  * variation selectors, tag characters), the interlinear annotation marks,
- * and control characters other than tab and newline.
+ * the Egyptian hieroglyph format controls, and control characters other
+ * than tab and newline.
  *
  * Kept, because real text needs them and one of each carries no hidden text:
  * - the England, Scotland and Wales flags, the only standard emoji built
  *   from tag characters (any other tag run is removed);
- * - one U+FE0E or U+FE0F right after an emoji base (keycaps like 1️⃣, ✔️);
+ * - U+FE0F after an ASCII digit, `#` or `*` only inside a keycap (1️⃣), and
+ *   one U+FE0E or U+FE0F right after any other emoji base (✔️, ©️);
  * - one zero-width joiner between two emoji (👨‍👩‍👧, 👩🏽‍💻, ❤️‍🔥);
+ * - one zero-width joiner right after an Indic or Sinhala virama, which
+ *   shapes conjuncts such as Sinhala ශ්‍රී and Malayalam chillu letters;
  * - one ideographic variation selector right after a Han character.
  *
  * The kept alternatives come first, and each lookbehind reads the original
  * text, so a second selector or joiner in a row is always removed.
- * Known limit: Mongolian free variation selectors are removed too.
+ * Known limits: standardized variation sequences (U+FE00–FE0D after math
+ * symbols, CJK compatibility forms and some scripts) and Mongolian free
+ * variation selectors lose their selector.
  */
 const HIDDEN_RE =
-	/(\u{1F3F4}\u{E0067}\u{E0062}(?:\u{E0065}\u{E006E}\u{E0067}|\u{E0073}\u{E0063}\u{E0074}|\u{E0077}\u{E006C}\u{E0073})\u{E007F}|(?<=\p{Emoji})[\uFE0E\uFE0F]|(?<=[\p{Extended_Pictographic}\p{Emoji_Modifier}]\uFE0F?)\u200D(?=\p{Extended_Pictographic})|(?<=\p{Unified_Ideograph})[\u{E0100}-\u{E01EF}])|(?![\t\n])\p{Cc}|[\p{Default_Ignorable_Code_Point}\uFFF9-\uFFFB]/gu;
+	/(\u{1F3F4}\u{E0067}\u{E0062}(?:\u{E0065}\u{E006E}\u{E0067}|\u{E0073}\u{E0063}\u{E0074}|\u{E0077}\u{E006C}\u{E0073})\u{E007F}|(?<=[#*0-9])\uFE0F(?=\u20E3)|(?<![#*0-9])(?<=\p{Emoji})[\uFE0E\uFE0F]|(?<=[\p{Extended_Pictographic}\p{Emoji_Modifier}]\uFE0F?)\u200D(?=\p{Extended_Pictographic})|(?<=[\u094D\u09CD\u0A4D\u0ACD\u0B4D\u0BCD\u0C4D\u0CCD\u0D4D\u0DCA])\u200D|(?<=\p{Unified_Ideograph})[\u{E0100}-\u{E01EF}])|(?![\t\n])\p{Cc}|[\p{Default_Ignorable_Code_Point}\uFFF9-\uFFFB\u{13430}-\u{1343F}]/gu;
 
 export interface SanitizedText {
 	text: string;
@@ -160,6 +166,17 @@ export function formatExternalBlock(text: string, heading: string): string {
 		.map((line) => (line === "" ? ">" : `> ${line}`))
 		.join("\n");
 	return `${heading}\n${quoted}`;
+}
+
+/**
+ * Collapse every run of whitespace, line breaks included, to one space.
+ * A link's `url` and `title` are one-line values, and they land outside the
+ * quote block (the heading's claimed source and the `{{url}}`/`{{title}}`
+ * placeholders), so a line break in either must not start a line that reads
+ * like the user's own prompt.
+ */
+export function toOneLine(s: string): string {
+	return s.replace(/\s+/g, " ").trim();
 }
 
 /**

@@ -666,7 +666,8 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.quickPrompts.externalTextHeading": "外部文本 · {count} 字符",
 	"chat.quickPrompts.externalTextHeadingWithSource":
 		"外部文本 · {count} 字符 · 声称来源：{source}",
-	"chat.quickPrompts.uriHiddenRemoved": "已从链接文本中移除 {count} 个隐藏字符。",
+	"chat.quickPrompts.uriHiddenRemoved_one": "已从链接文本中移除 1 个隐藏字符。",
+	"chat.quickPrompts.uriHiddenRemoved_other": "已从链接文本中移除 {count} 个隐藏字符。",
 	"chat.quickPrompts.uriUnknownPrompt": "没有 ID 为“{id}”的快捷提示。请检查链接。",
 	"chat.quickPrompts.uriBadParam": "链接中的“{field}”值缺失或为空。未打开任何内容。",
 	"chat.quickPrompts.uriUnknownAgent": "没有与“{agent}”匹配的智能体。请检查链接或提示笔记。",
