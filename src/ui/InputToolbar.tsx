@@ -5,6 +5,10 @@ import { setIcon, Menu } from "obsidian";
 import { registerOpenMenu, showMenuAtEvent } from "../utils/menu-registry";
 import { useTooltip } from "./shared/useTooltip";
 import { isSessionLive } from "../resolvers/send-affordance";
+import {
+	deriveComposerPickers,
+	type ComposerPickers,
+} from "../resolvers/composer-pickers";
 import type { TabSessionState } from "../hooks/useTabSessionState";
 import { t } from "../i18n";
 import {
@@ -202,6 +206,12 @@ export interface InputToolbarProps {
 	onConfigOptionChange?: (configId: string, value: string) => void;
 	usage?: SessionUsage;
 	lazyState: TabSessionState;
+	/**
+	 * Which pickers to show, decided once by `deriveComposerPickers` so the chat
+	 * header can agree with it. Optional: callers without a session (the
+	 * zero-tab landing, tests) get the resolver's answer for these props.
+	 */
+	composerPickers?: ComposerPickers;
 }
 
 export function InputToolbar({
@@ -217,8 +227,24 @@ export function InputToolbar({
 	onConfigOptionChange,
 	usage,
 	lazyState,
+	composerPickers,
 }: InputToolbarProps) {
 	const sendButtonRef = useRef<HTMLButtonElement>(null);
+
+	const canChangeMode = !!onModeChange;
+	const canChangeModel = !!onModelChange;
+	const pickers = useMemo<ComposerPickers>(
+		() =>
+			composerPickers ??
+			deriveComposerPickers({
+				configOptions,
+				modes,
+				models,
+				canChangeMode,
+				canChangeModel,
+			}),
+		[composerPickers, configOptions, modes, models, canChangeMode, canChangeModel],
+	);
 
 	const updateIconColor = useCallback(
 		(svg: SVGElement) => {
@@ -324,13 +350,13 @@ export function InputToolbar({
 			    conditional elements render. */}
 			<span className="agent-client-toolbar-spacer" aria-hidden="true" />
 
-			{/* Config Options (supersedes legacy mode/model selectors) */}
-			{configOptions && configOptions.length > 0
-				? configOptions.map((option) => {
+			{/* Config Options (supersede legacy mode/model selectors). Which
+			    pickers show is decided by deriveComposerPickers. */}
+			{pickers.source === "config"
+				? pickers.shown.map((option) => {
 						const flatOptions = flattenConfigSelectOptions(
 							option.options,
 						);
-						if (flatOptions.length <= 1) return null;
 
 						const isGrouped =
 							option.options.length > 0 &&
@@ -379,9 +405,9 @@ export function InputToolbar({
 							/>
 						);
 					})
-				: (
+				: pickers.source === "legacy" && (
 					<>
-						{modes && modes.availableModes.length > 1 && onModeChange && (
+						{pickers.mode && modes && onModeChange && (
 							<ToolbarDropdown
 								label={currentModeLabel}
 								tooltip={
@@ -395,8 +421,8 @@ export function InputToolbar({
 							/>
 						)}
 
-						{models &&
-							models.availableModels.length > 1 &&
+						{pickers.model &&
+							models &&
 							onModelChange && (
 								<ToolbarDropdown
 									label={currentModelLabel}

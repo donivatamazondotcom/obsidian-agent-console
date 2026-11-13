@@ -32,6 +32,7 @@ import {
 	type SessionModelState,
 } from "../types/session";
 import { readSessionModes } from "./session-modes";
+import { matchesOptionKind } from "./composer-pickers";
 
 export type HeaderAgent =
 	| { kind: "configured"; label: string }
@@ -51,7 +52,7 @@ function findOption(
 	configOptions: SessionConfigOption[] | undefined,
 	kind: "mode" | "model",
 ): SessionConfigOption | undefined {
-	return configOptions?.find((o) => o.id === kind || o.category === kind);
+	return configOptions?.find((o) => matchesOptionKind(o, kind));
 }
 
 export function deriveHeaderAgent(input: HeaderAgentInput): HeaderAgent {
@@ -157,8 +158,8 @@ export function deriveHeaderEngine(input: HeaderEngineInput): HeaderEngine {
 export function deriveHeaderEffort(input: {
 	configOptions?: SessionConfigOption[];
 }): string | null {
-	const option = input.configOptions?.find(
-		(o) => o.id === "thought_level" || o.category === "thought_level",
+	const option = input.configOptions?.find((o) =>
+		matchesOptionKind(o, "thought_level"),
 	);
 	if (!option) return null;
 	const current = flattenConfigSelectOptions(option.options).find(
