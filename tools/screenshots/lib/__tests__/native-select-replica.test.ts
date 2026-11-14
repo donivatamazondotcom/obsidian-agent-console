@@ -104,6 +104,21 @@ describe("nativeSelectReplicaExpression", () => {
 		expect(px(el.style.top) + height).toBeLessThanOrEqual(900 - 4);
 	});
 
+	it("stays inside the window when the select sits near its right edge", () => {
+		mount({ x: 1100, y: 300, width: 90, height: 30 }, ["Auto (match Obsidian)", "English"], 0);
+		const proto = HTMLElement.prototype;
+		const real = proto.getBoundingClientRect;
+		proto.getBoundingClientRect = function (this: HTMLElement) {
+			return this.id === NATIVE_SELECT_REPLICA_ID ? ({ x: 0, y: 0, width: 300, height: 60, top: 0, left: 0, right: 300, bottom: 60, toJSON() {} } as DOMRect) : real.call(this);
+		};
+		try {
+			run(".lang select", [1200, 900]);
+		} finally {
+			proto.getBoundingClientRect = real;
+		}
+		expect(px(replica().style.left) + 300).toBeLessThanOrEqual(1200 - 4);
+	});
+
 	it("replaces a replica left by an earlier run", () => {
 		mount({ x: 800, y: 300, width: 200, height: 30 }, ["a", "b"], 0);
 		run(".lang select");

@@ -39,7 +39,7 @@ import { log, logError } from "../lib/cli-log";
 import { parseManifest, validateManifest } from "./lib/manifest";
 import { CAPTURE_VIEWPORT, captureAll, legacySkipReason, selectEntries, type OrchestratorDeps } from "./lib/orchestrator";
 import { Cdp, hookLogExpression, newestTitledPage, SETTINGS_WINDOW_HOOK, type CdpTransport } from "./lib/cdp";
-import { buildReviewPage, collectReviewItems } from "./lib/review-page";
+import { buildReviewPage, collectReviewItems, restoreHints } from "./lib/review-page";
 import { chromium, type Browser, type CDPSession, type Page } from "playwright-core";
 import { setTimeout as sleep } from "node:timers/promises";
 import { configDirOf, materializeRun, seededText, templateAgentConfig } from "../lib/fixtures-vault";
@@ -194,6 +194,8 @@ async function main() {
 	});
 	writeFileSync(reviewPath, buildReviewPage(items, { title: "Agent Console screenshots: committed vs this run", generated: new Date().toISOString() }));
 	log(`\n🔎 Review page: ${reviewPath}`);
+	const hints = restoreHints(items);
+	if (hints.length) log(`  ⚠ not captured but changed on disk; restore before staging images:\n    git restore ${hints.join(" ")}`);
 
 	const report = reportRun(results, runProblems);
 	for (const l of report.lines) log(l);

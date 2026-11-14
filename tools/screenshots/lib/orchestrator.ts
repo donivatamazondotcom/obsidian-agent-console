@@ -1628,7 +1628,7 @@ async function captureEntryWithSettings(
 		// string appears in the visible text (guards an internal-agent-name leak
 		// regression — the fixtures run Claude Code/Bedrock). Per-entry
 		// forbiddenSelectors/forbiddenText merge with the verified global defaults.
-		{
+		const assertClean = async (): Promise<void> => {
 			const cfg = resolveCleanlinessConfig(
 				entry.forbiddenSelectors,
 				entry.forbiddenText,
@@ -1642,7 +1642,8 @@ async function captureEntryWithSettings(
 					`cleanliness assert: "${entry.name}" — ${violations.join("; ")}`,
 				);
 			}
-		}
+		};
+		await assertClean();
 
 		// 5. Capture to a temp file. captureMode "screen" uses macOS screencapture
 		// of the window's screen region — the only way to capture native popup
@@ -1659,6 +1660,8 @@ async function captureEntryWithSettings(
 				`${ACTIVE_PANEL} .agent-client-loading-indicator.agent-client-hidden`,
 				RESPONSE_TIMEOUT_MS,
 			);
+			// The end of the turn can render a notice or an error overlay.
+			await assertClean();
 		}
 		if (screenMode) {
 			// I09: ensure the agent turn is idle so the composer send button shows
@@ -1697,7 +1700,9 @@ async function captureEntryWithSettings(
 			// viewport-emulation vs real-window coordinate mismatch.
 			effectiveDpr = 1;
 		} else {
-			if (pageMenu || pageHero) {
+			// Every isolated page capture checks the viewport, so a shot can't
+			// silently capture at another entry's size (review round 1).
+			if (isolated) {
 				await assertPageViewport(entry, deps, pageHero ? SCREEN_WINDOW_HERO : CAPTURE_VIEWPORT);
 			}
 			await deps.cdp.screenshot(tmpPath);
@@ -2179,6 +2184,9 @@ async function captureAnimationEntry(
 	// so the GIF can cycle the active tab — same helper the still hero uses.
 	await restoreSessionsIntoTabs(entry, deps);
 
+	// The frames render at the capture viewport (isolated driver).
+	if (deps.cdp.isolated === true) await assertPageViewport(entry, deps, CAPTURE_VIEWPORT);
+
 	// Crop resolved ONCE (from cropSelector/cropSelectors when present, else the
 	// static crop; CSS px → device px), reused for every frame so the GIF
 	// doesn't jitter; clamped to the captured image bounds per frame.
@@ -2543,18 +2551,6 @@ async function captureSettingsWindowEntry(
 			);
 		}
 
-		// A native <select> popup is drawn by the OS outside the page, so the
-		// shot shows a DOM replica of the open list instead (PR 2c). Built
-		// after the scrolls, which move the select.
-		const nativeSelect = entry.initialState?.openNativeSelect;
-		if (nativeSelect) {
-			await waitForActiveDocumentSelector(deps, nativeSelect);
-			const built = await inSettings<unknown>(nativeSelectReplicaExpression(nativeSelect));
-			if (built !== "ok") {
-				throw new Error(`settings-window entry "${entry.name}": ${String(built)}`);
-			}
-		}
-
 		if (entry.mustShow) {
 			await waitForActiveDocumentSelector(deps, entry.mustShow);
 		}
@@ -2564,6 +2560,19 @@ async function captureSettingsWindowEntry(
 		// an extra settle for the fade/slide to finish.
 		if (page || entry.initialState?.clickSequence?.length) {
 			await sleep(1200);
+		}
+
+		// A native <select> popup is drawn by the OS outside the page, so the
+		// shot shows a DOM replica of the open list instead (PR 2c). Built
+		// last, after the scrolls and settles, so the select doesn't move
+		// between the replica and the capture.
+		const nativeSelect = entry.initialState?.openNativeSelect;
+		if (nativeSelect) {
+			await waitForActiveDocumentSelector(deps, nativeSelect);
+			const built = await inSettings<unknown>(nativeSelectReplicaExpression(nativeSelect));
+			if (built !== "ok") {
+				throw new Error(`settings-window entry "${entry.name}": ${String(built)}`);
+			}
 		}
 
 		// No hover state in the shot: the invisible settings window can sit

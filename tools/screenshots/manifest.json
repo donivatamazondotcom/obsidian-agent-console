@@ -121,7 +121,7 @@
 			"placement": "reference",
 			"purpose": "Pick how much autonomy the agent gets, per session.",
 			"differentiator": "Per-session permission modes",
-			"mustShow": ".menu .menu-item",
+			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-config-selector-mode",
 			"caption": "Control what the agent can do",
 			"altText": "Agent Console permission-mode menu showing Manual, Accept edits, Plan, Auto, and Bypass permissions"
 		},
@@ -145,7 +145,7 @@
 			"placement": "reference",
 			"purpose": "Switch the model the agent runs on.",
 			"differentiator": "Model selection",
-			"mustShow": ".menu .menu-item",
+			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-config-selector-model",
 			"caption": "Choose your model",
 			"altText": "Agent Console model menu listing the available models for the session"
 		},
@@ -170,7 +170,7 @@
 			"placement": "reference",
 			"purpose": "Tune how much reasoning effort the agent spends per session.",
 			"differentiator": "Per-session reasoning effort",
-			"mustShow": ".menu .menu-item",
+			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-config-selector-thought_level",
 			"caption": "Dial the agent\u2019s effort up or down",
 			"altText": "Agent Console effort-level menu showing Default, Low, Medium, High, Xhigh, and Max"
 		},

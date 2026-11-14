@@ -24,8 +24,15 @@ export interface ReviewItem {
 	detail?: string;
 	/** The committed image (git HEAD), or null when the entry is new. */
 	before: ReviewImage | null;
-	/** The image the run wrote, or null when it wrote none. */
+	/**
+	 * The image the run wrote. For an entry that didn't capture, what is on
+	 * disk when it differs from the committed image, else null.
+	 */
 	after: ReviewImage | null;
+	/** An entry this run didn't capture whose committed image is deleted or changed on disk. */
+	fileChange?: "deleted" | "rewritten";
+	/** The image's path relative to the repo root. */
+	rel?: string;
 }
 
 /** One entry's outcome, as captureAll reports it. */
@@ -57,14 +64,26 @@ export function collectReviewItems(
 		const mime = rel.endsWith(".gif") ? "image/gif" : "image/webp";
 		const img = (data: Buffer | null): ReviewImage | null => (data ? { mime, data } : null);
 		const status = r.skipped ? "skipped" : r.success ? "captured" : "failed";
-		return {
-			name: r.name,
-			status,
-			detail: r.skipped ?? r.error,
-			before: img(io.readCommitted(rel)),
-			after: status === "captured" ? img(io.readCurrent(rel)) : null,
-		};
+		const before = io.readCommitted(rel);
+		const current = io.readCurrent(rel);
+		const item: ReviewItem = { name: r.name, status, detail: r.skipped ?? r.error, before: img(before), after: null, rel };
+		if (status === "captured") {
+			item.after = img(current);
+		} else if (before && !current) {
+			// The content guard deletes a degraded capture, which had
+			// already overwritten the committed image.
+			item.fileChange = "deleted";
+		} else if (before && current && !before.equals(current)) {
+			item.fileChange = "rewritten";
+			item.after = img(current);
+		}
+		return item;
 	});
+}
+
+/** Images a run deleted or changed without capturing them, to `git restore` before staging. */
+export function restoreHints(items: readonly ReviewItem[]): string[] {
+	return items.filter((i) => i.fileChange && i.rel).map((i) => i.rel as string);
 }
 
 type Label = "unchanged" | "changed" | "new" | "failed" | "skipped";
@@ -97,7 +116,10 @@ export function buildReviewPage(items: readonly ReviewItem[], opts: { title: str
 		.map((i) => {
 			const l = label(i);
 			const detail = i.detail ? `<p class="detail">${esc(i.detail)}</p>` : "";
-			return `<section id="${esc(i.name)}"><h2>${esc(i.name)} <span class="badge ${l}">${l}</span></h2>${detail}<div class="pair">${figure("Committed (HEAD)", i.before)}${figure("This run", i.after)}</div></section>`;
+			const change = i.fileChange
+				? `<p class="detail">${i.fileChange === "deleted" ? "The committed image is missing on disk" : "The image on disk differs from the committed one"}, but this run didn't capture it. Before staging: <code>git restore ${esc(i.rel ?? "")}</code></p>`
+				: "";
+			return `<section id="${esc(i.name)}"><h2>${esc(i.name)} <span class="badge ${l}">${l}</span></h2>${detail}${change}<div class="pair">${figure("Committed (HEAD)", i.before)}${figure(i.fileChange ? "On disk now" : "This run", i.after)}</div></section>`;
 		})
 		.join("\n");
 	return `<!doctype html>

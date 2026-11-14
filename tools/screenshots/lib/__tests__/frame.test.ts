@@ -176,7 +176,7 @@ describe("traffic lights (isolated heroes, PR 2c)", () => {
 	it("sits where the committed, really captured hero shows its lights", () => {
 		// editor-quickprompts (real chrome, 1600 pt window downscaled to 1400
 		// px, framed with 60 px padding): red at (78, 76), yellow (98, 76),
-		// green (118, 76), each about 13 px across.
+		// green (118, 76), each about 11 px across (these draw 12).
 		const s = 0.875;
 		const centers = [0, 1, 2].map((i) => [60 + (TRAFFIC_LIGHTS.firstX + i * TRAFFIC_LIGHTS.step) * s, 60 + TRAFFIC_LIGHTS.y * s]);
 		expect(centers.map(([x]) => Math.round(x))).toEqual([78, 98, 118]);
