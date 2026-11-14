@@ -824,8 +824,13 @@ export function isSettingsPathEntry(entry: ManifestEntry): boolean {
 export function showsChatHeader(entry: ManifestEntry): boolean {
 	if (entry.captureMode === "screen-window") return true;
 	const containers = [
-		/\.agent-client-chat-view-header(?![\w-])/,
+		// The header and its parts, but not its update pill.
+		/\.agent-client-chat-view-header(?!-update)(?![\w])/,
+		/\.acp-header-branded/,
+		// A container that holds it: a tab panel, the tab layout, the chat leaf.
 		/(^|\s)\.agent-client-tab-panel(:not\(\[style\*="none"\]\))?$/,
+		/\.agent-client-tab-panels$/,
+		/\.agent-client-tabs-layout$/,
 		/\.workspace-leaf-content\[data-type="agent-console-chat-view"\]$/,
 	];
 	return [entry.cropSelector, ...(entry.cropSelectors ?? [])].some((s) => typeof s === "string" && containers.some((re) => re.test(s.trim())));
@@ -1151,6 +1156,16 @@ export function validateManifest(
 		const opensHistorySession = (entry.initialState?.clickSequence ?? []).some(
 			(step) => typeof step?.selector === "string" && step.selector.includes("agent-client-session-history-restore-icon"),
 		);
+		if (typeof entry.initialState?.tabLabel === "string" && entry.initialState.tabLabel.length > 100) {
+			throw new Error(`manifest entry "${entry.name}": initialState.tabLabel is longer than the tab label limit of 100 characters`);
+		}
+		for (const own of ["restoreSessions", "forceTabStates"] as const) {
+			if (entry.initialState?.tabLabel !== undefined && entry.initialState[own] !== undefined) {
+				throw new Error(
+					`manifest entry "${entry.name}": initialState.tabLabel can't be combined with initialState.${own}, whose tabs carry their own titles`,
+				);
+			}
+		}
 		if (entry.initialState?.tabLabel !== undefined && opensHistorySession) {
 			throw new Error(
 				`manifest entry "${entry.name}": initialState.tabLabel can't be combined with a clickSequence step that opens a history session (the shot shows that session's tab, with its saved title)`,
@@ -1166,7 +1181,7 @@ export function validateManifest(
 		// sessions, which carry their own titles.
 		if (showsChatHeader(entry)) {
 			const is = entry.initialState;
-			const fixed = is?.tabLabel !== undefined || is?.restoreSessions !== undefined || is?.forceTabStates !== undefined || opensHistorySession;
+			const fixed = is?.tabLabel !== undefined || is?.restoreSessions !== undefined || (is?.forceTabStates?.length ?? 0) > 0 || opensHistorySession;
 			if (!fixed) {
 				throw new Error(
 					`manifest entry "${entry.name}" crops the chat header, which shows the chat's title: set initialState.tabLabel, restore sessions (restoreSessions), seed tabs (forceTabStates), or open a history session in clickSequence`,
