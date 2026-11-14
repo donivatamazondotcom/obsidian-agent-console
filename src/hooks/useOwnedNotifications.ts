@@ -2,31 +2,39 @@ import { useCallback, useEffect } from "react";
 
 import {
 	closeNotificationsForOwner,
-	retainNotification,
-} from "../utils/notification-registry";
+	showOwnedNotification,
+} from "../services/notification-registry";
 
 /**
- * Ties a panel's system notifications to the panel's lifetime (I52 round 8).
+ * Posts a panel's system notifications and ties them to the panel's lifetime
+ * (I52 rounds 8–9).
  *
- * Returns a `retain(notification, onClick)` function to use instead of
- * `retainNotification`. Every notification retained through it is owned by
- * `ownerId` (the panel's viewId, which equals its tab id). When the panel
- * unmounts — its tab was closed, or its view was torn down — the panel's
- * notifications are closed, so none survives into Notification Center with a
- * click handler that points at a panel that no longer exists.
+ * Returns `notify(title, options, onClick)`. The registry constructs the
+ * notification and gives it a fresh tag (`<ownerId>:<suffix>`) — reusing the
+ * tab id as the tag made a tab's later notifications lose their click (round
+ * 9). When the panel unmounts (tab closed, or view torn down), its
+ * notifications are marked for removal after the app-wide quiet period, and a
+ * click on one in the meantime only raises the window.
  *
- * See [[I52 Notification click focuses wrong vault window]] § round 8.
+ * See [[I52 Notification click focuses wrong vault window]] § rounds 8–9.
  */
 export function useOwnedNotifications(
 	ownerId: string,
-): (notification: Notification, onClick: (event: Event) => void) => void {
+): (
+	title: string,
+	options: NotificationOptions,
+	onClick: (event: Event) => void,
+) => Notification | null {
 	useEffect(() => {
 		return () => closeNotificationsForOwner(ownerId);
 	}, [ownerId]);
 
 	return useCallback(
-		(notification: Notification, onClick: (event: Event) => void) =>
-			retainNotification(notification, onClick, ownerId),
+		(
+			title: string,
+			options: NotificationOptions,
+			onClick: (event: Event) => void,
+		) => showOwnedNotification({ owner: ownerId, title, options, onClick }),
 		[ownerId],
 	);
 }

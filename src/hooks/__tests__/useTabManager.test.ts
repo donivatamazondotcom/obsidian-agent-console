@@ -210,3 +210,48 @@ describe("Close-last-tab — reopen / undo-close from the zero-tab landing (F13)
 		expect(result.current.activeTab?.agentId).toBe("kiro-cli");
 	});
 });
+
+describe("setActiveTab ignores ids that are not open tabs (I52 round 9)", () => {
+	// A closed tab's notification handler holds the setActiveTab it captured
+	// while the tab still existed. Calling it with the closed tab's id used to
+	// set activeTabId to a missing tab, which hides every panel (blank view).
+	it("a setter captured before the tab closed cannot activate the closed id", () => {
+		const { result } = renderHook(() => useTabManager("kiro"));
+		let closedId = "";
+		act(() => {
+			closedId = result.current.addTab("kiro");
+		});
+		const captured = result.current.setActiveTab;
+		const survivor = result.current.tabs[0].tabId;
+		act(() => {
+			result.current.removeTab(closedId);
+		});
+		expect(result.current.activeTabId).toBe(survivor);
+
+		act(() => {
+			captured(closedId);
+		});
+		expect(result.current.activeTabId).toBe(survivor);
+	});
+
+	it("still activates an open tab", () => {
+		const { result } = renderHook(() => useTabManager("kiro"));
+		const first = result.current.tabs[0].tabId;
+		act(() => {
+			result.current.addTab("kiro");
+		});
+		act(() => {
+			result.current.setActiveTab(first);
+		});
+		expect(result.current.activeTabId).toBe(first);
+	});
+
+	it("keeps a stable identity across tab changes", () => {
+		const { result } = renderHook(() => useTabManager("kiro"));
+		const before = result.current.setActiveTab;
+		act(() => {
+			result.current.addTab("kiro");
+		});
+		expect(result.current.setActiveTab).toBe(before);
+	});
+});

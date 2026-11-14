@@ -57,6 +57,7 @@ src/
 │   └── zh.ts                    # Simplified Chinese catalog (factory-wrapped, partial, per-key English fallback)
 ├── services/                    # Business logic (non-React, no React imports)
 │   ├── vault-service.ts         # Vault access + fuzzy search + CM6 selection tracking
+│   ├── notification-registry.ts # Owns every OS notification: constructs with a fresh tag, routes clicks (a closed tab's entry only raises the window), removes by id after an app-wide quiet minute (shared clock in window.localStorage), teardown + startup sweeps (I52 rounds 3–9)
 │   ├── context-builder.ts       # Builds prompt context from crystallized notes
 │   ├── context-validator.ts     # Context-note data-model invariant enforcement (parse-at-edge)
 │   ├── session-metadata.ts      # Session metadata write resolution (history entry on turn-end) + title-precedence resolver (deriveSessionRecordTitle)
@@ -126,7 +127,7 @@ src/
 │   ├── loadExistingSessionFlow.ts # Kept-id reconnect: reconnectExistingSession initializes a stopped agent, then resume → load (restored and released tabs, I209)
 │   ├── reloadSessionFlow.ts     # Pure soft-reload orchestration (resume same session / fresh fallback)
 │   ├── useDebouncedSessionSave.ts # Debounced session persistence (messages + context notes)
-│   ├── useOwnedNotifications.ts # Ties a panel's system notifications to its lifetime; closes them when the tab closes (I52)
+│   ├── useOwnedNotifications.ts # Returns notify(): posts a panel's system notifications through the registry (fresh tag each) and marks them for removal when the tab closes (I52 rounds 8–9)
 │   ├── useEagerInitialize.ts    # Decision #10 eager initialize, gated by decideProcessHold — fires at most once per panel, when the tab may hold a process (I208)
 │   ├── useSessionRetirement.ts  # I259 retirement owner: snapshot() (decideUnsentDiscard over live getters), discard, retire (delete a never-sent session, then I210 close/respawn); idleReleaseDiscardSteps (a kept id is never deleted)
 │   ├── useIdleRelease.ts        # Idle release (I209): one timer per panel on decideProcessHold; release sequence (flush → released → kill, wait for tree exit), reconnect gate, apply-after-reconnect for pickers
@@ -231,6 +232,7 @@ src/
 │   ├── header-segments.ts          # deriveHeaderSegments — everything ChatPanel hands the chat header (title, grey extras, tooltip lines) from the tab and its session; the Kiro signal is session.kiroCli + HeaderSegments type
 │   ├── header-extras.ts            # deriveHeaderExtras — the grey text after the chat title: the agent only when the composer doesn't name it and the title isn't the default name, the model only without a model picker (or when the agent ran a different model); the agent-didn't-load warning always
 │   ├── composer-pickers.ts         # deriveComposerPickers — which pickers the composer shows (config options supersede legacy; read by both the composer toolbar and the header) + matchesOptionKind (mode / model / thought_level option match)
+│   ├── notification-cleanup.ts     # decideNotificationCleanup — what a notification cleanup pass does: defer until an app-wide quiet minute since the latest posting, else remove superseded/orphaned entries and evict FIFO overflow; clampDelay + parseSharedTimestamp (I52 round 9)
 │   ├── notify-gate.ts              # shouldNotifySystem — pure resolver: should an OS notification fire for a backgrounded panel; gates on the flush signal, not an instantaneous focus read (I168)
 │   ├── process-hold.ts             # decideProcessHold — pure resolver: may this tab hold an agent process now (active / busy / warm → hold; idle 1 h with a live session → release; no session: fresh / fork → hold, background restored → defer). Shared owner for eager init (I208) and idle release (I209)
 │   ├── prompt-target.ts            # resolvePromptTarget — where a quick prompt lands: a different agent or mode than the tab → new tab set up that way, else in place; agent/mode matched by id or display name
@@ -288,9 +290,8 @@ src/
 │   ├── quick-prompt-gesture.ts  # Map a click/keypress → the Quick Prompts 2×2 gesture (openElsewhere/foreground/insert) via Keymap.isModEvent + shift/alt
 │   ├── quick-prompt-uri.ts      # obsidian://agent-console links: parse params (tagged union), strip invisible chars, rate limit + duplicate drop, quote outside text, build a prompt's base link
 │   ├── link-extract.ts          # Derive per-tab shared-link set from messages (Shared Links Bubble) + new/old classification
-│   ├── notification-content.ts  # buildCompletionNotificationContent — pure turn-end notification title/body/tag (tab label in title)
+│   ├── notification-content.ts  # buildCompletionNotificationContent — pure turn-end notification title/body (tab label in title); the registry assigns the tag
 │   ├── notification-click.ts    # Pure orchestrator for a completion-notification click (reveal owning leaf/window + switch to producing tab); I52 recurrence
-│   ├── notification-registry.ts # Retains OS Notification objects so their onclick survives GC until user/OS dismissal (I52)
 │   ├── update-flush-scheduler.ts # createUpdateFlushScheduler — visibility-immune session-update flush (rAF stalls in backgrounded windows) (I168)
 │   ├── menu-registry.ts         # Tracks open Menu popups; closes them on plugin unload (reload-safety)
 │   ├── mcp-auth-affordance.ts   # Pure resolver: auth-failed tool call → inline re-auth affordance decision

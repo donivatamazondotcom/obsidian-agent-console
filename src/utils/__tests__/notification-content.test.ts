@@ -9,7 +9,6 @@ describe("buildCompletionNotificationContent", () => {
 		const c = buildCompletionNotificationContent({
 			tabLabel: "Fix scroll jitter",
 			agentLabel: "Claude Code",
-			tabId: "tab-1",
 		});
 		expect(c.title).toBe("Fix scroll jitter");
 	});
@@ -17,7 +16,6 @@ describe("buildCompletionNotificationContent", () => {
 	it("falls back to the plugin name when the tab label is missing", () => {
 		const c = buildCompletionNotificationContent({
 			agentLabel: "Claude Code",
-			tabId: "tab-1",
 		});
 		expect(c.title).toBe(COMPLETION_NOTIFICATION_FALLBACK_TITLE);
 	});
@@ -26,7 +24,6 @@ describe("buildCompletionNotificationContent", () => {
 		const c = buildCompletionNotificationContent({
 			tabLabel: "   ",
 			agentLabel: "Claude Code",
-			tabId: "tab-1",
 		});
 		expect(c.title).toBe(COMPLETION_NOTIFICATION_FALLBACK_TITLE);
 	});
@@ -35,17 +32,15 @@ describe("buildCompletionNotificationContent", () => {
 		const c = buildCompletionNotificationContent({
 			tabLabel: "Draft release notes",
 			agentLabel: "Gemini CLI",
-			tabId: "tab-1",
 		});
 		expect(c.body).toBe("Gemini CLI · response complete");
 	});
 
-	it("uses the tabId as the tag so per-tab notifications do not coalesce", () => {
+	it("carries no tag: the notification registry assigns a fresh one per notification (I52 round 9)", () => {
 		const c = buildCompletionNotificationContent({
 			tabLabel: "x",
 			agentLabel: "y",
-			tabId: "tab-42",
 		});
-		expect(c.tag).toBe("tab-42");
+		expect(c).not.toHaveProperty("tag");
 	});
 });
