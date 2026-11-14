@@ -51,9 +51,9 @@ To switch agents for the current view:
 1. Click the **⋮** (ellipsis) menu in the chat header
 2. Under **"Switch agent"**, select the agent you want to use
 
-The chat header shows the chat's title, so you always know which chat you're in. After the title, in grey, it adds only what the composer below doesn't already show: the agent's name for agents without an agent picker (Claude Code, for example), and the model when there's no model picker. A connected Kiro CLI chat shows just its title, because the composer's pickers already name its agent and model. A new chat is titled with the agent's name and the time until it gets a real title.
+The chat header shows the chat's title, so you always know which chat you're in. After the title, in grey, it adds only what the composer below doesn't already show: the agent's name for agents without an agent picker (Claude Code, for example), and the model when there's no model picker. A connected Kiro CLI chat on the V3 engine shows just its title, because the composer's pickers already name its agent and model. A new chat is titled with the agent's name and the time until it gets a real title.
 
-If the agent you chose couldn't load, the header adds its name struck through, followed by the agent running instead – for example **~~Research~~ kiro_default**. This warning always shows, even when space is short.
+If the agent you chose couldn't load, the header adds its name struck through, followed by the agent running instead – for example **~~Research~~ kiro_default**. This warning is the last thing to be cut when space is short; hover the header to read it in full.
 
 Hover the header to see the chat's full title and what the tab is running: agent, engine, model, effort, mode and folder, each when it applies.
 

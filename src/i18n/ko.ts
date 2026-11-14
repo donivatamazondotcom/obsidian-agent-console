@@ -509,7 +509,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.header.connecting": "연결 중…",
 	"chat.header.updatePill": "업데이트",
 	"chat.header.updateTooltip":
-		"플러그인 업데이트 가능! 커뮤니티 플러그인을 열어 Agent Console을 업데이트하세요",
+		"업데이트 — 플러그인 업데이트 가능! 커뮤니티 플러그인을 열어 Agent Console을 업데이트하세요",
 	"chat.header.reloadTooltip":
 		"다시 불러오기 — 세션을 이어가고 대화를 유지합니다. Shift-클릭: 새로 시작 — 새 세션으로 대화를 지웁니다.",
 	"chat.header.sessionHistory": "세션 기록",

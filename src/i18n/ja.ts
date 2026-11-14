@@ -545,7 +545,7 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.header.connecting": "接続中…",
 	"chat.header.updatePill": "更新",
 	"chat.header.updateTooltip":
-		"プラグインの更新があります！コミュニティプラグインを開いて Agent Console を更新",
+		"更新 — プラグインの更新があります！コミュニティプラグインを開いて Agent Console を更新",
 	"chat.header.reloadTooltip":
 		"再読み込み — セッションを再開し会話を保持します。Shift クリック: 最初からやり直し — 新しいセッションで会話をクリアします。",
 	"chat.header.sessionHistory": "セッション履歴",
