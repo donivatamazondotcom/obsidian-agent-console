@@ -949,9 +949,10 @@ async function captureEntryWithSettings(
 		}
 		await applyLayoutOverrides(entry, deps);
 		// A fixed title for the entry's chat tab, which the header shows.
-		// Applied once, after the steps that can open or activate another
-		// tab (3c-septies below), and read back before the capture. A custom
-		// label blocks later automatic labels (an AI title arriving late).
+		// Applied before a hover, and after the steps that can open or
+		// activate another tab (3c-septies below); read back before the
+		// capture. A custom label blocks later automatic labels (an AI
+		// title arriving late).
 		// The tab is the entry's own: tabLabel needs clickRibbon, which
 		// detaches the previous panel.
 		const tabLabel = entry.initialState?.tabLabel;
