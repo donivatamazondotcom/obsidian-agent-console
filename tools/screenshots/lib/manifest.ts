@@ -122,14 +122,16 @@ export interface InitialState {
 	/**
 	 * Title for the entry's chat tab, which the chat header shows. Set as a
 	 * custom label on the active tab (the view's `tabManagerRef.setTabLabel(
-	 * activeTabId, label, true)`) once the entry's tabs are set up (after a
-	 * second prompt, a new-chat command or a quick-prompt link), and before
-	 * a hover; read back before the capture, and a mismatch fails the
-	 * entry. A custom label blocks later automatic labels. Needs
-	 * `clickRibbon`; refused on GIFs, over the 100-character label limit,
-	 * and with `restoreSessions`, `forceTabStates` or a history-open
-	 * `clickSequence` step, whose tabs carry their own titles. A shot that
-	 * shows the header must fix its title this way or through one of those
+	 * activeTabId, label, true)`): before a hover (`hoverSelector`), then
+	 * once the entry's tabs are set up (after a second prompt, a new-chat
+	 * command or a quick-prompt link); the second call changes nothing when
+	 * the label is already there. Read back before the capture, and a
+	 * mismatch fails the entry. A custom label blocks later automatic
+	 * labels. Needs `clickRibbon`; refused on GIFs, over the 100-character
+	 * label limit, with `restoreSessions`, `forceTabStates` or a history-open
+	 * `clickSequence` step (whose tabs carry their own titles), and with a
+	 * hover plus a step that opens another tab. A shot that shows the header
+	 * must fix its title this way or through one of those
 	 * (`showsChatHeader`).
 	 */
 	tabLabel?: string;
@@ -838,9 +840,47 @@ export function showsChatHeader(entry: ManifestEntry): boolean {
 	return [entry.cropSelector, ...(entry.cropSelectors ?? [])].some((s) => {
 		if (typeof s !== "string") return false;
 		if (parts.some((re) => re.test(s))) return true;
-		const last = s.trim().split(/\s*[\s>+~]\s*/).filter(Boolean).pop() ?? "";
-		return containers.some((re) => re.test(last)) || (leaf.test(s) && /^\.view-content(?![\w-])/.test(last));
+		return selectorListItems(s).some((item) => {
+			const last = lastCompound(item);
+			return containers.some((re) => re.test(last)) || (leaf.test(item) && /\.view-content(?![\w-])/.test(last));
+		});
 	});
+}
+
+/** Split `s` on `sep` characters outside brackets, parentheses and quotes. */
+function splitTopLevel(s: string, isSep: (c: string) => boolean): string[] {
+	const out: string[] = [];
+	let depth = 0;
+	let quote = "";
+	let cur = "";
+	for (const c of s) {
+		if (quote) {
+			if (c === quote) quote = "";
+		} else if (c === '"' || c === "'") {
+			quote = c;
+		} else if (c === "(" || c === "[") {
+			depth++;
+		} else if (c === ")" || c === "]") {
+			depth--;
+		} else if (depth === 0 && isSep(c)) {
+			out.push(cur);
+			cur = "";
+			continue;
+		}
+		cur += c;
+	}
+	out.push(cur);
+	return out.map((x) => x.trim()).filter(Boolean);
+}
+
+/** The items of a selector list (`a, b`). */
+function selectorListItems(s: string): string[] {
+	return splitTopLevel(s, (c) => c === ",");
+}
+
+/** A complex selector's last compound: what it selects, past every combinator. */
+function lastCompound(s: string): string {
+	return splitTopLevel(s, (c) => /[\s>+~]/.test(c)).pop() ?? "";
 }
 
 /** Entry fields the settings path drives or ignores safely. */
@@ -1172,6 +1212,19 @@ export function validateManifest(
 					`manifest entry "${entry.name}": initialState.tabLabel can't be combined with initialState.${own}, whose tabs carry their own titles`,
 				);
 			}
+		}
+		// The hover is labeled first; a later step that opens a tab would
+		// leave the label on two tabs.
+		if (
+			entry.initialState?.tabLabel !== undefined &&
+			entry.initialState.hoverSelector !== undefined &&
+			(entry.initialState.fireQuickPromptUri !== undefined ||
+				(entry.initialState.runCommands ?? []).includes("agent-console:new-chat") ||
+				(entry.prompts?.length ?? 0) > 1)
+		) {
+			throw new Error(
+				`manifest entry "${entry.name}": initialState.tabLabel with initialState.hoverSelector can't be combined with a step that opens another tab (a second prompt, a new-chat command or a quick-prompt link)`,
+			);
 		}
 		if (entry.initialState?.tabLabel !== undefined && opensHistorySession) {
 			throw new Error(

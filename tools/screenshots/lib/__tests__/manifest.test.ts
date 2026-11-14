@@ -1139,9 +1139,30 @@ describe("validateManifest — header shots fix the chat's title", () => {
 	});
 
 	it("counts qualified layout wrappers and the leaf's content, and a single header part (review round 4)", () => {
-		for (const sel of [".agent-client-tabs-layout.is-vertical", ".agent-client-tab-panels.is-horizontal", '.workspace-leaf-content[data-type="agent-console-chat-view"] .view-content', "del.acp-header-branded-profile"]) {
+		for (const sel of [".agent-client-tabs-layout.is-vertical", ".agent-client-tabs-layout.is-horizontal", ".agent-client-tab-panels", '.workspace-leaf-content[data-type="agent-console-chat-view"] .view-content', "del.acp-header-branded-profile"]) {
 			expect(check({ cropSelector: sel, initialState: { clickRibbon: true } }), sel).toThrow(/crops the chat header/);
 		}
+	});
+
+	it("reads containers past brackets, parentheses and selector lists (review round 5)", () => {
+		for (const sel of [
+			".agent-client-tabs-layout:has(> .agent-client-tab-rail)",
+			".agent-client-tab-panel:nth-child(2n+1)",
+			'.agent-client-tab-panel[aria-label="Chat panel"]',
+			".menu, .agent-client-tab-panel",
+			'.workspace-leaf-content[data-type="agent-console-chat-view"] div.view-content',
+		]) {
+			expect(check({ cropSelector: sel, initialState: { clickRibbon: true } }), sel).toThrow(/crops the chat header/);
+		}
+		expect(check({ cropSelector: '.agent-client-tab-panel:has([aria-label="x y"]) .agent-client-chat-input-box', initialState: { clickRibbon: true } })).not.toThrow();
+	});
+
+	it("refuses tabLabel with a hover and a step that opens another tab, which would label both tabs (review round 5)", () => {
+		const hover = { clickRibbon: true, tabLabel: "x", hoverSelector: ".h" };
+		expect(check({ initialState: { ...hover, fireQuickPromptUri: { prompt: "p" } } })).toThrow(/tabLabel.*hoverSelector/);
+		expect(check({ initialState: { ...hover, runCommands: ["agent-console:new-chat"] } })).toThrow(/tabLabel.*hoverSelector/);
+		expect(check({ prompts: ["a.txt", "b.txt"], initialState: hover })).toThrow(/tabLabel.*hoverSelector/);
+		expect(check({ initialState: hover })).not.toThrow();
 	});
 
 	it("doesn't count an empty forceTabStates as fixing the title", () => {
