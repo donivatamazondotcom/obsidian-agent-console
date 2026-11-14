@@ -126,11 +126,25 @@ function UpdatePill({ onClick }: { onClick: () => void }) {
 	);
 }
 
-function Sep({ text }: { text: string }) {
+/**
+ * A separator: a space, an optional glyph, a space. The glyph ("·", "›") is
+ * hidden from screen readers, which would read it as punctuation, but the
+ * spaces stay readable, so the words either side don't run together
+ * ("pipelineClaude Code"). Every part keeps its spaces (`white-space: pre`).
+ */
+function Sep({ glyph }: { glyph?: string }) {
 	return (
-		<span className="acp-header-branded-sep" aria-hidden="true">
-			{text}
-		</span>
+		<>
+			<span className="acp-header-branded-sep"> </span>
+			{glyph && (
+				<>
+					<span className="acp-header-branded-sep" aria-hidden="true">
+						{glyph}
+					</span>
+					<span className="acp-header-branded-sep"> </span>
+				</>
+			)}
+		</>
 	);
 }
 
@@ -142,7 +156,7 @@ function AgentExtra({ agent }: { agent: HeaderAgentExtra }) {
 			return (
 				<>
 					<span className="acp-header-branded-profile">{agent.label}</span>
-					<Sep text={" › "} />
+					<Sep glyph="›" />
 					<span className="acp-header-branded-running">{agent.running}</span>
 				</>
 			);
@@ -153,7 +167,7 @@ function AgentExtra({ agent }: { agent: HeaderAgentExtra }) {
 			return (
 				<>
 					<del className="acp-header-branded-profile">{agent.label}</del>
-					<Sep text={" "} />
+					<Sep />
 					<span className="acp-header-branded-running">{agent.running}</span>
 				</>
 			);
@@ -201,9 +215,9 @@ function BrandedTitle({
 			<span className="acp-header-branded-title">{segments.title}</span>
 			{(agent || model) && (
 				<span className="acp-header-branded-extras">
-					<Sep text={" · "} />
+					<Sep glyph="·" />
 					{agent && <AgentExtra agent={agent} />}
-					{agent && model && <Sep text={" · "} />}
+					{agent && model && <Sep glyph="·" />}
 					{model && <span className="acp-header-branded-model">{model}</span>}
 				</span>
 			)}
