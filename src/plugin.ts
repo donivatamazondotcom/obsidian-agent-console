@@ -105,10 +105,12 @@ import {
 } from "./utils/menu-registry";
 import {
 	closeAllNotifications,
+	disposeNotifications,
+	initNotifications,
 	attachWindowCloseSweep,
 	sweepOwnedNotificationsAtStartup,
 	getRemoteNotificationStatics,
-} from "./utils/notification-registry";
+} from "./services/notification-registry";
 import { ImportSettingsModal } from "./ui/ImportSettingsModal";
 import { AgentPickerModal } from "./ui/AgentPickerModal";
 import {
@@ -683,6 +685,14 @@ export default class AgentClientPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
+		// I52 round 9: allow posting (a previous unload disposed the registry)
+		// and remove notifications by id — close() alone leaves delivered
+		// entries in Notification Center.
+		initNotifications({
+			statics: getRemoteNotificationStatics(),
+			origin: window.location.origin,
+		});
+
 		// I52 round 7: closing a vault WINDOW skips plugin onunload entirely,
 		// so the round-6 notification sweep never runs on that path and the
 		// window's Notification Center entries orphan (click → dead closures
@@ -702,9 +712,12 @@ export default class AgentClientPlugin extends Plugin {
 		// beforeunload sweep above, orphaning this session's Notification
 		// Center entries. Electron 43's remote.Notification.getHistory/remove
 		// let us clear them at startup. Scoped strictly to THIS vault's own tab
-		// ids (from restored tab state) so other vault windows' live
-		// notifications are never touched; never removeAll(). Fire-and-forget —
-		// a sweep failure must not delay or break onload.
+		// ids (legacy `<tabId>` and round-9 `<tabId>:<suffix>` tags) so other
+		// vault windows' live notifications are never touched; never
+		// removeAll(). Round 9: the sweep first waits for the app-wide quiet
+		// minute, because a removal near another window's fresh posting loses
+		// that posting's late click. Fire-and-forget — a sweep failure must
+		// not delay or break onload.
 		void sweepOwnedNotificationsAtStartup({
 			notificationStatics: getRemoteNotificationStatics(),
 			ownedTabIds: (this.settings.perLeafTabStates ?? []).flatMap((leaf) =>
@@ -867,6 +880,10 @@ export default class AgentClientPlugin extends Plugin {
 		// Note: We don't wait for disconnect to complete to avoid blocking quit
 		this.registerEvent(
 			this.app.workspace.on("quit", () => {
+				// I52 round 9: post nothing after this point — a turn ended by
+				// the disconnect below would otherwise post "response complete"
+				// after the beforeunload sweep, as an orphan.
+				disposeNotifications();
 				// Fire and forget - don't block Obsidian from quitting
 				for (const [viewId, client] of this._acpClients) {
 					client.disconnect().catch((error) => {
@@ -893,6 +910,9 @@ export default class AgentClientPlugin extends Plugin {
 		// becomes an orphan whose click either does nothing (dead closures) or
 		// foregrounds the wrong vault window via macOS default app activation.
 		closeAllNotifications();
+		// I52 round 9: nothing may post after the sweep (a turn ended by the
+		// ACP disconnect below would otherwise orphan a notification).
+		disposeNotifications();
 
 		// Clear registry (sidebar views are managed by Obsidian workspace)
 		this.viewRegistry.clear();

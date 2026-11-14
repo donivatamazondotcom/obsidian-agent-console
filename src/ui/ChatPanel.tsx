@@ -2191,10 +2191,10 @@ export function ChatPanel({
 	const onSwitchToTabRef = useRef(onSwitchToTab);
 	onSwitchToTabRef.current = onSwitchToTab;
 
-	// I52 round 8: this panel's notifications are closed when it unmounts
-	// (tab closed), so no orphan with a dead click handler survives into
-	// Notification Center.
-	const retainOwnedNotification = useOwnedNotifications(viewId);
+	// I52 rounds 8–9: the registry posts this panel's notifications with a
+	// fresh tag each, and marks them for removal when the panel unmounts (tab
+	// closed); a click on one after that only raises the window.
+	const notify = useOwnedNotifications(viewId);
 	const prevIsSendingRef = useRef<boolean>(false);
 
 	useEffect(() => {
@@ -2220,8 +2220,10 @@ export function ChatPanel({
 
 			// System notification on response completion. The title carries the
 			// tab label (which tab finished); a click focuses the owning vault
-			// window (I52) AND switches to that tab. Per-tab tag prevents the OS
-			// from coalescing back-to-back completions from different tabs.
+			// window (I52) AND switches to that tab. The registry gives every
+			// notification a fresh tag: reusing the tab id made the OS replace a
+			// tab's earlier notification, and the replacement lost its late
+			// click (I52 round 9).
 			if (
 				shouldNotifySystem({
 					visibilityState: activeDocument.visibilityState,
@@ -2229,23 +2231,11 @@ export function ChatPanel({
 					enabled: settings.enableSystemNotifications,
 				})
 			) {
-				const { title, body, tag } = buildCompletionNotificationContent(
-					{
-						tabLabel: tabLabelRef.current,
-						agentLabel: activeAgentLabel,
-						tabId: viewId,
-					},
-				);
-				const completionNotification = new Notification(title, {
-					body,
-					tag,
+				const { title, body } = buildCompletionNotificationContent({
+					tabLabel: tabLabelRef.current,
+					agentLabel: activeAgentLabel,
 				});
-				// Retain the Notification so its click handler survives GC
-				// (electron#12690/#16922) — a bare local const is collected once
-				// this effect run exits, and a later click (esp. from macOS
-				// Notification Center) then does nothing. See I52 recurrence
-				// 2026-07-09.
-				retainOwnedNotification(completionNotification, () => {
+				notify(title, { body }, () => {
 					// Retained Electron fallback for the OS window raise (I52);
 					// the sanctioned reveal follows, plus one bounded post-
 					// activation re-assert — the macOS activation lands async
@@ -2376,22 +2366,13 @@ export function ChatPanel({
 				enabled: settings.enableSystemNotifications,
 			})
 		) {
-			// I52: bind onclick so a click focuses the vault window that owns
-			// this panel, not Electron's most-recently-active window.
-			const permissionNotification = new Notification("Agent Console", {
-				// I52 round 7.5: tag with the tab id so the startup sweep can
-				// match and clear an orphaned permission notification (same
-				// scheme as the completion notification, whose tag is the tab
-				// id). A pending permission means the turn has not completed, so
-				// a permission and a completion notification for the same tab
-				// never meaningfully coexist — sharing the tab-id tag is benign.
-				tag: viewId,
-				body: t("chat.notifications.permissionBody", {
-					agent: activeAgentLabel,
-				}),
+			// I52: a click focuses the vault window that owns this panel, not
+			// Electron's most-recently-active window. The registry assigns a
+			// fresh tag (round 9); the startup sweep matches `<tabId>:` tags.
+			const permissionBody = t("chat.notifications.permissionBody", {
+				agent: activeAgentLabel,
 			});
-			// Retain so the click handler survives GC (see completion site above).
-			retainOwnedNotification(permissionNotification, () => {
+			notify("Agent Console", { body: permissionBody }, () => {
 				focusOwningWindow();
 				runNotificationClick({
 					tabId: viewId,

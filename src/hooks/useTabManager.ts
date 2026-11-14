@@ -132,6 +132,22 @@ export function useTabManager(
 	const [activeTabId, setActiveTabId] = useState<string>(
 		() => initialActiveTabId ?? tabs[0]?.tabId ?? "",
 	);
+	// Latest tabs for the setActiveTab guard, read through a ref so the
+	// returned setter keeps a stable identity and adds no state update to the
+	// synchronous tab-click path.
+	const tabsRef = useRef(tabs);
+	tabsRef.current = tabs;
+
+	/**
+	 * Activate an open tab. Ignores ids that are not in `tabs`: a closed tab's
+	 * notification handler (I52 round 9) or a stale tab-list menu can hold an
+	 * id that no longer exists, and activating it hides every panel.
+	 */
+	const setActiveTab = useCallback((tabId: string) => {
+		if (tabsRef.current.some((t) => t.tabId === tabId)) {
+			setActiveTabId(tabId);
+		}
+	}, []);
 
 	const addTab = useCallback(
 		(
@@ -325,7 +341,7 @@ export function useTabManager(
 			removeTab,
 			removeOtherTabs,
 			removeTabsToRight,
-			setActiveTab: setActiveTabId,
+			setActiveTab,
 			setTabLabel,
 			setTabState,
 			setTabAgent,
@@ -342,6 +358,7 @@ export function useTabManager(
 			removeTab,
 			removeOtherTabs,
 			removeTabsToRight,
+			setActiveTab,
 			setTabLabel,
 			setTabState,
 			setTabAgent,

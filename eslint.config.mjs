@@ -80,6 +80,20 @@ const baseRestrictedSyntax = [
 		message:
 			"Don't use the `title` attribute — it renders a second, OS-native tooltip alongside Obsidian's, and Obsidian's tooltip comes from aria-label. Use attachTooltip() from ui/shared/useTooltip, which routes through setTooltip and keeps the visible label in the accessible name (I199).",
 	},
+	{
+		// I52 round 9: the notification registry constructs every OS
+		// notification so each gets a fresh tag. Both former call sites tagged
+		// with the tab id, and a tab's second notification then replaced its
+		// first in Notification Center, which made the replacement lose its
+		// late click. Covers `new Notification`, `new window.Notification` and
+		// `new activeWindow.Notification`. The registry constructs through an
+		// injected constructor (`new Ctor(...)`), so it needs no exemption.
+		// Pinned by src/__tests__/notification-constructor-ban.test.ts.
+		selector:
+			"NewExpression[callee.name='Notification'], NewExpression[callee.property.name='Notification']",
+		message:
+			"Don't construct OS notifications directly — post through useOwnedNotifications() / showOwnedNotification() (services/notification-registry), which assigns a fresh tag and owns cleanup. A reused tag makes the notification lose its click (I52 round 9).",
+	},
 ];
 
 // Phase 4 §2c (the former "1b"): every savedSessions metadata/title write must
