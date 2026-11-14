@@ -41,6 +41,7 @@ vi.mock("obsidian", () => ({
 }));
 
 import { ChatHeader, type HeaderSegments } from "../ChatHeader";
+import { initLocale, resetLocaleForTests } from "../../i18n";
 import { InputToolbar } from "../InputToolbar";
 import { deriveComposerPickers } from "../../resolvers/composer-pickers";
 import { deriveHeaderExtras, type HeaderExtras } from "../../resolvers/header-extras";
@@ -156,6 +157,24 @@ describe("ChatHeader shows the chat title (Test 6)", () => {
 		const lines = label.split("\n");
 		expect(lines[0]).toBe("Chat: Debug the failing CI pipeline");
 		expect(lines[1]).toBe("Agent: Claude Code");
+	});
+
+	it.each([
+		["ja", "更新", "プラグインの更新があります！"],
+		["ko", "업데이트", "플러그인 업데이트 가능!"],
+		["zh", "更新", "插件有可用更新！"],
+	])("%s: the pill's accessible name starts with its visible word", (locale, word, longText) => {
+		initLocale(locale);
+		try {
+			const { container } = renderHeader(segments(), true);
+			const pill = q(container, ".agent-client-chat-view-header-update");
+			expect(pill?.textContent).toBe(word);
+			const name = pill?.getAttribute("aria-label") ?? "";
+			expect(name.startsWith(word)).toBe(true);
+			expect(name).toContain(longText);
+		} finally {
+			resetLocaleForTests();
+		}
 	});
 
 	it("the update pill reads 'Update'; its name keeps 'Plugin update available!'", () => {

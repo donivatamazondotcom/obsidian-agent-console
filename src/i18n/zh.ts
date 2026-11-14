@@ -496,7 +496,7 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	// ---- Phase 3: chat header ----
 	"chat.header.connecting": "连接中…",
 	"chat.header.updatePill": "更新",
-	"chat.header.updateTooltip": "插件有可用更新！打开社区插件以更新 Agent Console",
+	"chat.header.updateTooltip": "更新 — 插件有可用更新！打开社区插件以更新 Agent Console",
 	"chat.header.reloadTooltip":
 		"重新加载 — 恢复会话并保留对话。Shift-点击：重新开始 — 全新会话，清空对话。",
 	"chat.header.sessionHistory": "会话历史",

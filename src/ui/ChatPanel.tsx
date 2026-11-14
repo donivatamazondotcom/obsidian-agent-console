@@ -1,15 +1,9 @@
 import * as React from "react";
+import { deriveHeaderSegments } from "../resolvers/header-segments";
 import {
-	deriveConfirmedModelDiffers,
-	deriveHeaderAgent,
-	deriveHeaderModelName,
-	deriveHeaderEngine,
-	deriveHeaderEffort,
-	deriveHeaderFolder,
-	deriveHeaderMode,
-} from "../resolvers/header-agent";
-import { deriveHeaderExtras } from "../resolvers/header-extras";
-import { deriveComposerPickers } from "../resolvers/composer-pickers";
+	deriveComposerPickers,
+	type ComposerPickers,
+} from "../resolvers/composer-pickers";
 import { requestedKiroAgent } from "../acp/kiro-v3";
 const { useState, useRef, useEffect, useMemo, useCallback } = React;
 import {
@@ -751,116 +745,78 @@ export function ChatPanel({
 	/**
 	 * Which pickers the composer shows, decided once and read by both the
 	 * composer and the header (Session Title in the Chat Header § Resolver 1).
-	 * From the raw session fields: the composer's `showConfigSelectors` gate is
-	 * false only when all three lists are empty, which already yields `none`.
-	 * ChatPanel always passes both change handlers to the composer.
+	 * Goes through the same `showConfigSelectors` gate the composer's props
+	 * pass through below, so the header can never count a picker the composer
+	 * was told to hide. ChatPanel always passes both change handlers.
 	 */
-	const composerPickers = useMemo(
-		() =>
-			deriveComposerPickers({
+	const composerPickers = useMemo((): ComposerPickers => {
+		const gate = deriveComposerAffordances({
+			surface: "tab",
+			capabilities: composerCapabilitiesFromSession({
 				configOptions: session.configOptions,
 				modes: session.modes,
 				models: session.models,
-				canChangeMode: true,
-				canChangeModel: true,
 			}),
-		[session.configOptions, session.modes, session.models],
-	);
+			hasQuickPrompts: false,
+		});
+		if (!gate.showConfigSelectors) return { source: "none" };
+		return deriveComposerPickers({
+			configOptions: session.configOptions,
+			modes: session.modes,
+			models: session.models,
+			canChangeMode: true,
+			canChangeModel: true,
+		});
+	}, [session.configOptions, session.modes, session.models]);
 
 	/**
-	 * Header segments — see [[Session Title in the Chat Header]].
-	 *
-	 * Visible: the tab's title, then grey extras (`deriveHeaderExtras`): only
-	 * what the composer doesn't show and the title doesn't already say.
-	 * Tooltip (I247): Chat, Agent, Engine, Model, Effort, Mode, Folder, each
-	 * only when it applies.
-	 * - title: the tab label (always the same text as the tab and the rail)
-	 * - profile: client-sourced (settings.displayName), the tooltip Agent line
-	 * - engine: launched engine + kiroCli from the acp/ edge, else agentInfo
-	 * - model:   ACP-sourced (session.models), null while connecting
-	 * - effort / mode: ACP-sourced config options (mode hidden on Kiro)
-	 * - folder: the tab's agentCwd, on every tab
-	 *
+	 * Header segments — `deriveHeaderSegments` ([[Session Title in the Chat
+	 * Header]]): the tab's title, grey extras, and the tooltip's lines. The
+	 * configured Kiro `--agent` is read from settings here; it only counts when
+	 * the session is kiro-cli (decided at the acp/ edge).
 	 */
 	const headerSegments = useMemo(() => {
-		const profile = activeAgentLabel;
-
-		// Engine line (I247): Kiro names its launched engine, V2 or V3 (I235);
-		// other agents name what they reported. `kiroCli` comes from the acp/
-		// edge, never the agent id or settings.
-		const engine = deriveHeaderEngine({
-			kiroCli: session.kiroCli,
-			kiroEngine: session.kiroEngine,
-			kiroEngineFallback: session.kiroEngineFallback,
-			agentInfo: session.agentInfo,
-		});
-		const effort = deriveHeaderEffort({ configOptions: session.configOptions });
-		const mode = deriveHeaderMode({
-			kiroCli: session.kiroCli,
-			modes: session.modes,
-			configOptions: session.configOptions,
-		});
-		const folder = deriveHeaderFolder({ cwd: agentCwd });
-
-		// Confirmed model while its selection is unchanged, then the `model`
-		// config option, then legacy models (I258).
-		const modelInput = {
-			confirmedModelId: session.confirmedModelId,
-			confirmedUnder: session.confirmedUnder,
-			models: session.models,
-			configOptions: session.configOptions,
-		};
-		const model = deriveHeaderModelName(modelInput);
-
-		// I207 / Kiro V3: name the running agent when it isn't the configured one.
-		// `kiroCli` is decided at the acp/ edge at initialize, before any modes
-		// exist, so it is the Kiro signal here — not the agent id or command.
 		const agentSettings = findAgentSettings(plugin.settings, session.agentId);
-		const isKiro = !!agentSettings && session.kiroCli === true;
-		const agent = deriveHeaderAgent({
-			label: profile,
-			requestedModeId: isKiro ? requestedKiroAgent(agentSettings.args) : undefined,
-			modes: session.modes,
-			configOptions: session.configOptions,
-		});
-
-		const extras = deriveHeaderExtras({
-			agent,
-			model: { name: model, confirmedDiffers: deriveConfirmedModelDiffers(modelInput) },
-			composer: composerPickers,
-			modesAreAgents: session.kiroCli === true,
-			titleIsDefault: tabLabelIsDefault,
-		});
-
-		return {
+		return deriveHeaderSegments({
 			title: tabLabel,
 			titleIsDefault: tabLabelIsDefault,
-			extras,
-			profile,
-			engine,
-			model,
-			effort,
-			mode,
-			folder,
-			agent,
-		};
+			profile: activeAgentLabel,
+			cwd: agentCwd,
+			configuredKiroAgent: agentSettings
+				? requestedKiroAgent(agentSettings.args)
+				: undefined,
+			composer: composerPickers,
+			// Only the fields the header reads, so the memo doesn't recompute on
+			// unrelated session updates (usage, prompt capabilities).
+			session: {
+				kiroCli: session.kiroCli,
+				kiroEngine: session.kiroEngine,
+				kiroEngineFallback: session.kiroEngineFallback,
+				agentInfo: session.agentInfo,
+				modes: session.modes,
+				models: session.models,
+				configOptions: session.configOptions,
+				confirmedModelId: session.confirmedModelId,
+				confirmedUnder: session.confirmedUnder,
+			},
+		});
 	}, [
 		tabLabel,
 		tabLabelIsDefault,
-		composerPickers,
-		plugin.settings,
 		activeAgentLabel,
-		session.agentId,
-		session.agentInfo,
-		session.kiroEngine,
-		session.kiroCli,
-		session.kiroEngineFallback,
 		agentCwd,
-		session.models,
+		plugin.settings,
+		session.agentId,
+		session.kiroCli,
+		session.kiroEngine,
+		session.kiroEngineFallback,
+		session.agentInfo,
 		session.modes,
+		session.models,
 		session.configOptions,
 		session.confirmedModelId,
 		session.confirmedUnder,
+		composerPickers,
 	]);
 
 	const availableAgents = useMemo(() => {

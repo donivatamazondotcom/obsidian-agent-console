@@ -1,6 +1,7 @@
 import * as React from "react";
 import type { HeaderAgent, HeaderEngine } from "../resolvers/header-agent";
-import type { HeaderAgentExtra, HeaderExtras } from "../resolvers/header-extras";
+import type { HeaderAgentExtra } from "../resolvers/header-extras";
+import type { HeaderSegments } from "../resolvers/header-segments";
 const { useRef, useEffect } = React;
 import { setIcon, setTooltip } from "obsidian";
 import { SharedLinksButton } from "./SharedLinksButton";
@@ -12,41 +13,9 @@ import { t } from "../i18n";
 // Types
 // ============================================================================
 
-/**
- * What the header title row shows: the chat's title, then grey extras
- * (`deriveHeaderExtras`) — only what the composer doesn't already show, plus
- * the "agent didn't load" warning. No lifecycle state: connecting / asleep
- * live in the tab's status icon. The other fields feed the hover tooltip.
- *
- * Spec: [[Session Title in the Chat Header]].
- */
-export interface HeaderSegments {
-	/** The hosting tab's label — the chat's title. */
-	title: string;
-	/** The title is still the tab's default "<agent> <time>" name. */
-	titleIsDefault: boolean;
-	/** Grey text after the title (`deriveHeaderExtras`). */
-	extras: HeaderExtras;
-	/** Configured agent display name (e.g. "Auto SA"); tooltip Agent line. */
-	profile: string;
-	/** Engine the tab runs on (`deriveHeaderEngine`); tooltip only. */
-	engine: HeaderEngine;
-	/** Model display name (`deriveHeaderModelName`); tooltip Model line. */
-	model: string | null;
-	/** Current effort level name (`deriveHeaderEffort`); tooltip only. */
-	effort: string | null;
-	/** Current mode name, non-Kiro agents only (`deriveHeaderMode`); tooltip only. */
-	mode: string | null;
-	/** The tab's folder (`deriveHeaderFolder`); tooltip only. */
-	folder: string | null;
-	/**
-	 * Session acquisition is in flight (lazySession.state === "connecting").
-	 * The tooltip's Engine and Model lines read "Connecting…" meanwhile (I80).
-	 */
-	isConnecting?: boolean;
-	/** Which agent is running vs the configured one (I207); tooltip status line. */
-	agent?: HeaderAgent;
-}
+// The shape lives with its resolver (`deriveHeaderSegments`); re-exported so
+// existing imports from this file keep working.
+export type { HeaderSegments } from "../resolvers/header-segments";
 
 // ============================================================================
 // Props Types
