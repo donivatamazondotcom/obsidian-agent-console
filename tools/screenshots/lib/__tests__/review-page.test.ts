@@ -5,7 +5,7 @@
  * Spec: [[Agent Console Isolated Screenshot Capture]] § Parity.
  */
 import { describe, it, expect, vi } from "vitest";
-import { buildReviewPage, collectReviewItems, type ReviewItem } from "../review-page";
+import { buildReviewPage, collectReviewItems, restoreHints, type ReviewItem } from "../review-page";
 import type { ManifestEntry } from "../manifest";
 
 const png = (s: string) => Buffer.from(s);
@@ -38,11 +38,40 @@ describe("collectReviewItems", () => {
 		expect(items[1].before).toBeNull();
 		expect(items[2].after?.mime).toBe("image/gif");
 		expect(items[2].after?.data.toString()).toBe("new docs/public/images/gif.gif");
-		// A failed or skipped entry has no new image, whatever is on disk.
-		expect(items[3].after).toBeNull();
+		// A failed or skipped entry shows what is on disk only when it differs from HEAD.
 		expect(items[3].detail).toBe("content guard: blank");
-		expect(items[4].after).toBeNull();
-		expect(readCurrent).not.toHaveBeenCalledWith("docs/public/images/c.webp");
+		expect(items[3].fileChange).toBe("rewritten");
+		expect(items[3].after?.data.toString()).toBe("new docs/public/images/c.webp");
+		expect(items[0].fileChange).toBeUndefined();
+	});
+});
+
+describe("collectReviewItems — a failed entry's image file (review round 1)", () => {
+	const io = (onDisk: Record<string, string | null>) => ({
+		readCommitted: (rel: string) => png(`old ${rel}`),
+		readCurrent: (rel: string) => (onDisk[rel] === undefined ? png(`old ${rel}`) : onDisk[rel] === null ? null : png(onDisk[rel] as string)),
+	});
+	it("says when a failed entry deleted or rewrote the committed image, and shows what is on disk", () => {
+		const items = collectReviewItems(
+			[entry("gone"), entry("changed"), entry("intact")],
+			[
+				{ name: "gone", success: false, error: "content guard" },
+				{ name: "changed", success: false, error: "viewport" },
+				{ name: "intact", success: false, error: "timeout" },
+			],
+			io({ "docs/public/images/gone.webp": null, "docs/public/images/changed.webp": "half-written" }),
+		);
+		expect(items.map((i) => i.fileChange)).toEqual(["deleted", "rewritten", undefined]);
+		expect(items[1].after?.data.toString()).toBe("half-written");
+		expect(items[0].after).toBeNull();
+		expect(items[2].after).toBeNull();
+		expect(restoreHints(items)).toEqual(["docs/public/images/gone.webp", "docs/public/images/changed.webp"]);
+	});
+
+	it("labels such an entry on the page, so its file change is never staged unseen", () => {
+		const items = collectReviewItems([entry("gone")], [{ name: "gone", success: false, error: "content guard" }], io({ "docs/public/images/gone.webp": null }));
+		const html = buildReviewPage(items, { title: "t", generated: "now" });
+		expect(html).toMatch(/id="gone"[\s\S]*committed image is missing on disk, but this run didn't capture it[\s\S]*git restore docs\/public\/images\/gone\.webp/);
 	});
 });
 

@@ -82,7 +82,8 @@ export function nativeSelectReplicaExpression(selector: string): string {
 		const height = 2 * (${PAD} + ${BORDER}) + opts.length * rowH;
 		let top = r.y + r.height / 2 - (${BORDER} + ${PAD} + idx * rowH + rowH / 2);
 		top = Math.max(${EDGE}, Math.min(top, activeWindow.innerHeight - ${EDGE} - height));
-		const left = Math.max(${EDGE}, r.x + textLeft - (${BORDER} + ${PAD} + ${ROW_INSET / 2} + check));
+		const width = menu.getBoundingClientRect().width;
+		const left = Math.max(${EDGE}, Math.min(r.x + textLeft - (${BORDER} + ${PAD} + ${ROW_INSET / 2} + check), activeWindow.innerWidth - ${EDGE} - width));
 		menu.style.top = top + "px";
 		menu.style.left = left + "px";
 		return "ok";

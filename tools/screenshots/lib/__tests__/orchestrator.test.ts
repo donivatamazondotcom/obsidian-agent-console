@@ -789,16 +789,23 @@ describe("captureEntry", () => {
 	});
 
 	it("names the rows the history showed when the session's row never renders (restoreSessions)", async () => {
-		const deps = makeDeps();
-		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation((expr: string) => {
-			if (expr.includes("tabs[0]?.tabId")) return Promise.resolve("tab-initial");
-			if (expr.includes("session-history-item")) return Promise.resolve(["Japan trip", "Meeting prep"]);
-			return Promise.resolve(undefined);
-		});
-		await expect(
-			captureEntry(makeEntry({ initialState: { clickRibbon: true, restoreSessions: { titles: ["Newsletter"] } } }), deps),
-		).rejects.toThrow(/no session-history row matching "Newsletter" \(the history shows "Japan trip", "Meeting prep"\)/);
-	}, 15_000);
+		vi.useFakeTimers();
+		try {
+			const deps = makeDeps();
+			(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation((expr: string) => {
+				if (expr.includes("tabs[0]?.tabId")) return Promise.resolve("tab-initial");
+				if (expr.includes("session-history-item")) return Promise.resolve(["Japan trip", "Meeting prep"]);
+				return Promise.resolve(undefined);
+			});
+			const done = expect(
+				captureEntry(makeEntry({ initialState: { clickRibbon: true, restoreSessions: { titles: ["Newsletter"] } } }), deps),
+			).rejects.toThrow(/no session-history row matching "Newsletter" \(the history shows "Japan trip", "Meeting prep"\)/);
+			await vi.advanceTimersByTimeAsync(30_000);
+			await done;
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 
 	it("reconnectActive clicks Reload on the active tab and waits for the model dropdown after restore", async () => {
 		const deps = makeDeps();
@@ -4600,6 +4607,25 @@ describe("captureEntry — isolated menus (captureMode screen, PR 2c)", () => {
 		expect(sharpInstance.extend).toHaveBeenCalled();
 	});
 
+	it("checks cleanliness again after the turn goes idle, right before the capture (review round 1)", async () => {
+		const { deps, cdp } = isoDeps();
+		await captureEntry(menu(), deps);
+		const waits = cdp.waitForElement.mock.calls.map((c: unknown[]) => c[0] as string);
+		const idle = waits.findIndex((s) => s.includes("agent-client-loading-indicator.agent-client-hidden"));
+		const evals = cdp.evaluate.mock.calls.map((c: unknown[]) => c[0] as string);
+		const probes = evals.map((e, i) => (e.includes("__cleanliness_probe__") ? cdp.evaluate.mock.invocationCallOrder[i] : -1)).filter((o) => o > 0);
+		expect(Math.max(...probes)).toBeGreaterThan(cdp.waitForElement.mock.invocationCallOrder[idle]);
+		expect(Math.max(...probes)).toBeLessThan(cdp.screenshot.mock.invocationCallOrder[0]);
+	});
+
+	it("captures a menu with no prompt without waiting for a turn", async () => {
+		const { deps, cdp } = isoDeps();
+		await captureEntry(menu({ promptFile: undefined }), deps);
+		const waits = cdp.waitForElement.mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(waits.some((s) => s.includes("agent-client-loading-indicator"))).toBe(false);
+		expect(cdp.screenshot).toHaveBeenCalledTimes(1);
+	});
+
 	it("fails the entry when the page doesn't render at the capture viewport", async () => {
 		const { deps, cdp } = isoDeps([1400, 949]);
 		await expect(captureEntry(menu(), deps)).rejects.toThrow(/renders at 1400×949, expected 1400×760/);
@@ -4611,6 +4637,39 @@ describe("captureEntry — isolated menus (captureMode screen, PR 2c)", () => {
 		await captureEntry(menu({ cropSelectors: undefined, width: 100, height: 50, crop: { x: 0, y: 0, width: 100, height: 50 } }), deps);
 		expect(deps.cdp.screenCaptureRegion).toHaveBeenCalled();
 		expect(deps.cdp.screenshot).not.toHaveBeenCalled();
+	});
+});
+
+// Review round 1: a failed hero viewport restore must not let later window
+// shots capture at the hero size, so every isolated page capture checks.
+describe("captureEntry — every isolated page capture checks the viewport", () => {
+	type Fn = ReturnType<typeof vi.fn>;
+	function isoDeps(inner: [number, number]) {
+		const deps = makeDeps();
+		const cdp = deps.cdp as unknown as Record<string, Fn> & { isolated: boolean };
+		cdp.isolated = true;
+		cdp.evaluate.mockImplementation((e: string) => Promise.resolve(e.includes("__acViewport") ? inner : undefined));
+		return { deps, cdp };
+	}
+	it("fails a plain window entry left at the hero size", async () => {
+		const { deps, cdp } = isoDeps([1600, 1000]);
+		await expect(captureEntry(makeEntry({ name: "plain" }), deps)).rejects.toThrow(/"plain": the page renders at 1600×1000, expected 1400×760/);
+		expect(cdp.screenshot).not.toHaveBeenCalled();
+	});
+	it("fails an animation entry left at the hero size, before its first frame", async () => {
+		const { deps, cdp } = isoDeps([1600, 1000]);
+		const gif = makeEntry({ name: "gif", animation: { fps: 1, maxBytes: 1000, frames: [{ holdMs: 100 }] } });
+		await expect(captureEntry(gif, deps)).rejects.toThrow(/"gif": the page renders at 1600×1000, expected 1400×760/);
+		expect(cdp.screenshot).not.toHaveBeenCalled();
+	});
+	it("passes at the capture viewport, and the legacy driver doesn't check", async () => {
+		const { deps } = isoDeps([1400, 760]);
+		await captureEntry(makeEntry({ name: "plain" }), deps);
+		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(1);
+		const legacy = makeDeps();
+		await captureEntry(makeEntry({ name: "plain" }), legacy);
+		const evals = (legacy.cdp.evaluate as Fn).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(evals.some((e) => e.includes("__acViewport"))).toBe(false);
 	});
 });
 
@@ -4733,6 +4792,7 @@ describe("captureEntry — isolated native <select> shot (PR 2c)", () => {
 			captureMode: "screen",
 			cropSelectors: [".setting-group:has(.lang)", "#ac-native-select-replica"],
 			forbiddenText: ["/Users/"],
+			mustShow: ".lang",
 			initialState: { openSettings: "agent-console", openNativeSelect: ".lang select", scrollToSettingText: "Language" },
 		});
 
@@ -4749,6 +4809,15 @@ describe("captureEntry — isolated native <select> shot (PR 2c)", () => {
 		const geom = calls.findIndex((e) => e.includes("getBoundingClientRect") && !e.includes(REPLICA));
 		expect(calls[replica]).toContain('".lang select"');
 		expect(replica).toBeLessThan(geom);
+		// Built last, after the scrolls, just before hover is turned off, so
+		// nothing moves the select between the replica and the capture.
+		const scroll = calls.findIndex((e) => e.includes("scrollIntoView"));
+		const noHover = calls.findIndex((e) => e.includes("pointer-events: none"));
+		const mustShowWait = calls.findIndex((e) => e === '!!activeDocument.querySelector(".lang")');
+		expect(scroll).toBeLessThan(replica);
+		expect(mustShowWait).toBeGreaterThanOrEqual(0);
+		expect(mustShowWait).toBeLessThan(replica);
+		expect(replica).toBeLessThan(noHover);
 	});
 
 	it("fails the entry, with the reason, when the replica can't be built", async () => {

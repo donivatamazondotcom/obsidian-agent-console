@@ -1124,6 +1124,12 @@ describe("validateManifest — settings path (PR 2b)", () => {
 		expect(check({ cropSelector: ".x", draftMessage: "hi", initialState: { openSettings: "agent-console" } })).toThrow(/draftMessage.*settings path/);
 	});
 
+	it("refuses a native select off the settings path, and a menu shot without cropSelectors (review round 1)", () => {
+		expect(check({ captureMode: "screen", cropSelectors: [".menu"], initialState: { openNativeSelect: "select" } })).toThrow(/openNativeSelect needs initialState\.openSettings/);
+		expect(check({ captureMode: "screen", initialState: { clickSelector: ".x" } })).toThrow(/captureMode "screen" needs cropSelectors/);
+		expect(check({ captureMode: "screen", cropSelectors: [".menu"], initialState: { clickSelector: ".x" } })).not.toThrow();
+	});
+
 	it("an entry that opens a native select is on the settings path, where its list is a DOM replica (PR 2c)", () => {
 		expect(isSettingsPathEntry({ ...base, captureMode: "screen", initialState: { openSettings: "agent-console", openNativeSelect: "select" } } as ManifestEntry)).toBe(true);
 		expect(isSettingsPathEntry({ ...base, initialState: { openSettings: "agent-console" } } as ManifestEntry)).toBe(true);
@@ -1182,7 +1188,8 @@ describe("manifest.json — settings-path entries (PR 2b)", () => {
 			expect(e?.crop, name).toBeUndefined();
 			expect(e?.cropSelectors?.[0], name).toBe(".menu");
 			expect(e?.cropSelectors?.[1], name).toContain(".agent-client-chat-input-actions");
-			expect(e?.mustShow, name).toBe(".menu .menu-item");
+			// The dropdown that opened the menu, so the shot proves which menu it is.
+			expect(e?.mustShow, name).toMatch(/\.agent-client-config-selector-(mode|model|thought_level)$/);
 		}
 	});
 

@@ -1118,6 +1118,19 @@ export function validateManifest(
 			}
 		}
 
+		// The isolated driver captures a native select only as the settings
+		// path's DOM replica, and a menu shot only by its DOM crop (PR 2c).
+		if (entry.initialState?.openNativeSelect !== undefined && entry.initialState.openSettings === undefined) {
+			throw new Error(
+				`manifest entry "${entry.name}": initialState.openNativeSelect needs initialState.openSettings (the replica is built in the settings window)`,
+			);
+		}
+		if (entry.captureMode === "screen" && !isSettingsPathEntry(entry) && !entry.cropSelectors?.length) {
+			throw new Error(
+				`manifest entry "${entry.name}": captureMode "screen" needs cropSelectors (the menu is cropped from the page)`,
+			);
+		}
+
 		if (isSettingsPathEntry(entry)) {
 			const unsupported = settingsPathUnsupportedFields(entry);
 			if (unsupported.length) {
