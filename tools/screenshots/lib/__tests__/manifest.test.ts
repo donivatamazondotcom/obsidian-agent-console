@@ -1149,7 +1149,7 @@ describe("validateManifest — header shots fix the chat's title", () => {
 			".agent-client-tabs-layout:has(> .agent-client-tab-rail)",
 			".agent-client-tab-panel:nth-child(2n+1)",
 			'.agent-client-tab-panel[aria-label="Chat panel"]',
-			".menu, .agent-client-tab-panel",
+			".agent-client-tab-panel, .menu",
 			'.workspace-leaf-content[data-type="agent-console-chat-view"] div.view-content',
 		]) {
 			expect(check({ cropSelector: sel, initialState: { clickRibbon: true } }), sel).toThrow(/crops the chat header/);

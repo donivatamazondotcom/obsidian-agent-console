@@ -847,7 +847,7 @@ export function showsChatHeader(entry: ManifestEntry): boolean {
 	});
 }
 
-/** Split `s` on `sep` characters outside brackets, parentheses and quotes. */
+/** Split `s` on characters `isSep` accepts, outside brackets, parentheses and quotes. */
 function splitTopLevel(s: string, isSep: (c: string) => boolean): string[] {
 	const out: string[] = [];
 	let depth = 0;
