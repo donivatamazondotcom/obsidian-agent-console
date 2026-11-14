@@ -45,4 +45,29 @@ describe("chat header title color (Decision 15)", () => {
 			"var(--text-muted)",
 		);
 	});
+
+	// Code review r4 test gap: an override on a compound selector (the
+	// warning-state title, the running agent, the struck agent) would slip past
+	// the exact-selector lookups above. The warning stays grey with the extras
+	// (UX review row 2), so its classes declare no color of their own.
+	it("no rule overrides the title or the warning colors", () => {
+		const titleColors: string[] = [];
+		const warningColors: string[] = [];
+		root.walkRules((rule: Rule) => {
+			const names = rule.selectors.join(" ");
+			rule.walkDecls("color", (d) => {
+				if (names.includes(".acp-header-branded-title"))
+					titleColors.push(`${rule.selector} → ${d.value}`);
+				if (
+					names.includes(".acp-header-branded-running") ||
+					names.includes(".acp-header-branded-profile")
+				)
+					warningColors.push(`${rule.selector} → ${d.value}`);
+			});
+		});
+		expect(titleColors).toEqual([
+			".acp-header-branded-title → var(--text-normal)",
+		]);
+		expect(warningColors).toEqual([]);
+	});
 });
