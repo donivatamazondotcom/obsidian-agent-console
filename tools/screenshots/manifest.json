@@ -25,6 +25,7 @@
 		},
 		{
 			"name": "multi-session",
+			"pending": true,
 			"frame": {
 				"chrome": "none"
 			},
@@ -176,6 +177,7 @@
 		},
 		{
 			"name": "switch-agent",
+			"pending": true,
 			"width": 1200,
 			"height": 680,
 			"crop": {
@@ -594,6 +596,7 @@
 		},
 		{
 			"name": "parallel-sessions",
+			"pending": true,
 			"width": 620,
 			"height": 720,
 			"crop": {
@@ -652,6 +655,7 @@
 		},
 		{
 			"name": "multi-session-animated",
+			"pending": true,
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 680,
 			"purpose": "Run several agent sessions in parallel, cycling the vertical tab rail to show each keeps its own conversation and status.",
@@ -919,7 +923,7 @@
 		},
 		{
 			"name": "update-pill",
-			"pending": false,
+			"pending": true,
 			"width": 720,
 			"height": 150,
 			"crop": {
@@ -943,7 +947,7 @@
 			"differentiator": "Update-pill click-through (v1.2.0)",
 			"mustShow": ".agent-client-chat-view-header-update",
 			"caption": "One click to update",
-			"altText": "The Agent Console chat header with the Plugin update available pill",
+			"altText": "The Agent Console chat header with a chat title and the Update pill",
 			"docPage": "docs/help/troubleshooting.md",
 			"manualCapture": true,
 			"captureNote": "Pill only renders when an update is available; needs a mocked update-available state to capture.",
@@ -1042,7 +1046,7 @@
 		},
 		{
 			"name": "shared-links-bubble",
-			"pending": false,
+			"pending": true,
 			"rightSplitWidth": 500,
 			"width": 1050,
 			"height": 380,
@@ -1303,6 +1307,7 @@
 		},
 		{
 			"name": "editor-quickprompts",
+			"pending": true,
 			"captureMode": "screen-window",
 			"frame": {
 				"chrome": "none"
@@ -1353,7 +1358,7 @@
 		},
 		{
 			"name": "reload-control",
-			"pending": false,
+			"pending": true,
 			"width": 1528,
 			"height": 180,
 			"crop": {
@@ -1692,6 +1697,7 @@
 		},
 		{
 			"name": "kiro-v3-header-fallback",
+			"pending": true,
 			"width": 680,
 			"height": 48,
 			"cropSelector": ".agent-client-chat-view-header",
@@ -1779,6 +1785,7 @@
 		},
 		{
 			"name": "quick-prompt-uri-banner",
+			"pending": true,
 			"width": 680,
 			"height": 320,
 			"cropSelector": ".agent-client-tab-panel:not([style*=\"none\"])",
@@ -1914,6 +1921,7 @@
 		},
 		{
 			"name": "tab-rail-icons",
+			"pending": true,
 			"width": 400,
 			"height": 520,
 			"crop": {
@@ -1977,6 +1985,7 @@
 		},
 		{
 			"name": "tab-rail-names",
+			"pending": true,
 			"width": 400,
 			"height": 520,
 			"crop": {
@@ -2040,6 +2049,7 @@
 		},
 		{
 			"name": "whats-new-card",
+			"pending": true,
 			"width": 400,
 			"height": 520,
 			"crop": {
