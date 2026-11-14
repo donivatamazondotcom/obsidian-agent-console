@@ -15,6 +15,7 @@ describe("collectReviewItems", () => {
 	it("pairs each run entry's committed image with the file the run wrote, in run order", () => {
 		const readCommitted = vi.fn((rel: string) => (rel.endsWith("b.webp") ? null : png(`old ${rel}`)));
 		const readCurrent = vi.fn((rel: string) => png(`new ${rel}`));
+		const readBeforeRun = vi.fn((rel: string) => (rel.endsWith("b.webp") ? null : png(`old ${rel}`)));
 		const items = collectReviewItems(
 			[entry("a"), entry("b"), entry("gif", { animation: { fps: 1, maxBytes: 1, frames: [{ holdMs: 1 }] } }), entry("c"), entry("d")],
 			[
@@ -24,7 +25,7 @@ describe("collectReviewItems", () => {
 				{ name: "c", success: false, error: "content guard: blank" },
 				{ name: "d", success: true, skipped: "isolated only" },
 			],
-			{ readCommitted, readCurrent },
+			{ readCommitted, readCurrent, readBeforeRun },
 		);
 		expect(items.map((i) => [i.name, i.status])).toEqual([
 			["a", "captured"],
@@ -42,36 +43,65 @@ describe("collectReviewItems", () => {
 		expect(items[3].detail).toBe("content guard: blank");
 		expect(items[3].fileChange).toBe("rewritten");
 		expect(items[3].after?.data.toString()).toBe("new docs/public/images/c.webp");
+		expect(items[4].fileChange).toBe("rewritten");
 		expect(items[0].fileChange).toBeUndefined();
 	});
 });
 
-describe("collectReviewItems — a failed entry's image file (review round 1)", () => {
-	const io = (onDisk: Record<string, string | null>) => ({
-		readCommitted: (rel: string) => png(`old ${rel}`),
-		readCurrent: (rel: string) => (onDisk[rel] === undefined ? png(`old ${rel}`) : onDisk[rel] === null ? null : png(onDisk[rel] as string)),
-	});
-	it("says when a failed entry deleted or rewrote the committed image, and shows what is on disk", () => {
+describe("collectReviewItems — a failed entry's image file (review rounds 1–2)", () => {
+	// head: the committed image; before: on disk before the run; now: on disk after.
+	const io = (files: Record<string, { head?: string | null; before?: string | null; now?: string | null }>) => {
+		const get = (rel: string, k: "head" | "before" | "now") => {
+			const f = files[rel] ?? {};
+			const v = f[k] === undefined ? (k === "head" ? `old ${rel}` : f.before === undefined ? `old ${rel}` : f.before) : f[k];
+			return v === null || v === undefined ? null : png(v);
+		};
+		return { readCommitted: (rel: string) => get(rel, "head"), readBeforeRun: (rel: string) => get(rel, "before"), readCurrent: (rel: string) => get(rel, "now") };
+	};
+	const R = (n: string) => `docs/public/images/${n}.webp`;
+
+	it("flags only files this run deleted, rewrote or added, with what is on disk now", () => {
 		const items = collectReviewItems(
-			[entry("gone"), entry("changed"), entry("intact")],
+			[entry("gone"), entry("changed"), entry("intact"), entry("brand-new")],
 			[
 				{ name: "gone", success: false, error: "content guard" },
 				{ name: "changed", success: false, error: "viewport" },
 				{ name: "intact", success: false, error: "timeout" },
+				{ name: "brand-new", success: false, error: "restore" },
 			],
-			io({ "docs/public/images/gone.webp": null, "docs/public/images/changed.webp": "half-written" }),
+			io({ [R("gone")]: { now: null }, [R("changed")]: { now: "half-written" }, [R("brand-new")]: { head: null, before: null, now: "fresh" } }),
 		);
-		expect(items.map((i) => i.fileChange)).toEqual(["deleted", "rewritten", undefined]);
+		expect(items.map((i) => i.fileChange)).toEqual(["deleted", "rewritten", undefined, "added"]);
 		expect(items[1].after?.data.toString()).toBe("half-written");
+		expect(items[3].after?.data.toString()).toBe("fresh");
 		expect(items[0].after).toBeNull();
 		expect(items[2].after).toBeNull();
-		expect(restoreHints(items)).toEqual(["docs/public/images/gone.webp", "docs/public/images/changed.webp"]);
+		expect(restoreHints(items)).toEqual({ restore: [R("gone"), R("changed")], remove: [R("brand-new")] });
 	});
 
-	it("labels such an entry on the page, so its file change is never staged unseen", () => {
-		const items = collectReviewItems([entry("gone")], [{ name: "gone", success: false, error: "content guard" }], io({ "docs/public/images/gone.webp": null }));
+	it("doesn't tell you to discard a change an earlier run made, but still shows it", () => {
+		const items = collectReviewItems(
+			[entry("menu"), entry("flaky")],
+			[
+				{ name: "menu", success: true, skipped: "isolated driver only" },
+				{ name: "flaky", success: false, error: "timeout" },
+			],
+			io({ [R("menu")]: { before: "earlier run", now: "earlier run" }, [R("flaky")]: { before: "earlier run", now: "earlier run" } }),
+		);
+		expect(items.map((i) => i.fileChange)).toEqual([undefined, undefined]);
+		expect(items.map((i) => i.differsFromHead)).toEqual([true, true]);
+		expect(items[0].after?.data.toString()).toBe("earlier run");
+		expect(restoreHints(items)).toEqual({ restore: [], remove: [] });
 		const html = buildReviewPage(items, { title: "t", generated: "now" });
-		expect(html).toMatch(/id="gone"[\s\S]*committed image is missing on disk, but this run didn't capture it[\s\S]*git restore docs\/public\/images\/gone\.webp/);
+		const summary = html.slice(0, html.indexOf('id="menu"'));
+		expect(summary).toContain('href="#menu"');
+		expect(html).toMatch(/id="menu"[\s\S]*differs from the committed one since before this run/);
+	});
+
+	it("labels a deleted image on the page, with the restore command", () => {
+		const items = collectReviewItems([entry("gone")], [{ name: "gone", success: false, error: "content guard" }], io({ [R("gone")]: { now: null } }));
+		const html = buildReviewPage(items, { title: "t", generated: "now" });
+		expect(html).toMatch(/id="gone"[\s\S]*This run deleted the committed image[\s\S]*git restore docs\/public\/images\/gone\.webp/);
 	});
 });
 

@@ -1800,7 +1800,8 @@
 					"selection": "Hi! Can we move Thursday's sync to Friday at 10?",
 					"agent": "claude-code-acp",
 					"mode": "plan"
-				}
+				},
+				"tabLabel": "Reply to Sam"
 			},
 			"captureNote": "fireQuickPromptUri runs the plugin's obsidian://agent-console handler for the draft-a-reply prompt with a selection, so the tab shows the link banner and the staged prompt.",
 			"docPage": "docs/usage/quick-prompts.md"
@@ -2061,7 +2062,8 @@
 					"tabDisplay": "horizontal"
 				},
 				"whatsNew": "latest",
-				"clickRibbon": true
+				"clickRibbon": true,
+				"tabLabel": "Plan the week"
 			},
 			"purpose": "After an update, a one-time card tells existing users about vertical tabs, with a one-click way to try them and a way back.",
 			"differentiator": "In-panel What's new card after an update",

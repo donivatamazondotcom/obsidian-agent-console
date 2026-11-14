@@ -29,8 +29,13 @@ export interface ReviewItem {
 	 * disk when it differs from the committed image, else null.
 	 */
 	after: ReviewImage | null;
-	/** An entry this run didn't capture whose committed image is deleted or changed on disk. */
-	fileChange?: "deleted" | "rewritten";
+	/**
+	 * An entry this run didn't capture whose image file this run deleted,
+	 * rewrote, or wrote without a committed image.
+	 */
+	fileChange?: "deleted" | "rewritten" | "added";
+	/** Not captured, unchanged by this run, but different from HEAD (an earlier run's change). */
+	differsFromHead?: boolean;
 	/** The image's path relative to the repo root. */
 	rel?: string;
 }
@@ -56,34 +61,53 @@ export function imageRelPath(entry: ManifestEntry): string {
 export function collectReviewItems(
 	entries: readonly ManifestEntry[],
 	results: readonly RunResult[],
-	io: { readCommitted: (rel: string) => Buffer | null; readCurrent: (rel: string) => Buffer | null },
+	io: {
+		readCommitted: (rel: string) => Buffer | null;
+		readCurrent: (rel: string) => Buffer | null;
+		/** The file as it was on disk before the run started. */
+		readBeforeRun: (rel: string) => Buffer | null;
+	},
 ): ReviewItem[] {
+	const same = (a: Buffer | null, b: Buffer | null) => (a === null ? b === null : b !== null && a.equals(b));
 	return results.map((r) => {
 		const entry = entries.find((e) => e.name === r.name);
 		const rel = entry ? imageRelPath(entry) : path.posix.join("docs", "public", "images", `${r.name}.webp`);
 		const mime = rel.endsWith(".gif") ? "image/gif" : "image/webp";
 		const img = (data: Buffer | null): ReviewImage | null => (data ? { mime, data } : null);
 		const status = r.skipped ? "skipped" : r.success ? "captured" : "failed";
-		const before = io.readCommitted(rel);
+		const head = io.readCommitted(rel);
+		const beforeRun = io.readBeforeRun(rel);
 		const current = io.readCurrent(rel);
-		const item: ReviewItem = { name: r.name, status, detail: r.skipped ?? r.error, before: img(before), after: null, rel };
+		const item: ReviewItem = { name: r.name, status, detail: r.skipped ?? r.error, before: img(head), after: null, rel };
 		if (status === "captured") {
 			item.after = img(current);
-		} else if (before && !current) {
-			// The content guard deletes a degraded capture, which had
-			// already overwritten the committed image.
-			item.fileChange = "deleted";
-		} else if (before && current && !before.equals(current)) {
-			item.fileChange = "rewritten";
+		} else if (!same(beforeRun, current)) {
+			// This run changed the file without capturing the entry: the
+			// content guard deletes a degraded capture (which had already
+			// overwritten the committed image), and a step after the capture
+			// can fail the entry.
+			if (!current) item.fileChange = "deleted";
+			else item.fileChange = head ? "rewritten" : "added";
+			item.after = img(current);
+		} else if (!same(head, current)) {
+			// An earlier run's change: shown, never undone for you.
+			item.differsFromHead = true;
 			item.after = img(current);
 		}
 		return item;
 	});
 }
 
-/** Images a run deleted or changed without capturing them, to `git restore` before staging. */
-export function restoreHints(items: readonly ReviewItem[]): string[] {
-	return items.filter((i) => i.fileChange && i.rel).map((i) => i.rel as string);
+/**
+ * Files this run changed without capturing them, to undo before staging:
+ * `git restore` the committed ones, remove the new ones.
+ */
+export function restoreHints(items: readonly ReviewItem[]): { restore: string[]; remove: string[] } {
+	const rels = (f: (i: ReviewItem) => boolean) => items.filter((i) => i.rel && f(i)).map((i) => i.rel as string);
+	return {
+		restore: rels((i) => (i.fileChange === "deleted" && i.before !== null) || i.fileChange === "rewritten"),
+		remove: rels((i) => i.fileChange === "added"),
+	};
 }
 
 type Label = "unchanged" | "changed" | "new" | "failed" | "skipped";
@@ -105,7 +129,7 @@ function figure(caption: string, img: ReviewImage | null): string {
 
 /** The review page HTML: a list of entries to review, then every entry's pair. */
 export function buildReviewPage(items: readonly ReviewItem[], opts: { title: string; generated: string }): string {
-	const toReview = items.filter((i) => !["unchanged", "skipped"].includes(label(i)));
+	const toReview = items.filter((i) => i.fileChange || i.differsFromHead || !["unchanged", "skipped"].includes(label(i)));
 	const counts = (["changed", "new", "failed", "unchanged", "skipped"] as Label[])
 		.map((l) => `${items.filter((i) => label(i) === l).length} ${l}`)
 		.join(" · ");
@@ -116,10 +140,18 @@ export function buildReviewPage(items: readonly ReviewItem[], opts: { title: str
 		.map((i) => {
 			const l = label(i);
 			const detail = i.detail ? `<p class="detail">${esc(i.detail)}</p>` : "";
-			const change = i.fileChange
-				? `<p class="detail">${i.fileChange === "deleted" ? "The committed image is missing on disk" : "The image on disk differs from the committed one"}, but this run didn't capture it. Before staging: <code>git restore ${esc(i.rel ?? "")}</code></p>`
-				: "";
-			return `<section id="${esc(i.name)}"><h2>${esc(i.name)} <span class="badge ${l}">${l}</span></h2>${detail}${change}<div class="pair">${figure("Committed (HEAD)", i.before)}${figure(i.fileChange ? "On disk now" : "This run", i.after)}</div></section>`;
+			const rel = esc(i.rel ?? "");
+			const change =
+				i.fileChange === "deleted"
+					? `<p class="detail">This run deleted the committed image without capturing it. Before staging: <code>git restore ${rel}</code></p>`
+					: i.fileChange === "rewritten"
+						? `<p class="detail">This run changed the committed image without capturing it. Before staging: <code>git restore ${rel}</code></p>`
+						: i.fileChange === "added"
+							? `<p class="detail">This run wrote a new image without capturing it. Before staging: <code>rm ${rel}</code></p>`
+							: i.differsFromHead
+								? `<p class="detail">The image on disk differs from the committed one since before this run (an earlier run's change).</p>`
+								: "";
+			return `<section id="${esc(i.name)}"><h2>${esc(i.name)} <span class="badge ${l}">${l}</span></h2>${detail}${change}<div class="pair">${figure("Committed (HEAD)", i.before)}${figure(i.status === "captured" ? "This run" : "On disk now", i.after)}</div></section>`;
 		})
 		.join("\n");
 	return `<!doctype html>

@@ -56,7 +56,11 @@ Settings open in their own window on Obsidian 1.13+. On the isolated path every 
 
 ## Header shots
 
-The chat header shows the chat's title, which is the tab's label. Without staging, that label is the agent and clock time or the first prompt, so a header shot would change from run to run. `initialState.tabLabel: "<title>"` sets a custom label on the entry's chat tab right after the panel opens; a custom label blocks later automatic labels, so the prompt can't replace it. It needs `clickRibbon` (a fresh panel) and isn't applied to GIFs. `validateManifest` refuses an entry whose `cropSelector` or `cropSelectors` include `.agent-client-chat-view-header` unless it sets `tabLabel`, restores sessions (`restoreSessions`), or opens a history session in `clickSequence` (`agent-client-session-history-restore-icon`), which carry their saved titles.
+The chat header shows the chat's title, which is the tab's label. Without staging, that label is the agent and clock time or the first prompt, so a header shot would change from run to run. `initialState.tabLabel: "<title>"` sets a custom label on the active chat tab right after the panel opens, again after the steps that can leave another tab active (a second prompt, a new-chat command, `forceTabStates`, a quick-prompt link, `restoreSessions`), and checks the shot's tab carries it before the capture. A custom label blocks later automatic labels, so the prompt can't replace it. It needs `clickRibbon` (a fresh panel), isn't applied to GIFs, and can't be combined with a `clickSequence` step that opens a history session.
+
+`validateManifest` refuses a shot that shows the header unless it fixes the title: a crop on `.agent-client-chat-view-header`, on the tab panel or on the chat leaf, or a `screen-window` hero, needs `tabLabel`, `restoreSessions`, `forceTabStates`, or a `clickSequence` step that opens a history session (`agent-client-session-history-restore-icon`). Restored, seeded and history sessions carry their own titles.
+
+The review page tells this run's changes from an earlier run's: the run reads each selected image before it starts, and only a file this run changed without capturing it gets a `git restore` (or `rm`, for a new file) line. A file an earlier run changed is shown, labeled, with no command.
 
 ## Pinned Obsidian version
 
