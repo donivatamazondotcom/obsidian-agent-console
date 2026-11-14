@@ -1095,6 +1095,55 @@ describe("validateManifest — initialState.whatsNew", () => {
 });
 
 // [[Agent Console Isolated Screenshot Capture]] PR 2b: settings-path fields.
+// The chat header shows the chat's title (header-session-title). A shot that
+// crops the header must fix that title, or it shows the clock or prompt label.
+describe("validateManifest — header shots fix the chat's title", () => {
+	const base = { name: "h", width: 100, height: 100, crop: { x: 0, y: 0, width: 10, height: 10 } };
+	const check = (extra: Record<string, unknown>) => () =>
+		validateManifest({ entries: [{ ...base, ...extra } as unknown as ManifestEntry] }, makeFixtureRoot());
+	const HEADER = '.agent-client-tab-panel:not([style*="none"]) .agent-client-chat-view-header';
+
+	it("rejects a header crop with no tabLabel, restoreSessions or history-session click, by cropSelector or cropSelectors", () => {
+		expect(check({ cropSelector: HEADER, initialState: { clickRibbon: true } })).toThrow(/crops the chat header.*tabLabel/);
+		expect(check({ cropSelectors: [".x", HEADER], initialState: { clickRibbon: true } })).toThrow(/crops the chat header.*tabLabel/);
+	});
+
+	it("accepts a header crop that sets tabLabel, restores sessions, or opens a history session", () => {
+		for (const sel of [{ cropSelector: HEADER }, { cropSelectors: [HEADER, ".menu"] }]) {
+			expect(check({ ...sel, initialState: { clickRibbon: true, tabLabel: "Release prep" } })).not.toThrow();
+			expect(check({ ...sel, initialState: { clickRibbon: true, restoreSessions: { titles: ["Japan trip"] } } })).not.toThrow();
+			expect(check({ ...sel, initialState: { clickRibbon: true, clickSequence: [{ selector: ".agent-client-session-history-restore-icon" }, { selector: ".b" }] } })).not.toThrow();
+		}
+		expect(check({ cropSelector: HEADER, initialState: { clickRibbon: true, clickSequence: [{ selector: ".b" }] } })).toThrow(/crops the chat header/);
+	});
+
+	it("leaves shots that don't crop the header alone", () => {
+		expect(check({ cropSelector: ".agent-client-tab-bar", initialState: { clickRibbon: true } })).not.toThrow();
+	});
+
+	it("requires a fresh panel (clickRibbon) for tabLabel, so the label stays on the entry's own tab", () => {
+		expect(check({ initialState: { openChatView: true, tabLabel: "Release prep" } })).toThrow(/tabLabel needs initialState\.clickRibbon/);
+		// The GIF path doesn't apply it, so it would be ignored there.
+		expect(check({ animation: { fps: 1, maxBytes: 10, frames: [{ holdMs: 1 }] }, initialState: { clickRibbon: true, tabLabel: "Release prep" } })).toThrow(/tabLabel isn't applied on the animation path/);
+	});
+
+	it("requires tabLabel to be a non-empty string", () => {
+		expect(check({ initialState: { clickRibbon: true, tabLabel: " " } })).toThrow(/initialState\.tabLabel/);
+		expect(check({ initialState: { clickRibbon: true, tabLabel: 3 } })).toThrow(/initialState\.tabLabel/);
+	});
+});
+
+describe("manifest.json — header shots fix the chat's title", () => {
+	const manifest = parseManifest(readFileSync(path.join(__dirname, "..", "..", "manifest.json"), "utf8"));
+	it("gives the fresh-tab header shots a fixed title and leaves the history-session one alone", () => {
+		const label = (n: string) => manifest.entries.find((e) => e.name === n)?.initialState?.tabLabel;
+		for (const n of ["update-pill", "reload-control", "kiro-v3-header-fallback", "switch-agent", "export"]) {
+			expect(label(n), n).toMatch(/\S/);
+		}
+		expect(label("shared-links-bubble")).toBeUndefined();
+	});
+});
+
 describe("validateManifest — settings path (PR 2b)", () => {
 	const base = { name: "s", width: 100, height: 100, crop: { x: 0, y: 0, width: 10, height: 10 } };
 	const check = (extra: Record<string, unknown>) => () =>

@@ -54,6 +54,10 @@ Settings open in their own window on Obsidian 1.13+. On the isolated path every 
 
 `initialState.sessionMode: "<mode id>"` starts the entry's session in that mode: the run writes it as the saved mode pick for the entry's agent before the panel opens, and restores the pick afterwards. `editing` uses `"default"`, because a user-level Claude Code `permissions.defaultMode` such as `auto` applies the edit with no permission card.
 
+## Header shots
+
+The chat header shows the chat's title, which is the tab's label. Without staging, that label is the agent and clock time or the first prompt, so a header shot would change from run to run. `initialState.tabLabel: "<title>"` sets a custom label on the entry's chat tab right after the panel opens; a custom label blocks later automatic labels, so the prompt can't replace it. It needs `clickRibbon` (a fresh panel) and isn't applied to GIFs. `validateManifest` refuses an entry whose `cropSelector` or `cropSelectors` include `.agent-client-chat-view-header` unless it sets `tabLabel`, restores sessions (`restoreSessions`), or opens a history session in `clickSequence` (`agent-client-session-history-restore-icon`), which carry their saved titles.
+
 ## Pinned Obsidian version
 
 `fixtures/obsidian-app.json` pins the Obsidian **app** version and the sha256 of its `obsidian-<version>.asar`. `/Applications/Obsidian.app` is only the installer; Obsidian runs the newest asar in its user-data folder, so each run copies the pinned asar into its own user data. The asar comes from `~/Library/Caches/agent-console/`, else your own downloaded update, else the official `obsidianmd/obsidian-releases` asset; every source is checked against the pinned hash. The run fails if the instance isn't on the pinned version.

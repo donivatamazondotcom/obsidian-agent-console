@@ -120,6 +120,15 @@ export interface InitialState {
 	 */
 	sessionMode?: string;
 	/**
+	 * Title for the entry's chat tab, set as a custom label right after the
+	 * panel opens (the view's `tabManagerRef.setTabLabel(activeTabId, label,
+	 * true)`). The chat header shows the tab's title, so a shot that crops the
+	 * header fixes it here, or it shows the clock or prompt label. A custom
+	 * label blocks later automatic labels, so the prompt can't replace it.
+	 * Needs `clickRibbon`, so the label lands on the entry's own fresh tab.
+	 */
+	tabLabel?: string;
+	/**
 	 * CSS selector for a native `<select>` to show open. The OS draws its
 	 * option list outside the page, so the isolated driver captures a DOM
 	 * replica of it in the settings window (native-select-replica.ts; crop
@@ -1095,6 +1104,7 @@ export function validateManifest(
 			["openNativeSelect", entry.initialState?.openNativeSelect],
 			["openSettingPage", entry.initialState?.openSettingPage],
 			["sessionMode", entry.initialState?.sessionMode],
+			["tabLabel", entry.initialState?.tabLabel],
 		];
 		for (const [label, value] of selectorStrings) {
 			if (
@@ -1114,6 +1124,31 @@ export function validateManifest(
 			if (typeof sws !== "object" || sws === null || Array.isArray(sws) || !ok(s.width) || !ok(s.height)) {
 				throw new Error(
 					`manifest entry "${entry.name}" has invalid settingsWindowSize: must be { width, height } in positive whole CSS px`,
+				);
+			}
+		}
+
+		if (entry.initialState?.tabLabel !== undefined && entry.animation !== undefined) {
+			throw new Error(`manifest entry "${entry.name}": initialState.tabLabel isn't applied on the animation path`);
+		}
+		if (entry.initialState?.tabLabel !== undefined && !entry.initialState.clickRibbon) {
+			throw new Error(
+				`manifest entry "${entry.name}": initialState.tabLabel needs initialState.clickRibbon (a fresh panel, so the label stays on the entry's own tab)`,
+			);
+		}
+		// The chat header shows the chat's title: a shot that crops it must
+		// fix the title (tabLabel), or show restored or history sessions,
+		// which carry their saved titles.
+		const crops = [entry.cropSelector, ...(entry.cropSelectors ?? [])];
+		if (crops.some((s) => typeof s === "string" && s.includes(".agent-client-chat-view-header"))) {
+			const is = entry.initialState;
+			const fixed =
+				is?.tabLabel !== undefined ||
+				is?.restoreSessions !== undefined ||
+				(is?.clickSequence ?? []).some((step) => typeof step?.selector === "string" && step.selector.includes("agent-client-session-history-restore-icon"));
+			if (!fixed) {
+				throw new Error(
+					`manifest entry "${entry.name}" crops the chat header, which shows the chat's title: set initialState.tabLabel, restore sessions (restoreSessions), or open a history session in clickSequence`,
 				);
 			}
 		}

@@ -4532,6 +4532,44 @@ describe("captureEntry — the no-hover style is removed even when closing setti
 	});
 });
 
+// header-session-title: a header shot fixes the chat's title.
+describe("captureEntry — initialState.tabLabel", () => {
+	type Fn = ReturnType<typeof vi.fn>;
+	const LABEL = (e: string) => e.includes("setTabLabel") && e.includes("Release prep");
+	it("renames the active tab with a custom label after the panel opens, before the prompt and the capture", async () => {
+		const deps = makeDeps();
+		const cdp = deps.cdp as unknown as Record<string, Fn>;
+		cdp.evaluate.mockImplementation((e: string) => Promise.resolve(LABEL(e) ? true : undefined));
+		await captureEntry(makeEntry({ promptFile: "connect.txt", initialState: { clickRibbon: true, tabLabel: "Release prep" } }), deps);
+		const evals = cdp.evaluate.mock.calls.map((c: unknown[]) => c[0] as string);
+		const i = evals.findIndex(LABEL);
+		expect(i).toBeGreaterThanOrEqual(0);
+		expect(evals[i]).toContain("activeTabId");
+		expect(evals[i]).toMatch(/"Release prep", true\)/);
+		const order = cdp.evaluate.mock.invocationCallOrder[i];
+		const open = cdp.executeCommand.mock.calls.findIndex((c: unknown[]) => c[0] === "agent-console:open-chat-view");
+		expect(cdp.executeCommand.mock.invocationCallOrder[open]).toBeLessThan(order);
+		expect(order).toBeLessThan(cdp.clickElement.mock.invocationCallOrder[0]);
+		expect(order).toBeLessThan(cdp.screenshot.mock.invocationCallOrder[0]);
+	});
+
+	it("fails the entry when there is no active tab to label, instead of shooting the clock title", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as Fn).mockImplementation((e: string) => Promise.resolve(LABEL(e) ? false : undefined));
+		await expect(captureEntry(makeEntry({ name: "pill", initialState: { clickRibbon: true, tabLabel: "Release prep" } }), deps)).rejects.toThrow(
+			/tabLabel: "pill" — no active chat tab to label/,
+		);
+		expect(deps.cdp.screenshot).not.toHaveBeenCalled();
+	});
+
+	it("does nothing without tabLabel", async () => {
+		const deps = makeDeps();
+		await captureEntry(makeEntry({ initialState: { clickRibbon: true } }), deps);
+		const evals = (deps.cdp.evaluate as Fn).mock.calls.map((c: unknown[]) => c[0] as string);
+		expect(evals.some((e) => e.includes("setTabLabel"))).toBe(false);
+	});
+});
+
 // PR 2c: the isolated driver captures the popover menus and the framed
 // heroes from the page, never from the screen.
 // [[Agent Console Isolated Screenshot Capture]] § Capture modes.
