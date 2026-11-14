@@ -46,28 +46,22 @@ describe("chat header title color (Decision 15)", () => {
 		);
 	});
 
-	// Code review r4 test gap: an override on a compound selector (the
-	// warning-state title, the running agent, the struck agent) would slip past
-	// the exact-selector lookups above. The warning stays grey with the extras
-	// (UX review row 2), so its classes declare no color of their own.
-	it("no rule overrides the title or the warning colors", () => {
-		const titleColors: string[] = [];
-		const warningColors: string[] = [];
+	// Code review r4/r5 test gap: a color on any other header rule (the
+	// warning-state title or extras, the running or struck agent, the model, a
+	// descendant selector) would slip past the exact-selector lookups above.
+	// The warning stays grey with the extras (UX review row 2).
+	it("only the title and the extras declare a header text color", () => {
+		const colors: string[] = [];
 		root.walkRules((rule: Rule) => {
-			const names = rule.selectors.join(" ");
-			rule.walkDecls("color", (d) => {
-				if (names.includes(".acp-header-branded-title"))
-					titleColors.push(`${rule.selector} → ${d.value}`);
-				if (
-					names.includes(".acp-header-branded-running") ||
-					names.includes(".acp-header-branded-profile")
-				)
-					warningColors.push(`${rule.selector} → ${d.value}`);
+			if (!/\.acp-header-branded\b/.test(rule.selector)) return;
+			rule.each((n) => {
+				if (n.type === "decl" && n.prop === "color")
+					colors.push(`${rule.selector} → ${n.value}`);
 			});
 		});
-		expect(titleColors).toEqual([
+		expect(colors).toEqual([
 			".acp-header-branded-title → var(--text-normal)",
+			".acp-header-branded-extras → var(--text-muted)",
 		]);
-		expect(warningColors).toEqual([]);
 	});
 });
