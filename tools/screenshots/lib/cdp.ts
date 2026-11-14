@@ -35,6 +35,17 @@ const REUSE_WAIT_MS = 400;
 /** Main-process helper that tames the settings window as it is created. */
 export const SETTINGS_WINDOW_HOOK = path.join(__dirname, "settings-window-hook.cjs");
 
+/**
+ * Page expression that loads the hook in the instance's main process, points
+ * its log at `logPath` and, when there is a log, starts logging every window
+ * focus and every time the app becomes active. run.ts evaluates it when the
+ * isolated instance connects, so steals before the first settings open are
+ * logged too (review round 4, N2).
+ */
+export function hookLogExpression(hookPath: string, logPath: string): string {
+	return `(() => { const hook = require("@electron/remote").require(${JSON.stringify(hookPath)}); hook.setLog(${JSON.stringify(logPath)}); if (${JSON.stringify(Boolean(logPath))}) hook.watchFocus(); return true; })()`;
+}
+
 export interface CdpOptions {
 	/**
 	 * Path to the obsidian CLI binary. Defaults to "obsidian" (PATH

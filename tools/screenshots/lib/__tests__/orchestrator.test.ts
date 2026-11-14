@@ -33,8 +33,9 @@ import {
 	selectEntries,
 	whatsNewCaptureVersions,
 	captureAll,
-	needsScreen,
+	legacySkipReason,
 	clampPadding,
+	CAPTURE_VIEWPORT,
 	type OrchestratorDeps,
 } from "../orchestrator";
 import { scaleRectByDevicePixelRatio } from "../crop";
@@ -95,6 +96,7 @@ function makeMockCdp() {
 			.fn()
 			.mockResolvedValue({ x: 0, y: 0, width: 100, height: 100 }),
 		clearViewport: vi.fn().mockResolvedValue(undefined),
+		setViewport: vi.fn().mockResolvedValue(undefined),
 		// The legacy driver runs settings DOM work on the main page, where
 		// activeDocument follows the settings window.
 		evaluateInSettings: vi.fn(),
@@ -771,6 +773,33 @@ describe("captureEntry", () => {
 		).mock.calls.map((c) => c[0] as string);
 		expect(waitCalls.some((w) => w.includes(".mermaid svg"))).toBe(true);
 	});
+	// The history modal mounts before its rows render. The isolated driver's
+	// direct CDP session is fast enough to look before they do (PR 2c run).
+	it("waits for the session's row to render in the history modal before giving up (restoreSessions)", async () => {
+		const deps = makeDeps();
+		let looks = 0;
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation((expr: string) => {
+			if (expr.includes("tabs[0]?.tabId")) return Promise.resolve("tab-initial");
+			if (expr.includes("tabs.map")) return Promise.resolve(JSON.stringify(["t1"]));
+			if (expr.includes("session-history-item")) return Promise.resolve(++looks < 3 ? [] : true);
+			return Promise.resolve(undefined);
+		});
+		await captureEntry(makeEntry({ initialState: { clickRibbon: true, restoreSessions: { titles: ["Newsletter"] } } }), deps);
+		expect(looks).toBe(3);
+	});
+
+	it("names the rows the history showed when the session's row never renders (restoreSessions)", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation((expr: string) => {
+			if (expr.includes("tabs[0]?.tabId")) return Promise.resolve("tab-initial");
+			if (expr.includes("session-history-item")) return Promise.resolve(["Japan trip", "Meeting prep"]);
+			return Promise.resolve(undefined);
+		});
+		await expect(
+			captureEntry(makeEntry({ initialState: { clickRibbon: true, restoreSessions: { titles: ["Newsletter"] } } }), deps),
+		).rejects.toThrow(/no session-history row matching "Newsletter" \(the history shows "Japan trip", "Meeting prep"\)/);
+	}, 15_000);
+
 	it("reconnectActive clicks Reload on the active tab and waits for the model dropdown after restore", async () => {
 		const deps = makeDeps();
 		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation(
@@ -3621,28 +3650,30 @@ describe("captureEntry — agent config does not leak into later entries", () =>
 	});
 });
 
-describe("captureAll — isolated skip list", () => {
-	it("skips entries the isolated driver can't run yet, without touching the page", async () => {
+describe("captureAll — legacy skip list (PR 2c)", () => {
+	it("skips the entries re-authored for the isolated driver, without touching the page", async () => {
 		const deps = makeDeps();
 		const entries = [
 			makeEntry({ name: "plain" }),
 			makeEntry({ name: "menu", captureMode: "screen" }),
 			makeEntry({ name: "hero", captureMode: "screen-window" }),
-			makeEntry({ name: "native", initialState: { openSettings: "agent-console", openNativeSelect: "select" } }),
+			makeEntry({ name: "native", captureMode: "screen", initialState: { openSettings: "agent-console", openNativeSelect: "select" } }),
 		];
-		const results = await captureAll(entries, deps, { skip: needsScreen });
+		const results = await captureAll(entries, deps, { skip: legacySkipReason });
 		expect(results.map((r) => [r.name, r.success, Boolean(r.skipped)])).toEqual([
 			["plain", true, false],
 			["menu", true, true],
 			["hero", true, true],
 			["native", true, true],
 		]);
+		expect(results[1].skipped).toMatch(/isolated driver/);
 		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(1);
 	});
 
-	it("captures settings-window and openSettings entries (PR 2b)", () => {
-		expect(needsScreen(makeEntry({ captureMode: "settings-window" }))).toBeUndefined();
-		expect(needsScreen(makeEntry({ initialState: { openSettings: "agent-console" } }))).toBeUndefined();
+	it("keeps window, settings-window and openSettings entries on the legacy driver", () => {
+		expect(legacySkipReason(makeEntry({}))).toBeUndefined();
+		expect(legacySkipReason(makeEntry({ captureMode: "settings-window" }))).toBeUndefined();
+		expect(legacySkipReason(makeEntry({ initialState: { openSettings: "agent-console" } }))).toBeUndefined();
 	});
 });
 
@@ -3704,7 +3735,7 @@ describe("captureAll — progress callback", () => {
 		await captureAll(
 			[makeEntry({ name: "a" }), makeEntry({ name: "b", captureMode: "screen" }), makeEntry({ name: "c" })],
 			deps,
-			{ skip: needsScreen, onEntry: (e, i, n) => seen.push(`${e.name} ${i}/${n}`) },
+			{ skip: legacySkipReason, onEntry: (e, i, n) => seen.push(`${e.name} ${i}/${n}`) },
 		);
 		expect(seen).toEqual(["a 1/2", "c 2/2"]);
 	});
@@ -4287,8 +4318,10 @@ describe("captureEntry — settings path, review round 1 (PR 2b)", () => {
 		const app = {
 			plugins: { plugins: { "agent-console": { settings, settingsService: { updateSettings: (p: Record<string, unknown>) => {
 				calls++;
-				if (onRestore && "claude" in p) return onRestore();
+				// Like the real settings writer: the change lands in memory
+				// before the disk write, which is what can fail.
 				Object.assign(settings, p);
+				if (onRestore && "claude" in p) return onRestore();
 				return Promise.resolve();
 			} } } } },
 			setting: { close: () => {} },
@@ -4321,17 +4354,21 @@ describe("captureEntry — settings path, review round 1 (PR 2b)", () => {
 		expect((page.settings.newagent as { command: string }).command).toBe("/opt/x/new");
 	});
 
-	it("fails the entry when the agent settings can't be restored, naming the capture error too", async () => {
+	it("warns, and keeps the capture's own result, when only the restore's disk write fails (N1)", async () => {
 		const page = seeded(() => Promise.reject(new Error("disk full")));
 		const { deps, cdp } = isoDeps();
+		const warn = vi.fn();
+		deps.warn = warn;
 		cdp.evaluate = page.evaluate;
 		deps.agentTemplate = { claude: { command: "claude-agent-acp", env: [] }, customAgents: [] };
-		await expect(captureEntry(entry(), deps)).rejects.toThrow(/couldn't restore the agent settings after "settings-agent-page": .*disk full/);
-		// A fresh page: the failed restore above left the template values in place.
+		await expect(captureEntry(entry(), deps)).resolves.toBeUndefined();
+		expect((page.settings.claude as { command: string }).command).toBe("/opt/x/claude-agent-acp");
+		expect(warn).toHaveBeenCalledWith(expect.stringMatching(/"settings-agent-page".*disk full.*read back as restored/));
 		const page2 = seeded(() => Promise.reject(new Error("disk full")));
 		cdp.evaluate = page2.evaluate;
 		cdp.captureSettingsWindow.mockRejectedValue(new Error("boom"));
-		await expect(captureEntry(entry(), deps)).rejects.toThrow(/boom.*couldn't restore the agent settings.*disk full/);
+		await expect(captureEntry(entry(), deps)).rejects.toThrow(/^boom$/);
+		expect(warn).toHaveBeenCalledTimes(2);
 	});
 });
 
@@ -4359,7 +4396,7 @@ describe("captureAll — restore failure, review round 3", () => {
 			if (e.includes("JSON.stringify(") && e.includes(".reduce(")) return Promise.resolve(e.includes("__acReadBack") ? '{"x":2}' : '{"x":1}');
 			return Promise.resolve(undefined);
 		});
-		const results = await captureAll([makeEntry({ name: "a" }), makeEntry({ name: "menu", captureMode: "screen" }), makeEntry({ name: "c" })], deps, { skip: needsScreen });
+		const results = await captureAll([makeEntry({ name: "a" }), makeEntry({ name: "menu", captureMode: "screen" }), makeEntry({ name: "c" })], deps, { skip: legacySkipReason });
 		expect(results.map((r) => [r.name, r.success, Boolean(r.skipped)])).toEqual([["a", false, false], ["menu", true, true], ["c", false, false]]);
 	});
 
@@ -4485,5 +4522,282 @@ describe("captureEntry — the no-hover style is removed even when closing setti
 		await expect(captureEntry(makeEntry({ captureMode: "settings-window", cropSelector: ".x", initialState: { openSettings: "agent-console" } }), deps)).rejects.toThrow(/close failed/);
 		const calls = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.map((c: unknown[]) => c[0] as string);
 		expect(calls.some((e) => e.includes('document.getElementById("ac-capture-no-hover")') && e.includes(".remove()"))).toBe(true);
+	});
+});
+
+// PR 2c: the isolated driver captures the popover menus and the framed
+// heroes from the page, never from the screen.
+// [[Agent Console Isolated Screenshot Capture]] § Capture modes.
+describe("captureEntry — isolated menus (captureMode screen, PR 2c)", () => {
+	type Fn = ReturnType<typeof vi.fn>;
+	const VIEWPORT = "__acViewport";
+	function isoDeps(inner: [number, number] = [1400, 760]) {
+		// The page capture at DPR 2.
+		const sharp = makeMockSharp();
+		(sharp() as unknown as Record<string, Fn>).metadata.mockResolvedValue({ width: 2800, height: 1520 });
+		sharp.mockClear();
+		const deps = makeDeps({ sharp: sharp as unknown as OrchestratorDeps["sharp"] });
+		const cdp = deps.cdp as unknown as Record<string, Fn> & { isolated: boolean };
+		cdp.isolated = true;
+		cdp.evaluate.mockImplementation((e: string) => Promise.resolve(e.includes(VIEWPORT) ? inner : undefined));
+		return { deps, cdp };
+	}
+	const menu = (o: Partial<ManifestEntry> = {}) =>
+		makeEntry({
+			name: "mode-selection",
+			width: 1400,
+			height: 600,
+			captureMode: "screen",
+			promptFile: "connect.txt",
+			initialState: { openNote: "Welcome.md", clickRibbon: true, clickSelector: ".mode" },
+			cropSelectors: [".menu", ".actions"],
+			mustShow: ".menu .menu-item",
+			...o,
+		});
+
+	it("captures the page, not the screen, and never pins or floats the window", async () => {
+		const { deps, cdp } = isoDeps();
+		await captureEntry(menu(), deps);
+		expect(cdp.screenshot).toHaveBeenCalledTimes(1);
+		expect(cdp.screenCaptureRegion).not.toHaveBeenCalled();
+		expect(cdp.setWindowBounds).not.toHaveBeenCalled();
+		expect(cdp.getWorkArea).not.toHaveBeenCalled();
+		expect(cdp.getWindowBounds).not.toHaveBeenCalled();
+		expect(cdp.setWindowAlwaysOnTop).not.toHaveBeenCalled();
+	});
+
+	it("waits for the DOM .menu after the click, and only for the turn to go idle before the capture (I09)", async () => {
+		const { deps, cdp } = isoDeps();
+		await captureEntry(menu(), deps);
+		const waits = cdp.waitForElement.mock.calls.map((c: unknown[]) => c[0] as string);
+		const menuWait = waits.indexOf(".menu");
+		expect(menuWait).toBeGreaterThanOrEqual(0);
+		expect(cdp.clickWithCoords.mock.invocationCallOrder[0]).toBeLessThan(cdp.waitForElement.mock.invocationCallOrder[menuWait]);
+		const idle = waits.findIndex((s) => s.includes("agent-client-loading-indicator.agent-client-hidden"));
+		expect(idle).toBeGreaterThanOrEqual(0);
+		expect(cdp.waitForElement.mock.invocationCallOrder[idle]).toBeLessThan(cdp.screenshot.mock.invocationCallOrder[0]);
+		expect(waits.some((s) => s.includes("agent-client-message-assistant"))).toBe(false);
+	});
+
+	it("asserts mustShow against the group crop", async () => {
+		const { deps, cdp } = isoDeps();
+		cdp.getElementBounds.mockImplementation((s: string) =>
+			Promise.resolve(s === ".menu .menu-item" ? { x: 2000, y: 2000, width: 10, height: 10 } : { x: 0, y: 0, width: 100, height: 100 }),
+		);
+		await expect(captureEntry(menu(), deps)).rejects.toThrow(/mustShow assert: "mode-selection" — element \.menu \.menu-item .* outside the crop/);
+		expect(cdp.screenshot).not.toHaveBeenCalled();
+	});
+
+	it("crops the menu and the toolbar at the capture DPR onto the entry's canvas", async () => {
+		const { deps, cdp } = isoDeps();
+		cdp.getElementBounds.mockImplementation((s: string) =>
+			Promise.resolve(s === ".menu" ? { x: 300, y: 200, width: 200, height: 150 } : { x: 100, y: 380, width: 600, height: 30 }),
+		);
+		await captureEntry(menu(), deps);
+		const sharpInstance = (deps.sharp as unknown as Fn).mock.results[0].value as Record<string, Fn>;
+		// Union (100,200)–(700,410) plus 16 px padding, times DPR 2.
+		expect(sharpInstance.extract).toHaveBeenCalledWith({ left: 168, top: 368, width: 1264, height: 484 });
+		expect(sharpInstance.extend).toHaveBeenCalled();
+	});
+
+	it("fails the entry when the page doesn't render at the capture viewport", async () => {
+		const { deps, cdp } = isoDeps([1400, 949]);
+		await expect(captureEntry(menu(), deps)).rejects.toThrow(/renders at 1400×949, expected 1400×760/);
+		expect(cdp.screenshot).not.toHaveBeenCalled();
+	});
+
+	it("keeps the legacy screen path on the legacy driver", async () => {
+		const deps = makeDeps();
+		await captureEntry(menu({ cropSelectors: undefined, width: 100, height: 50, crop: { x: 0, y: 0, width: 100, height: 50 } }), deps);
+		expect(deps.cdp.screenCaptureRegion).toHaveBeenCalled();
+		expect(deps.cdp.screenshot).not.toHaveBeenCalled();
+	});
+});
+
+describe("captureEntry — isolated heroes (captureMode screen-window, PR 2c)", () => {
+	type Fn = ReturnType<typeof vi.fn>;
+	function isoDeps(o: { inner?: [number, number]; shot?: () => Promise<void> } = {}) {
+		const sharpInstance = {
+			extract: vi.fn().mockReturnThis(),
+			resize: vi.fn().mockReturnThis(),
+			extend: vi.fn().mockReturnThis(),
+			raw: vi.fn().mockReturnThis(),
+			png: vi.fn().mockReturnThis(),
+			webp: vi.fn().mockReturnThis(),
+			toFile: vi.fn().mockResolvedValue(undefined),
+			metadata: vi.fn().mockResolvedValue({ width: 3200, height: 2000 }),
+			toBuffer: vi.fn().mockResolvedValue(Buffer.from("rawpng")),
+		};
+		const frameImage = vi.fn().mockResolvedValue(undefined);
+		const deps = makeDeps({ sharp: vi.fn().mockReturnValue(sharpInstance) as unknown as OrchestratorDeps["sharp"], frameImage });
+		const cdp = deps.cdp as unknown as Record<string, Fn> & { isolated: boolean };
+		cdp.isolated = true;
+		cdp.evaluate.mockImplementation((e: string) => {
+			if (e.includes("__acViewport")) return Promise.resolve(o.inner ?? [1600, 1000]);
+			if (e.includes("chat-view-header")) return Promise.resolve(JSON.stringify({ header: "Claude Code", sel: 1 }));
+			if (e.includes("tabs[0]?.tabId")) return Promise.resolve("tab-initial");
+			if (e.includes("tabs.map")) return Promise.resolve(JSON.stringify(["t1", "t2"]));
+			if (e.includes("session-history-item")) return Promise.resolve(true);
+			return Promise.resolve(undefined);
+		});
+		if (o.shot) cdp.screenshot.mockImplementation(o.shot);
+		return { deps, cdp, sharpInstance, frameImage };
+	}
+	const hero = () =>
+		makeEntry({
+			name: "multi-session",
+			width: 1400,
+			height: 900,
+			captureMode: "screen-window",
+			frame: { chrome: "none" },
+			placement: "hero",
+			crop: { x: 0, y: 0, width: 1600, height: 1000 },
+			initialState: {
+				openNotes: ["Weekly review.md"],
+				clickRibbon: true,
+				restoreSessions: { titles: ["Japan trip", "Launch check"], activeIndex: 1, requireActiveHeaderIncludes: "Claude Code", requireActiveSelector: ".callout" },
+			},
+		});
+
+	it("renders at 1600×1000 from before the first drive until after the capture, then puts the capture viewport back", async () => {
+		const { deps, cdp } = isoDeps();
+		await captureEntry(hero(), deps);
+		const vp = cdp.setViewport.mock;
+		expect(vp.calls[0]).toEqual([1600, 1000, 2]);
+		expect(vp.calls[vp.calls.length - 1]).toEqual([CAPTURE_VIEWPORT.width, CAPTURE_VIEWPORT.height, 2]);
+		const evals = cdp.evaluate.mock.calls.map((c: unknown[]) => c[0] as string);
+		const firstOpen = evals.findIndex((e) => e.includes("openLinkText"));
+		expect(vp.invocationCallOrder[0]).toBeLessThan(cdp.evaluate.mock.invocationCallOrder[firstOpen]);
+		expect(vp.invocationCallOrder[vp.calls.length - 1]).toBeGreaterThan(cdp.screenshot.mock.invocationCallOrder[0]);
+	});
+
+	it("captures the full page, not the screen, with no crop", async () => {
+		const { deps, cdp, sharpInstance } = isoDeps();
+		await captureEntry(hero(), deps);
+		expect(cdp.screenshot).toHaveBeenCalledTimes(1);
+		expect(cdp.screenCaptureRegion).not.toHaveBeenCalled();
+		expect(cdp.setWindowBounds).not.toHaveBeenCalled();
+		expect(cdp.clearViewport).not.toHaveBeenCalled();
+		expect(sharpInstance.extract).not.toHaveBeenCalled();
+		expect(sharpInstance.resize).toHaveBeenCalledWith(1400);
+	});
+
+	it("frames the shot with colored traffic lights at the downscaled size", async () => {
+		const { deps, frameImage } = isoDeps();
+		await captureEntry(hero(), deps);
+		expect(frameImage).toHaveBeenCalledWith(
+			path.join("/fake/repo", "docs", "public", "images", "multi-session.webp"),
+			expect.objectContaining({ chrome: "none", trafficLights: { scale: 1400 / 1600 } }),
+		);
+	});
+
+	it("puts the capture viewport back when the capture throws", async () => {
+		const { deps, cdp } = isoDeps({ shot: () => Promise.reject(new Error("capture boom")) });
+		await expect(captureEntry(hero(), deps)).rejects.toThrow(/capture boom/);
+		const vp = cdp.setViewport.mock.calls;
+		expect(vp[vp.length - 1]).toEqual([CAPTURE_VIEWPORT.width, CAPTURE_VIEWPORT.height, 2]);
+	});
+
+	it("fails the entry when the page doesn't render at the hero viewport", async () => {
+		const { deps, cdp } = isoDeps({ inner: [1600, 949] });
+		await expect(captureEntry(hero(), deps)).rejects.toThrow(/renders at 1600×949, expected 1600×1000/);
+		expect(cdp.screenshot).not.toHaveBeenCalled();
+	});
+
+	it("names both failures when putting the viewport back fails too", async () => {
+		const { deps, cdp } = isoDeps({ shot: () => Promise.reject(new Error("capture boom")) });
+		cdp.setViewport.mockImplementation((w: number) => (w === CAPTURE_VIEWPORT.width ? Promise.reject(new Error("cdp gone")) : Promise.resolve()));
+		await expect(captureEntry(hero(), deps)).rejects.toThrow(/capture boom.*couldn't put the 1400×760 viewport back.*cdp gone/);
+	});
+});
+
+describe("captureEntry — isolated native <select> shot (PR 2c)", () => {
+	type Fn = ReturnType<typeof vi.fn>;
+	const REPLICA = "__acNativeSelectReplica";
+	function isoDeps(replica: unknown = "ok") {
+		const deps = makeDeps();
+		const cdp = deps.cdp as unknown as Record<string, Fn> & { isolated: boolean };
+		cdp.isolated = true;
+		cdp.evaluateInSettings = vi.fn((e: string) => {
+			if (e.includes(REPLICA)) return Promise.resolve(replica);
+			if (e.includes("__cleanliness_probe__")) return Promise.resolve({ selectors: [], text: [] });
+			if (e.includes("getBoundingClientRect"))
+				return Promise.resolve({ dpr: 2, rects: [{ x: 20, y: 30, width: 600, height: 200 }, { x: 400, y: 60, width: 200, height: 150 }], pane: null, inner: [1200, 900] });
+			return Promise.resolve(true);
+		});
+		return { deps, cdp };
+	}
+	const native = () =>
+		makeEntry({
+			name: "language-setting",
+			captureMode: "screen",
+			cropSelectors: [".setting-group:has(.lang)", "#ac-native-select-replica"],
+			forbiddenText: ["/Users/"],
+			initialState: { openSettings: "agent-console", openNativeSelect: ".lang select", scrollToSettingText: "Language" },
+		});
+
+	it("captures from the settings window with a DOM replica of the open list, never the OS popup", async () => {
+		const { deps, cdp } = isoDeps();
+		await captureEntry(native(), deps);
+		expect(cdp.openSettingsHidden).toHaveBeenCalled();
+		expect(cdp.openNativeSelect).not.toHaveBeenCalled();
+		expect(cdp.screenCaptureRegion).not.toHaveBeenCalled();
+		expect(cdp.focusWindow).not.toHaveBeenCalled();
+		expect(cdp.captureSettingsWindow).toHaveBeenCalledTimes(1);
+		const calls = cdp.evaluateInSettings.mock.calls.map((c: unknown[]) => c[0] as string);
+		const replica = calls.findIndex((e) => e.includes(REPLICA));
+		const geom = calls.findIndex((e) => e.includes("getBoundingClientRect") && !e.includes(REPLICA));
+		expect(calls[replica]).toContain('".lang select"');
+		expect(replica).toBeLessThan(geom);
+	});
+
+	it("fails the entry, with the reason, when the replica can't be built", async () => {
+		const { deps, cdp } = isoDeps("no <select> matches .lang select");
+		await expect(captureEntry(native(), deps)).rejects.toThrow(/"language-setting": no <select> matches \.lang select/);
+		expect(cdp.captureSettingsWindow).not.toHaveBeenCalled();
+	});
+});
+
+describe("captureEntry — agent restore read-back (review round 4, N1)", () => {
+	it("warns, and doesn't fail the entry, when the restore throws but the settings read back restored", async () => {
+		const warn = vi.fn();
+		const deps = makeDeps({ warn });
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation((e: string) => {
+			if (e.includes("JSON.parse(") && e.includes("updateSettings")) return Promise.reject(new Error("disk full"));
+			if (e.includes("JSON.stringify(") && e.includes(".reduce(")) return Promise.resolve('{"x":1}');
+			return Promise.resolve(undefined);
+		});
+		await expect(captureEntry(makeEntry({ name: "a" }), deps)).resolves.toBeUndefined();
+		expect(warn).toHaveBeenCalledWith(expect.stringMatching(/"a".*disk full.*read back as restored/));
+	});
+
+	it("reads back once more when the first read-back fails", async () => {
+		const warn = vi.fn();
+		const deps = makeDeps({ warn });
+		let readBacks = 0;
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation((e: string) => {
+			if (e.includes("JSON.parse(") && e.includes("updateSettings")) return Promise.reject(new Error("disk full"));
+			if (e.includes("__acReadBack")) return ++readBacks === 1 ? Promise.reject(new Error("CDP evaluate: empty output from obsidian")) : Promise.resolve('{"x":1}');
+			if (e.includes("JSON.stringify(") && e.includes(".reduce(")) return Promise.resolve('{"x":1}');
+			return Promise.resolve(undefined);
+		});
+		await expect(captureEntry(makeEntry({ name: "a" }), deps)).resolves.toBeUndefined();
+		expect(readBacks).toBe(2);
+		expect(warn).toHaveBeenCalledTimes(1);
+	});
+
+	it("still fails the entry when both read-backs differ from the snapshot", async () => {
+		const warn = vi.fn();
+		const deps = makeDeps({ warn });
+		let readBacks = 0;
+		(deps.cdp.evaluate as ReturnType<typeof vi.fn>).mockImplementation((e: string) => {
+			if (e.includes("JSON.parse(") && e.includes("updateSettings")) return Promise.reject(new Error("disk full"));
+			if (e.includes("__acReadBack")) return (readBacks++, Promise.resolve('{"x":2}'));
+			if (e.includes("JSON.stringify(") && e.includes(".reduce(")) return Promise.resolve('{"x":1}');
+			return Promise.resolve(undefined);
+		});
+		await expect(captureEntry(makeEntry({ name: "a" }), deps)).rejects.toThrow(/couldn't restore the agent settings after "a": disk full/);
+		expect(readBacks).toBe(2);
+		expect(warn).not.toHaveBeenCalled();
 	});
 });

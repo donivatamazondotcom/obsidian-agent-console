@@ -103,14 +103,12 @@
 		{
 			"name": "mode-selection",
 			"rightSplitWidth": 530,
-			"width": 734,
-			"height": 308,
-			"crop": {
-				"x": 1500,
-				"y": 1094,
-				"width": 1300,
-				"height": 546
-			},
+			"width": 1120,
+			"height": 540,
+			"cropSelectors": [
+				".menu",
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-actions"
+			],
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true,
@@ -123,21 +121,19 @@
 			"placement": "reference",
 			"purpose": "Pick how much autonomy the agent gets, per session.",
 			"differentiator": "Per-session permission modes",
-			"mustShow": ".agent-client-config-selector-mode",
+			"mustShow": ".menu .menu-item",
 			"caption": "Control what the agent can do",
 			"altText": "Agent Console permission-mode menu showing Manual, Accept edits, Plan, Auto, and Bypass permissions"
 		},
 		{
 			"name": "model-selection",
 			"rightSplitWidth": 530,
-			"width": 734,
-			"height": 308,
-			"crop": {
-				"x": 1500,
-				"y": 1094,
-				"width": 1300,
-				"height": 546
-			},
+			"width": 1140,
+			"height": 940,
+			"cropSelectors": [
+				".menu",
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-actions"
+			],
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true,
@@ -149,21 +145,19 @@
 			"placement": "reference",
 			"purpose": "Switch the model the agent runs on.",
 			"differentiator": "Model selection",
-			"mustShow": ".agent-client-config-selector-model",
+			"mustShow": ".menu .menu-item",
 			"caption": "Choose your model",
 			"altText": "Agent Console model menu listing the available models for the session"
 		},
 		{
 			"name": "thought-level-selection",
 			"rightSplitWidth": 530,
-			"width": 734,
-			"height": 308,
-			"crop": {
-				"x": 1500,
-				"y": 1094,
-				"width": 1300,
-				"height": 546
-			},
+			"width": 1120,
+			"height": 540,
+			"cropSelectors": [
+				".menu",
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-input-actions"
+			],
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true,
@@ -176,7 +170,7 @@
 			"placement": "reference",
 			"purpose": "Tune how much reasoning effort the agent spends per session.",
 			"differentiator": "Per-session reasoning effort",
-			"mustShow": ".agent-client-config-selector-thought_level",
+			"mustShow": ".menu .menu-item",
 			"caption": "Dial the agent\u2019s effort up or down",
 			"altText": "Agent Console effort-level menu showing Default, Low, Medium, High, Xhigh, and Max"
 		},
@@ -1515,22 +1509,27 @@
 			"pending": false,
 			"width": 1640,
 			"height": 410,
-			"crop": {
-				"x": 880,
-				"y": 585,
-				"width": 1640,
-				"height": 410
-			},
+			"cropSelectors": [
+				".setting-group:has(option[value=\"ja\"])",
+				"#ac-native-select-replica"
+			],
 			"captureMode": "screen",
 			"approvalThreshold": 0.05,
 			"initialState": {
 				"openSettings": "agent-console",
-				"openNativeSelect": ".agent-client-settings-language select"
+				"scrollToSettingText": "Language",
+				"openNativeSelect": "select:has(option[value=\"ja\"])"
 			},
 			"placement": "reference",
 			"altText": "Agent Console Language dropdown open under Appearance & notifications, showing Auto, English, and locale names in their own script",
 			"docPage": "docs/usage/language.md",
-			"caption": "Pick a language under Appearance & notifications \u2014 Auto follows Obsidian's language."
+			"caption": "Pick a language under Appearance & notifications \u2014 Auto follows Obsidian's language.",
+			"forbiddenText": [
+				"/Users/",
+				"/home/",
+				"AC_VIDEO_RUN",
+				"BEDROCK"
+			]
 		},
 		{
 			"name": "interactive-buttons",

@@ -43,6 +43,7 @@ import {
 	type FrameOptions,
 	type ChromeFrameOptions,
 } from "./frame";
+import { nativeSelectReplicaExpression } from "./native-select-replica";
 import { VIEW_TYPE_CHAT } from "../../../src/ui/chat-view-type";
 import { HIGHLIGHTS } from "../../../src/whats-new/highlights";
 import * as semver from "semver";
@@ -107,6 +108,8 @@ export interface CdpLike {
 	screenshot(outputPath: string): Promise<void>;
 	setMobileEmulation(enabled: boolean): Promise<void>;
 	clearViewport(): Promise<void>;
+	/** Render the page at this size and device pixel ratio (Emulation.setDeviceMetricsOverride). */
+	setViewport(width: number, height: number, deviceScaleFactor?: number): Promise<void>;
 }
 
 /** sharp factory — matches `import sharp from "sharp"`. Accepts a file path or an in-memory buffer (the group-crop does a second pass over the extracted content buffer). */
@@ -196,6 +199,8 @@ export interface OrchestratorDeps {
 	 * animation frame when the entry opts into `frame` with chrome "macos".
 	 */
 	chromeFrame?: (input: Buffer, opts: ChromeFrameOptions) => Promise<Buffer>;
+	/** Report a problem that doesn't fail the entry. */
+	warn?: (message: string) => void;
 }
 
 export interface CaptureResult {
@@ -216,16 +221,22 @@ export interface CaptureAllOptions {
 }
 
 /**
- * Why an entry can't run on the isolated driver yet, or undefined if it can.
- * Real-screen captures and the native select move to the isolated path in
- * PR 2c ([[Agent Console Isolated Screenshot Capture]]).
+ * Why the legacy driver skips an entry, or undefined if it captures it. PR 2c
+ * re-authored the menus, the heroes and the native-select shot for the
+ * isolated driver (no screen-pixel crops, new target sizes), so the legacy
+ * screen path can't capture them any more. The legacy path goes in the
+ * release after ([[Agent Console Isolated Screenshot Capture]] § Legacy path).
  */
-export function needsScreen(entry: ManifestEntry): string | undefined {
-	// Settings shots run on the isolated driver since PR 2b.
-	if (entry.captureMode === "screen" || entry.captureMode === "screen-window") return `captureMode "${entry.captureMode}" needs the real screen`;
-	if (entry.initialState?.openNativeSelect) return "a native <select> popup needs the real screen";
+export function legacySkipReason(entry: ManifestEntry): string | undefined {
+	if (entry.captureMode === "screen" || entry.captureMode === "screen-window") {
+		return `captureMode "${entry.captureMode}" is captured on the isolated driver only`;
+	}
+	if (entry.initialState?.openNativeSelect) return "the native <select> shot is captured on the isolated driver only";
 	return undefined;
 }
+
+/** Page size and DPR every capture renders at, unless its branch sets its own (run.ts applies it). */
+export const CAPTURE_VIEWPORT = { width: 1400, height: 760 };
 
 const SETTLE_MS = 500;
 /** Max wait for Obsidian's native tooltip (.tooltip) to render after a hover. */
@@ -237,6 +248,9 @@ const ACTIVE_PANEL = '.agent-client-tab-panel:not([style*="none"])';
 /** In-renderer expression resolving the active agent-console chat view. */
 const CHAT_VIEW =
 	`app.workspace.getLeavesOfType(${VIEW_JSON})[0]?.view`;
+
+/** How long restoreSessions waits for a session's row to render in the history modal. */
+const HISTORY_ROW_TIMEOUT_MS = 5000;
 
 /**
  * Max full restore attempts for a guarded restoreSessions entry
@@ -307,14 +321,22 @@ async function restoreSessionsIntoTabs(
 					".modal",
 					HOVER_TOOLTIP_TIMEOUT_MS,
 				);
-				const clicked = await deps.cdp.evaluate<boolean>(
-					`(() => { const items = Array.from(document.querySelectorAll("[class*=session-history-item],[class*=session-history-row]")); const row = items.find((r) => (r.textContent || "").includes(${JSON.stringify(
-						title,
-					)})); if (!row) return false; const b = row.querySelector("[class*=restore]"); if (!b) return false; b.click(); return true; })()`,
-				);
-				if (!clicked) {
+				// The modal mounts before its rows render, so look for the row
+				// until it shows up. The page returns true once clicked, else
+				// the rows it shows, so a failure says what was there instead.
+				const clickRow = `(() => { const items = Array.from(document.querySelectorAll("[class*=session-history-item],[class*=session-history-row]")); const row = items.find((r) => (r.textContent || "").includes(${JSON.stringify(
+					title,
+				)})); const b = row && row.querySelector("[class*=restore]"); if (!b) return items.slice(0, 8).map((r) => (r.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 40)); b.click(); return true; })()`;
+				let clicked: unknown;
+				for (const until = Date.now() + HISTORY_ROW_TIMEOUT_MS; ; ) {
+					clicked = await deps.cdp.evaluate<unknown>(clickRow);
+					if (clicked === true || Date.now() >= until) break;
+					await sleep(ANIM_CONTENT_POLL_MS);
+				}
+				if (clicked !== true) {
+					const rows = Array.isArray(clicked) ? (clicked as string[]) : [];
 					throw new Error(
-						`restoreSessions: no session-history row matching "${title}"`,
+						`restoreSessions: no session-history row matching "${title}" (the history shows ${rows.length ? rows.map((r) => JSON.stringify(r)).join(", ") : "no rows"})`,
 					);
 				}
 				await deps.cdp.waitForElement(
@@ -620,11 +642,19 @@ export async function captureEntry(
 				.catch((e: unknown) => {
 					agentRestoreError = e;
 				});
-			// The legacy CLI can drop a response that did land: read the
-			// agent settings back and fail only if they differ.
+			// The restore can throw when it did land: the legacy CLI drops a
+			// response, and the settings writer commits in memory before its
+			// disk write. Read the agent settings back, once more if the first
+			// read doesn't match, and fail only if they differ. Say so when
+			// they match: the vault's data.json may still hold the entry's values.
 			if (agentRestoreError !== undefined) {
-				const now = await deps.cdp.evaluate<string>(agentStateExpression(deps, true)).catch(() => undefined);
-				if (now === agentSnapshot) agentRestoreError = undefined;
+				const readBack = () => deps.cdp.evaluate<string>(agentStateExpression(deps, true)).catch(() => undefined);
+				let now = await readBack();
+				if (now !== agentSnapshot) now = await readBack();
+				if (now === agentSnapshot) {
+					deps.warn?.(`"${entry.name}": restoring the agent settings reported an error (${errorText(agentRestoreError)}), but they read back as restored; continuing`);
+					agentRestoreError = undefined;
+				}
 			}
 		}
 		if (prior) {
@@ -636,11 +666,24 @@ export async function captureEntry(
 				.catch(() => {});
 		}
 		if (agentRestoreError !== undefined) {
-			const why = (e: unknown) => (e instanceof Error ? e.message : String(e));
-			const restore = `couldn't restore the agent settings after "${entry.name}": ${why(agentRestoreError)}`;
+			const restore = `couldn't restore the agent settings after "${entry.name}": ${errorText(agentRestoreError)}`;
 			// eslint-disable-next-line no-unsafe-finally -- the restore failure must reach the run report
-			throw new AgentRestoreError(captureError === undefined ? restore : `${why(captureError)}; also ${restore}`, entry.name, { cause: agentRestoreError });
+			throw new AgentRestoreError(captureError === undefined ? restore : `${errorText(captureError)}; also ${restore}`, entry.name, { cause: agentRestoreError });
 		}
+	}
+}
+
+/** An error's message, or the value as text. */
+function errorText(e: unknown): string {
+	return e instanceof Error ? e.message : String(e);
+}
+
+/** Fail the entry unless the page renders at `want` (the viewport override took). */
+async function assertPageViewport(entry: ManifestEntry, deps: OrchestratorDeps, want: { width: number; height: number }): Promise<void> {
+	const got = await deps.cdp.evaluate<unknown>(`/*__acViewport*/ [window.innerWidth, window.innerHeight]`);
+	const [w, h] = Array.isArray(got) ? (got as unknown[]) : [];
+	if (w !== want.width || h !== want.height) {
+		throw new Error(`"${entry.name}": the page renders at ${String(w)}×${String(h)}, expected ${want.width}×${want.height}`);
 	}
 }
 
@@ -669,15 +712,22 @@ async function captureEntryWithSettings(
 		return;
 	}
 
-	// 0. Screen-capture mode: pin the real OS window to a fixed size/position
-	// BEFORE driving any UI. screencapture grabs the real window region (the
-	// only way to capture native popup menus), so the window must be a known,
-	// reproducible size — and pinned before the menu opens, since resizing
-	// afterward would dismiss it and reflow the layout.
+	// 0. Screen-capture mode (legacy driver): pin the real OS window to a
+	// fixed size/position BEFORE driving any UI. screencapture grabs the real
+	// window region, so the window must be a known, reproducible size — and
+	// pinned before the menu opens, since resizing afterward would dismiss it
+	// and reflow the layout.
+	const isolated = deps.cdp.isolated === true;
 	const screenMode =
-		entry.captureMode === "screen" || entry.captureMode === "screen-window";
+		!isolated && (entry.captureMode === "screen" || entry.captureMode === "screen-window");
+	// Isolated (PR 2c): the popover is a DOM `.menu` (the fixtures turn native
+	// menus off), captured from the page and cropped by cropSelectors.
+	const pageMenu = isolated && entry.captureMode === "screen";
+	// Isolated: the framed hero, captured from the page at the hero viewport
+	// with traffic lights drawn by the frame (the page has no window chrome).
+	const pageHero = isolated && entry.captureMode === "screen-window";
 
-	if (entry.captureMode === "screen") {
+	if (screenMode && entry.captureMode === "screen") {
 		// Bottom-align a fixed-size window within the display work area so
 		// Obsidian flips popover menus UPWARD (over the transcript), keeping the
 		// whole menu inside the captured window region. A top/middle position
@@ -697,7 +747,7 @@ async function captureEntryWithSettings(
 		// race — only alwaysOnTop wins it. The native Menu popup renders above
 		// the floated window (verified), so popover shots capture correctly.
 		await deps.cdp.setWindowAlwaysOnTop(true);
-	} else if (entry.captureMode === "screen-window") {
+	} else if (screenMode && entry.captureMode === "screen-window") {
 		// Full-window framed hero: capture the REAL OS window (real macOS chrome)
 		// as-is — no popover, no bottom-align. Clear any stale device-metrics
 		// override first (a leftover setDeviceMetricsOverride from a prior run
@@ -718,7 +768,19 @@ async function captureEntryWithSettings(
 		await deps.cdp.focusWindow();
 	}
 
+	let heroViewport = false;
+	let captureError: unknown;
+	let viewportError: unknown;
+	// Image px per CSS px of a page-captured hero, for its traffic lights.
+	let lightsScale: number | undefined;
 	try {
+		// 0.1 Isolated hero: render at the hero size before anything is
+		// driven, so the layout never reflows mid-entry. Put back in finally.
+		if (pageHero) {
+			heroViewport = true;
+			await deps.cdp.setViewport(SCREEN_WINDOW_HERO.width, SCREEN_WINDOW_HERO.height, deps.devicePixelRatio);
+		}
+
 		// 0.25 Per-entry plugin settings are applied by captureEntry, around
 		// every capture path.
 
@@ -1281,10 +1343,9 @@ async function captureEntryWithSettings(
 				RESPONSE_TIMEOUT_MS,
 			);
 			await deps.cdp.clickWithCoords(entry.initialState.clickSelector);
-			if (entry.captureMode === "screen") {
-				// The opened menu is a native popup window, not in the DOM —
-				// waitForElement(".menu") would time out. A brief settle lets the
-				// popup paint before the screen capture grabs it.
+			if (screenMode && entry.captureMode === "screen") {
+				// Legacy screen capture: a brief settle lets the popup paint
+				// before the screen capture grabs it.
 				await sleep(SETTLE_MS);
 			} else {
 				const waitSel = entry.initialState.waitSelector ?? ".menu";
@@ -1591,6 +1652,14 @@ async function captureEntryWithSettings(
 		// it); window captures keep the detected renderer DPR.
 		const tmpPath = path.join(deps.tmpDir, `${entry.name}-raw.png`);
 		let effectiveDpr = deps.devicePixelRatio;
+		if (pageMenu && promptFiles.length > 0) {
+			// I09, as on the legacy screen path below: the popover needs the
+			// turn idle (send glyph, not the STOP square), not a response.
+			await deps.cdp.waitForElement(
+				`${ACTIVE_PANEL} .agent-client-loading-indicator.agent-client-hidden`,
+				RESPONSE_TIMEOUT_MS,
+			);
+		}
 		if (screenMode) {
 			// I09: ensure the agent turn is idle so the composer send button shows
 			// its send glyph, not the in-flight red STOP square. The connect prompt
@@ -1628,6 +1697,9 @@ async function captureEntryWithSettings(
 			// viewport-emulation vs real-window coordinate mismatch.
 			effectiveDpr = 1;
 		} else {
+			if (pageMenu || pageHero) {
+				await assertPageViewport(entry, deps, pageHero ? SCREEN_WINDOW_HERO : CAPTURE_VIEWPORT);
+			}
 			await deps.cdp.screenshot(tmpPath);
 		}
 
@@ -1643,10 +1715,13 @@ async function captureEntryWithSettings(
 			// (frame:{chrome:"none"}). Height follows aspect.
 			const meta = await deps.sharp(tmpPath).metadata();
 			let pipeline = deps.sharp(tmpPath);
+			let outWidth = meta.width ?? entry.width;
 			if (entry.width && (meta.width ?? 0) > entry.width) {
 				pipeline = pipeline.resize(entry.width);
+				outWidth = entry.width;
 			}
 			await pipeline.webp({ quality: 90 }).toFile(outputPath);
+			if (pageHero) lightsScale = outWidth / SCREEN_WINDOW_HERO.width;
 		} else if (entry.cropSelectors?.length) {
 			// Group crop: union the selectors' bounds (+ cropPadding) into a
 			// content region, then center that content on a width×height canvas
@@ -1787,7 +1862,10 @@ async function captureEntryWithSettings(
 		// own shadow. Unframed entries keep the flat drop shadow as before.
 		const frameCfg = resolveFrameConfig(entry);
 		if (frameCfg) {
-			await deps.frameImage?.(outputPath, frameCfg);
+			await deps.frameImage?.(
+				outputPath,
+				lightsScale === undefined ? frameCfg : { ...frameCfg, trafficLights: { scale: lightsScale } },
+			);
 		} else {
 			await deps.postProcess?.(outputPath);
 		}
@@ -1817,11 +1895,22 @@ async function captureEntryWithSettings(
 				`content guard: "${entry.name}" has ${distinct} distinct colors, below the floor of ${floor} — capture is blank/degraded; deleted ${outputPath}`,
 			);
 		}
+	} catch (e) {
+		captureError = e;
+		throw e;
 	} finally {
 		// I13: always un-float the fixtures window so it never lingers over the
 		// user's daily vault — even if an assert or the content guard threw.
 		if (screenMode) {
 			await deps.cdp.setWindowAlwaysOnTop(false);
+		}
+		// Later entries assume the capture viewport.
+		if (heroViewport) {
+			await deps.cdp
+				.setViewport(CAPTURE_VIEWPORT.width, CAPTURE_VIEWPORT.height, deps.devicePixelRatio)
+				.catch((e: unknown) => {
+					viewportError = e;
+				});
 		}
 		// Tear down a modal this entry opened (forceCloseConfirm) so it never
 		// lingers in studio to overlap a later shot or the user's view.
@@ -1831,6 +1920,11 @@ async function captureEntryWithSettings(
 					`(() => { document.querySelectorAll(".modal-container").forEach((m) => { const b = m.querySelector(".modal-close-button"); if (b) { b.click(); } else { m.remove(); } }); return true; })()`,
 				)
 				.catch(() => {});
+		}
+		if (viewportError !== undefined) {
+			const restore = `couldn't put the ${CAPTURE_VIEWPORT.width}×${CAPTURE_VIEWPORT.height} viewport back after "${entry.name}": ${errorText(viewportError)}`;
+			// eslint-disable-next-line no-unsafe-finally -- later entries would render at the hero size
+			throw new Error(captureError === undefined ? restore : `${errorText(captureError)}; also ${restore}`);
 		}
 	}
 }
@@ -2447,6 +2541,18 @@ async function captureSettingsWindowEntry(
 			await inSettings<boolean>(
 				`(() => { const el = activeDocument.querySelector(${JSON.stringify(entry.initialState.scrollIntoViewSelector)}); if (!el) return false; el.scrollIntoView({ block: "start", inline: "nearest" }); return true; })()`,
 			);
+		}
+
+		// A native <select> popup is drawn by the OS outside the page, so the
+		// shot shows a DOM replica of the open list instead (PR 2c). Built
+		// after the scrolls, which move the select.
+		const nativeSelect = entry.initialState?.openNativeSelect;
+		if (nativeSelect) {
+			await waitForActiveDocumentSelector(deps, nativeSelect);
+			const built = await inSettings<unknown>(nativeSelectReplicaExpression(nativeSelect));
+			if (built !== "ok") {
+				throw new Error(`settings-window entry "${entry.name}": ${String(built)}`);
+			}
 		}
 
 		if (entry.mustShow) {

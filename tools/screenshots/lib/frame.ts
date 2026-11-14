@@ -59,7 +59,26 @@ export interface FrameOptions {
 	/** Synthetic chrome bar height (px); ignored when chrome === "none". */
 	chromeHeight: number;
 	shadow: FrameShadow;
+	/**
+	 * Draw macOS traffic lights on the content (isolated heroes: the page
+	 * capture has no window chrome). `scale` is image px per CSS px. Set by
+	 * the orchestrator, not the manifest.
+	 */
+	trafficLights?: { scale: number };
 }
+
+/**
+ * The traffic lights of a focused macOS window, in CSS px from the top-left
+ * of the window content, measured on the committed `editor-quickprompts`
+ * hero (real chrome, 2026-11-13). Colors are the light centers there.
+ */
+export const TRAFFIC_LIGHTS = {
+	firstX: 20.5,
+	step: 23,
+	y: 18,
+	radius: 7,
+	colors: ["#ff5763", "#fbc800", "#33c758"],
+};
 
 /** Background corner radius of the gradient matte (transparent outside → rounded matte). */
 const BG_RADIUS = 32;
@@ -156,6 +175,18 @@ export function chromeBarSvg(w: number, h: number): string {
 	);
 }
 
+/** Transparent `w`×`h` layer with the three traffic lights, scaled by `scale`. */
+export function trafficLightsSvg(w: number, h: number, scale: number): string {
+	const L = TRAFFIC_LIGHTS;
+	const dots = L.colors
+		.map(
+			(c, i) =>
+				`<circle cx="${(L.firstX + i * L.step) * scale}" cy="${L.y * scale}" r="${L.radius * scale}" fill="${c}" stroke="#000" stroke-opacity="0.25" stroke-width="${0.5 * scale}"/>`,
+		)
+		.join("");
+	return `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">${dots}</svg>`;
+}
+
 /**
  * Shadow layer: a low-opacity black rounded rect drawn INSET (at the window's
  * position, offset down) on a full-canvas transparent layer — so a subsequent
@@ -195,7 +226,13 @@ export async function frameImage(
 	if (!cw || !ch) {
 		throw new Error(`frameImage: cannot read dimensions of ${filePath}`);
 	}
-	const content = await sharp(filePath).toBuffer();
+	let content = await sharp(filePath).toBuffer();
+	if (opts.trafficLights) {
+		content = await sharp(content)
+			.composite([{ input: Buffer.from(trafficLightsSvg(cw, ch, opts.trafficLights.scale)), top: 0, left: 0 }])
+			.png()
+			.toBuffer();
+	}
 
 	// 1. Optional synthetic macOS chrome stacked above the content.
 	const winW = cw;

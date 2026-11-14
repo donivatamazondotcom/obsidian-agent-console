@@ -46,11 +46,11 @@ export function reportRun(results: CaptureResult[], runProblems: string[]): RunR
 		const suffix = r.error ? ` — ${r.error}` : r.skipped ? ` — skipped: ${r.skipped}` : "";
 		lines.push(`  ${icon} ${r.name}${suffix}`);
 	}
-	if (skipped.length) lines.push(`\n${skipped.length} entr${skipped.length === 1 ? "y" : "ies"} skipped (rerun with SCREENSHOT_LEGACY=1 to capture them the old way).`);
+	if (skipped.length) lines.push(`\n${skipped.length} entr${skipped.length === 1 ? "y" : "ies"} skipped (rerun without SCREENSHOT_LEGACY=1 to capture them on the isolated driver).`);
 	for (const p of runProblems) errors.push(`\n❌ ${p}`);
 	if (failures.length) errors.push(`\n❌ ${failures.length} screenshot(s) failed.`);
 	if (results.length > 0 && skipped.length === results.length) {
-		errors.push("\n❌ nothing was captured: every selected entry needs the real screen. Rerun with SCREENSHOT_LEGACY=1.");
+		errors.push("\n❌ nothing was captured: every selected entry is captured on the isolated driver only. Rerun without SCREENSHOT_LEGACY=1.");
 	}
 	const exitCode = errors.length ? 1 : 0;
 	if (!exitCode) lines.push(`\n✅ Done. ${results.length - skipped.length} screenshot(s) written.`);
@@ -58,10 +58,10 @@ export function reportRun(results: CaptureResult[], runProblems: string[]): RunR
 }
 
 /**
- * Why an isolated run would capture nothing (every selected entry is skipped),
- * or null. Checked before launch, so such a run never starts an instance.
+ * Why a legacy run would capture nothing (every selected entry is captured
+ * on the isolated driver only), or null. Checked before the run starts.
  */
 export function nothingToCaptureMessage<E extends { name: string }>(targets: E[], skip: (e: E) => string | undefined): string | null {
 	if (!targets.length || targets.some((e) => !skip(e))) return null;
-	return `nothing to capture in isolated mode: ${targets.map((e) => `${e.name} (${skip(e) ?? ""})`).join(", ")}. Rerun with SCREENSHOT_LEGACY=1.`;
+	return `nothing to capture on the legacy driver: ${targets.map((e) => `${e.name} (${skip(e) ?? ""})`).join(", ")}. Rerun without SCREENSHOT_LEGACY=1.`;
 }

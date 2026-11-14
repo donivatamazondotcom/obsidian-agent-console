@@ -120,11 +120,11 @@ export interface InitialState {
 	 */
 	sessionMode?: string;
 	/**
-	 * CSS selector for a native `<select>` whose option popup to open via
-	 * `HTMLSelectElement.showPicker()` (screen-mode only). A native select
-	 * popup is an OS window invisible to dev:screenshot and undrivable by
-	 * synthetic click/CDP input when the fixtures window isn't OS-frontmost
-	 * (I13/I15), so it needs `captureMode: "screen"` + the float + showPicker.
+	 * CSS selector for a native `<select>` to show open. The OS draws its
+	 * option list outside the page, so the isolated driver captures a DOM
+	 * replica of it in the settings window (native-select-replica.ts; crop
+	 * with `#ac-native-select-replica`). The legacy driver opened the real
+	 * popup with `showPicker()` and captured the screen (I13/I15).
 	 */
 	openNativeSelect?: string;
 	/**
@@ -577,15 +577,14 @@ export interface ManifestEntry {
 	 */
 	agentId?: string;
 	/**
-	 * Capture backend. Default "window" uses `obsidian dev:screenshot`, which
-	 * captures the BrowserWindow renderer — correct for all in-DOM content.
-	 * "screen" uses macOS `screencapture` of the window's screen region; it is
-	 * ONLY needed for shots whose subject is an Obsidian native popup `Menu`
-	 * (e.g. mode/model/agent selectors), which renders in a separate native
-	 * window invisible to dev:screenshot. Screen-mode entries must crop via
-	 * static `crop` (the menu is not in the DOM, so `cropSelector`/
-	 * `cropSelectors` cannot resolve it) and pin the window to a fixed size so
-	 * the crop region is reproducible.
+	 * Capture backend. Default "window" captures the page — correct for all
+	 * in-DOM content. On the isolated driver (PR 2c): "screen" is a popover
+	 * menu shot, captured from the page (the fixtures turn native menus off,
+	 * so the menu is a DOM `.menu`) and cropped by `cropSelectors`;
+	 * "screen-window" is a framed full-window hero, captured from the page at
+	 * 1600×1000 with traffic lights drawn by the frame; "settings-window"
+	 * captures the settings window. The legacy driver captured "screen" and
+	 * "screen-window" with macOS `screencapture` and skips those entries now.
 	 */
 	captureMode?: "window" | "screen" | "screen-window" | "settings-window";
 	/**
@@ -798,12 +797,12 @@ export const SETTINGS_FORBIDDEN_TEXT: readonly string[] = ["/Users/", "/home/", 
 /**
  * True for an entry captured from the settings window: `captureMode:
  * "settings-window"`, or one that opens settings (the isolated driver routes
- * those there too). An entry that opens a native `<select>` waits for the
- * replica (PR 2c).
+ * those there too). That includes an entry that opens a native `<select>`:
+ * its open list is a DOM replica there (PR 2c, native-select-replica.ts).
  */
 export function isSettingsPathEntry(entry: ManifestEntry): boolean {
 	if (entry.captureMode === "settings-window") return true;
-	return entry.initialState?.openSettings !== undefined && entry.initialState.openNativeSelect === undefined;
+	return entry.initialState?.openSettings !== undefined;
 }
 
 /** Entry fields the settings path drives or ignores safely. */
@@ -816,7 +815,7 @@ const SETTINGS_PATH_ENTRY_KEYS = new Set([
 /** `initialState` fields the settings path drives (`pluginSettings`, `whatsNew` apply around every path). */
 const SETTINGS_PATH_INITIAL_STATE_KEYS = new Set([
 	"openSettings", "openNote", "openSettingPage", "clickSequence", "scrollToSettingText",
-	"scrollIntoViewSelector", "pluginSettings", "whatsNew",
+	"scrollIntoViewSelector", "openNativeSelect", "pluginSettings", "whatsNew",
 ]);
 
 /** Fields of a settings-path entry the settings path doesn't drive, e.g. `initialState.hoverSelector`. */
