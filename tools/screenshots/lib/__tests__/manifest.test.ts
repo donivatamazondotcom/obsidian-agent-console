@@ -1132,6 +1132,22 @@ describe("validateManifest — header shots fix the chat's title", () => {
 		expect(check({ cropSelector: '.agent-client-tab-panel:not([style*="none"]) .agent-client-chat-input-box', initialState: { clickRibbon: true } })).not.toThrow();
 	});
 
+	it("counts the title slot, the branded header and the tab layout wrappers (review round 3)", () => {
+		for (const sel of [".agent-client-chat-view-header-title", ".acp-header-branded", ".agent-client-tab-panels", ".agent-client-tabs-layout"]) {
+			expect(check({ cropSelector: sel, initialState: { clickRibbon: true } }), sel).toThrow(/crops the chat header/);
+		}
+	});
+
+	it("doesn't count an empty forceTabStates as fixing the title", () => {
+		expect(check({ cropSelector: ".agent-client-chat-view-header", initialState: { clickRibbon: true, forceTabStates: [] } })).toThrow(/crops the chat header/);
+	});
+
+	it("refuses tabLabel over the tab label limit, and with sessions that carry their own titles (review round 3)", () => {
+		expect(check({ initialState: { clickRibbon: true, tabLabel: "x".repeat(101) } })).toThrow(/tabLabel.*100 characters/);
+		expect(check({ initialState: { clickRibbon: true, tabLabel: "x", restoreSessions: { titles: ["Japan trip"] } } })).toThrow(/tabLabel.*restoreSessions/);
+		expect(check({ initialState: { clickRibbon: true, tabLabel: "x", forceTabStates: [{ label: "a", state: "ready" }] } })).toThrow(/tabLabel.*forceTabStates/);
+	});
+
 	it("accepts seeded tabs (forceTabStates), which carry their own labels", () => {
 		expect(check({ cropSelector: '.workspace-leaf-content[data-type="agent-console-chat-view"]', initialState: { clickRibbon: true, forceTabStates: [{ label: "Q3 planning", state: "ready" }] } })).not.toThrow();
 	});

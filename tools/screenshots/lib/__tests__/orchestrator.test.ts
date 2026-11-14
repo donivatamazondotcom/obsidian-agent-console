@@ -4536,7 +4536,7 @@ describe("captureEntry — the no-hover style is removed even when closing setti
 describe("captureEntry — initialState.tabLabel", () => {
 	type Fn = ReturnType<typeof vi.fn>;
 	const LABEL = (e: string) => e.includes("setTabLabel") && e.includes("Release prep");
-	it("renames the active tab with a custom label after the panel opens, before the prompt and the capture", async () => {
+	it("renames the active tab with a custom label once the entry's tabs are set up, before the capture", async () => {
 		const deps = makeDeps();
 		const cdp = deps.cdp as unknown as Record<string, Fn>;
 		cdp.evaluate.mockImplementation((e: string) => Promise.resolve(LABEL(e) ? true : e.includes("__acTabLabel") ? "Release prep" : undefined));
@@ -4549,7 +4549,8 @@ describe("captureEntry — initialState.tabLabel", () => {
 		const order = cdp.evaluate.mock.invocationCallOrder[i];
 		const open = cdp.executeCommand.mock.calls.findIndex((c: unknown[]) => c[0] === "agent-console:open-chat-view");
 		expect(cdp.executeCommand.mock.invocationCallOrder[open]).toBeLessThan(order);
-		expect(order).toBeLessThan(cdp.clickElement.mock.invocationCallOrder[0]);
+		// After the prompt (a custom label blocks its automatic label) and before the capture.
+		expect(cdp.clickElement.mock.invocationCallOrder[0]).toBeLessThan(order);
 		expect(order).toBeLessThan(cdp.screenshot.mock.invocationCallOrder[0]);
 	});
 
@@ -4570,8 +4571,9 @@ describe("captureEntry — initialState.tabLabel", () => {
 		const evals = cdp.evaluate.mock.calls.map((c: unknown[]) => c[0] as string);
 		const labels = evals.map((e, i) => (LABEL(e) ? cdp.evaluate.mock.invocationCallOrder[i] : -1)).filter((o) => o > 0);
 		const uri = evals.findIndex((e) => e.includes("handleQuickPromptUri"));
-		expect(labels).toHaveLength(2);
-		expect(labels[1]).toBeGreaterThan(cdp.evaluate.mock.invocationCallOrder[uri]);
+		// Once, after the link opened its tab, so no background tab carries it.
+		expect(labels).toHaveLength(1);
+		expect(labels[0]).toBeGreaterThan(cdp.evaluate.mock.invocationCallOrder[uri]);
 	});
 
 	it("fails the entry when the shot's tab doesn't carry the label at capture time (review round 2)", async () => {

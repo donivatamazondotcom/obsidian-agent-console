@@ -98,6 +98,18 @@ describe("collectReviewItems — a failed entry's image file (review rounds 1–
 		expect(html).toMatch(/id="menu"[\s\S]*differs from the committed one since before this run/);
 	});
 
+	it("says there is nothing to restore when this run deleted an image that was never committed (review round 3)", () => {
+		const items = collectReviewItems([entry("tmp")], [{ name: "tmp", success: false, error: "content guard" }], io({ [R("tmp")]: { head: null, before: "earlier run", now: null } }));
+		expect(restoreHints(items)).toEqual({ restore: [], remove: [] });
+		expect(buildReviewPage(items, { title: "t", generated: "now" })).toMatch(/id="tmp"[\s\S]*never committed, so there is nothing to restore/);
+	});
+
+	it("says an image is missing on disk when an earlier run deleted it", () => {
+		const items = collectReviewItems([entry("old")], [{ name: "old", success: true, skipped: "isolated only" }], io({ [R("old")]: { before: null, now: null } }));
+		expect(items[0].differsFromHead).toBe(true);
+		expect(buildReviewPage(items, { title: "t", generated: "now" })).toMatch(/id="old"[\s\S]*The committed image is missing on disk since before this run/);
+	});
+
 	it("labels a deleted image on the page, with the restore command", () => {
 		const items = collectReviewItems([entry("gone")], [{ name: "gone", success: false, error: "content guard" }], io({ [R("gone")]: { now: null } }));
 		const html = buildReviewPage(items, { title: "t", generated: "now" });

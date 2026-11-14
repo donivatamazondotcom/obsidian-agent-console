@@ -948,12 +948,12 @@ async function captureEntryWithSettings(
 			await deps.cdp.executeCommand("agent-console:open-chat-view");
 		}
 		await applyLayoutOverrides(entry, deps);
-		// A fixed title for the entry's chat tab, which the header shows. A
-		// custom label blocks later automatic labels, so the prompt below
-		// can't replace it. The tab is the entry's own (tabLabel needs
-		// clickRibbon, which detaches the previous panel). Applied again
-		// after the steps that can open or activate another tab, and read
-		// back before the capture.
+		// A fixed title for the entry's chat tab, which the header shows.
+		// Applied once, after the steps that can open or activate another
+		// tab (3c-septies below), and read back before the capture. A custom
+		// label blocks later automatic labels (an AI title arriving late).
+		// The tab is the entry's own: tabLabel needs clickRibbon, which
+		// detaches the previous panel.
 		const tabLabel = entry.initialState?.tabLabel;
 		const applyTabLabel = async (): Promise<void> => {
 			if (tabLabel === undefined) return;
@@ -967,7 +967,6 @@ async function captureEntryWithSettings(
 				throw new Error(`tabLabel: "${entry.name}" — no active chat tab to label`);
 			}
 		};
-		await applyTabLabel();
 		// Guard the quick-prompt scan/cache race (QP-I26): force a fresh
 		// library rescan so prompts reflect their current frontmatter labels
 		// (a prompt scanned before its frontmatter is cached falls back to its
@@ -1320,8 +1319,8 @@ async function captureEntryWithSettings(
 		) {
 			await typeDraftIntoActiveComposer(entry.draftMessage);
 		}
-		// A second prompt, a new-chat command, forceTabStates, a quick-prompt
-		// link and restoreSessions can each leave another tab active.
+		// After a second prompt, a new-chat command and a quick-prompt link,
+		// which can each leave another tab active.
 		await applyTabLabel();
 
 		// 3c-quinquies. Surface the ConfirmCloseModal for the confirm-close shot.
