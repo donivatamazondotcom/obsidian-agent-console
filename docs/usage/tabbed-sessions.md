@@ -55,6 +55,7 @@ See which chat needs you without opening a list. New installs start with vertica
   <img src="/images/tab-rail-icons.webp" alt="Agent Console with tabs in a slim column on the right, each tab shown only as its status icon" />
 </p>
 
+- **Know which chat you're in** – the chat header shows the active chat's title, so you don't have to hover the column to find out.
 - **See a tab's name** – hover a tab. The first one takes a moment; after that, every tab you pass shows its name and status straight away. Press `Esc` to hide it.
 - **Show names all the time** – drag the column's inner edge to make it wider. From about twice its narrow width it shows names, cut off with "…" when they're long; let go below that and it snaps back to icons only. Double-click the edge to switch between icons only and your last width. Your width is kept across restarts.
 - **Close a tab in one click** – when the column is wide enough to show names (about three times its narrow width), hover a tab and click the × that appears at its right end. The × shows only while you hover, so a resting column shows just status and names. In the narrow, icons-only column there's no × – middle-click or right-click instead, or widen the column.
@@ -106,7 +107,7 @@ Get a useful tab name without thinking about it. **Settings → Agent Console �
 - **Generated from your first message** — the tab is named from the start of your first message. No agent involvement.
 - **Agent name and timestamp** — the tab keeps the plain "agent + time" name it opens with and never changes on its own.
 
-You can rename any tab yourself at any time (see below) — a manual rename always wins and is never overwritten by a suggestion.
+You can rename any tab yourself at any time (see below) — a manual rename always wins and is never overwritten by a suggestion. The chat header shows the same title for the chat you're in.
 
 <p align="center">
   <img src="/images/ai-session-titles.webp" alt="Agent Console tab bar with chat tabs showing concise AI-generated session titles instead of generic labels" />

@@ -64,7 +64,7 @@ Agent Console passes the key to Antigravity CLI as `GEMINI_API_KEY`. The key is 
 
 ## Models and thinking level
 
-Antigravity CLI offers a **Model** and a **Thinking level** picker in the chat composer. The chat header shows the model you picked; the thinking level shows as **Effort** in the header tooltip.
+Antigravity CLI offers a **Model** and a **Thinking level** picker in the chat composer. The pickers show what you picked, so the chat header leaves them out. Hover the header to see both: the model, and the thinking level as **Effort**.
 
 ## Optional arguments
 

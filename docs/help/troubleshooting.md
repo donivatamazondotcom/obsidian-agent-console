@@ -219,7 +219,7 @@ If you need more detailed information about an issue, enable Debug mode:
 
 ## Updating Agent Console
 
-Obsidian updates community plugins for you when a new version is released. When an update is waiting, the chat header shows a **Plugin update available!** pill. Click it to open **Settings → Community plugins**, then update Agent Console from there.
+Obsidian updates community plugins for you when a new version is released. When an update is waiting, the chat header shows an **Update** pill. Hover it to see that a plugin update is available, or click it to open **Settings → Community plugins**, then update Agent Console from there.
 
 The pill is a shortcut into Obsidian's own updater — it doesn't update in place, so your open conversations stay connected until you choose to update and reload.
 
