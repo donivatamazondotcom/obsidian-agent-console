@@ -22,6 +22,8 @@ import {
 	resolveFrameConfig,
 	frameImage,
 	chromeOnlyFrame,
+	trafficLightsSvg,
+	TRAFFIC_LIGHTS,
 } from "../frame";
 
 function entry(overrides: Partial<ManifestEntry>): ManifestEntry {
@@ -151,6 +153,67 @@ describe("frameImage (real sharp)", () => {
 		const m = await sharp(p).metadata();
 		expect(m.width).toBe(120); // 100 + 2*10
 		expect(m.height).toBe(100); // (60 + 20 chrome) + 2*10
+	});
+});
+
+// Isolated heroes are captured from the page, which has no window chrome:
+// macOS draws the traffic lights. The frame adds them back, colored as in a
+// focused window, where the committed heroes show them (PR 2c).
+describe("traffic lights (isolated heroes, PR 2c)", () => {
+	it("draws three colored lights at the window's own spots, scaled to the image", () => {
+		const svg = trafficLightsSvg(1400, 875, 0.875);
+		expect(svg).toContain('width="1400"');
+		expect(svg).toContain('height="875"');
+		const circles = [...svg.matchAll(/<circle cx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)" fill="(#[0-9a-f]{6})"/g)];
+		expect(circles.map((c) => c[4])).toEqual(TRAFFIC_LIGHTS.colors);
+		for (const [i, c] of circles.entries()) {
+			expect(Number(c[1])).toBeCloseTo((TRAFFIC_LIGHTS.firstX + i * TRAFFIC_LIGHTS.step) * 0.875, 5);
+			expect(Number(c[2])).toBeCloseTo(TRAFFIC_LIGHTS.y * 0.875, 5);
+			expect(Number(c[3])).toBeCloseTo(TRAFFIC_LIGHTS.radius * 0.875, 5);
+		}
+	});
+
+	it("sits where the committed, really captured hero shows its lights", () => {
+		// editor-quickprompts (real chrome, 1600 pt window downscaled to 1400
+		// px, framed with 60 px padding): red at (78, 76), yellow (98, 76),
+		// green (118, 76), each about 13 px across.
+		const s = 0.875;
+		const centers = [0, 1, 2].map((i) => [60 + (TRAFFIC_LIGHTS.firstX + i * TRAFFIC_LIGHTS.step) * s, 60 + TRAFFIC_LIGHTS.y * s]);
+		expect(centers.map(([x]) => Math.round(x))).toEqual([78, 98, 118]);
+		expect(Math.round(centers[0][1])).toBe(76);
+		expect(Math.round(2 * TRAFFIC_LIGHTS.radius * s)).toBe(12);
+	});
+
+	it("frameImage paints them on the content when asked, and not otherwise", async () => {
+		const dir = mkdtempSync(path.join(tmpdir(), "frame-lights-"));
+		const make = async (name: string) => {
+			const p = path.join(dir, name);
+			await sharp({ create: { width: 200, height: 120, channels: 4, background: { r: 30, g: 30, b: 36, alpha: 1 } } }).webp().toFile(p);
+			return p;
+		};
+		const opts = {
+			chrome: "none" as const,
+			background: { from: "#111111", to: "#222222" },
+			cornerRadius: 4,
+			padding: 10,
+			chromeHeight: 0,
+			shadow: { opacity: 0.4, blur: 4, offsetY: 4 },
+		};
+		const red = async (p: string) => {
+			const x = Math.round(10 + TRAFFIC_LIGHTS.firstX);
+			const y = Math.round(10 + TRAFFIC_LIGHTS.y);
+			const { data, info } = await sharp(p).raw().toBuffer({ resolveWithObject: true });
+			const i = (y * info.width + x) * info.channels;
+			return [data[i], data[i + 1], data[i + 2]];
+		};
+		const lit = await make("lit.webp");
+		await frameImage(lit, { ...opts, trafficLights: { scale: 1 } });
+		const [r, g] = await red(lit);
+		expect(r).toBeGreaterThan(200);
+		expect(g).toBeLessThan(130);
+		const plain = await make("plain.webp");
+		await frameImage(plain, opts);
+		expect((await red(plain))[0]).toBeLessThan(80);
 	});
 });
 

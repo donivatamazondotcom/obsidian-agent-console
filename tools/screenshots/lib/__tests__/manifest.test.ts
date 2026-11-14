@@ -1124,8 +1124,8 @@ describe("validateManifest — settings path (PR 2b)", () => {
 		expect(check({ cropSelector: ".x", draftMessage: "hi", initialState: { openSettings: "agent-console" } })).toThrow(/draftMessage.*settings path/);
 	});
 
-	it("an entry that opens a native select is not on the settings path yet (PR 2c)", () => {
-		expect(isSettingsPathEntry({ ...base, captureMode: "screen", initialState: { openSettings: "agent-console", openNativeSelect: "select" } } as ManifestEntry)).toBe(false);
+	it("an entry that opens a native select is on the settings path, where its list is a DOM replica (PR 2c)", () => {
+		expect(isSettingsPathEntry({ ...base, captureMode: "screen", initialState: { openSettings: "agent-console", openNativeSelect: "select" } } as ManifestEntry)).toBe(true);
 		expect(isSettingsPathEntry({ ...base, initialState: { openSettings: "agent-console" } } as ManifestEntry)).toBe(true);
 		expect(isSettingsPathEntry({ ...base, captureMode: "settings-window" } as ManifestEntry)).toBe(true);
 	});
@@ -1136,9 +1136,10 @@ describe("manifest.json — settings-path entries (PR 2b)", () => {
 	const manifest = parseManifest(readFileSync(manifestPath, "utf8"));
 	const settingsEntries = manifest.entries.filter(isSettingsPathEntry);
 
-	it("moves the 8 settings shots onto the settings path", () => {
+	it("moves the 8 settings shots and the native-select shot onto the settings path", () => {
 		expect(settingsEntries.map((e) => e.name).sort()).toEqual([
 			"custom-agents-form",
+			"language-setting",
 			"obsidian-system-prompt",
 			"opencode-builtin",
 			"settings-agent-page",
@@ -1172,5 +1173,22 @@ describe("manifest.json — settings-path entries (PR 2b)", () => {
 	it("editing starts Claude Code in its default mode, so the permission card shows (D3)", () => {
 		const editing = manifest.entries.find((e) => e.name === "editing");
 		expect(editing?.initialState?.sessionMode).toBe("default");
+	});
+
+	it("the menu shots crop the DOM menu and the composer toolbar, with no screen-pixel crop (PR 2c)", () => {
+		for (const name of ["mode-selection", "model-selection", "thought-level-selection"]) {
+			const e = manifest.entries.find((x) => x.name === name);
+			expect(e?.captureMode, name).toBe("screen");
+			expect(e?.crop, name).toBeUndefined();
+			expect(e?.cropSelectors?.[0], name).toBe(".menu");
+			expect(e?.cropSelectors?.[1], name).toContain(".agent-client-chat-input-actions");
+			expect(e?.mustShow, name).toBe(".menu .menu-item");
+		}
+	});
+
+	it("the native-select shot crops its setting and the replica, with no screen-pixel crop (PR 2c)", () => {
+		const e = manifest.entries.find((x) => x.name === "language-setting");
+		expect(e?.crop).toBeUndefined();
+		expect(e?.cropSelectors).toContain("#ac-native-select-replica");
 	});
 });

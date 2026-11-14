@@ -3,7 +3,7 @@ import { captureDpr, isolatedRunProblems, nothingToCaptureMessage, reportRun } f
 
 const ok = (name: string) => ({ name, success: true });
 const fail = (name: string, error: string) => ({ name, success: false, error });
-const skip = (name: string) => ({ name, success: true, skipped: "needs the real screen" });
+const skip = (name: string) => ({ name, success: true, skipped: "captured on the isolated driver only" });
 
 describe("reportRun", () => {
 	it("passes when every captured entry passed", () => {
@@ -26,10 +26,15 @@ describe("reportRun", () => {
 		expect(r.errors[0]).toMatch(/focus steals/);
 	});
 
-	it("fails when every entry was skipped, pointing at SCREENSHOT_LEGACY=1", () => {
+	it("fails when every entry was skipped, telling a legacy run to drop SCREENSHOT_LEGACY=1 (PR 2c)", () => {
 		const r = reportRun([skip("language-setting")], []);
 		expect(r.exitCode).toBe(1);
-		expect(r.errors.join("\n")).toMatch(/nothing was captured.*SCREENSHOT_LEGACY=1/);
+		expect(r.errors.join("\n")).toMatch(/nothing was captured.*isolated driver only.*without SCREENSHOT_LEGACY=1/);
+	});
+
+	it("points skipped entries at the isolated driver, not at SCREENSHOT_LEGACY=1 (PR 2c)", () => {
+		const r = reportRun([ok("a"), skip("b")], []);
+		expect(r.lines.join("\n")).toMatch(/1 entry skipped \(rerun without SCREENSHOT_LEGACY=1/);
 	});
 });
 
@@ -64,11 +69,14 @@ describe("captureDpr", () => {
 });
 
 describe("nothingToCaptureMessage", () => {
-	const needs = (e: { name: string }) => (e.name.startsWith("settings") ? "needs the settings window" : undefined);
+	// Since PR 2c only the legacy driver skips entries (those re-authored for the isolated driver).
+	const isolatedOnly = (e: { name: string }) => (e.name.startsWith("menu") ? "captured on the isolated driver only" : undefined);
 	it("is null when at least one selected entry can run", () => {
-		expect(nothingToCaptureMessage([{ name: "settings-a" }, { name: "ribbon" }], needs)).toBeNull();
+		expect(nothingToCaptureMessage([{ name: "menu-a" }, { name: "ribbon" }], isolatedOnly)).toBeNull();
 	});
-	it("names SCREENSHOT_LEGACY=1 when every selected entry would be skipped, so nothing is launched", () => {
-		expect(nothingToCaptureMessage([{ name: "settings-a" }], needs)).toMatch(/settings-a.*SCREENSHOT_LEGACY=1/);
+	it("tells a legacy run to drop SCREENSHOT_LEGACY when every selected entry would be skipped", () => {
+		const msg = nothingToCaptureMessage([{ name: "menu-a" }], isolatedOnly);
+		expect(msg).toMatch(/nothing to capture on the legacy driver: menu-a \(captured on the isolated driver only\)/);
+		expect(msg).toMatch(/without SCREENSHOT_LEGACY=1/);
 	});
 });

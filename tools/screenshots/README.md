@@ -12,7 +12,7 @@ Regenerate documentation screenshots reproducibly. By default each run launches 
 ## Quick Start
 
 ```bash
-# Regenerate every entry the isolated driver supports
+# Regenerate every entry
 npm run docs:screenshots
 
 # One entry, or several in a single launch
@@ -20,22 +20,33 @@ npm run docs:screenshots -- ribbon-icon
 npm run docs:screenshots -- ribbon-icon,export,zero-tab-landing
 
 # The old path: the `studio` window inside your own Obsidian, via the `obsidian` CLI
-SCREENSHOT_LEGACY=1 npm run docs:screenshots -- language-setting
+SCREENSHOT_LEGACY=1 npm run docs:screenshots -- ribbon-icon
 ```
 
 Output lands in `docs/public/images/<name>.webp` (or `.gif`).
 
-Entries that still need the real screen (native popups and the screen-captured heroes) are skipped on the isolated path and listed at the end of the run; capture them with `SCREENSHOT_LEGACY=1` until they move over. A run that captures nothing exits non-zero.
+Every run also writes a review page, `review.html` in the run's temp folder (the run prints its path). It shows the committed image (git `HEAD`) next to the new one for each entry, marks each one unchanged, changed, new or failed, and lists the ones to look at first. It's one self-contained file, so it opens anywhere and never shows a cached image. There's no pixel-diff test: approve re-baselined shots there.
+
+The legacy path skips the entries re-authored for the isolated driver (`captureMode: "screen"` and `"screen-window"`, and the native-select shot) and lists them at the end of the run. A run that captures nothing exits non-zero.
+
+## Menus and heroes
+
+Nothing is captured from the screen:
+
+- **`captureMode: "screen"`** (the mode, model and effort menus): the fixtures vault turns native menus off, so an Obsidian menu is a DOM `.menu` in the page. The entry clicks its dropdown, waits for `.menu`, waits for the turn to go idle (no response needed: the menu fills in at connect), and crops with `cropSelectors` (the menu and the composer toolbar) onto its `width`×`height` canvas at 1400×760. `mustShow` applies.
+- **`captureMode: "screen-window"`** (the framed heroes): the page renders at 1600×1000 from before the entry drives anything until after the capture, and the shot is the whole page, downscaled to `width`. The page has no window chrome (macOS draws the traffic lights), so the frame draws colored lights where a focused window shows them (`TRAFFIC_LIGHTS` in `lib/frame.ts`, measured on a real capture).
+- Both fail the entry when the page doesn't render at the size they expect.
 
 ## Settings shots
 
-Settings open in their own window on Obsidian 1.13+. On the isolated path every entry with `captureMode: "settings-window"` or `initialState.openSettings` (but no `openNativeSelect`) is captured from that window:
+Settings open in their own window on Obsidian 1.13+. On the isolated path every entry with `captureMode: "settings-window"` or `initialState.openSettings` is captured from that window:
 
 - `lib/settings-window-hook.cjs` runs in the isolated instance's main process and tames the window inside its creation event: `show()` becomes `showInactive()`, `focus()` is ignored, and the window is invisible, non-focusable and click-through. A listener in the renderer is called back over IPC and can lose the race with Obsidian showing the window, which takes focus.
 - The driver renders the settings page at `settingsWindowSize` (default 1200×900 CSS px) and the run's device pixel ratio, and the entry fails if it renders at anything else. The shot gets the shared drop shadow.
 - The crop is the visible content, not the whole pane (`lib/settings-crop.ts`): whole groups, the page title and whole rows inside the window, plus `cropPadding`, never past `.vertical-tab-content` and never into a group or row it left out. A group or row cut by the window edge is left out, so size `settingsWindowSize` to fit what the shot is about. Hover is turned off in the settings page before capture, so no row shows its hover state.
 - `app.*` calls run on the main page. DOM work (`openSettingPage`, `clickSequence`, `scrollToSettingText`, `scrollIntoViewSelector`, `mustShow`, the crop) runs on the settings page, so write it against `activeDocument`.
 - `initialState.openSettingPage: "<row name>"` clicks the settings row with that name (a sub-page such as `"OpenCode"`, or an action such as `"Add custom agent"`) and waits for the sub-page.
+- `initialState.openNativeSelect: "<selector>"` shows that `<select>` open. The OS draws a native select's list outside the page, so the shot shows a DOM replica instead (`lib/native-select-replica.ts`): every option in order, the selected one checked and drawn over the select as on macOS, in the select's font and the theme's menu colors. Crop with the setting's group and `#ac-native-select-replica`.
 - While settings are open, each agent shows the fixtures template's `command` and an empty environment (the plugin default), not the run's absolute paths or the fixtures' env vars. Every settings entry lists `"/Users/"`, `"/home/"`, `"AC_VIDEO_RUN"` and `"BEDROCK"` in `forbiddenText` (so a legacy run of `settings-agent-page`, which shows the fixtures' env as is, fails by design); the run adds its own seeded values (agent commands, `HOME`, `PATH`, run id, run folder) and every seeded env var name with an underscore, such as `CLAUDE_CODE_USE_BEDROCK`. Don't seed an env var whose name the settings UI prints (for example `ANTHROPIC_API_KEY`, `OLLAMA_CONTEXT_LENGTH`): its shot would fail. Text and visible input values inside the crop are checked.
 - Only the fields the settings path drives are allowed on these entries; `validateManifest` names any other.
 
@@ -92,6 +103,10 @@ tools/screenshots/
 │   ├── output.ts          # Output path derivation
 │   ├── prompts.ts         # Template rendering
 │   ├── orchestrator.ts    # Main capture loop
+│   ├── settings-crop.ts   # Settings-shot content crop
+│   ├── native-select-replica.ts  # DOM replica of an open <select> list
+│   ├── frame.ts           # Presentation frame (gradient, shadow, traffic lights)
+│   ├── review-page.ts     # Side-by-side review page
 │   └── __tests__/         # Unit tests (vitest)
 └── README.md              # This file
 ```
@@ -168,7 +183,7 @@ Some behaviors a still can't convey (parallel tabs, pinning/unpinning context) s
 }
 ```
 
-- **Window-mode only.** The animation path captures the renderer (`dev:screenshot`) per frame, crops each to the **same static `crop`** (no jitter), runs the per-frame content guard, and encodes with ffmpeg (`palettegen`/`paletteuse`). No drop shadow (GIFs ship flat). Native popup menus are NOT supported (use a still + `captureMode: "screen"`).
+- **Window-mode only.** The animation path captures the renderer (`dev:screenshot`) per frame, crops each to the **same static `crop`** (no jitter), runs the per-frame content guard, and encodes with ffmpeg (`palettegen`/`paletteuse`). No drop shadow (GIFs ship flat). Popover menus aren't supported in GIFs (use a still with `captureMode: "screen"`).
 - **Frame actions** (focus-independent — never CDP Input):
   - `{ "type": "click", "selector": "...", "waitFor": "..." }` — fires the element's React onClick; optional post-click wait.
   - `{ "type": "draft", "text": "..." }` — types into the composer via `execCommand("insertText")` (fires onChange, so `@`/`/` menus open).

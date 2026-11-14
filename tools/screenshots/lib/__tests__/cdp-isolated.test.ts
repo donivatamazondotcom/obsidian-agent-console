@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { Cdp, IsolatedUnsupportedError, newestTitledPage, SETTINGS_WINDOW_HOOK, type CdpTransport } from "../cdp";
+import { Cdp, IsolatedUnsupportedError, hookLogExpression, newestTitledPage, SETTINGS_WINDOW_HOOK, type CdpTransport } from "../cdp";
 
 function transport(handler: (method: string, params: Record<string, unknown>) => unknown) {
 	const send = vi.fn((m: string, p: Record<string, unknown>) => Promise.resolve(handler(m, p)));
@@ -349,5 +349,31 @@ describe("newestTitledPage (settings page lookup)", () => {
 		const live = pg("Settings - studio - x");
 		expect(await find([live, pg("Settings - studio - y", true), pg(new Error("Target closed"))], null)).toBe(live);
 		expect(await find([pg("Other")], null)).toBeNull();
+	});
+});
+
+// N2 (review round 4): the hook's focus log starts when the isolated instance
+// connects, so focus steals before the first settings open are logged too.
+describe("hookLogExpression", () => {
+	function evalWith(expr: string) {
+		const hook = { setLog: vi.fn(), watchFocus: vi.fn() };
+		const remote = { require: vi.fn(() => hook) };
+		const req = vi.fn((m: string) => (m === "@electron/remote" ? remote : undefined));
+		// eslint-disable-next-line @typescript-eslint/no-implied-eval
+		const out = new Function("require", `return (${expr});`)(req) as unknown;
+		return { out, hook, remote };
+	}
+
+	it("loads the hook in the main process, points its log at the file and watches focus", () => {
+		const { out, hook, remote } = evalWith(hookLogExpression(SETTINGS_WINDOW_HOOK, "/tmp/hook.log"));
+		expect(out).toBe(true);
+		expect(remote.require).toHaveBeenCalledWith(SETTINGS_WINDOW_HOOK);
+		expect(hook.setLog).toHaveBeenCalledWith("/tmp/hook.log");
+		expect(hook.watchFocus).toHaveBeenCalledTimes(1);
+	});
+
+	it("doesn't watch focus when no log file is set", () => {
+		const { hook } = evalWith(hookLogExpression(SETTINGS_WINDOW_HOOK, ""));
+		expect(hook.watchFocus).not.toHaveBeenCalled();
 	});
 });

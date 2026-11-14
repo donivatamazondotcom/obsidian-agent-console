@@ -10,10 +10,13 @@
  * By default the capture runs in an isolated Obsidian instance (separate
  * user data, fake HOME, mock keychain) driven over a direct CDP session, so it
  * never takes the user's screen or touches their own Obsidian. Settings shots
- * capture the settings window, which opens non-focusable. Entries that still
- * need the real screen (native popups, screen-capture heroes) are skipped and
- * listed. `SCREENSHOT_LEGACY=1` runs the old path:
- * the `studio` window inside the user's Obsidian via the `obsidian` CLI.
+ * capture the settings window, which opens non-focusable; menus and heroes
+ * are captured from the page. `SCREENSHOT_LEGACY=1` runs the old path: the
+ * `studio` window inside the user's Obsidian via the `obsidian` CLI, which
+ * skips the entries re-authored for the isolated driver.
+ *
+ * Every run writes a review page (`review.html` in the run's temp folder):
+ * the committed image next to the new one, per entry.
  *
  * Run from a normal terminal: the isolated launcher needs `open` and `ps`,
  * which the agent sandbox blocks.
@@ -23,18 +26,20 @@
  */
 import {
 	readFileSync,
+	existsSync,
 	mkdtempSync,
 	unlinkSync,
 	writeFileSync,
 	statSync,
 } from "node:fs";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { log, logError } from "../lib/cli-log";
 import { parseManifest, validateManifest } from "./lib/manifest";
-import { captureAll, needsScreen, selectEntries, type OrchestratorDeps } from "./lib/orchestrator";
-import { Cdp, newestTitledPage, type CdpTransport } from "./lib/cdp";
+import { CAPTURE_VIEWPORT, captureAll, legacySkipReason, selectEntries, type OrchestratorDeps } from "./lib/orchestrator";
+import { Cdp, hookLogExpression, newestTitledPage, SETTINGS_WINDOW_HOOK, type CdpTransport } from "./lib/cdp";
+import { buildReviewPage, collectReviewItems } from "./lib/review-page";
 import { chromium, type Browser, type CDPSession, type Page } from "playwright-core";
 import { setTimeout as sleep } from "node:timers/promises";
 import { configDirOf, materializeRun, seededText, templateAgentConfig } from "../lib/fixtures-vault";
@@ -89,7 +94,7 @@ async function main() {
 		// dropped fine detail (I11); the crop region (CSS px) is unchanged, only
 		// fidelity improves. Must be set AFTER DPR detection (setting it first with
 		// deviceScaleFactor:1 was the bug — it pinned the detected DPR to 1).
-		await cdp.setViewport(1400, 760, dpr);
+		await cdp.setViewport(CAPTURE_VIEWPORT.width, CAPTURE_VIEWPORT.height, dpr);
 
 		// Wire up real deps
 		const sharp = (await import("sharp")).default;
@@ -106,6 +111,7 @@ async function main() {
 			tmpDir,
 			readFile: (p, enc) => readFileSync(p, enc as BufferEncoding),
 			devicePixelRatio: dpr,
+			warn: (m) => log(`  ⚠ ${m}`),
 			postProcess: (output) => addDropShadow(output),
 			frameImage: (output, opts) => applyFrame(output, opts),
 			chromeFrame: (input, opts) => chromeOnlyFrame(input, opts),
@@ -155,15 +161,15 @@ async function main() {
 		);
 		return captureAll(manifest.entries, deps, {
 			filter,
-			skip: isolated ? needsScreen : undefined,
+			skip: isolated ? undefined : legacySkipReason,
 			// One line per entry, so a focus-guard restore can be tied to the entry that caused it.
 			onEntry: (e, i, n) => log(`  ▶ [${i}/${n}] ${e.name}`),
 		});
 	};
 
 	const legacy = process.env.SCREENSHOT_LEGACY === "1";
-	if (!legacy) {
-		const why = nothingToCaptureMessage(selectEntries(manifest.entries, filter), needsScreen);
+	if (legacy) {
+		const why = nothingToCaptureMessage(selectEntries(manifest.entries, filter), legacySkipReason);
 		if (why) {
 			logError(`❌ ${why}`);
 			process.exit(1);
@@ -173,6 +179,21 @@ async function main() {
 		? await runLegacy(capture, repoRoot)
 		: await runIsolated(capture, repoRoot);
 	if (!results) process.exit(1);
+
+	// Side-by-side review page: the committed (HEAD) image next to this run's.
+	const reviewPath = path.join(tmpDir, "review.html");
+	const items = collectReviewItems(selectEntries(manifest.entries, filter), results, {
+		readCommitted: (rel) => {
+			try {
+				return execFileSync("git", ["show", `HEAD:${rel}`], { cwd: repoRoot, maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"] });
+			} catch {
+				return null;
+			}
+		},
+		readCurrent: (rel) => (existsSync(path.join(repoRoot, rel)) ? readFileSync(path.join(repoRoot, rel)) : null),
+	});
+	writeFileSync(reviewPath, buildReviewPage(items, { title: "Agent Console screenshots: committed vs this run", generated: new Date().toISOString() }));
+	log(`\n🔎 Review page: ${reviewPath}`);
 
 	const report = reportRun(results, runProblems);
 	for (const l of report.lines) log(l);
@@ -269,6 +290,9 @@ async function runIsolated(capture: (cdp: Cdp, isolated: boolean, seeded?: strin
 			page.on("crash", () => log("  the isolated Obsidian's workspace page crashed"));
 			page.on("close", () => log("  the isolated Obsidian's workspace page closed"));
 			await page.waitForSelector(".workspace", { timeout: 40_000 });
+			// Log window focus from here on (with SCREENSHOT_SETTINGS_HOOK_LOG),
+			// so the trust-click settings window is in the log too (N2).
+			await page.evaluate(hookLogExpression(SETTINGS_WINDOW_HOOK, process.env.SCREENSHOT_SETTINGS_HOOK_LOG ?? ""));
 			const appProblem = appVersionProblem(await readInstanceAppVersion(page), pin);
 			if (appProblem) throw new Error(appProblem);
 			log(`  isolated Obsidian ${pin.version} (pinned in fixtures)`);
