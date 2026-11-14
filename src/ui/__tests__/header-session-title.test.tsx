@@ -88,6 +88,42 @@ function renderHeader(seg: HeaderSegments, isUpdateAvailable = false) {
 
 const q = (c: HTMLElement, sel: string) => c.querySelector<HTMLElement>(sel);
 
+/** Text a screen reader gets: everything except aria-hidden subtrees. */
+function spokenText(el: Element | null): string {
+	if (!el) return "";
+	let out = "";
+	el.childNodes.forEach((n) => {
+		if (n.nodeType === 3) out += n.textContent ?? "";
+		else if (n instanceof Element && n.getAttribute("aria-hidden") !== "true") {
+			out += spokenText(n);
+		}
+	});
+	return out;
+}
+
+describe("the header's words stay apart for screen readers (UX rules check)", () => {
+	it("title and grey agent name are separated by a space, without the dot", () => {
+		const { container } = renderHeader(segments());
+		const spoken = spokenText(q(container, ".acp-header-branded"));
+		expect(spoken).toMatch(/pipeline\s+Claude Code/);
+		expect(spoken).not.toContain("·");
+	});
+
+	it("agent and model, and the struck-out and running agents, are separated too", () => {
+		const { container: a } = renderHeader(
+			segments({ extras: { agent: { kind: "label", label: "Codex" }, model: "gpt-5" } }),
+		);
+		expect(spokenText(q(a, ".acp-header-branded"))).toMatch(/Codex\s+gpt-5/);
+		cleanup();
+		const { container: b } = renderHeader(
+			segments({
+				extras: { agent: { kind: "notLoaded", label: "Auto SA", running: "kiro_default" }, model: null },
+			}),
+		);
+		expect(spokenText(q(b, ".acp-header-branded"))).toMatch(/Auto SA\s+kiro_default/);
+	});
+});
+
 describe("ChatHeader shows the chat title (Test 6)", () => {
 	it("title, then the grey extras group starting with ' · '; no plugin prefix", () => {
 		const { container } = renderHeader(segments());
