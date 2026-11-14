@@ -604,9 +604,11 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	overflow: hidden;
 }
 
+/* The title reads in the normal text color; only the extras are grey (Decision 15). */
 .acp-header-branded-title {
 	flex: 0 1 auto;
 	min-width: 0;
+	color: var(--text-normal);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
