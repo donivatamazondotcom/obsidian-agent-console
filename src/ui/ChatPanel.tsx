@@ -1,5 +1,6 @@
 import * as React from "react";
 import {
+	deriveConfirmedModelDiffers,
 	deriveHeaderAgent,
 	deriveHeaderModelName,
 	deriveHeaderEngine,
@@ -7,7 +8,9 @@ import {
 	deriveHeaderFolder,
 	deriveHeaderMode,
 } from "../resolvers/header-agent";
-import { isKiroCliCommand, requestedKiroAgent } from "../acp/kiro-v3";
+import { deriveHeaderExtras } from "../resolvers/header-extras";
+import { deriveComposerPickers } from "../resolvers/composer-pickers";
+import { requestedKiroAgent } from "../acp/kiro-v3";
 const { useState, useRef, useEffect, useMemo, useCallback } = React;
 import {
 	Notice,
@@ -285,12 +288,15 @@ export interface ChatPanelProps {
 	/** An AI rename is running for this tab (I209 `ai-rename` busy signal). */
 	isAiRenaming?: boolean;
 	/**
-	 * Human-readable label of the tab hosting this panel (AI-suggested title,
-	 * custom rename, or first-message derivation). Surfaced as the completion
-	 * notification title so a multi-tab user sees WHICH tab finished. Undefined
-	 * for a floating chat (no tab) — the notification falls back to the plugin name.
+	 * Label of the tab hosting this panel (AI-suggested title, custom rename,
+	 * first-message derivation, or the default "<agent> <time>" name). The chat
+	 * header shows it as the chat's title, and it is the completion
+	 * notification's title so a multi-tab user sees WHICH tab finished.
+	 * ChatView is the only host and always passes it.
 	 */
-	tabLabel?: string;
+	tabLabel: string;
+	/** The tab's label is still its default name (`TabInfo.labelIsDefault`). */
+	tabLabelIsDefault: boolean;
 	/** Look up whether a session is already open in another tab (I20) */
 	findTabBySessionId?: (
 		sessionId: string,
@@ -471,6 +477,7 @@ export function ChatPanel({
 	isActive,
 	isAiRenaming = false,
 	tabLabel,
+	tabLabelIsDefault,
 	findTabBySessionId,
 	onSwitchToTab,
 	onCloseTab,
@@ -742,21 +749,40 @@ export function ChatPanel({
 	);
 
 	/**
-	 * Header branding segments — see Agent Console Header Branding spec.
+	 * Which pickers the composer shows, decided once and read by both the
+	 * composer and the header (Session Title in the Chat Header § Resolver 1).
+	 * From the raw session fields: the composer's `showConfigSelectors` gate is
+	 * false only when all three lists are empty, which already yields `none`.
+	 * ChatPanel always passes both change handlers to the composer.
+	 */
+	const composerPickers = useMemo(
+		() =>
+			deriveComposerPickers({
+				configOptions: session.configOptions,
+				modes: session.modes,
+				models: session.models,
+				canChangeMode: true,
+				canChangeModel: true,
+			}),
+		[session.configOptions, session.modes, session.models],
+	);
+
+	/**
+	 * Header segments — see [[Session Title in the Chat Header]].
 	 *
-	 * Visible: Plugin → Agent → Model. Tooltip (I247): Agent, Engine, Model,
-	 * Effort, Mode, Folder, each only when it applies.
-	 * - plugin: client-sourced (manifest), shown in literal brackets
-	 * - profile: client-sourced (settings.displayName), the "which agent" signal
+	 * Visible: the tab's title, then grey extras (`deriveHeaderExtras`): only
+	 * what the composer doesn't show and the title doesn't already say.
+	 * Tooltip (I247): Chat, Agent, Engine, Model, Effort, Mode, Folder, each
+	 * only when it applies.
+	 * - title: the tab label (always the same text as the tab and the rail)
+	 * - profile: client-sourced (settings.displayName), the tooltip Agent line
 	 * - engine: launched engine + kiroCli from the acp/ edge, else agentInfo
 	 * - model:   ACP-sourced (session.models), null while connecting
 	 * - effort / mode: ACP-sourced config options (mode hidden on Kiro)
 	 * - folder: the tab's agentCwd, on every tab
 	 *
-	 * Both ACP segments null = "Connecting…" placeholder rendered by ChatHeader.
 	 */
 	const headerSegments = useMemo(() => {
-		const pluginName = plugin.manifest.name;
 		const profile = activeAgentLabel;
 
 		// Engine line (I247): Kiro names its launched engine, V2 or V3 (I235);
@@ -778,19 +804,19 @@ export function ChatPanel({
 
 		// Confirmed model while its selection is unchanged, then the `model`
 		// config option, then legacy models (I258).
-		const model = deriveHeaderModelName({
+		const modelInput = {
 			confirmedModelId: session.confirmedModelId,
 			confirmedUnder: session.confirmedUnder,
 			models: session.models,
 			configOptions: session.configOptions,
-		});
+		};
+		const model = deriveHeaderModelName(modelInput);
 
 		// I207 / Kiro V3: name the running agent when it isn't the configured one.
+		// `kiroCli` is decided at the acp/ edge at initialize, before any modes
+		// exist, so it is the Kiro signal here — not the agent id or command.
 		const agentSettings = findAgentSettings(plugin.settings, session.agentId);
-		const isKiro =
-			!!agentSettings &&
-			(session.agentId === plugin.settings.kiro.id ||
-				isKiroCliCommand(agentSettings.command));
+		const isKiro = !!agentSettings && session.kiroCli === true;
 		const agent = deriveHeaderAgent({
 			label: profile,
 			requestedModeId: isKiro ? requestedKiroAgent(agentSettings.args) : undefined,
@@ -798,9 +824,30 @@ export function ChatPanel({
 			configOptions: session.configOptions,
 		});
 
-		return { plugin: pluginName, profile, engine, model, effort, mode, folder, agent };
+		const extras = deriveHeaderExtras({
+			agent,
+			model: { name: model, confirmedDiffers: deriveConfirmedModelDiffers(modelInput) },
+			composer: composerPickers,
+			modesAreAgents: session.kiroCli === true,
+			titleIsDefault: tabLabelIsDefault,
+		});
+
+		return {
+			title: tabLabel,
+			titleIsDefault: tabLabelIsDefault,
+			extras,
+			profile,
+			engine,
+			model,
+			effort,
+			mode,
+			folder,
+			agent,
+		};
 	}, [
-		plugin.manifest.name,
+		tabLabel,
+		tabLabelIsDefault,
+		composerPickers,
 		plugin.settings,
 		activeAgentLabel,
 		session.agentId,
@@ -3085,10 +3132,6 @@ export function ChatPanel({
 			agentLabel={activeAgentLabel}
 			headerSegments={{
 				...headerSegments,
-				// I209: a released tab reads like a not-yet-connected one.
-				isLazyIdle:
-					lazySession.state === "idle" ||
-					lazySession.state === "released",
 				isConnecting: lazySession.state === "connecting",
 			}}
 			isUpdateAvailable={isUpdateAvailable}
@@ -3521,6 +3564,7 @@ export function ChatPanel({
 				);
 				focusAfter("set-config-option");
 			}}
+			composerPickers={composerPickers}
 			usage={session.usage}
 			supportsImages={composerAffordances.showAttachments}
 			imageCapabilityKnown={session.promptCapabilities !== undefined}

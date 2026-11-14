@@ -495,9 +495,8 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"commands.broadcastCancel": "广播取消",
 	// ---- Phase 3: chat header ----
 	"chat.header.connecting": "连接中…",
-	"chat.header.notConnected": "未连接",
-	"chat.header.updatePill": "插件有可用更新！",
-	"chat.header.updateTooltip": "打开社区插件以更新 Agent Console",
+	"chat.header.updatePill": "更新",
+	"chat.header.updateTooltip": "插件有可用更新！打开社区插件以更新 Agent Console",
 	"chat.header.reloadTooltip":
 		"重新加载 — 恢复会话并保留对话。Shift-点击：重新开始 — 全新会话，清空对话。",
 	"chat.header.sessionHistory": "会话历史",
@@ -505,6 +504,7 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.header.more": "更多",
 	"chat.header.tooltipAgentNotLoaded": "无法加载 {requested}，正在改用 {running}",
 	"chat.header.tooltipAgentSwitched": "正在运行：{running}（已在输入框中切换）",
+	"chat.header.tooltipChat": "对话：{value}",
 	"chat.header.tooltipAgent": "代理：{value}",
 	"chat.header.tooltipEngine": "引擎：{value}",
 	"chat.header.engineKiroCli": "Kiro CLI {engine}",

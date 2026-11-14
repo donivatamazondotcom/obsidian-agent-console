@@ -507,10 +507,9 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"commands.broadcastCancel": "전체 탭에서 취소",
 	// ---- Phase 3: chat header ----
 	"chat.header.connecting": "연결 중…",
-	"chat.header.notConnected": "연결되지 않음",
-	"chat.header.updatePill": "플러그인 업데이트 가능!",
+	"chat.header.updatePill": "업데이트",
 	"chat.header.updateTooltip":
-		"커뮤니티 플러그인을 열어 Agent Console을 업데이트하세요",
+		"플러그인 업데이트 가능! 커뮤니티 플러그인을 열어 Agent Console을 업데이트하세요",
 	"chat.header.reloadTooltip":
 		"다시 불러오기 — 세션을 이어가고 대화를 유지합니다. Shift-클릭: 새로 시작 — 새 세션으로 대화를 지웁니다.",
 	"chat.header.sessionHistory": "세션 기록",
@@ -518,6 +517,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.header.more": "더 보기",
 	"chat.header.tooltipAgentNotLoaded": "{requested}을(를) 불러올 수 없어 대신 {running}이(가) 실행 중입니다",
 	"chat.header.tooltipAgentSwitched": "실행 중: {running}(입력창에서 전환함)",
+	"chat.header.tooltipChat": "채팅: {value}",
 	"chat.header.tooltipAgent": "에이전트: {value}",
 	"chat.header.tooltipEngine": "엔진: {value}",
 	"chat.header.engineKiroCli": "Kiro CLI {engine}",

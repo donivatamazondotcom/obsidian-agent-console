@@ -1,10 +1,11 @@
 import * as React from "react";
 import type { HeaderAgent, HeaderEngine } from "../resolvers/header-agent";
-const { useRef, useEffect, useState } = React;
+import type { HeaderAgentExtra, HeaderExtras } from "../resolvers/header-extras";
+const { useRef, useEffect } = React;
 import { setIcon, setTooltip } from "obsidian";
 import { SharedLinksButton } from "./SharedLinksButton";
+import { useTooltip } from "./shared/useTooltip";
 import type { SharedLink } from "../utils/link-extract";
-import { deriveHeaderSlot } from "../resolvers/header-slot";
 import { t } from "../i18n";
 
 // ============================================================================
@@ -12,25 +13,25 @@ import { t } from "../i18n";
 // ============================================================================
 
 /**
- * Layered branding segments rendered in the header title row.
+ * What the header title row shows: the chat's title, then grey extras
+ * (`deriveHeaderExtras`) — only what the composer doesn't already show, plus
+ * the "agent didn't load" warning. No lifecycle state: connecting / asleep
+ * live in the tab's status icon. The other fields feed the hover tooltip.
  *
- * See `Agent Console Header Branding` spec. Plugin and profile are always
- * present (client-sourced); engine and model are unknown while the session is
- * connecting (ACP-sourced, populated after `initialize` and `session/new`
- * respectively). While the session is genuinely connecting (`isConnecting`),
- * the secondary slot shows a "Connecting…" placeholder. A `ready` session that
- * simply never reported a model (e.g. Claude Code, which does not send
- * `session/models` over ACP) leaves the secondary slot empty rather than
- * stuck on "Connecting…" (see I80).
+ * Spec: [[Session Title in the Chat Header]].
  */
 export interface HeaderSegments {
-	/** Plugin name from manifest (e.g. "Agent Console"); rendered in literal brackets. */
-	plugin: string;
-	/** Configured agent display name (e.g. "Auto SA"); the which-configuration signal. */
+	/** The hosting tab's label — the chat's title. */
+	title: string;
+	/** The title is still the tab's default "<agent> <time>" name. */
+	titleIsDefault: boolean;
+	/** Grey text after the title (`deriveHeaderExtras`). */
+	extras: HeaderExtras;
+	/** Configured agent display name (e.g. "Auto SA"); tooltip Agent line. */
 	profile: string;
 	/** Engine the tab runs on (`deriveHeaderEngine`); tooltip only. */
 	engine: HeaderEngine;
-	/** Active model display name (e.g. "claude-opus-4.7"); null while connecting. */
+	/** Model display name (`deriveHeaderModelName`); tooltip Model line. */
 	model: string | null;
 	/** Current effort level name (`deriveHeaderEffort`); tooltip only. */
 	effort: string | null;
@@ -38,19 +39,12 @@ export interface HeaderSegments {
 	mode: string | null;
 	/** The tab's folder (`deriveHeaderFolder`); tooltip only. */
 	folder: string | null;
-	/** Whether the tab is in lazy-idle state (no connection attempted yet) */
-	isLazyIdle?: boolean;
 	/**
-	 * Whether session acquisition is genuinely in flight (lazySession.state
-	 * === "connecting"). Gates the "Connecting…" placeholder so a `ready`
-	 * session that never reported a model does NOT render "Connecting…"
-	 * forever. See I80.
+	 * Session acquisition is in flight (lazySession.state === "connecting").
+	 * The tooltip's Engine and Model lines read "Connecting…" meanwhile (I80).
 	 */
 	isConnecting?: boolean;
-	/**
-	 * Which agent is actually running vs the configured one (I207, Kiro V3).
-	 * Absent or `configured` renders the profile as before.
-	 */
+	/** Which agent is running vs the configured one (I207); tooltip status line. */
 	agent?: HeaderAgent;
 }
 
@@ -64,7 +58,7 @@ export interface HeaderSegments {
 export interface ChatHeaderProps {
 	/** Display name of the active agent (used for OS notifications and tab labels) */
 	agentLabel: string;
-	/** Layered branding segments for the title row (Plugin · Profile · Runtime · Model) */
+	/** Title row: the chat title, grey extras, and the tooltip's lines */
 	headerSegments: HeaderSegments;
 	/** Whether a plugin update is available */
 	isUpdateAvailable: boolean;
@@ -135,26 +129,21 @@ function NavActionButton({
 }
 
 /**
- * The "Plugin update available!" pill. Rendered as a real <button> so it gets
- * native focus and Enter/Space activation for free, and deep-links the user
- * into Obsidian's own updater (Settings → Community plugins) on click. We do
- * NOT self-update — see the `Agent Console Update Pill Click-Through` spec
+ * The update pill. It reads a short "Update" and never shrinks, so it is
+ * never cut to a scrap of text in a narrow header; "Plugin update available!"
+ * leads its tooltip (Session Title in the Chat Header, Decision 14). Rendered
+ * as a real <button> so it gets native focus and Enter/Space activation, and
+ * deep-links into Obsidian's own updater (Settings → Community plugins). We
+ * do NOT self-update — see the `Agent Console Update Pill Click-Through` spec
  * § Why not self-update (reloading tears down every live ACP session).
  *
- * Tooltip uses Obsidian's setTooltip() for mechanism consistency with the rest
- * of the header (spec § Sanctioned-approach grounding; [[Agent Console]] I72).
+ * The tooltip goes through useTooltip so the accessible name starts with the
+ * visible word (label-in-name, I199).
  */
 function UpdatePill({ onClick }: { onClick: () => void }) {
 	const ref = useRef<HTMLButtonElement>(null);
-
-	useEffect(() => {
-		if (ref.current) {
-			setTooltip(
-				ref.current,
-				t("chat.header.updateTooltip"),
-			);
-		}
-	}, []);
+	const label = t("chat.header.updatePill");
+	useTooltip(ref, { visibleLabel: label, reason: t("chat.header.updateTooltip") });
 
 	return (
 		<button
@@ -163,115 +152,61 @@ function UpdatePill({ onClick }: { onClick: () => void }) {
 			className="agent-client-chat-view-header-update"
 			onClick={onClick}
 		>
-			{t("chat.header.updatePill")}
+			{label}
 		</button>
 	);
 }
 
-/**
- * Maps measured container width to a truncation tier.
- *
- * Thresholds correspond to the truncation order documented in the
- * `Agent Console Header Branding` spec § Truncation behavior. Sized for the
- * REAL available space in the title row — which is `sidebar_width - update_pill -
- * 4_buttons - paddings`, not the sidebar width itself. With four nav buttons
- * and an optional "Plugin update available" pill, the title typically gets
- * 100-260px even at full sidebar width.
- *
- *   wide   (≥280px): `[Plugin] Profile · Model`
- *   medium (≥180px): `Profile · Model`            (drop plugin prefix)
- *   narrow (≥120px): `Profile · Model`            (model truncates via ellipsis)
- *   tight  (<120px): `Profile · Model`            (model harder-truncated)
- *
- * The renderer uses CSS to gate visibility per tier (display: none on the
- * dropped segments) so layout stays purely declarative. Runtime segment is
- * not in v0 — it lives in the hover tooltip only (see spec § Decisions #11).
- */
-function widthToTier(width: number): "wide" | "medium" | "narrow" | "tight" {
-	if (width >= 280) return "wide";
-	if (width >= 180) return "medium";
-	if (width >= 120) return "narrow";
-	return "tight";
+function Sep({ text }: { text: string }) {
+	return (
+		<span className="acp-header-branded-sep" aria-hidden="true">
+			{text}
+		</span>
+	);
+}
+
+function AgentExtra({ agent }: { agent: HeaderAgentExtra }) {
+	switch (agent.kind) {
+		case "label":
+			return <span className="acp-header-branded-profile">{agent.label}</span>;
+		case "switched":
+			return (
+				<>
+					<span className="acp-header-branded-profile">{agent.label}</span>
+					<Sep text={" › "} />
+					<span className="acp-header-branded-running">{agent.running}</span>
+				</>
+			);
+		case "notLoaded":
+			// The requested agent could never be chosen: struck through, then
+			// the agent actually running. The tooltip spells it out, so the
+			// strikethrough is never the only signal (I207).
+			return (
+				<>
+					<del className="acp-header-branded-profile">{agent.label}</del>
+					<Sep text={" "} />
+					<span className="acp-header-branded-running">{agent.running}</span>
+				</>
+			);
+	}
 }
 
 /**
- * Hook: observes a container's width via ResizeObserver and returns the
- * matching truncation tier. Tier changes trigger a render so the parent
- * can swap a CSS class on the container.
+ * The header title row's text: the chat title, then the grey extras group.
  *
- * Important: the ref must point at the FLEX-SHRINKING parent (the title
- * slot), not the inner BrandedTitle span. The parent's contentRect.width
- * reflects what's actually available after sibling buttons and the update
- * pill take their share — which is what truncation needs to react to.
- *
- * Defaults to "wide" before the first observation so the initial paint
- * shows the full layout when there's room for it.
- */
-function useHeaderWidthTier(
-	ref: React.RefObject<HTMLElement>,
-): "wide" | "medium" | "narrow" | "tight" {
-	const [tier, setTier] = useState<
-		"wide" | "medium" | "narrow" | "tight"
-	>("wide");
-
-	useEffect(() => {
-		const el = ref.current;
-		if (!el) return;
-
-		const observer = new ResizeObserver((entries) => {
-			const entry = entries[0];
-			if (!entry) return;
-			const width = entry.contentRect.width;
-			setTier((prev) => {
-				const next = widthToTier(width);
-				return prev === next ? prev : next;
-			});
-		});
-
-		observer.observe(el);
-		return () => observer.disconnect();
-	}, [ref]);
-
-	return tier;
-}
-
-/**
- * Renders the three-segment branded header title (v0 scope).
- *
- * Layout: [Plugin] Profile · Model
- *
- * Visual treatment:
- *   - Primary segments (plugin prefix, profile) use default text color
- *   - Secondary segment (model) uses --text-muted
- *   - When the session is connecting (`isConnecting`) and no model is known
- *     yet, shows a single "Connecting…" placeholder in the secondary slot.
- *     A `ready` session with no model (e.g. Claude Code) shows no placeholder.
- *
- * Truncation: the parent slot (passed via `widthRef`) is observed for width;
- * a CSS class `.acp-header-branded--{tier}` on this element toggles visibility
- * of the plugin prefix and tightens the model ellipsis. Profile name is
- * always visible — the only signal that distinguishes one configured profile
- * from another.
- *
- * The engine (e.g. "Kiro CLI V3") is intentionally NOT in the
- * visible header for v0 — it's surfaced via the `title` tooltip on the
- * outer span. See spec § Decisions #10 (v0 / v0.1 split) and #11 (runtime
- * deferred to tooltip).
- *
- * Model segment reads the optimistic `currentModelId` value via the parent's
- * `headerSegments`. v0.1 will plumb a `confirmedModelId` so the header
- * becomes a true post-ack confirmation surface (see spec Decisions #8 and #10).
+ * Narrow-header order (pure CSS, `styles.css` § header title): the extras
+ * group gives up width first, then the title. With the "agent didn't load"
+ * warning showing, the title gives way first (down to 3em) so the warning is
+ * the last text cut. The root stays shrink-wrapped (inline-flex) so the
+ * tooltip hangs off the text, not the whole slot (I247 smoke H4).
  */
 function BrandedTitle({
 	segments,
-	widthRef,
 	tooltip,
 }: {
 	segments: HeaderSegments;
-	widthRef: React.RefObject<HTMLElement>;
 	tooltip: string;
 }) {
-	const tier = useHeaderWidthTier(widthRef);
 	const textRef = useRef<HTMLSpanElement>(null);
 
 	// The tooltip hangs off the header TEXT, not the full-width title slot,
@@ -288,85 +223,20 @@ function BrandedTitle({
 		}
 	}, [tooltip]);
 
-	const showPlugin = tier === "wide";
-	const slot = deriveHeaderSlot({
-		model: segments.model,
-		isLazyIdle: !!segments.isLazyIdle,
-		isConnecting: !!segments.isConnecting,
-	});
-
-	const rootClass = `acp-header-branded acp-header-branded--${tier}`;
+	const { agent, model } = segments.extras;
+	const warning = agent?.kind === "notLoaded";
+	const rootClass = `acp-header-branded${warning ? " acp-header-branded--warning" : ""}`;
 
 	return (
 		<span ref={textRef} className={rootClass} aria-label={tooltip}>
-			{showPlugin && (
-				<span className="acp-header-branded-plugin">
-					[{segments.plugin}]
+			<span className="acp-header-branded-title">{segments.title}</span>
+			{(agent || model) && (
+				<span className="acp-header-branded-extras">
+					<Sep text={" · "} />
+					{agent && <AgentExtra agent={agent} />}
+					{agent && model && <Sep text={" · "} />}
+					{model && <span className="acp-header-branded-model">{model}</span>}
 				</span>
-			)}
-			{segments.agent?.kind === "notLoaded" ? (
-				// The requested agent could never be chosen: struck through,
-				// then the agent actually running. The tooltip spells it out,
-				// so the strikethrough is never the only signal.
-				<del className="acp-header-branded-profile">
-					{segments.profile}
-				</del>
-			) : (
-				<span className="acp-header-branded-profile">
-					{segments.profile}
-				</span>
-			)}
-			{segments.agent && segments.agent.kind !== "configured" && (
-				<>
-					<span
-						className="acp-header-branded-sep"
-						aria-hidden="true"
-					>
-						{segments.agent.kind === "switched" ? " › " : " "}
-					</span>
-					<span className="acp-header-branded-running">
-						{segments.agent.running}
-					</span>
-				</>
-			)}
-			{slot.kind === "model" && (
-				<>
-					<span
-						className="acp-header-branded-sep"
-						aria-hidden="true"
-					>
-						{" · "}
-					</span>
-					<span className="acp-header-branded-model">
-						{slot.model}
-					</span>
-				</>
-			)}
-			{slot.kind === "connecting" && (
-				<>
-					<span
-						className="acp-header-branded-sep"
-						aria-hidden="true"
-					>
-						{" · "}
-					</span>
-					<span className="acp-header-branded-connecting">
-						{t("chat.header.connecting")}
-					</span>
-				</>
-			)}
-			{slot.kind === "idle" && (
-				<>
-					<span
-						className="acp-header-branded-sep"
-						aria-hidden="true"
-					>
-						{" · "}
-					</span>
-					<span className="acp-header-branded-connecting">
-						{t("chat.header.notConnected")}
-					</span>
-				</>
 			)}
 		</span>
 	);
@@ -374,7 +244,8 @@ function BrandedTitle({
 
 /**
  * Builds the multi-line tooltip text shown on header hover (I247):
- * Agent, the I207 status line, Engine, Model, Effort, Mode, Folder. Each line
+ * Chat (the title), Agent, the I207 status line, Engine, Model, Effort, Mode,
+ * Folder. Each line
  * shows only when it applies. Engine and Model read "Connecting…" while the
  * session is genuinely connecting (the I80 gate); Effort and Mode stay hidden
  * until the agent reports them. Plain string, rendered by the native `title`
@@ -438,6 +309,7 @@ function agentStatusLine(agent: HeaderAgent | undefined): string[] {
 
 function buildHeaderTooltip(segments: HeaderSegments): string {
 	return [
+		t("chat.header.tooltipChat", { value: segments.title }),
 		t("chat.header.tooltipAgent", { value: segments.profile }),
 		...agentStatusLine(segments.agent),
 		...connectingLine("chat.header.tooltipEngine", engineLabel(segments.engine), segments),
@@ -470,20 +342,12 @@ export function ChatHeader({
 	sharedLinks,
 	onOpenSharedLink,
 }: ChatHeaderProps) {
-	const titleSlotRef = useRef<HTMLSpanElement>(null);
 	const tooltip = buildHeaderTooltip(headerSegments);
 	return (
 		<div className="nav-header agent-client-chat-view-header">
 			<div className="nav-buttons-container">
-				<span
-					ref={titleSlotRef}
-					className="agent-client-chat-view-header-title"
-				>
-					<BrandedTitle
-						segments={headerSegments}
-						widthRef={titleSlotRef}
-						tooltip={tooltip}
-					/>
+				<span className="agent-client-chat-view-header-title">
+					<BrandedTitle segments={headerSegments} tooltip={tooltip} />
 				</span>
 				{isUpdateAvailable && (
 					<UpdatePill onClick={onUpdateClick} />

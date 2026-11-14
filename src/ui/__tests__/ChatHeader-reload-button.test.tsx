@@ -21,7 +21,9 @@ vi.mock("obsidian", () => ({
 
 function segments(): HeaderSegments {
 	return {
-		plugin: "Agent Console",
+		title: "Test chat",
+		titleIsDefault: false,
+		extras: { agent: { kind: "label", label: "Test Agent" }, model: null },
 		profile: "Test Agent",
 		engine: { kind: "unknown" },
 		model: null,

@@ -619,10 +619,9 @@ export const en = {
 	"chat.tooltipSeparator": " — ",
 	// ---- Phase 3: chat header ----
 	"chat.header.connecting": "Connecting…",
-	"chat.header.notConnected": "Not connected",
-	"chat.header.updatePill": "Plugin update available!",
+	"chat.header.updatePill": "Update",
 	"chat.header.updateTooltip":
-		"Open Community plugins to update Agent Console",
+		"Plugin update available! Open Community plugins to update Agent Console",
 	"chat.header.reloadTooltip":
 		"Reload — resume session, keep conversation. Shift-click: Restart — fresh session, clears conversation.",
 	"chat.header.sessionHistory": "Session history",
@@ -632,6 +631,7 @@ export const en = {
 		"{requested} couldn't load, so {running} is running instead",
 	"chat.header.tooltipAgentSwitched":
 		"Running: {running} (switched in the composer)",
+	"chat.header.tooltipChat": "Chat: {value}",
 	"chat.header.tooltipAgent": "Agent: {value}",
 	"chat.header.tooltipEngine": "Engine: {value}",
 	"chat.header.engineKiroCli": "Kiro CLI {engine}",

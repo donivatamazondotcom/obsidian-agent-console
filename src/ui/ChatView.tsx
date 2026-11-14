@@ -1688,6 +1688,7 @@ function ChatComponent({
 								viewId={tab.tabId}
 								tabOrigin={tab.origin}
 								tabLabel={tab.label}
+								tabLabelIsDefault={tab.labelIsDefault === true}
 								workingDirectory={restoredCwdByTabId[tab.tabId]}
 								restoredModeId={restoredModeByTabId[tab.tabId]}
 								restoredKiroEngine={restoredEngineByTabId[tab.tabId]}
