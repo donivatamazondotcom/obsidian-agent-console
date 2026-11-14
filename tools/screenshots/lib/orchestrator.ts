@@ -980,6 +980,8 @@ async function captureEntryWithSettings(
 			);
 		}
 		if (entry.initialState?.hoverSelector) {
+			// A tooltip built from the chat's title shows the fixed one.
+			await applyTabLabel();
 			await deps.cdp.hoverElement(entry.initialState.hoverSelector);
 			// Obsidian's native tooltip renders after a show-delay; wait for the
 			// real .tooltip element rather than relying on the blind SETTLE_MS,

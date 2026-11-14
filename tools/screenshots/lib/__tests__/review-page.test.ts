@@ -104,6 +104,12 @@ describe("collectReviewItems — a failed entry's image file (review rounds 1–
 		expect(buildReviewPage(items, { title: "t", generated: "now" })).toMatch(/id="tmp"[\s\S]*never committed, so there is nothing to restore/);
 	});
 
+	it("says an image isn't committed yet when an earlier run wrote it and this run left it (review round 4)", () => {
+		const items = collectReviewItems([entry("new")], [{ name: "new", success: false, error: "timeout" }], io({ [R("new")]: { head: null, before: "earlier run", now: "earlier run" } }));
+		expect(items[0].differsFromHead).toBe(true);
+		expect(buildReviewPage(items, { title: "t", generated: "now" })).toMatch(/id="new"[\s\S]*isn't committed yet \(an earlier run wrote it\)/);
+	});
+
 	it("says an image is missing on disk when an earlier run deleted it", () => {
 		const items = collectReviewItems([entry("old")], [{ name: "old", success: true, skipped: "isolated only" }], io({ [R("old")]: { before: null, now: null } }));
 		expect(items[0].differsFromHead).toBe(true);

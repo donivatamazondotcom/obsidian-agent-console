@@ -4549,7 +4549,7 @@ describe("captureEntry — initialState.tabLabel", () => {
 		const order = cdp.evaluate.mock.invocationCallOrder[i];
 		const open = cdp.executeCommand.mock.calls.findIndex((c: unknown[]) => c[0] === "agent-console:open-chat-view");
 		expect(cdp.executeCommand.mock.invocationCallOrder[open]).toBeLessThan(order);
-		// After the prompt (a custom label blocks its automatic label) and before the capture.
+		// After the prompt, so it overrides the prompt's automatic label, and before the capture.
 		expect(cdp.clickElement.mock.invocationCallOrder[0]).toBeLessThan(order);
 		expect(order).toBeLessThan(cdp.screenshot.mock.invocationCallOrder[0]);
 	});
@@ -4563,7 +4563,7 @@ describe("captureEntry — initialState.tabLabel", () => {
 		expect(deps.cdp.screenshot).not.toHaveBeenCalled();
 	});
 
-	it("labels again after a step that opens a new tab, so the shot's tab carries it (review round 2)", async () => {
+	it("labels the tab a quick-prompt link opens, not the one it leaves behind (review rounds 2–3)", async () => {
 		const deps = makeDeps();
 		const cdp = deps.cdp as unknown as Record<string, Fn>;
 		cdp.evaluate.mockImplementation((e: string) => Promise.resolve(LABEL(e) ? true : e.includes("__acTabLabel") ? "Release prep" : undefined));
@@ -4583,6 +4583,16 @@ describe("captureEntry — initialState.tabLabel", () => {
 			/tabLabel: "pill" — the shot's tab is labeled "Claude Code 08:14 AM", not "Release prep"/,
 		);
 		expect(deps.cdp.screenshot).not.toHaveBeenCalled();
+	});
+
+	it("labels the tab before a hover, so a tooltip built from the title shows it (review round 4)", async () => {
+		const deps = makeDeps();
+		const cdp = deps.cdp as unknown as Record<string, Fn>;
+		cdp.evaluate.mockImplementation((e: string) => Promise.resolve(LABEL(e) ? true : e.includes("__acTabLabel") ? "Release prep" : undefined));
+		await captureEntry(makeEntry({ initialState: { clickRibbon: true, tabLabel: "Release prep", hoverSelector: ".acp-header-branded" } }), deps);
+		const evals = cdp.evaluate.mock.calls.map((c: unknown[]) => c[0] as string);
+		const first = cdp.evaluate.mock.invocationCallOrder[evals.findIndex(LABEL)];
+		expect(first).toBeLessThan(cdp.hoverElement.mock.invocationCallOrder[0]);
 	});
 
 	it("does nothing without tabLabel", async () => {

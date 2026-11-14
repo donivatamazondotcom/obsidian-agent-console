@@ -151,9 +151,11 @@ export function buildReviewPage(items: readonly ReviewItem[], opts: { title: str
 						: i.fileChange === "added"
 							? `<p class="detail">This run wrote a new image without capturing it. Before staging: <code>rm ${rel}</code></p>`
 							: i.differsFromHead
-								? i.after
-									? `<p class="detail">The image on disk differs from the committed one since before this run (an earlier run's change).</p>`
-									: `<p class="detail">The committed image is missing on disk since before this run (an earlier run's change).</p>`
+								? !i.before
+									? `<p class="detail">This image isn't committed yet (an earlier run wrote it).</p>`
+									: i.after
+										? `<p class="detail">The image on disk differs from the committed one since before this run (an earlier run's change).</p>`
+										: `<p class="detail">The committed image is missing on disk since before this run (an earlier run's change).</p>`
 								: "";
 			return `<section id="${esc(i.name)}"><h2>${esc(i.name)} <span class="badge ${l}">${l}</span></h2>${detail}${change}<div class="pair">${figure("Committed (HEAD)", i.before)}${figure(i.status === "captured" ? "This run" : "On disk now", i.after)}</div></section>`;
 		})
