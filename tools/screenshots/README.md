@@ -224,6 +224,8 @@ The fixtures vault opens on vertical tabs (`tabDisplay: "vertical"` in `data.tem
 
 The fixtures vault uses a custom `Fixture` theme (`fixtures/studio/.obsidian/themes/Fixture/theme.css`) to keep captures clean and deterministic — e.g. hiding the transient scroll-to-bottom pill and the network-driven info banners that must never appear in docs images.
 
+The theme must not target the chat header's text (`.acp-header-branded*`): a header shot shows the header as users see it. `lib/__tests__/fixture-theme.test.ts` enforces this.
+
 **This same fixtures vault doubles as the interactive smoke-test bed** (`tools/smoke-test/smoke-test-spawn.sh` copies the `studio` vault). So any styling that exists *only* for clean screenshots must NOT apply unconditionally — otherwise it hides elements during interactive testing too, making them impossible to verify by eye.
 
 **Rule:** gate every screenshot-only rule on the `body.acp-capturing` marker class:

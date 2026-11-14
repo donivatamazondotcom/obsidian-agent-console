@@ -1648,7 +1648,7 @@
 		},
 		{
 			"name": "tab-ai-rename-menu",
-			"pending": false,
+			"pending": true,
 			"width": 1424,
 			"height": 428,
 			"crop": {
