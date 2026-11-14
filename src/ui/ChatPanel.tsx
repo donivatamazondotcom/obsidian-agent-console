@@ -747,7 +747,11 @@ export function ChatPanel({
 	 * composer and the header (Session Title in the Chat Header § Resolver 1).
 	 * Goes through the same `showConfigSelectors` gate the composer's props
 	 * pass through below, so the header can never count a picker the composer
-	 * was told to hide. ChatPanel always passes both change handlers.
+	 * was told to hide. This call is only for `showConfigSelectors`, which
+	 * reads just the three lists; the stand-in inputs (`hasQuickPrompts`, no
+	 * `promptCapabilities`) don't affect it. If that gate ever reads more,
+	 * pass the same inputs as the render-time call and add them to the deps.
+	 * ChatPanel always passes both change handlers.
 	 */
 	const composerPickers = useMemo((): ComposerPickers => {
 		const gate = deriveComposerAffordances({
