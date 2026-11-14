@@ -116,6 +116,58 @@ export function savedConfigPicks(
 	};
 }
 
+/**
+ * The picks a session is running with (I325): each category's current
+ * config-option value, else the legacy mode and model. A released tab
+ * re-applies these on reconnect, so it comes back as it was rather than in
+ * the agent's saved picks, which another tab may have changed.
+ */
+export function livePicksOf(
+	session: Pick<ChatSession, "modes" | "models" | "configOptions">,
+): SavedConfigPicks {
+	const current = (category: string) =>
+		session.configOptions?.find((o) => o.category === category)
+			?.currentValue || undefined;
+	return {
+		model: current("model") ?? (session.models?.currentModelId || undefined),
+		thoughtLevel: current("thought_level"),
+		mode: current("mode") ?? (session.modes?.currentModeId || undefined),
+	};
+}
+
+/** `base` with each pick that `over` defines replacing its own (I325). */
+export function overlayPicks(
+	base: SavedConfigPicks,
+	over: SavedConfigPicks | undefined,
+): SavedConfigPicks {
+	if (!over) return base;
+	return {
+		model: over.model ?? base.model,
+		thoughtLevel: over.thoughtLevel ?? base.thoughtLevel,
+		mode: over.mode ?? base.mode,
+	};
+}
+
+/**
+ * Drop the pending re-apply of one config-option category for a session
+ * (I325): the user has just picked a value for it.
+ */
+export function dropPendingPick(
+	pending: Map<string, SavedConfigPicks>,
+	sessionId: string,
+	category: string,
+): void {
+	const picks = pending.get(sessionId);
+	if (!picks) return;
+	const key = (Object.keys(PICK_CATEGORY) as Array<keyof SavedConfigPicks>).find(
+		(k) => PICK_CATEGORY[k] === category,
+	);
+	if (!key || picks[key] === undefined) return;
+	const next = { ...picks };
+	delete next[key];
+	pending.set(sessionId, next);
+}
+
 /** Settings key that remembers each config-option category per agent. */
 export const CONFIG_PICK_SETTINGS_KEY = {
 	model: "lastUsedModels",
