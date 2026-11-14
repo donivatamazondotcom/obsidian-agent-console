@@ -132,8 +132,10 @@ export interface InitialState {
 	 * CSS selector for a native `<select>` to show open. The OS draws its
 	 * option list outside the page, so the isolated driver captures a DOM
 	 * replica of it in the settings window (native-select-replica.ts; crop
-	 * with `#ac-native-select-replica`). The legacy driver opened the real
-	 * popup with `showPicker()` and captured the screen (I13/I15).
+	 * with `#ac-native-select-replica`). The replica is built last, after
+	 * the `mustShow` wait, so `mustShow` can't name it. The legacy driver
+	 * opened the real popup with `showPicker()` and captured the screen
+	 * (I13/I15).
 	 */
 	openNativeSelect?: string;
 	/**
@@ -814,6 +816,21 @@ export function isSettingsPathEntry(entry: ManifestEntry): boolean {
 	return entry.initialState?.openSettings !== undefined;
 }
 
+/**
+ * True when the entry's shot includes the chat header: a crop on the header
+ * itself or on a container that holds it (the tab panel, the chat leaf), or
+ * a full-window hero. The header shows the chat's title.
+ */
+export function showsChatHeader(entry: ManifestEntry): boolean {
+	if (entry.captureMode === "screen-window") return true;
+	const containers = [
+		/\.agent-client-chat-view-header(?![\w-])/,
+		/(^|\s)\.agent-client-tab-panel(:not\(\[style\*="none"\]\))?$/,
+		/\.workspace-leaf-content\[data-type="agent-console-chat-view"\]$/,
+	];
+	return [entry.cropSelector, ...(entry.cropSelectors ?? [])].some((s) => typeof s === "string" && containers.some((re) => re.test(s.trim())));
+}
+
 /** Entry fields the settings path drives or ignores safely. */
 const SETTINGS_PATH_ENTRY_KEYS = new Set([
 	"name", "pending", "width", "height", "crop", "cropSelector", "cropSelectors", "cropPadding",
@@ -1131,24 +1148,28 @@ export function validateManifest(
 		if (entry.initialState?.tabLabel !== undefined && entry.animation !== undefined) {
 			throw new Error(`manifest entry "${entry.name}": initialState.tabLabel isn't applied on the animation path`);
 		}
+		const opensHistorySession = (entry.initialState?.clickSequence ?? []).some(
+			(step) => typeof step?.selector === "string" && step.selector.includes("agent-client-session-history-restore-icon"),
+		);
+		if (entry.initialState?.tabLabel !== undefined && opensHistorySession) {
+			throw new Error(
+				`manifest entry "${entry.name}": initialState.tabLabel can't be combined with a clickSequence step that opens a history session (the shot shows that session's tab, with its saved title)`,
+			);
+		}
 		if (entry.initialState?.tabLabel !== undefined && !entry.initialState.clickRibbon) {
 			throw new Error(
 				`manifest entry "${entry.name}": initialState.tabLabel needs initialState.clickRibbon (a fresh panel, so the label stays on the entry's own tab)`,
 			);
 		}
-		// The chat header shows the chat's title: a shot that crops it must
-		// fix the title (tabLabel), or show restored or history sessions,
-		// which carry their saved titles.
-		const crops = [entry.cropSelector, ...(entry.cropSelectors ?? [])];
-		if (crops.some((s) => typeof s === "string" && s.includes(".agent-client-chat-view-header"))) {
+		// The chat header shows the chat's title: a shot that shows it must
+		// fix the title (tabLabel), or show restored, seeded or history
+		// sessions, which carry their own titles.
+		if (showsChatHeader(entry)) {
 			const is = entry.initialState;
-			const fixed =
-				is?.tabLabel !== undefined ||
-				is?.restoreSessions !== undefined ||
-				(is?.clickSequence ?? []).some((step) => typeof step?.selector === "string" && step.selector.includes("agent-client-session-history-restore-icon"));
+			const fixed = is?.tabLabel !== undefined || is?.restoreSessions !== undefined || is?.forceTabStates !== undefined || opensHistorySession;
 			if (!fixed) {
 				throw new Error(
-					`manifest entry "${entry.name}" crops the chat header, which shows the chat's title: set initialState.tabLabel, restore sessions (restoreSessions), or open a history session in clickSequence`,
+					`manifest entry "${entry.name}" crops the chat header, which shows the chat's title: set initialState.tabLabel, restore sessions (restoreSessions), seed tabs (forceTabStates), or open a history session in clickSequence`,
 				);
 			}
 		}

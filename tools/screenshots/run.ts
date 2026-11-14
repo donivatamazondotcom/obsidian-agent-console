@@ -39,7 +39,7 @@ import { log, logError } from "../lib/cli-log";
 import { parseManifest, validateManifest } from "./lib/manifest";
 import { CAPTURE_VIEWPORT, captureAll, legacySkipReason, selectEntries, type OrchestratorDeps } from "./lib/orchestrator";
 import { Cdp, hookLogExpression, newestTitledPage, SETTINGS_WINDOW_HOOK, type CdpTransport } from "./lib/cdp";
-import { buildReviewPage, collectReviewItems, restoreHints } from "./lib/review-page";
+import { buildReviewPage, collectReviewItems, imageRelPath, restoreHints } from "./lib/review-page";
 import { chromium, type Browser, type CDPSession, type Page } from "playwright-core";
 import { setTimeout as sleep } from "node:timers/promises";
 import { configDirOf, materializeRun, seededText, templateAgentConfig } from "../lib/fixtures-vault";
@@ -175,6 +175,10 @@ async function main() {
 			process.exit(1);
 		}
 	}
+	// Each selected entry's image as it is before the run, so the review
+	// page tells this run's changes from an earlier run's.
+	const selected = selectEntries(manifest.entries, filter);
+	const beforeRun = new Map(selected.map((e) => [imageRelPath(e), readIfExists(path.join(repoRoot, imageRelPath(e)))]));
 	const results = legacy
 		? await runLegacy(capture, repoRoot)
 		: await runIsolated(capture, repoRoot);
@@ -182,7 +186,8 @@ async function main() {
 
 	// Side-by-side review page: the committed (HEAD) image next to this run's.
 	const reviewPath = path.join(tmpDir, "review.html");
-	const items = collectReviewItems(selectEntries(manifest.entries, filter), results, {
+	const items = collectReviewItems(selected, results, {
+		readBeforeRun: (rel) => beforeRun.get(rel) ?? null,
 		readCommitted: (rel) => {
 			try {
 				return execFileSync("git", ["show", `HEAD:${rel}`], { cwd: repoRoot, maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"] });
@@ -190,12 +195,13 @@ async function main() {
 				return null;
 			}
 		},
-		readCurrent: (rel) => (existsSync(path.join(repoRoot, rel)) ? readFileSync(path.join(repoRoot, rel)) : null),
+		readCurrent: (rel) => readIfExists(path.join(repoRoot, rel)),
 	});
 	writeFileSync(reviewPath, buildReviewPage(items, { title: "Agent Console screenshots: committed vs this run", generated: new Date().toISOString() }));
 	log(`\n🔎 Review page: ${reviewPath}`);
 	const hints = restoreHints(items);
-	if (hints.length) log(`  ⚠ not captured but changed on disk; restore before staging images:\n    git restore ${hints.join(" ")}`);
+	if (hints.restore.length) log(`  ⚠ this run changed images it didn't capture; before staging:\n    git restore ${hints.restore.join(" ")}`);
+	if (hints.remove.length) log(`  ⚠ this run wrote new images it didn't capture; before staging:\n    rm ${hints.remove.join(" ")}`);
 
 	const report = reportRun(results, runProblems);
 	for (const l of report.lines) log(l);
@@ -209,6 +215,10 @@ main().catch((err) => {
 });
 
 type Results = Awaited<ReturnType<typeof captureAll>>;
+
+function readIfExists(file: string): Buffer | null {
+	return existsSync(file) ? readFileSync(file) : null;
+}
 
 /** The fixtures template's agent command/env, shown by settings shots. */
 function readAgentTemplate(fixtureRoot: string): Record<string, unknown> {

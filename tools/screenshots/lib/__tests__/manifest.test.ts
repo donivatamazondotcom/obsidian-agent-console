@@ -1117,8 +1117,27 @@ describe("validateManifest — header shots fix the chat's title", () => {
 		expect(check({ cropSelector: HEADER, initialState: { clickRibbon: true, clickSequence: [{ selector: ".b" }] } })).toThrow(/crops the chat header/);
 	});
 
-	it("leaves shots that don't crop the header alone", () => {
+	it("leaves shots that don't crop the header alone, including the header's own pill", () => {
 		expect(check({ cropSelector: ".agent-client-tab-bar", initialState: { clickRibbon: true } })).not.toThrow();
+		expect(check({ cropSelector: ".agent-client-chat-view-header-update", initialState: { clickRibbon: true } })).not.toThrow();
+	});
+
+	it("counts crops of a container that holds the header, and full-window heroes (review round 2)", () => {
+		for (const sel of ['.agent-client-tab-panel:not([style*="none"])', '.workspace-leaf-content[data-type="agent-console-chat-view"]']) {
+			expect(check({ cropSelector: sel, initialState: { clickRibbon: true } }), sel).toThrow(/crops the chat header/);
+			expect(check({ cropSelector: sel, initialState: { clickRibbon: true, tabLabel: "x" } }), sel).not.toThrow();
+		}
+		expect(check({ captureMode: "screen-window", initialState: { clickRibbon: true } })).toThrow(/crops the chat header/);
+		// A descendant of the panel isn't the header.
+		expect(check({ cropSelector: '.agent-client-tab-panel:not([style*="none"]) .agent-client-chat-input-box', initialState: { clickRibbon: true } })).not.toThrow();
+	});
+
+	it("accepts seeded tabs (forceTabStates), which carry their own labels", () => {
+		expect(check({ cropSelector: '.workspace-leaf-content[data-type="agent-console-chat-view"]', initialState: { clickRibbon: true, forceTabStates: [{ label: "Q3 planning", state: "ready" }] } })).not.toThrow();
+	});
+
+	it("refuses tabLabel with a history-open click, which shows another tab (review round 2)", () => {
+		expect(check({ initialState: { clickRibbon: true, tabLabel: "x", clickSequence: [{ selector: ".agent-client-session-history-restore-icon" }] } })).toThrow(/tabLabel.*history session/);
 	});
 
 	it("requires a fresh panel (clickRibbon) for tabLabel, so the label stays on the entry's own tab", () => {
@@ -1137,7 +1156,7 @@ describe("manifest.json — header shots fix the chat's title", () => {
 	const manifest = parseManifest(readFileSync(path.join(__dirname, "..", "..", "manifest.json"), "utf8"));
 	it("gives the fresh-tab header shots a fixed title and leaves the history-session one alone", () => {
 		const label = (n: string) => manifest.entries.find((e) => e.name === n)?.initialState?.tabLabel;
-		for (const n of ["update-pill", "reload-control", "kiro-v3-header-fallback", "switch-agent", "export"]) {
+		for (const n of ["update-pill", "reload-control", "kiro-v3-header-fallback", "switch-agent", "export", "whats-new-card", "quick-prompt-uri-banner"]) {
 			expect(label(n), n).toMatch(/\S/);
 		}
 		expect(label("shared-links-bubble")).toBeUndefined();

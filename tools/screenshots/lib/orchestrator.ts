@@ -951,18 +951,23 @@ async function captureEntryWithSettings(
 		// A fixed title for the entry's chat tab, which the header shows. A
 		// custom label blocks later automatic labels, so the prompt below
 		// can't replace it. The tab is the entry's own (tabLabel needs
-		// clickRibbon), and the next panel-opening entry detaches it.
-		if (entry.initialState?.tabLabel !== undefined) {
+		// clickRibbon, which detaches the previous panel). Applied again
+		// after the steps that can open or activate another tab, and read
+		// back before the capture.
+		const tabLabel = entry.initialState?.tabLabel;
+		const applyTabLabel = async (): Promise<void> => {
+			if (tabLabel === undefined) return;
 			await deps.cdp
 				.waitForElement(`.agent-client-tab, .agent-client-tab-rail-key`, HOVER_TOOLTIP_TIMEOUT_MS)
 				.catch(() => {});
 			const labeled = await deps.cdp.evaluate<boolean>(
-				`(() => { const tm = ${CHAT_VIEW}?.tabManagerRef; const id = tm && tm.activeTabId; if (!id) return false; tm.setTabLabel(id, ${JSON.stringify(entry.initialState.tabLabel)}, true); return true; })()`,
+				`(() => { const tm = ${CHAT_VIEW}?.tabManagerRef; const id = tm && tm.activeTabId; if (!id) return false; tm.setTabLabel(id, ${JSON.stringify(tabLabel)}, true); return true; })()`,
 			);
 			if (labeled !== true) {
 				throw new Error(`tabLabel: "${entry.name}" — no active chat tab to label`);
 			}
-		}
+		};
+		await applyTabLabel();
 		// Guard the quick-prompt scan/cache race (QP-I26): force a fresh
 		// library rescan so prompts reflect their current frontmatter labels
 		// (a prompt scanned before its frontmatter is cached falls back to its
@@ -1315,6 +1320,9 @@ async function captureEntryWithSettings(
 		) {
 			await typeDraftIntoActiveComposer(entry.draftMessage);
 		}
+		// A second prompt, a new-chat command, forceTabStates, a quick-prompt
+		// link and restoreSessions can each leave another tab active.
+		await applyTabLabel();
 
 		// 3c-quinquies. Surface the ConfirmCloseModal for the confirm-close shot.
 		// The modal is reachable only through the panel's private Cmd+W handler
@@ -1659,6 +1667,15 @@ async function captureEntryWithSettings(
 			}
 		};
 		await assertClean();
+		// The tab the shot shows carries the fixed title.
+		if (tabLabel !== undefined) {
+			const shown = await deps.cdp.evaluate<unknown>(
+				`(() => { /*__acTabLabel*/ const tm = ${CHAT_VIEW}?.tabManagerRef; const t = tm && tm.tabs.find((x) => x.tabId === tm.activeTabId); return t ? t.label : null; })()`,
+			);
+			if (shown !== tabLabel) {
+				throw new Error(`tabLabel: "${entry.name}" — the shot's tab is labeled ${JSON.stringify(shown)}, not ${JSON.stringify(tabLabel)}`);
+			}
+		}
 
 		// 5. Capture to a temp file. captureMode "screen" uses macOS screencapture
 		// of the window's screen region — the only way to capture native popup

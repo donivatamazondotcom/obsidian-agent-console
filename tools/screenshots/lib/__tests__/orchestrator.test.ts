@@ -4539,7 +4539,7 @@ describe("captureEntry — initialState.tabLabel", () => {
 	it("renames the active tab with a custom label after the panel opens, before the prompt and the capture", async () => {
 		const deps = makeDeps();
 		const cdp = deps.cdp as unknown as Record<string, Fn>;
-		cdp.evaluate.mockImplementation((e: string) => Promise.resolve(LABEL(e) ? true : undefined));
+		cdp.evaluate.mockImplementation((e: string) => Promise.resolve(LABEL(e) ? true : e.includes("__acTabLabel") ? "Release prep" : undefined));
 		await captureEntry(makeEntry({ promptFile: "connect.txt", initialState: { clickRibbon: true, tabLabel: "Release prep" } }), deps);
 		const evals = cdp.evaluate.mock.calls.map((c: unknown[]) => c[0] as string);
 		const i = evals.findIndex(LABEL);
@@ -4558,6 +4558,27 @@ describe("captureEntry — initialState.tabLabel", () => {
 		(deps.cdp.evaluate as Fn).mockImplementation((e: string) => Promise.resolve(LABEL(e) ? false : undefined));
 		await expect(captureEntry(makeEntry({ name: "pill", initialState: { clickRibbon: true, tabLabel: "Release prep" } }), deps)).rejects.toThrow(
 			/tabLabel: "pill" — no active chat tab to label/,
+		);
+		expect(deps.cdp.screenshot).not.toHaveBeenCalled();
+	});
+
+	it("labels again after a step that opens a new tab, so the shot's tab carries it (review round 2)", async () => {
+		const deps = makeDeps();
+		const cdp = deps.cdp as unknown as Record<string, Fn>;
+		cdp.evaluate.mockImplementation((e: string) => Promise.resolve(LABEL(e) ? true : e.includes("__acTabLabel") ? "Release prep" : undefined));
+		await captureEntry(makeEntry({ initialState: { clickRibbon: true, tabLabel: "Release prep", fireQuickPromptUri: { prompt: "draft-a-reply" } } }), deps);
+		const evals = cdp.evaluate.mock.calls.map((c: unknown[]) => c[0] as string);
+		const labels = evals.map((e, i) => (LABEL(e) ? cdp.evaluate.mock.invocationCallOrder[i] : -1)).filter((o) => o > 0);
+		const uri = evals.findIndex((e) => e.includes("handleQuickPromptUri"));
+		expect(labels).toHaveLength(2);
+		expect(labels[1]).toBeGreaterThan(cdp.evaluate.mock.invocationCallOrder[uri]);
+	});
+
+	it("fails the entry when the shot's tab doesn't carry the label at capture time (review round 2)", async () => {
+		const deps = makeDeps();
+		(deps.cdp.evaluate as Fn).mockImplementation((e: string) => Promise.resolve(LABEL(e) ? true : e.includes("__acTabLabel") ? "Claude Code 08:14 AM" : undefined));
+		await expect(captureEntry(makeEntry({ name: "pill", initialState: { clickRibbon: true, tabLabel: "Release prep" } }), deps)).rejects.toThrow(
+			/tabLabel: "pill" — the shot's tab is labeled "Claude Code 08:14 AM", not "Release prep"/,
 		);
 		expect(deps.cdp.screenshot).not.toHaveBeenCalled();
 	});
