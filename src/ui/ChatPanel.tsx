@@ -1160,9 +1160,13 @@ export function ChatPanel({
 					lazyResetRef.current?.();
 				}
 				labelReportedRef.current = false;
-				onLabelChangeRef.current?.("");
 				// Persist agent ID for this view (survives Obsidian restart).
+				// Before the label reset: both queue tab-list updates that React
+				// applies in call order, so the reset's default name ("<agent>
+				// HH:MM") reads the NEW agent, not the one being switched away
+				// from ([[Session Title in the Chat Header]]).
 				onAgentIdChanged?.(decision.agentId);
+				onLabelChangeRef.current?.("");
 
 				// After rebind + lazy reset, re-populate the chat view with
 				// the carried-over messages so the user sees exactly what

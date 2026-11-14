@@ -260,6 +260,8 @@ function buildPerLeafState(
 		};
 		if (cwd) base.workingDirectory = cwd;
 		if (modeId) base.modeId = modeId;
+		// Written only when true, so other tabs keep their saved shape.
+		if (tab.labelIsDefault === true) base.labelIsDefault = true;
 		// D2: only next to a saved session id; validated at the write edge
 		// ("" is unknown; an invalid value is dropped and logged).
 		if (base.sessionId) {
@@ -458,7 +460,7 @@ export function useTabPersistence(
 			tabs
 				.map(
 					(t) =>
-						`${t.tabId}::${t.agentId}::${t.label}`,
+						`${t.tabId}::${t.agentId}::${t.label}::${t.labelIsCustom === true}::${t.labelIsDefault === true}`,
 				)
 				.join("||") +
 			"|active=" +

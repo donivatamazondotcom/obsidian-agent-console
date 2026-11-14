@@ -37,6 +37,8 @@ export interface ClosedTabRecord {
 	label: string;
 	/** Whether the label was a manual rename (preserved on reopen, I56). */
 	labelIsCustom: boolean;
+	/** The label was still the default name (kept on reopen). Present only when true. */
+	labelIsDefault?: boolean;
 	/** Agent ID the closed tab was running. */
 	agentId: string;
 	/** Tab-bar index at close time (best-effort reinsertion on reopen). */
@@ -82,7 +84,12 @@ export function popClosedTab<T>(stack: readonly T[]): {
  * lazy tab has nothing meaningful to restore, so it is not captured.
  */
 export function buildClosedTabRecord(args: {
-	tab: { agentId: string; label: string; labelIsCustom?: boolean };
+	tab: {
+		agentId: string;
+		label: string;
+		labelIsCustom?: boolean;
+		labelIsDefault?: boolean;
+	};
 	sessionId: string | null;
 	recordId?: string;
 	position: number;
@@ -93,6 +100,7 @@ export function buildClosedTabRecord(args: {
 		...(args.recordId ? { recordId: args.recordId } : {}),
 		label: args.tab.label,
 		labelIsCustom: args.tab.labelIsCustom ?? false,
+		...(args.tab.labelIsDefault === true ? { labelIsDefault: true } : {}),
 		agentId: args.tab.agentId,
 		position: args.position,
 	};

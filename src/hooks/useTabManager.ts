@@ -7,7 +7,7 @@
  * parent ChatView via plugin.getOrCreateAcpClient(tabId).
  */
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import type { TabInfo, TabOrigin, TabState } from "../types/tab";
 
 // ============================================================================
@@ -27,6 +27,8 @@ export interface UseTabManagerReturn {
 		label?: string,
 		activate?: boolean,
 		origin?: TabOrigin,
+		/** Restore a default-named tab with its saved label (reopen closed tab). */
+		labelIsDefault?: boolean,
 	) => string;
 	/** Remove a tab by ID. Returns the new active tab ID. */
 	removeTab: (tabId: string) => string | null;
@@ -42,7 +44,7 @@ export interface UseTabManagerReturn {
 	setTabState: (tabId: string, state: TabState) => void;
 	/** Update a tab's bound agent — the single source of truth, persisted (TP-I05). */
 	setTabAgent: (tabId: string, agentId: string) => void;
-	/** Reset a tab's label and state to defaults (used after error boundary retry) */
+	/** Reset a tab's label to the default name for its current agent and its state to disconnected (New chat, agent switch, error boundary retry) */
 	resetTab: (tabId: string) => void;
 	/** Reorder: move tab from one index to another */
 	moveTab: (fromIndex: number, toIndex: number) => void;
@@ -60,21 +62,31 @@ function generateTabId(): string {
 	return `tab-${crypto.randomUUID().slice(0, 8)}`;
 }
 
-function defaultLabel(agentId: string): string {
-	return `${agentId} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+/** Maps an agent id to the name users see. Falls back to the id. */
+export type DisplayNameFor = (agentId: string) => string;
+
+const idAsName: DisplayNameFor = (agentId) => agentId;
+
+/** The default tab name: "<agent display name> <time>". */
+function defaultLabel(agentId: string, displayNameFor: DisplayNameFor): string {
+	const name = displayNameFor(agentId) || agentId;
+	return `${name} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 function createTab(
 	agentId: string,
+	displayNameFor: DisplayNameFor,
 	label?: string,
 	origin: TabOrigin = "fresh",
+	labelIsDefault?: boolean,
 ): TabInfo {
 	return {
 		tabId: generateTabId(),
 		agentId,
 		origin,
-		label: label || defaultLabel(agentId),
+		label: label || defaultLabel(agentId, displayNameFor),
 		labelIsCustom: false,
+		labelIsDefault: !label || labelIsDefault === true,
 		state: "disconnected",
 		createdAt: new Date(),
 	};
@@ -93,12 +105,20 @@ export { truncateLabel, suffixOnCollision } from "../utils/tab-label";
  * @param initialAgentId - Agent ID for the first tab (created on mount)
  * @param initialTabs - Optional pre-built tabs (used for restoration from persistence)
  * @param initialActiveTabId - Optional active tab ID (used with initialTabs)
+ * @param displayNameFor - Optional agent-id → display-name lookup for default
+ *   tab names. Read at call time through a ref, so a renamed agent's new name
+ *   is used and the returned callbacks stay stable. Falls back to the id.
  */
 export function useTabManager(
 	initialAgentId: string,
 	initialTabs?: TabInfo[],
 	initialActiveTabId?: string,
+	displayNameFor?: DisplayNameFor,
 ): UseTabManagerReturn {
+	const displayNameRef = useRef<DisplayNameFor>(displayNameFor ?? idAsName);
+	displayNameRef.current = displayNameFor ?? idAsName;
+	const nameFor: DisplayNameFor = (id) => displayNameRef.current(id);
+
 	const [tabs, setTabs] = useState<TabInfo[]>(() => {
 		// `undefined` = no persisted state → fresh mount, create one tab.
 		// `[]` = a restored, intentional zero-tab landing (Decision 5) → honor
@@ -106,7 +126,7 @@ export function useTabManager(
 		if (initialTabs !== undefined) {
 			return initialTabs;
 		}
-		const first = createTab(initialAgentId);
+		const first = createTab(initialAgentId, nameFor);
 		return [first];
 	});
 	const [activeTabId, setActiveTabId] = useState<string>(
@@ -119,8 +139,15 @@ export function useTabManager(
 			label?: string,
 			activate = true,
 			origin: TabOrigin = "fresh",
+			labelIsDefault?: boolean,
 		): string => {
-			const tab = createTab(agentId, label, origin);
+			const tab = createTab(
+				agentId,
+				(id) => displayNameRef.current(id),
+				label,
+				origin,
+				labelIsDefault,
+			);
 			setTabs((prev) => [...prev, tab]);
 			// Background open (activate:false) appends without switching — the
 			// new tab still mounts (all tabs render) and consumes its
@@ -195,11 +222,20 @@ export function useTabManager(
 				// manual rename (I56).
 				if (!custom && tab.labelIsCustom) return prev;
 				const nextCustom = custom || tab.labelIsCustom === true;
-				if (tab.label === truncated && tab.labelIsCustom === nextCustom)
+				if (
+					tab.label === truncated &&
+					tab.labelIsCustom === nextCustom &&
+					tab.labelIsDefault !== true
+				)
 					return prev;
 				return prev.map((t) =>
 					t.tabId === tabId
-						? { ...t, label: truncated, labelIsCustom: nextCustom }
+						? {
+								...t,
+								label: truncated,
+								labelIsCustom: nextCustom,
+								labelIsDefault: false,
+							}
 						: t,
 				);
 			});
@@ -229,8 +265,9 @@ export function useTabManager(
 				t.tabId === tabId
 					? {
 							...t,
-							label: defaultLabel(t.agentId),
+							label: defaultLabel(t.agentId, displayNameRef.current),
 							labelIsCustom: false,
+							labelIsDefault: true,
 							state: "disconnected",
 						}
 					: t,

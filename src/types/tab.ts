@@ -44,10 +44,17 @@ export interface TabInfo {
 	agentId: string;
 	/** Whether this runtime tab was deliberately created or restored for reading. */
 	origin: TabOrigin;
-	/** Short label displayed on the tab (≤25 chars) */
+	/** Label displayed on the tab and as the chat header's title (≤100 chars, `truncateLabel`) */
 	label: string;
 	/** True when the user manually renamed this tab; auto-derived labels must not overwrite it (I56). */
 	labelIsCustom?: boolean;
+	/**
+	 * True while the label is still the default "<agent name> <time>" name.
+	 * The chat header then leaves out the grey agent name, which the title
+	 * already says. Owned by useTabManager: set by a tab created without a
+	 * label and by resetTab, cleared by every setTabLabel. Read as `=== true`.
+	 */
+	labelIsDefault?: boolean;
 	/** Current visual state for the tab icon */
 	state: TabState;
 	/** Timestamp when this tab was created */
@@ -74,10 +81,17 @@ export interface PersistedTabInfo {
 	tabId: string;
 	/** Agent ID running in this tab */
 	agentId: string;
-	/** Short label displayed on the tab (≤25 chars) */
+	/** Label displayed on the tab and as the chat header's title (≤100 chars) */
 	label: string;
 	/** True when the user manually renamed this tab (I56). Persisted so the rename survives restart. */
 	labelIsCustom?: boolean;
+	/**
+	 * True when the label is still the default "<agent name> <time>" name.
+	 * Written only when true; read with a logging parse in persistedToRuntime
+	 * (absent → false). Not part of the leaf validators, so a bad value never
+	 * drops the tab set. See [[Session Title in the Chat Header]].
+	 */
+	labelIsDefault?: boolean;
 	/**
 	 * ACP session ID for this tab. Explicitly null when no live session was
 	 * acquired (for example, a restored read-only tab or failed initialization).
