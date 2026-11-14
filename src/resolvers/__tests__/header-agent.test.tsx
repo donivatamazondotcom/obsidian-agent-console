@@ -167,8 +167,18 @@ describe("deriveHeaderModelName", () => {
 });
 
 describe("ChatHeader agent segment", () => {
+	// The header shows the agent in its grey extras (deriveHeaderExtras); a
+	// configured agent appears there when the composer doesn't name it.
 	const seg = (agent: HeaderSegments["agent"]): HeaderSegments => ({
-		plugin: "Agent Console",
+		title: "Explain vector embeddings",
+		titleIsDefault: false,
+		extras: {
+			agent:
+				agent === undefined || agent.kind === "configured"
+					? { kind: "label", label: "Auto SA" }
+					: agent,
+			model: null,
+		},
 		profile: "Auto SA",
 		engine: { kind: "unknown" },
 		model: "Claude Opus 5.5",
@@ -215,7 +225,7 @@ describe("ChatHeader agent segment", () => {
 		expect(container.querySelector(".acp-header-branded-running")?.textContent).toBe("trd-pro");
 	});
 
-	it("configured (or absent): renders the profile as today", () => {
+	it("configured (or absent): the agent label, no strikethrough", () => {
 		const { container } = renderHeader(seg(undefined));
 		expect(container.querySelector("del")).toBeNull();
 		expect(container.querySelector(".acp-header-branded-running")).toBeNull();

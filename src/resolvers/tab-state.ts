@@ -23,7 +23,7 @@
  *     agent kept working.
  *
  * Adding a term to a guard to fix each of these is the signal the decision was
- * never centralized (same lesson as `deriveHeaderSlot`/I80). This resolver
+ * never centralized (same lesson as the header's I80 "Connecting…" fix). This resolver
  * makes the decision once, gating on INTENT (`isSending`) and permission
  * (`hasActivePermission`) overlaid on the connection lifecycle — recomputed
  * every render, so a missed edge can't strand the icon.

@@ -58,7 +58,9 @@ describe("deriveHeaderEngine (was deriveHeaderRuntime; renamed in I247)", () => 
 
 function tooltipFor(overrides: Partial<HeaderSegments>): string {
 	const segments: HeaderSegments = {
-		plugin: "Agent Console",
+		title: "Test chat",
+		titleIsDefault: false,
+		extras: { agent: null, model: null },
 		profile: "Test Agent",
 		engine: { kind: "unknown" },
 		model: null,

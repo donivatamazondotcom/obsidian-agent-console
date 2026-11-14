@@ -25,7 +25,9 @@ vi.mock("obsidian", () => ({ setIcon: vi.fn(), setTooltip: vi.fn() }));
 
 function tooltipFor(engine: HeaderSegments["engine"]): string[] {
 	const segments = {
-		plugin: "Agent Console",
+		title: "Kiro chat",
+		titleIsDefault: false,
+		extras: { agent: null, model: null },
 		profile: "Kiro CLI",
 		engine,
 		model: null,
@@ -74,6 +76,7 @@ describe("I302 deriveHeaderEngine: the old-CLI reason", () => {
 describe("I302 header tooltip text", () => {
 	it("says to update Kiro CLI to use V3", () => {
 		expect(tooltipFor({ kind: "kiroCli", engine: "v2", reason: "old-cli" })).toEqual([
+			"Chat: Kiro chat",
 			"Agent: Kiro CLI",
 			"Engine: Kiro CLI V2 – update Kiro CLI to use V3",
 		]);
@@ -81,6 +84,7 @@ describe("I302 header tooltip text", () => {
 
 	it("a plain V2 tab is unchanged", () => {
 		expect(tooltipFor({ kind: "kiroCli", engine: "v2" })).toEqual([
+			"Chat: Kiro chat",
 			"Agent: Kiro CLI",
 			"Engine: Kiro CLI V2 (legacy)",
 		]);

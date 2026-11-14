@@ -1,5 +1,6 @@
 /**
- * T01–T03 — "Plugin update available!" pill is a real, clickable control that
+ * T01–T03 — the update pill (reads "Update"; "Plugin update available!" leads
+ * its tooltip since Session Title in the Chat Header) is a real, clickable control that
  * hands off to Obsidian's Community-plugins updater. Spec: `Agent Console
  * Update Pill Click-Through`.
  *
@@ -34,7 +35,9 @@ vi.mock("obsidian", () => ({
 
 function segments(): HeaderSegments {
 	return {
-		plugin: "Agent Console",
+		title: "Test chat",
+		titleIsDefault: false,
+		extras: { agent: { kind: "label", label: "Test Agent" }, model: null },
 		profile: "Test Agent",
 		engine: { kind: "unknown" },
 		model: null,

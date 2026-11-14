@@ -543,10 +543,9 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"commands.broadcastCancel": "全タブでキャンセル",
 	// ---- Phase 3: chat header ----
 	"chat.header.connecting": "接続中…",
-	"chat.header.notConnected": "未接続",
-	"chat.header.updatePill": "プラグインの更新があります！",
+	"chat.header.updatePill": "更新",
 	"chat.header.updateTooltip":
-		"コミュニティプラグインを開いて Agent Console を更新",
+		"プラグインの更新があります！コミュニティプラグインを開いて Agent Console を更新",
 	"chat.header.reloadTooltip":
 		"再読み込み — セッションを再開し会話を保持します。Shift クリック: 最初からやり直し — 新しいセッションで会話をクリアします。",
 	"chat.header.sessionHistory": "セッション履歴",
@@ -554,6 +553,7 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.header.more": "その他",
 	"chat.header.tooltipAgentNotLoaded": "{requested} を読み込めなかったため、代わりに {running} が動作しています",
 	"chat.header.tooltipAgentSwitched": "実行中: {running}（入力欄で切り替え）",
+	"chat.header.tooltipChat": "チャット: {value}",
 	"chat.header.tooltipAgent": "エージェント: {value}",
 	"chat.header.tooltipEngine": "エンジン: {value}",
 	"chat.header.engineKiroCli": "Kiro CLI {engine}",

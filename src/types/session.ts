@@ -840,7 +840,7 @@ export interface RawAgentCapabilities {
  * only capability shape the rest of the app reads; UI/logic never inspects
  * the raw SDK capability objects nor branches on agent id.
  *
- * Read-time resolvers (`deriveSessionHistoryView`, `deriveHeaderSlot`) take
+ * Read-time resolvers (`deriveSessionHistoryView`, `deriveComposerPickers`) take
  * this record as input. See [[Agent Capability Normalization]].
  */
 export interface AgentCapabilities {

@@ -32,7 +32,9 @@ vi.mock("obsidian", () => ({ setIcon: vi.fn(), setTooltip: h.setTooltip }));
 
 function renderHeader(overrides: Record<string, unknown>) {
 	const segments = {
-		plugin: "Agent Console",
+		title: "Explain vector embeddings",
+		titleIsDefault: false,
+		extras: { agent: null, model: null },
 		profile: "Auto SA",
 		engine: { kind: "unknown" },
 		model: null,
@@ -66,13 +68,14 @@ function tooltipFor(overrides: Record<string, unknown>): string[] {
 }
 
 describe("I247 header tooltip lines", () => {
-	it("Kiro V2 tab: Agent, Engine (V2), Model – no Plugin or Profile", () => {
+	it("Kiro V2 tab: Chat, Agent, Engine (V2), Model – no Plugin or Profile", () => {
 		expect(
 			tooltipFor({
 				engine: { kind: "kiroCli", engine: "v2" },
 				model: "claude-opus-4.8",
 			}),
 		).toEqual([
+			"Chat: Explain vector embeddings",
 			"Agent: Auto SA",
 			"Engine: Kiro CLI V2 (legacy)",
 			"Model: claude-opus-4.8",
@@ -87,6 +90,7 @@ describe("I247 header tooltip lines", () => {
 				effort: "High",
 			}),
 		).toEqual([
+			"Chat: Explain vector embeddings",
 			"Agent: Auto SA",
 			"Engine: Kiro CLI V3",
 			"Model: claude-opus-5.5",
@@ -104,6 +108,7 @@ describe("I247 header tooltip lines", () => {
 				folder: "/Users/me/project",
 			}),
 		).toEqual([
+			"Chat: Explain vector embeddings",
 			"Agent: Claude Code",
 			"Engine: Claude Agent 0.57.0",
 			"Model: Sonnet",
@@ -112,14 +117,15 @@ describe("I247 header tooltip lines", () => {
 		]);
 	});
 
-	it("nothing reported once ready: only the Agent line", () => {
-		expect(tooltipFor({})).toEqual(["Agent: Auto SA"]);
+	it("nothing reported once ready: only the Chat and Agent lines", () => {
+		expect(tooltipFor({})).toEqual(["Chat: Explain vector embeddings", "Agent: Auto SA"]);
 	});
 
 	it("connecting: Engine and Model say Connecting…, Effort and Mode stay hidden", () => {
 		expect(
 			tooltipFor({ isConnecting: true, folder: "/Users/me/project" }),
 		).toEqual([
+			"Chat: Explain vector embeddings",
 			"Agent: Auto SA",
 			"Engine: Connecting…",
 			"Model: Connecting…",
@@ -127,12 +133,13 @@ describe("I247 header tooltip lines", () => {
 		]);
 	});
 
-	it("I207 status line stays right under the Agent line", () => {
+	it("I207 status line stays right under the Agent line (after the Chat line)", () => {
 		const lines = tooltipFor({
 			engine: { kind: "kiroCli", engine: "v3" },
 			agent: { kind: "notLoaded", label: "Auto SA", running: "Default" },
 		});
-		expect(lines.slice(0, 3)).toEqual([
+		expect(lines.slice(0, 4)).toEqual([
+			"Chat: Explain vector embeddings",
 			"Agent: Auto SA",
 			"Auto SA couldn't load, so Default is running instead",
 			"Engine: Kiro CLI V3",
@@ -147,7 +154,7 @@ describe("I247 header tooltip lines", () => {
 			container.querySelector(".agent-client-chat-view-header-title")?.hasAttribute("aria-label"),
 		).toBe(false);
 		expect(container.querySelector(".acp-header-branded")?.getAttribute("aria-label")).toBe(
-			"Agent: Auto SA\nEngine: Kiro CLI V3",
+			"Chat: Explain vector embeddings\nAgent: Auto SA\nEngine: Kiro CLI V3",
 		);
 	});
 
@@ -156,7 +163,7 @@ describe("I247 header tooltip lines", () => {
 		const container = renderHeader({ engine: { kind: "kiroCli", engine: "v3" } });
 		const target = container.querySelector(".acp-header-branded");
 		const call = h.setTooltip.mock.calls.find((c) => c[0] === target);
-		expect(call?.[1]).toBe("Agent: Auto SA\nEngine: Kiro CLI V3");
+		expect(call?.[1]).toBe("Chat: Explain vector embeddings\nAgent: Auto SA\nEngine: Kiro CLI V3");
 		expect(call?.[2]).toEqual({ placement: "bottom", classes: ["acp-header-tooltip"] });
 	});
 });
