@@ -126,7 +126,12 @@ export interface UseAgentSessionReturn {
 	 * acquisition. Avoids the eager createSession that desyncs the lazy state
 	 * machine and clobbers the switch on first message.
 	 */
-	setAgentWithoutSession: (agentId: string) => void;
+	/**
+	 * Returns the quick prompt's mode request it dropped, when the tab
+	 * switches away from the agent that request was made of (I322), so the
+	 * caller can give back a held prompt and say why.
+	 */
+	setAgentWithoutSession: (agentId: string) => string | undefined;
 	updateSessionFromLoad: (
 		sessionId: string,
 		modes?: SessionModeState,
@@ -165,8 +170,9 @@ export function useAgentSession(
 	initialAgentId?: string,
 	/**
 	 * Mode a quick prompt asked this tab to start in (id or display name).
-	 * One-shot: applied to the first session's pre-ready re-apply only, and
-	 * never saved as the agent's default.
+	 * One-shot: applied to the first session that reaches ready (a failed
+	 * start keeps it for the retry, I322) and never saved as the agent's
+	 * default. An agent switch before that drops it.
 	 */
 	initialModeRequest?: string,
 	/**
@@ -177,7 +183,6 @@ export function useAgentSession(
 	 */
 	restoredModeId?: string,
 ): UseAgentSessionReturn {
-	const pendingModeRequestRef = useRef<string | undefined>(initialModeRequest);
 	const pendingRestoredModeRef = useRef<string | undefined>(restoredModeId);
 	/**
 	 * I325: the picks a tab was running with when its process went away (idle
@@ -197,6 +202,14 @@ export function useAgentSession(
 	const initialAgent = getCurrentAgent(
 		initialSettings,
 		effectiveInitialAgentId,
+	);
+	// The quick prompt's mode request, with the agent it was asked of (I322).
+	const pendingModeRequestRef = useRef<
+		{ mode: string; agentId: string } | undefined
+	>(
+		initialModeRequest
+			? { mode: initialModeRequest, agentId: effectiveInitialAgentId }
+			: undefined,
 	);
 
 	const [session, setSession] = useState<ChatSession>(() =>
@@ -312,8 +325,13 @@ export function useAgentSession(
 			const settings = settingsAccess.getSnapshot();
 			const agentId = overrideAgentId || getDefaultAgentId(settings);
 			const currentAgent = getCurrentAgent(settings, agentId);
+			// I322: kept until a session is ready, so a retry after a failed
+			// start still runs in the quick prompt's mode. An agent switch drops
+			// it (setAgentWithoutSession); a request made of another agent is
+			// still never applied here, as a backstop, and counts as unmet.
 			const modeRequest = pendingModeRequestRef.current;
-			pendingModeRequestRef.current = undefined;
+			const requestFromOtherAgent =
+				modeRequest !== undefined && modeRequest.agentId !== agentId;
 
 			setSession((prev) => ({
 				...prev,
@@ -425,11 +443,14 @@ export function useAgentSession(
 				// A quick prompt's mode (id or display name) replaces the saved
 				// mode for this session only. The re-apply below doesn't persist,
 				// so `lastUsedModes` keeps the user's own pick.
-				const modeTarget = resolveModeRequest(modeRequest, {
-					modes: sessionResult.modes,
-					configOptions: baseConfigOptions,
-					modeListMayArriveLate: picksAsInputs,
-				});
+				const modeTarget: { modeId?: string; unmet?: string } =
+					requestFromOtherAgent
+						? { unmet: modeRequest.mode }
+						: resolveModeRequest(modeRequest?.mode, {
+								modes: sessionResult.modes,
+								configOptions: baseConfigOptions,
+								modeListMayArriveLate: picksAsInputs,
+							});
 				const tabMode =
 					!modeTarget.modeId && restoredMode
 						? resolveModeRequest(restoredMode, {
@@ -488,11 +509,17 @@ export function useAgentSession(
 				if (pendingRestoredModeRef.current === restoredMode) {
 					pendingRestoredModeRef.current = undefined;
 				}
+				if (pendingModeRequestRef.current === modeRequest) {
+					pendingModeRequestRef.current = undefined;
+				}
 				setSession((prev) => ({
 					...prev,
 					sessionId: sessionResult.sessionId,
 					state: "ready",
-					unmetModeRequest: modeTarget.unmet,
+					// A start that finishes after an agent switch reports nothing for
+					// the new agent: the switch already said why the prompt came back.
+					unmetModeRequest:
+						prev.agentId === agentId ? modeTarget.unmet : undefined,
 					authMethods: initResult?.authMethods ?? [],
 					modes: finalModes,
 					models: finalModels,
@@ -668,6 +695,16 @@ export function useAgentSession(
 			// picks, as on a tab that was never released.
 			releasedPicksRef.current = undefined;
 			pendingRestoredModeRef.current = undefined;
+			// I322: a quick prompt's mode belongs to the agent it was asked of.
+			// Dropped here, so a start still connecting for the old agent can't
+			// use it up and leave the next agent's start to send the prompt in
+			// its saved mode.
+			const request = pendingModeRequestRef.current;
+			let dropped: string | undefined;
+			if (request && request.agentId !== agentId) {
+				pendingModeRequestRef.current = undefined;
+				dropped = request.mode;
+			}
 			const settings = settingsAccess.getSnapshot();
 			const nextAgent = getCurrentAgent(settings, agentId);
 			setSession((prev) => ({
@@ -697,6 +734,7 @@ export function useAgentSession(
 				lastActivityAt: new Date(),
 			}));
 			setErrorInfo(null);
+			return dropped;
 		},
 		[settingsAccess, setErrorInfo],
 	);
@@ -774,10 +812,16 @@ export function useAgentSession(
 			if (releasedPicksRef.current === releasedPicks) {
 				releasedPicksRef.current = undefined;
 			}
+			// I322: a quick prompt's mode request is for the tab's first session;
+			// a loaded one counts, so a later new session doesn't pick it up.
+			pendingModeRequestRef.current = undefined;
 			setSession((prev) => ({
 				...prev,
 				sessionId,
 				state: "ready",
+				// A reconnect has no unmet request: otherwise the first send after
+				// an idle release or a reload bounces back to the composer (I322).
+				unmetModeRequest: undefined,
 				modes: finalModes ?? prev.modes,
 				models: finalModels ?? prev.models,
 				configOptions: finalConfigOptions ?? prev.configOptions,

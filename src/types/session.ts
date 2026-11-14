@@ -246,7 +246,7 @@ export interface ChatSession {
 	/**
 	 * A quick prompt asked this tab's first session to start in a mode the
 	 * session doesn't offer (raw request, id or display name). Set when the
-	 * session goes ready; cleared on the next session start. The queue flush
+	 * session goes ready; cleared on the next session start or load. The queue flush
 	 * reads it to return the prompt to the composer unsent.
 	 * Spec: [[Agent Console Quick Prompt Agent and Mode]].
 	 */
