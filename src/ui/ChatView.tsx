@@ -86,6 +86,7 @@ import { VaultService } from "../services/vault-service";
 import {
 	applyRecordIdReport,
 	buildTabIdentitySignature,
+	getCurrentAgent,
 	resolveRecordIdForSave,
 	resolveSessionIdForSave,
 } from "../services/session-helpers";
@@ -212,6 +213,19 @@ function hasCorruptedLeafState(
 }
 
 /**
+ * Read a persisted tab's "still has its default name" flag at the restore
+ * edge. Absent (tabs saved before the flag existed) is false with no log; a
+ * non-boolean is logged and read as false. Never fails the tab set.
+ */
+function readLabelIsDefault(p: PersistedTabInfo): boolean {
+	const raw: unknown = (p as unknown as Record<string, unknown>).labelIsDefault;
+	if (raw === undefined || raw === false) return false;
+	if (raw === true) return true;
+	getLogger().warn("[ChatView] Dropped invalid labelIsDefault on tab:", raw);
+	return false;
+}
+
+/**
  * Convert persisted tab records to runtime TabInfo[].
  * Restored tabs start in "disconnected" state per spec § Restore.
  */
@@ -222,6 +236,7 @@ export function persistedToRuntime(persisted: PersistedTabInfo[]): TabInfo[] {
 		origin: "restored",
 		label: p.label,
 		labelIsCustom: p.labelIsCustom ?? false,
+		labelIsDefault: readLabelIsDefault(p),
 		state: "disconnected",
 		createdAt: new Date(),
 	}));
@@ -372,6 +387,9 @@ function ChatComponent({
 		initialAgentId,
 		restoredTabs,
 		restoredLeaf?.activeTabId,
+		// Default tab names use the agent's display name ("Claude Code 08:14
+		// AM"). Read at call time, so a renamed agent's new name is used.
+		(agentId) => getCurrentAgent(plugin.settings, agentId).displayName,
 	);
 	const { tabs, activeTabId, activeTab } = tabManager;
 
@@ -914,6 +932,7 @@ function ChatComponent({
 			record.label,
 			true,
 			"restored",
+			record.labelIsDefault,
 		);
 		if (record.labelIsCustom) {
 			tabManager.setTabLabel(newTabId, record.label, true);
