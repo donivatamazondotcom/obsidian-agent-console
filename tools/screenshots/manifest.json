@@ -189,7 +189,8 @@
 				"clickRibbon": true,
 				"clickSelector": ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"More\"]",
 				"disableNativeMenus": true,
-				"waitSelector": ".menu"
+				"waitSelector": ".menu",
+				"tabLabel": "Weekly review prep"
 			},
 			"approvalThreshold": 0.01,
 			"promptFile": "connect.txt",
@@ -226,7 +227,8 @@
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true,
-				"hoverSelector": ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Export chat to Markdown\"]"
+				"hoverSelector": ".agent-client-tab-panel:not([style*=\"none\"]) [aria-label=\"Export chat to Markdown\"]",
+				"tabLabel": "Launch check"
 			},
 			"approvalThreshold": 0.01,
 			"placement": "reference",
@@ -931,7 +933,8 @@
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true,
-				"forceUpdateAvailable": true
+				"forceUpdateAvailable": true,
+				"tabLabel": "Release checklist"
 			},
 			"approvalThreshold": 0.01,
 			"minDistinctColors": 120,
@@ -1363,7 +1366,8 @@
 			"cropPadding": 4,
 			"initialState": {
 				"openNote": "Welcome.md",
-				"clickRibbon": true
+				"clickRibbon": true,
+				"tabLabel": "Trip planning"
 			},
 			"approvalThreshold": 0.05,
 			"placement": "feature",
@@ -1702,7 +1706,8 @@
 						"--agent",
 						"screenshot-missing-agent"
 					]
-				}
+				},
+				"tabLabel": "Draft the changelog"
 			},
 			"promptFile": "header-fallback.txt",
 			"awaitSelector": "del.acp-header-branded-profile",

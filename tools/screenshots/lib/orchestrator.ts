@@ -948,6 +948,21 @@ async function captureEntryWithSettings(
 			await deps.cdp.executeCommand("agent-console:open-chat-view");
 		}
 		await applyLayoutOverrides(entry, deps);
+		// A fixed title for the entry's chat tab, which the header shows. A
+		// custom label blocks later automatic labels, so the prompt below
+		// can't replace it. The tab is the entry's own (tabLabel needs
+		// clickRibbon), and the next panel-opening entry detaches it.
+		if (entry.initialState?.tabLabel !== undefined) {
+			await deps.cdp
+				.waitForElement(`.agent-client-tab, .agent-client-tab-rail-key`, HOVER_TOOLTIP_TIMEOUT_MS)
+				.catch(() => {});
+			const labeled = await deps.cdp.evaluate<boolean>(
+				`(() => { const tm = ${CHAT_VIEW}?.tabManagerRef; const id = tm && tm.activeTabId; if (!id) return false; tm.setTabLabel(id, ${JSON.stringify(entry.initialState.tabLabel)}, true); return true; })()`,
+			);
+			if (labeled !== true) {
+				throw new Error(`tabLabel: "${entry.name}" — no active chat tab to label`);
+			}
+		}
 		// Guard the quick-prompt scan/cache race (QP-I26): force a fresh
 		// library rescan so prompts reflect their current frontmatter labels
 		// (a prompt scanned before its frontmatter is cached falls back to its
