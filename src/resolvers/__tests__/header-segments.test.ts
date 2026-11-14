@@ -107,16 +107,17 @@ describe("deriveHeaderSegments", () => {
 		});
 	});
 
-	it("a non-Kiro tab never consults a configured --agent, even when its modes don't match", () => {
+	it("a non-Kiro tab: its mode picker doesn't name the agent, and a configured --agent is ignored", () => {
 		const seg = deriveHeaderSegments(
 			input({
 				profile: "Claude Code",
 				title: "Debug the failing CI pipeline",
 				configuredKiroAgent: "auto-sa",
+				// Legacy modes only, so the composer shows a mode picker: the grey
+				// agent name must stay because modes aren't agents here.
 				session: {
 					kiroCli: false,
 					modes: CLAUDE_MODES,
-					configOptions: [option("model", "opus", [["opus", "Opus"], ["sonnet", "Sonnet"]])],
 				},
 			}),
 		);
