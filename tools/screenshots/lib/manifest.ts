@@ -120,12 +120,17 @@ export interface InitialState {
 	 */
 	sessionMode?: string;
 	/**
-	 * Title for the entry's chat tab, set as a custom label right after the
-	 * panel opens (the view's `tabManagerRef.setTabLabel(activeTabId, label,
-	 * true)`). The chat header shows the tab's title, so a shot that crops the
-	 * header fixes it here, or it shows the clock or prompt label. A custom
-	 * label blocks later automatic labels, so the prompt can't replace it.
-	 * Needs `clickRibbon`, so the label lands on the entry's own fresh tab.
+	 * Title for the entry's chat tab, which the chat header shows. Set as a
+	 * custom label on the active tab (the view's `tabManagerRef.setTabLabel(
+	 * activeTabId, label, true)`) once the entry's tabs are set up (after a
+	 * second prompt, a new-chat command or a quick-prompt link), and before
+	 * a hover; read back before the capture, and a mismatch fails the
+	 * entry. A custom label blocks later automatic labels. Needs
+	 * `clickRibbon`; refused on GIFs, over the 100-character label limit,
+	 * and with `restoreSessions`, `forceTabStates` or a history-open
+	 * `clickSequence` step, whose tabs carry their own titles. A shot that
+	 * shows the header must fix its title this way or through one of those
+	 * (`showsChatHeader`).
 	 */
 	tabLabel?: string;
 	/**
@@ -823,17 +828,19 @@ export function isSettingsPathEntry(entry: ManifestEntry): boolean {
  */
 export function showsChatHeader(entry: ManifestEntry): boolean {
 	if (entry.captureMode === "screen-window") return true;
-	const containers = [
-		// The header and its parts, but not its update pill.
-		/\.agent-client-chat-view-header(?!-update)(?![\w])/,
-		/\.acp-header-branded/,
-		// A container that holds it: a tab panel, the tab layout, the chat leaf.
-		/(^|\s)\.agent-client-tab-panel(:not\(\[style\*="none"\]\))?$/,
-		/\.agent-client-tab-panels$/,
-		/\.agent-client-tabs-layout$/,
-		/\.workspace-leaf-content\[data-type="agent-console-chat-view"\]$/,
-	];
-	return [entry.cropSelector, ...(entry.cropSelectors ?? [])].some((s) => typeof s === "string" && containers.some((re) => re.test(s.trim())));
+	// The header or any part of it, but not its update pill.
+	const parts = [/\.agent-client-chat-view-header(?!-update)(?![\w])/, /\.acp-header-branded/];
+	// A container that holds it, as the selector's last compound (a
+	// descendant of a container isn't the header): a tab panel, the tab
+	// layout, the chat leaf or its content.
+	const containers = [/\.agent-client-tab-panels?(?![\w-])/, /\.agent-client-tabs-layout(?![\w-])/, /\.workspace-leaf-content\[data-type="agent-console-chat-view"\]/];
+	const leaf = /\.workspace-leaf-content\[data-type="agent-console-chat-view"\]/;
+	return [entry.cropSelector, ...(entry.cropSelectors ?? [])].some((s) => {
+		if (typeof s !== "string") return false;
+		if (parts.some((re) => re.test(s))) return true;
+		const last = s.trim().split(/\s*[\s>+~]\s*/).filter(Boolean).pop() ?? "";
+		return containers.some((re) => re.test(last)) || (leaf.test(s) && /^\.view-content(?![\w-])/.test(last));
+	});
 }
 
 /** Entry fields the settings path drives or ignores safely. */

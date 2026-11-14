@@ -1138,6 +1138,12 @@ describe("validateManifest — header shots fix the chat's title", () => {
 		}
 	});
 
+	it("counts qualified layout wrappers and the leaf's content, and a single header part (review round 4)", () => {
+		for (const sel of [".agent-client-tabs-layout.is-vertical", ".agent-client-tab-panels.is-horizontal", '.workspace-leaf-content[data-type="agent-console-chat-view"] .view-content', "del.acp-header-branded-profile"]) {
+			expect(check({ cropSelector: sel, initialState: { clickRibbon: true } }), sel).toThrow(/crops the chat header/);
+		}
+	});
+
 	it("doesn't count an empty forceTabStates as fixing the title", () => {
 		expect(check({ cropSelector: ".agent-client-chat-view-header", initialState: { clickRibbon: true, forceTabStates: [] } })).toThrow(/crops the chat header/);
 	});
