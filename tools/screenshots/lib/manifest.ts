@@ -364,8 +364,8 @@ export interface InitialState {
 		 * to resume the session (keeps the transcript) so the agent's capability
 		 * handshake renders the model/mode toolbar under the composer. A restored
 		 * session is otherwise disconnected and shows no model dropdown. The
-		 * transient "· Not connected" header text is hidden at capture time by
-		 * the Fixtures theme's `body.acp-capturing` rule.
+		 * header shows no connection state, so nothing needs hiding
+		 * ([[Session Title in the Chat Header]] Decision 6).
 		 */
 		reconnectActive?: boolean;
 	};

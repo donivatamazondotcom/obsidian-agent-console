@@ -30,7 +30,9 @@ describe("defaults", () => {
 			".notice:not(:has(.agent-client-mcp-auth-notice))",
 		);
 		// Connecting state is a P1/P3 freshness concern (response-wait gates),
-		// not P7 — and is mid-flight during screen-mode connects.
+		// not P7 — and is mid-flight during screen-mode connects. The header no
+		// longer renders "Not connected" or "Connecting…" (Session Title in the
+		// Chat Header, Decision 6); this now guards a regression.
 		expect(DEFAULT_FORBIDDEN_SELECTORS).not.toContain(
 			".acp-header-branded-connecting",
 		);

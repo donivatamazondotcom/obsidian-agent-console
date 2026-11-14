@@ -19,6 +19,9 @@
  *    would false-positive every shot.
  *
  *    Deliberately EXCLUDED from the default: `.acp-header-branded-connecting`.
+ *    The header no longer renders it ([[Session Title in the Chat Header]]
+ *    Decision 6: the tab's status icon shows connecting); the exclusion stays so
+ *    a connecting state that comes back is not forbidden by default.
  *    The connecting/empty state is a P1/P3 *freshness* concern already owned by
  *    the response-wait gates (I07/I09/I80); it is legitimately mid-flight when a
  *    screen-mode popover shot runs its pre-capture cleanliness probe, so
