@@ -3092,8 +3092,7 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 			// Still pinned: growth follows the bottom.
 			layoutRows(t.geom, IDS, (i) => (i === 9 ? 700 : 500)); // scrollHeight 5232
 			act(() => {
-				fireResize(t.contentEl(), 5200);
-				flushMessages(); // the first content fire anchors via MessageChannel (I-S9)
+				fireResize(t.contentEl(), 5200); // the first fire writes synchronously (I352)
 			});
 			expect(t.geom.scrollTop).toBe(5232 - 600 - 1);
 		});

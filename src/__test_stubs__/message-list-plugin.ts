@@ -53,8 +53,9 @@ export function makeTestWorkspace(): TestWorkspace {
 
 /**
  * Build a plugin for MessageList tests. `overrides.app` is merged over the
- * stub app, so a test can add `vault` or a custom `workspace` without
- * losing the other.
+ * stub app, and `overrides.app.workspace` is merged onto the event bus, so a
+ * test can add `vault` or workspace methods (`getActiveFile`) without
+ * losing the bus.
  */
 export function makeMessageListPlugin(
 	overrides: Record<string, unknown> = {},
@@ -62,7 +63,13 @@ export function makeMessageListPlugin(
 	const { app: appOverrides, ...rest } = overrides as {
 		app?: Record<string, unknown>;
 	} & Record<string, unknown>;
-	const app = { workspace: makeTestWorkspace(), ...appOverrides };
+	const { workspace: workspaceOverrides, ...otherAppOverrides } =
+		appOverrides ?? {};
+	const workspace = Object.assign(
+		makeTestWorkspace(),
+		workspaceOverrides as Record<string, unknown> | undefined,
+	);
+	const app = { ...otherAppOverrides, workspace };
 	return { ...rest, app } as unknown as AgentClientPlugin;
 }
 
