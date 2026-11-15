@@ -805,7 +805,6 @@ del.acp-header-branded-profile {
 	color: var(--text-faint);
 	font-size: var(--font-smallest);
 	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
 	line-height: var(--line-height-tight);
 }
 
@@ -827,11 +826,15 @@ del.acp-header-branded-profile {
 	margin: var(--size-4-2) 0 2px;
 }
 
+/* Hidden with its row until the message is hovered, so its text must not be
+   picked up by a selection across replies. */
 .agent-client-stamp-hover {
 	display: inline-flex;
 	align-items: center;
 	padding: 0 var(--size-2-2);
 	color: var(--text-muted);
+	white-space: nowrap;
+	user-select: none;
 }
 
 /* Allow horizontal scroll for wide tables within messages */
