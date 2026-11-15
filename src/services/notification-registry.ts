@@ -360,7 +360,9 @@ export function createNotificationRegistry(
 		};
 
 		if (!remover) {
-			// Nothing can retry without a remover; let FIFO bound the entry.
+			// Spec Design 4: close() is the only removal here, so one attempt
+			// exhausts the entry; it stays retained and FIFO evicts it before
+			// any live entry.
 			if (releaseOn === "success") state.failedRemovals = MAX_REMOVAL_RETRIES;
 			return finish("no-remover");
 		}
@@ -427,10 +429,9 @@ export function createNotificationRegistry(
 			effectiveLastPostedAt: effectiveLastPostedAt(now),
 			quietMs: NOTIFICATION_QUIET_MS,
 			cap: MAX_RETAINED_NOTIFICATIONS,
-			// Without a remover nothing can be removed by id; leave stale
-			// entries alone (no close() near postings) and let FIFO evict them
-			// first, which keeps retention at the cap.
-			maxRetries: remover ? MAX_REMOVAL_RETRIES : 0,
+			// Without a remover, a stale entry gets one close() (spec Design 4)
+			// and is then exhausted, so FIFO evicts it before any live entry.
+			maxRetries: MAX_REMOVAL_RETRIES,
 		});
 
 		if (decision.kind === "defer") {
