@@ -21,9 +21,9 @@
  *
  * jsdom limit: its selector engine caches a `:focus-within` result per
  * element and selector, and a focus change doesn't clear it (a second
- * `matches` after `blur()` returns the first answer). So each case renders
- * a fresh bubble, places focus, and evaluates once. "The bar hides again
- * once focus moves on" is checked by the CDP probe, not here.
+ * `matches` after `blur()` returns the first answer). An attribute change
+ * does clear it, so `freshMatch` touches a data attribute on the bar
+ * before every evaluation.
  *
  * Reproduce-first: on `main` @ 211b836d the only reveal is `:hover` → red.
  */
@@ -62,35 +62,45 @@ const root = postcss.parse(
 	readFileSync(resolve(process.cwd(), "styles.css"), "utf8"),
 );
 
-/** Selectors of every top-level rule that shows the actions bar. */
-function revealSelectors(): string[] {
+/**
+ * Selectors of every rule, at any depth (including `@media`), that targets
+ * the bar and sets the given property to a value other than the hidden one.
+ */
+function barSelectorsSetting(prop: string, hidden: string): string[] {
 	const out: string[] = [];
 	root.walkRules((rule: Rule) => {
-		if (rule.parent?.type !== "root") return; // skip @media etc.
-		let opacity: string | undefined;
-		let pointer: string | undefined;
-		rule.walkDecls((d) => {
-			if (d.prop === "opacity") opacity = d.value;
-			if (d.prop === "pointer-events") pointer = d.value;
+		let value: string | undefined;
+		rule.walkDecls(prop, (d) => {
+			value = d.value.trim();
 		});
-		if (opacity !== "1" || pointer !== "auto") return;
+		if (value === undefined || value === hidden) return;
 		for (const sel of rule.selectors) {
-			if (sel.trim().endsWith(BAR) || sel.includes(`${BAR}:`)) {
-				out.push(sel.trim());
-			}
+			const s = sel.trim();
+			if (s.endsWith(BAR) || s.includes(`${BAR}:`)) out.push(s);
 		}
 	});
 	return out;
 }
 
+/** Rules that make the bar visible. */
+const revealSelectors = () => barSelectorsSetting("opacity", "0");
+/** Rules that make the bar clickable. */
+const clickableSelectors = () => barSelectorsSetting("pointer-events", "none");
+
 /**
- * True when some reveal rule matches `bar` in the current DOM state. A
+ * True when some selector matches `el` right now. Touching an attribute
+ * first clears jsdom's stale `:focus-within` cache (see the docblock). A
  * selector jsdom can't parse throws, so a hidden-state case can't pass
  * vacuously.
  */
-function isRevealed(bar: Element): boolean {
-	return revealSelectors().some((sel) => bar.matches(sel));
+function freshMatch(el: Element, selectors: string[]): boolean {
+	el.setAttribute("data-i364-probe", String(Math.random()));
+	el.removeAttribute("data-i364-probe");
+	return selectors.some((sel) => el.matches(sel));
 }
+
+const isRevealed = (bar: Element) => freshMatch(bar, revealSelectors());
+const isClickable = (bar: Element) => freshMatch(bar, clickableSelectors());
 
 const plugin = makeMessageListPlugin({
 	settings: { displaySettings: { showEmojis: false } },
@@ -125,11 +135,25 @@ describe("message actions bar reveal on keyboard focus (I364)", () => {
 			const { bar, button } = await bubble(role, [
 				{ type: "text", text: "Some reply text." },
 			]);
+			expect(isRevealed(bar)).toBe(false);
 			button.focus();
 			expect(document.activeElement).toBe(button);
 			expect(isRevealed(bar)).toBe(true);
+			expect(isClickable(bar)).toBe(true);
 		},
 	);
+
+	it("hides the bar again once focus leaves the copy button", async () => {
+		const { bar, button } = await bubble("assistant", [
+			{ type: "text", text: "Some reply text." },
+		]);
+		button.focus();
+		expect(isRevealed(bar)).toBe(true);
+		button.blur();
+		expect(document.activeElement).not.toBe(button);
+		expect(isRevealed(bar)).toBe(false);
+		expect(isClickable(bar)).toBe(false);
+	});
 
 	it("keeps the bar hidden at rest (no focus, no hover)", async () => {
 		const { bar } = await bubble("assistant", [
