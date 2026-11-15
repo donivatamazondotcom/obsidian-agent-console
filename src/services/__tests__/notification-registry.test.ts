@@ -560,25 +560,69 @@ describe("removal failures keep the entry and retry", () => {
 		expect(h.reg.__count()).toBe(0);
 	});
 
-	it("keeps superseded entries when no remover is configured, even after their close event", () => {
+	it("without a remover, leaves superseded entries alone until FIFO needs the room", () => {
 		const h = harness({ remove: null });
 		const a1 = h.post("tab-a");
 		h.post("tab-a");
 		h.clock.advance(Q);
-		expect(a1.close).toHaveBeenCalledTimes(1);
-		a1.onclose?.(new Event("close"));
+		// No close() near postings: close() alone is unreliable, and only FIFO
+		// can release an entry when nothing can remove it by id.
+		expect(a1.close).not.toHaveBeenCalled();
 		expect(h.reg.__count()).toBe(2);
 	});
 });
 
 describe("code-review round 1 gaps (I52 round 9)", () => {
-	it("M1: without a remover, retention stays bounded by the cap across many quiet minutes", () => {
+	it("M1: without a remover, retention stays bounded and an idle tab's notification survives", () => {
 		const h = harness({ remove: null });
+		const idle = h.post("tab-idle");
 		for (let i = 0; i < 15; i++) {
 			h.post("tab-a");
 			h.clock.advance(Q);
 		}
 		expect(h.reg.__count()).toBeLessThanOrEqual(MAX_RETAINED_NOTIFICATIONS);
+		expect(idle.close).not.toHaveBeenCalled();
+	});
+
+	it("a busy tab's burst never closes idle tabs' notifications (remover host)", () => {
+		const h = harness();
+		const idle = [h.post("tab-b"), h.post("tab-c"), h.post("tab-d")];
+		for (let i = 0; i < 12; i++) {
+			h.post("tab-a");
+			h.clock.advance(5_000);
+		}
+		h.clock.advance(Q);
+		for (const n of idle) expect(n.close).not.toHaveBeenCalled();
+		expect(h.reg.__count()).toBe(4);
+	});
+
+	it("a remover whose result has a throwing then() counts as a failed attempt in a pass", () => {
+		const h = harness({
+			remove: () => ({
+				then() {
+					throw new Error("then boom");
+				},
+			}),
+		});
+		h.post("tab-a");
+		h.post("tab-a");
+		h.clock.advance(Q);
+		expect(h.reg.__count()).toBe(2);
+		expect(h.clock.pending()).toBe(1);
+	});
+
+	it("a remover whose result has a throwing then() cannot break teardown", () => {
+		const h = harness({
+			remove: () => ({
+				then() {
+					throw new Error("then boom");
+				},
+			}),
+		});
+		h.post("tab-a");
+		h.post("tab-b");
+		expect(() => h.reg.closeAllNotifications()).not.toThrow();
+		expect(h.reg.__count()).toBe(0);
 	});
 
 	it("L1: a closed tab's entry that was already released still only raises the window", () => {
@@ -591,8 +635,9 @@ describe("code-review round 1 gaps (I52 round 9)", () => {
 		const closed = h.post("tab-closed", onClick);
 		h.reg.closeNotificationsForOwner("tab-closed");
 		for (let i = 0; i < MAX_RETAINED_NOTIFICATIONS + 1; i++) h.post(`tab-${i}`);
-		// Its removals fail until retries run out; then FIFO releases it while
-		// the OS entry may remain. A click must not run the closed tab's handler.
+		// Its removals fail until retries run out; the next pass then evicts it
+		// first (FIFO releases it while the OS entry may remain). A click must
+		// not run the closed tab's handler.
 		h.clock.advance(5 * Q);
 		expect(h.reg.__count()).toBe(MAX_RETAINED_NOTIFICATIONS);
 		closed.onclick?.(new Event("click"));
@@ -965,6 +1010,31 @@ describe("sweepOwnedNotificationsAtStartup", () => {
 		h.clock.advance(Q);
 		await p;
 		expect(s.remove).toHaveBeenCalled();
+	});
+
+	it("a window-close sweep cancels a startup sweep waiting again after getHistory()", async () => {
+		const h = harness();
+		let resolveHistory: (v: Array<{ id: string }>) => void = () => {};
+		const s = statics({
+			getHistory: () =>
+				new Promise((res) => {
+					resolveHistory = res;
+				}),
+		});
+		const p = h.reg.sweepOwnedNotificationsAtStartup({
+			notificationStatics: s,
+			ownedTabIds: ["tab-a"],
+			origin: ORIGIN,
+		});
+		await flush();
+		h.store.m.set(SHARED_LAST_POSTED_KEY, String(h.clock.now()));
+		resolveHistory([]);
+		await flush();
+		h.reg.closeAllNotifications();
+		const result = await p;
+		expect(result.ran).toBe(false);
+		expect(s.remove).not.toHaveBeenCalled();
+		expect(h.clock.pending()).toBe(0);
 	});
 
 	it("L4: a sweep suspended across dispose and re-activation does not resume", async () => {
