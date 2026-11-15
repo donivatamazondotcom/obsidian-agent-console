@@ -59,7 +59,7 @@ See which chat needs you without opening a list. New installs start with vertica
 - **See a tab's name** – hover a tab. The first one takes a moment; after that, every tab you pass shows its name and status straight away. Press `Esc` to hide it.
 - **Show names all the time** – drag the column's inner edge to make it wider. From about twice its narrow width it shows names, cut off with "…" when they're long; let go below that and it snaps back to icons only. Double-click the edge to switch between icons only and your last width. Your width is kept across restarts.
 - **Close a tab in one click** – when the column is wide enough to show names (about three times its narrow width), hover a tab and click the × that appears at its right end. The × shows only while you hover, so a resting column shows just status and names. In the narrow, icons-only column there's no × – middle-click or right-click instead, or widen the column.
-- **Everything else works the same** – click a tab to switch, middle-click to close it, and right-click for Rename, Rename with AI and Close (on the column, "Close to the right" reads "Close below"). `+` and `˅` sit at the top of the column.
+- **Everything else works the same** – click a tab to switch, middle-click to close it, and right-click for Rename, Rename with AI, Copy link to chat and Close (on the column, "Close to the right" reads "Close below"). `+` and `˅` sit at the top of the column.
 - **Keyboard** – `Tab` to the column, then `↑` / `↓` to move between tabs and `Enter` to switch. Press `Delete` (or `Backspace`) to close the tab you're on; focus moves to the tab that takes its place. Holding the key closes just one tab. You can also press the context-menu key or `Shift+F10` and choose **Close**. The resize edge is a `Tab` stop too: `←` makes the column wider, `→` narrower, and `Enter` switches between icons only and names.
 
 <p align="center">
@@ -131,6 +131,10 @@ Get a fresh title for where the conversation is now — not just where it starte
 - The title is saved to session history, the same as a manual rename.
 - Use it when the automatic title didn't show up, or when the chat has moved on to a different topic.
 - It's greyed out for agents that can't close a side conversation, such as Kiro CLI on the V2 engine. On those agents each request would leave a second copy of the agent's tools running until you closed the tab. The automatic titles still work.
+
+## Linking to a tab's chat
+
+Right-click a tab → **Copy link to chat** to copy a link that brings you back to this chat from any note. See [Chat Links](./chat-links).
 
 ## Closing tabs
 

@@ -1640,6 +1640,7 @@
 		},
 		{
 			"name": "tab-ai-rename-menu",
+			"pending": true,
 			"width": 1424,
 			"height": 428,
 			"crop": {
@@ -1683,6 +1684,55 @@
 			"altText": "Agent Console tab right-click menu with Rename with AI listed below Rename",
 			"docPage": "docs/usage/tabbed-sessions.md",
 			"captureNote": "forceTabStates seeds three tabs (native menus off), then contextMenuSelector right-clicks the active tab to open its DOM .menu. Group crop over the tab bar + menu. Window-mode.",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 680
+		},
+		{
+			"name": "chat-link-menu",
+			"pending": true,
+			"width": 1424,
+			"height": 428,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1424,
+				"height": 428
+			},
+			"cropSelectors": [
+				".agent-client-tab-bar",
+				".menu"
+			],
+			"cropPadding": 12,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true,
+				"forceTabStates": [
+					{
+						"label": "hey quick question",
+						"state": "ready"
+					},
+					{
+						"label": "Plan the Japan itinerary",
+						"state": "ready"
+					},
+					{
+						"label": "Refactor the auth middleware",
+						"state": "ready"
+					}
+				],
+				"contextMenuSelector": ".agent-client-tab-active",
+				"waitSelector": ".menu"
+			},
+			"approvalThreshold": 0.02,
+			"minDistinctColors": 40,
+			"placement": "feature",
+			"purpose": "Copy a link that brings a chat back from any note.",
+			"differentiator": "Copy link to chat from the tab menu",
+			"mustShow": ".menu-item",
+			"caption": "Copy a link to a chat",
+			"altText": "Agent Console tab right-click menu with Copy link to chat listed below Rename with AI",
+			"docPage": "docs/usage/chat-links.md",
+			"captureNote": "Same setup as tab-ai-rename-menu: forceTabStates seeds three tabs (native menus off), then contextMenuSelector right-clicks the active tab to open its DOM .menu, which lists Copy link to chat after Rename with AI. Group crop over the tab bar + menu. Window-mode.",
 			"collapseLeftSidebar": true,
 			"rightSplitWidth": 680
 		},

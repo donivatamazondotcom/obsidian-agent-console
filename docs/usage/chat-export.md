@@ -36,6 +36,7 @@ created: 2025-12-13T00:31:12
 agentDisplayName: Claude Code
 agentId: claude-agent-acp
 session_id: f95b4847-cb9c-441a-9f0b-08eb243ff5dd
+chat_id: 2b7e41d0-9c3a-4f56-8e1b-6d0a7c5e9f12
 tags: [agent-console]  # Customizable in settings
 ---
 
@@ -62,6 +63,8 @@ Summarize this, please.
 This is an Obsidian plugin that integrates AI coding agents (Claude Code, Codex, Gemini CLI) directly into your vault.
 ...
 ```
+
+`session_id` is the agent's session. `chat_id` is the chat's own ID, the same one its [chat link](./chat-links) uses. It stays the same when the chat moves to a new agent session, so exporting the chat again updates the same note. A chat whose first reply isn't saved yet has no `chat_id`; the next export adds it.
 
 ## What Gets Exported
 
