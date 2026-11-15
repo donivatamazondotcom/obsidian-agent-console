@@ -1100,7 +1100,10 @@ return {
 			};
 		}
 		const problems: string[] = [];
-		if (r.dragOn.final > 4 || r.dragOn.max > 64) {
+		// Mid-drag the anchor can be a multi-line paragraph straddling the
+		// view top, which rewraps around the reading point: measured 36 px
+		// peak (back to 0). The end position is the real bar.
+		if (r.dragOn.final > 4 || r.dragOn.max > 48) {
 			problems.push(`pane drag moved the reading point ${r.dragOn.max}px (end ${r.dragOn.final}px)`);
 		}
 		if (r.growOn.max > 1) problems.push(`growth above moved it ${r.growOn.max}px`);

@@ -696,7 +696,8 @@ del.acp-header-branded-profile {
 	 * scenario. The hook-side fix B+C handles the scroll preservation
 	 * empirically; this CSS rule reinforces it via the canonical W3C path.
 	 * MDN's recommended pattern: apply overflow-anchor: none broadly when the
-	 * default anchoring algorithm misbehaves. */
+	 * default anchoring algorithm misbehaves. This applies while pinned only:
+	 * the I357 rule below turns anchoring back on while scrolled up. */
 	overflow-anchor: none;
 }
 
@@ -704,7 +705,8 @@ del.acp-header-branded-profile {
  * MDN canonical recipe, since per W3C spec § 2.1 the anchor-node-selection
  * algorithm walks the DOM tree from S; a single excluded subtree at the root
  * should be sufficient, but in practice Chromium can pick descendants as anchors
- * if their own overflow-anchor is auto (default). Belt-and-suspenders. */
+ * if their own overflow-anchor is auto (default). Belt-and-suspenders. While
+ * scrolled up, I357 turns message rows (by class) back on below. */
 .agent-client-chat-content > * {
 	overflow-anchor: none;
 }

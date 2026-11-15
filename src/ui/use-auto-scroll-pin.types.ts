@@ -41,6 +41,8 @@ import type { IChatViewHost } from "./view-host";
  *
  * Revisit only if smoke-test surfaces flicker around the boundary.
  */
+export const STICK_OFFSET_PX = 70;
+
 /**
  * I357: present on the scroller while the tab isn't pinned to the bottom.
  * `styles.css` turns native scroll anchoring back on under it, so the
@@ -50,8 +52,6 @@ import type { IChatViewHost } from "./view-host";
  * pin. Set only by `setIsAtBottom`, the single writer of pin state.
  */
 export const SCROLL_ANCHORING_ATTR = "data-scroll-anchoring";
-
-export const STICK_OFFSET_PX = 70;
 
 // ============================================================================
 // Hook params and result
