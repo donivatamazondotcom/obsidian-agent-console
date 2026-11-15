@@ -37,6 +37,7 @@ Some probes mutate disposable UI state (INV-1 opens a new chat tab). The runner 
 | INV-6 | Quick-prompt chips all carry non-empty labels | cold-start label race |
 | INV-7 | A2UI surface button labels stay inside the button box (no horizontal overflow, no growth past the surface card) — measured on an off-screen replica against the live stylesheet | label-overflow class |
 | INV-10 | Vertical tab rail keys and the key list carry no `aria-label` or `title` (an Obsidian tooltip would double the flyout or cover the rail), every key is named via `aria-labelledby`, and inactive keys aren't painted with Obsidian's button fill; skips when Tab display is Horizontal | rail tooltip / theme-mismatch class |
+| INV-11 | A scrolled-up chat keeps its reading position through a pane drag, growth above the view, and a reply streaming in above the trailing elements (no follow-the-stream anchor) — off-screen replicas against the live stylesheet, with drifting controls | scroll-anchoring class |
 
 Statuses: `pass` / `fail` / `skip` (precondition absent in this vault) / `todo` (probe not implemented). Only `fail` sets a non-zero exit code.
 

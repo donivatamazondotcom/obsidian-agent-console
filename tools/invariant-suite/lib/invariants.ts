@@ -903,6 +903,222 @@ const railKeysHaveNoAriaLabel: Invariant = {
 	},
 };
 
+/**
+ * INV-11 — A scrolled-up chat keeps its reading position while text reflows.
+ *
+ * While a tab isn't pinned to the bottom, useAutoScrollPin sets
+ * `data-scroll-anchoring` on the scroller and styles.css turns native scroll
+ * anchoring back on (I357). Measured on throwaway off-screen replicas built
+ * with the real classes, against the LIVE stylesheet, removed in the same
+ * evaluate; no plugin or session state is touched. Three cases:
+ *   - a pane drag (narrow, wide, back) with the view mid-transcript;
+ *   - a tool row above the view top growing;
+ *   - a reply streaming in above the trailing elements (copy actions,
+ *     loading indicator) with the block's own paragraphs excluded, so the
+ *     trailing elements are the only fallback anchor: the view must not
+ *     follow the stream.
+ * Anti-vacuity: the same replicas without the attribute (and the stream
+ * case with the trailing elements allowed) must drift, so a missing rule or
+ * an engine that ignores anchoring can't pass.
+ */
+const scrolledUpReadingPositionHolds: Invariant = {
+	id: "INV-11",
+	name: "A scrolled-up chat keeps its reading position through reflow",
+	guards: "scroll-anchoring class (I357)",
+	async run(cdp) {
+		const r = await evalJson<{
+			ruleFound: boolean;
+			dragOff: { max: number; final: number };
+			dragOn: { max: number; final: number };
+			growOff: { max: number };
+			growOn: { max: number };
+			streamGuarded: { landed: boolean; max: number };
+			streamUnguarded: { landed: boolean; max: number };
+		}>(
+			cdp,
+			`const ATTR = "data-scroll-anchoring";
+const words = "the quick brown fox jumps over the lazy dog while the agent reads files and writes notes about scroll anchoring in long chats".split(" ");
+const sentence = (n, k) => Array.from({ length: n }, (_, i) => words[(i * 7 + k) % words.length]).join(" ") + ".";
+const build = (rows, paras, lastParas, anchoring) => {
+	const view = document.createElement("div");
+	view.className = "agent-client-chat-view-container";
+	view.style.cssText = "position:fixed;left:-20000px;top:0;width:460px;height:400px;display:flex;flex-direction:column;pointer-events:none;";
+	const sc = document.createElement("div");
+	sc.className = "agent-client-chat-view-messages";
+	if (anchoring) sc.setAttribute(ATTR, "");
+	const content = document.createElement("div");
+	content.className = "agent-client-chat-content";
+	for (let r = 0; r < rows; r++) {
+		const row = document.createElement("div");
+		row.className = "agent-client-message-row";
+		row.setAttribute("data-message-id", "inv11-" + r);
+		const rend = document.createElement("div");
+		rend.className = "agent-client-message-renderer agent-client-message-assistant";
+		const tool = document.createElement("div");
+		tool.className = "agent-client-inv11-tool";
+		tool.textContent = "Read File";
+		rend.appendChild(tool);
+		const md = document.createElement("div");
+		md.className = "agent-client-markdown-text-renderer markdown-rendered";
+		const n = r === rows - 1 ? lastParas : paras;
+		for (let p = 0; p < n; p++) {
+			const el = document.createElement("p");
+			el.textContent = "r" + r + "p" + p + " " + sentence(20 + ((r * 3 + p * 5) % 30), r + p);
+			md.appendChild(el);
+		}
+		rend.appendChild(md);
+		const actions = document.createElement("div");
+		actions.className = "agent-client-message-actions";
+		const btn = document.createElement("button");
+		btn.textContent = "c";
+		actions.appendChild(btn);
+		rend.appendChild(actions);
+		row.appendChild(rend);
+		content.appendChild(row);
+	}
+	sc.appendChild(content);
+	const loading = document.createElement("div");
+	loading.className = "agent-client-loading-indicator";
+	loading.textContent = "...";
+	sc.appendChild(loading);
+	view.appendChild(sc);
+	document.body.appendChild(view);
+	return { view, sc, content };
+};
+const firstVisible = (sc, scope) => {
+	const top = sc.getBoundingClientRect().top;
+	return Array.from(scope.querySelectorAll("p")).find((p) => p.getBoundingClientRect().top >= top);
+};
+const offsetOf = (sc, el) => el.getBoundingClientRect().top - sc.getBoundingClientRect().top;
+// A pane drag: narrow, wide, back, one width per step.
+const drag = (anchoring) => {
+	const { view, sc } = build(60, 4, 4, anchoring);
+	try {
+		sc.scrollTop = Math.round(sc.scrollHeight * 0.5);
+		const target = firstVisible(sc, sc);
+		const base = offsetOf(sc, target);
+		const widths = [];
+		for (let w = 460; w >= 300; w -= 8) widths.push(w);
+		for (let w = 300; w <= 620; w += 8) widths.push(w);
+		for (let w = 620; w >= 460; w -= 8) widths.push(w);
+		let max = 0;
+		for (const w of widths) {
+			view.style.width = w + "px";
+			max = Math.max(max, Math.abs(offsetOf(sc, target) - base));
+		}
+		return { max: Math.round(max), final: Math.round(Math.abs(offsetOf(sc, target) - base)) };
+	} finally {
+		view.remove();
+	}
+};
+// A tool row above the view top grows (status updates, output).
+const growAbove = (anchoring) => {
+	const { view, sc, content } = build(30, 4, 4, anchoring);
+	try {
+		const row = content.children[20];
+		sc.scrollTop = row.offsetTop + 40;
+		const target = firstVisible(sc, row);
+		const base = offsetOf(sc, target);
+		const tool = row.querySelector(".agent-client-inv11-tool");
+		let max = 0;
+		for (let i = 0; i < 20; i++) {
+			tool.textContent += " more output line";
+			max = Math.max(max, Math.abs(offsetOf(sc, target) - base));
+		}
+		return { max: Math.round(max) };
+	} finally {
+		view.remove();
+	}
+};
+// A reply streams in above the trailing elements (copy actions, loading
+// indicator). The block's own paragraphs are excluded as anchors, so the
+// trailing elements are the only fallback: without their exclusion the
+// view would follow the stream.
+const streamPastTrailing = (allowTrailing) => {
+	const { view, sc, content } = build(12, 4, 30, true);
+	try {
+		const md = content.lastElementChild.querySelector(".agent-client-markdown-text-renderer");
+		md.style.overflowAnchor = "none";
+		if (allowTrailing) {
+			for (const el of view.querySelectorAll(".agent-client-message-actions, .agent-client-loading-indicator")) el.style.overflowAnchor = "auto";
+		}
+		const want = sc.scrollHeight - sc.clientHeight - 60;
+		sc.scrollTop = want;
+		const landed = Math.abs(sc.scrollTop - want) < 1;
+		const target = firstVisible(sc, md);
+		const key = target.textContent;
+		const base = offsetOf(sc, target);
+		let texts = Array.from(md.querySelectorAll("p")).map((p) => p.textContent);
+		let max = 0;
+		for (let i = 0; i < 20; i++) {
+			texts = texts.concat(["new " + i + " " + sentence(25, i)]);
+			const staging = document.createElement("div");
+			for (const t of texts) {
+				const p = document.createElement("p");
+				p.textContent = t;
+				staging.appendChild(p);
+			}
+			md.replaceChildren(...Array.from(staging.childNodes));
+			const now = Array.from(md.querySelectorAll("p")).find((p) => p.textContent === key);
+			max = Math.max(max, Math.abs(offsetOf(sc, now) - base));
+		}
+		return { landed, max: Math.round(max) };
+	} finally {
+		view.remove();
+	}
+};
+let ruleFound = false;
+for (const sheet of Array.from(document.styleSheets)) {
+	try {
+		for (const rule of Array.from(sheet.cssRules)) {
+			if (rule.selectorText && rule.selectorText.includes("[" + ATTR + "]")) { ruleFound = true; break; }
+		}
+	} catch (e) { /* cross-origin sheet */ }
+	if (ruleFound) break;
+}
+return {
+	ruleFound,
+	dragOff: drag(false),
+	dragOn: drag(true),
+	growOff: growAbove(false),
+	growOn: growAbove(true),
+	streamGuarded: streamPastTrailing(false),
+	streamUnguarded: streamPastTrailing(true),
+};
+`,
+		);
+		if (!r.ruleFound) {
+			return {
+				status: "fail",
+				detail: "no [data-scroll-anchoring] rule in any loaded stylesheet — plugin CSS did not load (a full window reload is required after a CSS change)",
+			};
+		}
+		if (r.dragOff.max <= 200 || r.growOff.max <= 20 || r.streamUnguarded.max <= 20) {
+			return {
+				status: "fail",
+				detail: `controls didn't drift (drag ${r.dragOff.max}px, growth ${r.growOff.max}px, unguarded stream ${r.streamUnguarded.max}px), so the probe can't see the bug it guards`,
+			};
+		}
+		const problems: string[] = [];
+		// Mid-drag the anchor can be a multi-line paragraph straddling the
+		// view top, which rewraps around the reading point: measured 36 px
+		// peak (back to 0). The end position is the real bar.
+		if (r.dragOn.final > 4 || r.dragOn.max > 48) {
+			problems.push(`pane drag moved the reading point ${r.dragOn.max}px (end ${r.dragOn.final}px)`);
+		}
+		if (r.growOn.max > 1) problems.push(`growth above moved it ${r.growOn.max}px`);
+		if (!r.streamGuarded.landed) problems.push("stream case couldn't place the view (clamped)");
+		if (r.streamGuarded.max > 1) {
+			problems.push(`the view followed a streaming reply ${r.streamGuarded.max}px (a trailing element became the anchor)`);
+		}
+		if (problems.length > 0) return { status: "fail", detail: problems.join("; ") };
+		return {
+			status: "pass",
+			detail: `drag ${r.dragOff.max}px -> ${r.dragOn.max}px max, ${r.dragOn.final}px at the end; growth above ${r.growOff.max}px -> ${r.growOn.max}px; stream past trailing elements ${r.streamUnguarded.max}px unguarded -> ${r.streamGuarded.max}px`,
+		};
+	},
+};
+
 /** Chat view must exist before DOM probes run. */
 export async function ensureChatViewOpen(cdp: Cdp): Promise<void> {
 	const count = await cdp.evaluate<number>(
@@ -925,4 +1141,5 @@ export const invariants: Invariant[] = [
 	idleIndicatorNotAnimating,
 	noDuplicateTooltips,
 	railKeysHaveNoAriaLabel,
+	scrolledUpReadingPositionHolds,
 ];

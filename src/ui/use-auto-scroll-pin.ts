@@ -1,8 +1,11 @@
 /**
  * useAutoScrollPin — Phase 2 native-scroll architecture.
  *
- * The hook owns BOTH pin state and scroll position. There is no virtualizer
- * and no other authority. See the spec at
+ * The hook owns pin state, and scroll position while pinned. There is no
+ * virtualizer. While the tab is scrolled up, the browser's native scroll
+ * anchoring holds the reading position through reflows (I357, turned on
+ * via SCROLL_ANCHORING_ATTR); the hook's own writes then are the I284
+ * restore after a tab switch and user actions (pill, send). See the spec at
  * 04-initiatives/Agent Console/ACP Scroll Architecture Rework.md
  * § Phase 2 architecture for the full design rationale.
  *
@@ -40,7 +43,10 @@ import type {
 	UseAutoScrollPinParams,
 	UseAutoScrollPinResult,
 } from "./use-auto-scroll-pin.types";
-import { STICK_OFFSET_PX } from "./use-auto-scroll-pin.types";
+import {
+	SCROLL_ANCHORING_ATTR,
+	STICK_OFFSET_PX,
+} from "./use-auto-scroll-pin.types";
 
 // ============================================================================
 // Module-level mouse state for selection-vs-scroll discrimination
@@ -155,10 +161,11 @@ function bottomGap(scrollEl: HTMLElement): number {
 
 /**
  * How long a restore holds the reading position after a tab returns. Rows
- * above the anchor keep growing in (async markdown, images, highlighting)
- * and `overflow-anchor: none` means nothing else compensates, so the
- * restore holds for the whole window rather than ending on a quiet
- * period. Any user scroll input ends it early.
+ * above the anchor keep growing in (async markdown, images, highlighting).
+ * Native anchoring (I357) also compensates while the tab is scrolled up,
+ * but at paragraph level and not across the remount, so the restore holds
+ * for the whole window rather than ending on a quiet period. Any user
+ * scroll input ends it early.
  */
 const RESTORE_HOLD_MS = 2000;
 
@@ -222,9 +229,10 @@ function findReadingAnchor(
 
 /**
  * I352: the last message row as an anchor, for an unpin whose view top is
- * below every row (only the content's bottom padding in view). Without it
- * the return would land at the top of the transcript; the restore clamps
- * this to the bottom instead. Scans from the end.
+ * below every row (only the loading indicator's reserved box or the
+ * scroller's bottom padding in view). Without it the return would land at
+ * the top of the transcript; the restore clamps this to the bottom instead.
+ * Scans from the end.
  */
 function lastRowAnchor(
 	contentEl: HTMLElement,
@@ -419,6 +427,11 @@ export function useAutoScrollPin(
 						lastRowAnchor(contentEl, scrollEl.scrollTop))
 					: null;
 		}
+		// I357: native scroll anchoring on only while scrolled up. Keep the
+		// I352 anchor capture above this line: it reads layout, and the
+		// toggle invalidates the rows' style, so a read after it forces a
+		// recalc.
+		scrollElRef.current?.toggleAttribute(SCROLL_ANCHORING_ATTR, !next);
 		setIsAtBottomState(next);
 	}, [endRestore]);
 
