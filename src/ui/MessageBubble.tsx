@@ -19,6 +19,7 @@ import type { A2uiValidatedSurface } from "../services/a2ui/types";
 import type { A2uiDispatchOutcome } from "../services/session-dispatch-port";
 import type { TabSessionState } from "../types/tab";
 import { t } from "../i18n";
+import { TimeStamp } from "./TimeStamp";
 
 // ---------------------------------------------------------------------------
 // TextWithMentions (internal helper)
@@ -572,6 +573,27 @@ function extractTextContent(contents: MessageContent[]): string {
 		.join("\n");
 }
 
+function isTime(v: unknown): v is number {
+	return typeof v === "number" && Number.isFinite(v);
+}
+
+/**
+ * When an agent message's text began to arrive, for its hover row
+ * (Decision 11). Agent text merges into one item per message, so this is the
+ * first text item's arrival time. Null when unknown (replayed history, a chat
+ * saved before this feature) or for a prompt, which shows its send time instead.
+ */
+function hoverTimeOf(message: ChatMessage): number | null {
+	if (message.role !== "assistant") return null;
+	const item = message.content.find((c) => c.type === "text");
+	return item && isTime(item.arrivedAt) ? item.arrivedAt : null;
+}
+
+/** A gap stamp's time: set when the item arrived after a long silence (Decision 5). */
+function gapTimeOf(item: MessageContent): number | null {
+	return item.gapBefore === true && isTime(item.arrivedAt) ? item.arrivedAt : null;
+}
+
 /**
  * Copy button that shows a check icon briefly after copying.
  * Uses callback ref for Obsidian's setIcon DOM manipulation.
@@ -680,7 +702,11 @@ export const MessageBubble = React.memo(function MessageBubble({
 			? "agent-client-message-user"
 			: "agent-client-message-assistant";
 
+	const sentAt = message.role === "user" && isTime(message.sentAt) ? message.sentAt : null;
+	const hoverTime = hoverTimeOf(message);
+
 	return (
+		<>
 		<div
 			className={`agent-client-message-renderer ${roleClass}${
 				isA2uiActionMessage ? " agent-client-message-a2ui-action" : ""
@@ -712,10 +738,12 @@ export const MessageBubble = React.memo(function MessageBubble({
 				} else {
 					// Render single non-image content. An assistant message's
 					// non-empty text group is where "Jump to start of latest
-					// reply" lands (MessageList's findReplyStartElement).
+					// reply" lands (MessageList's findReplyStartElement). A gap
+					// stamp sits inside its item's group, so the jump shows it.
 					const isReplyTextStart =
 						message.role === "assistant" &&
 						hasNonEmptyText([group.item]);
+					const gapAt = message.role === "assistant" ? gapTimeOf(group.item) : null;
 					return (
 						<div
 							key={idx}
@@ -723,6 +751,7 @@ export const MessageBubble = React.memo(function MessageBubble({
 								isReplyTextStart ? "" : undefined
 							}
 						>
+							{gapAt !== null && <TimeStamp at={gapAt} variant="gap" />}
 							<ContentBlock
 								content={group.item}
 								plugin={plugin}
@@ -743,9 +772,12 @@ export const MessageBubble = React.memo(function MessageBubble({
 					c.text,
 			) && (
 				<div className="agent-client-message-actions">
+					{hoverTime !== null && <TimeStamp at={hoverTime} variant="hover" />}
 					<CopyButton contents={message.content} />
 				</div>
 			)}
 		</div>
+		{sentAt !== null && <TimeStamp at={sentAt} variant="prompt" />}
+		</>
 	);
 });

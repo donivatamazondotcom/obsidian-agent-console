@@ -80,6 +80,25 @@ export function attachTooltip(
 }
 
 /**
+ * Put an element's static tooltip label back after a hover added to it.
+ *
+ * Chat stamps carry a static `aria-label` (their visible text) that a hover
+ * listener extends with the stamp's age just before Obsidian shows the tooltip.
+ * When the pointer leaves, the age would otherwise stay in the accessible name,
+ * because React only rewrites the attribute when its own prop changes. This
+ * sets the label back and drops `data-tooltip`, where Obsidian may cache the
+ * text it showed.
+ *
+ * The `none` path of `attachTooltip` can't do this: it removes `aria-label`
+ * too, and the hover rewrite was proven (probe P6) only with an `aria-label`
+ * present before the hover.
+ */
+export function restoreStaticTooltip(el: HTMLElement, label: string): void {
+	el.setAttribute("aria-label", label);
+	el.removeAttribute("data-tooltip");
+}
+
+/**
  * Ref-callback form, for JSX that has no other use for a ref:
  *
  * ```tsx

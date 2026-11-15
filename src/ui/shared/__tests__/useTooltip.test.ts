@@ -14,7 +14,12 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import * as React from "react";
 import { setTooltip } from "obsidian";
-import { attachTooltip, tooltipRef, useTooltip } from "../useTooltip";
+import {
+	attachTooltip,
+	restoreStaticTooltip,
+	tooltipRef,
+	useTooltip,
+} from "../useTooltip";
 
 afterEach(() => {
 	vi.mocked(setTooltip).mockClear();
@@ -143,5 +148,25 @@ describe("useTooltip", () => {
 
 		rerender({ reason: null });
 		expect(target.hasAttribute("aria-label")).toBe(false);
+	});
+});
+
+describe("restoreStaticTooltip", () => {
+	it("puts the static label back and drops Obsidian's cached tooltip text", () => {
+		const target = document.createElement("span");
+		attachTooltip(target, { visibleLabel: "9:36 AM", reason: "13 minutes ago" });
+		target.setAttribute("data-tooltip", "9:36 AM — 13 minutes ago");
+		restoreStaticTooltip(target, "9:36 AM");
+		expect(target.getAttribute("aria-label")).toBe("9:36 AM");
+		expect(target.hasAttribute("data-tooltip")).toBe(false);
+	});
+
+	it("keeps an aria-label, unlike the no-reason path, which removes it", () => {
+		const target = document.createElement("span");
+		target.setAttribute("aria-label", "9:36 AM");
+		attachTooltip(target, { visibleLabel: "9:36 AM", reason: null });
+		expect(target.hasAttribute("aria-label")).toBe(false);
+		restoreStaticTooltip(target, "9:36 AM");
+		expect(target.getAttribute("aria-label")).toBe("9:36 AM");
 	});
 });

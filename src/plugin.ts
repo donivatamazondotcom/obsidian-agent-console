@@ -150,6 +150,7 @@ import {
 	firstDetectedSource,
 } from "./services/import/registry";
 import type { ImportSource } from "./services/import/ImportSource";
+import { localDayStore } from "./services/local-day-store";
 
 // Re-export for backward compatibility
 export type { AgentEnvVar, CustomAgentSettings };
@@ -920,6 +921,10 @@ export default class AgentClientPlugin extends Plugin {
 		} finally {
 			disposeNotifications();
 		}
+
+		// Chat Timestamps: stop the day store's midnight timer and listeners,
+		// so teardown doesn't depend on every view's React cleanup running.
+		localDayStore.dispose();
 
 		// Clear registry (sidebar views are managed by Obsidian workspace)
 		this.viewRegistry.clear();

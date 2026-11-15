@@ -437,7 +437,19 @@ describe("gap stamps are measured from the turn's last live update", () => {
 		at(T0 + 100 * SEC);
 		await feed(result, chunk("DONE"));
 		const [item] = textItems(result.current.messages);
-		expect(item).toMatchObject({ text: "DONE", arrivedAt: T0 + 100 * SEC });
+		// 98 s after the title chunk, the turn's last live update: a gap.
+		expect(item).toMatchObject({ text: "DONE", arrivedAt: T0 + 100 * SEC, gapBefore: true });
+	});
+
+	it("a slow never-closed title marker released verbatim, with nothing in between, keeps its gap", async () => {
+		const { result, prompts } = setup("agent-suggested");
+		await send(result, true);
+		at(T0 + 90 * SEC);
+		await feed(result, chunk("<titl"));
+		at(T0 + 4 * MIN);
+		await answer(prompts);
+		const [item] = textItems(result.current.messages);
+		expect(item).toMatchObject({ arrivedAt: T0 + 90 * SEC, gapBefore: true });
 	});
 
 	it("a whole title in one chunk, then a tool call, then text: the text takes its own time", async () => {
