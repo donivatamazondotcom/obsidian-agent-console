@@ -768,7 +768,8 @@ del.acp-header-branded-profile {
 .agent-client-message-actions,
 .agent-client-loading-indicator,
 .agent-client-scroll-to-bottom,
-.agent-client-jump-to-reply-start-anchor {
+.agent-client-jump-to-reply-start-anchor,
+.agent-client-stamp {
 	overflow-anchor: none;
 }
 

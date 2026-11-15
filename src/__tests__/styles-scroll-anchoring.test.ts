@@ -59,6 +59,9 @@ describe("I357 scroll anchoring CSS", () => {
 			".agent-client-loading-indicator",
 			".agent-client-scroll-to-bottom",
 			".agent-client-jump-to-reply-start-anchor",
+			// Chat Timestamps: prompt, end and gap stamps sit below or between
+			// growing content.
+			".agent-client-stamp",
 		]) {
 			expect(anchorValues(sel), sel).toEqual(["none"]);
 		}
@@ -71,7 +74,7 @@ describe("I357 scroll anchoring CSS", () => {
 			);
 			if (!turnsOn) return;
 			for (const s of rule.selectors) {
-				if (/message-actions|loading-indicator|scroll-to-bottom|jump-to-reply-start-anchor/.test(s)) overridden.push(s);
+				if (/message-actions|loading-indicator|scroll-to-bottom|jump-to-reply-start-anchor|agent-client-stamp/.test(s)) overridden.push(s);
 			}
 		});
 		expect(overridden).toEqual([]);
