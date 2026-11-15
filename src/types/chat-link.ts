@@ -88,12 +88,21 @@ export interface ChatLinkHandlerInputs<L extends ChatLinkLeaf> {
 	activateView(): Promise<void>;
 	/** The view a just-created panel mounted, bounded; null if none did. */
 	waitForChatViewOpener(): Promise<{ leaf: L } | null>;
-	/** The plugin-owned rate-limit state. `set` runs only on acceptance. */
+	/**
+	 * The plugin-owned rate-limit state. `set` runs when a link is accepted,
+	 * and once more when that link's run ends with the could-not-open notice
+	 * (the release), only while the holder still holds that acceptance.
+	 */
 	rateLimit: {
 		get(): ChatLinkRateLimitState;
 		set(state: ChatLinkRateLimitState): void;
 	};
 	now(): number;
+	/**
+	 * Resolve after `ms` on a main-window timer, which keeps running when a
+	 * popout closes or a window stops drawing frames.
+	 */
+	sleep(ms: number): Promise<void>;
 	/** Post a finished notice string (the handler adds the prefix). */
 	notify(message: string): void;
 	logError(message: string, error: unknown): void;

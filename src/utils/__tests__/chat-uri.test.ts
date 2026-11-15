@@ -19,6 +19,7 @@ import {
 	buildChatUri,
 	checkChatLinkRateLimit,
 	escapeLinkTitle,
+	releaseChatLinkRepeat,
 	parseChatLinkParams,
 } from "../chat-uri";
 
@@ -122,5 +123,37 @@ describe("T26 / T35 checkChatLinkRateLimit", () => {
 		expect(
 			checkChatLinkRateLimit({ lastAt: 1_000, lastId: "" }, "", 1_500),
 		).toEqual({ ok: false, reason: "repeat" });
+	});
+});
+
+describe("T49 releaseChatLinkRepeat", () => {
+	it("clears lastId and keeps lastAt while the holder still holds that acceptance", () => {
+		expect(
+			releaseChatLinkRepeat({ lastAt: 0, lastId: "x" }, { lastAt: 0, lastId: "x" }),
+		).toEqual({ lastAt: 0 });
+	});
+
+	it("leaves a later acceptance alone", () => {
+		const later = { lastAt: 2500, lastId: "y" };
+		expect(releaseChatLinkRepeat(later, { lastAt: 0, lastId: "x" })).toBe(later);
+	});
+
+	it("does nothing when the repeat is already released", () => {
+		const released = { lastAt: 0 };
+		expect(releaseChatLinkRepeat(released, { lastAt: 0, lastId: "x" })).toBe(
+			released,
+		);
+	});
+
+	it("after a release, the same id within 2 s is rate-limited, not a silent repeat", () => {
+		const state = releaseChatLinkRepeat(
+			{ lastAt: 0, lastId: "x" },
+			{ lastAt: 0, lastId: "x" },
+		);
+		expect(checkChatLinkRateLimit(state, "x", 1000)).toEqual({
+			ok: false,
+			reason: "rate-limit",
+		});
+		expect(checkChatLinkRateLimit(state, "x", 2000).ok).toBe(true);
 	});
 });

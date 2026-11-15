@@ -841,6 +841,10 @@ export default class AgentClientPlugin extends Plugin {
 				},
 			},
 			now: () => Date.now(),
+			// A main-window timer keeps a wait's deadline going when a
+			// popout closes or a window stops drawing frames.
+			sleep: (ms) =>
+				new Promise<void>((resolve) => window.setTimeout(resolve, ms)),
 			notify: (message) => new Notice(message),
 			logError: (message, error) => getLogger().error(message, error),
 		});

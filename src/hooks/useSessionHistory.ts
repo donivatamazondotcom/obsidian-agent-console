@@ -406,12 +406,13 @@ export function useSessionHistory(
 	// one, or to the new instance (Chat ID T40). The mount report below is a
 	// separate call and is unaffected.
 	const unmountedRef = useRef(false);
-	useEffect(
-		() => () => {
+	useEffect(() => {
+		// Reset on (re)mount: StrictMode replays this effect.
+		unmountedRef.current = false;
+		return () => {
 			unmountedRef.current = true;
-		},
-		[],
-	);
+		};
+	}, []);
 	const setBinding = useCallback((id: string | null) => {
 		if (recordIdRef.current === id) return;
 		recordIdRef.current = id;

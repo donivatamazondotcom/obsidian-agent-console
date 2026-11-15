@@ -19,7 +19,7 @@ A chat gets its link once its first reply is saved. On a brand-new chat, **Copy 
 Click the link in a note, another app or your browser. Agent Console:
 
 - **switches to the chat** when it's open in a tab, in any chat panel or window, including a panel you haven't looked at since Obsidian started
-- **reopens the chat in a new tab** when you closed it. The conversation shows right away; the agent starts only when you type or send
+- **reopens the chat in a new tab** when you closed it. The conversation shows right away, and the chat reconnects to its agent when you type or send
 - opens the chat panel first when none is open
 
 Clicking the same link again later takes you back to that tab instead of opening another one.

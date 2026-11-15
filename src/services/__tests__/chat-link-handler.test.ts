@@ -49,13 +49,17 @@ function record(recordId: string, sessionId = `s-${recordId}`): SavedSessionInfo
 	};
 }
 
-/** A window whose frames the fake counts; frames run on the macrotask queue. */
-function fakeWindow(name: string) {
+/**
+ * A window whose frame requests the fake counts; frames run on the macrotask
+ * queue. A stalled window (a closed or minimized popout) never calls back.
+ */
+function fakeWindow(name: string, opts: { stalled?: boolean } = {}) {
 	const win = {
 		name,
 		frames: 0,
 		requestAnimationFrame(cb: (t: number) => void) {
 			win.frames++;
+			if (opts.stalled) return 0;
 			return setTimeout(() => cb(0), 0) as unknown as number;
 		},
 	};
@@ -69,6 +73,12 @@ interface FakeLeaf extends ChatLinkLeaf {
 	mountAfterFrames?: number | null;
 	/** The bridge it registers on mount. */
 	pendingBridge?: FakeBridge;
+	/** Fake ms a reveal of this leaf takes (the clock moves by it). */
+	revealCost?: number;
+	/** Register the bridge on a timer after a reveal, not on frames. */
+	mountOnTimer?: boolean;
+	/** Runs inside revealLeaf (e.g. the leaf closes as it loads). */
+	onReveal?: () => void;
 }
 
 interface FakeBridge extends OpenChatBridge {
@@ -131,6 +141,12 @@ interface EnvOpts {
 	focusedLeafId?: string | null;
 	/** Run when activateView is called with no chat leaf open. */
 	createLeafOnActivate?: () => FakeLeaf;
+	/** Override getTargetChatLeaf (default: the first chat leaf). */
+	targetLeaf?: () => FakeLeaf | null;
+	/** Override waitForChatViewOpener. */
+	opener?: () => Promise<{ leaf: FakeLeaf } | null>;
+	/** activateView creates a leaf even when other chat leaves exist. */
+	createEvenIfLeaves?: boolean;
 }
 
 function makeEnv(opts: EnvOpts = {}) {
@@ -142,11 +158,17 @@ function makeEnv(opts: EnvOpts = {}) {
 	let ready = opts.layoutReady ?? true;
 	const readyCallbacks: Array<() => void> = [];
 	let rate: ChatLinkRateLimitState = {};
-	let now = 0;
+	// The fake clock: fire() sets it; each sleep tick moves it by its length.
+	const clock = { t: 0 };
+	const timed: Array<{ event: string; t: number }> = [];
 	let rejectReveals = 0;
 	let activations = 0;
 
 	const mount = (leaf: FakeLeaf) => {
+		if (leaf.mountOnTimer) {
+			setTimeout(() => bridges.set(leaf, leaf.pendingBridge ?? null), 0);
+			return;
+		}
 		if (leaf.mountAfterFrames === null || leaf.mountAfterFrames === undefined)
 			return;
 		let left = leaf.mountAfterFrames;
@@ -169,6 +191,12 @@ function makeEnv(opts: EnvOpts = {}) {
 			},
 			revealLeaf: async (leaf) => {
 				events.push(`reveal:${leaf.id}`);
+				timed.push({ event: `reveal:${leaf.id}`, t: clock.t });
+				leaf.onReveal?.();
+				if (leaf.revealCost) {
+					await new Promise((r) => setTimeout(r, 0));
+					clock.t += leaf.revealCost;
+				}
 				if (rejectReveals > 0) {
 					rejectReveals--;
 					throw new Error("reveal failed");
@@ -177,6 +205,7 @@ function makeEnv(opts: EnvOpts = {}) {
 			},
 			setActiveLeaf: (leaf, params) => {
 				events.push(`active:${leaf.id}:${params.focus}`);
+				timed.push({ event: `active:${leaf.id}`, t: clock.t });
 			},
 		},
 		viewType: VIEW,
@@ -185,28 +214,44 @@ function makeEnv(opts: EnvOpts = {}) {
 		perLeafTabStates: () => opts.perLeafTabStates ?? [],
 		savedSessions: () => opts.records ?? [],
 		lastActiveChatViewId: () => opts.focusedLeafId ?? null,
-		getTargetChatLeaf: () => leaves[0] ?? null,
+		getTargetChatLeaf: () =>
+			opts.targetLeaf ? opts.targetLeaf() : (leaves[0] ?? null),
 		activateView: async () => {
 			activations++;
 			events.push("activateView");
-			if (leaves.length === 0 && opts.createLeafOnActivate) {
+			if (
+				opts.createLeafOnActivate &&
+				(leaves.length === 0 || opts.createEvenIfLeaves)
+			) {
 				const leaf = opts.createLeafOnActivate();
 				leaves.push(leaf);
 				mount(leaf);
 			}
 		},
-		waitForChatViewOpener: async () => {
-			const leaf = leaves[0];
-			return leaf ? { leaf } : null;
-		},
+		waitForChatViewOpener:
+			opts.opener ??
+			(async () => {
+				const leaf = leaves[0];
+				return leaf ? { leaf } : null;
+			}),
 		rateLimit: {
 			get: () => rate,
 			set: (s) => {
 				rate = s;
 			},
 		},
-		now: () => now,
-		notify: (m) => notices.push(m),
+		now: () => clock.t,
+		sleep: (ms) =>
+			new Promise<void>((r) =>
+				setTimeout(() => {
+					clock.t += ms;
+					r();
+				}, 0),
+			),
+		notify: (m) => {
+			notices.push(m);
+			timed.push({ event: `notice:${m}`, t: clock.t });
+		},
 		logError: (_m, e) => errors.push(e),
 	};
 
@@ -224,8 +269,33 @@ function makeEnv(opts: EnvOpts = {}) {
 			return leaf;
 		},
 		fire(params: Record<string, string | undefined>, at: number) {
-			now = at;
+			clock.t = at;
 			return handler(params);
+		},
+		clock,
+		timed,
+		/** The leaf closes, but its bridge hasn't been cleared yet. */
+		detachLeafKeepingBridge(leaf: FakeLeaf) {
+			const i = leaves.indexOf(leaf);
+			if (i >= 0) leaves.splice(i, 1);
+		},
+		removeLeaf(leaf: FakeLeaf) {
+			const i = leaves.indexOf(leaf);
+			if (i >= 0) leaves.splice(i, 1);
+			bridges.delete(leaf);
+		},
+		/** Let the run go on until an event starting with `prefix` is recorded. */
+		async untilEvent(prefix: string) {
+			for (let i = 0; i < 5000; i++) {
+				if (timed.some((e) => e.event.startsWith(prefix))) return;
+				await new Promise((r) => setTimeout(r, 0));
+			}
+		},
+		/** Let fake time pass until the clock reaches `t`. */
+		async untilClock(t: number) {
+			for (let i = 0; i < 5000 && clock.t < t; i++) {
+				await new Promise((r) => setTimeout(r, 0));
+			}
 		},
 		setLayoutReady() {
 			ready = true;
@@ -621,5 +691,287 @@ describe("chat link handler — layout-ready, popouts and failures", () => {
 		expect(bridge.opened).toEqual(["x"]);
 		expect(bridge.switched).toEqual(["tab-x"]);
 		expect(env.notices).toEqual([PANEL_FAILED]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Every wait is bounded twice (frames, and 2 s of now() time), a closed leaf
+// ends the run, step 5 doesn't re-wait step 4's leaf, and a could-not-open
+// notice releases the run's repeat.
+// ---------------------------------------------------------------------------
+
+/** One deferred leaf B with saved tab state holding chat x, never mounting. */
+function stalledDeferred(opts: EnvOpts = {}) {
+	const env = makeEnv({
+		records: [record("x", "s-x"), record("y", "s-y")],
+		perLeafTabStates: [
+			{
+				leafId: "B",
+				activeTabId: "b1",
+				tabs: [
+					{ tabId: "b1", agentId: "kiro", label: "x", recordId: "x", sessionId: "s-x" } as never,
+				],
+			} as PerLeafTabState,
+		],
+		...opts,
+	});
+	const b = makeLeaf("B", fakeWindow("B", { stalled: true }));
+	b.mountAfterFrames = null;
+	env.addLeaf(b, null);
+	return { env, b };
+}
+
+/** The fake time of the first event matching `prefix`, after index `from`. */
+function at(env: ReturnType<typeof makeEnv>, prefix: string, from = 0) {
+	return env.timed.slice(from).find((e) => e.event.startsWith(prefix))?.t;
+}
+
+describe("chat link handler — every wait is bounded (T48)", () => {
+	it("T48: a bridge wait on a window that never draws ends at the 2 s deadline; a link fired while it's stalled then opens", async () => {
+		let targetCalls = 0;
+		let created: FakeLeaf | null = null;
+		const { env, b } = stalledDeferred({
+			// Run 1 targets B; run 2 finds no target and opens a panel.
+			targetLeaf: () => (targetCalls++ === 0 ? env.leaves[0] : null),
+			createEvenIfLeaves: true,
+			createLeafOnActivate: () => {
+				const leaf = makeLeaf("A");
+				leaf.mountAfterFrames = 1;
+				leaf.pendingBridge = fakeBridge(() => leaf);
+				created = leaf;
+				return leaf;
+			},
+			opener: async () => (created ? { leaf: created } : null),
+		});
+		b.revealCost = 1000; // the first run is held 1 s before its stalled wait
+		const first = env.fire({ id: "x" }, 0);
+		await env.untilClock(2400);
+		expect(env.notices).toEqual([]);
+		// The second link, queued while the first run is stalled.
+		const second = env.fire({ id: "y" }, 2500);
+		await first;
+		expect(env.notices).toEqual([PANEL_FAILED]);
+		await Promise.race([
+			second,
+			new Promise((_, rej) => setTimeout(() => rej(new Error("second link hung")), 2000)),
+		]);
+		expect(created!.pendingBridge!.opened).toEqual(["y"]);
+		expect(env.notices).toEqual([PANEL_FAILED]);
+	});
+
+	it("T48: the bridge wait's own length is at least 2 s and under 2 s plus one tick", async () => {
+		const { env, b } = stalledDeferred({ targetLeaf: () => null });
+		b.revealCost = 1000;
+		await env.fire({ id: "x" }, 0);
+		const revealed = at(env, "reveal:B")!;
+		const ended = at(env, "notice:")!;
+		const waitStart = revealed + 1000;
+		expect(ended - waitStart).toBeGreaterThanOrEqual(2000);
+		expect(ended - waitStart).toBeLessThan(2100);
+	});
+
+	it("T48: a settle wait on a window that never draws ends at the deadline with no notice; a later same-id link lands on open-tab", async () => {
+		const env = makeEnv({ records: [record("x")] });
+		const a = makeLeaf("A", fakeWindow("A", { stalled: true }));
+		a.revealCost = 300; // the final reveal is held
+		const bridge = fakeBridge(() => a, [], { result: "opened", reportAfterFrames: 999 });
+		const open = bridge.openFromHistory;
+		let openedAt = -1;
+		bridge.openFromHistory = async (rec) => {
+			const r = await open(rec);
+			openedAt = env.clock.t;
+			// The new tab reports on a timer ~100 ms after the deadline.
+			void (async () => {
+				await env.untilClock(openedAt + 2100);
+				bridge.bound.push({ tabId: "tab-x", chatId: "x" });
+			})();
+			return r;
+		};
+		env.addLeaf(a, bridge);
+		const first = env.fire({ id: "x" }, 0);
+		// Fire the second link while the first run is held in its final reveal.
+		await env.untilEvent("reveal:A");
+		const second = env.fire({ id: "x" }, 2500);
+		await Promise.race([
+			Promise.all([first, second]),
+			new Promise((_, rej) => setTimeout(() => rej(new Error("hung")), 3000)),
+		]);
+		const settled = at(env, "reveal:A")!;
+		expect(settled - openedAt).toBeGreaterThanOrEqual(2000);
+		expect(settled - openedAt).toBeLessThan(2100);
+		expect(env.notices).toEqual([]);
+		expect(bridge.opened).toEqual(["x"]);
+		expect(bridge.switched).toEqual(["tab-x"]);
+	});
+
+	it("T48: a bridge that registers while its window draws no frames ends the wait at the next tick", async () => {
+		const env = makeEnv({
+			records: [record("x", "s-x")],
+			perLeafTabStates: [
+				{
+					leafId: "B",
+					activeTabId: "b1",
+					tabs: [
+						{ tabId: "b1", agentId: "kiro", label: "x", recordId: "x", sessionId: "s-x" } as never,
+					],
+				} as PerLeafTabState,
+			],
+		});
+		const b = makeLeaf("B", fakeWindow("B", { stalled: true }));
+		b.mountOnTimer = true;
+		b.pendingBridge = fakeBridge(() => b, [{ tabId: "b1", chatId: "x" }]);
+		env.addLeaf(b, null);
+		await env.fire({ id: "x" }, 0);
+		expect(b.pendingBridge.switched).toEqual(["b1"]);
+		expect(at(env, "active:B")!).toBeLessThan(500);
+	});
+});
+
+describe("chat link handler — a leaf that closes during a wait (T48c)", () => {
+	it("during step 4's bridge wait: no reveal or focus after, could-not-open, and a retry lands on history", async () => {
+		const { env, b } = stalledDeferred();
+		const a = makeLeaf("A");
+		env.addLeaf(a, fakeBridge(() => a));
+		const run = env.fire({ id: "x" }, 0);
+		await env.untilClock(500);
+		const mark = env.events.length;
+		env.removeLeaf(b);
+		await run;
+		expect(env.events.slice(mark)).toEqual([]);
+		expect(env.notices).toEqual([PANEL_FAILED]);
+		expect(env.bridges.get(a)!.opened).toEqual([]);
+		await env.fire({ id: "x" }, 2500);
+		expect(env.bridges.get(a)!.opened).toEqual(["x"]);
+	});
+
+	it("during step 5's bridge wait: no reveal, focus or open after, could-not-open, and a retry lands on history", async () => {
+		let created: FakeLeaf | null = null;
+		const env = makeEnv({
+			records: [record("x")],
+			createLeafOnActivate: () => {
+				const leaf = makeLeaf("New");
+				leaf.mountAfterFrames = 1;
+				leaf.pendingBridge = fakeBridge(() => leaf);
+				created = leaf;
+				return leaf;
+			},
+		});
+		// C's bridge registers while C closes, before its bridge is cleared.
+		const c = makeLeaf("C");
+		c.mountAfterFrames = 1;
+		c.pendingBridge = fakeBridge(() => c);
+		c.onReveal = () => env.detachLeafKeepingBridge(c);
+		env.addLeaf(c, null);
+		await env.fire({ id: "x" }, 0);
+		expect(env.events).toEqual(["reveal:C"]);
+		expect(c.pendingBridge.opened).toEqual([]);
+		expect(env.notices).toEqual([PANEL_FAILED]);
+		await env.fire({ id: "x" }, 2500);
+		expect(created!.pendingBridge!.opened).toEqual(["x"]);
+	});
+
+	it("during the settle wait: no final reveal or focus, could-not-open, and a retry lands on history", async () => {
+		let created: FakeLeaf | null = null;
+		const env = makeEnv({
+			records: [record("x")],
+			createLeafOnActivate: () => {
+				const leaf = makeLeaf("New");
+				leaf.mountAfterFrames = 1;
+				leaf.pendingBridge = fakeBridge(() => leaf);
+				created = leaf;
+				return leaf;
+			},
+		});
+		const a = makeLeaf("A", fakeWindow("A", { stalled: true }));
+		const bridge = fakeBridge(() => a, [], { reportAfterFrames: 999 });
+		env.addLeaf(a, bridge);
+		const run = env.fire({ id: "x" }, 0);
+		await env.untilClock(500);
+		expect(bridge.opened).toEqual(["x"]);
+		env.removeLeaf(a);
+		await run;
+		expect(env.events).toEqual([]);
+		expect(env.notices).toEqual([PANEL_FAILED]);
+		await env.fire({ id: "x" }, 2500);
+		expect(created!.pendingBridge!.opened).toEqual(["x"]);
+	});
+});
+
+describe("chat link handler — the opener wait is bounded (T48d)", () => {
+	it("an opener that never resolves ends after the 2 s deadline with the could-not-open notice", { timeout: 4000 }, async () => {
+		const env = makeEnv({
+			records: [record("x")],
+			opener: () => new Promise(() => {}),
+		});
+		await env.fire({ id: "x" }, 0);
+		expect(env.activations()).toBe(1);
+		expect(env.notices).toEqual([PANEL_FAILED]);
+		expect(at(env, "notice:")!).toBeGreaterThanOrEqual(2000);
+	});
+});
+
+describe("chat link handler — a could-not-open notice releases the run's repeat (T49)", () => {
+	it("after a reveal that throws before the open, the same link within 2 s shows the rate notice", async () => {
+		const env = makeEnv({ records: [record("x"), record("y")] });
+		const b = makeLeaf("B");
+		b.mountAfterFrames = 1;
+		b.pendingBridge = fakeBridge(() => b);
+		env.addLeaf(b, null);
+		env.rejectNextReveals(1);
+		await env.fire({ id: "x" }, 0);
+		expect(env.notices).toEqual([PANEL_FAILED]);
+		expect(env.rateState()).toEqual({ lastAt: 0 });
+		await env.fire({ id: "x" }, 1000);
+		expect(env.notices).toEqual([PANEL_FAILED, TOO_FAST]);
+		await env.fire({ id: "y" }, 1500);
+		expect(env.notices).toEqual([PANEL_FAILED, TOO_FAST, TOO_FAST]);
+		await env.fire({ id: "x" }, 2000);
+		expect(b.pendingBridge!.opened).toEqual(["x"]);
+	});
+
+	it("the no-bridge branch releases the repeat too", async () => {
+		const { env } = stalledDeferred();
+		await env.fire({ id: "x" }, 0);
+		expect(env.notices).toEqual([PANEL_FAILED]);
+		expect(env.rateState()).toEqual({ lastAt: 0 });
+	});
+
+	it("a later link accepted before the first run fails keeps its repeat", async () => {
+		const { env, b } = stalledDeferred();
+		b.revealCost = 1000; // the first run fails after ~3 s
+		const first = env.fire({ id: "x" }, 0);
+		await env.untilClock(2400);
+		const later = env.fire({ id: "y" }, 2500);
+		await first;
+		expect(env.notices).toEqual([PANEL_FAILED]);
+		expect(env.rateState()).toEqual({ lastAt: 2500, lastId: "y" });
+		// The later run fails too, and releases only its own repeat.
+		await later;
+		expect(env.notices).toEqual([PANEL_FAILED, PANEL_FAILED]);
+		expect(env.rateState()).toEqual({ lastAt: 2500 });
+	});
+});
+
+describe("chat link handler — step 5 doesn't re-wait step 4's leaf (T50)", () => {
+	it("when step 5 targets the leaf step 4 waited on, it's revealed once and waited on for one bound", async () => {
+		const { env, b } = stalledDeferred();
+		await env.fire({ id: "x" }, 0);
+		expect(env.events.filter((e) => e === "reveal:B")).toEqual(["reveal:B"]);
+		expect(env.events).toEqual(["reveal:B"]);
+		expect(env.notices).toEqual([PANEL_FAILED]);
+		expect(at(env, "notice:")!).toBeLessThan(2200);
+		expect(b.win.frames).toBeLessThanOrEqual(121);
+	});
+
+	it("when step 5 targets a different leaf C, C is revealed and waited on", async () => {
+		const c = makeLeaf("C");
+		c.mountAfterFrames = 1;
+		c.pendingBridge = fakeBridge(() => c);
+		const { env } = stalledDeferred({ targetLeaf: () => c });
+		env.addLeaf(c, null);
+		await env.fire({ id: "x" }, 0);
+		expect(env.events).toEqual(["reveal:B", "reveal:C", "reveal:C", "active:C:true"]);
+		expect(c.pendingBridge.opened).toEqual(["x"]);
+		expect(env.notices).toEqual([]);
 	});
 });

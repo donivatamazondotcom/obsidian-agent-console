@@ -2,8 +2,8 @@
  * `createChatLinkHandler` — the `obsidian://agent-console-chat?vault=…&id=…`
  * handler ([[Agent Console Chat ID]] § Public surface, D8, D12, D14, D15).
  *
- * Per fire, synchronously: rate-limit (2 s only, D14; the holder is set only
- * when the check accepts), then parse. A bad link gets its notice at once and
+ * Per fire, synchronously: rate-limit (2 s only, D14; the holder is set when
+ * the check accepts), then parse. A bad link gets its notice at once and
  * never takes a queue slot. An accepted fire queues behind the run in
  * progress, so runs go one at a time (D15).
  *
@@ -20,7 +20,8 @@
  *     through to 5;
  *  5. `history`: opens the record in a bridged panel (the focus-tracked one,
  *     else the first); with none, uses the target chat leaf or opens a
- *     panel, reveals it, waits for its bridge and resolves again. A run whose
+ *     panel, reveals it, waits for its bridge and resolves again (or, when
+ *     that leaf is the one step 4 already waited on, gives up). A run whose
  *     open adds a tab settles once the bridge reports the chat ID, before the
  *     final reveal and focus, so a queued link for the same chat lands on
  *     `open-tab`;
@@ -28,27 +29,43 @@
  *
  * It resolves again exactly once after each await that opens or reveals a
  * panel, and never revisits a step, so a panel whose bridge never registers
- * can't make it loop. Every frame wait is bounded and counts frames on the
- * target leaf's own window. A run that throws logs the error, shows the
- * could-not-open notice, and the next queued run still starts.
+ * can't make it loop. Every wait is bounded twice: by frames on the target
+ * leaf's own window, and by 2 s of `now()` time kept going by main-window
+ * `sleep` ticks, so a window that stops drawing (a closed or minimized
+ * popout) can't hold the queue. A leaf that closed during a wait isn't
+ * revealed, focused or opened into. A run that ends with the could-not-open
+ * notice (including one that throws) releases its repeat, so a quick retry
+ * gets the rate notice; the next queued run still starts.
  */
 import { t } from "../i18n";
 import { deriveChatTarget, type ChatTarget } from "../resolvers/chat-target";
-import { checkChatLinkRateLimit, parseChatLinkParams } from "../utils/chat-uri";
+import {
+	checkChatLinkRateLimit,
+	parseChatLinkParams,
+	releaseChatLinkRepeat,
+} from "../utils/chat-uri";
 import { findSessionRecord } from "../utils/session-record-key";
 import type {
 	ChatLinkHandlerInputs,
 	ChatLinkLeaf,
+	ChatLinkRateLimitState,
 	OpenChatBridge,
 } from "../types/chat-link";
 import type { ChatId, SavedSessionInfo } from "../types/session";
 
 /** Frames a bridge or a new tab's report may take (~2 s at 60 fps). */
 const FRAME_BOUND = 120;
+/** The same wait measured in `now()` time, for windows that stop drawing. */
+const WAIT_MS = 2_000;
+/** How often a wait checks its condition when no frame arrives. */
+const TICK_MS = 100;
 
 export type ChatLinkFire = (
 	params: Readonly<Record<string, string | undefined>>,
 ) => Promise<void>;
+
+/** A run that ended with the could-not-open notice. */
+class CouldNotOpen extends Error {}
 
 export function createChatLinkHandler<L extends ChatLinkLeaf>(
 	inputs: ChatLinkHandlerInputs<L>,
@@ -60,38 +77,78 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 
 	const leafIdOf = (leaf: L): string => leaf.id ?? "";
 	const chatLeaves = (): L[] => workspace.getLeavesOfType(inputs.viewType);
+	const isLive = (leaf: L): boolean => chatLeaves().includes(leaf);
 
 	/** One frame on the leaf's own window (a popout counts its own frames). */
 	const nextFrame = (leaf: L) =>
-		new Promise<void>((resolve) => {
-			leaf.view.containerEl.win.requestAnimationFrame(() => resolve());
+		new Promise<"frame">((resolve) => {
+			leaf.view.containerEl.win.requestAnimationFrame(() => resolve("frame"));
 		});
+	const nextTick = () =>
+		inputs.sleep(TICK_MS).then(() => "tick" as const);
+
+	/**
+	 * Wait until `done()` holds, for at most FRAME_BOUND frames on the leaf's
+	 * window and WAIT_MS of `now()` time. Reads the condition after every frame
+	 * and every tick, and once more at the deadline. One pending frame request
+	 * and one pending tick at a time.
+	 */
+	const waitFor = async (leaf: L, done: () => boolean): Promise<boolean> => {
+		const start = inputs.now();
+		let frames = 0;
+		let frame: Promise<"frame"> | null = null;
+		let tick: Promise<"tick"> | null = null;
+		for (;;) {
+			if (done()) return true;
+			if (frames >= FRAME_BOUND || inputs.now() - start >= WAIT_MS) {
+				return done();
+			}
+			frame ??= nextFrame(leaf);
+			tick ??= nextTick();
+			const which = await Promise.race([frame, tick]);
+			if (which === "frame") {
+				frames++;
+				frame = null;
+			} else {
+				tick = null;
+			}
+		}
+	};
 
 	const waitForBridge = async (leaf: L): Promise<OpenChatBridge | null> => {
-		for (let i = 0; i < FRAME_BOUND; i++) {
-			const bridge = inputs.getBridge(leaf);
-			if (bridge) return bridge;
-			await nextFrame(leaf);
-		}
+		await waitFor(leaf, () => inputs.getBridge(leaf) !== null);
 		return inputs.getBridge(leaf);
 	};
 
-	/** The settle wait (D15): until the panel reports a tab bound to the chat. */
-	const waitForReport = async (
-		leaf: L,
-		bridge: OpenChatBridge,
-		chatId: ChatId,
-	): Promise<void> => {
-		for (let i = 0; i < FRAME_BOUND; i++) {
-			if (bridge.boundChatIds().some((b) => b.chatId === chatId)) return;
-			await nextFrame(leaf);
+	/** `promise`, or null once WAIT_MS of `now()` time has passed. */
+	const withDeadline = async <T>(promise: Promise<T>): Promise<T | null> => {
+		const start = inputs.now();
+		let settled = false;
+		let value: T | null = null;
+		const watched = promise.then(
+			(v) => {
+				settled = true;
+				value = v;
+			},
+			() => {
+				settled = true;
+			},
+		);
+		while (!settled && inputs.now() - start < WAIT_MS) {
+			await Promise.race([watched, inputs.sleep(TICK_MS)]);
 		}
+		return value;
 	};
 
 	/** Reveal the leaf, then make it active with focus (bringing a popout forward). */
 	const focusLeaf = async (leaf: L): Promise<void> => {
 		await workspace.revealLeaf(leaf);
 		workspace.setActiveLeaf(leaf, { focus: true });
+	};
+
+	/** End the run with the could-not-open notice unless the leaf is still open. */
+	const assertLive = (leaf: L): void => {
+		if (!isLive(leaf)) throw new CouldNotOpen("the chat panel closed");
 	};
 
 	const resolve = (chatId: ChatId): { target: ChatTarget; leaf: L | null } => {
@@ -128,10 +185,14 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 		);
 	};
 
-	/** Step 5. `record` is null when step 4 fell through with no record. */
+	/**
+	 * Step 5. `startRecord` is null when step 4 fell through with no record;
+	 * `waitedLeaf` is the leaf step 4 already revealed and waited on.
+	 */
 	const openInHistory = async (
 		chatId: ChatId,
 		startRecord: SavedSessionInfo | null,
+		waitedLeaf: L | null,
 	): Promise<void> => {
 		let record = startRecord;
 		let leaf = pickBridgedLeaf();
@@ -140,12 +201,16 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 			leaf = inputs.getTargetChatLeaf();
 			if (!leaf) {
 				await inputs.activateView();
-				leaf = (await inputs.waitForChatViewOpener())?.leaf ?? null;
+				leaf =
+					(await withDeadline(inputs.waitForChatViewOpener()))?.leaf ?? null;
 			}
-			if (leaf) {
-				await workspace.revealLeaf(leaf);
-				bridge = await waitForBridge(leaf);
-			}
+			if (!leaf) throw new CouldNotOpen("no chat panel opened");
+			// Step 4 already waited on this leaf and its bridge didn't register;
+			// nothing has been awaited since, so waiting again can't help.
+			if (leaf === waitedLeaf) throw new CouldNotOpen("no bridge registered");
+			await workspace.revealLeaf(leaf);
+			bridge = await waitForBridge(leaf);
+			assertLive(leaf);
 			// Resolve again once: the reopened panel may already hold the chat
 			// (activateView brings back the tab set just closed).
 			const again = resolve(chatId);
@@ -156,10 +221,7 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 			if (again.target.kind === "history") record = again.target.record;
 			if (again.target.kind === "missing") record = null;
 		}
-		if (!leaf || !bridge) {
-			notify(t("notices.chatLinkPanelFailed"));
-			return;
-		}
+		if (!bridge) throw new CouldNotOpen("no bridge registered");
 		if (!record) {
 			notify(t("notices.chatLinkMissing"));
 			await focusLeaf(leaf);
@@ -168,7 +230,13 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 		const result = await bridge.openFromHistory(record);
 		if (result === "gone") notify(t("notices.chatLinkMissing"));
 		// Settle before the final reveal, so a failed reveal can't skip it.
-		if (result === "opened") await waitForReport(leaf, bridge, chatId);
+		if (result === "opened") {
+			const b = bridge;
+			await waitFor(leaf, () =>
+				b.boundChatIds().some((bound) => bound.chatId === chatId),
+			);
+			assertLive(leaf);
+		}
 		await focusLeaf(leaf);
 	};
 
@@ -183,12 +251,14 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 				notify(t("notices.chatLinkMissing"));
 				return;
 			case "history":
-				await openInHistory(chatId, first.target.record);
+				await openInHistory(chatId, first.target.record, null);
 				return;
 			case "unmounted-tab": {
-				if (first.leaf) {
-					await workspace.revealLeaf(first.leaf);
-					await waitForBridge(first.leaf);
+				const waited = first.leaf;
+				if (waited) {
+					await workspace.revealLeaf(waited);
+					await waitForBridge(waited);
+					assertLive(waited);
 				}
 				const again = resolve(chatId);
 				if (again.target.kind === "open-tab" && again.leaf) {
@@ -202,10 +272,18 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 								by: "recordId",
 								id: chatId,
 							}) ?? null);
-				await openInHistory(chatId, record);
+				await openInHistory(chatId, record, waited);
 				return;
 			}
 		}
+	};
+
+	/** The could-not-open notice, and the release of this run's repeat. */
+	const couldNotOpen = (accepted: ChatLinkRateLimitState): void => {
+		notify(t("notices.chatLinkPanelFailed"));
+		const current = inputs.rateLimit.get();
+		const released = releaseChatLinkRepeat(current, accepted);
+		if (released !== current) inputs.rateLimit.set(released);
 	};
 
 	return (params) => {
@@ -230,11 +308,14 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 			return Promise.resolve();
 		}
 		const chatId = parsed.id;
+		const accepted = gate.state;
 		queue = queue
 			.then(() => run(chatId))
 			.catch((error: unknown) => {
-				inputs.logError("[ChatLink] couldn't open a chat link", error);
-				notify(t("notices.chatLinkPanelFailed"));
+				if (!(error instanceof CouldNotOpen)) {
+					inputs.logError("[ChatLink] couldn't open a chat link", error);
+				}
+				couldNotOpen(accepted);
 			});
 		return queue;
 	};

@@ -82,3 +82,24 @@ export function checkChatLinkRateLimit(
 	}
 	return { ok: true, state: { lastAt: now, lastId: id } };
 }
+
+/**
+ * Release a link's repeat after its run ended with the could-not-open notice
+ * (Chat ID D14): clear `lastId` and keep `lastAt`, so clicking the same link
+ * again within 2 s shows the rate notice instead of nothing. Only while
+ * `state` still holds that run's acceptance; a later link accepted since then
+ * keeps its own repeat. Returns `state` itself when there is nothing to do.
+ */
+export function releaseChatLinkRepeat(
+	state: ChatLinkRateLimitState,
+	accepted: ChatLinkRateLimitState,
+): ChatLinkRateLimitState {
+	if (
+		state.lastId === undefined ||
+		state.lastAt !== accepted.lastAt ||
+		state.lastId !== accepted.lastId
+	) {
+		return state;
+	}
+	return { lastAt: state.lastAt };
+}

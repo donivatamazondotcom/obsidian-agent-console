@@ -67,8 +67,8 @@ src/
 │   ├── settings-migration.ts    # One-time settings migration (autoMentionActiveNote → activeNoteAsDefaultContext)
 │   ├── settings-service.ts      # Reactive settings store (observer pattern only)
 │   ├── session-storage.ts       # Session metadata + message file I/O (sessions/*.json); the only evictor (saveSession, applyMaxSavedSessions) — evicted/deleted transcripts go to the trash (I202)
-│   ├── session-record.ts        # Record identity (I269): findSessionRecord, the savedSessions validator, the one-time recordId migration
-│   ├── chat-link-handler.ts     # createChatLinkHandler — the obsidian://agent-console-chat handler: 2 s rate limit + parse at fire time, runs one at a time, layout-ready wait, resolve across leaves/saved tab state/history, reveal + bridge wait, resolve again once, settle wait (Chat ID D12, D15)
+│   ├── session-record.ts        # Record identity (I269): the savedSessions validator, the one-time recordId migration; re-exports findSessionRecord from utils/session-record-key
+│   ├── chat-link-handler.ts     # createChatLinkHandler — the obsidian://agent-console-chat handler: 2 s rate limit + parse at fire time, runs one at a time, layout-ready wait, resolve across leaves/saved tab state/history, reveal + bridge wait, resolve again once, settle wait; every wait bounded by frames and 2 s of now() time, closed-leaf check, could-not-open releases the repeat (Chat ID D12, D14, D15)
 │   ├── chat-link-copy.ts        # runChatLinkCopy — Copy link to chat: copy the link or the send-first notice, report a failed write, refocus through copy-chat-link (Chat ID D16)
 │   ├── server-session-cache.ts  # The only reader/writer of serverSessionCache (last session/list per launch, keyed by agentLaunchKey, never agent id) + its settings-edge validation (I270)
 │   ├── session-store.ts         # Single serialized writer of record for savedSessions metadata/title (I114), keyed by recordId (I269)
@@ -301,7 +301,7 @@ src/
 │   ├── link-leaf.ts             # Resolve click modifiers → Obsidian leaf/pane (Keymap.isModEvent) for internal links
 │   ├── quick-prompt-gesture.ts  # Map a click/keypress → the Quick Prompts 2×2 gesture (openElsewhere/foreground/insert) via Keymap.isModEvent + shift/alt
 │   ├── quick-prompt-uri.ts      # obsidian://agent-console links: parse params (tagged union), strip invisible chars, rate limit + duplicate drop, quote outside text, build a prompt's base link
-│   ├── chat-uri.ts              # obsidian://agent-console-chat links: build/parse, encode vault + id, escape the link title, checkChatLinkRateLimit (2 s only, D14)
+│   ├── chat-uri.ts              # obsidian://agent-console-chat links: build/parse, encode vault + id, escape the link title, checkChatLinkRateLimit (2 s only, D14), releaseChatLinkRepeat
 │   ├── session-record-key.ts    # findSessionRecord + SessionRecordKey (moved from services/session-record so resolvers can use it; re-exported there)
 │   ├── link-extract.ts          # Derive per-tab shared-link set from messages (Shared Links Bubble) + new/old classification
 │   ├── notification-content.ts  # buildCompletionNotificationContent — pure turn-end notification title/body (tab label in title); the registry assigns the tag

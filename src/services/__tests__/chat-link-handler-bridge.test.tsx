@@ -218,6 +218,7 @@ function setup(opts: { layoutReady: boolean }) {
 			},
 		},
 		now: () => now,
+		sleep: (ms) => new Promise<void>((r) => setTimeout(r, Math.min(ms, 1))),
 		notify: (m) => notices.push(m),
 		logError: () => {},
 	});

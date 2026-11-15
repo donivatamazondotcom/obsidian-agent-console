@@ -21,7 +21,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { useRef } from "react";
+import { StrictMode, useRef } from "react";
 
 import { useLazySession, type UseLazySessionOptions } from "../useLazySession";
 import { reloadResultToAcquisition } from "../reloadSessionFlow";
@@ -232,6 +232,8 @@ function mountTab(
 		 * through the history hook right after it's created.
 		 */
 		fork?: { from: string; branchId: string; seed: ChatMessage[]; title: string };
+		/** Mount under React StrictMode, which replays mount effects. */
+		strict?: boolean;
 	} = {},
 ) {
 	const agentId = opts.agentId ?? "kiro";
@@ -307,7 +309,7 @@ function mountTab(
 		} as Parameters<typeof useSessionHistory>[0]) as HistoryWithBinding;
 		historyRef.current = history;
 		return { lazy, history };
-	});
+	}, opts.strict ? { wrapper: StrictMode } : undefined);
 }
 
 type Tab = ReturnType<typeof mountTab>;
@@ -1409,5 +1411,26 @@ describe("Chat ID — a link to a chat deleted while its tab is open (T8)", () =
 			kind: "history",
 			record: { recordId: chatId, sessionId: "s-1" },
 		});
+	});
+});
+
+describe("Chat ID — binding reports survive a replayed mount effect (T40)", () => {
+	it("under StrictMode, a binding minted after mount is still reported", async () => {
+		const store = makeStore();
+		const reports: Array<string | null> = [];
+		const tab = mountTab(store, {
+			strict: true,
+			reports,
+			lazy: {
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValue({ ok: true, sessionId: "s-1" }),
+			},
+		});
+		await send(tab, "Remember the number 7.");
+		await turnSave(tab, REMEMBER_7);
+		const minted = tab.result.current.history.getRecordId?.() ?? null;
+		expect(minted).toBeTruthy();
+		expect(reports.at(-1)).toBe(minted);
 	});
 });
