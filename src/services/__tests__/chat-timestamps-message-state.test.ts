@@ -401,6 +401,32 @@ describe("applyTurnEnd writes the turn and closes its open tool calls", () => {
 		expect(theTool(m)).toMatchObject({ interrupted: true, waitMs: 6 * MIN });
 	});
 
+	it("a call asked and answered twice sums both waits", () => {
+		const options: never[] = [];
+		const m = run([
+			{
+				u: tool("tool_call", {
+					status: "pending",
+					requestedAt: T0 + 1 * MIN,
+					permissionRequest: { requestId: "r1", options, isActive: true },
+				}),
+				now: T0 + 1 * MIN,
+				before: T0,
+			},
+			{ u: tool("tool_call_update", { answeredAt: T0 + 3 * MIN }), now: T0 + 3 * MIN, before: T0 + 1 * MIN },
+			{
+				u: tool("tool_call", {
+					requestedAt: T0 + 5 * MIN,
+					permissionRequest: { requestId: "r2", options, isActive: true },
+				}),
+				now: T0 + 5 * MIN,
+				before: T0 + 3 * MIN,
+			},
+			{ u: tool("tool_call_update", { answeredAt: T0 + 9 * MIN }), now: T0 + 9 * MIN, before: T0 + 5 * MIN },
+		]);
+		expect(theTool(m).waitMs).toBe(6 * MIN);
+	});
+
 	it("a second ask cancelled by the agent dying is closed even though cancelAll marked it completed", () => {
 		const options: never[] = [];
 		const start = run(

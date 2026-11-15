@@ -371,10 +371,14 @@ export function useAgentMessages(
 			}
 
 			// Chat Timestamps: count a live update when it arrives, before the
-			// title buffer can hold it. Replayed history never counts.
-			const lastUpdateBefore = lastUpdateAtRef.current;
+			// title buffer can hold it. Only inside a live turn: between turns
+			// (after a turn end, or a Stop's own permission cancel) there is
+			// no clock, so nothing gets a gap stamp. Replayed history never
+			// counts.
+			const inTurn = liveTurnRef.current?.livePromptId != null;
+			const lastUpdateBefore = inTurn ? lastUpdateAtRef.current : null;
 			const arrivedAt = Date.now();
-			if (!update.replayed && countsAsActivity(update)) {
+			if (inTurn && !update.replayed && countsAsActivity(update)) {
 				lastUpdateAtRef.current = arrivedAt;
 			}
 			const queued: QueuedUpdate = { update, lastUpdateBefore };

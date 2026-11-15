@@ -12,7 +12,7 @@
  * § Gap stamps, § Tool-call times.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 
 import { useAgentMessages } from "../useAgentMessages";
 import type { AcpClient } from "../../acp/acp-client";
@@ -261,10 +261,9 @@ describe("prompt and turn-end times", () => {
 				isFirstMessage: false,
 			});
 		});
-		await act(async () => {
-			await new Promise((res) => setTimeout(res, 40));
-		});
-		await flushBatch();
+		await waitFor(() =>
+			expect(result.current.messages.filter((m) => m.role === "user")).toHaveLength(2),
+		);
 		at(T0 + 2 * MIN);
 		await feed(result, tool("tc2", { status: "in_progress" }));
 		await act(async () => {
@@ -350,6 +349,29 @@ describe("gap stamps are measured from the turn's last live update", () => {
 		at(T0 + 1 * MIN);
 		await answer(prompts);
 		at(T0 + 5 * MIN);
+		await feed(result, tool("late", { status: "completed" }));
+		at(T0 + 7 * MIN);
+		await feed(result, tool("later", { status: "completed" }));
+		expect(call(result.current.messages, "late").gapBefore).toBe(false);
+		expect(call(result.current.messages, "later").gapBefore).toBe(false);
+	});
+
+	it("after a Stop, the permission cancel's own update doesn't restart the clock", async () => {
+		const { result } = setup();
+		await send(result);
+		at(T0 + 1 * MIN);
+		await feed(result, ask("tc1", "r1", true));
+		at(T0 + 2 * MIN);
+		act(() => result.current.discardPendingTurn(10));
+		// PermissionManager.cancelAll's update, as the session cancel sends it.
+		await feed(
+			result,
+			tool("tc1", {
+				status: "completed",
+				permissionRequest: { requestId: "r1", options, isCancelled: true, isActive: false },
+			}),
+		);
+		at(T0 + 4 * MIN);
 		await feed(result, tool("late", { status: "completed" }));
 		expect(call(result.current.messages, "late").gapBefore).toBe(false);
 	});
