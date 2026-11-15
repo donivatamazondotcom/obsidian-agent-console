@@ -571,6 +571,131 @@ describe("removal failures keep the entry and retry", () => {
 	});
 });
 
+describe("code-review round 1 gaps (I52 round 9)", () => {
+	it("M1: without a remover, retention stays bounded by the cap across many quiet minutes", () => {
+		const h = harness({ remove: null });
+		for (let i = 0; i < 15; i++) {
+			h.post("tab-a");
+			h.clock.advance(Q);
+		}
+		expect(h.reg.__count()).toBeLessThanOrEqual(MAX_RETAINED_NOTIFICATIONS);
+	});
+
+	it("L1: a closed tab's entry that was already released still only raises the window", () => {
+		const h = harness({
+			remove: () => {
+				throw new Error("remove boom");
+			},
+		});
+		const onClick = vi.fn();
+		const closed = h.post("tab-closed", onClick);
+		h.reg.closeNotificationsForOwner("tab-closed");
+		for (let i = 0; i < MAX_RETAINED_NOTIFICATIONS + 1; i++) h.post(`tab-${i}`);
+		// Its removals fail until retries run out; then FIFO releases it while
+		// the OS entry may remain. A click must not run the closed tab's handler.
+		h.clock.advance(5 * Q);
+		expect(h.reg.__count()).toBe(MAX_RETAINED_NOTIFICATIONS);
+		closed.onclick?.(new Event("click"));
+		expect(onClick).not.toHaveBeenCalled();
+		expect(h.raise).toHaveBeenCalledTimes(1);
+	});
+
+	it("gives up after three rejected removals: exactly three remove() calls, no fourth pass", async () => {
+		const h = harness({ remove: () => Promise.reject(new Error("rejected")) });
+		h.post("tab-a");
+		h.post("tab-a");
+		for (let i = 0; i < 6; i++) {
+			h.clock.advance(Q);
+			await flush();
+		}
+		expect(h.remove).toHaveBeenCalledTimes(MAX_REMOVAL_RETRIES);
+		expect(h.clock.pending()).toBe(0);
+	});
+
+	it("L3: a removal that never settles counts as a failed attempt and does not park the entry forever", async () => {
+		const h = harness({ remove: () => new Promise<void>(() => {}) });
+		h.post("tab-a");
+		h.post("tab-a");
+		for (let i = 0; i < 6; i++) {
+			h.clock.advance(Q);
+			await flush();
+		}
+		expect(h.remove).toHaveBeenCalledTimes(MAX_REMOVAL_RETRIES);
+		expect(h.clock.pending()).toBe(0);
+	});
+
+	it("does not re-call remove() for a pending entry within the quiet period", async () => {
+		const h = harness({ remove: () => new Promise<void>(() => {}) });
+		h.post("tab-a");
+		h.post("tab-a");
+		h.clock.advance(Q);
+		await flush();
+		h.clock.advance(Q - 1);
+		expect(h.remove).toHaveBeenCalledTimes(1);
+	});
+
+	it("L6: a local clock left in the future by a backward clock step does not defer cleanup", () => {
+		// Timers run on elapsed time (like setTimeout); now() is wall time,
+		// which a clock step can move backwards.
+		let wall = 1_000_000_000;
+		let elapsed = 0;
+		const timers: Array<{ id: number; at: number; fn: () => void }> = [];
+		let seq = 0;
+		const advance = (ms: number) => {
+			const end = elapsed + ms;
+			for (;;) {
+				timers.sort((a, b) => a.at - b.at);
+				const next = timers[0];
+				if (!next || next.at > end) break;
+				timers.shift();
+				wall += next.at - elapsed;
+				elapsed = next.at;
+				next.fn();
+			}
+			wall += end - elapsed;
+			elapsed = end;
+		};
+		const ctor = makeCtor();
+		const remove = vi.fn();
+		const reg = createNotificationRegistry({
+			NotificationCtor: () => ctor.Ctor,
+			store: () => null,
+			schedule: (fn, ms) => {
+				const id = ++seq;
+				timers.push({ id, at: elapsed + ms, fn });
+				return id;
+			},
+			cancel: (id) => {
+				const i = timers.findIndex((x) => x.id === id);
+				if (i >= 0) timers.splice(i, 1);
+			},
+			now: () => wall,
+			raiseOwningWindow: () => {},
+			log: () => {},
+		});
+		reg.setNotificationRemover({ statics: { remove }, origin: ORIGIN });
+		reg.showOwnedNotification({ owner: "tab-a", title: "x", options: {}, onClick: vi.fn() });
+		reg.showOwnedNotification({ owner: "tab-a", title: "x", options: {}, onClick: vi.fn() });
+
+		wall -= 10 * Q; // backward wall-clock step right after posting
+		advance(Q);
+		expect(remove).toHaveBeenCalledTimes(1);
+	});
+
+	it("unmount when another window posted 20 s ago arms the pass for the remaining ~40 s", () => {
+		const h = harness();
+		const n = h.post("tab-a");
+		h.clock.advance(Q);
+		h.store.m.set(SHARED_LAST_POSTED_KEY, String(h.clock.now() - 20_000));
+		h.reg.closeNotificationsForOwner("tab-a");
+		expect(h.clock.nextAt() - h.clock.now()).toBe(40_000);
+		h.clock.advance(39_999);
+		expect(h.remove).not.toHaveBeenCalled();
+		h.clock.advance(1);
+		expect(h.remove).toHaveBeenCalledWith(idFor(n.tag));
+	});
+});
+
 // ---------------------------------------------------------------------------
 // Teardown
 // ---------------------------------------------------------------------------
@@ -818,6 +943,53 @@ describe("sweepOwnedNotificationsAtStartup", () => {
 		expect(s.remove).not.toHaveBeenCalled();
 	});
 
+	it("L2: waits again when a notification is posted while getHistory() is pending", async () => {
+		const h = harness();
+		let resolveHistory: (v: Array<{ id: string }>) => void = () => {};
+		const s = statics({
+			getHistory: () =>
+				new Promise((res) => {
+					resolveHistory = res;
+				}),
+		});
+		const p = h.reg.sweepOwnedNotificationsAtStartup({
+			notificationStatics: s,
+			ownedTabIds: ["tab-a"],
+			origin: ORIGIN,
+		});
+		await flush();
+		h.store.m.set(SHARED_LAST_POSTED_KEY, String(h.clock.now()));
+		resolveHistory([]);
+		await flush();
+		expect(s.remove).not.toHaveBeenCalled();
+		h.clock.advance(Q);
+		await p;
+		expect(s.remove).toHaveBeenCalled();
+	});
+
+	it("L4: a sweep suspended across dispose and re-activation does not resume", async () => {
+		const h = harness();
+		let resolveHistory: (v: Array<{ id: string }>) => void = () => {};
+		const s = statics({
+			getHistory: () =>
+				new Promise((res) => {
+					resolveHistory = res;
+				}),
+		});
+		const p = h.reg.sweepOwnedNotificationsAtStartup({
+			notificationStatics: s,
+			ownedTabIds: ["tab-a"],
+			origin: ORIGIN,
+		});
+		await flush();
+		h.reg.disposeNotifications();
+		h.reg.activateNotifications();
+		resolveHistory([{ id: idFor("tab-a:1") }]);
+		const result = await p;
+		expect(result.ran).toBe(false);
+		expect(s.remove).not.toHaveBeenCalled();
+	});
+
 	it("skips a history entry whose tag is live in the registry at removal time", async () => {
 		const h = harness();
 		const live = h.post("tab-a");
@@ -896,9 +1068,15 @@ describe("module default instance", () => {
 			log: () => {},
 		});
 		expect(__getRetainedNotificationCountForTests()).toBe(0);
+		// The old instance's pass timer was cancelled with the old deps.
+		expect(clock.pending()).toBe(0);
 		showOwnedNotification({ owner: "tab-a", title: "x", options: {}, onClick: vi.fn() });
 		showOwnedNotification({ owner: "tab-a", title: "x", options: {}, onClick: vi.fn() });
 		expect(ctor2.made).toHaveLength(2);
+		// The tag counter restarted: the first tag after reset ends in counter 1.
+		expect(ctor2.made[0].options?.tag).toBe(
+			`tab-a:${clock2.now().toString(36)}1`,
+		);
 		clock2.advance(Q);
 		expect(remove).not.toHaveBeenCalled();
 		expect(__getRetainedNotificationCountForTests()).toBe(2);

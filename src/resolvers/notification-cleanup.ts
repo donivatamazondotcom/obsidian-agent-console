@@ -89,26 +89,27 @@ export function decideNotificationCleanup(input: CleanupInput): CleanupDecision 
 		};
 	}
 
+	// FIFO counts every retained entry, so an entry whose removal keeps
+	// failing still falls to the cap; the oldest entries that can be acted on
+	// (no removal in flight) are evicted, which always releases them.
+	const overflow = Math.max(0, entries.length - cap);
+	const evict = entries
+		.filter((entry) => !entry.pending)
+		.slice(0, overflow)
+		.map((entry) => entry.tag);
+	const evicting = new Set(evict);
+
 	// The newest entry per owner, by insertion order.
 	const newestByOwner = new Map<string, string>();
 	for (const entry of entries) newestByOwner.set(entry.owner, entry.tag);
 
 	const remove: string[] = [];
-	const removing = new Set<string>();
 	for (const entry of entries) {
+		if (evicting.has(entry.tag)) continue;
 		if (entry.pending || entry.failedRemovals >= maxRetries) continue;
 		const superseded = newestByOwner.get(entry.owner) !== entry.tag;
-		if (superseded || entry.orphaned) {
-			remove.push(entry.tag);
-			removing.add(entry.tag);
-		}
+		if (superseded || entry.orphaned) remove.push(entry.tag);
 	}
-
-	const survivors = entries.filter(
-		(entry) => !removing.has(entry.tag) && !entry.pending,
-	);
-	const overflow = Math.max(0, survivors.length - cap);
-	const evict = survivors.slice(0, overflow).map((entry) => entry.tag);
 
 	return { kind: "run", remove, evict };
 }
