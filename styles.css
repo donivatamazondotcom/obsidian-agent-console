@@ -1800,7 +1800,13 @@ del.acp-header-branded-profile {
 	transition: opacity 0.15s ease;
 }
 
-.agent-client-message-renderer:hover .agent-client-message-actions {
+/* Shown on pointer hover over the message, or while keyboard focus is in
+ * the bar itself (I364), so Tab onto a copy button shows it and its focus
+ * ring. Scoped to the bar, not the whole message: a keyboard "Jump to start
+ * of latest reply" focuses the reply text in the same bubble and must not
+ * pop the bar. */
+.agent-client-message-renderer:hover .agent-client-message-actions,
+.agent-client-message-actions:focus-within {
 	opacity: 1;
 	pointer-events: auto;
 }
