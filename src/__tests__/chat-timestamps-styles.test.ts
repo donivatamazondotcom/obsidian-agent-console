@@ -48,4 +48,10 @@ describe("stamp styles", () => {
 	it("stamps use the theme's faint text color, not a fixed color", () => {
 		expect(decls(".agent-client-stamp", "color")).toEqual(["var(--text-faint)"]);
 	});
+
+	it("block stamps shrink to their text, so only the time is a hover target", () => {
+		for (const sel of [".agent-client-stamp-prompt", ".agent-client-stamp-end", ".agent-client-stamp-gap"]) {
+			expect(decls(sel, "width"), sel).toEqual(["fit-content"]);
+		}
+	});
 });
