@@ -46,6 +46,10 @@ describe("chat-link wiring in plugin.ts (Chat ID)", () => {
 		expect(create).toMatch(/get:\s*\(\)\s*=>\s*this\.chatLinkRateLimit/);
 		expect(create).toMatch(/this\.chatLinkRateLimit\s*=\s*state/);
 		expect(create).not.toContain("uriRateLimit");
+		// The wait deadline needs a main-window timer (Chat ID D15).
+		expect(create).toMatch(
+			/sleep:\s*\(ms\)\s*=>\s*new Promise<void>\(\(resolve\)\s*=>\s*window\.setTimeout\(resolve, ms\)\)/,
+		);
 		expect(src.match(/createChatLinkHandler<WorkspaceLeaf>\(/g)).toHaveLength(1);
 		expect(src).toMatch(/private chatLinkRateLimit: ChatLinkRateLimitState = \{\};/);
 	});

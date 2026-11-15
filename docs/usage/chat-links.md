@@ -38,8 +38,8 @@ A chat gets a new link when you start **New chat** or **New chat in directory** 
 ## When a link can't open
 
 - **"This chat isn't in this vault's history. It may have been deleted."** The chat was deleted, or the link came from another vault or another computer. A link works only in the vault, and on the computer, that holds the chat's history.
-- **"Links are opening too fast. Wait a moment and try again."** Two different chat links opened within 2 seconds. Clicking the same link twice quickly is fine.
-- **"Couldn't open the chat panel. Try the link again."** The chat panel didn't finish loading.
+- **"Links are opening too fast. Wait a moment and try again."** Two different chat links opened within 2 seconds, or you clicked a link again within 2 seconds of a link that couldn't open. Wait a moment and click it once. Clicking a link that works twice quickly is fine; the second click is ignored.
+- **"Couldn't open the chat panel. Try the link again."** The chat panel didn't finish loading, or it closed while the link was opening.
 
 Links carry the vault's name, so renaming the vault breaks them, and Obsidian shows "Vault not found." To fix them, find and replace `vault=Old%20Name` with `vault=New%20Name` across your vault.
 

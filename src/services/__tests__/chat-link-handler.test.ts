@@ -840,6 +840,10 @@ describe("chat link handler — a leaf that closes during a wait (T48c)", () => 
 		expect(env.events.slice(mark)).toEqual([]);
 		expect(env.notices).toEqual([PANEL_FAILED]);
 		expect(env.bridges.get(a)!.opened).toEqual([]);
+		// The wait ends soon after the leaf closes, not at the 2 s deadline,
+		// and the could-not-open notice releases the run's repeat.
+		expect(at(env, "notice:")!).toBeLessThan(1000);
+		expect(env.rateState()).toEqual({ lastAt: 0 });
 		await env.fire({ id: "x" }, 2500);
 		expect(env.bridges.get(a)!.opened).toEqual(["x"]);
 	});
@@ -892,6 +896,7 @@ describe("chat link handler — a leaf that closes during a wait (T48c)", () => 
 		await run;
 		expect(env.events).toEqual([]);
 		expect(env.notices).toEqual([PANEL_FAILED]);
+		expect(at(env, "notice:")!).toBeLessThan(1000);
 		await env.fire({ id: "x" }, 2500);
 		expect(created!.pendingBridge!.opened).toEqual(["x"]);
 	});
@@ -907,6 +912,7 @@ describe("chat link handler — the opener wait is bounded (T48d)", () => {
 		expect(env.activations()).toBe(1);
 		expect(env.notices).toEqual([PANEL_FAILED]);
 		expect(at(env, "notice:")!).toBeGreaterThanOrEqual(2000);
+		expect(env.rateState()).toEqual({ lastAt: 0 });
 	});
 });
 

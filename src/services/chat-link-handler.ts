@@ -116,7 +116,8 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 	};
 
 	const waitForBridge = async (leaf: L): Promise<OpenChatBridge | null> => {
-		await waitFor(leaf, () => inputs.getBridge(leaf) !== null);
+		// A leaf that closes ends the wait at once; the caller then checks it.
+		await waitFor(leaf, () => inputs.getBridge(leaf) !== null || !isLive(leaf));
 		return inputs.getBridge(leaf);
 	};
 
@@ -232,8 +233,11 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 		// Settle before the final reveal, so a failed reveal can't skip it.
 		if (result === "opened") {
 			const b = bridge;
-			await waitFor(leaf, () =>
-				b.boundChatIds().some((bound) => bound.chatId === chatId),
+			await waitFor(
+				leaf,
+				() =>
+					b.boundChatIds().some((bound) => bound.chatId === chatId) ||
+					!isLive(leaf),
 			);
 			assertLive(leaf);
 		}
@@ -316,6 +320,10 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 					inputs.logError("[ChatLink] couldn't open a chat link", error);
 				}
 				couldNotOpen(accepted);
+			})
+			// Keep the queue going even if reporting the failure throws.
+			.catch((error: unknown) => {
+				inputs.logError("[ChatLink] couldn't report a failed chat link", error);
 			});
 		return queue;
 	};
