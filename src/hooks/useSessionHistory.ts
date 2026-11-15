@@ -400,10 +400,22 @@ export function useSessionHistory(
 
 	const onRecordIdChangeRef = useRef(onRecordIdChange);
 	onRecordIdChangeRef.current = onRecordIdChange;
+	// Set in this hook's cleanup. A turn save that lands after the tab closed
+	// (or after an error-boundary retry replaced this instance) still moves
+	// the binding, but must not report it: the tab state now belongs to no
+	// one, or to the new instance (Chat ID T40). The mount report below is a
+	// separate call and is unaffected.
+	const unmountedRef = useRef(false);
+	useEffect(
+		() => () => {
+			unmountedRef.current = true;
+		},
+		[],
+	);
 	const setBinding = useCallback((id: string | null) => {
 		if (recordIdRef.current === id) return;
 		recordIdRef.current = id;
-		onRecordIdChangeRef.current?.(id);
+		if (!unmountedRef.current) onRecordIdChangeRef.current?.(id);
 	}, []);
 	// Report the mount binding once, so the tab state always carries it.
 	useEffect(() => {

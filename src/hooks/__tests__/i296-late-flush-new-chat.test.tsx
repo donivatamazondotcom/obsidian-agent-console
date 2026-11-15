@@ -242,7 +242,9 @@ describe("I296: a late flush after New chat never binds the new chat", () => {
 		h.unmount();
 		await settle(DEBOUNCE_MS * 3);
 
-		expect(h.lastBinding()).toBeNull();
+		// The binding itself, not a report: reports stop at unmount (Chat ID
+		// T40), so a late bind would no longer show up in `bindings`.
+		expect(h.result.current.history.getRecordId()).toBeNull();
 	});
 
 	it("flush after New chat, then a send: two records, the old transcript intact", async () => {
