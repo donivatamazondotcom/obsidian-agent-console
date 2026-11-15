@@ -136,7 +136,7 @@ src/
 │   ├── useSelectionTracker.ts   # Editor selection capture for the context strip
 │   ├── useAgentSession.ts       # Session lifecycle, config options, optimistic updates
 │   ├── useKeptKiroEngine.ts     # Tab persistence's Kiro engine for the tab's session id: the launched engine of a live session, none for a non-Kiro agent (D2, I250)
-│   ├── useAgentMessages.ts      # Message state, streaming (RAF batch), permissions
+│   ├── useAgentMessages.ts      # Message state, streaming (RAF batch), permissions; owns turn timing (livePromptId, last-update clock, permission wait, turn-end write at every end owner)
 │   ├── useSuggestions.ts        # Thin source wiring: runs usePicker per source (mention/slash/quick-prompt), adapts to the mentions/commands/quickPrompts contract + the Tier-2 activePicker (Unified Picker Control Tier 3)
 │   ├── usePicker.ts             # One generic suggestion-picker state machine driven by a PickerSource: items/selection/open, clamp-vs-wrap nav, async/sync fetch, dismiss guard (Unified Picker Control Tier 3)
 │   ├── useSessionHistory.ts     # Session list/load/resume/fork
@@ -293,6 +293,7 @@ src/
 │   ├── notification-content.ts  # buildCompletionNotificationContent — pure turn-end notification title/body (tab label in title); the registry assigns the tag
 │   ├── notification-click.ts    # Pure orchestrator for a completion-notification click (reveal owning leaf/window + switch to producing tab); I52 recurrence
 │   ├── update-flush-scheduler.ts # createUpdateFlushScheduler — visibility-immune session-update flush (rAF stalls in backgrounded windows) (I168)
+│   ├── time-fields.ts           # Chat Timestamps: gap-stamp threshold + the load-edge validator for the epoch-ms time fields (a value it can't trust becomes null = unknown)
 │   ├── menu-registry.ts         # Tracks open Menu popups; closes them on plugin unload (reload-safety)
 │   ├── mcp-auth-affordance.ts   # Pure resolver: auth-failed tool call → inline re-auth affordance decision
 │   ├── command-palette.ts       # Pure start-a-chat + context-gating decisions (computeStartChat, isChatCommandAvailable)

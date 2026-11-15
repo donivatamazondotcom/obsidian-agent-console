@@ -16,6 +16,7 @@ import type {
 	ImagePromptContent,
 	ResourceLinkPromptContent,
 	PromptContent,
+	TurnEndKind,
 } from "../types/chat";
 import type {
 	ChatSession,
@@ -42,8 +43,10 @@ import {
 	findActivePermission,
 	selectOption,
 	cancelActivePermissions,
+	applyTurnEnd,
 } from "../services/message-state";
 import { TitleHeadBuffer } from "../utils/titleMarker";
+import { GAP_STAMP_THRESHOLD_MS } from "../utils/time-fields";
 import {
 	createDomFlushSchedulerDeps,
 	createUpdateFlushScheduler,
@@ -57,6 +60,36 @@ import { t, getReplyLanguage } from "../i18n";
  * the bound only matters for agents that never answer (I107).
  */
 export const CANCEL_SETTLE_TIMEOUT_MS = 2000;
+
+/**
+ * Chat Timestamps: live conversation updates that count as the agent doing
+ * something (spec Open question 4). Usage, session-info, command, mode and
+ * config updates don't, and neither does `user_message_chunk`, which only
+ * arrives as a dropped live echo or as replay.
+ */
+function countsAsActivity(update: SessionUpdate): boolean {
+	switch (update.type) {
+		case "agent_message_chunk":
+		case "agent_thought_chunk":
+		case "tool_call":
+		case "tool_call_update":
+		case "plan":
+			return true;
+		default:
+			return false;
+	}
+}
+
+/** A batched update with the turn's last-update time from when it arrived. */
+interface QueuedUpdate {
+	update: SessionUpdate;
+	lastUpdateBefore: number | null;
+	/**
+	 * When the text actually arrived, for a chunk the title head buffer held
+	 * and released later. Unset: it arrived in this flush.
+	 */
+	arrivedAt?: number;
+}
 // ============================================================================
 // Types
 // ============================================================================
@@ -132,13 +165,6 @@ export interface UseAgentMessagesReturn {
 	hasAttemptedSend: () => boolean;
 	/** I259: forget the send attempt (an idle release discarded the id). */
 	resetSendAttempt: () => void;
-	setInitialMessages: (
-		history: Array<{
-			role: string;
-			content: Array<{ type: string; text: string }>;
-			timestamp?: string;
-		}>,
-	) => void;
 	setMessagesFromLocal: (localMessages: ChatMessage[]) => void;
 	clearError: () => void;
 	setIgnoreUpdates: (ignore: boolean) => void;
@@ -263,31 +289,72 @@ export function useAgentMessages(
 	// Cleared by the owning send (generation-checked) and by the reset owners
 	// (discardPendingTurn, clearMessages) so a never-settling prompt can't
 	// leave it armed.
+	// Chat Timestamps: `livePromptId` is the prompt whose turn is running.
+	// The turn-end write reads and clears it synchronously, so a second end
+	// owner (a Stop just after the success write) is a no-op.
 	const liveTurnRef = useRef<{
 		sessionId: string;
 		generation: number;
+		livePromptId: string | null;
 	} | null>(null);
+
+	// Chat Timestamps: when the turn's last live update arrived (epoch ms).
+	// Starts at the prompt's send, so a first reply is measured from it.
+	const lastUpdateAtRef = useRef<number | null>(null);
+	// The first chunk the title head buffer held (I363). The held text is
+	// the hidden title marker unless the buffer releases it verbatim (no
+	// marker after all, or a never-closed one at turn end).
+	// - `gapPending`: the silence before the held chunk passed the gap
+	//   threshold. The marker is invisible, so the first visible item after
+	//   it (an interleaved tool call or thought, or the released text) takes
+	//   that gap.
+	// - `ownTimes`: the released text did not arrive with the held chunk (a
+	//   title was resolved, or another update passed while it was held), so
+	//   it keeps its own arrival time. Otherwise it takes the held chunk's.
+	// Null: none held.
+	const heldChunkRef = useRef<{
+		arrivedAt: number;
+		lastUpdateBefore: number | null;
+		gapPending: boolean;
+		ownTimes: boolean;
+	} | null>(null);
+	// Permission wait: start of the open stretch, and the turn's total so far.
+	const waitStartedAtRef = useRef<number | null>(null);
+	const turnWaitMsRef = useRef(0);
+	// Whether a permission was active at the last render (edge detection).
+	const hadPermissionRef = useRef(false);
+	// True while the active permission is one restored from disk. It can't
+	// be answered (the restarted PermissionManager doesn't know it), so it
+	// never counts as waiting (I360). Cleared when it falls.
+	const restoredPromptActiveRef = useRef(false);
 
 	// ============================================================
 	// Streaming Update Batching
 	// ============================================================
 
-	const pendingUpdatesRef = useRef<SessionUpdate[]>([]);
+	const pendingUpdatesRef = useRef<QueuedUpdate[]>([]);
 	const flushSchedulerRef = useRef<UpdateFlushScheduler | null>(null);
 
 	const flushPendingUpdates = useCallback(() => {
 		const updates = pendingUpdatesRef.current;
 		if (updates.length === 0) return;
 		pendingUpdatesRef.current = [];
+		// Chat Timestamps: one clock read per flush, passed into the updater
+		// (which React may call twice), never read inside it.
+		const now = Date.now();
 
 		setMessages((prev) => {
 			let result = prev;
-			for (const update of updates) {
+			for (const queued of updates) {
 				result = applySingleUpdate(
 					result,
-					update,
+					queued.update,
 					toolCallIndexRef.current,
 					streamContinuityRef.current,
+					{
+						now: queued.arrivedAt ?? now,
+						lastUpdateBefore: queued.lastUpdateBefore,
+					},
 				);
 			}
 			return result;
@@ -320,6 +387,29 @@ export function useAgentMessages(
 				return;
 			}
 
+			// Chat Timestamps: count a live update when it arrives, before the
+			// title buffer can hold it. Only inside a live turn: between turns
+			// (after a turn end, or a Stop's own permission cancel) there is
+			// no clock, so nothing gets a gap stamp. Replayed history never
+			// counts.
+			const inTurn = liveTurnRef.current?.livePromptId != null;
+			const lastUpdateBefore = inTurn ? lastUpdateAtRef.current : null;
+			const arrivedAt = Date.now();
+			const queued: QueuedUpdate = { update, lastUpdateBefore };
+			if (inTurn && !update.replayed && countsAsActivity(update)) {
+				lastUpdateAtRef.current = arrivedAt;
+				const heldNow = heldChunkRef.current;
+				if (heldNow !== null && update.type !== "agent_message_chunk") {
+					// A visible item while the marker is held: the held text is
+					// not what arrives next, and this item takes the gap.
+					heldNow.ownTimes = true;
+					if (heldNow.gapPending) {
+						queued.lastUpdateBefore = heldNow.lastUpdateBefore;
+						heldNow.gapPending = false;
+					}
+				}
+			}
+
 			// F03: intercept the LEADING agent-message text while the title
 			// head buffer is armed. Hold (emit null) while the head could still
 			// be a `<title>…</title>` marker; on resolve, surface the title and
@@ -332,11 +422,44 @@ export function useAgentMessages(
 				const r = buf.push(u.text);
 				if (r.title) setSuggestedTitle(r.title);
 				if (r.done) titleBufferRef.current = null;
-				if (r.emit === null) return; // hold — nothing to render yet
+				if (r.emit === null) {
+					// Hold — nothing to render yet. Keep the first held chunk's
+					// times for the chunk the buffer releases.
+					if (heldChunkRef.current === null) {
+						heldChunkRef.current = {
+							arrivedAt,
+							lastUpdateBefore,
+							gapPending:
+								lastUpdateBefore !== null &&
+								arrivedAt - lastUpdateBefore >
+									GAP_STAMP_THRESHOLD_MS,
+							ownTimes: false,
+						};
+					}
+					// A whole title in one chunk ends the hold with nothing
+					// visible yet: the next text arrives on its own.
+					if (r.title) heldChunkRef.current.ownTimes = true;
+					return;
+				}
+				if (r.title && heldChunkRef.current !== null) {
+					heldChunkRef.current.ownTimes = true;
+				}
 				u = { ...u, text: r.emit };
 			}
+			queued.update = u;
+			const held = heldChunkRef.current;
+			if (u.type === "agent_message_chunk" && held !== null) {
+				if (!held.ownTimes) {
+					// Released verbatim: the visible text arrived when it was held.
+					queued.arrivedAt = held.arrivedAt;
+					queued.lastUpdateBefore = held.lastUpdateBefore;
+				} else if (held.gapPending) {
+					queued.lastUpdateBefore = held.lastUpdateBefore;
+				}
+				heldChunkRef.current = null;
+			}
 
-			pendingUpdatesRef.current.push(u);
+			pendingUpdatesRef.current.push(queued);
 			// Visibility-immune scheduling (I168): rAF never fires in a hidden
 			// window, which froze permission-request commits until refocus —
 			// suppressing their OS notification. The scheduler keeps rAF while
@@ -379,6 +502,38 @@ export function useAgentMessages(
 		[enqueueUpdate],
 	);
 
+	/**
+	 * Write the live turn's end onto its prompt and close its open tool calls
+	 * (Chat Timestamps). Every way a turn ends calls this: the send's success,
+	 * failure and catch branches and discardPendingTurn (Stop, steer, reload,
+	 * New chat). It reads `livePromptId`, the clock and the wait synchronously,
+	 * before any reset, and passes them into the updater, which runs later and
+	 * may run twice. A no-op when no turn is live, so a Stop that lands just
+	 * after the success write can't turn done into stopped.
+	 */
+	const writeTurnEnd = useCallback((kind: TurnEndKind): void => {
+		// The turn is over: content that arrives between turns is measured
+		// from nothing, so it gets no gap stamp.
+		lastUpdateAtRef.current = null;
+		heldChunkRef.current = null;
+		const live = liveTurnRef.current;
+		const promptId = live?.livePromptId ?? null;
+		if (!live || promptId === null) return;
+		live.livePromptId = null;
+		const now = Date.now();
+		const openStretch = waitStartedAtRef.current;
+		// On Stop the permission's falling edge only shows after the turn has
+		// ended, so an open stretch is closed here, at this write's clock.
+		const waitMs =
+			turnWaitMsRef.current +
+			(openStretch !== null ? Math.max(0, now - openStretch) : 0);
+		waitStartedAtRef.current = null;
+		turnWaitMsRef.current = 0;
+		setMessages((prev) =>
+			applyTurnEnd(prev, { promptId, now, kind, waitMs }),
+		);
+	}, []);
+
 	// Clean up on unmount
 	useEffect(() => {
 		return () => {
@@ -415,6 +570,7 @@ export function useAgentMessages(
 		// F03: a cancelled turn discards its pending updates — drop the title
 		// head buffer too (held head text belongs to the cancelled turn).
 		titleBufferRef.current = null;
+		heldChunkRef.current = null;
 	}, []);
 
 	/**
@@ -464,6 +620,9 @@ export function useAgentMessages(
 		pendingUpdatesRef.current = [];
 		// I174: same deterministic permission deactivation as clearPendingUpdates.
 		setMessages((prev) => cancelActivePermissions(prev));
+		// Chat Timestamps: record the stop before liveTurnRef is reset. The
+		// queue is discarded, not flushed: Stop is meant to drop it.
+		writeTurnEnd("stopped");
 		setIsSending(false);
 		titleBufferRef.current = null;
 		// I257: the stopped turn's echo is now covered by the I203 gate above.
@@ -473,7 +632,7 @@ export function useAgentMessages(
 		// gate instead).
 		sendPromiseRef.current = null;
 		},
-		[session.sessionId],
+		[session.sessionId, writeTurnEnd],
 	);
 
 	const clearMessages = useCallback((): void => {
@@ -489,6 +648,12 @@ export function useAgentMessages(
 		setSuggestedTitle(null);
 		// I257: a cleared chat has no prompt in flight to echo.
 		liveTurnRef.current = null;
+		// Chat Timestamps: a cleared chat has no turn clocks.
+		lastUpdateAtRef.current = null;
+		heldChunkRef.current = null;
+		waitStartedAtRef.current = null;
+		turnWaitMsRef.current = 0;
+		restoredPromptActiveRef.current = false;
 		sendAttemptedRef.current = false;
 		// I295: drop a send still preparing for the cleared chat, and stop a
 		// live turn's late result or error from landing on it.
@@ -496,35 +661,13 @@ export function useAgentMessages(
 		generationRef.current++;
 	}, [setErrorInfo]);
 
-	const setInitialMessages = useCallback(
-		(
-			history: Array<{
-				role: string;
-				content: Array<{ type: string; text: string }>;
-				timestamp?: string;
-			}>,
-		): void => {
-			const chatMessages: ChatMessage[] = history.map((msg) => ({
-				id: crypto.randomUUID(),
-				role: msg.role as "user" | "assistant",
-				content: msg.content.map((c) => ({
-					type: c.type as "text",
-					text: c.text,
-				})),
-				timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
-			}));
-
-			setMessages(chatMessages);
-			rebuildToolCallIndex(chatMessages, toolCallIndexRef.current);
-			streamContinuityRef.current = createStreamContinuity();
-			setIsSending(false);
-			setErrorInfo(null);
-		},
-		[setErrorInfo],
-	);
-
 	const setMessagesFromLocal = useCallback(
 		(localMessages: ChatMessage[]): void => {
+			// A restored or forked transcript has no live turn and no clocks.
+			lastUpdateAtRef.current = null;
+			heldChunkRef.current = null;
+			restoredPromptActiveRef.current =
+				findActivePermission(localMessages) !== null;
 			setMessages(localMessages);
 			rebuildToolCallIndex(localMessages, toolCallIndexRef.current);
 			streamContinuityRef.current = createStreamContinuity();
@@ -686,11 +829,15 @@ export function useAgentMessages(
 				}
 			}
 
+			// Chat Timestamps: stamped when it is actually sent, so a prompt
+			// queued while the agent connected gets its real send time.
+			const sentAt = Date.now();
 			const userMessage: ChatMessage = {
 				id: crypto.randomUUID(),
 				role: "user",
 				content: userMessageContent,
-				timestamp: new Date(),
+				timestamp: new Date(sentAt),
+				sentAt,
 			};
 			// I228: commit any batched updates already received BEFORE the new
 			// message. A restored agent-only tab loads on first send; the
@@ -699,8 +846,24 @@ export function useAgentMessages(
 			// and the replayed history is appended under it.
 			flushPendingUpdates();
 			addMessage(userMessage);
+			// Chat Timestamps: the turn's clocks start at the send; the
+			// previous turn's last update never carries over.
+			lastUpdateAtRef.current = sentAt;
+			heldChunkRef.current = null;
+			// A permission already on screen at the send (left open by the
+			// last turn, or asked between turns) counts from the send: there
+			// is no rising edge to start it. A restored one never counts.
+			waitStartedAtRef.current =
+				hadPermissionRef.current && !restoredPromptActiveRef.current
+					? sentAt
+					: null;
+			turnWaitMsRef.current = 0;
 			// I257: arm before the prompt goes out, so no echo can precede it.
-			liveTurnRef.current = { sessionId: currentSessionId, generation };
+			liveTurnRef.current = {
+				sessionId: currentSessionId,
+				generation,
+				livePromptId: userMessage.id,
+			};
 
 			setIsSending(true);
 			setLastUserMessage(content);
@@ -723,16 +886,25 @@ export function useAgentMessages(
 					// F03: turn ended — release any text still held by the
 					// title head buffer (e.g. a never-closed marker under cap).
 					flushTitleBuffer(currentSessionId);
+					// Chat Timestamps: apply what already arrived before the
+					// turn is closed. The answer lands in a microtask, ahead of
+					// the next frame, so a final `completed` still queued would
+					// otherwise be closed as interrupted (flush before close).
+					flushPendingUpdates();
 
 					if (result.success) {
 						setIsSending(false);
 						setLastUserMessage(null);
+						writeTurnEnd(
+							result.stopKind === "cancelled" ? "stopped" : "done",
+						);
 						recordTurnEnd(result.stopKind ?? "unknown");
 						if (prepared.hydratedPaths?.length) {
 							options.onContextDelivered?.(prepared.hydratedPaths);
 						}
 					} else {
 						setIsSending(false);
+						writeTurnEnd("failed");
 						// I316: one object for both, so the tab can tell this
 						// turn's banner from any later error by identity.
 						const info: ErrorInfo = result.error
@@ -751,7 +923,9 @@ export function useAgentMessages(
 				} catch (error) {
 					if (generationRef.current !== generation) return;
 					flushTitleBuffer(currentSessionId);
+					flushPendingUpdates();
 					setIsSending(false);
+					writeTurnEnd("failed");
 					const info: ErrorInfo = {
 						title: "Send Message Failed",
 						message: `Failed to send message: ${extractErrorMessage(error)}`,
@@ -791,6 +965,7 @@ export function useAgentMessages(
 			flushTitleBuffer,
 			flushPendingUpdates,
 			recordTurnEnd,
+			writeTurnEnd,
 		],
 	);
 
@@ -804,6 +979,26 @@ export function useAgentMessages(
 	);
 
 	const hasActivePermission = activePermission !== null;
+
+	// Chat Timestamps: time with a permission pending is left out of the
+	// turn's working time. Only the head request is active, so stretches
+	// never overlap. Edges outside a live turn are ignored.
+	useEffect(() => {
+		const had = hadPermissionRef.current;
+		hadPermissionRef.current = hasActivePermission;
+		if (hasActivePermission && !had) {
+			if (liveTurnRef.current?.livePromptId) {
+				waitStartedAtRef.current = Date.now();
+			}
+		} else if (!hasActivePermission && had) {
+			restoredPromptActiveRef.current = false;
+			const started = waitStartedAtRef.current;
+			if (started !== null) {
+				turnWaitMsRef.current += Math.max(0, Date.now() - started);
+				waitStartedAtRef.current = null;
+			}
+		}
+	}, [hasActivePermission]);
 
 	const approvePermission = useCallback(
 		async (
@@ -866,7 +1061,6 @@ export function useAgentMessages(
 		clearMessages,
 		hasAttemptedSend,
 		resetSendAttempt,
-		setInitialMessages,
 		setMessagesFromLocal,
 		clearError,
 		setIgnoreUpdates,

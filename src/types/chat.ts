@@ -160,9 +160,44 @@ export interface ChatMessage {
 	id: string;
 	role: Role;
 	content: MessageContent[];
+	/**
+	 * Creation time. Kept as is for its existing readers (export file name,
+	 * per-message times in the export); never rendered as a stamp, because
+	 * chats imported from the Agent view hold load times here.
+	 */
 	timestamp: Date;
 	/** True when the message is queued but not yet sent (optimistic display). */
 	pending?: boolean;
+	// Chat Timestamps: times are epoch ms; null means unknown (replayed
+	// history, a value the load edge couldn't trust). Absent on chats saved
+	// before the feature. Set on prompts (user messages) only.
+	/** When the prompt was sent to the agent. */
+	sentAt?: number | null;
+	/** When this prompt's turn ended. Absent while the turn runs. */
+	turnEndedAt?: number | null;
+	/** How this prompt's turn ended. */
+	turnEndKind?: TurnEndKind;
+	/** Time during the turn when at least one permission was pending. */
+	turnWaitMs?: number | null;
+	/** Agent working time: end minus send minus wait, never below 0. */
+	turnMs?: number | null;
+}
+
+/** How a turn ended, for its end stamp. */
+export type TurnEndKind = "done" | "failed" | "stopped";
+
+/**
+ * Time fields every content item can carry (Chat Timestamps). Epoch ms;
+ * null means unknown.
+ */
+export interface ContentTiming {
+	/** When the item first arrived (text: when its first chunk arrived). */
+	arrivedAt?: number | null;
+	/**
+	 * True when the item arrived more than the gap threshold after the
+	 * turn's last live update. Decided once, at arrival.
+	 */
+	gapBefore?: boolean;
 }
 
 /**
@@ -178,7 +213,7 @@ export interface ChatMessage {
  * - permission_request: Request for user approval
  * - terminal: Reference to a terminal session
  */
-export type MessageContent =
+export type MessageContent = (
 	| {
 			type: "text";
 			text: string;
@@ -229,6 +264,19 @@ export type MessageContent =
 				isCancelled?: boolean;
 				isActive?: boolean;
 			};
+			// Chat Timestamps (epoch ms; null = unknown).
+			/** When the call first appeared. */
+			startedAt?: number | null;
+			/** Set once, on the first completed or failed status, or by the turn-end closer. */
+			endedAt?: number | null;
+			/** When its permission was asked. Kept here, not in permissionRequest, which merges replace whole. */
+			requestedAt?: number | null;
+			/** When its permission was answered. */
+			answeredAt?: number | null;
+			/** Its own request-to-answer time. */
+			waitMs?: number | null;
+			/** True when a turn end closed it while still open. Wins at render. */
+			interrupted?: boolean;
 	  }
 	| {
 			type: "plan";
@@ -245,7 +293,9 @@ export type MessageContent =
 	| {
 			type: "terminal";
 			terminalId: string;
-	  };
+	  }
+) &
+	ContentTiming;
 /**
  * Attached file for ChatInput.
  *

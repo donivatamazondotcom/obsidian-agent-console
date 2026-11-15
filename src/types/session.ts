@@ -383,6 +383,12 @@ import type { ErrorInfo, ProcessError } from "./errors";
 interface SessionUpdateBase {
 	/** The session ID this update belongs to */
 	sessionId: string;
+	/**
+	 * True when the update arrived while a `session/load` was replaying
+	 * history. Set by AcpHandler; message state gives replayed items no
+	 * times (Chat Timestamps, Decision 8).
+	 */
+	replayed?: boolean;
 }
 
 // ============================================================================
@@ -424,7 +430,11 @@ export interface ToolCall extends SessionUpdateBase {
 	type: "tool_call";
 	toolCallId: string;
 	title?: string;
-	status: ToolCallStatus;
+	/**
+	 * Optional, as in ACP. A missing status keeps the row's existing one;
+	 * a new row defaults to pending (I356).
+	 */
+	status?: ToolCallStatus;
 	kind?: ToolKind;
 	content?: ToolCallContent[];
 	locations?: ToolCallLocation[];
@@ -438,6 +448,10 @@ export interface ToolCall extends SessionUpdateBase {
 		isCancelled?: boolean;
 		isActive?: boolean;
 	};
+	/** When PermissionManager asked for this call's permission (epoch ms). */
+	requestedAt?: number;
+	/** When the permission was answered (epoch ms). Cancel paths set none. */
+	answeredAt?: number;
 }
 
 /**
@@ -463,6 +477,10 @@ export interface ToolCallUpdate extends SessionUpdateBase {
 		isCancelled?: boolean;
 		isActive?: boolean;
 	};
+	/** When PermissionManager asked for this call's permission (epoch ms). */
+	requestedAt?: number;
+	/** When the permission was answered (epoch ms). Cancel paths set none. */
+	answeredAt?: number;
 }
 
 /**
