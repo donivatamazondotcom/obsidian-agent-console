@@ -517,6 +517,35 @@ describe("time waiting on you is left out", () => {
 		});
 	});
 
+	it("a permission restored from disk as active never counts as waiting", async () => {
+		const { result, prompts } = setup();
+		act(() =>
+			result.current.setMessagesFromLocal([
+				{
+					id: "old",
+					role: "assistant",
+					timestamp: new Date(T0 - 60 * MIN),
+					content: [
+						{
+							type: "tool_call",
+							toolCallId: "dead",
+							status: "pending",
+							permissionRequest: { requestId: "gone", options, isActive: true },
+						},
+					],
+				},
+			]),
+		);
+		await flushBatch();
+		await send(result);
+		at(T0 + 5 * MIN);
+		await answer(prompts);
+		expect(thePrompt(result.current.messages)).toMatchObject({
+			turnWaitMs: 0,
+			turnMs: 5 * MIN,
+		});
+	});
+
 	it("answer the first of two, then Stop: the second row leaves its own wait out", async () => {
 		const { result } = setup();
 		await send(result);

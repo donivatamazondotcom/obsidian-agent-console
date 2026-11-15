@@ -468,6 +468,32 @@ describe("applyTurnEnd writes the turn and closes its open tool calls", () => {
 		expect(theTool(m)).toMatchObject({ interrupted: true, waitMs: 5 * MIN });
 	});
 
+	it("an answer after the turn end closed the call keeps the closed wait", () => {
+		const start = run(
+			[
+				{
+					u: tool("tool_call", {
+						status: "pending",
+						requestedAt: T0 + 1 * MIN,
+						permissionRequest: { requestId: "r1", options: [], isActive: true },
+					}),
+					now: T0 + 1 * MIN,
+					before: T0,
+				},
+			],
+			[prompt("p1", T0)],
+		);
+		const closed = applyTurnEnd(start, { promptId: "p1", now: T0 + 2 * MIN, kind: "done", waitMs: 1 * MIN });
+		const m = applySingleUpdate(
+			closed,
+			tool("tool_call_update", { answeredAt: T0 + 13 * MIN }),
+			new Map(),
+			undefined,
+			{ now: T0 + 13 * MIN, lastUpdateBefore: null },
+		);
+		expect(theTool(m)).toMatchObject({ answeredAt: T0 + 13 * MIN, waitMs: 1 * MIN });
+	});
+
 	it("does nothing for a prompt that isn't there", () => {
 		const start = turn();
 		expect(applyTurnEnd(start, { promptId: "nope", now: T0, kind: "done", waitMs: 0 })).toBe(start);
