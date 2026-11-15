@@ -485,7 +485,6 @@ describe("useAutoScrollPin — initial state", () => {
 			fireResize(contentEl, 1000);
 		});
 
-
 		// First fire = initial anchor → write scrollTop to (1000 - 800 - 1) = 199
 		expect(writes).toEqual([0, 199]);
 	});
@@ -840,7 +839,6 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 			act(() => {
 				fireResize(h.contentEl, 500);
 			});
-
 
 			// Initial fire writes scrollTop even though height < clientHeight
 			// (Math.max(0, 500-800-1) = 0). Important: that write happens.

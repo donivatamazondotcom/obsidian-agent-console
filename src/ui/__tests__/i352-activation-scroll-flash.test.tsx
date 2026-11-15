@@ -18,12 +18,12 @@
  * and resolve on a microtask. Geometry is stubbed because JSDOM has no
  * layout; the reset to 0 on hide mirrors Chromium under display:none.
  *
- * Timer model: real timers. No test yields a macrotask between steps, so
- * handleScroll's deferred setTimeout(1) body and the rAF-gated
- * resizeDifferenceRef clear never run inside a test. That stands in for
- * production while a reply streams, where the deferred body bails on the
- * in-flight resize. Microtask awaits only where the staging swap is the
- * point (the real-renderer test).
+ * Timer model: real timers. The anchor tests never yield a macrotask
+ * between steps, and they fire a content resize after the send, as
+ * streaming does, so handleScroll's deferred setTimeout(1) bodies would
+ * bail on the in-flight resize even if they ran. Only the real-renderer
+ * test awaits (for the staging swap), and nothing that changes scroll
+ * state is queued before its awaits.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
@@ -165,11 +165,11 @@ afterEach(() => {
 	(ObsidianMarkdownRenderer.render as Mock).mockReset();
 });
 
-function list(isActive: boolean) {
+function list(isActive: boolean, isSending = false) {
 	return (
 		<MessageList
 			messages={messages}
-			isSending={false}
+			isSending={isSending}
 			lazyState="ready"
 			isRestoringSession={false}
 			agentLabel="Claude"
@@ -230,11 +230,25 @@ function scrollTo(scrollEl: HTMLElement, top: number) {
 	});
 }
 
-/** A far scroll event while pinned saves an anchor (m1, offset 484). */
-function armStaleAnchor(scrollEl: HTMLElement) {
+/**
+ * The real source of a stale anchor on a pinned tab: the user reads at
+ * 1000, then sends. The send pins the tab and smooth-scrolls down; its
+ * intermediate scroll events save an anchor while pinned (m4, offset 484
+ * at 2500), and its last event, within 70 px of the bottom, saves nothing.
+ * Streaming starts, so a content resize is in flight.
+ */
+function armStaleAnchor(
+	scrollEl: HTMLElement,
+	content: () => HTMLElement,
+	rerender: (ui: React.ReactElement) => void,
+) {
+	act(() => {
+		scrollEl.dispatchEvent(new WheelEvent("wheel", { deltaY: -50 }));
+	});
 	scrollTo(scrollEl, 1000);
-	// The smooth scroll's last event reaches the bottom; within 70 px of it
-	// a pinned tab saves nothing, so the far anchor survives.
+	act(() => rerender(list(true, true)));
+	act(() => fireResize(content(), FULL + 1));
+	scrollTo(scrollEl, 2500);
 	scrollTo(scrollEl, bottomOf(geom.scrollHeight, geom.clientHeight));
 }
 
@@ -369,8 +383,7 @@ describe("I352: an unpin refreshes the reading anchor", () => {
 	it("a scroll-key step under 70 px returns to where the key left the view", () => {
 		const { rerender, scrollEl, content } = mount();
 		act(() => fireResize(content(), FULL));
-		geom.scrollTop = bottomOf(FULL);
-		armStaleAnchor(scrollEl);
+		armStaleAnchor(scrollEl, content, rerender);
 
 		// ArrowUp on the page, then one scroll event 40 px up (I304 unpin).
 		act(() => {
@@ -389,8 +402,7 @@ describe("I352: an unpin refreshes the reading anchor", () => {
 	it("a wheel-up with no scroll event returns near the bottom", () => {
 		const { rerender, scrollEl, content } = mount();
 		act(() => fireResize(content(), FULL));
-		geom.scrollTop = bottomOf(FULL);
-		armStaleAnchor(scrollEl);
+		armStaleAnchor(scrollEl, content, rerender);
 
 		act(() => {
 			scrollEl.dispatchEvent(new WheelEvent("wheel", { deltaY: -50 }));
@@ -401,11 +413,10 @@ describe("I352: an unpin refreshes the reading anchor", () => {
 		expect(geom.scrollTop).toBe(bottomOf(FULL));
 	});
 
-	it("an unpin with no message row in view drops the stale anchor", () => {
+	it("an unpin with no message row in view anchors on the last row", () => {
 		const { rerender, scrollEl, content } = mount();
 		act(() => fireResize(content(), FULL));
-		geom.scrollTop = bottomOf(FULL);
-		armStaleAnchor(scrollEl);
+		armStaleAnchor(scrollEl, content, rerender);
 
 		// A short viewport at the very bottom: its top is below every row.
 		act(() => {
@@ -418,7 +429,7 @@ describe("I352: an unpin refreshes the reading anchor", () => {
 
 		hide(rerender);
 		show(rerender, FULL);
-		// No restore to the stale row (it would land at 1000).
-		expect(geom.scrollTop).toBe(0);
+		// Not the stale row (2500), not the top: the last row, clamped.
+		expect(geom.scrollTop).toBe(bottomOf(FULL));
 	});
 });

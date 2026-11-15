@@ -220,6 +220,25 @@ function findReadingAnchor(
 	return null;
 }
 
+/**
+ * I352: the last message row as an anchor, for an unpin whose view top is
+ * below every row (only trailing notices or padding in view). Without it
+ * the return would land at the top of the transcript; the restore clamps
+ * this to the bottom instead. Scans from the end, past trailing notices.
+ */
+function lastRowAnchor(
+	contentEl: HTMLElement,
+	scrollTop: number,
+): ReadingAnchor | null {
+	const rows = contentEl.children;
+	for (let i = rows.length - 1; i >= 0; i--) {
+		const el = rows[i] as HTMLElement;
+		const id = el.dataset.messageId;
+		if (id) return { id, offset: scrollTop - el.offsetTop };
+	}
+	return null;
+}
+
 /** One-time O(n) lookup of a message row by id, at restore start. */
 function findRowById(contentEl: HTMLElement, id: string): HTMLElement | null {
 	const rows = contentEl.children;
@@ -396,7 +415,8 @@ export function useAutoScrollPin(
 			const contentEl = contentElRef.current;
 			readingAnchorRef.current =
 				!anchorFrozenRef.current && scrollEl && contentEl && scrollEl.clientHeight > 0
-					? findReadingAnchor(contentEl, scrollEl.scrollTop)
+					? (findReadingAnchor(contentEl, scrollEl.scrollTop) ??
+						lastRowAnchor(contentEl, scrollEl.scrollTop))
 					: null;
 		}
 		setIsAtBottomState(next);
@@ -1019,11 +1039,13 @@ export function useAutoScrollPin(
 
 					// I352: the first fire writes synchronously too. On tab
 					// activation it is the first write that sees the rendered
-					// text (blocks swap in on a microtask, I176), and an RO
-					// callback runs in the rendering update after layout and
-					// before paint, so the read is clean and the write is painted
-					// in that frame. I-S9 deferred it to a MessageChannel task,
-					// which ran after paint and showed one mid-transcript frame.
+					// text (blocks swap in on a microtask, I176). An RO callback
+					// runs in the rendering update after layout and before paint,
+					// so layout is usually clean for the read (an earlier
+					// observer in the same broadcast, such as the quick-prompt
+					// chip bar's, can dirty it first) and the write is painted in
+					// that frame. I-S9 deferred it to a MessageChannel task, which
+					// ran after paint and showed one mid-transcript frame.
 					writeOwnScroll(scrollEl, bottomScrollTop(scrollEl), ownScrollTopRef);
 				} else if (shrank) {
 					// Content shrank. If the shrink brought the bottom back
