@@ -30,13 +30,13 @@ import { useDayStoreRegistration } from "../TimeStamp";
 import { localDayStore } from "../../services/local-day-store";
 import type { ChatMessage, MessageContent } from "../../types/chat";
 import type { IChatViewHost } from "../view-host";
-import type AgentClientPlugin from "../../plugin";
+import { makeMessageListPlugin } from "../../__test_stubs__/message-list-plugin";
 
-const PLUGIN = {
+const PLUGIN = makeMessageListPlugin({
 	app: { workspace: { getActiveFile: () => null }, vault: { adapter: {} } },
 	settings: { displaySettings: { showEmojis: false } },
 	mcpAuthManager: { getPending: () => [], onChange: () => () => {} },
-} as unknown as AgentClientPlugin;
+});
 const VIEW = { registerDomEvent: vi.fn() } as unknown as IChatViewHost;
 
 let savedTz: string | undefined;
@@ -514,5 +514,17 @@ describe("code review round 1 cases", () => {
 		} finally {
 			process.env.TZ = "America/Los_Angeles";
 		}
+	});
+});
+
+describe("with Jump to start of latest reply (#403)", () => {
+	it("a gap stamp before the reply text sits inside the jump target, so the jump shows it", () => {
+		const r = reply([text("The build is green.", at(9, 44), true)]);
+		const { container } = show([prompt("go", { sentAt: at(9, 12) }), r]);
+		const target = rowOf(container, r.id).querySelector("[data-reply-text-start]");
+		const [gap] = stamps(rowOf(container, r.id), "gap");
+		expect(target).not.toBeNull();
+		expect(target?.contains(gap)).toBe(true);
+		expect(target?.firstElementChild).toBe(gap);
 	});
 });

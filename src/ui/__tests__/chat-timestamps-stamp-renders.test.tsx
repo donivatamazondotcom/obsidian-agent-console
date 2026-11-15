@@ -41,12 +41,12 @@ import { MessageList } from "../MessageList";
 import { localDayStore } from "../../services/local-day-store";
 import type { ChatMessage, MessageContent } from "../../types/chat";
 import type { IChatViewHost } from "../view-host";
-import type AgentClientPlugin from "../../plugin";
+import { makeMessageListPlugin } from "../../__test_stubs__/message-list-plugin";
 
-const PLUGIN = {
+const PLUGIN = makeMessageListPlugin({
 	app: { workspace: { getActiveFile: () => null } },
 	settings: { displaySettings: { showEmojis: false } },
-} as unknown as AgentClientPlugin;
+});
 const VIEW = { registerDomEvent: vi.fn() } as unknown as IChatViewHost;
 
 beforeAll(() => {
