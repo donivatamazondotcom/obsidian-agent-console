@@ -402,6 +402,14 @@ describe("code review round 1 cases", () => {
 		expect(s.textContent).toMatch(/^Stopped .*9:41.* · 1m$/);
 	});
 
+	it("a stopped turn under a second shows its end time alone", () => {
+		const p = prompt("go", { sentAt: at(9, 41), turnEndedAt: at(9, 41), turnEndKind: "stopped", turnMs: 300 });
+		const { container } = show([p]);
+		const [s] = stamps(rowOf(container, p.id), "end");
+		expect(s.textContent).toMatch(/^Stopped /);
+		expect(s.textContent).not.toContain("·");
+	});
+
 	it("gap stamps on a tool call and a plan", () => {
 		const r = reply([
 			{

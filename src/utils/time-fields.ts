@@ -22,31 +22,45 @@ const TURN_END_KINDS: ReadonlySet<string> = new Set<TurnEndKind>([
 	"stopped",
 ]);
 
-/** Fields that hold a moment (epoch ms). */
-const INSTANT_KEYS: ReadonlySet<string> = new Set([
-	"sentAt",
-	"turnEndedAt",
-	"arrivedAt",
-	"startedAt",
-	"endedAt",
-	"requestedAt",
-	"answeredAt",
-]);
+/**
+ * Every saved time field and whether it holds a moment (epoch ms) or a
+ * duration (ms). Typed by key, so a new field can't be validated without
+ * being classified.
+ */
+type TimeKey =
+	| "sentAt"
+	| "turnEndedAt"
+	| "turnWaitMs"
+	| "turnMs"
+	| "arrivedAt"
+	| "startedAt"
+	| "endedAt"
+	| "requestedAt"
+	| "answeredAt"
+	| "waitMs";
 
-const MESSAGE_TIME_KEYS = [
-	"sentAt",
-	"turnEndedAt",
-	"turnWaitMs",
-	"turnMs",
-] as const;
+const TIME_KIND: Readonly<Record<TimeKey, "moment" | "duration">> = {
+	sentAt: "moment",
+	turnEndedAt: "moment",
+	arrivedAt: "moment",
+	startedAt: "moment",
+	endedAt: "moment",
+	requestedAt: "moment",
+	answeredAt: "moment",
+	turnWaitMs: "duration",
+	turnMs: "duration",
+	waitMs: "duration",
+};
 
-const TOOL_TIME_KEYS = [
+const MESSAGE_TIME_KEYS: readonly TimeKey[] = ["sentAt", "turnEndedAt", "turnWaitMs", "turnMs"];
+
+const TOOL_TIME_KEYS: readonly TimeKey[] = [
 	"startedAt",
 	"endedAt",
 	"requestedAt",
 	"answeredAt",
 	"waitMs",
-] as const;
+];
 
 /** The largest magnitude a JS Date can hold; beyond it, formatting throws. */
 const MAX_DATE_MS = 8.64e15;
@@ -65,7 +79,7 @@ export interface ValidatedMessage {
 
 /**
  * Validate the time fields of one loaded message. A time that isn't a finite
- * number becomes null; a turn-end kind or boolean flag of the wrong shape is
+ * number inside the Date range, or a moment before 2020, becomes null; a turn-end kind or boolean flag of the wrong shape is
  * removed. Fields that are absent stay absent. Every other field is left as
  * loaded. Pure; the caller logs `dropped`.
  */
@@ -96,7 +110,7 @@ function validateItem(item: MessageContent): { item: MessageContent; dropped: nu
 	if (item === null || typeof item !== "object") return { item, dropped: 0 };
 	let dropped = 0;
 	const out: Record<string, unknown> = { ...item };
-	const keys: readonly string[] =
+	const keys: readonly TimeKey[] =
 		item.type === "tool_call" ? ["arrivedAt", ...TOOL_TIME_KEYS] : ["arrivedAt"];
 	for (const key of keys) {
 		if (key in out && !isValidTime(key, out[key])) {
@@ -118,9 +132,9 @@ function validateItem(item: MessageContent): { item: MessageContent; dropped: nu
  * before 2020; a duration must be finite and inside the Date range. A value a
  * formatter would throw on never reaches a render.
  */
-function isValidTime(key: string, v: unknown): v is number {
+function isValidTime(key: TimeKey, v: unknown): v is number {
 	if (typeof v !== "number" || !Number.isFinite(v) || Math.abs(v) > MAX_DATE_MS) {
 		return false;
 	}
-	return INSTANT_KEYS.has(key) ? v >= EARLIEST_INSTANT_MS : true;
+	return TIME_KIND[key] === "moment" ? v >= EARLIEST_INSTANT_MS : true;
 }

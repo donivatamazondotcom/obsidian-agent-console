@@ -8,10 +8,11 @@ Each message you send shows the time you sent it, just below it on the right. A 
 
 ## When a reply finished, and how long it took
 
-When the agent finishes a reply, the time it finished and how long it worked appear under the reply, for example `9:18 AM · 6m`. A reply that took less than a second shows the time alone. The time the agent spent waiting for you to approve something is left out, so the number is how long the agent itself worked.
+When the agent finishes a reply, the time it finished and how long it worked appear under the reply, for example `9:18 AM · 6m`. When that working time is under a second, the time shows alone. The time the agent spent waiting for you to approve something is left out, so the number is how long the agent itself worked.
 
 - A reply you stopped says so: `Stopped 9:49 AM · 18m`.
-- A reply that failed says so: `Failed 9:49 AM`. It shows under your message when the agent sent nothing back.
+- A reply that failed says so: `Failed 9:49 AM`.
+- When the agent sent nothing back, the finish time shows under your message instead.
 - A reply that is still running shows no finish time yet.
 
 ## Where the agent went quiet

@@ -1,0 +1,51 @@
+/**
+ * Chat Timestamps PR 2 — the CSS contract for stamps.
+ *
+ * jsdom applies no layout, so these pin the rules whose loss would only show
+ * in a running Obsidian: the hover-row time is hidden until its row shows, so a
+ * selection across replies must not copy it; and only that one-line time stays
+ * on one line, so a long end stamp can wrap in a narrow pane.
+ *
+ * Spec: [[Agent Console Chat Timestamps]] § Per-output times on hover.
+ */
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import postcss from "postcss";
+
+const root = postcss.parse(readFileSync(resolve(process.cwd(), "styles.css"), "utf8"), {
+	from: "styles.css",
+});
+
+function decls(selector: string, prop: string): string[] {
+	const out: string[] = [];
+	root.walkRules((rule) => {
+		if (!rule.selectors.map((s) => s.trim()).includes(selector)) return;
+		rule.walkDecls(prop, (d) => {
+			out.push(d.value);
+		});
+	});
+	return out;
+}
+
+describe("stamp styles", () => {
+	it("the hover-row time can't be selected and stays on one line", () => {
+		expect(decls(".agent-client-stamp-hover", "user-select")).toEqual(["none"]);
+		expect(decls(".agent-client-stamp-hover", "white-space")).toEqual(["nowrap"]);
+	});
+
+	it("other stamps may wrap", () => {
+		for (const sel of [
+			".agent-client-stamp",
+			".agent-client-stamp-prompt",
+			".agent-client-stamp-end",
+			".agent-client-stamp-gap",
+		]) {
+			expect(decls(sel, "white-space"), sel).toEqual([]);
+		}
+	});
+
+	it("stamps use the theme's faint text color, not a fixed color", () => {
+		expect(decls(".agent-client-stamp", "color")).toEqual(["var(--text-faint)"]);
+	});
+});
