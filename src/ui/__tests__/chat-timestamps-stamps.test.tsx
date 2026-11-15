@@ -33,8 +33,9 @@ import type { IChatViewHost } from "../view-host";
 import type AgentClientPlugin from "../../plugin";
 
 const PLUGIN = {
-	app: { workspace: { getActiveFile: () => null } },
+	app: { workspace: { getActiveFile: () => null }, vault: { adapter: {} } },
 	settings: { displaySettings: { showEmojis: false } },
+	mcpAuthManager: { getPending: () => [], onChange: () => () => {} },
 } as unknown as AgentClientPlugin;
 const VIEW = { registerDomEvent: vi.fn() } as unknown as IChatViewHost;
 
@@ -371,5 +372,139 @@ describe("each view registers its window with the day store", () => {
 		hook.unmount();
 		expect(migrate).toBeNull();
 		expect(vi.getTimerCount()).toBe(0);
+	});
+});
+
+describe("code review round 1 cases", () => {
+	function listEl(view: ReturnType<typeof show>) {
+		return view.container;
+	}
+
+	it("a time no formatter can print shows no stamp and doesn't crash the tab", () => {
+		const p = prompt("go", { sentAt: 1e20 });
+		const view = show([p]);
+		expect(stamps(listEl(view), "prompt")).toHaveLength(0);
+	});
+
+	it("a turn under a second shows its end time alone", () => {
+		const p = prompt("go", { sentAt: at(9, 18), turnEndedAt: at(9, 18), turnEndKind: "done", turnMs: 400 });
+		const r = reply([text("ok", at(9, 18))]);
+		const { container } = show([p, r]);
+		const [s] = stamps(rowOf(container, r.id), "end");
+		expect(s.textContent).toContain("9:18");
+		expect(s.textContent).not.toContain("·");
+	});
+
+	it("a stopped turn with no agent output stamps the prompt", () => {
+		const p = prompt("go", { sentAt: at(9, 40), turnEndedAt: at(9, 41), turnEndKind: "stopped", turnMs: 60_000 });
+		const { container } = show([p]);
+		const [s] = stamps(rowOf(container, p.id), "end");
+		expect(s.textContent).toMatch(/^Stopped .*9:41.* · 1m$/);
+	});
+
+	it("gap stamps on a tool call and a plan", () => {
+		const r = reply([
+			{
+				type: "tool_call",
+				toolCallId: "tc1",
+				title: "npm test",
+				kind: "execute",
+				status: "completed",
+				arrivedAt: at(9, 30),
+				gapBefore: true,
+			} as MessageContent,
+			{
+				type: "plan",
+				entries: [{ content: "Free the port", status: "pending", priority: "medium" }],
+				arrivedAt: at(9, 44),
+				gapBefore: true,
+			} as MessageContent,
+		]);
+		const { container } = show([prompt("go", { sentAt: at(9, 12) }), r]);
+		const gaps = stamps(rowOf(container, r.id), "gap").map((g) => g.textContent ?? "");
+		expect(gaps).toHaveLength(2);
+		expect(gaps[0]).toContain("9:30");
+		expect(gaps[1]).toContain("9:44");
+	});
+
+	it("a reply that starts with a tool call: the hover time is when its text arrived", () => {
+		const r = reply([
+			{ type: "tool_call", toolCallId: "tc1", title: "ls", kind: "execute", status: "completed", arrivedAt: at(9, 33) } as MessageContent,
+			text("Done", at(9, 36)),
+		]);
+		const { container } = show([prompt("go", { sentAt: at(9, 31) }), r]);
+		expect(stamps(container, "hover")[0].textContent).toContain("9:36");
+	});
+
+	it("activating a tab after a missed midnight re-dates its stamps before any hover", () => {
+		vi.setSystemTime(local(2026, 11, 14, 23, 0));
+		localDayStore.getSnapshot();
+		const p = prompt("go", { sentAt: local(2026, 11, 14, 22, 50) });
+		const props = {
+			messages: [p],
+			isSending: false,
+			lazyState: "ready" as const,
+			isRestoringSession: false,
+			agentLabel: "Kiro",
+			plugin: PLUGIN,
+			view: VIEW,
+			hasActivePermission: false,
+		};
+		const view = render(<MessageList {...props} isActive={false} />);
+		vi.setSystemTime(local(2026, 11, 15, 8, 0));
+		act(() => {
+			view.rerender(<MessageList {...props} isActive={true} />);
+		});
+		const s = stamps(view.container, "prompt")[0];
+		expect(s.textContent).toContain("14");
+		expect(s.dataset.stampLabel).toBe(s.textContent);
+	});
+
+	it("New Year: an idle chat's Dec 31 stamps gain the year", () => {
+		vi.setSystemTime(local(2026, 12, 31, 23, 58));
+		const p = prompt("go", { sentAt: local(2026, 12, 31, 23, 50) });
+		const { container } = show([p]);
+		const off = localDayStore.register(window, document);
+		const s = stamps(container, "prompt")[0];
+		expect(s.textContent).not.toContain("2026");
+		act(() => {
+			vi.advanceTimersByTime(3 * 60_000);
+		});
+		expect(s.textContent).toContain("31");
+		expect(s.textContent).toContain("2026");
+		off();
+	});
+
+	it("a time-zone change re-renders every list in the new zone, with one formatter rebuild", () => {
+		vi.setSystemTime(Date.UTC(2026, 10, 15, 17, 49));
+		const p1 = prompt("one", { sentAt: Date.UTC(2026, 10, 15, 17, 31) });
+		const p2 = prompt("two", { sentAt: Date.UTC(2026, 10, 15, 17, 31) });
+		const a = show([p1]);
+		const b = show([p2]);
+		const before = stamps(a.container, "prompt")[0].textContent ?? "";
+		expect(before).toContain("9:31");
+		const Orig = Intl.DateTimeFormat;
+		let built = 0;
+		Intl.DateTimeFormat = function (...args: ConstructorParameters<typeof Orig>) {
+			built++;
+			return new Orig(...args);
+		} as unknown as typeof Intl.DateTimeFormat;
+		try {
+			process.env.TZ = "Asia/Tokyo";
+			act(() => {
+				localDayStore.recheck(Date.now());
+			});
+		} finally {
+			Intl.DateTimeFormat = Orig;
+		}
+		try {
+			for (const v of [a, b]) {
+				expect(stamps(v.container, "prompt")[0].textContent).toContain("2:31");
+			}
+			// One zone read, then the three formatters rebuilt once for both lists.
+			expect(built).toBe(4);
+		} finally {
+			process.env.TZ = "America/Los_Angeles";
+		}
 	});
 });

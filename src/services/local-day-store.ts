@@ -34,7 +34,7 @@ export interface LocalDayStore {
 	recheckIfStale: (now: number) => DaySnapshot;
 	/** Re-check on this window's focus and this document's visibility changes. */
 	register: (win: Window, doc: Document) => () => void;
-	/** Clear the timer and every listener (plugin unload). */
+	/** Clear the timer and every window/document listener (plugin unload). Store subscribers stay; React removes them on unmount. */
 	dispose: () => void;
 }
 

@@ -136,4 +136,18 @@ describe("time fields across a save and load", () => {
 		expect(t && "interrupted" in t ? t.interrupted : undefined).toBeUndefined();
 		expect(loaded?.[0].content[0]).toMatchObject({ text: "go" });
 	});
+
+	it("a moment no formatter can print, or one before 2020, is loaded as unknown", async () => {
+		const { storage, files } = makeStorage();
+		await storage.saveSessionMessages("s1", "agent", transcript());
+		const [path, raw] = [...files.entries()][0];
+		const data = JSON.parse(raw);
+		data.messages[0].sentAt = 1e20;
+		data.messages[0].turnEndedAt = 0;
+		data.messages[1].content[0].arrivedAt = 1_000;
+		files.set(path, JSON.stringify(data));
+		const loaded = await storage.loadSessionMessages("s1");
+		expect(loaded?.[0]).toMatchObject({ sentAt: null, turnEndedAt: null, turnMs: 240_000 });
+		expect(loaded?.[1].content[0].arrivedAt).toBeNull();
+	});
 });

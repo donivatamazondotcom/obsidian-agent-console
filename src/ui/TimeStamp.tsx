@@ -41,6 +41,9 @@ export interface TimeStampProps {
 
 const STAMP_SELECTOR = ".agent-client-stamp";
 
+/** The largest magnitude a JS Date can hold. */
+const MAX_DATE_MS = 8.64e15;
+
 /** A stamp's clock text: the time, plus the date or the year when needed (Decision 7). */
 export function formatStampTime(ms: number, snapshot: DaySnapshot): string {
 	return formatClock(ms, deriveStampDateScope(ms, snapshot.bounds), snapshot.zone);
@@ -62,7 +65,10 @@ function composeLabel(
 			: endKind === "failed"
 				? t("chat.stamp.failed", { time: clock })
 				: clock;
-	if (endKind === "failed" || durationMs === null || durationMs === undefined) return stamp;
+	// A duration under a second reads as noise ("· 0s"); show the time alone.
+	if (endKind === "failed" || durationMs === null || durationMs === undefined || durationMs < 1000) {
+		return stamp;
+	}
 	return t("chat.stamp.withDuration", {
 		stamp,
 		duration: formatDuration(durationMs, "minutes"),
@@ -76,6 +82,9 @@ export const TimeStamp = memo(function TimeStamp({
 	durationMs,
 }: TimeStampProps) {
 	const day = useSyncExternalStore(localDayStore.subscribe, localDayStore.getSnapshot);
+	// Defense in depth behind the load-edge validator: a time a formatter
+	// would throw on shows no stamp rather than crash the tab (Decision 8).
+	if (!Number.isFinite(at) || Math.abs(at) > MAX_DATE_MS) return null;
 	const label = composeLabel(formatStampTime(at, day), endKind, durationMs);
 	return (
 		<span

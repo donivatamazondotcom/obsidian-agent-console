@@ -29,6 +29,7 @@ src/
 │   ├── session.ts               # ChatSession, SessionUpdate (12-type union), SessionInfo, AgentCapabilities (normalized) + RawAgentCapabilities
 │   ├── agent.ts                 # AgentConfig, agent settings (Claude/Codex/Gemini/Kiro/OpenCode/Antigravity/Custom)
 │   ├── errors.ts                # AcpError, ProcessError, ErrorInfo
+│   ├── chat-time.ts             # Chat Timestamps: DayBounds, DaySnapshot, StampDateScope, StampAge (shared by utils, resolvers and services without a backwards layer edge)
 │   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref) + TabSessionState lifecycle union (moved from hooks/ so resolvers/services need no hooks edge)
 │   ├── vault.ts                 # NoteMetadata — vault file metadata (moved from services/vault-service so leaf modules need no services edge; re-exported there)
 │   ├── title-strategy.ts        # TitleStrategy union + dropdown options (F03 session-title setting)
