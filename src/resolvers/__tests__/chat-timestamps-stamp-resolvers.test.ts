@@ -12,7 +12,7 @@
  * Spec: [[Agent Console Chat Timestamps]] § Formatting and text, § Ticker and
  * store (the day store), § Prompt and turn-end stamps.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { deriveStampDateScope } from "../stamp-date-scope";
 import { deriveStampAge } from "../stamp-age";
@@ -51,8 +51,12 @@ describe("computeDayBounds", () => {
 });
 
 describe("deriveStampDateScope", () => {
-	const now = local(2026, 11, 15, 9, 0);
-	const bounds = computeDayBounds(now);
+	// Computed per test, after beforeAll pins the zone: a value computed while
+	// the file is collected would use the runner's zone (UTC in CI).
+	let bounds: ReturnType<typeof computeDayBounds>;
+	beforeEach(() => {
+		bounds = computeDayBounds(local(2026, 11, 15, 9, 0));
+	});
 
 	it("today, including later today", () => {
 		expect(deriveStampDateScope(local(2026, 11, 15, 0, 5), bounds)).toBe("today");

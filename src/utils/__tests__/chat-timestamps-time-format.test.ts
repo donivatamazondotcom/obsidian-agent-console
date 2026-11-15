@@ -9,7 +9,7 @@
  *
  * Spec: [[Agent Console Chat Timestamps]] § Formatting and text.
  */
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { computeDayBounds, currentZone, formatDuration } from "../time-format";
 import { formatStampAge, formatStampTime } from "../../ui/TimeStamp";
@@ -100,7 +100,11 @@ describe("formatStampTime", () => {
 });
 
 describe("formatStampAge", () => {
-	const now = local(2026, 11, 15, 12);
+	// Read per test, after beforeAll pins the zone (see the resolver tests).
+	let now = 0;
+	beforeEach(() => {
+		now = local(2026, 11, 15, 12);
+	});
 
 	it("uses the history catalog's words for short ages", () => {
 		expect(formatStampAge(now - 10_000, now)).toBe("just now");
