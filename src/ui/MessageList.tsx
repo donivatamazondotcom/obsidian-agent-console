@@ -1,12 +1,12 @@
 import type { PermissionScopeChoice } from "../types/chat";
 import * as React from "react";
-const { memo, useEffect, useRef, useState } = React;
+const { memo, useCallback, useEffect, useRef, useState } = React;
 
 import type { ChatMessage } from "../types/chat";
 import type { AcpClient } from "../acp/acp-client";
 import type AgentClientPlugin from "../plugin";
 import type { IChatViewHost } from "./view-host";
-import { setIcon } from "obsidian";
+import { Notice, setIcon } from "obsidian";
 import { MessageBubble, type A2uiBubbleContext } from "./MessageBubble";
 import { LossyFallbackNotice } from "./LossyFallbackNotice";
 import type { SessionFallbackReason } from "../resolvers/session-engine";
@@ -20,6 +20,14 @@ import {
 } from "../resolvers/empty-state-view";
 import type { TabSessionState } from "../hooks/useTabSessionState";
 import { useAutoScrollPin } from "./use-auto-scroll-pin";
+import {
+	deriveJumpButtonVisible,
+	deriveReplyStartTarget,
+	replyStartTargetFromParts,
+	replyStartTargetKey,
+	type ReplyStartTarget,
+	type ReplyStartTargetKind,
+} from "../resolvers/reply-start-target";
 import {
 	BUILTIN_AGENT_INSTALLS,
 	buildInstallCommand,
@@ -38,6 +46,47 @@ import { t } from "../i18n";
  * `terminalClient`, and `onApprovePermission` are all stable references.
  */
 const MemoMessageBubble = memo(MessageBubble);
+
+/**
+ * Workspace event fired by the "Jump to start of latest reply" command
+ * (plugin.ts) and handled by the focused view's active tab here.
+ */
+export const JUMP_TO_REPLY_START_EVENT = "agent-console:jump-to-reply-start";
+const NO_REPLY_START: ReplyStartTarget = { kind: "none" };
+
+/**
+ * The element "Jump to start of latest reply" lands on: the target row's
+ * marked text group (MessageBubble's `data-reply-text-start`), or the row
+ * itself for a text-free turn or if the text group hasn't rendered yet.
+ * Walks this tab's content element only, from the end, because the target
+ * is always in the latest turn. No message id goes into a selector, and
+ * child combinators keep markdown inside a reply from matching.
+ */
+function findReplyStartElement(
+	contentEl: Element | null | undefined,
+	target: ReplyStartTarget,
+): HTMLElement | null {
+	if (!contentEl) return null;
+	switch (target.kind) {
+		case "none":
+			return null;
+		case "text":
+		case "row": {
+			const rows = contentEl.children;
+			for (let i = rows.length - 1; i >= 0; i--) {
+				const row = rows[i] as HTMLElement;
+				if (row.dataset.messageId !== target.messageId) continue;
+				if (target.kind === "row") return row;
+				return (
+					row.querySelector<HTMLElement>(
+						":scope > .agent-client-message-renderer > [data-reply-text-start]",
+					) ?? row
+				);
+			}
+			return null;
+		}
+	}
+}
 
 /**
  * Data for the Layer 2 getting-started empty state — shown when the chat is
@@ -405,8 +454,84 @@ export function MessageList({
 	// ============================================================
 	// Auto-scroll (single owner)
 	// ============================================================
-	const { scrollRef, contentRef, isAtBottom, scrollToBottom } =
+	const { scrollRef, contentRef, isAtBottom, scrollToBottom, jumpToElement } =
 		useAutoScrollPin({ isActive, isSending, view });
+
+	// ============================================================
+	// Jump to start of latest reply. Every hook here sits above the
+	// `!isActive` early return below (a hook after it breaks on a tab
+	// switch). See [[Jump to Start of Latest Reply]].
+	// ============================================================
+	/** The anchor's sticky wrapper; its next sibling is the content element. */
+	const wrapperRef = useRef<HTMLDivElement>(null);
+	const isActiveRef = useRef(isActive);
+	isActiveRef.current = isActive;
+	const messagesRef = useRef(messages);
+	messagesRef.current = messages;
+	const commandTimerRef = useRef<number | null>(null);
+
+	/**
+	 * Jump, then on keyboard activation move focus to the target, skip-link
+	 * style: the button disappears after the jump, and in the composer
+	 * PageDown and the arrows would edit the draft instead of scrolling the
+	 * reply. `preventScroll` keeps the hook the only writer of scrollTop.
+	 */
+	const onJump = useCallback(
+		(el: HTMLElement, viaKeyboard: boolean) => {
+			jumpToElement(el);
+			if (!viaKeyboard) return;
+			if (!el.hasAttribute("tabindex")) {
+				el.tabIndex = -1;
+				el.addEventListener("blur", () => el.removeAttribute("tabindex"), {
+					once: true,
+				});
+			}
+			el.focus({ preventScroll: true });
+		},
+		[jumpToElement],
+	);
+
+	// The command: dispatched to the focused view's active tab. Deferred a
+	// task so the hotkey's own keydown has finished dispatching before the
+	// hold starts (the chat-view keydown listener would otherwise end it).
+	useEffect(() => {
+		const workspace = plugin.app.workspace;
+		const ws = workspace as unknown as {
+			on: (
+				name: string,
+				callback: (...args: never[]) => void,
+			) => ReturnType<typeof workspace.on>;
+		};
+		const clearPending = () => {
+			if (commandTimerRef.current !== null) {
+				window.clearTimeout(commandTimerRef.current);
+				commandTimerRef.current = null;
+			}
+		};
+		const ref = ws.on(JUMP_TO_REPLY_START_EVENT, (targetViewId?: string) => {
+			if (targetViewId && targetViewId !== viewId) return;
+			clearPending();
+			commandTimerRef.current = window.setTimeout(() => {
+				commandTimerRef.current = null;
+				if (!isActiveRef.current) return;
+				// Not gated on isSending: the command works mid-stream.
+				const target = deriveReplyStartTarget(messagesRef.current);
+				if (target.kind === "none") {
+					new Notice(t("notices.noReplyToJumpTo"));
+					return;
+				}
+				const el = findReplyStartElement(
+					wrapperRef.current?.nextElementSibling,
+					target,
+				);
+				if (el) jumpToElement(el);
+			}, 0);
+		});
+		return () => {
+			workspace.offref(ref);
+			clearPending();
+		};
+	}, [plugin.app.workspace, viewId, jumpToElement]);
 
 	// ============================================================
 	// (I-S10 round-4) No deferral. Bubbles render synchronously from
@@ -431,6 +556,13 @@ export function MessageList({
 		);
 	}
 
+	// Jump to start of latest reply: the button's target. Skipped per
+	// streamed chunk and per replay flush; the anchor's memo bails on the
+	// other renders (composer keystrokes) because its props don't change.
+	const isAcquiring = lazyState === "connecting";
+	const replyStart =
+		isSending || isAcquiring ? NO_REPLY_START : deriveReplyStartTarget(messages);
+
 	// I302: the update tip, in both branches. Mounted only for a fallback
 	// tab, so other tabs pay nothing.
 	const kiroUpdateTip =
@@ -453,6 +585,17 @@ export function MessageList({
 		});
 		return (
 			<div ref={scrollRef} className="agent-client-chat-view-messages">
+				{/* Same first child as the populated branch, so the content
+				    element keeps its slot and DOM node across empty ↔
+				    populated (the hook's content ResizeObserver stays). */}
+				<JumpToReplyStartAnchor
+					targetKind="none"
+					targetMessageId={null}
+					isSending={isSending}
+					isAcquiring={isAcquiring}
+					onJump={onJump}
+					wrapperRef={wrapperRef}
+				/>
 				<div ref={contentRef} className="agent-client-chat-content">
 					{kiroUpdateTip}
 					{viewId && plugin.mcpAuthManager && (
@@ -502,6 +645,14 @@ export function MessageList({
 
 	return (
 		<div ref={scrollRef} className="agent-client-chat-view-messages">
+			<JumpToReplyStartAnchor
+				targetKind={replyStart.kind}
+				targetMessageId={replyStart.kind === "none" ? null : replyStart.messageId}
+				isSending={isSending}
+				isAcquiring={isAcquiring}
+				onJump={onJump}
+				wrapperRef={wrapperRef}
+			/>
 			<div ref={contentRef} className="agent-client-chat-content">
 				<LossyFallbackNotice
 					isFallbackRecovery={isFallbackRecovery}
@@ -588,7 +739,150 @@ function ScrollToBottomButton({ onClick }: { onClick: () => void }) {
 		<button
 			ref={btnRef}
 			className="clickable-icon agent-client-scroll-to-bottom"
+			aria-label={t("chat.messages.jumpToLatest")}
+			// A pointer press keeps focus where it was (usually the composer):
+			// Chromium would focus the button, which unmounts once the view
+			// reaches the bottom and drops focus to the body.
+			onMouseDown={(event) => event.preventDefault()}
 			onClick={onClick}
+		/>
+	);
+}
+
+interface JumpToReplyStartAnchorProps {
+	targetKind: ReplyStartTargetKind;
+	targetMessageId: string | null;
+	isSending: boolean;
+	isAcquiring: boolean;
+	/** Stable: jump to `el`; `viaKeyboard` moves focus to it too. */
+	onJump: (el: HTMLElement, viaKeyboard: boolean) => void;
+	/** Stable ref object owned by MessageList (its command path reads it). */
+	wrapperRef: React.RefObject<HTMLDivElement>;
+}
+
+/**
+ * Jump to start of latest reply: a zero-height sticky wrapper at the top
+ * of the scroll element, holding the up button. Owns the visibility
+ * observer and its state, so an observer report or a button toggle
+ * re-renders only this component, never MessageList's rows. Rendered
+ * first in both the empty and the populated branch; the wrapper always
+ * renders, only the button is conditional.
+ *
+ * Visibility: one IntersectionObserver on the target, with a root that is
+ * the half-plane above the list's top edge, so `isIntersecting` means "the
+ * target's top is above the edge" and every crossing reports. It observes
+ * only while idle and not acquiring the session; the cleanup resets the
+ * observation, so a value can't carry over a send, a tab switch or a new
+ * target. The `live` flag drops entries an old observer had queued.
+ */
+const JumpToReplyStartAnchor = memo(function JumpToReplyStartAnchor({
+	targetKind,
+	targetMessageId,
+	isSending,
+	isAcquiring,
+	onJump,
+	wrapperRef,
+}: JumpToReplyStartAnchorProps) {
+	const target = replyStartTargetFromParts(targetKind, targetMessageId);
+	const [observed, setObserved] = useState<{
+		key: string;
+		above: boolean;
+	} | null>(null);
+
+	useEffect(() => {
+		if (isSending || isAcquiring) return;
+		const current = replyStartTargetFromParts(targetKind, targetMessageId);
+		if (current.kind === "none") return;
+		const key = replyStartTargetKey(current);
+		const wrapper = wrapperRef.current;
+		const scrollEl = wrapper?.parentElement;
+		const el = findReplyStartElement(wrapper?.nextElementSibling, current);
+		if (!scrollEl || !el) return;
+		let live = true;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (!live) return;
+				const entry = entries[entries.length - 1];
+				if (!entry) return;
+				const above = entry.isIntersecting;
+				setObserved((prev) =>
+					prev !== null && prev.key === key && prev.above === above
+						? prev
+						: { key, above },
+				);
+			},
+			{ root: scrollEl, rootMargin: "100000px 0px -100% 0px", threshold: 0 },
+		);
+		observer.observe(el);
+		return () => {
+			live = false;
+			observer.disconnect();
+			setObserved(null);
+		};
+	}, [isSending, isAcquiring, targetKind, targetMessageId, wrapperRef]);
+
+	const visible = deriveJumpButtonVisible({
+		isSending,
+		isAcquiring,
+		target,
+		observed,
+	});
+
+	const onActivate = useCallback(
+		(viaKeyboard: boolean) => {
+			const el = findReplyStartElement(
+				wrapperRef.current?.nextElementSibling,
+				replyStartTargetFromParts(targetKind, targetMessageId),
+			);
+			if (el) onJump(el, viaKeyboard);
+		},
+		[onJump, targetKind, targetMessageId, wrapperRef],
+	);
+
+	return (
+		<div ref={wrapperRef} className="agent-client-jump-to-reply-start-anchor">
+			{visible && <JumpToReplyStartButton onActivate={onActivate} />}
+		</div>
+	);
+});
+
+/**
+ * The up chevron. Its own component with a stable ref for setIcon, like
+ * ScrollToBottomButton (inline callback refs with setIcon swallow clicks,
+ * I7). A pointer press keeps focus where it was (usually the composer);
+ * keyboard activation is reported so focus can follow the jump.
+ */
+function JumpToReplyStartButton({
+	onActivate,
+}: {
+	onActivate: (viaKeyboard: boolean) => void;
+}) {
+	const btnRef = useRef<HTMLButtonElement>(null);
+
+	useEffect(() => {
+		if (btnRef.current) {
+			setIcon(btnRef.current, "chevron-up");
+		}
+	}, []);
+
+	return (
+		<button
+			ref={btnRef}
+			type="button"
+			className="clickable-icon agent-client-jump-to-reply-start"
+			aria-label={t("chat.messages.jumpToReplyStart")}
+			onMouseDown={(event) => event.preventDefault()}
+			// Keyboard path: Enter/Space (detail 0), or a click on a button
+			// Tab had focused (a pointer press never focuses it, see above).
+			// Either way focus would fall to the body when it unmounts, so it
+			// moves to the reply instead.
+			onClick={(event) =>
+				onActivate(
+					event.detail === 0 ||
+						event.currentTarget.ownerDocument.activeElement ===
+							event.currentTarget,
+				)
+			}
 		/>
 	);
 }

@@ -18,6 +18,7 @@ import { MessageList } from "../MessageList";
 import { InputToolbar } from "../InputToolbar";
 import type { IChatViewHost } from "../view-host";
 import type AgentClientPlugin from "../../plugin";
+import { makeMessageListPlugin } from "../../__test_stubs__/message-list-plugin";
 
 // ============================================================================
 // Mocks
@@ -61,7 +62,7 @@ function makeView(): IChatViewHost {
 }
 
 function makePlugin(): AgentClientPlugin {
-	return {} as AgentClientPlugin;
+	return makeMessageListPlugin();
 }
 
 // ============================================================================

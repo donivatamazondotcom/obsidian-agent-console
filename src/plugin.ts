@@ -23,6 +23,7 @@ import {
 import { showWhatsNew } from "./whats-new/show-whats-new";
 import { AGENT_CONSOLE_SVG } from "./ui/branding";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
+import { JUMP_TO_REPLY_START_EVENT } from "./ui/MessageList";
 import {
 	migrateLegacyChatViewType,
 	LEGACY_CHAT_VIEW_TYPE,
@@ -1484,6 +1485,23 @@ export default class AgentClientPlugin extends Plugin {
 				if (!this.hasOpenChatView()) return false;
 				if (!checking) {
 					this.getActiveChatView()?.showTabList();
+				}
+				return true;
+			},
+		});
+
+		// Jump to start of latest reply: handled by the focused view's active
+		// tab (MessageList). No default hotkey (plugin guidelines).
+		this.addCommand({
+			id: "jump-to-reply-start",
+			name: t("commands.jumpToReplyStart"),
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.app.workspace.trigger(
+						JUMP_TO_REPLY_START_EVENT,
+						this.getDispatchTargetId(),
+					);
 				}
 				return true;
 			},

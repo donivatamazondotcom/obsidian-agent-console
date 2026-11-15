@@ -13,6 +13,7 @@ import { LucideIcon } from "./shared/IconButton";
 import { A2uiSurfaceHost } from "./A2uiSurfaceHost";
 import { segmentAssistantMessage } from "../services/a2ui/segmenter";
 import { deriveA2uiActionMessageView } from "../services/a2ui/action";
+import { hasNonEmptyText } from "../resolvers/reply-start-target";
 import type { A2uiButton } from "../services/a2ui/action";
 import type { A2uiValidatedSurface } from "../services/a2ui/types";
 import type { A2uiDispatchOutcome } from "../services/session-dispatch-port";
@@ -709,9 +710,19 @@ export const MessageBubble = React.memo(function MessageBubble({
 						</div>
 					);
 				} else {
-					// Render single non-image content
+					// Render single non-image content. An assistant message's
+					// non-empty text group is where "Jump to start of latest
+					// reply" lands (MessageList's findReplyStartElement).
+					const isReplyTextStart =
+						message.role === "assistant" &&
+						hasNonEmptyText([group.item]);
 					return (
-						<div key={idx}>
+						<div
+							key={idx}
+							data-reply-text-start={
+								isReplyTextStart ? "" : undefined
+							}
+						>
 							<ContentBlock
 								content={group.item}
 								plugin={plugin}

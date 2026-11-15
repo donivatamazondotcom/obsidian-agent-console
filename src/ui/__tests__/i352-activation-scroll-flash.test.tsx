@@ -35,6 +35,7 @@ import { MessageList } from "../MessageList";
 import type { ChatMessage } from "../../types/chat";
 import type { IChatViewHost } from "../view-host";
 import type AgentClientPlugin from "../../plugin";
+import { makeMessageListPlugin } from "../../__test_stubs__/message-list-plugin";
 
 vi.mock("../MessageBubble", async () => {
 	const { MarkdownRenderer } = await vi.importActual<
@@ -59,13 +60,13 @@ vi.mock("../MessageBubble", async () => {
 	};
 });
 
-const mockPlugin = {
+const mockPlugin = makeMessageListPlugin({
 	app: {
 		vault: { adapter: {} },
-		workspace: { getActiveFile: () => null, openLinkText: vi.fn(), trigger: vi.fn() },
+		workspace: { getActiveFile: () => null, openLinkText: vi.fn() },
 	},
 	settings: { windowsWslMode: false },
-} as unknown as AgentClientPlugin;
+});
 const mockView = { registerDomEvent: vi.fn() } as unknown as IChatViewHost;
 
 const ROWS = 10;

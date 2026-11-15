@@ -44,6 +44,17 @@ Embedding images requires agent support. Non-image files are always sent as file
 
 See [Sending Images and Files](/usage/sending-images) for more details.
 
+## Reading Long Replies
+
+While the agent writes, the chat follows the newest text. So when a long reply finishes, you're looking at its end. Two round buttons help you move around:
+
+- **Up arrow at the top edge** – takes you to the start of the agent's final response. It shows once the agent is done and the start of that response is above the view. A short reply that fits on screen never shows it.
+- **Down arrow at the bottom edge** – takes you back to the latest message.
+
+When a reply mixes text and tool calls, the up arrow goes to the text that comes after the last tool call – the final answer, not the agent's first "Let me check" note.
+
+You can also run **Jump to start of latest reply** from the command palette. It works anytime, even while the agent is still writing. To use it from the keyboard, bind a hotkey under **Settings → Hotkeys**. If you reach the up arrow with Tab and press Enter, focus moves to the reply, so Page Down keeps reading from there.
+
 ## Switching Agents
 
 To switch agents for the current view:

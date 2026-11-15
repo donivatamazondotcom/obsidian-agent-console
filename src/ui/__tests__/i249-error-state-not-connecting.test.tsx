@@ -15,7 +15,7 @@ import * as React from "react";
 
 import { MessageList } from "../MessageList";
 import type { IChatViewHost } from "../view-host";
-import type AgentClientPlugin from "../../plugin";
+import { makeMessageListPlugin } from "../../__test_stubs__/message-list-plugin";
 
 (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
 	observe() {}
@@ -43,7 +43,7 @@ function emptyStateFor(lazyState: "error" | "connecting" | "idle"): string {
 			lazyState={lazyState}
 			isRestoringSession={false}
 			agentLabel="Kiro CLI"
-			plugin={{} as AgentClientPlugin}
+			plugin={makeMessageListPlugin()}
 			view={{ registerDomEvent: vi.fn() } as unknown as IChatViewHost}
 			hasActivePermission={false}
 		/>,

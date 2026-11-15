@@ -170,6 +170,12 @@ function bottomGap(scrollEl: HTMLElement): number {
 const RESTORE_HOLD_MS = 2000;
 
 /**
+ * Jump to start of latest reply: how far below the list's top edge the
+ * jump puts its target, so the first line isn't flush against the edge.
+ */
+const JUMP_TOP_GAP_PX = 8;
+
+/**
  * I304: how long scroll intent outlives its input. A track click or a
  * released scrollbar drag can deliver its scroll event a frame after
  * pointerup, and a smooth keyboard or track-click scroll animates for
@@ -368,6 +374,27 @@ export function useAutoScrollPin(
 	}, [endRestore]);
 
 	/**
+	 * Hold `row` at `offset` below its top for RESTORE_HOLD_MS while rows
+	 * above it finish rendering. Replaces any hold already in flight. Shared
+	 * by the I284 tab-return restore and jumpToElement.
+	 */
+	const startHold = useCallback(
+		(row: HTMLElement, offset: number) => {
+			if (restoreTimerRef.current !== null) {
+				window.clearTimeout(restoreTimerRef.current);
+				restoreTimerRef.current = null;
+			}
+			restoreRef.current = { row, offset };
+			anchorFrozenRef.current = true;
+			applyRestore();
+			if (restoreRef.current) {
+				restoreTimerRef.current = window.setTimeout(endRestore, RESTORE_HOLD_MS);
+			}
+		},
+		[applyRestore, endRestore],
+	);
+
+	/**
 	 * I-S12 round-3 fix: tracks the most recent ResizeObserver-detected
 	 * height delta (positive on grow, negative on shrink). Set at the
 	 * START of every RO callback (BOTH contentRef AND scrollRef) before
@@ -523,6 +550,47 @@ export function useAutoScrollPin(
 			setEscapedFromLock(false);
 		},
 		[setIsAtBottom, setEscapedFromLock],
+	);
+
+	/**
+	 * Jump to start of latest reply: put `el` `topGapPx` below the list's top
+	 * edge, unpin, and hold it there while rows above finish rendering (the
+	 * I284 hold). A target that would land at or past the bottom scrolls to
+	 * the bottom and stays pinned instead. Does nothing while the list is
+	 * hidden, so the reading position isn't lost. `el` must sit inside a
+	 * message row that is a direct child of the content element.
+	 */
+	const jumpToElement = useCallback(
+		(el: HTMLElement, options?: { topGapPx?: number }) => {
+			const scrollEl = scrollElRef.current;
+			const contentEl = contentElRef.current;
+			if (!scrollEl || !contentEl || scrollEl.clientHeight === 0) return;
+			const row = el.closest<HTMLElement>("[data-message-id]");
+			const id = row?.dataset.messageId;
+			if (!row || !id || row.parentElement !== contentEl) return;
+			const gap = options?.topGapPx ?? JUMP_TOP_GAP_PX;
+			// Clamp at 0: a negative target would make every hold re-apply a
+			// write the browser clamps back.
+			const desired = Math.max(
+				0,
+				scrollEl.scrollTop +
+					(el.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top) -
+					gap,
+			);
+			if (desired >= bottomScrollTop(scrollEl) - 1) {
+				scrollToBottom({ behavior: "auto" });
+				return;
+			}
+			setEscapedFromLock(true);
+			setIsAtBottom(false);
+			const offset = desired - row.offsetTop;
+			startHold(row, offset);
+			// handleScroll skips anchor saves during a hold and for the hook's
+			// own write, and the re-anchor effect skips escaped tabs, so save
+			// the anchor here: a tab switch right after a jump returns to it.
+			readingAnchorRef.current = { id, offset };
+		},
+		[scrollToBottom, setEscapedFromLock, setIsAtBottom, startHold],
 	);
 
 	/**
@@ -1109,11 +1177,8 @@ export function useAutoScrollPin(
 			readingAnchorRef.current = null;
 			return;
 		}
-		restoreRef.current = { row, offset: anchor.offset };
-		anchorFrozenRef.current = true;
-		applyRestore();
-		restoreTimerRef.current = window.setTimeout(endRestore, RESTORE_HOLD_MS);
-	}, [isActive, applyRestore, endRestore]);
+		startHold(row, anchor.offset);
+	}, [isActive, endRestore, startHold]);
 
 	// ------------------------------------------------------------------------
 	// isActive false → true: re-anchor if was pinned (closes I-S2/I-S3/I-S4
@@ -1224,7 +1289,7 @@ export function useAutoScrollPin(
 	}, []);
 
 	return useMemo(
-		() => ({ scrollRef, contentRef, isAtBottom, scrollToBottom }),
-		[scrollRef, contentRef, isAtBottom, scrollToBottom],
+		() => ({ scrollRef, contentRef, isAtBottom, scrollToBottom, jumpToElement }),
+		[scrollRef, contentRef, isAtBottom, scrollToBottom, jumpToElement],
 	);
 }

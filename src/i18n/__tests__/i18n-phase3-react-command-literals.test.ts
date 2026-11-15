@@ -102,6 +102,13 @@ const PER_FILE_ALLOW: Record<string, string[]> = {
 	// A2UI catalog component-type names — protocol tokens matched
 	// against the fence JSON, not copy.
 	"ui/A2uiSurfaceHost.tsx": ["Card", "Row", "Text", "Button", "Divider", "Column"],
+	// Jump to start of latest reply: a DOM selector (the reply's text group
+	// inside a message row) and an IntersectionObserver rootMargin (the
+	// half-plane above the list's top edge) — machine tokens, not copy.
+	"ui/MessageList.tsx": [
+		":scope > .agent-client-message-renderer > [data-reply-text-start]",
+		"100000px 0px -100% 0px",
+	],
 	// New-prompt template note body — deferred to phase 4 (its
 	// `always show` / `show when` / `open in new tab` directives are
 	// parse-relevant literals matched by the frontmatter parser;
