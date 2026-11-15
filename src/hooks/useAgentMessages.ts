@@ -83,6 +83,11 @@ function countsAsActivity(update: SessionUpdate): boolean {
 interface QueuedUpdate {
 	update: SessionUpdate;
 	lastUpdateBefore: number | null;
+	/**
+	 * When the text actually arrived, for a chunk the title head buffer held
+	 * and released later. Unset: it arrived in this flush.
+	 */
+	arrivedAt?: number;
 }
 // ============================================================================
 // Types
@@ -295,9 +300,13 @@ export function useAgentMessages(
 	// Chat Timestamps: when the turn's last live update arrived (epoch ms).
 	// Starts at the prompt's send, so a first reply is measured from it.
 	const lastUpdateAtRef = useRef<number | null>(null);
-	// The last-update value of the first chunk the title head buffer held;
-	// the chunk it later releases is measured from it. Undefined: none held.
-	const heldLastUpdateRef = useRef<number | null | undefined>(undefined);
+	// The first chunk the title head buffer held: when it arrived and the
+	// last-update value before it. The chunk the buffer later releases is
+	// stamped and measured from these. Null: none held.
+	const heldChunkRef = useRef<{
+		arrivedAt: number;
+		lastUpdateBefore: number | null;
+	} | null>(null);
 	// Permission wait: start of the open stretch, and the turn's total so far.
 	const waitStartedAtRef = useRef<number | null>(null);
 	const turnWaitMsRef = useRef(0);
@@ -325,7 +334,10 @@ export function useAgentMessages(
 					queued.update,
 					toolCallIndexRef.current,
 					streamContinuityRef.current,
-					{ now, lastUpdateBefore: queued.lastUpdateBefore },
+					{
+						now: queued.arrivedAt ?? now,
+						lastUpdateBefore: queued.lastUpdateBefore,
+					},
 				);
 			}
 			return result;
@@ -361,10 +373,11 @@ export function useAgentMessages(
 			// Chat Timestamps: count a live update when it arrives, before the
 			// title buffer can hold it. Replayed history never counts.
 			const lastUpdateBefore = lastUpdateAtRef.current;
+			const arrivedAt = Date.now();
 			if (!update.replayed && countsAsActivity(update)) {
-				lastUpdateAtRef.current = Date.now();
+				lastUpdateAtRef.current = arrivedAt;
 			}
-			let attached = lastUpdateBefore;
+			const queued: QueuedUpdate = { update, lastUpdateBefore };
 
 			// F03: intercept the LEADING agent-message text while the title
 			// head buffer is armed. Hold (emit null) while the head could still
@@ -380,23 +393,23 @@ export function useAgentMessages(
 				if (r.done) titleBufferRef.current = null;
 				if (r.emit === null) {
 					// Hold — nothing to render yet. Keep the first held chunk's
-					// last-update time for the chunk the buffer releases.
-					if (heldLastUpdateRef.current === undefined) {
-						heldLastUpdateRef.current = lastUpdateBefore;
+					// times for the chunk the buffer releases.
+					if (heldChunkRef.current === null) {
+						heldChunkRef.current = { arrivedAt, lastUpdateBefore };
 					}
 					return;
 				}
 				u = { ...u, text: r.emit };
 			}
-			if (
-				u.type === "agent_message_chunk" &&
-				heldLastUpdateRef.current !== undefined
-			) {
-				attached = heldLastUpdateRef.current;
-				heldLastUpdateRef.current = undefined;
+			queued.update = u;
+			const held = heldChunkRef.current;
+			if (u.type === "agent_message_chunk" && held !== null) {
+				queued.arrivedAt = held.arrivedAt;
+				queued.lastUpdateBefore = held.lastUpdateBefore;
+				heldChunkRef.current = null;
 			}
 
-			pendingUpdatesRef.current.push({ update: u, lastUpdateBefore: attached });
+			pendingUpdatesRef.current.push(queued);
 			// Visibility-immune scheduling (I168): rAF never fires in a hidden
 			// window, which froze permission-request commits until refocus —
 			// suppressing their OS notification. The scheduler keeps rAF while
@@ -449,6 +462,10 @@ export function useAgentMessages(
 	 * after the success write can't turn done into stopped.
 	 */
 	const writeTurnEnd = useCallback((kind: TurnEndKind): void => {
+		// The turn is over: content that arrives between turns is measured
+		// from nothing, so it gets no gap stamp.
+		lastUpdateAtRef.current = null;
+		heldChunkRef.current = null;
 		const live = liveTurnRef.current;
 		const promptId = live?.livePromptId ?? null;
 		if (!live || promptId === null) return;
@@ -503,7 +520,7 @@ export function useAgentMessages(
 		// F03: a cancelled turn discards its pending updates — drop the title
 		// head buffer too (held head text belongs to the cancelled turn).
 		titleBufferRef.current = null;
-		heldLastUpdateRef.current = undefined;
+		heldChunkRef.current = null;
 	}, []);
 
 	/**
@@ -556,8 +573,6 @@ export function useAgentMessages(
 		// Chat Timestamps: record the stop before liveTurnRef is reset. The
 		// queue is discarded, not flushed: Stop is meant to drop it.
 		writeTurnEnd("stopped");
-		lastUpdateAtRef.current = null;
-		heldLastUpdateRef.current = undefined;
 		setIsSending(false);
 		titleBufferRef.current = null;
 		// I257: the stopped turn's echo is now covered by the I203 gate above.
@@ -585,7 +600,7 @@ export function useAgentMessages(
 		liveTurnRef.current = null;
 		// Chat Timestamps: a cleared chat has no turn clocks.
 		lastUpdateAtRef.current = null;
-		heldLastUpdateRef.current = undefined;
+		heldChunkRef.current = null;
 		waitStartedAtRef.current = null;
 		turnWaitMsRef.current = 0;
 		sendAttemptedRef.current = false;
@@ -597,6 +612,9 @@ export function useAgentMessages(
 
 	const setMessagesFromLocal = useCallback(
 		(localMessages: ChatMessage[]): void => {
+			// A restored or forked transcript has no live turn and no clocks.
+			lastUpdateAtRef.current = null;
+			heldChunkRef.current = null;
 			setMessages(localMessages);
 			rebuildToolCallIndex(localMessages, toolCallIndexRef.current);
 			streamContinuityRef.current = createStreamContinuity();
@@ -778,7 +796,7 @@ export function useAgentMessages(
 			// Chat Timestamps: the turn's clocks start at the send; the
 			// previous turn's last update never carries over.
 			lastUpdateAtRef.current = sentAt;
-			heldLastUpdateRef.current = undefined;
+			heldChunkRef.current = null;
 			waitStartedAtRef.current = null;
 			turnWaitMsRef.current = 0;
 			// I257: arm before the prompt goes out, so no echo can precede it.

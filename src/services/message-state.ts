@@ -60,6 +60,8 @@ export interface UpdateTiming {
 export interface ItemTimes {
 	at: number | null;
 	gapBefore: boolean;
+	/** The flush's clock, for `timestamp` when `at` is unknown. */
+	now: number;
 }
 
 function itemTimes(
@@ -67,11 +69,11 @@ function itemTimes(
 	timing: UpdateTiming | undefined,
 ): ItemTimes | undefined {
 	if (!timing) return undefined;
-	if (update.replayed) return { at: null, gapBefore: false };
+	if (update.replayed) return { at: null, gapBefore: false, now: timing.now };
 	const gapBefore =
 		timing.lastUpdateBefore !== null &&
 		timing.now - timing.lastUpdateBefore > GAP_STAMP_THRESHOLD_MS;
-	return { at: timing.now, gapBefore };
+	return { at: timing.now, gapBefore, now: timing.now };
 }
 
 /** Time fields for a newly created content item. */
@@ -88,7 +90,7 @@ function keepTiming(item: MessageContent): ContentTiming {
 }
 
 function messageDate(times: ItemTimes | undefined): Date {
-	return times && times.at !== null ? new Date(times.at) : new Date();
+	return times ? new Date(times.at ?? times.now) : new Date();
 }
 
 function isFinished(status: ToolCallStatus | undefined): boolean {
@@ -181,12 +183,19 @@ export function mergeToolCallContent(
 
 	// Permission times live on the call itself, because permissionRequest is
 	// replaced whole on every merge. An update without them keeps the old.
-	const requestedAt = update.requestedAt ?? existing.requestedAt;
-	const answeredAt = update.answeredAt ?? existing.answeredAt;
-	if (requestedAt !== undefined) merged.requestedAt = requestedAt;
-	if (answeredAt !== undefined) merged.answeredAt = answeredAt;
-	const wait = waitBetween(requestedAt, answeredAt);
-	if (wait !== null) merged.waitMs = wait;
+	// `waitMs` sums the call's finished waits, so an agent that asks twice on
+	// one call keeps the first wait and opens a new one.
+	if (update.requestedAt !== undefined) {
+		merged.requestedAt = update.requestedAt;
+		delete merged.answeredAt;
+	}
+	// An answer closes the open wait and adds it to the total. A repeated
+	// answer, with no wait open, changes nothing.
+	if (update.answeredAt !== undefined && typeof merged.answeredAt !== "number") {
+		merged.answeredAt = update.answeredAt;
+		const stretch = waitBetween(merged.requestedAt, update.answeredAt);
+		if (stretch !== null) merged.waitMs = (merged.waitMs ?? 0) + stretch;
+	}
 
 	// endedAt is set once, on the first completed or failed status, and never
 	// cleared. A call the turn-end closer already ended keeps its endedAt.
@@ -667,7 +676,14 @@ export function applyTurnEnd(
 	prev: ChatMessage[],
 	write: TurnEndWrite,
 ): ChatMessage[] {
-	const idx = prev.findIndex((m) => m.id === write.promptId);
+	// The live prompt is near the end, so search backward.
+	let idx = -1;
+	for (let i = prev.length - 1; i >= 0; i--) {
+		if (prev[i].id === write.promptId) {
+			idx = i;
+			break;
+		}
+	}
 	if (idx < 0) return prev;
 	const next = prev.slice();
 	const promptMessage = prev[idx];
@@ -711,8 +727,10 @@ function closeCall(
 ): ToolCallMessageContent {
 	const endedAt = typeof c.endedAt === "number" ? c.endedAt : now;
 	const closed: ToolCallMessageContent = { ...c, endedAt, interrupted: true };
+	// A wait still open at the end runs to the end, on top of earlier waits.
 	if (typeof c.requestedAt === "number" && typeof c.answeredAt !== "number") {
-		closed.waitMs = Math.max(0, endedAt - c.requestedAt);
+		closed.waitMs =
+			(c.waitMs ?? 0) + Math.max(0, endedAt - c.requestedAt);
 	}
 	return closed;
 }

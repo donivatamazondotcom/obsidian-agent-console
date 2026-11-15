@@ -247,6 +247,47 @@ describe("prompt and turn-end times", () => {
 		});
 	});
 
+	it("a steer: the stopped prompt's late answer doesn't end the new turn", async () => {
+		const { result, prompts } = setup();
+		await send(result);
+		at(T0 + 1 * MIN);
+		// The stopped prompt never answers within the settle timeout (I107),
+		// so the redirect goes out first and its answer arrives during it.
+		act(() => result.current.discardPendingTurn(20));
+		act(() => {
+			void result.current.sendMessage("redirect", {
+				vaultBasePath: "/vault",
+				contextNotes: [],
+				isFirstMessage: false,
+			});
+		});
+		await act(async () => {
+			await new Promise((res) => setTimeout(res, 40));
+		});
+		await flushBatch();
+		at(T0 + 2 * MIN);
+		await feed(result, tool("tc2", { status: "in_progress" }));
+		await act(async () => {
+			prompts[0].resolve({ stopKind: "cancelled" });
+			await Promise.resolve();
+		});
+		await flushBatch();
+		const users = result.current.messages.filter((m) => m.role === "user");
+		expect(users).toHaveLength(2);
+		expect(users[0].turnEndKind).toBe("stopped");
+		expect(users[1].turnEndedAt).toBeUndefined();
+		expect(call(result.current.messages, "tc2").interrupted).toBeUndefined();
+	});
+
+	it("I356 through the hook: a completed row stays completed after a status-less update", async () => {
+		const { result } = setup();
+		await send(result);
+		await feed(result, tool("tc1", { status: "in_progress" }));
+		await feed(result, tool("tc1", { status: "completed" }));
+		await feed(result, tool("tc1", { content: [{ type: "terminal", terminalId: "t1" }] }));
+		expect(call(result.current.messages, "tc1").status).toBe("completed");
+	});
+
 	it("a final completed that arrives with the answer, window hidden, is not interrupted", async () => {
 		const vis = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
 		try {
@@ -299,6 +340,41 @@ describe("gap stamps are measured from the turn's last live update", () => {
 		at(T0 + 70 * SEC);
 		await feed(result, chunk("Hello"));
 		expect(textItems(result.current.messages)[0].gapBefore).toBe(true);
+	});
+
+	it("content that arrives after a finished turn gets no gap stamp", async () => {
+		const { result, prompts } = setup();
+		await send(result);
+		at(T0 + 10 * SEC);
+		await feed(result, chunk("done"));
+		at(T0 + 1 * MIN);
+		await answer(prompts);
+		at(T0 + 5 * MIN);
+		await feed(result, tool("late", { status: "completed" }));
+		expect(call(result.current.messages, "late").gapBefore).toBe(false);
+	});
+
+	it("a never-closed title marker released at turn end keeps the time it arrived", async () => {
+		const { result, prompts } = setup("agent-suggested");
+		await send(result, true);
+		at(T0 + 10 * SEC);
+		await feed(result, chunk("<titl"));
+		at(T0 + 3 * MIN);
+		await feed(result, tool("tc1", { status: "completed" }));
+		at(T0 + 4 * MIN);
+		await answer(prompts);
+		const [item] = textItems(result.current.messages);
+		expect(item).toMatchObject({ arrivedAt: T0 + 10 * SEC, gapBefore: false });
+	});
+
+	it("a replayed update during a silence doesn't reset the clock", async () => {
+		const { result } = setup();
+		await send(result);
+		at(T0 + 30 * SEC);
+		await feed(result, { ...chunk("old"), replayed: true } as SessionUpdate);
+		at(T0 + 70 * SEC);
+		await feed(result, tool("tc1", { status: "in_progress" }));
+		expect(call(result.current.messages, "tc1").gapBefore).toBe(true);
 	});
 
 	it("two items in one flush after a long silence: only the first is marked", async () => {

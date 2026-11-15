@@ -368,6 +368,80 @@ describe("applyTurnEnd writes the turn and closes its open tool calls", () => {
 		});
 	});
 
+	it("a second ask on one call keeps the first wait and counts the open one at the end", () => {
+		const options: never[] = [];
+		const start = run(
+			[
+				{
+					u: tool("tool_call", {
+						status: "pending",
+						requestedAt: T0 + 1 * MIN,
+						permissionRequest: { requestId: "r1", options, isActive: true },
+					}),
+					now: T0 + 1 * MIN,
+					before: T0,
+				},
+				{
+					u: tool("tool_call_update", { answeredAt: T0 + 3 * MIN }),
+					now: T0 + 3 * MIN,
+					before: T0 + 1 * MIN,
+				},
+				{
+					u: tool("tool_call", {
+						requestedAt: T0 + 5 * MIN,
+						permissionRequest: { requestId: "r2", options, isActive: true },
+					}),
+					now: T0 + 5 * MIN,
+					before: T0 + 3 * MIN,
+				},
+			],
+			[prompt("p1", T0)],
+		);
+		const m = applyTurnEnd(start, { promptId: "p1", now: T0 + 9 * MIN, kind: "stopped", waitMs: 6 * MIN });
+		expect(theTool(m)).toMatchObject({ interrupted: true, waitMs: 6 * MIN });
+	});
+
+	it("a second ask cancelled by the agent dying is closed even though cancelAll marked it completed", () => {
+		const options: never[] = [];
+		const start = run(
+			[
+				{
+					u: tool("tool_call", {
+						status: "pending",
+						requestedAt: T0 + 1 * MIN,
+						permissionRequest: { requestId: "r1", options, isActive: true },
+					}),
+					now: T0 + 1 * MIN,
+					before: T0,
+				},
+				{
+					u: tool("tool_call_update", { answeredAt: T0 + 2 * MIN }),
+					now: T0 + 2 * MIN,
+					before: T0 + 1 * MIN,
+				},
+				{
+					u: tool("tool_call", {
+						requestedAt: T0 + 4 * MIN,
+						permissionRequest: { requestId: "r2", options, isActive: true },
+					}),
+					now: T0 + 4 * MIN,
+					before: T0 + 2 * MIN,
+				},
+				{
+					u: tool("tool_call_update", {
+						status: "completed",
+						permissionRequest: { requestId: "r2", options, isCancelled: true, isActive: false },
+					}),
+					now: T0 + 8 * MIN,
+					before: T0 + 4 * MIN,
+				},
+			],
+			[prompt("p1", T0)],
+		);
+		const m = applyTurnEnd(start, { promptId: "p1", now: T0 + 8 * MIN, kind: "failed", waitMs: 5 * MIN });
+		expect(theTool(m)).toMatchObject({ interrupted: true, waitMs: 5 * MIN });
+	});
+
 	it("does nothing for a prompt that isn't there", () => {
 		const start = turn();
 		expect(applyTurnEnd(start, { promptId: "nope", now: T0, kind: "done", waitMs: 0 })).toBe(start);
