@@ -813,8 +813,10 @@ del.acp-header-branded-profile {
 .agent-client-stamp-prompt {
 	display: block;
 	width: fit-content;
-	max-width: 100%;
-	margin: 2px var(--size-4-3) 0 auto;
+	max-width: calc(100% - var(--size-4-3));
+	margin: 0 var(--size-4-3) 0 auto;
+	padding-top: 2px;
+	text-align: right;
 }
 
 /* Left-aligned with the agent's text, so the hover row (bottom right of the
@@ -823,7 +825,8 @@ del.acp-header-branded-profile {
 	display: block;
 	width: fit-content;
 	max-width: calc(100% - 32px);
-	margin: 2px 16px 0;
+	margin: 0 16px;
+	padding-top: 2px;
 }
 
 .agent-client-stamp-gap {

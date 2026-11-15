@@ -51,7 +51,21 @@ describe("stamp styles", () => {
 
 	it("block stamps shrink to their text, so only the time is a hover target", () => {
 		for (const sel of [".agent-client-stamp-prompt", ".agent-client-stamp-end", ".agent-client-stamp-gap"]) {
+			expect(decls(sel, "display"), sel).toEqual(["block"]);
 			expect(decls(sel, "width"), sel).toEqual(["fit-content"]);
+			// Spacing is margin, never horizontal padding, which would widen the target.
+			expect(decls(sel, "padding"), sel).toEqual([]);
+		}
+	});
+
+	it("a prompt stamp sits at the bubble's right edge, and its wrapped lines align right", () => {
+		expect(decls(".agent-client-stamp-prompt", "margin")).toEqual(["0 var(--size-4-3) 0 auto"]);
+		expect(decls(".agent-client-stamp-prompt", "text-align")).toEqual(["right"]);
+	});
+
+	it("prompt and end stamps keep their 2px gap below the bubble (padding doesn't collapse)", () => {
+		for (const sel of [".agent-client-stamp-prompt", ".agent-client-stamp-end"]) {
+			expect(decls(sel, "padding-top"), sel).toEqual(["2px"]);
 		}
 	});
 });
