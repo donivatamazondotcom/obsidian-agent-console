@@ -222,9 +222,9 @@ function findReadingAnchor(
 
 /**
  * I352: the last message row as an anchor, for an unpin whose view top is
- * below every row (only trailing notices or padding in view). Without it
+ * below every row (only the content's bottom padding in view). Without it
  * the return would land at the top of the transcript; the restore clamps
- * this to the bottom instead. Scans from the end, past trailing notices.
+ * this to the bottom instead. Scans from the end.
  */
 function lastRowAnchor(
 	contentEl: HTMLElement,

@@ -21,7 +21,7 @@
  * Timer model: real timers. The anchor tests never yield a macrotask
  * between steps, and they fire a content resize after the send, as
  * streaming does, so handleScroll's deferred setTimeout(1) bodies would
- * bail on the in-flight resize even if they ran. Only the real-renderer
+ * bail on the in-flight resize, or change nothing, even if they ran. Only the real-renderer
  * test awaits (for the staging swap), and nothing that changes scroll
  * state is queued before its awaits.
  */
