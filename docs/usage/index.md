@@ -55,6 +55,10 @@ When a reply mixes text and tool calls, the up arrow goes to the text that comes
 
 You can also run **Jump to start of latest reply** from the command palette. It works anytime, even while the agent is still writing. To use it from the keyboard, bind a hotkey under **Settings → Hotkeys**. If you reach the up arrow with Tab and press Enter, focus moves to the reply, so Page Down keeps reading from there.
 
+## Copying a Message
+
+Hover over a message to show its copy button in the bottom-right corner, then click it. From the keyboard, press `Tab` to reach the button. It shows while it has focus, and `Enter` copies the message.
+
 ## Switching Agents
 
 To switch agents for the current view:
