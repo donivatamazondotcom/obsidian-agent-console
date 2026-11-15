@@ -33,6 +33,8 @@ describe("notification registry wiring in plugin.ts (I52 round 9)", () => {
 		const disconnect = onunload.indexOf("client.disconnect()");
 		expect(dispose).toBeGreaterThan(-1);
 		expect(disconnect).toBeGreaterThan(dispose);
+		// A throw from the teardown sweep must not skip dispose or disconnect.
+		expect(onunload).toMatch(/finally\s*\{\s*disposeNotifications\(\);/);
 	});
 
 	it("the quit handler disposes the registry before disconnecting ACP clients", () => {

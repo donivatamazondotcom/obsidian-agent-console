@@ -427,7 +427,10 @@ export function createNotificationRegistry(
 			effectiveLastPostedAt: effectiveLastPostedAt(now),
 			quietMs: NOTIFICATION_QUIET_MS,
 			cap: MAX_RETAINED_NOTIFICATIONS,
-			maxRetries: MAX_REMOVAL_RETRIES,
+			// Without a remover nothing can be removed by id; leave stale
+			// entries alone (no close() near postings) and let FIFO evict them
+			// first, which keeps retention at the cap.
+			maxRetries: remover ? MAX_REMOVAL_RETRIES : 0,
 		});
 
 		if (decision.kind === "defer") {
@@ -461,6 +464,9 @@ export function createNotificationRegistry(
 			localLastRemovedAt = now;
 			writeShared(SHARED_LAST_REMOVED_KEY, now);
 		}
+		// A failed removal was not counted against the cap this pass; once it
+		// is exhausted, the next pass evicts it first.
+		if (live.size > MAX_RETAINED_NOTIFICATIONS) retry = true;
 		if (retry) armPassIfIdle(NOTIFICATION_QUIET_MS);
 	}
 

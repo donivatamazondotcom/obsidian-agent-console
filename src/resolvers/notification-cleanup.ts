@@ -89,27 +89,32 @@ export function decideNotificationCleanup(input: CleanupInput): CleanupDecision 
 		};
 	}
 
-	// FIFO counts every retained entry, so an entry whose removal keeps
-	// failing still falls to the cap; the oldest entries that can be acted on
-	// (no removal in flight) are evicted, which always releases them.
-	const overflow = Math.max(0, entries.length - cap);
-	const evict = entries
-		.filter((entry) => !entry.pending)
-		.slice(0, overflow)
-		.map((entry) => entry.tag);
-	const evicting = new Set(evict);
-
 	// The newest entry per owner, by insertion order.
 	const newestByOwner = new Map<string, string>();
 	for (const entry of entries) newestByOwner.set(entry.owner, entry.tag);
+	const stale = (entry: CleanupEntry): boolean =>
+		entry.orphaned || newestByOwner.get(entry.owner) !== entry.tag;
 
-	const remove: string[] = [];
-	for (const entry of entries) {
-		if (evicting.has(entry.tag)) continue;
-		if (entry.pending || entry.failedRemovals >= maxRetries) continue;
-		const superseded = newestByOwner.get(entry.owner) !== entry.tag;
-		if (superseded || entry.orphaned) remove.push(entry.tag);
-	}
+	// Superseded and orphaned entries are removed (released only on success).
+	// `pending` is defensive: the registry converts an in-flight removal into
+	// a failed attempt before it calls this resolver.
+	const remove = entries
+		.filter((e) => !e.pending && e.failedRemovals < maxRetries && stale(e))
+		.map((e) => e.tag);
+	const removing = new Set(remove);
+
+	// FIFO counts what this pass keeps. Stale entries that can no longer be
+	// removed (retries exhausted, or no remover) are evicted before any live
+	// entry, so a tab's only notification is never closed to make room for
+	// a stale one. Eviction always releases.
+	const kept = entries.filter((e) => !removing.has(e.tag));
+	const overflow = Math.max(0, kept.length - cap);
+	const evict = [
+		...kept.filter((e) => !e.pending && stale(e)),
+		...kept.filter((e) => !e.pending && !stale(e)),
+	]
+		.slice(0, overflow)
+		.map((e) => e.tag);
 
 	return { kind: "run", remove, evict };
 }

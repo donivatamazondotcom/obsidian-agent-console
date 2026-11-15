@@ -82,16 +82,52 @@ describe("decideNotificationCleanup (I52 round 9)", () => {
 		expect(d).toEqual({ kind: "run", remove: [], evict: ["t0:1", "t1:1"] });
 	});
 
-	it("counts every entry against the cap; an over-cap superseded entry is evicted, not retried", () => {
+	it("does not count entries it is already removing against the cap", () => {
 		const entries = [
 			entry("a:1", "a"),
 			...Array.from({ length: 10 }, (_, i) => entry(`t${i}:1`, `t${i}`)),
 			entry("a:2", "a"),
 		];
 		const d = decide(entries, NOW - QUIET);
-		// 12 entries, cap 10: the two oldest go to FIFO (always released),
-		// even though a:1 is also superseded.
-		expect(d).toEqual({ kind: "run", remove: [], evict: ["a:1", "t0:1"] });
+		// a:1 is superseded; the 11 kept entries exceed the cap by one.
+		expect(d).toEqual({ kind: "run", remove: ["a:1"], evict: ["t0:1"] });
+	});
+
+	it("S1: a busy tab's burst never evicts idle tabs' only notifications", () => {
+		const entries = [
+			entry("b:1", "b"),
+			entry("c:1", "c"),
+			entry("d:1", "d"),
+			...Array.from({ length: 12 }, (_, i) => entry(`a:${i + 1}`, "a")),
+		];
+		const d = decide(entries, NOW - QUIET);
+		expect(d).toEqual({
+			kind: "run",
+			remove: Array.from({ length: 11 }, (_, i) => `a:${i + 1}`),
+			evict: [],
+		});
+	});
+
+	it("S2: an orphaned entry is removed and only the overflow is evicted", () => {
+		const entries = [
+			...Array.from({ length: 10 }, (_, i) => entry(`t${i}:1`, `t${i}`)),
+			entry("x:1", "x", { orphaned: true }),
+			entry("y:1", "y"),
+		];
+		const d = decide(entries, NOW - QUIET);
+		expect(d).toEqual({ kind: "run", remove: ["x:1"], evict: ["t0:1"] });
+	});
+
+	it("S3: stale entries that cannot be removed are evicted before a live one (no-remover host)", () => {
+		const entries = [
+			entry("b:1", "b"),
+			...Array.from({ length: 9 }, (_, i) =>
+				entry(`a:${i + 1}`, "a", { failedRemovals: 3 }),
+			),
+			entry("a:10", "a"),
+		];
+		const d = decide(entries, NOW - QUIET);
+		expect(d).toEqual({ kind: "run", remove: [], evict: ["a:1"] });
 	});
 
 	it("an entry whose removals are exhausted still falls to the cap", () => {
