@@ -383,6 +383,12 @@ import type { ErrorInfo, ProcessError } from "./errors";
 interface SessionUpdateBase {
 	/** The session ID this update belongs to */
 	sessionId: string;
+	/**
+	 * True when the update arrived while a `session/load` was replaying
+	 * history. Set by AcpHandler; message state gives replayed items no
+	 * times (Chat Timestamps, Decision 8).
+	 */
+	replayed?: boolean;
 }
 
 // ============================================================================
@@ -442,6 +448,10 @@ export interface ToolCall extends SessionUpdateBase {
 		isCancelled?: boolean;
 		isActive?: boolean;
 	};
+	/** When PermissionManager asked for this call's permission (epoch ms). */
+	requestedAt?: number;
+	/** When the permission was answered (epoch ms). Cancel paths set none. */
+	answeredAt?: number;
 }
 
 /**
@@ -467,6 +477,10 @@ export interface ToolCallUpdate extends SessionUpdateBase {
 		isCancelled?: boolean;
 		isActive?: boolean;
 	};
+	/** When PermissionManager asked for this call's permission (epoch ms). */
+	requestedAt?: number;
+	/** When the permission was answered (epoch ms). Cancel paths set none. */
+	answeredAt?: number;
 }
 
 /**

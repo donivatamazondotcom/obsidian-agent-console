@@ -169,6 +169,8 @@ export class PermissionManager {
 				| { [k: string]: unknown }
 				| undefined,
 			permissionRequest: permissionRequestData,
+			// Chat Timestamps: lets the row leave its wait out of its duration.
+			requestedAt: Date.now(),
 		});
 
 		// Return a Promise that will be resolved when user clicks a button
@@ -209,6 +211,7 @@ export class PermissionManager {
 				selectedOptionId: optionId,
 				isActive: false,
 			},
+			answeredAt: Date.now(),
 		});
 
 		const consent = kiroConsentForChoice(rawKinds.get(optionId), requestMeta, choice);

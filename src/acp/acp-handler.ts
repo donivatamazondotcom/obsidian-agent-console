@@ -148,13 +148,21 @@ export class AcpHandler {
 			sessionId,
 			type: update.sessionUpdate,
 		});
+		// Chat Timestamps: an update inside a load's replay window is history,
+		// so it is tagged here, where it enters, and message state gives it
+		// no times (Decision 8).
+		const emit =
+			replayed !== undefined
+				? (u: SessionUpdate) =>
+						this.emitSessionUpdate({ ...u, replayed: true })
+				: (u: SessionUpdate) => this.emitSessionUpdate(u);
 
 		switch (update.sessionUpdate) {
 			case "agent_message_chunk":
 			case "agent_thought_chunk":
 			case "user_message_chunk":
 				if (update.content.type === "text") {
-					this.emitSessionUpdate({
+					emit({
 						type: update.sessionUpdate,
 						sessionId,
 						text: update.content.text,
@@ -164,7 +172,7 @@ export class AcpHandler {
 
 			case "tool_call":
 			case "tool_call_update":
-				this.emitSessionUpdate({
+				emit({
 					type: update.sessionUpdate,
 					sessionId,
 					toolCallId: update.toolCallId,
@@ -185,7 +193,7 @@ export class AcpHandler {
 				break;
 
 			case "plan":
-				this.emitSessionUpdate({
+				emit({
 					type: "plan",
 					sessionId,
 					entries: update.entries,
@@ -193,7 +201,7 @@ export class AcpHandler {
 				break;
 
 			case "available_commands_update":
-				this.emitSessionUpdate({
+				emit({
 					type: "available_commands_update",
 					sessionId,
 					commands: AcpTypeConverter.toSlashCommands(
@@ -203,7 +211,7 @@ export class AcpHandler {
 				break;
 
 			case "current_mode_update":
-				this.emitSessionUpdate({
+				emit({
 					type: "current_mode_update",
 					sessionId,
 					currentModeId: update.currentModeId,
@@ -211,7 +219,7 @@ export class AcpHandler {
 				break;
 
 			case "session_info_update":
-				this.emitSessionUpdate({
+				emit({
 					type: "session_info_update",
 					sessionId,
 					title: update.title,
@@ -220,7 +228,7 @@ export class AcpHandler {
 				break;
 
 			case "usage_update":
-				this.emitSessionUpdate({
+				emit({
 					type: "usage_update",
 					sessionId,
 					size: update.size,
@@ -230,7 +238,7 @@ export class AcpHandler {
 				break;
 
 			case "config_option_update":
-				this.emitSessionUpdate({
+				emit({
 					type: "config_option_update",
 					sessionId,
 					configOptions: AcpTypeConverter.toSessionConfigOptions(

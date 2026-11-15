@@ -107,13 +107,6 @@ export interface UseAgentReturn {
 	hasAttemptedSend: () => boolean;
 	/** I259: forget the send attempt. */
 	resetSendAttempt: () => void;
-	setInitialMessages: (
-		history: Array<{
-			role: string;
-			content: Array<{ type: string; text: string }>;
-			timestamp?: string;
-		}>,
-	) => void;
 	setMessagesFromLocal: (localMessages: ChatMessage[]) => void;
 	clearError: () => void;
 	setIgnoreUpdates: (ignore: boolean) => void;
@@ -280,7 +273,6 @@ export function useAgent(
 			clearMessages: agentMessages.clearMessages,
 			hasAttemptedSend: agentMessages.hasAttemptedSend,
 			resetSendAttempt: agentMessages.resetSendAttempt,
-			setInitialMessages: agentMessages.setInitialMessages,
 			setMessagesFromLocal: agentMessages.setMessagesFromLocal,
 			clearError: agentMessages.clearError,
 			setIgnoreUpdates: agentMessages.setIgnoreUpdates,
@@ -322,7 +314,6 @@ export function useAgent(
 			agentMessages.clearMessages,
 			agentMessages.hasAttemptedSend,
 			agentMessages.resetSendAttempt,
-			agentMessages.setInitialMessages,
 			agentMessages.setMessagesFromLocal,
 			agentMessages.clearError,
 			agentMessages.setIgnoreUpdates,

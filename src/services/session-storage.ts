@@ -17,6 +17,7 @@ import type { SavedSessionInfo } from "../types/session";
 import type { PerLeafTabState, PersistedTabInfo } from "../types/tab";
 import { convertWindowsPathToWsl } from "../utils/platform";
 import { getLogger } from "../utils/logger";
+import { validateMessageTimeFields } from "../utils/time-fields";
 import { findSessionRecord, validateSavedSession } from "./session-record";
 import {
 	parseMaxSavedSessions,
@@ -699,10 +700,24 @@ export class SessionStorage {
 				return null;
 			}
 
-			return data.messages.map((msg) => ({
-				...msg,
-				timestamp: new Date(msg.timestamp),
-			}));
+			// Chat Timestamps: one validator at the load edge. A time it
+			// can't trust becomes null (unknown), so it never renders as a
+			// wrong stamp; the rest of the message loads as before.
+			let dropped = 0;
+			const messages = data.messages.map((msg) => {
+				const checked = validateMessageTimeFields({
+					...msg,
+					timestamp: new Date(msg.timestamp),
+				});
+				dropped += checked.dropped;
+				return checked.message;
+			});
+			if (dropped > 0) {
+				getLogger().debug(
+					`[SessionStorage] Dropped ${dropped} invalid time field(s) in ${filePath}`,
+				);
+			}
+			return messages;
 		} catch (error) {
 			getLogger().error(
 				`[SessionStorage] Failed to load session messages: ${error}`,

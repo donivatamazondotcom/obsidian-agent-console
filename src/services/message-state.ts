@@ -8,13 +8,16 @@
 
 import type {
 	ChatMessage,
+	ContentTiming,
 	MessageContent,
 	ActivePermission,
 	PermissionOption,
 	ToolCallStatus,
+	TurnEndKind,
 } from "../types/chat";
 import type { SessionUpdate } from "../types/session";
 import { stripInjectedPromptText } from "./message-sender";
+import { GAP_STAMP_THRESHOLD_MS } from "../utils/time-fields";
 
 // ============================================================================
 // Types
@@ -35,6 +38,75 @@ export type ToolCallUpsert = Omit<ToolCallMessageContent, "status"> & {
 };
 
 // ============================================================================
+// Times (Chat Timestamps)
+// ============================================================================
+
+/**
+ * Clock input for one applied update. The hook reads the clock once per
+ * flush and passes it in, so these functions stay pure and give the same
+ * result when React calls an updater twice.
+ */
+export interface UpdateTiming {
+	/** Clock time of the flush this update is applied in (epoch ms). */
+	now: number;
+	/**
+	 * The turn's last live update before this one arrived, attached when it
+	 * was queued; null when there is none (no live turn).
+	 */
+	lastUpdateBefore: number | null;
+}
+
+/** Times resolved for one update. `at` is null for replayed history. */
+export interface ItemTimes {
+	at: number | null;
+	gapBefore: boolean;
+}
+
+function itemTimes(
+	update: SessionUpdate,
+	timing: UpdateTiming | undefined,
+): ItemTimes | undefined {
+	if (!timing) return undefined;
+	if (update.replayed) return { at: null, gapBefore: false };
+	const gapBefore =
+		timing.lastUpdateBefore !== null &&
+		timing.now - timing.lastUpdateBefore > GAP_STAMP_THRESHOLD_MS;
+	return { at: timing.now, gapBefore };
+}
+
+/** Time fields for a newly created content item. */
+function stampNew(times: ItemTimes | undefined): ContentTiming {
+	return times ? { arrivedAt: times.at, gapBefore: times.gapBefore } : {};
+}
+
+/** The time fields an item already has, to keep across a replace. */
+function keepTiming(item: MessageContent): ContentTiming {
+	const out: ContentTiming = {};
+	if (item.arrivedAt !== undefined) out.arrivedAt = item.arrivedAt;
+	if (item.gapBefore !== undefined) out.gapBefore = item.gapBefore;
+	return out;
+}
+
+function messageDate(times: ItemTimes | undefined): Date {
+	return times && times.at !== null ? new Date(times.at) : new Date();
+}
+
+function isFinished(status: ToolCallStatus | undefined): boolean {
+	return status === "completed" || status === "failed";
+}
+
+/** A call's own request-to-answer time, when both ends are known. */
+function waitBetween(
+	requestedAt: number | null | undefined,
+	answeredAt: number | null | undefined,
+): number | null {
+	if (typeof requestedAt !== "number" || typeof answeredAt !== "number") {
+		return null;
+	}
+	return Math.max(0, answeredAt - requestedAt);
+}
+
+// ============================================================================
 // Tool Call Merge
 // ============================================================================
 
@@ -45,6 +117,8 @@ export type ToolCallUpsert = Omit<ToolCallMessageContent, "status"> & {
 export function mergeToolCallContent(
 	existing: ToolCallMessageContent,
 	update: ToolCallUpsert,
+	/** Flush time (null for replayed); undefined from callers without a clock. */
+	at?: number | null,
 ): ToolCallMessageContent {
 	// Merge content arrays
 	let mergedContent = existing.content || [];
@@ -77,7 +151,7 @@ export function mergeToolCallContent(
 		mergedContent = [...mergedContent, ...additions];
 	}
 
-	return {
+	const merged: ToolCallMessageContent = {
 		...existing,
 		toolCallId: update.toolCallId,
 		title: update.title !== undefined ? update.title : existing.title,
@@ -104,6 +178,26 @@ export function mergeToolCallContent(
 				? update.permissionRequest
 				: existing.permissionRequest,
 	};
+
+	// Permission times live on the call itself, because permissionRequest is
+	// replaced whole on every merge. An update without them keeps the old.
+	const requestedAt = update.requestedAt ?? existing.requestedAt;
+	const answeredAt = update.answeredAt ?? existing.answeredAt;
+	if (requestedAt !== undefined) merged.requestedAt = requestedAt;
+	if (answeredAt !== undefined) merged.answeredAt = answeredAt;
+	const wait = waitBetween(requestedAt, answeredAt);
+	if (wait !== null) merged.waitMs = wait;
+
+	// endedAt is set once, on the first completed or failed status, and never
+	// cleared. A call the turn-end closer already ended keeps its endedAt.
+	if (
+		at !== undefined &&
+		typeof existing.endedAt !== "number" &&
+		isFinished(update.status)
+	) {
+		merged.endedAt = at;
+	}
+	return merged;
 }
 
 // ============================================================================
@@ -142,13 +236,14 @@ export function applyUpdateLastMessage(
 	prev: ChatMessage[],
 	content: MessageContent,
 	atBlockBoundary = false,
+	times?: ItemTimes,
 ): ChatMessage[] {
 	if (prev.length === 0 || prev[prev.length - 1].role !== "assistant") {
 		const newMessage: ChatMessage = {
 			id: crypto.randomUUID(),
 			role: "assistant",
-			content: [content],
-			timestamp: new Date(),
+			content: [{ ...content, ...stampNew(times) }],
+			timestamp: messageDate(times),
 		};
 		return [...prev, newMessage];
 	}
@@ -167,7 +262,9 @@ export function applyUpdateLastMessage(
 				existingContent.type === "text" ||
 				existingContent.type === "agent_thought"
 			) {
+				// Spread the existing item so its arrival time survives.
 				updatedMessage.content[existingContentIndex] = {
+					...keepTiming(existingContent),
 					type: content.type,
 					text: atBlockBoundary
 						? joinAtBlockBoundary(
@@ -178,16 +275,20 @@ export function applyUpdateLastMessage(
 				};
 			}
 		} else {
-			updatedMessage.content.push(content);
+			updatedMessage.content.push({ ...content, ...stampNew(times) });
 		}
 	} else {
 		const existingIndex = updatedMessage.content.findIndex(
 			(c) => c.type === content.type,
 		);
 		if (existingIndex >= 0) {
-			updatedMessage.content[existingIndex] = content;
+			// A plan update replaces the plan but keeps its arrival time.
+			updatedMessage.content[existingIndex] = {
+				...content,
+				...keepTiming(updatedMessage.content[existingIndex]),
+			};
 		} else {
-			updatedMessage.content.push(content);
+			updatedMessage.content.push({ ...content, ...stampNew(times) });
 		}
 	}
 
@@ -209,6 +310,7 @@ export function applyUpdateLastMessage(
 export function applyReplayedUserChunk(
 	prev: ChatMessage[],
 	chunk: string,
+	times?: ItemTimes,
 ): ChatMessage[] {
 	const last = prev[prev.length - 1];
 	const current =
@@ -246,12 +348,12 @@ export function applyReplayedUserChunk(
 			},
 		];
 	} else if (text) {
-		next = applyUpdateUserMessage(prev, { type: "text", text });
+		next = applyUpdateUserMessage(prev, { type: "text", text }, times);
 	}
 	for (const link of links) {
 		if (chipUris.has(link.uri)) continue;
 		chipUris.add(link.uri);
-		next = applyUpdateUserMessage(next, link);
+		next = applyUpdateUserMessage(next, link, times);
 	}
 	return next;
 }
@@ -263,13 +365,16 @@ export function applyReplayedUserChunk(
 export function applyUpdateUserMessage(
 	prev: ChatMessage[],
 	content: MessageContent,
+	times?: ItemTimes,
 ): ChatMessage[] {
 	if (prev.length === 0 || prev[prev.length - 1].role !== "user") {
 		const newMessage: ChatMessage = {
 			id: crypto.randomUUID(),
 			role: "user",
 			content: [content],
-			timestamp: new Date(),
+			timestamp: messageDate(times),
+			// A prompt rebuilt from the agent's history has no known send time.
+			...(times && { sentAt: times.at }),
 		};
 		return [...prev, newMessage];
 	}
@@ -318,7 +423,9 @@ export function applyUpsertToolCall(
 	prev: ChatMessage[],
 	content: ToolCallUpsert,
 	toolCallIndex: Map<string, number>,
+	times?: ItemTimes,
 ): ChatMessage[] {
+	const at = times?.at;
 	// O(1) lookup via index
 	const messageIdx = toolCallIndex.get(content.toolCallId);
 	if (messageIdx !== undefined && messageIdx < prev.length) {
@@ -335,7 +442,7 @@ export function applyUpsertToolCall(
 						c.type === "tool_call" &&
 						c.toolCallId === content.toolCallId
 					) {
-						return mergeToolCallContent(c, content);
+						return mergeToolCallContent(c, content, at);
 					}
 					return c;
 				}),
@@ -363,7 +470,7 @@ export function applyUpsertToolCall(
 					c.type === "tool_call" &&
 					c.toolCallId === content.toolCallId
 				) {
-					return mergeToolCallContent(c, content);
+					return mergeToolCallContent(c, content, at);
 				}
 				return c;
 			}),
@@ -374,10 +481,18 @@ export function applyUpsertToolCall(
 
 	// Not found: create new message and register in index.
 	// I356: `pending` only when a row is created for an id not seen before.
+	const status = content.status ?? "pending";
 	const created: ToolCallMessageContent = {
 		...content,
-		status: content.status ?? "pending",
+		status,
+		...stampNew(times),
 	};
+	if (times) {
+		created.startedAt = times.at;
+		if (isFinished(status)) created.endedAt = times.at;
+	}
+	const wait = waitBetween(content.requestedAt, content.answeredAt);
+	if (wait !== null) created.waitMs = wait;
 	toolCallIndex.set(content.toolCallId, prev.length);
 	return [
 		...prev,
@@ -385,7 +500,7 @@ export function applyUpsertToolCall(
 			id: crypto.randomUUID(),
 			role: "assistant" as const,
 			content: [created],
-			timestamp: new Date(),
+			timestamp: messageDate(times),
 		},
 	];
 }
@@ -437,7 +552,13 @@ export function applySingleUpdate(
 	update: SessionUpdate,
 	toolCallIndex: Map<string, number>,
 	continuity?: StreamContinuity,
+	/**
+	 * Chat Timestamps: the flush's clock and the update's attached last-update
+	 * time. Omitted by callers that keep no times; then no time field is set.
+	 */
+	timing?: UpdateTiming,
 ): ChatMessage[] {
+	const times = itemTimes(update, timing);
 	switch (update.type) {
 		case "agent_message_chunk": {
 			const atBoundary =
@@ -452,6 +573,7 @@ export function applySingleUpdate(
 					text: update.text,
 				},
 				atBoundary,
+				times,
 			);
 		}
 		case "agent_thought_chunk": {
@@ -467,11 +589,12 @@ export function applySingleUpdate(
 					text: update.text,
 				},
 				atBoundary,
+				times,
 			);
 		}
 		case "user_message_chunk":
 			if (continuity) continuity.lastApplied = "other";
-			return applyReplayedUserChunk(prev, update.text);
+			return applyReplayedUserChunk(prev, update.text, times);
 		case "tool_call":
 		case "tool_call_update":
 			if (continuity) continuity.lastApplied = "other";
@@ -489,20 +612,109 @@ export function applySingleUpdate(
 					rawInput: update.rawInput,
 					rawOutput: update.rawOutput,
 					permissionRequest: update.permissionRequest,
+					requestedAt: update.requestedAt,
+					answeredAt: update.answeredAt,
 				},
 				toolCallIndex,
+				times,
 			);
 		case "plan":
 			if (continuity) continuity.lastApplied = "other";
-			return applyUpdateLastMessage(prev, {
-				type: "plan",
-				entries: update.entries,
-			});
+			return applyUpdateLastMessage(
+				prev,
+				{
+					type: "plan",
+					entries: update.entries,
+				},
+				false,
+				times,
+			);
 		default:
 			// Session-level updates don't modify message content and don't
 			// break text-block continuity.
 			return prev;
 	}
+}
+
+// ============================================================================
+// Turn End (Chat Timestamps)
+// ============================================================================
+
+/** What the hook knows at a turn end, read synchronously before the write. */
+export interface TurnEndWrite {
+	/** The live turn's prompt (`livePromptId`). */
+	promptId: string;
+	/** The turn-end owner's clock read. */
+	now: number;
+	kind: TurnEndKind;
+	/** Time during the turn when at least one permission was pending. */
+	waitMs: number;
+}
+
+/**
+ * Write a turn's end onto its prompt and close the turn's tool calls that
+ * are still open. Pure; the hook calls it at every way a turn ends.
+ *
+ * A closed call keeps the endedAt it already had and is marked
+ * `interrupted`, which wins at render: a later `completed` or `failed` may
+ * change its status but not its endedAt. A call whose permission was
+ * cancelled with no answer counts as open whatever status cancelAll gave
+ * it, and its wait runs to its end.
+ *
+ * Returns the same array when the prompt isn't in it.
+ */
+export function applyTurnEnd(
+	prev: ChatMessage[],
+	write: TurnEndWrite,
+): ChatMessage[] {
+	const idx = prev.findIndex((m) => m.id === write.promptId);
+	if (idx < 0) return prev;
+	const next = prev.slice();
+	const promptMessage = prev[idx];
+	const sentAt =
+		typeof promptMessage.sentAt === "number" ? promptMessage.sentAt : null;
+	next[idx] = {
+		...promptMessage,
+		turnEndedAt: write.now,
+		turnEndKind: write.kind,
+		turnWaitMs: write.waitMs,
+		turnMs:
+			sentAt === null
+				? null
+				: Math.max(0, write.now - sentAt - write.waitMs),
+	};
+	for (let i = idx + 1; i < next.length; i++) {
+		const message = next[i];
+		let changed = false;
+		const content = message.content.map((c) => {
+			if (c.type !== "tool_call" || !isOpenCall(c)) return c;
+			changed = true;
+			return closeCall(c, write.now);
+		});
+		if (changed) next[i] = { ...message, content };
+	}
+	return next;
+}
+
+function isOpenCall(c: ToolCallMessageContent): boolean {
+	if (c.interrupted) return false;
+	if (c.status === "pending" || c.status === "in_progress") return true;
+	return (
+		c.permissionRequest?.isCancelled === true &&
+		typeof c.answeredAt !== "number"
+	);
+}
+
+function closeCall(
+	c: ToolCallMessageContent,
+	now: number,
+): ToolCallMessageContent {
+	const endedAt = typeof c.endedAt === "number" ? c.endedAt : now;
+	const closed: ToolCallMessageContent = { ...c, endedAt, interrupted: true };
+	if (typeof c.requestedAt === "number" && typeof c.answeredAt !== "number") {
+		closed.waitMs = Math.max(0, endedAt - c.requestedAt);
+	}
+	return closed;
 }
 
 // ============================================================================
