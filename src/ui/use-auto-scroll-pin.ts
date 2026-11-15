@@ -220,6 +220,25 @@ function findReadingAnchor(
 	return null;
 }
 
+/**
+ * I352: the last message row as an anchor, for an unpin whose view top is
+ * below every row (only the content's bottom padding in view). Without it
+ * the return would land at the top of the transcript; the restore clamps
+ * this to the bottom instead. Scans from the end.
+ */
+function lastRowAnchor(
+	contentEl: HTMLElement,
+	scrollTop: number,
+): ReadingAnchor | null {
+	const rows = contentEl.children;
+	for (let i = rows.length - 1; i >= 0; i--) {
+		const el = rows[i] as HTMLElement;
+		const id = el.dataset.messageId;
+		if (id) return { id, offset: scrollTop - el.offsetTop };
+	}
+	return null;
+}
+
 /** One-time O(n) lookup of a message row by id, at restore start. */
 function findRowById(contentEl: HTMLElement, id: string): HTMLElement | null {
 	const rows = contentEl.children;
@@ -250,21 +269,6 @@ export function useAutoScrollPin(
 	const scrollObserverRef = useRef<ResizeObserver | null>(null);
 	const contentObserverRef = useRef<ResizeObserver | null>(null);
 	const composerObserverRef = useRef<ResizeObserver | null>(null);
-	/**
-	 * Pending callback for the deferred initial-fire anchor (see I-S9 fix in
-	 * contentRef below). The callback is fired by the MessageChannel on
-	 * `initialDeferralChannelRef`; cleanup paths (contentRef detach, hook
-	 * unmount) null this ref so a posted-but-not-yet-delivered message
-	 * becomes a no-op.
-	 *
-	 * MessageChannel was chosen over `requestAnimationFrame` because rAF is
-	 * folded into the same task when queued during an active frame-update
-	 * cycle (Chromium's tab-activation path). Trace evidence:
-	 * `_traces/Trace-Phase2-Verify-IS9-20260525T093852.json`. MessageChannel
-	 * always queues a fresh task — it cannot be folded into the current one.
-	 */
-	const pendingInitialDeferralRef = useRef<(() => void) | null>(null);
-	const initialDeferralChannelRef = useRef<MessageChannel | null>(null);
 	const lastIsActiveRef = useRef(isActive);
 	const lastIsSendingRef = useRef(isSending);
 	/**
@@ -401,6 +405,20 @@ export function useAutoScrollPin(
 		}
 		if (isAtBottomRef.current === next) return;
 		isAtBottomRef.current = next;
+		// I352: an unpin saves the reading position it leaves from. A pinned
+		// tab can hold a stale anchor from an earlier far scroll event (the
+		// send's smooth scroll, a layout scroll), and an unpin that saves
+		// nothing itself (a scroll key moving under STICK_OFFSET_PX, a wheel
+		// with no scroll event yet) would otherwise restore to it on return.
+		if (!next) {
+			const scrollEl = scrollElRef.current;
+			const contentEl = contentElRef.current;
+			readingAnchorRef.current =
+				!anchorFrozenRef.current && scrollEl && contentEl && scrollEl.clientHeight > 0
+					? (findReadingAnchor(contentEl, scrollEl.scrollTop) ??
+						lastRowAnchor(contentEl, scrollEl.scrollTop))
+					: null;
+		}
 		setIsAtBottomState(next);
 	}, [endRestore]);
 
@@ -710,8 +728,9 @@ export function useAutoScrollPin(
 		}
 		// I284: save the reading position whenever the tab isn't pinned,
 		// including a small scroll-up that stays within STICK_OFFSET_PX of
-		// the bottom (the wheel already unpinned it). A pinned, streaming
-		// tab pays nothing.
+		// the bottom (the wheel already unpinned it). A pinned tab also saves
+		// while it's far from the bottom (the send's smooth scroll); nothing
+		// reads that anchor, because the unpin overwrites it (I352).
 		if (
 			!anchorFrozenRef.current &&
 			contentElRef.current !== null &&
@@ -968,11 +987,6 @@ export function useAutoScrollPin(
 		(el) => {
 			contentObserverRef.current?.disconnect();
 			contentObserverRef.current = null;
-			// Drop any pending I-S9 deferred-anchor callback — the contentEl
-			// it would write to may no longer be the current one. The
-			// MessageChannel post may already be in flight; nulling the ref
-			// turns the eventual fire into a no-op.
-			pendingInitialDeferralRef.current = null;
 			contentElRef.current = el;
 			if (!el) return;
 
@@ -1023,55 +1037,15 @@ export function useAutoScrollPin(
 					if (escapedFromLockRef.current) return;
 					if (!isAtBottomRef.current) return;
 
-					// I-S9 fix (revised 2026-05-25 after T-IS9-smoke FAILED
-					// against the original rAF-based deferral): the FIRST RO
-					// fire happens during React's commit-phase microtask
-					// flush on tab activation, when ~200 bubbles have just
-					// mounted and the DOM is layout-dirty. A synchronous
-					// read of scrollHeight here forces a partial-layout
-					// pass against the dirty DOM (~31 ms on a 200-bubble
-					// session pre-fix; ~75 ms with the broken rAF deferral
-					// because rAF was folded into the same task). Trace
-					// evidence:
-					// _traces/Trace-Phase2-Verify-IS9-20260525T093852.json.
-					//
-					// Defer the read+write to a fresh task via a per-hook
-					// MessageChannel post. Unlike rAF, MessageChannel cannot
-					// be folded into the current task — the message always
-					// queues a new task, escaping the click handler's task
-					// even when the click was dispatched during an active
-					// frame-update. Subsequent grows (true streaming chunks
-					// with previous defined) write synchronously — the
-					// dirty-DOM problem is only present on the just-mounted
-					// initial fire.
-					if (previous === undefined) {
-						if (pendingInitialDeferralRef.current !== null) return;
-						pendingInitialDeferralRef.current = () => {
-							const el = scrollElRef.current;
-							if (!el) return;
-							// Re-check guards at fire time — state may have
-							// changed between the RO callback and the
-							// MessageChannel delivery (e.g., user wheel-up).
-							if (escapedFromLockRef.current) return;
-							if (!isAtBottomRef.current) return;
-							writeOwnScroll(el, bottomScrollTop(el), ownScrollTopRef);
-						};
-						// Lazy-create the channel on first use. Its onmessage
-						// handler reads-and-clears pendingInitialDeferralRef,
-						// so cleanup paths can cancel by nulling the ref.
-						if (initialDeferralChannelRef.current === null) {
-							const channel = new MessageChannel();
-							channel.port1.onmessage = () => {
-								const cb = pendingInitialDeferralRef.current;
-								pendingInitialDeferralRef.current = null;
-								if (cb) cb();
-							};
-							initialDeferralChannelRef.current = channel;
-						}
-						initialDeferralChannelRef.current.port2.postMessage(null);
-						return;
-					}
-
+					// I352: the first fire writes synchronously too. On tab
+					// activation it is the first write that sees the rendered
+					// text (blocks swap in on a microtask, I176). An RO callback
+					// runs in the rendering update after layout and before paint,
+					// so layout is usually clean for the read (an earlier
+					// observer in the same broadcast, such as the quick-prompt
+					// chip bar's, can dirty it first) and the write is painted in
+					// that frame. I-S9 deferred it to a MessageChannel task, which
+					// ran after paint and showed one mid-transcript frame.
 					writeOwnScroll(scrollEl, bottomScrollTop(scrollEl), ownScrollTopRef);
 				} else if (shrank) {
 					// Content shrank. If the shrink brought the bottom back
@@ -1214,14 +1188,6 @@ export function useAutoScrollPin(
 			contentObserverRef.current = null;
 			composerObserverRef.current?.disconnect();
 			composerObserverRef.current = null;
-			pendingInitialDeferralRef.current = null;
-			if (initialDeferralChannelRef.current !== null) {
-				// Closing the port stops further deliveries. Any message in
-				// flight when this runs will be dropped by the browser.
-				initialDeferralChannelRef.current.port1.close();
-				initialDeferralChannelRef.current.port2.close();
-				initialDeferralChannelRef.current = null;
-			}
 			const scrollEl = scrollElRef.current;
 			if (scrollEl) {
 				scrollEl.removeEventListener("scroll", handleScroll);

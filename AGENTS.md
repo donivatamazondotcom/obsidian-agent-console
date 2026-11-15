@@ -177,7 +177,7 @@ src/
 │   ├── TabErrorBoundary.tsx     # Per-tab React error boundary with Retry
 │   ├── ZeroTabLanding.tsx       # Zero-tab landing screen shown when every tab is closed (minimal placeholder in Slice 1; reason-tagged empty-state shell in Slice 2)
 │   ├── ChatHeader.tsx           # Header (sidebar chat view)
-│   ├── MessageList.tsx          # Message list (native browser scroll, content-visibility:auto for off-screen render skipping)
+│   ├── MessageList.tsx          # Message list (native browser scroll; inactive tabs render a placeholder, so no bubbles mount while hidden)
 │   ├── A2uiSurfaceHost.tsx      # Agent-emitted buttons-v0 surface host: validate-at-edge, native buttons, resolver-gated enablement, inert fallback
 │   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button)
 │   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting)
@@ -494,7 +494,7 @@ interface ISettingsAccess {
 4. **Workspace event refs**: ChatPanel stores event handler callbacks in refs, keeping useEffect deps minimal
 5. **RAF batching**: useAgentMessages batches streaming updates per animation frame (~60fps) instead of per-chunk
 6. **React.memo**: MessageBubble, ToolCallBlock, TerminalBlock wrapped for skip-render optimization
-7. **Native scroll + content-visibility**: MessageList uses native browser scroll with `content-visibility: auto` on each bubble for off-screen render skipping; auto-scroll-to-bottom logic lives in `useAutoScrollPin` (modeled on `use-stick-to-bottom`)
+7. **Native scroll, inactive placeholder**: MessageList uses native browser scroll and renders an empty placeholder for inactive tabs, so hidden tabs mount no bubbles. Bubbles don't use `content-visibility: auto`: it suppresses ResizeObserver fires for off-screen growth, which the bottom pin depends on. Auto-scroll-to-bottom and the reading position live in `useAutoScrollPin` (modeled on `use-stick-to-bottom`)
 8. **O(1) tool call index**: Map<string, number> for tool call upsert without linear scan
 
 ### Obsidian Plugin Review (CRITICAL)

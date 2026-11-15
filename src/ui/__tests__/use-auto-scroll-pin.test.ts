@@ -309,7 +309,6 @@ function fireTouchMove(el: HTMLElement, clientY: number): void {
 
 let originalResizeObserver: typeof globalThis.ResizeObserver | undefined;
 let originalGetSelection: typeof window.getSelection | undefined;
-let originalMessageChannel: typeof globalThis.MessageChannel | undefined;
 
 // I-S12 round-3 fix: handleScroll defers its body via window.setTimeout(1)
 // (per useStickToBottom.ts line 436, citing WICG/resize-observer#25).
@@ -324,100 +323,6 @@ let originalMessageChannel: typeof globalThis.MessageChannel | undefined;
 // JSDOM rarely uses setTimeout internally; the cost is negligible. If a
 // future test needs real-timer behavior, it can opt out by saving and
 // restoring the originals locally.
-
-/**
- * Synchronous-by-explicit-flush rAF mock. Captured callbacks queue; tests
- * call flushRaf() to run all pending callbacks. This makes tests
- * deterministic for any rAF-based deferral without requiring fake timers
- * in every test.
- *
- * Tests that don't trigger any rAF work (most of the suite) ignore this
- * — flushRaf() is a no-op when the queue is empty.
- */
-/**
- * MessageChannel mock — see definition below. The I-S9 deferral uses
- * MessageChannel; this exposes synchronous flush control to tests.
- *
- * (Note: a previous version of this file installed a per-test rAF mock
- * because the original I-S9 fix in `d6bcfac` used `requestAnimationFrame`.
- * That fix was reverted to MessageChannel after T-IS9-smoke surfaced
- * Chromium folding the rAF callback into the same task as the click
- * event. See spec § I-S9 for the trace evidence and rationale.)
- */
-
-/**
- * Synchronous-by-explicit-flush MessageChannel mock. The I-S9 fix uses
- * MessageChannel to defer the initial-fire scrollTop anchor to a fresh
- * task (instead of the broken rAF approach which Chromium folds into
- * the current task on tab activation).
- *
- * Real JSDOM MessageChannel works asynchronously, but tests want
- * synchronous control. The mock collects posted messages on a per-channel
- * queue; flushMessages() drains all queues across all instances. New
- * channels created mid-test are tracked automatically.
- *
- * Tests that don't trigger MessageChannel work ignore this — flushMessages()
- * is a no-op when no messages are pending.
- */
-interface MockMessagePort {
-	onmessage: ((ev: MessageEvent) => unknown) | null;
-	postMessage(msg: unknown): void;
-	close(): void;
-	__pair?: MockMessagePort;
-	__queue: Array<unknown>;
-	__closed: boolean;
-}
-
-const messageChannelInstances: Array<{
-	port1: MockMessagePort;
-	port2: MockMessagePort;
-}> = [];
-
-class MockMessageChannel {
-	port1: MockMessagePort;
-	port2: MockMessagePort;
-	constructor() {
-		const makePort = (): MockMessagePort => ({
-			onmessage: null,
-			__queue: [],
-			__closed: false,
-			postMessage(this: MockMessagePort, msg: unknown) {
-				// postMessage on portN delivers to the OTHER port's queue.
-				// biome-ignore lint/style/noNonNullAssertion: __pair set below
-				const other = this.__pair!;
-				if (other.__closed) return;
-				other.__queue.push(msg);
-			},
-			close(this: MockMessagePort) {
-				this.__closed = true;
-				this.__queue.length = 0;
-			},
-		});
-		this.port1 = makePort();
-		this.port2 = makePort();
-		this.port1.__pair = this.port2;
-		this.port2.__pair = this.port1;
-		messageChannelInstances.push({ port1: this.port1, port2: this.port2 });
-	}
-}
-
-function flushMessages(): void {
-	// Drain pending messages on every port across every channel. Messages
-	// posted during delivery (re-entrancy) become visible on a subsequent
-	// flushMessages() call, matching real task-queue semantics.
-	for (const { port1, port2 } of messageChannelInstances) {
-		for (const port of [port1, port2]) {
-			if (port.__closed) continue;
-			const pending = port.__queue.splice(0);
-			for (const data of pending) {
-				const handler = port.onmessage;
-				if (handler) {
-					handler({ data } as MessageEvent);
-				}
-			}
-		}
-	}
-}
 
 interface ScheduledTimer {
 	id: number;
@@ -483,7 +388,7 @@ function restoreTimerMock(): void {
 /**
  * Drain pending timers. Timers scheduled DURING delivery (re-entrancy) become
  * visible on a subsequent flushTimers() call, matching real task-queue
- * semantics. This pairs with flushMessages() — together they let tests step
+ * semantics. Together with explicit fireResize() calls, it lets tests step
  * through the deferral graph one task at a time.
  */
 function flushTimers(): void {
@@ -518,14 +423,6 @@ beforeEach(() => {
 	// Default: no selection. Individual tests override for selection-drag tests.
 	originalGetSelection = window.getSelection;
 	window.getSelection = () => null;
-
-	// MessageChannel mock — captures postMessages for explicit flush. The
-	// I-S9 deferral uses MessageChannel; this makes its delivery
-	// deterministic from the test's perspective.
-	originalMessageChannel = globalThis.MessageChannel;
-	messageChannelInstances.length = 0;
-	(globalThis as unknown as { MessageChannel: typeof MockMessageChannel }).MessageChannel =
-		MockMessageChannel;
 });
 
 afterEach(() => {
@@ -539,12 +436,6 @@ afterEach(() => {
 	if (originalGetSelection) {
 		window.getSelection = originalGetSelection;
 	}
-	if (originalMessageChannel) {
-		(
-			globalThis as unknown as { MessageChannel: typeof globalThis.MessageChannel }
-		).MessageChannel = originalMessageChannel;
-	}
-	messageChannelInstances.length = 0;
 	restoreTimerMock();
 });
 
@@ -592,11 +483,6 @@ describe("useAutoScrollPin — initial state", () => {
 
 		act(() => {
 			fireResize(contentEl, 1000);
-		});
-
-		// I-S9 fix: initial fire defers to rAF. Flush to land the anchor.
-		act(() => {
-			flushMessages();
 		});
 
 		// First fire = initial anchor → write scrollTop to (1000 - 800 - 1) = 199
@@ -954,11 +840,6 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 				fireResize(h.contentEl, 500);
 			});
 
-			// I-S9 fix: initial fire defers to rAF. Flush to land the anchor.
-			act(() => {
-				flushMessages();
-			});
-
 			// Initial fire writes scrollTop even though height < clientHeight
 			// (Math.max(0, 500-800-1) = 0). Important: that write happens.
 			expect(geom.writes.length).toBeGreaterThan(1);
@@ -986,10 +867,6 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 			// Simulate session-restore: first fire is partial (3/4 height).
 			act(() => {
 				fireResize(h.contentEl, 1000);
-			});
-			// I-S9 fix: initial fire defers to rAF. Flush to land the anchor.
-			act(() => {
-				flushMessages();
 			});
 			// Initial anchor: scrollTop = 1000 - 800 - 1 = 199
 			expect(geom.writes[geom.writes.length - 1]).toBe(199);
@@ -1069,29 +946,22 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 	});
 
 
-	describe("I-S9 regression net (initial RO-grew defers to rAF)", () => {
-		// I-S9 root cause: when the contentRef ResizeObserver's first fire
-		// happens during React's commit-phase microtask flush (i.e., on
-		// tab activation when ~200 bubbles just mounted), reading
-		// scrollHeight inside the callback synchronously forces a layout
-		// pass against the dirty DOM. Trace evidence on a 200-bubble
-		// session: 31 ms forced reflow inside the click handler.
+	describe("I352 regression net (the initial RO-grew writes synchronously)", () => {
+		// I-S9 deferred the first fire's read and write to a MessageChannel
+		// task, to keep a forced layout off the tab-activation click task.
+		// That task ran after the frame painted, so switching to a long
+		// pinned chat showed one mid-transcript frame: the bottom of the
+		// transcript before its text blocks swapped in (I352). A
+		// ResizeObserver callback runs in the rendering update, after layout
+		// and before paint, so its read is clean and its write is painted in
+		// that frame. The first fire now takes the same path as every grow.
 		//
-		// Fix: defer the initial fire's read to requestAnimationFrame.
-		// The just-mounted DOM gets one frame to finish its layout pass;
-		// the rAF callback then reads scrollHeight against a settled DOM.
-		// Subsequent fires (true grows with previous defined) write
-		// synchronously — only the FIRST fire defers.
-		//
-		// COVERAGE BOUNDARY: this net guards the INVARIANT (read happens
-		// inside an rAF, not synchronously inside the RO callback) but
-		// not the COST (the actual ms of layout work). The cost is
-		// JSDOM-impossible — JSDOM has no real layout engine. Smoke-test
-		// verification: capture a fresh Performance trace post-fix on
-		// the same scenario as Trace-I-S8-NormalCadence-20260524T215526.json
-		// and confirm forced-layout count inside the click handler is 0.
+		// COVERAGE BOUNDARY: JSDOM has no layout engine. The cost axis
+		// (forced layout in the input task) is measured in the smoke vault.
+		// The tab-switch sequence itself is pinned in
+		// i352-activation-scroll-flash.test.tsx.
 
-		it("defers initial fire scrollTop write to next rAF", () => {
+		function mountPinned() {
 			let handle: HarnessHandle | null = null;
 			render(
 				React.createElement(Harness, {
@@ -1109,63 +979,29 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 				scrollHeight: 1000,
 				clientHeight: 800,
 			});
+			return { h, geom };
+		}
+
+		it("the initial fire writes scrollTop synchronously", () => {
+			const { h, geom } = mountPinned();
 			const writesBeforeFire = geom.writes.length;
 
-			// Initial RO fire — happens during React commit-phase
-			// microtask flush in real Obsidian.
 			act(() => {
 				fireResize(h.contentEl, 1000);
 			});
 
-			// SYNCHRONOUSLY: the hook MUST NOT have written scrollTop.
-			// Reading scrollHeight synchronously here would force
-			// layout against the dirty post-mount DOM.
-			expect(geom.writes.length).toBe(writesBeforeFire);
-
-			// Now flush the rAF queue.
-			act(() => {
-				flushMessages();
-			});
-
-			// AFTER rAF: the deferred callback reads scrollHeight
-			// against the (notionally) settled DOM and writes scrollTop.
+			// No deferred task: the write lands inside the RO callback.
 			expect(geom.writes.length).toBe(writesBeforeFire + 1);
 			expect(geom.writes[geom.writes.length - 1]).toBe(199); // 1000-800-1
 		});
 
-		it("subsequent grow fires write scrollTop synchronously (NOT deferred)", () => {
-			// Once the initial fire has set prevContentHeight, every later
-			// grow is a true streaming chunk and must write synchronously
-			// — deferring streaming-chunk writes would visibly lag the
-			// scroll behind the content.
-			let handle: HarnessHandle | null = null;
-			render(
-				React.createElement(Harness, {
-					isActive: true,
-					isSending: false,
-					view: makeView(),
-					onMount: (h) => {
-						handle = h;
-					},
-				}),
-			);
-			// biome-ignore lint/style/noNonNullAssertion: bound by render
-			const h = handle!;
-			const geom = setupScrollGeometry(h.scrollEl, {
-				scrollHeight: 1000,
-				clientHeight: 800,
-			});
-
-			// Initial fire — deferred. Flush rAF to land it.
+		it("subsequent grow fires write scrollTop synchronously", () => {
+			const { h, geom } = mountPinned();
 			act(() => {
 				fireResize(h.contentEl, 1000);
 			});
-			act(() => {
-				flushMessages();
-			});
 			const writesAfterInitial = geom.writes.length;
 
-			// Now a streaming-chunk grow.
 			Object.defineProperty(h.scrollEl, "scrollHeight", {
 				configurable: true,
 				get: () => 1500,
@@ -1174,176 +1010,26 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 				fireResize(h.contentEl, 1500);
 			});
 
-			// SYNCHRONOUSLY: write happened, no rAF flush needed.
 			expect(geom.writes.length).toBe(writesAfterInitial + 1);
 			expect(geom.writes[geom.writes.length - 1]).toBe(699); // 1500-800-1
-
-			// And confirm the rAF queue is empty (no spurious deferred
-			// callback queued for the second fire).
-			const writesBeforeFlush = geom.writes.length;
-			act(() => {
-				flushMessages();
-			});
-			expect(geom.writes.length).toBe(writesBeforeFlush);
 		});
 
-		it("deferred initial fire respects state changes between RO callback and rAF", () => {
-			// If the user wheel-ups in the interval between the deferred
-			// RO callback and the rAF flush, the rAF callback must see
-			// the current escapedFromLockRef / isAtBottomRef state and
-			// skip the write. This guards against "we read state at the
-			// wrong moment" regressions in the deferral implementation.
-			let handle: HarnessHandle | null = null;
-			render(
-				React.createElement(Harness, {
-					isActive: true,
-					isSending: false,
-					view: makeView(),
-					onMount: (h) => {
-						handle = h;
-					},
-				}),
-			);
-			// biome-ignore lint/style/noNonNullAssertion: bound by render
-			const h = handle!;
-			const geom = setupScrollGeometry(h.scrollEl, {
-				scrollHeight: 1000,
-				clientHeight: 800,
-			});
-			const writesBeforeFire = geom.writes.length;
-
-			// Initial RO fire — deferred to rAF.
-			act(() => {
-				fireResize(h.contentEl, 1000);
-			});
-			expect(geom.writes.length).toBe(writesBeforeFire);
-
-			// User wheel-ups BEFORE the rAF flushes.
+		it("a wheel-up before the initial fire prevents its write", () => {
+			// The user's escape must win even though the first fire no longer
+			// waits a task: the guards run at fire time.
+			const { h, geom } = mountPinned();
 			act(() => {
 				fireWheel(h.scrollEl, -50);
 			});
 			expect(h.getResult().isAtBottom).toBe(false);
+			const writesBeforeFire = geom.writes.length;
 
-			// Now flush rAF. The deferred callback's guards must
-			// see the current isAtBottomRef=false and bail.
 			act(() => {
-				flushMessages();
+				fireResize(h.contentEl, 1000);
 			});
 
-			// No write happened. The user's escape was respected.
 			expect(geom.writes.length).toBe(writesBeforeFire);
 		});
-
-		it("FAILS on d6bcfac: in-frame synchronous rAF fulfillment defeats the deferral (T-IS9-smoke regression)", () => {
-			// REPRODUCES the production failure surfaced by trace
-			// _traces/Trace-Phase2-Verify-IS9-20260525T093852.json against
-			// commit d6bcfac. Click handler total: 178.34 ms (vs 62.69 ms
-			// pre-fix); forced-layout duration inside click: 75.94 ms (vs
-			// 31.24 ms pre-fix). The deferred-rAF fix did NOT eliminate
-			// the synchronous read in production.
-			//
-			// Why: when the click event is dispatched DURING an active
-			// frame-update task (the common case for tab-activation clicks
-			// because Chromium batches input + frame work), an
-			// `requestAnimationFrame` queued from the click's microtask
-			// flush gets fulfilled IN THE SAME TASK. The trace shows the
-			// rAF queued at +30.80 ms inside the click, with the deferred
-			// `UpdateLayoutTree`/`Layout` firing at +101.70/+144.11 ms —
-			// all inside the same RunTask wrapping the click EventDispatch.
-			//
-			// The other I-S9 tests in this describe block use a CAPTURE
-			// rAF mock (queues callbacks for explicit flush via
-			// `flushRaf()`). That correctly simulates the "rAF runs in a
-			// later task" case but masks the in-frame fulfillment case.
-			// This test installs a SYNCHRONOUS-FULFILLMENT rAF mock that
-			// fires the callback immediately within the same call stack as
-			// the `requestAnimationFrame()` invocation — which is exactly
-			// what Chromium does when the rAF is queued during an
-			// already-active frame-update task.
-			//
-			// EXPECTED on a correct fix: the write does NOT happen
-			// synchronously inside `fireResize`, regardless of whether the
-			// underlying deferral mechanism resolves immediately or later.
-			// The deferral must guarantee the write lands in a fresh
-			// task/frame, not just outside the RO callback's synchronous
-			// stack.
-			//
-			// Candidate mechanisms that would pass this test:
-			//   - setTimeout(fn, 0) — schedules a new task, never folded
-			//     into the current one
-			//   - MessageChannel postMessage — same task-queue semantics
-			//   - Double rAF (rAF inside rAF) — second rAF queues into the
-			//     next frame's batch
-			//   - scheduler.postTask(fn, { priority: "user-blocking" })
-			//
-			// The current `requestAnimationFrame(...)` deferral does NOT
-			// pass — the trace proves it, and this test reproduces it.
-
-			// Override rAF for this test only: synchronous fulfillment.
-			// Mirrors Chromium's behavior when an rAF is queued during an
-			// already-active frame-update task — the callback runs in the
-			// same task as the requestAnimationFrame() call, not a later
-			// frame.
-			const savedRAF = globalThis.requestAnimationFrame;
-			const savedCAF = globalThis.cancelAnimationFrame;
-			let nextSyncRafId = 1;
-			globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
-				const id = nextSyncRafId++;
-				// Fire synchronously inside the requestAnimationFrame call,
-				// reproducing the in-frame-fulfillment behavior.
-				cb(performance.now());
-				return id;
-			};
-			globalThis.cancelAnimationFrame = () => {
-				// No-op: the callback already ran synchronously above. Any
-				// cancel attempt arrives after the fact, just like in the
-				// browser when the rAF was already serviced this frame.
-			};
-
-			try {
-				let handle: HarnessHandle | null = null;
-				render(
-					React.createElement(Harness, {
-						isActive: true,
-						isSending: false,
-						view: makeView(),
-						onMount: (h) => {
-							handle = h;
-						},
-					}),
-				);
-				// biome-ignore lint/style/noNonNullAssertion: bound by render
-				const h = handle!;
-				const geom = setupScrollGeometry(h.scrollEl, {
-					scrollHeight: 1000,
-					clientHeight: 800,
-				});
-				const writesBeforeFire = geom.writes.length;
-
-				// Fire the initial RO event — same as the other I-S9 tests,
-				// but now the rAF the hook queues will fulfill synchronously
-				// inside the RO callback's call stack.
-				act(() => {
-					fireResize(h.contentEl, 1000);
-				});
-
-				// THE FAILING ASSERTION:
-				// On d6bcfac, the hook's `requestAnimationFrame(() => { ... })`
-				// fires synchronously inside fireResize, so the write happens
-				// before fireResize returns. geom.writes.length will be
-				// writesBeforeFire + 1 here, NOT writesBeforeFire.
-				//
-				// On a correct fix using a task-queue-based deferral
-				// (setTimeout, MessageChannel, double rAF, postTask), the
-				// callback will NOT run synchronously and this assertion
-				// will pass.
-				expect(geom.writes.length).toBe(writesBeforeFire);
-			} finally {
-				globalThis.requestAnimationFrame = savedRAF;
-				globalThis.cancelAnimationFrame = savedCAF;
-			}
-		});
-
 	});
 
 	describe("I-S7 regression net (scroll-event race during async-grow session restore)", () => {
@@ -1383,10 +1069,6 @@ describe("useAutoScrollPin — content-grow auto-anchor (closes I-S1 architectur
 			// First RO fire — partial content height
 			act(() => {
 				fireResize(h.contentEl, 1000);
-			});
-			// I-S9 fix: initial fire defers to rAF. Flush to land the anchor.
-			act(() => {
-				flushMessages();
 			});
 			// Initial anchor: scrollTop = 1000 - 800 - 1 = 199
 			expect(geom.writes[geom.writes.length - 1]).toBe(199);
