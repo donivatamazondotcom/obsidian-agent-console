@@ -6,6 +6,7 @@
 
 import type { ChatId } from "../types/session";
 import { URI_RATE_LIMIT_MS } from "./quick-prompt-uri";
+import type { ChatLinkRateLimitState } from "../types/chat-link";
 
 /** The protocol action registered with `registerObsidianProtocolHandler`. */
 export const CHAT_LINK_ACTION = "agent-console-chat";
@@ -57,10 +58,8 @@ export function parseChatLinkParams(
 	return { kind: "ok", id };
 }
 
-export interface ChatLinkRateLimitState {
-	lastAt?: number;
-	lastId?: string;
-}
+// The state lives in types/ so the handler's input types can name it.
+export type { ChatLinkRateLimitState } from "../types/chat-link";
 
 export type ChatLinkRateLimitResult =
 	| { ok: true; state: ChatLinkRateLimitState }

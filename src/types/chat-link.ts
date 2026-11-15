@@ -6,6 +6,7 @@
  */
 
 import type { ChatId, SavedSessionInfo } from "./session";
+import type { PerLeafTabState } from "./tab";
 
 /** One open tab and the chat ID it is bound to. */
 export interface BoundChat {
@@ -42,4 +43,58 @@ export interface OpenChatBridge {
 	switchTo(tabId: string): void;
 	/** Open `record` in a restored tab, or switch to a tab that holds it. */
 	openFromHistory(record: SavedSessionInfo): Promise<OpenRecordResult>;
+}
+
+/** The chat-link rate limit's state (D14): the last accepted link. */
+export interface ChatLinkRateLimitState {
+	lastAt?: number;
+	lastId?: string;
+}
+
+/**
+ * A workspace leaf as the chat-link handler reads it. Structural, so the real
+ * `WorkspaceLeaf` fits and tests can fake one.
+ */
+export interface ChatLinkLeaf {
+	/** Undocumented `WorkspaceLeaf.id`: the key of the leaf's saved tab state. */
+	id?: string;
+	/** Read only for its container's window, where frames are counted. */
+	view: { containerEl: HTMLElement };
+}
+
+/** The `Workspace` calls the handler makes. */
+export interface ChatLinkWorkspace<L extends ChatLinkLeaf> {
+	getLeavesOfType(viewType: string): L[];
+	onLayoutReady(callback: () => void): void;
+	revealLeaf(leaf: L): Promise<void>;
+	setActiveLeaf(leaf: L, params: { focus: boolean }): void;
+}
+
+/** Everything `createChatLinkHandler` reads ([[Agent Console Chat ID]] D12). */
+export interface ChatLinkHandlerInputs<L extends ChatLinkLeaf> {
+	workspace: ChatLinkWorkspace<L>;
+	/** The chat view type, for `getLeavesOfType`. */
+	viewType: string;
+	/** The panel's bridge, or null when the leaf isn't a mounted chat view. */
+	getBridge(leaf: L): OpenChatBridge | null;
+	restoreTabsOnStartup(): boolean;
+	perLeafTabStates(): readonly PerLeafTabState[];
+	savedSessions(): readonly SavedSessionInfo[];
+	/** The focus-tracked chat view's id (its `leaf.id`). */
+	lastActiveChatViewId(): string | null;
+	/** An open chat leaf to target, or null when none is open. */
+	getTargetChatLeaf(): L | null;
+	/** Open (or reveal) a chat view. */
+	activateView(): Promise<void>;
+	/** The view a just-created panel mounted, bounded; null if none did. */
+	waitForChatViewOpener(): Promise<{ leaf: L } | null>;
+	/** The plugin-owned rate-limit state. `set` runs only on acceptance. */
+	rateLimit: {
+		get(): ChatLinkRateLimitState;
+		set(state: ChatLinkRateLimitState): void;
+	};
+	now(): number;
+	/** Post a finished notice string (the handler adds the prefix). */
+	notify(message: string): void;
+	logError(message: string, error: unknown): void;
 }
