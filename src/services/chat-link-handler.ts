@@ -202,8 +202,13 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 			leaf = inputs.getTargetChatLeaf();
 			if (!leaf) {
 				await inputs.activateView();
+				// The panel activateView opened is the target leaf now. The
+				// opener wait counts main-window frames, which a hidden window
+				// never draws (I369), so it's only the fallback.
 				leaf =
-					(await withDeadline(inputs.waitForChatViewOpener()))?.leaf ?? null;
+					inputs.getTargetChatLeaf() ??
+					(await withDeadline(inputs.waitForChatViewOpener()))?.leaf ??
+					null;
 			}
 			if (!leaf) throw new CouldNotOpen("no chat panel opened");
 			// Step 4 already waited on this leaf and its bridge didn't register;

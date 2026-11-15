@@ -916,6 +916,29 @@ describe("chat link handler — the opener wait is bounded (T48d)", () => {
 	});
 });
 
+describe("chat link handler — no chat view open while the main window is hidden (I369)", () => {
+	it("uses the panel activateView opened, even though the opener wait never resolves", async () => {
+		let created: FakeLeaf | null = null;
+		const env = makeEnv({
+			records: [record("x")],
+			// The plugin's opener counts main-window frames: none arrive.
+			opener: () => new Promise(() => {}),
+			createLeafOnActivate: () => {
+				const leaf = makeLeaf("New", fakeWindow("New", { stalled: true }));
+				leaf.mountOnTimer = true;
+				leaf.pendingBridge = fakeBridge(() => leaf);
+				created = leaf;
+				return leaf;
+			},
+		});
+		await env.fire({ id: "x" }, 0);
+		expect(created!.pendingBridge!.opened).toEqual(["x"]);
+		expect(env.notices).toEqual([]);
+		expect(env.events.slice(-1)).toEqual(["active:New:true"]);
+		expect(at(env, "active:New")!).toBeLessThan(1000);
+	});
+});
+
 describe("chat link handler — a could-not-open notice releases the run's repeat (T49)", () => {
 	it("after a reveal that throws before the open, the same link within 2 s shows the rate notice", async () => {
 		const env = makeEnv({ records: [record("x"), record("y")] });
