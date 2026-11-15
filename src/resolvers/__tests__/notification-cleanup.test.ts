@@ -130,6 +130,23 @@ describe("decideNotificationCleanup (I52 round 9)", () => {
 		expect(d).toEqual({ kind: "run", remove: [], evict: ["a:1"] });
 	});
 
+	it("removes nothing and only evicts when retries are disabled (maxRetries 0)", () => {
+		const entries = [
+			entry("b:1", "b"),
+			...Array.from({ length: 10 }, (_, i) => entry(`a:${i + 1}`, "a")),
+		];
+		const d = decideNotificationCleanup({
+			entries,
+			now: NOW,
+			effectiveLastPostedAt: NOW - QUIET,
+			quietMs: QUIET,
+			cap: 10,
+			maxRetries: 0,
+		});
+		// Stale a:1 goes before live b:1.
+		expect(d).toEqual({ kind: "run", remove: [], evict: ["a:1"] });
+	});
+
 	it("an entry whose removals are exhausted still falls to the cap", () => {
 		const entries = [
 			entry("a:1", "a", { failedRemovals: 3 }),

@@ -560,15 +560,30 @@ describe("removal failures keep the entry and retry", () => {
 		expect(h.reg.__count()).toBe(0);
 	});
 
-	it("without a remover, leaves superseded entries alone until FIFO needs the room", () => {
+	it("keeps superseded entries when no remover is configured, even after their close event", () => {
 		const h = harness({ remove: null });
 		const a1 = h.post("tab-a");
 		h.post("tab-a");
 		h.clock.advance(Q);
-		// No close() near postings: close() alone is unreliable, and only FIFO
-		// can release an entry when nothing can remove it by id.
-		expect(a1.close).not.toHaveBeenCalled();
+		expect(a1.close).toHaveBeenCalledTimes(1);
+		a1.onclose?.(new Event("close"));
 		expect(h.reg.__count()).toBe(2);
+	});
+
+	it("without a remover, the pass closes each stale entry once and FIFO evicts stale entries first", () => {
+		const h = harness({ remove: null });
+		const idle = h.post("tab-idle");
+		const busy: FakeNotification[] = [];
+		for (let i = 0; i < 15; i++) {
+			busy.push(h.post("tab-a"));
+			h.clock.advance(Q);
+		}
+		h.clock.advance(Q);
+		for (const n of busy.slice(0, -1)) expect(n.close).toHaveBeenCalledTimes(1);
+		expect(busy[busy.length - 1].close).not.toHaveBeenCalled();
+		expect(idle.close).not.toHaveBeenCalled();
+		expect(h.reg.__count()).toBeLessThanOrEqual(MAX_RETAINED_NOTIFICATIONS);
+		expect(h.clock.pending()).toBe(0);
 	});
 });
 
@@ -580,6 +595,9 @@ describe("code-review round 1 gaps (I52 round 9)", () => {
 			h.post("tab-a");
 			h.clock.advance(Q);
 		}
+		// The newest stale entry is closed and held back one pass, then
+		// evicted at the next quiet minute (soft cap).
+		h.clock.advance(Q);
 		expect(h.reg.__count()).toBeLessThanOrEqual(MAX_RETAINED_NOTIFICATIONS);
 		expect(idle.close).not.toHaveBeenCalled();
 	});
@@ -640,6 +658,8 @@ describe("code-review round 1 gaps (I52 round 9)", () => {
 		// not run the closed tab's handler.
 		h.clock.advance(5 * Q);
 		expect(h.reg.__count()).toBe(MAX_RETAINED_NOTIFICATIONS);
+		// The over-cap re-arm ran until the exhausted entry was evicted, then stopped.
+		expect(h.clock.pending()).toBe(0);
 		closed.onclick?.(new Event("click"));
 		expect(onClick).not.toHaveBeenCalled();
 		expect(h.raise).toHaveBeenCalledTimes(1);
