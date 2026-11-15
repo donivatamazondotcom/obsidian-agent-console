@@ -409,7 +409,7 @@ describe("Jump to start of reply button: focus (U12)", () => {
 		expect(document.activeElement).toBe(textStart(container, "a3"));
 	});
 
-	it("a pointer press on the down pill keeps focus where it was (review L1)", () => {
+	it("a pointer press on the down pill has its default prevented, so the pill never takes focus (review L1)", () => {
 		const { container } = render(<List />);
 		attachGeometry(container);
 		lastIO().report(true);

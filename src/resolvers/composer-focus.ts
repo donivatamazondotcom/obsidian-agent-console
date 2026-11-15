@@ -40,9 +40,13 @@
  *  - Quick-prompt chip fire, picker mouse-pick, remove-attachment, context-pill
  *    click: already refocus via dedicated, tested local handlers.
  *  - Jump to start of reply (the up chevron): a pointer click keeps focus
- *    where it was; keyboard activation moves focus to the reply it jumped to
- *    (skip-link), never to the composer, so PageDown scrolls the reply
- *    instead of editing the draft. The command never moves focus.
+ *    where it was; keyboard activation, or a click on the button after Tab
+ *    focused it, moves focus to the reply it jumped to (skip-link), never to
+ *    the composer, so PageDown scrolls the reply instead of editing the
+ *    draft. The command never moves focus.
+ *  - Jump to latest (the down pill): a pointer click keeps focus where it
+ *    was. Keyboard activation still drops focus to the body when the pill
+ *    unmounts (I358, open).
  *
  * Pure — no React, no Obsidian. Unit-tested exhaustively.
  *
