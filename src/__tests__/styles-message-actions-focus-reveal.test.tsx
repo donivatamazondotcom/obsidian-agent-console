@@ -19,6 +19,12 @@
  * the runtime places it. Companion check: the (ST) note's CDP probe reads
  * the bar's computed opacity after a real Tab in Obsidian.
  *
+ * jsdom limit: its selector engine caches a `:focus-within` result per
+ * element and selector, and a focus change doesn't clear it (a second
+ * `matches` after `blur()` returns the first answer). So each case renders
+ * a fresh bubble, places focus, and evaluates once. "The bar hides again
+ * once focus moves on" is checked by the CDP probe, not here.
+ *
  * Reproduce-first: on `main` @ 211b836d the only reveal is `:hover` → red.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -77,15 +83,13 @@ function revealSelectors(): string[] {
 	return out;
 }
 
-/** True when some reveal rule matches `bar` in the current DOM state. */
+/**
+ * True when some reveal rule matches `bar` in the current DOM state. A
+ * selector jsdom can't parse throws, so a hidden-state case can't pass
+ * vacuously.
+ */
 function isRevealed(bar: Element): boolean {
-	return revealSelectors().some((sel) => {
-		try {
-			return bar.matches(sel);
-		} catch {
-			return false;
-		}
-	});
+	return revealSelectors().some((sel) => bar.matches(sel));
 }
 
 const plugin = makeMessageListPlugin({

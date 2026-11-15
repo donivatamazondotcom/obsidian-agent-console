@@ -57,7 +57,7 @@ You can also run **Jump to start of latest reply** from the command palette. It 
 
 ## Copying a Message
 
-Hover over a message to show its copy button in the bottom-right corner, then click it. From the keyboard, press `Tab` to reach the button. It shows while it has focus, and `Enter` copies the message.
+Hover over a message to show its copy button in the bottom-right corner, then click it. From the keyboard, press `Tab` to reach the button. It shows while it has focus, and `Enter` or `Space` copies the message's text.
 
 ## Switching Agents
 
