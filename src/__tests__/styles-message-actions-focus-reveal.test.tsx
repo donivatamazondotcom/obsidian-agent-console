@@ -74,9 +74,11 @@ function barSelectorsSetting(prop: string, hidden: string): string[] {
 			value = d.value.trim();
 		});
 		if (value === undefined || value === hidden) return;
+		// Any selector naming the bar; `bar.matches` later drops the ones
+		// that target its children.
 		for (const sel of rule.selectors) {
 			const s = sel.trim();
-			if (s.endsWith(BAR) || s.includes(`${BAR}:`)) out.push(s);
+			if (s.includes(BAR)) out.push(s);
 		}
 	});
 	return out;
@@ -160,6 +162,7 @@ describe("message actions bar reveal on keyboard focus (I364)", () => {
 			{ type: "text", text: "Some reply text." },
 		]);
 		expect(isRevealed(bar)).toBe(false);
+		expect(isClickable(bar)).toBe(false);
 	});
 
 	it("keeps the bar hidden when a keyboard jump focuses the reply text", async () => {
@@ -175,6 +178,7 @@ describe("message actions bar reveal on keyboard focus (I364)", () => {
 		target.focus();
 		expect(document.activeElement).toBe(target);
 		expect(isRevealed(bar)).toBe(false);
+		expect(isClickable(bar)).toBe(false);
 	});
 
 	it("still reveals the bar on pointer hover over the message", () => {
