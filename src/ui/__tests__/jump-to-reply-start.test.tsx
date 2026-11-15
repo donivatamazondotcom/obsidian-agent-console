@@ -603,3 +603,38 @@ describe("Content element identity across empty and populated (U17)", () => {
 		expect(container.querySelector(".agent-client-chat-content")).toBe(first);
 	});
 });
+
+// ============================================================================
+// With Chat Timestamps (PR 2): stamps render, the target stays the answer
+// ============================================================================
+describe("Jump to start of reply with chat timestamps", () => {
+	it("keyboard activation on a gap-stamped answer lands on the group that starts with its stamp", () => {
+		const T = Date.UTC(2026, 10, 15, 17, 0);
+		const stamped: ChatMessage[] = [
+			{ ...user("u1", "Question"), sentAt: T, turnEndedAt: T + 600_000, turnEndKind: "done", turnMs: 600_000 },
+			MESSAGES[1],
+			MESSAGES[2],
+			{
+				id: "a3",
+				role: "assistant",
+				content: [
+					tool("B"),
+					{ type: "text", text: "Final answer.", arrivedAt: T + 500_000, gapBefore: true },
+				],
+				timestamp: new Date(0),
+			},
+		];
+		const { container } = render(<List messages={stamped} />);
+		const { geom } = attachGeometry(container);
+		lastIO().report(true);
+		const target = textStart(container, "a3");
+		expect(lastIO().observed).toEqual([target]);
+		expect(target.firstElementChild?.classList.contains("agent-client-stamp-gap")).toBe(true);
+		fireEvent.click(upButton(container) as HTMLElement, { detail: 0 });
+		expect(geom.scrollTop).toBe(1046 + 30 - 8);
+		expect(document.activeElement).toBe(target);
+		// The prompt and end stamps render around it without becoming the target.
+		expect(container.querySelector('[data-message-id="u1"] .agent-client-stamp-prompt')).not.toBeNull();
+		expect(container.querySelector('[data-message-id="a3"] > .agent-client-stamp-end')).not.toBeNull();
+	});
+});
