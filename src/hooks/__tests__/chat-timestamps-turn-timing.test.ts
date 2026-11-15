@@ -517,6 +517,51 @@ describe("time waiting on you is left out", () => {
 		});
 	});
 
+	it("an ask applied by the turn-end flush counts in the next turn", async () => {
+		const { result, prompts } = setup();
+		await send(result);
+		at(T0 + 30 * SEC);
+		await feed(result, tool("tc1", { status: "in_progress" }));
+		at(T0 + 2 * MIN);
+		await act(async () => {
+			result.current.enqueueUpdate(ask("tc1", "r1", true));
+			prompts[0].resolve({ stopKind: "endTurn" });
+			await Promise.resolve();
+		});
+		await flushBatch();
+		at(T0 + 3 * MIN);
+		await send(result);
+		at(T0 + 13 * MIN);
+		await feed(result, approve("tc1", "r1"));
+		at(T0 + 14 * MIN);
+		await answer(prompts);
+		expect(thePrompt(result.current.messages)).toMatchObject({
+			turnWaitMs: 10 * MIN,
+			turnMs: 1 * MIN,
+		});
+	});
+
+	it("an ask that arrives between turns counts in the next turn", async () => {
+		const { result, prompts } = setup();
+		await send(result);
+		at(T0 + 30 * SEC);
+		await feed(result, tool("tc1", { status: "in_progress" }));
+		at(T0 + 1 * MIN);
+		await answer(prompts);
+		at(T0 + 2 * MIN);
+		await feed(result, ask("tc1", "r1", true));
+		at(T0 + 3 * MIN);
+		await send(result);
+		at(T0 + 13 * MIN);
+		await feed(result, approve("tc1", "r1"));
+		at(T0 + 14 * MIN);
+		await answer(prompts);
+		expect(thePrompt(result.current.messages)).toMatchObject({
+			turnWaitMs: 10 * MIN,
+			turnMs: 1 * MIN,
+		});
+	});
+
 	it("a permission restored from disk as active never counts as waiting", async () => {
 		const { result, prompts } = setup();
 		act(() =>

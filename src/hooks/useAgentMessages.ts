@@ -312,10 +312,10 @@ export function useAgentMessages(
 	const turnWaitMsRef = useRef(0);
 	// Whether a permission was active at the last render (edge detection).
 	const hadPermissionRef = useRef(false);
-	// True when the last turn ended with this hook's own permission still
-	// open (the agent answered with it pending). Only that one counts from
-	// the next send; a permission restored from disk can't be answered.
-	const permissionCarriedRef = useRef(false);
+	// True while the active permission is one restored from disk. It can't
+	// be answered (the restarted PermissionManager doesn't know it), so it
+	// never counts as waiting (I360). Cleared when it falls.
+	const restoredPromptActiveRef = useRef(false);
 
 	// ============================================================
 	// Streaming Update Batching
@@ -482,7 +482,6 @@ export function useAgentMessages(
 		live.livePromptId = null;
 		const now = Date.now();
 		const openStretch = waitStartedAtRef.current;
-		permissionCarriedRef.current = openStretch !== null;
 		// On Stop the permission's falling edge only shows after the turn has
 		// ended, so an open stretch is closed here, at this write's clock.
 		const waitMs =
@@ -584,8 +583,6 @@ export function useAgentMessages(
 		// Chat Timestamps: record the stop before liveTurnRef is reset. The
 		// queue is discarded, not flushed: Stop is meant to drop it.
 		writeTurnEnd("stopped");
-		// Stop cancels the open permission, so nothing carries over.
-		permissionCarriedRef.current = false;
 		setIsSending(false);
 		titleBufferRef.current = null;
 		// I257: the stopped turn's echo is now covered by the I203 gate above.
@@ -616,7 +613,7 @@ export function useAgentMessages(
 		heldChunkRef.current = null;
 		waitStartedAtRef.current = null;
 		turnWaitMsRef.current = 0;
-		permissionCarriedRef.current = false;
+		restoredPromptActiveRef.current = false;
 		sendAttemptedRef.current = false;
 		// I295: drop a send still preparing for the cleared chat, and stop a
 		// live turn's late result or error from landing on it.
@@ -629,7 +626,8 @@ export function useAgentMessages(
 			// A restored or forked transcript has no live turn and no clocks.
 			lastUpdateAtRef.current = null;
 			heldChunkRef.current = null;
-			permissionCarriedRef.current = false;
+			restoredPromptActiveRef.current =
+				findActivePermission(localMessages) !== null;
 			setMessages(localMessages);
 			rebuildToolCallIndex(localMessages, toolCallIndexRef.current);
 			streamContinuityRef.current = createStreamContinuity();
@@ -812,13 +810,13 @@ export function useAgentMessages(
 			// previous turn's last update never carries over.
 			lastUpdateAtRef.current = sentAt;
 			heldChunkRef.current = null;
-			// A permission this hook's last turn left open, still on screen,
-			// counts from the send: there is no rising edge to start it.
+			// A permission already on screen at the send (left open by the
+			// last turn, or asked between turns) counts from the send: there
+			// is no rising edge to start it. A restored one never counts.
 			waitStartedAtRef.current =
-				permissionCarriedRef.current && hadPermissionRef.current
+				hadPermissionRef.current && !restoredPromptActiveRef.current
 					? sentAt
 					: null;
-			permissionCarriedRef.current = false;
 			turnWaitMsRef.current = 0;
 			// I257: arm before the prompt goes out, so no echo can precede it.
 			liveTurnRef.current = {
@@ -953,6 +951,7 @@ export function useAgentMessages(
 				waitStartedAtRef.current = Date.now();
 			}
 		} else if (!hasActivePermission && had) {
+			restoredPromptActiveRef.current = false;
 			const started = waitStartedAtRef.current;
 			if (started !== null) {
 				turnWaitMsRef.current += Math.max(0, Date.now() - started);
