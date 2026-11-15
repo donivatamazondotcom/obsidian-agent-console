@@ -169,7 +169,9 @@ export class AcpHandler {
 					sessionId,
 					toolCallId: update.toolCallId,
 					title: update.title ?? undefined,
-					status: update.status || "pending",
+					// I356: a missing status stays missing; message state
+					// keeps the row's status and defaults only a new row.
+					status: update.status ?? undefined,
 					kind: update.kind ?? undefined,
 					content: AcpTypeConverter.toToolCallContent(update.content),
 					locations: update.locations ?? undefined,

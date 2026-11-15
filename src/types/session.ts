@@ -424,7 +424,11 @@ export interface ToolCall extends SessionUpdateBase {
 	type: "tool_call";
 	toolCallId: string;
 	title?: string;
-	status: ToolCallStatus;
+	/**
+	 * Optional, as in ACP. A missing status keeps the row's existing one;
+	 * a new row defaults to pending (I356).
+	 */
+	status?: ToolCallStatus;
 	kind?: ToolKind;
 	content?: ToolCallContent[];
 	locations?: ToolCallLocation[];

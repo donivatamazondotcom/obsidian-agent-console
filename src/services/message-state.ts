@@ -11,6 +11,7 @@ import type {
 	MessageContent,
 	ActivePermission,
 	PermissionOption,
+	ToolCallStatus,
 } from "../types/chat";
 import type { SessionUpdate } from "../types/session";
 import { stripInjectedPromptText } from "./message-sender";
@@ -25,6 +26,14 @@ export type ToolCallMessageContent = Extract<
 	{ type: "tool_call" }
 >;
 
+/**
+ * A tool-call upsert as it arrives: status is optional, as in ACP (I356).
+ * A missing status keeps the row's existing one; a new row gets pending.
+ */
+export type ToolCallUpsert = Omit<ToolCallMessageContent, "status"> & {
+	status?: ToolCallStatus;
+};
+
 // ============================================================================
 // Tool Call Merge
 // ============================================================================
@@ -35,7 +44,7 @@ export type ToolCallMessageContent = Extract<
  */
 export function mergeToolCallContent(
 	existing: ToolCallMessageContent,
-	update: ToolCallMessageContent,
+	update: ToolCallUpsert,
 ): ToolCallMessageContent {
 	// Merge content arrays
 	let mergedContent = existing.content || [];
@@ -73,6 +82,7 @@ export function mergeToolCallContent(
 		toolCallId: update.toolCallId,
 		title: update.title !== undefined ? update.title : existing.title,
 		kind: update.kind !== undefined ? update.kind : existing.kind,
+		// I356: an update with no status keeps the existing one.
 		status: update.status !== undefined ? update.status : existing.status,
 		content: mergedContent,
 		locations:
@@ -306,7 +316,7 @@ export function applyUpdateUserMessage(
  */
 export function applyUpsertToolCall(
 	prev: ChatMessage[],
-	content: ToolCallMessageContent,
+	content: ToolCallUpsert,
 	toolCallIndex: Map<string, number>,
 ): ChatMessage[] {
 	// O(1) lookup via index
@@ -362,14 +372,19 @@ export function applyUpsertToolCall(
 
 	if (found) return updated;
 
-	// Not found: create new message and register in index
+	// Not found: create new message and register in index.
+	// I356: `pending` only when a row is created for an id not seen before.
+	const created: ToolCallMessageContent = {
+		...content,
+		status: content.status ?? "pending",
+	};
 	toolCallIndex.set(content.toolCallId, prev.length);
 	return [
 		...prev,
 		{
 			id: crypto.randomUUID(),
 			role: "assistant" as const,
-			content: [content],
+			content: [created],
 			timestamp: new Date(),
 		},
 	];
@@ -466,7 +481,8 @@ export function applySingleUpdate(
 					type: "tool_call",
 					toolCallId: update.toolCallId,
 					title: update.title,
-					status: update.status || "pending",
+					// I356: missing stays missing; the upsert decides.
+					status: update.status,
 					kind: update.kind,
 					content: update.content,
 					locations: update.locations,
