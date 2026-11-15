@@ -73,6 +73,7 @@ import { act, cleanup, render } from "@testing-library/react";
 import * as React from "react";
 
 import { useAutoScrollPin } from "../use-auto-scroll-pin";
+import { SCROLL_ANCHORING_ATTR } from "../use-auto-scroll-pin.types";
 import type { IChatViewHost } from "../view-host";
 
 // ============================================================================
@@ -3123,8 +3124,11 @@ describe("useAutoScrollPin — I304 user scroll input during streaming", () => {
 		const t = setupStreaming();
 		t.chunk();
 		expect(t.h.getResult().isAtBottom).toBe(true);
+		expect(t.h.scrollEl.hasAttribute(SCROLL_ANCHORING_ATTR)).toBe(false);
 		input(t);
 		expect(t.h.getResult().isAtBottom).toBe(false);
+		// I357: every unpin input turns native scroll anchoring on.
+		expect(t.h.scrollEl.hasAttribute(SCROLL_ANCHORING_ATTR)).toBe(true);
 		t.chunk();
 		t.chunk();
 		expect(t.top()).toBe(3000);
@@ -3560,5 +3564,224 @@ describe("useAutoScrollPin — I305 no-op writes don't arm the ignore flag", () 
 			flushTimers();
 		});
 		expect(t.h.getResult().isAtBottom).toBe(true);
+	});
+});
+
+describe("useAutoScrollPin — I357 scroll anchoring follows pin state", () => {
+	/**
+	 * While the tab is scrolled up, the scroller carries
+	 * SCROLL_ANCHORING_ATTR and styles.css turns native scroll anchoring
+	 * back on, so the browser holds the reading position as text reflows.
+	 * While pinned it's absent. The browser behavior itself is checked in a
+	 * running Obsidian (INV-11); these tests pin the attribute to every pin
+	 * transition.
+	 */
+	const has = (el: HTMLElement) => el.hasAttribute(SCROLL_ANCHORING_ATTR);
+
+	function setup(opts: { scrollHeight?: number; scrollTop?: number } = {}) {
+		let handle: HarnessHandle | null = null;
+		const App = (props: { isSending: boolean }) =>
+			React.createElement(Harness, {
+				isActive: true,
+				isSending: props.isSending,
+				view: makeView(),
+				onMount: (x) => {
+					handle = x;
+				},
+			});
+		const { rerender } = render(React.createElement(App, { isSending: false }));
+		// biome-ignore lint/style/noNonNullAssertion: bound by render
+		const h = handle!;
+		const geom = {
+			scrollHeight: opts.scrollHeight ?? 2000,
+			clientHeight: 800,
+			scrollTop: opts.scrollTop ?? 1199,
+		};
+		Object.defineProperty(h.scrollEl, "scrollHeight", {
+			configurable: true,
+			get: () => geom.scrollHeight,
+		});
+		Object.defineProperty(h.scrollEl, "clientHeight", {
+			configurable: true,
+			get: () => geom.clientHeight,
+		});
+		Object.defineProperty(h.scrollEl, "scrollTop", {
+			configurable: true,
+			get: () => geom.scrollTop,
+			set: (v: number) => {
+				geom.scrollTop = v;
+			},
+		});
+		const scrollTo = (v: number) => {
+			geom.scrollTop = v;
+			fireScrollEvent(h.scrollEl);
+		};
+		const unpin = () =>
+			act(() => {
+				fireWheel(h.scrollEl, -100);
+				scrollTo(500);
+				flushTimers();
+			});
+		return { h, geom, rerender, App, scrollTo, unpin };
+	}
+
+	it("is absent while pinned, from mount", () => {
+		const { h } = setup();
+		expect(h.getResult().isAtBottom).toBe(true);
+		expect(has(h.scrollEl)).toBe(false);
+	});
+
+	it("an upward scroll with no input event (deferred-body unpin) sets it", () => {
+		const { h, scrollTo } = setup();
+		act(() => {
+			scrollTo(1199);
+			flushTimers();
+			scrollTo(300);
+			flushTimers();
+		});
+		expect(h.getResult().isAtBottom).toBe(false);
+		expect(has(h.scrollEl)).toBe(true);
+	});
+
+	it("scrolling back to the bottom removes it", () => {
+		const { h, scrollTo, unpin } = setup();
+		unpin();
+		expect(has(h.scrollEl)).toBe(true);
+		act(() => {
+			scrollTo(1199);
+			flushTimers();
+		});
+		expect(h.getResult().isAtBottom).toBe(true);
+		expect(has(h.scrollEl)).toBe(false);
+	});
+
+	it("the scroll-to-bottom pill removes it", () => {
+		const { h, unpin } = setup();
+		unpin();
+		expect(has(h.scrollEl)).toBe(true);
+		act(() => {
+			h.getResult().scrollToBottom({ behavior: "smooth" });
+		});
+		expect(has(h.scrollEl)).toBe(false);
+	});
+
+	it("a send removes it", () => {
+		const { h, rerender, App, unpin } = setup();
+		unpin();
+		expect(has(h.scrollEl)).toBe(true);
+		act(() => {
+			rerender(React.createElement(App, { isSending: true }));
+		});
+		expect(h.getResult().isAtBottom).toBe(true);
+		expect(has(h.scrollEl)).toBe(false);
+	});
+
+	it("the container growing back to near the bottom removes it", () => {
+		const { h, geom, unpin } = setup();
+		unpin();
+		act(() => {
+			fireResize(h.scrollEl, 800);
+		});
+		expect(has(h.scrollEl)).toBe(true);
+		// The view now sits 50 px from the bottom; the container grows.
+		act(() => {
+			geom.scrollTop = 1150;
+			fireResize(h.scrollEl, 820);
+		});
+		expect(h.getResult().isAtBottom).toBe(true);
+		expect(has(h.scrollEl)).toBe(false);
+	});
+
+	it("content shrinking to near the bottom removes it", () => {
+		const { h, geom, unpin } = setup();
+		act(() => {
+			fireResize(h.contentEl, 2000);
+		});
+		unpin();
+		expect(has(h.scrollEl)).toBe(true);
+		act(() => {
+			geom.scrollTop = 700;
+			geom.scrollHeight = 1550;
+			fireResize(h.contentEl, 1550);
+		});
+		expect(h.getResult().isAtBottom).toBe(true);
+		expect(has(h.scrollEl)).toBe(false);
+	});
+
+	describe("an anchoring adjustment's scroll event doesn't re-pin a reader near the bottom", () => {
+		// Browser order: layout runs the anchoring adjustment and the
+		// content ResizeObserver (which arms resizeDifferenceRef), then the
+		// adjustment's scroll event dispatches in the next frame's scroll
+		// steps, before the rAF that schedules the guard's clear. So the
+		// deferred body bails. The control shows what the guard prevents.
+		let rafQueue: FrameRequestCallback[] = [];
+		let savedRaf: typeof window.requestAnimationFrame;
+		beforeEach(() => {
+			rafQueue = [];
+			savedRaf = window.requestAnimationFrame;
+			window.requestAnimationFrame = (cb: FrameRequestCallback) => {
+				rafQueue.push(cb);
+				return rafQueue.length;
+			};
+		});
+		afterEach(() => {
+			window.requestAnimationFrame = savedRaf;
+		});
+		const flushRaf = () => {
+			const q = rafQueue.splice(0);
+			for (const cb of q) cb(0);
+		};
+
+		function nearBottomReader() {
+			const t = setup({ scrollHeight: 5000, scrollTop: 4199 });
+			act(() => {
+				fireResize(t.h.contentEl, 5000);
+				flushRaf();
+				flushTimers();
+				t.scrollTo(4199);
+				flushTimers();
+			});
+			// One ArrowUp: 50 px up, under STICK_OFFSET_PX, unpins (I304).
+			act(() => {
+				activeDocument.body.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }),
+				);
+				t.scrollTo(4150);
+				flushTimers();
+			});
+			// Let the scroll-key intent window lapse.
+			act(() => {
+				flushTimers();
+			});
+			expect(t.h.getResult().isAtBottom).toBe(false);
+			return t;
+		}
+
+		it("in browser order the deferred body bails and the reader stays put", () => {
+			const t = nearBottomReader();
+			act(() => {
+				// 200 px grows in above the view; anchoring shifts the view by it.
+				t.geom.scrollHeight = 5200;
+				fireResize(t.h.contentEl, 5200);
+				t.scrollTo(4350);
+				flushTimers();
+			});
+			expect(t.h.getResult().isAtBottom).toBe(false);
+			expect(has(t.h.scrollEl)).toBe(true);
+		});
+
+		it("control: if the guard had already cleared, the same event would re-pin", () => {
+			const t = nearBottomReader();
+			act(() => {
+				t.geom.scrollHeight = 5200;
+				fireResize(t.h.contentEl, 5200);
+				flushRaf();
+				flushTimers();
+				t.scrollTo(4350);
+				flushTimers();
+			});
+			expect(t.h.getResult().isAtBottom).toBe(true);
+			expect(has(t.h.scrollEl)).toBe(false);
+		});
 	});
 });

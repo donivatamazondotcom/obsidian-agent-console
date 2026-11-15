@@ -41,6 +41,16 @@ import type { IChatViewHost } from "./view-host";
  *
  * Revisit only if smoke-test surfaces flicker around the boundary.
  */
+/**
+ * I357: present on the scroller while the tab isn't pinned to the bottom.
+ * `styles.css` turns native scroll anchoring back on under it, so the
+ * browser keeps the paragraph at the top of the view in place while text
+ * above it reflows (pane resize, late renders, tool rows growing). While
+ * pinned it's absent and anchoring stays off, so it can't fight the bottom
+ * pin. Set only by `setIsAtBottom`, the single writer of pin state.
+ */
+export const SCROLL_ANCHORING_ATTR = "data-scroll-anchoring";
+
 export const STICK_OFFSET_PX = 70;
 
 // ============================================================================

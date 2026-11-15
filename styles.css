@@ -670,7 +670,9 @@ del.acp-header-branded-profile {
 
 /* Messages container — Phase 2 native-scroll architecture.
  * overflow-anchor: none disables browser-side anchoring so it doesn't
- * fight useAutoScrollPin's explicit programmatic scrolls. */
+ * fight useAutoScrollPin's explicit programmatic scrolls while the tab is
+ * pinned to the bottom. While scrolled up, the I357 rule below turns it
+ * back on. */
 .agent-client-chat-view-messages {
 	flex: 1;
 	padding: 16px 8px;
@@ -704,6 +706,31 @@ del.acp-header-branded-profile {
  * should be sufficient, but in practice Chromium can pick descendants as anchors
  * if their own overflow-anchor is auto (default). Belt-and-suspenders. */
 .agent-client-chat-content > * {
+	overflow-anchor: none;
+}
+
+/* I357: while the tab is scrolled up (useAutoScrollPin sets the attribute
+ * on unpin, removes it on pin), let the browser keep the paragraph at the
+ * top of the view in place as text reflows: pane resize, late renders,
+ * tool rows growing above. Rows by class, not `> *`: the universal subject
+ * restyles the whole transcript on every pin change (21 ms vs 1.6 ms on a
+ * 478-row chat). Notices at the top of the content stay excluded. */
+.agent-client-chat-view-messages[data-scroll-anchoring],
+.agent-client-chat-view-messages[data-scroll-anchoring] .agent-client-chat-content,
+.agent-client-chat-view-messages[data-scroll-anchoring]
+	.agent-client-chat-content
+	> .agent-client-message-row {
+	overflow-anchor: auto;
+}
+
+/* I357: nothing below a message's growing content may be a scroll anchor.
+ * If it were, text streaming in above it would scroll the view along with
+ * the reply. Any new per-message element rendered below the content (a
+ * footer, a timestamp) belongs in this list. */
+.agent-client-message-actions,
+.agent-client-loading-indicator,
+.agent-client-scroll-to-bottom,
+.agent-client-jump-to-reply-start-anchor {
 	overflow-anchor: none;
 }
 
