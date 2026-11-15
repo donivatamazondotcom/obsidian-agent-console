@@ -58,6 +58,7 @@ describe("I357 scroll anchoring CSS", () => {
 			".agent-client-message-actions",
 			".agent-client-loading-indicator",
 			".agent-client-scroll-to-bottom",
+			".agent-client-jump-to-reply-start-anchor",
 		]) {
 			expect(anchorValues(sel), sel).toEqual(["none"]);
 		}
@@ -70,7 +71,7 @@ describe("I357 scroll anchoring CSS", () => {
 			);
 			if (!turnsOn) return;
 			for (const s of rule.selectors) {
-				if (/message-actions|loading-indicator|scroll-to-bottom/.test(s)) overridden.push(s);
+				if (/message-actions|loading-indicator|scroll-to-bottom|jump-to-reply-start-anchor/.test(s)) overridden.push(s);
 			}
 		});
 		expect(overridden).toEqual([]);

@@ -2964,9 +2964,13 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 		layoutRows(t.geom, IDS, 80);
 		t.show();
 		t.consumeOwnScrollEvent();
+		// I357 x I352: native anchoring is on while the restore holds an
+		// unpinned tab, and the pin that ends the restore turns it off.
+		expect(t.scrollEl().hasAttribute(SCROLL_ANCHORING_ATTR)).toBe(true);
 		act(() => {
 			t.getHook().scrollToBottom({ behavior: "auto" });
 		});
+		expect(t.scrollEl().hasAttribute(SCROLL_ANCHORING_ATTR)).toBe(false);
 		layoutRows(t.geom, IDS, 500);
 		act(() => {
 			fireScrollEvent(t.scrollEl());
