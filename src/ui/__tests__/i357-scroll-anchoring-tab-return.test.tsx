@@ -16,7 +16,7 @@ import { MessageList } from "../MessageList";
 import { SCROLL_ANCHORING_ATTR } from "../use-auto-scroll-pin.types";
 import type { ChatMessage } from "../../types/chat";
 import type { IChatViewHost } from "../view-host";
-import type AgentClientPlugin from "../../plugin";
+import { makeMessageListPlugin } from "../../__test_stubs__/message-list-plugin";
 
 vi.mock("../MessageBubble", () => ({
 	MessageBubble: ({ message }: { message: ChatMessage }) => (
@@ -24,7 +24,7 @@ vi.mock("../MessageBubble", () => ({
 	),
 }));
 
-const mockPlugin = {} as unknown as AgentClientPlugin;
+const mockPlugin = makeMessageListPlugin();
 const mockView = { registerDomEvent: vi.fn() } as unknown as IChatViewHost;
 
 const messages: ChatMessage[] = Array.from({ length: 10 }, (_, i) => ({
