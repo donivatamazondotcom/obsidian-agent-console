@@ -190,10 +190,13 @@ export function mergeToolCallContent(
 		delete merged.answeredAt;
 	}
 	// An answer closes the open wait and adds it to the total. A repeated
-	// answer, with no wait open, changes nothing.
+	// answer, with no wait open, changes nothing. A call the turn end closed
+	// keeps the wait it was closed with, as it keeps its endedAt.
 	if (update.answeredAt !== undefined && typeof merged.answeredAt !== "number") {
 		merged.answeredAt = update.answeredAt;
-		const stretch = waitBetween(merged.requestedAt, update.answeredAt);
+		const stretch = existing.interrupted
+			? null
+			: waitBetween(merged.requestedAt, update.answeredAt);
 		if (stretch !== null) merged.waitMs = (merged.waitMs ?? 0) + stretch;
 	}
 

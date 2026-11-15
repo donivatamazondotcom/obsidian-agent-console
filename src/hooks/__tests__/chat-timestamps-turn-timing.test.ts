@@ -494,6 +494,29 @@ describe("time waiting on you is left out", () => {
 		expect(call(m, "tc1")).toMatchObject({ interrupted: true, waitMs: 10 * MIN });
 	});
 
+	it("a permission still open at the turn's answer: the call keeps its wait and the next turn counts the rest", async () => {
+		const { result, prompts } = setup();
+		await send(result);
+		at(T0 + 30 * SEC);
+		await feed(result, tool("tc1", { status: "in_progress" }));
+		at(T0 + 1 * MIN);
+		await feed(result, ask("tc1", "r1", true));
+		at(T0 + 2 * MIN);
+		await answer(prompts);
+		expect(call(result.current.messages, "tc1")).toMatchObject({ interrupted: true, waitMs: 1 * MIN });
+		at(T0 + 3 * MIN);
+		await send(result);
+		at(T0 + 13 * MIN);
+		await feed(result, approve("tc1", "r1"));
+		at(T0 + 14 * MIN);
+		await answer(prompts);
+		expect(call(result.current.messages, "tc1").waitMs).toBe(1 * MIN);
+		expect(thePrompt(result.current.messages)).toMatchObject({
+			turnWaitMs: 10 * MIN,
+			turnMs: 1 * MIN,
+		});
+	});
+
 	it("answer the first of two, then Stop: the second row leaves its own wait out", async () => {
 		const { result } = setup();
 		await send(result);

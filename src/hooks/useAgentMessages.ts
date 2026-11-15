@@ -310,6 +310,8 @@ export function useAgentMessages(
 	// Permission wait: start of the open stretch, and the turn's total so far.
 	const waitStartedAtRef = useRef<number | null>(null);
 	const turnWaitMsRef = useRef(0);
+	// Whether a permission was active at the last render (edge detection).
+	const hadPermissionRef = useRef(false);
 
 	// ============================================================
 	// Streaming Update Batching
@@ -801,7 +803,9 @@ export function useAgentMessages(
 			// previous turn's last update never carries over.
 			lastUpdateAtRef.current = sentAt;
 			heldChunkRef.current = null;
-			waitStartedAtRef.current = null;
+			// A permission still on screen from the last turn counts from the
+			// send: there is no rising edge to start it.
+			waitStartedAtRef.current = hadPermissionRef.current ? sentAt : null;
 			turnWaitMsRef.current = 0;
 			// I257: arm before the prompt goes out, so no echo can precede it.
 			liveTurnRef.current = {
@@ -928,7 +932,6 @@ export function useAgentMessages(
 	// Chat Timestamps: time with a permission pending is left out of the
 	// turn's working time. Only the head request is active, so stretches
 	// never overlap. Edges outside a live turn are ignored.
-	const hadPermissionRef = useRef(false);
 	useEffect(() => {
 		const had = hadPermissionRef.current;
 		hadPermissionRef.current = hasActivePermission;
