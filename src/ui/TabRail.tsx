@@ -118,6 +118,7 @@ export function TabRail(props: TabRailProps) {
 		onAiRenameTab,
 		aiRenamingTabIds,
 		getAiRenameAffordance,
+		onCopyChatLink,
 		onAddTabWithAgent,
 		onRegisterShowTabList,
 		settingsStore,
@@ -592,6 +593,7 @@ export function TabRail(props: TabRailProps) {
 				onAiRenameTab,
 				aiRenamingTabIds,
 				getAiRenameAffordance,
+				onCopyChatLink,
 				orientation: "vertical",
 			});
 		},
@@ -605,6 +607,7 @@ export function TabRail(props: TabRailProps) {
 			onAiRenameTab,
 			aiRenamingTabIds,
 			getAiRenameAffordance,
+			onCopyChatLink,
 		],
 	);
 

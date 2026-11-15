@@ -23,6 +23,7 @@ const EXPECTED: Record<ComposerAction, ComposerFocusContract> = {
 	stop: "unconditional",
 	"new-chat": "unconditional",
 	"rename-tab": "unconditional",
+	"copy-chat-link": "unconditional",
 	// In-panel adjustments.
 	"set-model": "guarded",
 	"set-mode": "guarded",
@@ -51,12 +52,18 @@ describe("deriveComposerFocusContract — every action is classified", () => {
 		}
 	});
 
-	it("the composer-terminal (unconditional) set is exactly {send, stop, new-chat, rename-tab}", () => {
+	it("the composer-terminal (unconditional) set is exactly {send, stop, new-chat, rename-tab, copy-chat-link}", () => {
 		const unconditional = ALL_ACTIONS.filter(
 			(a) => deriveComposerFocusContract(a) === "unconditional",
 		);
 		expect(new Set(unconditional)).toEqual(
-			new Set<ComposerAction>(["send", "stop", "new-chat", "rename-tab"]),
+			new Set<ComposerAction>([
+				"send",
+				"stop",
+				"new-chat",
+				"rename-tab",
+				"copy-chat-link",
+			]),
 		);
 	});
 });

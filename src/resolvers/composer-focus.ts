@@ -68,6 +68,10 @@ export type ComposerAction =
 	// Saving a tab rename: the rename modal hands focus back to the tab it was
 	// opened from, but the user's next step is to type (TS-I09).
 	| "rename-tab"
+	// Copy link to chat from a tab's right-click menu: the right-click took
+	// focus off the composer, and the user's next step is back in the chat
+	// ([[Agent Console Chat ID]] D16).
+	| "copy-chat-link"
 	// In-panel adjustments — guarded refocus (only if the user was in the
 	// composer to begin with).
 	| "set-model"
@@ -94,6 +98,7 @@ export function deriveComposerFocusContract(
 		case "stop":
 		case "new-chat":
 		case "rename-tab":
+		case "copy-chat-link":
 			return "unconditional";
 		// In-panel adjustments: only pull focus back if the user was already
 		// working in the composer.

@@ -434,6 +434,11 @@ export const en = {
 		"Could not restore previous tabs — saved state was corrupted.",
 	"notices.viewDetails": "View details",
 	"notices.noRecentlyClosedSession": "No recently closed session to reopen",
+	"notices.chatLinkSendFirst": "[Agent Console] Send a message first to get a link to this chat.",
+	"notices.chatLinkCopied": "[Agent Console] Copied chat link.",
+	"notices.chatLinkCopyFailed": "[Agent Console] Couldn't copy the chat link.",
+	"notices.chatLinkMissing": "This chat isn't in this vault's history. It may have been deleted.",
+	"notices.chatLinkPanelFailed": "Couldn't open the chat panel. Try the link again.",
 	"notices.aiRenameNothingYet":
 		"[Agent Console] Nothing to name yet — send a message first",
 	"notices.aiRenameNotReady":
@@ -649,6 +654,7 @@ export const en = {
 	"chat.menu.pluginSettings": "Plugin settings",
 	"chat.tabBar.rename": "Rename",
 	"chat.tabBar.renameWithAi": "Rename with AI",
+	"chat.tabBar.copyChatLink": "Copy link to chat",
 	"chat.tabBar.renameWithAiUnavailable": "Not available for this agent",
 	"chat.tabBar.renamingWithAi": "Renaming with AI…",
 	"chat.tabBar.asleepToSaveMemory": "Asleep to save memory",

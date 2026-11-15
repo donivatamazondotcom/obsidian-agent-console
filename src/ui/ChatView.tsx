@@ -69,6 +69,11 @@ import {
 } from "../hooks/useTabPersistence";
 import { useRecentlyClosedTabs } from "../hooks/useRecentlyClosedTabs";
 import { useLandingHistoryModal } from "../hooks/useLandingHistoryModal";
+import { useOpenChatBridge } from "../hooks/useOpenChatBridge";
+import { planHistoryOpen } from "../resolvers/chat-target";
+import { runChatLinkCopy } from "../services/chat-link-copy";
+import type { OpenChatBridge, OpenRecordResult } from "../types/chat-link";
+import type { ChatId } from "../types/session";
 import { GettingStarted, type GettingStartedInfo } from "./MessageList";
 import { installAgent } from "../services/agent-installer";
 import { deriveAgentPickerOptions } from "../resolvers/agent-picker-options";
@@ -1224,33 +1229,42 @@ function ChatComponent({
 	//     default that never clobbers.)
 	//
 	// Restore loads the original session; fork branches a NEW session from it.
-	const openSessionInTab = useCallback(
-		// Fork is deferred to the Session History Source Model track; this
-		// orchestration handles RESTORE only (the `mode` param is retained for
-		// the upcoming fork path).
+	//
+	// Chat ID ([[Agent Console Chat ID]]): a chat link opens a record through
+	// `openRecordInTab` with the record's id, so the new tab binds the clicked
+	// id, restores that record's current agent session and loads its
+	// transcript. The history modal passes no record id and keeps today's
+	// lookup by session id. Returns what it did, so the link handler can tell
+	// an open from a switch from a record that went away.
+	const openRecordInTab = useCallback(
 		async (
 			sessionId: string,
-			cwd: string,
 			mode: "restore" | "fork",
-			agentTitle?: string,
-		) => {
-			void cwd; // cwd is carried for parity; agentCwd is resolved per tab.
+			opts: { recordId?: ChatId | null; agentTitle?: string } = {},
+		): Promise<OpenRecordResult> => {
+			// Restore whichever agent the session ran on (plugin-level history),
+			// falling back to the active tab's agent when unknown.
+			const savedSessions = plugin.settingsService.getSavedSessions();
+			const plan = planHistoryOpen({
+				sessionId,
+				recordId: opts.recordId,
+				savedSessions,
+			});
+			if (plan.kind === "gone") return "gone";
+			const { saved } = plan;
+
 			// Switch-if-open is RESTORE-only (I20): restoring a session that is
 			// already open just focuses its tab. Fork must NOT switch — forking
 			// a session whose tab is open is the primary use case, so it always
 			// branches into a new tab.
 			if (mode === "restore") {
-				const existing = findTabBySessionId(sessionId);
+				const existing = findTabBySessionId(plan.sessionId);
 				if (existing) {
 					tabManager.setActiveTab(existing.tabId);
-					return;
+					return "switched";
 				}
 			}
 
-			// Restore whichever agent the session ran on (plugin-level history),
-			// falling back to the active tab's agent when unknown.
-			const savedSessions = plugin.settingsService.getSavedSessions();
-			const saved = savedSessions.find((s) => s.sessionId === sessionId);
 			const agentId =
 				saved?.agentId ??
 				activeTab?.agentId ??
@@ -1262,7 +1276,7 @@ function ChatComponent({
 			const label = deriveRestoreTabLabel({
 				mode,
 				savedTitle: saved?.title,
-				agentTitle,
+				agentTitle: opts.agentTitle,
 				savedTitles: savedSessions.map((s) => s.title ?? ""),
 				// Same text the history row shows for an untitled session, so a
 				// restored tab reads like the row that was clicked (I227).
@@ -1271,10 +1285,17 @@ function ChatComponent({
 			});
 
 			// Load the transcript + context notes from disk — the same storage
-			// the reopen/startup-restore paths read.
+			// the reopen/startup-restore paths read. A chat link loads by the
+			// record id; the history modal by the session id, as before.
 			const [messages, contextNotes] = await Promise.all([
-				persistenceStorage.loadSessionMessages(sessionId),
-				persistenceStorage.loadSessionContextNotes(sessionId),
+				persistenceStorage.loadSessionMessages(
+					plan.sessionId,
+					plan.loadRecordId,
+				),
+				persistenceStorage.loadSessionContextNotes(
+					plan.sessionId,
+					plan.loadRecordId,
+				),
 			]);
 
 			const newTabId = tabManager.addTab(
@@ -1292,12 +1313,15 @@ function ChatComponent({
 
 			if (mode === "fork") {
 				// Seed the original transcript for display; the new tab branches
-				// a NEW session on first send (forkFromSessionId). No persisted
-				// id — the branch id is minted at fork time.
+				// a NEW session (forkExistingSession: a server fork, or a local
+				// branch seeded with the transcript) right after it opens, or on
+				// first send if that fails. No persisted ids: the branch gets
+				// its own record id when it is created, never its parent's
+				// (Chat ID D5).
 				setForkPayload((prev) => ({
 					...prev,
 					[newTabId]: {
-						sessionId,
+						sessionId: plan.sessionId,
 						messages: messages ?? [],
 						contextNotes: contextNotes ?? [],
 						title: label,
@@ -1309,19 +1333,23 @@ function ChatComponent({
 				setReopenPayload((prev) => ({
 					...prev,
 					[newTabId]: {
-						sessionId,
+						sessionId: plan.sessionId,
 						messages: messages ?? [],
 						contextNotes: contextNotes ?? [],
 						// I223: only a session with no local record needs the
 						// agent's title; a local record already has its own.
-						agentTitle: saved ? undefined : agentTitle,
+						agentTitle: saved ? undefined : opts.agentTitle,
 					},
 				}));
-				persistedSessionIdsRef.current.set(newTabId, sessionId);
-				if (saved?.recordId) {
-					persistedRecordIdsRef.current.set(newTabId, saved.recordId);
+				persistedSessionIdsRef.current.set(newTabId, plan.sessionId);
+				if (plan.persistedRecordId) {
+					persistedRecordIdsRef.current.set(
+						newTabId,
+						plan.persistedRecordId,
+					);
 				}
 			}
+			return "opened";
 		},
 		[
 			findTabBySessionId,
@@ -1331,6 +1359,65 @@ function ChatComponent({
 			plugin.settings.defaultAgentId,
 			persistenceStorage,
 		],
+	);
+
+	// The history modal's restore and fork actions. Same signature and
+	// promise as before, so a rejected open still reaches the modal's
+	// restore-failed and fork-failed notices; the open result is dropped.
+	const openSessionInTab = useCallback(
+		async (
+			sessionId: string,
+			cwd: string,
+			mode: "restore" | "fork",
+			agentTitle?: string,
+		): Promise<void> => {
+			void cwd; // cwd is carried for parity; agentCwd is resolved per tab.
+			await openRecordInTab(sessionId, mode, { agentTitle });
+		},
+		[openRecordInTab],
+	);
+
+	// Chat links ([[Agent Console Chat ID]]): the bridge this panel hands the
+	// link handler. Built once; it reads the current tabs and maps on every
+	// call. Registered on mount, cleared on unmount.
+	const openChatBridge = useOpenChatBridge({
+		tabs,
+		tabRecordIdsRef,
+		persistedRecordIdsRef,
+		persistedSessionIdsRef,
+		getRecordIdForTab,
+		setActiveTab: tabManager.setActiveTab,
+		getSavedSessions: () => plugin.settingsService.getSavedSessions(),
+		openRecordInTab,
+	});
+	useEffect(() => {
+		view.setOpenChat(openChatBridge);
+		return () => view.setOpenChat(null);
+	}, [view, openChatBridge]);
+
+	// Copy link to chat, from a tab's right-click menu (Chat ID D11, D16).
+	// Everything is read at click time: the binding, the records, the label,
+	// and the panel's current window for the clipboard.
+	const handleCopyChatLink = useCallback(
+		(tabId: string) => {
+			const tab = tabsRef.current.find((x) => x.tabId === tabId);
+			void runChatLinkCopy(
+				{
+					recordId: getRecordIdForTab(tabId),
+					records: plugin.settingsService.getSavedSessions(),
+					title: tab?.label ?? "",
+					vaultName: plugin.app.vault.getName(),
+				},
+				{
+					writeText: (text) =>
+						view.containerEl.win.navigator.clipboard.writeText(text),
+					notify: (message) => new Notice(message),
+					logError: (message, error) => getLogger().error(message, error),
+					refocus: () => scheduleComposerRefocus(view.containerEl),
+				},
+			);
+		},
+		[plugin, view, getRecordIdForTab],
 	);
 
 	// Session history opened from the zero-tab landing (no ChatPanel host).
@@ -1649,6 +1736,7 @@ function ChatComponent({
 				?.getAiRenameAffordance(aiRenamingRef.current.has(tabId)) ?? {
 				kind: "enabled",
 			},
+		onCopyChatLink: handleCopyChatLink,
 		onMoveTab: tabManager.moveTab,
 		onAddTabWithAgent: handleAddTabWithAgent,
 		onRegisterShowTabList: handleRegisterShowTabList,
@@ -2065,6 +2153,18 @@ export class ChatView extends ItemView implements IChatViewContainer {
 		fn: ((text: string, opts: NewTabPromptOpts) => void) | null,
 	): void {
 		this.openPromptInNewTabFn = fn;
+	}
+
+	// Chat-link bridge (set by the React component; [[Agent Console Chat ID]]).
+	private openChatBridge: OpenChatBridge | null = null;
+
+	setOpenChat(bridge: OpenChatBridge | null): void {
+		this.openChatBridge = bridge;
+	}
+
+	/** The panel's chat-link bridge; null before it registers and after unmount. */
+	getOpenChat(): OpenChatBridge | null {
+		return this.openChatBridge;
 	}
 
 	/** True once the React tree has registered its new-tab opener. */
