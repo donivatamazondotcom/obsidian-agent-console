@@ -120,6 +120,8 @@ interface EntryState {
 	failedRemovals: number;
 	/** An async removal is in flight. */
 	pending: boolean;
+	/** Removal attempt id; a stale settle from an earlier attempt is ignored. */
+	attempt: number;
 }
 
 type RemovalOutcome = "removed" | "failed" | "pending" | "no-remover";
@@ -238,6 +240,8 @@ export function createNotificationRegistry(
 	let live = new Map<Notification, EntryState>();
 	let remover: ((tag: string) => unknown) | null = null;
 	let disposed = false;
+	/** Bumped on dispose/reset so a suspended sweep can't resume after reactivation. */
+	let generation = 0;
 	let counter = 0;
 	let localLastPostedAt = Number.NEGATIVE_INFINITY;
 	let localLastRemovedAt = Number.NEGATIVE_INFINITY;
@@ -270,7 +274,13 @@ export function createNotificationRegistry(
 
 	function effectiveLastPostedAt(now: number): number {
 		const shared = readShared(SHARED_LAST_POSTED_KEY, now);
-		return Math.max(localLastPostedAt, shared ?? Number.NEGATIVE_INFINITY);
+		// After a backward wall-clock step the local value lies in the future;
+		// bound it like the shared one so cleanup can't defer by the step size.
+		const local =
+			localLastPostedAt > now + NOTIFICATION_QUIET_MS
+				? Number.NEGATIVE_INFINITY
+				: localLastPostedAt;
+		return Math.max(local, shared ?? Number.NEGATIVE_INFINITY);
 	}
 
 	function quietDelay(now: number): number {
@@ -349,37 +359,44 @@ export function createNotificationRegistry(
 			return outcome;
 		};
 
-		if (!remover) return finish("no-remover");
+		if (!remover) {
+			// Nothing can retry without a remover; let FIFO bound the entry.
+			if (releaseOn === "success") state.failedRemovals = MAX_REMOVAL_RETRIES;
+			return finish("no-remover");
+		}
 
-		let result: unknown;
 		try {
-			result = remover(state.tag);
+			const result = remover(state.tag);
+			if (isThenable(result)) {
+				const attempt = ++state.attempt;
+				state.pending = true;
+				result.then(
+					() => {
+						if (state.attempt !== attempt) return;
+						state.pending = false;
+						if (disposed || !live.has(notification)) return;
+						release(notification);
+					},
+					(error: unknown) => {
+						if (state.attempt !== attempt) return;
+						state.pending = false;
+						if (disposed || !live.has(notification)) return;
+						state.failedRemovals++;
+						deps.log("[I52] notification remove() rejected", error);
+						if (state.failedRemovals < MAX_REMOVAL_RETRIES) {
+							armPassIfIdle(NOTIFICATION_QUIET_MS);
+						}
+					},
+				);
+				return finish("pending");
+			}
 		} catch (error) {
+			state.pending = false;
 			state.failedRemovals++;
 			deps.log("[I52] notification remove() threw", error);
 			return finish("failed");
 		}
-
-		if (!isThenable(result)) return finish("removed");
-
-		state.pending = true;
-		result.then(
-			() => {
-				state.pending = false;
-				if (disposed || !live.has(notification)) return;
-				release(notification);
-			},
-			(error: unknown) => {
-				state.pending = false;
-				if (disposed || !live.has(notification)) return;
-				state.failedRemovals++;
-				deps.log("[I52] notification remove() rejected", error);
-				if (state.failedRemovals < MAX_REMOVAL_RETRIES) {
-					armPassIfIdle(NOTIFICATION_QUIET_MS);
-				}
-			},
-		);
-		return finish("pending");
+		return finish("removed");
 	}
 
 	function runPass(): void {
@@ -388,6 +405,15 @@ export function createNotificationRegistry(
 
 		const now = deps.now();
 		const snapshot = [...live];
+		// A removal still pending a full quiet period later is treated as a
+		// failed attempt, so a promise that never settles can't park an entry
+		// outside the cap forever.
+		for (const [, state] of snapshot) {
+			if (!state.pending) continue;
+			state.pending = false;
+			state.attempt++;
+			state.failedRemovals++;
+		}
 		const entries: CleanupEntry[] = snapshot.map(([, s]) => ({
 			tag: s.tag,
 			owner: s.owner,
@@ -420,6 +446,7 @@ export function createNotificationRegistry(
 			if (!pair) continue;
 			attempted++;
 			const outcome = removeEntry(pair[0], pair[1], "success", "superseded-or-orphaned");
+			if (outcome === "pending") retry = true;
 			if (outcome === "failed" && pair[1].failedRemovals < MAX_REMOVAL_RETRIES) {
 				retry = true;
 			}
@@ -456,13 +483,15 @@ export function createNotificationRegistry(
 			closed: false,
 			failedRemovals: 0,
 			pending: false,
+			attempt: 0,
 		};
 		live.set(notification, state);
 
 		notification.onclick = (event: Event) => {
-			const current = live.get(notification);
 			try {
-				if (current?.orphaned) {
+				// Read the captured entry, not the map: an orphaned entry may
+				// already be released (FIFO, error) while its OS entry remains.
+				if (state.orphaned) {
 					// The owning panel is gone: its handler would switch to a
 					// tab id that no longer exists (blank view). Raise only.
 					deps.raiseOwningWindow();
@@ -519,8 +548,10 @@ export function createNotificationRegistry(
 
 	function disposeNotifications(): void {
 		disposed = true;
+		generation++;
 		cancelPass();
 		cancelSweepWait();
+		deps.log("[I52] notification registry disposed; no further posts this load");
 	}
 
 	function activateNotifications(): void {
@@ -588,9 +619,12 @@ export function createNotificationRegistry(
 			if (!supported) return { ran: false, removed: 0 };
 		}
 
+		const gen = generation;
+		const stopped = () => disposed || gen !== generation;
+
 		// Removing near another window's fresh posting loses its late click
 		// (round 9), so wait for the app-wide quiet period first.
-		if (!(await waitForQuiet())) return { ran: false, removed: 0 };
+		if (!(await waitForQuiet()) || stopped()) return { ran: false, removed: 0 };
 
 		// A getHistory() failure must NOT abort the reconstructed-id removals
 		// (the crash-case path), so treat an empty or failed history as none.
@@ -607,7 +641,7 @@ export function createNotificationRegistry(
 		} catch (error) {
 			sweepDeps.onError?.(error);
 		}
-		if (disposed) return { ran: false, removed: 0 };
+		if (stopped()) return { ran: false, removed: 0 };
 
 		const { idsToRemove } = buildOwnedNotificationSweep({
 			ownedTabIds: sweepDeps.ownedTabIds,
@@ -617,7 +651,14 @@ export function createNotificationRegistry(
 
 		let removed = 0;
 		for (const id of idsToRemove) {
-			if (disposed) return { ran: false, removed };
+			if (stopped()) return { ran: false, removed };
+			// A posting during getHistory() or a previous remove() restarts
+			// the quiet period: wait again before removing anything.
+			if (quietDelay(deps.now()) > 0) {
+				if (!(await waitForQuiet()) || stopped()) {
+					return { ran: false, removed };
+				}
+			}
 			const tag = extractNotificationTag(id);
 			const isLive = [...live.values()].some((s) => s.tag === tag);
 			if (isLive) continue;
@@ -638,6 +679,7 @@ export function createNotificationRegistry(
 		live = new Map();
 		remover = null;
 		disposed = false;
+		generation++;
 		counter = 0;
 		localLastPostedAt = Number.NEGATIVE_INFINITY;
 		localLastRemovedAt = Number.NEGATIVE_INFINITY;

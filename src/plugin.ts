@@ -909,10 +909,16 @@ export default class AgentClientPlugin extends Plugin {
 		// An entry that outlives this JS context (plugin reload / app quit)
 		// becomes an orphan whose click either does nothing (dead closures) or
 		// foregrounds the wrong vault window via macOS default app activation.
-		closeAllNotifications();
 		// I52 round 9: nothing may post after the sweep (a turn ended by the
-		// ACP disconnect below would otherwise orphan a notification).
-		disposeNotifications();
+		// ACP disconnect below would otherwise orphan a notification). A throw
+		// here must not skip the disconnect below, or agent processes leak.
+		try {
+			closeAllNotifications();
+		} catch (error) {
+			getLogger().debug("[I52] notification teardown sweep failed", error);
+		} finally {
+			disposeNotifications();
+		}
 
 		// Clear registry (sidebar views are managed by Obsidian workspace)
 		this.viewRegistry.clear();
