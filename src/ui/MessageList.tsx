@@ -47,8 +47,11 @@ import { t } from "../i18n";
  */
 const MemoMessageBubble = memo(MessageBubble);
 
-/** Workspace event fired by the "Jump to start of latest reply" command. */
-const JUMP_TO_REPLY_START_EVENT = "agent-console:jump-to-reply-start";
+/**
+ * Workspace event fired by the "Jump to start of latest reply" command
+ * (plugin.ts) and handled by the focused view's active tab here.
+ */
+export const JUMP_TO_REPLY_START_EVENT = "agent-console:jump-to-reply-start";
 const NO_REPLY_START: ReplyStartTarget = { kind: "none" };
 
 /**
@@ -737,6 +740,10 @@ function ScrollToBottomButton({ onClick }: { onClick: () => void }) {
 			ref={btnRef}
 			className="clickable-icon agent-client-scroll-to-bottom"
 			aria-label={t("chat.messages.jumpToLatest")}
+			// A pointer press keeps focus where it was (usually the composer):
+			// Chromium would focus the button, which unmounts once the view
+			// reaches the bottom and drops focus to the body.
+			onMouseDown={(event) => event.preventDefault()}
 			onClick={onClick}
 		/>
 	);
@@ -843,7 +850,7 @@ const JumpToReplyStartAnchor = memo(function JumpToReplyStartAnchor({
  * The up chevron. Its own component with a stable ref for setIcon, like
  * ScrollToBottomButton (inline callback refs with setIcon swallow clicks,
  * I7). A pointer press keeps focus where it was (usually the composer);
- * keyboard activation (`detail === 0`) is reported so focus can follow.
+ * keyboard activation is reported so focus can follow the jump.
  */
 function JumpToReplyStartButton({
 	onActivate,
@@ -865,7 +872,17 @@ function JumpToReplyStartButton({
 			className="clickable-icon agent-client-jump-to-reply-start"
 			aria-label={t("chat.messages.jumpToReplyStart")}
 			onMouseDown={(event) => event.preventDefault()}
-			onClick={(event) => onActivate(event.detail === 0)}
+			// Keyboard path: Enter/Space (detail 0), or a click on a button
+			// Tab had focused (a pointer press never focuses it, see above).
+			// Either way focus would fall to the body when it unmounts, so it
+			// moves to the reply instead.
+			onClick={(event) =>
+				onActivate(
+					event.detail === 0 ||
+						event.currentTarget.ownerDocument.activeElement ===
+							event.currentTarget,
+				)
+			}
 		/>
 	);
 }

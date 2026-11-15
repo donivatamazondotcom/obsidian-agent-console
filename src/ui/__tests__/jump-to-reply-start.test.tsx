@@ -377,13 +377,14 @@ describe("Jump to start of reply button: click (U11)", () => {
 // U12 — focus
 // ============================================================================
 describe("Jump to start of reply button: focus (U12)", () => {
-	it("keyboard activation moves focus to the target without scrolling, and the tabindex goes on blur", () => {
+	it("keyboard activation jumps, moves focus to the target without scrolling, and the tabindex goes on blur", () => {
 		const { container } = render(<List />);
-		attachGeometry(container);
+		const { geom } = attachGeometry(container);
 		lastIO().report(true);
 		const target = textStart(container, "a3");
 		const focusSpy = vi.spyOn(proto, "focus");
 		fireEvent.click(upButton(container) as HTMLElement, { detail: 0 });
+		expect(geom.scrollTop).toBe(1046 + 30 - 8);
 		const call = focusSpy.mock.calls.findIndex((_c, i) => focusSpy.mock.contexts[i] === target);
 		expect(call).toBeGreaterThanOrEqual(0);
 		expect(focusSpy.mock.calls[call][0]).toEqual({ preventScroll: true });
@@ -393,6 +394,28 @@ describe("Jump to start of reply button: focus (U12)", () => {
 			target.blur();
 		});
 		expect(target.hasAttribute("tabindex")).toBe(false);
+	});
+
+	it("a mouse click on a button Tab had focused takes the keyboard path (review L2)", () => {
+		const { container } = render(<List />);
+		const { geom } = attachGeometry(container);
+		lastIO().report(true);
+		const btn = upButton(container) as HTMLElement;
+		btn.focus();
+		expect(document.activeElement).toBe(btn);
+		fireEvent.mouseDown(btn);
+		fireEvent.click(btn, { detail: 1 });
+		expect(geom.scrollTop).toBe(1046 + 30 - 8);
+		expect(document.activeElement).toBe(textStart(container, "a3"));
+	});
+
+	it("a pointer press on the down pill keeps focus where it was (review L1)", () => {
+		const { container } = render(<List />);
+		attachGeometry(container);
+		lastIO().report(true);
+		fireEvent.click(upButton(container) as HTMLElement, { detail: 1 });
+		const down = container.querySelector(".agent-client-scroll-to-bottom") as HTMLElement;
+		expect(fireEvent.mouseDown(down)).toBe(false);
 	});
 
 	it("a pointer click leaves focus where it was", () => {

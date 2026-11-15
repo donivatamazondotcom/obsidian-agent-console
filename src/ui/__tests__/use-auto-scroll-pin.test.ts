@@ -3119,6 +3119,22 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 			expect(t.geom.scrollTop).toBe(2508);
 		});
 
+		it("clamps a target above the top of the list at 0 (review gap 2)", () => {
+			const t = setup();
+			atBottom(t);
+			act(() => {
+				t.getHook().jumpToElement(row(t, 0), { topGapPx: 24 }); // 16 - 24 < 0
+			});
+			expect(t.geom.scrollTop).toBe(0);
+			t.consumeOwnScrollEvent();
+			const writes = t.geom.writes.length;
+			act(() => {
+				fireResize(t.contentEl(), 5000); // a hold re-apply at 0 is a no-op
+			});
+			expect(t.geom.scrollTop).toBe(0);
+			expect(t.geom.writes.length).toBe(writes);
+		});
+
 		it("a jump during an in-flight tab-return restore replaces it (U8)", () => {
 			const t = setup();
 			t.userScrollTo(1200); // anchor m2 + 184
