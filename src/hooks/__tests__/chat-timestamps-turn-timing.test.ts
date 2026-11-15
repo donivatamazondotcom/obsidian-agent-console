@@ -402,6 +402,68 @@ describe("gap stamps are measured from the turn's last live update", () => {
 		expect(item).toMatchObject({ arrivedAt: T0 + 4 * MIN, gapBefore: false });
 	});
 
+	it("a slow title, then a tool call: the tool call takes the gap, the text doesn't", async () => {
+		const { result } = setup("agent-suggested");
+		await send(result, true);
+		at(T0 + 90 * SEC);
+		await feed(result, chunk("<title>Run"));
+		at(T0 + 91 * SEC);
+		await feed(result, tool("tc1", { status: "in_progress" }));
+		at(T0 + 92 * SEC);
+		await feed(result, chunk(" ls</title>DONE"));
+		expect(call(result.current.messages, "tc1").gapBefore).toBe(true);
+		const [item] = textItems(result.current.messages);
+		expect(item).toMatchObject({ text: "DONE", arrivedAt: T0 + 92 * SEC, gapBefore: false });
+	});
+
+	it("a slow title, then a thought: the thought takes the gap", async () => {
+		const { result } = setup("agent-suggested");
+		await send(result, true);
+		at(T0 + 90 * SEC);
+		await feed(result, chunk("<title>Run"));
+		at(T0 + 91 * SEC);
+		await feed(result, { type: "agent_thought_chunk", sessionId: "s1", text: "thinking" });
+		const thought = result.current.messages
+			.flatMap((m) => m.content)
+			.find((c) => c.type === "agent_thought");
+		expect(thought?.gapBefore).toBe(true);
+	});
+
+	it("a whole title in one chunk: the reply text takes its own arrival time", async () => {
+		const { result } = setup("agent-suggested");
+		await send(result, true);
+		at(T0 + 2 * SEC);
+		await feed(result, chunk("<title>Run ls</title>"));
+		at(T0 + 100 * SEC);
+		await feed(result, chunk("DONE"));
+		const [item] = textItems(result.current.messages);
+		expect(item).toMatchObject({ text: "DONE", arrivedAt: T0 + 100 * SEC });
+	});
+
+	it("a whole title in one chunk, then a tool call, then text: the text takes its own time", async () => {
+		const { result } = setup("agent-suggested");
+		await send(result, true);
+		at(T0 + 2 * SEC);
+		await feed(result, chunk("<title>Run ls</title>"));
+		at(T0 + 3 * SEC);
+		await feed(result, tool("tc1", { status: "completed" }));
+		at(T0 + 40 * SEC);
+		await feed(result, chunk("DONE"));
+		const [item] = textItems(result.current.messages);
+		expect(item).toMatchObject({ text: "DONE", arrivedAt: T0 + 40 * SEC, gapBefore: false });
+	});
+
+	it("a never-closed title marker released at turn end, with nothing in between, keeps the time it arrived", async () => {
+		const { result, prompts } = setup("agent-suggested");
+		await send(result, true);
+		at(T0 + 10 * SEC);
+		await feed(result, chunk("<titl"));
+		at(T0 + 4 * MIN);
+		await answer(prompts);
+		const [item] = textItems(result.current.messages);
+		expect(item).toMatchObject({ arrivedAt: T0 + 10 * SEC, gapBefore: false });
+	});
+
 	it("a replayed update during a silence doesn't reset the clock", async () => {
 		const { result } = setup();
 		await send(result);

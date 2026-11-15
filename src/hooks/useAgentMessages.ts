@@ -46,6 +46,7 @@ import {
 	applyTurnEnd,
 } from "../services/message-state";
 import { TitleHeadBuffer } from "../utils/titleMarker";
+import { GAP_STAMP_THRESHOLD_MS } from "../utils/time-fields";
 import {
 	createDomFlushSchedulerDeps,
 	createUpdateFlushScheduler,
@@ -300,15 +301,22 @@ export function useAgentMessages(
 	// Chat Timestamps: when the turn's last live update arrived (epoch ms).
 	// Starts at the prompt's send, so a first reply is measured from it.
 	const lastUpdateAtRef = useRef<number | null>(null);
-	// The first chunk the title head buffer held: when it arrived and the
-	// last-update value before it. The chunk the buffer later releases is
-	// stamped and measured from these, unless another update (a tool call, a
-	// thought) passed while it was held: then the visible text arrived with
-	// the release, so it takes the release's times (I363). Null: none held.
+	// The first chunk the title head buffer held (I363). The held text is
+	// the hidden title marker unless the buffer releases it verbatim (no
+	// marker after all, or a never-closed one at turn end).
+	// - `gapPending`: the silence before the held chunk passed the gap
+	//   threshold. The marker is invisible, so the first visible item after
+	//   it (an interleaved tool call or thought, or the released text) takes
+	//   that gap.
+	// - `ownTimes`: the released text did not arrive with the held chunk (a
+	//   title was resolved, or another update passed while it was held), so
+	//   it keeps its own arrival time. Otherwise it takes the held chunk's.
+	// Null: none held.
 	const heldChunkRef = useRef<{
 		arrivedAt: number;
 		lastUpdateBefore: number | null;
-		interleaved: boolean;
+		gapPending: boolean;
+		ownTimes: boolean;
 	} | null>(null);
 	// Permission wait: start of the open stretch, and the turn's total so far.
 	const waitStartedAtRef = useRef<number | null>(null);
@@ -387,16 +395,20 @@ export function useAgentMessages(
 			const inTurn = liveTurnRef.current?.livePromptId != null;
 			const lastUpdateBefore = inTurn ? lastUpdateAtRef.current : null;
 			const arrivedAt = Date.now();
+			const queued: QueuedUpdate = { update, lastUpdateBefore };
 			if (inTurn && !update.replayed && countsAsActivity(update)) {
 				lastUpdateAtRef.current = arrivedAt;
-				if (
-					heldChunkRef.current !== null &&
-					update.type !== "agent_message_chunk"
-				) {
-					heldChunkRef.current.interleaved = true;
+				const heldNow = heldChunkRef.current;
+				if (heldNow !== null && update.type !== "agent_message_chunk") {
+					// A visible item while the marker is held: the held text is
+					// not what arrives next, and this item takes the gap.
+					heldNow.ownTimes = true;
+					if (heldNow.gapPending) {
+						queued.lastUpdateBefore = heldNow.lastUpdateBefore;
+						heldNow.gapPending = false;
+					}
 				}
 			}
-			const queued: QueuedUpdate = { update, lastUpdateBefore };
 
 			// F03: intercept the LEADING agent-message text while the title
 			// head buffer is armed. Hold (emit null) while the head could still
@@ -417,18 +429,31 @@ export function useAgentMessages(
 						heldChunkRef.current = {
 							arrivedAt,
 							lastUpdateBefore,
-							interleaved: false,
+							gapPending:
+								lastUpdateBefore !== null &&
+								arrivedAt - lastUpdateBefore >
+									GAP_STAMP_THRESHOLD_MS,
+							ownTimes: false,
 						};
 					}
+					// A whole title in one chunk ends the hold with nothing
+					// visible yet: the next text arrives on its own.
+					if (r.title) heldChunkRef.current.ownTimes = true;
 					return;
+				}
+				if (r.title && heldChunkRef.current !== null) {
+					heldChunkRef.current.ownTimes = true;
 				}
 				u = { ...u, text: r.emit };
 			}
 			queued.update = u;
 			const held = heldChunkRef.current;
 			if (u.type === "agent_message_chunk" && held !== null) {
-				if (!held.interleaved) {
+				if (!held.ownTimes) {
+					// Released verbatim: the visible text arrived when it was held.
 					queued.arrivedAt = held.arrivedAt;
+					queued.lastUpdateBefore = held.lastUpdateBefore;
+				} else if (held.gapPending) {
 					queued.lastUpdateBefore = held.lastUpdateBefore;
 				}
 				heldChunkRef.current = null;
