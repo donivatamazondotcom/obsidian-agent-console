@@ -10,6 +10,7 @@ vi.mock("obsidian", () => import("../../__test_stubs__/obsidian"));
 import { McpFailureNotice } from "../McpFailureNotice";
 import { McpAuthManager } from "../../services/mcp-auth-manager";
 import type { McpAuthEvent, KiroMcpServerStatus } from "../../types/mcp-auth";
+import { makeMessageListPlugin } from "../../__test_stubs__/message-list-plugin";
 
 function setup() {
 	const listeners = new Set<(e: McpAuthEvent) => void>();
@@ -78,7 +79,7 @@ describe("MessageList shows the MCP failure note", () => {
 	it("in an empty chat, before the first message", async () => {
 		const { MessageList } = await import("../MessageList");
 		const { manager, emit } = setup();
-		const plugin = { mcpAuthManager: manager } as never;
+		const plugin = makeMessageListPlugin({ mcpAuthManager: manager });
 		const view = { registerDomEvent: vi.fn() } as never;
 		const { container } = render(
 			<MessageList

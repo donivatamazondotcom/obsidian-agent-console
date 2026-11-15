@@ -136,3 +136,23 @@ for (const proto of [
 		};
 	}
 }
+
+// Jump to start of latest reply: an idle, active MessageList observes its
+// reply target with an IntersectionObserver, which jsdom lacks. A no-op
+// global stub; tests that need entries install their own fake. Production
+// code does not guard on `typeof IntersectionObserver`.
+type IntersectionObserverGlobal = { IntersectionObserver?: unknown };
+const ioGlobal = window as unknown as IntersectionObserverGlobal;
+if (typeof ioGlobal.IntersectionObserver !== "function") {
+	ioGlobal.IntersectionObserver = class {
+		readonly root = null;
+		readonly rootMargin = "0px";
+		readonly thresholds: number[] = [0];
+		observe(): void {}
+		unobserve(): void {}
+		disconnect(): void {}
+		takeRecords(): unknown[] {
+			return [];
+		}
+	};
+}

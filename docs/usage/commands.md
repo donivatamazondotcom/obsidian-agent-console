@@ -53,6 +53,7 @@ These appear only when a chat view is open.
 | **Focus previous chat view** | Move focus to the previous chat view |
 | **Next session tab** | Switch to the next tab in the active panel |
 | **Previous session tab** | Switch to the previous tab in the active panel |
+| **Jump to start of latest reply** | Scroll up to where the agent's final response begins, so you can read a long reply from the top. Works anytime, even while the agent is still writing. No hotkey by default – bind one under **Settings → Hotkeys**. See [Reading long replies](/usage/#reading-long-replies) |
 | **Show tab list** | Open the tab-bar ⌄ list — a one-glance view of every tab and its status (done, working, waiting on you, error – each with its own icon), including tabs scrolled out of sight. Bind a hotkey under **Settings → Hotkeys** to pop it without reaching for the mouse |
 | **Rename current tab with AI** | Ask the tab's agent for a fresh title for the conversation so far and apply it to the tab and session history. Same as right-click → **Rename with AI**. Not available for agents that can't close a side conversation, such as Kiro CLI V2 |
 | **Close session tab** | Close the active tab |

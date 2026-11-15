@@ -413,6 +413,7 @@ export const en = {
 		'[Agent Console] Context note "{name}" was deleted and removed from chat context.',
 	"notices.noActivePermissionRequest":
 		"[Agent Console] No active permission request",
+	"notices.noReplyToJumpTo": "[Agent Console] No reply to jump to yet",
 	"notices.maxAttachments":
 		"[Agent Console] Maximum {count} attachments allowed",
 	"notices.imageTooLarge": "[Agent Console] Image too large (max {size}MB)",
@@ -602,6 +603,7 @@ export const en = {
 	"commands.newChat": "New chat",
 	"commands.cancelMessage": "Cancel current message",
 	"commands.exportChat": "Export chat",
+	"commands.jumpToReplyStart": "Jump to start of latest reply",
 	"commands.reloadSession": "Reload session",
 	"commands.restartSessionFresh": "Restart session (fresh)",
 	"commands.reauthMcp": "Re-authenticate MCP servers",
@@ -725,6 +727,8 @@ export const en = {
 	"chat.messages.sendToConnectTo": "Send a message to connect to {agent}...",
 	"chat.messages.startConversation": "Start a conversation with {agent}...",
 	"chat.messages.copyMessage": "Copy message",
+	"chat.messages.jumpToReplyStart": "Jump to start of reply",
+	"chat.messages.jumpToLatest": "Jump to latest",
 	"chat.messages.attachedImage": "Attached image",
 	"chat.messages.unsupportedContent": "Unsupported content type",
 	"chat.landing.zeroTab": "No chat open. Type below to start a new one.",

@@ -1489,6 +1489,23 @@ export default class AgentClientPlugin extends Plugin {
 			},
 		});
 
+		// Jump to start of latest reply: handled by the focused view's active
+		// tab (MessageList). No default hotkey (plugin guidelines).
+		this.addCommand({
+			id: "jump-to-reply-start",
+			name: t("commands.jumpToReplyStart"),
+			checkCallback: (checking: boolean) => {
+				if (!this.hasOpenChatView()) return false;
+				if (!checking) {
+					this.app.workspace.trigger(
+						"agent-console:jump-to-reply-start",
+						this.getDispatchTargetId(),
+					);
+				}
+				return true;
+			},
+		});
+
 		this.addCommand({
 			id: "rename-tab-with-ai",
 			name: t("commands.renameTabWithAi"),

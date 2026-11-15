@@ -39,6 +39,10 @@
  *    user-action dispatches — they own their own (tested) focus behaviour.
  *  - Quick-prompt chip fire, picker mouse-pick, remove-attachment, context-pill
  *    click: already refocus via dedicated, tested local handlers.
+ *  - Jump to start of reply (the up chevron): a pointer click keeps focus
+ *    where it was; keyboard activation moves focus to the reply it jumped to
+ *    (skip-link), never to the composer, so PageDown scrolls the reply
+ *    instead of editing the draft. The command never moves focus.
  *
  * Pure — no React, no Obsidian. Unit-tested exhaustively.
  *

@@ -95,6 +95,42 @@ If your plugin does not need CSS, delete this file.
 	color: var(--interactive-accent);
 }
 
+/* ===== Jump to Start of Latest Reply =====
+   A zero-height sticky wrapper (first child of the message list) holds the
+   up chevron, absolutely positioned so it adds no in-flow box: showing it
+   never moves the transcript (an in-flow margin would collapse through the
+   zero-height wrapper and push every row down). Mirrors the down pill's
+   look and inset on the opposite edge. */
+.agent-client-jump-to-reply-start-anchor {
+	position: sticky;
+	top: 0;
+	height: 0;
+	z-index: 10;
+}
+
+.agent-client-jump-to-reply-start {
+	position: absolute;
+	top: 4px;
+	left: 50%;
+	transform: translateX(-50%);
+	padding: 6px;
+	border-radius: 50%;
+	background-color: var(--background-primary);
+}
+
+.agent-client-jump-to-reply-start svg {
+	color: var(--text-muted);
+	transition: color 0.2s ease;
+}
+
+.agent-client-jump-to-reply-start:hover {
+	background-color: var(--background-primary);
+}
+
+.agent-client-jump-to-reply-start:hover svg {
+	color: var(--interactive-accent);
+}
+
 .agent-client-loading-dots {
 	display: grid;
 	grid-template-columns: repeat(3, 4px);

@@ -17,7 +17,7 @@ import * as React from "react";
 import { MessageList } from "../MessageList";
 import type { ChatMessage } from "../../types/chat";
 import type { IChatViewHost } from "../view-host";
-import type AgentClientPlugin from "../../plugin";
+import { makeMessageListPlugin } from "../../__test_stubs__/message-list-plugin";
 
 // ============================================================================
 // Mocks
@@ -51,7 +51,7 @@ vi.mock("../MessageBubble", () => ({
 // Fixtures
 // ============================================================================
 
-const mockPlugin = {} as unknown as AgentClientPlugin;
+const mockPlugin = makeMessageListPlugin();
 const mockView = {
 	registerDomEvent: vi.fn(),
 } as unknown as IChatViewHost;

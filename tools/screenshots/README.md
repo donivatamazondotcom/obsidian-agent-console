@@ -222,7 +222,7 @@ The fixtures vault opens on vertical tabs (`tabDisplay: "vertical"` in `data.tem
 
 ## Fixture theme: capture-only styling
 
-The fixtures vault uses a custom `Fixture` theme (`fixtures/studio/.obsidian/themes/Fixture/theme.css`) to keep captures clean and deterministic — e.g. hiding the transient scroll-to-bottom pill and the network-driven info banners that must never appear in docs images.
+The fixtures vault uses a custom `Fixture` theme (`fixtures/studio/.obsidian/themes/Fixture/theme.css`) to keep captures clean and deterministic — e.g. hiding the transient scroll pills (scroll-to-bottom, and jump-to-start-of-reply at the top edge) and the network-driven info banners that must never appear in docs images.
 
 The theme must not target the chat header's text (`.acp-header-branded*`): a header shot shows the header as users see it. `lib/__tests__/fixture-theme.test.ts` enforces this.
 

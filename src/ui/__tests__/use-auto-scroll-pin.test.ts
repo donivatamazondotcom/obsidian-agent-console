@@ -2631,6 +2631,14 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 			const g = geomRef.current;
 			Object.defineProperty(el, "offsetTop", { configurable: true, get: () => g.rows.get(id)?.top ?? 0 });
 			Object.defineProperty(el, "offsetHeight", { configurable: true, get: () => g.rows.get(id)?.height ?? 0 });
+			// Viewport rect relative to a scroll element whose own rect top is 0
+			// (JSDOM's default). Read by jumpToElement.
+			el.getBoundingClientRect = () => {
+				const row = g.rows.get(id);
+				const top = (row?.top ?? 0) - g.scrollTop;
+				const height = row?.height ?? 0;
+				return { top, bottom: top + height, left: 0, right: 0, width: 0, height, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+			};
 		};
 		const inner = !props.isActive
 			? React.createElement("div", { ref: scrollComposite })
@@ -2981,6 +2989,155 @@ describe("useAutoScrollPin — I284 restore reading position on tab return", () 
 		layoutRows(t.geom, IDS, 500);
 		t.show();
 		expect(t.geom.scrollTop).toBe(5032 - 600 - 1);
+	});
+
+	// ------------------------------------------------------------------------
+	// Jump to Start of Latest Reply — U3-U8. jumpToElement shares the I284
+	// hold (startHold), so it reuses this harness. Rows sit at 16 + 500 i;
+	// scrollHeight 5032, clientHeight 600, bottom scrollTop 4431.
+	// Spec: [[Jump to Start of Latest Reply]] § Mechanism, § Test cases.
+	// ------------------------------------------------------------------------
+	describe("jumpToElement (Jump to start of latest reply)", () => {
+		const BOTTOM = 5032 - 600 - 1;
+		const row = (t: ReturnType<typeof setup>, i: number) => t.contentEl().children[i] as HTMLElement;
+		const jump = (t: ReturnType<typeof setup>, el: HTMLElement) => {
+			act(() => {
+				t.getHook().jumpToElement(el);
+			});
+		};
+		const atBottom = (t: ReturnType<typeof setup>) => {
+			t.geom.scrollTop = BOTTOM;
+		};
+		const pendingHolds = () => scheduledTimers.filter((x) => x.delay === 2000 && !x.cancelled).length;
+
+		it("puts the target 8 px below the top and unpins; later growth neither moves the view nor re-pins (U3)", () => {
+			const t = setup();
+			atBottom(t);
+			jump(t, row(t, 5)); // m5 top 2516
+			expect(t.geom.scrollTop).toBe(2516 - 8);
+			expect(t.getHook().isAtBottom).toBe(false);
+			t.consumeOwnScrollEvent();
+			act(() => {
+				t.geom.scrollHeight = 5132;
+				fireResize(t.contentEl(), 5100);
+			});
+			expect(t.geom.scrollTop).toBe(2508);
+			act(() => {
+				flushTimers(); // the hold ends
+			});
+			act(() => {
+				t.geom.scrollHeight = 5232;
+				fireResize(t.contentEl(), 5200);
+			});
+			expect(t.geom.scrollTop).toBe(2508);
+			expect(t.getHook().isAtBottom).toBe(false);
+		});
+
+		it("does nothing while the list is hidden (clientHeight 0) (U3)", () => {
+			const t = setup();
+			atBottom(t);
+			t.geom.clientHeight = 0;
+			jump(t, row(t, 5));
+			expect(t.geom.scrollTop).toBe(BOTTOM);
+			expect(t.getHook().isAtBottom).toBe(true);
+			expect(pendingHolds()).toBe(0);
+		});
+
+		it("holds the target while a row above grows, until RESTORE_HOLD_MS (U4)", () => {
+			const t = setup();
+			atBottom(t);
+			jump(t, row(t, 5));
+			t.consumeOwnScrollEvent();
+			layoutRows(t.geom, IDS, (i) => (i === 0 ? 620 : 500)); // m5 now at 2636
+			act(() => {
+				fireResize(t.contentEl(), 5120);
+			});
+			expect(t.geom.scrollTop).toBe(2636 - 8);
+			act(() => {
+				flushTimersShorterThan(2000); // short deferrals only
+			});
+			expect(pendingHolds()).toBe(1);
+			act(() => {
+				flushTimers(); // the 2 s hold ends
+			});
+			layoutRows(t.geom, IDS, (i) => (i === 0 ? 740 : 500));
+			act(() => {
+				fireResize(t.contentEl(), 5240);
+			});
+			expect(t.geom.scrollTop).toBe(2628);
+		});
+
+		it("a wheel-up during the hold ends it (U5)", () => {
+			const t = setup();
+			atBottom(t);
+			jump(t, row(t, 5));
+			t.consumeOwnScrollEvent();
+			act(() => {
+				fireWheel(t.scrollEl(), -50);
+			});
+			layoutRows(t.geom, IDS, (i) => (i === 0 ? 620 : 500));
+			act(() => {
+				fireResize(t.contentEl(), 5120);
+			});
+			expect(t.geom.scrollTop).toBe(2508);
+		});
+
+		it("a target at or past the bottom keeps a pinned tab pinned, with no hold (U6)", () => {
+			const t = setup();
+			atBottom(t);
+			jump(t, row(t, 9)); // m9 top 4516 → desired 4508 ≥ bottom
+			expect(t.geom.scrollTop).toBe(BOTTOM);
+			expect(t.getHook().isAtBottom).toBe(true);
+			expect(pendingHolds()).toBe(0);
+			// Still pinned: growth follows the bottom.
+			layoutRows(t.geom, IDS, (i) => (i === 9 ? 700 : 500)); // scrollHeight 5232
+			act(() => {
+				fireResize(t.contentEl(), 5200);
+				flushMessages(); // the first content fire anchors via MessageChannel (I-S9)
+			});
+			expect(t.geom.scrollTop).toBe(5232 - 600 - 1);
+		});
+
+		it("a target at or past the bottom from scrolled-up history goes to the bottom and re-pins (U6)", () => {
+			const t = setup();
+			t.userScrollTo(1200);
+			expect(t.getHook().isAtBottom).toBe(false);
+			jump(t, row(t, 9));
+			expect(t.geom.scrollTop).toBe(BOTTOM);
+			expect(t.getHook().isAtBottom).toBe(true);
+			expect(pendingHolds()).toBe(0);
+		});
+
+		it("a tab switch after a jump returns to the jumped position (U7)", () => {
+			const t = setup();
+			atBottom(t);
+			jump(t, row(t, 5));
+			t.consumeOwnScrollEvent();
+			t.hide();
+			layoutRows(t.geom, IDS, 500);
+			t.show();
+			expect(t.geom.scrollTop).toBe(2508);
+		});
+
+		it("a jump during an in-flight tab-return restore replaces it (U8)", () => {
+			const t = setup();
+			t.userScrollTo(1200); // anchor m2 + 184
+			t.hide();
+			layoutRows(t.geom, IDS, 500);
+			t.show();
+			expect(t.geom.scrollTop).toBe(1200);
+			expect(pendingHolds()).toBe(1);
+			t.consumeOwnScrollEvent();
+			jump(t, row(t, 5));
+			expect(t.geom.scrollTop).toBe(2508);
+			expect(pendingHolds()).toBe(1);
+			t.consumeOwnScrollEvent();
+			layoutRows(t.geom, IDS, (i) => (i === 0 ? 900 : 500)); // m5 now at 2916
+			act(() => {
+				fireResize(t.contentEl(), 5400);
+			});
+			expect(t.geom.scrollTop).toBe(2916 - 8);
+		});
 	});
 });
 

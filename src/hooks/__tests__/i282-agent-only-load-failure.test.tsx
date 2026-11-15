@@ -30,8 +30,8 @@ import { MessageList } from "../../ui/MessageList";
 import { buildQueuedBanner } from "../../services/message-queue-logic";
 import { shouldShowRecoverableHistory } from "../../resolvers/conversation-empty-state";
 import type { IChatViewHost } from "../../ui/view-host";
-import type AgentClientPlugin from "../../plugin";
 import { NO_AGENT_CAPABILITIES, type SessionResult } from "../../types/session";
+import { makeMessageListPlugin } from "../../__test_stubs__/message-list-plugin";
 
 (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
 	observe() {}
@@ -180,7 +180,7 @@ function renderEmpty(lazy: {
 			lazyState={lazy.state as "error"}
 			isRestoringSession={false}
 			agentLabel="Claude Code"
-			plugin={{} as AgentClientPlugin}
+			plugin={makeMessageListPlugin()}
 			view={{ registerDomEvent: vi.fn() } as unknown as IChatViewHost}
 			hasActivePermission={false}
 			isFallbackRecovery={lazy.isFallbackRecovery}

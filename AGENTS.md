@@ -177,7 +177,7 @@ src/
 │   ├── TabErrorBoundary.tsx     # Per-tab React error boundary with Retry
 │   ├── ZeroTabLanding.tsx       # Zero-tab landing screen shown when every tab is closed (minimal placeholder in Slice 1; reason-tagged empty-state shell in Slice 2)
 │   ├── ChatHeader.tsx           # Header (sidebar chat view)
-│   ├── MessageList.tsx          # Message list (native browser scroll; inactive tabs render a placeholder, so no bubbles mount while hidden)
+│   ├── MessageList.tsx          # Message list (native browser scroll; inactive tabs render a placeholder, so no bubbles mount while hidden) + JumpToReplyStartAnchor (sticky zero-height wrapper, IntersectionObserver visibility, up chevron) and the "Jump to start of latest reply" command listener
 │   ├── A2uiSurfaceHost.tsx      # Agent-emitted buttons-v0 surface host: validate-at-edge, native buttons, resolver-gated enablement, inert fallback
 │   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button)
 │   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting)
@@ -238,6 +238,7 @@ src/
 │   ├── prompt-target.ts            # resolvePromptTarget — where a quick prompt lands: a different agent or mode than the tab → new tab set up that way, else in place; agent/mode matched by id or display name
 │   ├── resolveInitialAgentId.ts    # Pure: agent a fresh (non-restored) tab opens on — Default agent when restore-tabs is off (TP-I05)
 │   ├── queued-banner-actions.ts    # Pure resolver for the queued-banner buttons (deriveQueuedBannerActions → Send now / Edit / Delete / Cancel)
+│   ├── reply-start-target.ts       # deriveReplyStartTarget — where the latest turn's final response starts (last assistant message with text, walking back past trailing tool calls; else the turn's first assistant row; else none) + deriveJumpButtonVisible (idle, not acquiring, observed above the top edge for this target) + hasNonEmptyText (shared with MessageBubble's data-reply-text-start); read by the up chevron and the "Jump to start of latest reply" command
 │   ├── send-affordance.ts          # Pure send-enablement resolver (deriveSendAffordance → canSend/buttonDisabled/reason) + isSessionLive; single source for ChatPanel/InputArea/InputToolbar/MessageList/broadcast
 │   ├── session-engine.ts           # D2: parseSessionEngine (the one validator for a stored Kiro engine, on write/read/harness), resolveStoredSessionEngine (session record > tab > unknown), decideEngineRestore (V3 chat on V2 → start fresh without sending its id; else load). Read by reconnectExistingSession and soft reload
 │   ├── session-modes.ts            # readSessionModes (config option or legacy modes; shared by header + prompt targeting), lookupByIdOrName, resolveModeRequest (one-shot first-session mode)
@@ -316,7 +317,8 @@ src/
 │   └── show-whats-new.ts        # "Show what's new" command: force the card on, or open the release notes when nothing applies
 ├── __test_stubs__/              # Test-only Obsidian/jsdom shims (not shipped)
 │   ├── obsidian.ts              # Obsidian module stub for vitest
-│   └── vitest.setup.ts          # jsdom setup: activeDocument/activeWindow + HTMLElement.setCssProps shims
+│   ├── message-list-plugin.ts   # Shared plugin stub for MessageList suites: a small real workspace event bus (on / offref / trigger) + idle MCP auth manager
+│   └── vitest.setup.ts          # jsdom setup: activeDocument/activeWindow + HTMLElement.setCssProps shims + no-op IntersectionObserver
 ├── plugin.ts                    # Obsidian plugin lifecycle, settings persistence
 └── main.ts                      # Entry point
 ```

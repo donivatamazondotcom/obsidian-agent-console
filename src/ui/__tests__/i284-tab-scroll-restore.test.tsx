@@ -15,7 +15,7 @@ import * as React from "react";
 import { MessageList } from "../MessageList";
 import type { ChatMessage } from "../../types/chat";
 import type { IChatViewHost } from "../view-host";
-import type AgentClientPlugin from "../../plugin";
+import { makeMessageListPlugin } from "../../__test_stubs__/message-list-plugin";
 
 vi.mock("obsidian", () => ({
 	setIcon: vi.fn(),
@@ -29,7 +29,7 @@ vi.mock("../MessageBubble", () => ({
 	),
 }));
 
-const mockPlugin = {} as unknown as AgentClientPlugin;
+const mockPlugin = makeMessageListPlugin();
 const mockView = { registerDomEvent: vi.fn() } as unknown as IChatViewHost;
 
 const messages: ChatMessage[] = Array.from({ length: 10 }, (_, i) => ({

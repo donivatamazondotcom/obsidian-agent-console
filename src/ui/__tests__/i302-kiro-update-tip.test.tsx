@@ -18,8 +18,8 @@ import * as React from "react";
 import { MessageList } from "../MessageList";
 import { deriveKiroUpdateTip } from "../../resolvers/kiro-update-tip";
 import type { IChatViewHost } from "../view-host";
-import type AgentClientPlugin from "../../plugin";
 import type { ChatMessage } from "../../types/chat";
+import { makeMessageListPlugin } from "../../__test_stubs__/message-list-plugin";
 
 (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
 	observe() {}
@@ -70,7 +70,7 @@ function renderList(
 			isRestoringSession={false}
 			agentLabel="Auto SA"
 			kiroEngineFallback={fallback}
-			plugin={{ settingsService: store } as unknown as AgentClientPlugin}
+			plugin={makeMessageListPlugin({ settingsService: store })}
 			view={{ registerDomEvent: vi.fn() } as unknown as IChatViewHost}
 			hasActivePermission={false}
 		/>,
@@ -153,7 +153,7 @@ describe("I302 update tip in the chat", () => {
 					isRestoringSession={false}
 					agentLabel="Auto SA"
 					kiroEngineFallback="old-cli"
-					plugin={{ settingsService: store } as unknown as AgentClientPlugin}
+					plugin={makeMessageListPlugin({ settingsService: store })}
 					view={{ registerDomEvent: vi.fn() } as unknown as IChatViewHost}
 					hasActivePermission={false}
 				/>

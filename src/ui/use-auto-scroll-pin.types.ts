@@ -133,4 +133,13 @@ export interface UseAutoScrollPinResult {
 	 *   Decision #22 to bypass any inherited smooth-scroll CSS.
 	 */
 	scrollToBottom: (options?: { behavior?: "smooth" | "auto" }) => void;
+
+	/**
+	 * Jump to start of latest reply: instantly put `el` `topGapPx` (default
+	 * 8) below the list's top edge, unpin, and hold it there for the I284
+	 * restore window while rows above render in. A target at or past the
+	 * bottom scrolls to the bottom and stays pinned. No-op while the list is
+	 * hidden. Stable across renders.
+	 */
+	jumpToElement: (el: HTMLElement, options?: { topGapPx?: number }) => void;
 }
