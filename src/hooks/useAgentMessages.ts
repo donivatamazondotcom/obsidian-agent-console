@@ -302,10 +302,13 @@ export function useAgentMessages(
 	const lastUpdateAtRef = useRef<number | null>(null);
 	// The first chunk the title head buffer held: when it arrived and the
 	// last-update value before it. The chunk the buffer later releases is
-	// stamped and measured from these. Null: none held.
+	// stamped and measured from these, unless another update (a tool call, a
+	// thought) passed while it was held: then the visible text arrived with
+	// the release, so it takes the release's times (I363). Null: none held.
 	const heldChunkRef = useRef<{
 		arrivedAt: number;
 		lastUpdateBefore: number | null;
+		interleaved: boolean;
 	} | null>(null);
 	// Permission wait: start of the open stretch, and the turn's total so far.
 	const waitStartedAtRef = useRef<number | null>(null);
@@ -386,6 +389,12 @@ export function useAgentMessages(
 			const arrivedAt = Date.now();
 			if (inTurn && !update.replayed && countsAsActivity(update)) {
 				lastUpdateAtRef.current = arrivedAt;
+				if (
+					heldChunkRef.current !== null &&
+					update.type !== "agent_message_chunk"
+				) {
+					heldChunkRef.current.interleaved = true;
+				}
 			}
 			const queued: QueuedUpdate = { update, lastUpdateBefore };
 
@@ -405,7 +414,11 @@ export function useAgentMessages(
 					// Hold — nothing to render yet. Keep the first held chunk's
 					// times for the chunk the buffer releases.
 					if (heldChunkRef.current === null) {
-						heldChunkRef.current = { arrivedAt, lastUpdateBefore };
+						heldChunkRef.current = {
+							arrivedAt,
+							lastUpdateBefore,
+							interleaved: false,
+						};
 					}
 					return;
 				}
@@ -414,8 +427,10 @@ export function useAgentMessages(
 			queued.update = u;
 			const held = heldChunkRef.current;
 			if (u.type === "agent_message_chunk" && held !== null) {
-				queued.arrivedAt = held.arrivedAt;
-				queued.lastUpdateBefore = held.lastUpdateBefore;
+				if (!held.interleaved) {
+					queued.arrivedAt = held.arrivedAt;
+					queued.lastUpdateBefore = held.lastUpdateBefore;
+				}
 				heldChunkRef.current = null;
 			}
 

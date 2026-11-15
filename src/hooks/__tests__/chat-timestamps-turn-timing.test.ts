@@ -376,7 +376,20 @@ describe("gap stamps are measured from the turn's last live update", () => {
 		expect(call(result.current.messages, "late").gapBefore).toBe(false);
 	});
 
-	it("a never-closed title marker released at turn end keeps the time it arrived", async () => {
+	it("I363: a tool call before the title marker closes: the reply text takes the time it arrived", async () => {
+		const { result } = setup("agent-suggested");
+		await send(result, true);
+		at(T0 + 2 * SEC);
+		await feed(result, chunk("<title>Run ls"));
+		at(T0 + 3 * SEC);
+		await feed(result, tool("tc1", { status: "completed" }));
+		at(T0 + 40 * SEC);
+		await feed(result, chunk("</title>DONE"));
+		const [item] = textItems(result.current.messages);
+		expect(item).toMatchObject({ text: "DONE", arrivedAt: T0 + 40 * SEC, gapBefore: false });
+	});
+
+	it("a never-closed title marker released at turn end, after a tool call, takes the release time", async () => {
 		const { result, prompts } = setup("agent-suggested");
 		await send(result, true);
 		at(T0 + 10 * SEC);
@@ -386,7 +399,7 @@ describe("gap stamps are measured from the turn's last live update", () => {
 		at(T0 + 4 * MIN);
 		await answer(prompts);
 		const [item] = textItems(result.current.messages);
-		expect(item).toMatchObject({ arrivedAt: T0 + 10 * SEC, gapBefore: false });
+		expect(item).toMatchObject({ arrivedAt: T0 + 4 * MIN, gapBefore: false });
 	});
 
 	it("a replayed update during a silence doesn't reset the clock", async () => {
