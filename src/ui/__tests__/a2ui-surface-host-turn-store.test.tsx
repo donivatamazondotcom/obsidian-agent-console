@@ -226,6 +226,35 @@ describe("A2uiSurfaceHost × turn store — refused hosts don't re-render on tur
 	});
 });
 
+describe("A2uiSurfaceHost × turn store — refused ↔ live handover (I376)", () => {
+	it("turn end: the streaming host turns live and enables in the same act", () => {
+		// ChatPanel's order: the render that ends the turn (isStreamingTurn
+		// false) commits first, then its layout effect publishes isSending
+		// false. The host switches selector in that render, reading the old
+		// "sending" snapshot, and must still catch up to enabled.
+		const store = createA2uiTurnStore({ ...IDLE, isSending: true });
+		const { container, rerenderSpecs } = renderHosts(store, [
+			{ surfaceId: "live-1", streaming: true },
+		]);
+		expect(buttonOf(container, "live-1").disabled).toBe(true);
+		act(() => {
+			rerenderSpecs([{ surfaceId: "live-1", streaming: false }]);
+			store.publish(IDLE);
+		});
+		expect(buttonOf(container, "live-1").disabled).toBe(false);
+	});
+
+	it("a live host that becomes answered stops re-rendering on turn edges", () => {
+		const store = createA2uiTurnStore(IDLE);
+		const { commits, rerenderSpecs } = renderHosts(store, [{ surfaceId: "live-1" }]);
+		rerenderSpecs([{ surfaceId: "live-1", answered: true }]);
+		const before = commits.get("live-1");
+		act(() => store.publish({ ...IDLE, isSending: true }));
+		act(() => store.publish(IDLE));
+		expect(commits.get("live-1")).toBe(before);
+	});
+});
+
 describe("A2uiSurfaceHost × turn store — hook order (I376)", () => {
 	it("a mounted host flips between duplicate and valid without throwing", () => {
 		const store = createA2uiTurnStore(IDLE);
