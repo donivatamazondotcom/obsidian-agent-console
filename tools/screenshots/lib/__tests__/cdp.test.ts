@@ -704,3 +704,89 @@ describe("Cdp.captureSettingsWindow", () => {
 		).rejects.toThrow(/never appeared/);
 	});
 });
+
+describe("Cdp.send (runtime profiler transport)", () => {
+	it("issues dev:cdp with method and params and returns the raw result", async () => {
+		spawnMock.mockImplementation(() =>
+			makeFakeProc({ stdout: '{"metrics":[{"name":"LayoutCount","value":3}]}', stderr: SANDBOX_NOISE }),
+		);
+		const cdp = new Cdp({ vault: "studio", pollInterval: 1 });
+		const r = await cdp.send<{ metrics: unknown[] }>("Performance.getMetrics", { a: 1 });
+		expect(r.metrics).toHaveLength(1);
+		expect(spawnMock).toHaveBeenCalledWith("obsidian", [
+			"vault=studio",
+			"dev:cdp",
+			"method=Performance.getMetrics",
+			'params={"a":1}',
+		]);
+	});
+
+	it("retries on empty output, then returns", async () => {
+		spawnMock
+			.mockImplementationOnce(() => makeFakeProc({ stdout: "" }))
+			.mockImplementationOnce(() => makeFakeProc({ stdout: '{"ok":true}' }));
+		const cdp = new Cdp({ pollInterval: 1 });
+		await expect(cdp.send("Page.getFrameTree")).resolves.toEqual({ ok: true });
+		expect(spawnMock).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not retry when retries is 0 (non-idempotent commands)", async () => {
+		spawnMock.mockImplementation(() => makeFakeProc({ stdout: "" }));
+		const cdp = new Cdp({ pollInterval: 1 });
+		await expect(cdp.send("Page.reload", {}, 0)).rejects.toThrow(/empty output/);
+		expect(spawnMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("throws on exhausted retries", async () => {
+		spawnMock.mockImplementation(() => makeFakeProc({ stdout: "" }));
+		const cdp = new Cdp({ pollInterval: 1 });
+		await expect(cdp.send("Page.getFrameTree", {}, 2)).rejects.toThrow(/empty output \(attempt 3\/3\)/);
+		expect(spawnMock).toHaveBeenCalledTimes(3);
+	});
+
+	it("throws a plaintext error line without retrying", async () => {
+		spawnMock.mockImplementation(() => makeFakeProc({ stdout: "Error: unknown method" }));
+		const cdp = new Cdp({ pollInterval: 1 });
+		await expect(cdp.send("Nope.method")).rejects.toThrow(/Nope\.method: Error: unknown method/);
+		expect(spawnMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("throws on exceptionDetails", async () => {
+		spawnMock.mockImplementation(() =>
+			makeFakeProc({ stdout: '{"exceptionDetails":{"text":"boom"}}' }),
+		);
+		const cdp = new Cdp({ pollInterval: 1 });
+		await expect(cdp.send("Runtime.evaluate")).rejects.toThrow(/threw: boom/);
+	});
+});
+
+describe("Cdp commandTimeoutMs (a hung obsidian call can't stall a run)", () => {
+	it("kills the child and rejects when a call never closes", async () => {
+		const kill = vi.fn();
+		spawnMock.mockImplementation(() => {
+			const stdout = new EventEmitter();
+			const stderr = new EventEmitter();
+			const emitter = new EventEmitter();
+			const fake = {
+				stdout,
+				stderr,
+				emitter,
+				kill,
+				on(event: string, listener: (...args: unknown[]) => void) {
+					emitter.on(event, listener);
+					return fake;
+				},
+			};
+			return fake as unknown as FakeProc;
+		});
+		const cdp = new Cdp({ vault: "studio", commandTimeoutMs: 20 });
+		await expect(cdp.send("Runtime.evaluate", {}, 0)).rejects.toThrow(/no response in 20ms/);
+		expect(kill).toHaveBeenCalled();
+	});
+
+	it("has no timeout by default", async () => {
+		spawnMock.mockImplementation(() => makeFakeProc({ stdout: '{"ok":true}' }));
+		const cdp = new Cdp({ pollInterval: 1 });
+		await expect(cdp.send("Page.getFrameTree")).resolves.toEqual({ ok: true });
+	});
+});

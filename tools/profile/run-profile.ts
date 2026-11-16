@@ -4,15 +4,19 @@
  * release quality gates, built as a STANDALONE tool.
  *
  * It is deliberately NOT wired into `npm run gate`, CI, `preversion`, or the
- * release flow. It runs on demand via `npm run profile`. Promotion to a
- * real gate later is a one-line addition (call `diffAgainstBaseline`, fail
- * on `kind === "regression"`) — the `--gate` flag already implements that
- * exit-code behaviour so the wiring is trivial when the time comes.
+ * release flow. It runs on demand via `npm run profile`, and the release
+ * recipe records a history point by hand (RELEASING.md step 1d). `--gate`
+ * already gives the exit-code behaviour a future blocking gate would use.
  *
  * Attaches to a RUNNING Obsidian over `obsidian dev:cdp` (the same
  * sandbox-exempt transport the screenshot pipeline uses — no second app is
- * spawned). It targets the fixtures `studio` vault and REFUSES to run
- * against the daily vault (GB-T03).
+ * spawned). GB-T03: it attaches only to a disposable vault (`studio` or
+ * `ST-*`), the one requested, and seeds that same vault at its own base
+ * path (`vault-guard.ts`). Each run hard-reloads the vault several times.
+ *
+ * A run is INCOMPLETE when any scenario fails in any pass, or measures
+ * nothing the baseline has. An incomplete run prints why, exits 1, and is
+ * never recorded or written as a baseline.
  *
  * Usage:
  *   npm run profile                     # profile + diff vs baseline (warn-only)
@@ -22,46 +26,47 @@
  *   npm run profile -- --trend          # print the over-time trend (offline)
  *   npm run profile -- --update-golden  # (re)set the immutable drift anchor
  *   npm run profile -- --gate           # exit non-zero on a step regression
- *   npm run profile -- --vault=studio   # target vault (default: studio)
- *   npm run profile -- --no-seed        # skip seeding (studio already seeded)
- *   npm run profile -- --record --sha=<sha>  # studio runs a build other than
- *                                       # the main checkout's HEAD (e.g. a
- *                                       # worktree build): record its sha
+ *   npm run profile -- --vault=ST-foo   # target vault (default: studio)
+ *   npm run profile -- --no-seed        # skip seeding (vault already seeded)
+ *   npm run profile -- --record --sha=<sha>  # override the recorded sha
  *
- * Spec: [[Agent Console Release Quality Gates]] § Gate B-phase2.
+ * See tools/profile/README.md. Spec: [[Agent Console Release Quality Gates]]
+ * § Gate B-phase2.
  */
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
 	readFileSync,
 	writeFileSync,
 	appendFileSync,
 	existsSync,
-	rmSync,
-	cpSync,
-	mkdirSync,
+	realpathSync,
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
 import { Cdp } from "../screenshots/lib/cdp";
-import { toSnapshot, type MetricSnapshot, type RawMetric } from "./metrics";
+import { toSnapshot, type MetricSnapshot, type RawMetric, type ObserverEntry } from "./metrics";
 import {
 	diffAgainstBaseline,
+	missingFromProfile,
 	type Baseline,
 	type Profile,
 	type Verdict,
 } from "./baseline";
 import { SCENARIOS, type ProfileContext } from "./scenarios";
-import { findAgentLeafId } from "./studio-leaf";
+import { seedStudio, canSeed, pluginDirOf } from "./seed";
+import { checkProfileTarget } from "./vault-guard";
 import {
 	MARK_OLD_DOCUMENT_JS,
 	IS_NEW_DOCUMENT_JS,
-	waitCheckJs,
+	OBSERVER_INSTALL_JS,
+	OBSERVER_READ_JS,
+	awaitCheckJs,
 	parseWaitHit,
+	type WaitHit,
 } from "./page-js";
-import {
-	generateHeavySession,
-	heavySavedSessionEntry,
-} from "./fixtures/heavy-session";
 import {
 	medianProfile,
 	parseHistory,
@@ -81,11 +86,12 @@ interface Args {
 	trend: boolean;
 	updateGolden: boolean;
 	threshold?: number;
-	/** Override the recorded git sha when studio loads a non-main-checkout build. */
+	/** Override the recorded git sha (default: the sha of the checkout main.js resolves into). */
 	sha?: string;
 }
 
-function parseArgs(argv: string[]): Args {
+/** Parse CLI args. Throws on a malformed value instead of guessing. */
+export function parseArgs(argv: string[]): Args {
 	const a: Args = {
 		vault: "studio",
 		update: false,
@@ -104,47 +110,26 @@ function parseArgs(argv: string[]): Args {
 		else if (arg === "--trend") a.trend = true;
 		else if (arg === "--update-golden") a.updateGolden = true;
 		else if (arg.startsWith("--vault=")) a.vault = arg.slice("--vault=".length);
-		else if (arg.startsWith("--runs="))
-			a.runs = Math.max(1, Number(arg.slice("--runs=".length)) || 5);
 		else if (arg.startsWith("--sha=")) a.sha = arg.slice("--sha=".length);
-		else if (arg.startsWith("--threshold="))
-			a.threshold = Number(arg.slice("--threshold=".length));
+		else if (arg.startsWith("--runs=")) {
+			const n = Number(arg.slice("--runs=".length));
+			if (!Number.isInteger(n) || n < 1) throw new Error(`--runs must be a whole number >= 1, got ${arg}`);
+			a.runs = n;
+		} else if (arg.startsWith("--threshold=")) {
+			const t = Number(arg.slice("--threshold=".length));
+			if (!Number.isFinite(t) || t <= 0) throw new Error(`--threshold must be a fraction > 0 (0.3 = +30%), got ${arg}`);
+			a.threshold = t;
+		} else {
+			throw new Error(`unknown argument ${arg}`);
+		}
 	}
 	return a;
 }
 
-/** The permanent (main-checkout) home of the fixtures studio + baseline. */
-function mainCheckoutRoot(): string {
-	// `git rev-parse --git-common-dir` resolves to <main>/.git even from a
-	// worktree; its dirname is the main checkout.
-	const commonDir = execSync("git rev-parse --git-common-dir", {
-		encoding: "utf8",
-	}).trim();
-	return path.dirname(path.resolve(commonDir));
-}
-
-const BASELINE_PATH = path.join(
-	path.dirname(new URL(import.meta.url).pathname),
-	"profile-baseline.json",
-);
-
-function loadBaseline(): Baseline | null {
-	if (!existsSync(BASELINE_PATH)) return null;
-	try {
-		return JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as Baseline;
-	} catch {
-		return null;
-	}
-}
-
-const HISTORY_PATH = path.join(
-	path.dirname(new URL(import.meta.url).pathname),
-	"profile-history.jsonl",
-);
-const GOLDEN_PATH = path.join(
-	path.dirname(new URL(import.meta.url).pathname),
-	"profile-golden.json",
-);
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const BASELINE_PATH = path.join(HERE, "profile-baseline.json");
+const HISTORY_PATH = path.join(HERE, "profile-history.jsonl");
+const GOLDEN_PATH = path.join(HERE, "profile-golden.json");
 /**
  * Drift threshold vs the immutable golden anchor — looser than the step
  * threshold and WARN-only: slow compounding drift is surfaced, never
@@ -152,55 +137,67 @@ const GOLDEN_PATH = path.join(
  * `--gate` blocks on.)
  */
 const DRIFT_THRESHOLD = 0.5;
+/** Kill an `obsidian` CLI call after this long (a hung call can't stall a run). */
+const CLI_CALL_TIMEOUT_MS = 20_000;
 
-function loadGolden(): Baseline | null {
-	if (!existsSync(GOLDEN_PATH)) return null;
+function loadJson<T>(p: string): T | null {
+	if (!existsSync(p)) return null;
 	try {
-		return JSON.parse(readFileSync(GOLDEN_PATH, "utf8")) as Baseline;
+		return JSON.parse(readFileSync(p, "utf8")) as T;
 	} catch {
 		return null;
 	}
 }
 
-/** Provenance for a history point — same-machine by construction (GB-T05). */
-function resolveProvenance(): {
-	gitSha: string;
-	appVersion: string;
-	host: string;
-} {
-	const root = mainCheckoutRoot();
+/**
+ * Provenance for a history point, measured from the vault being profiled:
+ * the version and bytes of the `main.js` it loads (a symlink resolves to
+ * its checkout), and the Obsidian build (wallMs includes Obsidian's boot).
+ */
+function resolveProvenance(
+	vaultRoot: string,
+	configDir: string,
+	userAgent: string,
+	shaOverride: string | undefined,
+): Pick<HistoryEntry, "gitSha" | "appVersion" | "host" | "buildHash" | "obsidianVersion"> {
+	const pluginDir = pluginDirOf(vaultRoot, configDir);
+	let buildHash = "unknown";
 	let gitSha = "unknown";
 	try {
-		gitSha = execSync("git rev-parse --short HEAD", {
-			cwd: root,
+		const mainJs = realpathSync(path.join(pluginDir, "main.js"));
+		buildHash = createHash("sha256").update(readFileSync(mainJs)).digest("hex").slice(0, 12);
+		gitSha = execFileSync("git", ["-C", path.dirname(mainJs), "rev-parse", "--short", "HEAD"], {
 			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
 		}).trim();
 	} catch {
 		/* leave unknown */
 	}
-	let appVersion = "unknown";
-	try {
-		const manifest = JSON.parse(
-			readFileSync(path.join(root, "manifest.json"), "utf8"),
-		) as { version?: string };
-		appVersion = manifest.version ?? "unknown";
-	} catch {
-		/* leave unknown */
-	}
-	return { gitSha, appVersion, host: os.hostname() };
+	const manifest = loadJson<{ version?: string }>(path.join(pluginDir, "manifest.json"));
+	return {
+		gitSha: shaOverride ?? gitSha,
+		appVersion: manifest?.version ?? "unknown",
+		host: os.hostname(),
+		buildHash,
+		obsidianVersion: /obsidian\/([\d.]+)/.exec(userAgent)?.[1] ?? "unknown",
+	};
+}
+
+/** Local calendar date (YYYY-MM-DD), not UTC. */
+function localDate(d = new Date()): string {
+	const p = (n: number) => String(n).padStart(2, "0");
+	return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 /** Read history and print the trend for every stable metric. No live run. */
 function printTrend(): void {
 	if (!existsSync(HISTORY_PATH)) {
-		console.log(
-			"No profile history yet — run `npm run profile -- --record` first.",
-		);
+		out("No profile history yet — run `npm run profile -- --record` first.");
 		return;
 	}
 	const entries = parseHistory(readFileSync(HISTORY_PATH, "utf8"));
 	if (entries.length === 0) {
-		console.log("Profile history is empty or unreadable.");
+		out("Profile history is empty or unreadable.");
 		return;
 	}
 	const lines: string[] = ["", "## Runtime profile — trend", ""];
@@ -213,108 +210,20 @@ function printTrend(): void {
 		}
 		if (rows.length) lines.push(`### ${scen.title}`, ...rows, "");
 	}
+	const last = entries[entries.length - 1];
 	lines.push(
-		`_${entries.length} recorded point(s); latest host ${entries[entries.length - 1].host}._`,
+		`_${entries.length} recorded point(s); latest host ${last.host}, Obsidian ${last.obsidianVersion ?? "unknown"}._`,
 	);
-	console.log(lines.join("\n"));
+	out(lines.join("\n"));
 }
 
 function sleep(ms: number): Promise<void> {
-	return new Promise((r) => setTimeout(r, ms));
+	return delay(ms).then(() => undefined);
 }
 
-/**
- * Seed the heavy session into the studio's plugin dir on disk so the
- * cold-start scenario has something to restore. Mirrors the screenshot
- * setup.sh mechanism (data.template.json -> data.json, sessions.seed ->
- * sessions) then adds the heavy session + a restored-tab entry.
- */
-function seedStudio(studioRoot: string): void {
-	const pluginDir = path.join(
-		studioRoot,
-		".obsidian/plugins/agent-console",
-	);
-	const template = path.join(pluginDir, "data.template.json");
-	const dataJson = path.join(pluginDir, "data.json");
-	const sessionsSeed = path.join(pluginDir, "sessions.seed");
-	const sessions = path.join(pluginDir, "sessions");
-
-	if (existsSync(template)) cpSync(template, dataJson);
-	if (existsSync(sessionsSeed)) {
-		rmSync(sessions, { recursive: true, force: true });
-		cpSync(sessionsSeed, sessions, { recursive: true });
-	} else {
-		mkdirSync(sessions, { recursive: true });
-	}
-
-	const heavy = generateHeavySession();
-	const savedEntry = heavySavedSessionEntry();
-	writeFileSync(
-		path.join(sessions, `${heavy.sessionId}.json`),
-		JSON.stringify(heavy, null, "\t"),
-	);
-
-	// Register it in savedSessions + a restored tab so restore-on-startup
-	// re-adopts it. leafId must match the studio's agent-console leaf.
-	const data = JSON.parse(readFileSync(dataJson, "utf8")) as Record<
-		string,
-		unknown
-	>;
-	const saved = (
-		Array.isArray(data.savedSessions) ? data.savedSessions : []
-	) as unknown[];
-	saved.push(savedEntry);
-	data.savedSessions = saved;
-	data.restoreTabsOnStartup = true;
-
-	const leafId = resolveAgentLeafId(studioRoot);
-	data.perLeafTabStates = [
-		{
-			leafId,
-			activeTabId: "profile-tab",
-			tabs: [
-				{
-					tabId: "profile-tab",
-					agentId: heavy.agentId,
-					label: savedEntry.title,
-					labelIsCustom: true,
-					sessionId: heavy.sessionId,
-					tabOrder: 0,
-					scrollPosition: 0,
-					workingDirectory: savedEntry.cwd,
-				},
-				{
-					tabId: "profile-light-tab",
-					agentId: "claude-code-acp",
-					label: "Debug the failing CI pipeline",
-					labelIsCustom: true,
-					sessionId: "seed-ci-pipeline",
-					tabOrder: 1,
-					scrollPosition: 0,
-					workingDirectory: savedEntry.cwd,
-				},
-			],
-		},
-	];
-	writeFileSync(dataJson, JSON.stringify(data, null, "\t"));
-}
-
-/**
- * Read the agent-console chat leaf id from the studio workspace.json.
- * Throws when there is none: without it the seeder can't key the restored
- * tabs, and every scenario would profile an empty chat.
- */
-function resolveAgentLeafId(studioRoot: string): string {
-	const wsPath = path.join(studioRoot, ".obsidian/workspace.json");
-	const leafId = existsSync(wsPath)
-		? findAgentLeafId(JSON.parse(readFileSync(wsPath, "utf8")) as unknown)
-		: null;
-	if (!leafId) {
-		throw new Error(
-			`no Agent Console chat leaf in ${wsPath} — open the chat view in the studio vault once, then rerun`,
-		);
-	}
-	return leafId;
+/** Report output (stdout). Progress and errors go to stderr. */
+function out(text: string): void {
+	process.stdout.write(`${text}\n`);
 }
 
 function b64(s: string): string {
@@ -332,30 +241,32 @@ function makeContext(cdp: Cdp): ProfileContext {
 		return resp.result?.value as T;
 	};
 
-	const OBSERVER_INSTALL = `(function(){if(!window.__profObs){window.__profBuf=[];try{var po=new PerformanceObserver(function(l){var es=l.getEntries();for(var i=0;i<es.length;i++){var e=es[i];window.__profBuf.push({name:e.name,duration:e.duration,blockingDuration:e.blockingDuration,styleAndLayoutDuration:e.styleAndLayoutDuration,startTime:e.startTime});}});po.observe({type:"long-animation-frame",buffered:true});try{po.observe({type:"longtask",buffered:true});}catch(e2){}window.__profObs=po;}catch(e){return "OBS-ERR:"+e.message;}}return "ok";})()`;
-	const OBSERVER_READ = `(function(){var b=window.__profBuf||[];window.__profBuf=[];return b;})()`;
-
 	return {
 		evalInPage,
 		async snapshot(): Promise<MetricSnapshot> {
-			const resp = await cdp.send<{ metrics: RawMetric[] }>(
-				"Performance.getMetrics",
-			);
+			const resp = await cdp.send<{ metrics: RawMetric[] }>("Performance.getMetrics");
 			return toSnapshot(resp.metrics ?? []);
 		},
 		async installObserver(): Promise<void> {
-			await evalInPage(OBSERVER_INSTALL);
+			const type = await evalInPage<string>(OBSERVER_INSTALL_JS);
+			if (typeof type !== "string" || type.startsWith("OBS-ERR")) {
+				throw new Error(`long-frame observer: ${String(type)}`);
+			}
 		},
-		async readObserver() {
-			return (await evalInPage(OBSERVER_READ)) ?? [];
+		async readObserver(): Promise<ObserverEntry[]> {
+			return (await evalInPage<ObserverEntry[]>(OBSERVER_READ_JS)) ?? [];
 		},
 		async reload(): Promise<void> {
-			// Wait for the NEW document, not a fixed sleep: the old 1.5 s
-			// sleep let a fast restore finish before the first poll, so the
-			// cold-start time read as one poll interval.
+			// Wait for the NEW document, not a fixed sleep. Page.reload is not
+			// idempotent, so it is sent once (no retry); an empty response is
+			// a dropped reply, and the sentinel below confirms the reload.
 			await evalInPage(MARK_OLD_DOCUMENT_JS);
-			await cdp.send("Page.reload", {});
-			const start = Date.now();
+			try {
+				await cdp.send("Page.reload", {}, 0);
+			} catch (err) {
+				if (!/empty output/.test(err instanceof Error ? err.message : String(err))) throw err;
+			}
+			const deadline = Date.now() + 30_000;
 			for (;;) {
 				await sleep(50);
 				try {
@@ -363,29 +274,27 @@ function makeContext(cdp: Cdp): ProfileContext {
 				} catch {
 					/* mid-navigation: the old context is gone; poll again */
 				}
-				if (Date.now() - start > 30_000) {
+				if (Date.now() > deadline) {
 					throw new Error("reload: the new document never appeared in 30s");
 				}
 			}
 		},
-		async waitForSelector(selectors, timeoutMs = 15_000) {
-			const start = Date.now();
-			const check = waitCheckJs(selectors);
+		async waitFor(checkJs: string, timeoutMs: number, what: string): Promise<WaitHit> {
+			// In-page MutationObserver waits, in slices short enough for the
+			// CLI call timeout; the hit's pageMs is the mutation that made the
+			// check hold, so the slicing adds no timing error.
+			const deadline = Date.now() + timeoutMs;
 			for (;;) {
-				const hit = parseWaitHit(await evalInPage<string>(check));
-				if (hit) {
-					return {
-						ms: Date.now() - start,
-						selector: hit.selector,
-						pageMs: hit.pageMs,
-					};
+				const slice = Math.max(100, Math.min(5_000, deadline - Date.now()));
+				try {
+					const hit = parseWaitHit(await evalInPage<string>(awaitCheckJs(checkJs, slice)));
+					if (hit) return hit;
+				} catch {
+					/* mid-navigation or a dropped reply; retry until the deadline */
 				}
-				if (Date.now() - start > timeoutMs) {
-					throw new Error(
-						`waitForSelector: none of ${selectors.join(", ")} appeared in ${timeoutMs}ms`,
-					);
+				if (Date.now() >= deadline) {
+					throw new Error(`timed out after ${timeoutMs}ms waiting for ${what}`);
 				}
-				await sleep(100);
 			}
 		},
 		sleep,
@@ -398,7 +307,18 @@ function fmt(n: number): string {
 	return Math.abs(n) >= 100 || Number.isInteger(n) ? String(n) : n.toFixed(4);
 }
 
-function renderReport(profile: Profile, verdict: Verdict): string {
+interface ScenarioFailure {
+	pass: number;
+	scenario: string;
+	error: string;
+}
+
+function renderReport(
+	profile: Profile,
+	verdict: Verdict,
+	baselineExists: boolean,
+	incomplete: string[],
+): string {
 	const lines: string[] = ["", "## Runtime profile", ""];
 	for (const scen of SCENARIOS) {
 		const m = profile[scen.id];
@@ -407,6 +327,11 @@ function renderReport(profile: Profile, verdict: Verdict): string {
 		lines.push(`_signal: ${scen.primarySignal}_`, "");
 		lines.push("| metric | value |", "| --- | --- |");
 		for (const [k, v] of Object.entries(m)) lines.push(`| ${k} | ${fmt(v)} |`);
+		lines.push("");
+	}
+	if (incomplete.length > 0) {
+		lines.push("## INCOMPLETE — not recorded, not written as a baseline", "");
+		for (const why of incomplete) lines.push(`- ${why}`);
 		lines.push("");
 	}
 	lines.push("## Verdict", "");
@@ -418,7 +343,11 @@ function renderReport(profile: Profile, verdict: Verdict): string {
 			lines.push(`IMPROVEMENT — largest drop ${(verdict.maxPctDrop * 100).toFixed(1)}%.`);
 			break;
 		case "no-baseline":
-			lines.push("NO BASELINE — nothing to compare against (run with --update to seed).");
+			lines.push(
+				baselineExists
+					? "NO COMPARISON — the baseline shares no metric with this run."
+					: "NO BASELINE — nothing to compare against (run with --update to seed).",
+			);
 			break;
 		case "regression":
 			lines.push("REGRESSION — the following metrics rose past threshold:", "");
@@ -434,21 +363,25 @@ function renderReport(profile: Profile, verdict: Verdict): string {
 	return lines.join("\n");
 }
 
-/** Run all scenarios once against the attached Cdp, returning a Profile. */
-async function runOnce(cdp: Cdp): Promise<Profile> {
+/** Run all scenarios once. Failures are returned, never swallowed. */
+async function runOnce(
+	cdp: Cdp,
+	pass: number,
+): Promise<{ profile: Profile; failed: ScenarioFailure[] }> {
 	const profile: Profile = {};
+	const failed: ScenarioFailure[] = [];
 	for (const scen of SCENARIOS) {
 		console.error(`▶ ${scen.title}`);
 		const ctx = makeContext(cdp);
 		try {
 			profile[scen.id] = await scen.measure(ctx);
 		} catch (err) {
-			console.error(
-				`  ! scenario "${scen.id}" failed: ${err instanceof Error ? err.message : String(err)}`,
-			);
+			const error = err instanceof Error ? err.message : String(err);
+			console.error(`  ! scenario "${scen.id}" failed: ${error}`);
+			failed.push({ pass, scenario: scen.id, error });
 		}
 	}
-	return profile;
+	return { profile, failed };
 }
 
 /** Format the golden-drift warning (never blocks — informational). */
@@ -478,44 +411,43 @@ async function main(): Promise<void> {
 		return;
 	}
 
-	const cdp = new Cdp({ vault: args.vault });
+	const cdp = new Cdp({ vault: args.vault, commandTimeoutMs: CLI_CALL_TIMEOUT_MS });
 
-	// GB-T03: never profile the daily vault. Resolve the attached vault name
-	// and abort if it is the working vault (or unresolvable).
-	let vaultName = "";
+	// GB-T03: resolve which vault dev:cdp attached to, and refuse anything
+	// but a disposable vault that is the one requested and seedable at its
+	// own base path. Runs before any write or reload.
+	let attached: { name?: string; base?: string; ua?: string; configDir?: string } = {};
 	try {
-		const resp = await cdp.send<{ result?: { value?: string } }>(
-			"Runtime.evaluate",
-			{ expression: "app.vault.getName()", returnByValue: true },
-		);
-		vaultName = resp.result?.value ?? "";
+		const resp = await cdp.send<{ result?: { value?: string } }>("Runtime.evaluate", {
+			expression:
+				'JSON.stringify({name:app.vault.getName(),base:(app.vault.adapter.getBasePath?app.vault.adapter.getBasePath():""),ua:navigator.userAgent,configDir:app.vault.configDir})',
+			returnByValue: true,
+		});
+		attached = JSON.parse(resp.result?.value ?? "{}") as typeof attached;
 	} catch (err) {
 		console.error(
-			`FATAL: could not reach vault "${args.vault}" over dev:cdp — is the studio open? (${err instanceof Error ? err.message : String(err)})`,
+			`FATAL: could not reach vault "${args.vault}" over dev:cdp — is it open? (${err instanceof Error ? err.message : String(err)})`,
 		);
 		process.exit(2);
 	}
-	if (vaultName === "donivatamazondotcom") {
-		console.error(
-			"FATAL (GB-T03): resolved the DAILY vault — refusing to profile. Open the fixtures 'studio' vault and pass --vault=studio.",
-		);
-		process.exit(2);
-	}
-	console.error(
-		`Profiling vault "${vaultName}" (requested --vault=${args.vault}).`,
+	const vaultRoot = attached.base ?? "";
+	const configDir = attached.configDir ?? "";
+	const refusal = checkProfileTarget(
+		{ requested: args.vault, resolvedName: attached.name ?? "", basePath: vaultRoot },
+		(base) => configDir !== "" && canSeed(base, configDir),
 	);
+	if (refusal) {
+		console.error(`FATAL (GB-T03): ${refusal}`);
+		process.exit(2);
+	}
+	console.error(`Profiling vault "${attached.name}" at ${vaultRoot}.`);
 
 	if (args.seed) {
-		const studioRoot = path.join(
-			mainCheckoutRoot(),
-			"tools/screenshots/fixtures/studio",
-		);
-		console.error(`Seeding heavy session into ${studioRoot} …`);
-		seedStudio(studioRoot);
+		console.error(`Seeding the heavy session into ${vaultRoot} …`);
+		seedStudio(vaultRoot, configDir);
 		// Hard reload so the on-disk seed is re-read (graceful reload would
-		// flush the empty in-memory state over the seed first).
-		await cdp.send("Page.reload", {});
-		await sleep(2500);
+		// flush the in-memory state over the seed first).
+		await makeContext(cdp).reload();
 	}
 
 	await cdp.send("Performance.enable", {});
@@ -524,38 +456,49 @@ async function main(): Promise<void> {
 	// GB-T05); a single pass otherwise.
 	const passes = args.record ? args.runs : 1;
 	const runs: Profile[] = [];
+	const failures: ScenarioFailure[] = [];
 	for (let p = 0; p < passes; p++) {
 		if (passes > 1) console.error(`— pass ${p + 1}/${passes} —`);
-		runs.push(await runOnce(cdp));
+		const { profile, failed } = await runOnce(cdp, p + 1);
+		runs.push(profile);
+		failures.push(...failed);
 	}
 	const profile = passes > 1 ? medianProfile(runs) : runs[0];
 
-	const baseline = loadBaseline();
+	const baseline = loadJson<Baseline>(BASELINE_PATH);
+	const incomplete = [
+		...failures.map((f) => `pass ${f.pass}: ${f.scenario} failed — ${f.error}`),
+		...missingFromProfile(profile, baseline).map((s) => `${s}: in the baseline but not measured`),
+	];
 	const verdict = diffAgainstBaseline(profile, baseline, args.threshold);
-	console.log(renderReport(profile, verdict));
+	out(renderReport(profile, verdict, baseline !== null, incomplete));
 
 	// Drift vs the immutable golden anchor — warn-only, never blocks.
-	const golden = loadGolden();
+	const golden = loadJson<Baseline>(GOLDEN_PATH);
 	if (golden) {
-		const driftReport = renderDrift(
-			diffAgainstBaseline(profile, golden, DRIFT_THRESHOLD),
-		);
-		if (driftReport) console.log(driftReport);
+		const driftReport = renderDrift(diffAgainstBaseline(profile, golden, DRIFT_THRESHOLD));
+		if (driftReport) out(driftReport);
+	}
+
+	if (incomplete.length > 0) {
+		if (args.record || args.update || args.updateGolden) {
+			console.error("\nNothing recorded or written: the run is incomplete.");
+		}
+		process.exit(1);
 	}
 
 	if (args.record) {
-		const prov = resolveProvenance();
+		const prov = resolveProvenance(vaultRoot, configDir, attached.ua ?? "", args.sha);
 		const entry: HistoryEntry = {
-			date: new Date().toISOString().slice(0, 10),
-			gitSha: args.sha ?? prov.gitSha,
-			appVersion: prov.appVersion,
-			host: prov.host,
+			date: localDate(),
+			recordedAt: new Date().toISOString(),
+			...prov,
 			medianOf: passes,
 			scenarios: profile,
 		};
 		appendFileSync(HISTORY_PATH, serializeEntry(entry) + "\n");
 		console.error(
-			`\nRecorded history point (${prov.appVersion} @ ${entry.gitSha}, median-of-${passes}) -> ${HISTORY_PATH}`,
+			`\nRecorded history point (${prov.appVersion}@${prov.gitSha}, main.js ${prov.buildHash}, Obsidian ${prov.obsidianVersion}, median-of-${passes}) -> ${HISTORY_PATH}`,
 		);
 	}
 
@@ -565,7 +508,7 @@ async function main(): Promise<void> {
 			capturedAt: new Date().toISOString(),
 			scenarios: profile,
 			floors: baseline?.floors,
-			gateExclude: baseline?.gateExclude ?? ["JSHeapUsedSize"],
+			gateExclude: baseline?.gateExclude,
 		};
 		writeFileSync(BASELINE_PATH, JSON.stringify(next, null, "\t") + "\n");
 		console.error(`\nBaseline written to ${BASELINE_PATH}`);
@@ -577,7 +520,7 @@ async function main(): Promise<void> {
 			capturedAt: new Date().toISOString(),
 			scenarios: profile,
 			floors: baseline?.floors,
-			gateExclude: baseline?.gateExclude ?? ["JSHeapUsedSize"],
+			gateExclude: baseline?.gateExclude,
 		};
 		writeFileSync(GOLDEN_PATH, JSON.stringify(goldenNext, null, "\t") + "\n");
 		console.error(
@@ -591,7 +534,10 @@ async function main(): Promise<void> {
 	}
 }
 
-main().catch((err) => {
-	console.error(err);
-	process.exit(2);
-});
+// Run only as a script, so tests can import parseArgs.
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+	main().catch((err) => {
+		console.error(err);
+		process.exit(2);
+	});
+}

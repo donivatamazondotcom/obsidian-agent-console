@@ -8,8 +8,7 @@
  * 201-message / 56-code-block session the v1.0.2 restore numbers came from.
  *
  * Pure + deterministic → unit-tested for determinism in
- * `__tests__/heavy-session.test.ts`. Writing it into a studio vault is a
- * separate fs concern handled by `run-profile.ts`.
+ * `__tests__/profile.test.ts`. Writing it into a vault is `seed.ts`.
  *
  * Spec: [[Agent Console Release Quality Gates]] § Gate B-phase2 (fixture).
  */
@@ -61,6 +60,9 @@ const DEFAULTS = {
 	codeBlockCount: 56,
 	seed: 0x5eed,
 };
+
+/** Rows the heavy transcript renders; scenarios wait for this many. */
+export const HEAVY_MESSAGE_COUNT = DEFAULTS.messageCount;
 
 /** mulberry32 — small, fast, fully deterministic PRNG seeded by an int. */
 function mulberry32(seed: number): () => number {

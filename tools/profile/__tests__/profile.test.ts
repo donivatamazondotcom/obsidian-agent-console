@@ -15,6 +15,7 @@ import {
 } from "../metrics";
 import {
 	diffAgainstBaseline,
+	missingFromProfile,
 	type Baseline,
 	type Profile,
 } from "../baseline";
@@ -75,9 +76,11 @@ describe("metrics.computeDelta", () => {
 describe("metrics.summarizeLongTasks", () => {
 	it("counts only frames over the 50ms threshold and takes maxima", () => {
 		const s = summarizeLongTasks([
-			{ name: "long-animation-frame", duration: 80, blockingDuration: 30, styleAndLayoutDuration: 12 },
-			{ name: "long-animation-frame", duration: 20, blockingDuration: 2, styleAndLayoutDuration: 40 },
-			{ name: "longtask", duration: 60, blockingDuration: 55 },
+			// Shapes as buffered by page-js OBSERVER_INSTALL_JS (styleAndLayoutMs
+			// is computed in the page from LoAF's styleAndLayoutStart).
+			{ entryType: "long-animation-frame", duration: 80, blockingDuration: 30, styleAndLayoutMs: 12 },
+			{ entryType: "long-animation-frame", duration: 20, blockingDuration: 2, styleAndLayoutMs: 40 },
+			{ entryType: "longtask", duration: 60, blockingDuration: 55, styleAndLayoutMs: 0 },
 		]);
 		expect(s.longTaskCount).toBe(2); // 80 and 60, not 20
 		expect(s.longTaskTotalMs).toBe(140);
@@ -224,5 +227,28 @@ describe("fixtures.generateHeavySession", () => {
 		expect(s.messages).toHaveLength(21);
 		expect(countCodeBlocks(s)).toBe(5);
 		expect(s.version).toBe(1);
+	});
+});
+
+describe("baseline.missingFromProfile", () => {
+	const baseline: Baseline = {
+		thresholdPct: 0.3,
+		capturedAt: "x",
+		scenarios: { a: { LayoutCount: 100 }, b: { LayoutCount: 100 } },
+	};
+
+	it("names baseline scenarios the profile didn't measure", () => {
+		expect(missingFromProfile({ a: { LayoutCount: 100 } }, baseline)).toEqual(["b"]);
+	});
+
+	it("is empty when every baseline scenario was measured, or there is no baseline", () => {
+		expect(missingFromProfile({ a: {}, b: {} }, baseline)).toEqual([]);
+		expect(missingFromProfile({}, null)).toEqual([]);
+	});
+
+	it("is what makes a partial run incomplete even though the diff reads ok", () => {
+		const partial: Profile = { a: { LayoutCount: 100 } };
+		expect(diffAgainstBaseline(partial, baseline).kind).toBe("ok");
+		expect(missingFromProfile(partial, baseline)).toEqual(["b"]);
 	});
 });

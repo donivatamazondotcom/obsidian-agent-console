@@ -26,6 +26,7 @@
  */
 import { spawn, execSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
+import { setTimeout as setNodeTimeout, clearTimeout as clearNodeTimeout } from "node:timers";
 import { existsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -65,6 +66,12 @@ export interface CdpOptions {
 	screenshotTimeout?: number;
 	/** Poll interval in ms for both wait operations. Default 50. */
 	pollInterval?: number;
+	/**
+	 * Kill an `obsidian` CLI call that hasn't closed after this many ms and
+	 * reject it. Unset (the default) means no limit. The runtime profiler
+	 * sets it so a call stuck mid-navigation can't stall a run.
+	 */
+	commandTimeoutMs?: number;
 	/**
 	 * Isolated mode: talk to a separate Obsidian instance over a direct CDP
 	 * session instead of the `obsidian` CLI. Window-raising calls become
@@ -121,6 +128,7 @@ interface ChildProcessLike {
 		listener: (code: number | null) => void,
 	): ChildProcessLike;
 	on(event: "error", listener: (err: Error) => void): ChildProcessLike;
+	kill?(signal?: NodeJS.Signals): boolean;
 }
 
 export class Cdp {
@@ -129,6 +137,7 @@ export class Cdp {
 	private readonly waitTimeout: number;
 	private readonly screenshotTimeout: number;
 	private readonly pollInterval: number;
+	private readonly commandTimeoutMs: number | undefined;
 	private readonly transport: CdpTransport | undefined;
 
 	constructor(opts: CdpOptions = {}) {
@@ -137,6 +146,7 @@ export class Cdp {
 		this.waitTimeout = opts.waitTimeout ?? 5000;
 		this.screenshotTimeout = opts.screenshotTimeout ?? 5000;
 		this.pollInterval = opts.pollInterval ?? 50;
+		this.commandTimeoutMs = opts.commandTimeoutMs;
 		this.transport = opts.transport;
 	}
 
@@ -1020,10 +1030,22 @@ export class Cdp {
 			proc.stderr.on("data", () => {
 				/* drain */
 			});
+			let timer: ReturnType<typeof setNodeTimeout> | undefined;
+			if (this.commandTimeoutMs !== undefined) {
+				const ms = this.commandTimeoutMs;
+				timer = setNodeTimeout(() => {
+					proc.kill?.("SIGKILL");
+					reject(new Error(`obsidian ${args[0] ?? ""}: no response in ${ms}ms`));
+				}, ms);
+			}
 			proc.on("close", () => {
+				if (timer) clearNodeTimeout(timer);
 				resolve(Buffer.concat(stdoutChunks).toString("utf8"));
 			});
-			proc.on("error", (err) => reject(err));
+			proc.on("error", (err) => {
+				if (timer) clearNodeTimeout(timer);
+				reject(err);
+			});
 		});
 	}
 }
