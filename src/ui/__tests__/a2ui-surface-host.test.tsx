@@ -35,6 +35,11 @@ afterEach(cleanup);
 
 import { setTooltip } from "obsidian";
 import { A2uiSurfaceHost } from "../A2uiSurfaceHost";
+import { A2uiTurnStoreContext } from "../a2ui-turn-context";
+import {
+	createA2uiTurnStore,
+	type A2uiTurnState,
+} from "../../services/a2ui/turn-store";
 import type { A2uiDispatchOutcome } from "../../services/session-dispatch-port";
 import { initializeLogger } from "../../utils/logger";
 import type AgentClientPlugin from "../../plugin";
@@ -70,15 +75,25 @@ const ENVELOPE = JSON.stringify({
 
 const PLUGIN = {} as AgentClientPlugin;
 
-function renderHost(
-	overrides: Partial<React.ComponentProps<typeof A2uiSurfaceHost>> = {},
-) {
+type HostOverrides = Partial<React.ComponentProps<typeof A2uiSurfaceHost>> &
+	Partial<A2uiTurnState>;
+
+/** Turn state now comes from the panel's store (I376); the helper provides one. */
+function renderHost(overrides: HostOverrides = {}) {
+	const turnStore = createA2uiTurnStore({
+		isSending: overrides.isSending ?? false,
+		isQueued: overrides.isQueued ?? false,
+		isRestoringSession: overrides.isRestoringSession ?? false,
+		sessionState: overrides.sessionState ?? "ready",
+		heldSurfaceId: overrides.heldSurfaceId ?? null,
+	});
 	const onActivate = vi.fn(
 		overrides.onActivate ??
 			(async (): Promise<A2uiDispatchOutcome> => "sent"),
 	);
 	const body = overrides.body ?? ENVELOPE;
 	const utils = render(
+		<A2uiTurnStoreContext.Provider value={turnStore}>
 		<A2uiSurfaceHost
 			body={body}
 			fenceText={overrides.fenceText ?? "```a2ui\n" + body + "\n```"}
@@ -86,16 +101,12 @@ function renderHost(
 			answeredComponentId={overrides.answeredComponentId ?? null}
 			isFirstDefinition={overrides.isFirstDefinition}
 			isLatestDefinition={overrides.isLatestDefinition}
-			isSending={overrides.isSending ?? false}
-			isQueued={overrides.isQueued ?? false}
-			isRestoringSession={overrides.isRestoringSession ?? false}
 			isStreamingTurn={overrides.isStreamingTurn ?? false}
-			sessionState={overrides.sessionState ?? "ready"}
-			heldSurfaceId={overrides.heldSurfaceId ?? null}
 			onActivate={onActivate}
-		/>,
+		/>
+		</A2uiTurnStoreContext.Provider>,
 	);
-	return { ...utils, onActivate };
+	return { ...utils, onActivate, turnStore };
 }
 
 describe("A2uiSurfaceHost — valid surface (T01)", () => {

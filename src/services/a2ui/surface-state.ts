@@ -19,6 +19,7 @@ import {
 	type A2uiTabDispatchMode,
 	type A2uiTabRefuseReason,
 } from "../../resolvers/a2ui-dispatch";
+import { deriveSurfaceScopedRefusal } from "../../resolvers/a2ui-surface-refusal";
 
 /** The transcript slice this module needs — role + text only. */
 export interface TranscriptMessageLike {
@@ -81,8 +82,8 @@ function parseActionEnvelope(body: string): ParsedAction | null {
 	return { surfaceId, sourceComponentId };
 }
 
-/** Per-surface submission status (runtime; reconstructed from transcript on restore). */
-export type A2uiSurfaceStatus = "unanswered" | "pending" | "answered";
+export type { A2uiSurfaceStatus } from "../../resolvers/a2ui-surface-refusal";
+import type { A2uiSurfaceStatus } from "../../resolvers/a2ui-surface-refusal";
 
 export type A2uiActionAffordanceReason =
 	| "ready" // live session — dispatches immediately
@@ -122,16 +123,7 @@ export function deriveSurfaceActionAffordance(
 	input: A2uiActionAffordanceInput,
 ): A2uiActionAffordance {
 	// Surface-scoped refusals — independent of session liveness.
-	let surfaceReason: A2uiActionAffordanceReason | null = null;
-	if (input.surfaceStatus === "answered") {
-		surfaceReason = "answered";
-	} else if (input.surfaceStatus === "pending") {
-		surfaceReason = "pending";
-	} else if (input.isSuperseded) {
-		surfaceReason = "superseded";
-	} else if (input.isStreamingTurn) {
-		surfaceReason = "streaming";
-	}
+	const surfaceReason = deriveSurfaceScopedRefusal(input);
 	if (surfaceReason !== null) {
 		return { enabled: false, reason: surfaceReason, mode: "refuse" };
 	}

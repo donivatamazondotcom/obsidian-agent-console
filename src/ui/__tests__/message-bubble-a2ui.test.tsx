@@ -69,11 +69,6 @@ function makeA2ui(
 		answers: new Map(),
 		isFirstDefinition: () => true,
 		latestSurfaceId: null,
-		isSending: false,
-		isQueued: false,
-		isRestoringSession: false,
-		sessionState: "ready",
-		heldSurfaceId: null,
 		onActivate: vi.fn().mockResolvedValue("sent"),
 		...overrides,
 	};

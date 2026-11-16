@@ -14,7 +14,9 @@
  * button over div[role=button]).
  *
  * Enablement (D7) reads the same pure resolver the dispatch path gates on:
- * idle tab, empty queue slot, unanswered surface. Answered state arrives
+ * idle tab, empty queue slot, unanswered surface. Tab turn state comes from
+ * the panel's A2UI turn store, and only a host that can still be clicked
+ * subscribes to it, so a turn edge re-renders the live surface only (I376). Answered state arrives
  * from the transcript (deriveSurfaceAnswers) via props; local pending state
  * covers the dispatch window and re-enables on failure (T11).
  */
@@ -26,13 +28,16 @@ import { validateA2uiFence } from "../services/a2ui/validator";
 import { getLogger } from "../utils/logger";
 import {
 	deriveSurfaceActionAffordance,
+	type A2uiActionAffordance,
 	type A2uiActionAffordanceReason,
 	type A2uiSurfaceStatus,
 } from "../services/a2ui/surface-state";
+import type { A2uiTurnState } from "../services/a2ui/turn-store";
+import { deriveSurfaceScopedRefusal } from "../resolvers/a2ui-surface-refusal";
+import { useA2uiTurnSlice } from "./a2ui-turn-context";
 import type { A2uiValidatedSurface } from "../services/a2ui/types";
 import type { A2uiButton } from "../services/a2ui/action";
 import type { A2uiDispatchOutcome } from "../services/session-dispatch-port";
-import type { TabSessionState } from "../types/tab";
 import { MarkdownRenderer } from "./shared/MarkdownRenderer";
 import { t, type TranslationKey } from "../i18n";
 
@@ -56,22 +61,8 @@ export interface A2uiSurfaceHostProps {
 	 * frontier. Default true (single-surface consumers).
 	 */
 	isLatestDefinition?: (surfaceId: string) => boolean;
-	/** A turn is streaming somewhere in this tab. */
-	isSending: boolean;
-	/** The queue-of-one slot is occupied. */
-	isQueued: boolean;
-	/** Session history is loading. */
-	isRestoringSession: boolean;
 	/** The assistant turn containing this surface is still streaming. */
 	isStreamingTurn: boolean;
-	/** Per-tab session lifecycle state (drives the reconnect-on-click path). */
-	sessionState: TabSessionState;
-	/**
-	 * surfaceId of an action currently HELD for reconnect (A2UI-I08), or null.
-	 * Owned by the queue slot rather than this component, so if reconnecting
-	 * fails and the slot is released, the surface re-enables on its own.
-	 */
-	heldSurfaceId?: string | null;
 	/**
 	 * Dispatch the activation (build envelope + detached send). The outcome
 	 * drives the pending lifecycle: `sent` stays pending until the answer
@@ -98,6 +89,11 @@ const DISABLED_COPY_KEYS: Record<
 	answered: "chat.a2ui.disabledAnswered",
 	superseded: "chat.a2ui.disabledSuperseded",
 };
+
+// Turn-store selectors (I376). Module-level so their identity is stable.
+const selectSnapshot = (s: A2uiTurnState): A2uiTurnState => s;
+const selectNone = (): null => null;
+const selectNotHeld = (): boolean => false;
 
 export function A2uiSurfaceHost(props: A2uiSurfaceHostProps): React.JSX.Element {
 	const { body, fenceText, plugin, answeredComponentId } = props;
@@ -130,6 +126,43 @@ export function A2uiSurfaceHost(props: A2uiSurfaceHostProps): React.JSX.Element 
 		}
 	}, [validation, duplicate]);
 
+	// I376: both turn-store reads run on every render, before the inert
+	// return below, so an instance that flips between duplicate and valid
+	// keeps the same hook order. An invalid or duplicate fence reads constants.
+	const liveId =
+		validation.kind === "valid" && !duplicate ? validation.surface.surfaceId : null;
+	// The held action is owned by the queue slot (A2UI-I08), so a released
+	// slot (failed reconnect) re-enables the surface with no local bookkeeping.
+	const selectHeld = useMemo(
+		() =>
+			liveId === null
+				? selectNotHeld
+				: (s: A2uiTurnState): boolean => s.heldSurfaceId === liveId,
+		[liveId],
+	);
+	const heldHere = useA2uiTurnSlice(selectHeld);
+	const status: A2uiSurfaceStatus =
+		answeredComponentId !== null
+			? "answered"
+			: pending || heldHere
+				? "pending"
+				: "unanswered";
+	const isSuperseded =
+		liveId !== null &&
+		props.isLatestDefinition !== undefined &&
+		!props.isLatestDefinition(liveId);
+	const surfaceRefusal = deriveSurfaceScopedRefusal({
+		surfaceStatus: status,
+		isSuperseded,
+		isStreamingTurn: props.isStreamingTurn,
+	});
+	// Only a surface that could still be clicked reads the tab state, so
+	// answered, superseded, streaming and inert hosts don't re-render on a
+	// turn edge.
+	const turn = useA2uiTurnSlice(
+		liveId !== null && surfaceRefusal === null ? selectSnapshot : selectNone,
+	);
+
 	if (validation.kind !== "valid" || duplicate) {
 		return (
 			<div className="agent-client-a2ui-inert">
@@ -140,33 +173,24 @@ export function A2uiSurfaceHost(props: A2uiSurfaceHostProps): React.JSX.Element 
 	}
 	const surface = validation.surface;
 
-	// Pending covers the dispatch window. It comes from two places: local state
-	// (the same-tick dispatch) and the queue slot (an action held while the
-	// agent reconnects — A2UI-I08). Sourcing the held case from the slot means a
-	// failed reconnect releases it and the surface re-enables without this
-	// component having to observe the failure.
-	const heldHere =
-		props.heldSurfaceId !== undefined &&
-		props.heldSurfaceId !== null &&
-		props.heldSurfaceId === surface.surfaceId;
-
-	const status: A2uiSurfaceStatus =
-		answeredComponentId !== null
-			? "answered"
-			: pending || heldHere
-				? "pending"
-				: "unanswered";
-	const affordance = deriveSurfaceActionAffordance({
-		sessionState: props.sessionState,
-		isSending: props.isSending,
-		isQueued: props.isQueued,
-		isRestoringSession: props.isRestoringSession,
-		isStreamingTurn: props.isStreamingTurn,
-		surfaceStatus: status,
-		isSuperseded:
-			props.isLatestDefinition !== undefined &&
-			!props.isLatestDefinition(surface.surfaceId),
-	});
+	const affordance: A2uiActionAffordance =
+		turn === null
+			? {
+					enabled: false,
+					// turn is null only when a surface-scoped refusal applies
+					// (inert fences returned above), so the fallback is unused.
+					reason: surfaceRefusal ?? "superseded",
+					mode: "refuse",
+				}
+			: deriveSurfaceActionAffordance({
+					sessionState: turn.sessionState,
+					isSending: turn.isSending,
+					isQueued: turn.isQueued,
+					isRestoringSession: turn.isRestoringSession,
+					isStreamingTurn: props.isStreamingTurn,
+					surfaceStatus: status,
+					isSuperseded,
+				});
 
 	const handleActivate = (button: A2uiButton): void => {
 		if (!affordance.enabled) return;

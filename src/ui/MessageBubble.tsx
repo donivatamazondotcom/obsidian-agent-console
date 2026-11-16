@@ -15,10 +15,7 @@ import { A2uiSurfaceHost } from "./A2uiSurfaceHost";
 import { segmentAssistantMessage } from "../services/a2ui/segmenter";
 import { deriveA2uiActionMessageView } from "../services/a2ui/action";
 import { hasNonEmptyText } from "../resolvers/reply-start-target";
-import type { A2uiButton } from "../services/a2ui/action";
-import type { A2uiValidatedSurface } from "../services/a2ui/types";
-import type { A2uiDispatchOutcome } from "../services/session-dispatch-port";
-import type { TabSessionState } from "../types/tab";
+import type { A2uiBubbleContext } from "../services/a2ui/bubble-context";
 import { t } from "../i18n";
 import { TimeStamp } from "./TimeStamp";
 
@@ -225,39 +222,7 @@ function CollapsibleThought({ text, plugin }: CollapsibleThoughtProps) {
 // A2UI (agent-emitted interactive prompts) wiring
 // ---------------------------------------------------------------------------
 
-/**
- * Everything the a2ui surface hosts need from the tab, threaded through
- * MessageList from ChatPanel. Optional on MessageBubbleProps: consumers that
- * don't wire it (exports, previews) render fences as ordinary markdown —
- * the T07 graceful-degradation path by construction.
- */
-export interface A2uiBubbleContext {
-	/** surfaceId → chosen componentId, derived from the transcript. */
-	answers: ReadonlyMap<string, string>;
-	/**
-	 * First-valid-definition check (duplicate surfaceIds render inert). The
-	 * site identifies WHICH fence asks: transcript message index + surface
-	 * ordinal within the message (segmenter index).
-	 */
-	isFirstDefinition: (
-		surfaceId: string,
-		site: { messageIndex: number; surfaceIndex: number },
-	) => boolean;
-	/** The latest validly-defined surfaceId in the session (null = none). */
-	latestSurfaceId: string | null;
-	isSending: boolean;
-	isQueued: boolean;
-	isRestoringSession: boolean;
-	/** Per-tab session lifecycle state (drives reconnect-on-click, A2UI-I08). */
-	sessionState: TabSessionState;
-	/** surfaceId of an action held for reconnect, or null. */
-	heldSurfaceId: string | null;
-	/** Build + dispatch the action; the outcome drives the pending lifecycle. */
-	onActivate: (
-		surface: A2uiValidatedSurface,
-		button: A2uiButton,
-	) => Promise<A2uiDispatchOutcome>;
-}
+export type { A2uiBubbleContext } from "../services/a2ui/bubble-context";
 
 /**
  * Assistant text with a2ui segmentation (D11): markdown segments go through
@@ -304,12 +269,7 @@ function AssistantTextWithSurfaces({
 							a2ui.latestSurfaceId === null ||
 							a2ui.latestSurfaceId === surfaceId
 						}
-						isSending={a2ui.isSending}
-						isQueued={a2ui.isQueued}
-						isRestoringSession={a2ui.isRestoringSession}
 						isStreamingTurn={isStreamingTurn}
-						sessionState={a2ui.sessionState}
-						heldSurfaceId={a2ui.heldSurfaceId}
 						onActivate={a2ui.onActivate}
 					/>
 				),
