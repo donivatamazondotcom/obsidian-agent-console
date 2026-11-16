@@ -531,49 +531,55 @@ const a2uiButtonLabelContainment: Invariant = {
  * I198 fix the nine `dotPulse` dots therefore animated continuously for the
  * whole life of every open chat view, idle or not, pinning the compositor at
  * the display refresh rate (measured 120 fps sustained on ProMotion, surfaced
- * by macOS as "Using Significant Energy").
+ * by macOS as "Using Significant Energy"). The dots are now the working face
+ * ([[Agent Console Working Face]]); the same hazard applies to its layers.
  *
  * jsdom cannot see this: it applies no stylesheets and runs no animations. So
  * the assertion has to happen against real rendered animations in a running
  * Obsidian. Also asserts a reduced-motion opt-out exists.
  *
- * Anti-vacuity: a VISIBLE replica must animate all nine dots. Without that
- * check, a zero for the hidden replica would also be produced by missing
- * keyframes or an unloaded stylesheet — passing for the wrong reason.
+ * Anti-vacuity: a VISIBLE (working) replica must run exactly the five
+ * working-loop layers (chev, ldash, rdash, dotl, dotr; happy animates only
+ * in the happy exit). Without that check, a zero for the hidden replica would
+ * also be produced by missing keyframes or an unloaded stylesheet.
  */
+const FACE_LAYERS = ["chev", "ldash", "rdash", "dotl", "dotr", "happy"];
+const WORKING_LOOP_LAYERS = 5;
+
 const idleIndicatorNotAnimating: Invariant = {
 	id: "INV-8",
 	name: "Idle loading indicator runs no animations",
-	guards: "hidden-indicator animation class (I198)",
+	guards: "hidden-indicator animation class (I198), working face",
 	async run(cdp) {
 		const r = await evalJson<{
 			ruleFound: boolean;
 			reducedMotionFound: boolean;
 			hiddenRunning: number;
 			visibleRunning: number;
-			dots: number;
+			layers: number;
 		}>(
 			cdp,
-			`const build = (hidden) => {
+			`const LAYERS = ${JSON.stringify(FACE_LAYERS)};
+			 const build = (hidden) => {
 				const host = document.createElement("div");
 				host.style.cssText = "position:fixed;left:-9999px;top:0;width:400px";
 				document.body.appendChild(host);
 				try {
 					const ind = document.createElement("div");
 					ind.className = "agent-client-loading-indicator" + (hidden ? " agent-client-hidden" : "");
-					const wrap = document.createElement("div");
-					wrap.className = "agent-client-loading-dots";
-					for (let i = 0; i < 9; i++) {
-						const d = document.createElement("div");
-						d.className = "agent-client-loading-dot";
-						wrap.appendChild(d);
+					const face = document.createElement("div");
+					face.className = "agent-client-working-face";
+					for (const name of LAYERS) {
+						const l = document.createElement("div");
+						l.className = "agent-client-face-layer agent-client-face-" + name;
+						face.appendChild(l);
 					}
-					ind.appendChild(wrap);
+					ind.appendChild(face);
 					host.appendChild(ind);
-					const all = Array.from(wrap.querySelectorAll(".agent-client-loading-dot"));
+					const all = Array.from(face.querySelectorAll(".agent-client-face-layer"));
 					let running = 0;
-					for (const d of all) {
-						running += d.getAnimations().filter((a) => a.playState === "running").length;
+					for (const l of all) {
+						running += l.getAnimations().filter((a) => a.playState === "running").length;
 					}
 					return { running, count: all.length };
 				} finally {
@@ -585,7 +591,7 @@ const idleIndicatorNotAnimating: Invariant = {
 			 for (const sheet of Array.from(document.styleSheets)) {
 				try {
 					for (const rule of Array.from(sheet.cssRules)) {
-						if (rule.selectorText === ".agent-client-loading-dot") ruleFound = true;
+						if (String(rule.selectorText || "").split(",").map((x) => x.trim()).indexOf(".agent-client-face-layer") >= 0) ruleFound = true;
 						if (String(rule.cssText || "").indexOf("prefers-reduced-motion") >= 0) reducedMotionFound = true;
 					}
 				} catch (e) { /* cross-origin sheet; ignore */ }
@@ -597,26 +603,26 @@ const idleIndicatorNotAnimating: Invariant = {
 				reducedMotionFound,
 				hiddenRunning: hidden.running,
 				visibleRunning: visible.running,
-				dots: visible.count,
+				layers: visible.count,
 			 };`,
 		);
 		if (!r.ruleFound) {
 			return {
 				status: "fail",
 				detail:
-					"the .agent-client-loading-dot rule is not in any loaded stylesheet — plugin CSS did not load (a CSS change needs a FULL window reload, not plugin:reload)",
+					"the .agent-client-face-layer rule is not in any loaded stylesheet — plugin CSS did not load (a CSS change needs a FULL window reload, not plugin:reload)",
 			};
 		}
-		if (r.visibleRunning !== r.dots) {
+		if (r.visibleRunning !== WORKING_LOOP_LAYERS) {
 			return {
 				status: "fail",
-				detail: `visible indicator ran ${r.visibleRunning}/${r.dots} dot animations — probe cannot tell a fix from absent keyframes`,
+				detail: `visible indicator ran ${r.visibleRunning}/${WORKING_LOOP_LAYERS} working-loop animations (of ${r.layers} layers) — probe cannot tell a fix from absent keyframes`,
 			};
 		}
 		if (r.hiddenRunning !== 0) {
 			return {
 				status: "fail",
-				detail: `hidden indicator still runs ${r.hiddenRunning} animation(s) — visibility:hidden does not suspend animations, so the dots animate for the life of the view`,
+				detail: `hidden indicator still runs ${r.hiddenRunning} animation(s) — visibility:hidden does not suspend animations, so the face animates for the life of the view`,
 			};
 		}
 		if (!r.reducedMotionFound) {
@@ -628,7 +634,7 @@ const idleIndicatorNotAnimating: Invariant = {
 		}
 		return {
 			status: "pass",
-			detail: `hidden 0 running; visible ${r.visibleRunning}/${r.dots} running; reduced-motion opt-out present`,
+			detail: `hidden 0 running; visible ${r.visibleRunning}/${WORKING_LOOP_LAYERS} working-loop layers running; reduced-motion opt-out present`,
 		};
 	},
 };

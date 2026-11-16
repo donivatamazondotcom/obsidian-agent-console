@@ -17,7 +17,9 @@ import { LossyFallbackNotice } from "./LossyFallbackNotice";
 import type { SessionFallbackReason } from "../resolvers/session-engine";
 import { McpFailureNotice } from "./McpFailureNotice";
 import { KiroUpdateTip } from "./KiroUpdateTip";
-import type { KiroEngineFallback } from "../types/session";
+import type { KiroEngineFallback, TurnEnd } from "../types/session";
+import { useWorkingIndicatorPhase, type IndicatorPhase } from "../hooks/useWorkingIndicatorPhase";
+import { WorkingFace } from "./WorkingFace";
 import { deriveConversationEmptyState } from "../resolvers/conversation-empty-state";
 import {
 	deriveEmptyStateView,
@@ -85,6 +87,20 @@ const TurnStatusLine = memo(function TurnStatusLine({
 		</span>
 	);
 });
+
+/** The indicator's phase class: hidden when idle, an exit class while exiting. */
+function indicatorClass(phase: IndicatorPhase): string {
+	switch (phase) {
+		case "idle":
+			return " agent-client-hidden";
+		case "working":
+			return "";
+		case "exit-happy":
+			return " agent-client-indicator-exit-happy";
+		case "exit-close":
+			return " agent-client-indicator-exit-close";
+	}
+}
 
 /** Whether a message holds a tool call (each tool call is its own message). */
 function holdsToolCall(message: ChatMessage): boolean {
@@ -363,6 +379,11 @@ export interface MessageListProps {
 	messages: ChatMessage[];
 	/** Whether a message is currently being sent */
 	isSending: boolean;
+	/**
+	 * The latest turn end (useAgentMessages). Read only when `isSending` goes
+	 * false, to pick the working face's exit ([[Agent Console Working Face]]).
+	 */
+	lastTurnEnd?: TurnEnd | null;
 	/** Per-tab lazy session state (canonical readiness signal for empty-state copy) */
 	lazyState: TabSessionState;
 	/** Whether a session is being restored (load/resume/fork) */
@@ -477,6 +498,7 @@ export interface MessageListProps {
 export function MessageList({
 	messages,
 	isSending,
+	lastTurnEnd = null,
 	lazyState,
 	isRestoringSession,
 	agentLabel,
@@ -500,6 +522,13 @@ export function MessageList({
 	// ============================================================
 	const { scrollRef, contentRef, isAtBottom, scrollToBottom, jumpToElement } =
 		useAutoScrollPin({ isActive, isSending, view });
+
+	// Working face: above the inactive-tab early return, so its timer and
+	// refs survive tab switches.
+	const { phase: indicatorPhase, faceRef } = useWorkingIndicatorPhase({
+		isSending,
+		lastTurnEnd,
+	});
 
 	// Chat Timestamps: ages on hover, one delegated listener pair per list,
 	// on the same container as the scroll pin's listeners.
@@ -778,21 +807,11 @@ export function MessageList({
 				})}
 			</div>
 
-			{/* Loading indicator */}
+			{/* Loading indicator: the working face ([[Agent Console Working Face]]) */}
 			<div
-				className={`agent-client-loading-indicator ${!isSending ? "agent-client-hidden" : ""}`}
+				className={`agent-client-loading-indicator${indicatorClass(indicatorPhase)}`}
 			>
-				<div className="agent-client-loading-dots">
-					<div className="agent-client-loading-dot"></div>
-					<div className="agent-client-loading-dot"></div>
-					<div className="agent-client-loading-dot"></div>
-					<div className="agent-client-loading-dot"></div>
-					<div className="agent-client-loading-dot"></div>
-					<div className="agent-client-loading-dot"></div>
-					<div className="agent-client-loading-dot"></div>
-					<div className="agent-client-loading-dot"></div>
-					<div className="agent-client-loading-dot"></div>
-				</div>
+				<WorkingFace faceRef={faceRef} />
 				<TurnStatusLine hasActivePermission={hasActivePermission} />
 			</div>
 

@@ -1701,8 +1701,10 @@ async function captureEntryWithSettings(
 			// I09: ensure the agent turn is idle so the composer send button shows
 			// its send glyph, not the in-flight red STOP square. The connect prompt
 			// for a popover shot puts a turn in-flight; the send/stop button and the
-			// loading indicator are gated on the SAME isSending flag, so the
-			// indicator's hidden state == the button having returned to idle.
+			// loading indicator are both driven by isSending. The indicator hides up
+			// to 1.14 s AFTER isSending goes false (the working face's exit,
+			// [[Agent Console Working Face]]), so hidden implies the button is
+			// already back to idle; the wait just runs a little longer.
 			// Single-phase (NOT the window-mode two-phase) on purpose: a popover
 			// does not need an assistant response — the dropdown populates at the
 			// ACP handshake — and the connect turn may end WITHOUT ever streaming a

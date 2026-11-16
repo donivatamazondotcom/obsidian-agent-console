@@ -18,6 +18,21 @@
  * Uses currentColor throughout so the icon adapts to light/dark/high-contrast
  * Obsidian themes.
  */
-export const AGENT_CONSOLE_SVG = `<rect x="6" y="6" width="88" height="88" rx="14" ry="14" fill="none" stroke="currentColor" stroke-width="10" />
-<path d="M 30 38 L 44 50 L 30 62" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
-<line x1="61" y1="50" x2="73" y2="50" stroke="currentColor" stroke-width="10" stroke-linecap="round" />`;
+/** Shared face geometry (viewBox 0 0 100 100): the ribbon icon and the
+ * working face are drawn from the same numbers so they can't drift. */
+export const FACE_GEOMETRY = {
+	head: { x: 6, y: 6, size: 88, radius: 14, stroke: 10 },
+	/** Open eye: the ">" chevron. */
+	chevron: "M 30 38 L 44 50 L 30 62",
+	/** Closed eye: the dash, stroke 10 with round caps. */
+	rightDash: { x1: 61, x2: 73, y: 50 },
+	/** The left eye closed: a dash of the same weight as the right one. */
+	leftDash: { x1: 31, x2: 43, y: 50 },
+	stroke: 10,
+} as const;
+
+const G = FACE_GEOMETRY;
+
+export const AGENT_CONSOLE_SVG = `<rect x="${G.head.x}" y="${G.head.y}" width="${G.head.size}" height="${G.head.size}" rx="${G.head.radius}" ry="${G.head.radius}" fill="none" stroke="currentColor" stroke-width="${G.head.stroke}" />
+<path d="${G.chevron}" fill="none" stroke="currentColor" stroke-width="${G.stroke}" stroke-linecap="round" stroke-linejoin="round" />
+<line x1="${G.rightDash.x1}" y1="${G.rightDash.y}" x2="${G.rightDash.x2}" y2="${G.rightDash.y}" stroke="currentColor" stroke-width="${G.stroke}" stroke-linecap="round" />`;
