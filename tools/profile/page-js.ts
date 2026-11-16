@@ -64,12 +64,17 @@ export function armWaitJs(checkJs: string): string {
  * safe to retry.
  */
 export function collectArmedJs(timeoutMs: number): string {
+	// Until the helper arms (or the layout is ready without an arm), wait in
+	// the page: polling over the CLI would put evaluates inside the window.
 	return (
-		`(function(){return new Promise(function(res){var a=window.__profArm;` +
-		`if(!a){var ready=false;try{ready=!!(app&&app.workspace&&app.workspace.layoutReady);}catch(e){}res(ready?"NO-ARM":"");return;}if(a.held){res(${JSON.stringify(PRE_HELD_TOKEN)});return;}` +
+		`(function(){return new Promise(function(res){var end=performance.now()+${timeoutMs};` +
+		`var ready=function(){try{return !!(app&&app.workspace&&app.workspace.layoutReady);}catch(e){return false;}};` +
+		`var go=function(a){if(a.held){res(${JSON.stringify(PRE_HELD_TOKEN)});return;}` +
 		`var done=function(){if(a.err){res("CHECK-ERR:"+a.err);return;}var o=JSON.parse(a.hit);o.checks=a.n;o.checkMs=Math.round(a.cost*10)/10;o.armedAt=Math.round(a.armedAt);res(JSON.stringify(o));};` +
-		`if(a.hit||a.err){done();return;}var t=setTimeout(function(){a.cb=null;res("");},${timeoutMs});` +
-		`a.cb=function(){clearTimeout(t);done();};});})()`
+		`if(a.hit||a.err){done();return;}var t=setTimeout(function(){a.cb=null;res("");},Math.max(0,end-performance.now()));` +
+		`a.cb=function(){clearTimeout(t);done();};};` +
+		`var look=function(){var a=window.__profArm;if(a){go(a);return;}if(ready()){res("NO-ARM");return;}` +
+		`if(performance.now()>=end){res("");return;}setTimeout(look,20);};look();});})()`
 	);
 }
 

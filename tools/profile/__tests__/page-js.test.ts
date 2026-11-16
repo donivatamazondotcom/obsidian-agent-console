@@ -441,6 +441,15 @@ describe("helper-armed collection", () => {
 		delete w.app;
 	});
 
+	it("waits in the page for the helper to arm, within one collect", async () => {
+		const p = run<Promise<string>>(collectArmedJs(1000));
+		window.setTimeout(() => {
+			run(`(function(){${armWaitJs(waitCheckJs([".row"]))}})()`);
+			document.body.innerHTML = '<div class="row"></div>';
+		}, 60);
+		expect(parseWaitHit(await p)?.detail).toBe(".row");
+	});
+
 	it("treats a missing arm as not yet until the layout is ready", async () => {
 		expect(await run<Promise<string>>(collectArmedJs(10))).toBe("");
 		w.app = { workspace: { layoutReady: false } };
