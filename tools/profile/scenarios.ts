@@ -41,16 +41,20 @@ export interface ProfileContext {
 	installObserver(): Promise<void>;
 	/** Read and clear the buffered animation-frame entries. */
 	readObserver(): Promise<ObserverEntry[]>;
-	/** Hard `Page.reload` (destroys the JS context; on-disk seed wins on reload). */
+	/**
+	 * Hard `Page.reload` (destroys the JS context; on-disk seed wins on
+	 * reload). Resolves once the new document answers.
+	 */
 	reload(): Promise<void>;
 	/**
-	 * Poll for the first matching selector; resolve with the wall-ms it took
-	 * to appear and which selector matched. Rejects on timeout.
+	 * Poll for the first matching selector; resolve with the wall-ms the
+	 * wait took, which selector matched, and the page's `performance.now()`
+	 * at the hit (ms since its navigation start). Rejects on timeout.
 	 */
 	waitForSelector(
 		selectors: string[],
 		timeoutMs?: number,
-	): Promise<{ ms: number; selector: string }>;
+	): Promise<{ ms: number; selector: string; pageMs: number }>;
 	sleep(ms: number): Promise<void>;
 	log(msg: string): void;
 }
@@ -68,6 +72,7 @@ const MESSAGE_SELECTORS = [
 	".agent-client-message-row",
 	".agent-client-chat-view-messages",
 ];
+const MESSAGE_ROW_SELECTOR = MESSAGE_SELECTORS[0];
 const SCROLL_SELECTOR = ".agent-client-chat-view-messages";
 /** Both tab layouts; only one renders at a time, in tab order. */
 const TAB_SELECTOR = ".agent-client-tab, .agent-client-tab-rail-key";
@@ -99,8 +104,8 @@ function clickTabJs(index: number): string {
 
 /**
  * Scenario 1 — cold-start restore of the heavy session (active tab).
- * Regression class: the ~5,750 ms restore. Signal: wall-ms to the first
- * restored message row + post-reload absolute layout/script counters.
+ * Regression class: the ~5,750 ms restore. Signal: ms from navigation
+ * start to the first restored message row, plus long frames.
  * Measured across a reload, so NOT a delta (counters reset on reload).
  */
 const coldStartRestore: Scenario = {
@@ -112,11 +117,13 @@ const coldStartRestore: Scenario = {
 		// New JS context: install the buffered observer as early as possible;
 		// buffered:true backfills frames from before observe() within this doc.
 		await ctx.installObserver();
-		const { ms, selector } = await ctx.waitForSelector(
-			MESSAGE_SELECTORS,
+		// A restored ROW, never the container: the empty message list renders
+		// before any restore, so matching it timed nothing (15ms, 2026-11-15).
+		const { selector, pageMs } = await ctx.waitForSelector(
+			[MESSAGE_ROW_SELECTOR],
 			30_000,
 		);
-		ctx.log(`restore: first message via ${selector} in ${ms}ms`);
+		ctx.log(`restore: first message via ${selector} at ${pageMs}ms after navigation start`);
 		await ctx.sleep(500);
 		const obs = await ctx.readObserver();
 		// Obsidian's Page.reload does NOT reset the Performance counters, so
@@ -124,7 +131,10 @@ const coldStartRestore: Scenario = {
 		// accumulate across runs and are useless for gating (GB-T05). The
 		// reset-independent signals are wall-ms to the first restored message
 		// plus the long-frame count observed during restore.
-		return mergeMetrics({}, obs, { wallMs: ms });
+		// wallMs = navigation start -> first restored row, from the page's
+		// own clock (since 2026-11-15; earlier points measured ms after a
+		// fixed 1.5 s post-reload sleep and are not comparable).
+		return mergeMetrics({}, obs, { wallMs: pageMs });
 	},
 };
 

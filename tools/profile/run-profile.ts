@@ -24,6 +24,9 @@
  *   npm run profile -- --gate           # exit non-zero on a step regression
  *   npm run profile -- --vault=studio   # target vault (default: studio)
  *   npm run profile -- --no-seed        # skip seeding (studio already seeded)
+ *   npm run profile -- --record --sha=<sha>  # studio runs a build other than
+ *                                       # the main checkout's HEAD (e.g. a
+ *                                       # worktree build): record its sha
  *
  * Spec: [[Agent Console Release Quality Gates]] § Gate B-phase2.
  */
@@ -48,6 +51,13 @@ import {
 	type Verdict,
 } from "./baseline";
 import { SCENARIOS, type ProfileContext } from "./scenarios";
+import { findAgentLeafId } from "./studio-leaf";
+import {
+	MARK_OLD_DOCUMENT_JS,
+	IS_NEW_DOCUMENT_JS,
+	waitCheckJs,
+	parseWaitHit,
+} from "./page-js";
 import {
 	generateHeavySession,
 	heavySavedSessionEntry,
@@ -71,6 +81,8 @@ interface Args {
 	trend: boolean;
 	updateGolden: boolean;
 	threshold?: number;
+	/** Override the recorded git sha when studio loads a non-main-checkout build. */
+	sha?: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -94,6 +106,7 @@ function parseArgs(argv: string[]): Args {
 		else if (arg.startsWith("--vault=")) a.vault = arg.slice("--vault=".length);
 		else if (arg.startsWith("--runs="))
 			a.runs = Math.max(1, Number(arg.slice("--runs=".length)) || 5);
+		else if (arg.startsWith("--sha=")) a.sha = arg.slice("--sha=".length);
 		else if (arg.startsWith("--threshold="))
 			a.threshold = Number(arg.slice("--threshold=".length));
 	}
@@ -255,66 +268,53 @@ function seedStudio(studioRoot: string): void {
 	data.restoreTabsOnStartup = true;
 
 	const leafId = resolveAgentLeafId(studioRoot);
-	if (leafId) {
-		data.perLeafTabStates = [
-			{
-				leafId,
-				activeTabId: "profile-tab",
-				tabs: [
-					{
-						tabId: "profile-tab",
-						agentId: heavy.agentId,
-						label: savedEntry.title,
-						labelIsCustom: true,
-						sessionId: heavy.sessionId,
-						tabOrder: 0,
-						scrollPosition: 0,
-						workingDirectory: savedEntry.cwd,
-					},
-					{
-						tabId: "profile-light-tab",
-						agentId: "claude-code-acp",
-						label: "Debug the failing CI pipeline",
-						labelIsCustom: true,
-						sessionId: "seed-ci-pipeline",
-						tabOrder: 1,
-						scrollPosition: 0,
-						workingDirectory: savedEntry.cwd,
-					},
-				],
-			},
-		];
-	}
+	data.perLeafTabStates = [
+		{
+			leafId,
+			activeTabId: "profile-tab",
+			tabs: [
+				{
+					tabId: "profile-tab",
+					agentId: heavy.agentId,
+					label: savedEntry.title,
+					labelIsCustom: true,
+					sessionId: heavy.sessionId,
+					tabOrder: 0,
+					scrollPosition: 0,
+					workingDirectory: savedEntry.cwd,
+				},
+				{
+					tabId: "profile-light-tab",
+					agentId: "claude-code-acp",
+					label: "Debug the failing CI pipeline",
+					labelIsCustom: true,
+					sessionId: "seed-ci-pipeline",
+					tabOrder: 1,
+					scrollPosition: 0,
+					workingDirectory: savedEntry.cwd,
+				},
+			],
+		},
+	];
 	writeFileSync(dataJson, JSON.stringify(data, null, "\t"));
 }
 
-/** Read the agent-console leaf id from the studio workspace.json (best-effort). */
-function resolveAgentLeafId(studioRoot: string): string | null {
+/**
+ * Read the agent-console chat leaf id from the studio workspace.json.
+ * Throws when there is none: without it the seeder can't key the restored
+ * tabs, and every scenario would profile an empty chat.
+ */
+function resolveAgentLeafId(studioRoot: string): string {
 	const wsPath = path.join(studioRoot, ".obsidian/workspace.json");
-	if (!existsSync(wsPath)) return null;
-	try {
-		const ws: unknown = JSON.parse(readFileSync(wsPath, "utf8"));
-		let found: string | null = null;
-		const walk = (n: unknown): void => {
-			if (found || !n || typeof n !== "object") return;
-			const node = n as Record<string, unknown>;
-			const state = node.state as Record<string, unknown> | undefined;
-			if (
-				node.type === "leaf" &&
-				state &&
-				typeof state.type === "string" &&
-				state.type.includes("agent-client")
-			) {
-				found = typeof node.id === "string" ? node.id : "";
-				return;
-			}
-			for (const v of Object.values(node)) walk(v);
-		};
-		walk(ws);
-		return found;
-	} catch {
-		return null;
+	const leafId = existsSync(wsPath)
+		? findAgentLeafId(JSON.parse(readFileSync(wsPath, "utf8")) as unknown)
+		: null;
+	if (!leafId) {
+		throw new Error(
+			`no Agent Console chat leaf in ${wsPath} — open the chat view in the studio vault once, then rerun`,
+		);
 	}
+	return leafId;
 }
 
 function b64(s: string): string {
@@ -350,15 +350,36 @@ function makeContext(cdp: Cdp): ProfileContext {
 			return (await evalInPage(OBSERVER_READ)) ?? [];
 		},
 		async reload(): Promise<void> {
+			// Wait for the NEW document, not a fixed sleep: the old 1.5 s
+			// sleep let a fast restore finish before the first poll, so the
+			// cold-start time read as one poll interval.
+			await evalInPage(MARK_OLD_DOCUMENT_JS);
 			await cdp.send("Page.reload", {});
-			await sleep(1500);
+			const start = Date.now();
+			for (;;) {
+				await sleep(50);
+				try {
+					if (await evalInPage<boolean>(IS_NEW_DOCUMENT_JS)) return;
+				} catch {
+					/* mid-navigation: the old context is gone; poll again */
+				}
+				if (Date.now() - start > 30_000) {
+					throw new Error("reload: the new document never appeared in 30s");
+				}
+			}
 		},
 		async waitForSelector(selectors, timeoutMs = 15_000) {
 			const start = Date.now();
-			const check = `(function(){var s=${JSON.stringify(selectors)};for(var i=0;i<s.length;i++){if(document.querySelector(s[i]))return s[i];}return "";})()`;
+			const check = waitCheckJs(selectors);
 			for (;;) {
-				const hit = await evalInPage<string>(check);
-				if (hit) return { ms: Date.now() - start, selector: hit };
+				const hit = parseWaitHit(await evalInPage<string>(check));
+				if (hit) {
+					return {
+						ms: Date.now() - start,
+						selector: hit.selector,
+						pageMs: hit.pageMs,
+					};
+				}
 				if (Date.now() - start > timeoutMs) {
 					throw new Error(
 						`waitForSelector: none of ${selectors.join(", ")} appeared in ${timeoutMs}ms`,
@@ -526,7 +547,7 @@ async function main(): Promise<void> {
 		const prov = resolveProvenance();
 		const entry: HistoryEntry = {
 			date: new Date().toISOString().slice(0, 10),
-			gitSha: prov.gitSha,
+			gitSha: args.sha ?? prov.gitSha,
 			appVersion: prov.appVersion,
 			host: prov.host,
 			medianOf: passes,
@@ -534,7 +555,7 @@ async function main(): Promise<void> {
 		};
 		appendFileSync(HISTORY_PATH, serializeEntry(entry) + "\n");
 		console.error(
-			`\nRecorded history point (${prov.appVersion} @ ${prov.gitSha}, median-of-${passes}) -> ${HISTORY_PATH}`,
+			`\nRecorded history point (${prov.appVersion} @ ${entry.gitSha}, median-of-${passes}) -> ${HISTORY_PATH}`,
 		);
 	}
 
