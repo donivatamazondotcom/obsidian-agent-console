@@ -107,11 +107,11 @@ describe("history.formatTrend", () => {
 
 	it("formats a rising series with a percent delta", () => {
 		const t = formatTrend(entries, "cold-start-restore", "wallMs");
-		expect(t).toBe("1.1.5 231 -> 2.0.0 248 (+7.4% over 2 pts)");
+		expect(t).toBe("1.1.5@a 231 -> 2.0.0@b 248 (+7.4% over 2 pts)");
 	});
 	it("marks a single point flat", () => {
 		const t = formatTrend([entries[0]], "cold-start-restore", "wallMs");
-		expect(t).toBe("1.1.5 231 (flat)");
+		expect(t).toBe("1.1.5@a 231 (flat)");
 	});
 	it("returns null when the metric never appears", () => {
 		expect(formatTrend(entries, "cold-start-restore", "nope")).toBeNull();

@@ -26,12 +26,18 @@ npm run docs:screenshots:check:strict
 
 # 1d. Runtime profile (Gate B-phase2, NON-BLOCKING): record a runtime-perf
 #     history point for over-time regression tracking. Needs the fixtures
-#     `studio` vault open in Obsidian (attaches over dev:cdp; never the daily
-#     vault). Appends a median-of-5 point to tools/profile/profile-history.jsonl
-#     and prints the trend; it NEVER blocks the release. Commit the appended
-#     history as part of the release. Skip if the studio isn't open.
+#     `studio` vault open in Obsidian (attaches over dev:cdp; refuses any
+#     vault but studio / ST-*). Build first: studio loads the main
+#     checkout's main.js. Appends a median-of-5 point to
+#     tools/profile/profile-history.jsonl and prints the trend; it NEVER
+#     blocks the release. An incomplete run records nothing (exit 1) — see
+#     tools/profile/README.md. Commit the point now: step 2's `npm version`
+#     refuses a modified tracked file. Skip if the studio isn't open.
+npm run build
 npm run profile:record
 npm run profile:trend
+git add tools/profile/profile-history.jsonl
+git commit -m "chore: runtime-profile history point"
 
 # 2. Bump version. Auto-updates manifest.json + package.json + versions.json
 #    via version-bump.mjs. Use: patch | minor | major

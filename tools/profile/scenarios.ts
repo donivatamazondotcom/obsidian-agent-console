@@ -1,35 +1,45 @@
 /**
  * Runtime-profiler scenarios (Gate B-phase2). Each scenario maps to a real
  * prior incident and owns its full measurement, because the cold-start
- * scenario measures ACROSS a `Page.reload` (which resets the page-lifetime
- * counters) while the others measure a before -> after delta within one
- * page.
+ * scenario measures ACROSS a `Page.reload` while the others measure a
+ * before -> after delta within one page. Obsidian's `Page.reload` does NOT
+ * reset the Performance counters (GB-T05), so cold start uses
+ * reset-independent signals only: its own page clock and long frames.
  *
  * The live-Obsidian plumbing is injected via {@link ProfileContext} so this
- * module stays free of the `Cdp` transport and is easy to reason about.
+ * module stays free of the `Cdp` transport; the page JS lives in
+ * `page-js.ts`, and both are unit-tested against jsdom.
  *
- * DOM selectors are the real agent-console classes, confirmed live against
- * the studio fixtures vault (2026-07-01): the message list/scroll container
- * is `.agent-client-chat-view-messages`, each message is
- * `.agent-client-message-row`, and tabs are `.agent-client-tab` (top tab
- * bar) or `.agent-client-tab-rail-key` (vertical rail — the new-install
- * default since v2.5.0, and the studio seed's `tabDisplay`).
+ * DOM targets (re-checked against `main` on 2026-11-15): each tab's
+ * transcript lives in a `.agent-client-tab-panel`, and only the active one
+ * is displayed. Messages are `.agent-client-message-row`; an assistant row
+ * holds `.agent-client-message-assistant`. Tabs are `.agent-client-tab` in
+ * the top bar or `.agent-client-tab-rail-key` on the vertical rail (the
+ * new-install default since v2.5.0, and the studio seed's layout); rail
+ * keys carry `data-tab-id`, so the profiler clicks seeded tabs by id there.
  *
- * A scenario whose target is missing THROWS rather than measuring nothing:
- * the orchestrator then drops it from the profile, so a stale selector shows
- * up as a missing scenario instead of a plausible-looking bogus delta.
+ * A scenario whose target is missing, or whose wait times out, THROWS. The
+ * orchestrator then reports the run as incomplete and refuses to record or
+ * ratchet it, so a stale selector can't pass as a measurement.
  *
  * Spec: [[Agent Console Release Quality Gates]] § Gate B-phase2 (scenario table).
  */
 import {
 	computeDelta,
 	summarizeLongTasks,
-	toSnapshot,
 	type MetricSnapshot,
 	type ObserverEntry,
-	type RawMetric,
 } from "./metrics";
 import type { ScenarioMetrics } from "./baseline";
+import {
+	ACTIVE_PANEL_SELECTOR,
+	allChecksJs,
+	clickTabJs,
+	tabSelectedCheckJs,
+	waitCheckJs,
+	type WaitHit,
+} from "./page-js";
+import { HEAVY_MESSAGE_COUNT, HEAVY_TAB_ID, LIGHT_TAB_ID } from "./seed";
 
 /** Live-Obsidian capabilities a scenario needs, injected by run-profile.ts. */
 export interface ProfileContext {
@@ -37,24 +47,20 @@ export interface ProfileContext {
 	evalInPage<T = unknown>(js: string): Promise<T>;
 	/** `Performance.getMetrics` -> flattened snapshot. */
 	snapshot(): Promise<MetricSnapshot>;
-	/** Install the in-page longtask + long-animation-frame buffer (idempotent). */
+	/** Install the long-frame observer (once per document) and clear its buffer. */
 	installObserver(): Promise<void>;
-	/** Read and clear the buffered animation-frame entries. */
+	/** Read and clear the buffered long-frame entries. */
 	readObserver(): Promise<ObserverEntry[]>;
 	/**
-	 * Hard `Page.reload` (destroys the JS context; on-disk seed wins on
-	 * reload). Resolves once the new document answers.
+	 * Hard `Page.reload` (destroys the JS context; the on-disk seed wins).
+	 * Resolves once the new document answers.
 	 */
 	reload(): Promise<void>;
 	/**
-	 * Poll for the first matching selector; resolve with the wall-ms the
-	 * wait took, which selector matched, and the page's `performance.now()`
-	 * at the hit (ms since its navigation start). Rejects on timeout.
+	 * Resolve when a `page-js` check expression holds, with the page clock
+	 * at the DOM mutation that made it hold. Rejects on timeout.
 	 */
-	waitForSelector(
-		selectors: string[],
-		timeoutMs?: number,
-	): Promise<{ ms: number; selector: string; pageMs: number }>;
+	waitFor(checkJs: string, timeoutMs: number, what: string): Promise<WaitHit>;
 	sleep(ms: number): Promise<void>;
 	log(msg: string): void;
 }
@@ -67,17 +73,20 @@ export interface Scenario {
 	measure(ctx: ProfileContext): Promise<ScenarioMetrics>;
 }
 
-/** Real agent-console selectors (confirmed live 2026-07-01). */
-const MESSAGE_SELECTORS = [
-	".agent-client-message-row",
-	".agent-client-chat-view-messages",
-];
-const MESSAGE_ROW_SELECTOR = MESSAGE_SELECTORS[0];
-const SCROLL_SELECTOR = ".agent-client-chat-view-messages";
+const ROW = ".agent-client-message-row";
+const ACTIVE_ROWS = `${ACTIVE_PANEL_SELECTOR} ${ROW}`;
+const SCROLL_SELECTOR = `${ACTIVE_PANEL_SELECTOR} .agent-client-chat-view-messages`;
 /** Both tab layouts; only one renders at a time, in tab order. */
 const TAB_SELECTOR = ".agent-client-tab, .agent-client-tab-rail-key";
+const HEAVY_INDEX = 0;
+const LIGHT_INDEX = 1;
+const STREAM_TOKENS = 50;
+const SCROLL_STEPS = 40;
 
-/** Merge a metric delta with the long-task summary into one flat record. */
+/** The active panel shows the whole heavy transcript. */
+const HEAVY_RENDERED_JS = waitCheckJs([ACTIVE_ROWS], HEAVY_MESSAGE_COUNT);
+
+/** Merge a metric delta with the long-frame summary into one flat record. */
 function mergeMetrics(
 	delta: MetricSnapshot,
 	obs: ObserverEntry[],
@@ -94,116 +103,122 @@ function mergeMetrics(
 	};
 }
 
-/** Click the nth tab in either layout (0-based). Returns whether it existed. */
-function clickTabJs(index: number): string {
-	return (
-		`(function(){var t=document.querySelectorAll(${JSON.stringify(TAB_SELECTOR)});` +
-		`if(t.length>${index}){t[${index}].click();return true;}return false;})()`
-	);
+/** Click a seeded tab; returns the page clock at the click. Throws if absent. */
+async function clickTab(
+	ctx: ProfileContext,
+	tabId: string,
+	index: number,
+	role: string,
+): Promise<number> {
+	const at = await ctx.evalInPage<number>(clickTabJs(TAB_SELECTOR, tabId, index));
+	if (typeof at !== "number" || at < 0) {
+		throw new Error(
+			`activate: no ${role} tab matches "${TAB_SELECTOR}" — the scenario needs the heavy tab plus a light tab`,
+		);
+	}
+	return at;
 }
 
 /**
  * Scenario 1 — cold-start restore of the heavy session (active tab).
  * Regression class: the ~5,750 ms restore. Signal: ms from navigation
- * start to the first restored message row, plus long frames.
- * Measured across a reload, so NOT a delta (counters reset on reload).
+ * start to the whole 201-row heavy transcript in the active panel (which
+ * also proves the heavy tab, not the light one, restored), plus long frames.
  */
 const coldStartRestore: Scenario = {
 	id: "cold-start-restore",
 	title: "Cold-start restore of the heavy session",
-	primarySignal: "wallMs (first restored message) + long-frame count",
+	primarySignal: "wallMs (navigation start to full heavy transcript) + long frames",
 	async measure(ctx) {
 		await ctx.reload();
-		// New JS context: install the buffered observer as early as possible;
-		// buffered:true backfills frames from before observe() within this doc.
+		// New document: install as early as possible; `buffered: true`
+		// backfills the restore's frames from before observe().
 		await ctx.installObserver();
-		// A restored ROW, never the container: the empty message list renders
-		// before any restore, so matching it timed nothing (15ms, 2026-11-15).
-		const { selector, pageMs } = await ctx.waitForSelector(
-			[MESSAGE_ROW_SELECTOR],
+		const hit = await ctx.waitFor(
+			HEAVY_RENDERED_JS,
 			30_000,
+			`${HEAVY_MESSAGE_COUNT} restored rows`,
 		);
-		ctx.log(`restore: first message via ${selector} at ${pageMs}ms after navigation start`);
+		ctx.log(`restore: ${HEAVY_MESSAGE_COUNT} rows at ${hit.pageMs}ms after navigation start`);
 		await ctx.sleep(500);
 		const obs = await ctx.readObserver();
-		// Obsidian's Page.reload does NOT reset the Performance counters, so
-		// absolute post-reload LayoutCount/RecalcStyleCount/ScriptDuration
-		// accumulate across runs and are useless for gating (GB-T05). The
-		// reset-independent signals are wall-ms to the first restored message
-		// plus the long-frame count observed during restore.
-		// wallMs = navigation start -> first restored row, from the page's
+		// wallMs = navigation start -> full heavy transcript, from the page's
 		// own clock (since 2026-11-15; earlier points measured ms after a
 		// fixed 1.5 s post-reload sleep and are not comparable).
-		return mergeMetrics({}, obs, { wallMs: pageMs });
+		return mergeMetrics({}, obs, { wallMs: hit.pageMs });
 	},
 };
 
 /**
  * Scenario 2 — activate the heavy tab from the background.
- * Regression class: tab-activation long-task / flicker. Requires two
- * seeded tabs (heavy tab0 + light tab1). We switch AWAY to the light tab,
- * settle, then measure switching BACK to the heavy tab — the real
- * background-heavy-tab activation cost.
+ * Regression class: tab-activation long-task / flicker. Inactive panels
+ * render a placeholder, so activating the heavy tab re-renders all 201
+ * rows. The window runs from the click until the heavy tab is selected
+ * AND its panel shows every row (`activateMs`, page clock), then settles
+ * so the long frames of that work are delivered.
  */
 const activateBackgroundTab: Scenario = {
 	id: "activate-background-tab",
 	title: "Activate the heavy background tab",
-	primarySignal: "longTaskCount, ScriptDuration delta",
+	primarySignal: "activateMs, longTaskCount, RecalcStyleCount delta",
 	async measure(ctx) {
 		// Park on the light tab so the heavy one is genuinely backgrounded.
-		const parked = await ctx.evalInPage<boolean>(clickTabJs(1));
-		if (!parked) {
-			throw new Error(
-				`activate: no second tab matches "${TAB_SELECTOR}" — the scenario needs the heavy tab plus a light tab`,
-			);
-		}
+		await clickTab(ctx, LIGHT_TAB_ID, LIGHT_INDEX, "light");
+		await ctx.waitFor(
+			tabSelectedCheckJs(TAB_SELECTOR, LIGHT_TAB_ID, LIGHT_INDEX),
+			5_000,
+			"light tab selected",
+		);
 		await ctx.sleep(600);
 		await ctx.installObserver();
 		const before = await ctx.snapshot();
-		const clicked = await ctx.evalInPage<boolean>(clickTabJs(0));
-		if (!clicked) {
-			throw new Error(`activate: no heavy tab matches "${TAB_SELECTOR}"`);
-		}
-		try {
-			await ctx.waitForSelector(MESSAGE_SELECTORS, 10_000);
-		} catch {
-			/* fall through — still record whatever the switch cost */
-		}
-		await ctx.sleep(600);
+		const clickedAt = await clickTab(ctx, HEAVY_TAB_ID, HEAVY_INDEX, "heavy");
+		const hit = await ctx.waitFor(
+			allChecksJs([
+				tabSelectedCheckJs(TAB_SELECTOR, HEAVY_TAB_ID, HEAVY_INDEX),
+				HEAVY_RENDERED_JS,
+			]),
+			15_000,
+			`heavy tab selected with ${HEAVY_MESSAGE_COUNT} rows`,
+		);
+		await ctx.sleep(300);
 		const after = await ctx.snapshot();
 		const obs = await ctx.readObserver();
-		return mergeMetrics(computeDelta(before, after), obs);
+		return mergeMetrics(computeDelta(before, after), obs, {
+			activateMs: Math.round(Math.max(0, hit.pageMs - clickedAt) * 10) / 10,
+		});
 	},
 };
 
 /**
- * Scenario 3 — stream tokens into the active tab.
- * Regression class: per-token re-render storm. Signal: RecalcStyleCount +
- * long frames while ~50 incremental text updates hit the last message row.
+ * Scenario 3 — grow the last assistant row (streaming proxy).
+ * Appends ~50 tokens to a temporary span in the active panel's last
+ * assistant row, forcing a layout after each, then removes the span.
  *
- * NOTE (honesty): a live agent stream is neither hermetic nor
- * deterministic, so this drives a PROXY — 50 incremental text appends to
- * the last message row with a forced layout each — exercising the same
- * style/layout/paint path a real token stream would. Documented as a proxy
- * in the spec; it still guards the render-storm regression class.
+ * NOTE (honesty): this is NOT a re-render storm test. It never goes through
+ * React or the markdown renderer, and its LayoutCount (50 forced + 1) is
+ * set by the proxy itself. What it measures is the style/layout cost of a
+ * growing reply in the heavy transcript, plus anything the plugin's
+ * observers do in response. A real-stream scenario needs a fake streaming
+ * agent (follow-up).
  */
 const streamTokens: Scenario = {
 	id: "stream-tokens",
-	title: "Stream ~50 tokens into the active tab (proxy)",
-	primarySignal: "RecalcStyleCount delta, long frames",
+	title: "Grow the last assistant row ~50 tokens (layout proxy)",
+	primarySignal: "maxStyleLayoutMs, long frames",
 	async measure(ctx) {
 		await ctx.installObserver();
 		const before = await ctx.snapshot();
 		const streamed = await ctx.evalInPage<boolean>(
-			`(function(){var rows=document.querySelectorAll(${JSON.stringify(MESSAGE_SELECTORS[0])});` +
-				`if(!rows.length)return false;var last=rows[rows.length-1];var base=last.textContent;var acc="";` +
-				`for(var t=0;t<50;t++){acc+=" tok"+t;last.textContent=base+acc;void last.offsetHeight;}` +
-				`last.textContent=base;return true;})()`,
+			`(function(){var rows=document.querySelectorAll(${JSON.stringify(ACTIVE_ROWS)});var last=null;` +
+				`for(var i=rows.length-1;i>=0;i--){if(rows[i].querySelector(".agent-client-message-assistant")){last=rows[i];break;}}` +
+				`if(!last)return false;var host=last.querySelector(".agent-client-message-assistant");` +
+				`var span=document.createElement("span");host.appendChild(span);var acc="";` +
+				`for(var t=0;t<${STREAM_TOKENS};t++){acc+=" tok"+t;span.textContent=acc;void host.offsetHeight;}` +
+				`span.remove();return true;})()`,
 		);
 		if (!streamed) {
-			throw new Error(
-				`stream: no message row matches "${MESSAGE_SELECTORS[0]}"`,
-			);
+			throw new Error(`stream: no assistant row in the active panel ("${ACTIVE_ROWS}")`);
 		}
 		await ctx.sleep(400);
 		const after = await ctx.snapshot();
@@ -213,9 +228,12 @@ const streamTokens: Scenario = {
 };
 
 /**
- * Scenario 4 — scroll the heavy transcript.
+ * Scenario 4 — scroll the heavy transcript top to bottom.
  * Regression class: auto-scroll-pin jitter / forced reflow (I36–I39).
- * Signal: forced-reflow count (LayoutCount delta) + maxStyleLayoutMs.
+ * Steps once per animation frame (raced against a 100 ms timeout, so a
+ * throttled window can't hang it), so the plugin's scroll handlers and
+ * observers run at every position. Throws unless a scroll event fired for
+ * (nearly) every step. Restores the starting position.
  */
 const scrollHeavyTranscript: Scenario = {
 	id: "scroll-heavy-transcript",
@@ -224,21 +242,29 @@ const scrollHeavyTranscript: Scenario = {
 	async measure(ctx) {
 		await ctx.installObserver();
 		const before = await ctx.snapshot();
-		const scrolled = await ctx.evalInPage<boolean>(
-			`(function(){var sc=document.querySelector(${JSON.stringify(SCROLL_SELECTOR)});` +
-				`if(!sc||sc.scrollHeight<=sc.clientHeight)return false;var steps=40;var max=sc.scrollHeight-sc.clientHeight;` +
-				`for(var s=0;s<=steps;s++){sc.scrollTop=Math.round(max*s/steps);void sc.scrollTop;}` +
-				`sc.scrollTop=0;return true;})()`,
+		const events = await ctx.evalInPage<number>(
+			`(async function(){var sc=document.querySelector(${JSON.stringify(SCROLL_SELECTOR)});` +
+				`if(!sc||sc.scrollHeight<=sc.clientHeight)return -1;` +
+				`var start=sc.scrollTop;var max=sc.scrollHeight-sc.clientHeight;var n=0;var on=function(){n++;};` +
+				`sc.addEventListener("scroll",on);` +
+				`var frame=function(){return new Promise(function(r){var t=setTimeout(r,100);` +
+				`if(typeof requestAnimationFrame==="function")requestAnimationFrame(function(){clearTimeout(t);r();});});};` +
+				`for(var s=0;s<=${SCROLL_STEPS};s++){sc.scrollTop=Math.round(max*s/${SCROLL_STEPS});await frame();}` +
+				`sc.removeEventListener("scroll",on);sc.scrollTop=start;return n;})()`,
 		);
-		if (!scrolled) {
+		if (typeof events !== "number" || events < 0) {
+			throw new Error(`scroll: no overflowing scroll container matches "${SCROLL_SELECTOR}"`);
+		}
+		// One step can be a no-op (already at that position).
+		if (events < SCROLL_STEPS) {
 			throw new Error(
-				`scroll: no overflowing scroll container matches "${SCROLL_SELECTOR}"`,
+				`scroll: only ${events} scroll events for ${SCROLL_STEPS + 1} steps — the transcript didn't scroll`,
 			);
 		}
 		await ctx.sleep(400);
 		const after = await ctx.snapshot();
 		const obs = await ctx.readObserver();
-		return mergeMetrics(computeDelta(before, after), obs);
+		return mergeMetrics(computeDelta(before, after), obs, { scrollEvents: events });
 	},
 };
 
@@ -248,8 +274,3 @@ export const SCENARIOS: Scenario[] = [
 	streamTokens,
 	scrollHeavyTranscript,
 ];
-
-/** The raw-metrics helper re-exported for the orchestrator's snapshot(). */
-export function snapshotFromRaw(metrics: RawMetric[]): MetricSnapshot {
-	return toSnapshot(metrics);
-}

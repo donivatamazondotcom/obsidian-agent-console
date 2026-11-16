@@ -75,13 +75,15 @@ export const DEFAULT_FLOORS: Record<string, number> = {
 	maxBlockingMs: 20,
 	maxStyleLayoutMs: 10,
 	wallMs: 30,
+	activateMs: 30,
 };
 
 /**
  * Metrics never gated on — GC-dependent or otherwise too noisy to block a
  * release (GB-T05). Reported in the profile table but skipped by the diff.
  */
-export const DEFAULT_GATE_EXCLUDE: readonly string[] = ["JSHeapUsedSize"];
+// scrollEvents is a validity count (did the transcript scroll), not a cost.
+export const DEFAULT_GATE_EXCLUDE: readonly string[] = ["JSHeapUsedSize", "scrollEvents"];
 
 function round4(n: number): number {
 	return Math.round(n * 1e4) / 1e4;
@@ -156,4 +158,17 @@ export function diffAgainstBaseline(
 		return { kind: "improvement", maxPctDrop: round4(maxPctDrop) };
 	}
 	return { kind: "ok", maxPctChange: round4(maxPctChange) };
+}
+
+/**
+ * Scenarios the baseline has but the profile doesn't. A non-empty result
+ * means the run is incomplete: diffAgainstBaseline skips such scenarios,
+ * so without this check a run that measured less would still read OK.
+ */
+export function missingFromProfile(
+	profile: Profile,
+	baseline: Baseline | null | undefined,
+): string[] {
+	if (!baseline) return [];
+	return Object.keys(baseline.scenarios ?? {}).filter((id) => !profile[id]);
 }

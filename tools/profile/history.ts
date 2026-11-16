@@ -18,11 +18,21 @@ import type { Profile, ScenarioMetrics } from "./baseline";
 
 /** One recorded point in the time series. Same-machine by construction. */
 export interface HistoryEntry {
-	/** ISO date (YYYY-MM-DD) the point was recorded. */
+	/** Local date (YYYY-MM-DD) the point was recorded. */
 	date: string;
-	/** Short git SHA of the PLUGIN build under test (main checkout HEAD). */
+	/** ISO timestamp the point was recorded (points since 2026-11-15). */
+	recordedAt?: string;
+	/**
+	 * Short git SHA of the checkout the profiled vault's main.js resolves
+	 * into (its HEAD; `--sha` overrides). The build may lag HEAD, which is
+	 * what `buildHash` is for.
+	 */
 	gitSha: string;
-	/** Plugin version from manifest.json. */
+	/** sha256 (12 hex) of the main.js the profiled vault loaded. */
+	buildHash?: string;
+	/** Obsidian version from the renderer's user agent (wallMs includes its boot). */
+	obsidianVersion?: string;
+	/** Plugin version from the profiled vault's manifest.json. */
 	appVersion: string;
 	/** Hostname — trend comparability requires the same machine. */
 	host: string;
@@ -39,9 +49,10 @@ export interface HistoryEntry {
  */
 export const TREND_METRICS: Record<string, string[]> = {
 	"cold-start-restore": ["wallMs", "longTaskCount"],
-	"activate-background-tab": ["RecalcStyleCount", "longTaskCount"],
-	"stream-tokens": ["LayoutCount", "RecalcStyleCount"],
-	"scroll-heavy-transcript": ["LayoutCount", "RecalcStyleCount"],
+	"activate-background-tab": ["activateMs", "RecalcStyleCount", "longTaskCount"],
+	// Not LayoutCount: the proxy sets it itself (50 forced + 1).
+	"stream-tokens": ["maxStyleLayoutMs", "longTaskCount"],
+	"scroll-heavy-transcript": ["LayoutCount", "RecalcStyleCount", "maxStyleLayoutMs"],
 };
 
 /** Median of a numeric array. Empty -> 0. Even length -> mean of the middle two. */
@@ -109,7 +120,9 @@ export function parseHistory(text: string): HistoryEntry[] {
 
 /**
  * Format one metric's series across history entries as a compact trend
- * line, e.g. `v1.1.5 231 -> v2.0.0 248 (+7.4% over 2 pts)`. Returns null
+ * line, e.g. `1.1.5@a1b2c3d 231 -> 2.0.0@e4f5a6b 248 (+7.4% over 2 pts)`.
+ * Points carry `version@sha` because a point recorded before the release
+ * bump shows the previous version. Returns null
  * when the metric never appears (nothing to show).
  */
 export function formatTrend(
@@ -121,7 +134,8 @@ export function formatTrend(
 	for (const e of entries) {
 		const v = e.scenarios[scenarioId]?.[metric];
 		if (typeof v === "number" && Number.isFinite(v)) {
-			points.push({ label: e.appVersion || e.date, value: v });
+			const label = e.appVersion ? `${e.appVersion}@${e.gitSha}` : e.date;
+			points.push({ label, value: v });
 		}
 	}
 	if (points.length === 0) return null;

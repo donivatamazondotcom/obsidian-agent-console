@@ -3,7 +3,7 @@
  * (Gate B-phase2 of the release quality gates).
  *
  * Leaf module: no runtime imports, fully deterministic, unit-tested in
- * `__tests__/metrics.test.ts`. The live CDP plumbing lives in
+ * `__tests__/profile.test.ts`. The live CDP plumbing lives in
  * `run-profile.ts`; everything here is pure so it can be tested without a
  * running Obsidian.
  *
@@ -73,16 +73,16 @@ export function computeDelta(
 }
 
 /**
- * A `long-animation-frame` / `longtask` entry as buffered in-page by the
- * profiler's injected `PerformanceObserver`. Both entry types are
- * supported in Obsidian's renderer (confirmed via a live
- * `PerformanceObserver.supportedEntryTypes` probe, 2026-07-01).
+ * A long-frame entry as buffered in-page by `page-js.ts`
+ * `OBSERVER_INSTALL_JS`: a `long-animation-frame` entry (or `longtask`
+ * where LoAF is unsupported), with `styleAndLayoutMs` computed in the page
+ * from LoAF's `styleAndLayoutStart` (0 for longtask entries).
  */
 export interface ObserverEntry {
-	name: string;
+	entryType: string;
 	duration: number;
 	blockingDuration?: number;
-	styleAndLayoutDuration?: number;
+	styleAndLayoutMs?: number;
 	startTime?: number;
 }
 
@@ -96,9 +96,9 @@ export interface LongTaskSummary {
 /**
  * Aggregate buffered animation-frame entries into gate-friendly scalars.
  * A "long task" is a frame whose duration crosses the 50ms threshold (the
- * Long Tasks API definition). `blockingDuration` and
- * `styleAndLayoutDuration` come from the Long Animation Frames API and are
- * the per-frame paint-cost signals B-v1 cannot see.
+ * Long Tasks API definition). `blockingDuration` and `styleAndLayoutMs`
+ * come from the Long Animation Frames API and are the per-frame paint-cost
+ * signals B-v1 cannot see.
  */
 export function summarizeLongTasks(
 	entries: ObserverEntry[],
@@ -115,7 +115,7 @@ export function summarizeLongTasks(
 			total += dur;
 		}
 		maxBlocking = Math.max(maxBlocking, e.blockingDuration ?? 0);
-		maxStyleLayout = Math.max(maxStyleLayout, e.styleAndLayoutDuration ?? 0);
+		maxStyleLayout = Math.max(maxStyleLayout, e.styleAndLayoutMs ?? 0);
 	}
 	return {
 		longTaskCount: count,
