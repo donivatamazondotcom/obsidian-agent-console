@@ -102,6 +102,10 @@ describe("tool-row time and live line styles (PR 3)", () => {
 		expect(decls(".agent-client-loading-status", "text-overflow")).toEqual(["ellipsis"]);
 	});
 
+	it("the status line ticks in tabular figures, so a cut title's ellipsis doesn't move each second", () => {
+		expect(decls(".agent-client-loading-status", "font-variant-numeric")).toEqual(["tabular-nums"]);
+	});
+
 	it("nothing in PR 3 adds a warning tone (the Signals tenet)", () => {
 		const css = readFileSync(resolve(process.cwd(), "styles.css"), "utf8");
 		expect(css).not.toMatch(/-stall|tool-call-time[a-z-]*warn|loading-status[a-z-]*warn/);
