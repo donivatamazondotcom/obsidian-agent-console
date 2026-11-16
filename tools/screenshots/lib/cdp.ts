@@ -1035,7 +1035,8 @@ export class Cdp {
 				const ms = this.commandTimeoutMs;
 				timer = setNodeTimeout(() => {
 					proc.kill?.("SIGKILL");
-					reject(new Error(`obsidian ${args[0] ?? ""}: no response in ${ms}ms`));
+					const what = args.find((a) => a.startsWith("method=")) ?? args[0] ?? "";
+					reject(new Error(`obsidian ${what}: no response in ${ms}ms`));
 				}, ms);
 			}
 			proc.on("close", () => {

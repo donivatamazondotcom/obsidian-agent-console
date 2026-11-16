@@ -50,9 +50,11 @@ export interface HistoryEntry {
 export const TREND_METRICS: Record<string, string[]> = {
 	"cold-start-restore": ["wallMs", "longTaskCount"],
 	"activate-background-tab": ["activateMs", "RecalcStyleCount", "longTaskCount"],
-	// Not LayoutCount: the proxy sets it itself (50 forced + 1).
-	"stream-tokens": ["maxStyleLayoutMs", "longTaskCount"],
-	"scroll-heavy-transcript": ["LayoutCount", "RecalcStyleCount", "maxStyleLayoutMs"],
+	// Not LayoutCount: the proxy sets it itself (50 forced + 1). Its forced
+	// layouts land in LayoutDuration; the long-frame fields see only frames
+	// of 50 ms or more.
+	"stream-tokens": ["LayoutDuration", "maxStyleLayoutMs", "longTaskCount"],
+	"scroll-heavy-transcript": ["LayoutCount", "RecalcStyleCount", "LayoutDuration", "maxStyleLayoutMs"],
 };
 
 /** Median of a numeric array. Empty -> 0. Even length -> mean of the middle two. */

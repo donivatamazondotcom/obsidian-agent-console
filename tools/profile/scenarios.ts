@@ -34,7 +34,9 @@ import type { ScenarioMetrics } from "./baseline";
 import {
 	ACTIVE_PANEL_SELECTOR,
 	allChecksJs,
+	clickAndAwaitJs,
 	clickTabJs,
+	parseInteraction,
 	tabSelectedCheckJs,
 	waitCheckJs,
 	type WaitHit,
@@ -45,6 +47,12 @@ import { HEAVY_MESSAGE_COUNT, HEAVY_TAB_ID, LIGHT_TAB_ID } from "./seed";
 export interface ProfileContext {
 	/** Run pure-ASCII JS in the renderer (base64-wrapped by the impl) and return the value. */
 	evalInPage<T = unknown>(js: string): Promise<T>;
+	/**
+	 * Like evalInPage, for JS that ACTS (clicks, scrolls, mutates) or times
+	 * something: sent once, never retried, so a dropped reply can't repeat
+	 * the action or report a late time. A dropped reply rejects.
+	 */
+	act<T = unknown>(js: string): Promise<T>;
 	/** `Performance.getMetrics` -> flattened snapshot. */
 	snapshot(): Promise<MetricSnapshot>;
 	/** Install the long-frame observer (once per document) and clear its buffer. */
@@ -58,9 +66,16 @@ export interface ProfileContext {
 	reload(): Promise<void>;
 	/**
 	 * Resolve when a `page-js` check expression holds, with the page clock
-	 * at the DOM mutation that made it hold. Rejects on timeout.
+	 * at the DOM mutation that made it hold. Rejects on timeout. With
+	 * `failIfHeld`, also rejects when the check already held as the wait
+	 * started (the time would be when it looked, not when it became true).
 	 */
-	waitFor(checkJs: string, timeoutMs: number, what: string): Promise<WaitHit>;
+	waitFor(
+		checkJs: string,
+		timeoutMs: number,
+		what: string,
+		opts?: { failIfHeld?: boolean },
+	): Promise<WaitHit>;
 	sleep(ms: number): Promise<void>;
 	log(msg: string): void;
 }
@@ -110,7 +125,7 @@ async function clickTab(
 	index: number,
 	role: string,
 ): Promise<number> {
-	const at = await ctx.evalInPage<number>(clickTabJs(TAB_SELECTOR, tabId, index));
+	const at = await ctx.act<number>(clickTabJs(TAB_SELECTOR, tabId, index));
 	if (typeof at !== "number" || at < 0) {
 		throw new Error(
 			`activate: no ${role} tab matches "${TAB_SELECTOR}" — the scenario needs the heavy tab plus a light tab`,
@@ -138,6 +153,7 @@ const coldStartRestore: Scenario = {
 			HEAVY_RENDERED_JS,
 			30_000,
 			`${HEAVY_MESSAGE_COUNT} restored rows`,
+			{ failIfHeld: true },
 		);
 		ctx.log(`restore: ${HEAVY_MESSAGE_COUNT} rows at ${hit.pageMs}ms after navigation start`);
 		await ctx.sleep(500);
@@ -145,7 +161,11 @@ const coldStartRestore: Scenario = {
 		// wallMs = navigation start -> full heavy transcript, from the page's
 		// own clock (since 2026-11-15; earlier points measured ms after a
 		// fixed 1.5 s post-reload sleep and are not comparable).
-		return mergeMetrics({}, obs, { wallMs: hit.pageMs });
+		return mergeMetrics({}, obs, {
+			wallMs: hit.pageMs,
+			// The wait's own observer cost inside the measured window.
+			waitCheckMs: hit.checkMs ?? 0,
+		});
 	},
 };
 
@@ -153,9 +173,10 @@ const coldStartRestore: Scenario = {
  * Scenario 2 — activate the heavy tab from the background.
  * Regression class: tab-activation long-task / flicker. Inactive panels
  * render a placeholder, so activating the heavy tab re-renders all 201
- * rows. The window runs from the click until the heavy tab is selected
- * AND its panel shows every row (`activateMs`, page clock), then settles
- * so the long frames of that work are delivered.
+ * rows. One evaluate clicks from a page task and times, in the page, the
+ * click to the DOM commit that shows the heavy tab selected with every row
+ * (`activateMs`) and to the next animation frame (`activateFrameMs`, 0 when
+ * the page rendered no frame). No CLI round trip is inside either number.
  */
 const activateBackgroundTab: Scenario = {
 	id: "activate-background-tab",
@@ -172,20 +193,27 @@ const activateBackgroundTab: Scenario = {
 		await ctx.sleep(600);
 		await ctx.installObserver();
 		const before = await ctx.snapshot();
-		const clickedAt = await clickTab(ctx, HEAVY_TAB_ID, HEAVY_INDEX, "heavy");
-		const hit = await ctx.waitFor(
-			allChecksJs([
-				tabSelectedCheckJs(TAB_SELECTOR, HEAVY_TAB_ID, HEAVY_INDEX),
-				HEAVY_RENDERED_JS,
-			]),
-			15_000,
-			`heavy tab selected with ${HEAVY_MESSAGE_COUNT} rows`,
+		const what = `heavy tab selected with ${HEAVY_MESSAGE_COUNT} rows`;
+		const timing = parseInteraction(
+			await ctx.act<string>(
+				clickAndAwaitJs(
+					clickTabJs(TAB_SELECTOR, HEAVY_TAB_ID, HEAVY_INDEX),
+					allChecksJs([
+						tabSelectedCheckJs(TAB_SELECTOR, HEAVY_TAB_ID, HEAVY_INDEX),
+						HEAVY_RENDERED_JS,
+					]),
+					15_000,
+				),
+			),
+			`activate: ${what}`,
 		);
 		await ctx.sleep(300);
 		const after = await ctx.snapshot();
 		const obs = await ctx.readObserver();
+		const r1 = (n: number) => Math.round(Math.max(0, n) * 10) / 10;
 		return mergeMetrics(computeDelta(before, after), obs, {
-			activateMs: Math.round(Math.max(0, hit.pageMs - clickedAt) * 10) / 10,
+			activateMs: r1(timing.pageMs - timing.clickedAt),
+			activateFrameMs: timing.frameMs > 0 ? r1(timing.frameMs - timing.clickedAt) : 0,
 		});
 	},
 };
@@ -209,7 +237,7 @@ const streamTokens: Scenario = {
 	async measure(ctx) {
 		await ctx.installObserver();
 		const before = await ctx.snapshot();
-		const streamed = await ctx.evalInPage<boolean>(
+		const streamed = await ctx.act<boolean>(
 			`(function(){var rows=document.querySelectorAll(${JSON.stringify(ACTIVE_ROWS)});var last=null;` +
 				`for(var i=rows.length-1;i>=0;i--){if(rows[i].querySelector(".agent-client-message-assistant")){last=rows[i];break;}}` +
 				`if(!last)return false;var host=last.querySelector(".agent-client-message-assistant");` +
@@ -242,7 +270,7 @@ const scrollHeavyTranscript: Scenario = {
 	async measure(ctx) {
 		await ctx.installObserver();
 		const before = await ctx.snapshot();
-		const events = await ctx.evalInPage<number>(
+		const events = await ctx.act<number>(
 			`(async function(){var sc=document.querySelector(${JSON.stringify(SCROLL_SELECTOR)});` +
 				`if(!sc||sc.scrollHeight<=sc.clientHeight)return -1;` +
 				`var start=sc.scrollTop;var max=sc.scrollHeight-sc.clientHeight;var n=0;var on=function(){n++;};` +

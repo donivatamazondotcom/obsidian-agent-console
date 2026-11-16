@@ -22,19 +22,19 @@ Each run hard-reloads the vault about 6 times. **Never point it at a vault with 
 | Scenario | What it does | Signals |
 |---|---|---|
 | `cold-start-restore` | Hard reload, wait until the active panel shows all 201 rows | `wallMs` (ms from navigation start, page clock), long frames |
-| `activate-background-tab` | Park on the light tab, then activate the heavy tab; wait until it is selected and shows all 201 rows | `activateMs` (click to full transcript), `RecalcStyleCount`, long frames |
+| `activate-background-tab` | Park on the light tab, then activate the heavy tab | `activateMs` (click to the DOM commit showing it selected with all 201 rows), `activateFrameMs` (click to the next frame), `RecalcStyleCount`, long frames |
 | `stream-tokens` | Grow a temporary span in the last assistant row ~50 tokens, forcing a layout each, then remove it | `maxStyleLayoutMs`, long frames |
 | `scroll-heavy-transcript` | Step the transcript top to bottom, one step per animation frame, and count scroll events | `LayoutCount`, `RecalcStyleCount`, `maxStyleLayoutMs` |
 
 `stream-tokens` is a layout proxy, not a streaming test: it never goes through React or the markdown renderer, and its `LayoutCount` (50 forced + 1) is set by the proxy itself. A real-stream scenario needs a fake streaming agent.
 
-Waits run in the page: a `MutationObserver` re-checks the condition on every DOM change, so the reported time is the mutation that made it true, not the next poll.
+Waits run in the page: a `MutationObserver` re-checks the condition on DOM changes, so the reported time is the mutation that made it true, not the next poll. A timed wait refuses a condition that already held when it started. The observer's own cost is reported (`waitCheckMs` on cold start) and never gated. Activate clicks and times in one evaluate: the click runs as a page task, and both times come from the page clock, so no CLI round trip (~50–90 ms here) is inside them. Anything that acts or times is sent once and never retried.
 
 Long frames come from `long-animation-frame` entries (`longtask` only where LoAF is unsupported). The buffer is cleared at the start of each scenario. `maxStyleLayoutMs` is the time from a frame's `styleAndLayoutStart` to its end.
 
 ## Failures
 
-A run is **incomplete** when a scenario fails in any pass (a missing tab, row or scroll container, or a wait that times out), when a scenario in the baseline wasn't measured, or when the vault's page was hidden at any point (screen locked, window minimized or covered). A hidden page renders no frames, so its scroll and long-frame numbers mean nothing and its timings aren't comparable. Keep the profiled window visible and the screen unlocked. An incomplete run lists the reasons, exits 1, and writes nothing: no history point, no baseline, no golden anchor. That way a stale selector can't pass as a measurement.
+A run is **incomplete** when a scenario fails in any pass (a missing tab, row or scroll container, or a wait that times out), when a scenario in the baseline wasn't measured, or when the vault's page was hidden after any scenario (screen locked, window minimized or covered), or when `main.js` changed during the run. A hidden page renders no frames, so its scroll and long-frame numbers mean nothing and its timings aren't comparable. Keep the profiled window visible and the screen unlocked. An incomplete run lists the reasons, exits 1, and writes nothing: no history point, no baseline, no golden anchor. That way a stale selector can't pass as a measurement.
 
 ## Files
 

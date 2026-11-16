@@ -76,14 +76,16 @@ export const DEFAULT_FLOORS: Record<string, number> = {
 	maxStyleLayoutMs: 10,
 	wallMs: 30,
 	activateMs: 30,
+	activateFrameMs: 30,
 };
 
 /**
  * Metrics never gated on — GC-dependent or otherwise too noisy to block a
  * release (GB-T05). Reported in the profile table but skipped by the diff.
  */
-// scrollEvents is a validity count (did the transcript scroll), not a cost.
-export const DEFAULT_GATE_EXCLUDE: readonly string[] = ["JSHeapUsedSize", "scrollEvents"];
+// scrollEvents is a validity count (did the transcript scroll), not a cost;
+// waitCheckMs is the profiler's own observer cost, reported for honesty.
+export const DEFAULT_GATE_EXCLUDE: readonly string[] = ["JSHeapUsedSize", "scrollEvents", "waitCheckMs"];
 
 function round4(n: number): number {
 	return Math.round(n * 1e4) / 1e4;
@@ -168,7 +170,13 @@ export function diffAgainstBaseline(
 export function missingFromProfile(
 	profile: Profile,
 	baseline: Baseline | null | undefined,
+	known?: readonly string[],
 ): string[] {
 	if (!baseline) return [];
-	return Object.keys(baseline.scenarios ?? {}).filter((id) => !profile[id]);
+	// A baseline scenario that is no longer defined (retired or renamed) is
+	// not "missing": it can't be measured, and counting it would make every
+	// run incomplete, including the --update that would clear it.
+	return Object.keys(baseline.scenarios ?? {}).filter(
+		(id) => !profile[id] && (!known || known.includes(id)),
+	);
 }
