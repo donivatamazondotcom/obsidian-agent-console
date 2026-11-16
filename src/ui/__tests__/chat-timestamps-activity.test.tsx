@@ -193,9 +193,9 @@ describe("tool-row times", () => {
 	});
 
 	it.each([
-		["stopped", "Stopped · 1m 10s", "Stopped, ran 1m 10s."],
-		["done", "Open at turn end · 1m 10s", "Open at turn end, ran 1m 10s."],
-		["failed", "Open at turn end · 1m 10s", "Open at turn end, ran 1m 10s."],
+		["stopped", "Stopped · 1m 10s", "Stopped, 1m 10s."],
+		["done", "Open at turn end · 1m 10s", "Open at turn end, 1m 10s."],
+		["failed", "Open at turn end · 1m 10s", "Open at turn end, 1m 10s."],
 	] as const)("a row its %s turn closed reads %s", (endKind, text, aria) => {
 		const store = createTurnActivityStore();
 		const { container } = show(
@@ -230,7 +230,16 @@ describe("tool-row times", () => {
 		expect(rowTime(container)).toBeNull();
 		act(() => store.publish({ line: "· 1m", lineTitle: "npm test", rows: { [id]: "1m · output 2s ago" } }));
 		expect(rowTime(container)).toBe("1m · output 2s ago");
-		expect(rowButton(container)?.getAttribute("aria-label")).toContain("Running since 9:48 AM.");
+		expect(rowButton(container)?.getAttribute("aria-label")).toContain("Open since 9:48 AM.");
+	});
+
+	it("a pending row waiting on your approval never claims it is running", () => {
+		const store = createTurnActivityStore();
+		const row = toolMsg({ status: "pending", startedAt: at(9, 48) });
+		const { container } = show([prompt({ sentAt: at(9, 47) }), row], store, { isSending: true, hasActivePermission: true });
+		const label = rowButton(container)?.getAttribute("aria-label") ?? "";
+		expect(label).toContain("Open since 9:48 AM.");
+		expect(label.toLowerCase()).not.toContain("running");
 	});
 
 	it("a row restored open (no live turn) shows no clock and doesn't subscribe", () => {

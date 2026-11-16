@@ -933,8 +933,8 @@ export const en = {
 	"chat.toolCall.withDuration": "{label} · {duration}",
 	"chat.toolCall.timeRange": "{start} to {end}",
 	"chat.toolCall.ariaRan": "Ran {duration}, {range}.",
-	"chat.toolCall.ariaRunningSince": "Running since {time}.",
-	"chat.toolCall.ariaInterrupted": "{label}, ran {duration}.",
+	"chat.toolCall.ariaRunningSince": "Open since {time}.",
+	"chat.toolCall.ariaInterrupted": "{label}, {duration}.",
 	"chat.toolCall.ariaInterruptedNoTime": "{label}.",
 	"chat.mcpBanner.toolFailed":
 		"This tool failed because the server is not signed in.",
