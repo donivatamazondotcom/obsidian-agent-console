@@ -101,4 +101,28 @@ describe("I378 – context links are unchanged by the per-call link builder", ()
 			{ numRuns: 2000 },
 		);
 	});
+
+	it("links stay right after the memo passes its size cap and clears", () => {
+		const vaultPath = "C:\\Users\\example\\vault";
+		const paths = Array.from({ length: 300 }, (_, i) => `Notes\\N${i}.md`);
+		const sendAll = () =>
+			paths.map(
+				(path) =>
+					linksIn(
+						buildContextBlocks({
+							contextNotes: [{ path, source: "user", seen: true }],
+							selection: null,
+							useEmbeddedContext: true,
+							vaultPath,
+							convertToWsl: true,
+						}),
+					)[0],
+			);
+		const expected = paths.map((p) => oracle(vaultPath, p, true));
+		// 300 distinct paths pass the 256 cap; the second pass reads a memo
+		// that was cleared mid-way through the first.
+		expect(sendAll()).toEqual(expected);
+		expect(sendAll()).toEqual(expected);
+		expect(expected[299]).toBe("file:///mnt/c/Users/example/vault/Notes/N299.md");
+	});
 });

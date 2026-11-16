@@ -2,7 +2,10 @@
  * Context builder — produces PromptContent blocks for crystallized notes
  * (Channel 1) and selection (Channel 2).
  *
- * Pure function. No side effects, no vault reads, no React.
+ * No side effects, no vault reads, no React. The output depends only on the
+ * input: the one piece of module state is a link memo (I378), keyed by every
+ * input that affects a link. Any new input that changes a link MUST join the
+ * memo key, or one tab could get another tab's link.
  * See: ACP Context Note Lifecycle spec § How Context Is Provided to the Agent.
  */
 import type { ContextNote } from "../types/context";
@@ -32,7 +35,7 @@ export interface BuildContextBlocksInput {
 	/**
 	 * Channel 1 bodies to embed this turn, keyed by vault-relative path
 	 * ([[ACP Context Note Hydration]] H1). The caller reads and gates them;
-	 * this builder stays pure. A note absent from the map is reference-only.
+	 * this builder does no reads. A note absent from the map is reference-only.
 	 */
 	hydrationBodies?: ReadonlyMap<string, string>;
 }

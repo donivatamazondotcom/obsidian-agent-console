@@ -32,6 +32,10 @@ const selection = {
 	text: "Some selected paragraph of text.\n".repeat(40),
 };
 const vaultPath = "/Users/example/vault";
+// Two roots taken in turn reset the link memo on every call (I378), so the
+// cold bench times the shared link helpers, not memo hits.
+const coldRoots = ["/Users/example/vault", "/Users/example/vault2"];
+let coldTurn = 0;
 
 describe("buildContextBlocks", () => {
 	bench("8 notes, reference-only, no selection", () => {
@@ -40,6 +44,16 @@ describe("buildContextBlocks", () => {
 			selection: null,
 			useEmbeddedContext: false,
 			vaultPath,
+		});
+	});
+
+	bench("8 notes, reference-only, cold links (vault root changes each call)", () => {
+		coldTurn ^= 1;
+		buildContextBlocks({
+			contextNotes: eightNotes,
+			selection: null,
+			useEmbeddedContext: false,
+			vaultPath: coldRoots[coldTurn],
 		});
 	});
 

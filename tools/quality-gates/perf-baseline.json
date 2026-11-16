@@ -6,6 +6,10 @@
 			"hz": 6629126.104071099,
 			"mean": 0.0001508494459602868
 		},
+		"8 notes, reference-only, cold links (vault root changes each call)": {
+			"hz": 951151,
+			"mean": 0.001051357775999815
+		},
 		"8 notes, embedded, with selection": {
 			"hz": 911408.6839254256,
 			"mean": 0.0010972026245054114
