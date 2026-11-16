@@ -221,7 +221,12 @@ describe("InputArea — held Enter (I358)", () => {
 		);
 		const textarea = composerOf(container);
 		textarea.focus();
-		// Blur between the press and the repeat.
+		// A blur alone clears it (onBlur), even with no focus event after it.
+		expect(fireEvent.keyDown(textarea, { key: "Enter" })).toBe(true);
+		act(() => textarea.blur());
+		expect(fireEvent.keyDown(textarea, { key: "Enter", repeat: true })).toBe(false);
+		// Focus leaving and coming back between the press and the repeat.
+		act(() => textarea.focus());
 		expect(fireEvent.keyDown(textarea, { key: "Enter" })).toBe(true);
 		act(() => textarea.blur());
 		act(() => textarea.focus());
