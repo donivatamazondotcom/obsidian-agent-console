@@ -70,7 +70,7 @@ This is an Obsidian plugin that integrates AI coding agents (Claude Code, Codex,
 
 - **Messages**: Full conversation history with timestamps
 - **Images**: Attached images (saved as files or embedded, based on settings)
-- **Tool calls**: Tool name, locations, status, and diffs
+- **Tool calls**: Tool name, locations, status, and diffs. A tool call that was still open when its reply ended exports as `stopped` (you stopped the reply) or `open at turn end`
 - **Thinking**: Agent's reasoning (as collapsible callouts)
 - **Plans**: Task plans with status indicators
 - **Note mentions**: Auto-mention and manual mentions in `@[[note]]` format

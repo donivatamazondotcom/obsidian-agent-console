@@ -1,4 +1,5 @@
 import type { PermissionScopeChoice } from "../types/chat";
+import type { LiveTurnClock } from "../types/chat-time";
 /**
  * Sub-hook for managing chat messages, streaming, and permissions.
  *
@@ -196,6 +197,8 @@ export interface UseAgentMessagesReturn {
 
 	/** Enqueue a message-level update (used by useAgent for unified handler) */
 	enqueueUpdate: (update: SessionUpdate) => void;
+	/** The live turn's clocks for the ticker; null outside a live turn (Chat Timestamps). */
+	getLiveTurnClock: () => LiveTurnClock | null;
 }
 
 // ============================================================================
@@ -296,11 +299,19 @@ export function useAgentMessages(
 		sessionId: string;
 		generation: number;
 		livePromptId: string | null;
+		/** The live prompt's send time, for the ticker's elapsed time. */
+		sentAt: number;
 	} | null>(null);
 
 	// Chat Timestamps: when the turn's last live update arrived (epoch ms).
 	// Starts at the prompt's send, so a first reply is measured from it.
 	const lastUpdateAtRef = useRef<number | null>(null);
+	// Chat Timestamps PR 3: whether any live update arrived in this turn
+	// (the line's `no update yet`), and each running call's last output
+	// update (only updates `acp/` flagged as output). Cleared with the
+	// turn's other clocks.
+	const hasUpdateRef = useRef(false);
+	const lastOutputAtByCallRef = useRef(new Map<string, number>());
 	// The first chunk the title head buffer held (I363). The held text is
 	// the hidden title marker unless the buffer releases it verbatim (no
 	// marker after all, or a never-closed one at turn end).
@@ -398,6 +409,10 @@ export function useAgentMessages(
 			const queued: QueuedUpdate = { update, lastUpdateBefore };
 			if (inTurn && !update.replayed && countsAsActivity(update)) {
 				lastUpdateAtRef.current = arrivedAt;
+				hasUpdateRef.current = true;
+				if (update.type === "tool_call_update" && update.carriesOutput) {
+					lastOutputAtByCallRef.current.set(update.toolCallId, arrivedAt);
+				}
 				const heldNow = heldChunkRef.current;
 				if (heldNow !== null && update.type !== "agent_message_chunk") {
 					// A visible item while the marker is held: the held text is
@@ -516,6 +531,8 @@ export function useAgentMessages(
 		// from nothing, so it gets no gap stamp.
 		lastUpdateAtRef.current = null;
 		heldChunkRef.current = null;
+		hasUpdateRef.current = false;
+		lastOutputAtByCallRef.current.clear();
 		const live = liveTurnRef.current;
 		const promptId = live?.livePromptId ?? null;
 		if (!live || promptId === null) return;
@@ -651,6 +668,8 @@ export function useAgentMessages(
 		// Chat Timestamps: a cleared chat has no turn clocks.
 		lastUpdateAtRef.current = null;
 		heldChunkRef.current = null;
+		hasUpdateRef.current = false;
+		lastOutputAtByCallRef.current.clear();
 		waitStartedAtRef.current = null;
 		turnWaitMsRef.current = 0;
 		restoredPromptActiveRef.current = false;
@@ -666,6 +685,8 @@ export function useAgentMessages(
 			// A restored or forked transcript has no live turn and no clocks.
 			lastUpdateAtRef.current = null;
 			heldChunkRef.current = null;
+			hasUpdateRef.current = false;
+			lastOutputAtByCallRef.current.clear();
 			restoredPromptActiveRef.current =
 				findActivePermission(localMessages) !== null;
 			setMessages(localMessages);
@@ -850,6 +871,8 @@ export function useAgentMessages(
 			// previous turn's last update never carries over.
 			lastUpdateAtRef.current = sentAt;
 			heldChunkRef.current = null;
+			hasUpdateRef.current = false;
+			lastOutputAtByCallRef.current.clear();
 			// A permission already on screen at the send (left open by the
 			// last turn, or asked between turns) counts from the send: there
 			// is no rising edge to start it. A restored one never counts.
@@ -863,6 +886,7 @@ export function useAgentMessages(
 				sessionId: currentSessionId,
 				generation,
 				livePromptId: userMessage.id,
+				sentAt,
 			};
 
 			setIsSending(true);
@@ -1047,6 +1071,26 @@ export function useAgentMessages(
 		return true;
 	}, [activePermission, approvePermission]);
 
+	/**
+	 * The live turn's clocks for the per-second ticker (Chat Timestamps
+	 * PR 3). Synchronous and stable; null outside a live turn, including
+	 * between the turn-end write and `isSending` going false.
+	 */
+	const getLiveTurnClock = useCallback((): LiveTurnClock | null => {
+		const live = liveTurnRef.current;
+		if (!live || live.livePromptId === null) return null;
+		return {
+			promptId: live.livePromptId,
+			sentAt: live.sentAt,
+			lastUpdateAt: lastUpdateAtRef.current ?? live.sentAt,
+			hasUpdate: hasUpdateRef.current,
+			waitStartedAt: waitStartedAtRef.current,
+			turnWaitMs: turnWaitMsRef.current,
+			// A copy: a later reset must not change a clock a reader holds.
+			lastOutputAtByCall: new Map(lastOutputAtByCallRef.current),
+		};
+	}, []);
+
 	// ============================================================
 	// Return
 	// ============================================================
@@ -1072,5 +1116,6 @@ export function useAgentMessages(
 		approveActivePermission,
 		rejectActivePermission,
 		enqueueUpdate,
+		getLiveTurnClock,
 	};
 }

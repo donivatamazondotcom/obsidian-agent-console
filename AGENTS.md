@@ -30,7 +30,7 @@ src/
 │   ├── chat-link.ts             # Chat links (Chat ID): OpenChatBridge (boundChatIds/switchTo/openFromHistory), BoundChat, LiveChatLeaf, OpenRecordResult, ChatLinkRateLimitState + the chat-link handler's structural input types
 │   ├── agent.ts                 # AgentConfig, agent settings (Claude/Codex/Gemini/Kiro/OpenCode/Antigravity/Custom)
 │   ├── errors.ts                # AcpError, ProcessError, ErrorInfo
-│   ├── chat-time.ts             # Chat Timestamps: DayBounds, DaySnapshot, StampDateScope, StampAge (shared by utils, resolvers and services without a backwards layer edge)
+│   ├── chat-time.ts             # Chat Timestamps: DayBounds, DaySnapshot, StampDateScope, StampAge (shared by utils, resolvers and services without a backwards layer edge); PR 3: TerminalTiming, LiveTurnClock, TurnActivity
 │   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref) + TabSessionState lifecycle union (moved from hooks/ so resolvers/services need no hooks edge)
 │   ├── vault.ts                 # NoteMetadata — vault file metadata (moved from services/vault-service so leaf modules need no services edge; re-exported there)
 │   ├── title-strategy.ts        # TitleStrategy union + dropdown options (F03 session-title setting)
@@ -40,7 +40,7 @@ src/
 │   └── obsidian-internals.d.ts  # Obsidian API declarations not in @types/obsidian
 ├── acp/                         # ACP protocol (SDK dependency confined here)
 │   ├── acp-client.ts            # Process lifecycle, UI-facing API (AcpClient class)
-│   ├── acp-handler.ts           # SDK event handler + sessionId filter + listener broadcast
+│   ├── acp-handler.ts           # SDK event handler + sessionId filter + listener broadcast; flags tool output updates (carriesOutput) from _meta
 │   ├── mcp-auth-parsers.ts      # Params parsers for _kiro.dev/mcp/* extension notifications (validate at edge)
 │   ├── claude-code-replay.ts    # Claude Code replay shape: `[@name](uri)` mention text back to a resource_link chip (I242)
 │   ├── load-error.ts            # classifyLoadError: a session/load JSON-RPC rejection ("no such session") vs a transport failure, so SDK errors stay in acp/ (I282)
@@ -50,7 +50,7 @@ src/
 │   ├── permission-handler.ts    # Permission queue, auto-approve, Promise resolution
 │   ├── stop-kind.ts             # toTurnStopKind — ACP StopReason → TurnStopKind at the acp/ edge; an unknown or missing value maps to `unknown` (Tab Attention States)
 │   ├── process-teardown.ts      # teardownProcessTree — single owner of agent teardown (I211): snapshot tree, stdin EOF, group SIGTERM, grace, SIGKILL snapshot survivors incl. own-group MCP servers
-│   └── terminal-handler.ts      # Terminal process create/output/kill
+│   └── terminal-handler.ts      # Terminal process create/output/kill; per-terminal timing (last output, exit, release) for tool-row times
 ├── i18n/                        # UI string localization boundary ([[Agent Console I18N]])
 │   ├── index.ts                 # t(key, params) + initLocale + resolveLocale; locale resolved once at load (getLanguage or the Advanced language override)
 │   ├── en.ts                    # Canonical English catalog (the key contract; as const)
@@ -72,6 +72,7 @@ src/
 │   ├── chat-link-copy.ts        # runChatLinkCopy — Copy link to chat: copy the link or the send-first notice, report a failed write, refocus through copy-chat-link (Chat ID D16)
 │   ├── server-session-cache.ts  # The only reader/writer of serverSessionCache (last session/list per launch, keyed by agentLaunchKey, never agent id) + its settings-edge validation (I270)
 │   ├── session-store.ts         # Single serialized writer of record for savedSessions metadata/title (I114), keyed by recordId (I269)
+│   ├── turn-activity-store.ts   # Chat Timestamps PR 3: per-panel store for the live line and running-row texts (no React); ChatPanel's ticker is its only publisher; reset() keeps the header total; the line's title (an open tool call's name) is its own string
 │   ├── local-day-store.ts       # Chat Timestamps: the plugin's one day store (today's local bounds + time zone) for useSyncExternalStore; per-view focus/visibility re-checks, one always-rescheduling midnight timer, dispose() on unload
 │   ├── mcp-auth-manager.ts      # Single owner of pending MCP sign-in state + queue-aware Notice lifecycle
 │   ├── settings-normalizer.ts   # Validation helpers + DEFAULT_SETTINGS + normalizeRawSettings (raw→typed mapping)
@@ -141,7 +142,7 @@ src/
 │   ├── useSelectionTracker.ts   # Editor selection capture for the context strip
 │   ├── useAgentSession.ts       # Session lifecycle, config options, optimistic updates
 │   ├── useKeptKiroEngine.ts     # Tab persistence's Kiro engine for the tab's session id: the launched engine of a live session, none for a non-Kiro agent (D2, I250)
-│   ├── useAgentMessages.ts      # Message state, streaming (RAF batch), permissions; owns turn timing (livePromptId, last-update clock, permission wait, turn-end write at every end owner)
+│   ├── useAgentMessages.ts      # Message state, streaming (RAF batch), permissions; owns turn timing (livePromptId, last-update clock, permission wait, turn-end write at every end owner); PR 3: per-call last-output map (only updates acp/ flags as output) and the sync getLiveTurnClock() the ticker reads
 │   ├── useSuggestions.ts        # Thin source wiring: runs usePicker per source (mention/slash/quick-prompt), adapts to the mentions/commands/quickPrompts contract + the Tier-2 activePicker (Unified Picker Control Tier 3)
 │   ├── usePicker.ts             # One generic suggestion-picker state machine driven by a PickerSource: items/selection/open, clamp-vs-wrap nav, async/sync fetch, dismiss guard (Unified Picker Control Tier 3)
 │   ├── useSessionHistory.ts     # Session list/load/resume/fork
@@ -183,11 +184,12 @@ src/
 │   ├── TabErrorBoundary.tsx     # Per-tab React error boundary with Retry
 │   ├── ZeroTabLanding.tsx       # Zero-tab landing screen shown when every tab is closed (minimal placeholder in Slice 1; reason-tagged empty-state shell in Slice 2)
 │   ├── ChatHeader.tsx           # Header (sidebar chat view)
-│   ├── MessageList.tsx          # Message list (native browser scroll; inactive tabs render a placeholder, so no bubbles mount while hidden) + JumpToReplyStartAnchor (sticky zero-height wrapper, IntersectionObserver visibility, up chevron) and the "Jump to start of latest reply" command listener
+│   ├── MessageList.tsx          # Message list (native browser scroll; inactive tabs render a placeholder, so no bubbles mount while hidden) + JumpToReplyStartAnchor (sticky zero-height wrapper, IntersectionObserver visibility, up chevron) and the "Jump to start of latest reply" command listener; Chat Timestamps PR 3: TurnStatusLine (Waiting on you, or the ticker's title + facts) and toolRunState for tool bubbles
 │   ├── A2uiSurfaceHost.tsx      # Agent-emitted buttons-v0 surface host: validate-at-edge, native buttons, resolver-gated enablement, inert fallback
 │   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button, prompt and gap stamps, hover-row time)
-│   ├── TimeStamp.tsx            # Chat Timestamps: memoized stamp leaf (prompt/end/gap/hover-row times, static aria-label + data-stamp-label), delegated hover ages (useStampHoverAges), day-store registration per view (useDayStoreRegistration)
-│   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting)
+│   ├── turn-activity-context.ts # Chat Timestamps PR 3: React binding for the turn-activity store (context, useTurnActivitySlice string selectors, useTurnActivityTicker: 1 s while the tab's turn runs and the tab is visible); a permission change kicks an immediate tick
+│   ├── TimeStamp.tsx            # Chat Timestamps: memoized stamp leaf (prompt/end/gap/hover-row times, static aria-label + data-stamp-label), delegated hover ages (useStampHoverAges), day-store registration per view (useDayStoreRegistration); formatStampRange (a tool row's start-to-end label)
+│   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting); Chat Timestamps PR 3: row time (duration, RunningToolTime leaf, Stopped / Open at turn end) and its start/end in the row label, refreshed through a date-form day-store selector
 │   ├── TerminalBlock.tsx        # Terminal output polling
 │   ├── InputArea.tsx            # Textarea, attachments, mentions, history
 │   ├── composer-focus-tracker.ts # Pure composer-cluster focus reducer + classifier (focus-return guardrail)
@@ -275,6 +277,7 @@ src/
 │   ├── tab-state.ts                # deriveTabState — pure tab-icon-state resolver (lifecycle × isSending × hasActivePermission → ready/busy/permission/error/disconnected); gates busy on intent, not a connect-edge, so a lazy first-send or mid-turn permission can't strand the icon (I172)
 │   ├── tooltip-text.ts             # deriveTooltipText — pure tooltip-text resolver ({visibleLabel, reason, separator} → tagged union text/none); owns the label-in-name composition and models "clear the stale tooltip" as a real outcome. Separator is an input because punctuation is localized (I199)
 │   ├── turn-end-stamp.ts           # deriveTurnEndStamp — what a prompt's turn-end stamp says (done/stopped with duration, failed, or none when unknown)
+│   ├── turn-activity.ts            # Chat Timestamps PR 3: deriveTurnActivity / deriveLiveTurnActivity (the live line's and running tool rows' facts, no stall guesses) and deriveToolRowTime (finished duration, Stopped / Open at turn end)
 │   └── update-check-decision.ts    # decideUpdateCheck — pure resolver: reuse the saved GitHub update result (6 h), back off after a failure (1 h), or fetch; owns the PluginUpdateCache shape
 ├── utils/                       # Shared utilities (pure functions)
 │   ├── platform.ts              # Shell, WSL, Windows env, command building
@@ -308,7 +311,7 @@ src/
 │   ├── notification-click.ts    # Pure orchestrator for a completion-notification click (reveal owning leaf/window + switch to producing tab); I52 recurrence
 │   ├── update-flush-scheduler.ts # createUpdateFlushScheduler — visibility-immune session-update flush (rAF stalls in backgrounded windows) (I168)
 │   ├── time-fields.ts           # Chat Timestamps: gap-stamp threshold + the load-edge validator for the epoch-ms time fields (a value it can't trust becomes null = unknown)
-│   ├── time-format.ts           # Chat Timestamps: cached Intl clock formatters keyed by zone (explicit timeZone, safe fallback), computeDayBounds, formatStampTime, formatStampAge, formatDuration
+│   ├── time-format.ts           # Chat Timestamps: cached Intl clock formatters keyed by zone (explicit timeZone, safe fallback), computeDayBounds, formatStampTime, formatStampAge, formatDuration, formatShortAge (the live line's and rows' `10s ago`)
 │   ├── menu-registry.ts         # Tracks open Menu popups; closes them on plugin unload (reload-safety)
 │   ├── mcp-auth-affordance.ts   # Pure resolver: auth-failed tool call → inline re-auth affordance decision
 │   ├── command-palette.ts       # Pure start-a-chat + context-gating decisions (computeStartChat, isChatCommandAvailable)

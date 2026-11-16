@@ -1,6 +1,6 @@
 import type { PermissionScopeChoice } from "../types/chat";
 import * as React from "react";
-const { useState, useMemo } = React;
+const { useState, useMemo, useCallback, useSyncExternalStore, memo } = React;
 import { FileSystemAdapter } from "obsidian";
 import type { MessageContent } from "../types/chat";
 import type { AcpClient } from "../acp/acp-client";
@@ -21,6 +21,17 @@ import {
 } from "../utils/toolCallDiff";
 import { McpAuthBanner } from "./McpAuthBanner";
 import { t } from "../i18n";
+import {
+	deriveToolRowTime,
+	type ToolRowTime,
+	type ToolRunState,
+} from "../resolvers/turn-activity";
+import { deriveStampDateScope } from "../resolvers/stamp-date-scope";
+import { localDayStore } from "../services/local-day-store";
+import type { DaySnapshot } from "../types/chat-time";
+import { formatDuration } from "../utils/time-format";
+import { formatStampRange, formatStampTime } from "./TimeStamp";
+import { useTurnActivitySlice } from "./turn-activity-context";
 // import { MarkdownRenderer } from "./shared/MarkdownRenderer";
 
 // Re-exported so existing importers (e.g. the I78 word-diff test) keep their
@@ -37,6 +48,101 @@ interface ToolCallBlockProps {
 		optionId: string,
 	choice?: PermissionScopeChoice,
 ) => Promise<void>;
+	/**
+	 * Chat Timestamps: where this row's turn stands (`"live"`, its prompt's
+	 * end kind, or unknown). Changes once per turn end, only on tool rows.
+	 */
+	toolRunState?: ToolRunState;
+}
+
+/**
+ * A running row's live text (Chat Timestamps PR 3), from the panel's
+ * per-second ticker. The only part of a running row that re-renders on a
+ * tick; shows nothing until the ticker has published this row.
+ */
+const RunningToolTime = memo(function RunningToolTime({ toolCallId }: { toolCallId: string }) {
+	const select = useCallback(
+		(s: { rows: Readonly<Record<string, string>> }) => s.rows[toolCallId] ?? null,
+		[toolCallId],
+	);
+	const text = useTurnActivitySlice(select);
+	if (text === null) return null;
+	return (
+		<span className="agent-client-tool-call-time" aria-hidden="true">
+			{text}
+		</span>
+	);
+});
+
+/**
+ * The date forms a row's label depends on, plus the zone: a row re-renders
+ * on a day or zone change only when this key changes, so rows from earlier
+ * days stay still at midnight.
+ */
+function rowDayKey(time: ToolRowTime, day: DaySnapshot): string {
+	switch (time.kind) {
+		case "finished":
+			return `${deriveStampDateScope(time.startedAt, day.bounds)}|${deriveStampDateScope(time.endedAt, day.bounds)}|${day.zone ?? ""}`;
+		case "running":
+			return `${deriveStampDateScope(time.startedAt, day.bounds)}|${day.zone ?? ""}`;
+		default:
+			return "";
+	}
+}
+
+function interruptedLabel(label: "stopped" | "openAtTurnEnd"): string {
+	return label === "stopped" ? t("chat.toolCall.stopped") : t("chat.toolCall.openAtTurnEnd");
+}
+
+/** The row's time for screen readers and Obsidian's hover label. */
+function rowTimeAria(time: ToolRowTime, day: DaySnapshot): string {
+	switch (time.kind) {
+		case "finished":
+			return t(time.failed ? "chat.toolCall.ariaFailed" : "chat.toolCall.ariaRan", {
+				duration: formatDuration(time.durationMs, "seconds"),
+				range: formatStampRange(time.startedAt, time.endedAt, day),
+			});
+		case "running":
+			return t("chat.toolCall.ariaRunningSince", { time: formatStampTime(time.startedAt, day) });
+		case "interrupted":
+			return time.durationMs === null
+				? t("chat.toolCall.ariaInterruptedNoTime", { label: interruptedLabel(time.label) })
+				: t("chat.toolCall.ariaInterrupted", {
+						label: interruptedLabel(time.label),
+						duration: formatDuration(time.durationMs, "seconds"),
+					});
+		case "none":
+			return "";
+	}
+}
+
+/** The row's visible time: static for a finished or closed row, the live leaf while it runs. */
+function RowTime({ time, toolCallId }: { time: ToolRowTime; toolCallId: string }) {
+	switch (time.kind) {
+		case "running":
+			return <RunningToolTime toolCallId={toolCallId} />;
+		case "finished":
+			return (
+				<span className="agent-client-tool-call-time" aria-hidden="true">
+					{formatDuration(time.durationMs, "seconds")}
+				</span>
+			);
+		case "interrupted": {
+			const label = interruptedLabel(time.label);
+			return (
+				<span className="agent-client-tool-call-time" aria-hidden="true">
+					{time.durationMs === null
+						? label
+						: t("chat.toolCall.withDuration", {
+								label,
+								duration: formatDuration(time.durationMs, "seconds"),
+							})}
+				</span>
+			);
+		}
+		case "none":
+			return null;
+	}
 }
 
 export const ToolCallBlock = React.memo(function ToolCallBlock({
@@ -44,6 +150,7 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 	plugin,
 	terminalClient,
 	onApprovePermission,
+	toolRunState,
 }: ToolCallBlockProps) {
 	const {
 		kind,
@@ -158,12 +265,29 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 
 	const lineCount = useMemo(() => countLines(content), [content]);
 
+	// Chat Timestamps PR 3: the row's own time (Decision 12). The day store is
+	// read through this row's date-form key, so a day or zone change
+	// re-renders only rows whose label changes.
+	const rowTime = deriveToolRowTime(content, toolRunState);
+	// useSyncExternalStore compares the returned key, so a new function each
+	// render is fine.
+	const getDayKey = () => rowDayKey(rowTime, localDayStore.getSnapshot());
+	useSyncExternalStore(localDayStore.subscribe, getDayKey, getDayKey);
+	const timeAria = rowTimeAria(rowTime, localDayStore.getSnapshot());
+	// A row its turn closed shows `circle-stop` whatever status came later.
+	const statusIcon =
+		rowTime.kind === "interrupted"
+			? { name: "circle-stop", cls: "interrupted" }
+			: status !== "completed"
+				? { name: status === "failed" ? "circle-x" : "ellipsis", cls: status }
+				: null;
+
 	// Stable id for aria-controls so screen readers announce the
 	// toggle as controlling a specific content region.
 	const contentId = `agent-tool-call-content-${content.toolCallId}`;
 	const ariaLabel = `${t("chat.toolCall.title")}${kind ? `: ${kind}` : ""}. ${title || ""}. ${
 		isExpanded ? t("chat.toolCall.expanded") : t("chat.toolCall.collapsed")
-	}`;
+	}${timeAria ? ` ${timeAria}` : ""}`;
 
 	if (!isExpanded) {
 		return (
@@ -186,10 +310,10 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 						className="agent-client-message-tool-call-icon"
 					/>
 				)}
-				{status !== "completed" && (
+				{statusIcon && (
 					<LucideIcon
-						name={status === "failed" ? "circle-x" : "ellipsis"}
-						className={`agent-client-message-tool-call-status-icon agent-client-status-${status}`}
+						name={statusIcon.name}
+						className={`agent-client-message-tool-call-status-icon agent-client-status-${statusIcon.cls}`}
 					/>
 				)}
 				<span className="agent-client-message-tool-call-summary-title">
@@ -200,6 +324,7 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 						? t("chat.toolCall.lines", { count: lineCount })
 						: ""}
 				</span>
+				<RowTime time={rowTime} toolCallId={content.toolCallId} />
 				</button>
 				<McpAuthBanner content={content} plugin={plugin} />
 			</>
@@ -238,12 +363,13 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 					<span className="agent-client-message-tool-call-title-text">
 						{title}
 					</span>
-					{status !== "completed" && (
+					{statusIcon && (
 						<LucideIcon
-							name={status === "failed" ? "circle-x" : "ellipsis"}
-							className={`agent-client-message-tool-call-status-icon agent-client-status-${status}`}
+							name={statusIcon.name}
+							className={`agent-client-message-tool-call-status-icon agent-client-status-${statusIcon.cls}`}
 						/>
 					)}
+					<RowTime time={rowTime} toolCallId={content.toolCallId} />
 				</div>
 				{kind === "execute" &&
 					rawInput &&

@@ -61,6 +61,8 @@ afterEach(() => {
 	cleanup();
 	localDayStore.dispose();
 	vi.useRealTimers();
+	// A test that changed the zone can't leak it into the next one.
+	process.env.TZ = "America/Los_Angeles";
 });
 
 function local(y: number, mo: number, d: number, h = 0, mi = 0) {

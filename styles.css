@@ -60,14 +60,33 @@ If your plugin does not need CSS, delete this file.
 }
 
 .agent-client-loading-status {
+	display: flex;
 	color: var(--text-muted);
 	font-size: var(--font-ui-small);
 	font-style: italic;
+	font-variant-numeric: tabular-nums;
 	margin-left: 8px;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	min-width: 0;
+}
+
+/* Chat Timestamps PR 3: a running tool's title is cut (with an ellipsis)
+   before the facts after it, so the elapsed time and last update stay
+   visible in a narrow pane. */
+.agent-client-loading-status-title {
+	flex-shrink: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-client-loading-status-facts {
+	flex-shrink: 0;
+	margin-left: 0.3em;
+	white-space: nowrap;
 }
 
 /* ===== Scroll to Bottom Button ===== */
@@ -301,6 +320,23 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	font-weight: normal;
 	font-size: 0.9em;
 	color: var(--text-muted);
+}
+
+/* Chat Timestamps PR 3: a tool row's time, at the right of the collapsed row
+   and the expanded header. Faint like the stamps, one line in tabular
+   figures and never shrunk, so a tick can't re-wrap the expanded header
+   (it sits inside the scroll pin's content), and never selected into a
+   copy. Facts only, so it never takes a warning tone (the Signals tenet). */
+.agent-client-tool-call-time {
+	flex-shrink: 0;
+	margin-left: auto;
+	padding-left: var(--size-2-2);
+	color: var(--text-faint);
+	font-size: var(--font-smallest);
+	font-weight: normal;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	user-select: none;
 }
 
 /* When the block is expanded, the header itself becomes the toggle target. */
@@ -813,7 +849,7 @@ del.acp-header-branded-profile {
 .agent-client-stamp-prompt {
 	display: block;
 	width: fit-content;
-	max-width: calc(100% - var(--size-4-3));
+	max-width: calc(100% - 2 * var(--size-4-3));
 	margin: 0 var(--size-4-3) 0 auto;
 	padding-top: 2px;
 	text-align: right;

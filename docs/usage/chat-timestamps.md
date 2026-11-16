@@ -19,6 +19,26 @@ When the agent finishes a reply, the time it finished and how long it worked app
 
 When something shows up in a reply after more than a minute of silence, it gets a time of its own above it. That marks where the agent paused, for example while a long command ran. Short pauses get no time, so busy replies stay uncluttered.
 
+## While the agent works
+
+While a reply is running, the line under the chat tells you how long the agent has been at it and when you last heard from it, for example `Working 4m · last update 10s ago`. Before anything comes back it reads `Working 1m · no update yet`. While a tool runs, the line names it and says how long it has run: `npm test · 5m`. A long tool name is cut short before the times are.
+
+When the agent asks for your approval, the line reads `Waiting on you`. Time spent waiting for you is left out of every count.
+
+Agent Console doesn't guess whether an agent is stuck. A quiet agent can be thinking, and a quiet command can be a test run writing to a log, so the line shows the facts and leaves the call to you. A `last update` that keeps growing is your cue to look.
+
+## How long each tool ran
+
+Every tool call shows its time at the right of its row. A finished row shows how long it ran, for example `1m 52s`. Hover over the row to see when it started and ended.
+
+While a tool runs, its row shows how long it has been running, plus what Agent Console can see of it:
+
+- A command Agent Console runs for the agent: `1m 10s · output 2s ago`, `6m · no output yet` before it prints anything, or `6m · exited 1m ago` once it has finished.
+- A tool the agent runs itself that sends its output along (Codex does): `1m 10s · output 2s ago`.
+- Any other tool the agent runs itself: how long it has been running, for example `6m`.
+
+A tool that was still open when the reply ended shows a stop icon instead of a clock: `Stopped · 1m 10s` when you stopped the reply, or `Open at turn end · 1m 10s` when it ended another way. An exported chat says the same.
+
 ## When a reply's text started arriving
 
 Hover over a reply to see when its text started arriving, next to the **Copy** button.

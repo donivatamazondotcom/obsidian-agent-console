@@ -10,6 +10,9 @@ import { Notice, setIcon } from "obsidian";
 import { MessageBubble, type A2uiBubbleContext } from "./MessageBubble";
 import { TimeStamp, useStampHoverAges } from "./TimeStamp";
 import { deriveTurnEndStamp } from "../resolvers/turn-end-stamp";
+import type { ToolRunState } from "../resolvers/turn-activity";
+import { useTurnActivitySlice } from "./turn-activity-context";
+import type { TurnActivitySnapshot } from "../services/turn-activity-store";
 import { LossyFallbackNotice } from "./LossyFallbackNotice";
 import type { SessionFallbackReason } from "../resolvers/session-engine";
 import { McpFailureNotice } from "./McpFailureNotice";
@@ -49,6 +52,44 @@ import { scheduleViewRefocus } from "./composer-focus";
  * `terminalClient`, and `onApprovePermission` are all stable references.
  */
 const MemoMessageBubble = memo(MessageBubble);
+
+const selectLine = (s: TurnActivitySnapshot) => s.line;
+const selectLineTitle = (s: TurnActivitySnapshot) => s.lineTitle;
+
+/**
+ * The live status line (Chat Timestamps PR 3, Decision 3): `Waiting on
+ * you` from the permission itself, in the same render as the prompt, else
+ * the per-second ticker's facts (`Working 4m · last update 10s ago`).
+ * The only part of the list that re-renders on a tick.
+ */
+const TurnStatusLine = memo(function TurnStatusLine({
+	hasActivePermission,
+}: {
+	hasActivePermission: boolean;
+}) {
+	const line = useTurnActivitySlice(selectLine);
+	const lineTitle = useTurnActivitySlice(selectLineTitle);
+	const text = hasActivePermission ? t("chat.activity.waitingOnYou") : line;
+	if (text === null) return null;
+	// A running tool's title shrinks (with an ellipsis) before the facts do.
+	return (
+		<span className="agent-client-loading-status">
+			{!hasActivePermission && lineTitle !== null ? (
+				<>
+					<span className="agent-client-loading-status-title">{lineTitle}</span>
+					<span className="agent-client-loading-status-facts">{text}</span>
+				</>
+			) : (
+				<span className="agent-client-loading-status-title">{text}</span>
+			)}
+		</span>
+	);
+});
+
+/** Whether a message holds a tool call (each tool call is its own message). */
+function holdsToolCall(message: ChatMessage): boolean {
+	return message.content.some((c) => c.type === "tool_call");
+}
 
 /**
  * Workspace event fired by the "Jump to start of latest reply" command
@@ -661,6 +702,15 @@ export function MessageList({
 	// or under the prompt when the turn produced none. Found in this one pass:
 	// carry the current prompt, and check the next message's role.
 	let currentPrompt: ChatMessage | null = null;
+	// Chat Timestamps PR 3: the latest prompt's turn is live while sending,
+	// so its tool rows tick. Found by one backward scan before the pass.
+	let lastPromptIndex = -1;
+	for (let i = messages.length - 1; i >= 0; i--) {
+		if (messages[i].role === "user") {
+			lastPromptIndex = i;
+			break;
+		}
+	}
 
 	return (
 		<div ref={listRef} className="agent-client-chat-view-messages">
@@ -683,6 +733,12 @@ export function MessageList({
 				)}
 				{messages.map((message, messageIndex) => {
 					if (message.role === "user") currentPrompt = message;
+					const toolRunState: ToolRunState =
+						message.role === "assistant" && holdsToolCall(message)
+							? isSending && messageIndex > lastPromptIndex
+								? "live"
+								: (currentPrompt?.turnEndKind ?? undefined)
+							: undefined;
 					const next = messages[messageIndex + 1];
 					const endStamp =
 						currentPrompt !== null && (next === undefined || next.role === "user")
@@ -702,6 +758,7 @@ export function MessageList({
 								message.role === "assistant"
 							}
 							a2uiMessageIndex={messageIndex}
+							toolRunState={toolRunState}
 						/>
 						{message.pending && (
 							<span className="agent-client-pending-label">
@@ -736,11 +793,7 @@ export function MessageList({
 					<div className="agent-client-loading-dot"></div>
 					<div className="agent-client-loading-dot"></div>
 				</div>
-				{hasActivePermission && (
-					<span className="agent-client-loading-status">
-						{t("chat.messages.waitingForPermission")}
-					</span>
-				)}
+				<TurnStatusLine hasActivePermission={hasActivePermission} />
 			</div>
 
 			{/* Scroll to bottom button */}

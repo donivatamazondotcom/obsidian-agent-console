@@ -121,6 +121,15 @@ import {
 
 // Context imports
 import { useChatContext } from "./ChatContext";
+import {
+	TurnActivityStoreContext,
+	useTurnActivityTicker,
+} from "./turn-activity-context";
+import {
+	createTurnActivityStore,
+	type TurnActivityStore,
+} from "../services/turn-activity-store";
+import { deriveLiveTurnActivity } from "../resolvers/turn-activity";
 
 // Hooks imports
 import { useSettings } from "../hooks/useSettings";
@@ -2116,6 +2125,27 @@ export function ChatPanel({
 	autoExportRef.current = autoExportIfEnabled;
 	closeSessionRef.current = agent.closeSession;
 
+	// Chat Timestamps PR 3: the live status line and running tool-row times.
+	// One store per panel, provided to the whole panel; this panel's ticker is
+	// its only publisher. The ticker runs only while this tab's turn runs and
+	// the tab is visible (an inactive tab renders a placeholder list), and
+	// reads the transcript and clocks through refs and stable callbacks.
+	const turnActivityStoreRef = useRef<TurnActivityStore | null>(null);
+	if (turnActivityStoreRef.current === null) {
+		turnActivityStoreRef.current = createTurnActivityStore();
+	}
+	const turnActivityStore = turnActivityStoreRef.current;
+	const getLiveTurnClock = agent.getLiveTurnClock;
+	useTurnActivityTicker(isSending && (isActive ?? false), turnActivityStore, () =>
+		deriveLiveTurnActivity(
+			messagesRef.current,
+			getLiveTurnClock(),
+			(terminalId) => terminalClientRef.current.getTerminalTiming(terminalId),
+			Date.now(),
+		),
+		agent.hasActivePermission,
+	);
+
 	// Persist context notes when they change mid-session (T13 persistence).
 	// Refs keep the dep list to notes only — avoids a write on every
 	// streamed message update.
@@ -3563,6 +3593,7 @@ export function ChatPanel({
 	);
 
 	return (
+		<TurnActivityStoreContext.Provider value={turnActivityStore}>
 		<div
 			ref={containerRef}
 			className="agent-client-chat-view-container"
@@ -3586,5 +3617,6 @@ export function ChatPanel({
 			{contextStripElement}
 			{inputAreaElement}
 		</div>
+		</TurnActivityStoreContext.Provider>
 	);
 }
