@@ -76,10 +76,33 @@ describe("stamp styles", () => {
 });
 
 describe("message hover row (I381)", () => {
-	it("is opaque, so its time and copy button cover the text under them instead of overlapping it", () => {
-		// Same tone as the chat pane and the user bubble, so the bar reads as part of either.
-		expect(decls(".agent-client-message-actions", "background-color")).toEqual(["var(--background-primary)"]);
+	it("is opaque, so its time and copy button cover the text under them instead of overprinting it", () => {
+		expect(decls(".agent-client-message-actions", "background-color")).toEqual(["var(--ac-message-surface)"]);
 		expect(decls(".agent-client-message-actions", "border-radius")).toEqual(["var(--radius-s)"]);
+		// Room on each side, so a covered glyph isn't left half-visible at the bar's edge.
+		expect(decls(".agent-client-message-actions", "padding")).toEqual(["0 var(--size-2-1)"]);
+	});
+
+	it("its fill matches what is behind the message: the leaf's tone, or the user bubble's own", () => {
+		// Main-area leaves paint --background-primary; sidebar leaves paint
+		// --background-secondary (measured in Obsidian 11/16). Agent replies are
+		// transparent, so the bar must take the leaf's tone or it shows as a patch.
+		expect(decls(".agent-client-chat-view-container", "--ac-message-surface")).toEqual([
+			"var(--background-primary)",
+		]);
+		for (const sel of [
+			".mod-left-split .agent-client-chat-view-container",
+			".mod-right-split .agent-client-chat-view-container",
+		]) {
+			expect(decls(sel, "--ac-message-surface"), sel).toEqual(["var(--background-secondary)"]);
+		}
+		// A user bubble paints its own background, so the bar inside it matches that.
+		expect(decls(".agent-client-message-renderer.agent-client-message-user", "background-color")).toEqual([
+			"var(--background-primary)",
+		]);
+		expect(decls(".agent-client-message-renderer.agent-client-message-user", "--ac-message-surface")).toEqual([
+			"var(--background-primary)",
+		]);
 	});
 });
 

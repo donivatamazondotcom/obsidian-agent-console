@@ -793,12 +793,22 @@ button.agent-client-message-tool-call-summary:focus-visible {
 /* Main container */
 .agent-client-chat-view-container {
 	--ac-chat-font-size: var(--font-text-size);
+	/* The tone behind a message, for anything that must cover message text
+	   (the hover row, I381). Agent replies are transparent, so this follows
+	   the leaf: main-area leaves paint --background-primary, sidebar leaves
+	   --background-secondary (measured in Obsidian 11/16). */
+	--ac-message-surface: var(--background-primary);
 	height: 100%;
 	flex: 1;
 	min-height: 0;
 	display: flex;
 	flex-direction: column;
 	padding: 0;
+}
+
+.mod-left-split .agent-client-chat-view-container,
+.mod-right-split .agent-client-chat-view-container {
+	--ac-message-surface: var(--background-secondary);
 }
 
 /* Header — uses Obsidian's .nav-header + .nav-buttons-container pattern */
@@ -2067,6 +2077,7 @@ del.acp-header-branded-profile {
 	margin-left: 8px;
 	margin-right: 8px;
 	background-color: var(--background-primary);
+	--ac-message-surface: var(--background-primary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-m);
 }
@@ -2084,15 +2095,18 @@ del.acp-header-branded-profile {
 
 /* Opaque (I381): the bar sits over the message's bottom-right corner, and
  * since the hover time joined the copy button it is wide enough to land on
- * the last line of text. A background matching the pane and the user bubble
- * covers that text while hovering instead of overprinting it. */
+ * the last line of text. A fill in the tone behind the message (the leaf for
+ * agent replies, the bubble for the user's) covers that text while hovering
+ * instead of overprinting it. The cost: the end of the last line is hidden
+ * while the pointer is over the message. */
 .agent-client-message-actions {
 	position: absolute;
 	bottom: 4px;
 	right: 8px;
 	display: flex;
 	gap: 2px;
-	background-color: var(--background-primary);
+	padding: 0 var(--size-2-1);
+	background-color: var(--ac-message-surface);
 	border-radius: var(--radius-s);
 	opacity: 0;
 	pointer-events: none;
