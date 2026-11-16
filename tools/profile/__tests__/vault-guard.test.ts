@@ -11,7 +11,7 @@
 import { describe, it, expect } from "vitest";
 import { checkProfileTarget, visibilityProblem } from "../vault-guard";
 
-const seedable = () => true;
+const seedable = (): string | null => null;
 
 describe("checkProfileTarget", () => {
 	it("allows studio and ST-* vaults that match the request", () => {
@@ -68,9 +68,16 @@ describe("checkProfileTarget", () => {
 		expect(
 			checkProfileTarget(
 				{ requested: "studio", resolvedName: "studio", basePath: "/x/studio" },
-				() => false,
+				() => "plugins/agent-console/data.template.json",
 			),
 		).toMatch(/data\.template\.json/);
+		// The message names the file that is missing, not always the template.
+		expect(
+			checkProfileTarget(
+				{ requested: "ST-old", resolvedName: "ST-old", basePath: "/x/ST-old" },
+				() => "plugins/agent-console-profiler-probe/manifest.json",
+			),
+		).toMatch(/agent-console-profiler-probe\/manifest\.json.*respawn ST studios/);
 	});
 });
 

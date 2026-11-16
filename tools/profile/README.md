@@ -15,7 +15,7 @@ npm run profile:trend      # print the history (offline)
 
 Other flags: `--vault=ST-foo`, `--runs=7`, `--update` (rewrite the baseline), `--update-golden` (rewrite the drift anchor; rarely, on purpose), `--gate` (exit 1 on a step regression), `--no-seed`, `--sha=<sha>`.
 
-Each run hard-reloads the vault about 6 times. **Never point it at a vault with live chats.** The guard (`vault-guard.ts`) refuses any vault that is not `studio` or `ST-*`, any vault other than the one requested, and any vault without the plugin's `data.template.json`. It seeds the vault it measures, at that vault's own base path and config folder.
+Each run hard-reloads the vault about 6 times. **Never point it at a vault with live chats.** The guard (`vault-guard.ts`) refuses any vault that is not `studio` or `ST-*`, any vault other than the one requested, and any vault without the plugin's `data.template.json` or the profiler's helper plugin (respawn ST studios made before the helper existed). It seeds the vault it measures, at that vault's own base path and config folder.
 
 ## Scenarios
 
@@ -28,7 +28,13 @@ Each run hard-reloads the vault about 6 times. **Never point it at a vault with 
 
 `stream-tokens` is a layout proxy, not a streaming test: it never goes through React or the markdown renderer, and its `LayoutCount` (50 forced + 1) is set by the proxy itself. A real-stream scenario needs a fake streaming agent.
 
-Timed waits run in the page, on the page clock, so no CLI round trip (~50–90 ms here) is inside a number. Cold start arms its wait in the first evaluate that sees the new document and refuses a transcript already shown then; the hit stays in the page, so collecting it is safe to retry. Activate clicks and times in one evaluate: the click runs as a page task, `activateMs` ends at the DOM commit and `activateFrameMs` once the next frame's style, layout and paint are done (no frame within 1 s fails the scenario). The observers' own cost is reported (`waitCheckMs` on cold start) and never gated. Clicks, scrolls, the stream proxy, `Page.reload` and each timed evaluate are sent once and never retried, so a dropped reply fails the run instead of repeating an action. Reads (installing and reading the long-frame observer, collecting the cold-start hit, the reload sentinel) are retried on a dropped reply because repeating them changes nothing. An untimed wait sends a fresh wait after a dropped reply. The cold-start arm runs once per document. `armedAtMs` (when the cold-start wait was armed) is recorded next to `wallMs`.
+Timed waits run in the page, on the page clock, so no CLI round trip (~50–90 ms here) is inside a number. Cold start can't be armed over CDP: the restore finishes (~230–320 ms) before the first evaluate on the new document lands (~410 ms). So the fixture vault carries a helper plugin, below, that arms the wait in its `onload`, before the restore. The wait refuses a transcript already shown when it arms, and its hit stays in the page, so collecting it is safe to retry. Activate clicks and times in one evaluate: the click runs as a page task, `activateMs` ends at the DOM commit and `activateFrameMs` once the next frame's style, layout and paint are done (no frame within 1 s fails the scenario). The observers' own cost is reported (`waitCheckMs` on cold start) and never gated. Clicks, scrolls, the stream proxy, `Page.reload` and each timed evaluate are sent once and never retried, so a dropped reply fails the run instead of repeating an action. Reads (installing and reading the long-frame observer, collecting the cold-start hit, the reload sentinel) are retried on a dropped reply because repeating them changes nothing. An untimed wait sends a fresh wait after a dropped reply. The cold-start arm runs once per document. `armedAtMs` (when the cold-start wait was armed) is recorded next to `wallMs`.
+
+## The helper plugin
+
+`agent-console-profiler-probe` lives only in the fixture vault (`tools/screenshots/fixtures/studio/.obsidian/plugins/`), is enabled before `agent-console`, and never ships. Its `main.js` is generated from `probe-plugin.ts`, which embeds the profiler's own wait (`armWaitJs`), so there is one definition; a test fails when the committed file drifts. Regenerate it with `npm run profile:gen-probe` after changing the wait.
+
+It does nothing unless its `data.json` says `{"armed":true}`. The profiler arms it after the vault guard approves, on every run, and disarms it on every exit (including `process.exit`, Ctrl-C and SIGTERM). Only a SIGKILL can leave it armed, and the smoke-studio and isolated-screenshot copies exclude its `data.json`, so an armed file never travels. A missing arm once the layout is ready fails cold start with a message naming the helper.
 
 Long frames come from `long-animation-frame` entries (`longtask` only where LoAF is unsupported). The buffer is cleared at the start of each scenario. `maxStyleLayoutMs` is the time from a frame's `styleAndLayoutStart` to its end.
 
@@ -44,6 +50,7 @@ A run is **incomplete** when a scenario fails in any pass (a missing tab, row or
 | `profile-golden.json` | The immutable drift anchor (50%, warn only) |
 | `profile-history.jsonl` | One median-of-N point per release |
 | `profile-history-2026-07-v1.jsonl` | The July v1.9.0 points. Not comparable: they predate the navigation-start `wallMs` and the rail-tab and seeding fixes |
+| `profile-history-2026-11-prehelper.jsonl` | The 11/15 point. Not comparable: its cold start was armed over CDP, before the helper plugin |
 
 Each history point records the plugin version from the vault's `manifest.json`, the git sha of the checkout its `main.js` resolves into, a hash of that `main.js`, the Obsidian version and the host. Step 1d runs before the version bump, so a point shows the previous version: `2.4.0@83cc049e` is the v2.5.0 release candidate. Points compare only on the same host.
 

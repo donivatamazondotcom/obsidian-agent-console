@@ -28,24 +28,16 @@ export const MARK_OLD_DOCUMENT_JS =
 /**
  * `""` while the marked document is still current (or the new one isn't
  * ready); else the new page's vault identity, as JSON `{name, base}`.
- * `armJs` runs once, in the first evaluate that sees the new document (even
- * before `app` exists), so a timed wait is armed as early as possible.
  */
-export function newDocumentJs(armJs = ""): string {
-	return (
-		`(function(){if(window.__profOldDocument===true)return "";` +
-		(armJs ? `if(!window.__profArmed){window.__profArmed=true;${armJs};}` : "") +
-		`try{return ${VAULT_ID_JS};}catch(e){return "";}})()`
-	);
-}
-
-export const IS_NEW_DOCUMENT_JS = newDocumentJs();
+export const IS_NEW_DOCUMENT_JS =
+	`(function(){if(window.__profOldDocument===true)return "";try{return ${VAULT_ID_JS};}catch(e){return "";}})()`;
 
 const MO_OPTIONS =
 	'{childList:true,subtree:true,attributes:true,attributeFilter:["aria-selected","style","class"]}';
 
 /**
  * Statement: arm a wait for `checkJs` that stores its hit in the page
+ * (the profiler's helper plugin runs it in `onload`, before the restore)
  * (`window.__profArm`), so it can be collected later by any number of
  * calls without losing the time. Records `held` when the check is already
  * true at arming, and a thrown check as an error.
@@ -66,13 +58,15 @@ export function armWaitJs(checkJs: string): string {
 
 /**
  * Collect the armed wait: the stored hit (with its check count and cost),
- * PRE_HELD, `"CHECK-ERR:<msg>"`, `"NO-ARM"`, or `""` when `timeoutMs`
- * passes first. Reading only: safe to retry.
+ * PRE_HELD, `"CHECK-ERR:<msg>"`, `"NO-ARM"` (nothing armed and the layout
+ * is ready, so the helper's `onload` has run without arming), or `""` when
+ * `timeoutMs` passes first or the layout isn't ready yet. Reading only:
+ * safe to retry.
  */
 export function collectArmedJs(timeoutMs: number): string {
 	return (
 		`(function(){return new Promise(function(res){var a=window.__profArm;` +
-		`if(!a){res("NO-ARM");return;}if(a.held){res(${JSON.stringify(PRE_HELD_TOKEN)});return;}` +
+		`if(!a){var ready=false;try{ready=!!(app&&app.workspace&&app.workspace.layoutReady);}catch(e){}res(ready?"NO-ARM":"");return;}if(a.held){res(${JSON.stringify(PRE_HELD_TOKEN)});return;}` +
 		`var done=function(){if(a.err){res("CHECK-ERR:"+a.err);return;}var o=JSON.parse(a.hit);o.checks=a.n;o.checkMs=Math.round(a.cost*10)/10;o.armedAt=Math.round(a.armedAt);res(JSON.stringify(o));};` +
 		`if(a.hit||a.err){done();return;}var t=setTimeout(function(){a.cb=null;res("");},${timeoutMs});` +
 		`a.cb=function(){clearTimeout(t);done();};});})()`
@@ -196,6 +190,19 @@ export function clickAndAwaitJs(clickJs: string, checkJs: string, timeoutMs: num
 		`var at=${clickJs};if(at<0){fin("NO-TARGET");return;}clickedAt=at;chk();},0);` +
 		`});})()`
 	);
+}
+
+/**
+ * Why a collectArmedJs result can't be a measurement, or null when it is a
+ * hit (or `""`, not yet). `what` names the awaited condition.
+ */
+export function armedResultError(value: unknown, what: string): string | null {
+	if (value === PRE_HELD_TOKEN) return `${what}: already true when the wait was armed, so it can't be timed`;
+	if (value === "NO-ARM") {
+		return `${what}: the profiler helper plugin did not arm the wait – is agent-console-profiler-probe in the vault and enabled?`;
+	}
+	if (typeof value === "string" && value.startsWith("CHECK-ERR:")) return `${what}: the check threw — ${value.slice(10)}`;
+	return null;
 }
 
 export interface InteractionTiming {

@@ -187,6 +187,7 @@ if [ ! -d "$STUDIO_DIR" ]; then
 		--exclude '.obsidian/plugins/agent-console/main.js' \
 		--exclude '.obsidian/plugins/agent-console/styles.css' \
 		--exclude '.obsidian/plugins/agent-console/manifest.json' \
+		--exclude '.obsidian/plugins/agent-console-profiler-probe/data.json' \
 		--exclude '.DS_Store' \
 		"$FIXTURES/" "$STUDIO_DIR/"
 	deploy_build
