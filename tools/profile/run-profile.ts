@@ -60,7 +60,7 @@ import { checkProfileTarget } from "./vault-guard";
 import {
 	MARK_OLD_DOCUMENT_JS,
 	IS_NEW_DOCUMENT_JS,
-	OBSERVER_INSTALL_JS,
+	observerInstallJs,
 	OBSERVER_READ_JS,
 	PRE_HELD,
 	armWaitJs,
@@ -289,7 +289,8 @@ function makeContext(cdp: Cdp, expected: VaultId): ProfileContext {
 			return toSnapshot(resp.metrics ?? []);
 		},
 		async installObserver(): Promise<void> {
-			const type = await evalInPage<string>(OBSERVER_INSTALL_JS);
+			const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+			const type = await evalInPage<string>(observerInstallJs(nonce));
 			if (typeof type !== "string" || type.startsWith("OBS-ERR")) {
 				throw new Error(`long-frame observer: ${String(type)}`);
 			}

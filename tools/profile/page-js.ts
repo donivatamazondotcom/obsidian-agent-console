@@ -52,10 +52,14 @@ const MO_OPTIONS =
  */
 export function armWaitJs(checkJs: string): string {
 	return (
-		`var a=window.__profArm={hit:"",held:false,err:"",n:0,cost:0,cb:null};` +
+		`var a=window.__profArm={hit:"",held:false,err:"",n:0,cost:0,cb:null,armedAt:performance.now()};` +
 		`var chk=function(){try{var s=performance.now();var v=${checkJs};a.n++;a.cost+=performance.now()-s;return v;}catch(e){a.err=String(e&&e.message||e);return "";}};` +
 		`if(chk()){a.held=true;}else if(!a.err){var mo=new MutationObserver(function(){if(a.hit||a.err)return;var v=chk();` +
-		`if(v||a.err){a.hit=v;mo.disconnect();if(a.cb)a.cb();}});mo.observe(document.documentElement,${MO_OPTIONS});}`
+		// Observe `document`, not documentElement: the first evaluate on a
+		// new document can run before documentElement exists. The observer
+		// disconnects itself after 60 s whatever happens to the run.
+		`if(v||a.err){a.hit=v;mo.disconnect();if(a.cb)a.cb();}});mo.observe(document,${MO_OPTIONS});` +
+		`setTimeout(function(){mo.disconnect();},60000);}`
 	);
 }
 
@@ -68,7 +72,7 @@ export function collectArmedJs(timeoutMs: number): string {
 	return (
 		`(function(){return new Promise(function(res){var a=window.__profArm;` +
 		`if(!a){res("NO-ARM");return;}if(a.held){res(${JSON.stringify(PRE_HELD_TOKEN)});return;}` +
-		`var done=function(){if(a.err){res("CHECK-ERR:"+a.err);return;}var o=JSON.parse(a.hit);o.checks=a.n;o.checkMs=Math.round(a.cost*10)/10;res(JSON.stringify(o));};` +
+		`var done=function(){if(a.err){res("CHECK-ERR:"+a.err);return;}var o=JSON.parse(a.hit);o.checks=a.n;o.checkMs=Math.round(a.cost*10)/10;o.armedAt=Math.round(a.armedAt);res(JSON.stringify(o));};` +
 		`if(a.hit||a.err){done();return;}var t=setTimeout(function(){a.cb=null;res("");},${timeoutMs});` +
 		`a.cb=function(){clearTimeout(t);done();};});})()`
 	);
@@ -181,15 +185,15 @@ export function clickAndAwaitJs(clickJs: string, checkJs: string, timeoutMs: num
 		// once that frame's rendering is done.
 		`function chk(){if(done||clickedAt<0)return;var v=check();if(!v||done)return;var pageMs=performance.now();` +
 		`if(mo)mo.disconnect();mo=null;if(t)clearTimeout(t);t=null;` +
-		`var ft=setTimeout(function(){fin("NO-FRAME");},1000);` +
-		`if(typeof requestAnimationFrame!=="function"){clearTimeout(ft);fin("NO-FRAME");return;}` +
+		`var ft=setTimeout(function(){fin("NO-FRAME:"+document.visibilityState);},1000);` +
+		`if(typeof requestAnimationFrame!=="function"){clearTimeout(ft);fin("NO-FRAME:"+document.visibilityState);return;}` +
 		`requestAnimationFrame(function(){setTimeout(function(){clearTimeout(ft);` +
 		`fin(JSON.stringify({clickedAt:clickedAt,pageMs:pageMs,frameMs:performance.now()}));},0);});}` +
 		`mo=new MutationObserver(chk);` +
 		`mo.observe(document.documentElement,${MO_OPTIONS});` +
 		`t=setTimeout(function(){fin("");},${timeoutMs});` +
 		// Re-check right before the click: the page may have changed since.
-		`setTimeout(function(){if(done)return;if(check()){fin(${JSON.stringify(PRE_HELD_TOKEN)});return;}` +
+		`setTimeout(function(){if(done)return;var pre=check();if(done)return;if(pre){fin(${JSON.stringify(PRE_HELD_TOKEN)});return;}` +
 		`var at=${clickJs};if(at<0){fin("NO-TARGET");return;}clickedAt=at;chk();},0);` +
 		`});})()`
 	);
@@ -205,7 +209,9 @@ export interface InteractionTiming {
 export function parseInteraction(value: unknown, what: string): InteractionTiming {
 	if (value === PRE_HELD) throw new Error(`${what}: already true before the click, so it can't be timed`);
 	if (value === "NO-TARGET") throw new Error(`${what}: the click target is missing`);
-	if (value === "NO-FRAME") throw new Error(`${what}: no frame rendered within 1 s (is the page hidden?)`);
+	if (typeof value === "string" && value.startsWith("NO-FRAME")) {
+		throw new Error(`${what}: no frame rendered within 1 s (page ${value.slice(9) || "state unknown"})`);
+	}
 	if (typeof value === "string" && value.startsWith("CHECK-ERR:")) throw new Error(`${what}: the check threw — ${value.slice(10)}`);
 	if (value === "" || value === undefined || value === null) throw new Error(`${what}: timed out`);
 	if (typeof value !== "string") throw new Error(`${what}: malformed timing ${JSON.stringify(value)}`);
@@ -222,17 +228,20 @@ export interface WaitHit {
 	/** How many times the in-page observer ran the check, and how long that took. */
 	checks?: number;
 	checkMs?: number;
+	/** Page clock when an armed wait was armed (cold start). */
+	armedAt?: number;
 }
 
 /** Parse a check result; null for no hit or a malformed value. */
 export function parseWaitHit(value: unknown): WaitHit | null {
 	if (typeof value !== "string" || value === "") return null;
 	try {
-		const o = JSON.parse(value) as { detail?: unknown; pageMs?: unknown; checks?: unknown; checkMs?: unknown };
+		const o = JSON.parse(value) as { detail?: unknown; pageMs?: unknown; checks?: unknown; checkMs?: unknown; armedAt?: unknown };
 		if (typeof o.detail === "string" && typeof o.pageMs === "number") {
 			const hit: WaitHit = { detail: o.detail, pageMs: o.pageMs };
 			if (typeof o.checks === "number") hit.checks = o.checks;
 			if (typeof o.checkMs === "number") hit.checkMs = o.checkMs;
+			if (typeof o.armedAt === "number") hit.armedAt = o.armedAt;
 			return hit;
 		}
 	} catch {
@@ -243,7 +252,8 @@ export function parseWaitHit(value: unknown): WaitHit | null {
 
 /**
  * Install the long-frame observer once per document, and clear the buffer
- * on EVERY call, so a scenario reads only frames from its own window.
+ * on every NEW install (each call gets a nonce), so a scenario reads only
+ * frames from its own window.
  * Observes `long-animation-frame` only (falling back to `longtask` where
  * LoAF is unsupported), so one stall is never counted twice. Each entry
  * keeps its `entryType`, and `styleAndLayoutMs` is computed from the LoAF
@@ -252,8 +262,11 @@ export function parseWaitHit(value: unknown): WaitHit | null {
  * `buffered: true` backfills frames from earlier in the document, which is
  * how cold start sees the restore's frames when it installs after reload.
  */
-export const OBSERVER_INSTALL_JS =
-	"(function(){window.__profBuf=[];if(window.__profObs)return window.__profObsType;" +
+export function observerInstallJs(nonce: string): string {
+	// The nonce makes a retried install (after a dropped reply) a no-op for
+	// the buffer, so it can't erase frames cold start's backfill delivered.
+	return (
+	`(function(){if(window.__profInstallNonce!==${JSON.stringify(nonce)}){window.__profInstallNonce=${JSON.stringify(nonce)};window.__profBuf=[];}if(window.__profObs)return window.__profObsType;` +
 	"var types=(window.PerformanceObserver&&PerformanceObserver.supportedEntryTypes)||[];" +
 	'var type=types.indexOf("long-animation-frame")>=0?"long-animation-frame":(types.indexOf("longtask")>=0?"longtask":"");' +
 	'if(!type)return "OBS-ERR:no long-frame entry type";' +
@@ -261,7 +274,12 @@ export const OBSERVER_INSTALL_JS =
 	"var sl=e.styleAndLayoutStart?Math.max(0,e.startTime+e.duration-e.styleAndLayoutStart):0;" +
 	"window.__profBuf.push({entryType:e.entryType,duration:e.duration,blockingDuration:e.blockingDuration||0,styleAndLayoutMs:sl,startTime:e.startTime});}});" +
 	"po.observe({type:type,buffered:true});window.__profObs=po;window.__profObsType=type;return type;}" +
-	'catch(err){return "OBS-ERR:"+err.message;}})()';
+	'catch(err){return "OBS-ERR:"+err.message;}})()'
+	);
+}
+
+/** An install with a fixed nonce (tests). */
+export const OBSERVER_INSTALL_JS = observerInstallJs("default");
 
 /**
  * Read the buffered entries WITHOUT clearing them (install clears), so a

@@ -85,7 +85,7 @@ export const DEFAULT_FLOORS: Record<string, number> = {
  */
 // scrollEvents is a validity count (did the transcript scroll), not a cost;
 // waitCheckMs is the profiler's own observer cost, reported for honesty.
-export const DEFAULT_GATE_EXCLUDE: readonly string[] = ["JSHeapUsedSize", "scrollEvents", "waitCheckMs"];
+export const DEFAULT_GATE_EXCLUDE: readonly string[] = ["JSHeapUsedSize", "scrollEvents", "waitCheckMs", "armedAtMs"];
 
 function round4(n: number): number {
 	return Math.round(n * 1e4) / 1e4;

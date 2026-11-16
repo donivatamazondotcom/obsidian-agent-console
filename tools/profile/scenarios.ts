@@ -55,9 +55,9 @@ export interface ProfileContext {
 	act<T = unknown>(js: string): Promise<T>;
 	/** `Performance.getMetrics` -> flattened snapshot. */
 	snapshot(): Promise<MetricSnapshot>;
-	/** Install the long-frame observer (once per document) and clear its buffer. */
+	/** Install the long-frame observer (once per document) and clear its buffer (retry-safe). */
 	installObserver(): Promise<void>;
-	/** Read and clear the buffered long-frame entries. */
+	/** Read the buffered long-frame entries (does not clear; the next install does). */
 	readObserver(): Promise<ObserverEntry[]>;
 	/**
 	 * Hard `Page.reload` (destroys the JS context; the on-disk seed wins).
@@ -149,7 +149,9 @@ const coldStartRestore: Scenario = {
 		// `buffered: true` backfills the restore's frames from before observe().
 		await ctx.installObserver();
 		const hit = await ctx.collectArmed(30_000, `${HEAVY_MESSAGE_COUNT} restored rows`);
-		ctx.log(`restore: ${HEAVY_MESSAGE_COUNT} rows at ${hit.pageMs}ms after navigation start`);
+		ctx.log(
+			`restore: wait armed at ${hit.armedAt ?? "?"}ms, ${HEAVY_MESSAGE_COUNT} rows at ${hit.pageMs}ms after navigation start`,
+		);
 		await ctx.sleep(500);
 		const obs = await ctx.readObserver();
 		// wallMs = navigation start -> full heavy transcript, from the page's
@@ -157,8 +159,10 @@ const coldStartRestore: Scenario = {
 		// fixed 1.5 s post-reload sleep and are not comparable).
 		return mergeMetrics({}, obs, {
 			wallMs: hit.pageMs,
-			// The wait's own observer cost inside the measured window.
+			// The wait's own observer cost inside the measured window, and
+			// when it was armed (both informational, never gated).
 			waitCheckMs: hit.checkMs ?? 0,
+			armedAtMs: hit.armedAt ?? -1,
 		});
 	},
 };
