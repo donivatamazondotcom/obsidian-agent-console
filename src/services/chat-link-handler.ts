@@ -159,6 +159,19 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 	};
 
 	/**
+	 * The reveal after the missing notice. That notice already says why
+	 * nothing opened, so a leaf that closed during the reveal, or a reveal
+	 * that fails, adds no second notice; a failure is only logged.
+	 */
+	const revealAfterMissing = async (leaf: L): Promise<void> => {
+		try {
+			await revealAndFocus(leaf);
+		} catch (error) {
+			inputs.logError("[ChatLink] couldn't show the chat panel", error);
+		}
+	};
+
+	/**
 	 * `revealAndFocus` for a run that opened or switched to the chat: a leaf
 	 * that closed during the reveal ends the run with the could-not-open
 	 * notice instead of ending silently (I371).
@@ -245,17 +258,15 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 			if (again.target.kind === "missing") record = null;
 		}
 		if (!bridge) throw new CouldNotOpen("no bridge registered");
-		// The missing notice already tells the user why nothing opened, so a
-		// leaf that closes during these reveals adds no second notice.
 		if (!record) {
 			notify(t("notices.chatLinkMissing"));
-			await revealAndFocus(leaf);
+			await revealAfterMissing(leaf);
 			return;
 		}
 		const result = await bridge.openFromHistory(record);
 		if (result === "gone") {
 			notify(t("notices.chatLinkMissing"));
-			await revealAndFocus(leaf);
+			await revealAfterMissing(leaf);
 			return;
 		}
 		// Settle before the final reveal, so a failed reveal can't skip it.

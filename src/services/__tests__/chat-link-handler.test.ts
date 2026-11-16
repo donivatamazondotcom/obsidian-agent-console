@@ -590,6 +590,7 @@ describe("chat link handler — a chat in history", () => {
 		env.bridges.set(a, fakeBridge(() => a, [], { result: "gone" }));
 		await env.fire({ id: "x" }, 0);
 		expect(env.notices).toEqual([MISSING]);
+		expect(env.events).toEqual(["reveal:A", "active:A:true"]);
 	});
 
 	it("a chat that isn't in history shows the missing notice and reveals nothing", async () => {
@@ -987,6 +988,40 @@ describe("chat link handler — a leaf that closes during a reveal (I371)", () =
 		expect(env.notices).toEqual([MISSING]);
 		expect(env.errors).toEqual([]);
 		expect(env.rateState()).toEqual({ lastAt: 0, lastId: "y" });
+	});
+
+	it("step 5, no record: a panel that stays open is revealed and focused after the missing notice", async () => {
+		const env = makeEnv({
+			records: [record("x", "s-x")],
+			perLeafTabStates: [
+				{
+					leafId: "B",
+					activeTabId: "b1",
+					tabs: [
+						{ tabId: "b1", agentId: "kiro", label: "y", recordId: "y", sessionId: "s-y" } as never,
+					],
+				} as PerLeafTabState,
+			],
+		});
+		const a = makeLeaf("A");
+		env.addLeaf(a, fakeBridge(() => a));
+		const b = makeLeaf("B");
+		b.mountAfterFrames = null;
+		env.addLeaf(b, null);
+		await env.fire({ id: "y" }, 0);
+		expect(env.events).toEqual(["reveal:B", "reveal:A", "active:A:true"]);
+		expect(env.notices).toEqual([MISSING]);
+	});
+
+	it("step 5, gone: a reveal that rejects after the missing notice is logged, with no second notice", async () => {
+		const env = makeEnv({ records: [record("x")] });
+		const a = makeLeaf("A");
+		env.addLeaf(a, fakeBridge(() => a, [], { result: "gone" }));
+		env.rejectNextReveals(1);
+		await env.fire({ id: "x" }, 0);
+		expect(env.notices).toEqual([MISSING]);
+		expect(env.errors).toHaveLength(1);
+		expect(env.rateState()).toEqual({ lastAt: 0, lastId: "x" });
 	});
 });
 
