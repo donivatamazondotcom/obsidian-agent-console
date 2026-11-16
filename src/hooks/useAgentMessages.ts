@@ -482,7 +482,7 @@ export function useAgentMessages(
 			if (!flushSchedulerRef.current) {
 				flushSchedulerRef.current = createUpdateFlushScheduler(
 					flushPendingUpdates,
-					createDomFlushSchedulerDeps(window, activeDocument),
+					createDomFlushSchedulerDeps(window, document),
 				);
 			}
 			flushSchedulerRef.current.schedule();

@@ -214,6 +214,7 @@ describe("createQuickPromptBridge — refactor fidelity", () => {
 
 		expect(setComposerText).toHaveBeenCalledWith("aXb");
 		expect(popoutDoc.activeElement).toBe(textarea);
+		expect(textarea.selectionStart).toBe(2);
 	});
 
 	it("newTab prompts route through openInNewTab, never the composer", () => {

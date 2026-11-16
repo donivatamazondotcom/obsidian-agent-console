@@ -6,5 +6,13 @@
 		"reason": "false-positive-unreported",
 		"note": "Inside page.evaluate, the capture driver compares activeDocument with the main window's document on purpose, to detect a settings window that Obsidian opened. Replacing document with activeDocument would make the check always false. Node tooling, not plugin code. (I383)",
 		"link": "https://github.com/obsidianmd/eslint-plugin"
+	},
+	{
+		"rule": "obsidianmd/prefer-active-doc",
+		"file": "src/hooks/useAgentMessages.ts",
+		"count": 1,
+		"reason": "deferred",
+		"note": "The update flush scheduler must read frames and visibility from the same window (I168). It is built once per tab, so activeDocument would capture whichever window had focus at the first flush and could stall updates for that tab's life. Kept on the main window's (window, document) pair until I384 derives both from the chat view's own document.",
+		"link": "https://github.com/obsidianmd/eslint-plugin"
 	}
 ]
