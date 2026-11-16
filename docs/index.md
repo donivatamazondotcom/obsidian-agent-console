@@ -44,6 +44,9 @@ features:
   - icon: 🔍
     title: Your Chats Come Back
     details: Tabs and chats come back after a restart, and a closed chat is one command away. Search every past chat by title or by what was said in it, then pick up where you left off. Past the limit you set, the least recently used chat goes to the trash instead of being deleted, so its transcript isn't lost.
+  - icon: 🧷
+    title: Every Chat Has an Address
+    details: Right-click a chat's tab and choose "Copy link to chat" to get its obsidian:// link. Paste it into a meeting note, a to-do in your task app, or a project page, and one click opens that chat in Obsidian. A link opens only chats in your vault's history and never sends a message.
   - icon: 🪶
     title: Context Budget Goes Further
     details: A pinned note goes to the agent in full with your first message, so it can start right away. After that it's sent as a link instead of being pasted again every turn, so a long chat uses 62–77% fewer context tokens than re-sending the note each time. That leaves more of the window for the work.
