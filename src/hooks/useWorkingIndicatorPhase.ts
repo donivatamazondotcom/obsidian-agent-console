@@ -127,7 +127,8 @@ export function useWorkingIndicatorPhase({
 			default: {
 				// A new transition kind must be handled here, not ignored.
 				const unhandled: never = transition;
-				return unhandled;
+				void unhandled;
+				return;
 			}
 		}
 	}, [isSending, lastTurnEnd, clearTimer]);
