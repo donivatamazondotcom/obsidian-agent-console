@@ -616,6 +616,11 @@ describe("ChatExporter — a tool call its turn closed (Chat Timestamps PR 3)", 
 		expect(content).not.toContain("**Status**: in_progress");
 	});
 
+	it("with no prompt before it keeps the raw status", async () => {
+		const { content } = await exportAndRead([assistantMsg([closed])]);
+		expect(content).toContain("**Status**: in_progress");
+	});
+
 	it("with no turn end before it keeps the raw status", async () => {
 		const { content } = await exportAndRead([prompt(), assistantMsg([closed])]);
 		expect(content).toContain("**Status**: in_progress");

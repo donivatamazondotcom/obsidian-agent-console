@@ -78,12 +78,37 @@ describe("deriveTurnActivity: the line with no tool running", () => {
 });
 
 describe("deriveTurnActivity: running rows", () => {
+	it("a command that exited: the line adds the turn's last update, since the command says nothing more", () => {
+		const c = clock({ hasUpdate: true, lastUpdateAt: T0 + 45 * SEC });
+		const a = run(T0 + 70 * SEC, c, [
+			call({ terminalTiming: { lastOutputAt: T0 + 40 * SEC, exitedAt: T0 + 50 * SEC, releasedAt: null } }),
+		]);
+		expect(a.line).toBe("· 1m · last update 25s ago");
+	});
+
+	it("a call keeps its clock while a different call waits on you", () => {
+		const a = run(T0 + 70 * SEC, clock({ hasUpdate: true }), [
+			call({ toolCallId: "runs", startedAt: T0 + 10 * SEC }),
+			call({ toolCallId: "asks", startedAt: T0 + 10 * SEC, requestedAt: T0 + 20 * SEC, answeredAt: null }),
+		]);
+		expect(a.rows.runs).toBe("1m");
+		expect(a.rows.asks).toBe("10s");
+	});
+
+	it("a long title stays apart from the facts, so the facts can always be shown", () => {
+		const title = "Check the build log for the failing integration test and report back";
+		const a = run(T0 + 70 * SEC, clock({ hasUpdate: true }), [call({ title, lastOutputAt: T0 + 69 * SEC })]);
+		expect(a.lineTitle).toBe(`Running: ${title}`);
+		expect(a.line).toBe("· 1m");
+	});
+
 	it("a command the plugin runs, before its first output", () => {
 		const a = run(T0 + 70 * SEC, clock({ hasUpdate: true }), [
 			call({ terminalTiming: { lastOutputAt: null, exitedAt: null, releasedAt: null } }),
 		]);
 		expect(a.rows).toEqual({ tc1: "1m · no output yet" });
-		expect(a.line).toBe("Running npm test · 1m");
+		expect(a.lineTitle).toBe("Running: npm test");
+		expect(a.line).toBe("· 1m");
 	});
 
 	it("a command the plugin runs, after it printed", () => {
@@ -103,14 +128,16 @@ describe("deriveTurnActivity: running rows", () => {
 	it("an agent-run tool that streams its output", () => {
 		const a = run(T0 + 70 * SEC, clock({ hasUpdate: true }), [call({ lastOutputAt: T0 + 65 * SEC })]);
 		expect(a.rows.tc1).toBe("1m · output 5s ago");
-		expect(a.line).toBe("Running npm test · 1m");
+		expect(a.lineTitle).toBe("Running: npm test");
+		expect(a.line).toBe("· 1m");
 	});
 
 	it("an agent-run tool with no output signal: elapsed only, and the line adds the turn's last update", () => {
 		const c = clock({ hasUpdate: true, lastUpdateAt: T0 + 40 * SEC });
 		const a = run(T0 + 70 * SEC, c, [call({ title: "Bash" })]);
 		expect(a.rows.tc1).toBe("1m");
-		expect(a.line).toBe("Running Bash · 1m · last update 30s ago");
+		expect(a.lineTitle).toBe("Running: Bash");
+		expect(a.line).toBe("· 1m · last update 30s ago");
 	});
 
 	it("an agent-run tool runs for an hour with no output: still the plain elapsed time", () => {
@@ -124,7 +151,7 @@ describe("deriveTurnActivity: running rows", () => {
 			call({ toolCallId: "b", title: "second", startedAt: T0 + 30 * SEC }),
 			call({ toolCallId: "c", title: "older", startedAt: T0 + 10 * SEC }),
 		]);
-		expect(a.line?.startsWith("Running second ·")).toBe(true);
+		expect(a.lineTitle).toBe("Running: second");
 	});
 
 	it("a row leaves out its own finished and open permission waits", () => {
@@ -145,12 +172,13 @@ describe("deriveTurnActivity: running rows", () => {
 	it("a call with no known start gets no row text, and the line falls back to Working", () => {
 		const a = run(T0 + 70 * SEC, clock({ hasUpdate: true, lastUpdateAt: T0 + 60 * SEC }), [call({ startedAt: null })]);
 		expect(a.rows).toEqual({});
+		expect(a.lineTitle).toBeNull();
 		expect(a.line).toBe("Working 1m · last update 10s ago");
 	});
 
 	it("a call with no title is named by its kind of item", () => {
 		const a = run(T0 + 70 * SEC, clock({ hasUpdate: true }), [call({ title: null, lastOutputAt: T0 + 69 * SEC })]);
-		expect(a.line).toBe("Running Tool call · 1m");
+		expect(a.lineTitle).toBe("Running: Tool call");
 	});
 });
 
@@ -258,6 +286,16 @@ describe("deriveLiveTurnActivity: the ticker's read of the transcript", () => {
 		const lookup = (id: string) => (id === "term-1" ? { lastOutputAt: T0 + 28 * SEC, exitedAt: null, releasedAt: null } : null);
 		const a = deriveLiveTurnActivity(messages, c, lookup, T0 + 30 * SEC);
 		expect(a?.rows).toEqual({ cmd: "20s · output 2s ago", codex: "10s · output 5s ago" });
-		expect(a?.line).toBe("Running npm test · 10s");
+		expect(a?.lineTitle).toBe("Running: npm test");
+		expect(a?.line).toBe("· 10s");
+	});
+
+	it("a Codex-style row with an unknown terminal id and no output yet shows elapsed time only", () => {
+		const messages = [
+			msg("user", "p1", []),
+			msg("assistant", "a1", [item({ toolCallId: "codex", status: "in_progress", startedAt: T0 + 20 * SEC, endedAt: null, content: [{ type: "terminal", terminalId: "codex-own" }] })]),
+		];
+		const a = deriveLiveTurnActivity(messages, clock({ promptId: "p1", hasUpdate: true }), () => null, T0 + 50 * SEC);
+		expect(a?.rows).toEqual({ codex: "30s" });
 	});
 });

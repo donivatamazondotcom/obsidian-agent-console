@@ -195,7 +195,7 @@ describe("getLiveTurnClock", () => {
 		expect(result.current.getLiveTurnClock()?.lastOutputAtByCall.size).toBe(0);
 	});
 
-	it("is null after a Stop, and after clearing or restoring the chat", async () => {
+	it("is null after a Stop or a clear", async () => {
 		const { result } = setup();
 		await send(result);
 		act(() => result.current.discardPendingTurn(10));
@@ -204,9 +204,20 @@ describe("getLiveTurnClock", () => {
 		await send(result);
 		act(() => result.current.clearMessages());
 		expect(result.current.getLiveTurnClock()).toBeNull();
+	});
 
+	// The live turn itself belongs to its send (it ends at the send's answer);
+	// a restore only empties the per-turn facts, and isSending going false
+	// stops the ticker.
+	it("a restore during a turn empties its output map and update flag", async () => {
+		const { result } = setup();
 		await send(result);
+		await feed(result, tool("tc1", { status: "in_progress" }), tool("tc1", { carriesOutput: true }));
+		expect(result.current.getLiveTurnClock()?.lastOutputAtByCall.size).toBe(1);
 		act(() => result.current.setMessagesFromLocal([]));
-		expect(result.current.getLiveTurnClock()?.lastOutputAtByCall.size ?? 0).toBe(0);
+		const clock = result.current.getLiveTurnClock();
+		expect(clock?.lastOutputAtByCall.size).toBe(0);
+		expect(clock?.hasUpdate).toBe(false);
+		expect(result.current.isSending).toBe(false);
 	});
 });

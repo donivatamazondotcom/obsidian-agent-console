@@ -1086,7 +1086,8 @@ export function useAgentMessages(
 			hasUpdate: hasUpdateRef.current,
 			waitStartedAt: waitStartedAtRef.current,
 			turnWaitMs: turnWaitMsRef.current,
-			lastOutputAtByCall: lastOutputAtByCallRef.current,
+			// A copy: a later reset must not change a clock a reader holds.
+			lastOutputAtByCall: new Map(lastOutputAtByCallRef.current),
 		};
 	}, []);
 

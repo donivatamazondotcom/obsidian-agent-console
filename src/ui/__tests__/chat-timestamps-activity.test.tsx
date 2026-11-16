@@ -136,6 +136,25 @@ describe("the live status line", () => {
 		expect(status(container)).toBe("Working 1m · no update yet");
 	});
 
+	it("puts a running tool's title and the facts in separate spans, so a long title can't hide the facts", () => {
+		const store = createTurnActivityStore();
+		const { container } = show([prompt({ sentAt: at(9, 48) })], store, { isSending: true });
+		const longTitle = "Running: Check the build log for the failing integration test and report back";
+		act(() => store.publish({ line: "· 6m · last update 3m ago", lineTitle: longTitle, rows: {} }));
+		const slot = container.querySelector(".agent-client-loading-status");
+		expect(slot?.querySelector(".agent-client-loading-status-title")?.textContent).toBe(longTitle);
+		expect(slot?.querySelector(".agent-client-loading-status-facts")?.textContent).toBe("· 6m · last update 3m ago");
+	});
+
+	it("sits outside the scrolling content, so a tick never resizes it", () => {
+		const store = createTurnActivityStore();
+		store.publish({ line: "Working 1m · no update yet", rows: {} });
+		const { container } = show([prompt({ sentAt: at(9, 48) })], store, { isSending: true });
+		const slot = container.querySelector(".agent-client-loading-status");
+		expect(slot).not.toBeNull();
+		expect(slot?.closest(".agent-client-chat-content")).toBeNull();
+	});
+
 	it("never shows the old 'Waiting for permission...' text", () => {
 		const store = createTurnActivityStore();
 		const { container } = show([prompt()], store, { isSending: true, hasActivePermission: true });
@@ -207,13 +226,19 @@ describe("tool-row times", () => {
 	});
 
 	it("a row restored open (no live turn) shows no clock and doesn't subscribe", () => {
+		// Baseline: the status line's own subscriptions, with no tool row.
+		const baseStore = createTurnActivityStore();
+		const baseSubscribe = vi.spyOn(baseStore, "subscribe");
+		show([prompt({ sentAt: at(9, 30) })], baseStore);
+		const statusLineOnly = baseSubscribe.mock.calls.length;
+		cleanup();
+
 		const store = createTurnActivityStore();
 		const subscribe = vi.spyOn(store, "subscribe");
 		const { container } = show([prompt({ sentAt: at(9, 30) }), toolMsg({ status: "in_progress", startedAt: at(9, 31) })], store);
 		expect(rowTime(container)).toBeNull();
 		expect(container.querySelector(".agent-client-status-interrupted")).toBeNull();
-		// Only the status line subscribes.
-		expect(subscribe).toHaveBeenCalledTimes(1);
+		expect(subscribe).toHaveBeenCalledTimes(statusLineOnly);
 	});
 
 	it("a tick changes the leaf's text without re-rendering the tool row", () => {
@@ -291,6 +316,17 @@ describe("useTurnActivityTicker", () => {
 			vi.advanceTimersByTime(5000);
 		});
 		expect(compute).toHaveBeenCalledTimes(2);
+	});
+
+	it("ticks at once when its kick changes, so the line is fresh the moment you answer a permission", () => {
+		const store = createTurnActivityStore();
+		let line = "Working 9m · last update 8m ago";
+		const { rerender } = renderHook(({ kick }) => useTurnActivityTicker(true, store, () => ({ line, rows: {} }), kick), {
+			initialProps: { kick: true },
+		});
+		line = "Working 9m · last update just now";
+		rerender({ kick: false });
+		expect(store.getSnapshot().line).toBe("Working 9m · last update just now");
 	});
 
 	it("publishes the empty snapshot when there is no live turn to read", () => {

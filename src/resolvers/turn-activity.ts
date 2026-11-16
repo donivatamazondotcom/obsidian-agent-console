@@ -59,8 +59,13 @@ function callElapsed(call: RunningCallInput, now: number): number | null {
 	return Math.max(0, now - call.startedAt - Math.max(0, call.waitMs) - openWait);
 }
 
-function hasOwnOutputSignal(call: RunningCallInput): boolean {
-	return call.terminalTiming !== null || isTime(call.lastOutputAt);
+/**
+ * Whether the call itself can still say how it's doing. A command that has
+ * exited says nothing more, so the line then adds the turn's last update.
+ */
+function hasLiveOutputSignal(call: RunningCallInput): boolean {
+	if (call.terminalTiming !== null) return !isTime(call.terminalTiming.exitedAt);
+	return isTime(call.lastOutputAt);
 }
 
 function rowText(call: RunningCallInput, now: number, elapsedMs: number): string {
@@ -97,13 +102,15 @@ export function deriveTurnActivity(input: TurnActivityInput): TurnActivity {
 
 	const updateAge = formatShortAge(now - clock.lastUpdateAt);
 	let line: string;
+	let lineTitle: string | null = null;
 	if (named !== null) {
 		const title = named.call.title?.trim() || t("chat.toolCall.title");
 		const elapsed = formatDuration(named.elapsedMs, "minutes");
+		lineTitle = t("chat.activity.runningTitle", { title });
 		line =
-			!hasOwnOutputSignal(named.call) && clock.hasUpdate
-				? t("chat.activity.runningWithUpdate", { title, elapsed, age: updateAge })
-				: t("chat.activity.running", { title, elapsed });
+			!hasLiveOutputSignal(named.call) && clock.hasUpdate
+				? t("chat.activity.runningFactsWithUpdate", { elapsed, age: updateAge })
+				: t("chat.activity.runningFacts", { elapsed });
 	} else {
 		const openWait = isTime(clock.waitStartedAt) ? Math.max(0, now - clock.waitStartedAt) : 0;
 		const elapsedMs = Math.max(0, now - clock.sentAt - Math.max(0, clock.turnWaitMs) - openWait);
@@ -112,7 +119,7 @@ export function deriveTurnActivity(input: TurnActivityInput): TurnActivity {
 			? t("chat.activity.working", { elapsed, age: updateAge })
 			: t("chat.activity.workingNoUpdate", { elapsed });
 	}
-	return { line, rows };
+	return { line, lineTitle, rows };
 }
 
 type ToolItem = Extract<MessageContent, { type: "tool_call" }>;

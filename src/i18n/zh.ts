@@ -573,7 +573,6 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.queuedBannerWaiting": "已排队 — 准备就绪后发送",
 	// ---- Phase 3: message list + landing ----
 	"chat.messages.sending": "发送中…",
-	"chat.messages.waitingForPermission": "等待权限中...",
 	"chat.activity.waitingOnYou": "正在等待你的回应",
 	// Chat Timestamps: durations, short ages, the live line and tool-row times.
 	"chat.age.seconds": "{count}秒前",
@@ -581,8 +580,9 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.age.hours": "{count}小时前",
 	"chat.activity.working": "工作中 {elapsed} · 上次更新 {age}",
 	"chat.activity.workingNoUpdate": "工作中 {elapsed} · 尚无更新",
-	"chat.activity.running": "正在运行 {title} · {elapsed}",
-	"chat.activity.runningWithUpdate": "正在运行 {title} · {elapsed} · 上次更新 {age}",
+	"chat.activity.runningTitle": "正在运行：{title}",
+	"chat.activity.runningFacts": "· {elapsed}",
+	"chat.activity.runningFactsWithUpdate": "· {elapsed} · 上次更新 {age}",
 	"chat.toolCall.rowOutput": "{elapsed} · 输出 {age}",
 	"chat.toolCall.rowNoOutput": "{elapsed} · 尚无输出",
 	"chat.toolCall.rowExited": "{elapsed} · 已退出 {age}",

@@ -12,6 +12,8 @@ import type { TurnActivity } from "../types/chat-time";
 
 export interface TurnActivitySnapshot {
 	line: string | null;
+	/** The running tool the line names, apart from its facts. */
+	lineTitle: string | null;
 	/** Tool call id → its running row's text. */
 	rows: Readonly<Record<string, string>>;
 	/** The chat's finished-turn agent time (PR 4); never cleared by `reset`. */
@@ -40,7 +42,7 @@ function sameRows(
 }
 
 export function createTurnActivityStore(): TurnActivityStore {
-	let snapshot: TurnActivitySnapshot = { line: null, rows: NO_ROWS, total: null };
+	let snapshot: TurnActivitySnapshot = { line: null, lineTitle: null, rows: NO_ROWS, total: null };
 	const listeners = new Set<() => void>();
 
 	const commit = (next: TurnActivitySnapshot) => {
@@ -56,17 +58,21 @@ export function createTurnActivityStore(): TurnActivityStore {
 				listeners.delete(listener);
 			};
 		},
-		publish: ({ line, rows }) => {
-			if (line === snapshot.line && sameRows(rows, snapshot.rows)) return;
-			commit({ ...snapshot, line, rows: { ...rows } });
+		publish: ({ line, lineTitle = null, rows }) => {
+			if (line === snapshot.line && lineTitle === snapshot.lineTitle && sameRows(rows, snapshot.rows)) {
+				return;
+			}
+			commit({ ...snapshot, line, lineTitle, rows: { ...rows } });
 		},
 		publishTotal: (total) => {
 			if (total === snapshot.total) return;
 			commit({ ...snapshot, total });
 		},
 		reset: () => {
-			if (snapshot.line === null && Object.keys(snapshot.rows).length === 0) return;
-			commit({ ...snapshot, line: null, rows: NO_ROWS });
+			if (snapshot.line === null && snapshot.lineTitle === null && Object.keys(snapshot.rows).length === 0) {
+				return;
+			}
+			commit({ ...snapshot, line: null, lineTitle: null, rows: NO_ROWS });
 		},
 	};
 }

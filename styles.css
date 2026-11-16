@@ -60,6 +60,7 @@ If your plugin does not need CSS, delete this file.
 }
 
 .agent-client-loading-status {
+	display: flex;
 	color: var(--text-muted);
 	font-size: var(--font-ui-small);
 	font-style: italic;
@@ -68,6 +69,23 @@ If your plugin does not need CSS, delete this file.
 	overflow: hidden;
 	text-overflow: ellipsis;
 	min-width: 0;
+}
+
+/* Chat Timestamps PR 3: a running tool's title is cut (with an ellipsis)
+   before the facts after it, so the elapsed time and last update stay
+   visible in a narrow pane. */
+.agent-client-loading-status-title {
+	flex-shrink: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-client-loading-status-facts {
+	flex-shrink: 0;
+	margin-left: 0.3em;
+	white-space: nowrap;
 }
 
 /* ===== Scroll to Bottom Button ===== */

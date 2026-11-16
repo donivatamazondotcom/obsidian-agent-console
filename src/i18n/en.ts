@@ -725,7 +725,6 @@ export const en = {
 		"Sending your choice — waiting for the agent to start again",
 	// ---- Phase 3: message list + landing ----
 	"chat.messages.sending": "Sending…",
-	"chat.messages.waitingForPermission": "Waiting for permission...",
 	"chat.messages.restoringSession": "Restoring session...",
 	"chat.messages.connectingTo": "Connecting to {agent}...",
 	"chat.messages.connectFailed":
@@ -796,8 +795,9 @@ export const en = {
 	"chat.activity.waitingOnYou": "Waiting on you",
 	"chat.activity.working": "Working {elapsed} · last update {age}",
 	"chat.activity.workingNoUpdate": "Working {elapsed} · no update yet",
-	"chat.activity.running": "Running {title} · {elapsed}",
-	"chat.activity.runningWithUpdate": "Running {title} · {elapsed} · last update {age}",
+	"chat.activity.runningTitle": "Running: {title}",
+	"chat.activity.runningFacts": "· {elapsed}",
+	"chat.activity.runningFactsWithUpdate": "· {elapsed} · last update {age}",
 	"chat.history.editTitle": "Edit session title",
 	"chat.history.restoreSession": "Restore session",
 	"chat.history.forkSession": "Fork session into a new tab",

@@ -623,7 +623,6 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.queuedBannerWaiting": "待機中 — 準備でき次第送信されます",
 	// ---- Phase 3: message list + landing ----
 	"chat.messages.sending": "送信中…",
-	"chat.messages.waitingForPermission": "権限を待っています...",
 	"chat.activity.waitingOnYou": "あなたの応答を待っています",
 	// Chat Timestamps: durations, short ages, the live line and tool-row times.
 	"chat.age.seconds": "{count}秒前",
@@ -631,8 +630,9 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.age.hours": "{count}時間前",
 	"chat.activity.working": "作業中 {elapsed} · 最終更新 {age}",
 	"chat.activity.workingNoUpdate": "作業中 {elapsed} · まだ更新なし",
-	"chat.activity.running": "{title} を実行中 · {elapsed}",
-	"chat.activity.runningWithUpdate": "{title} を実行中 · {elapsed} · 最終更新 {age}",
+	"chat.activity.runningTitle": "実行中: {title}",
+	"chat.activity.runningFacts": "· {elapsed}",
+	"chat.activity.runningFactsWithUpdate": "· {elapsed} · 最終更新 {age}",
 	"chat.toolCall.rowOutput": "{elapsed} · 出力 {age}",
 	"chat.toolCall.rowNoOutput": "{elapsed} · まだ出力なし",
 	"chat.toolCall.rowExited": "{elapsed} · 終了 {age}",

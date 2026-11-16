@@ -87,6 +87,16 @@ describe("tool-row time and live line styles (PR 3)", () => {
 		expect(decls(".agent-client-tool-call-time", "user-select")).toEqual(["none"]);
 	});
 
+	it("a long tool title shrinks before the facts do", () => {
+		expect(decls(".agent-client-loading-status", "display")).toEqual(["flex"]);
+		expect(decls(".agent-client-loading-status-title", "overflow")).toEqual(["hidden"]);
+		expect(decls(".agent-client-loading-status-title", "text-overflow")).toEqual(["ellipsis"]);
+		expect(decls(".agent-client-loading-status-title", "min-width")).toEqual(["0"]);
+		const titleShrink = Number(decls(".agent-client-loading-status-title", "flex-shrink")[0]);
+		const factsShrink = Number(decls(".agent-client-loading-status-facts", "flex-shrink")[0]);
+		expect(titleShrink).toBeGreaterThan(100 * factsShrink);
+	});
+
 	it("the status line stays one line", () => {
 		expect(decls(".agent-client-loading-status", "white-space")).toEqual(["nowrap"]);
 		expect(decls(".agent-client-loading-status", "text-overflow")).toEqual(["ellipsis"]);

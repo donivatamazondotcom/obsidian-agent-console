@@ -40,12 +40,15 @@ export function useTurnActivitySlice<T extends string | number | null>(
  * with text, then every second. Its cleanup stops the interval and resets
  * the store, so a new turn never opens with the last turn's line. A null
  * result (no live turn to read) publishes the empty snapshot. `compute`
- * is read through a ref, so it may change every render.
+ * is read through a ref, so it may change every render. A change to `kick`
+ * (the permission flag) ticks at once, so the line is fresh the moment a
+ * permission is answered rather than up to a second later.
  */
 export function useTurnActivityTicker(
 	active: boolean,
 	store: TurnActivityStore,
 	compute: () => TurnActivity | null,
+	kick?: unknown,
 ): void {
 	const computeRef = useRef(compute);
 	computeRef.current = compute;
@@ -63,4 +66,18 @@ export function useTurnActivityTicker(
 			store.reset();
 		};
 	}, [active, store]);
+	const firstKickRef = useRef(true);
+	useLayoutEffect(() => {
+		// The start tick above already covers the first render.
+		if (firstKickRef.current) {
+			firstKickRef.current = false;
+			return;
+		}
+		if (!active) return;
+		const activity = computeRef.current();
+		if (activity === null) store.reset();
+		else store.publish(activity);
+		// Only a kick re-runs this; the start tick owns `active`, and
+		// `store` is stable for the panel's life.
+	}, [kick]);
 }

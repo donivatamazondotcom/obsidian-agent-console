@@ -2143,6 +2143,7 @@ export function ChatPanel({
 			(terminalId) => terminalClientRef.current.getTerminalTiming(terminalId),
 			Date.now(),
 		),
+		agent.hasActivePermission,
 	);
 
 	// Persist context notes when they change mid-session (T13 persistence).

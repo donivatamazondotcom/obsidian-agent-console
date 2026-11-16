@@ -10,7 +10,7 @@ import { createTurnActivityStore } from "../turn-activity-store";
 describe("createTurnActivityStore", () => {
 	it("starts empty", () => {
 		const store = createTurnActivityStore();
-		expect(store.getSnapshot()).toEqual({ line: null, rows: {}, total: null });
+		expect(store.getSnapshot()).toEqual({ line: null, lineTitle: null, rows: {}, total: null });
 	});
 
 	it("notifies when the line or a row changes, and only then", () => {
@@ -34,6 +34,9 @@ describe("createTurnActivityStore", () => {
 
 		store.publish({ line: "Working 1m · no update yet", rows: { tc2: "6s" } });
 		expect(listener).toHaveBeenCalledTimes(4);
+
+		store.publish({ line: "Working 1m · no update yet", lineTitle: "Running: x", rows: { tc2: "6s" } });
+		expect(listener).toHaveBeenCalledTimes(5);
 	});
 
 	it("reset clears the line and rows, keeps the total, and is quiet when already empty", () => {
@@ -41,11 +44,11 @@ describe("createTurnActivityStore", () => {
 		const listener = vi.fn();
 		store.subscribe(listener);
 		store.publishTotal(24 * 60_000);
-		store.publish({ line: "Running npm test · 5m", rows: { tc1: "5m · output 2s ago" } });
+		store.publish({ line: "· 5m", lineTitle: "Running: npm test", rows: { tc1: "5m · output 2s ago" } });
 		listener.mockClear();
 
 		store.reset();
-		expect(store.getSnapshot()).toEqual({ line: null, rows: {}, total: 24 * 60_000 });
+		expect(store.getSnapshot()).toEqual({ line: null, lineTitle: null, rows: {}, total: 24 * 60_000 });
 		expect(listener).toHaveBeenCalledTimes(1);
 
 		store.reset();

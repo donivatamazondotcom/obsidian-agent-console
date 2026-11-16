@@ -269,10 +269,9 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({
 	// read through this row's date-form key, so a day or zone change
 	// re-renders only rows whose label changes.
 	const rowTime = deriveToolRowTime(content, toolRunState);
-	const getDayKey = useCallback(
-		() => rowDayKey(rowTime, localDayStore.getSnapshot()),
-		[rowTime],
-	);
+	// useSyncExternalStore compares the returned key, so a new function each
+	// render is fine.
+	const getDayKey = () => rowDayKey(rowTime, localDayStore.getSnapshot());
 	useSyncExternalStore(localDayStore.subscribe, getDayKey, getDayKey);
 	const timeAria = rowTimeAria(rowTime, localDayStore.getSnapshot());
 	// A row its turn closed shows `circle-stop` whatever status came later.

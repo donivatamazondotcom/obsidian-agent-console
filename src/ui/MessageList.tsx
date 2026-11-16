@@ -54,6 +54,7 @@ import { scheduleViewRefocus } from "./composer-focus";
 const MemoMessageBubble = memo(MessageBubble);
 
 const selectLine = (s: TurnActivitySnapshot) => s.line;
+const selectLineTitle = (s: TurnActivitySnapshot) => s.lineTitle;
 
 /**
  * The live status line (Chat Timestamps PR 3, Decision 3): `Waiting on
@@ -67,9 +68,22 @@ const TurnStatusLine = memo(function TurnStatusLine({
 	hasActivePermission: boolean;
 }) {
 	const line = useTurnActivitySlice(selectLine);
+	const lineTitle = useTurnActivitySlice(selectLineTitle);
 	const text = hasActivePermission ? t("chat.activity.waitingOnYou") : line;
 	if (text === null) return null;
-	return <span className="agent-client-loading-status">{text}</span>;
+	// A running tool's title shrinks (with an ellipsis) before the facts do.
+	return (
+		<span className="agent-client-loading-status">
+			{!hasActivePermission && lineTitle !== null ? (
+				<>
+					<span className="agent-client-loading-status-title">{lineTitle}</span>
+					<span className="agent-client-loading-status-facts">{text}</span>
+				</>
+			) : (
+				<span className="agent-client-loading-status-title">{text}</span>
+			)}
+		</span>
+	);
 });
 
 /** Whether a message holds a tool call (each tool call is its own message). */

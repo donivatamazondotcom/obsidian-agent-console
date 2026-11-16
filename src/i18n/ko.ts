@@ -588,7 +588,6 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.composer.queuedBannerWaiting": "대기 중 — 준비되면 전송됩니다",
 	// ---- Phase 3: message list + landing ----
 	"chat.messages.sending": "보내는 중…",
-	"chat.messages.waitingForPermission": "권한을 기다리는 중...",
 	"chat.activity.waitingOnYou": "사용자 응답을 기다리는 중",
 	// Chat Timestamps: durations, short ages, the live line and tool-row times.
 	"chat.age.seconds": "{count}초 전",
@@ -596,8 +595,9 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.age.hours": "{count}시간 전",
 	"chat.activity.working": "작업 중 {elapsed} · 마지막 업데이트 {age}",
 	"chat.activity.workingNoUpdate": "작업 중 {elapsed} · 아직 업데이트 없음",
-	"chat.activity.running": "{title} 실행 중 · {elapsed}",
-	"chat.activity.runningWithUpdate": "{title} 실행 중 · {elapsed} · 마지막 업데이트 {age}",
+	"chat.activity.runningTitle": "실행 중: {title}",
+	"chat.activity.runningFacts": "· {elapsed}",
+	"chat.activity.runningFactsWithUpdate": "· {elapsed} · 마지막 업데이트 {age}",
 	"chat.toolCall.rowOutput": "{elapsed} · 출력 {age}",
 	"chat.toolCall.rowNoOutput": "{elapsed} · 아직 출력 없음",
 	"chat.toolCall.rowExited": "{elapsed} · 종료 {age}",
