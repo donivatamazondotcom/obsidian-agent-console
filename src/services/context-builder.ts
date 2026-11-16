@@ -2,7 +2,10 @@
  * Context builder — produces PromptContent blocks for crystallized notes
  * (Channel 1) and selection (Channel 2).
  *
- * Pure function. No side effects, no vault reads, no React.
+ * No side effects, no vault reads, no React. The output depends only on the
+ * input: the one piece of module state is a link memo (I378), keyed by every
+ * input that affects a link. Any new input that changes a link MUST join the
+ * memo key, or one tab could get another tab's link.
  * See: ACP Context Note Lifecycle spec § How Context Is Provided to the Agent.
  */
 import type { ContextNote } from "../types/context";
@@ -32,7 +35,7 @@ export interface BuildContextBlocksInput {
 	/**
 	 * Channel 1 bodies to embed this turn, keyed by vault-relative path
 	 * ([[ACP Context Note Hydration]] H1). The caller reads and gates them;
-	 * this builder stays pure. A note absent from the map is reference-only.
+	 * this builder does no reads. A note absent from the map is reference-only.
 	 */
 	hydrationBodies?: ReadonlyMap<string, string>;
 }
@@ -60,6 +63,45 @@ function buildFileUri(
 }
 
 /**
+ * Memo of {@link buildFileUri} for the current vault root and WSL mode
+ * (I378). Pinned notes go with every send, so the same links are rebuilt
+ * each turn, and the shared helpers' backslash replace and regex tests
+ * made the builder about 5x slower than #394's hand-built link. A link
+ * depends only on (vaultPath, convertToWsl, notePath), and a miss calls the
+ * same helper, so the memo can't change any link. It resets when the vault
+ * root or WSL mode changes, and when it passes {@link LINK_MEMO_MAX} paths.
+ */
+const LINK_MEMO_MAX = 256;
+let linkMemo: {
+	vaultPath: string;
+	convertToWsl: boolean;
+	links: Map<string, string>;
+} | null = null;
+
+function memoLinkBuilder(
+	vaultPath: string,
+	convertToWsl: boolean,
+): (notePath: string) => string {
+	if (
+		linkMemo === null ||
+		linkMemo.vaultPath !== vaultPath ||
+		linkMemo.convertToWsl !== convertToWsl
+	) {
+		linkMemo = { vaultPath, convertToWsl, links: new Map() };
+	}
+	const links = linkMemo.links;
+	return (notePath) => {
+		let link = links.get(notePath);
+		if (link === undefined) {
+			link = buildFileUri(vaultPath, notePath, convertToWsl);
+			if (links.size >= LINK_MEMO_MAX) links.clear();
+			links.set(notePath, link);
+		}
+		return link;
+	};
+}
+
+/**
  * Build prompt content blocks for crystallized context notes + selection.
  *
  * Channel 1 (crystallized): reference-only (Decision #23), except a note in
@@ -68,12 +110,13 @@ function buildFileUri(
  */
 export function buildContextBlocks(input: BuildContextBlocksInput): PromptContent[] {
 	const blocks: PromptContent[] = [];
+	const linkFor = memoLinkBuilder(input.vaultPath, input.convertToWsl ?? false);
 
 	// Channel 1: Crystallized notes
 	for (const note of input.contextNotes) {
 		const body = input.hydrationBodies?.get(note.path);
 		if (body !== undefined) {
-			const ref = buildFileUri(input.vaultPath, note.path, input.convertToWsl);
+			const ref = linkFor(note.path);
 			if (input.useEmbeddedContext) {
 				// Body + the usual link. The link keeps the ref handle on every
 				// message and is what replays as the pill's file chip (I222 a3,
@@ -100,12 +143,12 @@ export function buildContextBlocks(input: BuildContextBlocksInput): PromptConten
 		if (input.useEmbeddedContext) {
 			blocks.push({
 				type: "resource_link",
-				uri: buildFileUri(input.vaultPath, note.path, input.convertToWsl),
+				uri: linkFor(note.path),
 				name: displayName(note.path),
 				mimeType: "text/markdown",
 			});
 		} else {
-			const ref = buildFileUri(input.vaultPath, note.path, input.convertToWsl);
+			const ref = linkFor(note.path);
 			blocks.push({
 				type: "text",
 				text: `<obsidian_context_note ref="${ref}">\nThe user has set this note as context for this chat. The conversation involves this note. Use the Read tool to examine its content when relevant.\n</obsidian_context_note>`,
@@ -116,7 +159,7 @@ export function buildContextBlocks(input: BuildContextBlocksInput): PromptConten
 	// Channel 2: Selection
 	if (input.selection) {
 		const { path, fromLine, toLine, text } = input.selection;
-		const ref = buildFileUri(input.vaultPath, path, input.convertToWsl);
+		const ref = linkFor(path);
 
 		if (input.useEmbeddedContext) {
 			blocks.push({
