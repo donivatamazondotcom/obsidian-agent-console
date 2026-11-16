@@ -32,10 +32,10 @@
  * can't make it loop. Every wait is bounded twice: by frames on the target
  * leaf's own window, and by 2 s of `now()` time kept going by main-window
  * `sleep` ticks, so a window that stops drawing (a closed or minimized
- * popout) can't hold the queue. A leaf that closed during a wait isn't
- * revealed, focused or opened into. A run that ends with the could-not-open
- * notice (including one that throws) releases its repeat, so a quick retry
- * gets the rate notice; the next queued run still starts.
+ * popout) can't hold the queue. A leaf that closed during a wait or a
+ * reveal isn't revealed, focused or opened into. A run that ends with the
+ * could-not-open notice (including one that throws) releases its repeat, so a
+ * quick retry gets the rate notice; the next queued run still starts.
  */
 import { t } from "../i18n";
 import { deriveChatTarget, type ChatTarget } from "../resolvers/chat-target";
@@ -148,14 +148,25 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 
 	/**
 	 * Reveal the leaf, then make it active with focus (bringing a popout
-	 * forward). A leaf that closed during the reveal (its popout window
-	 * closed) isn't focused: the run ends with the could-not-open notice
-	 * instead of ending silently (I371).
+	 * forward). Returns false, without focusing, when the leaf closed during
+	 * the reveal (its popout window closed, I371).
+	 */
+	const revealAndFocus = async (leaf: L): Promise<boolean> => {
+		await workspace.revealLeaf(leaf);
+		if (!isLive(leaf)) return false;
+		workspace.setActiveLeaf(leaf, { focus: true });
+		return true;
+	};
+
+	/**
+	 * `revealAndFocus` for a run that opened or switched to the chat: a leaf
+	 * that closed during the reveal ends the run with the could-not-open
+	 * notice instead of ending silently (I371).
 	 */
 	const focusLeaf = async (leaf: L): Promise<void> => {
-		await workspace.revealLeaf(leaf);
-		assertLive(leaf);
-		workspace.setActiveLeaf(leaf, { focus: true });
+		if (!(await revealAndFocus(leaf))) {
+			throw new CouldNotOpen("the chat panel closed");
+		}
 	};
 
 	const resolve = (chatId: ChatId): { target: ChatTarget; leaf: L | null } => {
@@ -234,13 +245,19 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 			if (again.target.kind === "missing") record = null;
 		}
 		if (!bridge) throw new CouldNotOpen("no bridge registered");
+		// The missing notice already tells the user why nothing opened, so a
+		// leaf that closes during these reveals adds no second notice.
 		if (!record) {
 			notify(t("notices.chatLinkMissing"));
-			await focusLeaf(leaf);
+			await revealAndFocus(leaf);
 			return;
 		}
 		const result = await bridge.openFromHistory(record);
-		if (result === "gone") notify(t("notices.chatLinkMissing"));
+		if (result === "gone") {
+			notify(t("notices.chatLinkMissing"));
+			await revealAndFocus(leaf);
+			return;
+		}
 		// Settle before the final reveal, so a failed reveal can't skip it.
 		if (result === "opened") {
 			const b = bridge;

@@ -919,6 +919,7 @@ describe("chat link handler — a leaf that closes during a reveal (I371)", () =
 		await env.fire({ id: "x" }, 2500);
 		expect(env.bridges.get(a)!.opened).toEqual(["x"]);
 		expect(env.notices).toEqual([PANEL_FAILED]);
+		expect(env.errors).toEqual([]);
 	});
 
 	it("step 5: a panel that closes during the final reveal isn't focused, shows could-not-open, and a retry opens a new panel", async () => {
@@ -945,6 +946,47 @@ describe("chat link handler — a leaf that closes during a reveal (I371)", () =
 		await env.fire({ id: "x" }, 2500);
 		expect(created!.pendingBridge!.opened).toEqual(["x"]);
 		expect(env.notices).toEqual([PANEL_FAILED]);
+		expect(env.errors).toEqual([]);
+	});
+
+	it("step 5, gone: a panel that closes during the reveal after the missing notice shows only that notice and keeps the repeat", async () => {
+		const env = makeEnv({ records: [record("x")] });
+		const a = makeLeaf("A");
+		env.addLeaf(a, fakeBridge(() => a, [], { result: "gone" }));
+		a.onReveal = () => env.removeLeaf(a);
+		await env.fire({ id: "x" }, 0);
+		expect(env.events).toEqual(["reveal:A"]);
+		expect(env.notices).toEqual([MISSING]);
+		expect(env.errors).toEqual([]);
+		expect(env.rateState()).toEqual({ lastAt: 0, lastId: "x" });
+	});
+
+	it("step 5, no record: a panel that closes during the reveal after the missing notice shows only that notice and keeps the repeat", async () => {
+		// The deferred panel's saved tab carries "y", which has no record, and
+		// its bridge never registers, so step 5 runs with no record.
+		const env = makeEnv({
+			records: [record("x", "s-x")],
+			perLeafTabStates: [
+				{
+					leafId: "B",
+					activeTabId: "b1",
+					tabs: [
+						{ tabId: "b1", agentId: "kiro", label: "y", recordId: "y", sessionId: "s-y" } as never,
+					],
+				} as PerLeafTabState,
+			],
+		});
+		const a = makeLeaf("A");
+		env.addLeaf(a, fakeBridge(() => a));
+		a.onReveal = () => env.removeLeaf(a);
+		const b = makeLeaf("B");
+		b.mountAfterFrames = null;
+		env.addLeaf(b, null);
+		await env.fire({ id: "y" }, 0);
+		expect(env.events).toEqual(["reveal:B", "reveal:A"]);
+		expect(env.notices).toEqual([MISSING]);
+		expect(env.errors).toEqual([]);
+		expect(env.rateState()).toEqual({ lastAt: 0, lastId: "y" });
 	});
 });
 
