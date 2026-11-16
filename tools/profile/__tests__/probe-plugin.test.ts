@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -15,6 +15,7 @@ import {
 	fixtureProbeDir,
 	PROBE_PLUGIN_ID,
 	armProbe,
+	armProbeUntilExit,
 	disarmProbe,
 	hasProbe,
 	probePluginDirOf,
@@ -131,6 +132,31 @@ describe("arming on disk", () => {
 		expect(armed().armed).toBe(false);
 	});
 
+	it("disarms on SIGINT and SIGTERM by exiting (which runs the exit handler)", () => {
+		const handlers: Record<string, () => void> = {};
+		const codes: number[] = [];
+		const proc = {
+			on: (ev: string, fn: () => void) => {
+				handlers[ev] = fn;
+				return proc;
+			},
+			exit: (code?: number): never => {
+				codes.push(code ?? 0);
+				handlers.exit?.();
+				return undefined as never;
+			},
+		};
+		armProbeUntilExit(vault, ".obsidian", proc as unknown as Parameters<typeof armProbeUntilExit>[2]);
+		expect(armed().armed).toBe(true);
+		handlers.SIGINT?.();
+		expect(codes).toEqual([130]);
+		expect(armed().armed).toBe(false);
+		armProbe(vault, ".obsidian");
+		handlers.SIGTERM?.();
+		expect(codes).toEqual([130, 143]);
+		expect(armed().armed).toBe(false);
+	});
+
 	it("canSeed refuses a vault without the helper", () => {
 		const plug = path.join(vault, ".obsidian", "plugins", "agent-console");
 		mkdirSync(plug, { recursive: true });
@@ -154,7 +180,9 @@ describe("an armed data.json never travels", () => {
 		expect(sh).toContain(`--exclude '${rel}'`);
 	});
 
-	it("is not in the committed fixture", () => {
-		expect(existsSync(path.join(fixtureProbeDir(), "data.json"))).toBe(false);
+	it("is never committed (git ignores it, and it isn't tracked)", () => {
+		const rel = path.relative(REPO, path.join(fixtureProbeDir(), "data.json"));
+		expect(execFileSync("git", ["ls-files", "--", rel], { cwd: REPO, encoding: "utf8" })).toBe("");
+		expect(execFileSync("git", ["check-ignore", "--no-index", "--", rel], { cwd: REPO, encoding: "utf8" }).trim()).toBe(rel);
 	});
 });
