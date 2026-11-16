@@ -22,6 +22,7 @@ import {
 	HEAVY_MESSAGE_COUNT,
 } from "./fixtures/heavy-session";
 import { findAgentLeafId } from "./studio-leaf";
+import { hasProbe, PROBE_PLUGIN_ID } from "./probe-plugin";
 
 export const HEAVY_TAB_ID = "profile-tab";
 export const LIGHT_TAB_ID = "profile-light-tab";
@@ -35,9 +36,21 @@ export function pluginDirOf(vaultRoot: string, configDir: string): string {
 	return path.join(vaultRoot, configDir, "plugins", "agent-console");
 }
 
-/** True when the vault holds the plugin's seed template. */
+/**
+ * Null when the vault can be profiled: it holds the plugin's seed template
+ * and the profiler's helper plugin. Otherwise the missing file.
+ */
+export function missingForProfile(vaultRoot: string, configDir: string): string | null {
+	if (!existsSync(path.join(pluginDirOf(vaultRoot, configDir), "data.template.json"))) {
+		return "plugins/agent-console/data.template.json";
+	}
+	if (!hasProbe(vaultRoot, configDir)) return `plugins/${PROBE_PLUGIN_ID}/manifest.json`;
+	return null;
+}
+
+/** True when the vault can be seeded and profiled. */
 export function canSeed(vaultRoot: string, configDir: string): boolean {
-	return existsSync(path.join(pluginDirOf(vaultRoot, configDir), "data.template.json"));
+	return missingForProfile(vaultRoot, configDir) === null;
 }
 
 interface SavedRecord {

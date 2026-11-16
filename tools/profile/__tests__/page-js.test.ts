@@ -22,7 +22,7 @@ import {
 	parseInteraction,
 	armWaitJs,
 	collectArmedJs,
-	newDocumentJs,
+	armedResultError,
 	observerInstallJs,
 } from "../page-js";
 
@@ -255,7 +255,6 @@ describe("reload sentinel carries the vault identity", () => {
 describe("armed waits (cold start)", () => {
 	afterEach(() => {
 		delete w.__profArm;
-		delete w.__profArmed;
 	});
 
 	it("keeps the hit in the page so a retried collect returns the same time", async () => {
@@ -269,7 +268,9 @@ describe("armed waits (cold start)", () => {
 	});
 
 	it("reports held-at-arming, never armed, a throwing check, and a timeout", async () => {
+		w.app = { workspace: { layoutReady: true } };
 		expect(await run<Promise<string>>(collectArmedJs(10))).toBe("NO-ARM");
+		delete w.app;
 		document.body.innerHTML = '<div class="row"></div>';
 		run(`(function(){${armWaitJs(waitCheckJs([".row"]))}})()`);
 		expect(await run<Promise<string>>(collectArmedJs(10))).toBe(PRE_HELD);
@@ -278,16 +279,6 @@ describe("armed waits (cold start)", () => {
 		document.body.innerHTML = "";
 		run(`(function(){${armWaitJs(waitCheckJs([".never"]))}})()`);
 		expect(await run<Promise<string>>(collectArmedJs(10))).toBe("");
-	});
-
-	it("arms once, in the first new-document evaluate", () => {
-		w.app = { vault: { getName: () => "studio", adapter: { getBasePath: () => "/x" } } };
-		const probe = newDocumentJs("window.__armCount=(window.__armCount||0)+1");
-		run(probe);
-		run(probe);
-		expect(w.__armCount).toBe(1);
-		delete w.__armCount;
-		delete w.app;
 	});
 });
 
@@ -351,19 +342,15 @@ describe("round-4 regressions", () => {
 		delete w.__checkCalls;
 	});
 
-	it("arms before app exists and records when it armed", async () => {
-		delete w.app;
+	it("records when the wait was armed", async () => {
 		delete w.__profArm;
-		delete w.__profArmed;
-		const probe = newDocumentJs(armWaitJs(waitCheckJs([".row"])));
-		expect(run<string>(probe)).toBe("");
+		run(`(function(){${armWaitJs(waitCheckJs([".row"]))}})()`);
 		document.body.innerHTML = '<div class="row"></div>';
 		await Promise.resolve();
 		const hit = parseWaitHit(await run<Promise<string>>(collectArmedJs(500)));
 		expect(typeof hit?.armedAt).toBe("number");
 		expect(hit?.pageMs).toBeGreaterThanOrEqual(hit?.armedAt ?? Infinity);
 		delete w.__profArm;
-		delete w.__profArmed;
 	});
 
 	it("a retried install (same nonce) keeps the buffer; a new install clears it", () => {
@@ -389,7 +376,6 @@ describe("round-5 regressions", () => {
 	afterEach(() => {
 		vi.useRealTimers();
 		delete w.__profArm;
-		delete w.__profArmed;
 	});
 
 	it("re-checks right before the click: a condition that turns true after the evaluate starts is not timed", async () => {
@@ -446,5 +432,28 @@ describe("round-5 regressions", () => {
 		await Promise.resolve();
 		vi.useRealTimers();
 		expect(parseWaitHit(await run<Promise<string>>(collectArmedJs(200)))?.detail).toBe(".row");
+	});
+});
+
+describe("helper-armed collection", () => {
+	afterEach(() => {
+		delete w.__profArm;
+		delete w.app;
+	});
+
+	it("treats a missing arm as not yet until the layout is ready", async () => {
+		expect(await run<Promise<string>>(collectArmedJs(10))).toBe("");
+		w.app = { workspace: { layoutReady: false } };
+		expect(await run<Promise<string>>(collectArmedJs(10))).toBe("");
+		w.app = { workspace: { layoutReady: true } };
+		expect(await run<Promise<string>>(collectArmedJs(10))).toBe("NO-ARM");
+	});
+
+	it("maps collect results to failures, and passes hits and not-yet through", () => {
+		expect(armedResultError("NO-ARM", "rows")).toMatch(/helper plugin did not arm/);
+		expect(armedResultError(PRE_HELD, "rows")).toMatch(/already true when the wait was armed/);
+		expect(armedResultError("CHECK-ERR:boom", "rows")).toMatch(/check threw — boom/);
+		expect(armedResultError("", "rows")).toBeNull();
+		expect(armedResultError('{"detail":"x","pageMs":1}', "rows")).toBeNull();
 	});
 });

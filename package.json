@@ -25,6 +25,7 @@
 		"profile": "npx tsx tools/profile/run-profile.ts",
 		"profile:record": "npx tsx tools/profile/run-profile.ts --record",
 		"profile:trend": "npx tsx tools/profile/run-profile.ts --trend",
+		"profile:gen-probe": "npx tsx tools/profile/probe-plugin.ts",
 		"docs:dev": "vitepress dev docs",
 		"docs:build": "vitepress build docs",
 		"docs:preview": "vitepress preview docs",

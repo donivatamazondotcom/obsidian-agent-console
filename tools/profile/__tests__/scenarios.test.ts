@@ -9,7 +9,8 @@
  */
 import { describe, it, expect, beforeEach } from "vitest";
 import { SCENARIOS, type ProfileContext } from "../scenarios";
-import { armWaitJs, collectArmedJs, parseWaitHit, PRE_HELD, type WaitHit } from "../page-js";
+import { armWaitJs, armedResultError, collectArmedJs, parseWaitHit, type WaitHit } from "../page-js";
+import { HEAVY_RENDERED_JS } from "../probe-plugin";
 import { HEAVY_MESSAGE_COUNT, HEAVY_TAB_ID, LIGHT_TAB_ID } from "../seed";
 
 function scenario(id: string) {
@@ -29,30 +30,36 @@ function fastTimeouts(js: string): string {
 
 /**
  * A ProfileContext whose page JS runs in jsdom. Its reload() mimics a real
- * one: the heavy transcript disappears, the wait is armed with the real
- * page JS, and the transcript comes back asynchronously (unless
- * `reloadKeepsRows`, which models a restore finished before arming).
+ * one: the heavy transcript disappears, the helper plugin arms the wait
+ * with the real page JS (unless `noHelper`), and the transcript comes back
+ * asynchronously (unless `reloadKeepsRows`, which models a restore that
+ * finished before arming).
  */
-function fakeCtx(onHit?: (h: WaitHit) => void, opts: { reloadKeepsRows?: boolean } = {}): ProfileContext {
+function fakeCtx(
+	onHit?: (h: WaitHit) => void,
+	opts: { reloadKeepsRows?: boolean; noHelper?: boolean } = {},
+): ProfileContext {
 	return {
 		evalInPage: <T>(js: string): Promise<T> => Promise.resolve(run<T>(js)),
 		act: <T>(js: string): Promise<T> => Promise.resolve(run<T>(fastTimeouts(js))),
 		snapshot: () => Promise.resolve({}),
 		installObserver: () => Promise.resolve(),
 		readObserver: () => Promise.resolve([]),
-		reload: (armCheckJs?: string) => {
+		reload: () => {
 			const panel = document.querySelector<HTMLElement>(
 				`.agent-client-tab-panel[data-for="${HEAVY_TAB_ID}"] .agent-client-chat-view-messages`,
 			);
 			const saved = panel?.innerHTML ?? "";
 			if (panel && !opts.reloadKeepsRows) panel.innerHTML = "";
-			if (armCheckJs) run(`(function(){${armWaitJs(armCheckJs)}})()`);
+			delete (window as unknown as Record<string, unknown>).__profArm;
+			if (!opts.noHelper) run(`(function(){${armWaitJs(HEAVY_RENDERED_JS)}})()`);
 			if (panel && !opts.reloadKeepsRows) window.setTimeout(() => (panel.innerHTML = saved), 5);
 			return Promise.resolve();
 		},
 		collectArmed: async (timeoutMs, what) => {
 			const v = await run<Promise<string>>(collectArmedJs(Math.min(timeoutMs, 200)));
-			if (v === PRE_HELD) throw new Error(`${what}: already true when the wait was armed`);
+			const bad = armedResultError(v, what);
+			if (bad) throw new Error(bad);
 			const hit = parseWaitHit(v);
 			if (!hit) throw new Error(`timed out waiting for ${what}`);
 			onHit?.(hit);
@@ -173,6 +180,19 @@ describe("cold-start-restore", () => {
 		await expect(
 			scenario("cold-start-restore").measure(fakeCtx(undefined, { reloadKeepsRows: true })),
 		).rejects.toThrow(/already true when the wait was armed/);
+	});
+
+	it("fails loudly when the helper plugin did not arm (layout ready)", async () => {
+		mountTabs("rail");
+		const w = window as unknown as Record<string, unknown>;
+		w.app = { workspace: { layoutReady: true } };
+		try {
+			await expect(
+				scenario("cold-start-restore").measure(fakeCtx(undefined, { noHelper: true })),
+			).rejects.toThrow(/helper plugin did not arm/);
+		} finally {
+			delete w.app;
+		}
 	});
 
 	it("records the observer's own cost inside the window", async () => {

@@ -24,12 +24,12 @@ export function isDisposableVault(name: string): boolean {
 
 /**
  * Null when the profiler may run against `t`; otherwise the reason it must
- * not. `canSeed(basePath)` reports whether the vault holds the plugin's
- * seed template.
+ * not. `missing(basePath)` names a file the vault lacks for profiling (the
+ * plugin's seed template, or the profiler's helper plugin), else null.
  */
 export function checkProfileTarget(
 	t: ProfileTarget,
-	canSeed: (basePath: string) => boolean,
+	missing: (basePath: string) => string | null,
 ): string | null {
 	if (!t.resolvedName) {
 		return `could not resolve the attached vault's name for --vault=${t.requested}`;
@@ -43,8 +43,9 @@ export function checkProfileTarget(
 	if (!t.basePath) {
 		return `could not read the base path of vault "${t.resolvedName}"`;
 	}
-	if (!canSeed(t.basePath)) {
-		return `no plugins/agent-console/data.template.json in the config folder of ${t.basePath}; the profiler seeds the vault it measures`;
+	const lack = missing(t.basePath);
+	if (lack) {
+		return `no ${lack} in the config folder of ${t.basePath}; the profiler seeds the vault it measures and times cold start through its helper plugin (respawn ST studios made before the helper existed)`;
 	}
 	return null;
 }

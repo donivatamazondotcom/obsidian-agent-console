@@ -55,18 +55,17 @@ import {
 	type Verdict,
 } from "./baseline";
 import { SCENARIOS, type ProfileContext } from "./scenarios";
-import { seedStudio, canSeed, pluginDirOf } from "./seed";
+import { seedStudio, missingForProfile, pluginDirOf } from "./seed";
+import { armProbeUntilExit } from "./probe-plugin";
 import { checkProfileTarget } from "./vault-guard";
 import {
 	MARK_OLD_DOCUMENT_JS,
 	IS_NEW_DOCUMENT_JS,
 	observerInstallJs,
 	OBSERVER_READ_JS,
-	PRE_HELD,
-	armWaitJs,
+	armedResultError,
 	awaitCheckJs,
 	collectArmedJs,
-	newDocumentJs,
 	parseWaitHit,
 	type WaitHit,
 } from "./page-js";
@@ -298,7 +297,7 @@ function makeContext(cdp: Cdp, expected: VaultId): ProfileContext {
 		async readObserver(): Promise<ObserverEntry[]> {
 			return (await evalInPage<ObserverEntry[]>(OBSERVER_READ_JS)) ?? [];
 		},
-		async reload(armCheckJs?: string): Promise<void> {
+		async reload(): Promise<void> {
 			// Wait for the NEW document, not a fixed sleep. Page.reload is not
 			// idempotent, so it is sent once (no retry); an empty response is
 			// a dropped reply, and the sentinel below confirms the reload.
@@ -316,11 +315,10 @@ function makeContext(cdp: Cdp, expected: VaultId): ProfileContext {
 				if (!/empty output/.test(err instanceof Error ? err.message : String(err))) throw err;
 			}
 			const deadline = Date.now() + 30_000;
-			const probe = armCheckJs ? newDocumentJs(armWaitJs(armCheckJs)) : IS_NEW_DOCUMENT_JS;
 			for (;;) {
 				await sleep(50);
 				try {
-					const seen = await evalInPage<string>(probe);
+					const seen = await evalInPage<string>(IS_NEW_DOCUMENT_JS);
 					if (seen) {
 						if (!sameVault(seen, expected)) {
 							throw new VaultMismatchError(`reload: the new page is ${seen}, not vault "${expected.name}"`);
@@ -338,7 +336,8 @@ function makeContext(cdp: Cdp, expected: VaultId): ProfileContext {
 		},
 		async collectArmed(timeoutMs, what): Promise<WaitHit> {
 			// Reading the armed result is retry-safe: the hit and its time
-			// live in the page until the next arm.
+			// live in the page until the next arm. The helper plugin arms it in
+			// onload; until the layout is ready a missing arm means "not yet".
 			const deadline = Date.now() + timeoutMs;
 			let lastErr = "";
 			for (;;) {
@@ -350,9 +349,8 @@ function makeContext(cdp: Cdp, expected: VaultId): ProfileContext {
 					lastErr = err instanceof Error ? err.message : String(err);
 					await sleep(100);
 				}
-				if (v === PRE_HELD) throw new Error(`${what}: already true when the wait was armed, so it can't be timed`);
-				if (v === "NO-ARM") throw new Error(`${what}: the wait was never armed on the new page`);
-				if (typeof v === "string" && v.startsWith("CHECK-ERR:")) throw new Error(`${what}: the check threw — ${v.slice(10)}`);
+				const bad = armedResultError(v, what);
+				if (bad) throw new Error(bad);
 				const hit = parseWaitHit(v);
 				if (hit) return hit;
 				if (Date.now() >= deadline) {
@@ -524,7 +522,7 @@ async function main(): Promise<void> {
 	const configDir = attached.configDir ?? "";
 	const refusal = checkProfileTarget(
 		{ requested: args.vault, resolvedName: attached.name ?? "", basePath: vaultRoot },
-		(base) => configDir !== "" && canSeed(base, configDir),
+		(base) => (configDir === "" ? "a config folder" : missingForProfile(base, configDir)),
 	);
 	if (refusal) {
 		console.error(`FATAL (GB-T03): ${refusal}`);
@@ -532,6 +530,9 @@ async function main(): Promise<void> {
 	}
 	console.error(`Profiling vault "${attached.name}" at ${vaultRoot}.`);
 	const expected: VaultId = { name: attached.name ?? "", base: vaultRoot };
+	// Arm the cold-start helper for this approved vault only, on every run
+	// (seeded or not), and disarm it on every exit.
+	armProbeUntilExit(vaultRoot, configDir);
 	const buildHashBefore = mainJsHash(vaultRoot, configDir);
 
 	if (args.seed) {

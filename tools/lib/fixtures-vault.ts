@@ -47,6 +47,9 @@ export function fixtureExcludes(configDir: string): string[] {
 		`${plug}/manifest.json`,
 		`${plug}/sessions`,
 		`${plug}/data.json`,
+		// The profiler's helper plugin is armed through its data.json; an armed
+		// file left by a killed run must never reach a run vault.
+		`${configDir}/plugins/agent-console-profiler-probe/data.json`,
 		`${configDir}/workspace.json`,
 		`${configDir}/workspace-mobile.json`,
 		".DS_Store",

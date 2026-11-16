@@ -1,0 +1,9 @@
+{
+	"id": "agent-console-profiler-probe",
+	"name": "Agent Console profiler probe",
+	"version": "1.0.0",
+	"minAppVersion": "1.0.0",
+	"description": "Fixture-only helper for the Agent Console runtime profiler. Does nothing unless the profiler arms it.",
+	"author": "Agent Console",
+	"isDesktopOnly": true
+}

@@ -38,10 +38,10 @@ import {
 	clickTabJs,
 	parseInteraction,
 	tabSelectedCheckJs,
-	waitCheckJs,
 	type WaitHit,
 } from "./page-js";
 import { HEAVY_MESSAGE_COUNT, HEAVY_TAB_ID, LIGHT_TAB_ID } from "./seed";
+import { ACTIVE_ROWS, HEAVY_RENDERED_JS } from "./probe-plugin";
 
 /** Live-Obsidian capabilities a scenario needs, injected by run-profile.ts. */
 export interface ProfileContext {
@@ -61,12 +61,12 @@ export interface ProfileContext {
 	readObserver(): Promise<ObserverEntry[]>;
 	/**
 	 * Hard `Page.reload` (destroys the JS context; the on-disk seed wins).
-	 * Resolves once the new document answers. With `armCheckJs`, a wait for
-	 * it is armed in the FIRST evaluate that sees the new document; collect
-	 * it with {@link collectArmed}.
+	 * Resolves once the new document answers. The cold-start wait is armed
+	 * by the profiler's helper plugin on the new page; collect it with
+	 * {@link collectArmed}.
 	 */
-	reload(armCheckJs?: string): Promise<void>;
-	/** Collect the wait armed by reload(); rejects if it held at arming, threw or timed out. */
+	reload(): Promise<void>;
+	/** Collect the wait the helper armed; rejects if it held at arming, wasn't armed, threw or timed out. */
 	collectArmed(timeoutMs: number, what: string): Promise<WaitHit>;
 	/**
 	 * Resolve when a `page-js` check expression holds. For UNTIMED waits
@@ -86,8 +86,6 @@ export interface Scenario {
 	measure(ctx: ProfileContext): Promise<ScenarioMetrics>;
 }
 
-const ROW = ".agent-client-message-row";
-const ACTIVE_ROWS = `${ACTIVE_PANEL_SELECTOR} ${ROW}`;
 const SCROLL_SELECTOR = `${ACTIVE_PANEL_SELECTOR} .agent-client-chat-view-messages`;
 /** Both tab layouts; only one renders at a time, in tab order. */
 const TAB_SELECTOR = ".agent-client-tab, .agent-client-tab-rail-key";
@@ -96,8 +94,6 @@ const LIGHT_INDEX = 1;
 const STREAM_TOKENS = 50;
 const SCROLL_STEPS = 40;
 
-/** The active panel shows the whole heavy transcript. */
-const HEAVY_RENDERED_JS = waitCheckJs([ACTIVE_ROWS], HEAVY_MESSAGE_COUNT);
 
 /** Merge a metric delta with the long-frame summary into one flat record. */
 function mergeMetrics(
@@ -143,9 +139,10 @@ const coldStartRestore: Scenario = {
 	title: "Cold-start restore of the heavy session",
 	primarySignal: "wallMs (navigation start to full heavy transcript) + long frames",
 	async measure(ctx) {
-		// The wait is armed in the first evaluate on the new document, before
-		// the restore can finish, and refuses a transcript already shown then.
-		await ctx.reload(HEAVY_RENDERED_JS);
+		// The profiler's helper plugin arms the wait in its onload, before the
+		// restore (the first CDP evaluate lands after it), and refuses a
+		// transcript already shown then.
+		await ctx.reload();
 		// `buffered: true` backfills the restore's frames from before observe().
 		await ctx.installObserver();
 		const hit = await ctx.collectArmed(30_000, `${HEAVY_MESSAGE_COUNT} restored rows`);
