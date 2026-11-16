@@ -33,8 +33,8 @@
  *    chat header if the fixtures regressed onto the internal kiro agent;
  *    `"kiro_default"` is the kiro-cli default internal agent id. Both were
  *    verified absent from the fixtures vault notes AND from any legitimately
- *    rendered UI (the `auto-sa` hits in `src/` are code comments + test data,
- *    never rendered). A blanket `"kiro"` is intentionally NOT defaulted — the
+ *    rendered UI (`src/` carries no `auto-sa` strings). A blanket `"kiro"` is
+ *    intentionally NOT defaulted — the
  *    legit selectable agent set includes "Kiro CLI"/"Kiro", which a substring
  *    match would wrongly flag in the agent picker / settings shots.
  *
