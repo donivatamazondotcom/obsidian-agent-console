@@ -52,6 +52,6 @@ A run is **incomplete** when a scenario fails in any pass (a missing tab, row or
 | `profile-history-2026-07-v1.jsonl` | The July v1.9.0 points. Not comparable: they predate the navigation-start `wallMs` and the rail-tab and seeding fixes |
 | `profile-history-2026-11-prehelper.jsonl` | The 11/15 point. Not comparable: its cold start was armed over CDP, before the helper plugin |
 
-Each history point records the plugin version from the vault's `manifest.json`, the git sha of the checkout its `main.js` resolves into, a hash of that `main.js`, the Obsidian version and the host. Step 1d runs before the version bump, so a point shows the previous version: `2.4.0@83cc049e` is the v2.5.0 release candidate. Points compare only on the same host.
+Each history point records the plugin version from the vault's `manifest.json`, the git sha of the checkout its `main.js` resolves into, a hash of that `main.js`, the Obsidian version and the host. Step 1d runs before the version bump, so a point shows the previous version: `2.4.0@83cc049e` is the v2.5.0 release candidate. Points compare only on the same host. In an `ST-*` studio `main.js` is a copy, not a symlink, so the git sha falls back to the main checkout's HEAD: pass `--sha=<the built commit>` there.
 
 Spec: [[Agent Console Release Quality Gates]] § Gate B-phase2 (vault).
