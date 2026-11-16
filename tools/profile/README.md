@@ -22,13 +22,13 @@ Each run hard-reloads the vault about 6 times. **Never point it at a vault with 
 | Scenario | What it does | Signals |
 |---|---|---|
 | `cold-start-restore` | Hard reload, wait until the active panel shows all 201 rows | `wallMs` (ms from navigation start, page clock), long frames |
-| `activate-background-tab` | Park on the light tab, then activate the heavy tab | `activateMs` (click to the DOM commit showing it selected with all 201 rows), `activateFrameMs` (click to the next frame), `RecalcStyleCount`, long frames |
+| `activate-background-tab` | Park on the light tab, then activate the heavy tab | `activateMs` (click to the DOM commit showing it selected with all 201 rows), `activateFrameMs` (click to the end of the next frame's paint), `RecalcStyleCount`, long frames |
 | `stream-tokens` | Grow a temporary span in the last assistant row ~50 tokens, forcing a layout each, then remove it | `maxStyleLayoutMs`, long frames |
 | `scroll-heavy-transcript` | Step the transcript top to bottom, one step per animation frame, and count scroll events | `LayoutCount`, `RecalcStyleCount`, `maxStyleLayoutMs` |
 
 `stream-tokens` is a layout proxy, not a streaming test: it never goes through React or the markdown renderer, and its `LayoutCount` (50 forced + 1) is set by the proxy itself. A real-stream scenario needs a fake streaming agent.
 
-Waits run in the page: a `MutationObserver` re-checks the condition on DOM changes, so the reported time is the mutation that made it true, not the next poll. A timed wait refuses a condition that already held when it started. The observer's own cost is reported (`waitCheckMs` on cold start) and never gated. Activate clicks and times in one evaluate: the click runs as a page task, and both times come from the page clock, so no CLI round trip (~50–90 ms here) is inside them. Anything that acts or times is sent once and never retried.
+Timed waits run in the page, on the page clock, so no CLI round trip (~50–90 ms here) is inside a number. Cold start arms its wait in the first evaluate that sees the new document and refuses a transcript already shown then; the hit stays in the page, so collecting it is safe to retry. Activate clicks and times in one evaluate: the click runs as a page task, `activateMs` ends at the DOM commit and `activateFrameMs` once the next frame's style, layout and paint are done (no frame within 1 s fails the scenario). The observers' own cost is reported (`waitCheckMs` on cold start) and never gated. Anything that acts or times is sent once and never retried, so a dropped reply fails the run instead of repeating a click or reporting a late time.
 
 Long frames come from `long-animation-frame` entries (`longtask` only where LoAF is unsupported). The buffer is cleared at the start of each scenario. `maxStyleLayoutMs` is the time from a frame's `styleAndLayoutStart` to its end.
 

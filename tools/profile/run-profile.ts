@@ -50,24 +50,27 @@ import { Cdp } from "../screenshots/lib/cdp";
 import { toSnapshot, type MetricSnapshot, type RawMetric, type ObserverEntry } from "./metrics";
 import {
 	diffAgainstBaseline,
-	missingFromProfile,
 	type Baseline,
 	type Profile,
 	type Verdict,
 } from "./baseline";
 import { SCENARIOS, type ProfileContext } from "./scenarios";
 import { seedStudio, canSeed, pluginDirOf } from "./seed";
-import { checkProfileTarget, visibilityProblem } from "./vault-guard";
+import { checkProfileTarget } from "./vault-guard";
 import {
 	MARK_OLD_DOCUMENT_JS,
 	IS_NEW_DOCUMENT_JS,
 	OBSERVER_INSTALL_JS,
 	OBSERVER_READ_JS,
 	PRE_HELD,
+	armWaitJs,
 	awaitCheckJs,
+	collectArmedJs,
+	newDocumentJs,
 	parseWaitHit,
 	type WaitHit,
 } from "./page-js";
+import { incompleteReasons, type ScenarioFailure } from "./incomplete";
 import {
 	medianProfile,
 	parseHistory,
@@ -245,6 +248,9 @@ interface VaultId {
 	base: string;
 }
 
+/** The CLI reached a page that isn't the approved vault: abort the whole run. */
+class VaultMismatchError extends Error {}
+
 function sameVault(raw: unknown, expected: VaultId): boolean {
 	if (typeof raw !== "string" || raw === "") return false;
 	try {
@@ -291,7 +297,7 @@ function makeContext(cdp: Cdp, expected: VaultId): ProfileContext {
 		async readObserver(): Promise<ObserverEntry[]> {
 			return (await evalInPage<ObserverEntry[]>(OBSERVER_READ_JS)) ?? [];
 		},
-		async reload(): Promise<void> {
+		async reload(armCheckJs?: string): Promise<void> {
 			// Wait for the NEW document, not a fixed sleep. Page.reload is not
 			// idempotent, so it is sent once (no retry); an empty response is
 			// a dropped reply, and the sentinel below confirms the reload.
@@ -299,7 +305,7 @@ function makeContext(cdp: Cdp, expected: VaultId): ProfileContext {
 			// isn't the vault the guard approved.
 			const marked = await evalInPage<string>(MARK_OLD_DOCUMENT_JS);
 			if (!sameVault(marked, expected)) {
-				throw new Error(
+				throw new VaultMismatchError(
 					`reload: refusing — this call reached ${String(marked)}, not vault "${expected.name}" at ${expected.base}`,
 				);
 			}
@@ -309,19 +315,19 @@ function makeContext(cdp: Cdp, expected: VaultId): ProfileContext {
 				if (!/empty output/.test(err instanceof Error ? err.message : String(err))) throw err;
 			}
 			const deadline = Date.now() + 30_000;
-			let seen = "";
+			const probe = armCheckJs ? newDocumentJs(armWaitJs(armCheckJs)) : IS_NEW_DOCUMENT_JS;
 			for (;;) {
 				await sleep(50);
 				try {
-					seen = await evalInPage<string>(IS_NEW_DOCUMENT_JS);
+					const seen = await evalInPage<string>(probe);
 					if (seen) {
 						if (!sameVault(seen, expected)) {
-							throw new Error(`reload: the new page is ${seen}, not vault "${expected.name}"`);
+							throw new VaultMismatchError(`reload: the new page is ${seen}, not vault "${expected.name}"`);
 						}
 						return;
 					}
 				} catch (err) {
-					if (err instanceof Error && err.message.startsWith("reload:")) throw err;
+					if (err instanceof VaultMismatchError) throw err;
 					/* mid-navigation: the old context is gone; poll again */
 				}
 				if (Date.now() > deadline) {
@@ -329,27 +335,47 @@ function makeContext(cdp: Cdp, expected: VaultId): ProfileContext {
 				}
 			}
 		},
-		async waitFor(checkJs, timeoutMs, what, opts = {}): Promise<WaitHit> {
-			// In-page MutationObserver waits, in slices short enough for the
-			// CLI call timeout; the hit's pageMs is the mutation that made the
-			// check hold. Only the FIRST slice can fail on "already held":
-			// later slices start after the earlier one saw it false.
+		async collectArmed(timeoutMs, what): Promise<WaitHit> {
+			// Reading the armed result is retry-safe: the hit and its time
+			// live in the page until the next arm.
 			const deadline = Date.now() + timeoutMs;
-			let first = true;
+			let lastErr = "";
+			for (;;) {
+				const slice = Math.max(100, Math.min(5_000, deadline - Date.now()));
+				let v: string | undefined;
+				try {
+					v = await evalInPage<string>(collectArmedJs(slice));
+				} catch (err) {
+					lastErr = err instanceof Error ? err.message : String(err);
+					await sleep(100);
+				}
+				if (v === PRE_HELD) throw new Error(`${what}: already true when the wait was armed, so it can't be timed`);
+				if (v === "NO-ARM") throw new Error(`${what}: the wait was never armed on the new page`);
+				if (typeof v === "string" && v.startsWith("CHECK-ERR:")) throw new Error(`${what}: the check threw — ${v.slice(10)}`);
+				const hit = parseWaitHit(v);
+				if (hit) return hit;
+				if (Date.now() >= deadline) {
+					throw new Error(`timed out after ${timeoutMs}ms waiting for ${what}${lastErr ? ` (last error: ${lastErr})` : ""}`);
+				}
+			}
+		},
+		async waitFor(checkJs, timeoutMs, what): Promise<WaitHit> {
+			// Untimed waits: in-page MutationObserver slices, short enough for
+			// the CLI call timeout.
+			const deadline = Date.now() + timeoutMs;
 			let lastErr = "";
 			for (;;) {
 				const slice = Math.max(100, Math.min(5_000, deadline - Date.now()));
 				try {
-					const v = await act<string>(awaitCheckJs(checkJs, slice, first && opts.failIfHeld === true));
-					if (v === PRE_HELD) {
-						throw new Error(`${what}: already true when the wait started, so it can't be timed`);
+					const v = await act<string>(awaitCheckJs(checkJs, slice));
+					if (typeof v === "string" && v.startsWith("CHECK-ERR:")) {
+						throw new Error(`${what}: the check threw — ${v.slice(10)}`);
 					}
-					first = false;
 					const hit = parseWaitHit(v);
 					if (hit) return hit;
 				} catch (err) {
 					const msg = err instanceof Error ? err.message : String(err);
-					if (msg.includes("already true when the wait started")) throw err;
+					if (msg.includes("the check threw")) throw err;
 					lastErr = msg;
 					await sleep(100);
 				}
@@ -368,12 +394,6 @@ function makeContext(cdp: Cdp, expected: VaultId): ProfileContext {
 function fmt(n: number): string {
 	if (!Number.isFinite(n)) return String(n);
 	return Math.abs(n) >= 100 || Number.isInteger(n) ? String(n) : n.toFixed(4);
-}
-
-interface ScenarioFailure {
-	pass: number;
-	scenario: string;
-	error: string;
 }
 
 function renderReport(
@@ -444,6 +464,7 @@ async function runOnce(
 			// before-check meaningless): a hidden page renders no frames.
 			visibility.push(String(await ctx.evalInPage<string>("document.visibilityState")));
 		} catch (err) {
+			if (err instanceof VaultMismatchError) throw err;
 			const error = err instanceof Error ? err.message : String(err);
 			console.error(`  ! scenario "${scen.id}" failed: ${error}`);
 			failed.push({ pass, scenario: scen.id, error });
@@ -538,17 +559,15 @@ async function main(): Promise<void> {
 	const profile = passes > 1 ? medianProfile(runs) : runs[0];
 
 	const baseline = loadJson<Baseline>(BASELINE_PATH);
-	const hiddenReason = visibilityProblem(visibility);
-	const incomplete = [
-		...(hiddenReason ? [hiddenReason] : []),
-		...(buildHashBefore !== buildHashAfter
-			? [`main.js changed during the run (${buildHashBefore} -> ${buildHashAfter}); rebuild, then rerun`]
-			: []),
-		...failures.map((f) => `pass ${f.pass}: ${f.scenario} failed — ${f.error}`),
-		...missingFromProfile(profile, baseline, SCENARIOS.map((s) => s.id)).map(
-			(s) => `${s}: in the baseline but not measured`,
-		),
-	];
+	const incomplete = incompleteReasons({
+		profile,
+		baseline,
+		known: SCENARIOS.map((s) => s.id),
+		failures,
+		visibility,
+		buildHashBefore,
+		buildHashAfter,
+	});
 	const verdict = diffAgainstBaseline(profile, baseline, args.threshold);
 	out(renderReport(profile, verdict, baseline !== null, incomplete));
 
