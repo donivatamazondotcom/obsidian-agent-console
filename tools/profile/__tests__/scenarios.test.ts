@@ -30,7 +30,8 @@ function fakeCtx(): ProfileContext {
 		installObserver: () => Promise.resolve(),
 		readObserver: () => Promise.resolve([]),
 		reload: () => Promise.resolve(),
-		waitForSelector: () => Promise.resolve({ ms: 0, selector: "test" }),
+		waitForSelector: () =>
+			Promise.resolve({ ms: 0, selector: "test", pageMs: 0 }),
 		sleep: () => Promise.resolve(),
 		log: () => {},
 	};
@@ -110,5 +111,20 @@ describe("scroll-heavy-transcript", () => {
 		await expect(
 			scenario("scroll-heavy-transcript").measure(fakeCtx()),
 		).rejects.toThrow(/scroll/);
+	});
+});
+
+describe("cold-start-restore", () => {
+	it("waits for a restored message row, not the empty message container", async () => {
+		const asked: string[][] = [];
+		const ctx = fakeCtx();
+		ctx.waitForSelector = (selectors) => {
+			asked.push(selectors);
+			return Promise.resolve({ ms: 1, selector: selectors[0], pageMs: 1234 });
+		};
+		const m = await scenario("cold-start-restore").measure(ctx);
+		expect(asked).toEqual([[".agent-client-message-row"]]);
+		// The page clock (ms since navigation start), not the poll's wall time.
+		expect(m.wallMs).toBe(1234);
 	});
 });
