@@ -173,6 +173,7 @@ describe("MessageList — I-S10 round-4 contract (no in-component deferral; acti
 
 		const { rerender, container } = render(
 			<MessageList
+				lastTurnEnd={null}
 				{...baseProps}
 				messages={messages}
 				view={view}
@@ -188,6 +189,7 @@ describe("MessageList — I-S10 round-4 contract (no in-component deferral; acti
 
 		rerender(
 			<MessageList
+				lastTurnEnd={null}
 				{...baseProps}
 				messages={messages}
 				view={view}
@@ -212,6 +214,7 @@ describe("MessageList — I-S10 round-4 contract (no in-component deferral; acti
 
 		const { rerender, container } = render(
 			<MessageList
+				lastTurnEnd={null}
 				{...baseProps}
 				messages={messages}
 				view={view}
@@ -222,6 +225,7 @@ describe("MessageList — I-S10 round-4 contract (no in-component deferral; acti
 
 		rerender(
 			<MessageList
+				lastTurnEnd={null}
 				{...baseProps}
 				messages={messages}
 				view={view}
@@ -248,6 +252,7 @@ describe("MessageList — I-S10 round-4 contract (no in-component deferral; acti
 
 		const { rerender, container } = render(
 			<MessageList
+				lastTurnEnd={null}
 				{...baseProps}
 				messages={initial}
 				view={view}
@@ -258,6 +263,7 @@ describe("MessageList — I-S10 round-4 contract (no in-component deferral; acti
 
 		rerender(
 			<MessageList
+				lastTurnEnd={null}
 				{...baseProps}
 				messages={initial}
 				view={view}
@@ -282,6 +288,7 @@ describe("MessageList — I-S10 round-4 contract (no in-component deferral; acti
 		];
 		rerender(
 			<MessageList
+				lastTurnEnd={null}
 				{...baseProps}
 				messages={streamed}
 				view={view}
@@ -308,6 +315,7 @@ describe("MessageList — I-S10 round-4 contract (no in-component deferral; acti
 
 		const { rerender, unmount } = render(
 			<MessageList
+				lastTurnEnd={null}
 				{...baseProps}
 				messages={messages}
 				view={view}
@@ -318,6 +326,7 @@ describe("MessageList — I-S10 round-4 contract (no in-component deferral; acti
 
 		rerender(
 			<MessageList
+				lastTurnEnd={null}
 				{...baseProps}
 				messages={messages}
 				view={view}
@@ -358,6 +367,7 @@ describe("MessageList — I-S10 round-4 contract (no in-component deferral; acti
 
 		const { rerender } = render(
 			<MessageList
+				lastTurnEnd={null}
 				{...baseProps}
 				messages={messages}
 				view={view}
@@ -374,6 +384,7 @@ describe("MessageList — I-S10 round-4 contract (no in-component deferral; acti
 		// should re-render. If memo is removed, every bubble re-renders.
 		rerender(
 			<MessageList
+				lastTurnEnd={null}
 				{...baseProps}
 				messages={messages}
 				view={view}

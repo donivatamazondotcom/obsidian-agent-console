@@ -74,6 +74,7 @@ describe("I40: idle tab should not show 'Connecting...' text", () => {
 		it("shows 'Send a message to connect' when idle (idle)", () => {
 			const { container } = render(
 				<MessageList
+					lastTurnEnd={null}
 					messages={[]}
 					isSending={false}
 					lazyState="idle"
@@ -97,6 +98,7 @@ describe("I40: idle tab should not show 'Connecting...' text", () => {
 		it("shows 'Connecting...' when actually connecting (connecting)", () => {
 			const { container } = render(
 				<MessageList
+					lastTurnEnd={null}
 					messages={[]}
 					isSending={false}
 					lazyState="connecting"
@@ -117,6 +119,7 @@ describe("I40: idle tab should not show 'Connecting...' text", () => {
 		it("shows 'Start a conversation' when session is ready", () => {
 			const { container } = render(
 				<MessageList
+					lastTurnEnd={null}
 					messages={[]}
 					isSending={false}
 					lazyState="ready"

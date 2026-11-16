@@ -213,6 +213,7 @@ afterEach(() => {
 function List(props: Partial<MessageListProps>) {
 	return (
 		<MessageList
+			lastTurnEnd={null}
 			messages={MESSAGES}
 			isSending={false}
 			lazyState="ready"

@@ -88,6 +88,7 @@ function turn(i: number): ChatMessage[] {
 function list(messages: ChatMessage[]) {
 	return (
 		<MessageList
+			lastTurnEnd={null}
 			messages={messages}
 			isSending={true}
 			lazyState="ready"

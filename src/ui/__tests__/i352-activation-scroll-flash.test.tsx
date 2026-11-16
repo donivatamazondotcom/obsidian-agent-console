@@ -169,6 +169,7 @@ afterEach(() => {
 function list(isActive: boolean, isSending = false) {
 	return (
 		<MessageList
+			lastTurnEnd={null}
 			messages={messages}
 			isSending={isSending}
 			lazyState="ready"

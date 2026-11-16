@@ -38,6 +38,7 @@ vi.mock("../MessageBubble", () => ({
 function emptyStateFor(lazyState: "error" | "connecting" | "idle"): string {
 	const { container } = render(
 		<MessageList
+			lastTurnEnd={null}
 			messages={[]}
 			isSending={false}
 			lazyState={lazyState}

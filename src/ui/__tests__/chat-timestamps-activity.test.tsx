@@ -95,6 +95,7 @@ function textMsg(text: string): ChatMessage {
 function listElement(messages: ChatMessage[], opts: { isSending?: boolean; hasActivePermission?: boolean } = {}) {
 	return (
 		<MessageList
+			lastTurnEnd={null}
 			messages={messages}
 			isSending={opts.isSending ?? false}
 			lazyState="ready"

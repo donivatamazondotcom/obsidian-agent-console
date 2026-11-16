@@ -83,6 +83,7 @@ describe("MessageList shows the MCP failure note", () => {
 		const view = { registerDomEvent: vi.fn() } as never;
 		const { container } = render(
 			<MessageList
+				lastTurnEnd={null}
 				messages={[]}
 				isSending={false}
 				lazyState="ready"

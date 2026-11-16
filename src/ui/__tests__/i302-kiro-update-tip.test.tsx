@@ -64,6 +64,7 @@ function renderList(
 ) {
 	return render(
 		<MessageList
+			lastTurnEnd={null}
 			messages={messages}
 			isSending={false}
 			lazyState="ready"
@@ -148,6 +149,7 @@ describe("I302 update tip in the chat", () => {
 		render(
 			<Probe id="tip" onRender={() => renders++}>
 				<MessageList
+					lastTurnEnd={null}
 					messages={[]}
 					isSending={false}
 					lazyState="ready"

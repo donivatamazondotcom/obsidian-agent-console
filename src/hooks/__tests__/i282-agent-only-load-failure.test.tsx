@@ -175,6 +175,7 @@ function renderEmpty(lazy: {
 }, onClose = vi.fn()) {
 	const view = render(
 		<MessageList
+			lastTurnEnd={null}
 			messages={[]}
 			isSending={false}
 			lazyState={lazy.state as "error"}

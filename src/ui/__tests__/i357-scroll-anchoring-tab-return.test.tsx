@@ -83,6 +83,7 @@ afterEach(() => {
 function list(isActive: boolean) {
 	return (
 		<MessageList
+			lastTurnEnd={null}
 			messages={messages}
 			isSending={false}
 			lazyState="ready"
