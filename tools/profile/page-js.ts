@@ -11,6 +11,8 @@
  * Spec: [[Agent Console Release Quality Gates]] § Gate B-phase2.
  */
 
+const PRE_HELD_TOKEN = "PRE-HELD";
+
 /** The vault this page belongs to, as JSON `{name, base}`. */
 const VAULT_ID_JS =
 	'JSON.stringify({name:app.vault.getName(),base:(app.vault.adapter.getBasePath?app.vault.adapter.getBasePath():"")})';
@@ -26,9 +28,51 @@ export const MARK_OLD_DOCUMENT_JS =
 /**
  * `""` while the marked document is still current (or the new one isn't
  * ready); else the new page's vault identity, as JSON `{name, base}`.
+ * `armJs` runs once, in the first evaluate that sees the new document (even
+ * before `app` exists), so a timed wait is armed as early as possible.
  */
-export const IS_NEW_DOCUMENT_JS =
-	`(function(){if(window.__profOldDocument===true)return "";try{return ${VAULT_ID_JS};}catch(e){return "";}})()`;
+export function newDocumentJs(armJs = ""): string {
+	return (
+		`(function(){if(window.__profOldDocument===true)return "";` +
+		(armJs ? `if(!window.__profArmed){window.__profArmed=true;${armJs};}` : "") +
+		`try{return ${VAULT_ID_JS};}catch(e){return "";}})()`
+	);
+}
+
+export const IS_NEW_DOCUMENT_JS = newDocumentJs();
+
+const MO_OPTIONS =
+	'{childList:true,subtree:true,attributes:true,attributeFilter:["aria-selected","style","class"]}';
+
+/**
+ * Statement: arm a wait for `checkJs` that stores its hit in the page
+ * (`window.__profArm`), so it can be collected later by any number of
+ * calls without losing the time. Records `held` when the check is already
+ * true at arming, and a thrown check as an error.
+ */
+export function armWaitJs(checkJs: string): string {
+	return (
+		`var a=window.__profArm={hit:"",held:false,err:"",n:0,cost:0,cb:null};` +
+		`var chk=function(){try{var s=performance.now();var v=${checkJs};a.n++;a.cost+=performance.now()-s;return v;}catch(e){a.err=String(e&&e.message||e);return "";}};` +
+		`if(chk()){a.held=true;}else if(!a.err){var mo=new MutationObserver(function(){if(a.hit||a.err)return;var v=chk();` +
+		`if(v||a.err){a.hit=v;mo.disconnect();if(a.cb)a.cb();}});mo.observe(document.documentElement,${MO_OPTIONS});}`
+	);
+}
+
+/**
+ * Collect the armed wait: the stored hit (with its check count and cost),
+ * PRE_HELD, `"CHECK-ERR:<msg>"`, `"NO-ARM"`, or `""` when `timeoutMs`
+ * passes first. Reading only: safe to retry.
+ */
+export function collectArmedJs(timeoutMs: number): string {
+	return (
+		`(function(){return new Promise(function(res){var a=window.__profArm;` +
+		`if(!a){res("NO-ARM");return;}if(a.held){res(${JSON.stringify(PRE_HELD_TOKEN)});return;}` +
+		`var done=function(){if(a.err){res("CHECK-ERR:"+a.err);return;}var o=JSON.parse(a.hit);o.checks=a.n;o.checkMs=Math.round(a.cost*10)/10;res(JSON.stringify(o));};` +
+		`if(a.hit||a.err){done();return;}var t=setTimeout(function(){a.cb=null;res("");},${timeoutMs});` +
+		`a.cb=function(){clearTimeout(t);done();};});})()`
+	);
+}
 
 /** The visible tab panel (inactive panels are `display: none`). */
 export const ACTIVE_PANEL_SELECTOR =
@@ -102,17 +146,17 @@ export function awaitCheckJs(checkJs: string, timeoutMs: number, failIfHeld = fa
 		// counted (checks) and timed (checkMs) and reported with the hit.
 		`function fin(v){if(done)return;done=true;if(mo)mo.disconnect();if(t)clearTimeout(t);` +
 		`if(v){var o=JSON.parse(v);o.checks=n;o.checkMs=Math.round(cost*10)/10;v=JSON.stringify(o);}res(v);}` +
-		`function chk(){if(done)return;var s=performance.now();var v=${checkJs};n++;cost+=performance.now()-s;if(v)fin(v);}` +
+		`function chk(){if(done)return;var v;try{var s=performance.now();v=${checkJs};n++;cost+=performance.now()-s;}catch(e){done=true;if(mo)mo.disconnect();if(t)clearTimeout(t);res("CHECK-ERR:"+String(e&&e.message||e));return;}if(v)fin(v);}` +
 		(failIfHeld ? `if(${checkJs}){res(${JSON.stringify(PRE_HELD)});return;}` : "") +
 		`mo=new MutationObserver(chk);` +
-		`mo.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["aria-selected","style","class"]});` +
+		`mo.observe(document.documentElement,${MO_OPTIONS});` +
 		`t=setTimeout(function(){fin("");},${timeoutMs});` +
 		`chk();});})()`
 	);
 }
 
-/** Returned by a failIfHeld wait whose condition held before it started. */
-export const PRE_HELD = "PRE-HELD";
+/** Returned by a wait whose condition held before it started. */
+export const PRE_HELD = PRE_HELD_TOKEN;
 
 /**
  * One evaluate that times an interaction in the page: it checks the
@@ -120,23 +164,33 @@ export const PRE_HELD = "PRE-HELD";
  * task (so the click runs as its own task, like a real one), and resolves
  * when the condition holds. Result (JSON): `clickedAt` (page clock at the
  * click), `pageMs` (the mutation that made it hold: the DOM commit), and
- * `frameMs` (the first animation frame after it, ~paint; 0 when no frame
- * came within 1 s, e.g. a hidden page). `""` on timeout, PRE_HELD when the
- * condition already held, `"NO-TARGET"` when the click found nothing.
+ * `frameMs` (when the next frame's style, layout and paint are done).
+ * Otherwise: `""` on timeout, PRE_HELD when the condition already held,
+ * `"NO-TARGET"` when the click found nothing, `"NO-FRAME"` when no frame
+ * came within 1 s (a hidden page), `"CHECK-ERR:<msg>"` when the check threw.
  */
 export function clickAndAwaitJs(clickJs: string, checkJs: string, timeoutMs: number): string {
 	return (
 		`(function(){return new Promise(function(res){` +
-		`if(${checkJs}){res(${JSON.stringify(PRE_HELD)});return;}` +
 		`var done=false,mo=null,t=null,clickedAt=-1;` +
 		`function fin(v){if(done)return;done=true;if(mo)mo.disconnect();if(t)clearTimeout(t);res(v);}` +
-		`function chk(){if(done||clickedAt<0)return;var v=${checkJs};if(!v)return;var pageMs=performance.now();` +
-		`if(mo)mo.disconnect();var ft=setTimeout(function(){fin(JSON.stringify({clickedAt:clickedAt,pageMs:pageMs,frameMs:0}));},1000);` +
-		`if(typeof requestAnimationFrame==="function")requestAnimationFrame(function(ts){clearTimeout(ft);fin(JSON.stringify({clickedAt:clickedAt,pageMs:pageMs,frameMs:ts}));});}` +
+		`function check(){try{return ${checkJs};}catch(e){fin("CHECK-ERR:"+String(e&&e.message||e));return "";}}` +
+		`if(check()){fin(${JSON.stringify(PRE_HELD_TOKEN)});return;}` +
+		// On the hit: stop the main timeout, then time the frame AFTER its
+		// style, layout and paint: a task posted from the rAF callback runs
+		// once that frame's rendering is done.
+		`function chk(){if(done||clickedAt<0)return;var v=check();if(!v||done)return;var pageMs=performance.now();` +
+		`if(mo)mo.disconnect();mo=null;if(t)clearTimeout(t);t=null;` +
+		`var ft=setTimeout(function(){fin("NO-FRAME");},1000);` +
+		`if(typeof requestAnimationFrame!=="function"){clearTimeout(ft);fin("NO-FRAME");return;}` +
+		`requestAnimationFrame(function(){setTimeout(function(){clearTimeout(ft);` +
+		`fin(JSON.stringify({clickedAt:clickedAt,pageMs:pageMs,frameMs:performance.now()}));},0);});}` +
 		`mo=new MutationObserver(chk);` +
-		`mo.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["aria-selected","style","class"]});` +
+		`mo.observe(document.documentElement,${MO_OPTIONS});` +
 		`t=setTimeout(function(){fin("");},${timeoutMs});` +
-		`setTimeout(function(){var at=${clickJs};if(at<0){fin("NO-TARGET");return;}clickedAt=at;chk();},0);` +
+		// Re-check right before the click: the page may have changed since.
+		`setTimeout(function(){if(done)return;if(check()){fin(${JSON.stringify(PRE_HELD_TOKEN)});return;}` +
+		`var at=${clickJs};if(at<0){fin("NO-TARGET");return;}clickedAt=at;chk();},0);` +
 		`});})()`
 	);
 }
@@ -151,6 +205,8 @@ export interface InteractionTiming {
 export function parseInteraction(value: unknown, what: string): InteractionTiming {
 	if (value === PRE_HELD) throw new Error(`${what}: already true before the click, so it can't be timed`);
 	if (value === "NO-TARGET") throw new Error(`${what}: the click target is missing`);
+	if (value === "NO-FRAME") throw new Error(`${what}: no frame rendered within 1 s (is the page hidden?)`);
+	if (typeof value === "string" && value.startsWith("CHECK-ERR:")) throw new Error(`${what}: the check threw — ${value.slice(10)}`);
 	if (value === "" || value === undefined || value === null) throw new Error(`${what}: timed out`);
 	if (typeof value !== "string") throw new Error(`${what}: malformed timing ${JSON.stringify(value)}`);
 	const o = JSON.parse(value) as Partial<InteractionTiming>;
@@ -207,6 +263,9 @@ export const OBSERVER_INSTALL_JS =
 	"po.observe({type:type,buffered:true});window.__profObs=po;window.__profObsType=type;return type;}" +
 	'catch(err){return "OBS-ERR:"+err.message;}})()';
 
-/** Read and clear the buffered entries. */
+/**
+ * Read the buffered entries WITHOUT clearing them (install clears), so a
+ * read retried after a dropped reply returns the same frames.
+ */
 export const OBSERVER_READ_JS =
-	"(function(){var b=window.__profBuf||[];window.__profBuf=[];return b;})()";
+	"(function(){return (window.__profBuf||[]).slice();})()";

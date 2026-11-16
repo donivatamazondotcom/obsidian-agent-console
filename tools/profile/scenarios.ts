@@ -61,21 +61,19 @@ export interface ProfileContext {
 	readObserver(): Promise<ObserverEntry[]>;
 	/**
 	 * Hard `Page.reload` (destroys the JS context; the on-disk seed wins).
-	 * Resolves once the new document answers.
+	 * Resolves once the new document answers. With `armCheckJs`, a wait for
+	 * it is armed in the FIRST evaluate that sees the new document; collect
+	 * it with {@link collectArmed}.
 	 */
-	reload(): Promise<void>;
+	reload(armCheckJs?: string): Promise<void>;
+	/** Collect the wait armed by reload(); rejects if it held at arming, threw or timed out. */
+	collectArmed(timeoutMs: number, what: string): Promise<WaitHit>;
 	/**
-	 * Resolve when a `page-js` check expression holds, with the page clock
-	 * at the DOM mutation that made it hold. Rejects on timeout. With
-	 * `failIfHeld`, also rejects when the check already held as the wait
-	 * started (the time would be when it looked, not when it became true).
+	 * Resolve when a `page-js` check expression holds. For UNTIMED waits
+	 * (e.g. "the light tab is selected"): it polls in slices, so its time
+	 * can be late. Timed waits use reload()+collectArmed or clickAndAwaitJs.
 	 */
-	waitFor(
-		checkJs: string,
-		timeoutMs: number,
-		what: string,
-		opts?: { failIfHeld?: boolean },
-	): Promise<WaitHit>;
+	waitFor(checkJs: string, timeoutMs: number, what: string): Promise<WaitHit>;
 	sleep(ms: number): Promise<void>;
 	log(msg: string): void;
 }
@@ -145,16 +143,12 @@ const coldStartRestore: Scenario = {
 	title: "Cold-start restore of the heavy session",
 	primarySignal: "wallMs (navigation start to full heavy transcript) + long frames",
 	async measure(ctx) {
-		await ctx.reload();
-		// New document: install as early as possible; `buffered: true`
-		// backfills the restore's frames from before observe().
+		// The wait is armed in the first evaluate on the new document, before
+		// the restore can finish, and refuses a transcript already shown then.
+		await ctx.reload(HEAVY_RENDERED_JS);
+		// `buffered: true` backfills the restore's frames from before observe().
 		await ctx.installObserver();
-		const hit = await ctx.waitFor(
-			HEAVY_RENDERED_JS,
-			30_000,
-			`${HEAVY_MESSAGE_COUNT} restored rows`,
-			{ failIfHeld: true },
-		);
+		const hit = await ctx.collectArmed(30_000, `${HEAVY_MESSAGE_COUNT} restored rows`);
 		ctx.log(`restore: ${HEAVY_MESSAGE_COUNT} rows at ${hit.pageMs}ms after navigation start`);
 		await ctx.sleep(500);
 		const obs = await ctx.readObserver();
@@ -175,8 +169,9 @@ const coldStartRestore: Scenario = {
  * render a placeholder, so activating the heavy tab re-renders all 201
  * rows. One evaluate clicks from a page task and times, in the page, the
  * click to the DOM commit that shows the heavy tab selected with every row
- * (`activateMs`) and to the next animation frame (`activateFrameMs`, 0 when
- * the page rendered no frame). No CLI round trip is inside either number.
+ * (`activateMs`) and to the end of the next frame's style, layout and paint
+ * (`activateFrameMs`). No CLI round trip is inside either number. No frame
+ * within 1 s (a hidden page) fails the scenario.
  */
 const activateBackgroundTab: Scenario = {
 	id: "activate-background-tab",
@@ -213,7 +208,7 @@ const activateBackgroundTab: Scenario = {
 		const r1 = (n: number) => Math.round(Math.max(0, n) * 10) / 10;
 		return mergeMetrics(computeDelta(before, after), obs, {
 			activateMs: r1(timing.pageMs - timing.clickedAt),
-			activateFrameMs: timing.frameMs > 0 ? r1(timing.frameMs - timing.clickedAt) : 0,
+			activateFrameMs: r1(timing.frameMs - timing.clickedAt),
 		});
 	},
 };

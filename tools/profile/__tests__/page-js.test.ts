@@ -20,6 +20,9 @@ import {
 	PRE_HELD,
 	clickAndAwaitJs,
 	parseInteraction,
+	armWaitJs,
+	collectArmedJs,
+	newDocumentJs,
 } from "../page-js";
 
 function run<T>(js: string): T {
@@ -143,7 +146,10 @@ describe("long-frame observer", () => {
 		w.PerformanceObserver = FakePO;
 		expect(run<string>(OBSERVER_INSTALL_JS)).toBe("long-animation-frame");
 		(w.__profBuf as unknown[]).push({ entryType: "long-animation-frame", duration: 80 });
-		// Second install (next scenario): no new observer, buffer emptied.
+		// A read doesn't clear (a retried read returns the same frames)...
+		expect(run<unknown[]>(OBSERVER_READ_JS)).toHaveLength(1);
+		expect(run<unknown[]>(OBSERVER_READ_JS)).toHaveLength(1);
+		// ...the next install (next scenario) does, without a new observer.
 		expect(run<string>(OBSERVER_INSTALL_JS)).toBe("long-animation-frame");
 		expect(run<unknown[]>(OBSERVER_READ_JS)).toEqual([]);
 		// Only LoAF observed: one stall is never counted twice.
@@ -249,5 +255,64 @@ describe("reload sentinel carries the vault identity", () => {
 		delete w.__profOldDocument;
 		expect(JSON.parse(run<string>(IS_NEW_DOCUMENT_JS))).toEqual({ name: "studio", base: "/x/studio" });
 		delete w.app;
+	});
+});
+
+describe("armed waits (cold start)", () => {
+	afterEach(() => {
+		delete w.__profArm;
+		delete w.__profArmed;
+	});
+
+	it("keeps the hit in the page so a retried collect returns the same time", async () => {
+		run(`(function(){${armWaitJs(waitCheckJs([".row"]))}})()`);
+		document.body.innerHTML = '<div class="row"></div>';
+		await Promise.resolve();
+		const a = parseWaitHit(await run<Promise<string>>(collectArmedJs(500)));
+		const b = parseWaitHit(await run<Promise<string>>(collectArmedJs(500)));
+		expect(a).not.toBeNull();
+		expect(a?.pageMs).toBe(b?.pageMs);
+	});
+
+	it("reports held-at-arming, never armed, a throwing check, and a timeout", async () => {
+		expect(await run<Promise<string>>(collectArmedJs(10))).toBe("NO-ARM");
+		document.body.innerHTML = '<div class="row"></div>';
+		run(`(function(){${armWaitJs(waitCheckJs([".row"]))}})()`);
+		expect(await run<Promise<string>>(collectArmedJs(10))).toBe(PRE_HELD);
+		run(`(function(){${armWaitJs("(function(){throw new Error('bad')})()")}})()`);
+		expect(await run<Promise<string>>(collectArmedJs(10))).toBe("CHECK-ERR:bad");
+		document.body.innerHTML = "";
+		run(`(function(){${armWaitJs(waitCheckJs([".never"]))}})()`);
+		expect(await run<Promise<string>>(collectArmedJs(10))).toBe("");
+	});
+
+	it("arms once, in the first new-document evaluate", () => {
+		w.app = { vault: { getName: () => "studio", adapter: { getBasePath: () => "/x" } } };
+		const probe = newDocumentJs("window.__armCount=(window.__armCount||0)+1");
+		run(probe);
+		run(probe);
+		expect(w.__armCount).toBe(1);
+		delete w.__armCount;
+		delete w.app;
+	});
+});
+
+describe("clickAndAwaitJs failure modes", () => {
+	const click = '(function(){var b=document.querySelector("button");if(!b)return -1;var at=performance.now();b.click();return at;})()';
+
+	it("fails when no frame renders (hidden page) instead of recording 0", async () => {
+		delete (w as { requestAnimationFrame?: unknown }).requestAnimationFrame;
+		document.body.innerHTML = "<button></button>";
+		document.querySelector("button")?.addEventListener("click", () => {
+			document.body.insertAdjacentHTML("beforeend", '<div class="done"></div>');
+		});
+		const v = await run<Promise<string>>(clickAndAwaitJs(click, waitCheckJs([".done"]), 1000));
+		expect(() => parseInteraction(v, "x")).toThrow(/no frame/);
+	});
+
+	it("fails fast when the check throws", async () => {
+		document.body.innerHTML = "<button></button>";
+		const v = await run<Promise<string>>(clickAndAwaitJs(click, "(function(){throw new Error('bad')})()", 1000));
+		expect(() => parseInteraction(v, "x")).toThrow(/check threw — bad/);
 	});
 });
