@@ -4,7 +4,7 @@
 
 # Agent Console
 
-**Your AI agents, working from your notes.**
+**The AI agent plugin built for Obsidian power users.**
 
 [![Version](https://img.shields.io/github/v/release/donivatamazondotcom/obsidian-agent-console?label=version&color=8b5cf6)](https://github.com/donivatamazondotcom/obsidian-agent-console/releases)
 [![Obsidian downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&query=%24%5B%22agent-console%22%5D.downloads&label=downloads&color=8b5cf6)](https://community.obsidian.md/plugins/agent-console)
@@ -57,7 +57,7 @@ When an agent asks to edit a file or run a command, you choose Allow or Reject. 
 
 ## Features
 
-* **Work from the notes you’ve already written** – @mention a note and the agent reads it, and it can follow the links to related notes. Send PDFs and images to the agent too, by copy-pasting them or with the attach button
+* **Work from the notes you’ve already written** – @mention a note and the agent reads it, and it can follow the links to related notes. Send images and files to the agent too, by copy-pasting them or with the attach button
 * **Let your second brain grow itself** – ask an agent to write back: capture decisions, draft notes, and link ideas straight into your vault, without the manual upkeep
 * **Fire your go-to prompts in one click** – keep kickoffs like “debrief this meeting” as notes and launch them from a chip or a `!` search. `show when` puts a chip only on the notes it fits, and a prompt can pick its own agent and mode
 * **See which chat needs you at a glance** – each tab’s icon shows busy, waiting on you, finished while you were away, stopped early, or a failed message. New installs show the tabs as a slim column of icons; drag it wider for names
@@ -85,7 +85,7 @@ When an agent asks to edit a file or run a command, you choose Allow or Reject. 
 * **Every link the agent shared, in one list** – the header’s link button collects the notes and pages it pointed you to, newly created files first
 * **Your MCP tools come along** – whatever MCP servers your agent uses keep working in Agent Console with no extra setup
 * **Use it in your language** – Agent Console follows Obsidian’s language, with Korean, Chinese, and Japanese alongside English
-* **Switching from another agent plugin? Bring your setup** – import agent definitions, defaults, and API keys from another plugin (like Agent Client) in one click
+* **Switching from Agent Client? Bring your setup** – import its agent definitions, defaults, and API keys in one click
 * **Looks like part of your Obsidian** – it adopts Obsidian’s own styling and your theme’s variables instead of hardcoded colors and chrome, so any custom theme restyles it like a built-in panel
 
 </details>
@@ -166,11 +166,11 @@ Three things come together, and you control all of them:
 
 Whatever your agent can do, Agent Console lets you run several of those jobs at once.
 
-## Enterprise-grade quality
+## Fixes that stay fixed
 
 A plugin that runs live agent sessions in your vault has to be dependable. A few things keep it that way:
 
-* **Every bug fix ships with a test** – the test reproduces the bug first, so it stays fixed. There are 5,000+ tests across the plugin’s core logic
+* **Every bug fix ships with a test** – the test reproduces the bug first, so it stays fixed. There are 6,000+ tests across the plugin’s core logic
 * **Every change is checked before it lands** – each pull request runs linting, type-checking, the full test suite, and a build before it can merge
 * **You can check the efficiency claim yourself** – the “62–77% fewer context tokens” figure comes from a benchmark you can run (`npm run bench:tokens`), and a test keeps it in line with the shipped code
 * **Slower context handling blocks a release** – context-handling benchmarks run on every change, and a release can’t ship if they’re more than 15% slower than the saved baseline
