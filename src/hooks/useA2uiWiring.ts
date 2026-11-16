@@ -211,8 +211,12 @@ export function useA2uiWiring(input: UseA2uiWiringInput): UseA2uiWiringResult {
 		});
 	}
 	const turnStore = turnStoreRef.current;
-	// Layout effect: subscribed hosts re-render in the same commit flush,
-	// before paint. publish() is a no-op when nothing changed.
+	// Layout effect: a host already subscribed with its current selector
+	// re-renders in the same commit flush, before paint. A host that switched
+	// selector in this very render (refused -> live at turn end) only catches
+	// up in React's passive consistency check, so it may show the old,
+	// refusing state for one frame; it never shows a stale enabled state.
+	// publish() is a no-op when nothing changed.
 	useLayoutEffect(() => {
 		turnStore.publish({
 			isSending,

@@ -232,6 +232,9 @@ describe("A2uiSurfaceHost × turn store — refused ↔ live handover (I376)", (
 		// isStreamingTurn goes false), and the layout effect of that same
 		// commit publishes isSending false (useA2uiWiring). So the host first
 		// renders live against the OLD "sending" snapshot, then must catch up.
+		// The catch-up comes from useSyncExternalStore's post-commit
+		// consistency check (a passive effect, which act() flushes), not from
+		// the publish notification, which still runs through the old selector.
 		// Publishing from a layout effect here reproduces that ordering; an
 		// outer act() around rerender + publish would not.
 		const store = createA2uiTurnStore({ ...IDLE, isSending: true });
