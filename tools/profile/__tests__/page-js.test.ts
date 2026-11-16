@@ -17,6 +17,9 @@ import {
 	parseWaitHit,
 	OBSERVER_INSTALL_JS,
 	OBSERVER_READ_JS,
+	PRE_HELD,
+	clickAndAwaitJs,
+	parseInteraction,
 } from "../page-js";
 
 function run<T>(js: string): T {
@@ -35,10 +38,12 @@ beforeEach(() => {
 });
 
 describe("old-document sentinel", () => {
-	it("reads the marked document as old, and an unmarked one as new", () => {
-		expect(run<boolean>(IS_NEW_DOCUMENT_JS)).toBe(true);
+	it("reads the marked document as old", () => {
+		w.app = { vault: { getName: () => "studio", adapter: { getBasePath: () => "/x" } } };
+		expect(run<string>(IS_NEW_DOCUMENT_JS)).not.toBe("");
 		run(MARK_OLD_DOCUMENT_JS);
-		expect(run<boolean>(IS_NEW_DOCUMENT_JS)).toBe(false);
+		expect(run<string>(IS_NEW_DOCUMENT_JS)).toBe("");
+		delete w.app;
 	});
 });
 
@@ -178,5 +183,71 @@ describe("long-frame observer", () => {
 		w.PerformanceObserver = FakePO;
 		expect(run<string>(OBSERVER_INSTALL_JS)).toBe("longtask");
 		expect(observed).toEqual(["longtask"]);
+	});
+});
+
+describe("awaitCheckJs failIfHeld", () => {
+	it("refuses to time a condition that already holds", async () => {
+		document.body.innerHTML = '<div class="row"></div>';
+		expect(await run<Promise<string>>(awaitCheckJs(waitCheckJs([".row"]), 1000, true))).toBe(PRE_HELD);
+		// Without failIfHeld it is just a check.
+		expect(parseWaitHit(await run<Promise<string>>(awaitCheckJs(waitCheckJs([".row"]), 1000))))
+			.not.toBeNull();
+	});
+
+	it("reports how often the check ran and its cost", async () => {
+		const p = run<Promise<string>>(awaitCheckJs(waitCheckJs([".row"]), 2000));
+		document.body.innerHTML = '<div class="row"></div>';
+		const hit = parseWaitHit(await p);
+		expect(hit?.checks).toBeGreaterThanOrEqual(2);
+		expect(typeof hit?.checkMs).toBe("number");
+	});
+});
+
+describe("clickAndAwaitJs", () => {
+	beforeEach(() => {
+		(w as { requestAnimationFrame?: unknown }).requestAnimationFrame = (cb: (ts: number) => void) =>
+			window.setTimeout(() => cb(performance.now()), 0);
+	});
+
+	const click = '(function(){var b=document.querySelector("button");if(!b)return -1;var at=performance.now();b.click();return at;})()';
+
+	it("times click -> commit -> frame inside one evaluate", async () => {
+		document.body.innerHTML = "<button></button>";
+		document.querySelector("button")?.addEventListener("click", () => {
+			document.body.insertAdjacentHTML("beforeend", '<div class="done"></div>');
+		});
+		const t = parseInteraction(await run<Promise<string>>(clickAndAwaitJs(click, waitCheckJs([".done"]), 1000)), "x");
+		expect(t.pageMs).toBeGreaterThanOrEqual(t.clickedAt);
+		expect(t.frameMs).toBeGreaterThanOrEqual(t.pageMs);
+	});
+
+	it("refuses when the condition holds before the click", async () => {
+		document.body.innerHTML = '<button></button><div class="done"></div>';
+		const v = await run<Promise<string>>(clickAndAwaitJs(click, waitCheckJs([".done"]), 1000));
+		expect(() => parseInteraction(v, "x")).toThrow(/already true/);
+	});
+
+	it("reports a missing click target and a timeout", async () => {
+		expect(() =>
+			parseInteraction(
+				"NO-TARGET",
+				"x",
+			),
+		).toThrow(/missing/);
+		document.body.innerHTML = "<button></button>";
+		const v = await run<Promise<string>>(clickAndAwaitJs(click, waitCheckJs([".never"]), 30));
+		expect(() => parseInteraction(v, "x")).toThrow(/timed out/);
+	});
+});
+
+describe("reload sentinel carries the vault identity", () => {
+	it("returns the vault on mark, and nothing until the document is new", () => {
+		w.app = { vault: { getName: () => "studio", adapter: { getBasePath: () => "/x/studio" } } };
+		expect(JSON.parse(run<string>(MARK_OLD_DOCUMENT_JS))).toEqual({ name: "studio", base: "/x/studio" });
+		expect(run<string>(IS_NEW_DOCUMENT_JS)).toBe("");
+		delete w.__profOldDocument;
+		expect(JSON.parse(run<string>(IS_NEW_DOCUMENT_JS))).toEqual({ name: "studio", base: "/x/studio" });
+		delete w.app;
 	});
 });

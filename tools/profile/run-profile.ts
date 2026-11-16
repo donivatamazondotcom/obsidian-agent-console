@@ -63,6 +63,7 @@ import {
 	IS_NEW_DOCUMENT_JS,
 	OBSERVER_INSTALL_JS,
 	OBSERVER_READ_JS,
+	PRE_HELD,
 	awaitCheckJs,
 	parseWaitHit,
 	type WaitHit,
@@ -161,11 +162,10 @@ function resolveProvenance(
 	shaOverride: string | undefined,
 ): Pick<HistoryEntry, "gitSha" | "appVersion" | "host" | "buildHash" | "obsidianVersion"> {
 	const pluginDir = pluginDirOf(vaultRoot, configDir);
-	let buildHash = "unknown";
+	const buildHash = mainJsHash(vaultRoot, configDir);
 	let gitSha = "unknown";
 	try {
 		const mainJs = realpathSync(path.join(pluginDir, "main.js"));
-		buildHash = createHash("sha256").update(readFileSync(mainJs)).digest("hex").slice(0, 12);
 		gitSha = execFileSync("git", ["-C", path.dirname(mainJs), "rev-parse", "--short", "HEAD"], {
 			encoding: "utf8",
 			stdio: ["ignore", "pipe", "ignore"],
@@ -181,6 +181,16 @@ function resolveProvenance(
 		buildHash,
 		obsidianVersion: /obsidian\/([\d.]+)/.exec(userAgent)?.[1] ?? "unknown",
 	};
+}
+
+/** sha256 (12 hex) of the main.js the vault loads; "unknown" if unreadable. */
+function mainJsHash(vaultRoot: string, configDir: string): string {
+	try {
+		const mainJs = realpathSync(path.join(pluginDirOf(vaultRoot, configDir), "main.js"));
+		return createHash("sha256").update(readFileSync(mainJs)).digest("hex").slice(0, 12);
+	} catch {
+		return "unknown";
+	}
 }
 
 /** Local calendar date (YYYY-MM-DD), not UTC. */
@@ -230,19 +240,44 @@ function b64(s: string): string {
 	return Buffer.from(s, "utf8").toString("base64");
 }
 
-/** Build the live ProfileContext backed by a Cdp attached to the vault. */
-function makeContext(cdp: Cdp): ProfileContext {
-	const evalInPage = async <T = unknown>(js: string): Promise<T> => {
+interface VaultId {
+	name: string;
+	base: string;
+}
+
+function sameVault(raw: unknown, expected: VaultId): boolean {
+	if (typeof raw !== "string" || raw === "") return false;
+	try {
+		const v = JSON.parse(raw) as Partial<VaultId>;
+		return v.name === expected.name && v.base === expected.base;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Build the live ProfileContext backed by a Cdp attached to the vault.
+ * `expected` is the vault the guard approved: reload() refuses any page
+ * that isn't it, because the CLI routes each call to a vault separately.
+ */
+function makeContext(cdp: Cdp, expected: VaultId): ProfileContext {
+	const evaluate = async <T>(js: string, retries: number): Promise<T> => {
 		const wrapped = `eval(atob("${b64(js)}"))`;
 		const resp = await cdp.send<{ result?: { value?: T } }>(
 			"Runtime.evaluate",
 			{ expression: wrapped, returnByValue: true, awaitPromise: true },
+			retries,
 		);
 		return resp.result?.value as T;
 	};
+	// Reads may be retried on a dropped reply; anything that acts or times
+	// is sent once, so a retry can't repeat it or report a late time.
+	const evalInPage = <T = unknown>(js: string): Promise<T> => evaluate<T>(js, 4);
+	const act = <T = unknown>(js: string): Promise<T> => evaluate<T>(js, 0);
 
 	return {
 		evalInPage,
+		act,
 		async snapshot(): Promise<MetricSnapshot> {
 			const resp = await cdp.send<{ metrics: RawMetric[] }>("Performance.getMetrics");
 			return toSnapshot(resp.metrics ?? []);
@@ -260,18 +295,33 @@ function makeContext(cdp: Cdp): ProfileContext {
 			// Wait for the NEW document, not a fixed sleep. Page.reload is not
 			// idempotent, so it is sent once (no retry); an empty response is
 			// a dropped reply, and the sentinel below confirms the reload.
-			await evalInPage(MARK_OLD_DOCUMENT_JS);
+			// The mark returns the page's vault: never reload a page that
+			// isn't the vault the guard approved.
+			const marked = await evalInPage<string>(MARK_OLD_DOCUMENT_JS);
+			if (!sameVault(marked, expected)) {
+				throw new Error(
+					`reload: refusing — this call reached ${String(marked)}, not vault "${expected.name}" at ${expected.base}`,
+				);
+			}
 			try {
 				await cdp.send("Page.reload", {}, 0);
 			} catch (err) {
 				if (!/empty output/.test(err instanceof Error ? err.message : String(err))) throw err;
 			}
 			const deadline = Date.now() + 30_000;
+			let seen = "";
 			for (;;) {
 				await sleep(50);
 				try {
-					if (await evalInPage<boolean>(IS_NEW_DOCUMENT_JS)) return;
-				} catch {
+					seen = await evalInPage<string>(IS_NEW_DOCUMENT_JS);
+					if (seen) {
+						if (!sameVault(seen, expected)) {
+							throw new Error(`reload: the new page is ${seen}, not vault "${expected.name}"`);
+						}
+						return;
+					}
+				} catch (err) {
+					if (err instanceof Error && err.message.startsWith("reload:")) throw err;
 					/* mid-navigation: the old context is gone; poll again */
 				}
 				if (Date.now() > deadline) {
@@ -279,21 +329,34 @@ function makeContext(cdp: Cdp): ProfileContext {
 				}
 			}
 		},
-		async waitFor(checkJs: string, timeoutMs: number, what: string): Promise<WaitHit> {
+		async waitFor(checkJs, timeoutMs, what, opts = {}): Promise<WaitHit> {
 			// In-page MutationObserver waits, in slices short enough for the
 			// CLI call timeout; the hit's pageMs is the mutation that made the
-			// check hold, so the slicing adds no timing error.
+			// check hold. Only the FIRST slice can fail on "already held":
+			// later slices start after the earlier one saw it false.
 			const deadline = Date.now() + timeoutMs;
+			let first = true;
+			let lastErr = "";
 			for (;;) {
 				const slice = Math.max(100, Math.min(5_000, deadline - Date.now()));
 				try {
-					const hit = parseWaitHit(await evalInPage<string>(awaitCheckJs(checkJs, slice)));
+					const v = await act<string>(awaitCheckJs(checkJs, slice, first && opts.failIfHeld === true));
+					if (v === PRE_HELD) {
+						throw new Error(`${what}: already true when the wait started, so it can't be timed`);
+					}
+					first = false;
+					const hit = parseWaitHit(v);
 					if (hit) return hit;
-				} catch {
-					/* mid-navigation or a dropped reply; retry until the deadline */
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err);
+					if (msg.includes("already true when the wait started")) throw err;
+					lastErr = msg;
+					await sleep(100);
 				}
 				if (Date.now() >= deadline) {
-					throw new Error(`timed out after ${timeoutMs}ms waiting for ${what}`);
+					throw new Error(
+						`timed out after ${timeoutMs}ms waiting for ${what}${lastErr ? ` (last error: ${lastErr})` : ""}`,
+					);
 				}
 			}
 		},
@@ -366,15 +429,20 @@ function renderReport(
 /** Run all scenarios once. Failures are returned, never swallowed. */
 async function runOnce(
 	cdp: Cdp,
+	expected: VaultId,
 	pass: number,
+	visibility: string[],
 ): Promise<{ profile: Profile; failed: ScenarioFailure[] }> {
 	const profile: Profile = {};
 	const failed: ScenarioFailure[] = [];
 	for (const scen of SCENARIOS) {
 		console.error(`▶ ${scen.title}`);
-		const ctx = makeContext(cdp);
+		const ctx = makeContext(cdp, expected);
 		try {
 			profile[scen.id] = await scen.measure(ctx);
+			// Visibility right after each scenario (cold start's reload makes a
+			// before-check meaningless): a hidden page renders no frames.
+			visibility.push(String(await ctx.evalInPage<string>("document.visibilityState")));
 		} catch (err) {
 			const error = err instanceof Error ? err.message : String(err);
 			console.error(`  ! scenario "${scen.id}" failed: ${error}`);
@@ -441,13 +509,15 @@ async function main(): Promise<void> {
 		process.exit(2);
 	}
 	console.error(`Profiling vault "${attached.name}" at ${vaultRoot}.`);
+	const expected: VaultId = { name: attached.name ?? "", base: vaultRoot };
+	const buildHashBefore = mainJsHash(vaultRoot, configDir);
 
 	if (args.seed) {
 		console.error(`Seeding the heavy session into ${vaultRoot} …`);
 		seedStudio(vaultRoot, configDir);
 		// Hard reload so the on-disk seed is re-read (graceful reload would
 		// flush the in-memory state over the seed first).
-		await makeContext(cdp).reload();
+		await makeContext(cdp, expected).reload();
 	}
 
 	await cdp.send("Performance.enable", {});
@@ -457,27 +527,27 @@ async function main(): Promise<void> {
 	const passes = args.record ? args.runs : 1;
 	const runs: Profile[] = [];
 	const failures: ScenarioFailure[] = [];
-	const ctx = makeContext(cdp);
 	const visibility: string[] = [];
-	const readVisibility = async (): Promise<void> => {
-		visibility.push(String(await ctx.evalInPage<string>("document.visibilityState")));
-	};
 	for (let p = 0; p < passes; p++) {
 		if (passes > 1) console.error(`— pass ${p + 1}/${passes} —`);
-		await readVisibility();
-		const { profile, failed } = await runOnce(cdp, p + 1);
+		const { profile, failed } = await runOnce(cdp, expected, p + 1, visibility);
 		runs.push(profile);
 		failures.push(...failed);
-		await readVisibility();
 	}
+	const buildHashAfter = mainJsHash(vaultRoot, configDir);
 	const profile = passes > 1 ? medianProfile(runs) : runs[0];
 
 	const baseline = loadJson<Baseline>(BASELINE_PATH);
 	const hiddenReason = visibilityProblem(visibility);
 	const incomplete = [
 		...(hiddenReason ? [hiddenReason] : []),
+		...(buildHashBefore !== buildHashAfter
+			? [`main.js changed during the run (${buildHashBefore} -> ${buildHashAfter}); rebuild, then rerun`]
+			: []),
 		...failures.map((f) => `pass ${f.pass}: ${f.scenario} failed — ${f.error}`),
-		...missingFromProfile(profile, baseline).map((s) => `${s}: in the baseline but not measured`),
+		...missingFromProfile(profile, baseline, SCENARIOS.map((s) => s.id)).map(
+			(s) => `${s}: in the baseline but not measured`,
+		),
 	];
 	const verdict = diffAgainstBaseline(profile, baseline, args.threshold);
 	out(renderReport(profile, verdict, baseline !== null, incomplete));

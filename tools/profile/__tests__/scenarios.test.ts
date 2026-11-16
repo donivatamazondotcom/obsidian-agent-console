@@ -22,10 +22,16 @@ function run<T>(js: string): T {
 	return new Function(`return ${js}`)() as T;
 }
 
+/** Shorten in-page timeouts so a wait that can't hold fails fast in tests. */
+function fastTimeouts(js: string): string {
+	return js.replace(/fin\(""\);\},\d+\)/g, 'fin("");},50)');
+}
+
 /** A ProfileContext whose page JS runs in jsdom. */
 function fakeCtx(onHit?: (h: WaitHit) => void): ProfileContext {
 	return {
 		evalInPage: <T>(js: string): Promise<T> => Promise.resolve(run<T>(js)),
+		act: <T>(js: string): Promise<T> => Promise.resolve(run<T>(fastTimeouts(js))),
 		snapshot: () => Promise.resolve({}),
 		installObserver: () => Promise.resolve(),
 		readObserver: () => Promise.resolve([]),
@@ -89,6 +95,8 @@ function mountTabs(layout: "rail" | "bar", opts: { count?: number; heavyRows?: n
 
 beforeEach(() => {
 	document.body.innerHTML = "";
+	(window as unknown as { requestAnimationFrame: (cb: (ts: number) => void) => number }).requestAnimationFrame = (cb) =>
+		window.setTimeout(() => cb(performance.now()), 0);
 });
 
 describe("activate-background-tab", () => {
@@ -97,6 +105,8 @@ describe("activate-background-tab", () => {
 		const m = await scenario("activate-background-tab").measure(fakeCtx());
 		expect(clicks).toEqual([LIGHT_TAB_ID, HEAVY_TAB_ID]);
 		expect(m.activateMs).toBeGreaterThanOrEqual(0);
+		// Timed in the page from the click to the commit and the next frame.
+		expect(m.activateFrameMs).toBeGreaterThanOrEqual(m.activateMs);
 	});
 
 	it("parks on the light tab, then activates the heavy tab (top bar, by index)", async () => {
@@ -108,7 +118,7 @@ describe("activate-background-tab", () => {
 	it("does not accept the empty message container as the heavy transcript", async () => {
 		mountTabs("rail", { heavyRows: 0 });
 		await expect(scenario("activate-background-tab").measure(fakeCtx())).rejects.toThrow(
-			new RegExp(`${HEAVY_MESSAGE_COUNT} rows`),
+			new RegExp(`${HEAVY_MESSAGE_COUNT} rows: timed out`),
 		);
 	});
 

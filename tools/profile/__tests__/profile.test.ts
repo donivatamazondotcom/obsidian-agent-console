@@ -252,3 +252,10 @@ describe("baseline.missingFromProfile", () => {
 		expect(missingFromProfile(partial, baseline)).toEqual(["b"]);
 	});
 });
+
+describe("baseline.missingFromProfile known scenarios", () => {
+	it("ignores a baseline scenario that is no longer defined", () => {
+		const b: Baseline = { thresholdPct: 0.3, capturedAt: "x", scenarios: { retired: { LayoutCount: 1 }, live: { LayoutCount: 1 } } };
+		expect(missingFromProfile({}, b, ["live"])).toEqual(["live"]);
+	});
+});
