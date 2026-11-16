@@ -111,7 +111,7 @@ describe("I302 update tip in the chat", () => {
 		expect(tip?.querySelector("code")?.textContent).toBe("kiro-cli update");
 		expect(tip?.querySelectorAll("li")).toHaveLength(5);
 		expect(text).toContain("hooks");
-		// Public plugin: the copy names the agent by its label, not its id (smoke H1).
+		// Public plugin: the tip only receives the display label; its copy must not name a specific agent (smoke H1).
 		// The internal-name guard itself runs in the release internal-reference scan.
 		expect(text).not.toMatch(/team-agent/i);
 	});
