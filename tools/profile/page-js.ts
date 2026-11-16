@@ -57,9 +57,10 @@ export function armWaitJs(checkJs: string): string {
 		`if(chk()){a.held=true;}else if(!a.err){var mo=new MutationObserver(function(){if(a.hit||a.err)return;var v=chk();` +
 		// Observe `document`, not documentElement: the first evaluate on a
 		// new document can run before documentElement exists. The observer
-		// disconnects itself after 60 s whatever happens to the run.
+		// disconnects itself after 90 s whatever happens to the run (above
+		// the 30 s reload wait plus the 30 s collect, with room to spare).
 		`if(v||a.err){a.hit=v;mo.disconnect();if(a.cb)a.cb();}});mo.observe(document,${MO_OPTIONS});` +
-		`setTimeout(function(){mo.disconnect();},60000);}`
+		`setTimeout(function(){mo.disconnect();},90000);}`
 	);
 }
 
@@ -140,9 +141,7 @@ export function tabSelectedCheckJs(tabSelector: string, tabId: string, index: nu
  * visible, unlike rAF or timers), so `pageMs` is the mutation that made it
  * true, not the next poll. Resolves `""` after `timeoutMs`.
  */
-export function awaitCheckJs(checkJs: string, timeoutMs: number, failIfHeld = false): string {
-	// failIfHeld: a timed wait whose condition already holds when the wait
-	// starts can only report when it LOOKED, not when it became true.
+export function awaitCheckJs(checkJs: string, timeoutMs: number): string {
 	return (
 		`(function(){return new Promise(function(res){` +
 		`var done=false,mo=null,t=null,n=0,cost=0;` +
@@ -151,7 +150,6 @@ export function awaitCheckJs(checkJs: string, timeoutMs: number, failIfHeld = fa
 		`function fin(v){if(done)return;done=true;if(mo)mo.disconnect();if(t)clearTimeout(t);` +
 		`if(v){var o=JSON.parse(v);o.checks=n;o.checkMs=Math.round(cost*10)/10;v=JSON.stringify(o);}res(v);}` +
 		`function chk(){if(done)return;var v;try{var s=performance.now();v=${checkJs};n++;cost+=performance.now()-s;}catch(e){done=true;if(mo)mo.disconnect();if(t)clearTimeout(t);res("CHECK-ERR:"+String(e&&e.message||e));return;}if(v)fin(v);}` +
-		(failIfHeld ? `if(${checkJs}){res(${JSON.stringify(PRE_HELD)});return;}` : "") +
 		`mo=new MutationObserver(chk);` +
 		`mo.observe(document.documentElement,${MO_OPTIONS});` +
 		`t=setTimeout(function(){fin("");},${timeoutMs});` +
@@ -170,8 +168,9 @@ export const PRE_HELD = PRE_HELD_TOKEN;
  * click), `pageMs` (the mutation that made it hold: the DOM commit), and
  * `frameMs` (when the next frame's style, layout and paint are done).
  * Otherwise: `""` on timeout, PRE_HELD when the condition already held,
- * `"NO-TARGET"` when the click found nothing, `"NO-FRAME"` when no frame
- * came within 1 s (a hidden page), `"CHECK-ERR:<msg>"` when the check threw.
+ * `"NO-TARGET"` when the click found nothing, `"NO-FRAME:<visibilityState>"`
+ * when no frame came within 1 s (a hidden page), `"CHECK-ERR:<msg>"` when
+ * the check threw.
  */
 export function clickAndAwaitJs(clickJs: string, checkJs: string, timeoutMs: number): string {
 	return (

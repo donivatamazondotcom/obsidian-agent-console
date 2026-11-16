@@ -5,7 +5,7 @@
  *
  * Spec: [[Agent Console Release Quality Gates]] § Gate B-phase2.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
 	MARK_OLD_DOCUMENT_JS,
 	IS_NEW_DOCUMENT_JS,
@@ -194,15 +194,7 @@ describe("long-frame observer", () => {
 	});
 });
 
-describe("awaitCheckJs failIfHeld", () => {
-	it("refuses to time a condition that already holds", async () => {
-		document.body.innerHTML = '<div class="row"></div>';
-		expect(await run<Promise<string>>(awaitCheckJs(waitCheckJs([".row"]), 1000, true))).toBe(PRE_HELD);
-		// Without failIfHeld it is just a check.
-		expect(parseWaitHit(await run<Promise<string>>(awaitCheckJs(waitCheckJs([".row"]), 1000))))
-			.not.toBeNull();
-	});
-
+describe("awaitCheckJs cost", () => {
 	it("reports how often the check ran and its cost", async () => {
 		const p = run<Promise<string>>(awaitCheckJs(waitCheckJs([".row"]), 2000));
 		document.body.innerHTML = '<div class="row"></div>';
@@ -349,9 +341,14 @@ describe("round-4 regressions", () => {
 		let clicks = 0;
 		document.body.innerHTML = "<button></button>";
 		document.querySelector("button")?.addEventListener("click", () => clicks++);
-		const v = await run<Promise<string>>(clickAndAwaitJs(click, "(function(){throw new Error('bad')})()", 500));
+		// The first check (at evaluate start) passes; the pre-click re-check
+		// is the second call, and only it throws.
+		w.__checkCalls = 0;
+		const check = '(function(){if(++window.__checkCalls>=2)throw new Error("bad");return "";})()';
+		const v = await run<Promise<string>>(clickAndAwaitJs(click, check, 500));
 		expect(v).toMatch(/^CHECK-ERR/);
 		expect(clicks).toBe(0);
+		delete w.__checkCalls;
 	});
 
 	it("arms before app exists and records when it armed", async () => {
@@ -383,5 +380,71 @@ describe("round-4 regressions", () => {
 		expect(run<unknown[]>(OBSERVER_READ_JS)).toHaveLength(1);
 		run(observerInstallJs("n2"));
 		expect(run<unknown[]>(OBSERVER_READ_JS)).toEqual([]);
+	});
+});
+
+describe("round-5 regressions", () => {
+	const click = '(function(){var b=document.querySelector("button");if(!b)return -1;var at=performance.now();b.click();return at;})()';
+
+	afterEach(() => {
+		vi.useRealTimers();
+		delete w.__profArm;
+		delete w.__profArmed;
+	});
+
+	it("re-checks right before the click: a condition that turns true after the evaluate starts is not timed", async () => {
+		(w as { requestAnimationFrame?: unknown }).requestAnimationFrame = (cb: (ts: number) => void) =>
+			window.setTimeout(() => cb(performance.now()), 0);
+		let clicks = 0;
+		document.body.innerHTML = "<button></button>";
+		document.querySelector("button")?.addEventListener("click", () => clicks++);
+		const p = run<Promise<string>>(clickAndAwaitJs(click, waitCheckJs([".done"]), 1000));
+		// After the evaluate's first check, before its click task runs.
+		document.body.insertAdjacentHTML("beforeend", '<div class="done"></div>');
+		expect(await p).toBe(PRE_HELD);
+		expect(clicks).toBe(0);
+	});
+
+	it("arms on a document that has no documentElement yet", async () => {
+		const html = document.documentElement;
+		document.removeChild(html);
+		try {
+			expect(() => run(`(function(){${armWaitJs(waitCheckJs([".row"]))}})()`)).not.toThrow();
+			(html.querySelector("body") as HTMLElement).innerHTML = '<div class="row"></div>';
+			document.appendChild(html);
+		} finally {
+			if (!document.documentElement) document.appendChild(html);
+		}
+		await Promise.resolve();
+		expect(parseWaitHit(await run<Promise<string>>(collectArmedJs(500)))?.detail).toBe(".row");
+	});
+
+	it("times the frame once its rendering is done, not inside the rAF callback", async () => {
+		// The fake frame does 5 ms of "style, layout and paint" AFTER the
+		// rAF callbacks return, as a real frame does.
+		let paintDoneAt = Infinity;
+		(w as { requestAnimationFrame?: unknown }).requestAnimationFrame = (cb: (ts: number) => void) =>
+			window.setTimeout(() => {
+				cb(performance.now());
+				const end = performance.now() + 5;
+				while (performance.now() < end) { /* paint */ }
+				paintDoneAt = performance.now();
+			}, 0);
+		document.body.innerHTML = "<button></button>";
+		document.querySelector("button")?.addEventListener("click", () => {
+			document.body.insertAdjacentHTML("beforeend", '<div class="done"></div>');
+		});
+		const t = parseInteraction(await run<Promise<string>>(clickAndAwaitJs(click, waitCheckJs([".done"]), 1000)), "x");
+		expect(t.frameMs).toBeGreaterThanOrEqual(paintDoneAt);
+	});
+
+	it("keeps the cold-start arm alive past a worst-case reload plus collect (60 s)", async () => {
+		vi.useFakeTimers();
+		run(`(function(){${armWaitJs(waitCheckJs([".row"]))}})()`);
+		vi.advanceTimersByTime(61_000);
+		document.body.innerHTML = '<div class="row"></div>';
+		await Promise.resolve();
+		vi.useRealTimers();
+		expect(parseWaitHit(await run<Promise<string>>(collectArmedJs(200)))?.detail).toBe(".row");
 	});
 });
