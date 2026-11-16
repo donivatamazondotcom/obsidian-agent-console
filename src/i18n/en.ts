@@ -933,6 +933,7 @@ export const en = {
 	"chat.toolCall.withDuration": "{label} · {duration}",
 	"chat.toolCall.timeRange": "{start} to {end}",
 	"chat.toolCall.ariaRan": "Ran {duration}, {range}.",
+	"chat.toolCall.ariaFailed": "Failed, {duration}, {range}.",
 	"chat.toolCall.ariaRunningSince": "Open since {time}.",
 	"chat.toolCall.ariaInterrupted": "{label}, {duration}.",
 	"chat.toolCall.ariaInterruptedNoTime": "{label}.",

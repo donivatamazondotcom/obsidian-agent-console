@@ -190,7 +190,7 @@ export type ToolRunState = "live" | TurnEndKind | undefined;
 export type ToolRowTime =
 	| { kind: "none" }
 	| { kind: "running"; startedAt: number }
-	| { kind: "finished"; durationMs: number; startedAt: number; endedAt: number }
+	| { kind: "finished"; durationMs: number; startedAt: number; endedAt: number; failed: boolean }
 	| { kind: "interrupted"; label: "stopped" | "openAtTurnEnd"; durationMs: number | null };
 
 /**
@@ -214,7 +214,7 @@ export function deriveToolRowTime(item: ToolItem, state: ToolRunState): ToolRowT
 	}
 	if (item.status === "completed" || item.status === "failed") {
 		if (runMs === null || !isTime(startedAt) || !isTime(endedAt)) return { kind: "none" };
-		return { kind: "finished", durationMs: runMs, startedAt, endedAt };
+		return { kind: "finished", durationMs: runMs, startedAt, endedAt, failed: item.status === "failed" };
 	}
 	if (state === "live" && isTime(startedAt)) return { kind: "running", startedAt };
 	return { kind: "none" };

@@ -2157,7 +2157,7 @@
 				"width": 520,
 				"height": 420
 			},
-			"cropSelector": ".agent-client-chat-view-messages",
+			"cropSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-view-messages",
 			"cropPadding": 12,
 			"initialState": {
 				"openNote": "Welcome.md",

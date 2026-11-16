@@ -201,6 +201,7 @@ describe("deriveToolRowTime", () => {
 			durationMs: 112 * SEC,
 			startedAt: T0,
 			endedAt: T0 + 112 * SEC,
+			failed: false,
 		});
 	});
 
@@ -209,7 +210,7 @@ describe("deriveToolRowTime", () => {
 	});
 
 	it("a failed row shows its run time too", () => {
-		expect(deriveToolRowTime(item({ status: "failed" }), "done").kind).toBe("finished");
+		expect(deriveToolRowTime(item({ status: "failed" }), "done")).toMatchObject({ kind: "finished", failed: true });
 	});
 
 	it("an unknown time shows nothing (no stamp beats a wrong stamp)", () => {

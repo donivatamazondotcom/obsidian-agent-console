@@ -640,6 +640,7 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.toolCall.withDuration": "{label} · {duration}",
 	"chat.toolCall.timeRange": "{start}～{end}",
 	"chat.toolCall.ariaRan": "{duration} 実行、{range}。",
+	"chat.toolCall.ariaFailed": "失敗、{duration}、{range}。",
 	"chat.toolCall.ariaRunningSince": "{time} から開いています。",
 	"chat.toolCall.ariaInterrupted": "{label}、{duration}。",
 	"chat.toolCall.ariaInterruptedNoTime": "{label}。",

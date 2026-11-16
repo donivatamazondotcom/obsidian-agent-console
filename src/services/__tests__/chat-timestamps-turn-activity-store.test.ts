@@ -35,7 +35,7 @@ describe("createTurnActivityStore", () => {
 		store.publish({ line: "Working 1m · no update yet", rows: { tc2: "6s" } });
 		expect(listener).toHaveBeenCalledTimes(4);
 
-		store.publish({ line: "Working 1m · no update yet", lineTitle: "Running: x", rows: { tc2: "6s" } });
+		store.publish({ line: "Working 1m · no update yet", lineTitle: "x", rows: { tc2: "6s" } });
 		expect(listener).toHaveBeenCalledTimes(5);
 	});
 
@@ -44,7 +44,7 @@ describe("createTurnActivityStore", () => {
 		const listener = vi.fn();
 		store.subscribe(listener);
 		store.publishTotal(24 * 60_000);
-		store.publish({ line: "· 5m", lineTitle: "Running: npm test", rows: { tc1: "5m · output 2s ago" } });
+		store.publish({ line: "· 5m", lineTitle: "npm test", rows: { tc1: "5m · output 2s ago" } });
 		listener.mockClear();
 
 		store.reset();

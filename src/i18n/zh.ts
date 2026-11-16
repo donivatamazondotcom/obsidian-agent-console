@@ -590,6 +590,7 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.toolCall.withDuration": "{label} · {duration}",
 	"chat.toolCall.timeRange": "{start} 至 {end}",
 	"chat.toolCall.ariaRan": "运行了 {duration}，{range}。",
+	"chat.toolCall.ariaFailed": "失败，{duration}，{range}。",
 	"chat.toolCall.ariaRunningSince": "自 {time} 起未关闭。",
 	"chat.toolCall.ariaInterrupted": "{label}，{duration}。",
 	"chat.toolCall.ariaInterruptedNoTime": "{label}。",

@@ -605,6 +605,7 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.toolCall.withDuration": "{label} · {duration}",
 	"chat.toolCall.timeRange": "{start}~{end}",
 	"chat.toolCall.ariaRan": "{duration} 동안 실행, {range}.",
+	"chat.toolCall.ariaFailed": "실패, {duration}, {range}.",
 	"chat.toolCall.ariaRunningSince": "{time}부터 열려 있음.",
 	"chat.toolCall.ariaInterrupted": "{label}, {duration}.",
 	"chat.toolCall.ariaInterruptedNoTime": "{label}.",

@@ -98,7 +98,7 @@ function interruptedLabel(label: "stopped" | "openAtTurnEnd"): string {
 function rowTimeAria(time: ToolRowTime, day: DaySnapshot): string {
 	switch (time.kind) {
 		case "finished":
-			return t("chat.toolCall.ariaRan", {
+			return t(time.failed ? "chat.toolCall.ariaFailed" : "chat.toolCall.ariaRan", {
 				duration: formatDuration(time.durationMs, "seconds"),
 				range: formatStampRange(time.startedAt, time.endedAt, day),
 			});

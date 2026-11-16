@@ -182,6 +182,17 @@ describe("tool-row times", () => {
 		expect(container.querySelector(".agent-client-tool-call-time")?.getAttribute("aria-hidden")).toBe("true");
 	});
 
+	it("a failed row's label says it failed, not that it ran", () => {
+		const store = createTurnActivityStore();
+		const { container } = show(
+			[prompt({ sentAt: at(9, 30), turnEndKind: "done", turnEndedAt: at(9, 40) }), toolMsg({ status: "failed", startedAt: at(9, 34), endedAt: at(9, 34), waitMs: 0 })],
+			store,
+		);
+		const label = rowButton(container)?.getAttribute("aria-label") ?? "";
+		expect(label).toContain("Failed, 0s, 9:34 AM to 9:34 AM.");
+		expect(label).not.toContain("Ran ");
+	});
+
 	it("a finished row from an earlier day prints its date once in the range", () => {
 		const store = createTurnActivityStore();
 		const day = (h: number, mi: number) => local(2026, 11, 14, h, mi);
@@ -233,7 +244,7 @@ describe("tool-row times", () => {
 		expect(rowButton(container)?.getAttribute("aria-label")).toContain("Open since 9:48 AM.");
 	});
 
-	it("a pending row waiting on your approval never claims it is running", () => {
+	it("a pending row never claims it is running", () => {
 		const store = createTurnActivityStore();
 		const row = toolMsg({ status: "pending", startedAt: at(9, 48) });
 		const { container } = show([prompt({ sentAt: at(9, 47) }), row], store, { isSending: true, hasActivePermission: true });
