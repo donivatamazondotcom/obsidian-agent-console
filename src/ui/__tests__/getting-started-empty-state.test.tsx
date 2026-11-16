@@ -49,6 +49,7 @@ describe("T5: getting-started empty state (Layer 2)", () => {
 		const onOpenSettings = vi.fn();
 		const { container } = render(
 			<MessageList
+				lastTurnEnd={null}
 				messages={[]}
 				isSending={false}
 				lazyState="connecting"
@@ -96,6 +97,7 @@ describe("T5: getting-started empty state (Layer 2)", () => {
 	it("offers the settings escape hatch even when no agent is detected", () => {
 		const { container } = render(
 			<MessageList
+				lastTurnEnd={null}
 				messages={[]}
 				isSending={false}
 				lazyState="connecting"
@@ -140,6 +142,7 @@ describe("T5: getting-started empty state (Layer 2)", () => {
 	it("falls back to the normal connecting text when gettingStarted is absent", () => {
 		const { container } = render(
 			<MessageList
+				lastTurnEnd={null}
 				messages={[]}
 				isSending={false}
 				lazyState="connecting"
@@ -163,6 +166,7 @@ describe("T5: getting-started empty state (Layer 2)", () => {
 		const onRedetect = vi.fn();
 		const { container } = render(
 			<MessageList
+				lastTurnEnd={null}
 				messages={[]}
 				isSending={false}
 				lazyState="connecting"
@@ -201,6 +205,7 @@ describe("empty-state shell — affordances gated per reason/location (Slice 2)"
 	) {
 		return render(
 			<MessageList
+				lastTurnEnd={null}
 				messages={[]}
 				isSending={false}
 				lazyState="connecting"

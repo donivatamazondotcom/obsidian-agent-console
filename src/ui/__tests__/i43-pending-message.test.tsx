@@ -75,6 +75,7 @@ describe("I43: Pending message visibility", () => {
 		const pending = makePendingMessage("Hello agent");
 		const { container } = render(
 			<MessageList
+				lastTurnEnd={null}
 				messages={[pending]}
 				isSending={false}
 				lazyState="connecting"
@@ -94,6 +95,7 @@ describe("I43: Pending message visibility", () => {
 		const pending = makePendingMessage("Hello agent");
 		const { container } = render(
 			<MessageList
+				lastTurnEnd={null}
 				messages={[pending]}
 				isSending={false}
 				lazyState="connecting"
@@ -119,6 +121,7 @@ describe("I43: Pending message visibility", () => {
 		};
 		const { container } = render(
 			<MessageList
+				lastTurnEnd={null}
 				messages={[normal]}
 				isSending={false}
 				lazyState="ready"
@@ -138,6 +141,7 @@ describe("I43: Pending message visibility", () => {
 		const pending = makePendingMessage("Queued message");
 		const { container } = render(
 			<MessageList
+				lastTurnEnd={null}
 				messages={[pending]}
 				isSending={false}
 				lazyState="connecting"

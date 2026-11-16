@@ -29,6 +29,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import postcss, { type Rule, type AtRule } from "postcss";
+import { INDICATOR_EXIT_MS } from "../resolvers/working-indicator";
 
 const cssPath = resolve(process.cwd(), "styles.css");
 const root = postcss.parse(readFileSync(cssPath, "utf8"));
@@ -220,5 +221,22 @@ describe("Working face — exit rules", () => {
 		});
 		expect(uses.length).toBeGreaterThan(0);
 		expect(bare).toEqual([]);
+	});
+});
+
+describe("Working face — exit durations match the hook's timer", () => {
+	it.each(["exit-happy", "exit-close"] as const)("%s CSS duration equals INDICATOR_EXIT_MS", (exit) => {
+		// The timer hides the indicator; the CSS plays the exit. If they drift,
+		// the face is cut off early or holds a blank row late.
+		const durations = new Set<number>();
+		for (const rule of topLevelRules()) {
+			if (!rule.selector.includes(`agent-client-indicator-${exit}`)) continue;
+			for (const d of rule.nodes ?? []) {
+				if (d.type !== "decl" || d.prop.toLowerCase() !== "animation") continue;
+				const m = /(\d+(?:\.\d+)?)(ms|s)\b/.exec(d.value);
+				if (m) durations.add(m[2] === "s" ? Math.round(parseFloat(m[1]) * 1000) : parseFloat(m[1]));
+			}
+		}
+		expect([...durations]).toEqual([INDICATOR_EXIT_MS[exit]]);
 	});
 });

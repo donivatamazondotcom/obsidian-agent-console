@@ -91,6 +91,7 @@ const thought = (t: string, arrivedAt: number | null, gapBefore: boolean): Messa
 function show(messages: ChatMessage[]) {
 	return render(
 		<MessageList
+			lastTurnEnd={null}
 			messages={messages}
 			isSending={false}
 			lazyState="ready"
@@ -291,6 +292,7 @@ describe("ages on hover", () => {
 		fireEvent.mouseOver(promptStamp);
 		rerender(
 			<MessageList
+				lastTurnEnd={null}
 				messages={[p, r]}
 				isSending={false}
 				lazyState="ready"
@@ -460,10 +462,10 @@ describe("code review round 1 cases", () => {
 			view: VIEW,
 			hasActivePermission: false,
 		};
-		const view = render(<MessageList {...props} isActive={false} />);
+		const view = render(<MessageList lastTurnEnd={null} {...props} isActive={false} />);
 		vi.setSystemTime(local(2026, 11, 15, 8, 0));
 		act(() => {
-			view.rerender(<MessageList {...props} isActive={true} />);
+			view.rerender(<MessageList lastTurnEnd={null} {...props} isActive={true} />);
 		});
 		const s = stamps(view.container, "prompt")[0];
 		expect(s.textContent).toContain("14");

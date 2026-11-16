@@ -124,6 +124,11 @@ export function useWorkingIndicatorPhase({
 				timerRef.current = { win, id };
 				return;
 			}
+			default: {
+				// A new transition kind must be handled here, not ignored.
+				const unhandled: never = transition;
+				return unhandled;
+			}
 		}
 	}, [isSending, lastTurnEnd, clearTimer]);
 

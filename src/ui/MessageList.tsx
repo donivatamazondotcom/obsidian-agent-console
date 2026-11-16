@@ -383,7 +383,7 @@ export interface MessageListProps {
 	 * The latest turn end (useAgentMessages). Read only when `isSending` goes
 	 * false, to pick the working face's exit ([[Agent Console Working Face]]).
 	 */
-	lastTurnEnd?: TurnEnd | null;
+	lastTurnEnd: TurnEnd | null;
 	/** Per-tab lazy session state (canonical readiness signal for empty-state copy) */
 	lazyState: TabSessionState;
 	/** Whether a session is being restored (load/resume/fork) */
@@ -498,7 +498,7 @@ export interface MessageListProps {
 export function MessageList({
 	messages,
 	isSending,
-	lastTurnEnd = null,
+	lastTurnEnd,
 	lazyState,
 	isRestoringSession,
 	agentLabel,
