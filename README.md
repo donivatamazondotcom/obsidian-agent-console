@@ -4,7 +4,7 @@
 
 # Agent Console
 
-**Your AI agents, working from your notes.**
+**The AI agent plugin built for Obsidian power users.**
 
 [![Version](https://img.shields.io/github/v/release/donivatamazondotcom/obsidian-agent-console?label=version&color=8b5cf6)](https://github.com/donivatamazondotcom/obsidian-agent-console/releases)
 [![Obsidian downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&query=%24%5B%22agent-console%22%5D.downloads&label=downloads&color=8b5cf6)](https://community.obsidian.md/plugins/agent-console)
@@ -166,7 +166,7 @@ Three things come together, and you control all of them:
 
 Whatever your agent can do, Agent Console lets you run several of those jobs at once.
 
-## Enterprise-grade quality
+## Fixes that stay fixed
 
 A plugin that runs live agent sessions in your vault has to be dependable. A few things keep it that way:
 
