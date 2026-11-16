@@ -186,6 +186,32 @@ describe("InputArea — Send now on the queued banner", () => {
 	});
 });
 
+describe("Held steer gesture (I358)", () => {
+	it("T12c: a held steer only steers – its repeat doesn't fire Send now once queued", () => {
+		const onSendQueuedNow = vi.fn();
+		const onSteerMessage = vi.fn();
+		const live = {
+			isSessionReady: true,
+			lazyState: "busy" as const,
+			isSending: true,
+			isStreaming: true,
+			onSendQueuedNow,
+			onSteerMessage,
+			inputValue: "redirect please",
+		};
+		const { container, rerender } = render(
+			<InputArea {...baseProps({ ...live, isQueued: false })} />,
+		);
+		const textarea = container.querySelector("textarea") as HTMLTextAreaElement;
+		textarea.focus();
+		fireEvent.keyDown(textarea, { key: "Enter", metaKey: true });
+		expect(onSteerMessage).toHaveBeenCalledTimes(1);
+		rerender(<InputArea {...baseProps({ ...live, isQueued: true })} />);
+		fireEvent.keyDown(textarea, { key: "Enter", metaKey: true, repeat: true });
+		expect(onSendQueuedNow).not.toHaveBeenCalled();
+	});
+});
+
 describe("Send now wiring guard — ChatPanel forwards onSendQueuedNow", () => {
 	it("passes the handler into InputArea and dispatches sendQueuedNow", () => {
 		const source = readFileSync(

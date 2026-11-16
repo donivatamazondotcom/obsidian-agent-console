@@ -42,12 +42,14 @@ afterEach(cleanup);
 // Stable snapshot — useSyncExternalStore requires getSnapshot to be cached.
 const settingsSnapshot = { sendMessageShortcut: "enter" };
 
-function makePlugin(): AgentClientPlugin {
+const cmdEnterSnapshot = { sendMessageShortcut: "cmd-enter" };
+
+function makePlugin(snapshot: { sendMessageShortcut: string } = settingsSnapshot): AgentClientPlugin {
 	return {
 		settings: { displaySettings: { showEmojis: false } },
 		settingsService: {
 			subscribe: () => () => {},
-			getSnapshot: () => settingsSnapshot,
+			getSnapshot: () => snapshot,
 		},
 		app: { vault: { getConfig: () => true } },
 	} as unknown as AgentClientPlugin;
@@ -156,5 +158,81 @@ describe("InputArea — launcher Enter path (I169 live wiring)", () => {
 		});
 		expect(onQueueMessage).toHaveBeenCalledTimes(1);
 		expect(onSendMessage).not.toHaveBeenCalled();
+	});
+});
+
+// ============================================================================
+// I358: a held Enter acts in the composer only if its press started there.
+// fireEvent returns false when the keydown's default was prevented.
+// ============================================================================
+const composerOf = (c: HTMLElement) =>
+	c.querySelector("textarea.agent-client-chat-input-textarea") as HTMLTextAreaElement;
+
+describe("InputArea — held Enter (I358)", () => {
+	it("T12: a fresh Enter sends once; its repeat doesn't send again", async () => {
+		const onSendMessage = vi.fn(async () => undefined);
+		const { container } = render(
+			<InputArea {...baseProps({ launches: true, onSendMessage })} />,
+		);
+		const textarea = composerOf(container);
+		textarea.focus();
+		await act(async () => {
+			fireEvent.keyDown(textarea, { key: "Enter" });
+		});
+		let notPrevented = true;
+		await act(async () => {
+			notPrevented = fireEvent.keyDown(textarea, { key: "Enter", repeat: true });
+		});
+		expect(onSendMessage).toHaveBeenCalledTimes(1);
+		expect(notPrevented).toBe(false);
+	});
+
+	it("T12a: a repeat whose press started elsewhere (the pill) doesn't send", async () => {
+		const onSendMessage = vi.fn(async () => undefined);
+		const { container } = render(
+			<InputArea {...baseProps({ launches: true, onSendMessage })} />,
+		);
+		const textarea = composerOf(container);
+		textarea.focus();
+		let notPrevented = true;
+		await act(async () => {
+			notPrevented = fireEvent.keyDown(textarea, { key: "Enter", repeat: true });
+		});
+		expect(onSendMessage).not.toHaveBeenCalled();
+		expect(notPrevented).toBe(false);
+	});
+
+	it("T12b: Cmd+Enter mode – a foreign repeat is prevented (no newline); repeats of a press that started here aren't", () => {
+		const { container } = render(
+			<InputArea {...baseProps({ plugin: makePlugin(cmdEnterSnapshot) })} />,
+		);
+		const textarea = composerOf(container);
+		textarea.focus();
+		// jsdom never inserts text on keydown, so defaultPrevented is the assertion.
+		expect(fireEvent.keyDown(textarea, { key: "Enter", repeat: true })).toBe(false);
+		expect(fireEvent.keyDown(textarea, { key: "Enter" })).toBe(true);
+		expect(fireEvent.keyDown(textarea, { key: "Enter", repeat: true })).toBe(true);
+		expect(fireEvent.keyDown(textarea, { key: "Enter", repeat: true })).toBe(true);
+	});
+
+	it("T12d: focus leaving or arriving between the press and the repeat drops the repeat", () => {
+		const { container } = render(
+			<InputArea {...baseProps({ plugin: makePlugin(cmdEnterSnapshot) })} />,
+		);
+		const textarea = composerOf(container);
+		textarea.focus();
+		// Blur between the press and the repeat.
+		expect(fireEvent.keyDown(textarea, { key: "Enter" })).toBe(true);
+		act(() => textarea.blur());
+		act(() => textarea.focus());
+		expect(fireEvent.keyDown(textarea, { key: "Enter", repeat: true })).toBe(false);
+		// A focus event alone (no blur seen) also clears it.
+		expect(fireEvent.keyDown(textarea, { key: "Enter" })).toBe(true);
+		fireEvent.focus(textarea);
+		expect(fireEvent.keyDown(textarea, { key: "Enter", repeat: true })).toBe(false);
+		// Enter keyup ends the press.
+		expect(fireEvent.keyDown(textarea, { key: "Enter" })).toBe(true);
+		fireEvent.keyUp(textarea, { key: "Enter" });
+		expect(fireEvent.keyDown(textarea, { key: "Enter", repeat: true })).toBe(false);
 	});
 });

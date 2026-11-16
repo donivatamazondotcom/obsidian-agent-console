@@ -1429,10 +1429,36 @@ export function InputArea({
 	]);
 
 	/**
+	 * I358: true while the Enter key that is down was first pressed during the
+	 * textarea's current focus. A held Enter that began on another control
+	 * (the "Jump to latest" pill, "+N", a banner button) keeps sending repeat
+	 * keydowns after focus moves here; those must not send, queue, steer, pick
+	 * a row or type newlines. Cleared on Enter keyup, blur and focus.
+	 */
+	const enterPressStartedHereRef = useRef(false);
+	const clearEnterPress = useCallback(() => {
+		enterPressStartedHereRef.current = false;
+	}, []);
+	const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
+		if (e.key === "Enter") enterPressStartedHereRef.current = false;
+	}, []);
+
+	/**
 	 * Handle keyboard events in the textarea.
 	 */
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent) => {
+			// I358: before every early return, so a press that starts here
+			// and picks a row still counts as started here, and a foreign
+			// repeat can't reach the picker ("+N" opens one) or the send path.
+			if (e.key === "Enter" && !e.repeat) {
+				enterPressStartedHereRef.current = true;
+			}
+			if (e.key === "Enter" && e.repeat && !enterPressStartedHereRef.current) {
+				e.preventDefault();
+				return;
+			}
+
 			// Handle dropdown navigation first
 			if (handleDropdownKeyPress(e)) {
 				return;
@@ -1456,6 +1482,10 @@ export function InputArea({
 
 				if (shouldSend) {
 					e.preventDefault();
+					// I358: a send, queue, steer or Send now only comes from a
+					// fresh press. A held Enter otherwise fires again once the
+					// composer re-renders (a held steer turned into Send now).
+					if (e.repeat) return;
 					// #81: is this the (mode-aware) steer gesture? Both steer
 					// combos carry the Mod key, so they always pass the
 					// shouldSend gate above and reach here.
@@ -1914,6 +1944,9 @@ export function InputArea({
 						value={inputValue}
 						onChange={handleInputChange}
 						onKeyDown={handleKeyDown}
+						onKeyUp={handleKeyUp}
+						onFocus={clearEnterPress}
+						onBlur={clearEnterPress}
 						onPaste={(e) => void handlePaste(e)}
 						placeholder={placeholder}
 						className="agent-client-chat-input-textarea"

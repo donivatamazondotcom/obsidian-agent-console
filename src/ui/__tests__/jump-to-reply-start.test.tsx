@@ -440,6 +440,147 @@ describe("Jump to start of reply button: focus (U12)", () => {
 });
 
 // ============================================================================
+// I358 — the down pill hands focus to the composer when it disappears while
+// focused (any cause), and never moves focus on a pointer click.
+// ============================================================================
+const COMPOSER = "textarea.agent-client-chat-input-textarea";
+
+/** The per-tab ChatPanel root: this list plus this tab's composer. */
+function InView(props: Partial<MessageListProps> & { hidden?: boolean }) {
+	const { hidden, ...rest } = props;
+	return (
+		<div style={hidden ? { display: "none" } : undefined}>
+			<div className="agent-client-chat-view-container">
+				<button type="button" data-testid="other">
+					Other
+				</button>
+				<List {...rest} />
+				<textarea className="agent-client-chat-input-textarea" />
+			</div>
+		</div>
+	);
+}
+
+/** Wait for a real animation frame (not a sync rAF mock: the hook uses rAF too). */
+const flushFrame = () =>
+	act(async () => {
+		await new Promise<void>((r) => window.requestAnimationFrame(() => r()));
+	});
+
+const downPill = (root: Element) =>
+	root.querySelector(".agent-client-scroll-to-bottom") as HTMLElement | null;
+
+/** Scroll up via a pointer jump so the down pill shows. */
+function showDownPill(root: Element) {
+	lastIO().report(true);
+	fireEvent.click(upButton(root) as HTMLElement, { detail: 1 });
+	const pill = downPill(root);
+	expect(pill).not.toBeNull();
+	return pill as HTMLElement;
+}
+
+describe("Jump to latest pill: focus when it disappears (I358)", () => {
+	it("T1: Enter on the focused pill moves focus to this tab's composer", async () => {
+		const { container } = render(<InView />);
+		attachGeometry(container);
+		const pill = showDownPill(container);
+		pill.focus();
+		expect(document.activeElement).toBe(pill);
+		fireEvent.click(pill, { detail: 0 });
+		expect(downPill(container)).toBeNull();
+		await flushFrame();
+		expect(document.activeElement).toBe(container.querySelector(COMPOSER));
+	});
+
+	it("T2: a mouse click on a pill Tab had focused moves focus to the composer", async () => {
+		const { container } = render(<InView />);
+		attachGeometry(container);
+		const pill = showDownPill(container);
+		pill.focus();
+		fireEvent.mouseDown(pill);
+		fireEvent.click(pill, { detail: 1 });
+		await flushFrame();
+		expect(document.activeElement).toBe(container.querySelector(COMPOSER));
+	});
+
+	it("T3 (guard): a pointer click on an unfocused pill leaves focus where it was", async () => {
+		const { container } = render(<InView />);
+		attachGeometry(container);
+		const pill = showDownPill(container);
+		const other = container.querySelector('[data-testid="other"]') as HTMLElement;
+		other.focus();
+		fireEvent.mouseDown(pill);
+		fireEvent.click(pill, { detail: 1 });
+		await flushFrame();
+		expect(document.activeElement).toBe(other);
+	});
+
+	it("T4 (guard): the keyboard path still scrolls to the bottom", async () => {
+		const { container } = render(<InView />);
+		const { geom } = attachGeometry(container);
+		const pill = showDownPill(container);
+		pill.focus();
+		fireEvent.click(pill, { detail: 0 });
+		expect(geom.scrollTop).toBe(5000 - 600 - 1);
+		expect(downPill(container)).toBeNull();
+	});
+
+	it("T5: scrolling to the bottom while the pill has focus moves focus to the composer", async () => {
+		const { container } = render(<InView />);
+		const { scrollEl, geom } = attachGeometry(container);
+		const pill = showDownPill(container);
+		pill.focus();
+		// A wheel is user intent: it ends the jump's 2 s position hold.
+		fireEvent.wheel(scrollEl, { deltaY: 100 });
+		geom.scrollTop = 5000 - 600 - 1;
+		fireEvent.scroll(scrollEl);
+		await tick();
+		expect(downPill(container)).toBeNull();
+		await flushFrame();
+		expect(document.activeElement).toBe(container.querySelector(COMPOSER));
+	});
+
+	it("T6: a send starting while the pill has focus moves focus to the composer", async () => {
+		const { container, rerender } = render(<InView />);
+		attachGeometry(container);
+		const pill = showDownPill(container);
+		pill.focus();
+		rerender(<InView isSending />);
+		expect(downPill(container)).toBeNull();
+		await flushFrame();
+		expect(document.activeElement).toBe(container.querySelector(COMPOSER));
+	});
+
+	it("T7 (guard): a tab switch while the pill has focus doesn't focus the hidden composer", async () => {
+		const { container, rerender } = render(<InView />);
+		attachGeometry(container);
+		const pill = showDownPill(container);
+		pill.focus();
+		rerender(<InView hidden isActive={false} />);
+		await flushFrame();
+		expect(document.activeElement).not.toBe(container.querySelector(COMPOSER));
+	});
+
+	it("T8: in a split view, focus goes to the composer in the pill's own container", async () => {
+		const { container } = render(
+			<div>
+				<InView viewId="tab-a" />
+				<InView viewId="tab-b" />
+			</div>,
+		);
+		const views = container.querySelectorAll(".agent-client-chat-view-container");
+		expect(views).toHaveLength(2);
+		attachGeometry(views[0]);
+		attachGeometry(views[1]);
+		const pill = showDownPill(views[1]);
+		pill.focus();
+		fireEvent.click(pill, { detail: 0 });
+		await flushFrame();
+		expect(document.activeElement).toBe(views[1].querySelector(COMPOSER));
+	});
+});
+
+// ============================================================================
 // U13 — the command
 // ============================================================================
 describe("Jump to start of latest reply command (U13)", () => {
