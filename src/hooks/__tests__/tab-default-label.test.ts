@@ -15,7 +15,7 @@ import { useTabManager } from "../useTabManager";
 
 const NAMES: Record<string, string> = {
 	"claude-code-acp": "Claude Code",
-	"kiro-cli": "Auto SA",
+	"kiro-cli": "Team Agent",
 };
 const displayNameFor = (id: string) => NAMES[id] ?? id;
 
@@ -45,7 +45,7 @@ describe("default tab name uses the agent's display name", () => {
 			named = result.current.addTab("kiro-cli", "Explain vector embeddings");
 		});
 		const byId = (id: string) => result.current.tabs.find((t) => t.tabId === id)!;
-		expect(startsWithName(byId(plain).label, "Auto SA")).toBe(true);
+		expect(startsWithName(byId(plain).label, "Team Agent")).toBe(true);
 		expect(byId(plain).labelIsDefault).toBe(true);
 		expect(byId(named).label).toBe("Explain vector embeddings");
 		expect(byId(named).labelIsDefault).toBe(false);
@@ -121,7 +121,7 @@ describe("labelIsDefault is set and cleared by the tab manager", () => {
 		});
 		const label = result.current.activeTab!.label;
 		expect(startsWithName(label, "Claude Code")).toBe(true);
-		expect(label.startsWith("Auto SA")).toBe(false);
+		expect(label.startsWith("Team Agent")).toBe(false);
 	});
 
 	it("addTab can restore a default-named tab (reopen closed tab)", () => {

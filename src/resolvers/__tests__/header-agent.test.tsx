@@ -47,49 +47,49 @@ describe("deriveHeaderAgent", () => {
 	});
 
 	it("no mode info yet (connecting): configured label only", () => {
-		expect(deriveHeaderAgent({ label: "Auto SA", requestedModeId: "auto-sa" }))
-			.toEqual({ kind: "configured", label: "Auto SA" });
+		expect(deriveHeaderAgent({ label: "Team Agent", requestedModeId: "team-agent" }))
+			.toEqual({ kind: "configured", label: "Team Agent" });
 	});
 
 	it("running the requested agent: configured label only", () => {
 		expect(
 			deriveHeaderAgent({
-				label: "Auto SA",
-				requestedModeId: "auto-sa",
-				modes: modes("auto-sa", ["kiro_default", "auto-sa"]),
+				label: "Team Agent",
+				requestedModeId: "team-agent",
+				modes: modes("team-agent", ["kiro_default", "team-agent"]),
 			}),
-		).toEqual({ kind: "configured", label: "Auto SA" });
+		).toEqual({ kind: "configured", label: "Team Agent" });
 	});
 
 	it("I207: requested agent not offered by the server → notLoaded with the running mode", () => {
 		expect(
 			deriveHeaderAgent({
-				label: "Auto SA",
-				requestedModeId: "auto-sa",
+				label: "Team Agent",
+				requestedModeId: "team-agent",
 				modes: modes("kiro_default", ["kiro_default", "trd-pro"]),
 			}),
-		).toEqual({ kind: "notLoaded", label: "Auto SA", running: "kiro_default" });
+		).toEqual({ kind: "notLoaded", label: "Team Agent", running: "kiro_default" });
 	});
 
 	it("user switched to another available mode → switched", () => {
 		expect(
 			deriveHeaderAgent({
-				label: "Auto SA",
-				requestedModeId: "auto-sa",
-				modes: modes("trd-pro", ["kiro_default", "auto-sa", "trd-pro"]),
+				label: "Team Agent",
+				requestedModeId: "team-agent",
+				modes: modes("trd-pro", ["kiro_default", "team-agent", "trd-pro"]),
 			}),
-		).toEqual({ kind: "switched", label: "Auto SA", running: "trd-pro" });
+		).toEqual({ kind: "switched", label: "Team Agent", running: "trd-pro" });
 	});
 
 	it("prefers the mode config option (V3) and its display name", () => {
 		expect(
 			deriveHeaderAgent({
-				label: "Auto SA",
-				requestedModeId: "auto-sa",
-				modes: modes("auto-sa", ["auto-sa"]),
-				configOptions: [modeOption("vibe", ["vibe", "auto-sa"])],
+				label: "Team Agent",
+				requestedModeId: "team-agent",
+				modes: modes("team-agent", ["team-agent"]),
+				configOptions: [modeOption("vibe", ["vibe", "team-agent"])],
 			}),
-		).toEqual({ kind: "switched", label: "Auto SA", running: "Default" });
+		).toEqual({ kind: "switched", label: "Team Agent", running: "Default" });
 	});
 });
 
@@ -175,11 +175,11 @@ describe("ChatHeader agent segment", () => {
 		extras: {
 			agent:
 				agent === undefined || agent.kind === "configured"
-					? { kind: "label", label: "Auto SA" }
+					? { kind: "label", label: "Team Agent" }
 					: agent,
 			model: null,
 		},
-		profile: "Auto SA",
+		profile: "Team Agent",
 		engine: { kind: "unknown" },
 		model: "Claude Opus 5.5",
 		effort: null,
@@ -190,7 +190,7 @@ describe("ChatHeader agent segment", () => {
 	const renderHeader = (segments: HeaderSegments) =>
 		render(
 			<ChatHeader
-				agentLabel="Auto SA"
+				agentLabel="Team Agent"
 				headerSegments={segments}
 				isUpdateAvailable={false}
 				onUpdateClick={vi.fn()}
@@ -202,10 +202,10 @@ describe("ChatHeader agent segment", () => {
 
 	it("notLoaded: strikes through the requested agent and names the running one", () => {
 		const { container } = renderHeader(
-			seg({ kind: "notLoaded", label: "Auto SA", running: "kiro_default" }),
+			seg({ kind: "notLoaded", label: "Team Agent", running: "kiro_default" }),
 		);
 		const del = container.querySelector("del.acp-header-branded-profile");
-		expect(del?.textContent).toBe("Auto SA");
+		expect(del?.textContent).toBe("Team Agent");
 		expect(container.querySelector(".acp-header-branded-running")?.textContent).toBe(
 			"kiro_default",
 		);
@@ -213,13 +213,13 @@ describe("ChatHeader agent segment", () => {
 		const label = container
 			.querySelector(".acp-header-branded")
 			?.getAttribute("aria-label");
-		expect(label).toContain("Auto SA");
+		expect(label).toContain("Team Agent");
 		expect(label).toContain("kiro_default");
 	});
 
 	it("switched: no strikethrough, shows the running mode", () => {
 		const { container } = renderHeader(
-			seg({ kind: "switched", label: "Auto SA", running: "trd-pro" }),
+			seg({ kind: "switched", label: "Team Agent", running: "trd-pro" }),
 		);
 		expect(container.querySelector("del")).toBeNull();
 		expect(container.querySelector(".acp-header-branded-running")?.textContent).toBe("trd-pro");
@@ -229,6 +229,6 @@ describe("ChatHeader agent segment", () => {
 		const { container } = renderHeader(seg(undefined));
 		expect(container.querySelector("del")).toBeNull();
 		expect(container.querySelector(".acp-header-branded-running")).toBeNull();
-		expect(container.querySelector(".acp-header-branded-profile")?.textContent).toBe("Auto SA");
+		expect(container.querySelector(".acp-header-branded-profile")?.textContent).toBe("Team Agent");
 	});
 });

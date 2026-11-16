@@ -40,8 +40,8 @@ const cfg = (
 describe("prepareKiroV2Launch", () => {
 	it("pins V2 right after acp and keeps the V2-only flags", () => {
 		expect(
-			prepareKiroV2Launch(["acp", "--agent", "auto-sa", "--trust-all-tools"]),
-		).toEqual(["acp", "--agent-engine=v2", "--agent", "auto-sa", "--trust-all-tools"]);
+			prepareKiroV2Launch(["acp", "--agent", "team-agent", "--trust-all-tools"]),
+		).toEqual(["acp", "--agent-engine=v2", "--agent", "team-agent", "--trust-all-tools"]);
 	});
 
 	it("replaces an engine the user set, inline or as a separate value", () => {

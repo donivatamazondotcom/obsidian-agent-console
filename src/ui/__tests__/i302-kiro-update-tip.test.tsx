@@ -68,7 +68,7 @@ function renderList(
 			isSending={false}
 			lazyState="ready"
 			isRestoringSession={false}
-			agentLabel="Auto SA"
+			agentLabel="Team Agent"
 			kiroEngineFallback={fallback}
 			plugin={makeMessageListPlugin({ settingsService: store })}
 			view={{ registerDomEvent: vi.fn() } as unknown as IChatViewHost}
@@ -107,12 +107,13 @@ describe("I302 update tip in the chat", () => {
 		expect(tip).not.toBeNull();
 		const text = tip?.textContent ?? "";
 		expect(text).toContain("This chat runs on Kiro CLI V2");
-		expect(text).toContain("Auto SA runs on V2 here");
+		expect(text).toContain("Team Agent runs on V2 here");
 		expect(tip?.querySelector("code")?.textContent).toBe("kiro-cli update");
 		expect(tip?.querySelectorAll("li")).toHaveLength(5);
 		expect(text).toContain("hooks");
-		// Public plugin: no internal setup named in the copy (smoke H1).
-		expect(text).not.toMatch(/auto-sa/i);
+		// Public plugin: the tip only receives the display label; its copy must not name a specific agent (smoke H1).
+		// The internal-name guard itself runs in the release internal-reference scan.
+		expect(text).not.toMatch(/team-agent/i);
 	});
 
 	it("conversation on a fallback tab shows it too", () => {
@@ -151,7 +152,7 @@ describe("I302 update tip in the chat", () => {
 					isSending={false}
 					lazyState="ready"
 					isRestoringSession={false}
-					agentLabel="Auto SA"
+					agentLabel="Team Agent"
 					kiroEngineFallback="old-cli"
 					plugin={makeMessageListPlugin({ settingsService: store })}
 					view={{ registerDomEvent: vi.fn() } as unknown as IChatViewHost}
