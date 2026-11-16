@@ -3373,6 +3373,7 @@ export function ChatPanel({
 		<MessageList
 			messages={displayMessages}
 			isSending={isSending}
+			lastTurnEnd={agent.lastTurnEnd}
 			lazyState={lazySession.state}
 			isRestoringSession={sessionHistory.loading}
 			agentLabel={activeAgentLabel}

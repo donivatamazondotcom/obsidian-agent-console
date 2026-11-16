@@ -1033,7 +1033,7 @@
 			"altText": "Agent Console composer while the agent streams a reply, showing the hint: Enter to queue, Mod+Enter to send now",
 			"docPage": "docs/usage/queue-and-steering.md",
 			"promptFile": "mid-stream-steering.txt",
-			"awaitSelector": ".agent-client-loading-indicator:not(.agent-client-hidden)",
+			"awaitSelector": ".agent-client-loading-indicator:not(.agent-client-hidden):not(.agent-client-indicator-exit-happy):not(.agent-client-indicator-exit-close)",
 			"initialState": {
 				"openNote": "Welcome.md",
 				"clickRibbon": true

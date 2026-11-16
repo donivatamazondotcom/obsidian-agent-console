@@ -98,12 +98,14 @@ function neutralizedIn(blocks: AtRule[], selector: string): boolean {
 }
 
 describe("I198 — idle loading indicator does not animate", () => {
-	it("sanity: the stylesheet parsed and declares the loading dot", () => {
-		const selectors = topLevelRules().map((r) => r.selector);
-		expect(selectors).toContain(".agent-client-loading-dot");
+	it("sanity: the stylesheet parsed and declares the working face layers", () => {
+		const selectors = topLevelRules().flatMap((r) => r.selector.split(",").map((s) => s.trim()));
+		expect(selectors).toContain(".agent-client-face-layer");
+		// Working face: the dot grid is gone ([[Agent Console Working Face]]).
+		expect(selectors.some((s) => s.includes("agent-client-loading-dot"))).toBe(false);
 	});
 
-	it("neutralizes the dot animation while the indicator is hidden", () => {
+	it("neutralizes the face animations while the indicator is hidden", () => {
 		// visibility:hidden does not stop animations, so the hidden state must
 		// explicitly stop them or the dots animate for the view's whole life.
 		const target = ".agent-client-loading-indicator.agent-client-hidden";
@@ -111,7 +113,7 @@ describe("I198 — idle loading indicator does not animate", () => {
 		for (const rule of topLevelRules()) {
 			const sels = rule.selector.split(",").map((s) => s.trim());
 			const scopesHiddenIndicator = sels.some(
-				(s) => s.startsWith(target) && s.includes(".agent-client-loading-dot"),
+				(s) => s.startsWith(target) && s.includes(".agent-client-face-layer"),
 			);
 			if (!scopesHiddenIndicator) continue;
 			for (const decl of rule.nodes ?? []) {
@@ -126,8 +128,8 @@ describe("I198 — idle loading indicator does not animate", () => {
 		}
 		expect(
 			stopped,
-			`no rule stops .agent-client-loading-dot animation under ${target} — ` +
-				"the nine dots animate continuously while the indicator is invisible",
+			`no rule stops .agent-client-face-layer animation under ${target} — ` +
+				"the face animates continuously while the indicator is invisible",
 		).toBe(true);
 	});
 
@@ -166,5 +168,57 @@ describe("I198 — prefers-reduced-motion is honored", () => {
 			uncovered,
 			`these animated selectors are not neutralized under reduced motion: ${uncovered.join(", ")}`,
 		).toEqual([]);
+	});
+});
+
+describe("Working face — exit rules", () => {
+	/** Top-level rules scoped to an exit phase class that declare an animation. */
+	function exitAnimationRules(): Rule[] {
+		return topLevelRules().filter(
+			(r) =>
+				/agent-client-indicator-exit-(happy|close)/.test(r.selector) &&
+				(r.nodes ?? []).some(
+					(d) => d.type === "decl" && /^animation(-name)?$/.test(d.prop.toLowerCase()) && !d.value.toLowerCase().startsWith("none"),
+				),
+		);
+	}
+
+	it("there are exit rules for both endings (anti-vacuity)", () => {
+		const sels = exitAnimationRules().map((r) => r.selector).join(" ");
+		expect(sels).toContain("agent-client-indicator-exit-happy");
+		expect(sels).toContain("agent-client-indicator-exit-close");
+	});
+
+	it("every exit rule holds its final state (fill mode forwards)", () => {
+		// Without forwards the face snaps back to the brand face (and the row
+		// to full opacity) between the CSS end and the timer moving to idle.
+		const missing = exitAnimationRules()
+			.filter((r) =>
+				!(r.nodes ?? []).some(
+					(d) =>
+						d.type === "decl" &&
+						((d.prop.toLowerCase() === "animation" && /\bforwards\b/.test(d.value.toLowerCase())) ||
+							(d.prop.toLowerCase() === "animation-fill-mode" && /\bforwards\b/.test(d.value.toLowerCase()))),
+				),
+			)
+			.map((r) => r.selector);
+		expect(missing).toEqual([]);
+	});
+
+	it("every var(--acf-*) carries a fallback", () => {
+		// A frame that renders without captured values (a remount mid-exit)
+		// must show the brand face, not every eye shape at once.
+		const bare: string[] = [];
+		root.walkDecls((d) => {
+			for (const m of d.value.matchAll(/var\(\s*(--acf-[\w-]+)\s*(,)?/g)) {
+				if (!m[2]) bare.push(`${d.prop}: ${d.value}`);
+			}
+		});
+		const uses = [] as string[];
+		root.walkDecls((d) => {
+			if (d.value.includes("--acf-")) uses.push(d.prop);
+		});
+		expect(uses.length).toBeGreaterThan(0);
+		expect(bare).toEqual([]);
 	});
 });

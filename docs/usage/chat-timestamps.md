@@ -21,7 +21,7 @@ When something shows up in a reply after more than a minute of silence, it gets 
 
 ## While the agent works
 
-While a reply is running, the line under the chat tells you how long the agent has been at it and when you last heard from it, for example `Working 4m · last update 10s ago`. Before anything comes back it reads `Working 1m · no update yet`. While a tool runs, the line names it and says how long it has run: `npm test · 5m`. A long tool name is cut short before the times are.
+While a reply is running, the line under the chat tells you how long the agent has been at it and when you last heard from it, for example `Working 4m · last update 10s ago`. Before anything comes back it reads `Working 1m · no update yet`. While a tool runs, the line names it and says how long it has run: `npm test · 5m`. A long tool name is cut short before the times are. Next to the line, the Agent Console face blinks, winks and glances while the agent works, and smiles for a moment when a reply finishes. If the turn is stopped or fails, it just closes its eyes. With reduced motion turned on, the face holds still.
 
 When the agent asks for your approval, the line reads `Waiting on you`. Time spent waiting for you is left out of every count.
 

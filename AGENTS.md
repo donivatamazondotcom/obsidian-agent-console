@@ -128,6 +128,7 @@ src/
 │   ├── useTabPersistence.ts     # Save/restore per-leaf tab state across restarts
 │   ├── useTabSessionState.ts    # Six-state per-tab session state machine
 │   ├── useTabUnseen.ts          # Runtime half of Tab Attention States: feeds turn ends, sends and viewing events into nextTabUnseen; returns the tab's unseen flag for deriveTabState
+│   ├── useWorkingIndicatorPhase.ts # Working face: the indicator phase (idle / working / exit-happy / exit-close) and the one exit timer; captures each eye layer's current look at turn end so the exit starts from it
 │   ├── useRestoredMessages.ts   # Replay transcript for restored tabs with no live session
 │   ├── forkSessionFlow.ts       # prepareForkAcquisition — before a fork: initialize a stopped agent and read fork support from the running process (a reload restarts first, I251)
 │   ├── loadExistingSessionFlow.ts # Kept-id reconnect: reconnectExistingSession initializes a stopped agent, then resume → load (restored and released tabs, I209)
@@ -169,7 +170,8 @@ src/
 │   ├── ConfirmCloseModal.ts     # Confirm-before-closing-panel modal (focused Cmd+W with 2+ tabs)
 │   ├── ConfirmResetModal.ts     # Confirm-before-resetting the Obsidian system prompt (only when typed text would be lost)
 │   ├── ConfirmTrashChatsModal.ts # Confirm before moving chats/chat files to the trash (lowering Max saved chats, Clean up unused chat files) – I202
-│   ├── branding.ts              # Agent Console SVG mark + cross-surface branding
+│   ├── branding.ts              # Agent Console SVG mark + cross-surface branding; FACE_GEOMETRY shared with the working face
+│   ├── WorkingFace.tsx          # Working face: the Agent Console icon as the working indicator (static head + six eye layers, animated in styles.css with opacity/transform only)
 │   ├── ChatPanel.tsx            # Orchestrator: calls hooks, workspace events, rendering
 │   ├── ChatView.tsx             # Sidebar view (ItemView wrapper)
 │   ├── chat-view-type.ts        # I157: namespaced "agent-console-chat-view" view-type constant (avoids collision with upstream Agent Client)
@@ -267,6 +269,7 @@ src/
 │   ├── stamp-age.ts                # deriveStampAge — a stamp's hover age in minutes/hours/calendar days/weeks/months/years; never a date (Chat Timestamps)
 │   ├── stamp-date-scope.ts         # deriveStampDateScope — today / thisYear / otherYear for a stamp, from the day store's DST-safe bounds (Decision 7)
 │   ├── tab-unseen.ts               # nextTabUnseen / isBeingViewed — the tab's unseen-result flag: a turn ending while the tab isn't viewed marks finished or stopped early; viewing or sending clears it; a cancel never marks
+│   ├── working-indicator.ts        # decideIndicatorTransition — which exit the working face plays when sending stops: happy on endTurn/unknown, close on any other ending, hide under reduced motion
 │   ├── tab-keyboard-nav.ts         # deriveTabKeyTarget — pure resolver for Left/Right/Home/End focus movement across the tab strip (WAI-ARIA tabs, manual activation; TS-I08); `orientation: "vertical"` uses Up/Down for the tab rail
 │   ├── whats-new.ts                # releaseCore / deriveWhatsNewHighlights / releaseNotesUrl / nextLastSeenVersion — which "What's new" highlights show after an update (I300)
 │   ├── tab-rail-width.ts           # resolveRailWidth / maxNamedWidth / nextRailWidthFromKey / toggleRailWidth — vertical tab rail snap, clamp, keyboard steps and toggle
