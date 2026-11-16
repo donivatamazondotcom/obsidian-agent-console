@@ -23,6 +23,7 @@ import {
 	armWaitJs,
 	collectArmedJs,
 	newDocumentJs,
+	observerInstallJs,
 } from "../page-js";
 
 function run<T>(js: string): T {
@@ -38,6 +39,7 @@ beforeEach(() => {
 	delete w.__profObs;
 	delete w.__profObsType;
 	delete w.__profBuf;
+	delete w.__profInstallNonce;
 });
 
 describe("old-document sentinel", () => {
@@ -135,7 +137,7 @@ describe("tab clicks", () => {
 });
 
 describe("long-frame observer", () => {
-	it("clears the buffer on every install, not only the first", () => {
+	it("clears the buffer on every new install, not only the first", () => {
 		const observed: string[] = [];
 		class FakePO {
 			static supportedEntryTypes = ["long-animation-frame", "longtask"];
@@ -149,8 +151,8 @@ describe("long-frame observer", () => {
 		// A read doesn't clear (a retried read returns the same frames)...
 		expect(run<unknown[]>(OBSERVER_READ_JS)).toHaveLength(1);
 		expect(run<unknown[]>(OBSERVER_READ_JS)).toHaveLength(1);
-		// ...the next install (next scenario) does, without a new observer.
-		expect(run<string>(OBSERVER_INSTALL_JS)).toBe("long-animation-frame");
+		// ...the next install (next scenario, new nonce) does, without a new observer.
+		expect(run<string>(observerInstallJs("next-scenario"))).toBe("long-animation-frame");
 		expect(run<unknown[]>(OBSERVER_READ_JS)).toEqual([]);
 		// Only LoAF observed: one stall is never counted twice.
 		expect(observed).toEqual(["long-animation-frame"]);
@@ -314,5 +316,72 @@ describe("clickAndAwaitJs failure modes", () => {
 		document.body.innerHTML = "<button></button>";
 		const v = await run<Promise<string>>(clickAndAwaitJs(click, "(function(){throw new Error('bad')})()", 1000));
 		expect(() => parseInteraction(v, "x")).toThrow(/check threw — bad/);
+	});
+});
+
+describe("round-4 regressions", () => {
+	const click = '(function(){var b=document.querySelector("button");if(!b)return -1;var at=performance.now();b.click();return at;})()';
+	const mount = () => {
+		document.body.innerHTML = "<button></button>";
+		document.querySelector("button")?.addEventListener("click", () => {
+			document.body.insertAdjacentHTML("beforeend", '<div class="done"></div>');
+		});
+	};
+
+	it("times the frame AFTER the rAF callback, not by its (earlier) timestamp", async () => {
+		// A rAF whose timestamp is the frame START (before the commit), as
+		// Chromium's is: the old code recorded it and frameMs < pageMs.
+		(w as { requestAnimationFrame?: unknown }).requestAnimationFrame = (cb: (ts: number) => void) =>
+			window.setTimeout(() => cb(0), 0);
+		mount();
+		const t = parseInteraction(await run<Promise<string>>(clickAndAwaitJs(click, waitCheckJs([".done"]), 1000)), "x");
+		expect(t.frameMs).toBeGreaterThanOrEqual(t.pageMs);
+	});
+
+	it("fails via the 1 s timer when rAF exists but never fires (hidden page)", async () => {
+		(w as { requestAnimationFrame?: unknown }).requestAnimationFrame = () => 1;
+		mount();
+		const v = await run<Promise<string>>(clickAndAwaitJs(click, waitCheckJs([".done"]), 3000));
+		expect(() => parseInteraction(v, "x")).toThrow(/no frame rendered within 1 s \(page /);
+	});
+
+	it("does not click when the pre-click re-check throws", async () => {
+		let clicks = 0;
+		document.body.innerHTML = "<button></button>";
+		document.querySelector("button")?.addEventListener("click", () => clicks++);
+		const v = await run<Promise<string>>(clickAndAwaitJs(click, "(function(){throw new Error('bad')})()", 500));
+		expect(v).toMatch(/^CHECK-ERR/);
+		expect(clicks).toBe(0);
+	});
+
+	it("arms before app exists and records when it armed", async () => {
+		delete w.app;
+		delete w.__profArm;
+		delete w.__profArmed;
+		const probe = newDocumentJs(armWaitJs(waitCheckJs([".row"])));
+		expect(run<string>(probe)).toBe("");
+		document.body.innerHTML = '<div class="row"></div>';
+		await Promise.resolve();
+		const hit = parseWaitHit(await run<Promise<string>>(collectArmedJs(500)));
+		expect(typeof hit?.armedAt).toBe("number");
+		expect(hit?.pageMs).toBeGreaterThanOrEqual(hit?.armedAt ?? Infinity);
+		delete w.__profArm;
+		delete w.__profArmed;
+	});
+
+	it("a retried install (same nonce) keeps the buffer; a new install clears it", () => {
+		class FakePO {
+			static supportedEntryTypes = ["long-animation-frame"];
+			observe() {}
+		}
+		w.PerformanceObserver = FakePO;
+		delete w.__profObs;
+		delete w.__profInstallNonce;
+		run(observerInstallJs("n1"));
+		(w.__profBuf as unknown[]).push({ entryType: "long-animation-frame", duration: 90 });
+		run(observerInstallJs("n1"));
+		expect(run<unknown[]>(OBSERVER_READ_JS)).toHaveLength(1);
+		run(observerInstallJs("n2"));
+		expect(run<unknown[]>(OBSERVER_READ_JS)).toEqual([]);
 	});
 });
