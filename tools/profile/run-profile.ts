@@ -57,7 +57,7 @@ import {
 } from "./baseline";
 import { SCENARIOS, type ProfileContext } from "./scenarios";
 import { seedStudio, canSeed, pluginDirOf } from "./seed";
-import { checkProfileTarget } from "./vault-guard";
+import { checkProfileTarget, visibilityProblem } from "./vault-guard";
 import {
 	MARK_OLD_DOCUMENT_JS,
 	IS_NEW_DOCUMENT_JS,
@@ -457,16 +457,25 @@ async function main(): Promise<void> {
 	const passes = args.record ? args.runs : 1;
 	const runs: Profile[] = [];
 	const failures: ScenarioFailure[] = [];
+	const ctx = makeContext(cdp);
+	const visibility: string[] = [];
+	const readVisibility = async (): Promise<void> => {
+		visibility.push(String(await ctx.evalInPage<string>("document.visibilityState")));
+	};
 	for (let p = 0; p < passes; p++) {
 		if (passes > 1) console.error(`— pass ${p + 1}/${passes} —`);
+		await readVisibility();
 		const { profile, failed } = await runOnce(cdp, p + 1);
 		runs.push(profile);
 		failures.push(...failed);
+		await readVisibility();
 	}
 	const profile = passes > 1 ? medianProfile(runs) : runs[0];
 
 	const baseline = loadJson<Baseline>(BASELINE_PATH);
+	const hiddenReason = visibilityProblem(visibility);
 	const incomplete = [
+		...(hiddenReason ? [hiddenReason] : []),
 		...failures.map((f) => `pass ${f.pass}: ${f.scenario} failed — ${f.error}`),
 		...missingFromProfile(profile, baseline).map((s) => `${s}: in the baseline but not measured`),
 	];
