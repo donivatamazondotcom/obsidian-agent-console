@@ -27,6 +27,7 @@ src/
 ├── types/                       # Type definitions (no logic, no dependencies)
 │   ├── chat.ts                  # ChatMessage, MessageContent, PromptContent, AttachedFile, ActivePermission
 │   ├── session.ts               # ChatSession, SessionUpdate (12-type union), SessionInfo, AgentCapabilities (normalized) + RawAgentCapabilities
+│   ├── chat-link.ts             # Chat links (Chat ID): OpenChatBridge (boundChatIds/switchTo/openFromHistory), BoundChat, LiveChatLeaf, OpenRecordResult, ChatLinkRateLimitState + the chat-link handler's structural input types
 │   ├── agent.ts                 # AgentConfig, agent settings (Claude/Codex/Gemini/Kiro/OpenCode/Antigravity/Custom)
 │   ├── errors.ts                # AcpError, ProcessError, ErrorInfo
 │   ├── chat-time.ts             # Chat Timestamps: DayBounds, DaySnapshot, StampDateScope, StampAge (shared by utils, resolvers and services without a backwards layer edge)
@@ -66,7 +67,9 @@ src/
 │   ├── settings-migration.ts    # One-time settings migration (autoMentionActiveNote → activeNoteAsDefaultContext)
 │   ├── settings-service.ts      # Reactive settings store (observer pattern only)
 │   ├── session-storage.ts       # Session metadata + message file I/O (sessions/*.json); the only evictor (saveSession, applyMaxSavedSessions) — evicted/deleted transcripts go to the trash (I202)
-│   ├── session-record.ts        # Record identity (I269): findSessionRecord, the savedSessions validator, the one-time recordId migration
+│   ├── session-record.ts        # Record identity (I269): the savedSessions validator, the one-time recordId migration; re-exports findSessionRecord from utils/session-record-key
+│   ├── chat-link-handler.ts     # createChatLinkHandler — the obsidian://agent-console-chat handler: 2 s rate limit + parse at fire time, runs one at a time, layout-ready wait, resolve across leaves/saved tab state/history, reveal + bridge wait, resolve again once, settle wait; every wait bounded by frames and 2 s of now() time, closed-leaf check, could-not-open releases the repeat (Chat ID D12, D14, D15)
+│   ├── chat-link-copy.ts        # runChatLinkCopy — Copy link to chat: copy the link or the send-first notice, report a failed write, refocus through copy-chat-link (Chat ID D16)
 │   ├── server-session-cache.ts  # The only reader/writer of serverSessionCache (last session/list per launch, keyed by agentLaunchKey, never agent id) + its settings-edge validation (I270)
 │   ├── session-store.ts         # Single serialized writer of record for savedSessions metadata/title (I114), keyed by recordId (I269)
 │   ├── local-day-store.ts       # Chat Timestamps: the plugin's one day store (today's local bounds + time zone) for useSyncExternalStore; per-view focus/visibility re-checks, one always-rescheduling midnight timer, dispose() on unload
@@ -146,6 +149,7 @@ src/
 │   ├── useChatActions.ts        # Business callbacks (send, newChat, export, restart, etc.)
 │   ├── useHistoryModal.ts       # Session history modal lifecycle
 │   ├── useLandingHistoryModal.ts # View-level Local-only session-history modal opener for the zero-tab landing (no ChatPanel host); restore/fork route through openSessionInTab
+│   ├── useOpenChatBridge.ts     # One stable per-panel chat-link bridge over the live tabs and id maps (latest-value refs), registered through view.setOpenChat (Chat ID D12)
 │   ├── useComposerFocusReturn.ts # Return focus to composer after in-panel state changes (guarded by composer-cluster focus)
 │   ├── useSettings.ts           # Settings subscription (useSyncExternalStore)
 │   ├── useRecentlyClosedTabs.ts # F13 undo-close: per-leaf in-memory recently-closed stack
@@ -253,6 +257,7 @@ src/
 │   ├── keep-session-id.ts          # decideKeepSessionId — whether a tab losing its live session keeps the id for its next connect (messages on screen, or a held kept id); idle release (I237) and a failed bound reload (I318)
 │   ├── load-replay.ts              # decideLoadReplay — did a successful session/load replay the conversation (loaded) or come back empty (Kiro V3 answers an unknown id with an empty session; I264)
 │   ├── restore-failure.ts          # decideRestoreFailure — after a kept id fails to load: fallback with the transcript (local record or transcript on screen, or engine change; I246), gone (agent rejected or emptily loaded a row with nothing local; I282), or connect-failed (agent never answered)
+│   ├── chat-target.ts              # deriveChatTarget (open-tab / unmounted-tab / history / missing, by chat ID only) + savedTabChatId, findPanelTabForChat, usableChatId, planHistoryOpen, copyLinkResult (Chat ID)
 │   ├── settings-import-offer.ts    # mayOfferSettingsImport — gate for the first-run settings-import offer; an upgrading install never sees it (I306)
 │   ├── session-history-view.ts     # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source, knowledge) → listSource/agentPill (available | unsupported | unknown, I260)/restore/fork/banner/folderFilterDefault); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
 │   ├── session-retention.ts        # I202 saved-chat retention: selectEvictions(sessions, cap, tabIds) → least recently updated first, never a tab's record; selectUnusedSessionFiles (cleanup command, 24h guard); parseMaxSavedSessions (25|50|100|250|500|null=unlimited, default 100); formatSize
@@ -296,6 +301,8 @@ src/
 │   ├── link-leaf.ts             # Resolve click modifiers → Obsidian leaf/pane (Keymap.isModEvent) for internal links
 │   ├── quick-prompt-gesture.ts  # Map a click/keypress → the Quick Prompts 2×2 gesture (openElsewhere/foreground/insert) via Keymap.isModEvent + shift/alt
 │   ├── quick-prompt-uri.ts      # obsidian://agent-console links: parse params (tagged union), strip invisible chars, rate limit + duplicate drop, quote outside text, build a prompt's base link
+│   ├── chat-uri.ts              # obsidian://agent-console-chat links: build/parse, encode vault + id, escape the link title, checkChatLinkRateLimit (2 s only, D14), releaseChatLinkRepeat
+│   ├── session-record-key.ts    # findSessionRecord + SessionRecordKey (moved from services/session-record so resolvers can use it; re-exported there)
 │   ├── link-extract.ts          # Derive per-tab shared-link set from messages (Shared Links Bubble) + new/old classification
 │   ├── notification-content.ts  # buildCompletionNotificationContent — pure turn-end notification title/body (tab label in title); the registry assigns the tag
 │   ├── notification-click.ts    # Pure orchestrator for a completion-notification click (reveal owning leaf/window + switch to producing tab); I52 recurrence

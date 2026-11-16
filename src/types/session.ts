@@ -735,6 +735,14 @@ export interface SessionResult {
 }
 
 /**
+ * A chat's public, stable ID: the `recordId` of its history record. Opaque:
+ * new chats get a UUID, chats migrated before I269 keep their first agent
+ * session id. Never parse it; URI-encode it in links. See
+ * [[Agent Console Chat ID]].
+ */
+export type ChatId = string;
+
+/**
  * Locally saved session metadata.
  *
  * Used when agent doesn't support session/list but supports load/resume/fork.
@@ -747,7 +755,7 @@ export interface SavedSessionInfo {
 	 * use their first agent session id. Look a record up by agent id only
 	 * through `sessionId` (`findSessionRecord`), never through this field.
 	 */
-	recordId: string;
+	recordId: ChatId;
 	/** The agent session id this chat currently runs as. A fallback changes it. */
 	sessionId: string;
 	/** Agent ID that created this session */

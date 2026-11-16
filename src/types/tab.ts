@@ -6,6 +6,8 @@
  * N agent sessions.
  */
 
+import type { ChatId } from "./session";
+
 /**
  * Visual state of a tab, derived from SessionState + permission status.
  * Used by TabBar to render the correct icon shape/color/animation.
@@ -140,7 +142,7 @@ export interface PersistedTabInfo {
 	 * when the record write didn't land before a quit. Absent on tabs saved
 	 * before I269 (the restore resolves the record by `sessionId`).
 	 */
-	recordId?: string;
+	recordId?: ChatId;
 }
 
 /**

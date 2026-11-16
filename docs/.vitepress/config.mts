@@ -94,6 +94,7 @@ export default defineConfig({
           { text: "Tabbed Sessions", link: "/usage/tabbed-sessions" },
           { text: "Editing", link: "/usage/editing" },
           { text: "Chat Export", link: "/usage/chat-export" },
+          { text: "Chat Links", link: "/usage/chat-links" },
           { text: "Commands & Hotkeys", link: "/usage/commands" },
           { text: "Importing Settings", link: "/usage/importing-settings" },
           { text: "Language", link: "/usage/language" },

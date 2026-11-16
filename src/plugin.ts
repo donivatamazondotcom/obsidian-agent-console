@@ -138,6 +138,12 @@ import {
 	uriFireKey,
 	type UriRateLimitState,
 } from "./utils/quick-prompt-uri";
+import { CHAT_LINK_ACTION } from "./utils/chat-uri";
+import {
+	createChatLinkHandler,
+	type ChatLinkFire,
+} from "./services/chat-link-handler";
+import type { ChatLinkRateLimitState } from "./types/chat-link";
 import type { QuickPrompt } from "./types/quick-prompt";
 import { RenamePromptModal } from "./ui/RenamePromptModal";
 import { ChooseQuickPromptFolderModal } from "./ui/ChooseQuickPromptFolderModal";
@@ -543,6 +549,12 @@ export default class AgentClientPlugin extends Plugin {
 
 	private uriRateLimit: UriRateLimitState = {};
 
+	// obsidian://agent-console-chat links ([[Agent Console Chat ID]]): their
+	// own 2 s rate limit (D14), separate from the quick-prompt one. The
+	// handler is built once in onload.
+	private chatLinkRateLimit: ChatLinkRateLimitState = {};
+	private chatLinkHandler: ChatLinkFire = () => Promise.resolve();
+
 	/**
 	 * Handle an `obsidian://agent-console?prompt=…` fire: rate limit → parse →
 	 * open/reveal the chat view → plan → open a new foreground tab. A link can
@@ -808,6 +820,35 @@ export default class AgentClientPlugin extends Plugin {
 			}
 		});
 
+		// Chat links (Chat ID D12): the whole handler lives in
+		// services/chat-link-handler.ts; this wires it to the workspace, the
+		// panels' bridges, settings and its own rate-limit state.
+		this.chatLinkHandler = createChatLinkHandler<WorkspaceLeaf>({
+			workspace: this.app.workspace,
+			viewType: VIEW_TYPE_CHAT,
+			getBridge: (leaf) => leaf.view instanceof ChatView ? leaf.view.getOpenChat() : null,
+			restoreTabsOnStartup: () => this.settings.restoreTabsOnStartup,
+			perLeafTabStates: () => this.settings.perLeafTabStates ?? [],
+			savedSessions: () => this.settingsService.getSavedSessions(),
+			lastActiveChatViewId: () => this.lastActiveChatViewId,
+			getTargetChatLeaf: () => this.getTargetChatLeaf(),
+			activateView: () => this.activateView(),
+			waitForChatViewOpener: () => this.waitForChatViewOpener(),
+			rateLimit: {
+				get: () => this.chatLinkRateLimit,
+				set: (state) => {
+					this.chatLinkRateLimit = state;
+				},
+			},
+			now: () => Date.now(),
+			// A main-window timer keeps a wait's deadline going when a
+			// popout closes or a window stops drawing frames.
+			sleep: (ms) =>
+				new Promise<void>((resolve) => window.setTimeout(resolve, ms)),
+			notify: (message) => new Notice(message),
+			logError: (message, error) => getLogger().error(message, error),
+		});
+
 		// I157 (onload resilience): route registrations through a guarded harness
 		// so one failing registration (e.g. a colliding view type or command id)
 		// degrades to a notice + one missing feature instead of aborting onload.
@@ -851,6 +892,16 @@ export default class AgentClientPlugin extends Plugin {
 							QUICK_PROMPT_URI_ACTION,
 							(params) => {
 								void this.handleQuickPromptUri(params);
+							},
+						),
+				},
+				{
+					label: t("notices.bootPartUriHandler"),
+					run: () =>
+						this.registerObsidianProtocolHandler(
+							CHAT_LINK_ACTION,
+							(params) => {
+								void this.chatLinkHandler(params);
 							},
 						),
 				},

@@ -36,6 +36,7 @@ import type {
 import type { AgentClientPluginSettings } from "../plugin";
 import type { AgentUpdateNotification } from "../services/update-checker";
 import { ChatExporter } from "../services/chat-exporter";
+import { usableChatId } from "../resolvers/chat-target";
 import { getLogger } from "../utils/logger";
 import { buildFileUri } from "../utils/paths";
 import { convertWindowsPathToWsl } from "../utils/platform";
@@ -242,6 +243,11 @@ export function useChatActions(
 			if (!isEnabled) return;
 			if (triggerMessages.length === 0) return;
 			if (!triggerSession.sessionId) return;
+			// Read before any await: a close or reset may follow (D13).
+			const chatId = usableChatId(
+				sessionHistory.getRecordId(),
+				plugin.settingsService.getSavedSessions(),
+			);
 
 			try {
 				const exporter = new ChatExporter(plugin);
@@ -254,6 +260,7 @@ export function useChatActions(
 					triggerSession.sessionId,
 					triggerSession.createdAt,
 					openFile,
+					chatId,
 				);
 				if (filePath) {
 					const context =
@@ -265,7 +272,7 @@ export function useChatActions(
 				new Notice(t("notices.chatExportFailed"));
 			}
 		},
-		[plugin, logger],
+		[plugin, logger, sessionHistory.getRecordId],
 	);
 
 	// ============================================================
@@ -542,6 +549,10 @@ export function useChatActions(
 			return;
 		}
 
+		const chatId = usableChatId(
+			sessionHistory.getRecordId(),
+			plugin.settingsService.getSavedSessions(),
+		);
 		try {
 			const exporter = new ChatExporter(plugin);
 			const openFile = plugin.settings.exportSettings.openFileAfterExport;
@@ -552,13 +563,14 @@ export function useChatActions(
 				session.sessionId || "unknown",
 				session.createdAt,
 				openFile,
+				chatId,
 			);
 			new Notice(t("notices.chatExported", { path: filePath }));
 		} catch (error) {
 			new Notice(t("notices.chatExportFailed"));
 			logger.error("Export error:", error);
 		}
-	}, [messages, session, plugin, logger]);
+	}, [messages, session, plugin, logger, sessionHistory.getRecordId]);
 
 	const handleSwitchAgent = useCallback(
 		async (agentId: string) => {

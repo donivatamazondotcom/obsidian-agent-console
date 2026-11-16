@@ -1,5 +1,6 @@
 import type AgentClientPlugin from "../plugin";
 import type { ChatMessage, MessageContent } from "../types/chat";
+import type { ChatId } from "../types/session";
 import { getLogger, Logger } from "../utils/logger";
 import { TFile } from "obsidian";
 
@@ -33,6 +34,11 @@ export class ChatExporter {
 		sessionId: string,
 		sessionCreatedAt: Date,
 		openFile = true,
+		/**
+		 * The chat's usable ID (Chat ID D7), or null when it has none yet.
+		 * Written as `chat_id`; the export never creates one.
+		 */
+		chatId: ChatId | null = null,
 	): Promise<string> {
 		const settings = this.plugin.settings.exportSettings;
 
@@ -51,6 +57,7 @@ export class ChatExporter {
 			folderPath,
 			baseFileName,
 			sessionId,
+			chatId,
 		);
 
 		try {
@@ -59,6 +66,7 @@ export class ChatExporter {
 				agentId,
 				sessionId,
 				effectiveTimestamp,
+				chatId,
 			);
 			const chatContent = await this.convertMessagesToMarkdown(
 				messages,
@@ -106,81 +114,58 @@ export class ChatExporter {
 	}
 
 	/**
-	 * Extract session_id from file's frontmatter cache.
-	 *
-	 * Uses Obsidian's metadataCache for efficient access (no disk I/O).
-	 * This is the same pattern used in vault.adapter.ts and mention-service.ts.
-	 *
-	 * @param file - TFile to extract session_id from
-	 * @returns session_id string if found, null otherwise
+	 * Read `session_id` and `chat_id` from a file's frontmatter cache.
+	 * Uses Obsidian's metadataCache (no disk I/O), one read per file.
 	 */
-	private getSessionIdFromFile(file: TFile): string | null {
-		const cache = this.plugin.app.metadataCache.getFileCache(file);
-		const sessionId = cache?.frontmatter?.session_id as string | undefined;
-		return sessionId ?? null;
+	private getExportIdsFromFile(file: TFile): {
+		sessionId: string | null;
+		chatId: string | null;
+	} {
+		const fm = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
+		const str = (v: unknown) =>
+			typeof v === "string" && v !== "" ? v : null;
+		return { sessionId: str(fm?.session_id), chatId: str(fm?.chat_id) };
 	}
 
 	/**
-	 * Resolve export file path, handling session ID conflicts.
+	 * Resolve the export path: the note this chat was exported to before,
+	 * else the first free name.
 	 *
-	 * Resolution logic:
-	 * 1. If no file exists at base path → use base path
-	 * 2. If file exists with same sessionId → use base path (overwrite)
-	 * 3. If file exists with different sessionId → try suffixed paths (_2, _3, ...)
-	 *    - If suffixed file has same sessionId → use that path (overwrite)
-	 *    - If suffixed file has different sessionId → continue searching
-	 *    - If no suffixed file exists → use that path (create new)
-	 *
-	 * @param folderPath - Export folder path
-	 * @param baseFileName - Base file name without extension
-	 * @param sessionId - Current session's ID
-	 * @returns Resolved file path
+	 * Candidates are `base.md`, `base_2.md` … `base_100.md`, read up to the
+	 * first free name (at most 101 cache reads, as before Chat ID). Among the
+	 * existing candidates, a `chat_id` match wins; then a `session_id` match,
+	 * skipping any candidate whose `chat_id` is present and differs from ours
+	 * (a different chat that once ran as this agent session). No vault scan.
 	 */
 	private resolveExportFilePath(
 		folderPath: string,
 		baseFileName: string,
 		sessionId: string,
+		chatId: ChatId | null,
 	): string {
-		const basePath = `${folderPath}/${baseFileName}.md`;
+		const pathFor = (suffix: number) =>
+			suffix === 1
+				? `${folderPath}/${baseFileName}.md`
+				: `${folderPath}/${baseFileName}_${suffix}.md`;
 
-		// Check if base file exists
-		const existingFile =
-			this.plugin.app.vault.getAbstractFileByPath(basePath);
-
-		if (!(existingFile instanceof TFile)) {
-			// No existing file, use base path
-			return basePath;
-		}
-
-		// File exists - check sessionId in frontmatter
-		const existingSessionId = this.getSessionIdFromFile(existingFile);
-
-		if (existingSessionId === sessionId) {
-			// Same session, overwrite
-			return basePath;
-		}
-
-		// Different session (or no sessionId in frontmatter) - find available suffix
-		// Start from 2 to follow common convention (file, file_2, file_3, ...)
-		for (let suffix = 2; suffix <= 100; suffix++) {
-			const suffixedPath = `${folderPath}/${baseFileName}_${suffix}.md`;
-			const suffixedFile =
-				this.plugin.app.vault.getAbstractFileByPath(suffixedPath);
-
-			if (!(suffixedFile instanceof TFile)) {
-				// No file at this path, use it
-				return suffixedPath;
+		let sessionMatch: string | null = null;
+		for (let suffix = 1; suffix <= 100; suffix++) {
+			const path = pathFor(suffix);
+			const file = this.plugin.app.vault.getAbstractFileByPath(path);
+			if (!(file instanceof TFile)) {
+				// First free name: our earlier export, if any, sits before it.
+				return sessionMatch ?? path;
 			}
-
-			// Check if this file belongs to our session
-			const suffixedSessionId = this.getSessionIdFromFile(suffixedFile);
-			if (suffixedSessionId === sessionId) {
-				// Found our session's file
-				return suffixedPath;
+			const ids = this.getExportIdsFromFile(file);
+			if (chatId && ids.chatId === chatId) return path;
+			const otherChat = !!chatId && !!ids.chatId && ids.chatId !== chatId;
+			if (!sessionMatch && !otherChat && ids.sessionId === sessionId) {
+				sessionMatch = path;
 			}
-
-			// Different session, continue searching
+			// Without a chat ID there is nothing better to find.
+			if (!chatId && sessionMatch) return sessionMatch;
 		}
+		if (sessionMatch) return sessionMatch;
 
 		// Safety fallback: exceeded limit, use the last checked path
 		// This should rarely happen (100+ exports with same timestamp)
@@ -215,6 +200,7 @@ export class ChatExporter {
 		agentId: string,
 		sessionId: string,
 		timestamp: Date,
+		chatId: ChatId | null,
 	): string {
 		const settings = this.plugin.settings.exportSettings;
 
@@ -227,6 +213,8 @@ export class ChatExporter {
 		const seconds = String(timestamp.getSeconds()).padStart(2, "0");
 		const localTimestamp = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 
+		const chatIdLine = chatId ? `\nchat_id: ${chatId}` : "";
+
 		// Build tags line only if tag is specified
 		const tagsLine = settings.frontmatterTag.trim()
 			? `\ntags: [${settings.frontmatterTag.trim()}]`
@@ -236,7 +224,7 @@ export class ChatExporter {
 created: ${localTimestamp}
 agentDisplayName: ${agentLabel}
 agentId: ${agentId}
-session_id: ${sessionId}${tagsLine}
+session_id: ${sessionId}${chatIdLine}${tagsLine}
 ---`;
 	}
 

@@ -75,6 +75,11 @@ type ExportSettings = {
 	frontmatterTag: string;
 };
 
+type ExistingFrontmatter =
+	| string
+	| null
+	| { session_id?: string; chat_id?: string };
+
 function makeTFile(path: string): TFile {
 	const f = new (TFile as unknown as { new (): TFile })();
 	(f as { path: string }).path = path;
@@ -92,11 +97,14 @@ interface FakeApp {
 }
 
 function makeFakeApp(opts?: {
-	/** Pre-existing files: path -> session_id in frontmatter (null = no fm). */
-	existing?: Record<string, string | null>;
+	/**
+	 * Pre-existing files: path -> session_id in frontmatter (null = no fm), or
+	 * the frontmatter object itself (Chat ID: `chat_id` and `session_id`).
+	 */
+	existing?: Record<string, ExistingFrontmatter>;
 }): FakeApp {
 	const files = new Map<string, TFile>();
-	const frontmatter = new Map<string, string | null>();
+	const frontmatter = new Map<string, ExistingFrontmatter>();
 	for (const [p, sid] of Object.entries(opts?.existing ?? {})) {
 		files.set(p, makeTFile(p));
 		frontmatter.set(p, sid);
@@ -128,8 +136,11 @@ function makeFakeApp(opts?: {
 
 	const metadataCache = {
 		getFileCache: (file: TFile) => {
-			const sid = frontmatter.get((file as { path: string }).path);
-			return sid == null ? {} : { frontmatter: { session_id: sid } };
+			const fm = frontmatter.get((file as { path: string }).path);
+			if (fm == null) return {};
+			return typeof fm === "string"
+				? { frontmatter: { session_id: fm } }
+				: { frontmatter: fm };
 		},
 	};
 
@@ -185,9 +196,10 @@ async function exportAndRead(
 	messages: ChatMessage[],
 	opts?: {
 		settings?: Partial<ExportSettings>;
-		existing?: Record<string, string | null>;
+		existing?: Record<string, ExistingFrontmatter>;
 		sessionId?: string;
 		openFile?: boolean;
+		chatId?: string | null;
 	},
 ): Promise<{ path: string; content: string; fake: FakeApp }> {
 	const fake = makeFakeApp({ existing: opts?.existing });
@@ -200,6 +212,7 @@ async function exportAndRead(
 		opts?.sessionId ?? "sess-1",
 		TS,
 		opts?.openFile ?? false,
+		opts?.chatId ?? null,
 	);
 	const content = fake.created.get(path) ?? fake.modified.get(path) ?? "";
 	return { path, content, fake };
@@ -505,5 +518,77 @@ describe("ChatExporter — openFile flag", () => {
 			openFile: false,
 		});
 		expect(noOpen.fake.openFile).not.toHaveBeenCalled();
+	});
+});
+
+// ============================================================================
+// Chat ID: `chat_id` in exported notes ([[Agent Console Chat ID]])
+// ============================================================================
+
+describe("ChatExporter — chat_id (Chat ID)", () => {
+	const b = () => `Agent Console/agent_console_${DATE_STR}_${TIME_STR}`;
+	const hi = [userMsg([{ type: "text", text: "hi" }])];
+
+	it("writes chat_id after session_id when the chat has an ID", async () => {
+		const { content } = await exportAndRead(hi, { chatId: "rec-1" });
+		expect(content).toContain("session_id: sess-1\nchat_id: rec-1\n");
+	});
+
+	it("T17: a chat with no ID writes no chat_id", async () => {
+		const { content } = await exportAndRead(hi, { chatId: null });
+		expect(content).toContain("session_id: sess-1\n");
+		expect(content).not.toContain("chat_id");
+	});
+
+	it("T18 (exporter half): after a fallback, a re-export finds its note by chat_id", async () => {
+		const { path, fake } = await exportAndRead(hi, {
+			existing: { [`${b()}.md`]: { session_id: "sess-old", chat_id: "rec-1" } },
+			sessionId: "sess-new",
+			chatId: "rec-1",
+		});
+		expect(path).toBe(`${b()}.md`);
+		expect(fake.modified.get(path)).toContain("session_id: sess-new\nchat_id: rec-1");
+	});
+
+	it("chat_id wins over an earlier candidate that only matches session_id", async () => {
+		const { path } = await exportAndRead(hi, {
+			existing: {
+				[`${b()}.md`]: { session_id: "sess-1" },
+				[`${b()}_2.md`]: { session_id: "sess-0", chat_id: "rec-1" },
+			},
+			sessionId: "sess-1",
+			chatId: "rec-1",
+		});
+		expect(path).toBe(`${b()}_2.md`);
+	});
+
+	it("T27: a candidate whose chat_id differs is skipped even when session_id matches", async () => {
+		const { path, fake } = await exportAndRead(hi, {
+			existing: { [`${b()}.md`]: { session_id: "sess-1", chat_id: "rec-other" } },
+			sessionId: "sess-1",
+			chatId: "rec-1",
+		});
+		expect(path).toBe(`${b()}_2.md`);
+		expect(fake.created.has(`${b()}_2.md`)).toBe(true);
+		expect(fake.modified.size).toBe(0);
+	});
+
+	it("an export with no chat_id written before this change is matched by session_id and gains chat_id", async () => {
+		const { path, fake } = await exportAndRead(hi, {
+			existing: { [`${b()}.md`]: { session_id: "sess-1" } },
+			sessionId: "sess-1",
+			chatId: "rec-1",
+		});
+		expect(path).toBe(`${b()}.md`);
+		expect(fake.modified.get(path)).toContain("chat_id: rec-1");
+	});
+
+	it("T19: the first re-export after a fallback, when the old export has no chat_id, creates one duplicate", async () => {
+		const { path } = await exportAndRead(hi, {
+			existing: { [`${b()}.md`]: { session_id: "sess-old" } },
+			sessionId: "sess-new",
+			chatId: "rec-1",
+		});
+		expect(path).toBe(`${b()}_2.md`);
 	});
 });

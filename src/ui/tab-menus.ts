@@ -46,6 +46,8 @@ export interface TabContextMenuContext {
 	onAiRenameTab?: (tabId: string) => void;
 	aiRenamingTabIds?: ReadonlySet<string>;
 	getAiRenameAffordance?: (tabId: string) => AiRenameAffordance;
+	/** Copy a link to this tab's chat ([[Agent Console Chat ID]]). */
+	onCopyChatLink?: (tabId: string) => void;
 	/**
 	 * The rail lists tabs top to bottom, so "Close to the right" reads
 	 * "Close below" there. Same action either way.
@@ -68,6 +70,7 @@ export function showTabContextMenu(
 		onAiRenameTab,
 		aiRenamingTabIds,
 		getAiRenameAffordance,
+		onCopyChatLink,
 	} = ctx;
 	e.preventDefault();
 	const menu = new Menu();
@@ -93,6 +96,16 @@ export function showTabContextMenu(
 				.setDisabled(affordance.kind === "disabled")
 				.onClick(() => {
 					onAiRenameTab(tab.tabId);
+				});
+		});
+	}
+
+	if (onCopyChatLink) {
+		menu.addItem((item: MenuItem) => {
+			item.setTitle(t("chat.tabBar.copyChatLink"))
+				.setIcon("link")
+				.onClick(() => {
+					onCopyChatLink(tab.tabId);
 				});
 		});
 	}

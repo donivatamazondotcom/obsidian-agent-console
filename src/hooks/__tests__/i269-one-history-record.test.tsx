@@ -21,7 +21,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { useRef } from "react";
+import { StrictMode, useRef } from "react";
 
 import { useLazySession, type UseLazySessionOptions } from "../useLazySession";
 import { reloadResultToAcquisition } from "../reloadSessionFlow";
@@ -39,6 +39,10 @@ import {
 	resolveRecordIdForSave,
 } from "../../services/session-helpers";
 import type { AgentClientPluginSettings } from "../../plugin";
+import { runChatLinkCopy } from "../../services/chat-link-copy";
+import { useOpenChatBridge } from "../useOpenChatBridge";
+import { useTabManager } from "../useTabManager";
+import { deriveChatTarget } from "../../resolvers/chat-target";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -89,6 +93,8 @@ function makeStore(seed: SavedSessionInfo[] = []) {
 	const files = new Map<string, string>();
 	/** Paths whose writes fail (every retry). */
 	const failWrites = new Set<string>();
+	/** Writes to any path that fail next (Chat ID T24). */
+	let failNext = 0;
 	let state = {
 		savedSessions: seed,
 	} as unknown as AgentClientPluginSettings;
@@ -102,6 +108,10 @@ function makeStore(seed: SavedSessionInfo[] = []) {
 		}),
 		write: vi.fn(async (p: string, data: string) => {
 			if (failWrites.has(p)) throw new Error(`EIO ${p}`);
+			if (failNext > 0) {
+				failNext--;
+				throw new Error(`EIO ${p}`);
+			}
 			files.set(p, data);
 		}),
 		remove: vi.fn(async (p: string) => {
@@ -174,6 +184,9 @@ function makeStore(seed: SavedSessionInfo[] = []) {
 			dropMetadataWrites = 1;
 		},
 		failWritesTo: (id: string) => failWrites.add(fileOf(id)),
+		failNextWrites: (n: number) => {
+			failNext = n;
+		},
 		messagesIn: (id: string): number | null => {
 			const raw = files.get(fileOf(id));
 			return raw ? (JSON.parse(raw) as { messages: unknown[] }).messages.length : null;
@@ -206,6 +219,21 @@ function mountTab(
 		lazy?: Partial<UseLazySessionOptions>;
 		/** Every record-binding report the tab makes to ChatView. */
 		reports?: Array<string | null>;
+		/** Each report as it happens (Chat ID: fed to a panel's maps). */
+		onReport?: (id: string | null) => void;
+		/**
+		 * Wire the restore-failure inputs as ChatPanel does (I282): a local
+		 * record is the tab's binding; nothing is on screen.
+		 */
+		restoreFailureInputs?: boolean;
+		/**
+		 * A history fork tab, wired as ChatView + ChatPanel wire one: no
+		 * restored ids, `forkFromSessionId` set, and the branch persisted
+		 * through the history hook right after it's created.
+		 */
+		fork?: { from: string; branchId: string; seed: ChatMessage[]; title: string };
+		/** Mount under React StrictMode, which replays mount effects. */
+		strict?: boolean;
 	} = {},
 ) {
 	const agentId = opts.agentId ?? "kiro";
@@ -222,6 +250,28 @@ function mountTab(
 			sendPrompt: vi.fn().mockResolvedValue(undefined),
 			debounceMs: 0,
 			restoredSessionId: opts.restoredSessionId,
+			...(opts.restoreFailureInputs
+				? {
+						hasLocalRecord: () =>
+							(historyRef.current?.getRecordId?.() ?? null) !== null,
+						haveLocalHistory: () => false,
+					}
+				: {}),
+			...(opts.fork
+				? {
+						forkFromSessionId: opts.fork.from,
+						forkExistingSession: async () => {
+							const f = opts.fork!;
+							void historyRef.current?.saveSessionMessages(
+								f.branchId,
+								f.seed,
+								undefined,
+								f.title,
+							);
+							return { ok: true, sessionId: f.branchId, lossy: true };
+						},
+					}
+				: {}),
 			...opts.lazy,
 			// ChatPanel: rebind the record to the new agent session, then arm
 			// the carry-over (covered by the I246 / I265 suites).
@@ -252,11 +302,14 @@ function mountTab(
 			onSessionLoad: vi.fn(),
 			restoredSessionId: opts.restoredSessionId ?? null,
 			restoredRecordId: opts.restoredRecordId ?? null,
-			onRecordIdChange: (id: string | null) => opts.reports?.push(id),
+			onRecordIdChange: (id: string | null) => {
+				opts.reports?.push(id);
+				opts.onReport?.(id);
+			},
 		} as Parameters<typeof useSessionHistory>[0]) as HistoryWithBinding;
 		historyRef.current = history;
 		return { lazy, history };
-	});
+	}, opts.strict ? { wrapper: StrictMode } : undefined);
 }
 
 type Tab = ReturnType<typeof mountTab>;
@@ -987,5 +1040,397 @@ describe("I269 — adopt cleanup keeps the only copy", () => {
 		expect(store.messagesIn("rec-q")).toBeNull();
 		// This turn's only copy is under the minted id: not trashed.
 		expect(store.messagesIn(minted)).toBe(4);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// 6. Chat ID: Copy link, forks, agent switch and links to open chats
+// ([[Agent Console Chat ID]]). Copy link runs the real `runChatLinkCopy`
+// on the binding ChatView reads (`getRecordIdForTab`'s rule over the tab's
+// reports); links to open chats run the real bridge over a real tab manager
+// and the real `deriveChatTarget`.
+// ---------------------------------------------------------------------------
+
+describe("Chat ID — Copy link reads only a recorded ID", () => {
+	/** ChatView's `getRecordIdForTab` for a tab: the report wins once made. */
+	function boundId(reports: Array<string | null>, restored: string | null) {
+		return resolveRecordIdForSave(
+			{ has: reports.length > 0, id: reports.at(-1) ?? null },
+			restored,
+		);
+	}
+
+	/** Copy link to chat as ChatView runs it, with the clipboard and notices recorded. */
+	async function copyLink(
+		store: Store,
+		reports: Array<string | null>,
+		restored: string | null = null,
+	) {
+		const clip: string[] = [];
+		const notices: string[] = [];
+		const outcome = await runChatLinkCopy(
+			{
+				recordId: boundId(reports, restored),
+				records: store.records(),
+				title: "Chat",
+				vaultName: "Vault",
+			},
+			{
+				writeText: async (t) => {
+					clip.push(t);
+				},
+				notify: (m) => notices.push(m),
+				logError: () => {},
+				refocus: () => {},
+			},
+		);
+		return { outcome, clip, notices };
+	}
+
+	const SEND_FIRST =
+		"[Agent Console] Send a message first to get a link to this chat.";
+
+	it("T5: a tab with no record copies nothing, shows the notice and creates no record", async () => {
+		const store = makeStore();
+		const reports: Array<string | null> = [];
+		const tab = mountTab(store, {
+			reports,
+			lazy: {
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValue({ ok: true, sessionId: "s-1" }),
+			},
+		});
+		await send(tab, "Remember the number 7.");
+		const r = await copyLink(store, reports);
+		expect(r.outcome).toBe("no-id");
+		expect(r.clip).toEqual([]);
+		expect(r.notices).toEqual([SEND_FIRST]);
+		await act(async () => {
+			await settle();
+		});
+		expect(store.records()).toHaveLength(0);
+		expect(store.files.size).toBe(0);
+		expect(tab.result.current.history.getRecordId?.()).toBeNull();
+	});
+
+	it("T6: after Copy link on an agent-only row, a rejected load still says gone (I282)", async () => {
+		const store = makeStore();
+		const reports: Array<string | null> = [];
+		const acquireNewSession = vi
+			.fn()
+			.mockResolvedValue({ ok: true, sessionId: "fresh-1" });
+		const tab = mountTab(store, {
+			restoredSessionId: "agent-only",
+			reports,
+			restoreFailureInputs: true,
+			lazy: {
+				acquireNewSession,
+				loadExistingSession: vi.fn().mockResolvedValue({
+					ok: false,
+					error: new Error("Session not found"),
+					failure: "rejected",
+				}),
+			},
+		});
+		const r = await copyLink(store, reports);
+		expect(r.outcome).toBe("no-id");
+		expect(r.clip).toEqual([]);
+		await act(async () => {
+			tab.result.current.lazy.onSendClick("hello");
+		});
+		await waitFor(() => expect(tab.result.current.lazy.sessionGone).toBe(true));
+		expect(acquireNewSession).not.toHaveBeenCalled();
+		expect(store.records()).toHaveLength(0);
+		expect(tab.result.current.history.getRecordId?.()).toBeNull();
+	});
+
+	it("T9: after an adopt during the first turn's save, Copy link gives the adopted ID", async () => {
+		const store = makeStore();
+		const reports: Array<string | null> = [];
+		const tab = mountTab(store, {
+			reports,
+			lazy: {
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValue({ ok: true, sessionId: "s-1" }),
+			},
+		});
+		await send(tab, "Remember the number 7.");
+		await act(async () => {
+			const save = tab.result.current.history.saveSessionMessages(
+				"s-1",
+				REMEMBER_7,
+			);
+			// Mid-save, a record for the same agent session appears elsewhere
+			// (an Agent-row rename with createIfMissing).
+			store.setRecords([
+				{
+					recordId: "rec-q",
+					sessionId: "s-1",
+					agentId: "kiro",
+					cwd: "/vault",
+					title: "Renamed elsewhere",
+					createdAt: "2026-11-03T00:00:00.000Z",
+					updatedAt: "2026-11-03T00:00:00.000Z",
+				},
+			]);
+			await save;
+			await settle();
+		});
+		expect(reports.at(-1)).toBe("rec-q");
+		const r = await copyLink(store, reports);
+		expect(r.outcome).toBe("copied");
+		expect(r.clip).toEqual([
+			"[Chat](obsidian://agent-console-chat?vault=Vault&id=rec-q)",
+		]);
+	});
+
+	it("T24 (Copy link half): no link while the first turn's record is pending", async () => {
+		const store = makeStore();
+		const reports: Array<string | null> = [];
+		const tab = mountTab(store, {
+			reports,
+			lazy: {
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValue({ ok: true, sessionId: "s-1" }),
+			},
+		});
+		await send(tab, "Remember the number 7.");
+		let pending: Awaited<ReturnType<typeof copyLink>> | undefined;
+		await act(async () => {
+			const save = tab.result.current.history.saveSessionMessages(
+				"s-1",
+				REMEMBER_7,
+			);
+			// The binding is minted synchronously; the record isn't written yet.
+			expect(reports.at(-1)).toBeTruthy();
+			pending = await copyLink(store, reports);
+			await save;
+			await settle();
+		});
+		expect(pending?.outcome).toBe("no-id");
+		expect(pending?.clip).toEqual([]);
+		const minted = reports.at(-1)!;
+		const after = await copyLink(store, reports);
+		expect(after.outcome).toBe("copied");
+		expect(after.clip).toEqual([
+			`[Chat](obsidian://agent-console-chat?vault=Vault&id=${minted})`,
+		]);
+	});
+
+	it("T24 (Copy link half): no link after a failed transcript write", async () => {
+		const store = makeStore();
+		const reports: Array<string | null> = [];
+		const tab = mountTab(store, {
+			reports,
+			lazy: {
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValue({ ok: true, sessionId: "s-1" }),
+			},
+		});
+		await send(tab, "Remember the number 7.");
+		store.failNextWrites(2); // the storage retries once
+		await turnSave(tab, REMEMBER_7);
+		expect(store.records()).toHaveLength(0);
+		const r = await copyLink(store, reports);
+		expect(r.outcome).toBe("no-id");
+		expect(r.clip).toEqual([]);
+		expect(r.notices).toEqual([SEND_FIRST]);
+	});
+});
+
+describe("Chat ID — forks and agent switches get their own ID", () => {
+	it("T7: a fork gets its own ID when the branch is created, never the parent's", async () => {
+		const store = await seededStore();
+		const tab = mountTab(store, {
+			fork: {
+				from: "sess-x",
+				branchId: "fork-1",
+				seed: REMEMBER_7,
+				title: "Fork: Number memory test",
+			},
+		});
+		await send(tab, "x");
+		await act(async () => {
+			await settle();
+		});
+		const forkId = tab.result.current.history.getRecordId?.() ?? null;
+		expect(forkId).toBeTruthy();
+		expect(forkId).not.toBe("sess-x");
+		expect(store.records().find((r) => r.recordId === forkId)).toMatchObject({
+			sessionId: "fork-1",
+			title: "Fork: Number memory test",
+		});
+		// The parent is untouched.
+		expect(store.records().find((r) => r.recordId === "sess-x")).toMatchObject({
+			sessionId: "sess-x",
+			title: "Number memory test",
+		});
+		expect(store.messagesIn("sess-x")).toBe(2);
+	});
+
+	it("T7: a fork with an empty seed gets its ID on the first turn save", async () => {
+		const store = await seededStore();
+		const tab = mountTab(store, {
+			fork: {
+				from: "sess-x",
+				branchId: "fork-1",
+				seed: [],
+				title: "Fork: Number memory test",
+			},
+		});
+		await send(tab, "x");
+		await act(async () => {
+			await settle();
+		});
+		expect(tab.result.current.history.getRecordId?.() ?? null).toBeNull();
+		expect(store.records()).toHaveLength(1);
+		await turnSave(tab, OTHER_CHAT);
+		const forkId = tab.result.current.history.getRecordId?.() ?? null;
+		expect(forkId).toBeTruthy();
+		expect(forkId).not.toBe("sess-x");
+		expect(store.records().find((r) => r.recordId === forkId)?.sessionId).toBe(
+			"fork-1",
+		);
+		expect(store.messagesIn("sess-x")).toBe(2);
+	});
+
+	it("T11: switching to another agent with carry-over gives a new ID (D9)", async () => {
+		const store = await seededStore();
+		const reports: Array<string | null> = [];
+		const tab = mountTab(store, {
+			restoredSessionId: "sess-x",
+			restoredRecordId: "sess-x",
+			reports,
+			lazy: {
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValue({ ok: true, sessionId: "claude-1" }),
+			},
+		});
+		await send(tab, "hi");
+		expect(tab.result.current.history.getRecordId?.()).toBe("sess-x");
+		// Agent switch: ChatPanel resets the lazy owner (the switch carry-over
+		// blocks live in useChatActions and don't touch the binding).
+		act(() => tab.result.current.lazy.reset());
+		await send(tab, "What number did I ask you to remember?");
+		await turnSave(tab, AFTER_FALLBACK);
+		const switched = tab.result.current.history.getRecordId?.() ?? null;
+		expect(switched).toBeTruthy();
+		expect(switched).not.toBe("sess-x");
+		expect(store.records()).toHaveLength(2);
+		expect(store.records().find((r) => r.recordId === "sess-x")).toMatchObject({
+			sessionId: "sess-x",
+			title: "Number memory test",
+		});
+		expect(store.messagesIn("sess-x")).toBe(2);
+	});
+});
+
+describe("Chat ID — a link to a chat deleted while its tab is open (T8)", () => {
+	it("open-tab while open, the same ID after the next turn, history once closed", async () => {
+		const store = makeStore();
+		const panel = renderHook(() => {
+			const tm = useTabManager("kiro");
+			const tabRecordIdsRef = useRef(new Map<string, string | null>());
+			const persistedRecordIdsRef = useRef(new Map<string, string>());
+			const persistedSessionIdsRef = useRef(new Map<string, string | null>());
+			const getRecordIdForTab = (tabId: string) =>
+				resolveRecordIdForSave(
+					{
+						has: tabRecordIdsRef.current.has(tabId),
+						id: tabRecordIdsRef.current.get(tabId) ?? null,
+					},
+					persistedRecordIdsRef.current.get(tabId) ?? null,
+				);
+			const bridge = useOpenChatBridge({
+				tabs: tm.tabs,
+				tabRecordIdsRef,
+				persistedRecordIdsRef,
+				persistedSessionIdsRef,
+				getRecordIdForTab,
+				setActiveTab: tm.setActiveTab,
+				getSavedSessions: () => store.records(),
+				openRecordInTab: vi.fn(),
+			});
+			return { tm, bridge, tabRecordIdsRef, persistedRecordIdsRef };
+		});
+		const tabId = panel.result.current.tm.tabs[0].tabId;
+		const tab = mountTab(store, {
+			onReport: (id) =>
+				applyRecordIdReport(
+					panel.result.current.tabRecordIdsRef.current,
+					panel.result.current.persistedRecordIdsRef.current,
+					tabId,
+					id,
+				),
+			lazy: {
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValue({ ok: true, sessionId: "s-1" }),
+			},
+		});
+		const target = (id: string) =>
+			deriveChatTarget(id, store.records(), {
+				liveLeaves: [
+					{ leafId: "leaf-1", bound: panel.result.current.bridge.boundChatIds() },
+				],
+				savedTabStates: [],
+				restoreTabsOnStartup: true,
+			});
+
+		await send(tab, "Remember the number 7.");
+		await turnSave(tab, REMEMBER_7);
+		const chatId = store.records()[0]!.recordId;
+
+		// Delete the chat from history while its tab is open.
+		await act(async () => {
+			await store.storage.deleteSession("s-1", chatId);
+		});
+		expect(store.records()).toHaveLength(0);
+		expect(target(chatId)).toEqual({
+			kind: "open-tab",
+			leafId: "leaf-1",
+			tabId,
+		});
+
+		// Its next turn recreates the record under the same ID.
+		await turnSave(tab, AFTER_FALLBACK);
+		expect(store.records().map((r) => r.recordId)).toEqual([chatId]);
+
+		// Close the tab (ChatView: removeClient, then removeTab).
+		act(() => {
+			panel.result.current.tabRecordIdsRef.current.delete(tabId);
+			panel.result.current.tm.removeTab(tabId);
+		});
+		tab.unmount();
+		expect(target(chatId)).toMatchObject({
+			kind: "history",
+			record: { recordId: chatId, sessionId: "s-1" },
+		});
+	});
+});
+
+describe("Chat ID — binding reports survive a replayed mount effect (T40)", () => {
+	it("under StrictMode, a binding minted after mount is still reported", async () => {
+		const store = makeStore();
+		const reports: Array<string | null> = [];
+		const tab = mountTab(store, {
+			strict: true,
+			reports,
+			lazy: {
+				acquireNewSession: vi
+					.fn()
+					.mockResolvedValue({ ok: true, sessionId: "s-1" }),
+			},
+		});
+		await send(tab, "Remember the number 7.");
+		await turnSave(tab, REMEMBER_7);
+		const minted = tab.result.current.history.getRecordId?.() ?? null;
+		expect(minted).toBeTruthy();
+		expect(reports.at(-1)).toBe(minted);
 	});
 });

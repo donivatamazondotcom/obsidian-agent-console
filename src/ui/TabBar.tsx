@@ -55,6 +55,8 @@ export interface TabBarProps {
 	aiRenamingTabIds?: ReadonlySet<string>;
 	/** I210 — whether Rename with AI can run on a tab (read when the menu opens). */
 	getAiRenameAffordance?: (tabId: string) => AiRenameAffordance;
+	/** Copy a link to the tab's chat, from its right-click menu (Chat ID). */
+	onCopyChatLink?: (tabId: string) => void;
 	onMoveTab: (fromIndex: number, toIndex: number) => void;
 	/** Right-click on + button — show agent picker */
 	onAddTabWithAgent?: (e: React.MouseEvent) => void;
@@ -214,6 +216,7 @@ export function TabBar({
 	onAiRenameTab,
 	aiRenamingTabIds,
 	getAiRenameAffordance,
+	onCopyChatLink,
 	onMoveTab,
 	onAddTabWithAgent,
 	onRegisterShowTabList,
@@ -332,6 +335,7 @@ export function TabBar({
 				onAiRenameTab,
 				aiRenamingTabIds,
 				getAiRenameAffordance,
+				onCopyChatLink,
 				orientation: "horizontal",
 			});
 		},
@@ -344,6 +348,7 @@ export function TabBar({
 			onAiRenameTab,
 			aiRenamingTabIds,
 			getAiRenameAffordance,
+			onCopyChatLink,
 		],
 	);
 
