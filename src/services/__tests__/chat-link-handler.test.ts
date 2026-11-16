@@ -902,6 +902,52 @@ describe("chat link handler — a leaf that closes during a wait (T48c)", () => 
 	});
 });
 
+describe("chat link handler — a leaf that closes during a reveal (I371)", () => {
+	it("step 3: a panel that closes while it's revealed isn't focused, shows could-not-open, and a retry lands on history", async () => {
+		const env = makeEnv({ records: [record("x")] });
+		const a = makeLeaf("A");
+		env.addLeaf(a, fakeBridge(() => a));
+		// B holds the chat and closes (a popout window closed) during its reveal.
+		const b = makeLeaf("B");
+		env.addLeaf(b, fakeBridge(() => b, [{ tabId: "b1", chatId: "x" }]));
+		b.onReveal = () => env.removeLeaf(b);
+		await env.fire({ id: "x" }, 0);
+		expect(env.events).toEqual(["reveal:B"]);
+		expect(env.notices).toEqual([PANEL_FAILED]);
+		expect(env.bridges.get(a)!.opened).toEqual([]);
+		expect(env.rateState()).toEqual({ lastAt: 0 });
+		await env.fire({ id: "x" }, 2500);
+		expect(env.bridges.get(a)!.opened).toEqual(["x"]);
+		expect(env.notices).toEqual([PANEL_FAILED]);
+	});
+
+	it("step 5: a panel that closes during the final reveal isn't focused, shows could-not-open, and a retry opens a new panel", async () => {
+		let created: FakeLeaf | null = null;
+		const env = makeEnv({
+			records: [record("x")],
+			createLeafOnActivate: () => {
+				const leaf = makeLeaf("New");
+				leaf.mountAfterFrames = 1;
+				leaf.pendingBridge = fakeBridge(() => leaf);
+				created = leaf;
+				return leaf;
+			},
+		});
+		const a = makeLeaf("A");
+		const bridge = fakeBridge(() => a);
+		env.addLeaf(a, bridge);
+		a.onReveal = () => env.removeLeaf(a);
+		await env.fire({ id: "x" }, 0);
+		expect(bridge.opened).toEqual(["x"]);
+		expect(env.events).toEqual(["reveal:A"]);
+		expect(env.notices).toEqual([PANEL_FAILED]);
+		expect(env.rateState()).toEqual({ lastAt: 0 });
+		await env.fire({ id: "x" }, 2500);
+		expect(created!.pendingBridge!.opened).toEqual(["x"]);
+		expect(env.notices).toEqual([PANEL_FAILED]);
+	});
+});
+
 describe("chat link handler — the opener wait is bounded (T48d)", () => {
 	it("an opener that never resolves ends after the 2 s deadline with the could-not-open notice", { timeout: 4000 }, async () => {
 		const env = makeEnv({

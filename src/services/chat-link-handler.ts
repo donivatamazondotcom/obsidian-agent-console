@@ -141,15 +141,21 @@ export function createChatLinkHandler<L extends ChatLinkLeaf>(
 		return value;
 	};
 
-	/** Reveal the leaf, then make it active with focus (bringing a popout forward). */
-	const focusLeaf = async (leaf: L): Promise<void> => {
-		await workspace.revealLeaf(leaf);
-		workspace.setActiveLeaf(leaf, { focus: true });
-	};
-
 	/** End the run with the could-not-open notice unless the leaf is still open. */
 	const assertLive = (leaf: L): void => {
 		if (!isLive(leaf)) throw new CouldNotOpen("the chat panel closed");
+	};
+
+	/**
+	 * Reveal the leaf, then make it active with focus (bringing a popout
+	 * forward). A leaf that closed during the reveal (its popout window
+	 * closed) isn't focused: the run ends with the could-not-open notice
+	 * instead of ending silently (I371).
+	 */
+	const focusLeaf = async (leaf: L): Promise<void> => {
+		await workspace.revealLeaf(leaf);
+		assertLive(leaf);
+		workspace.setActiveLeaf(leaf, { focus: true });
 	};
 
 	const resolve = (chatId: ChatId): { target: ChatTarget; leaf: L | null } => {
