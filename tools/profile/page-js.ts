@@ -60,8 +60,9 @@ export function armWaitJs(checkJs: string): string {
  * Collect the armed wait: the stored hit (with its check count and cost),
  * PRE_HELD, `"CHECK-ERR:<msg>"`, `"NO-ARM"` (nothing armed and the layout
  * is ready, so the helper's `onload` has run without arming), or `""` when
- * `timeoutMs` passes first or the layout isn't ready yet. Reading only:
- * safe to retry.
+ * `timeoutMs` passes first. Before the helper arms, it waits in the page.
+ * Reading only: safe to retry, and overlapping collects don't cancel
+ * each other.
  */
 export function collectArmedJs(timeoutMs: number): string {
 	// Until the helper arms (or the layout is ready without an arm), wait in
@@ -71,8 +72,8 @@ export function collectArmedJs(timeoutMs: number): string {
 		`var ready=function(){try{return !!(app&&app.workspace&&app.workspace.layoutReady);}catch(e){return false;}};` +
 		`var go=function(a){if(a.held){res(${JSON.stringify(PRE_HELD_TOKEN)});return;}` +
 		`var done=function(){if(a.err){res("CHECK-ERR:"+a.err);return;}var o=JSON.parse(a.hit);o.checks=a.n;o.checkMs=Math.round(a.cost*10)/10;o.armedAt=Math.round(a.armedAt);res(JSON.stringify(o));};` +
-		`if(a.hit||a.err){done();return;}var t=setTimeout(function(){a.cb=null;res("");},Math.max(0,end-performance.now()));` +
-		`a.cb=function(){clearTimeout(t);done();};};` +
+		`if(a.hit||a.err){done();return;}var cb=function(){clearTimeout(t);done();};` +
+		`var t=setTimeout(function(){if(a.cb===cb)a.cb=null;res("");},Math.max(0,end-performance.now()));a.cb=cb;};` +
 		`var look=function(){var a=window.__profArm;if(a){go(a);return;}if(ready()){res("NO-ARM");return;}` +
 		`if(performance.now()>=end){res("");return;}setTimeout(look,20);};look();});})()`
 	);

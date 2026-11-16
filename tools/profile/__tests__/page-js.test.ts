@@ -450,6 +450,21 @@ describe("helper-armed collection", () => {
 		expect(parseWaitHit(await p)?.detail).toBe(".row");
 	});
 
+	it("returns NO-ARM when the layout becomes ready mid-wait with no arm", async () => {
+		const p = run<Promise<string>>(collectArmedJs(1000));
+		window.setTimeout(() => (w.app = { workspace: { layoutReady: true } }), 60);
+		expect(await p).toBe("NO-ARM");
+	});
+
+	it("an overlapping collect that times out doesn't cancel a later one", async () => {
+		run(`(function(){${armWaitJs(waitCheckJs([".row"]))}})()`);
+		const first = run<Promise<string>>(collectArmedJs(30));
+		const second = run<Promise<string>>(collectArmedJs(1000));
+		expect(await first).toBe("");
+		document.body.innerHTML = '<div class="row"></div>';
+		expect(parseWaitHit(await second)?.detail).toBe(".row");
+	});
+
 	it("treats a missing arm as not yet until the layout is ready", async () => {
 		expect(await run<Promise<string>>(collectArmedJs(10))).toBe("");
 		w.app = { workspace: { layoutReady: false } };
