@@ -75,6 +75,14 @@ describe("stamp styles", () => {
 	});
 });
 
+describe("message hover row (I381)", () => {
+	it("is opaque, so its time and copy button cover the text under them instead of overlapping it", () => {
+		// Same tone as the chat pane and the user bubble, so the bar reads as part of either.
+		expect(decls(".agent-client-message-actions", "background-color")).toEqual(["var(--background-primary)"]);
+		expect(decls(".agent-client-message-actions", "border-radius")).toEqual(["var(--radius-s)"]);
+	});
+});
+
 describe("tool-row time and live line styles (PR 3)", () => {
 	it("a row's time stays on one line in tabular figures and never shrinks, so a tick can't re-wrap the row", () => {
 		expect(decls(".agent-client-tool-call-time", "white-space")).toEqual(["nowrap"]);

@@ -2082,12 +2082,18 @@ del.acp-header-branded-profile {
 	bottom: -8px;
 }
 
+/* Opaque (I381): the bar sits over the message's bottom-right corner, and
+ * since the hover time joined the copy button it is wide enough to land on
+ * the last line of text. A background matching the pane and the user bubble
+ * covers that text while hovering instead of overprinting it. */
 .agent-client-message-actions {
 	position: absolute;
 	bottom: 4px;
 	right: 8px;
 	display: flex;
 	gap: 2px;
+	background-color: var(--background-primary);
+	border-radius: var(--radius-s);
 	opacity: 0;
 	pointer-events: none;
 	transition: opacity 0.15s ease;
