@@ -36,3 +36,39 @@ export type StampAge =
 			unit: "minutes" | "hours" | "days" | "weeks" | "months" | "years";
 			count: number;
 	  };
+
+/**
+ * When a terminal the plugin runs last printed, exited and was released
+ * (Chat Timestamps PR 3; epoch ms, null = not yet). Kept by TerminalManager.
+ */
+export interface TerminalTiming {
+	lastOutputAt: number | null;
+	exitedAt: number | null;
+	releasedAt: number | null;
+}
+
+/**
+ * The live turn's clocks, read synchronously by the per-second ticker
+ * (`useAgentMessages.getLiveTurnClock`). Null outside a live turn.
+ */
+export interface LiveTurnClock {
+	promptId: string;
+	sentAt: number;
+	/** The turn's last live (allowlisted) update; the send until one arrives. */
+	lastUpdateAt: number;
+	/** Whether any live update has arrived in this turn. */
+	hasUpdate: boolean;
+	/** Start of an open permission wait, or null. */
+	waitStartedAt: number | null;
+	/** The turn's finished permission waits so far. */
+	turnWaitMs: number;
+	/** Tool call id → when its last output update arrived (agent-run tools that stream output). */
+	lastOutputAtByCall: ReadonlyMap<string, number>;
+}
+
+/** What the live line and the running rows show: relative facts only. */
+export interface TurnActivity {
+	line: string | null;
+	/** Tool call id → its running row's text. */
+	rows: Readonly<Record<string, string>>;
+}

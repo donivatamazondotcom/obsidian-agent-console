@@ -55,17 +55,45 @@ describe("stamp styles", () => {
 			expect(decls(sel, "width"), sel).toEqual(["fit-content"]);
 			// Spacing is margin, never horizontal padding, which would widen the target.
 			expect(decls(sel, "padding"), sel).toEqual([]);
+			expect(decls(sel, "padding-left"), sel).toEqual([]);
+			expect(decls(sel, "padding-right"), sel).toEqual([]);
+			expect(decls(sel, "padding-inline"), sel).toEqual([]);
 		}
 	});
 
 	it("a prompt stamp sits at the bubble's right edge, and its wrapped lines align right", () => {
 		expect(decls(".agent-client-stamp-prompt", "margin")).toEqual(["0 var(--size-4-3) 0 auto"]);
 		expect(decls(".agent-client-stamp-prompt", "text-align")).toEqual(["right"]);
+		// Room for the margin on each side in a very narrow pane.
+		expect(decls(".agent-client-stamp-prompt", "max-width")).toEqual(["calc(100% - 2 * var(--size-4-3))"]);
 	});
 
 	it("prompt and end stamps keep their 2px gap below the bubble (padding doesn't collapse)", () => {
 		for (const sel of [".agent-client-stamp-prompt", ".agent-client-stamp-end"]) {
 			expect(decls(sel, "padding-top"), sel).toEqual(["2px"]);
 		}
+	});
+});
+
+describe("tool-row time and live line styles (PR 3)", () => {
+	it("a row's time stays on one line in tabular figures and never shrinks, so a tick can't re-wrap the row", () => {
+		expect(decls(".agent-client-tool-call-time", "white-space")).toEqual(["nowrap"]);
+		expect(decls(".agent-client-tool-call-time", "font-variant-numeric")).toEqual(["tabular-nums"]);
+		expect(decls(".agent-client-tool-call-time", "flex-shrink")).toEqual(["0"]);
+	});
+
+	it("a row's time uses the theme's faint text color and is never selected into a copy", () => {
+		expect(decls(".agent-client-tool-call-time", "color")).toEqual(["var(--text-faint)"]);
+		expect(decls(".agent-client-tool-call-time", "user-select")).toEqual(["none"]);
+	});
+
+	it("the status line stays one line", () => {
+		expect(decls(".agent-client-loading-status", "white-space")).toEqual(["nowrap"]);
+		expect(decls(".agent-client-loading-status", "text-overflow")).toEqual(["ellipsis"]);
+	});
+
+	it("nothing in PR 3 adds a warning tone (the Signals tenet)", () => {
+		const css = readFileSync(resolve(process.cwd(), "styles.css"), "utf8");
+		expect(css).not.toMatch(/-stall|tool-call-time[a-z-]*warn|loading-status[a-z-]*warn/);
 	});
 });

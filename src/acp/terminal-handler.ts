@@ -4,6 +4,7 @@ import { getLogger, Logger } from "../utils/logger";
 import { Platform } from "obsidian";
 import { resolveNodeDirectory } from "../utils/paths";
 import { getEnhancedWindowsEnv, prepareShellCommand } from "../utils/platform";
+import type { TerminalTiming } from "../types/chat-time";
 
 /**
  * Parameters for creating a terminal process.
@@ -36,8 +37,18 @@ interface TerminalProcess {
 	cleanupTimeout?: number;
 }
 
+/** How long a released terminal's timing is kept: well past the 30 s cleanup. */
+const TIMING_KEEP_AFTER_RELEASE_MS = 10 * 60_000;
+
 export class TerminalManager {
 	private terminals = new Map<string, TerminalProcess>();
+	/**
+	 * Chat Timestamps: per-terminal timing. Outlives the 30-second release
+	 * cleanup; pruned 10 minutes after release (no timers) and cleared by
+	 * killAllTerminals. Written only into an existing entry, so an exit after
+	 * killAllTerminals can't recreate one.
+	 */
+	private timings = new Map<string, TerminalTiming>();
 	private logger: Logger;
 	private plugin: AgentClientPlugin;
 
@@ -48,6 +59,7 @@ export class TerminalManager {
 
 	createTerminal(params: CreateTerminalParams): string {
 		const terminalId = crypto.randomUUID();
+		this.pruneTimings(Date.now());
 
 		// Check current platform
 		if (!Platform.isDesktopApp) {
@@ -127,6 +139,7 @@ export class TerminalManager {
 			// Set exit status to indicate failure
 			const exitStatus = { exitCode: 127, signal: null }; // 127 = command not found
 			terminal.exitStatus = exitStatus;
+			this.markExited(terminalId);
 			// Resolve all waiting promises
 			terminal.waitPromises.forEach((resolve) => resolve(exitStatus));
 			terminal.waitPromises = [];
@@ -137,12 +150,14 @@ export class TerminalManager {
 			const output = data.toString();
 			this.logger.log(`[Terminal ${terminalId}] stdout:`, output);
 			this.appendOutput(terminal, output);
+			this.markOutput(terminalId);
 		});
 
 		childProcess.stderr?.on("data", (data: Buffer) => {
 			const output = data.toString();
 			this.logger.log(`[Terminal ${terminalId}] stderr:`, output);
 			this.appendOutput(terminal, output);
+			this.markOutput(terminalId);
 		});
 
 		// Handle process exit
@@ -152,13 +167,46 @@ export class TerminalManager {
 			);
 			const exitStatus = { exitCode: code, signal };
 			terminal.exitStatus = exitStatus;
+			this.markExited(terminalId);
 			// Resolve all waiting promises
 			terminal.waitPromises.forEach((resolve) => resolve(exitStatus));
 			terminal.waitPromises = [];
 		});
 
 		this.terminals.set(terminalId, terminal);
+		this.timings.set(terminalId, {
+			lastOutputAt: null,
+			exitedAt: null,
+			releasedAt: null,
+		});
 		return terminalId;
+	}
+
+	/** A copy of a terminal's timing, or null for an id this manager never spawned. */
+	getTiming(terminalId: string): TerminalTiming | null {
+		const timing = this.timings.get(terminalId);
+		return timing ? { ...timing } : null;
+	}
+
+	private markOutput(terminalId: string): void {
+		const timing = this.timings.get(terminalId);
+		if (timing) timing.lastOutputAt = Date.now();
+	}
+
+	private markExited(terminalId: string): void {
+		const timing = this.timings.get(terminalId);
+		if (timing && timing.exitedAt === null) timing.exitedAt = Date.now();
+	}
+
+	private pruneTimings(now: number): void {
+		for (const [id, timing] of this.timings) {
+			if (
+				timing.releasedAt !== null &&
+				now - timing.releasedAt > TIMING_KEEP_AFTER_RELEASE_MS
+			) {
+				this.timings.delete(id);
+			}
+		}
 	}
 
 	private appendOutput(terminal: TerminalProcess, data: string): void {
@@ -231,6 +279,10 @@ export class TerminalManager {
 		if (!terminal) return false;
 
 		this.logger.log(`[Terminal ${terminalId}] Releasing terminal`);
+		const now = Date.now();
+		const timing = this.timings.get(terminalId);
+		if (timing && timing.releasedAt === null) timing.releasedAt = now;
+		this.pruneTimings(now);
 		if (!terminal.exitStatus) {
 			terminal.process.kill("SIGTERM");
 		}
@@ -271,5 +323,6 @@ export class TerminalManager {
 		});
 		// Clear all terminals
 		this.terminals.clear();
+		this.timings.clear();
 	}
 }

@@ -303,6 +303,23 @@ button.agent-client-message-tool-call-summary:focus-visible {
 	color: var(--text-muted);
 }
 
+/* Chat Timestamps PR 3: a tool row's time, at the right of the collapsed row
+   and the expanded header. Faint like the stamps, one line in tabular
+   figures and never shrunk, so a tick can't re-wrap the expanded header
+   (it sits inside the scroll pin's content), and never selected into a
+   copy. Facts only, so it never takes a warning tone (the Signals tenet). */
+.agent-client-tool-call-time {
+	flex-shrink: 0;
+	margin-left: auto;
+	padding-left: var(--size-2-2);
+	color: var(--text-faint);
+	font-size: var(--font-smallest);
+	font-weight: normal;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	user-select: none;
+}
+
 /* When the block is expanded, the header itself becomes the toggle target. */
 .agent-client-message-tool-call-header-clickable {
 	cursor: pointer;
@@ -813,7 +830,7 @@ del.acp-header-branded-profile {
 .agent-client-stamp-prompt {
 	display: block;
 	width: fit-content;
-	max-width: calc(100% - var(--size-4-3));
+	max-width: calc(100% - 2 * var(--size-4-3));
 	margin: 0 var(--size-4-3) 0 auto;
 	padding-top: 2px;
 	text-align: right;

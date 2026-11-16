@@ -592,3 +592,38 @@ describe("ChatExporter — chat_id (Chat ID)", () => {
 		expect(path).toBe(`${b()}_2.md`);
 	});
 });
+
+describe("ChatExporter — a tool call its turn closed (Chat Timestamps PR 3)", () => {
+	const closed: MessageContent = {
+		type: "tool_call",
+		toolCallId: "t9",
+		title: "npm test",
+		status: "in_progress",
+		interrupted: true,
+	} as MessageContent;
+	const prompt = (turnEndKind?: "done" | "stopped" | "failed"): ChatMessage => ({
+		...userMsg([{ type: "text", text: "go" }]),
+		...(turnEndKind ? { turnEndKind } : {}),
+	});
+
+	it.each([
+		["stopped", "**Status**: stopped"],
+		["failed", "**Status**: open at turn end"],
+		["done", "**Status**: open at turn end"],
+	] as const)("under a %s turn writes %s", async (kind, line) => {
+		const { content } = await exportAndRead([prompt(kind), assistantMsg([closed])]);
+		expect(content).toContain(line);
+		expect(content).not.toContain("**Status**: in_progress");
+	});
+
+	it("with no turn end before it keeps the raw status", async () => {
+		const { content } = await exportAndRead([prompt(), assistantMsg([closed])]);
+		expect(content).toContain("**Status**: in_progress");
+	});
+
+	it("an open call that wasn't closed keeps its raw status", async () => {
+		const open = { ...closed, interrupted: undefined } as MessageContent;
+		const { content } = await exportAndRead([prompt("done"), assistantMsg([open])]);
+		expect(content).toContain("**Status**: in_progress");
+	});
+});

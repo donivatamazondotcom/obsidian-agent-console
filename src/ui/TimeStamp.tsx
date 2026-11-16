@@ -24,7 +24,7 @@ import { localDayStore } from "../services/local-day-store";
 import { deriveStampAge } from "../resolvers/stamp-age";
 import { deriveStampDateScope } from "../resolvers/stamp-date-scope";
 import type { DaySnapshot } from "../types/chat-time";
-import { formatAgeText, formatClock, formatDuration } from "../utils/time-format";
+import { computeDayBounds, formatAgeText, formatClock, formatDuration } from "../utils/time-format";
 import { attachTooltip, restoreStaticTooltip } from "./shared/useTooltip";
 
 export type StampVariant = "prompt" | "end" | "gap" | "hover";
@@ -47,6 +47,22 @@ const MAX_DATE_MS = 8.64e15;
 /** A stamp's clock text: the time, plus the date or the year when needed (Decision 7). */
 export function formatStampTime(ms: number, snapshot: DaySnapshot): string {
 	return formatClock(ms, deriveStampDateScope(ms, snapshot.bounds), snapshot.zone);
+}
+
+/**
+ * A time range for a tool row's label (Chat Timestamps PR 3): each end in
+ * its own date form, joined by the i18n "to"; when both ends fall on the
+ * same earlier day the date is printed once (`Nov 14, 9:34 AM to 9:36 AM`).
+ */
+export function formatStampRange(start: number, end: number, snapshot: DaySnapshot): string {
+	const { bounds, zone } = snapshot;
+	const startScope = deriveStampDateScope(start, bounds);
+	const sameDay = computeDayBounds(start).dayStart === computeDayBounds(end).dayStart;
+	const endScope = sameDay ? "today" : deriveStampDateScope(end, bounds);
+	return t("chat.toolCall.timeRange", {
+		start: formatClock(start, startScope, zone),
+		end: formatClock(end, endScope, zone),
+	});
 }
 
 /** How old a stamp is, for its hover tooltip. Never a date. */

@@ -9,6 +9,7 @@ import { deriveNewLeaf } from "../utils/link-leaf";
 import { MarkdownRenderer } from "./shared/MarkdownRenderer";
 import { TerminalBlock } from "./TerminalBlock";
 import { ToolCallBlock } from "./ToolCallBlock";
+import type { ToolRunState } from "../resolvers/turn-activity";
 import { LucideIcon } from "./shared/IconButton";
 import { A2uiSurfaceHost } from "./A2uiSurfaceHost";
 import { segmentAssistantMessage } from "../services/a2ui/segmenter";
@@ -391,6 +392,8 @@ interface ContentBlockProps {
 	a2uiIsStreamingTurn?: boolean;
 	/** This message's index in the transcript (for the definition registry). */
 	a2uiMessageIndex?: number;
+	/** Chat Timestamps: where a tool row's turn stands (tool bubbles only). */
+	toolRunState?: ToolRunState;
 	/** Callback to approve a permission request */
 	onApprovePermission?: (
 		requestId: string,
@@ -408,6 +411,7 @@ function ContentBlock({
 	a2ui,
 	a2uiIsStreamingTurn,
 	a2uiMessageIndex,
+	toolRunState,
 }: ContentBlockProps) {
 	switch (content.type) {
 		case "text":
@@ -459,6 +463,7 @@ function ContentBlock({
 					plugin={plugin}
 					terminalClient={terminalClient}
 					onApprovePermission={onApprovePermission}
+					toolRunState={toolRunState}
 				/>
 			);
 
@@ -561,6 +566,12 @@ export interface MessageBubbleProps {
 	a2uiIsStreamingTurn?: boolean;
 	/** This message's index in the transcript (for the definition registry). */
 	a2uiMessageIndex?: number;
+	/**
+	 * Chat Timestamps: where this message's tool rows stand (`"live"`, its
+	 * prompt's end kind, or unknown). MessageList passes it only to bubbles
+	 * that hold a tool call, so text bubbles never re-render for it.
+	 */
+	toolRunState?: ToolRunState;
 }
 
 /**
@@ -679,6 +690,7 @@ export const MessageBubble = React.memo(function MessageBubble({
 	a2ui,
 	a2uiIsStreamingTurn,
 	a2uiMessageIndex,
+	toolRunState,
 }: MessageBubbleProps) {
 	const groups = groupContent(message.content);
 
@@ -731,6 +743,7 @@ export const MessageBubble = React.memo(function MessageBubble({
 									a2ui={a2ui}
 									a2uiIsStreamingTurn={a2uiIsStreamingTurn}
 									a2uiMessageIndex={a2uiMessageIndex}
+									toolRunState={toolRunState}
 								/>
 							))}
 						</div>
@@ -761,6 +774,7 @@ export const MessageBubble = React.memo(function MessageBubble({
 								a2ui={a2ui}
 								a2uiIsStreamingTurn={a2uiIsStreamingTurn}
 								a2uiMessageIndex={a2uiMessageIndex}
+								toolRunState={toolRunState}
 							/>
 						</div>
 					);

@@ -2145,6 +2145,34 @@
 			"altText": "Agent Console chat with a faint send time under a prompt and a finish time with its duration under the reply",
 			"docPage": "docs/usage/chat-timestamps.md",
 			"captureNote": "Pending: needs a seeded session whose messages carry the Chat Timestamps time fields (sentAt, turnEndedAt, turnMs, arrivedAt, gapBefore). The fixtures' seed sessions predate the feature, so they show no stamps."
+		},
+		{
+			"name": "chat-timestamps-activity",
+			"pending": true,
+			"width": 520,
+			"height": 420,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 520,
+				"height": 420
+			},
+			"cropSelector": ".agent-client-chat-content",
+			"cropPadding": 12,
+			"initialState": {
+				"openNote": "Welcome.md",
+				"clickRibbon": true
+			},
+			"approvalThreshold": 0.05,
+			"minDistinctColors": 300,
+			"placement": "feature",
+			"purpose": "While a reply runs, the line under the chat and each running tool row show plain facts: how long, and when the last update or output came.",
+			"differentiator": "Live status line and tool-row times, with no guessed stall alerts",
+			"mustShow": ".agent-client-tool-call-time",
+			"caption": "See how long a tool has run and when it last printed",
+			"altText": "Agent Console chat with a running command row showing its time and last output, and the live line naming the tool",
+			"docPage": "docs/usage/chat-timestamps.md",
+			"captureNote": "Pending: needs a live turn with a running command the plugin runs (for the row's output time and the live line), or a seeded session plus an injected store snapshot. Finished rows need seed messages carrying startedAt/endedAt."
 		}
 	]
 }

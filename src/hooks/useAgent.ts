@@ -1,4 +1,5 @@
 import type { PermissionScopeChoice } from "../types/chat";
+import type { LiveTurnClock } from "../types/chat-time";
 /**
  * Hook for managing the complete agent interaction lifecycle.
  *
@@ -120,6 +121,8 @@ export interface UseAgentReturn {
 	) => Promise<void>;
 	approveActivePermission: () => Promise<boolean>;
 	rejectActivePermission: () => Promise<boolean>;
+	/** The live turn's clocks for the ticker; null outside a live turn (Chat Timestamps). */
+	getLiveTurnClock: () => LiveTurnClock | null;
 }
 
 // ============================================================================
@@ -283,6 +286,7 @@ export function useAgent(
 			approvePermission: agentMessages.approvePermission,
 			approveActivePermission: agentMessages.approveActivePermission,
 			rejectActivePermission: agentMessages.rejectActivePermission,
+			getLiveTurnClock: agentMessages.getLiveTurnClock,
 		}),
 		[
 			agentSession.session,
@@ -322,6 +326,7 @@ export function useAgent(
 			agentMessages.approvePermission,
 			agentMessages.approveActivePermission,
 			agentMessages.rejectActivePermission,
+			agentMessages.getLiveTurnClock,
 		],
 	);
 }

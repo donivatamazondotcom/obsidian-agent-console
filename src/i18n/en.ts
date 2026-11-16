@@ -788,6 +788,16 @@ export const en = {
 	"chat.duration.minutesSeconds": "{minutes}m {seconds}s",
 	"chat.duration.hours": "{hours}h",
 	"chat.duration.hoursMinutes": "{hours}h {minutes}m",
+	// Chat Timestamps PR 3: short ages and the live status line. Facts only
+	// (the Signals tenet): no wording claims a turn is stuck.
+	"chat.age.seconds": "{count}s ago",
+	"chat.age.minutes": "{count}m ago",
+	"chat.age.hours": "{count}h ago",
+	"chat.activity.waitingOnYou": "Waiting on you",
+	"chat.activity.working": "Working {elapsed} · last update {age}",
+	"chat.activity.workingNoUpdate": "Working {elapsed} · no update yet",
+	"chat.activity.running": "Running {title} · {elapsed}",
+	"chat.activity.runningWithUpdate": "Running {title} · {elapsed} · last update {age}",
 	"chat.history.editTitle": "Edit session title",
 	"chat.history.restoreSession": "Restore session",
 	"chat.history.forkSession": "Fork session into a new tab",
@@ -915,6 +925,18 @@ export const en = {
 	"chat.toolCall.contentRegion": "{title} content",
 	"chat.toolCall.input": "Input",
 	"chat.toolCall.output": "Output",
+	// Chat Timestamps PR 3: a tool row's time.
+	"chat.toolCall.rowOutput": "{elapsed} · output {age}",
+	"chat.toolCall.rowNoOutput": "{elapsed} · no output yet",
+	"chat.toolCall.rowExited": "{elapsed} · exited {age}",
+	"chat.toolCall.stopped": "Stopped",
+	"chat.toolCall.openAtTurnEnd": "Open at turn end",
+	"chat.toolCall.withDuration": "{label} · {duration}",
+	"chat.toolCall.timeRange": "{start} to {end}",
+	"chat.toolCall.ariaRan": "Ran {duration}, {range}.",
+	"chat.toolCall.ariaRunningSince": "Running since {time}.",
+	"chat.toolCall.ariaInterrupted": "{label}, ran {duration}.",
+	"chat.toolCall.ariaInterruptedNoTime": "{label}.",
 	"chat.mcpBanner.toolFailed":
 		"This tool failed because the server is not signed in.",
 	"chat.mcpBanner.toolFailedOpens":

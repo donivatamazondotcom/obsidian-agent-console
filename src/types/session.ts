@@ -462,6 +462,12 @@ export interface ToolCall extends SessionUpdateBase {
 export interface ToolCallUpdate extends SessionUpdateBase {
 	type: "tool_call_update";
 	toolCallId: string;
+	/**
+	 * Chat Timestamps: this update carries the tool's output (codex-acp's
+	 * output `_meta` keys). Set only by AcpHandler, the one place `_meta` is
+	 * read; never saved.
+	 */
+	carriesOutput?: boolean;
 	title?: string;
 	status?: ToolCallStatus;
 	kind?: ToolKind;

@@ -1,5 +1,5 @@
 import type AgentClientPlugin from "../plugin";
-import type { ChatMessage, MessageContent } from "../types/chat";
+import type { ChatMessage, MessageContent, TurnEndKind } from "../types/chat";
 import type { ChatId } from "../types/session";
 import { getLogger, Logger } from "../utils/logger";
 import { TFile } from "obsidian";
@@ -18,6 +18,8 @@ interface ConvertContext {
 	imageLocation: "obsidian" | "custom" | "base64";
 	/** Custom folder for images */
 	imageCustomFolder: string;
+	/** Chat Timestamps: how the current prompt's turn ended, for its closed tool calls. */
+	turnEndKind?: TurnEndKind;
 }
 
 export class ChatExporter {
@@ -245,6 +247,7 @@ session_id: ${sessionId}${chatIdLine}${tagsLine}
 		let markdown = `# ${agentLabel}\n\n`;
 
 		for (const message of messages) {
+			if (message.role === "user") context.turnEndKind = message.turnEndKind;
 			const timeStr = message.timestamp.toLocaleTimeString();
 			const role = message.role === "user" ? "User" : "Assistant";
 
@@ -292,7 +295,7 @@ session_id: ${sessionId}${chatIdLine}${tagsLine}
 				return `> [!info]- Thinking\n> ${content.text.split("\n").join("\n> ")}\n\n`;
 
 			case "tool_call":
-				return this.convertToolCallToMarkdown(content);
+				return this.convertToolCallToMarkdown(content, context.turnEndKind);
 
 			case "terminal":
 				return `### 🖥️ Terminal: ${content.terminalId.slice(0, 8)}\n\n`;
@@ -351,6 +354,7 @@ session_id: ${sessionId}${chatIdLine}${tagsLine}
 
 	private convertToolCallToMarkdown(
 		content: Extract<MessageContent, { type: "tool_call" }>,
+		turnEndKind?: TurnEndKind,
 	): string {
 		let md = `### 🔧 ${content.title || "Tool"}\n\n`;
 
@@ -364,7 +368,15 @@ session_id: ${sessionId}${chatIdLine}${tagsLine}
 			md += `**Locations**: ${locationStrs.join(", ")}\n\n`;
 		}
 
-		md += `**Status**: ${content.status}\n\n`;
+		// Chat Timestamps: a call its turn closed says how the turn ended
+		// (Decision 12), never a status the agent can contradict later.
+		const status =
+			content.interrupted && turnEndKind
+				? turnEndKind === "stopped"
+					? "stopped"
+					: "open at turn end"
+				: content.status;
+		md += `**Status**: ${status}\n\n`;
 
 		// Only export diffs
 		if (content.content && content.content.length > 0) {

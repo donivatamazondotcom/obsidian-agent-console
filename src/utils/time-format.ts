@@ -139,3 +139,18 @@ export function formatDuration(ms: number, precision: "minutes" | "seconds"): st
 		? t("chat.duration.hoursMinutes", { hours, minutes })
 		: t("chat.duration.hours", { hours });
 }
+
+/**
+ * A short age for the live status line and running tool rows (Chat
+ * Timestamps PR 3): `just now` under a second, `Ns ago` every second to
+ * 59, then `Nm ago` and `Nh ago`. Never negative (clock skew reads as
+ * `just now`). Hover ages keep the long forms of `formatAgeText`.
+ */
+export function formatShortAge(ms: number): string {
+	const seconds = Math.floor(Math.max(0, ms) / 1000);
+	if (seconds < 1) return t("chat.history.justNow");
+	if (seconds < 60) return t("chat.age.seconds", { count: seconds });
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) return t("chat.age.minutes", { count: minutes });
+	return t("chat.age.hours", { count: Math.floor(minutes / 60) });
+}

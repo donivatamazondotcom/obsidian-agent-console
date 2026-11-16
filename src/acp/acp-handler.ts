@@ -176,6 +176,12 @@ export class AcpHandler {
 					type: update.sessionUpdate,
 					sessionId,
 					toolCallId: update.toolCallId,
+					// Chat Timestamps (C3): only an update carrying the tool's
+					// output counts as output for its row.
+					...(update.sessionUpdate === "tool_call_update" &&
+					carriesToolOutput(update._meta)
+						? { carriesOutput: true }
+						: {}),
 					title: update.title ?? undefined,
 					// I356: a missing status stays missing; message state
 					// keeps the row's status and defaults only a new row.
@@ -424,6 +430,27 @@ export class AcpHandler {
 		}
 		return Promise.resolve({});
 	}
+}
+
+/**
+ * Output keys an agent puts in a `tool_call_update`'s `_meta` (codex-acp:
+ * command output, the opt-in full-output form, MCP progress). Chat
+ * Timestamps counts only these as a tool's output.
+ */
+const TOOL_OUTPUT_META_KEYS = [
+	"terminal_output_delta",
+	"terminal_output",
+	"mcp_output_delta",
+] as const;
+
+/** True when `_meta` is a plain object with an own tool-output key. Never throws. */
+export function carriesToolOutput(meta: unknown): boolean {
+	if (meta === null || typeof meta !== "object" || Array.isArray(meta)) {
+		return false;
+	}
+	return TOOL_OUTPUT_META_KEYS.some((key) =>
+		Object.prototype.hasOwnProperty.call(meta, key),
+	);
 }
 
 /**

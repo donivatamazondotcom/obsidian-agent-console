@@ -34,6 +34,7 @@ import type { PermissionScopeChoice, PromptContent } from "../types/chat";
 import type { ProcessError } from "../types/errors";
 import { AcpTypeConverter } from "./type-converter";
 import { TerminalManager } from "./terminal-handler";
+import type { TerminalTiming } from "../types/chat-time";
 import { PermissionManager } from "./permission-handler";
 import { AcpHandler } from "./acp-handler";
 import {
@@ -1481,6 +1482,15 @@ export class AcpClient {
 	private cancelAllOperations(): void {
 		this.permissionManager.cancelAll();
 		this.terminalManager.killAllTerminals();
+	}
+
+	/**
+	 * When a terminal the plugin runs last printed, exited and was released
+	 * (Chat Timestamps). Synchronous, for the per-second ticker. Null for an
+	 * id the plugin never spawned (Codex puts its own ids in tool content).
+	 */
+	getTerminalTiming(terminalId: string): TerminalTiming | null {
+		return this.terminalManager.getTiming(terminalId);
 	}
 
 	/**
