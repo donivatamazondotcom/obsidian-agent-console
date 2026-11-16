@@ -37,13 +37,18 @@ function prefersReducedMotion(win: Window | null): boolean {
 	return win.matchMedia(REDUCED_MOTION_QUERY).matches;
 }
 
-/** Write each layer's current opacity and transform as the exit's start. */
+/** Write each layer's current opacity and transform as the exit's start.
+ * All reads first, then all writes: interleaving them would force a style
+ * recalc per layer instead of one. */
 function captureFace(face: HTMLElement, win: Window): void {
-	for (const layer of Array.from(face.querySelectorAll<HTMLElement>(LAYER_SELECTOR))) {
+	const layers = Array.from(face.querySelectorAll<HTMLElement>(LAYER_SELECTOR));
+	const looks = layers.map((layer) => {
 		const cs = win.getComputedStyle(layer);
-		const transform = cs.transform && cs.transform !== "" ? cs.transform : "none";
-		layer.setCssProps({ "--acf-o": cs.opacity, "--acf-t": transform });
-	}
+		return { opacity: cs.opacity, transform: cs.transform && cs.transform !== "" ? cs.transform : "none" };
+	});
+	layers.forEach((layer, i) => {
+		layer.setCssProps({ "--acf-o": looks[i].opacity, "--acf-t": looks[i].transform });
+	});
 }
 
 function clearCapture(face: HTMLElement | null): void {
