@@ -227,21 +227,37 @@ describe("A2uiSurfaceHost × turn store — refused hosts don't re-render on tur
 });
 
 describe("A2uiSurfaceHost × turn store — refused ↔ live handover (I376)", () => {
-	it("turn end: the streaming host turns live and enables in the same act", () => {
-		// ChatPanel's order: the render that ends the turn (isStreamingTurn
-		// false) commits first, then its layout effect publishes isSending
-		// false. The host switches selector in that render, reading the old
-		// "sending" snapshot, and must still catch up to enabled.
+	it("turn end: the streaming host turns live and catches up from the stale snapshot", () => {
+		// ChatPanel's real order: one render ends the turn (the host's
+		// isStreamingTurn goes false), and the layout effect of that same
+		// commit publishes isSending false (useA2uiWiring). So the host first
+		// renders live against the OLD "sending" snapshot, then must catch up.
+		// Publishing from a layout effect here reproduces that ordering; an
+		// outer act() around rerender + publish would not.
 		const store = createA2uiTurnStore({ ...IDLE, isSending: true });
-		const { container, rerenderSpecs } = renderHosts(store, [
-			{ surfaceId: "live-1", streaming: true },
-		]);
+		const hostCommits: number[] = [];
+		function Panel({ streaming, state }: { streaming: boolean; state: A2uiTurnState }) {
+			React.useLayoutEffect(() => store.publish(state), [state]);
+			return (
+				<A2uiTurnStoreContext.Provider value={store}>
+					<Profiler id="live-1" onRender={() => hostCommits.push(1)}>
+						<div data-host="live-1">
+							<Host spec={{ surfaceId: "live-1", streaming }} />
+						</div>
+					</Profiler>
+				</A2uiTurnStoreContext.Provider>
+			);
+		}
+		const sending: A2uiTurnState = { ...IDLE, isSending: true };
+		const { container, rerender } = render(<Panel streaming={true} state={sending} />);
 		expect(buttonOf(container, "live-1").disabled).toBe(true);
-		act(() => {
-			rerenderSpecs([{ surfaceId: "live-1", streaming: false }]);
-			store.publish(IDLE);
-		});
+
+		const before = hostCommits.length;
+		rerender(<Panel streaming={false} state={IDLE} />);
 		expect(buttonOf(container, "live-1").disabled).toBe(false);
+		// Two commits: live-but-stale ("sending"), then caught up. One commit
+		// would mean the stale path never ran and this test proves nothing.
+		expect(hostCommits.length - before).toBe(2);
 	});
 
 	it("a live host that becomes answered stops re-rendering on turn edges", () => {
