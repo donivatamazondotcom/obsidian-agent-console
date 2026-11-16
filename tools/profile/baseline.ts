@@ -84,7 +84,8 @@ export const DEFAULT_FLOORS: Record<string, number> = {
  * release (GB-T05). Reported in the profile table but skipped by the diff.
  */
 // scrollEvents is a validity count (did the transcript scroll), not a cost;
-// waitCheckMs is the profiler's own observer cost, reported for honesty.
+// waitCheckMs is the profiler's own observer cost, reported for honesty;
+// armedAtMs is when the cold-start wait was armed, a check on wallMs.
 export const DEFAULT_GATE_EXCLUDE: readonly string[] = ["JSHeapUsedSize", "scrollEvents", "waitCheckMs", "armedAtMs"];
 
 function round4(n: number): number {
