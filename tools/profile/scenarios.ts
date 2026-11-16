@@ -11,7 +11,13 @@
  * DOM selectors are the real agent-console classes, confirmed live against
  * the studio fixtures vault (2026-07-01): the message list/scroll container
  * is `.agent-client-chat-view-messages`, each message is
- * `.agent-client-message-row`, and tabs are `.agent-client-tab`.
+ * `.agent-client-message-row`, and tabs are `.agent-client-tab` (top tab
+ * bar) or `.agent-client-tab-rail-key` (vertical rail — the new-install
+ * default since v2.5.0, and the studio seed's `tabDisplay`).
+ *
+ * A scenario whose target is missing THROWS rather than measuring nothing:
+ * the orchestrator then drops it from the profile, so a stale selector shows
+ * up as a missing scenario instead of a plausible-looking bogus delta.
  *
  * Spec: [[Agent Console Release Quality Gates]] § Gate B-phase2 (scenario table).
  */
@@ -63,7 +69,8 @@ const MESSAGE_SELECTORS = [
 	".agent-client-chat-view-messages",
 ];
 const SCROLL_SELECTOR = ".agent-client-chat-view-messages";
-const TAB_SELECTOR = ".agent-client-tab";
+/** Both tab layouts; only one renders at a time, in tab order. */
+const TAB_SELECTOR = ".agent-client-tab, .agent-client-tab-rail-key";
 
 /** Merge a metric delta with the long-task summary into one flat record. */
 function mergeMetrics(
@@ -82,7 +89,7 @@ function mergeMetrics(
 	};
 }
 
-/** Click the nth `.agent-client-tab` (0-based). Returns whether it existed. */
+/** Click the nth tab in either layout (0-based). Returns whether it existed. */
 function clickTabJs(index: number): string {
 	return (
 		`(function(){var t=document.querySelectorAll(${JSON.stringify(TAB_SELECTOR)});` +
@@ -134,12 +141,19 @@ const activateBackgroundTab: Scenario = {
 	primarySignal: "longTaskCount, ScriptDuration delta",
 	async measure(ctx) {
 		// Park on the light tab so the heavy one is genuinely backgrounded.
-		await ctx.evalInPage<boolean>(clickTabJs(1));
+		const parked = await ctx.evalInPage<boolean>(clickTabJs(1));
+		if (!parked) {
+			throw new Error(
+				`activate: no second tab matches "${TAB_SELECTOR}" — the scenario needs the heavy tab plus a light tab`,
+			);
+		}
 		await ctx.sleep(600);
 		await ctx.installObserver();
 		const before = await ctx.snapshot();
 		const clicked = await ctx.evalInPage<boolean>(clickTabJs(0));
-		ctx.log(`activate: heavy-tab click dispatched=${clicked}`);
+		if (!clicked) {
+			throw new Error(`activate: no heavy tab matches "${TAB_SELECTOR}"`);
+		}
 		try {
 			await ctx.waitForSelector(MESSAGE_SELECTORS, 10_000);
 		} catch {
@@ -170,12 +184,17 @@ const streamTokens: Scenario = {
 	async measure(ctx) {
 		await ctx.installObserver();
 		const before = await ctx.snapshot();
-		await ctx.evalInPage<boolean>(
+		const streamed = await ctx.evalInPage<boolean>(
 			`(function(){var rows=document.querySelectorAll(${JSON.stringify(MESSAGE_SELECTORS[0])});` +
 				`if(!rows.length)return false;var last=rows[rows.length-1];var base=last.textContent;var acc="";` +
 				`for(var t=0;t<50;t++){acc+=" tok"+t;last.textContent=base+acc;void last.offsetHeight;}` +
 				`last.textContent=base;return true;})()`,
 		);
+		if (!streamed) {
+			throw new Error(
+				`stream: no message row matches "${MESSAGE_SELECTORS[0]}"`,
+			);
+		}
 		await ctx.sleep(400);
 		const after = await ctx.snapshot();
 		const obs = await ctx.readObserver();
@@ -201,7 +220,11 @@ const scrollHeavyTranscript: Scenario = {
 				`for(var s=0;s<=steps;s++){sc.scrollTop=Math.round(max*s/steps);void sc.scrollTop;}` +
 				`sc.scrollTop=0;return true;})()`,
 		);
-		ctx.log(`scroll: dispatched=${scrolled}`);
+		if (!scrolled) {
+			throw new Error(
+				`scroll: no overflowing scroll container matches "${SCROLL_SELECTOR}"`,
+			);
+		}
 		await ctx.sleep(400);
 		const after = await ctx.snapshot();
 		const obs = await ctx.readObserver();
