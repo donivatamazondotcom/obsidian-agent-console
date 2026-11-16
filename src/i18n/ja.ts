@@ -630,7 +630,6 @@ export const ja = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.age.hours": "{count}時間前",
 	"chat.activity.working": "作業中 {elapsed} · 最終更新 {age}",
 	"chat.activity.workingNoUpdate": "作業中 {elapsed} · まだ更新なし",
-	"chat.activity.runningTitle": "実行中: {title}",
 	"chat.activity.runningFacts": "· {elapsed}",
 	"chat.activity.runningFactsWithUpdate": "· {elapsed} · 最終更新 {age}",
 	"chat.toolCall.rowOutput": "{elapsed} · 出力 {age}",

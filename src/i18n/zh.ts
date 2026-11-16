@@ -580,7 +580,6 @@ export const zh = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.age.hours": "{count}小时前",
 	"chat.activity.working": "工作中 {elapsed} · 上次更新 {age}",
 	"chat.activity.workingNoUpdate": "工作中 {elapsed} · 尚无更新",
-	"chat.activity.runningTitle": "正在运行：{title}",
 	"chat.activity.runningFacts": "· {elapsed}",
 	"chat.activity.runningFactsWithUpdate": "· {elapsed} · 上次更新 {age}",
 	"chat.toolCall.rowOutput": "{elapsed} · 输出 {age}",

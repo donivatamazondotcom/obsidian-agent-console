@@ -595,7 +595,6 @@ export const ko = (): Partial<Record<keyof typeof en, string>> => ({
 	"chat.age.hours": "{count}시간 전",
 	"chat.activity.working": "작업 중 {elapsed} · 마지막 업데이트 {age}",
 	"chat.activity.workingNoUpdate": "작업 중 {elapsed} · 아직 업데이트 없음",
-	"chat.activity.runningTitle": "실행 중: {title}",
 	"chat.activity.runningFacts": "· {elapsed}",
 	"chat.activity.runningFactsWithUpdate": "· {elapsed} · 마지막 업데이트 {age}",
 	"chat.toolCall.rowOutput": "{elapsed} · 출력 {age}",

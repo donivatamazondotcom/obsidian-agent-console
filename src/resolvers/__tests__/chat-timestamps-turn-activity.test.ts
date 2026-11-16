@@ -98,7 +98,7 @@ describe("deriveTurnActivity: running rows", () => {
 	it("a long title stays apart from the facts, so the facts can always be shown", () => {
 		const title = "Check the build log for the failing integration test and report back";
 		const a = run(T0 + 70 * SEC, clock({ hasUpdate: true }), [call({ title, lastOutputAt: T0 + 69 * SEC })]);
-		expect(a.lineTitle).toBe(`Running: ${title}`);
+		expect(a.lineTitle).toBe(title);
 		expect(a.line).toBe("· 1m");
 	});
 
@@ -107,7 +107,7 @@ describe("deriveTurnActivity: running rows", () => {
 			call({ terminalTiming: { lastOutputAt: null, exitedAt: null, releasedAt: null } }),
 		]);
 		expect(a.rows).toEqual({ tc1: "1m · no output yet" });
-		expect(a.lineTitle).toBe("Running: npm test");
+		expect(a.lineTitle).toBe("npm test");
 		expect(a.line).toBe("· 1m");
 	});
 
@@ -128,7 +128,7 @@ describe("deriveTurnActivity: running rows", () => {
 	it("an agent-run tool that streams its output", () => {
 		const a = run(T0 + 70 * SEC, clock({ hasUpdate: true }), [call({ lastOutputAt: T0 + 65 * SEC })]);
 		expect(a.rows.tc1).toBe("1m · output 5s ago");
-		expect(a.lineTitle).toBe("Running: npm test");
+		expect(a.lineTitle).toBe("npm test");
 		expect(a.line).toBe("· 1m");
 	});
 
@@ -136,7 +136,7 @@ describe("deriveTurnActivity: running rows", () => {
 		const c = clock({ hasUpdate: true, lastUpdateAt: T0 + 40 * SEC });
 		const a = run(T0 + 70 * SEC, c, [call({ title: "Bash" })]);
 		expect(a.rows.tc1).toBe("1m");
-		expect(a.lineTitle).toBe("Running: Bash");
+		expect(a.lineTitle).toBe("Bash");
 		expect(a.line).toBe("· 1m · last update 30s ago");
 	});
 
@@ -151,7 +151,7 @@ describe("deriveTurnActivity: running rows", () => {
 			call({ toolCallId: "b", title: "second", startedAt: T0 + 30 * SEC }),
 			call({ toolCallId: "c", title: "older", startedAt: T0 + 10 * SEC }),
 		]);
-		expect(a.lineTitle).toBe("Running: second");
+		expect(a.lineTitle).toBe("second");
 	});
 
 	it("a row leaves out its own finished and open permission waits", () => {
@@ -178,7 +178,7 @@ describe("deriveTurnActivity: running rows", () => {
 
 	it("a call with no title is named by its kind of item", () => {
 		const a = run(T0 + 70 * SEC, clock({ hasUpdate: true }), [call({ title: null, lastOutputAt: T0 + 69 * SEC })]);
-		expect(a.lineTitle).toBe("Running: Tool call");
+		expect(a.lineTitle).toBe("Tool call");
 	});
 });
 
@@ -286,7 +286,7 @@ describe("deriveLiveTurnActivity: the ticker's read of the transcript", () => {
 		const lookup = (id: string) => (id === "term-1" ? { lastOutputAt: T0 + 28 * SEC, exitedAt: null, releasedAt: null } : null);
 		const a = deriveLiveTurnActivity(messages, c, lookup, T0 + 30 * SEC);
 		expect(a?.rows).toEqual({ cmd: "20s · output 2s ago", codex: "10s · output 5s ago" });
-		expect(a?.lineTitle).toBe("Running: npm test");
+		expect(a?.lineTitle).toBe("npm test");
 		expect(a?.line).toBe("· 10s");
 	});
 

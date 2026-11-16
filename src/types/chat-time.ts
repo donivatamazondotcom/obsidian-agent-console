@@ -71,7 +71,7 @@ export interface TurnActivity {
 	/** The line's facts (`Working 4m · last update 10s ago`, or `· 5m` after a title). */
 	line: string | null;
 	/**
-	 * The running tool the line names (`Running: npm test`), kept apart from
+	 * The open tool call the line names (its title, `npm test`), kept apart from
 	 * the facts so a long title is cut before they are. Null otherwise.
 	 */
 	lineTitle?: string | null;

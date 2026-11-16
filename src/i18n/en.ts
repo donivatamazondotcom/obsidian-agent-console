@@ -795,7 +795,6 @@ export const en = {
 	"chat.activity.waitingOnYou": "Waiting on you",
 	"chat.activity.working": "Working {elapsed} · last update {age}",
 	"chat.activity.workingNoUpdate": "Working {elapsed} · no update yet",
-	"chat.activity.runningTitle": "Running: {title}",
 	"chat.activity.runningFacts": "· {elapsed}",
 	"chat.activity.runningFactsWithUpdate": "· {elapsed} · last update {age}",
 	"chat.history.editTitle": "Edit session title",

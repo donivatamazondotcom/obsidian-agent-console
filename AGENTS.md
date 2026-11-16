@@ -72,7 +72,7 @@ src/
 │   ├── chat-link-copy.ts        # runChatLinkCopy — Copy link to chat: copy the link or the send-first notice, report a failed write, refocus through copy-chat-link (Chat ID D16)
 │   ├── server-session-cache.ts  # The only reader/writer of serverSessionCache (last session/list per launch, keyed by agentLaunchKey, never agent id) + its settings-edge validation (I270)
 │   ├── session-store.ts         # Single serialized writer of record for savedSessions metadata/title (I114), keyed by recordId (I269)
-│   ├── turn-activity-store.ts   # Chat Timestamps PR 3: per-panel store for the live line and running-row texts (no React); ChatPanel's ticker is its only publisher; reset() keeps the header total
+│   ├── turn-activity-store.ts   # Chat Timestamps PR 3: per-panel store for the live line and running-row texts (no React); ChatPanel's ticker is its only publisher; reset() keeps the header total; the line's title (an open tool call's name) is its own string
 │   ├── local-day-store.ts       # Chat Timestamps: the plugin's one day store (today's local bounds + time zone) for useSyncExternalStore; per-view focus/visibility re-checks, one always-rescheduling midnight timer, dispose() on unload
 │   ├── mcp-auth-manager.ts      # Single owner of pending MCP sign-in state + queue-aware Notice lifecycle
 │   ├── settings-normalizer.ts   # Validation helpers + DEFAULT_SETTINGS + normalizeRawSettings (raw→typed mapping)
@@ -187,7 +187,7 @@ src/
 │   ├── MessageList.tsx          # Message list (native browser scroll; inactive tabs render a placeholder, so no bubbles mount while hidden) + JumpToReplyStartAnchor (sticky zero-height wrapper, IntersectionObserver visibility, up chevron) and the "Jump to start of latest reply" command listener; Chat Timestamps PR 3: TurnStatusLine (Waiting on you, or the ticker's title + facts) and toolRunState for tool bubbles
 │   ├── A2uiSurfaceHost.tsx      # Agent-emitted buttons-v0 surface host: validate-at-edge, native buttons, resolver-gated enablement, inert fallback
 │   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button, prompt and gap stamps, hover-row time)
-│   ├── turn-activity-context.ts # Chat Timestamps PR 3: React binding for the turn-activity store (context, useTurnActivitySlice string selectors, useTurnActivityTicker: 1 s while the tab's turn runs and the tab is visible)
+│   ├── turn-activity-context.ts # Chat Timestamps PR 3: React binding for the turn-activity store (context, useTurnActivitySlice string selectors, useTurnActivityTicker: 1 s while the tab's turn runs and the tab is visible); a permission change kicks an immediate tick
 │   ├── TimeStamp.tsx            # Chat Timestamps: memoized stamp leaf (prompt/end/gap/hover-row times, static aria-label + data-stamp-label), delegated hover ages (useStampHoverAges), day-store registration per view (useDayStoreRegistration); formatStampRange (a tool row's start-to-end label)
 │   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting); Chat Timestamps PR 3: row time (duration, RunningToolTime leaf, Stopped / Open at turn end) and its start/end in the row label, refreshed through a date-form day-store selector
 │   ├── TerminalBlock.tsx        # Terminal output polling

@@ -181,7 +181,13 @@ describe("getLiveTurnClock", () => {
 		expect(result.current.getLiveTurnClock()?.waitStartedAt).toBe(T0 + 10 * SEC);
 		at(T0 + 40 * SEC);
 		await feed(result, approve("tc1"));
-		expect(result.current.getLiveTurnClock()).toMatchObject({ waitStartedAt: null, turnWaitMs: 30 * SEC });
+		// Answering is itself a live update, so the last update restarts too.
+		expect(result.current.getLiveTurnClock()).toMatchObject({
+			waitStartedAt: null,
+			turnWaitMs: 30 * SEC,
+			lastUpdateAt: T0 + 40 * SEC,
+			hasUpdate: true,
+		});
 	});
 
 	it("is null once the turn ends, and the next turn starts with an empty output map", async () => {

@@ -106,7 +106,9 @@ export function deriveTurnActivity(input: TurnActivityInput): TurnActivity {
 	if (named !== null) {
 		const title = named.call.title?.trim() || t("chat.toolCall.title");
 		const elapsed = formatDuration(named.elapsedMs, "minutes");
-		lineTitle = t("chat.activity.runningTitle", { title });
+		// The title alone: a call can be open (`pending`) without running,
+		// so no verb claims what it's doing.
+		lineTitle = title;
 		line =
 			!hasLiveOutputSignal(named.call) && clock.hasUpdate
 				? t("chat.activity.runningFactsWithUpdate", { elapsed, age: updateAge })

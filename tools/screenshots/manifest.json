@@ -2157,7 +2157,10 @@
 				"width": 520,
 				"height": 420
 			},
-			"cropSelector": ".agent-client-chat-content",
+			"cropSelectors": [
+				".agent-client-chat-content",
+				".agent-client-loading-indicator"
+			],
 			"cropPadding": 12,
 			"initialState": {
 				"openNote": "Welcome.md",

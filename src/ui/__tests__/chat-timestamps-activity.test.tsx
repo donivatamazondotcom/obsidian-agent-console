@@ -139,11 +139,19 @@ describe("the live status line", () => {
 	it("puts a running tool's title and the facts in separate spans, so a long title can't hide the facts", () => {
 		const store = createTurnActivityStore();
 		const { container } = show([prompt({ sentAt: at(9, 48) })], store, { isSending: true });
-		const longTitle = "Running: Check the build log for the failing integration test and report back";
+		const longTitle = "Check the build log for the failing integration test and report back";
 		act(() => store.publish({ line: "· 6m · last update 3m ago", lineTitle: longTitle, rows: {} }));
 		const slot = container.querySelector(".agent-client-loading-status");
 		expect(slot?.querySelector(".agent-client-loading-status-title")?.textContent).toBe(longTitle);
 		expect(slot?.querySelector(".agent-client-loading-status-facts")?.textContent).toBe("· 6m · last update 3m ago");
+	});
+
+	it("Waiting on you replaces a running tool's title and facts", () => {
+		const store = createTurnActivityStore();
+		store.publish({ line: "· 6m", lineTitle: "npm test", rows: {} });
+		const { container } = show([prompt({ sentAt: at(9, 48) })], store, { isSending: true, hasActivePermission: true });
+		expect(status(container)).toBe("Waiting on you");
+		expect(container.querySelector(".agent-client-loading-status-facts")).toBeNull();
 	});
 
 	it("sits outside the scrolling content, so a tick never resizes it", () => {
@@ -220,7 +228,7 @@ describe("tool-row times", () => {
 		const id = (row.content[0] as { toolCallId: string }).toolCallId;
 		const { container } = show([prompt({ sentAt: at(9, 47) }), row], store, { isSending: true });
 		expect(rowTime(container)).toBeNull();
-		act(() => store.publish({ line: "Running npm test · 1m", rows: { [id]: "1m · output 2s ago" } }));
+		act(() => store.publish({ line: "· 1m", lineTitle: "npm test", rows: { [id]: "1m · output 2s ago" } }));
 		expect(rowTime(container)).toBe("1m · output 2s ago");
 		expect(rowButton(container)?.getAttribute("aria-label")).toContain("Running since 9:48 AM.");
 	});
@@ -338,7 +346,7 @@ describe("useTurnActivityTicker", () => {
 
 	it("a new turn after a Stop never shows the old line", () => {
 		const store = createTurnActivityStore();
-		let line = "Running npm test · 7m";
+		let line = "· 7m · last update 6m ago";
 		const { rerender } = renderHook(({ active }) => useTurnActivityTicker(active, store, () => ({ line, rows: {} })), {
 			initialProps: { active: true },
 		});
