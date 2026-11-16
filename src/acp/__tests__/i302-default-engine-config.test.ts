@@ -77,7 +77,7 @@ const cfg = (over: Partial<AgentConfig>): AgentConfig => ({
 	id: "kiro",
 	displayName: "Kiro",
 	command: "kiro-cli",
-	args: ["acp", "--agent", "auto-sa", "--model", "m"],
+	args: ["acp", "--agent", "team-agent", "--model", "m"],
 	env: {},
 	workingDirectory: "/v",
 	...over,
@@ -98,7 +98,7 @@ describe("relaunchConfig (I270, I302)", () => {
 		expect(resolveLaunchArgs(out, { pinEngine: false })).toEqual([
 			"acp",
 			"--agent",
-			"auto-sa",
+			"team-agent",
 			"--model",
 			"m",
 		]);

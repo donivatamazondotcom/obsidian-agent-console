@@ -48,9 +48,9 @@ const MODE_OPTION: SessionConfigOption = {
 	name: "Agent",
 	category: "mode",
 	type: "select",
-	currentValue: "auto-sa",
+	currentValue: "team-agent",
 	options: [
-		{ value: "auto-sa", name: "auto-sa" },
+		{ value: "team-agent", name: "team-agent" },
 		{ value: "kiro_default", name: "kiro_default" },
 	],
 };
@@ -174,7 +174,7 @@ describe("composer picker set (characterization)", () => {
 				onConfigOptionChange: vi.fn(),
 			}),
 		).toEqual([
-			{ label: "auto-sa", category: "mode" },
+			{ label: "team-agent", category: "mode" },
 			{ label: "claude-opus-5.5", category: "model" },
 			{ label: "Enabled", category: null },
 		]);

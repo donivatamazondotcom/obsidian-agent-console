@@ -46,16 +46,16 @@ const cfg = (args: string[], kiroEngine?: "v3"): AgentConfig => ({
 
 describe("prepareKiroV3Launch (T1)", () => {
 	it("moves --agent into the session as modeId and adds the engine flag", () => {
-		const r = prepareKiroV3Launch(["acp", "--agent", "auto-sa"]);
+		const r = prepareKiroV3Launch(["acp", "--agent", "team-agent"]);
 		expect(r.args).toEqual(["acp", "--agent-engine=v3"]);
-		expect(r.sessionMeta).toEqual({ modeId: "auto-sa" });
+		expect(r.sessionMeta).toEqual({ modeId: "team-agent" });
 		expect(r.stripped).toEqual(["--agent"]);
 	});
 
 	it("handles --flag=value, model, effort and both trust flags", () => {
 		const r = prepareKiroV3Launch([
 			"acp",
-			"--agent=auto-sa",
+			"--agent=team-agent",
 			"--model",
 			"claude-opus-4.8",
 			"--effort=high",
@@ -66,7 +66,7 @@ describe("prepareKiroV3Launch (T1)", () => {
 		]);
 		expect(r.args).toEqual(["acp", "--agent-engine=v3", "--verbose"]);
 		expect(r.sessionMeta).toEqual({
-			modeId: "auto-sa",
+			modeId: "team-agent",
 			modelId: "claude-opus-4.8",
 			effortLevel: "high",
 		});
@@ -100,12 +100,12 @@ describe("prepareKiroV3Launch (T1)", () => {
 
 describe("resolveLaunchArgs (T2)", () => {
 	it("leaves v2 / non-Kiro args exactly as configured", () => {
-		const args = ["acp", "--agent", "auto-sa", "--trust-all-tools"];
+		const args = ["acp", "--agent", "team-agent", "--trust-all-tools"];
 		expect(resolveLaunchArgs(cfg(args))).toEqual(args);
 	});
 
 	it("rewrites args only when the config asks for the v3 engine", () => {
-		expect(resolveLaunchArgs(cfg(["acp", "--agent", "auto-sa"], "v3"))).toEqual([
+		expect(resolveLaunchArgs(cfg(["acp", "--agent", "team-agent"], "v3"))).toEqual([
 			"acp",
 			"--agent-engine=v3",
 		]);
@@ -133,18 +133,18 @@ describe("kiroV3SessionMeta", () => {
 		expect(kiroV3SessionMeta(cfg(["acp"], "v3"))).toEqual({});
 	});
 	it("carries the launch-derived values under _meta.kiro", () => {
-		expect(kiroV3SessionMeta(cfg(["acp", "--agent", "auto-sa"], "v3"))).toEqual({
-			_meta: { kiro: { modeId: "auto-sa" } },
+		expect(kiroV3SessionMeta(cfg(["acp", "--agent", "team-agent"], "v3"))).toEqual({
+			_meta: { kiro: { modeId: "team-agent" } },
 		});
 	});
 	it("I217: saved picks ride along as session inputs and win over launch flags", () => {
 		expect(
 			kiroV3SessionMeta(
-				cfg(["acp", "--agent", "auto-sa", "--model", "flag-model", "--effort", "low"], "v3"),
+				cfg(["acp", "--agent", "team-agent", "--model", "flag-model", "--effort", "low"], "v3"),
 				{ modelId: "saved-model", effortLevel: "high" },
 			),
 		).toEqual({
-			_meta: { kiro: { modeId: "auto-sa", modelId: "saved-model", effortLevel: "high" } },
+			_meta: { kiro: { modeId: "team-agent", modelId: "saved-model", effortLevel: "high" } },
 		});
 		// Missing picks leave the launch values in place.
 		expect(
@@ -173,16 +173,16 @@ describe("AcpClient.newSession on the live request path", () => {
 	}
 
 	it("v3: session/new selects the agent as a mode", async () => {
-		const { client, request } = makeClient(cfg(["acp", "--agent", "auto-sa"], "v3"));
+		const { client, request } = makeClient(cfg(["acp", "--agent", "team-agent"], "v3"));
 		await client.newSession("/vault");
 		expect(request).toHaveBeenCalledWith(
 			acp.methods.agent.session.new,
-			expect.objectContaining({ _meta: { kiro: { modeId: "auto-sa" } } }),
+			expect.objectContaining({ _meta: { kiro: { modeId: "team-agent" } } }),
 		);
 	});
 
 	it("v2: session/new params are unchanged (no _meta)", async () => {
-		const { client, request } = makeClient(cfg(["acp", "--agent", "auto-sa"]));
+		const { client, request } = makeClient(cfg(["acp", "--agent", "team-agent"]));
 		await client.newSession("/vault");
 		const params = (request.mock.calls[0] as unknown[])[1] as Record<string, unknown>;
 		expect(params).not.toHaveProperty("_meta");
@@ -223,11 +223,11 @@ describe("Kiro engine setting", () => {
 });
 
 describe("Kiro engine on custom agents (S1b)", () => {
-	const autoSa = {
-		id: "auto-sa",
-		displayName: "Auto SA",
+	const teamAgent = {
+		id: "team-agent",
+		displayName: "Team Agent",
 		command: "/Users/x/.toolbox/bin/kiro-cli",
-		args: ["acp", "--agent", "auto-sa", "--model", "claude-opus-5.5"],
+		args: ["acp", "--agent", "team-agent", "--model", "claude-opus-5.5"],
 		env: [],
 	};
 
@@ -243,26 +243,26 @@ describe("Kiro engine on custom agents (S1b)", () => {
 
 	it("persists engine only when pinned (Default omits the field)", () => {
 		const v3 = normalizeRawSettings(
-			{ customAgents: [{ ...autoSa, engine: "v3" }] },
+			{ customAgents: [{ ...teamAgent, engine: "v3" }] },
 			DEFAULT_SETTINGS,
 			idKey,
 		);
 		expect(v3.customAgents[0].engine).toBe("v3");
-		const v2 = normalizeRawSettings({ customAgents: [autoSa] }, DEFAULT_SETTINGS, idKey);
+		const v2 = normalizeRawSettings({ customAgents: [teamAgent] }, DEFAULT_SETTINGS, idKey);
 		expect(v2.customAgents[0]).not.toHaveProperty("engine");
 	});
 
 	it("a custom kiro-cli agent on V3 gets the V3 launch, hooks opt-in and mode", () => {
 		const s = normalizeRawSettings(
-			{ customAgents: [{ ...autoSa, engine: "v3" }] },
+			{ customAgents: [{ ...teamAgent, engine: "v3" }] },
 			DEFAULT_SETTINGS,
 			idKey,
 		);
-		const c = buildAgentConfigWithApiKey(s, s.customAgents[0], "auto-sa", "/vault");
+		const c = buildAgentConfigWithApiKey(s, s.customAgents[0], "team-agent", "/vault");
 		expect(c.kiroEngine).toBe("v3");
 		expect(resolveLaunchArgs(c)).toEqual(["acp", "--agent-engine=v3"]);
 		expect(kiroV3SessionMeta(c)).toEqual({
-			_meta: { kiro: { modeId: "auto-sa", modelId: "claude-opus-5.5" } },
+			_meta: { kiro: { modeId: "team-agent", modelId: "claude-opus-5.5" } },
 		});
 		expect(buildClientCapabilities(c)._meta?.kiro).toEqual({
 			hooks: { enabled: true, v2: true },
@@ -272,13 +272,13 @@ describe("Kiro engine on custom agents (S1b)", () => {
 
 	it("a custom agent set to V2 is pinned to V2 (I270)", () => {
 		const s = normalizeRawSettings(
-			{ customAgents: [{ ...autoSa, engine: "v2" }] },
+			{ customAgents: [{ ...teamAgent, engine: "v2" }] },
 			DEFAULT_SETTINGS,
 			idKey,
 		);
-		const c = buildAgentConfigWithApiKey(s, s.customAgents[0], "auto-sa", "/vault");
+		const c = buildAgentConfigWithApiKey(s, s.customAgents[0], "team-agent", "/vault");
 		expect(c.kiroEngine).toBe("v2");
-		expect(resolveLaunchArgs(c)).toEqual(prepareKiroV2Launch(autoSa.args));
+		expect(resolveLaunchArgs(c)).toEqual(prepareKiroV2Launch(teamAgent.args));
 		expect(resolveLaunchArgs(c)).toContain("--agent-engine=v2");
 	});
 });

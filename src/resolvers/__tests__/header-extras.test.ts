@@ -13,9 +13,9 @@ import type { HeaderAgent } from "../header-agent";
 import type { ComposerPickers } from "../composer-pickers";
 
 const configured: HeaderAgent = { kind: "configured", label: "Claude Code" };
-const kiroConfigured: HeaderAgent = { kind: "configured", label: "Auto SA" };
+const kiroConfigured: HeaderAgent = { kind: "configured", label: "Team Agent" };
 const switched: HeaderAgent = { kind: "switched", label: "Research", running: "writer" };
-const notLoaded: HeaderAgent = { kind: "notLoaded", label: "Auto SA", running: "kiro_default" };
+const notLoaded: HeaderAgent = { kind: "notLoaded", label: "Team Agent", running: "kiro_default" };
 
 const NONE: ComposerPickers = { source: "none" };
 const CONFIG_MODE_MODEL: ComposerPickers = { source: "config", shown: [], mode: true, model: true };
@@ -47,7 +47,7 @@ const rows: Row[] = [
 		name: "Kiro before connecting (no pickers yet), titled: agent label",
 		agent: kiroConfigured, model: model(null), composer: NONE,
 		modesAreAgents: true, titleIsDefault: false,
-		expected: { agent: { kind: "label", label: "Auto SA" }, model: null },
+		expected: { agent: { kind: "label", label: "Team Agent" }, model: null },
 	},
 	{
 		name: "Kiro before connecting, default title: nothing (the title names the agent)",
@@ -95,13 +95,13 @@ const rows: Row[] = [
 		name: "requested agent didn't load, Kiro mode picker shown: the warning stays",
 		agent: notLoaded, model: model("Opus"), composer: CONFIG_MODE_MODEL,
 		modesAreAgents: true, titleIsDefault: false,
-		expected: { agent: { kind: "notLoaded", label: "Auto SA", running: "kiro_default" }, model: null },
+		expected: { agent: { kind: "notLoaded", label: "Team Agent", running: "kiro_default" }, model: null },
 	},
 	{
 		name: "requested agent didn't load, default title: the warning stays",
 		agent: notLoaded, model: model(null), composer: NONE,
 		modesAreAgents: true, titleIsDefault: true,
-		expected: { agent: { kind: "notLoaded", label: "Auto SA", running: "kiro_default" }, model: null },
+		expected: { agent: { kind: "notLoaded", label: "Team Agent", running: "kiro_default" }, model: null },
 	},
 	{
 		name: "switched with the Kiro mode picker shown: nothing (the picker names it)",

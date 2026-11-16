@@ -138,7 +138,7 @@ const config = (mode: Mode, source: "default" | "explicit" = "default") =>
 		id: "kiro-test",
 		displayName: "Kiro Test",
 		command: cli(mode),
-		args: ["acp", "--agent", "auto-sa"],
+		args: ["acp", "--agent", "team-agent"],
 		env: {},
 		workingDirectory: dir,
 		kiroEngine: "v3",
@@ -170,7 +170,7 @@ describe("I302 — Default (V3) on a kiro-cli without V3", () => {
 		// accepts --agent on the command line.
 		expect(spawns("old")).toEqual([
 			"acp --agent-engine=v3",
-			"acp --agent auto-sa",
+			"acp --agent team-agent",
 		]);
 		expect(result.kiroEngine).toBe("v2");
 		expect(result.kiroEngineFallback).toBe("old-cli");
@@ -200,9 +200,9 @@ describe("I302 — Default (V3) on a kiro-cli without V3", () => {
 		await client.initialize(config("old"));
 		expect(spawns("old")).toEqual([
 			"acp --agent-engine=v3",
-			"acp --agent auto-sa",
+			"acp --agent team-agent",
 			"acp --agent-engine=v3",
-			"acp --agent auto-sa",
+			"acp --agent team-agent",
 		]);
 		await client.disconnect();
 		await client.whenTornDown();
@@ -229,7 +229,7 @@ describe("I302 — Default (V3) on a kiro-cli without V3", () => {
 		const result = await client.initialize(config("v2only"));
 		expect(spawns("v2only")).toEqual([
 			"acp --agent-engine=v3",
-			"acp --agent-engine=v2 --agent auto-sa",
+			"acp --agent-engine=v2 --agent team-agent",
 		]);
 		expect(result.kiroEngine).toBe("v2");
 		expect(result.kiroEngineFallback).toBe("old-cli");
@@ -244,7 +244,7 @@ describe("I302 — Default (V3) on a kiro-cli without V3", () => {
 		const err = await settle(client.initialize(config("v2onlybroken")));
 		expect(spawns("v2onlybroken")).toEqual([
 			"acp --agent-engine=v3",
-			"acp --agent-engine=v2 --agent auto-sa",
+			"acp --agent-engine=v2 --agent team-agent",
 		]);
 		expect(errorTitle(err)).toBe("Kiro CLI needs an update");
 		expect(errorSuggestion(err)).toMatch(/kiro-cli update/);
@@ -276,7 +276,7 @@ describe("I302 — Default (V3) on a kiro-cli without V3", () => {
 		const err = await settle(client.initialize(config("oldbroken")));
 		expect(spawns("oldbroken")).toEqual([
 			"acp --agent-engine=v3",
-			"acp --agent auto-sa",
+			"acp --agent team-agent",
 		]);
 		expect(errorTitle(err)).toBe("Kiro CLI needs an update");
 		expect(errorSuggestion(err)).toMatch(/kiro-cli update/);

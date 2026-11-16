@@ -42,10 +42,10 @@ const load = (raw: Record<string, unknown>) =>
 	normalizeRawSettings(raw, DEFAULT_SETTINGS, idKey);
 
 const kiroCustom = {
-	id: "auto-sa",
-	displayName: "Auto SA",
+	id: "team-agent",
+	displayName: "Team Agent",
 	command: "/Users/x/.toolbox/bin/kiro-cli",
-	args: ["acp", "--agent", "auto-sa"],
+	args: ["acp", "--agent", "team-agent"],
 	env: [],
 };
 const claudeCustom = {
@@ -129,13 +129,13 @@ describe("D1 resolution: Default launches V3", () => {
 
 	it("a kiro-cli custom agent with no engine follows Default (V3)", () => {
 		const s = load({ customAgents: [kiroCustom] });
-		const c = buildAgentConfigWithApiKey(s, s.customAgents[0], "auto-sa", "/vault");
+		const c = buildAgentConfigWithApiKey(s, s.customAgents[0], "team-agent", "/vault");
 		expect(c.kiroEngine).toBe("v3");
 	});
 
 	it("a kiro-cli custom agent set to V2 stays on V2", () => {
 		const s = load({ customAgents: [{ ...kiroCustom, engine: "v2" }] });
-		const c = buildAgentConfigWithApiKey(s, s.customAgents[0], "auto-sa", "/vault");
+		const c = buildAgentConfigWithApiKey(s, s.customAgents[0], "team-agent", "/vault");
 		expect(c.kiroEngine).toBe("v2");
 		expect(resolveLaunchArgs(c)).toContain("--agent-engine=v2");
 	});

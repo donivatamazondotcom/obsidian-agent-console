@@ -52,7 +52,7 @@ export interface HeaderSegments {
 	titleIsDefault: boolean;
 	/** Grey text after the title (`deriveHeaderExtras`). */
 	extras: HeaderExtras;
-	/** Configured agent display name (e.g. "Auto SA"); tooltip Agent line. */
+	/** Configured agent display name (e.g. "Team Agent"); tooltip Agent line. */
 	profile: string;
 	/** Engine the tab runs on (`deriveHeaderEngine`); tooltip only. */
 	engine: HeaderEngine;

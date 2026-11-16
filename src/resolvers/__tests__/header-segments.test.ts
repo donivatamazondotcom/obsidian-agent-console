@@ -49,7 +49,7 @@ function input(over: Partial<HeaderSegmentsInput> & { session: HeaderSegmentsInp
 	return {
 		title: "Explain vector embeddings",
 		titleIsDefault: false,
-		profile: "Auto SA",
+		profile: "Team Agent",
 		cwd: "/vault",
 		composer: deriveComposerPickers({
 			configOptions: s.configOptions,
@@ -66,12 +66,12 @@ describe("deriveHeaderSegments", () => {
 	it("connected Kiro V3: title only; the tooltip still names agent, engine and model", () => {
 		const seg = deriveHeaderSegments(
 			input({
-				configuredKiroAgent: "auto-sa",
+				configuredKiroAgent: "team-agent",
 				session: {
 					kiroCli: true,
 					kiroEngine: "v3",
-					configOptions: KIRO_OPTIONS("auto-sa", [
-						["auto-sa", "auto-sa"],
+					configOptions: KIRO_OPTIONS("team-agent", [
+						["team-agent", "team-agent"],
 						["kiro_default", "kiro_default"],
 					]),
 				},
@@ -79,7 +79,7 @@ describe("deriveHeaderSegments", () => {
 		);
 		expect(seg.title).toBe("Explain vector embeddings");
 		expect(seg.extras).toEqual({ agent: null, model: null });
-		expect(seg.agent).toEqual({ kind: "configured", label: "Auto SA" });
+		expect(seg.agent).toEqual({ kind: "configured", label: "Team Agent" });
 		expect(seg.engine).toEqual({ kind: "kiroCli", engine: "v3" });
 		expect(seg.model).toBe("claude-opus-5.5");
 		expect(seg.mode).toBeNull();
@@ -89,7 +89,7 @@ describe("deriveHeaderSegments", () => {
 	it("Kiro: the requested agent isn't offered → the warning (I207)", () => {
 		const seg = deriveHeaderSegments(
 			input({
-				configuredKiroAgent: "auto-sa",
+				configuredKiroAgent: "team-agent",
 				session: {
 					kiroCli: true,
 					kiroEngine: "v3",
@@ -102,7 +102,7 @@ describe("deriveHeaderSegments", () => {
 		);
 		expect(seg.extras.agent).toEqual({
 			kind: "notLoaded",
-			label: "Auto SA",
+			label: "Team Agent",
 			running: "kiro_default",
 		});
 	});
@@ -112,7 +112,7 @@ describe("deriveHeaderSegments", () => {
 			input({
 				profile: "Claude Code",
 				title: "Debug the failing CI pipeline",
-				configuredKiroAgent: "auto-sa",
+				configuredKiroAgent: "team-agent",
 				// Legacy modes only, so the composer shows a mode picker: the grey
 				// agent name must stay because modes aren't agents here.
 				session: {

@@ -206,13 +206,13 @@ describe("decideComposerEnterAction — landing launcher (send-bug reproduce-fir
 describe("buildQueuedBanner (Q2)", () => {
 	it("streaming (ready): sends when the agent is done", () => {
 		expect(
-			buildQueuedBanner({ agentLabel: "Auto SA", isSessionReady: true }),
-		).toBe("Queued — sends when Auto SA is done");
+			buildQueuedBanner({ agentLabel: "Team Agent", isSessionReady: true }),
+		).toBe("Queued — sends when Team Agent is done");
 	});
 
 	it("pre-ready (connecting): sends when ready", () => {
 		expect(
-			buildQueuedBanner({ agentLabel: "Auto SA", isSessionReady: false }),
+			buildQueuedBanner({ agentLabel: "Team Agent", isSessionReady: false }),
 		).toBe("Queued — sends when ready");
 	});
 });
@@ -280,11 +280,11 @@ describe("isQueuedSendBlocked (smoke-test issue 3)", () => {
 // --- composer placeholder affordance (option A, queue-only) -----------------
 
 describe("buildComposerPlaceholder (streaming hint)", () => {
-	const base = { agentLabel: "Auto SA", hasCommands: true, isStreaming: false, isQueued: false };
+	const base = { agentLabel: "Team Agent", hasCommands: true, isStreaming: false, isQueued: false };
 
 	it("idle: teaches mention/command/quick-prompt affordances", () => {
 		expect(buildComposerPlaceholder(base)).toBe(
-			"Message Auto SA - @ to mention notes, / for commands, ! for quick prompts",
+			"Message Team Agent - @ to mention notes, / for commands, ! for quick prompts",
 		);
 	});
 
@@ -296,7 +296,7 @@ describe("buildComposerPlaceholder (streaming hint)", () => {
 
 	it("streaming: teaches the Enter-to-queue keybinding", () => {
 		const p = buildComposerPlaceholder({ ...base, isStreaming: true });
-		expect(p).toBe("Queue a message – hit Enter to send when Auto SA is done");
+		expect(p).toBe("Queue a message – hit Enter to send when Team Agent is done");
 	});
 
 	it("queue-only wording for now (no steering mention yet)", () => {
@@ -569,7 +569,7 @@ describe("isSteerGesture — mode-aware, never collides with the send key (#81)"
 
 describe("buildComposerPlaceholder — teaches both keybindings when labeled (#81)", () => {
 	const base = {
-		agentLabel: "Auto SA",
+		agentLabel: "Team Agent",
 		hasCommands: true,
 		isStreaming: true,
 		isQueued: false,
@@ -597,7 +597,7 @@ describe("buildComposerPlaceholder — teaches both keybindings when labeled (#8
 
 	it("falls back to queue-only wording when labels are absent (backward compatible)", () => {
 		expect(buildComposerPlaceholder(base)).toBe(
-			"Queue a message – hit Enter to send when Auto SA is done",
+			"Queue a message – hit Enter to send when Team Agent is done",
 		);
 	});
 });

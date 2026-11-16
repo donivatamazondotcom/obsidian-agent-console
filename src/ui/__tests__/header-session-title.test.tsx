@@ -117,10 +117,10 @@ describe("the header's words stay apart for screen readers (UX rules check)", ()
 		cleanup();
 		const { container: b } = renderHeader(
 			segments({
-				extras: { agent: { kind: "notLoaded", label: "Auto SA", running: "kiro_default" }, model: null },
+				extras: { agent: { kind: "notLoaded", label: "Team Agent", running: "kiro_default" }, model: null },
 			}),
 		);
-		expect(spokenText(q(b, ".acp-header-branded"))).toMatch(/Auto SA\s+kiro_default/);
+		expect(spokenText(q(b, ".acp-header-branded"))).toMatch(/Team Agent\s+kiro_default/);
 	});
 });
 
@@ -160,13 +160,13 @@ describe("ChatHeader shows the chat title (Test 6)", () => {
 	it("agent didn't load: struck-out name, running agent, warning modifier", () => {
 		const { container } = renderHeader(
 			segments({
-				extras: { agent: { kind: "notLoaded", label: "Auto SA", running: "kiro_default" }, model: null },
+				extras: { agent: { kind: "notLoaded", label: "Team Agent", running: "kiro_default" }, model: null },
 			}),
 		);
-		expect(q(container, "del.acp-header-branded-profile")?.textContent).toBe("Auto SA");
+		expect(q(container, "del.acp-header-branded-profile")?.textContent).toBe("Team Agent");
 		expect(q(container, ".acp-header-branded-running")?.textContent).toBe("kiro_default");
 		expect(q(container, ".acp-header-branded")?.classList.contains("acp-header-branded--warning")).toBe(true);
-		expect(q(container, ".acp-header-branded-extras")?.textContent).toBe(" · Auto SA kiro_default");
+		expect(q(container, ".acp-header-branded-extras")?.textContent).toBe(" · Team Agent kiro_default");
 	});
 
 	it("switched: 'label › running'", () => {
@@ -306,20 +306,20 @@ function renderBoth(f: Fixture) {
 describe("the header and the composer never both name the agent or the model (Test 5)", () => {
 	it("connected Kiro V3 (mode and model config options): the header is the title alone", () => {
 		const { headerText, composerText } = renderBoth({
-			label: "Auto SA",
-			requestedModeId: "auto-sa",
+			label: "Team Agent",
+			requestedModeId: "team-agent",
 			kiroCli: true,
 			title: "Explain vector embeddings",
 			configOptions: [
-				option("mode", "mode", "auto-sa", [["auto-sa", "auto-sa"], ["kiro_default", "kiro_default"]]),
+				option("mode", "mode", "team-agent", [["team-agent", "team-agent"], ["kiro_default", "kiro_default"]]),
 				option("model", "model", "opus", [["opus", "claude-opus-5.5"], ["sonnet", "claude-sonnet-5"]]),
 				option("thought_level", "thought_level", "x", [["x", "xHigh"], ["h", "High"]]),
 			],
 		});
 		expect(headerText).toBe("explain vector embeddings");
-		expect(composerText).toContain("auto-sa");
+		expect(composerText).toContain("team-agent");
 		expect(composerText).toContain("claude-opus-5.5");
-		for (const name of ["auto-sa", "auto sa", "claude-opus-5.5"]) {
+		for (const name of ["team-agent", "team agent", "claude-opus-5.5"]) {
 			expect(headerText.includes(name) && composerText.includes(name)).toBe(false);
 		}
 	});
