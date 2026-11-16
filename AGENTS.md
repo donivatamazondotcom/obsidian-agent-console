@@ -111,6 +111,8 @@ src/
 │   │   ├── segmenter.ts         # Assistant-message segmentation (markdown | a2ui-surface) upstream of MarkdownRenderer; lossless (segments rebuild the text)
 │   │   ├── action.ts            # v1.0 action envelope + sent user message + payload-derived display summary (label is decoration)
 │   │   ├── surface-state.ts     # Pure resolvers: answered state from transcript (restore/replay); idle-only action enablement
+│   │   ├── turn-store.ts        # I376: per-panel store for the tab's turn state (sending, queued, restoring, session state, held surface); only clickable surface hosts read it, so a turn edge doesn't re-render every bubble
+│   │   ├── bubble-context.ts    # A2uiBubbleContext: the a2ui object every message bubble receives (answers, first/latest definition, onActivate); no turn state (I376)
 │   │   ├── activate.ts          # Button-activation orchestration: refocus fires at DISPATCH time, not turn-end (A2UI-I01)
 │   │   ├── capability.ts        # D9 ACP-init capability advertisement for the a2ui binding (a2uiClientCapabilities under namespaced _meta)
 │   │   └── validator.ts         # Total no-throw envelope/profile/graph/limits validation (probe checks V02–V14)
@@ -153,6 +155,7 @@ src/
 │   ├── useLandingHistoryModal.ts # View-level Local-only session-history modal opener for the zero-tab landing (no ChatPanel host); restore/fork route through openSessionInTab
 │   ├── useOpenChatBridge.ts     # One stable per-panel chat-link bridge over the live tabs and id maps (latest-value refs), registered through view.setOpenChat (Chat ID D12)
 │   ├── useComposerFocusReturn.ts # Return focus to composer after in-panel state changes (guarded by composer-cluster focus)
+│   ├── useA2uiWiring.ts         # Per-panel A2UI wiring: detached-send port, transcript-derived answers/definitions, the bubble context (identity changes only when a surface is defined or answered), and the A2UI turn store it publishes in a layout effect (I376)
 │   ├── useSettings.ts           # Settings subscription (useSyncExternalStore)
 │   ├── useRecentlyClosedTabs.ts # F13 undo-close: per-leaf in-memory recently-closed stack
 │   ├── useMessageQueue.ts       # #82 queue-of-one: runtime-only next-message slot (auto-sends on turn end)
@@ -190,6 +193,7 @@ src/
 │   ├── A2uiSurfaceHost.tsx      # Agent-emitted buttons-v0 surface host: validate-at-edge, native buttons, resolver-gated enablement, inert fallback
 │   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button, prompt and gap stamps, hover-row time)
 │   ├── turn-activity-context.ts # Chat Timestamps PR 3: React binding for the turn-activity store (context, useTurnActivitySlice string selectors, useTurnActivityTicker: 1 s while the tab's turn runs and the tab is visible); a permission change kicks an immediate tick
+│   ├── a2ui-turn-context.ts     # I376: React binding for the A2UI turn store (context + useA2uiTurnSlice selector); the default store outside a provider refuses every click
 │   ├── TimeStamp.tsx            # Chat Timestamps: memoized stamp leaf (prompt/end/gap/hover-row times, static aria-label + data-stamp-label), delegated hover ages (useStampHoverAges), day-store registration per view (useDayStoreRegistration); formatStampRange (a tool row's start-to-end label)
 │   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting); Chat Timestamps PR 3: row time (duration, RunningToolTime leaf, Stopped / Open at turn end) and its start/end in the row label, refreshed through a date-form day-store selector
 │   ├── TerminalBlock.tsx        # Terminal output polling
@@ -227,6 +231,7 @@ src/
 │       └── useTooltip.ts        # attachTooltip / tooltipRef / useTooltip — the ONE sanctioned way to attach a tooltip; wraps Obsidian setTooltip (whose mechanism IS aria-label), composes visible label + reason via deriveTooltipText so the accessible name keeps the visible text (WCAG 2.5.3), and clears a stale tooltip; restoreStaticTooltip puts a static label back after a hover (Chat Timestamps). The DOM `title` attribute is an ESLint error (I199)
 ├── resolvers/                   # Pure decision functions (derive*/decide*) — no React/Obsidian/SDK imports; exhaustive switches (resolver-zone.test.ts)
 │   ├── a2ui-dispatch.ts            # deriveA2uiTabDispatch — pure tab-level resolver for what activating an interactive-surface control does (sendNow / acquireAndSend / refuse+reason); read by BOTH the surface renderer (via deriveSurfaceActionAffordance) and SessionDispatchPort so an enabled button always has a dispatchable port; gates on intent, not connection state (A2UI-I08)
+│   ├── a2ui-surface-refusal.ts     # deriveSurfaceScopedRefusal — answered / pending / superseded / streaming, checked before any tab state; shared by deriveSurfaceActionAffordance and A2uiSurfaceHost (which skips subscribing to turn state when it refuses) (I376)
 │   ├── ai-title-apply.ts           # decideAiTitleApply — F15: apply an AI title only if the user didn't rename meanwhile; suffix on collision
 │   ├── ai-rename-affordance.ts     # deriveAiRenameAffordance — I210: Rename with AI is disabled when the agent can't close the side session
 │   ├── agent-picker-options.ts     # deriveAgentPickerOptions — pure landing agent-picker resolver (detection-gated, default-first, shown only on a real choice)

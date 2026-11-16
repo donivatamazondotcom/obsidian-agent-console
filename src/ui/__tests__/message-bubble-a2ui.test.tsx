@@ -42,6 +42,26 @@ afterEach(cleanup);
 import { MessageBubble, type A2uiBubbleContext } from "../MessageBubble";
 import type { ChatMessage } from "../../types/chat";
 import type AgentClientPlugin from "../../plugin";
+import { A2uiTurnStoreContext } from "../a2ui-turn-context";
+import { createA2uiTurnStore } from "../../services/a2ui/turn-store";
+
+/**
+ * Hosts read turn state from the panel's store (I376). Render under an IDLE
+ * store, as ChatPanel provides one; the unprovided default refuses every
+ * click, which would make the streaming test below pass for the wrong reason.
+ */
+function renderWithStore(ui: React.ReactElement) {
+	const store = createA2uiTurnStore({
+		isSending: false,
+		isQueued: false,
+		isRestoringSession: false,
+		sessionState: "ready",
+		heldSurfaceId: null,
+	});
+	return render(
+		<A2uiTurnStoreContext.Provider value={store}>{ui}</A2uiTurnStoreContext.Provider>,
+	);
+}
 
 const PLUGIN = {
 	app: { workspace: { getActiveFile: () => null } },
@@ -69,11 +89,6 @@ function makeA2ui(
 		answers: new Map(),
 		isFirstDefinition: () => true,
 		latestSurfaceId: null,
-		isSending: false,
-		isQueued: false,
-		isRestoringSession: false,
-		sessionState: "ready",
-		heldSurfaceId: null,
 		onActivate: vi.fn().mockResolvedValue("sent"),
 		...overrides,
 	};
@@ -81,7 +96,7 @@ function makeA2ui(
 
 describe("MessageBubble × a2ui — assistant messages", () => {
 	it("mounts a surface host sibling for a closed fence when wired (T01)", () => {
-		const { container } = render(
+		const { container } = renderWithStore(
 			<MessageBubble
 				message={makeMessage("assistant", ASSISTANT_TEXT)}
 				plugin={PLUGIN}
@@ -104,7 +119,7 @@ describe("MessageBubble × a2ui — assistant messages", () => {
 	});
 
 	it("renders the fence as plain markdown when no a2ui context is wired (T07)", () => {
-		const { container } = render(
+		const { container } = renderWithStore(
 			<MessageBubble
 				message={makeMessage("assistant", ASSISTANT_TEXT)}
 				plugin={PLUGIN}
@@ -114,8 +129,26 @@ describe("MessageBubble × a2ui — assistant messages", () => {
 		expect(container.textContent).toContain(ENVELOPE);
 	});
 
+	it("enables buttons on an idle tab when this turn is not streaming", () => {
+		renderWithStore(
+			<MessageBubble
+				message={makeMessage("assistant", ASSISTANT_TEXT)}
+				plugin={PLUGIN}
+				a2ui={makeA2ui()}
+				a2uiIsStreamingTurn={false}
+			/>,
+		);
+		const surfaceButtons = screen
+			.getAllByRole("button")
+			.filter((b) => b.className.includes("a2ui"));
+		expect(surfaceButtons.length).toBeGreaterThanOrEqual(1);
+		for (const b of surfaceButtons) {
+			expect((b as HTMLButtonElement).disabled).toBe(false);
+		}
+	});
+
 	it("keeps buttons disabled while this turn streams (T01 tail)", () => {
-		render(
+		renderWithStore(
 			<MessageBubble
 				message={makeMessage("assistant", ASSISTANT_TEXT)}
 				plugin={PLUGIN}
@@ -133,7 +166,7 @@ describe("MessageBubble × a2ui — assistant messages", () => {
 	});
 
 	it("shows the answered state from the transcript-derived map (T05)", () => {
-		render(
+		renderWithStore(
 			<MessageBubble
 				message={makeMessage("assistant", ASSISTANT_TEXT)}
 				plugin={PLUGIN}
@@ -151,7 +184,7 @@ describe("MessageBubble × a2ui — assistant messages", () => {
 
 describe("MessageBubble × a2ui — user action messages (T02/T08/D14)", () => {
 	it("never mounts a surface for fences in user messages (T08)", () => {
-		const { container } = render(
+		const { container } = renderWithStore(
 			<MessageBubble
 				message={makeMessage("user", ACTION_TEXT)}
 				plugin={PLUGIN}
@@ -162,7 +195,7 @@ describe("MessageBubble × a2ui — user action messages (T02/T08/D14)", () => {
 	});
 
 	it("renders the action compactly: summary visible, envelope behind a disclosure (D14)", () => {
-		const { container } = render(
+		const { container } = renderWithStore(
 			<MessageBubble
 				message={makeMessage("user", ACTION_TEXT)}
 				plugin={PLUGIN}
@@ -183,7 +216,7 @@ describe("MessageBubble × a2ui — user action messages (T02/T08/D14)", () => {
 	});
 
 	it("leaves ordinary user messages untouched", () => {
-		const { container } = render(
+		const { container } = renderWithStore(
 			<MessageBubble
 				message={makeMessage("user", "just a normal message")}
 				plugin={PLUGIN}
@@ -212,7 +245,7 @@ describe("MessageBubble × a2ui — action alignment modifier class (I179)", () 
 	}
 
 	it("marks a user action message so the 16px alignment rule applies", () => {
-		const { container } = render(
+		const { container } = renderWithStore(
 			<MessageBubble
 				message={makeMessage("user", ACTION_TEXT)}
 				plugin={PLUGIN}
@@ -235,7 +268,7 @@ describe("MessageBubble × a2ui — action alignment modifier class (I179)", () 
 	});
 
 	it("does not mark an ordinary user message (keeps the 8px bubble inset)", () => {
-		const { container } = render(
+		const { container } = renderWithStore(
 			<MessageBubble
 				message={makeMessage("user", "just a normal message")}
 				plugin={PLUGIN}
@@ -246,7 +279,7 @@ describe("MessageBubble × a2ui — action alignment modifier class (I179)", () 
 	});
 
 	it("does not mark an assistant message that carries a surface fence", () => {
-		const { container } = render(
+		const { container } = renderWithStore(
 			<MessageBubble
 				message={makeMessage("assistant", ASSISTANT_TEXT)}
 				plugin={PLUGIN}
@@ -260,7 +293,7 @@ describe("MessageBubble × a2ui — action alignment modifier class (I179)", () 
 	it("does not mark a user action message when no a2ui context is wired", () => {
 		// Without the a2ui context the compact action body never renders, so
 		// the old `:has()` never matched either — parity matters here.
-		const { container } = render(
+		const { container } = renderWithStore(
 			<MessageBubble
 				message={makeMessage("user", ACTION_TEXT)}
 				plugin={PLUGIN}
@@ -283,7 +316,7 @@ describe("MessageBubble × a2ui — action alignment modifier class (I179)", () 
 				{ type: "text", text: ACTION_TEXT },
 			],
 		} as ChatMessage;
-		const { container } = render(
+		const { container } = renderWithStore(
 			<MessageBubble message={message} plugin={PLUGIN} a2ui={makeA2ui()} />,
 		);
 		expect(container.querySelector(MODIFIER)).not.toBeNull();
