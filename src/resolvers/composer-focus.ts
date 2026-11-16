@@ -45,8 +45,11 @@
  *    the composer, so PageDown scrolls the reply instead of editing the
  *    draft. The command never moves focus.
  *  - Jump to latest (the down pill): a pointer click keeps focus where it
- *    was. Keyboard activation still drops focus to the body when the pill
- *    unmounts (I358, open).
+ *    was. When the pill disappears while it has focus (Enter, Space, a click
+ *    after Tab, or scrolling to the bottom from it), focus returns to this
+ *    tab's composer through `scheduleViewRefocus` (I358). A local handler,
+ *    like the up chevron, because the pill lives in MessageList, outside the
+ *    `focusAfter` seam.
  *
  * Pure — no React, no Obsidian. Unit-tested exhaustively.
  *

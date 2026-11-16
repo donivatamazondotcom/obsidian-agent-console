@@ -36,12 +36,12 @@ afterEach(cleanup);
 
 const settingsSnapshot = { sendMessageShortcut: "enter" };
 
-function makePlugin(): AgentClientPlugin {
+function makePlugin(snapshot: { sendMessageShortcut: string } = settingsSnapshot): AgentClientPlugin {
 	return {
 		settings: { displaySettings: { showEmojis: false } },
 		settingsService: {
 			subscribe: () => () => {},
-			getSnapshot: () => settingsSnapshot,
+			getSnapshot: () => snapshot,
 		},
 		app: { vault: { getConfig: () => true } },
 	} as unknown as AgentClientPlugin;
@@ -166,5 +166,84 @@ describe("InputArea — mention selection caret (reported bug)", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+});
+
+// ============================================================================
+// I358: a held Enter whose press started outside the composer must not select
+// a picker row (e.g. "+N" focuses the composer and opens the ! picker), and a
+// press that started here keeps repeating newlines after it picks a row.
+// ============================================================================
+function closedSuggestions(): UseSuggestionsReturn {
+	const closed = {
+		isOpen: false,
+		suggestions: [] as unknown[],
+		selectedIndex: 0,
+		createRow: null,
+		updateSuggestions: () => undefined,
+		close: () => undefined,
+		selectSuggestion: (v: string) => ({ newText: v, newCursorPos: v.length }),
+	};
+	return {
+		mentions: closed,
+		commands: closed,
+		quickPrompts: closed,
+		activePicker: null,
+	} as unknown as UseSuggestionsReturn;
+}
+
+/** The mention picker open with its resolved keyboard route, as useSuggestions builds it. */
+function mentionPickerForKeys(): UseSuggestionsReturn {
+	const s = mentionOpenSuggestions() as unknown as {
+		mentions: { suggestions: unknown[]; selectedIndex: number };
+		activePicker: unknown;
+	};
+	s.activePicker = {
+		kind: "mention",
+		isOpen: true,
+		items: s.mentions.suggestions,
+		selectedIndex: 0,
+		navigate: () => undefined,
+		dismiss: () => undefined,
+		capabilities: { dismissOnShiftEnter: true, ownsEnterScopeCombos: false },
+	};
+	return s as unknown as UseSuggestionsReturn;
+}
+
+describe("InputArea — held Enter and an open picker (I358)", () => {
+	it("T12e: a repeat with no press in the composer doesn't select the highlighted row", () => {
+		const suggestions = mentionPickerForKeys();
+		const select = vi.spyOn(
+			suggestions.mentions as unknown as { selectSuggestion: () => unknown },
+			"selectSuggestion",
+		);
+		const { container } = render(<InputArea {...baseProps({ suggestions })} />);
+		const textarea = container.querySelector(
+			"textarea.agent-client-chat-input-textarea",
+		) as HTMLTextAreaElement;
+		textarea.focus();
+		expect(fireEvent.keyDown(textarea, { key: "Enter", repeat: true })).toBe(false);
+		expect(select).not.toHaveBeenCalled();
+	});
+
+	it("T12f (guard): Cmd+Enter mode – a fresh Enter that picks a row keeps repeating newlines", () => {
+		const suggestions = mentionPickerForKeys();
+		const select = vi.spyOn(
+			suggestions.mentions as unknown as { selectSuggestion: () => unknown },
+			"selectSuggestion",
+		);
+		const plugin = makePlugin({ sendMessageShortcut: "cmd-enter" });
+		const { container, rerender } = render(
+			<InputArea {...baseProps({ suggestions, plugin })} />,
+		);
+		const textarea = container.querySelector(
+			"textarea.agent-client-chat-input-textarea",
+		) as HTMLTextAreaElement;
+		textarea.focus();
+		fireEvent.keyDown(textarea, { key: "Enter" });
+		expect(select).toHaveBeenCalledTimes(1);
+		// The picker closes after the pick.
+		rerender(<InputArea {...baseProps({ suggestions: closedSuggestions(), plugin })} />);
+		expect(fireEvent.keyDown(textarea, { key: "Enter", repeat: true })).toBe(true);
 	});
 });

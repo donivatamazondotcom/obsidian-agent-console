@@ -21,6 +21,7 @@ import type AgentClientPlugin from "../../plugin";
 import type { AgentClientPluginSettings } from "../../plugin";
 import { WhatsNewCard } from "../WhatsNewCard";
 import { createWhatsNewForcedStore } from "../../whats-new/forced-store";
+import { scheduleViewRefocus } from "../composer-focus";
 
 type Saves = AgentClientPluginSettings[];
 
@@ -265,5 +266,31 @@ describe("I300 keyboard dismiss returns focus (review F2)", () => {
 		(document.activeElement as HTMLElement | null)?.blur();
 		await act(async () => fireEvent.click(dismissButton(container)!));
 		expect(onDismissed).not.toHaveBeenCalled();
+	});
+});
+
+describe("I358 guard x I300: the card unmounts before the refocus frame", () => {
+	it("T13: a keyboard Dismiss puts focus in the composer after a real frame", async () => {
+		const { service } = makeStore({});
+		let host: HTMLElement | null = null;
+		const { container } = render(
+			<div>
+				<WhatsNewCard
+					settingsStore={service}
+					forcedStore={createWhatsNewForcedStore()}
+					currentVersion="2.5.0"
+					onDismissed={() => scheduleViewRefocus(host)}
+				/>
+				<textarea className="agent-client-chat-input-textarea" />
+			</div>,
+		);
+		host = container.firstElementChild as HTMLElement;
+		dismissButton(container)!.focus();
+		await act(async () => fireEvent.click(dismissButton(container)!));
+		expect(region(container)).toBeNull();
+		await act(async () => {
+			await new Promise<void>((r) => window.requestAnimationFrame(() => r()));
+		});
+		expect(document.activeElement).toBe(container.querySelector("textarea"));
 	});
 });

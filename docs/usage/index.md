@@ -53,7 +53,7 @@ While the agent writes, the chat follows the newest text. So when a long reply f
 
 When a reply mixes text and tool calls, the up arrow goes to the text that comes after the last tool call – the final answer, not the agent's first "Let me check" note.
 
-You can also run **Jump to start of latest reply** from the command palette. It works anytime, even while the agent is still writing. To use it from the keyboard, bind a hotkey under **Settings → Hotkeys**. If you reach the up arrow with Tab and press Enter, focus moves to the reply, so Page Down keeps reading from there.
+You can also run **Jump to start of latest reply** from the command palette. It works anytime, even while the agent is still writing. To use it from the keyboard, bind a hotkey under **Settings → Hotkeys**. If you reach the up arrow with Tab and press Enter, focus moves to the reply, so Page Down keeps reading from there. If you reach the down arrow with Tab and press Enter or Space, or scroll to the bottom from it, focus moves to the message box so you can type your next message.
 
 ## Copying a Message
 

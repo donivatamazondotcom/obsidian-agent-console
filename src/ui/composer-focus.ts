@@ -64,15 +64,29 @@ export function scheduleComposerRefocus(container: HTMLElement | null): void {
 
 /**
  * After a focused control inside the view is removed (the "What's new" card's
- * Dismiss, I300): focus the active composer, or – on the no-agent landing,
- * which has none – the view's first visible control, so keyboard focus never
- * falls back to <body>. Runs on the next animation frame, after the unmount.
+ * Dismiss, I300; the "Jump to latest" pill, I358): focus the active composer,
+ * or – on the no-agent landing, which has none – the view's first visible
+ * control, so keyboard focus never falls back to <body>. Runs on the next
+ * animation frame, after the unmount.
+ *
+ * The frame and the focus check come from the container's own window and
+ * document, so a chat in a popout uses the popout's (a main-window frame can
+ * stall while that window is in the background, AGENTS.md I168). At frame
+ * time it does nothing when:
+ *  - the container is gone or hidden (a tab switch or close). This is checked
+ *    here, not by the caller, because in the commit that removes the control
+ *    the tab wrapper's new inline display isn't applied yet;
+ *  - focus is no longer on <body>: something else (the tab-activation or
+ *    queue-flush composer refocus, or a user click) has already placed it.
  */
 export function scheduleViewRefocus(container: HTMLElement | null): void {
 	if (!container) return;
-	window.requestAnimationFrame(() => {
+	const doc = container.ownerDocument;
+	const win = doc.defaultView ?? window;
+	win.requestAnimationFrame(() => {
+		if (!container.isConnected || isHiddenByDisplay(container)) return;
+		if (doc.activeElement !== null && doc.activeElement !== doc.body) return;
 		focusActiveTabComposer(container);
-		const doc = container.ownerDocument;
 		if (container.contains(doc.activeElement)) return;
 		// Try candidates in order until one takes focus: a control hidden by
 		// a stylesheet (not an inline display:none) silently refuses focus().

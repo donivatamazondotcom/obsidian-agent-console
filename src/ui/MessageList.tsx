@@ -1,6 +1,6 @@
 import type { PermissionScopeChoice } from "../types/chat";
 import * as React from "react";
-const { memo, useCallback, useEffect, useRef, useState } = React;
+const { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } = React;
 
 import type { ChatMessage } from "../types/chat";
 import type { AcpClient } from "../acp/acp-client";
@@ -38,6 +38,7 @@ import {
 } from "../services/agent-packages";
 import type { InstallResult } from "../services/agent-installer";
 import { t } from "../i18n";
+import { scheduleViewRefocus } from "./composer-focus";
 
 /**
  * Memoized wrapper around MessageBubble. Skips re-rendering when the
@@ -759,6 +760,13 @@ export function MessageList({
  *
  * Click handler is provided by the parent via the useAutoScrollPin hook's
  * scrollToBottom callback — keeps scroll concerns in one place.
+ *
+ * I358: the pill renders only while the view isn't at the bottom, so it
+ * unmounts while focused whenever a keyboard user activates it (Enter,
+ * Space), scrolls to the bottom from it (End, PageDown), or a send or a
+ * re-pin reaches the bottom. Its unmount hands focus to this tab's composer
+ * instead of letting it fall to the body. React runs this layout cleanup
+ * before it removes the button, so the focus check sees real focus.
  */
 function ScrollToBottomButton({ onClick }: { onClick: () => void }) {
 	const btnRef = useRef<HTMLButtonElement>(null);
@@ -769,14 +777,25 @@ function ScrollToBottomButton({ onClick }: { onClick: () => void }) {
 		}
 	}, []);
 
+	useLayoutEffect(() => {
+		const btn = btnRef.current;
+		return () => {
+			if (!btn || btn.ownerDocument.activeElement !== btn) return;
+			scheduleViewRefocus(
+				btn.closest<HTMLElement>(".agent-client-chat-view-container"),
+			);
+		};
+	}, []);
+
 	return (
 		<button
 			ref={btnRef}
+			type="button"
 			className="clickable-icon agent-client-scroll-to-bottom"
 			aria-label={t("chat.messages.jumpToLatest")}
 			// A pointer press keeps focus where it was (usually the composer):
-			// Chromium would focus the button, which unmounts once the view
-			// reaches the bottom and drops focus to the body.
+			// Chromium would focus the button, which unmounts on the click's
+			// re-render (scrollToBottom sets isAtBottom synchronously).
 			onMouseDown={(event) => event.preventDefault()}
 			onClick={onClick}
 		/>
