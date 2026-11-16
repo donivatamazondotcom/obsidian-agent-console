@@ -768,7 +768,8 @@ del.acp-header-branded-profile {
 .agent-client-message-actions,
 .agent-client-loading-indicator,
 .agent-client-scroll-to-bottom,
-.agent-client-jump-to-reply-start-anchor {
+.agent-client-jump-to-reply-start-anchor,
+.agent-client-stamp {
 	overflow-anchor: none;
 }
 
@@ -795,6 +796,55 @@ del.acp-header-branded-profile {
 	color: var(--text-muted);
 	padding: 0 var(--size-4-3);
 	margin-top: -2px;
+}
+
+/* Chat Timestamps: faint times under prompts, at turn ends, over gaps, and in
+   an agent message's hover row. Passive by design: no badge, no color but
+   the faint text tone. Tabular figures keep the digits from shifting. */
+.agent-client-stamp {
+	color: var(--text-faint);
+	font-size: var(--font-smallest);
+	font-variant-numeric: tabular-nums;
+	line-height: var(--line-height-tight);
+}
+
+/* Each stamp shrinks to its text, so only the time itself is a hover target
+   and its tooltip centers on it. */
+.agent-client-stamp-prompt {
+	display: block;
+	width: fit-content;
+	max-width: calc(100% - var(--size-4-3));
+	margin: 0 var(--size-4-3) 0 auto;
+	padding-top: 2px;
+	text-align: right;
+}
+
+/* Left-aligned with the agent's text, so the hover row (bottom right of the
+   bubble) doesn't cover it. */
+.agent-client-stamp-end {
+	display: block;
+	width: fit-content;
+	max-width: calc(100% - 32px);
+	margin: 0 16px;
+	padding-top: 2px;
+}
+
+.agent-client-stamp-gap {
+	display: block;
+	width: fit-content;
+	max-width: 100%;
+	margin: var(--size-4-2) 0 2px;
+}
+
+/* Hidden with its row until the message is hovered, so its text must not be
+   picked up by a selection across replies. */
+.agent-client-stamp-hover {
+	display: inline-flex;
+	align-items: center;
+	padding: 0 var(--size-2-2);
+	color: var(--text-muted);
+	white-space: nowrap;
+	user-select: none;
 }
 
 /* Allow horizontal scroll for wide tables within messages */

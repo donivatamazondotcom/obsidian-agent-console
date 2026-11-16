@@ -80,6 +80,7 @@ export default defineConfig({
           { text: "Slash Commands", link: "/usage/slash-commands" },
           { text: "Quick Prompts", link: "/usage/quick-prompts" },
           { text: "Queueing & Steering", link: "/usage/queue-and-steering" },
+          { text: "Times in the Chat", link: "/usage/chat-timestamps" },
           { text: "Mode Selection", link: "/usage/mode-selection" },
           { text: "Model Selection", link: "/usage/model-selection" },
           { text: "Effort Level Selection", link: "/usage/thought-level-selection" },

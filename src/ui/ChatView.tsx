@@ -103,6 +103,7 @@ import {
 import type { AcpClient } from "../acp/acp-client";
 import { VIEW_TYPE_CHAT } from "./chat-view-type";
 import { t } from "../i18n";
+import { useDayStoreRegistration } from "./TimeStamp";
 
 // VIEW_TYPE_CHAT is defined in ./chat-view-type (I157) and re-exported here so
 // existing importers of `{ VIEW_TYPE_CHAT } from "./ui/ChatView"` keep working.
@@ -276,6 +277,10 @@ function ChatComponent({
 		viewStateAgentId: view.getInitialAgentId(),
 		defaultAgentId: plugin.settings.defaultAgentId,
 	});
+
+	// Chat Timestamps: keep the plugin's day store current for this view's
+	// window (focus and visibility re-checks), following popout moves.
+	useDayStoreRegistration(view.containerEl);
 
 	// ============================================================
 	// Tab Persistence — synchronous restore for initial render

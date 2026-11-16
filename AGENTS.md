@@ -29,6 +29,7 @@ src/
 │   ├── session.ts               # ChatSession, SessionUpdate (12-type union), SessionInfo, AgentCapabilities (normalized) + RawAgentCapabilities
 │   ├── agent.ts                 # AgentConfig, agent settings (Claude/Codex/Gemini/Kiro/OpenCode/Antigravity/Custom)
 │   ├── errors.ts                # AcpError, ProcessError, ErrorInfo
+│   ├── chat-time.ts             # Chat Timestamps: DayBounds, DaySnapshot, StampDateScope, StampAge (shared by utils, resolvers and services without a backwards layer edge)
 │   ├── tab.ts                   # Tab type definitions (TabState, TabIcon, per-tab session ref) + TabSessionState lifecycle union (moved from hooks/ so resolvers/services need no hooks edge)
 │   ├── vault.ts                 # NoteMetadata — vault file metadata (moved from services/vault-service so leaf modules need no services edge; re-exported there)
 │   ├── title-strategy.ts        # TitleStrategy union + dropdown options (F03 session-title setting)
@@ -68,6 +69,7 @@ src/
 │   ├── session-record.ts        # Record identity (I269): findSessionRecord, the savedSessions validator, the one-time recordId migration
 │   ├── server-session-cache.ts  # The only reader/writer of serverSessionCache (last session/list per launch, keyed by agentLaunchKey, never agent id) + its settings-edge validation (I270)
 │   ├── session-store.ts         # Single serialized writer of record for savedSessions metadata/title (I114), keyed by recordId (I269)
+│   ├── local-day-store.ts       # Chat Timestamps: the plugin's one day store (today's local bounds + time zone) for useSyncExternalStore; per-view focus/visibility re-checks, one always-rescheduling midnight timer, dispose() on unload
 │   ├── mcp-auth-manager.ts      # Single owner of pending MCP sign-in state + queue-aware Notice lifecycle
 │   ├── settings-normalizer.ts   # Validation helpers + DEFAULT_SETTINGS + normalizeRawSettings (raw→typed mapping)
 │   ├── session-helpers.ts       # Agent config building, API key injection (pure functions)
@@ -179,7 +181,8 @@ src/
 │   ├── ChatHeader.tsx           # Header (sidebar chat view)
 │   ├── MessageList.tsx          # Message list (native browser scroll; inactive tabs render a placeholder, so no bubbles mount while hidden) + JumpToReplyStartAnchor (sticky zero-height wrapper, IntersectionObserver visibility, up chevron) and the "Jump to start of latest reply" command listener
 │   ├── A2uiSurfaceHost.tsx      # Agent-emitted buttons-v0 surface host: validate-at-edge, native buttons, resolver-gated enablement, inert fallback
-│   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button)
+│   ├── MessageBubble.tsx        # Single message rendering (content dispatch, copy button, prompt and gap stamps, hover-row time)
+│   ├── TimeStamp.tsx            # Chat Timestamps: memoized stamp leaf (prompt/end/gap/hover-row times, static aria-label + data-stamp-label), delegated hover ages (useStampHoverAges), day-store registration per view (useDayStoreRegistration)
 │   ├── ToolCallBlock.tsx        # Tool call + diff display (word-level highlighting)
 │   ├── TerminalBlock.tsx        # Terminal output polling
 │   ├── InputArea.tsx            # Textarea, attachments, mentions, history
@@ -213,7 +216,7 @@ src/
 │       ├── AttachmentStrip.tsx  # Attachment preview strip; remove × names the file, is aria-disabled while queued (I319), and owns focus after a remove (next ×, previous ×, then composer)
 │       ├── AttachButton.tsx     # The composer's paperclip: native clickable-icon button, aria-disabled (not disabled) when queued/full so the reason stays reachable; tooltip opens left
 │       ├── ComposerRail.tsx     # Composer rail: column beside the text area, above Send, for message actions (attach; voice input later); max two buttons; renders nothing when empty
-│       └── useTooltip.ts        # attachTooltip / tooltipRef / useTooltip — the ONE sanctioned way to attach a tooltip; wraps Obsidian setTooltip (whose mechanism IS aria-label), composes visible label + reason via deriveTooltipText so the accessible name keeps the visible text (WCAG 2.5.3), and clears a stale tooltip. The DOM `title` attribute is an ESLint error (I199)
+│       └── useTooltip.ts        # attachTooltip / tooltipRef / useTooltip — the ONE sanctioned way to attach a tooltip; wraps Obsidian setTooltip (whose mechanism IS aria-label), composes visible label + reason via deriveTooltipText so the accessible name keeps the visible text (WCAG 2.5.3), and clears a stale tooltip; restoreStaticTooltip puts a static label back after a hover (Chat Timestamps). The DOM `title` attribute is an ESLint error (I199)
 ├── resolvers/                   # Pure decision functions (derive*/decide*) — no React/Obsidian/SDK imports; exhaustive switches (resolver-zone.test.ts)
 │   ├── a2ui-dispatch.ts            # deriveA2uiTabDispatch — pure tab-level resolver for what activating an interactive-surface control does (sendNow / acquireAndSend / refuse+reason); read by BOTH the surface renderer (via deriveSurfaceActionAffordance) and SessionDispatchPort so an enabled button always has a dispatchable port; gates on intent, not connection state (A2UI-I08)
 │   ├── ai-title-apply.ts           # decideAiTitleApply — F15: apply an AI title only if the user didn't rename meanwhile; suffix on collision
@@ -254,6 +257,8 @@ src/
 │   ├── session-history-view.ts     # Pure session-history gating resolver (deriveSessionHistoryView(caps, isAgentReady, hasLocalData, source, knowledge) → listSource/agentPill (available | unsupported | unknown, I260)/restore/fork/banner/folderFilterDefault); toggle-driven source defaults to Local for every agent; gates on data+intent, not connection (supersedes I09/I41 + filter facet)
 │   ├── session-retention.ts        # I202 saved-chat retention: selectEvictions(sessions, cap, tabIds) → least recently updated first, never a tab's record; selectUnusedSessionFiles (cleanup command, 24h guard); parseMaxSavedSessions (25|50|100|250|500|null=unlimited, default 100); formatSize
 │   ├── session-title.ts            # Pure session-title resolver (I224/I227): resolveSessionTitle(local > agent > none, drops placeholder agent titles), overlayLocalTitles (Agent-view rows, live + cached, by session id), deriveRestoreTabLabel (restored/forked tab label); deriveSessionRecordTitle reads it too
+│   ├── stamp-age.ts                # deriveStampAge — a stamp's hover age in minutes/hours/calendar days/weeks/months/years; never a date (Chat Timestamps)
+│   ├── stamp-date-scope.ts         # deriveStampDateScope — today / thisYear / otherYear for a stamp, from the day store's DST-safe bounds (Decision 7)
 │   ├── tab-unseen.ts               # nextTabUnseen / isBeingViewed — the tab's unseen-result flag: a turn ending while the tab isn't viewed marks finished or stopped early; viewing or sending clears it; a cancel never marks
 │   ├── tab-keyboard-nav.ts         # deriveTabKeyTarget — pure resolver for Left/Right/Home/End focus movement across the tab strip (WAI-ARIA tabs, manual activation; TS-I08); `orientation: "vertical"` uses Up/Down for the tab rail
 │   ├── whats-new.ts                # releaseCore / deriveWhatsNewHighlights / releaseNotesUrl / nextLastSeenVersion — which "What's new" highlights show after an update (I300)
@@ -264,6 +269,7 @@ src/
 │   ├── tab-scroll.ts               # deriveTabScrollLeft — pure resolver for the horizontal scrollLeft that keeps the active tab in view on tab-change and strip resize (TS-I07)
 │   ├── tab-state.ts                # deriveTabState — pure tab-icon-state resolver (lifecycle × isSending × hasActivePermission → ready/busy/permission/error/disconnected); gates busy on intent, not a connect-edge, so a lazy first-send or mid-turn permission can't strand the icon (I172)
 │   ├── tooltip-text.ts             # deriveTooltipText — pure tooltip-text resolver ({visibleLabel, reason, separator} → tagged union text/none); owns the label-in-name composition and models "clear the stale tooltip" as a real outcome. Separator is an input because punctuation is localized (I199)
+│   ├── turn-end-stamp.ts           # deriveTurnEndStamp — what a prompt's turn-end stamp says (done/stopped with duration, failed, or none when unknown)
 │   └── update-check-decision.ts    # decideUpdateCheck — pure resolver: reuse the saved GitHub update result (6 h), back off after a failure (1 h), or fetch; owns the PluginUpdateCache shape
 ├── utils/                       # Shared utilities (pure functions)
 │   ├── platform.ts              # Shell, WSL, Windows env, command building
@@ -295,6 +301,7 @@ src/
 │   ├── notification-click.ts    # Pure orchestrator for a completion-notification click (reveal owning leaf/window + switch to producing tab); I52 recurrence
 │   ├── update-flush-scheduler.ts # createUpdateFlushScheduler — visibility-immune session-update flush (rAF stalls in backgrounded windows) (I168)
 │   ├── time-fields.ts           # Chat Timestamps: gap-stamp threshold + the load-edge validator for the epoch-ms time fields (a value it can't trust becomes null = unknown)
+│   ├── time-format.ts           # Chat Timestamps: cached Intl clock formatters keyed by zone (explicit timeZone, safe fallback), computeDayBounds, formatStampTime, formatStampAge, formatDuration
 │   ├── menu-registry.ts         # Tracks open Menu popups; closes them on plugin unload (reload-safety)
 │   ├── mcp-auth-affordance.ts   # Pure resolver: auth-failed tool call → inline re-auth affordance decision
 │   ├── command-palette.ts       # Pure start-a-chat + context-gating decisions (computeStartChat, isChatCommandAvailable)

@@ -8,6 +8,8 @@ import type AgentClientPlugin from "../plugin";
 import type { IChatViewHost } from "./view-host";
 import { Notice, setIcon } from "obsidian";
 import { MessageBubble, type A2uiBubbleContext } from "./MessageBubble";
+import { TimeStamp, useStampHoverAges } from "./TimeStamp";
+import { deriveTurnEndStamp } from "../resolvers/turn-end-stamp";
 import { LossyFallbackNotice } from "./LossyFallbackNotice";
 import type { SessionFallbackReason } from "../resolvers/session-engine";
 import { McpFailureNotice } from "./McpFailureNotice";
@@ -457,6 +459,17 @@ export function MessageList({
 	const { scrollRef, contentRef, isAtBottom, scrollToBottom, jumpToElement } =
 		useAutoScrollPin({ isActive, isSending, view });
 
+	// Chat Timestamps: ages on hover, one delegated listener pair per list,
+	// on the same container as the scroll pin's listeners.
+	const stampRef = useStampHoverAges(isActive);
+	const listRef = useCallback(
+		(el: HTMLDivElement | null) => {
+			scrollRef(el);
+			stampRef(el);
+		},
+		[scrollRef, stampRef],
+	);
+
 	// ============================================================
 	// Jump to start of latest reply. Every hook here sits above the
 	// `!isActive` early return below (a hook after it breaks on a tab
@@ -549,7 +562,7 @@ export function MessageList({
 	if (!isActive) {
 		return (
 			<div
-				ref={scrollRef}
+				ref={listRef}
 				className="agent-client-chat-view-messages"
 				aria-hidden="true"
 			/>
@@ -584,7 +597,7 @@ export function MessageList({
 			sessionGone,
 		});
 		return (
-			<div ref={scrollRef} className="agent-client-chat-view-messages">
+			<div ref={listRef} className="agent-client-chat-view-messages">
 				{/* Same first child as the populated branch, so the content
 				    element keeps its slot and DOM node across empty ↔
 				    populated (the hook's content ResizeObserver stays). */}
@@ -643,8 +656,13 @@ export function MessageList({
 		);
 	}
 
+	// Chat Timestamps: a turn's end stamp goes under its last agent message,
+	// or under the prompt when the turn produced none. Found in this one pass:
+	// carry the current prompt, and check the next message's role.
+	let currentPrompt: ChatMessage | null = null;
+
 	return (
-		<div ref={scrollRef} className="agent-client-chat-view-messages">
+		<div ref={listRef} className="agent-client-chat-view-messages">
 			<JumpToReplyStartAnchor
 				targetKind={replyStart.kind}
 				targetMessageId={replyStart.kind === "none" ? null : replyStart.messageId}
@@ -662,7 +680,14 @@ export function MessageList({
 				{viewId && plugin.mcpAuthManager && (
 					<McpFailureNotice manager={plugin.mcpAuthManager} viewId={viewId} />
 				)}
-				{messages.map((message, messageIndex) => (
+				{messages.map((message, messageIndex) => {
+					if (message.role === "user") currentPrompt = message;
+					const next = messages[messageIndex + 1];
+					const endStamp =
+						currentPrompt !== null && (next === undefined || next.role === "user")
+							? deriveTurnEndStamp(currentPrompt)
+							: null;
+					return (
 					<div key={message.id} data-message-id={message.id} className={`agent-client-message-row${message.pending ? " agent-client-message-pending" : ""}`}>
 						<MemoMessageBubble
 							message={message}
@@ -682,8 +707,17 @@ export function MessageList({
 								{t("chat.messages.sending")}
 							</span>
 						)}
+						{endStamp !== null && endStamp.kind !== "none" && (
+							<TimeStamp
+								at={endStamp.at}
+								variant="end"
+								endKind={endStamp.kind}
+								durationMs={endStamp.kind === "failed" ? null : endStamp.durationMs}
+							/>
+						)}
 					</div>
-				))}
+					);
+				})}
 			</div>
 
 			{/* Loading indicator */}
