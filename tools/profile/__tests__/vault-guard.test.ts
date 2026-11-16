@@ -9,7 +9,7 @@
  * Spec: [[Agent Console Release Quality Gates]] § Gate B-phase2 (GB-T03).
  */
 import { describe, it, expect } from "vitest";
-import { checkProfileTarget } from "../vault-guard";
+import { checkProfileTarget, visibilityProblem } from "../vault-guard";
 
 const seedable = () => true;
 
@@ -71,5 +71,16 @@ describe("checkProfileTarget", () => {
 				() => false,
 			),
 		).toMatch(/data\.template\.json/);
+	});
+});
+
+describe("visibilityProblem", () => {
+	it("passes a run whose page stayed visible", () => {
+		expect(visibilityProblem(["visible", "visible"])).toBeNull();
+	});
+
+	it("fails a run whose page was hidden at any check", () => {
+		expect(visibilityProblem(["visible", "hidden"])).toMatch(/hidden/);
+		expect(visibilityProblem(["hidden"])).toMatch(/no frames/);
 	});
 });

@@ -48,3 +48,16 @@ export function checkProfileTarget(
 	}
 	return null;
 }
+
+/**
+ * Null when the page was visible; otherwise why the run can't count. A
+ * hidden page (screen locked, window minimized or fully covered) renders no
+ * frames: no scroll events, no long-animation-frame entries, throttled
+ * timers. Its numbers are not comparable with a visible run, so such a run
+ * is incomplete even when every scenario returned.
+ */
+export function visibilityProblem(states: string[]): string | null {
+	const hidden = states.filter((s) => s !== "visible");
+	if (hidden.length === 0) return null;
+	return `the vault's page was ${hidden[0]} during the run (screen locked, window minimized or covered); hidden pages render no frames, so its numbers are not comparable`;
+}

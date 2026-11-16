@@ -34,7 +34,7 @@ Long frames come from `long-animation-frame` entries (`longtask` only where LoAF
 
 ## Failures
 
-A run is **incomplete** when a scenario fails in any pass (a missing tab, row or scroll container, or a wait that times out), or when a scenario in the baseline wasn't measured. An incomplete run lists the reasons, exits 1, and writes nothing: no history point, no baseline, no golden anchor. That way a stale selector can't pass as a measurement.
+A run is **incomplete** when a scenario fails in any pass (a missing tab, row or scroll container, or a wait that times out), when a scenario in the baseline wasn't measured, or when the vault's page was hidden at any point (screen locked, window minimized or covered). A hidden page renders no frames, so its scroll and long-frame numbers mean nothing and its timings aren't comparable. Keep the profiled window visible and the screen unlocked. An incomplete run lists the reasons, exits 1, and writes nothing: no history point, no baseline, no golden anchor. That way a stale selector can't pass as a measurement.
 
 ## Files
 
