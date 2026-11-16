@@ -638,7 +638,7 @@ export function TabRail(props: TabRailProps) {
 				// would take focus a tick later; keep it on the rail (B1).
 				if (tab.tabId === activeTabId && tabs.length > 1) {
 					holdNextActivationRefocus(
-						listRef.current?.ownerDocument ?? document,
+						listRef.current?.ownerDocument ?? activeDocument,
 					);
 				}
 				onCloseTab(tab.tabId);

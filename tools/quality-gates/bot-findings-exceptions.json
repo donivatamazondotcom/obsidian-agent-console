@@ -1,25 +1,10 @@
 [
 	{
-		"rule": "obsidianmd/prefer-create-el",
-		"file": "src/__test_stubs__/vitest.setup.ts",
-		"count": 4,
-		"reason": "false-positive-unreported",
-		"note": "The vitest setup stub deliberately calls raw DOM APIs (createElement, createEl, createDocumentFragment; createSpan added for I278) in order to BUILD the very Obsidian helpers the rule wants callers to use. Rewriting these to createEl/createDiv/createFragment would make the shim call itself. Assessed as a rule defect; upstream report not yet filed.",
-		"link": "https://github.com/obsidianmd/eslint-plugin"
-	},
-	{
-		"rule": "obsidianmd/ui/sentence-case",
-		"file": "src/plugin.ts",
+		"rule": "obsidianmd/prefer-active-doc",
+		"file": "tools/screenshots/run.ts",
 		"count": 1,
 		"reason": "false-positive-unreported",
-		"note": "Rule wants 'Agent console'. 'Agent Console' is the product name \u2014 a proper noun \u2014 and is the string used on the store listing, the docs site and the manifest. Renaming it to satisfy sentence case would rename the product. Assessed as a rule defect; upstream report not yet filed.",
+		"note": "Inside page.evaluate, the capture driver compares activeDocument with the main window's document on purpose, to detect a settings window that Obsidian opened. Replacing document with activeDocument would make the check always false. Node tooling, not plugin code. (I383)",
 		"link": "https://github.com/obsidianmd/eslint-plugin"
-	},
-	{
-		"rule": "@typescript-eslint/no-deprecated",
-		"file": "src/ui/SettingsTab.ts",
-		"count": 1,
-		"reason": "deferred",
-		"note": "rerender()'s pre-1.13 fallback is the single intentional display() caller: minAppVersion is 1.11.4, so users below 1.13 still render the imperative tab. Remove this entry when minAppVersion bumps to 1.13.0 and display() is deleted (declarative migration Path A flip) \u2014 see vault note 'Agent Console Declarative Settings Migration' D3."
 	}
 ]

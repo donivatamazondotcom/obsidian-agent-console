@@ -197,7 +197,7 @@ const persistedStateIntegrity: Invariant = {
 				const p = window.app.plugins.plugins["${PLUGIN_ID}"];
 				const s = p.settings;
 				const sessions = s.savedSessions || [];
-				const dir = ".obsidian/plugins/${PLUGIN_ID}/sessions";
+				const dir = window.app.vault.configDir + "/plugins/${PLUGIN_ID}/sessions";
 				let files = [];
 				try {
 					files = (await window.app.vault.adapter.list(dir)).files.map((f) => f.split("/").pop());

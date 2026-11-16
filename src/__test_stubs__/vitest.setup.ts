@@ -24,6 +24,22 @@ const testGlobals = window as unknown as ObsidianTestGlobals;
 testGlobals.activeDocument = window.document;
 testGlobals.activeWindow = window;
 
+// `Node.prototype.instanceOf`: Obsidian's cross-window `instanceof`. A node
+// from a popout window belongs to that window's realm, so a plain
+// `instanceof` against this window's constructor is false. Mirror Obsidian:
+// check the node's own window's constructor of the same name too.
+type InstanceOfType<T> = { new (...data: never[]): T };
+if (typeof Node !== "undefined" && typeof Node.prototype.instanceOf !== "function") {
+	Node.prototype.instanceOf = function <T>(this: Node, type: InstanceOfType<T>): this is T {
+		if (this instanceof type) return true;
+		const view = (this.ownerDocument ?? (this as unknown as Document)).defaultView as
+			| (Window & Record<string, unknown>)
+			| null;
+		const local = view?.[type.name];
+		return typeof local === "function" && this instanceof (local as InstanceOfType<T>);
+	};
+}
+
 if (
 	typeof HTMLElement !== "undefined" &&
 	typeof HTMLElement.prototype.setCssProps !== "function"

@@ -110,7 +110,7 @@ export function createQuickPromptBridge(
 			const current = deps.getComposerText();
 			let next: string;
 			let caret: number;
-			if (el instanceof HTMLTextAreaElement) {
+			if (el?.instanceOf(HTMLTextAreaElement)) {
 				const start = el.selectionStart ?? current.length;
 				const end = el.selectionEnd ?? current.length;
 				next = current.slice(0, start) + text + current.slice(end);
@@ -121,7 +121,7 @@ export function createQuickPromptBridge(
 			}
 			deps.setComposerText(next);
 			window.requestAnimationFrame(() => {
-				if (el instanceof HTMLTextAreaElement) {
+				if (el?.instanceOf(HTMLTextAreaElement)) {
 					el.focus();
 					el.setSelectionRange(caret, caret);
 				}
