@@ -385,6 +385,18 @@ export function stripSmokeMarker(data: Record<string, unknown>): Record<string, 
 	return d;
 }
 
+/** Remove a lock file only while it still names `holder` (another command may have taken it since). */
+export function releaseIfOwner(file: string, holder: LockHolder): boolean {
+	try {
+		const h = JSON.parse(readFileSync(file, "utf8")) as LockHolder;
+		if (h.pid !== holder.pid || h.started !== holder.started) return false;
+	} catch {
+		return false;
+	}
+	rmSync(file, { force: true });
+	return true;
+}
+
 export class StError extends Error {}
 
 // ================================================================== runtime ==
@@ -636,7 +648,7 @@ async function waitLock(file: string, holder: LockHolder & { cmd: string }, boun
 	for (;;) {
 		if (createDir) mkdirSync(path.dirname(file), { recursive: true });
 		else if (!existsSync(path.dirname(file))) throw new StError(`${label}: ${path.dirname(file)} is gone (the instance was taken down)`);
-		if (acquireLock(file, holder)) return () => rmSync(file, { force: true });
+		if (acquireLock(file, holder)) return () => void releaseIfOwner(file, holder);
 		breakStaleLock(file, await listMarkedProcesses());
 		if (!said) {
 			let h: { pid?: number; cmd?: string } = {};
@@ -840,7 +852,7 @@ async function settle(p: Paths, port: number, mainPid: number, mainStarted: stri
 	}
 }
 
-async function launchFresh(p: Paths, onPid: (pid: number) => void, guard: () => FocusGuard | null, hookPath: string): Promise<Outcome> {
+async function launchFresh(p: Paths, onPid: (pid: number) => void, guard: () => FocusGuard | null, hookPath: string, holder: LockHolder): Promise<Outcome> {
 	mkdirSync(p.userData, { recursive: true });
 	mkdirSync(p.home, { recursive: true });
 	const oj = path.join(p.userData, "obsidian.json");
@@ -863,7 +875,13 @@ async function launchFresh(p: Paths, onPid: (pid: number) => void, guard: () => 
 	const v = await c.evaluate<string | null>('(() => { const v = require("electron").ipcRenderer.sendSync("version"); return typeof v === "string" ? v : null; })()').catch(() => null);
 	c.close();
 	const vp = appVersionProblem(v, pin);
-	if (vp) return { ok: false, message: vp };
+	if (vp) {
+		// Never leave a wrong-version instance for a later `up` to adopt.
+		const s = await signalMarked(p.markers, [], nodeTeardownOps(log, () => closeBrowserAt(l.port)), holder, p.teardownLock, { label: "stop wrong-version instance" });
+		rmSync(p.teardownLock, { force: true });
+		const left = s.left.length ? `; still running: ${s.left.map((x) => x.pid).join(", ")}` : "";
+		return { ok: false, message: `${vp} (instance stopped${left})` };
+	}
 	return settle(p, l.port, l.mainPid, l.mainStarted, hookPath, guard());
 }
 
@@ -936,14 +954,17 @@ async function cmdUp(p: Paths, holder: LockHolder & { cmd: string }): Promise<Ou
 		cleanStale: () => cleanStale(p),
 		readData: d.readData,
 		writeData: d.writeData,
-		launch: () => launchFresh(p, d.setPid, d.guardRef, SETTINGS_WINDOW_HOOK),
+		launch: () => launchFresh(p, d.setPid, d.guardRef, SETTINGS_WINDOW_HOOK, holder),
 		log,
 	});
 }
 
 async function requireUp(p: Paths): Promise<{ state: InstanceState; port: number }> {
 	const state = readInstanceState(p.state);
-	const m = await liveMain(p);
+	const m = await liveMain(p).catch((e: unknown) => {
+		const hint = process.env.SANDBOX_SESSION_ID ? " ASBX agent sandboxing is on in this session and blocks ps; run st from a normal Terminal." : "";
+		throw new StError(`can't list processes (${e instanceof Error ? e.message : String(e)}).${hint}`);
+	});
 	if (!state || !m) throw new StError(`${p.vault} isn't up (status: ${classifyInstance(!!state, !!m)}); run: npx tsx tools/smoke-test/st.ts up ${p.wt}`);
 	if (!stateMatchesLive(state, m)) throw new StError(`${p.vault}'s recorded state (pid ${state.mainPid}) doesn't match the running instance (pid ${m.pid}); run: npx tsx tools/smoke-test/st.ts up ${p.wt} (it adopts the instance and rewrites the state)`);
 	const port = readPort(p) ?? state.port;
@@ -990,7 +1011,7 @@ async function cmdRestart(p: Paths, holder: LockHolder & { cmd: string }): Promi
 		writeData: d.writeData,
 		launch: async () => {
 			rmSync(p.portFile, { force: true });
-			const r = await launchFresh(p, d.setPid, d.guardRef, state.hookPath);
+			const r = await launchFresh(p, d.setPid, d.guardRef, state.hookPath, holder);
 			// The old state names a dead pid; drop it so status says orphan and `up` adopts.
 			if (!r.ok) rmSync(p.state, { force: true });
 			return r.ok ? { ok: true, message: r.message.replace(" up (", " restarted (") } : { ok: false, message: r.message.replace("didn't load in the isolated instance", "didn't load after restart") };
@@ -1073,9 +1094,10 @@ async function cmdDown(p: Paths, holder: LockHolder & { cmd: string }): Promise<
 	if (r.status === "unreadable") return { ok: false, message: "can't read the process table; instance files kept" };
 	if (r.status === "busy") return { ok: false, message: "another teardown holds the lock; instance files kept" };
 	if (r.left.length) return { ok: false, message: `marked process(es) still running: ${r.left.map((x) => x.pid).join(", ")}; instance files kept` };
-	rmSync(p.inst, { recursive: true, force: true });
+	// Strip before removing the instance folder, so a failed strip leaves `down` re-runnable.
 	const d = readDataJson(p.dataJson);
 	if (d.ok && JSON.stringify(d.data).includes(`"${MARKER_KEY}"`)) writeJsonAtomic(p.dataJson, stripSmokeMarker(d.data));
+	rmSync(p.inst, { recursive: true, force: true });
 	if (sockBefore !== null && userObsidianRunning() && socketInodeNow() !== sockBefore) return { ok: false, message: `stopped, but ${CLI_SOCKET} changed while your Obsidian runs` };
 	return { ok: true, message: `${p.vault} down` };
 }

@@ -2,7 +2,7 @@
 // Spec: [[Isolated smoke-test instances]] (§ st, § Mode guard G, § Agent
 // environment, § Teardown, § Settings windows).
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -14,6 +14,7 @@ import {
 	parseArgs,
 	readDataJson,
 	readInstanceState,
+	releaseIfOwner,
 	restartSequence,
 	staleAsars,
 	stateMatchesLive,
@@ -126,6 +127,23 @@ describe("stripSmokeMarker", () => {
 		expect(out.kiro).toEqual({ command: "/k", env: [{ key: "HOME", value: "/u" }] });
 		expect(out.other).toBe(1);
 		expect(JSON.stringify(d)).toContain("AC_SMOKE_RUN");
+	});
+});
+
+describe("releaseIfOwner", () => {
+	let dir: string;
+	beforeEach(() => (dir = mkdtempSync(path.join(tmpdir(), "st-lock-"))));
+	afterEach(() => rmSync(dir, { recursive: true, force: true }));
+	it("removes the lock only while it still names this holder", () => {
+		const f = path.join(dir, "op.lock");
+		const me = { pid: 10, started: "A" };
+		writeFileSync(f, JSON.stringify(me));
+		expect(releaseIfOwner(f, me)).toBe(true);
+		expect(existsSync(f)).toBe(false);
+		writeFileSync(f, JSON.stringify({ pid: 11, started: "B" }));
+		expect(releaseIfOwner(f, me)).toBe(false);
+		expect(existsSync(f)).toBe(true);
+		expect(releaseIfOwner(path.join(dir, "gone.lock"), me)).toBe(false);
 	});
 });
 
