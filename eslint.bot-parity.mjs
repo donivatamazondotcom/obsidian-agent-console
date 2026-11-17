@@ -92,6 +92,7 @@ export default defineConfig([
 			"**/*.js",
 			"**/*.cjs",
 			"vitest.config.ts",
+			"vitest.stryker.config.ts",
 			"**/__tests__/**",
 			"**/*.test.ts",
 			"**/*.test.tsx",
