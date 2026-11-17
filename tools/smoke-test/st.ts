@@ -321,10 +321,10 @@ export interface RestartDeps {
 	seedContext(): SeedResult;
 	withFocusLock?(fn: () => Promise<Outcome>): Promise<Outcome>;
 	closeBrowser(): Promise<void>;
-	/** True once no marked process is left, within `ms`. */
-	waitGone(ms: number): Promise<boolean>;
-	/** SIGTERM then SIGKILL every marked process; returns pids still alive. */
-	forceKill(): Promise<number[]>;
+	/** True once the instance's main process has exited, within `ms`. */
+	waitMainGone(ms: number): Promise<boolean>;
+	/** SIGTERM then SIGKILL every marked process still alive (a forced main, leftover agents); returns survivors. */
+	stopMarked(): Promise<number[]>;
 	readData(): DataRead;
 	writeData(data: Record<string, unknown>): void;
 	launch(): Promise<Outcome | void>;
@@ -341,17 +341,25 @@ export async function restartSequence(d: RestartDeps): Promise<Outcome> {
 	if (!s.ok) return { ok: false, message: s.message };
 	const body = async (): Promise<Outcome> => {
 		await d.closeBrowser();
-		if (!(await d.waitGone(RESTART_QUIT_WAIT_MS))) {
-			d.log("forced quit: tab state may not have been saved");
-			const left = await d.forceKill();
-			if (left.length) return { ok: false, message: `marked process(es) ${left.join(", ")} still running after SIGKILL; not relaunching` };
-		}
+		if (!(await d.waitMainGone(RESTART_QUIT_WAIT_MS))) d.log("forced quit: tab state may not have been saved");
+		// Agent processes can outlive a clean quit; nothing marked may survive into the relaunch.
+		const left = await d.stopMarked();
+		if (left.length) return { ok: false, message: `marked process(es) ${left.join(", ")} still running after SIGKILL; not relaunching` };
 		const r = d.readData();
 		if (!r.ok) return { ok: false, message: dataProblem(r.reason, d.wt ?? "<wt>") };
 		d.writeData(r.data);
 		return (await d.launch()) ?? { ok: true, message: "restarted" };
 	};
 	return d.withFocusLock ? d.withFocusLock(body) : body();
+}
+
+/**
+ * Obsidian asars in a user-data listing other than the pinned one. Obsidian
+ * downloads its own updates into the user-data folder, which a smoke
+ * instance keeps across launches, and would then run the newer version.
+ */
+export function staleAsars(files: readonly string[], pinnedVersion: string): string[] {
+	return files.filter((f) => /^obsidian-\d+\.\d+\.\d+\.asar$/.test(f) && f !== asarName(pinnedVersion));
 }
 
 export class StError extends Error {}
@@ -806,6 +814,10 @@ async function launchFresh(p: Paths, onPid: (pid: number) => void, guard: () => 
 	const oj = path.join(p.userData, "obsidian.json");
 	if (!existsSync(oj)) writeFileSync(oj, obsidianJson(p.studio, p.runId, Date.now()));
 	const pin = readAppPin(p.main);
+	for (const f of staleAsars(readdirSync(p.userData), pin.version)) {
+		log(`  removing ${f} (Obsidian's own update; smoke instances run the pinned ${pin.version})`);
+		rmSync(path.join(p.userData, f), { force: true });
+	}
 	if (!existsSync(path.join(p.userData, asarName(pin.version)))) {
 		log(`  staging Obsidian ${pin.version} (downloads from obsidianmd/obsidian-releases if not cached)`);
 		stageAppAsar(await resolveAppAsar(pin), p.userData);
@@ -923,15 +935,16 @@ async function cmdRestart(p: Paths, holder: LockHolder & { cmd: string }): Promi
 			c.close();
 			await closeBrowserAt(port).catch(() => {});
 		},
-		waitGone: async (ms) => {
+		waitMainGone: async (ms) => {
 			const deadline = Date.now() + ms;
 			while (Date.now() < deadline) {
-				if (!(await markersAny())) return true;
+				if (!(await liveMain(p))) return true;
 				await sleep(250);
 			}
 			return false;
 		},
-		forceKill: async () => {
+		stopMarked: async () => {
+			if (!(await markersAny())) return [];
 			const r = await signalMarked(p.markers, [], nodeTeardownOps(log), holder, p.teardownLock, { label: "restart" });
 			rmSync(p.teardownLock, { force: true });
 			if (r.status !== "ok") return [-1];
@@ -941,11 +954,8 @@ async function cmdRestart(p: Paths, holder: LockHolder & { cmd: string }): Promi
 		writeData: d.writeData,
 		launch: async () => {
 			rmSync(p.portFile, { force: true });
-			const l = await launchInstance({ userData: p.userData, home: p.home });
-			d.setPid(l.mainPid);
-			d.guardRef()?.recheck();
-			const r = await settle(p, l.port, l.mainPid, l.mainStarted, state.hookPath, d.guardRef());
-			return r.ok ? { ok: true, message: `${p.vault} restarted (pid ${l.mainPid}, port ${l.port})` } : { ok: false, message: r.message.replace("didn't load in the isolated instance", "didn't load after restart") };
+			const r = await launchFresh(p, d.setPid, d.guardRef, state.hookPath);
+			return r.ok ? { ok: true, message: r.message.replace(" up (", " restarted (") } : { ok: false, message: r.message.replace("didn't load in the isolated instance", "didn't load after restart") };
 		},
 		log,
 	});

@@ -15,6 +15,7 @@ import {
 	readDataJson,
 	readInstanceState,
 	restartSequence,
+	staleAsars,
 	upSequence,
 	validateCleanPaths,
 	workspaceCandidates,
@@ -100,6 +101,13 @@ describe("guardDecision (G)", () => {
 	});
 });
 
+describe("staleAsars", () => {
+	it("lists every Obsidian asar except the pinned one (Obsidian self-updates into persistent user data)", () => {
+		expect(staleAsars(["obsidian-1.15.1.asar", "obsidian-1.15.0.asar", "obsidian.json", "obsidian-1.14.9.asar.tmp"], "1.15.0")).toEqual(["obsidian-1.15.1.asar"]);
+		expect(staleAsars(["obsidian-1.15.0.asar"], "1.15.0")).toEqual([]);
+	});
+});
+
 describe("readDataJson / readInstanceState", () => {
 	let dir: string;
 	beforeEach(() => (dir = mkdtempSync(path.join(tmpdir(), "st-data-"))));
@@ -170,8 +178,8 @@ function fakeRestart(over: Partial<RestartDeps> = {}) {
 			return { ok: true };
 		},
 		closeBrowser: async () => void log.push("close"),
-		waitGone: async () => true,
-		forceKill: async () => [],
+		waitMainGone: async () => true,
+		stopMarked: async () => [],
 		readData: () => ({ ok: true, data: {} }),
 		writeData: () => void log.push("write"),
 		launch: async () => void log.push("launch"),
@@ -193,17 +201,31 @@ describe("restartSequence", () => {
 		expect(log.filter((l) => !l.startsWith("log:"))).toEqual(["seed", "close", "write", "launch"]);
 	});
 	it("T12b: a marked process surviving SIGKILL → non-zero naming it, no write, no relaunch", async () => {
-		const { deps, log } = fakeRestart({ waitGone: async () => false, forceKill: async () => [4242] });
+		const { deps, log } = fakeRestart({ waitMainGone: async () => false, stopMarked: async () => [4242] });
 		const r = await restartSequence(deps);
 		expect(r.ok).toBe(false);
 		expect(r.message).toContain("4242");
 		expect(log).not.toContain("write");
 		expect(log).not.toContain("launch");
 	});
-	it("prints the forced-quit line when SIGKILL was needed and then clears", async () => {
-		const { deps, log } = fakeRestart({ waitGone: async () => false, forceKill: async () => [] });
+	it("prints the forced-quit line only when the main process had to be killed", async () => {
+		const { deps, log } = fakeRestart({ waitMainGone: async () => false, stopMarked: async () => [] });
 		expect((await restartSequence(deps)).ok).toBe(true);
 		expect(log.some((l) => l.includes("forced quit"))).toBe(true);
+	});
+	it("a clean quit with leftover agent processes stops them without claiming a forced quit", async () => {
+		let stopped = 0;
+		const { deps, log } = fakeRestart({ stopMarked: async () => (stopped++, []) });
+		expect((await restartSequence(deps)).ok).toBe(true);
+		expect(stopped).toBe(1);
+		expect(log.some((l) => l.includes("forced quit"))).toBe(false);
+	});
+	it("a leftover agent that survives SIGKILL after a clean quit blocks the relaunch", async () => {
+		const { deps, log } = fakeRestart({ stopMarked: async () => [77] });
+		const r = await restartSequence(deps);
+		expect(r.ok).toBe(false);
+		expect(r.message).toContain("77");
+		expect(log).not.toContain("launch");
 	});
 	it("doesn't write or launch on an unreadable data.json", async () => {
 		const { deps, log } = fakeRestart({ readData: () => ({ ok: false, reason: "unreadable" }) });
