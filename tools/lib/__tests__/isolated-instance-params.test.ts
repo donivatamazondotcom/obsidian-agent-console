@@ -4,7 +4,7 @@
 // preflight splits core from capture, and the focus guard never "restores"
 // focus to the instance itself.
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -144,6 +144,27 @@ describe("FocusGuard", () => {
 		await g.tick();
 		expect(activated).toEqual([7]);
 		expect(g.steals).toBe(1);
+	});
+	it("screenshot ordering: a launch steal before mainPid is known is restored once withIsolatedRun rechecks", async () => {
+		// withIsolatedRun starts the guard, then launches; isInstance compares
+		// against state.mainPid, which is unset until the launch returns.
+		const state: { mainPid?: number } = {};
+		let front = 7;
+		const activated: number[] = [];
+		const g = new FocusGuard((p) => p === state.mainPid, () => {}, { frontmost: () => front, activate: (p) => void activated.push(p) });
+		front = 42;
+		await g.tick();
+		state.mainPid = 42;
+		g.recheck();
+		await g.tick();
+		expect(activated).toEqual([7]);
+		expect(g.steals).toBe(1);
+	});
+	it("withIsolatedRun calls recheck() right after assigning mainPid", () => {
+		const src = readFileSync(path.join(__dirname, "../isolated-instance.ts"), "utf8");
+		const i = src.indexOf("Object.assign(state, { mainPid: l.mainPid");
+		expect(i).toBeGreaterThan(-1);
+		expect(src.slice(i, i + 200)).toMatch(/guard\.recheck\(\)/);
 	});
 	it("restores the last other app and counts a steal", async () => {
 		let front = 7;

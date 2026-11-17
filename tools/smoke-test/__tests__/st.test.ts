@@ -16,6 +16,8 @@ import {
 	readInstanceState,
 	restartSequence,
 	staleAsars,
+	stateMatchesLive,
+	stripSmokeMarker,
 	upSequence,
 	validateCleanPaths,
 	workspaceCandidates,
@@ -98,6 +100,32 @@ describe("guardDecision (G)", () => {
 		expect(guardDecision({ entry: {}, socketExists: false, cliAnswer: cli("ST-a") }, "ST-a").action).toBe("warn");
 		expect(guardDecision({ entry: null, socketExists: true, cliAnswer: cli("ST-a") }, "ST-a").action).toBe("ok");
 		expect(calls).toBe(0);
+	});
+});
+
+describe("stateMatchesLive", () => {
+	it("needs the same pid and start time", () => {
+		const s = { mainPid: 5, mainStarted: "Tue Nov 10 20:41:00 2026" };
+		expect(stateMatchesLive(s, { pid: 5, started: "Tue Nov 10 20:41:00 2026" })).toBe(true);
+		expect(stateMatchesLive(s, { pid: 6, started: "Tue Nov 10 20:41:00 2026" })).toBe(false);
+		expect(stateMatchesLive(s, { pid: 5, started: "Wed Nov 11 01:00:00 2026" })).toBe(false);
+		expect(stateMatchesLive(s, undefined)).toBe(false);
+		expect(stateMatchesLive(null, { pid: 5, started: "x" })).toBe(false);
+	});
+});
+
+describe("stripSmokeMarker", () => {
+	it("removes AC_SMOKE_RUN rows from every agent and keeps everything else", () => {
+		const d = {
+			kiro: { command: "/k", env: [{ key: "HOME", value: "/u" }, { key: "AC_SMOKE_RUN", value: "st-a" }] },
+			customAgents: [{ id: "c", env: [{ key: "AC_SMOKE_RUN", value: "st-a" }, { key: "X", value: "1" }] }],
+			other: 1,
+		};
+		const out = stripSmokeMarker(d);
+		expect(JSON.stringify(out)).not.toContain("AC_SMOKE_RUN");
+		expect(out.kiro).toEqual({ command: "/k", env: [{ key: "HOME", value: "/u" }] });
+		expect(out.other).toBe(1);
+		expect(JSON.stringify(d)).toContain("AC_SMOKE_RUN");
 	});
 });
 
@@ -303,7 +331,7 @@ describe("upSequence", () => {
 			const { deps, log } = fakeUp([false, false], { readData: () => ({ ok: false, reason }) });
 			const r = await upSequence(deps);
 			expect(r.ok).toBe(false);
-			expect(r.message).toMatch(reason === "missing" ? /smoke-test-spawn\.sh/ : /unreadable/);
+			expect(r.message).toMatch(reason === "missing" ? /smoke-test-teardown\.sh .*then.*smoke-test-spawn\.sh/ : /unreadable/);
 			expect(log).not.toContain("write");
 			expect(log).not.toContain("launch");
 		}

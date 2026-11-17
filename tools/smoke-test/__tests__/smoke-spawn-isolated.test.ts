@@ -42,7 +42,7 @@ describe("smoke-test-spawn.sh flags and non-isolated mode guard", () => {
 		writeFileSync(join(home, "Library/Application Support/obsidian/obsidian.json"), JSON.stringify({ vaults: {} }));
 		bin = join(repo, "stub-bin");
 		mkdirSync(bin);
-		for (const name of ["open", "obsidian", "npm"]) {
+		for (const name of ["open", "obsidian", "npm", "ps"]) {
 			writeFileSync(join(bin, name), `#!/bin/sh\necho "${name} $*" >> "${join(bin, "calls.log")}"\nexit 1\n`);
 			chmodSync(join(bin, name), 0o755);
 		}
@@ -66,6 +66,44 @@ describe("smoke-test-spawn.sh flags and non-isolated mode guard", () => {
 		expect(r.stderr).toMatch(/isolated/);
 		expect(r.stdout + r.stderr).not.toMatch(/building plugin/);
 		expect(stubCalls()).not.toMatch(/^open /m);
+	});
+
+	it("refuses a non-isolated spawn while the studio's isolated instance is running", () => {
+		mkdirSync(studio, { recursive: true });
+		const inst = join(repo, "tools/smoke-test/studios/.instances/ST-wt");
+		writeFileSync(join(bin, "ps"), `#!/bin/sh\necho "/Applications/Obsidian.app/Contents/MacOS/Obsidian --user-data-dir=${inst}/userdata --x"\n`);
+		const r = run("wt");
+		expect(r.status).toBe(1);
+		expect(r.stderr).toMatch(/isolated instance is running/);
+	});
+
+	it("isolated redeploy: st reload when status says up, st up otherwise; never the user's Obsidian", () => {
+		const wt = join(repo, ".trees/wt");
+		for (const f of ["main.js", "styles.css", "manifest.json"]) writeFileSync(join(wt, f), "x");
+		mkdirSync(join(wt, "node_modules"), { recursive: true });
+		writeFileSync(join(bin, "npm"), `#!/bin/sh\necho "npm $*" >> "${join(bin, "calls.log")}"\nexit 0\n`);
+		mkdirSync(join(studio, ".obsidian/plugins/agent-console"), { recursive: true });
+		const stLog = join(repo, "st.log");
+		const stub = join(repo, "st-stub");
+		const writeSt = (status: string) => {
+			writeFileSync(
+				stub,
+				`#!/bin/bash\nshift\necho "$*" >> "${stLog}"\ncase "$1" in\n status) echo "${status}" ;;\n eval) case "$3" in *getName*) echo '"ST-wt"' ;; *plugins*) echo true ;; *) echo '"ok"' ;; esac ;;\nesac\nexit 0\n`,
+			);
+			chmodSync(stub, 0o755);
+		};
+		const env = { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH ?? ""}`, ST_TSX: stub };
+		writeSt("ST-wt                            up pid 1 port 2 socket ok");
+		let r = spawnSync("bash", [script, "wt", "--isolated"], { encoding: "utf8", timeout: 20_000, env });
+		expect(r.status, r.stderr).toBe(0);
+		expect(readFileSync(stLog, "utf8")).toMatch(/^reload wt$/m);
+		expect(readFileSync(stLog, "utf8")).not.toMatch(/^up wt$/m);
+		rmSync(stLog);
+		writeSt("ST-wtx                           up pid 1 port 2 socket ok");
+		r = spawnSync("bash", [script, "wt", "--isolated"], { encoding: "utf8", timeout: 20_000, env });
+		expect(r.status, r.stderr).toBe(0);
+		expect(readFileSync(stLog, "utf8")).toMatch(/^up wt$/m);
+		expect(stubCalls()).not.toMatch(/^(open|obsidian) /m);
 	});
 
 	it("refuses a non-isolated spawn while the studio has isolated instance state", () => {

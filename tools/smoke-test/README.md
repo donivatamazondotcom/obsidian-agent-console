@@ -109,4 +109,9 @@ Instance files live in `tools/smoke-test/studios/.instances/ST-<name>/`
 removes the Kiro CLI V2 session records made in the studio.
 
 An instance stays up until `st down` or teardown. `st status` lists any that
-were left running.
+were left running. While it runs, its CDP port (in its `DevToolsActivePort`)
+is open on localhost, so any local process can drive it, and its agents run
+under your real `HOME`. Take instances down when a smoke test is over.
+
+After a clean `st down`, the studio can run non-isolated again: `down` removes
+the `AC_SMOKE_RUN` marker rows it added to `data.json`.

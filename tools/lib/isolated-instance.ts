@@ -759,6 +759,8 @@ export async function withIsolatedRun(o: RunOptions, body: (t: Take) => Promise<
 			try {
 				const l = await launchInstance(r);
 				Object.assign(state, { mainPid: l.mainPid, mainStarted: l.mainStarted, port: l.port });
+				// A launch steal seen before mainPid was known was recorded as the user's app.
+				guard.recheck();
 				writeState(state);
 				ok = await body({ take: n, vault: r.vault, port: l.port, guard, setCloseBrowser: (fn) => (current.close = fn) });
 			} finally {

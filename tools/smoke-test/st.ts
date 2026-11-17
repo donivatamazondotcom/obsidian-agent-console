@@ -11,7 +11,7 @@
  * isolated smoke studios. Spec: [[Isolated smoke-test instances]].
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -29,6 +29,7 @@ import {
 	hasToken,
 	launchInstance,
 	listMarkedProcesses,
+	userObsidianVersion,
 	loginShell,
 	nodeTeardownOps,
 	preflightCore,
@@ -40,7 +41,7 @@ import {
 	type RunMarkers,
 } from "../lib/isolated-instance";
 import { trustAndLoad } from "../lib/isolated-trust";
-import { appVersionProblem, asarName, readAppPin, resolveAppAsar } from "../lib/obsidian-app";
+import { appVersionProblem, asarName, pinDriftNote, readAppPin, resolveAppAsar } from "../lib/obsidian-app";
 import { SETTINGS_WINDOW_HOOK, settingsWindowTitlePrefix } from "../screenshots/lib/cdp";
 
 export const STATE_SCHEMA = 1;
@@ -172,7 +173,7 @@ export function readDataJson(file: string): DataRead {
 
 export function dataProblem(reason: "missing" | "unreadable", wt: string): string {
 	return reason === "missing"
-		? `data.json missing; run tools/smoke-test/smoke-test-spawn.sh ${wt} --isolated`
+		? `data.json missing; run tools/smoke-test/smoke-test-teardown.sh ${wt}, then tools/smoke-test/smoke-test-spawn.sh ${wt} --isolated`
 		: "data.json unreadable (forced quit mid-write?); fix or restore it, then re-run";
 }
 
@@ -360,6 +361,28 @@ export async function restartSequence(d: RestartDeps): Promise<Outcome> {
  */
 export function staleAsars(files: readonly string[], pinnedVersion: string): string[] {
 	return files.filter((f) => /^obsidian-\d+\.\d+\.\d+\.asar$/.test(f) && f !== asarName(pinnedVersion));
+}
+
+/** Does the recorded state describe this live main process (same pid and start time)? */
+export function stateMatchesLive(s: Pick<InstanceState, "mainPid" | "mainStarted"> | null, live: { pid: number; started: string } | undefined): boolean {
+	return !!s && !!live && s.mainPid === live.pid && s.mainStarted === live.started;
+}
+
+/**
+ * data.json without the `AC_SMOKE_RUN` env rows `st` injected, so a studio
+ * whose instance is down can run non-isolated again (the plain spawn refuses
+ * a studio carrying them). HOME and PATH stay: they are real values. Pure.
+ */
+export function stripSmokeMarker(data: Record<string, unknown>): Record<string, unknown> {
+	const d: Record<string, unknown> = structuredClone(data);
+	const strip = (a: unknown) => {
+		if (!a || typeof a !== "object") return;
+		const o = a as { env?: unknown };
+		if (Array.isArray(o.env)) o.env = (o.env as { key?: string }[]).filter((e) => e?.key !== MARKER_KEY);
+	};
+	for (const v of Object.values(d)) strip(v);
+	if (Array.isArray(d.customAgents)) for (const a of d.customAgents as unknown[]) strip(a);
+	return d;
 }
 
 export class StError extends Error {}
@@ -607,11 +630,12 @@ async function selfHolder(cmd: string): Promise<LockHolder & { cmd: string }> {
 }
 
 /** Poll for an exclusive lock, breaking stale ones; returns its release. */
-async function waitLock(file: string, holder: LockHolder & { cmd: string }, boundMs: number, label: string): Promise<() => void> {
+async function waitLock(file: string, holder: LockHolder & { cmd: string }, boundMs: number, label: string, createDir = true): Promise<() => void> {
 	const deadline = Date.now() + boundMs;
 	let said = false;
 	for (;;) {
-		mkdirSync(path.dirname(file), { recursive: true });
+		if (createDir) mkdirSync(path.dirname(file), { recursive: true });
+		else if (!existsSync(path.dirname(file))) throw new StError(`${label}: ${path.dirname(file)} is gone (the instance was taken down)`);
 		if (acquireLock(file, holder)) return () => rmSync(file, { force: true });
 		breakStaleLock(file, await listMarkedProcesses());
 		if (!said) {
@@ -729,6 +753,14 @@ async function assertSocket(p: Paths): Promise<void> {
 	if (s.length) throw new StError(`socket check failed: ${s.join("; ")}`);
 }
 
+function socketInodeNow(): number | null {
+	try {
+		return statSync(CLI_SOCKET).ino;
+	} catch {
+		return null;
+	}
+}
+
 function userObsidianRunning(): boolean {
 	const o = spawnSync("ps", ["-axww", "-o", "command="], { encoding: "utf8" });
 	return (o.stdout ?? "").split("\n").some((l) => l.startsWith(`${OBSIDIAN_APP}/Contents/MacOS/Obsidian`) && !l.includes("--type=") && !l.includes("--user-data-dir="));
@@ -814,6 +846,8 @@ async function launchFresh(p: Paths, onPid: (pid: number) => void, guard: () => 
 	const oj = path.join(p.userData, "obsidian.json");
 	if (!existsSync(oj)) writeFileSync(oj, obsidianJson(p.studio, p.runId, Date.now()));
 	const pin = readAppPin(p.main);
+	const drift = pinDriftNote(userObsidianVersion(), pin);
+	if (drift) log(`  note: ${drift.replace("captures use", "smoke instances use").replace(/ To reshoot.*$/, "")}`);
 	for (const f of staleAsars(readdirSync(p.userData), pin.version)) {
 		log(`  removing ${f} (Obsidian's own update; smoke instances run the pinned ${pin.version})`);
 		rmSync(path.join(p.userData, f), { force: true });
@@ -911,6 +945,7 @@ async function requireUp(p: Paths): Promise<{ state: InstanceState; port: number
 	const state = readInstanceState(p.state);
 	const m = await liveMain(p);
 	if (!state || !m) throw new StError(`${p.vault} isn't up (status: ${classifyInstance(!!state, !!m)}); run: npx tsx tools/smoke-test/st.ts up ${p.wt}`);
+	if (!stateMatchesLive(state, m)) throw new StError(`${p.vault}'s recorded state (pid ${state.mainPid}) doesn't match the running instance (pid ${m.pid}); run: npx tsx tools/smoke-test/st.ts up ${p.wt} (it adopts the instance and rewrites the state)`);
 	const port = readPort(p) ?? state.port;
 	return { state, port };
 }
@@ -947,7 +982,8 @@ async function cmdRestart(p: Paths, holder: LockHolder & { cmd: string }): Promi
 			if (!(await markersAny())) return [];
 			const r = await signalMarked(p.markers, [], nodeTeardownOps(log), holder, p.teardownLock, { label: "restart" });
 			rmSync(p.teardownLock, { force: true });
-			if (r.status !== "ok") return [-1];
+			if (r.status === "busy") throw new StError("another teardown holds the instance's teardown lock; not relaunching");
+			if (r.status === "unreadable") throw new StError("can't read the process table; not relaunching");
 			return r.left.map((x) => x.pid);
 		},
 		readData: d.readData,
@@ -955,6 +991,8 @@ async function cmdRestart(p: Paths, holder: LockHolder & { cmd: string }): Promi
 		launch: async () => {
 			rmSync(p.portFile, { force: true });
 			const r = await launchFresh(p, d.setPid, d.guardRef, state.hookPath);
+			// The old state names a dead pid; drop it so status says orphan and `up` adopts.
+			if (!r.ok) rmSync(p.state, { force: true });
 			return r.ok ? { ok: true, message: r.message.replace(" up (", " restarted (") } : { ok: false, message: r.message.replace("didn't load in the isolated instance", "didn't load after restart") };
 		},
 		log,
@@ -1018,6 +1056,7 @@ async function cmdSettings(p: Paths, tab: string | undefined, f: ParsedArgs["fla
 
 async function cmdDown(p: Paths, holder: LockHolder & { cmd: string }): Promise<Outcome> {
 	rmSync(p.teardownLock, { force: true });
+	const sockBefore = socketInodeNow();
 	const port = readPort(p) ?? readInstanceState(p.state)?.port ?? null;
 	let close: (() => Promise<void>) | undefined;
 	if (port) {
@@ -1035,7 +1074,9 @@ async function cmdDown(p: Paths, holder: LockHolder & { cmd: string }): Promise<
 	if (r.status === "busy") return { ok: false, message: "another teardown holds the lock; instance files kept" };
 	if (r.left.length) return { ok: false, message: `marked process(es) still running: ${r.left.map((x) => x.pid).join(", ")}; instance files kept` };
 	rmSync(p.inst, { recursive: true, force: true });
-	if (userObsidianRunning() && !existsSync(CLI_SOCKET)) return { ok: false, message: `stopped, but your Obsidian is running and ${CLI_SOCKET} is gone` };
+	const d = readDataJson(p.dataJson);
+	if (d.ok && JSON.stringify(d.data).includes(`"${MARKER_KEY}"`)) writeJsonAtomic(p.dataJson, stripSmokeMarker(d.data));
+	if (sockBefore !== null && userObsidianRunning() && socketInodeNow() !== sockBefore) return { ok: false, message: `stopped, but ${CLI_SOCKET} changed while your Obsidian runs` };
 	return { ok: true, message: `${p.vault} down` };
 }
 
@@ -1060,8 +1101,7 @@ async function cmdStatus(wt?: string): Promise<Outcome> {
 		const p = pathsFor(n);
 		const st = readInstanceState(p.state);
 		const main = rows.find((r) => isMain(r, p.userData));
-		const live = !!main && (!st || st.mainPid !== main.pid || st.mainStarted === main.started);
-		const status = classifyInstance(!!st, live);
+		const status = !st ? classifyInstance(false, !!main) : stateMatchesLive(st, main) ? "up" : main ? "orphan" : "dead";
 		let extra = "";
 		if (main) {
 			const port = readPort(p);
@@ -1098,13 +1138,18 @@ async function main(argv: string[]): Promise<number> {
 			if (g.action === "warn") log(`⚠ ${g.message}`);
 			return { ok: g.action !== "refuse", message: g.action === "refuse" ? g.message : "guard ok" };
 		}
+		const lifecycle = a.cmd === "up" || a.cmd === "restart" || a.cmd === "reload" || a.cmd === "down" || a.cmd === "settings";
+		if (lifecycle && a.cmd !== "up" && !existsSync(p.inst)) {
+			return a.cmd === "down" ? { ok: true, message: `${p.vault} has no isolated instance; nothing to stop` } : { ok: false, message: `${p.vault} isn't up; run: npx tsx tools/smoke-test/st.ts up ${p.wt}` };
+		}
 		const retry = `cd ${p.main} && npx tsx ${path.relative(p.main, __filename).startsWith("..") ? __filename : path.relative(p.main, __filename)} ${argv.join(" ")}`;
-		const pre = preflightCore(retry);
+		// eval/cdp/screenshot only need CDP and ps; lifecycle commands and focus need System Events and open too.
+		const pre = lifecycle || a.cmd === "focus" ? preflightCore(retry) : [];
 		if (pre.length) return { ok: false, message: `preflight failed:\n- ${pre.join("\n- ")}` };
 		const holder = await selfHolder(`st ${a.cmd} ${p.wt}`);
-		if (a.cmd === "up" || a.cmd === "restart" || a.cmd === "reload" || a.cmd === "down" || a.cmd === "settings") {
+		if (lifecycle) {
 			if (a.cmd === "up" && !existsSync(p.studio)) return { ok: false, message: `no studio at ${p.studio}; run tools/smoke-test/smoke-test-spawn.sh ${p.wt} --isolated` };
-			const release = await waitLock(p.opLock, holder, OP_LOCK_WAIT_MS, `the ${p.vault} op lock`);
+			const release = await waitLock(p.opLock, holder, OP_LOCK_WAIT_MS, `the ${p.vault} op lock`, a.cmd === "up");
 			try {
 				if (a.cmd === "up") return await cmdUp(p, holder);
 				if (a.cmd === "restart") return await cmdRestart(p, holder);
@@ -1118,6 +1163,7 @@ async function main(argv: string[]): Promise<number> {
 		}
 		const { state, port } = await requireUp(p);
 		if (a.cmd === "focus") {
+			(await connect(p, port)).close();
 			spawnSync("osascript", ["-e", `tell application "System Events" to set frontmost of (first application process whose unix id is ${state.mainPid}) to true`], { timeout: 5000 });
 			return { ok: true, message: `focused ${p.vault} (pid ${state.mainPid})` };
 		}

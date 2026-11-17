@@ -367,7 +367,7 @@ if [ "$ISOLATED" = true ]; then
 	build_worktree
 	deploy_build
 	apply_flow_mode
-	if st status "$WORKTREE_NAME" 2>&1 | grep -qE "^$VAULT_NAME +up( |$)"; then
+	if st status "$WORKTREE_NAME" 2>&1 | awk -v v="$VAULT_NAME" '$1 == v && $2 == "up" { f = 1 } END { exit !f }'; then
 		# Full window reload, not a plugin hot-reload: re-reads styles.css too.
 		st reload "$WORKTREE_NAME" || exit 1
 		verify_isolated
