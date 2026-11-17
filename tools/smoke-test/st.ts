@@ -397,6 +397,15 @@ export function releaseIfOwner(file: string, holder: LockHolder): boolean {
 	return true;
 }
 
+/** This studio's `.trash-` folders (left by a `down` that died mid-delete) whose deleting process is gone. Pure. */
+export function staleTrash(entries: readonly string[], vault: string, livePids: ReadonlySet<number>): string[] {
+	const re = new RegExp(`^\\.trash-${vault.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-(\\d+)-\\d+$`);
+	return entries.filter((e) => {
+		const m = re.exec(e);
+		return !!m && !livePids.has(Number(m[1]));
+	});
+}
+
 export class StError extends Error {}
 
 // ================================================================== runtime ==
@@ -938,6 +947,7 @@ function realDeps(p: Paths, holder: LockHolder & { cmd: string }, budget: number
 // ---------------------------------------------------------------- commands ---
 
 async function cmdUp(p: Paths, holder: LockHolder & { cmd: string }): Promise<Outcome> {
+	await sweepTrash(p);
 	const d = realDeps(p, holder, STEAL_BUDGET.up);
 	const live = await liveMain(p);
 	if (live) d.setPid(live.pid);
@@ -1076,7 +1086,20 @@ async function cmdSettings(p: Paths, tab: string | undefined, f: ParsedArgs["fla
 	}
 }
 
+/** Remove trash folders a killed `down` left for this studio. */
+async function sweepTrash(p: Paths): Promise<void> {
+	let entries: string[] = [];
+	try {
+		entries = readdirSync(p.instances);
+	} catch {
+		return;
+	}
+	const live = new Set((await listMarkedProcesses()).map((r) => r.pid));
+	for (const e of staleTrash(entries, p.vault, live)) rmSync(path.join(p.instances, e), { recursive: true, force: true });
+}
+
 async function cmdDown(p: Paths, holder: LockHolder & { cmd: string }): Promise<Outcome> {
+	await sweepTrash(p);
 	rmSync(p.teardownLock, { force: true });
 	const sockBefore = socketInodeNow();
 	const port = readPort(p) ?? readInstanceState(p.state)?.port ?? null;
@@ -1102,8 +1125,17 @@ async function cmdDown(p: Paths, holder: LockHolder & { cmd: string }): Promise<
 	// Move the folder aside first: a waiting `up` may recreate it and take op.lock
 	// while a long recursive delete would still be running.
 	const trash = path.join(p.instances, `.trash-${p.vault}-${process.pid}-${Date.now()}`);
-	renameSync(p.inst, trash);
-	rmSync(trash, { recursive: true, force: true });
+	try {
+		renameSync(p.inst, trash);
+	} catch (e) {
+		// Already gone (removed outside st): the stop itself succeeded.
+		if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+	}
+	try {
+		rmSync(trash, { recursive: true, force: true });
+	} catch (e) {
+		log(`  ⚠ stopped, but couldn't delete ${trash} (${e instanceof Error ? e.message : String(e)}); the next up or down removes it`);
+	}
 	if (sockBefore !== null && userObsidianRunning() && socketInodeNow() !== sockBefore) return { ok: false, message: `stopped, but ${CLI_SOCKET} changed while your Obsidian runs` };
 	return { ok: true, message: `${p.vault} down` };
 }

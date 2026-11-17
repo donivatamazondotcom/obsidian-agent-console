@@ -19,6 +19,7 @@ import {
 	restartSequence,
 	staleAsars,
 	stateMatchesLive,
+	staleTrash,
 	stripSmokeMarker,
 	upSequence,
 	validateCleanPaths,
@@ -145,6 +146,13 @@ describe("releaseIfOwner", () => {
 		expect(releaseIfOwner(f, me)).toBe(false);
 		expect(existsSync(f)).toBe(true);
 		expect(releaseIfOwner(path.join(dir, "gone.lock"), me)).toBe(false);
+	});
+});
+
+describe("staleTrash", () => {
+	it("lists this studio's trash folders whose deleting process is gone", () => {
+		const entries = [".trash-ST-a-100-1", ".trash-ST-a-200-2", ".trash-ST-ab-300-3", "ST-a", ".focus.lock"];
+		expect(staleTrash(entries, "ST-a", new Set([200]))).toEqual([".trash-ST-a-100-1"]);
 	});
 });
 
