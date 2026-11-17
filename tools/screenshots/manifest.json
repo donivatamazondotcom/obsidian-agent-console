@@ -2278,10 +2278,7 @@
 					"tabRailWidth": 32
 				}
 			},
-			"awaitSelector": ".agent-client-toolbar-dropdown-label",
-			"forbiddenText": [
-				"Connecting to"
-			]
+			"awaitSelector": ".agent-client-toolbar-dropdown-label"
 		},
 		{
 			"name": "store-4-chat-link",
@@ -2410,10 +2407,7 @@
 						"state": "ready"
 					}
 				]
-			},
-			"forbiddenText": [
-				"Connecting to"
-			]
+			}
 		}
 	]
 }

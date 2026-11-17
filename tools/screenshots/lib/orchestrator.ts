@@ -1090,7 +1090,10 @@ async function captureEntryWithSettings(
 		// 3b. Hide chrome that isn't the subject of this shot (e.g. the chat
 		// composer for a transcript-focused capture) so the window can be sized
 		// tight without the hidden element forcing scroll overflow. Done before
-		// the settle/scroll so the layout reflows before the screenshot.
+		// the settle/scroll so the layout reflows before the screenshot, and
+		// again at 3z for elements later steps create. A hidden element's text
+		// is invisible to the cleanliness check, so don't hide what
+		// forbiddenText must see.
 		if (entry.hideSelectors?.length) {
 			const selectors = JSON.stringify(entry.hideSelectors);
 			await deps.cdp.evaluate(
@@ -1545,6 +1548,16 @@ async function captureEntryWithSettings(
 			);
 			await sleep(SETTLE_MS);
 		}
+		// 3z. Hide again, before the settle: steps after 3b (restored or forced
+		// tabs, a link's tab) create elements the first pass never saw, and the
+		// settle lets the layout reflow before mustShow and the capture.
+		if (entry.hideSelectors?.length) {
+			const selectors = JSON.stringify(entry.hideSelectors);
+			await deps.cdp.evaluate(
+				`(() => { /*__acRehide*/ for (const s of ${selectors}) { document.querySelectorAll(s).forEach((el) => { el.style.display = "none"; }); } return true; })()`,
+			);
+		}
+
 		// 4. Brief settle for UI animations
 		await sleep(SETTLE_MS);
 
@@ -1678,14 +1691,6 @@ async function captureEntryWithSettings(
 				);
 			}
 		};
-		// Hide again: steps after 3b (restored or forced tabs, a link's tab)
-		// create elements the first pass never saw.
-		if (entry.hideSelectors?.length) {
-			const selectors = JSON.stringify(entry.hideSelectors);
-			await deps.cdp.evaluate(
-				`(() => { for (const s of ${selectors}) { document.querySelectorAll(s).forEach((el) => { el.style.display = "none"; }); } return true; })()`,
-			);
-		}
 		await assertClean();
 		// The tab the shot shows carries the fixed title.
 		if (tabLabel !== undefined) {

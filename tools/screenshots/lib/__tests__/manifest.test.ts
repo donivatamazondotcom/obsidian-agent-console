@@ -75,6 +75,19 @@ describe("validateManifest", () => {
 		).not.toThrow();
 	});
 
+	it("frame.background.image: accepts a file under backdrops/, rejects a missing file, a path and a directory", () => {
+		const root = makeFixtureRoot();
+		mkdirSync(path.join(root, "backdrops", "sub"), { recursive: true });
+		writeFileSync(path.join(root, "backdrops", "ocean.png"), "x");
+		const withImage = (image: string): ManifestEntry =>
+			({ name: "s", width: 10, height: 10, crop: { x: 0, y: 0, width: 10, height: 10 }, frame: { background: { image } } }) as ManifestEntry;
+		expect(() => validateManifest({ entries: [withImage("ocean.png")] }, root)).not.toThrow();
+		expect(() => validateManifest({ entries: [withImage("missing.png")] }, root)).toThrow(/frame.background.image/);
+		expect(() => validateManifest({ entries: [withImage("sub/ocean.png")] }, root)).toThrow(/frame.background.image/);
+		expect(() => validateManifest({ entries: [withImage("sub")] }, root)).toThrow(/frame.background.image/);
+		expect(() => validateManifest({ entries: [withImage("..")] }, root)).toThrow(/frame.background.image/);
+	});
+
 	it("rejects empty name", () => {
 		const root = makeFixtureRoot();
 		const entry = {

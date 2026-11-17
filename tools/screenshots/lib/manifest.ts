@@ -16,7 +16,7 @@
  * crop). The validator's job is to catch authoring mistakes before
  * launching Obsidian (T04 in the spec).
  */
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 
 /** Pixel rectangle in the source-screenshot coordinate space. */
@@ -1390,7 +1390,8 @@ export function validateManifest(
 						typeof img === "string" &&
 						img.trim() !== "" &&
 						(img.includes("/") || img.includes("\\") ||
-							!existsSync(path.join(fixtureRoot, "backdrops", img)))
+							!existsSync(path.join(fixtureRoot, "backdrops", img)) ||
+							!statSync(path.join(fixtureRoot, "backdrops", img)).isFile())
 					) {
 						throw new Error(
 							`manifest entry "${entry.name}" has invalid frame.background.image: ${img} (must be a file name under ${path.join(fixtureRoot, "backdrops")})`,

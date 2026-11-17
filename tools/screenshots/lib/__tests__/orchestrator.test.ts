@@ -476,21 +476,24 @@ describe("captureEntry", () => {
 		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(1);
 	});
 
-	it("hides hideSelectors again right before capture, so elements a later step created are hidden too", async () => {
+	it("hides hideSelectors again before the settle, so elements a later step created are hidden too", async () => {
 		const deps = makeDeps();
-		const entry = makeEntry({ hideSelectors: [".agent-client-chat-empty-state"] });
+		const entry = makeEntry({ hideSelectors: [".agent-client-chat-empty-state"], forbiddenText: ["Nope"] });
 		await captureEntry(entry, deps);
 		const ev = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
-		const hideIdx = ev.mock.calls
-			.map((c: unknown[], i: number) => (String(c[0]).includes('style.display = "none"') && String(c[0]).includes(".agent-client-chat-empty-state") ? i : -1))
-			.filter((i: number) => i >= 0);
-		const shotOrder = (deps.cdp.screenshot as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
-		const last = ev.mock.invocationCallOrder[hideIdx[hideIdx.length - 1]];
-		expect(hideIdx.length).toBeGreaterThanOrEqual(2);
-		// The last hide runs after every earlier drive step, immediately before the shot.
-		const between = ev.mock.invocationCallOrder.filter((o: number) => o > last && o < shotOrder).length;
-		expect(last).toBeLessThan(shotOrder);
-		expect(between).toBeLessThanOrEqual(3);
+		const calls = ev.mock.calls.map((c: unknown[]) => String(c[0]));
+		const hides = calls
+			.map((c, i) => (c.includes('style.display = "none"') && c.includes(".agent-client-chat-empty-state") ? i : -1))
+			.filter((i) => i >= 0);
+		expect(hides.length).toBe(2);
+		const rehide = hides[1];
+		expect(calls[rehide]).toContain("__acRehide");
+		// The cleanliness probe (it carries the entry's forbiddenText) runs after the re-hide.
+		const probe = calls.findIndex((c) => c.includes("Nope"));
+		expect(probe).toBeGreaterThan(rehide);
+		expect(ev.mock.invocationCallOrder[rehide]).toBeLessThan(
+			(deps.cdp.screenshot as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
+		);
 	});
 
 	it("types draftMessage into the composer without sending", async () => {
