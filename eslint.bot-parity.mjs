@@ -101,6 +101,18 @@ export default defineConfig([
 			parserOptions: { project: "./tsconfig.json" },
 		},
 		// Calibration (B) — see the header.
-		rules: { "no-undef": "off" },
+		rules: {
+			"no-undef": "off",
+			// C. Calibrated to the dashboard preview scan of 11/16 (I383), not
+			// to eslint-plugin-obsidianmd's recommended set. The bot reported
+			// `require()` imports and `display` as deprecated, though 0.6.0's
+			// recommended config turns the first off and allows `display` in
+			// the second. Keep both on, with `display` out of the allow list.
+			"@typescript-eslint/no-require-imports": "warn",
+			"@typescript-eslint/no-deprecated": [
+				"warn",
+				{ allow: [{ from: "lib", name: "caretRangeFromPoint" }] },
+			],
+		},
 	},
 ]);
