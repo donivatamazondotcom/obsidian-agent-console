@@ -1,5 +1,12 @@
 [
 	{
+		"rule": "@typescript-eslint/no-deprecated",
+		"file": "src/ui/SettingsTab.ts",
+		"count": 1,
+		"reason": "deferred",
+		"note": "rerender()'s pre-1.13 fallback is the single intentional display() caller: minAppVersion is 1.11.4, so users below 1.13 still render the imperative tab. Remove this entry when minAppVersion bumps to 1.13.0 and display() is deleted (declarative migration Path A flip) — see vault note 'Agent Console Declarative Settings Migration' D3."
+	},
+	{
 		"rule": "obsidianmd/prefer-active-doc",
 		"file": "tools/screenshots/run.ts",
 		"count": 1,

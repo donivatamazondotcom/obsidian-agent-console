@@ -446,6 +446,7 @@ interface AppWithSettings {
  */
 function focusOwningWindow(): void {
 	try {
+		// eslint-disable-next-line @typescript-eslint/no-require-imports -- electron is a runtime-only module provided by Obsidian's host environment
 		const { remote } = require("electron") as {
 			remote: { getCurrentWindow: () => { focus: () => void } };
 		};

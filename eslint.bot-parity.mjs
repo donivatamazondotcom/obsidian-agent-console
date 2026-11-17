@@ -59,6 +59,14 @@
  *     type-only identifier — a false-alarm generator, which corrodes a gate the
  *     same way a blind spot does.
  *
+ *  C. Calibrated to the dashboard preview scan of 2026-11-16, not to
+ *     eslint-plugin-obsidianmd's recommended set. The bot reported
+ *     `@typescript-eslint/no-require-imports` and `display` as deprecated;
+ *     0.6.0's recommended config turns the first off and, below
+ *     minAppVersion 1.13.0, allows `display` in `no-deprecated`. So the
+ *     bot's ruleset is not the plugin's recommended set: calibrate parity
+ *     against dashboard scans (I383).
+ *
  * Scope note: `**\/__tests__/**` and `*.test.*` stay ignored because the bot
  * demonstrably does not lint them — established across four v1.1.x submissions
  * (see learned/skill-rules/agent-console.md § Community Plugins lint gate).
@@ -101,6 +109,18 @@ export default defineConfig([
 			parserOptions: { project: "./tsconfig.json" },
 		},
 		// Calibration (B) — see the header.
-		rules: { "no-undef": "off" },
+		rules: {
+			"no-undef": "off",
+			// C. Calibrated to the dashboard preview scan of 11/16 (I383), not
+			// to eslint-plugin-obsidianmd's recommended set. The bot reported
+			// `require()` imports and `display` as deprecated, though 0.6.0's
+			// recommended config turns the first off and, while minAppVersion is
+			// below 1.13.0, allows `display` in the second. Keep both on, with `display` out of the allow list.
+			"@typescript-eslint/no-require-imports": "warn",
+			"@typescript-eslint/no-deprecated": [
+				"warn",
+				{ allow: [{ from: "lib", name: "caretRangeFromPoint" }] },
+			],
+		},
 	},
 ]);

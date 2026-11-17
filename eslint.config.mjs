@@ -312,18 +312,4 @@ export default defineConfig([
 			"no-restricted-syntax": ["error", ...baseRestrictedSyntax, saveSessionBan],
 		},
 	},
-	{
-		// `electron` is a runtime-only module provided by Obsidian's host, so
-		// these files load it with require(). Allowed here, not with inline
-		// eslint-disable comments: the store's review ruleset
-		// (eslint-plugin-obsidianmd 0.6.0) doesn't enable this rule and reports
-		// every disable comment that suppresses nothing. (I383)
-		files: [
-			"src/services/notification-registry.ts",
-			"src/ui/ChatPanel.tsx",
-			"src/utils/file-path.ts",
-			"src/utils/folder-picker.ts",
-		],
-		rules: { "@typescript-eslint/no-require-imports": "off" },
-	},
 ]);
