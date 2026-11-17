@@ -1,7 +1,7 @@
 {
 	"id": "agent-console",
 	"name": "Agent Console",
-	"version": "2.4.0",
+	"version": "2.5.0",
 	"minAppVersion": "1.11.4",
 	"description": "Run Claude Code, Codex, Kiro CLI, or any Agent Client Protocol agent in your vault. Keep your go-to prompts as notes and start one from a chip, a browser bookmark, or a link.",
 	"author": "Vinod Panicker",
