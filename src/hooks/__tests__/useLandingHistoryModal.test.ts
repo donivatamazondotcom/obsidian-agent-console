@@ -20,7 +20,8 @@ const h = vi.hoisted(() => ({
 vi.mock("../../ui/SessionHistoryModal", () => ({
 	SessionHistoryModal: vi
 		.fn()
-		.mockImplementation((_app: unknown, props: Record<string, unknown>) => {
+		// A function, not an arrow: vitest 4 mocks called with `new` need one.
+		.mockImplementation(function (_app: unknown, props: Record<string, unknown>) {
 			h.lastProps = props;
 			return {
 				open: h.openSpy,

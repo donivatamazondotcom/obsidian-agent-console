@@ -48,14 +48,17 @@ export default defineConfig({
 		// Each test gets a clean DOM. Vitest defaults to per-file isolation
 		// which is sufficient for our hook-level tests.
 		setupFiles: ["src/__test_stubs__/vitest.setup.ts"],
-		// Process-based workers (forks, vmForks): kill themselves when the
-		// parent vitest process dies (tools/vitest/orphan-guard.cjs, I309),
-		// and cap each worker's heap so one runaway can't grow to Node's
-		// 4.6 GB default. Healthy workers peak around 270 MB. Thread workers
-		// need no guard: they die with their process.
-		poolOptions: {
-			forks: { execArgv: WORKER_EXEC_ARGV },
-			vmForks: { execArgv: WORKER_EXEC_ARGV },
-		},
+		// Process-based workers kill themselves when the parent vitest process
+		// dies (tools/vitest/orphan-guard.cjs, I309), and cap each worker's
+		// heap so one runaway can't grow to Node's 4.6 GB default. Healthy
+		// workers peak around 270 MB.
+		//
+		// Vitest 4 removed `poolOptions`; `execArgv` is now top-level and
+		// goes to every pool. The pool is pinned to `forks` because Node's
+		// worker threads reject V8 flags such as --max-old-space-size in
+		// execArgv, and thread workers need no guard (they die with their
+		// process). Running with `--pool=threads` needs execArgv cleared.
+		pool: "forks",
+		execArgv: WORKER_EXEC_ARGV,
 	},
 });

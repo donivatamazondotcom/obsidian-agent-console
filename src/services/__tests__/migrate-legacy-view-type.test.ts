@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import type { Mock } from "vitest";
 import { VIEW_TYPE_CHAT } from "../../ui/chat-view-type";
 import {
 	LEGACY_CHAT_VIEW_TYPE,
@@ -7,7 +8,7 @@ import {
 	type MigratableLeaf,
 } from "../migrate-legacy-view-type";
 
-type MockLeaf = MigratableLeaf & { setViewState: ReturnType<typeof vi.fn> };
+type MockLeaf = MigratableLeaf & { setViewState: Mock };
 
 function makeLeaf(
 	type: string | undefined,

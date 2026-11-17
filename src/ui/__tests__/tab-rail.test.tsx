@@ -811,7 +811,9 @@ describe("TabRail – delta review findings", () => {
 				".agent-client-tab-rail-key.is-active",
 			)!;
 			// The list shrinks to 100px tall; the active key now sits below it.
-			vi.spyOn(list, "getBoundingClientRect").mockReturnValue({
+			// Own-property mocks: vitest 4's spyOn would return the file-wide
+			// HTMLElement.prototype spy here, so both elements would share one rect.
+			list.getBoundingClientRect = vi.fn(() => ({
 				top: 0,
 				bottom: 100,
 				left: 0,
@@ -821,8 +823,8 @@ describe("TabRail – delta review findings", () => {
 				x: 0,
 				y: 0,
 				toJSON: () => ({}),
-			} as DOMRect);
-			vi.spyOn(active, "getBoundingClientRect").mockReturnValue({
+			}) as DOMRect);
+			active.getBoundingClientRect = vi.fn(() => ({
 				top: 300,
 				bottom: 328,
 				left: 0,
@@ -832,7 +834,7 @@ describe("TabRail – delta review findings", () => {
 				x: 0,
 				y: 300,
 				toJSON: () => ({}),
-			} as DOMRect);
+			}) as DOMRect);
 			list.scrollTop = 0;
 			act(() => observerCb?.());
 			expect(list.scrollTop).toBe(228);
