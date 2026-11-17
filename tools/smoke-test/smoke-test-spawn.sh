@@ -31,7 +31,12 @@
 # persisted for future startups), so every later redeploy/reload/teardown is
 # hands-off.
 #
-# Usage:   tools/smoke-test/smoke-test-spawn.sh <worktree-name> [--first-run] [--no-agents]
+# Usage:   tools/smoke-test/smoke-test-spawn.sh <worktree-name> [--isolated] [--first-run] [--no-agents]
+#   --isolated    run the studio in its own background Obsidian instance (fake
+#                 HOME, own user data) driven by tools/smoke-test/st.ts, instead
+#                 of a window in your Obsidian. Nothing is registered in your
+#                 obsidian.json and there is no one-time open. Can't be combined
+#                 with --first-run. Spec: [[Isolated smoke-test instances]].
 #   --first-run   remove data.json + clear sessions/ so the plugin runs first-run
 #                 onboarding (isFirstRun = loadData()==null). Flow #1 / #2 setup.
 #   --no-agents   drop the vault-local .force-no-agents marker so detection is
@@ -51,13 +56,15 @@ REPO_ROOT="$(dirname "$GIT_COMMON")"
 WORKTREE_NAME=""
 FIRST_RUN=false
 NO_AGENTS=false
+ISOLATED=false
 for arg in "$@"; do
 	case "$arg" in
 		--first-run) FIRST_RUN=true ;;
 		--no-agents) NO_AGENTS=true ;;
+		--isolated) ISOLATED=true ;;
 		--*)
 			echo "unknown flag: $arg" >&2
-			echo "usage: $0 <worktree-name> [--first-run] [--no-agents]" >&2
+			echo "usage: $0 <worktree-name> [--isolated] [--first-run] [--no-agents]" >&2
 			exit 2
 			;;
 		*)
@@ -71,9 +78,17 @@ for arg in "$@"; do
 	esac
 done
 if [ -z "$WORKTREE_NAME" ]; then
-	echo "usage: $0 <worktree-name> [--first-run] [--no-agents]" >&2
+	echo "usage: $0 <worktree-name> [--isolated] [--first-run] [--no-agents]" >&2
+	echo "  --isolated    run the studio in its own background Obsidian instance (st.ts)" >&2
 	echo "  --first-run   remove data.json + clear sessions/ so isFirstRun triggers (Flow #1)" >&2
 	echo "  --no-agents   drop the .force-no-agents marker so detection is forced empty (Flow #2)" >&2
+	exit 2
+fi
+
+if [ "$ISOLATED" = true ] && [ "$FIRST_RUN" = true ]; then
+	echo "✗ --isolated can't be combined with --first-run: first run means no data.json, so there is nowhere" >&2
+	echo "  to put the agents' real HOME and PATH, and detection under the instance's fake HOME says nothing" >&2
+	echo "  about a real first run. Use the non-isolated path for first-run flows." >&2
 	exit 2
 fi
 
@@ -82,6 +97,13 @@ VAULT_NAME="ST-$WORKTREE_NAME"
 STUDIO_DIR="$REPO_ROOT/tools/smoke-test/studios/$VAULT_NAME"
 PLUGIN_DIR="$STUDIO_DIR/.obsidian/plugins/agent-console"
 FIXTURES="$REPO_ROOT/tools/screenshots/fixtures/studio"
+INSTANCE_DIR="$REPO_ROOT/tools/smoke-test/studios/.instances/$VAULT_NAME"
+# st.ts next to this script (it resolves studios from the main checkout itself);
+# tsx from this checkout's node_modules, else the main checkout's.
+ST_SCRIPT="$SCRIPT_DIR/st.ts"
+ST_TSX="${ST_TSX:-$(cd "$SCRIPT_DIR/../.." && pwd)/node_modules/.bin/tsx}"
+[ -x "$ST_TSX" ] || ST_TSX="$REPO_ROOT/node_modules/.bin/tsx"
+st() { "$ST_TSX" "$ST_SCRIPT" "$@"; }
 
 # --- helpers ---------------------------------------------------------------
 # Bound every obsidian CLI call (macOS has no `timeout`); the CLI hangs on the
@@ -146,6 +168,29 @@ build_worktree() {
 	echo "  build ok"
 }
 
+# Verify the OUTCOME through st (same checks as the non-isolated redeploy below):
+# the vault answers, the plugin loaded, and a late plugin CSS rule is present.
+verify_isolated() {
+	local name plug css
+	name="$(st eval "$WORKTREE_NAME" 'app.vault.getName()' 2>/dev/null | tr -d '"[:space:]')"
+	plug="$(st eval "$WORKTREE_NAME" '!!app.plugins.plugins["agent-console"]' 2>/dev/null | tr -d '[:space:]')"
+	css="$(st eval "$WORKTREE_NAME" '(function(){for(var i=0;i<document.styleSheets.length;i++){try{var r=document.styleSheets[i].cssRules;for(var j=0;j<r.length;j++){if((r[j].selectorText||"").indexOf("agent-client-toolbar-spacer")>=0)return "ok"}}catch(e){}}return "missing"})()' 2>/dev/null | tr -d '"[:space:]')"
+	if [ "$name" = "$VAULT_NAME" ] && [ "$plug" = "true" ] && [ "$css" = "ok" ]; then
+		echo "✓ $VAULT_NAME running isolated with the latest build (JS + CSS loaded)"
+		echo "  drive it:   npx tsx tools/smoke-test/st.ts eval $WORKTREE_NAME '<js>'   (also: reload, restart, settings, screenshot, focus, status)"
+		echo "  restart it: npx tsx tools/smoke-test/st.ts restart $WORKTREE_NAME   (never Cmd+Q: the Dock would relaunch your own Obsidian)"
+		echo "  tear down:  tools/smoke-test/smoke-test-teardown.sh $WORKTREE_NAME"
+	else
+		echo "✗ verification failed: name='${name:-<empty>}' (want '$VAULT_NAME'), plugin-loaded='${plug:-<empty>}', css-loaded='${css:-<empty>}'" >&2
+		exit 1
+	fi
+}
+
+isolated_up_and_verify() {
+	st up "$WORKTREE_NAME" || exit 1
+	verify_isolated
+}
+
 print_open_instructions() {
 	cat <<EOF
 
@@ -175,7 +220,31 @@ if [ ! -d "$WORKTREE_DIR" ]; then
 	exit 1
 fi
 BRANCH="$(git -C "$WORKTREE_DIR" rev-parse --abbrev-ref HEAD)"
-echo "▶ worktree '$WORKTREE_NAME' on branch '$BRANCH' -> vault '$VAULT_NAME'"
+echo "▶ worktree '$WORKTREE_NAME' on branch '$BRANCH' -> vault '$VAULT_NAME'$( [ "$ISOLATED" = true ] && echo ' (isolated instance)')"
+
+# --- mode guard, both directions --------------------------------------------
+# Two Obsidian processes must never write the same data.json, workspace.json
+# or sessions/. The --isolated half is st.ts's guard G (run below); this is the
+# non-isolated half: refuse a studio that is, or was last, run isolated.
+if [ "$ISOLATED" = false ]; then
+	ISO_REASON=""
+	if [ -f "$INSTANCE_DIR/state.json" ]; then
+		ISO_REASON="it has isolated instance state ($INSTANCE_DIR/state.json)"
+	elif ps -axww -o command= 2>/dev/null | grep -F -- "--user-data-dir=$INSTANCE_DIR/userdata" | grep -vq grep; then
+		ISO_REASON="its isolated instance is running"
+	elif [ -f "$PLUGIN_DIR/data.json" ] && grep -q '"AC_SMOKE_RUN"' "$PLUGIN_DIR/data.json"; then
+		ISO_REASON="its data.json carries isolated-run agent env (AC_SMOKE_RUN)"
+	fi
+	if [ -n "$ISO_REASON" ]; then
+		echo "✗ $VAULT_NAME is an isolated studio: $ISO_REASON." >&2
+		echo "  Keep using:  tools/smoke-test/smoke-test-spawn.sh $WORKTREE_NAME --isolated" >&2
+		echo "  or stop it and start over:  npx tsx tools/smoke-test/st.ts down $WORKTREE_NAME && tools/smoke-test/smoke-test-teardown.sh $WORKTREE_NAME" >&2
+		exit 1
+	fi
+else
+	[ -x "$ST_TSX" ] || { echo "✗ tsx not found ($ST_TSX); run npm ci" >&2; exit 1; }
+	st _guard "$WORKTREE_NAME" || exit 1
+fi
 
 # --- FRESH spawn vs REDEPLOY -----------------------------------------------
 if [ ! -d "$STUDIO_DIR" ]; then
@@ -265,6 +334,12 @@ with open(ws_path, "w") as f:
 print(f"  seeded workspace.json with {view_type} leaf (id={leaf_id})")
 PY
 
+	if [ "$ISOLATED" = true ]; then
+		echo "✓ smoke studio prepped: $STUDIO_DIR"
+		isolated_up_and_verify
+		exit 0
+	fi
+
 	# Register in obsidian.json (idempotent by path; atomic write). This makes
 	# the vault selectable once Obsidian next reads the registry.
 	STUDIO_DIR="$STUDIO_DIR" python3 - <<'PY'
@@ -283,6 +358,22 @@ else:
 PY
 	echo "✓ smoke studio prepped: $STUDIO_DIR"
 	print_open_instructions
+	exit 0
+fi
+
+# ---------- REDEPLOY, isolated (the instance owns data.json while live) ----------
+if [ "$ISOLATED" = true ]; then
+	echo "▶ redeploying into existing $VAULT_NAME (isolated; smoke session state preserved)…"
+	build_worktree
+	deploy_build
+	apply_flow_mode
+	if st status "$WORKTREE_NAME" 2>&1 | grep -qE "^$VAULT_NAME +up( |$)"; then
+		# Full window reload, not a plugin hot-reload: re-reads styles.css too.
+		st reload "$WORKTREE_NAME" || exit 1
+		verify_isolated
+	else
+		isolated_up_and_verify
+	fi
 	exit 0
 fi
 
