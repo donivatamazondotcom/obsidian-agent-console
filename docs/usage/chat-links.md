@@ -6,6 +6,10 @@
 
 Right-click a chat's tab and choose **Copy link to chat**. It's in the menu whether your tabs sit on top or in the vertical column. The link is copied as a Markdown link named after the tab, so it reads well when you paste it into a note:
 
+<p align="center">
+  <img src="/images/chat-link-menu.webp" alt="Agent Console tab right-click menu with Copy link to chat listed below Rename with AI" />
+</p>
+
 ```markdown
 [Plan the Q3 offsite](obsidian://agent-console-chat?vault=My%20Vault&id=4f1c2a90-…)
 ```
