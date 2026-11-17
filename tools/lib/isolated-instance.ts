@@ -144,7 +144,7 @@ export interface RunMarkers {
 	markerKey?: string;
 }
 
-const hasToken = (command: string, token: string): boolean =>
+export const hasToken = (command: string, token: string): boolean =>
 	command === token || command.startsWith(`${token} `) || command.includes(` ${token} `) || command.endsWith(` ${token}`);
 
 /**
@@ -506,6 +506,8 @@ const systemFocus: FocusDeps = {
 export class FocusGuard {
 	steals = 0;
 	private last: number | null;
+	/** The app before `last`, so a pid recorded before it was known to be the instance can be undone. */
+	private prev: number | null = null;
 	private running = false;
 
 	constructor(
@@ -530,13 +532,24 @@ export class FocusGuard {
 		this.running = false;
 	}
 
+	/**
+	 * Call once the instance's pid is known (after launch): a launch steal seen
+	 * before then was recorded as the user's app, so fall back to the one before.
+	 */
+	recheck(): void {
+		if (this.last !== null && this.isInstance(this.last)) this.last = this.prev;
+	}
+
 	/** One poll. Public for tests. */
 	async tick(): Promise<void> {
 		try {
 			const f = this.deps.frontmost();
 			if (f === null) return;
 			if (!this.isInstance(f)) {
-				this.last = f;
+				if (f !== this.last) {
+					this.prev = this.last;
+					this.last = f;
+				}
 				return;
 			}
 			// Never "restore" focus to the instance itself (it was frontmost

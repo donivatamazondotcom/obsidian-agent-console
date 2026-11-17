@@ -132,6 +132,19 @@ describe("FocusGuard", () => {
 		expect(g.steals).toBe(0);
 		expect(activated).toEqual([]);
 	});
+	it("recheck() undoes a launch steal recorded before the instance pid was known", async () => {
+		let front = 7;
+		let main = 0;
+		const activated: number[] = [];
+		const g = new FocusGuard((p) => p === main, () => {}, { frontmost: () => front, activate: (p) => void activated.push(p) });
+		front = 42;
+		await g.tick();
+		main = 42;
+		g.recheck();
+		await g.tick();
+		expect(activated).toEqual([7]);
+		expect(g.steals).toBe(1);
+	});
 	it("restores the last other app and counts a steal", async () => {
 		let front = 7;
 		const activated: number[] = [];

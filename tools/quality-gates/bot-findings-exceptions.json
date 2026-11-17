@@ -8,7 +8,7 @@
 	},
 	{
 		"rule": "obsidianmd/prefer-active-doc",
-		"file": "tools/screenshots/run.ts",
+		"file": "tools/lib/isolated-trust.ts",
 		"count": 1,
 		"reason": "false-positive-unreported",
 		"note": "Inside page.evaluate, the capture driver compares activeDocument with the main window's document on purpose, to detect a settings window that Obsidian opened. Replacing document with activeDocument would make the check always false. Node tooling, not plugin code. (I383)",
