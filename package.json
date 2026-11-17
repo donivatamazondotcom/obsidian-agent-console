@@ -59,7 +59,7 @@
 		"fast-check": "4.8.0",
 		"js-tiktoken": "1.0.21",
 		"jsdom": "^29.1.1",
-		"obsidian": "^1.13.1",
+		"obsidian": "^1.14.4",
 		"playwright-core": "^1.65.0",
 		"prettier": "^3.4.2",
 		"sharp": "^0.35.3",
