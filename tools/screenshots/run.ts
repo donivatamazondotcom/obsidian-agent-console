@@ -44,6 +44,7 @@ import { chromium, type Browser, type CDPSession, type Page } from "playwright-c
 import { setTimeout as sleep } from "node:timers/promises";
 import { configDirOf, materializeRun, seededText, templateAgentConfig } from "../lib/fixtures-vault";
 import { FOCUS_STEAL_BUDGET, loginShell, userObsidianVersion, withIsolatedRun } from "../lib/isolated-instance";
+import { trustAndLoad } from "../lib/isolated-trust";
 import { appVersionProblem, pinDriftNote, readAppPin, readInstanceAppVersion, resolveAppAsar } from "../lib/obsidian-app";
 import { addDropShadow } from "./lib/shadow";
 import { captureDpr, isolatedRunProblems, nothingToCaptureMessage, reportRun } from "./lib/run-report";
@@ -308,22 +309,10 @@ async function runIsolated(capture: (cdp: Cdp, isolated: boolean, seeded?: strin
 			const appProblem = appVersionProblem(await readInstanceAppVersion(page), pin);
 			if (appProblem) throw new Error(appProblem);
 			log(`  isolated Obsidian ${pin.version} (pinned in fixtures)`);
-			for (let attempt = 0; attempt < 2; attempt++) {
-				const trust = page.getByRole("button", { name: /Trust author and enable plugins/i });
-				await trust.waitFor({ timeout: 30_000 }).then(() => trust.click()).catch(() => {});
-				if (await page.waitForSelector(".agent-console-ribbon-icon", { timeout: 20_000 }).then(() => true, () => false)) break;
-				if (attempt === 1) throw new Error("Agent Console didn't load in the isolated Obsidian");
-			}
 			// Obsidian opens a settings window after the trust click. While it is
 			// open every modal, prompt and notice mounts there, off this page.
 			// captureEntry closes a stray one too; this logs which tab it was.
-			const settingsTab = await page.evaluate(() => {
-				const w = window as unknown as { activeDocument?: Document; app: { setting: { activeTab?: { id?: string } | null; close(): void } } };
-				if (!w.activeDocument || w.activeDocument === document) return null;
-				const id = w.app.setting.activeTab?.id ?? "unknown";
-				w.app.setting.close();
-				return id;
-			});
+			const { closedSettingsTab: settingsTab } = await trustAndLoad(page);
 			if (settingsTab) log(`  closed the settings window Obsidian opened after the trust prompt (tab: ${settingsTab})`);
 			await page.evaluate(() => {
 				(window.require("@electron/remote") as { getCurrentWindow(): { setContentSize(w: number, h: number): void } }).getCurrentWindow().setContentSize(1600, 1000);

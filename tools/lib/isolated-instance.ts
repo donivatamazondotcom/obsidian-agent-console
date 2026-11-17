@@ -70,10 +70,31 @@ export interface RunState {
 	socketInode?: number | null;
 }
 
-export const statePath = (runId: string): string => path.join(RUN_PARENT, `${runId}.state.json`);
-export const takeLockPath = (runId: string, take: number): string => path.join(RUN_PARENT, `${runId}.take${take}.teardown.lock`);
-export const takeDonePath = (runId: string, take: number): string => path.join(RUN_PARENT, `${runId}.take${take}.done`);
-export const runDonePath = (runId: string): string => path.join(RUN_PARENT, `${runId}.done`);
+// `parent` defaults to the capture harness's folder; smoke instances pass their own.
+export const statePath = (runId: string, parent = RUN_PARENT): string => path.join(parent, `${runId}.state.json`);
+export const takeLockPath = (runId: string, take: number, parent = RUN_PARENT): string => path.join(parent, `${runId}.take${take}.teardown.lock`);
+export const takeDonePath = (runId: string, take: number, parent = RUN_PARENT): string => path.join(parent, `${runId}.take${take}.done`);
+export const runDonePath = (runId: string, parent = RUN_PARENT): string => path.join(parent, `${runId}.done`);
+
+/**
+ * State of a long-lived smoke instance (`st`), stored as
+ * `<instance dir>/state.json`. Unlike {@link RunState} it has no takes,
+ * deadlines or recorder, and it is never passed to {@link teardownTake}.
+ */
+export interface InstanceState {
+	schema: number;
+	runId: string;
+	markerKey: string;
+	vault: string;
+	userData: string;
+	home: string;
+	mainPid: number;
+	mainStarted: string;
+	port: number;
+	/** Absolute settings-window hook path every later command must `remote.require`. */
+	hookPath: string;
+	startedAt: number;
+}
 
 /** Atomic replace: write a temp file, then rename. */
 export function writeState(s: RunState): void {
@@ -119,9 +140,11 @@ export function parseMarkerPs(stdout: string): MarkedRow[] {
 export interface RunMarkers {
 	userData: string;
 	runId: string;
+	/** Env token key carried by the run's agent processes; `AC_VIDEO_RUN` by default. */
+	markerKey?: string;
 }
 
-const hasToken = (command: string, token: string): boolean =>
+export const hasToken = (command: string, token: string): boolean =>
 	command === token || command.startsWith(`${token} `) || command.includes(` ${token} `) || command.endsWith(` ${token}`);
 
 /**
@@ -132,7 +155,7 @@ const hasToken = (command: string, token: string): boolean =>
  */
 export function matchRun(rows: MarkedRow[], m: RunMarkers, exclude: ReadonlySet<number>): MarkedRow[] {
 	const direct = rows.filter(
-		(r) => !exclude.has(r.pid) && (hasToken(r.command, `--user-data-dir=${m.userData}`) || hasToken(r.command, `AC_VIDEO_RUN=${m.runId}`)),
+		(r) => !exclude.has(r.pid) && (hasToken(r.command, `--user-data-dir=${m.userData}`) || hasToken(r.command, `${m.markerKey ?? "AC_VIDEO_RUN"}=${m.runId}`)),
 	);
 	const out = new Map<number, MarkedRow>();
 	for (const r of direct) {
@@ -264,34 +287,77 @@ async function listOrNull(ops: TeardownOps, selfPid: number): Promise<MarkedRow[
  * released) so the watchdog tears it down again.
  */
 export async function teardownTake(state: RunState, self: LockHolder, ops: TeardownOps): Promise<boolean> {
-	const lock = takeLockPath(state.runId, state.take);
-	if (!acquireLock(lock, self)) {
+	const r = await signalMarked(
+		{ userData: state.userData, runId: state.runId },
+		[state.recorderPid, ...(state.watchdogPid ? [state.watchdogPid] : [])],
+		ops,
+		self,
+		takeLockPath(state.runId, state.take),
+		{ label: `teardown take ${state.take}`, verify: false },
+	);
+	if (r.status === "unreadable") ops.log(`teardown take ${state.take}: can't list processes; leaving the take for the watchdog`);
+	if (r.status !== "ok") return false;
+	rmSync(state.runRoot, { recursive: true, force: true });
+	writeFileSync(takeDonePath(state.runId, state.take), "");
+	return true;
+}
+
+export interface SignalResult {
+	/** `busy`: a live process holds the lock. `unreadable`: the process table couldn't be read (lock released). */
+	status: "ok" | "busy" | "unreadable";
+	/** Marked processes still alive after SIGKILL (only when `verify`). */
+	left: MarkedRow[];
+}
+
+/**
+ * The shared signalling core of a teardown: take `lockPath`, close the browser
+ * (when `ops.closeBrowser` is set), then SIGTERM, wait 2.5 s, SIGKILL every
+ * process carrying `markers` and its descendants. The ancestors of
+ * `excludeRoots` and of the caller are recomputed on every listing and never
+ * signalled. On success the lock is kept (the caller removes or marks it).
+ */
+export async function signalMarked(
+	markers: RunMarkers,
+	excludeRoots: readonly number[],
+	ops: TeardownOps,
+	self: LockHolder,
+	lockPath: string,
+	o: { label?: string; verify?: boolean } = {},
+): Promise<SignalResult> {
+	const label = o.label ?? "teardown";
+	if (!acquireLock(lockPath, self)) {
 		// Only break a lock whose holder we can see is gone.
 		const rows0 = await listOrNull(ops, self.pid);
-		if (!rows0 || !breakStaleLock(lock, rows0) || !acquireLock(lock, self)) return false;
+		if (!rows0 || !breakStaleLock(lockPath, rows0) || !acquireLock(lockPath, self)) return { status: rows0 ? "busy" : "unreadable", left: [] };
 	}
 	if (ops.closeBrowser) await withTimeout(ops.closeBrowser(), STEP_TIMEOUT_MS);
 	await ops.sleep(1000);
-	const markers = { userData: state.userData, runId: state.runId };
-	for (const [signal, wait] of [["SIGTERM", 2500], ["SIGKILL", 500]] as const) {
+	const scan = async (): Promise<MarkedRow[] | null> => {
 		const rows = await listOrNull(ops, self.pid);
-		if (!rows) {
-			ops.log(`teardown take ${state.take}: can't list processes; leaving the take for the watchdog`);
-			rmSync(lock, { force: true });
-			return false;
+		if (!rows) return null;
+		const exclude = new Set([...excludeRoots.flatMap((p) => [...ancestors(rows, p)]), ...ancestors(rows, self.pid)]);
+		return matchRun(rows, markers, exclude);
+	};
+	for (const [signal, wait] of [["SIGTERM", 2500], ["SIGKILL", 500]] as const) {
+		const matched = await scan();
+		if (!matched) {
+			rmSync(lockPath, { force: true });
+			return { status: "unreadable", left: [] };
 		}
-		const exclude = new Set([...ancestors(rows, state.recorderPid), ...(state.watchdogPid ? ancestors(rows, state.watchdogPid) : []), ...ancestors(rows, self.pid)]);
-		const matched = matchRun(rows, markers, exclude);
-		if (!matched.length) break;
+		if (!matched.length) return { status: "ok", left: [] };
 		const plan = planSignals(matched);
-		ops.log(`teardown take ${state.take}: ${signal} ${matched.length} process(es)`);
+		ops.log(`${label}: ${signal} ${matched.length} process(es)`);
 		for (const g of plan.groups) ops.kill(-g, signal);
 		for (const p of plan.pids) ops.kill(p, signal);
 		await ops.sleep(wait);
 	}
-	rmSync(state.runRoot, { recursive: true, force: true });
-	writeFileSync(takeDonePath(state.runId, state.take), "");
-	return true;
+	if (o.verify === false) return { status: "ok", left: [] };
+	const left = await scan();
+	if (!left) {
+		rmSync(lockPath, { force: true });
+		return { status: "unreadable", left: [] };
+	}
+	return { status: "ok", left };
 }
 
 /** Wall-clock budget for {@link finishTake}. */
@@ -357,16 +423,54 @@ export function frontmostPid(): number | null {
 	return r.status === 0 && n > 0 ? n : null;
 }
 
-/** Problems that block a run. Empty means go. */
-export function preflight(): string[] {
+export interface PreflightFacts {
+	platform: string;
+	appExists: boolean;
+	psOk: boolean;
+	frontmostOk: boolean;
+	hasBin: (bin: string) => boolean;
+	/** ASBX agent sandboxing is on for this session (`$SANDBOX_SESSION_ID`). */
+	sandboxed: boolean;
+}
+
+/**
+ * Problems that block a run, from measured facts. `core` is what any isolated
+ * instance needs (smoke tests); `capture` adds the recorder's binaries.
+ * `retryCommand`, when given, is printed as the paste-ready command for a
+ * normal Terminal when the sandbox blocks the run.
+ */
+export function preflightIssues(f: PreflightFacts, level: "core" | "capture", retryCommand?: string): string[] {
 	const p: string[] = [];
-	if (platform() !== "darwin") p.push("isolated capture needs macOS");
-	if (!existsSync(OBSIDIAN_APP)) p.push(`${OBSIDIAN_APP} not found`);
-	for (const bin of ["ffmpeg", "ffprobe"]) if (run(bin, ["-version"]).status !== 0) p.push(`${bin} not found on PATH`);
-	const ps = run("ps", ["-o", "pid=", "-p", String(process.pid)]);
-	if (ps.status !== 0) p.push("ps is blocked (agent sandbox?); run from a normal terminal");
-	if (frontmostPid() === null) p.push("System Events didn't answer within 3 s: grant Automation access or answer the pending macOS prompt");
+	if (f.platform !== "darwin") p.push("isolated capture needs macOS");
+	if (!f.appExists) p.push(`${OBSIDIAN_APP} not found`);
+	if (level === "capture") for (const bin of ["ffmpeg", "ffprobe"]) if (!f.hasBin(bin)) p.push(`${bin} not found on PATH`);
+	const sandboxHint = f.sandboxed
+		? `ASBX agent sandboxing is on in this session, and it blocks ps, open and System Events; run this from a normal Terminal${retryCommand ? `:\n    ${retryCommand}` : ""}`
+		: null;
+	if (!f.psOk) p.push(sandboxHint ? `ps is blocked: ${sandboxHint}` : "ps is blocked (agent sandbox?); run from a normal terminal");
+	else if (!f.frontmostOk) p.push(sandboxHint ? `System Events didn't answer: ${sandboxHint}` : "System Events didn't answer within 3 s: grant Automation access or answer the pending macOS prompt");
 	return p;
+}
+
+function preflightFacts(): PreflightFacts {
+	return {
+		platform: platform(),
+		appExists: existsSync(OBSIDIAN_APP),
+		psOk: run("ps", ["-o", "pid=", "-p", String(process.pid)]).status === 0,
+		frontmostOk: frontmostPid() !== null,
+		hasBin: (bin) => run(bin, ["-version"]).status === 0,
+		sandboxed: !!process.env.SANDBOX_SESSION_ID,
+	};
+}
+
+/** Core preflight (no recorder binaries): what a smoke instance needs. Empty means go. */
+export function preflightCore(retryCommand?: string): string[] {
+	return preflightIssues(preflightFacts(), "core", retryCommand);
+}
+
+/** Capture preflight: core plus ffmpeg and ffprobe. Empty means go. */
+export function preflight(): string[] {
+	return preflightIssues(preflightFacts(), "capture");
 }
 
 /** The user's login-shell PATH and a resolver for bare command names. */
@@ -389,12 +493,30 @@ export function loginShell(): { path: string; resolve: (cmd: string) => string }
  * frontmost. Compares by unix id (both instances are named "Obsidian") and
  * restores the last app that wasn't the instance.
  */
+export interface FocusDeps {
+	frontmost: () => number | null;
+	activate: (pid: number) => void;
+}
+
+const systemFocus: FocusDeps = {
+	frontmost: frontmostPid,
+	activate: (pid) => void run("osascript", ["-e", `tell application "System Events" to set frontmost of (first application process whose unix id is ${pid}) to true`], 3000),
+};
+
 export class FocusGuard {
 	steals = 0;
-	private last: number | null = frontmostPid();
+	private last: number | null;
+	/** The app before `last`, so a pid recorded before it was known to be the instance can be undone. */
+	private prev: number | null = null;
 	private running = false;
 
-	constructor(private readonly isInstance: (pid: number) => boolean, private readonly log: (m: string) => void) {}
+	constructor(
+		private readonly isInstance: (pid: number) => boolean,
+		private readonly log: (m: string) => void,
+		private readonly deps: FocusDeps = systemFocus,
+	) {
+		this.last = deps.frontmost();
+	}
 
 	start(): void {
 		this.running = true;
@@ -410,16 +532,30 @@ export class FocusGuard {
 		this.running = false;
 	}
 
-	private async tick(): Promise<void> {
+	/**
+	 * Call once the instance's pid is known (after launch): a launch steal seen
+	 * before then was recorded as the user's app, so fall back to the one before.
+	 */
+	recheck(): void {
+		if (this.last !== null && this.isInstance(this.last)) this.last = this.prev;
+	}
+
+	/** One poll. Public for tests. */
+	async tick(): Promise<void> {
 		try {
-			const f = frontmostPid();
+			const f = this.deps.frontmost();
 			if (f === null) return;
 			if (!this.isInstance(f)) {
-				this.last = f;
+				if (f !== this.last) {
+					this.prev = this.last;
+					this.last = f;
+				}
 				return;
 			}
-			if (this.last === null) return;
-			run("osascript", ["-e", `tell application "System Events" to set frontmost of (first application process whose unix id is ${this.last}) to true`], 3000);
+			// Never "restore" focus to the instance itself (it was frontmost
+			// when the guard started): nothing to hand back, not a steal.
+			if (this.last === null || this.isInstance(this.last)) return;
+			this.deps.activate(this.last);
 			this.steals++;
 			this.log(`focus guard: restored focus (steal #${this.steals})`);
 		} catch {
@@ -467,6 +603,9 @@ export function spawnWatchdog(runId: string): { pid: number; release: () => void
 
 /** Remove Kiro V2 session records whose cwd is under the run folder. Returns the removed files. */
 export function cleanKiroSessionRecords(runRoot: string, kiroHome = path.join(homedir(), ".kiro")): string[] {
+	// An empty prefix would match every record with an absolute or missing cwd.
+	if (!runRoot) throw new Error("cleanKiroSessionRecords: empty root");
+	if (!path.isAbsolute(runRoot)) throw new Error(`cleanKiroSessionRecords: root must be absolute: ${runRoot}`);
 	const dir = path.join(kiroHome, "sessions", "cli");
 	const removed: string[] = [];
 	let files: string[] = [];
@@ -620,6 +759,8 @@ export async function withIsolatedRun(o: RunOptions, body: (t: Take) => Promise<
 			try {
 				const l = await launchInstance(r);
 				Object.assign(state, { mainPid: l.mainPid, mainStarted: l.mainStarted, port: l.port });
+				// A launch steal seen before mainPid was known was recorded as the user's app.
+				guard.recheck();
 				writeState(state);
 				ok = await body({ take: n, vault: r.vault, port: l.port, guard, setCloseBrowser: (fn) => (current.close = fn) });
 			} finally {
