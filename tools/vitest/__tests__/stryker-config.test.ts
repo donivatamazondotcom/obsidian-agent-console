@@ -21,13 +21,14 @@ async function loadVitestConfig(file: string): Promise<LoadedConfig> {
 // (ERR_WORKER_INVALID_EXEC_ARGV), so every mutation run fails to start a
 // worker if the config Stryker loads passes the fork-only flags through.
 describe("Stryker vitest config", () => {
-	it("passes no V8 flags to worker threads", async () => {
+	it("passes no execArgv to worker threads", async () => {
 		const stryker = JSON.parse(
 			readFileSync(path.join(ROOT, "stryker.config.json"), "utf8"),
 		) as { vitest: { configFile: string } };
 		const config = await loadVitestConfig(stryker.vitest.configFile);
-		const argv = config.test?.execArgv ?? [];
-		expect(argv.filter((a) => a.startsWith("--max-"))).toEqual([]);
+		// Empty, not just "no --max-*": threads reject other flags too, and
+		// Stryker's sandbox omits tools/, so a --require of the guard fails.
+		expect(config.test?.execArgv ?? []).toEqual([]);
 	});
 
 	it("keeps the orphan guard and heap cap on the default fork pool", async () => {
