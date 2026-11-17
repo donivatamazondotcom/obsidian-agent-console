@@ -1640,14 +1640,13 @@
 		},
 		{
 			"name": "tab-ai-rename-menu",
-			"pending": true,
 			"width": 1424,
-			"height": 428,
+			"height": 460,
 			"crop": {
 				"x": 0,
 				"y": 0,
 				"width": 1424,
-				"height": 428
+				"height": 460
 			},
 			"cropSelectors": [
 				".agent-client-tab-bar",
@@ -1689,14 +1688,13 @@
 		},
 		{
 			"name": "chat-link-menu",
-			"pending": true,
 			"width": 1424,
-			"height": 428,
+			"height": 460,
 			"crop": {
 				"x": 0,
 				"y": 0,
 				"width": 1424,
-				"height": 428
+				"height": 460
 			},
 			"cropSelectors": [
 				".agent-client-tab-bar",
@@ -2117,62 +2115,6 @@
 			"caption": "Try new features in one click after an update",
 			"altText": "Agent Console chat view with a What's new card above the chat offering Try vertical tabs and Release notes",
 			"captureNote": "whatsNew \"latest\" makes this an existing user who just updated to the newest release in src/whats-new/highlights.ts, on the top tab strip. No per-release edits: add the release's highlight entry and reshoot."
-		},
-		{
-			"name": "chat-timestamps",
-			"pending": true,
-			"width": 520,
-			"height": 420,
-			"crop": {
-				"x": 0,
-				"y": 0,
-				"width": 520,
-				"height": 420
-			},
-			"cropSelector": ".agent-client-chat-content",
-			"cropPadding": 12,
-			"initialState": {
-				"openNote": "Welcome.md",
-				"clickRibbon": true
-			},
-			"approvalThreshold": 0.05,
-			"minDistinctColors": 300,
-			"placement": "feature",
-			"purpose": "Faint times show when each prompt was sent, when each reply finished and how long it took.",
-			"differentiator": "Prompt, turn-end and gap stamps in the chat",
-			"mustShow": ".agent-client-stamp-end",
-			"caption": "See when each reply finished, and how long it took",
-			"altText": "Agent Console chat with a faint send time under a prompt and a finish time with its duration under the reply",
-			"docPage": "docs/usage/chat-timestamps.md",
-			"captureNote": "Pending: needs a seeded session whose messages carry the Chat Timestamps time fields (sentAt, turnEndedAt, turnMs, arrivedAt, gapBefore). The fixtures' seed sessions predate the feature, so they show no stamps."
-		},
-		{
-			"name": "chat-timestamps-activity",
-			"pending": true,
-			"width": 520,
-			"height": 420,
-			"crop": {
-				"x": 0,
-				"y": 0,
-				"width": 520,
-				"height": 420
-			},
-			"cropSelector": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-view-messages",
-			"cropPadding": 12,
-			"initialState": {
-				"openNote": "Welcome.md",
-				"clickRibbon": true
-			},
-			"approvalThreshold": 0.05,
-			"minDistinctColors": 300,
-			"placement": "feature",
-			"purpose": "While a reply runs, the line under the chat and each running tool row show plain facts: how long, and when the last update or output came.",
-			"differentiator": "Live status line and tool-row times, with no guessed stall alerts",
-			"mustShow": ".agent-client-tool-call-time",
-			"caption": "See how long a tool has run and when it last printed",
-			"altText": "Agent Console chat with a running command row showing its time and last output, and the live line naming the tool",
-			"docPage": "docs/usage/chat-timestamps.md",
-			"captureNote": "Pending: needs a live turn with a running command the plugin runs (for the row's output time and the live line), or a seeded session plus an injected store snapshot. Finished rows need seed messages carrying startedAt/endedAt."
 		}
 	]
 }
