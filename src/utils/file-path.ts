@@ -9,7 +9,6 @@
  * Electron itself.
  */
 export function getFilePathForFile(file: File): string {
-	// eslint-disable-next-line @typescript-eslint/no-require-imports -- electron is a runtime-only module provided by Obsidian's host environment
 	const { webUtils } = require("electron") as {
 		webUtils: { getPathForFile: (file: File) => string };
 	};

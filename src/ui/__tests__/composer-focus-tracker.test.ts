@@ -69,6 +69,22 @@ describe("composerFocusReducer (guardrail truth table)", () => {
 });
 
 describe("classifyFocusTarget", () => {
+	it("classifies a popout-window trigger control as 'cluster' (I383)", () => {
+		// A popout's elements come from another window's realm, so a plain
+		// `instanceof HTMLElement` against this window is false there.
+		const frame = document.createElement("iframe");
+		document.body.appendChild(frame);
+		const popoutWin = frame.contentWindow as Window & typeof globalThis;
+		// Obsidian adds `instanceOf` to each popout's own Node prototype.
+		popoutWin.Node.prototype.instanceOf = Node.prototype.instanceOf;
+		const popoutDoc = frame.contentDocument as Document;
+		const composer = popoutDoc.createElement("textarea");
+		const btn = popoutDoc.createElement("button");
+		btn.setAttribute(FOCUS_CLUSTER_ATTR, "");
+		popoutDoc.body.append(composer, btn);
+		expect(classifyFocusTarget(btn, composer)).toBe("cluster");
+	});
+
 	function el(tag: string): HTMLElement {
 		const e = document.createElement(tag);
 		document.body.appendChild(e);

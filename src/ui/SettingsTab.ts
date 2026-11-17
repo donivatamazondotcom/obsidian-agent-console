@@ -477,7 +477,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 					.querySelector(".setting-item-name")
 					?.textContent?.trim() === pageName,
 		);
-		if (!(row instanceof HTMLElement)) {
+		if (!row?.instanceOf(HTMLElement)) {
 			return false;
 		}
 		row.click();
@@ -493,7 +493,7 @@ export class AgentClientSettingTab extends PluginSettingTab {
 		const back = this.containerEl.ownerDocument.querySelector(
 			".setting-page-back-button",
 		);
-		if (!(back instanceof HTMLElement)) {
+		if (!back?.instanceOf(HTMLElement)) {
 			return false;
 		}
 		back.click();

@@ -343,7 +343,7 @@ src/
 ├── __test_stubs__/              # Test-only Obsidian/jsdom shims (not shipped)
 │   ├── obsidian.ts              # Obsidian module stub for vitest
 │   ├── message-list-plugin.ts   # Shared plugin stub for MessageList suites: a small real workspace event bus (on / offref / trigger) + idle MCP auth manager
-│   └── vitest.setup.ts          # jsdom setup: activeDocument/activeWindow + HTMLElement.setCssProps shims + no-op IntersectionObserver
+│   └── vitest.setup.ts          # jsdom setup: activeDocument/activeWindow + Node.instanceOf (cross-window) + HTMLElement.setCssProps shims + no-op IntersectionObserver
 ├── plugin.ts                    # Obsidian plugin lifecycle, settings persistence
 └── main.ts                      # Entry point
 ```

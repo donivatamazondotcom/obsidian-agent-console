@@ -69,11 +69,15 @@ export function classifyFocusTarget(
 	target: EventTarget | null,
 	composerEl: HTMLElement | null,
 ): FocusZone {
-	if (!(target instanceof HTMLElement)) return "outside";
+	// Cross-window check: a popout's elements belong to its own window, so a
+	// plain `instanceof HTMLElement` is false there. A non-Node target (the
+	// window itself) has no `instanceOf` and classifies as outside. (I383)
+	if (!target || !(target as Node).instanceOf?.(HTMLElement)) return "outside";
 	if (composerEl && target === composerEl) return "composer";
 	// Trigger controls are tagged; their Obsidian Menu popover renders at body
 	// with class `.menu`. Either keeps the flag set so a pick returns focus.
-	if (target.closest(`[${FOCUS_CLUSTER_ATTR}]`)) return "cluster";
-	if (target.closest(".menu")) return "cluster";
+	const el = target as HTMLElement;
+	if (el.closest(`[${FOCUS_CLUSTER_ATTR}]`)) return "cluster";
+	if (el.closest(".menu")) return "cluster";
 	return "outside";
 }

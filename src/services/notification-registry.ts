@@ -713,7 +713,6 @@ export function createNotificationRegistry(
 
 function defaultRaiseOwningWindow(): void {
 	try {
-		// eslint-disable-next-line @typescript-eslint/no-require-imports -- electron is a runtime-only module provided by Obsidian's host environment
 		const { remote } = require("electron") as {
 			remote: { getCurrentWindow: () => { focus: () => void } };
 		};
@@ -803,7 +802,6 @@ export function sweepOwnedNotificationsAtStartup(
  */
 export function getRemoteNotificationStatics(): RemoteNotificationStatics | null {
 	try {
-		// eslint-disable-next-line @typescript-eslint/no-require-imports -- electron is a runtime-only module provided by Obsidian's host environment
 		const electron = require("electron") as {
 			remote?: { Notification?: RemoteNotificationStatics };
 		};

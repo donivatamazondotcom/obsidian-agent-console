@@ -173,6 +173,50 @@ describe("createQuickPromptBridge — refactor fidelity", () => {
 		expect(document.activeElement).toBe(textarea);
 	});
 
+	it("insertAtCursor splices at the caret when the composer lives in a popout window (I383)", () => {
+		// A popout's elements come from another window's realm, so
+		// `el instanceof HTMLTextAreaElement` (this window's constructor) is
+		// false there. The bridge must use the cross-window `instanceOf`.
+		const frame = document.createElement("iframe");
+		document.body.appendChild(frame);
+		const popoutDoc = frame.contentDocument as Document;
+		const popoutWin = frame.contentWindow as Window & typeof globalThis;
+		// Obsidian adds `instanceOf` to each popout's own Node prototype.
+		popoutWin.Node.prototype.instanceOf = Node.prototype.instanceOf;
+		vi.spyOn(popoutWin, "requestAnimationFrame").mockImplementation((cb) => {
+			cb(0);
+			return 0;
+		});
+		vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+			cb(0);
+			return 0;
+		});
+		const container = popoutDoc.createElement("div");
+		const textarea = popoutDoc.createElement("textarea");
+		textarea.className = "agent-client-chat-input-textarea";
+		textarea.value = "ab";
+		container.appendChild(textarea);
+		popoutDoc.body.appendChild(container);
+		textarea.selectionStart = 1;
+		textarea.selectionEnd = 1;
+		expect(textarea instanceof HTMLTextAreaElement).toBe(false);
+
+		const setComposerText = vi.fn();
+		const bridge = createQuickPromptBridge(
+			makeDeps({
+				getComposerText: () => "ab",
+				getContainer: () => container,
+				setComposerText,
+			}),
+		);
+
+		bridge.insertAtCursor("X");
+
+		expect(setComposerText).toHaveBeenCalledWith("aXb");
+		expect(popoutDoc.activeElement).toBe(textarea);
+		expect(textarea.selectionStart).toBe(2);
+	});
+
 	it("newTab prompts route through openInNewTab, never the composer", () => {
 		const openInNewTab = vi.fn();
 		const sendMessage = vi.fn();
