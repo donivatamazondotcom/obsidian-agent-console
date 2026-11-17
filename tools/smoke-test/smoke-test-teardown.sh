@@ -71,15 +71,22 @@ if [ -d "$STUDIO_DIR" ]; then STUDIO_REAL="$(cd "$STUDIO_DIR" && pwd -P)"; else 
 # Isolated instance: stop it first. Never delete a studio a live instance uses.
 # A leftover .trash-<vault>-* folder (a down that died mid-delete) also goes
 # through st down, which removes it when its process is gone.
-if [ -d "$INSTANCE_DIR" ] || compgen -G "$(dirname "$INSTANCE_DIR")/.trash-$VAULT_NAME-*" > /dev/null; then
-	if [ ! -x "$ST_TSX" ]; then
-		echo "✗ $VAULT_NAME has an isolated instance but tsx isn't installed ($ST_TSX); run npm ci, then retry. Studio kept." >&2
-		exit 1
-	fi
-	echo "▶ stopping the isolated instance…"
-	if ! "$ST_TSX" "$ST_SCRIPT" down "$WORKTREE_NAME"; then
-		echo "✗ st down failed; studio kept at $STUDIO_DIR (see st status $WORKTREE_NAME)" >&2
-		exit 1
+VAULT_RE="$(printf '%s' "$VAULT_NAME" | sed 's/\./\\./g')"
+HAS_TRASH=false
+if ls -A "$(dirname "$INSTANCE_DIR")" 2>/dev/null | grep -Eq "^\.trash-${VAULT_RE}-[0-9]+-[0-9]+$"; then HAS_TRASH=true; fi
+if [ -d "$INSTANCE_DIR" ] && [ ! -x "$ST_TSX" ]; then
+	echo "✗ $VAULT_NAME has an isolated instance but tsx isn't installed ($ST_TSX); run npm ci, then retry. Studio kept." >&2
+	exit 1
+fi
+if [ -d "$INSTANCE_DIR" ] || [ "$HAS_TRASH" = true ]; then
+	if [ -x "$ST_TSX" ]; then
+		echo "▶ stopping the isolated instance…"
+		if ! "$ST_TSX" "$ST_SCRIPT" down "$WORKTREE_NAME"; then
+			echo "✗ st down failed; studio kept at $STUDIO_DIR (see st status $WORKTREE_NAME)" >&2
+			exit 1
+		fi
+	else
+		echo "⚠ tsx not found ($ST_TSX); left $VAULT_NAME's .trash- folder in $(dirname "$INSTANCE_DIR") for a later st down"
 	fi
 fi
 

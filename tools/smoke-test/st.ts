@@ -1094,7 +1094,16 @@ async function sweepTrash(p: Paths): Promise<void> {
 	} catch {
 		return;
 	}
-	const live = new Set((await listMarkedProcesses()).map((r) => r.pid));
+	// Only list processes when this studio has a trash folder (ps may be blocked).
+	if (!staleTrash(entries, p.vault, new Set()).length) return;
+	let rows: MarkedRow[];
+	try {
+		rows = await listMarkedProcesses();
+	} catch (err) {
+		log(`  ⚠ can't list processes (${err instanceof Error ? err.message : String(err)}); left trash folders in place`);
+		return;
+	}
+	const live = new Set(rows.map((r) => r.pid));
 	for (const e of staleTrash(entries, p.vault, live)) {
 		try {
 			rmSync(path.join(p.instances, e), { recursive: true, force: true });

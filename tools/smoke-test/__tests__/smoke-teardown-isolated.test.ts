@@ -62,9 +62,22 @@ describe("smoke-test-teardown.sh — isolated instances and Kiro cleanup", () =>
 		writeStub();
 		mkdirSync(studio, { recursive: true });
 		mkdirSync(join(repo, "tools/smoke-test/studios/.instances/.trash-ST-wt-123-456"), { recursive: true });
-		const r = run("wt");
+		const r = spawnSync("/bin/bash", [script, "wt"], { encoding: "utf8", timeout: 20_000, env: { ...process.env, HOME: home, ST_TSX: stub } });
 		expect(r.status).toBe(0);
 		expect(logged().trim().split("\n")[0]).toBe("down wt");
+	});
+
+	it("ignores a sibling worktree's trash folder (ST-wt vs ST-wt-100)", () => {
+		mkdirSync(studio, { recursive: true });
+		mkdirSync(join(repo, "tools/smoke-test/studios/.instances/.trash-ST-wt-100-123-456"), { recursive: true });
+		writeStub();
+		let r = run("wt");
+		expect(r.status).toBe(0);
+		expect(logged()).not.toMatch(/^down wt$/m);
+		mkdirSync(studio, { recursive: true });
+		r = spawnSync("/bin/bash", [script, "wt"], { encoding: "utf8", timeout: 20_000, env: { ...process.env, HOME: home, ST_TSX: join(repo, "nope") } });
+		expect(r.status).toBe(0);
+		expect(existsSync(studio)).toBe(false);
 	});
 
 	it("keeps the studio and exits non-zero when st down fails", () => {
