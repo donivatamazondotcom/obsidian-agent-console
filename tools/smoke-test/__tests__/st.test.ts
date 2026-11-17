@@ -2,7 +2,8 @@
 // Spec: [[Isolated smoke-test instances]] (§ st, § Mode guard G, § Agent
 // environment, § Teardown, § Settings windows).
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, realpathSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -358,5 +359,26 @@ describe("upSequence", () => {
 		const { deps, log } = fakeUp([false], { seedContext: () => ({ ok: false, message: "login shell too slow" }) });
 		expect((await upSequence(deps)).ok).toBe(false);
 		expect(log).not.toContain("focus.lock");
+	});
+});
+
+describe("st under a blocked ps (ASBX)", () => {
+	it("eval names the sandbox instead of a raw ps error", () => {
+		const dir = mkdtempSync(path.join(tmpdir(), "st-asbx-"));
+		try {
+			writeFileSync(path.join(dir, "ps"), "#!/bin/sh\necho 'ps: Operation not permitted' >&2\nexit 1\n");
+			chmodSync(path.join(dir, "ps"), 0o755);
+			const st = path.resolve(__dirname, "../st.ts");
+			const tsx = path.resolve(__dirname, "../../../node_modules/.bin/tsx");
+			const r = spawnSync(tsx, [st, "eval", "no-such-studio-xyz", "1"], {
+				encoding: "utf8",
+				timeout: 30_000,
+				env: { ...process.env, PATH: `${dir}:${process.env.PATH ?? ""}`, SANDBOX_SESSION_ID: "test" },
+			});
+			expect(r.status).toBe(1);
+			expect(r.stderr).toMatch(/ASBX agent sandboxing/);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 });

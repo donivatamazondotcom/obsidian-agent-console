@@ -879,8 +879,9 @@ async function launchFresh(p: Paths, onPid: (pid: number) => void, guard: () => 
 		// Never leave a wrong-version instance for a later `up` to adopt.
 		const s = await signalMarked(p.markers, [], nodeTeardownOps(log, () => closeBrowserAt(l.port)), holder, p.teardownLock, { label: "stop wrong-version instance" });
 		rmSync(p.teardownLock, { force: true });
-		const left = s.left.length ? `; still running: ${s.left.map((x) => x.pid).join(", ")}` : "";
-		return { ok: false, message: `${vp} (instance stopped${left})` };
+		if (s.status !== "ok") return { ok: false, message: `${vp}; couldn't stop it (${s.status === "busy" ? "another teardown holds the lock" : "can't read the process table"}): run st down ${p.wt}` };
+		if (s.left.length) return { ok: false, message: `${vp}; still running after SIGKILL: ${s.left.map((x) => x.pid).join(", ")}` };
+		return { ok: false, message: `${vp} (instance stopped)` };
 	}
 	return settle(p, l.port, l.mainPid, l.mainStarted, hookPath, guard());
 }
@@ -1012,7 +1013,7 @@ async function cmdRestart(p: Paths, holder: LockHolder & { cmd: string }): Promi
 		launch: async () => {
 			rmSync(p.portFile, { force: true });
 			const r = await launchFresh(p, d.setPid, d.guardRef, state.hookPath, holder);
-			// The old state names a dead pid; drop it so status says orphan and `up` adopts.
+			// The old state names a dead pid; drop it. A new instance left up (plugin didn't load) shows as orphan for `up` to adopt; a wrong-version one was stopped.
 			if (!r.ok) rmSync(p.state, { force: true });
 			return r.ok ? { ok: true, message: r.message.replace(" up (", " restarted (") } : { ok: false, message: r.message.replace("didn't load in the isolated instance", "didn't load after restart") };
 		},
@@ -1097,7 +1098,12 @@ async function cmdDown(p: Paths, holder: LockHolder & { cmd: string }): Promise<
 	// Strip before removing the instance folder, so a failed strip leaves `down` re-runnable.
 	const d = readDataJson(p.dataJson);
 	if (d.ok && JSON.stringify(d.data).includes(`"${MARKER_KEY}"`)) writeJsonAtomic(p.dataJson, stripSmokeMarker(d.data));
-	rmSync(p.inst, { recursive: true, force: true });
+	if (!d.ok && d.reason === "unreadable") log(`  ⚠ ${p.dataJson} is unreadable, so its ${MARKER_KEY} rows weren't removed; a non-isolated spawn will refuse it until it's fixed`);
+	// Move the folder aside first: a waiting `up` may recreate it and take op.lock
+	// while a long recursive delete would still be running.
+	const trash = path.join(p.instances, `.trash-${p.vault}-${process.pid}-${Date.now()}`);
+	renameSync(p.inst, trash);
+	rmSync(trash, { recursive: true, force: true });
 	if (sockBefore !== null && userObsidianRunning() && socketInodeNow() !== sockBefore) return { ok: false, message: `stopped, but ${CLI_SOCKET} changed while your Obsidian runs` };
 	return { ok: true, message: `${p.vault} down` };
 }
@@ -1168,8 +1174,8 @@ async function main(argv: string[]): Promise<number> {
 		// eval/cdp/screenshot only need CDP and ps; lifecycle commands and focus need System Events and open too.
 		const pre = lifecycle || a.cmd === "focus" ? preflightCore(retry) : [];
 		if (pre.length) return { ok: false, message: `preflight failed:\n- ${pre.join("\n- ")}` };
-		const holder = await selfHolder(`st ${a.cmd} ${p.wt}`);
 		if (lifecycle) {
+			const holder = await selfHolder(`st ${a.cmd} ${p.wt}`);
 			if (a.cmd === "up" && !existsSync(p.studio)) return { ok: false, message: `no studio at ${p.studio}; run tools/smoke-test/smoke-test-spawn.sh ${p.wt} --isolated` };
 			const release = await waitLock(p.opLock, holder, OP_LOCK_WAIT_MS, `the ${p.vault} op lock`, a.cmd === "up");
 			try {
