@@ -140,6 +140,34 @@ describe("frameImage (real sharp)", () => {
 		expect(m.hasAlpha).toBe(true); // rounded matte corners → transparency
 	});
 
+	it("a backdrop image replaces the gradient matte (store shots)", async () => {
+		const p = await makeInput(100, 60);
+		const dir = mkdtempSync(path.join(tmpdir(), "frame-bg-"));
+		const bg = path.join(dir, "bg.png");
+		// A solid amber backdrop: the gradient matte would be dark grey.
+		await sharp({ create: { width: 40, height: 30, channels: 3, background: { r: 240, g: 180, b: 20, alpha: 1 } } })
+			.png()
+			.toFile(bg);
+		await frameImage(p, {
+			chrome: "none",
+			background: { from: "#111111", to: "#222222", image: bg },
+			cornerRadius: 8,
+			padding: 10,
+			chromeHeight: 0,
+			shadow: { opacity: 0, blur: 1, offsetY: 0 },
+		});
+		const m = await sharp(p).metadata();
+		expect(m.width).toBe(120);
+		expect(m.height).toBe(80);
+		// Sample the matte away from the window and the rounded corners.
+		const { data, info } = await sharp(p).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+		const at = (x: number, y: number) => data.slice((y * info.width + x) * 3, (y * info.width + x) * 3 + 3);
+		const [r, g, b] = at(60, 4);
+		expect(r).toBeGreaterThan(200);
+		expect(g).toBeGreaterThan(140);
+		expect(b).toBeLessThan(60);
+	});
+
 	it("macos chrome adds the title-bar height before padding", async () => {
 		const p = await makeInput(100, 60);
 		await frameImage(p, {

@@ -113,7 +113,7 @@ tools/screenshots/
 │   ├── orchestrator.ts    # Main capture loop
 │   ├── settings-crop.ts   # Settings-shot content crop
 │   ├── native-select-replica.ts  # DOM replica of an open <select> list
-│   ├── frame.ts           # Presentation frame (gradient, shadow, traffic lights)
+│   ├── frame.ts           # Presentation frame (gradient or backdrop image, shadow, traffic lights)
 │   ├── review-page.ts     # Side-by-side review page
 │   └── __tests__/         # Unit tests (vitest)
 └── README.md              # This file
@@ -239,3 +239,12 @@ body.acp-capturing .agent-client-scroll-to-bottom { display: none !important; }
 ```
 
 The driver sets the marker for you: `captureAll` (in `lib/orchestrator.ts`) adds `acp-capturing` to `document.body` before each shot and removes it in a `finally` (cleared even if the capture throws). You only need to author the gated CSS. Smoke studios then render the real UI; screenshots stay clean.
+
+## Store listing shots
+
+The `store-*` entries make the images for the Community Plugins listing, which are uploaded by hand on the developer dashboard. They carry `storeOnly: true`, which exempts them from the docs-embed check, because no docs page shows them.
+
+- **Size:** the dashboard recommends 1200×800. The entries render the 1600×1000 page into 1066×666 and frame it with `padding: 67`, which gives 1200×800 at the page's own 8:5 shape.
+- **Backdrop:** `frame.background.image` names a file in `fixtures/backdrops/` that covers the matte instead of the two-stop gradient.
+- **What's new card:** each sets `pluginSettings.lastSeenVersion: "9999.0.0"` to keep the card hidden, until I386's harness fix.
+- **Hidden placeholder:** shots 3 and 5 hide the empty-chat placeholder. A hidden element's text is invisible to `forbiddenText`, so they rely on `awaitSelector` (shot 3) and forced tab states (shot 5) instead.

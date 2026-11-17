@@ -208,6 +208,18 @@ describe("formatProblems", () => {
 });
 
 describe("findDocEmbedGaps", () => {
+	it("exempts a storeOnly entry: its image is for the store listing, not a docs page", () => {
+		const e = { ...entry("store-1-multi-session"), storeOnly: true } as ManifestEntry;
+		expect(
+			findDocEmbedGaps({
+				entries: [e],
+				docPages: [],
+				refsByPage: {},
+				presentImages: ["store-1-multi-session.webp"],
+			}),
+		).toEqual([]);
+	});
+
 	/** An entry whose image is committed and embedded on its declared docPage. */
 	const healthy = {
 		...entry("mid-stream-steering"),

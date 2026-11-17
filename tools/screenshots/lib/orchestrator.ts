@@ -1090,7 +1090,10 @@ async function captureEntryWithSettings(
 		// 3b. Hide chrome that isn't the subject of this shot (e.g. the chat
 		// composer for a transcript-focused capture) so the window can be sized
 		// tight without the hidden element forcing scroll overflow. Done before
-		// the settle/scroll so the layout reflows before the screenshot.
+		// the settle/scroll so the layout reflows before the screenshot, and
+		// again at 3z for elements later steps create. A hidden element's text
+		// is invisible to the cleanliness check, so don't hide what
+		// forbiddenText must see.
 		if (entry.hideSelectors?.length) {
 			const selectors = JSON.stringify(entry.hideSelectors);
 			await deps.cdp.evaluate(
@@ -1273,6 +1276,16 @@ async function captureEntryWithSettings(
 					HOVER_TOOLTIP_TIMEOUT_MS,
 				)
 				.catch(() => {});
+			// The link's tab starts its own agent. With no prompts, nothing
+			// else waits for it, so a connecting tab would be captured: wait
+			// on awaitSelector (e.g. the toolbar's dropdowns, shown once the
+			// session is up) when the entry sets one.
+			if (entry.awaitSelector && promptFiles.length === 0) {
+				await deps.cdp.waitForElement(
+					`${ACTIVE_PANEL} ${entry.awaitSelector}`,
+					RESPONSE_TIMEOUT_MS,
+				);
+			}
 			await sleep(SETTLE_MS);
 		}
 		// 3c-quater-ter. Kiro V3 MCP failure notice (S4 shot): inject a status
@@ -1535,6 +1548,16 @@ async function captureEntryWithSettings(
 			);
 			await sleep(SETTLE_MS);
 		}
+		// 3z. Hide again, before the settle: steps after 3b (restored or forced
+		// tabs, a link's tab) create elements the first pass never saw, and the
+		// settle lets the layout reflow before mustShow and the capture.
+		if (entry.hideSelectors?.length) {
+			const selectors = JSON.stringify(entry.hideSelectors);
+			await deps.cdp.evaluate(
+				`(() => { /*__acRehide*/ for (const s of ${selectors}) { document.querySelectorAll(s).forEach((el) => { el.style.display = "none"; }); } return true; })()`,
+			);
+		}
+
 		// 4. Brief settle for UI animations
 		await sleep(SETTLE_MS);
 

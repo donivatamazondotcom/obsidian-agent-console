@@ -6,7 +6,9 @@
 declare module "sharp" {
 	interface SharpInstance {
 		extract(region: { left: number; top: number; width: number; height: number }): SharpInstance;
-		resize(width: number, height: number): SharpInstance;
+		resize(width: number, height: number, opts?: { fit?: "cover" | "contain" | "fill" | "inside" | "outside" }): SharpInstance;
+		ensureAlpha(): SharpInstance;
+		removeAlpha(): SharpInstance;
 		extend(opts: { top: number; bottom: number; left: number; right: number; background: { r: number; g: number; b: number; alpha: number } }): SharpInstance;
 		raw(): SharpInstance;
 		webp(opts?: { quality?: number }): SharpInstance;
