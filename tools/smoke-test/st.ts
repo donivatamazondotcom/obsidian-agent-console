@@ -1095,7 +1095,13 @@ async function sweepTrash(p: Paths): Promise<void> {
 		return;
 	}
 	const live = new Set((await listMarkedProcesses()).map((r) => r.pid));
-	for (const e of staleTrash(entries, p.vault, live)) rmSync(path.join(p.instances, e), { recursive: true, force: true });
+	for (const e of staleTrash(entries, p.vault, live)) {
+		try {
+			rmSync(path.join(p.instances, e), { recursive: true, force: true });
+		} catch (err) {
+			log(`  ⚠ couldn't remove leftover ${path.join(p.instances, e)} (${err instanceof Error ? err.message : String(err)}); delete it by hand`);
+		}
+	}
 }
 
 async function cmdDown(p: Paths, holder: LockHolder & { cmd: string }): Promise<Outcome> {
@@ -1134,7 +1140,7 @@ async function cmdDown(p: Paths, holder: LockHolder & { cmd: string }): Promise<
 	try {
 		rmSync(trash, { recursive: true, force: true });
 	} catch (e) {
-		log(`  ⚠ stopped, but couldn't delete ${trash} (${e instanceof Error ? e.message : String(e)}); the next up or down removes it`);
+		log(`  ⚠ stopped, but couldn't delete ${trash} (${e instanceof Error ? e.message : String(e)}); the next st down ${p.wt} or teardown retries it`);
 	}
 	if (sockBefore !== null && userObsidianRunning() && socketInodeNow() !== sockBefore) return { ok: false, message: `stopped, but ${CLI_SOCKET} changed while your Obsidian runs` };
 	return { ok: true, message: `${p.vault} down` };
@@ -1200,6 +1206,7 @@ async function main(argv: string[]): Promise<number> {
 		}
 		const lifecycle = a.cmd === "up" || a.cmd === "restart" || a.cmd === "reload" || a.cmd === "down" || a.cmd === "settings";
 		if (lifecycle && a.cmd !== "up" && !existsSync(p.inst)) {
+			if (a.cmd === "down") await sweepTrash(p);
 			return a.cmd === "down" ? { ok: true, message: `${p.vault} has no isolated instance; nothing to stop` } : { ok: false, message: `${p.vault} isn't up; run: npx tsx tools/smoke-test/st.ts up ${p.wt}` };
 		}
 		const retry = `cd ${p.main} && npx tsx ${path.relative(p.main, __filename).startsWith("..") ? __filename : path.relative(p.main, __filename)} ${argv.join(" ")}`;

@@ -153,6 +153,8 @@ describe("staleTrash", () => {
 	it("lists this studio's trash folders whose deleting process is gone", () => {
 		const entries = [".trash-ST-a-100-1", ".trash-ST-a-200-2", ".trash-ST-ab-300-3", "ST-a", ".focus.lock"];
 		expect(staleTrash(entries, "ST-a", new Set([200]))).toEqual([".trash-ST-a-100-1"]);
+		expect(staleTrash([".trash-ST-a-100-1", ".trash-ST-a-100-1-2", ".trash-ST-axb-5-6"], "ST-a", new Set())).toEqual([".trash-ST-a-100-1"]);
+		expect(staleTrash([".trash-ST-a.b-7-8", ".trash-ST-aXb-7-8"], "ST-a.b", new Set())).toEqual([".trash-ST-a.b-7-8"]);
 	});
 });
 

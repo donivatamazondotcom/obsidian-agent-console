@@ -69,7 +69,9 @@ ST_TSX="${ST_TSX:-$REPO_ROOT/node_modules/.bin/tsx}"
 if [ -d "$STUDIO_DIR" ]; then STUDIO_REAL="$(cd "$STUDIO_DIR" && pwd -P)"; else STUDIO_REAL="$STUDIO_DIR"; fi
 
 # Isolated instance: stop it first. Never delete a studio a live instance uses.
-if [ -d "$INSTANCE_DIR" ]; then
+# A leftover .trash-<vault>-* folder (a down that died mid-delete) also goes
+# through st down, which removes it when its process is gone.
+if [ -d "$INSTANCE_DIR" ] || compgen -G "$(dirname "$INSTANCE_DIR")/.trash-$VAULT_NAME-*" > /dev/null; then
 	if [ ! -x "$ST_TSX" ]; then
 		echo "✗ $VAULT_NAME has an isolated instance but tsx isn't installed ($ST_TSX); run npm ci, then retry. Studio kept." >&2
 		exit 1

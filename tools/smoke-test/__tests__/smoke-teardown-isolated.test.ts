@@ -58,6 +58,15 @@ describe("smoke-test-teardown.sh — isolated instances and Kiro cleanup", () =>
 		expect(JSON.parse(readFileSync(cfg(), "utf8")).vaults).toEqual({});
 	});
 
+	it("routes a leftover trash folder through st down even without an instance folder", () => {
+		writeStub();
+		mkdirSync(studio, { recursive: true });
+		mkdirSync(join(repo, "tools/smoke-test/studios/.instances/.trash-ST-wt-123-456"), { recursive: true });
+		const r = run("wt");
+		expect(r.status).toBe(0);
+		expect(logged().trim().split("\n")[0]).toBe("down wt");
+	});
+
 	it("keeps the studio and exits non-zero when st down fails", () => {
 		writeStub({ down: 1 });
 		mkdirSync(studio, { recursive: true });
