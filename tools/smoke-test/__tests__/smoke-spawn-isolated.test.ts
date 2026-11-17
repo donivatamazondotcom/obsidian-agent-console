@@ -34,7 +34,8 @@ describe("smoke-test-spawn.sh flags and non-isolated mode guard", () => {
 		copyFileSync(SCRIPT, script);
 		chmodSync(script, 0o755);
 		mkdirSync(join(repo, ".trees/wt"), { recursive: true });
-		spawnSync("git", ["-C", repo, "commit", "-q", "--allow-empty", "-m", "x"]);
+		// CI has no git identity; give the throwaway commit one.
+		spawnSync("git", ["-C", repo, "-c", "user.name=smoke-test", "-c", "user.email=smoke-test@example.invalid", "commit", "-q", "--allow-empty", "-m", "x"]);
 		spawnSync("git", ["-C", repo, "worktree", "add", "-q", "--detach", ".trees/wt2"]);
 		studio = join(repo, "tools/smoke-test/studios/ST-wt");
 		home = join(repo, "fake-home");
