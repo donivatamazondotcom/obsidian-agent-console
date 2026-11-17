@@ -476,6 +476,23 @@ describe("captureEntry", () => {
 		expect(deps.cdp.screenshot).toHaveBeenCalledTimes(1);
 	});
 
+	it("hides hideSelectors again right before capture, so elements a later step created are hidden too", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({ hideSelectors: [".agent-client-chat-empty-state"] });
+		await captureEntry(entry, deps);
+		const ev = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		const hideIdx = ev.mock.calls
+			.map((c: unknown[], i: number) => (String(c[0]).includes('style.display = "none"') && String(c[0]).includes(".agent-client-chat-empty-state") ? i : -1))
+			.filter((i: number) => i >= 0);
+		const shotOrder = (deps.cdp.screenshot as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+		const last = ev.mock.invocationCallOrder[hideIdx[hideIdx.length - 1]];
+		expect(hideIdx.length).toBeGreaterThanOrEqual(2);
+		// The last hide runs after every earlier drive step, immediately before the shot.
+		const between = ev.mock.invocationCallOrder.filter((o: number) => o > last && o < shotOrder).length;
+		expect(last).toBeLessThan(shotOrder);
+		expect(between).toBeLessThanOrEqual(3);
+	});
+
 	it("types draftMessage into the composer without sending", async () => {
 		const deps = makeDeps();
 		const entry = makeEntry({ draftMessage: "Draft this please" });
@@ -2794,6 +2811,23 @@ describe("captureEntry — v1.3.0 driving primitives", () => {
 		expect(fire).toBeDefined();
 		expect(fire).toContain('"prompt":"draft-a-reply"');
 		expect(fire).toContain('"selection":"Can we move the sync to Thursday?"');
+	});
+
+	it("fireQuickPromptUri waits for awaitSelector after the link opens its tab, so a connecting tab isn't captured", async () => {
+		const deps = makeDeps();
+		const entry = makeEntry({
+			awaitSelector: ".agent-client-toolbar-dropdown-label",
+			initialState: { clickRibbon: true, fireQuickPromptUri: { prompt: "draft-a-reply" } },
+		});
+		await captureEntry(entry, deps);
+		const evals = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.invocationCallOrder;
+		const fireIdx = (deps.cdp.evaluate as ReturnType<typeof vi.fn>).mock.calls.findIndex((c: unknown[]) =>
+			String(c[0]).includes("handleQuickPromptUri("),
+		);
+		const waits = (deps.cdp.waitForElement as ReturnType<typeof vi.fn>).mock;
+		const waitIdx = waits.calls.findIndex((c: unknown[]) => String(c[0]).endsWith(" .agent-client-toolbar-dropdown-label"));
+		expect(waitIdx).toBeGreaterThanOrEqual(0);
+		expect(waits.invocationCallOrder[waitIdx]).toBeGreaterThan(evals[fireIdx]);
 	});
 
 	it("disableNativeMenus turns native menus off so a Menu renders as a DOM .menu", async () => {

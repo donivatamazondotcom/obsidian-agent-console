@@ -2115,6 +2115,305 @@
 			"caption": "Try new features in one click after an update",
 			"altText": "Agent Console chat view with a What's new card above the chat offering Try vertical tabs and Release notes",
 			"captureNote": "whatsNew \"latest\" makes this an existing user who just updated to the newest release in src/whats-new/highlights.ts, on the top tab strip. No per-release edits: add the release's highlight entry and reshoot."
+		},
+		{
+			"name": "store-1-multi-session",
+			"frame": {
+				"chrome": "none",
+				"padding": 67,
+				"background": {
+					"image": "deep-ocean-2.png"
+				}
+			},
+			"width": 1066,
+			"height": 666,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1600,
+				"height": 1000
+			},
+			"initialState": {
+				"openNotes": [
+					"Weekly review.md",
+					"Reading list.base"
+				],
+				"clickRibbon": true,
+				"rescanQuickPrompts": true,
+				"restoreSessions": {
+					"titles": [
+						"Japan trip",
+						"Launch check",
+						"Newsletter"
+					],
+					"activeIndex": 1,
+					"requireActiveHeaderIncludes": "Claude Code",
+					"reconnectActive": true,
+					"requireActiveSelector": ".callout"
+				},
+				"pluginSettings": {
+					"tabDisplay": "vertical",
+					"tabRailWidth": 32,
+					"lastSeenVersion": "9999.0.0"
+				}
+			},
+			"hideSelectors": [
+				".tooltip"
+			],
+			"minDistinctColors": 1500,
+			"placement": "hero",
+			"mustShow": ".agent-client-tab-rail .agent-client-tab-state-icon",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 530,
+			"awaitSelector": ".callout",
+			"captureMode": "screen-window",
+			"storeOnly": true,
+			"purpose": "Store: several chats beside a note, with status icons in the tab column and saved-prompt chips.",
+			"altText": "Agent Console beside a note in Obsidian, with three chats in a column of status icons and saved-prompt chips above the message box",
+			"captureNote": "Store listing image (1200x800 after the frame). Upload by hand on the Community Plugins developer dashboard."
+		},
+		{
+			"name": "store-2-saved-prompts",
+			"captureMode": "screen-window",
+			"frame": {
+				"chrome": "none",
+				"padding": 67,
+				"background": {
+					"image": "aurora-2.png"
+				}
+			},
+			"placement": "feature",
+			"width": 1066,
+			"height": 666,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1600,
+				"height": 1000
+			},
+			"agentId": "kiro-cli",
+			"initialState": {
+				"openNotes": [
+					"Weekly review.md"
+				],
+				"clickRibbon": true,
+				"rescanQuickPrompts": true,
+				"restoreSessions": {
+					"titles": [
+						"Japan trip",
+						"Meeting prep",
+						"Newsletter"
+					],
+					"activeIndex": 1,
+					"requireActiveHeaderIncludes": "Claude Code",
+					"reconnectActive": true,
+					"requireActiveSelector": ".callout"
+				},
+				"pluginSettings": {
+					"lastSeenVersion": "9999.0.0",
+					"tabDisplay": "vertical",
+					"tabRailWidth": 32
+				}
+			},
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 530,
+			"draftMessage": "!",
+			"hideSelectors": [
+				".tooltip"
+			],
+			"awaitSelector": ".callout",
+			"minDistinctColors": 1200,
+			"mustShow": ".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-mention-dropdown",
+			"storeOnly": true,
+			"purpose": "Store: the ! search over saved prompts while a note is open.",
+			"altText": "Typing ! in the message box lists saved prompts such as Find action items and Draft a reply, next to a weekly review note",
+			"captureNote": "Store listing image (1200x800 after the frame). Upload by hand on the Community Plugins developer dashboard."
+		},
+		{
+			"name": "store-3-prompt-link",
+			"storeOnly": true,
+			"captureMode": "screen-window",
+			"width": 1066,
+			"height": 666,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1600,
+				"height": 1000
+			},
+			"frame": {
+				"chrome": "none",
+				"padding": 67,
+				"background": {
+					"image": "sunset-coast-1.png"
+				}
+			},
+			"purpose": "Store: a tab a link opened, with the email text staged under a saved prompt.",
+			"altText": "A chat tab opened by a link: an Opened by link banner and a Draft a reply prompt with the email text in the message box",
+			"captureNote": "Store listing image (1200x800 after the frame). Upload by hand on the Community Plugins developer dashboard.",
+			"placement": "feature",
+			"mustShow": ".agent-client-link-origin-banner",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 560,
+			"hideSelectors": [
+				".tooltip",
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-empty-state"
+			],
+			"minDistinctColors": 800,
+			"initialState": {
+				"openNotes": [
+					"Weekly review.md"
+				],
+				"clickRibbon": true,
+				"rescanQuickPrompts": true,
+				"fireQuickPromptUri": {
+					"prompt": "draft-a-reply",
+					"selection": "Hi! Can we move Thursday's sync to Friday at 10?",
+					"agent": "claude-code-acp"
+				},
+				"tabLabel": "Reply to Sam",
+				"pluginSettings": {
+					"lastSeenVersion": "9999.0.0",
+					"tabDisplay": "vertical",
+					"tabRailWidth": 32
+				}
+			},
+			"awaitSelector": ".agent-client-toolbar-dropdown-label",
+			"forbiddenText": [
+				"Connecting to"
+			]
+		},
+		{
+			"name": "store-4-chat-link",
+			"storeOnly": true,
+			"captureMode": "screen-window",
+			"width": 1066,
+			"height": 666,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1600,
+				"height": 1000
+			},
+			"frame": {
+				"chrome": "none",
+				"padding": 67,
+				"background": {
+					"image": "autumn-larch-1.png"
+				}
+			},
+			"purpose": "Store: the tab menu with Copy link to chat, over a chat with a reply.",
+			"altText": "Right-clicking a chat tab shows Rename, Rename with AI and Copy link to chat, over a chat about a launch check",
+			"captureNote": "Store listing image (1200x800 after the frame). Upload by hand on the Community Plugins developer dashboard.",
+			"placement": "feature",
+			"mustShow": ".menu-item",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 560,
+			"hideSelectors": [
+				".tooltip"
+			],
+			"minDistinctColors": 800,
+			"initialState": {
+				"openNotes": [
+					"Weekly review.md"
+				],
+				"clickRibbon": true,
+				"rescanQuickPrompts": true,
+				"restoreSessions": {
+					"titles": [
+						"Japan trip",
+						"Launch check",
+						"Newsletter"
+					],
+					"activeIndex": 1,
+					"requireActiveHeaderIncludes": "Claude Code",
+					"reconnectActive": true,
+					"requireActiveSelector": ".callout"
+				},
+				"pluginSettings": {
+					"tabDisplay": "vertical",
+					"lastSeenVersion": "9999.0.0",
+					"tabRailWidth": 32
+				},
+				"contextMenuSelector": ".agent-client-tab-rail-key.is-active",
+				"waitSelector": ".menu"
+			}
+		},
+		{
+			"name": "store-5-which-chat-needs-you",
+			"storeOnly": true,
+			"captureMode": "screen-window",
+			"width": 1066,
+			"height": 666,
+			"crop": {
+				"x": 0,
+				"y": 0,
+				"width": 1600,
+				"height": 1000
+			},
+			"frame": {
+				"chrome": "none",
+				"padding": 67,
+				"background": {
+					"image": "autumn-larch-2.png"
+				}
+			},
+			"purpose": "Store: the tab rail widened to names, each chat with its status: finished, working, waiting on you, stopped, failed.",
+			"altText": "The vertical tab rail beside a note, naming each chat with an icon for finished, working, waiting for approval, stopped or failed",
+			"captureNote": "Store listing image (1200x800 after the frame). Upload by hand on the Community Plugins developer dashboard.",
+			"placement": "feature",
+			"mustShow": ".agent-client-tab-rail .agent-client-tab-state-icon",
+			"collapseLeftSidebar": true,
+			"rightSplitWidth": 560,
+			"hideSelectors": [
+				".tooltip",
+				".agent-client-tab-panel:not([style*=\"none\"]) .agent-client-chat-empty-state"
+			],
+			"minDistinctColors": 800,
+			"initialState": {
+				"openNotes": [
+					"Weekly review.md"
+				],
+				"clickRibbon": true,
+				"pluginSettings": {
+					"tabDisplay": "vertical",
+					"tabRailWidth": 180,
+					"lastSeenVersion": "9999.0.0"
+				},
+				"forceTabStates": [
+					{
+						"label": "Draft newsletter",
+						"state": "doneUnseen"
+					},
+					{
+						"label": "Summarize meeting notes",
+						"state": "busy"
+					},
+					{
+						"label": "Reorganize vault notes",
+						"state": "permission"
+					},
+					{
+						"label": "Long research report",
+						"state": "stoppedUnseen"
+					},
+					{
+						"label": "Import reading list",
+						"state": "error"
+					},
+					{
+						"label": "Plan Japan itinerary",
+						"state": "connecting"
+					},
+					{
+						"label": "New chat",
+						"state": "ready"
+					}
+				]
+			},
+			"forbiddenText": [
+				"Connecting to"
+			]
 		}
 	]
 }

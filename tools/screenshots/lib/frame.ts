@@ -28,14 +28,27 @@
  * Test contract: tools/screenshots/lib/__tests__/frame.test.ts.
  */
 import { renameSync } from "node:fs";
+import path from "node:path";
 import sharp from "sharp";
 import type { ManifestEntry } from "./manifest";
 
-/** A diagonal (top-left → bottom-right) two-stop gradient background. */
+/**
+ * The matte behind a framed shot: a diagonal (top-left → bottom-right)
+ * two-stop gradient, or a backdrop image covering the whole matte.
+ */
 export interface FrameBackground {
 	from: string;
 	to: string;
+	/**
+	 * Backdrop image. In the manifest: a file name under
+	 * `tools/screenshots/fixtures/backdrops/` (store shots). Resolved to an
+	 * absolute path by {@link resolveFrameConfig}. Replaces the gradient.
+	 */
+	image?: string;
 }
+
+/** Where manifest `frame.background.image` file names live. */
+export const BACKDROPS_DIR = path.join(__dirname, "..", "fixtures", "backdrops");
 
 /** Soft drop-shadow parameters. */
 export interface FrameShadow {
@@ -134,7 +147,10 @@ export function resolveFrameConfig(entry: ManifestEntry): FrameOptions | null {
 	const o = typeof entry.frame === "object" ? entry.frame : {};
 	return {
 		chrome: o.chrome ?? base.chrome,
-		background: { ...base.background, ...(o.background ?? {}) },
+		background: (() => {
+			const bg = { ...base.background, ...(o.background ?? {}) };
+			return bg.image ? { ...bg, image: path.join(BACKDROPS_DIR, bg.image) } : bg;
+		})(),
 		cornerRadius: o.cornerRadius ?? base.cornerRadius,
 		padding: o.padding ?? base.padding,
 		chromeHeight: o.chromeHeight ?? base.chromeHeight,
@@ -294,9 +310,18 @@ export async function frameImage(
 		.png()
 		.toBuffer();
 
-	// 4. Composite shadow + window onto the gradient matte.
+	// 4. Composite shadow + window onto the matte: a backdrop image cropped
+	// to cover it with the same rounded corners, or the gradient.
+	const matte = opts.background.image
+		? await sharp(opts.background.image)
+				.resize(W, H, { fit: "cover" })
+				.ensureAlpha()
+				.composite([{ input: Buffer.from(roundedRectMaskSvg(W, H, BG_RADIUS)), blend: "dest-in" }])
+				.png()
+				.toBuffer()
+		: Buffer.from(gradientSvg(W, H, opts.background));
 	const tmpOut = `${filePath}.frame.tmp`;
-	await sharp(Buffer.from(gradientSvg(W, H, opts.background)))
+	await sharp(matte)
 		.composite([
 			{ input: shadow, top: 0, left: 0 },
 			{ input: rounded, top: opts.padding, left: opts.padding },

@@ -460,6 +460,11 @@ export interface ManifestEntry {
 	 * apply). Drop the flag and commit the image once captured.
 	 */
 	pending?: boolean;
+	/**
+	 * The image is for the Community Plugins store listing, uploaded by hand,
+	 * not for a docs page. Exempts the entry from the docs-embed check.
+	 */
+	storeOnly?: boolean;
 	/** Final image width in pixels (after crop, before .webp encoding). */
 	width: number;
 	/** Final image height in pixels. */
@@ -736,7 +741,7 @@ export interface ManifestEntry {
 		| boolean
 		| {
 				chrome?: "macos" | "none";
-				background?: { from?: string; to?: string };
+				background?: { from?: string; to?: string; image?: string };
 				cornerRadius?: number;
 				padding?: number;
 				chromeHeight?: number;
@@ -1378,7 +1383,19 @@ export function validateManifest(
 					const bg: Array<[string, string | undefined]> = [
 						["from", fr.background.from],
 						["to", fr.background.to],
+						["image", fr.background.image],
 					];
+					const img = fr.background.image;
+					if (
+						typeof img === "string" &&
+						img.trim() !== "" &&
+						(img.includes("/") || img.includes("\\") ||
+							!existsSync(path.join(fixtureRoot, "backdrops", img)))
+					) {
+						throw new Error(
+							`manifest entry "${entry.name}" has invalid frame.background.image: ${img} (must be a file name under ${path.join(fixtureRoot, "backdrops")})`,
+						);
+					}
 					for (const [k, v] of bg) {
 						if (
 							v !== undefined &&

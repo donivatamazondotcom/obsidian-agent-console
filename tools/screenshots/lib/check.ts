@@ -215,6 +215,8 @@ export function findDocEmbedGaps(input: DocEmbedInput): DocEmbedGap[] {
 
 	for (const entry of input.entries) {
 		if (entry.pending) continue;
+		// Store-listing images are uploaded by hand; no docs page embeds them.
+		if (entry.storeOnly) continue;
 		const image = derivedImageName(entry);
 		// An uncommitted image is `missing`, reported by checkConsistency.
 		if (!present.has(image)) continue;

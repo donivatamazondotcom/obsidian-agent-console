@@ -1273,6 +1273,16 @@ async function captureEntryWithSettings(
 					HOVER_TOOLTIP_TIMEOUT_MS,
 				)
 				.catch(() => {});
+			// The link's tab starts its own agent. With no prompts, nothing
+			// else waits for it, so a connecting tab would be captured: wait
+			// on awaitSelector (e.g. the toolbar's dropdowns, shown once the
+			// session is up) when the entry sets one.
+			if (entry.awaitSelector && promptFiles.length === 0) {
+				await deps.cdp.waitForElement(
+					`${ACTIVE_PANEL} ${entry.awaitSelector}`,
+					RESPONSE_TIMEOUT_MS,
+				);
+			}
 			await sleep(SETTLE_MS);
 		}
 		// 3c-quater-ter. Kiro V3 MCP failure notice (S4 shot): inject a status
@@ -1668,6 +1678,14 @@ async function captureEntryWithSettings(
 				);
 			}
 		};
+		// Hide again: steps after 3b (restored or forced tabs, a link's tab)
+		// create elements the first pass never saw.
+		if (entry.hideSelectors?.length) {
+			const selectors = JSON.stringify(entry.hideSelectors);
+			await deps.cdp.evaluate(
+				`(() => { for (const s of ${selectors}) { document.querySelectorAll(s).forEach((el) => { el.style.display = "none"; }); } return true; })()`,
+			);
+		}
 		await assertClean();
 		// The tab the shot shows carries the fixed title.
 		if (tabLabel !== undefined) {
