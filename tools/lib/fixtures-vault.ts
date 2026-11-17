@@ -161,7 +161,7 @@ function withEnv(env: EnvVar[] | undefined, add: EnvVar[]): EnvVar[] {
 	return [...(env ?? []).filter((e) => !keys.has(e.key)), ...add];
 }
 
-function seedAgent(agent: AgentConfigLike, ctx: SeedContext): AgentConfigLike {
+function seedAgent(agent: AgentConfigLike, ctx: SeedContext, markerKey: string): AgentConfigLike {
 	const out: AgentConfigLike = { ...agent };
 	if (typeof out.command === "string" && out.command && !path.isAbsolute(out.command)) {
 		out.command = ctx.resolveCommand(out.command);
@@ -174,9 +174,31 @@ function seedAgent(agent: AgentConfigLike, ctx: SeedContext): AgentConfigLike {
 	out.env = withEnv(env, [
 		{ key: "HOME", value: ctx.realHome },
 		{ key: "PATH", value: ctx.loginPath },
-		{ key: "AC_VIDEO_RUN", value: ctx.runId },
+		{ key: markerKey, value: ctx.runId },
 	]);
 	return out;
+}
+
+/**
+ * Per-agent env injection for an instance that runs under a fake HOME: every
+ * built-in and custom agent gets the real HOME, the login-shell PATH, the run
+ * marker `<markerKey>=<runId>`, and a bare command resolved to an absolute
+ * path (an absolute one is kept). Idempotent. Pure; returns a new object.
+ */
+export function seedAgentEnv(
+	data: Record<string, unknown>,
+	ctx: SeedContext,
+	markerKey = "AC_VIDEO_RUN",
+): Record<string, unknown> {
+	const d: Record<string, unknown> = structuredClone(data);
+	for (const k of BUILTIN_AGENT_KEYS) {
+		const a = d[k];
+		if (a && typeof a === "object") d[k] = seedAgent(a as AgentConfigLike, ctx, markerKey);
+	}
+	if (Array.isArray(d.customAgents)) {
+		d.customAgents = (d.customAgents as AgentConfigLike[]).map((a) => seedAgent(a, ctx, markerKey));
+	}
+	return d;
 }
 
 /**
@@ -187,15 +209,7 @@ export function seedScreenshotData(
 	template: Record<string, unknown>,
 	ctx: SeedContext,
 ): Record<string, unknown> {
-	const d: Record<string, unknown> = structuredClone(template);
-	for (const k of BUILTIN_AGENT_KEYS) {
-		const a = d[k];
-		if (a && typeof a === "object") d[k] = seedAgent(a as AgentConfigLike, ctx);
-	}
-	if (Array.isArray(d.customAgents)) {
-		d.customAgents = (d.customAgents as AgentConfigLike[]).map((a) => seedAgent(a, ctx));
-	}
-	return d;
+	return seedAgentEnv(template, ctx);
 }
 
 /**

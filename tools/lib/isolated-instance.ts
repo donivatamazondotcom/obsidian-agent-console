@@ -590,6 +590,9 @@ export function spawnWatchdog(runId: string): { pid: number; release: () => void
 
 /** Remove Kiro V2 session records whose cwd is under the run folder. Returns the removed files. */
 export function cleanKiroSessionRecords(runRoot: string, kiroHome = path.join(homedir(), ".kiro")): string[] {
+	// An empty prefix would match every record with an absolute or missing cwd.
+	if (!runRoot) throw new Error("cleanKiroSessionRecords: empty root");
+	if (!path.isAbsolute(runRoot)) throw new Error(`cleanKiroSessionRecords: root must be absolute: ${runRoot}`);
 	const dir = path.join(kiroHome, "sessions", "cli");
 	const removed: string[] = [];
 	let files: string[] = [];
