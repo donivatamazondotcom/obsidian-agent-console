@@ -11,6 +11,7 @@
  * test exercises, so these tests are a real regression guard.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { Mock } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useRestoredMessages } from "../useRestoredMessages";
 import type { ChatMessage } from "../../types/chat";
@@ -28,7 +29,7 @@ function msg(id: string, text: string): ChatMessage {
 const RESTORED: ChatMessage[] = [msg("m1", "hello"), msg("m2", "world")];
 
 describe("useRestoredMessages", () => {
-	let apply: ReturnType<typeof vi.fn>;
+	let apply: Mock;
 	beforeEach(() => {
 		apply = vi.fn();
 	});

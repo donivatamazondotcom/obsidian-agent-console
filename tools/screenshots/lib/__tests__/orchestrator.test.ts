@@ -8,6 +8,7 @@
  * Test contract: tools/screenshots/lib/__tests__/orchestrator.test.ts.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import type { Mock } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -3372,7 +3373,9 @@ describe("captureEntry — per-entry plugin settings on every capture path", () 
 	// The apply call returns the vault's prior values, which the restore
 	// writes back – the fixtures vault itself is on vertical tabs.
 	function returnPrior(deps: OrchestratorDeps) {
-		const evalMock = deps.cdp.evaluate as ReturnType<typeof vi.fn>;
+		const evalMock = deps.cdp.evaluate as Mock<
+			(expr: string) => Promise<unknown>
+		>;
 		const base = evalMock.getMockImplementation();
 		evalMock.mockImplementation((expr: string) =>
 			APPLY(expr)

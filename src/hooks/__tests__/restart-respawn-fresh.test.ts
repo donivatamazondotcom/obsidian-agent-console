@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import type { Mock } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { useLazySession } from "../useLazySession";
 
@@ -37,7 +38,7 @@ function makeAcquire(opts: {
 	});
 }
 
-function mount(acquireNewSession: ReturnType<typeof vi.fn>) {
+function mount(acquireNewSession: Mock) {
 	return renderHook(() =>
 		useLazySession({
 			acquireNewSession,
