@@ -1,7 +1,10 @@
 #!/bin/bash
 # smoke-test-teardown.sh — remove a per-worktree smoke-test studio.
 #
-# Deregisters the "ST-<name>" vault from Obsidian and deletes its folder. This
+# Deregisters the "ST-<name>" vault from Obsidian and deletes its folder. For
+# an isolated studio (smoke-test-spawn.sh --isolated) it first stops the
+# instance with `st down`, and keeps the studio when that fails. In both modes
+# it then removes the Kiro V2 session records made in the studio. This
 # is INTENTIONALLY independent of `git worktree remove`: tearing the studio down
 # here (not letting worktree removal orphan it) is what prevents a dead
 # obsidian.json registration that would hang the GUI vault-picker in a
@@ -59,6 +62,24 @@ fi
 
 VAULT_NAME="ST-$WORKTREE_NAME"
 STUDIO_DIR="$REPO_ROOT/tools/smoke-test/studios/$VAULT_NAME"
+INSTANCE_DIR="$REPO_ROOT/tools/smoke-test/studios/.instances/$VAULT_NAME"
+ST_SCRIPT="$SCRIPT_DIR/st.ts"
+ST_TSX="${ST_TSX:-$REPO_ROOT/node_modules/.bin/tsx}"
+# The realpath form, while the folder still exists (Kiro records may carry it).
+if [ -d "$STUDIO_DIR" ]; then STUDIO_REAL="$(cd "$STUDIO_DIR" && pwd -P)"; else STUDIO_REAL="$STUDIO_DIR"; fi
+
+# Isolated instance: stop it first. Never delete a studio a live instance uses.
+if [ -d "$INSTANCE_DIR" ]; then
+	if [ ! -x "$ST_TSX" ]; then
+		echo "✗ $VAULT_NAME has an isolated instance but tsx isn't installed ($ST_TSX); run npm ci, then retry. Studio kept." >&2
+		exit 1
+	fi
+	echo "▶ stopping the isolated instance…"
+	if ! "$ST_TSX" "$ST_SCRIPT" down "$WORKTREE_NAME"; then
+		echo "✗ st down failed; studio kept at $STUDIO_DIR (see st status $WORKTREE_NAME)" >&2
+		exit 1
+	fi
+fi
 
 # Note: the Obsidian CLI has no "close vault" command. If the ST-<name> window
 # is open, deregister + rm leaves it pointing at a deleted folder — harmless;
@@ -89,6 +110,15 @@ if [ -d "$STUDIO_DIR" ]; then
 	echo "✓ removed $STUDIO_DIR"
 else
 	echo "  $STUDIO_DIR already absent"
+fi
+
+# Kiro V2 session records made in the studio (both path forms). Non-fatal:
+# teardown already did its job.
+if [ -x "$ST_TSX" ]; then
+	"$ST_TSX" "$ST_SCRIPT" _clean-kiro "$WORKTREE_NAME" --path "$STUDIO_DIR" --path "$STUDIO_REAL" \
+		|| echo "⚠ Kiro session cleanup failed (records under $STUDIO_DIR may remain in ~/.kiro/sessions/cli)"
+else
+	echo "⚠ tsx not found ($ST_TSX); skipped the Kiro session cleanup"
 fi
 
 echo "✓ smoke studio '$VAULT_NAME' torn down"
