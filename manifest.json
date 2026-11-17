@@ -3,7 +3,7 @@
 	"name": "Agent Console",
 	"version": "2.4.0",
 	"minAppVersion": "1.11.4",
-	"description": "Finally put your second brain to work. Connect your vault to the best AI models and build alongside them – docs, slides, projects, even code. Each project leaves your notes richer for the next.",
+	"description": "Run Claude Code, Codex, Kiro CLI, or any Agent Client Protocol agent in your vault. Keep your go-to prompts as notes and start one from a chip, a browser bookmark, or a link.",
 	"author": "Vinod Panicker",
 	"authorUrl": "https://github.com/donivatamazondotcom",
 	"isDesktopOnly": true
