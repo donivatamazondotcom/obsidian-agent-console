@@ -121,7 +121,7 @@ const saveSessionBan = {
 
 export default defineConfig([
 	{
-		ignores: ["node_modules/", "main.js", "docs/", "vitest.config.ts", ".trees/", "tools/benchmark/token-efficiency.ts", "**/__tests__/**", "**/*.test.ts", "**/*.test.tsx", "**/*.bench.ts"],
+		ignores: ["node_modules/", "main.js", "docs/", "vitest.config.ts", "vitest.stryker.config.ts", ".trees/", "tools/benchmark/token-efficiency.ts", "**/__tests__/**", "**/*.test.ts", "**/*.test.tsx", "**/*.bench.ts"],
 	},
 	...obsidianmd.configs.recommended,
 	...tseslint.configs.recommended,

@@ -1,7 +1,8 @@
 /**
- * Preloaded into every vitest process worker (`--require` in
- * vitest.config.ts poolOptions.forks / vmForks execArgv). Kills the worker
- * when its parent vitest process dies.
+ * Preloaded into every vitest fork worker (`--require` in vitest.config.ts
+ * top-level execArgv; the pool is pinned to forks). Kills the worker when
+ * its parent vitest process dies. Stryker runs threads and uses
+ * vitest.stryker.config.ts, which clears execArgv.
  *
  * Without this, killing the vitest parent (a shell timeout, an interrupted
  * agent session) leaves its fork workers running with no parent. They keep
